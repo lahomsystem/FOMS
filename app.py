@@ -629,56 +629,54 @@ def edit_order(order_id):
     
     if request.method == 'POST':
         try:
-            # ... (기존 POST 로직의 시작 부분) ...
-            received_date = request.form.get('received_date')
-            received_time = request.form.get('received_time')
-            customer_name = request.form.get('customer_name')
-            phone = request.form.get('phone')
-            address = request.form.get('address')
-            product = request.form.get('product')
-            notes = request.form.get('notes')
-            status = request.form.get('status')
+            # 폼에서 넘어온 값들을 가져올 때, 해당 필드가 폼에 없으면 기존 order 객체의 값을 기본값으로 사용
+            received_date = request.form.get('received_date', order.received_date)
+            received_time = request.form.get('received_time', order.received_time)
+            customer_name = request.form.get('customer_name', order.customer_name)
+            phone = request.form.get('phone', order.phone)
+            address = request.form.get('address', order.address)
+            product = request.form.get('product', order.product)
+            notes = request.form.get('notes', order.notes)
+            status = request.form.get('status') # 상태는 직접 변경되므로 기본값 사용 안 함
             
-            measurement_date = request.form.get('measurement_date')
-            measurement_time = request.form.get('measurement_time')
-            completion_date = request.form.get('completion_date')
-            manager_name = request.form.get('manager_name')
+            measurement_date = request.form.get('measurement_date', order.measurement_date)
+            measurement_time = request.form.get('measurement_time', order.measurement_time)
+            completion_date = request.form.get('completion_date', order.completion_date)
+            manager_name = request.form.get('manager_name', order.manager_name)
 
-            # 새로 추가한 필드들
-            scheduled_date = request.form.get('scheduled_date')
-            as_received_date = request.form.get('as_received_date')
-            as_completed_date = request.form.get('as_completed_date')
+            # 새로 추가한 필드들 (기존 값 유지)
+            scheduled_date = request.form.get('scheduled_date', order.scheduled_date)
+            as_received_date = request.form.get('as_received_date', order.as_received_date)
+            as_completed_date = request.form.get('as_completed_date', order.as_completed_date)
 
-            # 옵션 데이터 처리 (단순화)
-            options_data_json_to_save = None
-            option_type = request.form.get('option_type')
-            
-            if option_type == 'direct':
-                # 직접입력 필드 값 수집
-                direct_details = {
-                    'product_name': request.form.get('direct_product_name', ''),
-                    'standard': request.form.get('direct_standard', ''),
-                    'internal': request.form.get('direct_internal', ''),
-                    'color': request.form.get('direct_color', ''),
-                    'option_detail': request.form.get('direct_option_detail', ''),
-                    'handle': request.form.get('direct_handle', ''),
-                    'misc': request.form.get('direct_misc', ''),
-                    'quote': request.form.get('direct_quote', '')
-                }
+            # 옵션 데이터 처리 (폼에 option_type이 있을 때만 업데이트)
+            options_data_json_to_save = order.options # 기본적으로 기존 옵션 유지
+            if 'option_type' in request.form:
+                current_option_type = request.form.get('option_type')
                 
-                # 새로운 JSON 형식으로 저장 - 간단하고 직관적인 구조
-                options_to_save_dict = {
-                    "option_type": "direct",
-                    "details": direct_details
-                }
-                options_data_json_to_save = json.dumps(options_to_save_dict, ensure_ascii=False)
-            else:  # 'online'
-                online_summary = request.form.get('options_online', '')
-                options_to_save_dict = {
-                    "option_type": "online",
-                    "online_options_summary": online_summary
-                }
-                options_data_json_to_save = json.dumps(options_to_save_dict, ensure_ascii=False)
+                if current_option_type == 'direct':
+                    direct_details = {
+                        'product_name': request.form.get('direct_product_name', ''),
+                        'standard': request.form.get('direct_standard', ''),
+                        'internal': request.form.get('direct_internal', ''),
+                        'color': request.form.get('direct_color', ''),
+                        'option_detail': request.form.get('direct_option_detail', ''),
+                        'handle': request.form.get('direct_handle', ''),
+                        'misc': request.form.get('direct_misc', ''),
+                        'quote': request.form.get('direct_quote', '')
+                    }
+                    options_to_save_dict = {
+                        "option_type": "direct",
+                        "details": direct_details
+                    }
+                    options_data_json_to_save = json.dumps(options_to_save_dict, ensure_ascii=False)
+                else:  # 'online'
+                    online_summary = request.form.get('options_online', '')
+                    options_to_save_dict = {
+                        "option_type": "online",
+                        "online_options_summary": online_summary
+                    }
+                    options_data_json_to_save = json.dumps(options_to_save_dict, ensure_ascii=False)
             
             # ... (기존 POST 로직의 변경 감지 및 DB 업데이트 부분) ...
             changes = {}
@@ -702,20 +700,23 @@ def edit_order(order_id):
             if order.as_completed_date != as_completed_date: changes['as_completed_date'] = {'old': order.as_completed_date, 'new': as_completed_date}
             
             # payment_amount 업데이트 및 변경 감지
-            new_payment_amount = 0
-            payment_amount_str = request.form.get('payment_amount', '').replace(',', '') # 콤마 제거
-            if payment_amount_str:
-                try:
-                    new_payment_amount = int(payment_amount_str) # 정수로 변환
-                except ValueError:
-                    flash('결제금액은 숫자만 입력해주세요.', 'error')
-                    # 에러 발생 시 기존 값 유지하며 템플릿 다시 렌더링 (아래에서 처리)
-                    raise ValueError("Invalid payment amount") # 예외를 발생시켜 아래 except 블록으로 이동
+            new_payment_amount = order.payment_amount # 기본적으로 기존 결제금액 유지
+            if 'payment_amount' in request.form:
+                payment_amount_str = request.form.get('payment_amount', '').replace(',', '') # 콤마 제거
+                if payment_amount_str: # 빈 문자열이 아닌 경우에만 변환 시도
+                    try:
+                        new_payment_amount = int(payment_amount_str) 
+                    except ValueError:
+                        flash('결제금액은 숫자만 입력해주세요.', 'error')
+                        raise ValueError("Invalid payment amount")
+                else: # 빈 문자열로 넘어오면 0으로 처리 (또는 None으로 처리할 수도 있음)
+                    new_payment_amount = 0
             
             if order.payment_amount != new_payment_amount:
                 changes['payment_amount'] = {'old': order.payment_amount, 'new': new_payment_amount}
-                order.payment_amount = new_payment_amount
+            # order.payment_amount = new_payment_amount # 아래에서 한꺼번에 업데이트
 
+            # Update order object
             order.received_date = received_date
             order.received_time = received_time
             order.customer_name = customer_name
@@ -734,18 +735,7 @@ def edit_order(order_id):
             order.scheduled_date = scheduled_date
             order.as_received_date = as_received_date
             order.as_completed_date = as_completed_date
-            # order.payment_amount 는 위에서 이미 처리됨
-            
-            # # payment_amount 업데이트 (기존 로직 - 위에서 통합 처리됨)
-            # payment_amount_str = request.form.get('payment_amount', '').replace(',', '') # 콤마 제거
-            # if payment_amount_str:
-            #     try:
-            #         order.payment_amount = int(payment_amount_str) # 정수로 변환
-            #     except ValueError:
-            #         flash('결제금액은 숫자만 입력해주세요.', 'error')
-            #         return render_template('edit_order.html', order=order, status_list=STATUS)
-            # else:
-            #     order.payment_amount = 0 # 값이 없으면 0으로 처리
+            order.payment_amount = new_payment_amount # 최종 결제금액 업데이트
             
             db.commit()
             
@@ -1717,8 +1707,10 @@ def api_orders():
         
         # 상태에 맞는 날짜 선택, 없는 경우 기본값으로 received_date 사용
         start_date = status_date_map.get(order.status)
-        if not start_date:  # 날짜 필드가 없으면 접수일로 폴백
-            start_date = order.received_date
+        
+        # 날짜 필드가 없는 경우 이벤트를 생성하지 않음
+        if not start_date:
+            continue
             
         # 시간 필드 매핑
         status_time_map = {
