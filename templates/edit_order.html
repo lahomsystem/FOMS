@@ -150,8 +150,12 @@
                             <input type="date" class="form-control" id="measurement_date" name="measurement_date" value="{{ order.measurement_date }}" autocomplete="off">
                         </div>
                         <div class="col-md-4">
-                            <label for="measurement_time" class="form-label">실측시간</label>
-                            <input type="time" class="form-control" id="measurement_time" name="measurement_time" value="{{ order.measurement_time }}" autocomplete="off">
+                            <label for="measurement_time_select" class="form-label">실측시간</label>
+                            <select class="form-select" id="measurement_time_select" name="measurement_time_select">
+                                <option value="time_input">시간 직접 입력</option>
+                                <option value="종일">종일</option>
+                            </select>
+                            <input type="time" class="form-control mt-2" id="measurement_time" name="measurement_time" value="{{ order.measurement_time if order.measurement_time != '종일' else '' }}" autocomplete="off">
                         </div>
                         <div class="col-md-4">
                             <label for="scheduled_date" class="form-label">설치 예정일</label>
@@ -202,6 +206,7 @@
         const optionTypeSelect = document.getElementById('option_type');
         const onlineOptionsGroup = document.getElementById('options_online_group');
         const directOptionsGroup = document.getElementById('options_direct_group');
+        const onlineOptionsInput = document.getElementById('options_online');
         const clearDirectOptionsBtn = document.getElementById('clear_direct_options_btn');
         const restoreDirectOptionsBtn = document.getElementById('restore_direct_options_btn');
         let storedDirectOptions = {};
@@ -209,7 +214,7 @@
         const directOptionFieldIds = [
             'direct_product_name', 'direct_standard', 'direct_internal',
             'direct_color', 'direct_option_detail', 'direct_handle',
-            'direct_misc', 'direct_quote', 'payment_amount', 'notes'
+            'direct_misc', 'direct_quote'
         ];
         const directTextareaIds = ['direct_quote', 'notes'];
         
@@ -218,86 +223,143 @@
                 if (this.value === 'online') {
                     onlineOptionsGroup.classList.remove('hidden');
                     directOptionsGroup.classList.add('hidden');
-                    if(clearDirectOptionsBtn) clearDirectOptionsBtn.style.display = 'none';
-                    if(restoreDirectOptionsBtn) restoreDirectOptionsBtn.style.display = 'none';
-                } else {
+                    // 직접 입력 필드의 값을 저장하고 온라인 옵션 입력 필드의 높이를 조절
+                    directOptionFieldIds.forEach(id => {
+                        const element = document.getElementById(id);
+                        if (element) storedDirectOptions[id] = element.value;
+                    });
+                    if (onlineOptionsInput) adjustTextareaHeight(onlineOptionsInput);
+                } else { // 'direct'
                     onlineOptionsGroup.classList.add('hidden');
                     directOptionsGroup.classList.remove('hidden');
-                    if(clearDirectOptionsBtn) clearDirectOptionsBtn.style.display = 'inline-block';
+                    // 온라인 옵션 값을 저장하고 직접 입력 필드의 높이를 조절
+                    if (onlineOptionsInput) storedDirectOptions['options_online'] = onlineOptionsInput.value;
+
+                    directTextareaIds.forEach(id => {
+                        const ta = document.getElementById(id);
+                        if (ta) adjustTextareaHeight(ta);
+                    });
                 }
             });
-             // 페이지 로드 시 초기 상태 설정
-            optionTypeSelect.dispatchEvent(new Event('change'));
+            // 페이지 로드 시 초기 옵션 타입에 맞게 표시하고 높이 조절
+            if (optionTypeSelect.value === 'online' && onlineOptionsInput) {
+                adjustTextareaHeight(onlineOptionsInput);
+            } else if (optionTypeSelect.value === 'direct') {
+                directTextareaIds.forEach(id => {
+                    const ta = document.getElementById(id);
+                    if (ta) adjustTextareaHeight(ta);
+                });
+            }
         }
         
+        // 직접 입력 옵션 필드 초기화 및 복구
         if (clearDirectOptionsBtn) {
             clearDirectOptionsBtn.addEventListener('click', function() {
-                storedDirectOptions = {}; // 이전 저장 값 초기화
+                // 현재 값 저장
                 directOptionFieldIds.forEach(id => {
-                    const field = document.getElementById(id);
-                    if (field) {
-                        storedDirectOptions[id] = field.value;
-                        field.value = '';
-                        if (id === 'payment_amount' && field.dispatchEvent) { 
-                            field.dispatchEvent(new Event('input'));
-                        }
-                    }
+                    const element = document.getElementById(id);
+                    if (element) storedDirectOptions[id] = element.value;
                 });
-                directTextareaIds.forEach(id => adjustTextareaHeight(document.getElementById(id)));
-                if (restoreDirectOptionsBtn) restoreDirectOptionsBtn.style.display = 'inline-block';
+
+                if (confirm('직접 입력된 모든 옵션 내용을 지우시겠습니까?')) {
+                    directOptionFieldIds.forEach(id => {
+                        const element = document.getElementById(id);
+                        if (element) {
+                            element.value = '';
+                            if (directTextareaIds.includes(id)) adjustTextareaHeight(element); // 높이 재조정
+                        }
+                    });
+                    if(restoreDirectOptionsBtn) restoreDirectOptionsBtn.style.display = 'inline-block'; // 복구 버튼 표시
+                }
             });
         }
 
         if (restoreDirectOptionsBtn) {
             restoreDirectOptionsBtn.addEventListener('click', function() {
                 directOptionFieldIds.forEach(id => {
-                    const field = document.getElementById(id);
-                    if (field && storedDirectOptions[id] !== undefined) {
-                        field.value = storedDirectOptions[id];
-                        if (id === 'payment_amount' && field.dispatchEvent) { 
-                            field.dispatchEvent(new Event('input'));
-                        }
+                    const element = document.getElementById(id);
+                    if (element && storedDirectOptions[id] !== undefined) {
+                        element.value = storedDirectOptions[id];
+                        if (directTextareaIds.includes(id)) adjustTextareaHeight(element); // 높이 재조정
                     }
                 });
-                directTextareaIds.forEach(id => adjustTextareaHeight(document.getElementById(id)));
-                this.style.display = 'none';
+                this.style.display = 'none'; // 복구 후 버튼 숨김
             });
         }
 
-        // 결제금액 입력 필드 포맷팅
+        // 모든 auto-resize 텍스트 영역에 대해 초기 높이 조절
+        document.querySelectorAll('.auto-resize').forEach(adjustTextareaHeight);
+        
+        // 숫자만 입력 필드 (결제금액)
         const paymentAmountInput = document.getElementById('payment_amount');
         if (paymentAmountInput) {
-            // 입력 시 콤마 추가
-            paymentAmountInput.addEventListener('input', function (e) {
-                let value = e.target.value.replace(/[^0-9]/g, '');
+            paymentAmountInput.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/[^\d]/g, ''); // 숫자 이외의 문자 제거
                 if (value) {
-                    e.target.value = parseInt(value, 10).toLocaleString('ko-KR');
+                    value = parseInt(value, 10).toLocaleString('ko-KR'); // 세 자리마다 콤마 추가
+                }
+                e.target.value = value;
+            });
+        }
+
+        const measurementTimeSelect = document.getElementById('measurement_time_select');
+        const measurementTimeInput = document.getElementById('measurement_time');
+
+        // 초기 상태 설정
+        if (measurementTimeSelect && measurementTimeInput) {
+            if ("{{ order.measurement_time }}" === "종일") {
+                measurementTimeSelect.value = "종일";
+                measurementTimeInput.style.display = 'none';
+                measurementTimeInput.value = ''; 
+            } else if ("{{ order.measurement_time }}") {
+                measurementTimeSelect.value = "time_input";
+                measurementTimeInput.style.display = 'block';
+            } else { 
+                measurementTimeSelect.value = "time_input"; 
+                measurementTimeInput.style.display = 'block';
+            }
+
+            measurementTimeSelect.addEventListener('change', function() {
+                if (this.value === "종일") {
+                    measurementTimeInput.style.display = 'none';
+                    measurementTimeInput.value = ''; 
                 } else {
-                    e.target.value = '';
+                    measurementTimeInput.style.display = 'block';
                 }
             });
-            // 페이지 로드 시 초기 포맷팅 적용
-            let initialValue = paymentAmountInput.value.replace(/[^0-9]/g, '');
-            if (initialValue) {
-                paymentAmountInput.value = parseInt(initialValue, 10).toLocaleString('ko-KR');
-            }
-            
-            // 폼 제출 시 콤마 제거
-            const form = paymentAmountInput.closest('form');
-            if (form) {
-                form.addEventListener('submit', function() {
-                    paymentAmountInput.value = paymentAmountInput.value.replace(/,/g, '');
-                });
-            }
         }
         
-        // 텍스트영역 자동 높이 조절 (견적내용 포함)
-        document.querySelectorAll('textarea.auto-resize, textarea#direct_quote').forEach(textarea => {
-            adjustTextareaHeight(textarea); // 초기 높이 조절
-            textarea.addEventListener('input', function() {
-                adjustTextareaHeight(this);
+        // 폼 제출 시 measurement_time 필드에 올바른 값을 설정하는 로직 추가
+        const editForm = document.querySelector('form[action*="edit_order"]');
+        if (editForm) {
+            editForm.addEventListener('submit', function(event) { // event 파라미터 추가
+                if (measurementTimeSelect && measurementTimeInput) {
+                    if (measurementTimeSelect.value === '종일') {
+                        // '종일'이 선택된 경우, measurement_time input의 값을 '종일'로 설정
+                        // 단, type="time"은 '종일'을 허용하지 않으므로,
+                        // 새로운 hidden input을 만들어서 값을 전달합니다.
+                        let hiddenInput = document.getElementById('measurement_time_hidden_for_submit');
+                        if (!hiddenInput) {
+                            hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.name = 'measurement_time'; // 실제 전송될 필드명
+                            hiddenInput.id = 'measurement_time_hidden_for_submit';
+                            editForm.appendChild(hiddenInput);
+                        }
+                        hiddenInput.value = '종일';
+                        measurementTimeInput.name = ''; // 기존 time input은 전송되지 않도록 이름을 제거
+                    } else {
+                        // 시간 직접 입력 시에는 원래 input의 name을 사용
+                        measurementTimeInput.name = 'measurement_time';
+                        // 만약 hidden input이 존재했다면 제거
+                        let hiddenInput = document.getElementById('measurement_time_hidden_for_submit');
+                        if (hiddenInput) {
+                            hiddenInput.remove();
+                        }
+                    }
+                }
             });
-        });
+        }
     });
 </script>
 {% endblock %} 

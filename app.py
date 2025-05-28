@@ -1723,10 +1723,15 @@ def api_orders():
         }
         
         time_str = status_time_map.get(order.status)
-        if time_str:
+        
+        # '실측' 상태이고 measurement_time이 '종일'인 경우 allDay를 true로 설정
+        if order.status == 'MEASURED' and order.measurement_time == '종일':
+            start_datetime = start_date # 날짜만 사용
+            all_day = True
+        elif time_str: # 기존 시간 처리 로직
             start_datetime = f"{start_date}T{time_str}:00"
             all_day = False
-        else:
+        else: # 시간이 없는 다른 경우 (기존 allDay=True 로직 유지)
             start_datetime = start_date
             all_day = True
             
