@@ -146,6 +146,7 @@
     .th-payment-amount { width: 120px; }
     .th-measurement-date { width: 120px; }
     .th-measurement-time { width: 80px; }
+    .th-scheduled-date { width: 120px; }
     .th-completion-date { width: 100px; }
     .th-manager-name { width: 100px; }
     .th-status { width: 90px; }
@@ -246,6 +247,7 @@
                         <th class="th-payment-amount" data-column-name="payment_amount">결제금액<span class="resize-handle"></span></th>
                         <th class="th-measurement-date" data-column-name="measurement_date">실측일<span class="resize-handle"></span></th>
                         <th class="th-measurement-time"><div>실측시간</div><span class="resize-handle"></span></th>
+                        <th class="th-scheduled-date" data-column-name="scheduled_date">설치 예정일<span class="resize-handle"></span></th>
                         <th class="th-completion-date"><div>설치완료일</div><span class="resize-handle"></span></th>
                         <th class="th-manager-name"><div>담당자</div><span class="resize-handle"></span></th>
                         <th class="th-status"><div>상태</div><span class="resize-handle"></span></th>
@@ -266,6 +268,7 @@
                         <th><input type="text" name="filter_payment_amount" class="form-control form-control-sm column-filter" placeholder="결제금액" value="{{ active_column_filters.get('payment_amount', '') }}"></th>
                         <th><input type="text" name="filter_measurement_date" class="form-control form-control-sm column-filter" placeholder="실측일" value="{{ active_column_filters.get('measurement_date', '') }}"></th>
                         <th><input type="text" name="filter_measurement_time" class="form-control form-control-sm column-filter" placeholder="실측시간" value="{{ active_column_filters.get('measurement_time', '') }}"></th>
+                        <th><input type="text" name="filter_scheduled_date" class="form-control form-control-sm column-filter" placeholder="설치 예정일" value="{{ active_column_filters.get('scheduled_date', '') }}"></th>
                         <th><input type="text" name="filter_completion_date" class="form-control form-control-sm column-filter" placeholder="완료일" value="{{ active_column_filters.get('completion_date', '') }}"></th>
                         <th><input type="text" name="filter_manager_name" class="form-control form-control-sm column-filter" placeholder="담당자" value="{{ active_column_filters.get('manager_name', '') }}"></th>
                         <th>
@@ -512,6 +515,7 @@
                         </td>
                         <td class="td-measurement-date">{{ order.measurement_date if order.measurement_date else '' }}</td>
                         <td class="th-measurement-time">{{ order.measurement_time or '' }}</td>
+                        <td class="th-scheduled-date">{{ order.scheduled_date or '' }}</td>
                         <td class="th-completion-date">{{ order.completion_date or '' }}</td>
                         <td class="th-manager-name">{{ order.manager_name or '' }}</td>
                         <td class="th-status">

@@ -61,15 +61,16 @@ def log_access(action, user_id=None, additional_data=None):
 
 def is_password_strong(password):
     """Check if password meets security requirements"""
-    if len(password) < 8:
+    if len(password) < 4: # 최소 길이를 4로 변경
         return False
     
-    # Check for at least one uppercase, one lowercase, and one digit
-    has_upper = any(char.isupper() for char in password)
-    has_lower = any(char.islower() for char in password)
-    has_digit = any(char.isdigit() for char in password)
+    # 기존의 대소문자, 숫자 포함 규칙 제거
+    # has_upper = any(char.isupper() for char in password)
+    # has_lower = any(char.islower() for char in password)
+    # has_digit = any(char.isdigit() for char in password)
     
-    return has_upper and has_lower and has_digit
+    # return has_upper and has_lower and has_digit
+    return True # 길이 조건만 통과하면 True 반환
 
 def get_user_by_username(username):
     """Retrieve user by username"""
@@ -222,7 +223,7 @@ def register():
             return render_template('register.html')
         
         if not is_password_strong(password):
-            flash('비밀번호는 최소 8자 이상이며, 대문자, 소문자, 숫자를 포함해야 합니다.', 'error')
+            flash('비밀번호는 4자리 이상이어야 합니다.', 'error') # 메시지 수정
             return render_template('register.html')
         
         # Check if username already exists
@@ -375,6 +376,7 @@ def index():
                 Order.status.like(search_term),
                 Order.measurement_date.like(search_term),
                 Order.measurement_time.like(search_term),
+                Order.scheduled_date.like(search_term), # 설치 예정일 검색 추가
                 Order.completion_date.like(search_term),
                 Order.manager_name.like(search_term)
             )
@@ -385,7 +387,7 @@ def index():
     filterable_columns = [
         'id', 'received_date', 'received_time', 'customer_name', 'phone',
         'address', 'product', 'options', 'notes', 'status',
-        'measurement_date', 'measurement_time', 'completion_date', 'manager_name', 'payment_amount'
+        'measurement_date', 'measurement_time', 'scheduled_date', 'completion_date', 'manager_name', 'payment_amount' # filterable_columns에 scheduled_date 추가
     ]
     for column_name in filterable_columns:
         filter_value = request.args.get(f'filter_{column_name}', '').strip()
@@ -1831,7 +1833,7 @@ def add_user():
         
         # Check password strength
         if not is_password_strong(password):
-            flash('비밀번호는 8자 이상이며, 대문자, 소문자, 숫자를 각각 1개 이상 포함해야 합니다.', 'error')
+            flash('비밀번호는 4자리 이상이어야 합니다.', 'error') # 메시지 수정
             return render_template('add_user.html')
         
         # Check if username already exists
@@ -1927,7 +1929,7 @@ def edit_user(user_id):
                     db.commit()
                     flash('비밀번호가 변경되었습니다.', 'success')
                 else:
-                    flash('비밀번호는 8자 이상이며, 대문자, 소문자, 숫자를 각각 1개 이상 포함해야 합니다.', 'error')
+                    flash('비밀번호는 4자리 이상이어야 합니다.', 'error') # 메시지 수정
             
             # Log action
             log_access(f"사용자 #{user_id} 정보 수정", session.get('user_id'))
@@ -2047,7 +2049,7 @@ def profile():
                 
                 # Check password strength
                 if not is_password_strong(new_password):
-                    flash('비밀번호는 8자 이상이며, 대문자, 소문자, 숫자를 각각 1개 이상 포함해야 합니다.', 'error')
+                    flash('비밀번호는 4자리 이상이어야 합니다.', 'error') # 메시지 수정
                     return render_template('profile.html', user=user)
                 
                 # Update password
