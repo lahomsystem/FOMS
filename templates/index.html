@@ -218,6 +218,7 @@
                             <input type="checkbox" id="select-all">
                             <span class="resize-handle"></span></th>
                         <th class="th-id"><div>번호</div><span class="resize-handle"></span></th>
+                        <th class="th-actions">작업<span class="resize-handle"></span></th>
                         <th class="th-received-date"><div>접수일</div><span class="resize-handle"></span></th>
                         <th class="th-received-time"><div>접수시간</div><span class="resize-handle"></span></th>
                         <th class="th-customer-name"><div>고객명</div><span class="resize-handle"></span></th>
@@ -248,12 +249,15 @@
                         <th class="th-scheduled-date" data-column-name="scheduled_date">설치 예정일<span class="resize-handle"></span></th>
                         <th class="th-manager-name"><div>담당자</div><span class="resize-handle"></span></th>
                         <th class="th-status"><div>상태</div><span class="resize-handle"></span></th>
-                        <th class="th-actions">작업<span class="resize-handle"></span></th> {# 마지막 열 핸들 추가 #}
                     </tr>
                     <!-- 컬럼별 필터링 행 추가 -->
                     <tr class="column-filter-row">
                         <th></th>
                         <th><input type="text" name="filter_id" class="form-control form-control-sm column-filter" placeholder="번호" value="{{ active_column_filters.get('id', '') }}"></th>
+                        <th class="filter-buttons-cell">
+                            <button type="button" id="apply-column-filters-btn" class="btn btn-sm btn-secondary" title="컬럼 필터 적용"><i class="fas fa-check"></i></button>
+                            <a href="{{ url_for('index', status=request.args.get('status'), search=request.args.get('search')) }}" class="btn btn-sm btn-outline-secondary" title="컬럼 필터 초기화"><i class="fas fa-times"></i></a>
+                        </th>
                         <th><input type="text" name="filter_received_date" class="form-control form-control-sm column-filter" placeholder="접수일" value="{{ active_column_filters.get('received_date', '') }}"></th>
                         <th><input type="text" name="filter_received_time" class="form-control form-control-sm column-filter" placeholder="접수시간" value="{{ active_column_filters.get('received_time', '') }}"></th>
                         <th><input type="text" name="filter_customer_name" class="form-control form-control-sm column-filter" placeholder="고객명" value="{{ active_column_filters.get('customer_name', '') }}"></th>
@@ -274,10 +278,6 @@
                                     <option value="{{ code }}" {% if active_column_filters.get('status') == code %}selected{% endif %}>{{ name_val }}</option>
                                 {% endfor %}
                             </select>
-                        </th>
-                        <th class="filter-buttons-cell">
-                            <button type="button" id="apply-column-filters-btn" class="btn btn-sm btn-secondary" title="컬럼 필터 적용"><i class="fas fa-check"></i></button>
-                            <a href="{{ url_for('index', status=request.args.get('status'), search=request.args.get('search')) }}" class="btn btn-sm btn-outline-secondary" title="컬럼 필터 초기화"><i class="fas fa-times"></i></a>
                         </th>
                     </tr>
                 </thead>
@@ -301,6 +301,17 @@
                                 {{ order.id }}
                             {% endif %}
                         </td>
+                        <td class="th-actions">
+                            <div class="btn-group">
+                                <a href="{{ url_for('edit_order', order_id=order.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{{ url_for('delete_order', order_id=order.id) }}" class="btn btn-sm btn-outline-danger" 
+                                   onclick="return confirm('이 주문을 휴지통으로 이동하시겠습니까?');">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            </div>
+                        </td>
                         <td class="th-received-date">{{ order.received_date }}</td>
                         <td class="th-received-time">{{ order.received_time or '' }}</td>
                         <td class="th-customer-name customer-name-cell">
@@ -310,7 +321,12 @@
                                 {# '[복사: 원본 #ID] ' 부분 제거 #}
                                 {% set display_name = order.customer_name.split('] ', 1)[1] if '] ' in order.customer_name else order.customer_name %}
                             {% endif %}
-                            {{ display_name }}
+                            <span class="text-truncate" style="max-width: 100px;" title="{{ order.customer_name }}">
+                                {{ display_name }}
+                                {% if order.is_regional %}
+                                    <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문" style="font-size: 0.8em;"></i>
+                                {% endif %}
+                            </span>
                             {% if is_copied %}
                                 <span class="badge bg-info text-dark ms-1">복사</span>
                             {% endif %}
@@ -524,17 +540,6 @@
                                 {% endif %}">
                                 {{ STATUS[order.status] }}
                             </span>
-                        </td>
-                        <td class="th-actions">
-                            <div class="btn-group">
-                                <a href="{{ url_for('edit_order', order_id=order.id) }}" class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <a href="{{ url_for('delete_order', order_id=order.id) }}" class="btn btn-sm btn-outline-danger" 
-                                   onclick="return confirm('이 주문을 휴지통으로 이동하시겠습니까?');">
-                                    <i class="fas fa-trash"></i>
-                                </a>
-                            </div>
                         </td>
                     </tr>
                     {% else %}

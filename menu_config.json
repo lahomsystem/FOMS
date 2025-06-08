@@ -1,97 +1,64 @@
 {
-
   "main_menu": [
-
     {
-
       "id": "calendar",
-
-      "name": "\uce98\ub9b0\ub354",
-
+      "name": "캘린더",
       "url": "/calendar"
-
     },
-
     {
-
       "id": "order_list",
-
-      "name": "\uc804\uccb4 \uc8fc\ubb38",
-
+      "name": "전체 주문",
       "url": "/"
-
     },
-
     {
-
+      "id": "metro_orders",
+      "name": "수도권 주문",
+      "url": "/?region=metro"
+    },
+    {
+      "id": "regional_orders",
+      "name": "지방 주문",
+      "url": "/?region=regional"
+    },
+    {
+      "id": "regional_dashboard",
+      "name": "지방 주문 대시보드",
+      "url": "/regional_dashboard"
+    },
+    {
       "id": "received",
-
-      "name": "\uc811\uc218",
-
+      "name": "접수",
       "url": "/?status=RECEIVED"
-
     },
-
     {
-
       "id": "measured",
-
-      "name": "\uc2e4\uce21",
-
+      "name": "실측",
       "url": "/?status=MEASURED"
-
     },
-
     {
-
       "id": "scheduled",
-
-      "name": "\uc124\uce58 \uc608\uc815",
-
+      "name": "설치 예정",
       "url": "/?status=SCHEDULED"
-
     },
-
     {
-
       "id": "completed",
-
-      "name": "\uc644\ub8cc",
-
+      "name": "완료",
       "url": "/?status=COMPLETED"
-
     },
-
     {
-
       "id": "as_received",
-
-      "name": "AS \uc811\uc218",
-
+      "name": "AS 접수",
       "url": "/?status=AS_RECEIVED"
-
     },
-
     {
-
       "id": "as_completed",
-
-      "name": "AS \uc644\ub8cc",
-
+      "name": "AS 완료",
       "url": "/?status=AS_COMPLETED"
-
     },
-
     {
-
       "id": "trash",
-
-      "name": "\ud734\uc9c0\ud1b5",
-
+      "name": "휴지통",
       "url": "/trash"
-
     }
-
   ]
-
 }

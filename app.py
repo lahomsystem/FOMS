@@ -128,6 +128,8 @@ def role_required(roles):
         return decorated_function
     return decorator
 
+# 지방 주문 자동 필터링 함수 제거 - 사용자가 직접 선택하도록 변경
+
 # Auth Routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -352,12 +354,43 @@ def index():
     page = request.args.get('page', 1, type=int)
     per_page = 100 # 페이지당 표시할 항목 수
 
-    # 기본 쿼리 생성 (삭제되지 않은 주문만)
+    # 상태 필터 적용
+    status_filter = request.args.get('status')
+    
+    # 지역 필터 적용 (새로 추가)
+    region_filter = request.args.get('region')
+    
+    # URL에서 정렬 정보 가져오기
+    sort_by = request.args.get('sort_by', 'id')
+    sort_order = request.args.get('sort_order', 'desc')
+    
+    # 컬럼별 필터 값 수집
+    filterable_columns = [
+        'id', 'received_date', 'received_time', 'customer_name', 'phone', 
+        'address', 'product', 'options', 'notes', 'status', 
+        'measurement_date', 'measurement_time', 'completion_date', 'manager_name', 'payment_amount'
+    ]
+    
+    # 컬럼별 입력 필터 값을 딕셔너리로 수집
+    column_filters = {}
+    for column_name in filterable_columns:
+        filter_value = request.args.get(f'filter_{column_name}', '').strip()
+        column_filters[column_name] = filter_value
+    
+    # 활성화된 컬럼 필터만 별도로 저장 (빈 값이 아닌 것만)
+    active_column_filters = {k: v for k, v in column_filters.items() if v}
+    
+    # 기본 쿼리
     query = db.query(Order).filter(Order.deleted_at.is_(None))
     
-    # 상태 필터 적용
     if status_filter:
         query = query.filter(Order.status == status_filter)
+    
+    # 지역 필터 적용
+    if region_filter == 'metro':
+        query = query.filter(Order.is_regional == False)  # 수도권 주문 (지방 아님)
+    elif region_filter == 'regional':
+        query = query.filter(Order.is_regional == True)   # 지방 주문
     
     # 검색어 필터 적용
     if search_query:
@@ -378,38 +411,27 @@ def index():
                 Order.measurement_time.like(search_term),
                 Order.scheduled_date.like(search_term), # 설치 예정일 검색 추가
                 Order.completion_date.like(search_term),
-                Order.manager_name.like(search_term),
-                Order.payment_amount.cast(String).like(search_term)  # integer 타입을 String으로 캐스팅
+                Order.manager_name.like(search_term)
             )
         )
-
-    # 컬럼별 입력 필터 적용
-    column_filters = {}
-    filterable_columns = [
-        'id', 'received_date', 'received_time', 'customer_name', 'phone',
-        'address', 'product', 'options', 'notes', 'status',
-        'measurement_date', 'measurement_time', 'scheduled_date', 'completion_date', 'manager_name', 'payment_amount' # filterable_columns에 scheduled_date 추가
-    ]
-    for column_name in filterable_columns:
-        filter_value = request.args.get(f'filter_{column_name}', '').strip()
+    
+    # 열별 필터링 논리
+    for column, filter_value in active_column_filters.items():
         if filter_value:
-            if hasattr(Order, column_name):
-                # payment_amount 같은 숫자 필터는 정확한 일치 또는 범위 검색이 더 적합할 수 있음
-                # 여기서는 일단 모든 필드에 대해 LIKE 검색 적용
-                # PostgreSQL에서는 숫자 타입에 LIKE 사용 시 에러 발생 가능 -> 문자열로 변환 필요
-                try:
-                    column_attr = getattr(Order, column_name)
-                    # 숫자 타입 컬럼일 경우 문자열로 캐스팅 후 LIKE 적용
-                    if isinstance(column_attr.type.python_type(), (int, float)):
-                         query = query.filter(column_attr.cast(String).like(f"%{filter_value}%"))
-                    else:
-                         query = query.filter(column_attr.like(f"%{filter_value}%"))
-                    column_filters[column_name] = filter_value # 활성 필터 값 저장
-                except AttributeError:
-                    print(f"Warning: Column {column_name} not found or cannot be filtered with LIKE.")
-            else:
-                 print(f"Warning: Column {column_name} not found in Order model.")
-
+            filter_term = f"%{filter_value}%"
+            if column == 'id':
+                query = query.filter(Order.id.cast(String).like(filter_term))  # ID 필터링 시 캐스팅
+            elif column == 'payment_amount':
+                # payment_amount는 정수형이므로 String으로 캐스팅 후 LIKE 적용
+                query = query.filter(Order.payment_amount.cast(String).like(filter_term))
+            elif hasattr(Order, column):
+                column_attr = getattr(Order, column)
+                query = query.filter(column_attr.like(filter_term))
+    
+    # URL에서 정렬 정보 가져오기
+    sort_by = request.args.get('sort_by', 'id')
+    sort_order = request.args.get('sort_order', 'desc')
+    
     # 정렬 적용 (index 함수와 동일한 로직)
     if hasattr(Order, sort_column):
         column_to_sort = getattr(Order, sort_column)
@@ -448,7 +470,8 @@ def index():
         per_page=per_page,
         total_orders=total_orders,
         active_column_filters=column_filters, # 입력 필터 값 전달 (변경 후)
-        user=user # 사용자 정보 전달
+        user=user, # 사용자 정보 전달
+        current_region=region_filter  # 현재 지역 필터 추가
     )
 
 @app.route('/add', methods=['GET', 'POST'])
@@ -518,7 +541,9 @@ def add_order():
                 # 추가된 상태별 날짜 필드
                 scheduled_date=request.form.get('scheduled_date'),
                 as_received_date=request.form.get('as_received_date'),
-                as_completed_date=request.form.get('as_completed_date')
+                as_completed_date=request.form.get('as_completed_date'),
+                # 지방 주문 여부 사용자 선택
+                is_regional=bool(request.form.get('is_regional'))
             )
             
             db.add(new_order)
@@ -739,6 +764,28 @@ def edit_order(order_id):
             order.as_received_date = as_received_date
             order.as_completed_date = as_completed_date
             order.payment_amount = new_payment_amount # 최종 결제금액 업데이트
+            
+            # 지방 주문 여부 사용자 선택
+            if 'is_regional' in request.form:
+                order.is_regional = bool(request.form.get('is_regional'))
+            
+            # 지방 주문 체크박스 필드 업데이트
+            if order.is_regional:
+                regional_fields = [
+                    'regional_measurement_upload',
+                    'regional_sales_order_upload',
+                    'regional_contract_sent', 
+                    'regional_blueprint_sent',
+                    'regional_order_upload'
+                ]
+                
+                for field in regional_fields:
+                    if field in request.form:
+                        # 체크박스는 체크된 경우에만 폼 데이터에 포함됨
+                        setattr(order, field, True)
+                    else:
+                        # 폼에 없으면 체크되지 않은 것으로 간주
+                        setattr(order, field, False)
             
             db.commit()
             
@@ -1484,7 +1531,9 @@ def upload_excel():
                         # 추가된 상태별 날짜 필드
                         scheduled_date=request.form.get('scheduled_date'),
                         as_received_date=request.form.get('as_received_date'),
-                        as_completed_date=request.form.get('as_completed_date')
+                        as_completed_date=request.form.get('as_completed_date'),
+                        # 지방 주문 여부 기본값은 False (사용자가 수동으로 변경해야 함)
+                        is_regional=False
                     )
                     
                     db.add(new_order)
@@ -2188,6 +2237,176 @@ def security_logs():
         current_limit=current_limit 
     )
 
+@app.route('/update_regional_field/<int:order_id>', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def update_regional_field(order_id):
+    """지방 주문 체크리스트 필드 개별 업데이트"""
+    try:
+        data = request.get_json()
+        field_name = data.get('field')
+        field_value = data.get('value', False)
+        
+        # 허용된 필드명 검증
+        allowed_fields = [
+            'regional_measurement_upload',
+            'regional_sales_order_upload', 
+            'regional_contract_sent',
+            'regional_blueprint_sent',
+            'regional_order_upload'
+        ]
+        
+        if field_name not in allowed_fields:
+            return jsonify({'status': 'error', 'message': '허용되지 않은 필드입니다.'}), 400
+        
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
+        
+        if not order:
+            return jsonify({'status': 'error', 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        if not order.is_regional:
+            return jsonify({'status': 'error', 'message': '지방 주문이 아닙니다.'}), 400
+        
+        # 필드 업데이트
+        setattr(order, field_name, field_value)
+        db.commit()
+        
+        # 필드명을 한글로 변환
+        field_labels = {
+            'regional_measurement_upload': '실측 업로드',
+            'regional_sales_order_upload': '영업발주 업로드',
+            'regional_contract_sent': '계약서 발송',
+            'regional_blueprint_sent': '도면 발송',
+            'regional_order_upload': '발주 업로드'
+        }
+        
+        field_korean = field_labels.get(field_name, field_name)
+        status_korean = '완료' if field_value else '취소'
+        
+        # 로그 기록
+        user_for_log = get_user_by_id(session['user_id'])
+        user_name_for_log = user_for_log.name if user_for_log else "Unknown user"
+        log_access(f"주문 #{order_id} ({order.customer_name}) 지방 주문 단계 업데이트: {field_korean} {status_korean} - 담당자: {user_name_for_log} (ID: {session.get('user_id')})", session.get('user_id'))
+        
+        return jsonify({'status': 'success', 'message': f'{field_korean}이(가) {status_korean}되었습니다.'})
+        
+    except Exception as e:
+        if 'db' in locals():
+            db.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/regional_dashboard')
+@login_required
+def regional_dashboard():
+    """지방 주문 관리 대시보드"""
+    db = get_db()
+    
+    # 지방 주문만 필터링
+    regional_orders = db.query(Order).filter(
+        Order.is_regional == True,
+        Order.status != 'DELETED'
+    ).all()
+    
+    # 기본 통계 계산
+    total_orders = len(regional_orders)
+    completed_orders = len([o for o in regional_orders if o.status == 'COMPLETED'])
+    pending_orders = total_orders - completed_orders
+    
+    # 각 주문의 진행률 계산
+    def calculate_progress(order):
+        completed_steps = 0
+        total_steps = 5
+        
+        if order.regional_measurement_upload:
+            completed_steps += 1
+        if order.regional_sales_order_upload:
+            completed_steps += 1
+        if order.regional_contract_sent:
+            completed_steps += 1
+        if order.regional_blueprint_sent:
+            completed_steps += 1
+        if order.regional_order_upload:
+            completed_steps += 1
+            
+        return int((completed_steps / total_steps) * 100) if total_steps > 0 else 0
+    
+    # 평균 진행률 계산
+    if total_orders > 0:
+        total_progress = sum(calculate_progress(order) for order in regional_orders)
+        avg_progress = int(total_progress / total_orders)
+    else:
+        avg_progress = 0
+    
+    # 단계별 완료 현황
+    step_stats = [
+        {
+            'name': '실측 업로드',
+            'completed': len([o for o in regional_orders if o.regional_measurement_upload]),
+            'total': total_orders,
+            'percentage': int((len([o for o in regional_orders if o.regional_measurement_upload]) / total_orders * 100)) if total_orders > 0 else 0,
+            'icon': 'fas fa-upload',
+            'color': 'text-primary'
+        },
+        {
+            'name': '영업발주 업로드',
+            'completed': len([o for o in regional_orders if o.regional_sales_order_upload]),
+            'total': total_orders,
+            'percentage': int((len([o for o in regional_orders if o.regional_sales_order_upload]) / total_orders * 100)) if total_orders > 0 else 0,
+            'icon': 'fas fa-file-invoice',
+            'color': 'text-info'
+        },
+        {
+            'name': '계약서 발송',
+            'completed': len([o for o in regional_orders if o.regional_contract_sent]),
+            'total': total_orders,
+            'percentage': int((len([o for o in regional_orders if o.regional_contract_sent]) / total_orders * 100)) if total_orders > 0 else 0,
+            'icon': 'fas fa-file-contract',
+            'color': 'text-success'
+        },
+        {
+            'name': '도면 발송',
+            'completed': len([o for o in regional_orders if o.regional_blueprint_sent]),
+            'total': total_orders,
+            'percentage': int((len([o for o in regional_orders if o.regional_blueprint_sent]) / total_orders * 100)) if total_orders > 0 else 0,
+            'icon': 'fas fa-drafting-compass',
+            'color': 'text-warning'
+        },
+        {
+            'name': '발주 업로드',
+            'completed': len([o for o in regional_orders if o.regional_order_upload]),
+            'total': total_orders,
+            'percentage': int((len([o for o in regional_orders if o.regional_order_upload]) / total_orders * 100)) if total_orders > 0 else 0,
+            'icon': 'fas fa-clipboard-check',
+            'color': 'text-danger'
+        }
+    ]
+    
+    # 최근 주문 목록 (최대 10개)
+    recent_orders = db.query(Order).filter(
+        Order.is_regional == True,
+        Order.status != 'DELETED'
+    ).order_by(Order.id.desc()).limit(10).all()
+    
+    # 각 주문에 진행률 추가
+    for order in recent_orders:
+        order.regional_progress = calculate_progress(order)
+    
+    # 통계 데이터
+    stats = {
+        'total_orders': total_orders,
+        'completed_orders': completed_orders,
+        'pending_orders': pending_orders,
+        'avg_progress': avg_progress
+    }
+    
+    return render_template(
+        'regional_dashboard.html',
+        stats=stats,
+        step_stats=step_stats,
+        recent_orders=recent_orders
+    )
+
 if __name__ == '__main__':
     init_db()  # 앱 시작 시 데이터베이스 초기화
     
@@ -2204,7 +2423,14 @@ if __name__ == '__main__':
                 ('payment_amount', 'INTEGER'), # payment_amount 컬럼 추가
                 ('scheduled_date', 'VARCHAR'), # 설치 예정일
                 ('as_received_date', 'VARCHAR'), # AS 접수일
-                ('as_completed_date', 'VARCHAR') # AS 완료일
+                ('as_completed_date', 'VARCHAR'), # AS 완료일
+                # 지방 주문 관리 컬럼들 추가
+                ('is_regional', 'BOOLEAN DEFAULT FALSE'),
+                ('regional_measurement_upload', 'BOOLEAN DEFAULT FALSE'),
+                ('regional_sales_order_upload', 'BOOLEAN DEFAULT FALSE'),
+                ('regional_contract_sent', 'BOOLEAN DEFAULT FALSE'),
+                ('regional_blueprint_sent', 'BOOLEAN DEFAULT FALSE'),
+                ('regional_order_upload', 'BOOLEAN DEFAULT FALSE')
             ]:
                 # 해당 컬럼이 이미 존재하는지 확인
                 query = text(f"""

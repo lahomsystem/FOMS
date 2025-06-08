@@ -1,0 +1,268 @@
+{% extends "layout.html" %}
+
+{% block title %}지방 주문 관리 대시보드{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0"><i class="fas fa-map-marker-alt text-warning"></i> 지방 주문 관리 대시보드</h1>
+                <a href="{{ url_for('add_order') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> 새 주문 추가
+                </a>
+            </div>
+
+            <!-- 통계 카드 -->
+            <div class="row mb-4">
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-primary shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                        전체 지방 주문</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.total_orders }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-clipboard-list fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-success shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                        완료된 주문</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.completed_orders }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-info shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">평균 진행률</div>
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col-auto">
+                                            <div class="h5 mb-0 mr-3 font-weight-bold text-gray-800">{{ stats.avg_progress }}%</div>
+                                        </div>
+                                        <div class="col">
+                                            <div class="progress progress-sm mr-2">
+                                                <div class="progress-bar bg-info avg-progress-bar" role="progressbar"
+                                                     data-width="{{ stats.avg_progress }}"
+                                                     aria-valuenow="{{ stats.avg_progress }}"
+                                                     aria-valuemin="0" aria-valuemax="100"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-warning shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                        대기 중</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.pending_orders }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-clock fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 단계별 현황 -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">단계별 완료 현황</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                {% for step in step_stats %}
+                                <div class="col-md-6 col-lg-4 mb-3">
+                                    <div class="card border-0 bg-light">
+                                        <div class="card-body text-center">
+                                            <i class="{{ step.icon }} fa-2x {{ step.color }} mb-2"></i>
+                                            <h5 class="card-title">{{ step.name }}</h5>
+                                            <div class="progress mb-2">
+                                                <div class="progress-bar bg-primary step-progress-bar" role="progressbar" 
+                                                     data-width="{{ step.percentage }}"
+                                                     aria-valuenow="{{ step.percentage }}" aria-valuemin="0" aria-valuemax="100">
+                                                </div>
+                                            </div>
+                                            <p class="card-text">{{ step.completed }}/{{ step.total }} 완료 ({{ step.percentage }}%)</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 최근 주문 목록 -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card shadow">
+                        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                            <h6 class="m-0 font-weight-bold text-primary">최근 지방 주문</h6>
+                            <a href="/?region=regional" class="btn btn-sm btn-outline-primary">모든 지방 주문 보기</a>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>번호</th>
+                                            <th>고객명</th>
+                                            <th>주소</th>
+                                            <th>제품</th>
+                                            <th>상태</th>
+                                            <th>진행률</th>
+                                            <th>접수일</th>
+                                            <th>작업</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for order in recent_orders %}
+                                        <tr>
+                                            <td>{{ order.id }}</td>
+                                            <td>
+                                                {{ order.customer_name }}
+                                                <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"></i>
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">
+                                                {{ order.address }}
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                                {{ order.product }}
+                                            </td>
+                                            <td>
+                                                {% set status_colors = {
+                                                    'RECEIVED': 'primary',
+                                                    'MEASURED': 'warning', 
+                                                    'SCHEDULED': 'danger',
+                                                    'COMPLETED': 'success',
+                                                    'AS_RECEIVED': 'info',
+                                                    'AS_COMPLETED': 'secondary'
+                                                } %}
+                                                <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
+                                                    {{ STATUS.get(order.status, order.status) }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {% set progress = order.regional_progress %}
+                                                <div class="progress" style="height: 20px;">
+                                                    <div class="progress-bar order-progress-bar
+                                                        {% if progress == 100 %}bg-success
+                                                        {% elif progress >= 60 %}bg-info
+                                                        {% elif progress >= 30 %}bg-warning
+                                                        {% else %}bg-danger{% endif %}" 
+                                                         role="progressbar" data-width="{{ progress }}"
+                                                         aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100">
+                                                        {{ progress }}%
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>{{ order.received_date }}</td>
+                                            <td>
+                                                <a href="{{ url_for('edit_order', order_id=order.id) }}" 
+                                                   class="btn btn-sm btn-outline-primary" title="수정">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% else %}
+                                        <tr>
+                                            <td colspan="8" class="text-center text-muted">
+                                                등록된 지방 주문이 없습니다.
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.border-left-primary {
+    border-left: 0.25rem solid #4e73df !important;
+}
+.border-left-success {
+    border-left: 0.25rem solid #1cc88a !important;
+}
+.border-left-info {
+    border-left: 0.25rem solid #36b9cc !important;
+}
+.border-left-warning {
+    border-left: 0.25rem solid #f6c23e !important;
+}
+.progress-sm {
+    height: 0.5rem;
+}
+.text-gray-800 {
+    color: #5a5c69 !important;
+}
+.text-gray-300 {
+    color: #dddfeb !important;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 평균 진행률 프로그레스 바
+    const avgProgressBar = document.querySelector('.avg-progress-bar');
+    if (avgProgressBar) {
+        const width = avgProgressBar.dataset.width;
+        avgProgressBar.style.width = width + '%';
+    }
+    
+    // 단계별 프로그레스 바
+    const stepProgressBars = document.querySelectorAll('.step-progress-bar');
+    stepProgressBars.forEach(function(bar) {
+        const width = bar.dataset.width;
+        bar.style.width = width + '%';
+    });
+    
+    // 주문별 프로그레스 바
+    const orderProgressBars = document.querySelectorAll('.order-progress-bar');
+    orderProgressBars.forEach(function(bar) {
+        const width = bar.dataset.width;
+        bar.style.width = width + '%';
+    });
+});
+</script>
+{% endblock %} 
