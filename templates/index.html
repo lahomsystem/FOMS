@@ -147,7 +147,6 @@
     .th-measurement-date { width: 120px; }
     .th-measurement-time { width: 80px; }
     .th-scheduled-date { width: 120px; }
-    .th-completion-date { width: 100px; }
     .th-manager-name { width: 100px; }
     .th-status { width: 90px; }
     .th-actions { width: 80px; text-align: center; } /* 작업 열 */
@@ -206,7 +205,6 @@
                     {% endfor %}
                 </select>
                 <input type="date" name="new_measurement_date" class="form-control me-2 d-none" id="measurement-date-input" style="width: auto;">
-                <input type="date" name="new_completion_date" class="form-control me-2 d-none" id="completion-date-input" style="width: auto;">
                 <input type="text" name="new_manager_name" class="form-control me-2 d-none" id="manager-name-input" placeholder="담당자 이름" style="width: auto;">
                 <button type="submit" class="btn btn-primary btn-sm" id="bulk-action-btn">적용</button>
             </div>
@@ -248,7 +246,6 @@
                         <th class="th-measurement-date" data-column-name="measurement_date">실측일<span class="resize-handle"></span></th>
                         <th class="th-measurement-time"><div>실측시간</div><span class="resize-handle"></span></th>
                         <th class="th-scheduled-date" data-column-name="scheduled_date">설치 예정일<span class="resize-handle"></span></th>
-                        <th class="th-completion-date"><div>설치완료일</div><span class="resize-handle"></span></th>
                         <th class="th-manager-name"><div>담당자</div><span class="resize-handle"></span></th>
                         <th class="th-status"><div>상태</div><span class="resize-handle"></span></th>
                         <th class="th-actions">작업<span class="resize-handle"></span></th> {# 마지막 열 핸들 추가 #}
@@ -269,7 +266,6 @@
                         <th><input type="text" name="filter_measurement_date" class="form-control form-control-sm column-filter" placeholder="실측일" value="{{ active_column_filters.get('measurement_date', '') }}"></th>
                         <th><input type="text" name="filter_measurement_time" class="form-control form-control-sm column-filter" placeholder="실측시간" value="{{ active_column_filters.get('measurement_time', '') }}"></th>
                         <th><input type="text" name="filter_scheduled_date" class="form-control form-control-sm column-filter" placeholder="설치 예정일" value="{{ active_column_filters.get('scheduled_date', '') }}"></th>
-                        <th><input type="text" name="filter_completion_date" class="form-control form-control-sm column-filter" placeholder="완료일" value="{{ active_column_filters.get('completion_date', '') }}"></th>
                         <th><input type="text" name="filter_manager_name" class="form-control form-control-sm column-filter" placeholder="담당자" value="{{ active_column_filters.get('manager_name', '') }}"></th>
                         <th>
                             <select name="filter_status" class="form-select form-select-sm column-filter">
@@ -516,7 +512,6 @@
                         <td class="td-measurement-date">{{ order.measurement_date if order.measurement_date else '' }}</td>
                         <td class="th-measurement-time">{{ order.measurement_time or '' }}</td>
                         <td class="th-scheduled-date">{{ order.scheduled_date or '' }}</td>
-                        <td class="th-completion-date">{{ order.completion_date or '' }}</td>
                         <td class="th-manager-name">{{ order.manager_name or '' }}</td>
                         <td class="th-status">
                             <span class="badge 
@@ -606,7 +601,6 @@
             const actionSelect = $(this).find('select[name="action"]');
             const statusSelect = $('#status-select');
             const measurementDateInput = $('#measurement-date-input');
-            const completionDateInput = $('#completion-date-input');
             const managerNameInput = $('#manager-name-input');
             
             if (selectedOrders.length === 0) { 
@@ -629,11 +623,6 @@
                 event.preventDefault(); 
                 return; 
             }
-            if (actionSelect.val() === 'change_completion_date' && completionDateInput.val() === '') { 
-                alert('변경할 설치일을 선택해주세요.'); 
-                event.preventDefault(); 
-                return; 
-            }
             if (actionSelect.val() === 'change_manager' && managerNameInput.val().trim() === '') { 
                 alert('변경할 담당자 이름을 입력해주세요.'); 
                 event.preventDefault(); 
@@ -647,11 +636,10 @@
         
         $('#bulk-action').on('change', function() {
             const actionSelect = $(this);
-            $('#status-select, #measurement-date-input, #completion-date-input, #manager-name-input').addClass('d-none');
+            $('#status-select, #measurement-date-input, #manager-name-input').addClass('d-none');
             
             if (actionSelect.val() === 'change_status') $('#status-select').removeClass('d-none');
             else if (actionSelect.val() === 'change_measurement_date') $('#measurement-date-input').removeClass('d-none');
-            else if (actionSelect.val() === 'change_completion_date') $('#completion-date-input').removeClass('d-none');
             else if (actionSelect.val() === 'change_manager') $('#manager-name-input').removeClass('d-none');
         });
 

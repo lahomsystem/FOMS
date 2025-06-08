@@ -364,7 +364,7 @@ def index():
         search_term = f"%{search_query}%"
         query = query.filter( # Corrected indentation for line 1139
             or_(
-                Order.id.like(search_term),
+                Order.id.cast(String).like(search_term),  # integer 타입을 String으로 캐스팅
                 Order.received_date.like(search_term),
                 Order.received_time.like(search_term),
                 Order.customer_name.like(search_term),
@@ -378,7 +378,8 @@ def index():
                 Order.measurement_time.like(search_term),
                 Order.scheduled_date.like(search_term), # 설치 예정일 검색 추가
                 Order.completion_date.like(search_term),
-                Order.manager_name.like(search_term)
+                Order.manager_name.like(search_term),
+                Order.payment_amount.cast(String).like(search_term)  # integer 타입을 String으로 캐스팅
             )
         )
 
@@ -1542,7 +1543,7 @@ def download_excel():
         search_term = f"%{search_query}%"
         query = query.filter( 
             or_(
-                Order.id.like(search_term), # ID는 정확한 매칭이 나을 수 있으나, 일단 통일
+                Order.id.cast(String).like(search_term),  # integer 타입을 String으로 캐스팅
                 Order.received_date.like(search_term),
                 Order.received_time.like(search_term),
                 Order.customer_name.like(search_term),
