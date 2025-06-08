@@ -772,9 +772,7 @@ def edit_order(order_id):
             # 지방 주문 체크박스 필드 업데이트
             if order.is_regional:
                 regional_fields = [
-                    'regional_measurement_upload',
                     'regional_sales_order_upload',
-                    'regional_contract_sent', 
                     'regional_blueprint_sent',
                     'regional_order_upload'
                 ]
@@ -2249,9 +2247,7 @@ def update_regional_field(order_id):
         
         # 허용된 필드명 검증
         allowed_fields = [
-            'regional_measurement_upload',
-            'regional_sales_order_upload', 
-            'regional_contract_sent',
+            'regional_sales_order_upload',
             'regional_blueprint_sent',
             'regional_order_upload'
         ]
@@ -2274,9 +2270,7 @@ def update_regional_field(order_id):
         
         # 필드명을 한글로 변환
         field_labels = {
-            'regional_measurement_upload': '실측 업로드',
             'regional_sales_order_upload': '영업발주 업로드',
-            'regional_contract_sent': '계약서 발송',
             'regional_blueprint_sent': '도면 발송',
             'regional_order_upload': '발주 업로드'
         }
@@ -2302,109 +2296,33 @@ def regional_dashboard():
     """지방 주문 관리 대시보드"""
     db = get_db()
     
-    # 지방 주문만 필터링
-    regional_orders = db.query(Order).filter(
+    # 모든 지방 주문 가져오기
+    all_regional_orders = db.query(Order).filter(
         Order.is_regional == True,
         Order.status != 'DELETED'
-    ).all()
+    ).order_by(Order.id.desc()).all()
     
-    # 기본 통계 계산
-    total_orders = len(regional_orders)
-    completed_orders = len([o for o in regional_orders if o.status == 'COMPLETED'])
-    pending_orders = total_orders - completed_orders
+    # 완료/미완료로 분리
+    completed_orders = []
+    pending_orders = []
     
-    # 각 주문의 진행률 계산
-    def calculate_progress(order):
-        completed_steps = 0
-        total_steps = 5
+    for order in all_regional_orders:
+        # 모든 체크리스트 항목이 완료되었는지 확인
+        is_completed = (
+            order.regional_sales_order_upload and 
+            order.regional_order_upload and 
+            order.regional_blueprint_sent
+        )
         
-        if order.regional_measurement_upload:
-            completed_steps += 1
-        if order.regional_sales_order_upload:
-            completed_steps += 1
-        if order.regional_contract_sent:
-            completed_steps += 1
-        if order.regional_blueprint_sent:
-            completed_steps += 1
-        if order.regional_order_upload:
-            completed_steps += 1
-            
-        return int((completed_steps / total_steps) * 100) if total_steps > 0 else 0
-    
-    # 평균 진행률 계산
-    if total_orders > 0:
-        total_progress = sum(calculate_progress(order) for order in regional_orders)
-        avg_progress = int(total_progress / total_orders)
-    else:
-        avg_progress = 0
-    
-    # 단계별 완료 현황
-    step_stats = [
-        {
-            'name': '실측 업로드',
-            'completed': len([o for o in regional_orders if o.regional_measurement_upload]),
-            'total': total_orders,
-            'percentage': int((len([o for o in regional_orders if o.regional_measurement_upload]) / total_orders * 100)) if total_orders > 0 else 0,
-            'icon': 'fas fa-upload',
-            'color': 'text-primary'
-        },
-        {
-            'name': '영업발주 업로드',
-            'completed': len([o for o in regional_orders if o.regional_sales_order_upload]),
-            'total': total_orders,
-            'percentage': int((len([o for o in regional_orders if o.regional_sales_order_upload]) / total_orders * 100)) if total_orders > 0 else 0,
-            'icon': 'fas fa-file-invoice',
-            'color': 'text-info'
-        },
-        {
-            'name': '계약서 발송',
-            'completed': len([o for o in regional_orders if o.regional_contract_sent]),
-            'total': total_orders,
-            'percentage': int((len([o for o in regional_orders if o.regional_contract_sent]) / total_orders * 100)) if total_orders > 0 else 0,
-            'icon': 'fas fa-file-contract',
-            'color': 'text-success'
-        },
-        {
-            'name': '도면 발송',
-            'completed': len([o for o in regional_orders if o.regional_blueprint_sent]),
-            'total': total_orders,
-            'percentage': int((len([o for o in regional_orders if o.regional_blueprint_sent]) / total_orders * 100)) if total_orders > 0 else 0,
-            'icon': 'fas fa-drafting-compass',
-            'color': 'text-warning'
-        },
-        {
-            'name': '발주 업로드',
-            'completed': len([o for o in regional_orders if o.regional_order_upload]),
-            'total': total_orders,
-            'percentage': int((len([o for o in regional_orders if o.regional_order_upload]) / total_orders * 100)) if total_orders > 0 else 0,
-            'icon': 'fas fa-clipboard-check',
-            'color': 'text-danger'
-        }
-    ]
-    
-    # 최근 주문 목록 (최대 10개)
-    recent_orders = db.query(Order).filter(
-        Order.is_regional == True,
-        Order.status != 'DELETED'
-    ).order_by(Order.id.desc()).limit(10).all()
-    
-    # 각 주문에 진행률 추가
-    for order in recent_orders:
-        order.regional_progress = calculate_progress(order)
-    
-    # 통계 데이터
-    stats = {
-        'total_orders': total_orders,
-        'completed_orders': completed_orders,
-        'pending_orders': pending_orders,
-        'avg_progress': avg_progress
-    }
+        if is_completed:
+            completed_orders.append(order)
+        else:
+            pending_orders.append(order)
     
     return render_template(
         'regional_dashboard.html',
-        stats=stats,
-        step_stats=step_stats,
-        recent_orders=recent_orders
+        completed_orders=completed_orders,
+        pending_orders=pending_orders
     )
 
 if __name__ == '__main__':
@@ -2426,9 +2344,7 @@ if __name__ == '__main__':
                 ('as_completed_date', 'VARCHAR'), # AS 완료일
                 # 지방 주문 관리 컬럼들 추가
                 ('is_regional', 'BOOLEAN DEFAULT FALSE'),
-                ('regional_measurement_upload', 'BOOLEAN DEFAULT FALSE'),
                 ('regional_sales_order_upload', 'BOOLEAN DEFAULT FALSE'),
-                ('regional_contract_sent', 'BOOLEAN DEFAULT FALSE'),
                 ('regional_blueprint_sent', 'BOOLEAN DEFAULT FALSE'),
                 ('regional_order_upload', 'BOOLEAN DEFAULT FALSE')
             ]:

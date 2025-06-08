@@ -34,9 +34,7 @@ class Order(Base):
     
     # Regional order management fields (지방 주문 관리)
     is_regional = Column(Boolean, default=False)  # 지방 주문 여부
-    regional_measurement_upload = Column(Boolean, default=False)  # 실측 업로드
     regional_sales_order_upload = Column(Boolean, default=False)  # 영업발주 업로드  
-    regional_contract_sent = Column(Boolean, default=False)  # 계약서발송
     regional_blueprint_sent = Column(Boolean, default=False)  # 도면발송
     regional_order_upload = Column(Boolean, default=False)  # 발주 업로드
     
@@ -64,9 +62,7 @@ class Order(Base):
             'as_received_date': self.as_received_date,
             'as_completed_date': self.as_completed_date,
             'is_regional': self.is_regional,
-            'regional_measurement_upload': self.regional_measurement_upload,
             'regional_sales_order_upload': self.regional_sales_order_upload,
-            'regional_contract_sent': self.regional_contract_sent,
             'regional_blueprint_sent': self.regional_blueprint_sent,
             'regional_order_upload': self.regional_order_upload
         }
