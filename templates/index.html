@@ -150,6 +150,17 @@
     .th-manager-name { width: 100px; }
     .th-status { width: 90px; }
     .th-actions { width: 80px; text-align: center; } /* 작업 열 */
+    
+    /* 행 클릭 선택 관련 스타일 */
+    tbody tr {
+        transition: background-color 0.2s ease;
+    }
+    tbody tr:hover {
+        background-color: #f8f9fa !important;
+    }
+    tbody tr.selected {
+        background-color: #e3f2fd !important;
+    }
 </style>
 {% endblock %}
 
@@ -598,7 +609,11 @@
         
         // 일괄 작업 관련
         $('#select-all').on('click', function() {
-            $('.order-checkbox').prop('checked', this.checked);
+            var isChecked = this.checked;
+            $('.order-checkbox').prop('checked', isChecked);
+            
+            // 모든 행의 선택 상태 시각적 표시
+            $('tbody tr').toggleClass('selected', isChecked);
         });
         
         $('#bulk-action-form').on('submit', function(event) {
@@ -967,6 +982,63 @@
         
         // 컬럼 리사이징 기능 초기화
         setupColumnResizing();
+        
+        // 행 클릭으로 체크박스 선택 기능
+        function setupRowClickToSelect() {
+            $('tbody tr').off('click.rowSelect').on('click.rowSelect', function(e) {
+                // 특정 요소들은 행 클릭 이벤트에서 제외
+                if ($(e.target).is('input[type="checkbox"], a, button, .btn, .toggle-options, .toggle-notes') || 
+                    $(e.target).closest('a, button, .btn, .toggle-options, .toggle-notes').length > 0) {
+                    return;
+                }
+                
+                // 해당 행의 체크박스 찾기
+                var $checkbox = $(this).find('input.order-checkbox');
+                if ($checkbox.length > 0) {
+                    // 체크박스 상태 토글
+                    $checkbox.prop('checked', !$checkbox.prop('checked'));
+                    
+                    // 행 선택 상태 시각적 표시
+                    $(this).toggleClass('selected', $checkbox.prop('checked'));
+                    
+                    // 전체 선택 체크박스 상태 업데이트
+                    updateSelectAllCheckbox();
+                }
+            });
+            
+            // 행에 클릭 가능함을 시각적으로 표시
+            $('tbody tr').css('cursor', 'pointer');
+        }
+        
+        // 전체 선택 체크박스 상태 업데이트 함수
+        function updateSelectAllCheckbox() {
+            var $allCheckboxes = $('input.order-checkbox');
+            var $checkedBoxes = $allCheckboxes.filter(':checked');
+            var $selectAllCheckbox = $('#select-all');
+            
+            if ($checkedBoxes.length === 0) {
+                $selectAllCheckbox.prop('checked', false).prop('indeterminate', false);
+            } else if ($checkedBoxes.length === $allCheckboxes.length) {
+                $selectAllCheckbox.prop('checked', true).prop('indeterminate', false);
+            } else {
+                $selectAllCheckbox.prop('checked', false).prop('indeterminate', true);
+            }
+        }
+        
+        // 개별 체크박스 변경 시에도 전체 선택 상태 업데이트
+        $(document).on('change', 'input.order-checkbox', function() {
+            // 해당 행의 선택 상태 시각적 표시
+            $(this).closest('tr').toggleClass('selected', $(this).prop('checked'));
+            updateSelectAllCheckbox();
+        });
+
+        // 초기화
+        setupRowClickToSelect();
+        
+        // 페이지 로드 시 이미 체크된 항목들의 선택 상태 시각적 표시
+        $('.order-checkbox:checked').each(function() {
+            $(this).closest('tr').addClass('selected');
+        });
         
         // 초기 로드 시 전체 토글 버튼 상태 업데이트
         updateToggleAllOptionsButtonState();
