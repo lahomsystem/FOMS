@@ -134,24 +134,24 @@
                                                         <input class="form-check-input regional-checkbox" 
                                                                type="checkbox" 
                                                                data-order-id="{{ order.id }}"
-                                                               data-field="regional_order_upload"
-                                                               data-label="발주 업로드"
-                                                               id="order_upload_pending_{{ order.id }}"
-                                                               {% if order.regional_order_upload %}checked{% endif %}>
-                                                        <label class="form-check-label small" for="order_upload_pending_{{ order.id }}">
-                                                            2. 발주 업로드
+                                                               data-field="regional_blueprint_sent"
+                                                               data-label="도면 발송"
+                                                               id="blueprint_pending_{{ order.id }}"
+                                                               {% if order.regional_blueprint_sent %}checked{% endif %}>
+                                                        <label class="form-check-label small" for="blueprint_pending_{{ order.id }}">
+                                                            2. 도면 발송
                                                         </label>
                                                     </div>
                                                     <div class="form-check">
                                                         <input class="form-check-input regional-checkbox" 
                                                                type="checkbox" 
                                                                data-order-id="{{ order.id }}"
-                                                               data-field="regional_blueprint_sent"
-                                                               data-label="도면 발송"
-                                                               id="blueprint_pending_{{ order.id }}"
-                                                               {% if order.regional_blueprint_sent %}checked{% endif %}>
-                                                        <label class="form-check-label small" for="blueprint_pending_{{ order.id }}">
-                                                            3. 도면 발송
+                                                               data-field="regional_order_upload"
+                                                               data-label="발주 업로드"
+                                                               id="order_upload_pending_{{ order.id }}"
+                                                               {% if order.regional_order_upload %}checked{% endif %}>
+                                                        <label class="form-check-label small" for="order_upload_pending_{{ order.id }}">
+                                                            3. 발주 업로드
                                                         </label>
                                                     </div>
                                                 </div>
@@ -255,11 +255,11 @@
                                                     </div>
                                                     <div class="d-flex align-items-center">
                                                         <i class="fas fa-check-circle text-success me-2"></i>
-                                                        <small class="text-muted">2. 발주 업로드</small>
+                                                        <small class="text-muted">2. 도면 발송</small>
                                                     </div>
                                                     <div class="d-flex align-items-center">
                                                         <i class="fas fa-check-circle text-success me-2"></i>
-                                                        <small class="text-muted">3. 도면 발송</small>
+                                                        <small class="text-muted">3. 발주 업로드</small>
                                                     </div>
                                                 </div>
                                             </td>
