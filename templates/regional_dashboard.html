@@ -66,7 +66,7 @@
                                     <thead class="table-light">
                                         <tr>
                                             <th>번호</th>
-                                            <th>고객명</th>
+                                            <th style="min-width: 180px;">고객명</th>
                                             <th>주소</th>
                                             <th>제품</th>
                                             <th>상태</th>
@@ -82,8 +82,11 @@
                                         <tr>
                                             <td>{{ order.id }}</td>
                                             <td>
-                                                {{ order.customer_name }}
-                                                <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"></i>
+                                                <div>
+                                                    {{ order.customer_name }}
+                                                    <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"></i>
+                                                </div>
+                                                <small class="text-muted">{{ order.phone }}</small>
                                             </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
@@ -105,7 +108,7 @@
                                                 </span>
                                             </td>
                                             <td>
-                                                <div class="d-flex flex-column gap-1">
+                                                <div class="d-flex flex-column" style="gap: 0.2rem;">
                                                     <div class="form-check">
                                                         <input class="form-check-input regional-checkbox"
                                                                type="checkbox"
@@ -231,7 +234,7 @@
                                     <thead class="table-light">
                                         <tr>
                                             <th>번호</th>
-                                            <th>고객명</th>
+                                            <th style="min-width: 180px;">고객명</th>
                                             <th>주소</th>
                                             <th>제품</th>
                                             <th>상태</th>
@@ -247,8 +250,11 @@
                                         <tr class="table-completed">
                                             <td>{{ order.id }}</td>
                                             <td>
-                                                {{ order.customer_name }}
-                                                <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"></i>
+                                                <div>
+                                                    {{ order.customer_name }}
+                                                    <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"></i>
+                                                </div>
+                                                <small class="text-muted">{{ order.phone }}</small>
                                             </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
@@ -270,7 +276,7 @@
                                                 </span>
                                             </td>
                                             <td>
-                                                <div class="d-flex flex-column gap-1">
+                                                <div class="d-flex flex-column" style="gap: 0.2rem;">
                                                     <div class="d-flex align-items-center">
                                                         <i class="fas fa-check-circle text-success me-2"></i>
                                                         <small class="text-muted">0. 실측완료</small>
@@ -427,7 +433,7 @@
     cursor: pointer;
 }
 .form-check {
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.1rem;
 }
 </style>
 

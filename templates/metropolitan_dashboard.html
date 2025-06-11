@@ -205,7 +205,10 @@
                                         {% for order in measurement_alerts %}
                                         <tr class="table-alert">
                                             <td>{{ order.id }}</td>
-                                            <td>{{ order.customer_name }}</td>
+                                            <td>
+                                                <div>{{ order.customer_name }}</div>
+                                                <small class="text-muted">{{ order.phone }}</small>
+                                            </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
                                             </td>
@@ -280,7 +283,10 @@
                                         {% for order in pre_measurement_alerts %}
                                         <tr class="table-pending">
                                             <td>{{ order.id }}</td>
-                                            <td>{{ order.customer_name }}</td>
+                                            <td>
+                                                <div>{{ order.customer_name }}</div>
+                                                <small class="text-muted">{{ order.phone }}</small>
+                                            </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
                                             </td>
@@ -355,7 +361,10 @@
                                         {% for order in installation_alerts %}
                                         <tr class="table-warning">
                                             <td>{{ order.id }}</td>
-                                            <td>{{ order.customer_name }}</td>
+                                            <td>
+                                                <div>{{ order.customer_name }}</div>
+                                                <small class="text-muted">{{ order.phone }}</small>
+                                            </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
                                             </td>
@@ -420,7 +429,10 @@
                                         {% for order in normal_orders %}
                                         <tr>
                                             <td>{{ order.id }}</td>
-                                            <td>{{ order.customer_name }}</td>
+                                            <td>
+                                                <div>{{ order.customer_name }}</div>
+                                                <small class="text-muted">{{ order.phone }}</small>
+                                            </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
                                             </td>
@@ -493,7 +505,10 @@
                                         {% for order in completed_orders %}
                                         <tr class="table-completed">
                                             <td>{{ order.id }}</td>
-                                            <td>{{ order.customer_name }}</td>
+                                            <td>
+                                                <div>{{ order.customer_name }}</div>
+                                                <small class="text-muted">{{ order.phone }}</small>
+                                            </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
                                             </td>
