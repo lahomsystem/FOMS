@@ -13,7 +13,8 @@
                 <h5 class="mb-0">주문 수정 (ID: {{ order.id }})</h5>
             </div>
             <div class="card-body">
-                <form method="post" action="{{ url_for('edit_order', order_id=order.id, **preserved_args) }}">
+                <form method="post" action="{{ url_for('edit_order', order_id=order.id, **preserved_args) }}" id="editOrderForm">
+                    <input type="hidden" name="referrer" value="{{ request.referrer or url_for('index') }}">
                     <div class="row mb-3">
                         <div class="col-md-4">
                             <label for="received_date" class="form-label">접수일 <span class="text-danger">*</span></label>
@@ -489,8 +490,8 @@
 
             if (progressText) {
                 progressText.textContent = `${completedSteps}/${totalSteps} 완료`;
-            }
-
+        }
+        
             // 진행률에 따른 프로그레스 바 색상 변경
             if (progressBar) {
                 progressBar.className = 'progress-bar';
@@ -509,7 +510,7 @@
         // 체크박스 상태 변경 시 진행률 업데이트
         regionalCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', updateProgress);
-        });
+            });
 
         // 페이지 로드 시 초기 진행률 계산
         updateProgress();

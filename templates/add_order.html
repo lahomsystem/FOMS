@@ -278,7 +278,7 @@ https://smartstore.naver.com/lahomsystem/products/11677653186</textarea>
                 });
             }
         }
-        
+
         if (clearDirectOptionsBtn) {
             clearDirectOptionsBtn.addEventListener('click', function() {
                 directOptionFieldIds.forEach(id => {
@@ -310,7 +310,7 @@ https://smartstore.naver.com/lahomsystem/products/11677653186</textarea>
                 this.style.display = 'none';
             });
         }
-
+        
         document.querySelectorAll('.auto-resize').forEach(adjustTextareaHeight);
         
         const paymentAmountInput = document.getElementById('payment_amount');
@@ -369,7 +369,7 @@ https://smartstore.naver.com/lahomsystem/products/11677653186</textarea>
                 if (paymentAmountInput) {
                     paymentAmountInput.value = paymentAmountInput.value.replace(/,/g, '');
                 }
-            });
+                });
         }
 
         // 지방 주문 자동 필터링 기능 제거 - 사용자가 직접 체크박스로 선택

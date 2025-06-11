@@ -333,7 +333,7 @@
                                 {% set display_name = order.customer_name.split('] ', 1)[1] if '] ' in order.customer_name else order.customer_name %}
                             {% endif %}
                             <span class="text-truncate" style="max-width: 100px;" title="{{ order.customer_name }}">
-                                {{ display_name }}
+                            {{ display_name }}
                                 {% if order.is_regional %}
                                     <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문" style="font-size: 0.8em;"></i>
                                 {% endif %}

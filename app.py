@@ -423,7 +423,7 @@ def index():
                 Order.manager_name.like(search_term)
             )
         )
-    
+
     # 열별 필터링 논리
     for column, filter_value in active_column_filters.items():
         if filter_value:
@@ -440,7 +440,7 @@ def index():
     # URL에서 정렬 정보 가져오기
     sort_by = request.args.get('sort_by', 'id')
     sort_order = request.args.get('sort_order', 'desc')
-    
+
     # 정렬 적용 (index 함수와 동일한 로직)
     if hasattr(Order, sort_column):
         column_to_sort = getattr(Order, sort_column)
@@ -687,11 +687,7 @@ def edit_order(order_id):
     
     if request.method == 'POST':
         try:
-            # 디버깅용 로그
-            print(f"DEBUG: Form data for order {order_id}:")
-            for key, value in request.form.items():
-                print(f"  {key}: {value}")
-            print(f"DEBUG: Original order status: {order.status}")
+            # 폼 데이터 처리
             
             # 폼에서 넘어온 값들을 가져올 때, 해당 필드가 폼에 없으면 기존 order 객체의 값을 기본값으로 사용
             received_date = request.form.get('received_date', order.received_date)
@@ -717,7 +713,7 @@ def edit_order(order_id):
             options_data_json_to_save = order.options # 기본적으로 기존 옵션 유지
             if 'option_type' in request.form:
                 current_option_type = request.form.get('option_type')
-                
+            
                 if current_option_type == 'direct':
                     direct_details = {
                         'product_name': request.form.get('direct_product_name', ''),
@@ -772,7 +768,7 @@ def edit_order(order_id):
             
             construction_type_new = request.form.get('construction_type', order.construction_type)
             if order.construction_type != construction_type_new: changes['construction_type'] = {'old': order.construction_type, 'new': construction_type_new}
-
+            
             # payment_amount 업데이트 및 변경 감지
             new_payment_amount = order.payment_amount # 기본적으로 기존 결제금액 유지
             if 'payment_amount' in request.form:
@@ -1001,20 +997,28 @@ def edit_order(order_id):
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'status': 'success'})
             
-            # return_to 파라미터 확인하여 적절한 페이지로 리다이렉트
-            return_to = request.args.get('return_to')
-            if return_to == 'regional_dashboard':
-                return redirect(url_for('regional_dashboard'))
-            else:
-                # 원래 페이지 필터링 상태 유지 (모든 필터 및 정렬 옵션 포함)
-                redirect_args = get_preserved_filter_args(request.args)
-                return redirect(url_for('index', **redirect_args))
+            # 수정 후 원래 보던 페이지로 리디렉션
+            referrer = request.form.get('referrer')
+            if referrer:
+                # Basic check to prevent open redirection vulnerabilities
+                from urllib.parse import urlparse
+                if urlparse(referrer).netloc == request.host:
+                    return redirect(referrer)
+            
+            # Fallback to the main index page
+            return redirect(url_for('index'))
+        except ValueError as e:
+            db.rollback()
+            flash(f'입력 데이터 오류: {str(e)}', 'error')
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'status': 'error', 'message': str(e)})
         except Exception as e:
             db.rollback()
             flash(f'주문 수정 중 오류가 발생했습니다: {str(e)}', 'error')
             
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return jsonify({'status': 'error', 'message': str(e)})
+                return jsonify({'status': 'error', 'message': '시스템 오류가 발생했습니다.'})
             
             # 오류 발생 시 현재 데이터로 페이지 다시 로드
             return render_template(
@@ -1214,10 +1218,7 @@ def permanent_delete_all_orders():
     return redirect(url_for('trash'))
 
 def reset_order_ids(db):
-    """
-    주문 ID를 1부터 연속적으로 재정렬합니다.
-    관련된 로그 데이터도 함께 업데이트합니다.
-    """
+    """주문 ID를 1부터 연속적으로 재정렬합니다."""
     try:
         # 임시 테이블 생성
         db.execute(text("CREATE TEMPORARY TABLE temp_order_mapping (old_id INT, new_id INT)"))
@@ -2225,29 +2226,6 @@ def inject_menu():
     menu_config = load_menu_config()
     return dict(menu=menu_config)
 
-# options 필드 변경 관련 헬퍼 함수는 보안 로그 재구성 이후 다시 구현할 예정
-# 임시로 간단한 형태의 함수만 유지
-def translate_dict_keys(d, key_map):
-    if not isinstance(d, dict):
-        return d
-    new_dict = {}
-    for k, v in d.items():
-        translated_key = key_map.get(k, k)
-        if isinstance(v, dict):
-            new_dict[translated_key] = translate_dict_keys(v, key_map)
-        elif isinstance(v, list):
-            new_dict[translated_key] = [translate_dict_keys(item, key_map) for item in v]
-        else:
-            new_dict[translated_key] = v
-    return new_dict
-
-def format_value_for_log(value):
-    if value is None:
-        return "없음"
-    if isinstance(value, str) and not value.strip(): # 빈 문자열
-        return "없음"
-    return str(value)
-
 # Jinja 필터: 메시지 내 "주문 #<번호>"를 클릭 가능한 링크로 변환
 @app.template_filter('order_link')
 def order_link_filter(s):
@@ -2366,7 +2344,7 @@ def regional_dashboard():
         'AS_COMPLETED': 'AS 완료',
         'DELETED': '삭제됨'
     }
-    
+        
     return render_template('regional_dashboard.html', 
                            pending_orders=pending_orders, 
                            completed_orders=completed_orders,
