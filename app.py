@@ -2276,8 +2276,9 @@ def security_logs():
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def update_regional_status():
-    db = get_db()
+    """지방 주문 체크리스트 상태 업데이트"""
     data = request.get_json()
+    
     order_id = data.get('order_id')
     field = data.get('field')
     value = data.get('value')
@@ -2304,6 +2305,37 @@ def update_regional_status():
         db.commit()
         log_access(f"지방 주문 #{order.id}의 '{field}' 상태를 '{value}'(으)로 변경", session['user_id'])
         return jsonify({'success': True, 'message': '상태가 업데이트되었습니다.'})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
+
+@app.route('/api/update_order_field', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def update_order_field():
+    """주문 필드 업데이트 (수도권 대시보드용)"""
+    db = get_db()
+    data = request.get_json()
+    
+    order_id = data.get('order_id')
+    field = data.get('field')
+    value = data.get('value')
+
+    order = db.query(Order).filter_by(id=order_id).first()
+
+    if not order:
+        return jsonify({'success': False, 'message': '유효하지 않은 주문입니다.'}), 404
+
+    # 업데이트 가능한 필드인지 확인 (보안 목적)
+    allowed_fields = ['manager_name', 'scheduled_date']
+    if field not in allowed_fields:
+        return jsonify({'success': False, 'message': '허용되지 않은 필드입니다.'}), 400
+
+    try:
+        setattr(order, field, value)
+        db.commit()
+        log_access(f"주문 #{order.id}의 '{field}' 필드를 '{value}'(으)로 변경", session['user_id'])
+        return jsonify({'success': True, 'message': '정보가 업데이트되었습니다.'})
     except Exception as e:
         db.rollback()
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
@@ -2359,6 +2391,104 @@ def regional_dashboard():
         
     return render_template('regional_dashboard.html', 
                            pending_orders=pending_orders, 
+                           completed_orders=completed_orders,
+                           STATUS=status_display_names)
+
+@app.route('/metropolitan_dashboard')
+@login_required
+def metropolitan_dashboard():
+    """수도권 주문 관리 대시보드"""
+    db = get_db()
+    
+    # 모든 수도권 주문 가져오기 (is_regional이 False인 주문)
+    all_metropolitan_orders = db.query(Order).filter(
+        Order.is_regional == False,
+        Order.status != 'DELETED'
+    ).order_by(Order.id.desc()).all()
+    
+    # 날짜 비교를 위한 today 설정
+    today = datetime.date.today()
+    
+    # 알림이 필요한 주문들 분류
+    urgent_alerts = []  # 실측일 D+0부터 담당자/설치예정일 미지정 긴급 알림
+    measurement_alerts = []  # 실측 후 미처리 알림
+    pre_measurement_alerts = []  # 실측 전 주문들
+    installation_alerts = []  # 설치예정일 D+0부터 완료상태 미변경 알림
+    normal_orders = []  # 정상 처리 중인 주문
+    completed_orders = []  # 완료된 주문
+    
+    for order in all_metropolitan_orders:
+        # 완료된 주문은 따로 분리
+        if order.status == 'COMPLETED':
+            completed_orders.append(order)
+            continue
+            
+        # 1. 긴급 알림: 실측일이 오늘 이전이고 담당자나 설치예정일이 미지정인 경우
+        needs_urgent_alert = False
+        if order.measurement_date:
+            try:
+                measurement_date = datetime.datetime.strptime(order.measurement_date, '%Y-%m-%d').date()
+                if measurement_date <= today:
+                    # 담당자나 설치예정일이 미지정인 경우
+                    if not order.manager_name or not order.scheduled_date:
+                        needs_urgent_alert = True
+            except ValueError:
+                pass
+        
+        # 2. 실측 후 미처리 알림: 실측 완료 상태이고 실측일이 지난 주문들
+        needs_measurement_alert = False
+        needs_pre_measurement_alert = False
+        if order.status == 'MEASURED' and not needs_urgent_alert:
+            if order.measurement_date:
+                try:
+                    measurement_date = datetime.datetime.strptime(order.measurement_date, '%Y-%m-%d').date()
+                    if measurement_date <= today:
+                        needs_measurement_alert = True  # 실측일이 지남 - 실측 후 미처리
+                    else:
+                        needs_pre_measurement_alert = True  # 실측일이 아직 오지 않음 - 실측 전
+                except ValueError:
+                    needs_measurement_alert = True  # 날짜 형식 오류시 기본적으로 미처리로 분류
+            else:
+                needs_measurement_alert = True  # 실측일이 없는 경우 미처리로 분류
+        
+        # 3. 설치예정일 체크: 설치예정일이 오늘 이전이고 완료상태가 아닌 경우
+        needs_installation_alert = False
+        if order.scheduled_date and order.status != 'COMPLETED' and not needs_urgent_alert and not needs_measurement_alert and not needs_pre_measurement_alert:
+            try:
+                scheduled_date = datetime.datetime.strptime(order.scheduled_date, '%Y-%m-%d').date()
+                if scheduled_date <= today:
+                    needs_installation_alert = True
+            except ValueError:
+                pass
+        
+        # 알림 분류
+        if needs_urgent_alert:
+            urgent_alerts.append(order)
+        elif needs_measurement_alert:
+            measurement_alerts.append(order)
+        elif needs_pre_measurement_alert:
+            pre_measurement_alerts.append(order)
+        elif needs_installation_alert:
+            installation_alerts.append(order)
+        else:
+            normal_orders.append(order)
+    
+    status_display_names = {
+        'RECEIVED': '접수',
+        'MEASURED': '실측',
+        'SCHEDULED': '설치 예정',
+        'COMPLETED': '완료',
+        'AS_RECEIVED': 'AS 접수',
+        'AS_COMPLETED': 'AS 완료',
+        'DELETED': '삭제됨'
+    }
+        
+    return render_template('metropolitan_dashboard.html', 
+                           urgent_alerts=urgent_alerts,
+                           measurement_alerts=measurement_alerts,
+                           pre_measurement_alerts=pre_measurement_alerts,
+                           installation_alerts=installation_alerts,
+                           normal_orders=normal_orders,
                            completed_orders=completed_orders,
                            STATUS=status_display_names)
 

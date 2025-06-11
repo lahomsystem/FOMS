@@ -26,6 +26,11 @@
       "url": "/regional_dashboard"
     },
     {
+      "id": "metropolitan_dashboard",
+      "name": "수도권 주문 대시보드",
+      "url": "/metropolitan_dashboard"
+    },
+    {
       "id": "received",
       "name": "접수",
       "url": "/?status=RECEIVED"
