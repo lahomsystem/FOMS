@@ -144,7 +144,7 @@
                                             </td>
                                             <td>{{ order.received_date }}</td>
                                             <td>
-                                                <a href="{{ url_for('edit_order', order_id=order.id) }}" 
+                                                <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-primary" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
@@ -175,10 +175,10 @@
                                 <i class="fas fa-check-circle me-2"></i>완료된 주문 ({{ completed_orders|length }}건)
                             </h6>
                             <button class="btn btn-sm btn-light" onclick="toggleCompletedOrders()">
-                                <i class="fas fa-eye" id="toggle-icon"></i> <span id="toggle-text">보기</span>
+                                <i class="fas fa-eye-slash" id="toggle-icon"></i> <span id="toggle-text">숨기기</span>
                             </button>
                         </div>
-                        <div class="card-body" id="completed-orders-section" style="display: none;">
+                        <div class="card-body" id="completed-orders-section" style="display: block;">
                             {% if completed_orders %}
                             <div class="table-responsive">
                                 <table class="table table-bordered table-hover">
@@ -239,7 +239,7 @@
                                             </td>
                                             <td>{{ order.received_date }}</td>
                                             <td>
-                                                <a href="{{ url_for('edit_order', order_id=order.id) }}" 
+                                                <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-success" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
@@ -378,7 +378,7 @@ function toggleCompletedOrders() {
     const icon = document.getElementById('toggle-icon');
     const text = document.getElementById('toggle-text');
     
-    if (section.style.display === 'none') {
+    if (section.style.display === 'none' || section.style.display === '') {
         section.style.display = 'block';
         icon.className = 'fas fa-eye-slash';
         text.textContent = '숨기기';

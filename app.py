@@ -338,6 +338,15 @@ def parse_json_string(json_string):
     except json.JSONDecodeError:
         return None
 
+def get_preserved_filter_args(request_args):
+    """필터링 상태를 유지하기 위한 URL 매개변수를 반환합니다."""
+    redirect_args = {}
+    preserved_params = ['search', 'status', 'region', 'page', 'sort', 'direction', 'sort_by', 'sort_order'] + [k for k in request_args.keys() if k.startswith('filter_')]
+    for key in preserved_params:
+        if key in request_args:
+            redirect_args[key] = request_args.get(key)
+    return redirect_args
+
 @app.context_processor
 def utility_processor():
     return dict(parse_json_string=parse_json_string)
@@ -657,6 +666,12 @@ def edit_order(order_id):
     
     if request.method == 'POST':
         try:
+            # 디버깅용 로그
+            print(f"DEBUG: Form data for order {order_id}:")
+            for key, value in request.form.items():
+                print(f"  {key}: {value}")
+            print(f"DEBUG: Original order status: {order.status}")
+            
             # 폼에서 넘어온 값들을 가져올 때, 해당 필드가 폼에 없으면 기존 order 객체의 값을 기본값으로 사용
             received_date = request.form.get('received_date', order.received_date)
             received_time = request.form.get('received_time', order.received_time)
@@ -665,7 +680,7 @@ def edit_order(order_id):
             address = request.form.get('address', order.address)
             product = request.form.get('product', order.product)
             notes = request.form.get('notes', order.notes)
-            status = request.form.get('status') # 상태는 직접 변경되므로 기본값 사용 안 함
+            status = request.form.get('status', order.status) # 상태가 없으면 기존 상태 유지
             
             measurement_date = request.form.get('measurement_date', order.measurement_date)
             measurement_time = request.form.get('measurement_time', order.measurement_time)
@@ -765,9 +780,11 @@ def edit_order(order_id):
             order.as_completed_date = as_completed_date
             order.payment_amount = new_payment_amount # 최종 결제금액 업데이트
             
-            # 지방 주문 여부 사용자 선택
+            # 지방 주문 여부 사용자 선택 (체크박스는 체크되지 않으면 폼에 포함되지 않음)
             if 'is_regional' in request.form:
-                order.is_regional = bool(request.form.get('is_regional'))
+                order.is_regional = True  # 체크박스가 폼에 있으면 체크된 것
+            else:
+                order.is_regional = False  # 폼에 없으면 체크되지 않은 것
             
             # 지방 주문 체크박스 필드 업데이트
             if order.is_regional:
@@ -946,7 +963,14 @@ def edit_order(order_id):
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'status': 'success'})
             
-            return redirect(url_for('index'))
+            # return_to 파라미터 확인하여 적절한 페이지로 리다이렉트
+            return_to = request.args.get('return_to')
+            if return_to == 'regional_dashboard':
+                return redirect(url_for('regional_dashboard'))
+            else:
+                # 원래 페이지 필터링 상태 유지 (모든 필터 및 정렬 옵션 포함)
+                redirect_args = get_preserved_filter_args(request.args)
+                return redirect(url_for('index', **redirect_args))
         except Exception as e:
             db.rollback()
             flash(f'주문 수정 중 오류가 발생했습니다: {str(e)}', 'error')
@@ -964,12 +988,15 @@ def edit_order(order_id):
             )
     
     # GET 요청에 대한 최종 반환 - 미리 처리된 옵션 데이터를 직접 템플릿에 전달
+    # 현재 URL 쿼리 파라미터를 템플릿에 전달하여 필터 상태 유지
+    preserved_args = get_preserved_filter_args(request.args)
     return render_template(
         'edit_order.html', 
         order=order,
         option_type=option_type,
         online_options=online_options,
-        direct_options=direct_options
+        direct_options=direct_options,
+        preserved_args=preserved_args
     )
 
 @app.route('/delete/<int:order_id>')
@@ -1007,7 +1034,9 @@ def delete_order(order_id):
         db.rollback()
         flash(f'주문 삭제 중 오류가 발생했습니다: {str(e)}', 'error')
     
-    return redirect(url_for('index'))
+    # 원래 페이지 필터링 상태 유지
+    redirect_args = get_preserved_filter_args(request.args)
+    return redirect(url_for('index', **redirect_args))
 
 @app.route('/trash')
 @login_required
@@ -1229,11 +1258,15 @@ def bulk_action():
     
     if not selected_ids:
         flash('작업할 주문을 선택해주세요.', 'warning')
-        return redirect(url_for('index'))
+        # 원래 페이지 필터링 상태 유지
+        redirect_args = get_preserved_filter_args(request.args)
+        return redirect(url_for('index', **redirect_args))
     
     if not action:
         flash('수행할 작업을 선택해주세요.', 'warning')
-        return redirect(url_for('index'))
+        # 원래 페이지 필터링 상태 유지
+        redirect_args = get_preserved_filter_args(request.args)
+        return redirect(url_for('index', **redirect_args))
 
     # db 변수 미리 선언
     db = None
@@ -1321,7 +1354,9 @@ def bulk_action():
                     # 상태가 이미 동일하면 처리하지 않음 (processed_count 증가 안함)
             else:
                  flash("'" + new_status + "'" + '는 유효하지 않은 상태입니다.', 'error')
-                 return redirect(url_for('index'))
+                 # 원래 페이지 필터링 상태 유지
+                 redirect_args = get_preserved_filter_args(request.args)
+                 return redirect(url_for('index', **redirect_args))
 
         # 모든 변경 사항을 한번에 커밋
         db.commit()
@@ -1356,7 +1391,9 @@ def bulk_action():
         flash(f'일괄 작업 중 오류 발생: {str(e)}', 'error')
         current_app.logger.error(f"일괄 작업 실패: {e}", exc_info=True)
     
-    return redirect(url_for('index'))
+    # 원래 페이지 필터링 상태 유지
+    redirect_args = get_preserved_filter_args(request.args)
+    return redirect(url_for('index', **redirect_args))
 
 @app.route('/upload', methods=['GET', 'POST'])
 @login_required
@@ -2234,61 +2271,6 @@ def security_logs():
         current_user_id=selected_user_id, 
         current_limit=current_limit 
     )
-
-@app.route('/update_regional_field/<int:order_id>', methods=['POST'])
-@login_required
-@role_required(['ADMIN', 'MANAGER', 'STAFF'])
-def update_regional_field(order_id):
-    """지방 주문 체크리스트 필드 개별 업데이트"""
-    try:
-        data = request.get_json()
-        field_name = data.get('field')
-        field_value = data.get('value', False)
-        
-        # 허용된 필드명 검증
-        allowed_fields = [
-            'regional_sales_order_upload',
-            'regional_blueprint_sent',
-            'regional_order_upload'
-        ]
-        
-        if field_name not in allowed_fields:
-            return jsonify({'status': 'error', 'message': '허용되지 않은 필드입니다.'}), 400
-        
-        db = get_db()
-        order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
-        
-        if not order:
-            return jsonify({'status': 'error', 'message': '주문을 찾을 수 없습니다.'}), 404
-        
-        if not order.is_regional:
-            return jsonify({'status': 'error', 'message': '지방 주문이 아닙니다.'}), 400
-        
-        # 필드 업데이트
-        setattr(order, field_name, field_value)
-        db.commit()
-        
-        # 필드명을 한글로 변환
-        field_labels = {
-            'regional_sales_order_upload': '영업발주 업로드',
-            'regional_blueprint_sent': '도면 발송',
-            'regional_order_upload': '발주 업로드'
-        }
-        
-        field_korean = field_labels.get(field_name, field_name)
-        status_korean = '완료' if field_value else '취소'
-        
-        # 로그 기록
-        user_for_log = get_user_by_id(session['user_id'])
-        user_name_for_log = user_for_log.name if user_for_log else "Unknown user"
-        log_access(f"주문 #{order_id} ({order.customer_name}) 지방 주문 단계 업데이트: {field_korean} {status_korean} - 담당자: {user_name_for_log} (ID: {session.get('user_id')})", session.get('user_id'))
-        
-        return jsonify({'status': 'success', 'message': f'{field_korean}이(가) {status_korean}되었습니다.'})
-        
-    except Exception as e:
-        if 'db' in locals():
-            db.rollback()
-        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/regional_dashboard')
 @login_required
