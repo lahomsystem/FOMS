@@ -37,6 +37,8 @@ class Order(Base):
     regional_sales_order_upload = Column(Boolean, default=False)  # 영업발주 업로드  
     regional_blueprint_sent = Column(Boolean, default=False)  # 도면발송
     regional_order_upload = Column(Boolean, default=False)  # 발주 업로드
+    measurement_completed = Column(Boolean, default=False) # 실측완료
+    construction_type = Column(String(50), nullable=True) # 시공 구분
     
     def to_dict(self):
         return {
@@ -64,7 +66,9 @@ class Order(Base):
             'is_regional': self.is_regional,
             'regional_sales_order_upload': self.regional_sales_order_upload,
             'regional_blueprint_sent': self.regional_blueprint_sent,
-            'regional_order_upload': self.regional_order_upload
+            'regional_order_upload': self.regional_order_upload,
+            'measurement_completed': self.measurement_completed,
+            'construction_type': self.construction_type
         }
 
 class User(Base):

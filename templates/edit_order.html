@@ -205,6 +205,14 @@
                                     <div class="row">
                                         <div class="col-md-6">
                                             <div class="form-check mb-2">
+                                                <input class="form-check-input regional-checkbox" type="checkbox"
+                                                       name="measurement_completed" id="measurement_completed"
+                                                       value="1" {{ 'checked' if order.measurement_completed else '' }}>
+                                                <label class="form-check-label" for="measurement_completed">
+                                                    <i class="fas fa-ruler-combined text-primary"></i> 실측완료
+                                                </label>
+                                            </div>
+                                            <div class="form-check mb-2">
                                                 <input class="form-check-input regional-checkbox" type="checkbox" 
                                                        name="regional_sales_order_upload" id="regional_sales_order_upload" 
                                                        value="1" {{ 'checked' if order.regional_sales_order_upload else '' }}>
@@ -245,6 +253,15 @@
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+                                <div class="col-md-12 mt-3">
+                                    <h6 class="mb-3">시공 구분</h6>
+                                    <select class="form-select" id="construction_type" name="construction_type">
+                                        <option value="" {% if not order.construction_type %}selected{% endif %}>-- 선택 --</option>
+                                        <option value="하우드 시공" {% if order.construction_type == '하우드 시공' %}selected{% endif %}>하우드 시공</option>
+                                        <option value="협력사 시공" {% if order.construction_type == '협력사 시공' %}selected{% endif %}>협력사 시공</option>
+                                        <option value="기타" {% if order.construction_type == '기타' %}selected{% endif %}>기타</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -463,7 +480,7 @@
         function updateProgress() {
             const totalSteps = regionalCheckboxes.length;
             const completedSteps = Array.from(regionalCheckboxes).filter(checkbox => checkbox.checked).length;
-            const percentage = Math.round((completedSteps / totalSteps) * 100);
+            const percentage = Math.round((completedSteps / totalSteps) * 100) || 0;
 
             if (progressBar) {
                 progressBar.style.width = percentage + '%';

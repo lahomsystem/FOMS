@@ -70,7 +70,9 @@
                                             <th>주소</th>
                                             <th>제품</th>
                                             <th>상태</th>
-                                            <th style="width: 200px;">진행 단계 체크리스트</th>
+                                            <th style="width: 250px;">진행 단계 체크리스트</th>
+                                            <th>시공 구분</th>
+                                            <th>설치일</th>
                                             <th>접수일</th>
                                             <th>작업</th>
                                         </tr>
@@ -104,6 +106,18 @@
                                             </td>
                                             <td>
                                                 <div class="d-flex flex-column gap-1">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input regional-checkbox"
+                                                               type="checkbox"
+                                                               data-order-id="{{ order.id }}"
+                                                               data-field="measurement_completed"
+                                                               data-label="실측완료"
+                                                               id="measurement_pending_{{ order.id }}"
+                                                               {% if order.measurement_completed %}checked{% endif %}>
+                                                        <label class="form-check-label small" for="measurement_pending_{{ order.id }}">
+                                                            0. 실측완료
+                                                        </label>
+                                                    </div>
                                                     <div class="form-check">
                                                         <input class="form-check-input regional-checkbox" 
                                                                type="checkbox" 
@@ -142,6 +156,12 @@
                                                     </div>
                                                 </div>
                                             </td>
+                                            <td>
+                                                <span class="badge {% if order.construction_type == '하우드 시공' %}bg-info text-dark{% elif order.construction_type == '협력사 시공' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                                                    {{ order.construction_type or '미지정' }}
+                                                </span>
+                                            </td>
+                                            <td>{{ order.scheduled_date or '-' }}</td>
                                             <td>{{ order.received_date }}</td>
                                             <td>
                                                 <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
@@ -190,6 +210,8 @@
                                             <th>제품</th>
                                             <th>상태</th>
                                             <th style="width: 200px;">완료된 체크리스트</th>
+                                            <th>시공 구분</th>
+                                            <th>설치일</th>
                                             <th>접수일</th>
                                             <th>작업</th>
                                         </tr>
@@ -225,18 +247,28 @@
                                                 <div class="d-flex flex-column gap-1">
                                                     <div class="d-flex align-items-center">
                                                         <i class="fas fa-check-circle text-success me-2"></i>
-                                                        <small class="text-success">1. 영업발주 업로드</small>
+                                                        <small class="text-muted">0. 실측완료</small>
                                                     </div>
                                                     <div class="d-flex align-items-center">
                                                         <i class="fas fa-check-circle text-success me-2"></i>
-                                                        <small class="text-success">2. 발주 업로드</small>
+                                                        <small class="text-muted">1. 영업발주 업로드</small>
                                                     </div>
                                                     <div class="d-flex align-items-center">
                                                         <i class="fas fa-check-circle text-success me-2"></i>
-                                                        <small class="text-success">3. 도면 발송</small>
+                                                        <small class="text-muted">2. 발주 업로드</small>
+                                                    </div>
+                                                    <div class="d-flex align-items-center">
+                                                        <i class="fas fa-check-circle text-success me-2"></i>
+                                                        <small class="text-muted">3. 도면 발송</small>
                                                     </div>
                                                 </div>
                                             </td>
+                                            <td>
+                                                <span class="badge {% if order.construction_type == '하우드 시공' %}bg-info text-dark{% elif order.construction_type == '협력사 시공' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                                                    {{ order.construction_type or '미지정' }}
+                                                </span>
+                                            </td>
+                                            <td>{{ order.scheduled_date or '-' }}</td>
                                             <td>{{ order.received_date }}</td>
                                             <td>
                                                 <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
@@ -261,6 +293,18 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Toast 컨테이너 -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+  <div id="status-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-header">
+      <strong class="me-auto">알림</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+    <div class="toast-body">
+    </div>
+  </div>
 </div>
 
 <style>
@@ -353,103 +397,72 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // 지방 주문 체크리스트 체크박스 이벤트
-    document.querySelectorAll('.regional-checkbox').forEach(function(checkbox) {
-        checkbox.addEventListener('change', function(e) {
+    const checkboxes = document.querySelectorAll('.regional-checkbox');
+    const toastElement = document.getElementById('status-toast');
+    const toastBody = toastElement.querySelector('.toast-body');
+    const toast = new bootstrap.Toast(toastElement);
+
+    checkboxes.forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
             const orderId = this.dataset.orderId;
             const field = this.dataset.field;
-            const label = this.dataset.label;
             const isChecked = this.checked;
-            const action = isChecked ? '완료' : '취소';
-            
-            // 확인 대화상자
-            if (confirm(`"${label}"을(를) ${action}하시겠습니까?`)) {
-                updateRegionalField(orderId, field, isChecked, this);
-            } else {
-                // 사용자가 취소한 경우 체크박스 상태 되돌리기
+            const label = this.dataset.label;
+
+            fetch('/api/update_regional_status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    order_id: orderId,
+                    field: field,
+                    value: isChecked
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    toastBody.textContent = `주문 #${orderId}의 '${label}' 상태가 성공적으로 업데이트되었습니다.`;
+                    toastElement.classList.remove('bg-danger');
+                    toastElement.classList.add('bg-success', 'text-white');
+                } else {
+                    toastBody.textContent = `오류: ${data.message}`;
+                    toastElement.classList.remove('bg-success');
+                    toastElement.classList.add('bg-danger', 'text-white');
+                    // 실패 시 체크박스를 원래 상태로 되돌립니다.
+                    this.checked = !isChecked; 
+                }
+                toast.show();
+            })
+            .catch(error => {
+                toastBody.textContent = '서버 통신 중 오류가 발생했습니다.';
+                toastElement.classList.remove('bg-success');
+                toastElement.classList.add('bg-danger', 'text-white');
+                toast.show();
+                // 오류 발생 시 체크박스를 원래 상태로 되돌립니다.
                 this.checked = !isChecked;
-            }
+            });
         });
     });
 });
 
 function toggleCompletedOrders() {
-    const section = document.getElementById('completed-orders-section');
-    const icon = document.getElementById('toggle-icon');
-    const text = document.getElementById('toggle-text');
+    var section = document.getElementById('completed-orders-section');
+    var icon = document.getElementById('toggle-icon');
+    var text = document.getElementById('toggle-text');
     
-    if (section.style.display === 'none' || section.style.display === '') {
+    if (section.style.display === 'none') {
         section.style.display = 'block';
-        icon.className = 'fas fa-eye-slash';
-        text.textContent = '숨기기';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+        text.innerText = '숨기기';
     } else {
         section.style.display = 'none';
-        icon.className = 'fas fa-eye';
-        text.textContent = '보기';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+        text.innerText = '보이기';
     }
-}
-
-function updateRegionalField(orderId, field, value, checkboxElement) {
-    fetch(`/update_regional_field/${orderId}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            field: field,
-            value: value
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            // 성공 시 체크박스 상태 유지하고 페이지 새로고침
-            showAlert('success', data.message);
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
-        } else {
-            // 실패 시 체크박스 상태 되돌리기
-            checkboxElement.checked = !value;
-            showAlert('danger', data.message || '업데이트에 실패했습니다.');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        // 오류 시 체크박스 상태 되돌리기
-        checkboxElement.checked = !value;
-        showAlert('danger', '서버 오류가 발생했습니다.');
-    });
-}
-
-function showAlert(type, message) {
-    // 기존 알림 제거
-    const existingAlerts = document.querySelectorAll('.alert-fixed');
-    existingAlerts.forEach(alert => alert.remove());
-    
-    // 새 알림 생성
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show alert-fixed`;
-    alertDiv.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        z-index: 9999;
-        min-width: 300px;
-    `;
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    document.body.appendChild(alertDiv);
-    
-    // 3초 후 자동 제거
-    setTimeout(() => {
-        if (alertDiv.parentNode) {
-            alertDiv.remove();
-        }
-    }, 3000);
 }
 </script>
 {% endblock %} 

@@ -531,6 +531,23 @@ def add_order():
             else:
                 payment_amount = 0 # 값이 없으면 0으로 처리
 
+            # 지방 주문 여부 설정
+            is_regional_val = 'is_regional' in request.form
+            
+            # 지방 주문일 경우, 체크리스트 항목들도 가져옴
+            measurement_completed_val = False
+            regional_sales_order_upload_val = False
+            regional_blueprint_sent_val = False
+            regional_order_upload_val = False
+            construction_type_val = None
+
+            if is_regional_val:
+                measurement_completed_val = 'measurement_completed' in request.form
+                regional_sales_order_upload_val = 'regional_sales_order_upload' in request.form
+                regional_blueprint_sent_val = 'regional_blueprint_sent' in request.form
+                regional_order_upload_val = 'regional_order_upload' in request.form
+                construction_type_val = request.form.get('construction_type')
+
             new_order = Order(
                 received_date=request.form.get('received_date'),
                 received_time=request.form.get('received_time'),
@@ -551,8 +568,12 @@ def add_order():
                 scheduled_date=request.form.get('scheduled_date'),
                 as_received_date=request.form.get('as_received_date'),
                 as_completed_date=request.form.get('as_completed_date'),
-                # 지방 주문 여부 사용자 선택
-                is_regional=bool(request.form.get('is_regional'))
+                is_regional=is_regional_val,
+                measurement_completed=measurement_completed_val,
+                regional_sales_order_upload=regional_sales_order_upload_val,
+                regional_blueprint_sent=regional_blueprint_sent_val,
+                regional_order_upload=regional_order_upload_val,
+                construction_type=construction_type_val
             )
             
             db.add(new_order)
@@ -742,6 +763,16 @@ def edit_order(order_id):
             if order.as_received_date != as_received_date: changes['as_received_date'] = {'old': order.as_received_date, 'new': as_received_date}
             if order.as_completed_date != as_completed_date: changes['as_completed_date'] = {'old': order.as_completed_date, 'new': as_completed_date}
             
+            # 지방 주문 관련 필드 변경 감지
+            is_regional_new = 'is_regional' in request.form
+            if order.is_regional != is_regional_new: changes['is_regional'] = {'old': order.is_regional, 'new': is_regional_new}
+            
+            measurement_completed_new = 'measurement_completed' in request.form
+            if order.measurement_completed != measurement_completed_new: changes['measurement_completed'] = {'old': order.measurement_completed, 'new': measurement_completed_new}
+            
+            construction_type_new = request.form.get('construction_type', order.construction_type)
+            if order.construction_type != construction_type_new: changes['construction_type'] = {'old': order.construction_type, 'new': construction_type_new}
+
             # payment_amount 업데이트 및 변경 감지
             new_payment_amount = order.payment_amount # 기본적으로 기존 결제금액 유지
             if 'payment_amount' in request.form:
@@ -781,14 +812,15 @@ def edit_order(order_id):
             order.payment_amount = new_payment_amount # 최종 결제금액 업데이트
             
             # 지방 주문 여부 사용자 선택 (체크박스는 체크되지 않으면 폼에 포함되지 않음)
-            if 'is_regional' in request.form:
-                order.is_regional = True  # 체크박스가 폼에 있으면 체크된 것
-            else:
-                order.is_regional = False  # 폼에 없으면 체크되지 않은 것
+            order.is_regional = is_regional_new
+
+            # 시공 구분 업데이트
+            order.construction_type = construction_type_new
             
             # 지방 주문 체크박스 필드 업데이트
             if order.is_regional:
                 regional_fields = [
+                    'measurement_completed',
                     'regional_sales_order_upload',
                     'regional_blueprint_sent',
                     'regional_order_upload'
@@ -819,7 +851,13 @@ def edit_order(order_id):
                 'measurement_time': '실측시간',
                 'completion_date': '설치완료일',
                 'manager_name': '담당자',
-                'payment_amount': '결제금액'
+                'payment_amount': '결제금액',
+                'is_regional': '지방 주문',
+                'measurement_completed': '실측완료',
+                'construction_type': '시공 구분',
+                'regional_sales_order_upload': '영업발주 업로드',
+                'regional_blueprint_sent': '도면 발송',
+                'regional_order_upload': '발주 업로드'
             }
             
             # 변경된 필드만 필터링하여 로그 메시지 구성
@@ -2228,49 +2266,67 @@ def order_link_filter(s):
 def security_logs():
     db = get_db()
     
-    # 필터링 위한 사용자 목록 가져오기
-    users_for_filter = db.query(User).order_by(User.username).all()
+    page = request.args.get('page', 1, type=int)
+    per_page = 50  # 페이지당 로그 수
     
-    query = db.query(SecurityLog)
+    search_query = request.args.get('search', '')
     
-    # 사용자 ID로 필터링
-    filter_user_id_str = request.args.get('user_id')
-    selected_user_id = None
-    if filter_user_id_str and filter_user_id_str.isdigit():
-        selected_user_id = int(filter_user_id_str)
-        query = query.filter(SecurityLog.user_id == selected_user_id)
+    query = db.query(SecurityLog).order_by(SecurityLog.timestamp.desc())
+    
+    if search_query:
+        # 사용자 이름 또는 메시지 내용으로 검색
+        query = query.join(User, User.id == SecurityLog.user_id, isouter=True).filter(
+            or_(
+                User.name.ilike(f'%{search_query}%'),
+                SecurityLog.message.ilike(f'%{search_query}%')
+            )
+        )
         
-    # 표시 개수 제한
-    limit_str = request.args.get('limit', '100') # 기본값 100으로 설정
-    current_limit = 100 # 기본값
-    if limit_str.isdigit() and int(limit_str) > 0:
-        current_limit = int(limit_str)
+    total_logs = query.count()
+    logs = query.offset((page - 1) * per_page).limit(per_page).all()
     
-    logs_from_db = query.order_by(SecurityLog.timestamp.desc()).limit(current_limit).all()
+    total_pages = (total_logs + per_page - 1) // per_page
     
-    # 로그에 사용자 정보(username, name)를 추가 (템플릿에서 쉽게 사용하기 위해)
-    enriched_logs = []
-    for log_item in logs_from_db:
-        log_user = None
-        if log_item.user_id:
-            # get_user_by_id 함수를 사용하여 사용자 정보 가져오기
-            log_user = get_user_by_id(log_item.user_id) 
-        
-        enriched_logs.append({
-            'timestamp': log_item.timestamp,
-            'message': log_item.message,
-            'user_id': log_item.user_id,
-            'username': log_user.username if log_user else "N/A", 
-            'name': log_user.name if log_user else "System" 
-        })
-        
-    return render_template(
-        'security_logs.html',
-        logs=enriched_logs,
-        users=users_for_filter, 
-        current_user_id=selected_user_id, 
-        current_limit=current_limit 
-    )
+    return render_template('security_logs.html', 
+                           logs=logs, 
+                           page=page, 
+                           total_pages=total_pages, 
+                           search_query=search_query,
+                           total_logs=total_logs)
+
+@app.route('/api/update_regional_status', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def update_regional_status():
+    db = get_db()
+    data = request.get_json()
+    order_id = data.get('order_id')
+    field = data.get('field')
+    value = data.get('value')
+
+    order = db.query(Order).filter_by(id=order_id).first()
+
+    if not order or not order.is_regional:
+        return jsonify({'success': False, 'message': '유효하지 않은 주문입니다.'}), 404
+
+    # 업데이트 가능한 필드인지 확인 (보안 목적)
+    allowed_fields = [
+        'measurement_completed',
+        'regional_sales_order_upload',
+        'regional_blueprint_sent',
+        'regional_order_upload'
+    ]
+    if field not in allowed_fields:
+        return jsonify({'success': False, 'message': '허용되지 않은 필드입니다.'}), 400
+
+    try:
+        setattr(order, field, value)
+        db.commit()
+        log_access(f"지방 주문 #{order.id}의 '{field}' 상태를 '{value}'(으)로 변경", session['user_id'])
+        return jsonify({'success': True, 'message': '상태가 업데이트되었습니다.'})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
 
 @app.route('/regional_dashboard')
 @login_required
@@ -2301,11 +2357,20 @@ def regional_dashboard():
         else:
             pending_orders.append(order)
     
-    return render_template(
-        'regional_dashboard.html',
-        completed_orders=completed_orders,
-        pending_orders=pending_orders
-    )
+    status_display_names = {
+        'RECEIVED': '접수',
+        'MEASURED': '실측',
+        'SCHEDULED': '설치 예정',
+        'COMPLETED': '완료',
+        'AS_RECEIVED': 'AS 접수',
+        'AS_COMPLETED': 'AS 완료',
+        'DELETED': '삭제됨'
+    }
+    
+    return render_template('regional_dashboard.html', 
+                           pending_orders=pending_orders, 
+                           completed_orders=completed_orders,
+                           STATUS=status_display_names)
 
 if __name__ == '__main__':
     init_db()  # 앱 시작 시 데이터베이스 초기화
