@@ -37,6 +37,8 @@ class Order(Base):
     regional_sales_order_upload = Column(Boolean, default=False)  # 영업발주 업로드  
     regional_blueprint_sent = Column(Boolean, default=False)  # 도면발송
     regional_order_upload = Column(Boolean, default=False)  # 발주 업로드
+    regional_cargo_sent = Column(Boolean, default=False)  # 화물 발송
+    regional_construction_info_sent = Column(Boolean, default=False)  # 시공정보 발송
     measurement_completed = Column(Boolean, default=False) # 실측완료
     construction_type = Column(String(50), nullable=True) # 시공 구분
     
@@ -67,6 +69,8 @@ class Order(Base):
             'regional_sales_order_upload': self.regional_sales_order_upload,
             'regional_blueprint_sent': self.regional_blueprint_sent,
             'regional_order_upload': self.regional_order_upload,
+            'regional_cargo_sent': self.regional_cargo_sent,
+            'regional_construction_info_sent': self.regional_construction_info_sent,
             'measurement_completed': self.measurement_completed,
             'construction_type': self.construction_type
         }

@@ -2292,7 +2292,9 @@ def update_regional_status():
         'measurement_completed',
         'regional_sales_order_upload',
         'regional_blueprint_sent',
-        'regional_order_upload'
+        'regional_order_upload',
+        'regional_cargo_sent',
+        'regional_construction_info_sent'
     ]
     if field not in allowed_fields:
         return jsonify({'success': False, 'message': '허용되지 않은 필드입니다.'}), 400
@@ -2323,12 +2325,22 @@ def regional_dashboard():
     pending_orders = []
     
     for order in all_regional_orders:
-        # 모든 체크리스트 항목이 완료되었는지 확인
-        is_completed = (
+        # 기본 체크리스트 항목들
+        basic_checklist_completed = (
             order.regional_sales_order_upload and 
             order.regional_order_upload and 
             order.regional_blueprint_sent
         )
+        
+        # 협력사 시공인 경우 추가 체크리스트 확인
+        if order.construction_type == '협력사 시공':
+            additional_checklist_completed = (
+                order.regional_cargo_sent and
+                order.regional_construction_info_sent
+            )
+            is_completed = basic_checklist_completed and additional_checklist_completed
+        else:
+            is_completed = basic_checklist_completed
         
         if is_completed:
             completed_orders.append(order)
