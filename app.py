@@ -819,7 +819,9 @@ def edit_order(order_id):
                     'measurement_completed',
                     'regional_sales_order_upload',
                     'regional_blueprint_sent',
-                    'regional_order_upload'
+                    'regional_order_upload',
+                    'regional_cargo_sent',
+                    'regional_construction_info_sent'
                 ]
                 
                 for field in regional_fields:
@@ -853,7 +855,9 @@ def edit_order(order_id):
                 'construction_type': '시공 구분',
                 'regional_sales_order_upload': '영업발주 업로드',
                 'regional_blueprint_sent': '도면 발송',
-                'regional_order_upload': '발주 업로드'
+                'regional_order_upload': '발주 업로드',
+                'regional_cargo_sent': '화물 발송',
+                'regional_construction_info_sent': '시공정보 발송'
             }
             
             # 변경된 필드만 필터링하여 로그 메시지 구성

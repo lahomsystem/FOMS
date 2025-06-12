@@ -221,8 +221,6 @@
                                                     <i class="fas fa-file-invoice text-info"></i> 1. 영업발주 업로드
                                                 </label>
                                             </div>
-                                        </div>
-                                        <div class="col-md-6">
                                             <div class="form-check mb-2">
                                                 <input class="form-check-input regional-checkbox" type="checkbox" 
                                                        name="regional_blueprint_sent" id="regional_blueprint_sent" 
@@ -231,12 +229,31 @@
                                                     <i class="fas fa-drafting-compass text-warning"></i> 2. 도면 발송
                                                 </label>
                                             </div>
+                                        </div>
+                                        <div class="col-md-6">
                                             <div class="form-check mb-2">
                                                 <input class="form-check-input regional-checkbox" type="checkbox" 
                                                        name="regional_order_upload" id="regional_order_upload" 
                                                        value="1" {{ 'checked' if order.regional_order_upload else '' }}>
                                                 <label class="form-check-label" for="regional_order_upload">
                                                     <i class="fas fa-clipboard-check text-danger"></i> 3. 발주 업로드
+                                                </label>
+                                            </div>
+                                            <!-- 협력사 시공인 경우만 표시 -->
+                                            <div class="form-check mb-2{% if order.construction_type != '협력사 시공' %} d-none{% endif %}" id="cargo-sent-div">
+                                                <input class="form-check-input regional-checkbox additional-checkbox" type="checkbox" 
+                                                       name="regional_cargo_sent" id="regional_cargo_sent" 
+                                                       value="1" {{ 'checked' if order.regional_cargo_sent else '' }}>
+                                                <label class="form-check-label" for="regional_cargo_sent">
+                                                    <i class="fas fa-truck text-success"></i> 4. 화물 발송
+                                                </label>
+                                            </div>
+                                            <div class="form-check mb-2{% if order.construction_type != '협력사 시공' %} d-none{% endif %}" id="construction-info-div">
+                                                <input class="form-check-input regional-checkbox additional-checkbox" type="checkbox" 
+                                                       name="regional_construction_info_sent" id="regional_construction_info_sent" 
+                                                       value="1" {{ 'checked' if order.regional_construction_info_sent else '' }}>
+                                                <label class="form-check-label" for="regional_construction_info_sent">
+                                                    <i class="fas fa-tools text-danger"></i> 5. 시공정보 발송
                                                 </label>
                                             </div>
                                         </div>
@@ -477,10 +494,20 @@
         const regionalCheckboxes = document.querySelectorAll('.regional-checkbox');
         const progressBar = document.getElementById('progress-bar');
         const progressText = document.getElementById('progress-text');
+        const constructionTypeSelect = document.getElementById('construction_type');
+        const cargoSentDiv = document.getElementById('cargo-sent-div');
+        const constructionInfoDiv = document.getElementById('construction-info-div');
 
         function updateProgress() {
-            const totalSteps = regionalCheckboxes.length;
-            const completedSteps = Array.from(regionalCheckboxes).filter(checkbox => checkbox.checked).length;
+            // 시공구분에 따라 체크해야 할 항목을 동적으로 계산
+            const constructionType = constructionTypeSelect ? constructionTypeSelect.value : '';
+            let visibleCheckboxes = Array.from(regionalCheckboxes).filter(checkbox => {
+                const parent = checkbox.closest('.form-check');
+                return parent && window.getComputedStyle(parent).display !== 'none';
+            });
+            
+            const totalSteps = visibleCheckboxes.length;
+            const completedSteps = visibleCheckboxes.filter(checkbox => checkbox.checked).length;
             const percentage = Math.round((completedSteps / totalSteps) * 100) || 0;
 
             if (progressBar) {
@@ -490,7 +517,7 @@
 
             if (progressText) {
                 progressText.textContent = `${completedSteps}/${totalSteps} 완료`;
-        }
+            }
         
             // 진행률에 따른 프로그레스 바 색상 변경
             if (progressBar) {
@@ -507,12 +534,34 @@
             }
         }
 
+        function toggleAdditionalFields() {
+            if (constructionTypeSelect) {
+                const isPartnerConstruction = constructionTypeSelect.value === '협력사 시공';
+                
+                if (cargoSentDiv) {
+                    cargoSentDiv.style.display = isPartnerConstruction ? 'block' : 'none';
+                }
+                if (constructionInfoDiv) {
+                    constructionInfoDiv.style.display = isPartnerConstruction ? 'block' : 'none';
+                }
+                
+                // 진행률 재계산
+                updateProgress();
+            }
+        }
+
+        // 시공구분 변경 시 추가 필드 표시/숨김
+        if (constructionTypeSelect) {
+            constructionTypeSelect.addEventListener('change', toggleAdditionalFields);
+        }
+
         // 체크박스 상태 변경 시 진행률 업데이트
         regionalCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', updateProgress);
-            });
+        });
 
-        // 페이지 로드 시 초기 진행률 계산
+        // 페이지 로드 시 초기 설정
+        toggleAdditionalFields();
         updateProgress();
     });
 </script>
