@@ -40,6 +40,7 @@ STATUS = {
     'COMPLETED': '완료',
     'AS_RECEIVED': 'AS 접수',
     'AS_COMPLETED': 'AS 완료',
+    'ON_HOLD': '보류',
     'DELETED': '삭제됨'
 }
 
@@ -2390,6 +2391,7 @@ def regional_dashboard():
         'COMPLETED': '완료',
         'AS_RECEIVED': 'AS 접수',
         'AS_COMPLETED': 'AS 완료',
+        'ON_HOLD': '보류',
         'DELETED': '삭제됨'
     }
         
@@ -2484,6 +2486,7 @@ def metropolitan_dashboard():
         'COMPLETED': '완료',
         'AS_RECEIVED': 'AS 접수',
         'AS_COMPLETED': 'AS 완료',
+        'ON_HOLD': '보류',
         'DELETED': '삭제됨'
     }
         

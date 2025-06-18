@@ -100,8 +100,9 @@
                                                     'MEASURED': 'warning', 
                                                     'SCHEDULED': 'danger',
                                                     'COMPLETED': 'success',
-                                                    'AS_RECEIVED': 'info',
-                                                    'AS_COMPLETED': 'secondary'
+                                                    'AS_RECEIVED': 'dark',
+                                                    'AS_COMPLETED': 'secondary',
+                                                    'ON_HOLD': 'purple'
                                                 } %}
                                                 <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
                                                     {{ STATUS.get(order.status, order.status) }}
@@ -268,8 +269,9 @@
                                                     'MEASURED': 'warning', 
                                                     'SCHEDULED': 'danger',
                                                     'COMPLETED': 'success',
-                                                    'AS_RECEIVED': 'info',
-                                                    'AS_COMPLETED': 'secondary'
+                                                    'AS_RECEIVED': 'dark',
+                                                    'AS_COMPLETED': 'secondary',
+                                                    'ON_HOLD': 'purple'
                                                 } %}
                                                 <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
                                                     {{ STATUS.get(order.status, order.status) }}
@@ -434,6 +436,13 @@
 }
 .form-check {
     margin-bottom: 0.1rem;
+}
+
+/* 보라색 뱃지 */
+.bg-purple {
+    background-color: #9b59b6 !important;
+    color: #fff !important;
+    border: 1px solid #7d3c98 !important;
 }
 </style>
 

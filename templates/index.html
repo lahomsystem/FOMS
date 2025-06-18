@@ -151,6 +151,13 @@
     .th-status { width: 90px; }
     .th-actions { width: 80px; text-align: center; } /* 작업 열 */
     
+    /* 보라색 뱃지 */
+    .bg-purple {
+        background-color: #9b59b6 !important;
+        color: #fff !important;
+        border: 1px solid #7d3c98 !important;
+    }
+    
     /* 행 클릭 선택 관련 스타일 */
     tbody tr {
         transition: background-color 0.2s ease;
@@ -546,8 +553,8 @@
                                 {% elif order.status == 'MEASURED' %}bg-warning
                                 {% elif order.status == 'SCHEDULED' %}bg-danger
                                 {% elif order.status == 'COMPLETED' %}bg-success
-                                {% elif order.status == 'AS_RECEIVED' %}bg-info
-                                {% elif order.status == 'AS_COMPLETED' %}bg-secondary
+                                {% elif order.status == 'AS_RECEIVED' %}bg-dark
+                                {% elif order.status == 'ON_HOLD' %}bg-purple
                                 {% endif %}">
                                 {{ STATUS[order.status] }}
                             </span>
