@@ -394,7 +394,11 @@ def index():
     query = db.query(Order).filter(Order.deleted_at.is_(None))
     
     if status_filter:
-        query = query.filter(Order.status == status_filter)
+        # 접수 탭에서는 RECEIVED와 ON_HOLD 상태를 모두 표시
+        if status_filter == 'RECEIVED':
+            query = query.filter(Order.status.in_(['RECEIVED', 'ON_HOLD']))
+        else:
+            query = query.filter(Order.status == status_filter)
     
     # 지역 필터 적용
     if region_filter == 'metro':
@@ -1664,7 +1668,11 @@ def download_excel():
     
     # 상태 필터 적용
     if status_filter:
-        query = query.filter(Order.status == status_filter)
+        # 접수 탭에서는 RECEIVED와 ON_HOLD 상태를 모두 표시
+        if status_filter == 'RECEIVED':
+            query = query.filter(Order.status.in_(['RECEIVED', 'ON_HOLD']))
+        else:
+            query = query.filter(Order.status == status_filter)
     
     # 검색어 필터 적용 (index 함수와 동일하게)
     if search_query:
@@ -1800,7 +1808,11 @@ def api_orders():
     
     # Add status filter if provided
     if status_filter and status_filter in STATUS:
-        query = query.filter(Order.status == status_filter)
+        # 접수 탭에서는 RECEIVED와 ON_HOLD 상태를 모두 표시
+        if status_filter == 'RECEIVED':
+            query = query.filter(Order.status.in_(['RECEIVED', 'ON_HOLD']))
+        else:
+            query = query.filter(Order.status == status_filter)
     
     # Add date range filter if provided
     if start_date and end_date:
