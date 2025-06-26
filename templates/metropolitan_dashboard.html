@@ -111,6 +111,7 @@
                                             <th>고객명</th>
                                             <th>주소</th>
                                             <th>제품</th>
+                                            <th>상태</th>
                                             <th>실측일</th>
                                             <th>미처리 항목</th>
                                             <th>담당자</th>
@@ -131,6 +132,20 @@
                                             </td>
                                             <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
                                                 {{ order.product }}
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
+                                                        data-order-id="{{ order.id }}" 
+                                                        data-current-status="{{ order.status }}">
+                                                    {% for status_code, status_name in STATUS.items() %}
+                                                        {% if status_code != 'DELETED' %}
+                                                            <option value="{{ status_code }}" 
+                                                                    {% if order.status == status_code %}selected{% endif %}>
+                                                                {{ status_name }}
+                                                            </option>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </select>
                                             </td>
                                             <td class="text-danger">{{ order.measurement_date or '-' }}</td>
                                             <td>
@@ -216,18 +231,18 @@
                                                 {{ order.product }}
                                             </td>
                                             <td>
-                                                {% set status_colors = {
-                                                    'RECEIVED': 'primary',
-                                                    'MEASURED': 'warning', 
-                                                    'SCHEDULED': 'danger',
-                                                    'COMPLETED': 'success',
-                                                    'AS_RECEIVED': 'dark',
-                                                    'AS_COMPLETED': 'secondary',
-                                                    'ON_HOLD': 'purple'
-                                                } %}
-                                                <span class="badge bg-{{ status_colors.get(order.status, order.status) }}">
-                                                    {{ STATUS.get(order.status, order.status) }}
-                                                </span>
+                                                <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
+                                                        data-order-id="{{ order.id }}" 
+                                                        data-current-status="{{ order.status }}">
+                                                    {% for status_code, status_name in STATUS.items() %}
+                                                        {% if status_code != 'DELETED' %}
+                                                            <option value="{{ status_code }}" 
+                                                                    {% if order.status == status_code %}selected{% endif %}>
+                                                                {{ status_name }}
+                                                            </option>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </select>
                                             </td>
                                             <td>{{ order.measurement_date or '-' }}</td>
                                             <td style="width: 150px;">
@@ -303,18 +318,18 @@
                                                 {{ order.product }}
                                             </td>
                                             <td>
-                                                {% set status_colors = {
-                                                    'RECEIVED': 'primary',
-                                                    'MEASURED': 'warning', 
-                                                    'SCHEDULED': 'danger',
-                                                    'COMPLETED': 'success',
-                                                    'AS_RECEIVED': 'dark',
-                                                    'AS_COMPLETED': 'secondary',
-                                                    'ON_HOLD': 'purple'
-                                                } %}
-                                                <span class="badge bg-{{ status_colors.get(order.status, order.status) }}">
-                                                    {{ STATUS.get(order.status, order.status) }}
-                                                </span>
+                                                <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
+                                                        data-order-id="{{ order.id }}" 
+                                                        data-current-status="{{ order.status }}">
+                                                    {% for status_code, status_name in STATUS.items() %}
+                                                        {% if status_code != 'DELETED' %}
+                                                            <option value="{{ status_code }}" 
+                                                                    {% if order.status == status_code %}selected{% endif %}>
+                                                                {{ status_name }}
+                                                            </option>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </select>
                                             </td>
                                             <td class="text-info">{{ order.measurement_date or '-' }}</td>
                                             <td style="width: 150px;">
@@ -390,18 +405,18 @@
                                                 {{ order.product }}
                                             </td>
                                             <td>
-                                                {% set status_colors = {
-                                                    'RECEIVED': 'primary',
-                                                    'MEASURED': 'warning', 
-                                                    'SCHEDULED': 'danger',
-                                                    'COMPLETED': 'success',
-                                                    'AS_RECEIVED': 'dark',
-                                                    'AS_COMPLETED': 'secondary',
-                                                    'ON_HOLD': 'purple'
-                                                } %}
-                                                <span class="badge bg-{{ status_colors.get(order.status, order.status) }}">
-                                                    {{ STATUS.get(order.status, order.status) }}
-                                                </span>
+                                                <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
+                                                        data-order-id="{{ order.id }}" 
+                                                        data-current-status="{{ order.status }}">
+                                                    {% for status_code, status_name in STATUS.items() %}
+                                                        {% if status_code != 'DELETED' %}
+                                                            <option value="{{ status_code }}" 
+                                                                    {% if order.status == status_code %}selected{% endif %}>
+                                                                {{ status_name }}
+                                                            </option>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </select>
                                             </td>
                                             <td>{{ order.manager_name or '-' }}</td>
                                             <td>{{ order.measurement_date or '-' }}</td>
@@ -832,6 +847,94 @@
     color: #fff !important;
     border: 1px solid #7d3c98 !important;
 }
+
+/* 상태별 드롭다운 색상 */
+.status-dropdown {
+    font-weight: 500;
+    transition: all 0.2s ease;
+    color: white !important;
+    width: 80px !important;
+    font-size: 0.75rem !important;
+    padding: 0.25rem 0.5rem !important;
+}
+
+.status-dropdown option[value="RECEIVED"] {
+    background-color: #1976d2;
+    color: white;
+}
+
+.status-dropdown option[value="MEASURED"] {
+    background-color: #f57c00;
+    color: white;
+}
+
+.status-dropdown option[value="SCHEDULED"] {
+    background-color: #d32f2f;
+    color: white;
+}
+
+.status-dropdown option[value="COMPLETED"] {
+    background-color: #2e7d32;
+    color: white;
+}
+
+.status-dropdown option[value="AS_RECEIVED"] {
+    background-color: #7b1fa2;
+    color: white;
+}
+
+.status-dropdown option[value="AS_COMPLETED"] {
+    background-color: #00695c;
+    color: white;
+}
+
+.status-dropdown option[value="ON_HOLD"] {
+    background-color: #616161;
+    color: white;
+}
+
+/* 선택된 상태에 따른 드롭다운 배경색 */
+.status-dropdown.status-received {
+    background-color: #1976d2 !important;
+    color: white !important;
+    border-color: #1565c0;
+}
+
+.status-dropdown.status-measured {
+    background-color: #f57c00 !important;
+    color: white !important;
+    border-color: #ef6c00;
+}
+
+.status-dropdown.status-scheduled {
+    background-color: #d32f2f !important;
+    color: white !important;
+    border-color: #c62828;
+}
+
+.status-dropdown.status-completed {
+    background-color: #2e7d32 !important;
+    color: white !important;
+    border-color: #1b5e20;
+}
+
+.status-dropdown.status-as_received {
+    background-color: #7b1fa2 !important;
+    color: white !important;
+    border-color: #6a1b9a;
+}
+
+.status-dropdown.status-as_completed {
+    background-color: #00695c !important;
+    color: white !important;
+    border-color: #004d40;
+}
+
+.status-dropdown.status-on_hold {
+    background-color: #616161 !important;
+    color: white !important;
+    border-color: #424242;
+}
 </style>
 
 <script>
@@ -859,6 +962,23 @@ document.addEventListener('DOMContentLoaded', function() {
         input.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 this.blur();
+            }
+        });
+    });
+
+    // 상태 변경 드롭다운 이벤트 처리
+    const statusDropdowns = document.querySelectorAll('.status-dropdown');
+    
+    statusDropdowns.forEach(function(dropdown) {
+        let originalValue = dropdown.value;
+        
+        dropdown.addEventListener('focus', function() {
+            originalValue = this.value;
+        });
+        
+        dropdown.addEventListener('change', function() {
+            if (this.value !== originalValue) {
+                updateOrderStatus(this, originalValue);
             }
         });
     });
@@ -919,6 +1039,99 @@ document.addEventListener('DOMContentLoaded', function() {
             
             setTimeout(() => {
                 input.style.backgroundColor = '';
+            }, 2000);
+        });
+    }
+
+    // 상태명 매핑
+    const statusNames = {
+        'RECEIVED': '접수',
+        'MEASURED': '실측',
+        'SCHEDULED': '설치 예정',
+        'COMPLETED': '완료',
+        'AS_RECEIVED': 'AS 접수',
+        'AS_COMPLETED': 'AS 완료',
+        'ON_HOLD': '보류'
+    };
+
+    // 상태별 색상 클래스 업데이트 함수
+    function updateDropdownColor(dropdown, status) {
+        // 기존 상태 클래스 제거
+        dropdown.className = dropdown.className.replace(/status-\w+/g, '');
+        // 새로운 상태 클래스 추가
+        dropdown.classList.add(`status-${status.toLowerCase()}`);
+    }
+
+    function updateOrderStatus(dropdown, originalValue) {
+        const orderId = dropdown.dataset.orderId;
+        const newStatus = dropdown.value;
+        const oldStatusName = statusNames[originalValue] || originalValue;
+        const newStatusName = statusNames[newStatus] || newStatus;
+
+        // 상태 변경 확인
+        if (!confirm(`주문 #${orderId}의 상태를 '${oldStatusName}'에서 '${newStatusName}'(으)로 변경하시겠습니까?`)) {
+            // 취소 시 원래 값으로 되돌리기
+            dropdown.value = originalValue;
+            return;
+        }
+
+        // 시각적 피드백
+        dropdown.style.backgroundColor = '#fff3cd';
+        
+        fetch('/api/update_order_status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                order_id: orderId,
+                status: newStatus
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                dropdown.style.backgroundColor = '#d4edda';
+                toastBody.textContent = `주문 #${orderId}의 상태가 '${oldStatusName}'에서 '${newStatusName}'(으)로 성공적으로 변경되었습니다.`;
+                toastElement.classList.remove('bg-danger');
+                toastElement.classList.add('bg-success', 'text-white');
+                
+                // 드롭다운 색상 업데이트
+                updateDropdownColor(dropdown, newStatus);
+                
+                setTimeout(() => {
+                    dropdown.style.backgroundColor = '';
+                }, 2000);
+                
+                // 페이지 새로고침으로 알림 분류 업데이트
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            } else {
+                // 오류 시 원래 값으로 되돌리기
+                dropdown.value = originalValue;
+                dropdown.style.backgroundColor = '#f8d7da';
+                toastBody.textContent = `오류: ${data.message}`;
+                toastElement.classList.remove('bg-success');
+                toastElement.classList.add('bg-danger', 'text-white');
+                
+                setTimeout(() => {
+                    dropdown.style.backgroundColor = '';
+                }, 2000);
+            }
+            toast.show();
+        })
+        .catch(error => {
+            // 오류 시 원래 값으로 되돌리기
+            dropdown.value = originalValue;
+            dropdown.style.backgroundColor = '#f8d7da';
+            toastBody.textContent = '서버 통신 중 오류가 발생했습니다.';
+            toastElement.classList.remove('bg-success');
+            toastElement.classList.add('bg-danger', 'text-white');
+            toast.show();
+            
+            setTimeout(() => {
+                dropdown.style.backgroundColor = '';
             }, 2000);
         });
     }

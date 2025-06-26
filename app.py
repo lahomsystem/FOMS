@@ -2357,6 +2357,51 @@ def update_order_field():
         db.rollback()
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
 
+@app.route('/api/update_order_status', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def update_order_status():
+    """수도권 대시보드에서 주문 상태 직접 변경"""
+    try:
+        data = request.get_json()
+        order_id = data.get('order_id')
+        new_status = data.get('status')
+        
+        if not order_id or not new_status:
+            return jsonify({'success': False, 'message': '필수 파라미터가 누락되었습니다.'}), 400
+        
+        # 유효한 상태인지 확인
+        if new_status not in STATUS:
+            return jsonify({'success': False, 'message': '유효하지 않은 상태입니다.'}), 400
+        
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        # 상태 업데이트
+        old_status = order.status
+        order.status = new_status
+        db.commit()
+        
+        # 로그 기록
+        user_id = session.get('user_id')
+        old_status_name = STATUS.get(old_status, old_status)
+        new_status_name = STATUS.get(new_status, new_status)
+        log_access(f"주문 #{order_id} 상태 변경: {old_status_name} → {new_status_name}", user_id)
+        
+        return jsonify({
+            'success': True,
+            'old_status': old_status,
+            'new_status': new_status,
+            'status_display': STATUS.get(new_status, new_status)
+        })
+        
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
+
 @app.route('/regional_dashboard')
 @login_required
 def regional_dashboard():
