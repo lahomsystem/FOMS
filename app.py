@@ -2481,8 +2481,8 @@ def metropolitan_dashboard():
     completed_orders = []  # 완료된 주문
     
     for order in all_metropolitan_orders:
-        # 완료된 주문은 따로 분리
-        if order.status == 'COMPLETED':
+        # 완료된 주문은 따로 분리 (COMPLETED, AS_COMPLETED 모두 포함)
+        if order.status in ['COMPLETED', 'AS_COMPLETED']:
             completed_orders.append(order)
             continue
             
@@ -2516,7 +2516,7 @@ def metropolitan_dashboard():
         
         # 3. 설치예정일 체크: 설치예정일이 오늘 이전이고 완료상태가 아닌 경우
         needs_installation_alert = False
-        if order.scheduled_date and order.status != 'COMPLETED' and not needs_urgent_alert and not needs_measurement_alert and not needs_pre_measurement_alert:
+        if order.scheduled_date and order.status not in ['COMPLETED', 'AS_COMPLETED'] and not needs_urgent_alert and not needs_measurement_alert and not needs_pre_measurement_alert:
             try:
                 scheduled_date = datetime.datetime.strptime(order.scheduled_date, '%Y-%m-%d').date()
                 if scheduled_date <= today:

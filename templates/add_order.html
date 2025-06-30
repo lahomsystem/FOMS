@@ -47,10 +47,12 @@
                         </div>
                     </div>
                     
-                    <div class="col-md-12">
-                        <label for="address" class="form-label">주소 <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="address" name="address" rows="10" required></textarea>
-                        <div id="address-info" class="mt-2"></div>
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="address" class="form-label">주소 <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="address" name="address" rows="10" required></textarea>
+                            <div id="address-info" class="mt-2"></div>
+                        </div>
                     </div>
                     
                     <div class="mb-3">
@@ -74,7 +76,7 @@
 발주사 : 라홈
 시공일 : 상담
 주 소 :
-연락처 : 
+연락처 :  
 
 제품명 :
 규 격 :
@@ -86,13 +88,13 @@
 선결제금액:
 
 -선 결제 포함-
-
+없음
 
 -추가 결제 필-
 
 
 추가결제링크
-https://mkt.shopping.naver.com/link/685a50652b4ab36a9ced682f</textarea>
+https://mkt.shopping.naver.com/link/685de66bd4f017474416f9e9</textarea>
                     </div>
 
                     <div id="options_direct_group" style="display: none;">
@@ -201,6 +203,78 @@ https://mkt.shopping.naver.com/link/685a50652b4ab36a9ced682f</textarea>
                             <small class="form-text text-muted d-block">지방 주문으로 설정하면 추가 관리 절차가 적용됩니다.</small>
                         </div>
                     </div>
+
+                    <!-- 지방 주문 추가 필드들 (조건부 표시) -->
+                    <div id="regional_fields" class="mb-3" style="display: none;">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-cogs text-warning"></i> 지방 주문 관리</h6>
+                            </div>
+                            <div class="card-body">
+                                <!-- 시공 구분 -->
+                                <div class="mb-3">
+                                    <label for="construction_type" class="form-label">시공 구분</label>
+                                    <select class="form-select" id="construction_type" name="construction_type">
+                                        <option value="">-- 선택 --</option>
+                                        <option value="하우드 시공">하우드 시공</option>
+                                        <option value="협력사 시공">협력사 시공</option>
+                                        <option value="기타">기타</option>
+                                    </select>
+                                </div>
+
+                                <!-- 기본 체크리스트 -->
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="measurement_completed" id="measurement_completed" value="1">
+                                            <label class="form-check-label" for="measurement_completed">
+                                                실측완료
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="regional_sales_order_upload" id="regional_sales_order_upload" value="1">
+                                            <label class="form-check-label" for="regional_sales_order_upload">
+                                                영업발주 업로드
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="regional_blueprint_sent" id="regional_blueprint_sent" value="1">
+                                            <label class="form-check-label" for="regional_blueprint_sent">
+                                                도면 발송
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="regional_order_upload" id="regional_order_upload" value="1">
+                                            <label class="form-check-label" for="regional_order_upload">
+                                                발주 업로드
+                                            </label>
+                                        </div>
+                                        <!-- 협력사 시공 시에만 표시되는 항목들 -->
+                                        <div class="form-check mb-2 d-none" id="cargo-sent-div">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="regional_cargo_sent" id="regional_cargo_sent" value="1">
+                                            <label class="form-check-label" for="regional_cargo_sent">
+                                                화물 발송
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2 d-none" id="construction-info-div">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="regional_construction_info_sent" id="regional_construction_info_sent" value="1">
+                                            <label class="form-check-label" for="regional_construction_info_sent">
+                                                시공정보 발송
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="d-flex justify-content-between">
                         <a href="{{ url_for('index') }}" class="btn btn-secondary">취소</a>
@@ -216,21 +290,82 @@ https://mkt.shopping.naver.com/link/685a50652b4ab36a9ced682f</textarea>
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // 텍스트 영역 높이 자동 조절 함수
+        // 자동 높이 조절 함수
         function adjustTextareaHeight(textarea) {
-            if (!textarea) return;
             textarea.style.height = 'auto';
-            textarea.style.height = (textarea.scrollHeight) + 'px';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+
+        // 온라인 옵션 자동 채우기 기능
+        function fillOnlineOptions() {
+            const optionsOnline = document.getElementById('options_online');
+            if (!optionsOnline) return;
+            
+            const customerName = document.getElementById('customer_name').value || '';
+            const phone = document.getElementById('phone').value || '';
+            const address = document.getElementById('address').value || '';
+            const firstLineAddress = address.split('\n')[0].trim();
+            
+            let content = optionsOnline.value;
+            
+            // 고객명 업데이트
+            if (content.includes('고객명 :')) {
+                const lines = content.split('\n');
+                for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].startsWith('고객명 :')) {
+                        lines[i] = `고객명 : ${customerName}`;
+                        break;
+                    }
+                }
+                content = lines.join('\n');
+            }
+            
+            // 연락처 업데이트
+            if (content.includes('연락처 :')) {
+                const lines = content.split('\n');
+                for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].startsWith('연락처 :')) {
+                        lines[i] = `연락처 :  ${phone}`;
+                        break;
+                    }
+                }
+                content = lines.join('\n');
+            }
+            
+            // 주소 업데이트
+            if (content.includes('주 소 :')) {
+                const lines = content.split('\n');
+                for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].startsWith('주 소 :')) {
+                        lines[i] = `주 소 : ${firstLineAddress}`;
+                        break;
+                    }
+                }
+                content = lines.join('\n');
+            }
+            
+            optionsOnline.value = content;
+            adjustTextareaHeight(optionsOnline);
         }
         
-        // Set default date to today
+        // 자동 채우기 이벤트 리스너 등록
+        const customerNameInput = document.getElementById('customer_name');
+        const phoneInput = document.getElementById('phone');
+        const addressInput = document.getElementById('address');
+        
+        [customerNameInput, phoneInput, addressInput].forEach(input => {
+            if (input) {
+                input.addEventListener('input', fillOnlineOptions);
+            }
+        });
+
+        // 기본 날짜/시간 설정
         const today = new Date().toISOString().split('T')[0];
         const receivedDateEl = document.getElementById('received_date');
         if (receivedDateEl) {
             receivedDateEl.value = today;
         }
         
-        // Set default time to current time
         const now = new Date();
         const hours = String(now.getHours()).padStart(2, '0');
         const minutes = String(now.getMinutes()).padStart(2, '0');
@@ -334,8 +469,7 @@ https://mkt.shopping.naver.com/link/685a50652b4ab36a9ced682f</textarea>
         const measurementTimeInput = document.getElementById('measurement_time');
 
         if (measurementTimeSelect && measurementTimeInput) {
-            // Add order 페이지에서는 기본적으로 시간 직접 입력을 보여줌
-            measurementTimeInput.style.display = 'block'; 
+            measurementTimeInput.style.display = 'block';
 
             measurementTimeSelect.addEventListener('change', function() {
                 if (this.value === "종일") {
@@ -350,6 +484,7 @@ https://mkt.shopping.naver.com/link/685a50652b4ab36a9ced682f</textarea>
         const addForm = document.querySelector('form[action*="add_order"]');
         if (addForm) {
             addForm.addEventListener('submit', function(event) {
+                // 실측시간 처리
                 if (measurementTimeSelect && measurementTimeInput) {
                     if (measurementTimeSelect.value === '종일') {
                         let hiddenInput = document.getElementById('measurement_time_hidden_for_submit');
@@ -375,10 +510,47 @@ https://mkt.shopping.naver.com/link/685a50652b4ab36a9ced682f</textarea>
                 if (paymentAmountInput) {
                     paymentAmountInput.value = paymentAmountInput.value.replace(/,/g, '');
                 }
-                });
+            });
         }
 
-        // 지방 주문 자동 필터링 기능 제거 - 사용자가 직접 체크박스로 선택
+        // 지방 주문 관련 기능
+        const isRegionalCheckbox = document.getElementById('is_regional');
+        const regionalFields = document.getElementById('regional_fields');
+        const constructionTypeSelect = document.getElementById('construction_type');
+        const cargoSentDiv = document.getElementById('cargo-sent-div');
+        const constructionInfoDiv = document.getElementById('construction-info-div');
+
+        // 지방 주문 체크박스 변경 시
+        if (isRegionalCheckbox && regionalFields) {
+            isRegionalCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    regionalFields.style.display = 'block';
+                } else {
+                    regionalFields.style.display = 'none';
+                    // 체크박스들 초기화
+                    const checkboxes = regionalFields.querySelectorAll('input[type="checkbox"]');
+                    checkboxes.forEach(cb => cb.checked = false);
+                    // 시공 구분 초기화
+                    if (constructionTypeSelect) constructionTypeSelect.value = '';
+                }
+            });
+        }
+
+        // 시공 구분 변경 시 (협력사 시공일 때 추가 필드 표시)
+        if (constructionTypeSelect && cargoSentDiv && constructionInfoDiv) {
+            constructionTypeSelect.addEventListener('change', function() {
+                if (this.value === '협력사 시공') {
+                    cargoSentDiv.classList.remove('d-none');
+                    constructionInfoDiv.classList.remove('d-none');
+                } else {
+                    cargoSentDiv.classList.add('d-none');
+                    constructionInfoDiv.classList.add('d-none');
+                    // 해당 체크박스들 초기화
+                    document.getElementById('regional_cargo_sent').checked = false;
+                    document.getElementById('regional_construction_info_sent').checked = false;
+                }
+            });
+        }
     });
 </script>
 
