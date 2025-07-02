@@ -2225,6 +2225,11 @@ def load_menu_config():
         'main_menu': [
             {'id': 'calendar', 'name': '캘린더', 'url': '/calendar'},
             {'id': 'order_list', 'name': '전체 주문', 'url': '/'},
+            {'id': 'metro_orders', 'name': '수도권 주문', 'url': '/?region=metro'},
+            {'id': 'regional_orders', 'name': '지방 주문', 'url': '/?region=regional'},
+            {'id': 'regional_dashboard', 'name': '지방 주문 대시보드', 'url': '/regional_dashboard'},
+            {'id': 'metropolitan_dashboard', 'name': '수도권 주문 대시보드', 'url': '/metropolitan_dashboard'},
+            {'id': 'received', 'name': '접수', 'url': '/?status=RECEIVED'},
             {'id': 'measured', 'name': '실측', 'url': '/?status=MEASURED'},
             {'id': 'scheduled', 'name': '설치 예정', 'url': '/?status=SCHEDULED'},
             {'id': 'completed', 'name': '완료', 'url': '/?status=COMPLETED'},
@@ -2322,6 +2327,30 @@ def update_regional_status():
         db.commit()
         log_access(f"지방 주문 #{order.id}의 '{field}' 상태를 '{value}'(으)로 변경", session['user_id'])
         return jsonify({'success': True, 'message': '상태가 업데이트되었습니다.'})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
+
+@app.route('/api/update_regional_memo', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def update_regional_memo():
+    """지방 주문 메모 업데이트"""
+    data = request.get_json()
+    
+    order_id = data.get('order_id')
+    memo = data.get('memo', '')
+
+    order = db.query(Order).filter_by(id=order_id).first()
+
+    if not order or not order.is_regional:
+        return jsonify({'success': False, 'message': '유효하지 않은 주문입니다.'}), 404
+
+    try:
+        order.regional_memo = memo
+        db.commit()
+        log_access(f"지방 주문 #{order.id}의 메모를 업데이트", session['user_id'])
+        return jsonify({'success': True, 'message': '메모가 저장되었습니다.'})
     except Exception as e:
         db.rollback()
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500

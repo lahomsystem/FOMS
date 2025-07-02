@@ -65,22 +65,30 @@
                                 <table class="table table-bordered table-hover">
                                     <thead class="table-light">
                                         <tr>
-                                            <th>번호</th>
-                                            <th style="min-width: 180px;">고객명</th>
+                                            <th style="width: 60px;">번호</th>
+                                            <th style="width: 120px;">메모</th>
+                                            <th style="width: 120px;">고객명</th>
                                             <th>주소</th>
                                             <th>제품</th>
                                             <th>상태</th>
-                                            <th style="width: 250px;">진행 단계 체크리스트</th>
-                                            <th>시공 구분</th>
-                                            <th>설치일</th>
-                                            <th>접수일</th>
-                                            <th>작업</th>
+                                            <th style="width: 180px;">진행 단계 체크리스트</th>
+                                            <th style="width: 90px;">시공 구분</th>
+                                            <th style="width: 90px;">설치일</th>
+                                            <th style="width: 90px;">접수일</th>
+                                            <th style="width: 80px;">작업</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for order in pending_orders %}
                                         <tr>
                                             <td>{{ order.id }}</td>
+                                            <td>
+                                                <textarea class="form-control form-control-sm auto-resize-textarea regional-memo" 
+                                                          rows="1" 
+                                                          placeholder="메모 입력..." 
+                                                          style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                          data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
+                                            </td>
                                             <td>
                                                 <div>
                                                     {{ order.customer_name }}
@@ -234,22 +242,30 @@
                                 <table class="table table-bordered table-hover">
                                     <thead class="table-light">
                                         <tr>
-                                            <th>번호</th>
-                                            <th style="min-width: 180px;">고객명</th>
+                                            <th style="width: 60px;">번호</th>
+                                            <th style="width: 120px;">메모</th>
+                                            <th style="width: 120px;">고객명</th>
                                             <th>주소</th>
                                             <th>제품</th>
                                             <th>상태</th>
                                             <th style="width: 200px;">완료된 체크리스트</th>
-                                            <th>시공 구분</th>
-                                            <th>설치일</th>
-                                            <th>접수일</th>
-                                            <th>작업</th>
+                                            <th style="width: 90px;">시공 구분</th>
+                                            <th style="width: 90px;">설치일</th>
+                                            <th style="width: 90px;">접수일</th>
+                                            <th style="width: 80px;">작업</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for order in completed_orders %}
                                         <tr class="table-completed">
                                             <td>{{ order.id }}</td>
+                                            <td>
+                                                <textarea class="form-control form-control-sm auto-resize-textarea regional-memo" 
+                                                          rows="1" 
+                                                          placeholder="메모 입력..." 
+                                                          style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                          data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
+                                            </td>
                                             <td>
                                                 <div>
                                                     {{ order.customer_name }}
@@ -494,6 +510,89 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 오류 발생 시 체크박스를 원래 상태로 되돌립니다.
                 this.checked = !isChecked;
             });
+        });
+    });
+
+    // 자동 크기 조정 텍스트 영역 설정
+    const autoResizeTextareas = document.querySelectorAll('.auto-resize-textarea');
+    
+    function adjustHeight(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.max(32, textarea.scrollHeight) + 'px';
+    }
+
+    autoResizeTextareas.forEach(function(textarea) {
+        // 초기 높이 설정
+        adjustHeight(textarea);
+        
+        // 입력 시 높이 조정
+        textarea.addEventListener('input', function() {
+            adjustHeight(this);
+        });
+        
+        // 포커스 시 높이 조정
+        textarea.addEventListener('focus', function() {
+            adjustHeight(this);
+        });
+    });
+
+    // 메모 자동 저장 기능
+    const memoTextareas = document.querySelectorAll('.regional-memo');
+    const memoSaveTimeouts = new Map();
+
+    function saveMemo(orderId, memo) {
+        fetch('/api/update_regional_memo', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                order_id: orderId,
+                memo: memo
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                console.error('메모 저장 실패:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('메모 저장 중 오류:', error);
+        });
+    }
+
+    memoTextareas.forEach(function(textarea) {
+        textarea.addEventListener('input', function() {
+            const orderId = this.dataset.orderId;
+            const memo = this.value;
+            
+            // 기존 타이머가 있으면 제거
+            if (memoSaveTimeouts.has(orderId)) {
+                clearTimeout(memoSaveTimeouts.get(orderId));
+            }
+            
+            // 1초 후에 자동 저장
+            const timeoutId = setTimeout(() => {
+                saveMemo(orderId, memo);
+                memoSaveTimeouts.delete(orderId);
+            }, 1000);
+            
+            memoSaveTimeouts.set(orderId, timeoutId);
+        });
+        
+        // 포커스를 잃을 때도 즉시 저장
+        textarea.addEventListener('blur', function() {
+            const orderId = this.dataset.orderId;
+            const memo = this.value;
+            
+            // 기존 타이머가 있으면 제거하고 즉시 저장
+            if (memoSaveTimeouts.has(orderId)) {
+                clearTimeout(memoSaveTimeouts.get(orderId));
+                memoSaveTimeouts.delete(orderId);
+            }
+            
+            saveMemo(orderId, memo);
         });
     });
 });

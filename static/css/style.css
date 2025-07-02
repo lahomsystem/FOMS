@@ -409,8 +409,8 @@ td .btn:last-child {
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
     .calendar-filters {
-        width: 100%;
-        margin-top: 1rem;
+        flex-direction: column;
+        align-items: stretch;
     }
     
     .d-flex.justify-content-between {
@@ -418,11 +418,26 @@ td .btn:last-child {
     }
     
     .d-flex.justify-content-between form {
-        margin-top: 1rem;
-        width: 100%;
+        margin-bottom: 10px;
     }
     
     .table-responsive {
-        font-size: 0.9rem;
+        font-size: 0.8rem;
     }
+}
+
+/* 지방 주문 관리 대시보드 메모 스타일 */
+.regional-memo {
+    color: #cc00c2 !important; /* 핫핑크 */
+    font-weight: 500;
+}
+
+.regional-memo::placeholder {
+    color: #000000 !important; /* 검정색 */
+}
+
+.regional-memo:focus {
+    color: #cc00c2 !important; /* 포커스 시 진한 핫핑크 */
+    border-color: #ffffff !important;
+    box-shadow: 0 0 0 2px rgba(255, 0, 243, 0.3) !important;
 } 

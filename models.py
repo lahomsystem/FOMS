@@ -41,6 +41,7 @@ class Order(Base):
     regional_construction_info_sent = Column(Boolean, default=False)  # 시공정보 발송
     measurement_completed = Column(Boolean, default=False) # 실측완료
     construction_type = Column(String(50), nullable=True) # 시공 구분
+    regional_memo = Column(Text, nullable=True) # 지방 주문 메모
     
     def to_dict(self):
         return {
@@ -72,7 +73,8 @@ class Order(Base):
             'regional_cargo_sent': self.regional_cargo_sent,
             'regional_construction_info_sent': self.regional_construction_info_sent,
             'measurement_completed': self.measurement_completed,
-            'construction_type': self.construction_type
+            'construction_type': self.construction_type,
+            'regional_memo': self.regional_memo
         }
 
 class User(Base):
