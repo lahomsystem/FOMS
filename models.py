@@ -43,39 +43,11 @@ class Order(Base):
     construction_type = Column(String(50), nullable=True) # 시공 구분
     regional_memo = Column(Text, nullable=True) # 지방 주문 메모
     
+    # 상차 예정일 추가
+    shipping_scheduled_date = Column(String)
+    
     def to_dict(self):
-        return {
-            'id': self.id,
-            'received_date': self.received_date,
-            'received_time': self.received_time,
-            'customer_name': self.customer_name,
-            'phone': self.phone,
-            'address': self.address,
-            'product': self.product,
-            'options': self.options,
-            'notes': self.notes,
-            'status': self.status,
-            'original_status': self.original_status,
-            'deleted_at': self.deleted_at,
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
-            'measurement_date': self.measurement_date,
-            'measurement_time': self.measurement_time,
-            'completion_date': self.completion_date,
-            'manager_name': self.manager_name,
-            'payment_amount': self.payment_amount,
-            'scheduled_date': self.scheduled_date,
-            'as_received_date': self.as_received_date,
-            'as_completed_date': self.as_completed_date,
-            'is_regional': self.is_regional,
-            'regional_sales_order_upload': self.regional_sales_order_upload,
-            'regional_blueprint_sent': self.regional_blueprint_sent,
-            'regional_order_upload': self.regional_order_upload,
-            'regional_cargo_sent': self.regional_cargo_sent,
-            'regional_construction_info_sent': self.regional_construction_info_sent,
-            'measurement_completed': self.measurement_completed,
-            'construction_type': self.construction_type,
-            'regional_memo': self.regional_memo
-        }
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 class User(Base):
     __tablename__ = 'users'

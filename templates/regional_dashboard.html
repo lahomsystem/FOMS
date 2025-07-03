@@ -74,7 +74,7 @@
                                             <th style="width: 180px;">진행 단계 체크리스트</th>
                                             <th style="width: 90px;">시공 구분</th>
                                             <th style="width: 90px;">설치일</th>
-                                            <th style="width: 90px;">접수일</th>
+                                            <th style="width: 90px;">상차일</th>
                                             <th style="width: 80px;">작업</th>
                                         </tr>
                                     </thead>
@@ -96,7 +96,7 @@
                                                 </div>
                                                 <small class="text-muted">{{ order.phone }}</small>
                                             </td>
-                                            <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
+                                            <td style="white-space: normal; word-break: break-all;">
                                                 {{ order.address }}
                                             </td>
                                             <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
@@ -201,7 +201,7 @@
                                                 </span>
                                             </td>
                                             <td>{{ order.scheduled_date or '-' }}</td>
-                                            <td>{{ order.received_date }}</td>
+                                            <td>{{ order.shipping_scheduled_date or '-' }}</td>
                                             <td>
                                                 <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-primary" title="수정">
@@ -252,7 +252,7 @@
                                             <th style="width: 200px;">완료된 체크리스트</th>
                                             <th style="width: 90px;">시공 구분</th>
                                             <th style="width: 90px;">설치일</th>
-                                            <th style="width: 90px;">접수일</th>
+                                            <th style="width: 90px;">상차일</th>
                                             <th style="width: 80px;">작업</th>
                                         </tr>
                                     </thead>
@@ -274,7 +274,7 @@
                                                 </div>
                                                 <small class="text-muted">{{ order.phone }}</small>
                                             </td>
-                                            <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
+                                            <td style="white-space: normal; word-break: break-all;">
                                                 {{ order.address }}
                                             </td>
                                             <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
@@ -331,7 +331,7 @@
                                                 </span>
                                             </td>
                                             <td>{{ order.scheduled_date or '-' }}</td>
-                                            <td>{{ order.received_date }}</td>
+                                            <td>{{ order.shipping_scheduled_date or '-' }}</td>
                                             <td>
                                                 <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-success" title="수정">

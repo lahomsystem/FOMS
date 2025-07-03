@@ -718,6 +718,7 @@ def edit_order(order_id):
             scheduled_date = request.form.get('scheduled_date', order.scheduled_date)
             as_received_date = request.form.get('as_received_date', order.as_received_date)
             as_completed_date = request.form.get('as_completed_date', order.as_completed_date)
+            shipping_scheduled_date = request.form.get('shipping_scheduled_date', order.shipping_scheduled_date) # 상차 예정일 추가
 
             # 옵션 데이터 처리 (폼에 option_type이 있을 때만 업데이트)
             options_data_json_to_save = order.options # 기본적으로 기존 옵션 유지
@@ -768,6 +769,7 @@ def edit_order(order_id):
             if order.scheduled_date != scheduled_date: changes['scheduled_date'] = {'old': order.scheduled_date, 'new': scheduled_date}
             if order.as_received_date != as_received_date: changes['as_received_date'] = {'old': order.as_received_date, 'new': as_received_date}
             if order.as_completed_date != as_completed_date: changes['as_completed_date'] = {'old': order.as_completed_date, 'new': as_completed_date}
+            if order.shipping_scheduled_date != shipping_scheduled_date: changes['shipping_scheduled_date'] = {'old': order.shipping_scheduled_date, 'new': shipping_scheduled_date} # 상차 예정일 변경 감지
             
             # 지방 주문 관련 필드 변경 감지
             is_regional_new = 'is_regional' in request.form
@@ -815,6 +817,7 @@ def edit_order(order_id):
             order.scheduled_date = scheduled_date
             order.as_received_date = as_received_date
             order.as_completed_date = as_completed_date
+            order.shipping_scheduled_date = shipping_scheduled_date # 상차 예정일 업데이트
             order.payment_amount = new_payment_amount # 최종 결제금액 업데이트
             
             # 지방 주문 여부 사용자 선택 (체크박스는 체크되지 않으면 폼에 포함되지 않음)
@@ -867,7 +870,8 @@ def edit_order(order_id):
                 'regional_blueprint_sent': '도면 발송',
                 'regional_order_upload': '발주 업로드',
                 'regional_cargo_sent': '화물 발송',
-                'regional_construction_info_sent': '시공정보 발송'
+                'regional_construction_info_sent': '시공정보 발송',
+                'shipping_scheduled_date': '상차 예정일' # 로그용 레이블 추가
             }
             
             # 변경된 필드만 필터링하여 로그 메시지 구성
@@ -2590,7 +2594,8 @@ if __name__ == '__main__':
                 ('is_regional', 'BOOLEAN DEFAULT FALSE'),
                 ('regional_sales_order_upload', 'BOOLEAN DEFAULT FALSE'),
                 ('regional_blueprint_sent', 'BOOLEAN DEFAULT FALSE'),
-                ('regional_order_upload', 'BOOLEAN DEFAULT FALSE')
+                ('regional_order_upload', 'BOOLEAN DEFAULT FALSE'),
+                ('shipping_scheduled_date', 'VARCHAR') # 상차 예정일 컬럼 추가
             ]:
                 # 해당 컬럼이 이미 존재하는지 확인
                 query = text(f"""
