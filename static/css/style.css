@@ -438,6 +438,6 @@ td .btn:last-child {
 
 .regional-memo:focus {
     color: #cc00c2 !important; /* 포커스 시 진한 핫핑크 */
-    border-color: #ffffff !important;
+    border-color: #ff00f3 !important;
     box-shadow: 0 0 0 2px rgba(255, 0, 243, 0.3) !important;
 } 

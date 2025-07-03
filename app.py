@@ -18,6 +18,9 @@ from models import Order, User, SecurityLog
 app = Flask(__name__)
 app.secret_key = 'furniture_order_management_secret_key'
 
+# 템플릿 캐시 비활성화 (개발 중 변경사항 즉시 반영)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+
 # 업로드 경로 설정
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
@@ -37,6 +40,7 @@ STATUS = {
     'RECEIVED': '접수',
     'MEASURED': '실측',
     'SCHEDULED': '설치 예정',
+    'SHIPPED_PENDING': '상차 예정',
     'COMPLETED': '완료',
     'AS_RECEIVED': 'AS 접수',
     'AS_COMPLETED': 'AS 완료',
@@ -476,6 +480,7 @@ def index():
         'index.html',
                           orders=processed_orders, 
         status_list=STATUS, # 상태 목록은 여전히 필요
+        STATUS=STATUS, # 명시적으로 STATUS 전체 목록 전달
                           current_status=status_filter,
         search_query=search_query,
         sort_column=sort_column,
@@ -1831,6 +1836,7 @@ def api_orders():
         'RECEIVED': '#3788d8',   # Blue
         'MEASURED': '#f39c12',   # Orange
         'SCHEDULED': '#e74c3c',  # Red
+        'SHIPPED_PENDING': '#ff6b35', # Bright Orange
         'COMPLETED': '#2ecc71',  # Green
         'AS_RECEIVED': '#9b59b6', # Purple
         'AS_COMPLETED': '#1abc9c'  # Teal
@@ -1843,6 +1849,7 @@ def api_orders():
             'RECEIVED': order.received_date,  
             'MEASURED': order.measurement_date,
             'SCHEDULED': order.scheduled_date,  # 설치 예정일 필드 사용
+            'SHIPPED_PENDING': order.scheduled_date,  # 상차 예정도 스케줄된 날짜 사용
             'COMPLETED': order.completion_date,
             'AS_RECEIVED': order.as_received_date,  # AS 접수일 필드 사용
             'AS_COMPLETED': order.as_completed_date  # AS 완료일 필드 사용
@@ -1860,6 +1867,7 @@ def api_orders():
             'RECEIVED': order.received_time,
             'MEASURED': order.measurement_time,
             'SCHEDULED': None,  # 설치 예정은 일반적으로 시간 없음
+            'SHIPPED_PENDING': None,  # 상차 예정은 일반적으로 시간 없음
             'COMPLETED': None,  # 완료는 일반적으로 시간 없음
             'AS_RECEIVED': None,  # AS는 일반적으로 시간 없음
             'AS_COMPLETED': None  # AS 완료는 일반적으로 시간 없음
@@ -2470,21 +2478,9 @@ def regional_dashboard():
         else:
             pending_orders.append(order)
     
-    status_display_names = {
-        'RECEIVED': '접수',
-        'MEASURED': '실측',
-        'SCHEDULED': '설치 예정',
-        'COMPLETED': '완료',
-        'AS_RECEIVED': 'AS 접수',
-        'AS_COMPLETED': 'AS 완료',
-        'ON_HOLD': '보류',
-        'DELETED': '삭제됨'
-    }
-        
     return render_template('regional_dashboard.html', 
                            pending_orders=pending_orders, 
-                           completed_orders=completed_orders,
-                           STATUS=status_display_names)
+                           completed_orders=completed_orders)
 
 @app.route('/metropolitan_dashboard')
 @login_required
@@ -2565,25 +2561,13 @@ def metropolitan_dashboard():
         else:
             normal_orders.append(order)
     
-    status_display_names = {
-        'RECEIVED': '접수',
-        'MEASURED': '실측',
-        'SCHEDULED': '설치 예정',
-        'COMPLETED': '완료',
-        'AS_RECEIVED': 'AS 접수',
-        'AS_COMPLETED': 'AS 완료',
-        'ON_HOLD': '보류',
-        'DELETED': '삭제됨'
-    }
-        
     return render_template('metropolitan_dashboard.html', 
                            urgent_alerts=urgent_alerts,
                            measurement_alerts=measurement_alerts,
                            pre_measurement_alerts=pre_measurement_alerts,
                            installation_alerts=installation_alerts,
                            normal_orders=normal_orders,
-                           completed_orders=completed_orders,
-                           STATUS=status_display_names)
+                           completed_orders=completed_orders)
 
 if __name__ == '__main__':
     init_db()  # 앱 시작 시 데이터베이스 초기화
