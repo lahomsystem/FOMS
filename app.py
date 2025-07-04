@@ -2576,6 +2576,8 @@ def metropolitan_dashboard():
     # .all()을 호출하기 전에 필터링이 적용되도록 수정
     urgent_alerts_query = base_query.filter(
         Order.status.in_(['MEASURED']),
+        Order.measurement_date != None,
+        Order.measurement_date != '',
         func.date(Order.measurement_date) == date.today()
     )
     urgent_alerts = get_filtered_orders(urgent_alerts_query).order_by(Order.measurement_date.asc()).all()
@@ -2587,20 +2589,25 @@ def metropolitan_dashboard():
             Order.manager_name == '',
             Order.scheduled_date == None
         ),
+        Order.measurement_date != None,
+        Order.measurement_date != '',
         func.date(Order.measurement_date) < date.today()
     )
     measurement_alerts = get_filtered_orders(measurement_alerts_query).order_by(Order.measurement_date.asc()).all()
 
     pre_measurement_alerts_query = base_query.filter(
         Order.status.in_(['RECEIVED']),
+        Order.measurement_date != None,
+        Order.measurement_date != '',
         func.date(Order.measurement_date) > date.today()
     )
     pre_measurement_alerts = get_filtered_orders(pre_measurement_alerts_query).order_by(Order.measurement_date.asc()).all()
 
     installation_alerts_query = base_query.filter(
         Order.status.in_(['SCHEDULED', 'SHIPPED_PENDING']),
-        # scheduled_date가 None이 아닌 경우에만 비교하도록 필터 추가
+        # scheduled_date가 None이 아니고 빈 문자열이 아닌 경우에만 비교
         Order.scheduled_date != None,
+        Order.scheduled_date != '',
         func.date(Order.scheduled_date) < date.today()
     )
     installation_alerts = get_filtered_orders(installation_alerts_query).order_by(Order.scheduled_date.asc()).all()
