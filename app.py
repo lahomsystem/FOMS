@@ -1,5 +1,6 @@
 import os
 import datetime
+from datetime import timedelta
 import json
 import pandas as pd
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, g, session, send_file, current_app
@@ -9,6 +10,7 @@ from werkzeug.security import generate_password_hash, check_password_hash  # For
 import re  # For validation
 from sqlalchemy import or_, text, func, String  # Import or_ function, text for raw SQL, func for distinct, String for casting
 import copy # 객체 복사를 위해 추가
+from datetime import date
 
 # 데이터베이스 관련 임포트
 from db import get_db, close_db, init_db
@@ -2371,13 +2373,14 @@ def update_regional_memo():
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def update_order_field():
-    """주문 필드 업데이트 (수도권 대시보드용)"""
+    """주문 필드 업데이트 (수도권 및 지방 대시보드용)"""
     db = get_db()
     data = request.get_json()
     
     order_id = data.get('order_id')
-    field = data.get('field')
-    value = data.get('value')
+    # 두 가지 파라미터명 지원: field/value (수도권), field_name/new_value (지방)
+    field = data.get('field') or data.get('field_name')
+    value = data.get('value') or data.get('new_value')
 
     order = db.query(Order).filter_by(id=order_id).first()
 
@@ -2385,9 +2388,16 @@ def update_order_field():
         return jsonify({'success': False, 'message': '유효하지 않은 주문입니다.'}), 404
 
     # 업데이트 가능한 필드인지 확인 (보안 목적)
-    allowed_fields = ['manager_name', 'scheduled_date']
+    allowed_fields = [
+        'manager_name', 'scheduled_date', 'status',  # 기존 필드들
+        'shipping_scheduled_date', 'completion_date',  # 지방 대시보드 날짜 필드들
+        'measurement_completed', 'regional_sales_order_upload',  # 지방 체크박스 필드들
+        'regional_blueprint_sent', 'regional_order_upload',
+        'regional_cargo_sent', 'regional_construction_info_sent',
+        'as_received_date', 'as_completed_date'  # AS 관련 날짜 필드들
+    ]
     if field not in allowed_fields:
-        return jsonify({'success': False, 'message': '허용되지 않은 필드입니다.'}), 400
+        return jsonify({'success': False, 'message': f'허용되지 않은 필드입니다: {field}'}), 400
 
     try:
         setattr(order, field, value)
@@ -2448,12 +2458,41 @@ def update_order_status():
 def regional_dashboard():
     """지방 주문 관리 대시보드"""
     db = get_db()
+    search_query = request.args.get('search_query', '').strip()
     
-    # 모든 지방 주문 가져오기
-    all_regional_orders = db.query(Order).filter(
+    # 기본 쿼리
+    base_query = db.query(Order).filter(
         Order.is_regional == True,
         Order.status != 'DELETED'
-    ).order_by(Order.id.desc()).all()
+    )
+    
+    # 검색 기능 적용
+    if search_query:
+        search_term = f"%{search_query}%"
+        # ID 검색을 위한 숫자 체크
+        id_conditions = []
+        try:
+            # 검색어가 숫자인 경우 ID로 검색
+            search_id = int(search_query)
+            id_conditions.append(Order.id == search_id)
+        except ValueError:
+            # 숫자가 아닌 경우 ID를 문자열로 캐스팅해서 검색
+            id_conditions.append(func.cast(Order.id, String).ilike(search_term))
+        
+        base_query = base_query.filter(
+            or_(
+                Order.customer_name.ilike(search_term),
+                Order.phone.ilike(search_term),
+                Order.address.ilike(search_term),
+                Order.product.ilike(search_term),
+                Order.regional_memo.ilike(search_term),
+                Order.notes.ilike(search_term),
+                *id_conditions
+            )
+        )
+    
+    # 모든 지방 주문 가져오기
+    all_regional_orders = base_query.order_by(Order.id.desc()).all()
     
     # 완료/미완료로 분리
     completed_orders = []
@@ -2482,96 +2521,124 @@ def regional_dashboard():
         else:
             pending_orders.append(order)
     
+    # 상차 예정 알림 필터링 (검색된 결과 중에서)
+    shipping_alerts = [order for order in pending_orders 
+                      if order.status in ['SCHEDULED', 'SHIPPED_PENDING']]
+    
+    # 오늘과 내일 날짜 계산
+    today = date.today().strftime('%Y-%m-%d')
+    tomorrow = (date.today() + timedelta(days=1)).strftime('%Y-%m-%d')
+    
     return render_template('regional_dashboard.html', 
                            pending_orders=pending_orders, 
-                           completed_orders=completed_orders)
+                           completed_orders=completed_orders,
+                           shipping_alerts=shipping_alerts,
+                           STATUS=STATUS,
+                           search_query=search_query,
+                           today=today,
+                           tomorrow=tomorrow)
 
 @app.route('/metropolitan_dashboard')
 @login_required
 def metropolitan_dashboard():
-    """수도권 주문 관리 대시보드"""
     db = get_db()
-    
-    # 모든 수도권 주문 가져오기 (is_regional이 False인 주문)
-    all_metropolitan_orders = db.query(Order).filter(
-        Order.is_regional == False,
-        Order.status != 'DELETED'
-    ).order_by(Order.id.desc()).all()
-    
-    # 날짜 비교를 위한 today 설정
-    today = datetime.date.today()
-    
-    # 알림이 필요한 주문들 분류
-    urgent_alerts = []  # 실측일 D+0부터 담당자/설치예정일 미지정 긴급 알림
-    measurement_alerts = []  # 실측 후 미처리 알림
-    pre_measurement_alerts = []  # 실측 전 주문들
-    installation_alerts = []  # 설치예정일 D+0부터 완료상태 미변경 알림
-    normal_orders = []  # 정상 처리 중인 주문
-    completed_orders = []  # 완료된 주문
-    
-    for order in all_metropolitan_orders:
-        # 완료된 주문은 따로 분리 (COMPLETED, AS_COMPLETED 모두 포함)
-        if order.status in ['COMPLETED', 'AS_COMPLETED']:
-            completed_orders.append(order)
-            continue
+    search_query = request.args.get('search_query', '').strip()
+
+    def get_filtered_orders(query):
+        if search_query:
+            search_term = f"%{search_query}%"
+            # ID 검색을 위한 숫자 체크
+            id_conditions = []
+            try:
+                # 검색어가 숫자인 경우 ID로 검색
+                search_id = int(search_query)
+                id_conditions.append(Order.id == search_id)
+            except ValueError:
+                # 숫자가 아닌 경우 ID를 문자열로 캐스팅해서 검색
+                id_conditions.append(func.cast(Order.id, String).ilike(search_term))
             
-        # 1. 긴급 알림: 실측일이 오늘 이전이고 담당자나 설치예정일이 미지정인 경우
-        needs_urgent_alert = False
-        if order.measurement_date:
-            try:
-                measurement_date = datetime.datetime.strptime(order.measurement_date, '%Y-%m-%d').date()
-                if measurement_date <= today:
-                    # 담당자나 설치예정일이 미지정인 경우
-                    if not order.manager_name or not order.scheduled_date:
-                        needs_urgent_alert = True
-            except ValueError:
-                pass
-        
-        # 2. 실측 후 미처리 알림: 실측 완료 상태이고 실측일이 지난 주문들
-        needs_measurement_alert = False
-        needs_pre_measurement_alert = False
-        if order.status == 'MEASURED' and not needs_urgent_alert:
-            if order.measurement_date:
-                try:
-                    measurement_date = datetime.datetime.strptime(order.measurement_date, '%Y-%m-%d').date()
-                    if measurement_date <= today:
-                        needs_measurement_alert = True  # 실측일이 지남 - 실측 후 미처리
-                    else:
-                        needs_pre_measurement_alert = True  # 실측일이 아직 오지 않음 - 실측 전
-                except ValueError:
-                    needs_measurement_alert = True  # 날짜 형식 오류시 기본적으로 미처리로 분류
-            else:
-                needs_measurement_alert = True  # 실측일이 없는 경우 미처리로 분류
-        
-        # 3. 설치예정일 체크: 설치예정일이 오늘 이전이고 완료상태가 아닌 경우
-        needs_installation_alert = False
-        if order.scheduled_date and order.status not in ['COMPLETED', 'AS_COMPLETED'] and not needs_urgent_alert and not needs_measurement_alert and not needs_pre_measurement_alert:
-            try:
-                scheduled_date = datetime.datetime.strptime(order.scheduled_date, '%Y-%m-%d').date()
-                if scheduled_date <= today:
-                    needs_installation_alert = True
-            except ValueError:
-                pass
-        
-        # 알림 분류
-        if needs_urgent_alert:
-            urgent_alerts.append(order)
-        elif needs_measurement_alert:
-            measurement_alerts.append(order)
-        elif needs_pre_measurement_alert:
-            pre_measurement_alerts.append(order)
-        elif needs_installation_alert:
-            installation_alerts.append(order)
-        else:
-            normal_orders.append(order)
-    
-    return render_template('metropolitan_dashboard.html', 
+            return query.filter(
+                or_(
+                    Order.customer_name.ilike(search_term),
+                    Order.phone.ilike(search_term),
+                    Order.address.ilike(search_term),
+                    Order.product.ilike(search_term),
+                    Order.notes.ilike(search_term),
+                    Order.manager_name.ilike(search_term),
+                    *id_conditions
+                )
+            )
+        return query
+
+    base_query = db.query(Order).filter(Order.is_regional == False)
+
+    # 쿼리에서 날짜 비교 시 func.date()를 사용하여 타입 일치
+    # .all()을 호출하기 전에 필터링이 적용되도록 수정
+    urgent_alerts_query = base_query.filter(
+        Order.status.in_(['MEASURED']),
+        func.date(Order.measurement_date) == date.today()
+    )
+    urgent_alerts = get_filtered_orders(urgent_alerts_query).order_by(Order.measurement_date.asc()).all()
+
+    measurement_alerts_query = base_query.filter(
+        Order.status.in_(['MEASURED']),
+        or_(
+            Order.manager_name == None,
+            Order.manager_name == '',
+            Order.scheduled_date == None
+        ),
+        func.date(Order.measurement_date) < date.today()
+    )
+    measurement_alerts = get_filtered_orders(measurement_alerts_query).order_by(Order.measurement_date.asc()).all()
+
+    pre_measurement_alerts_query = base_query.filter(
+        Order.status.in_(['RECEIVED']),
+        func.date(Order.measurement_date) > date.today()
+    )
+    pre_measurement_alerts = get_filtered_orders(pre_measurement_alerts_query).order_by(Order.measurement_date.asc()).all()
+
+    installation_alerts_query = base_query.filter(
+        Order.status.in_(['SCHEDULED', 'SHIPPED_PENDING']),
+        # scheduled_date가 None이 아닌 경우에만 비교하도록 필터 추가
+        Order.scheduled_date != None,
+        func.date(Order.scheduled_date) < date.today()
+    )
+    installation_alerts = get_filtered_orders(installation_alerts_query).order_by(Order.scheduled_date.asc()).all()
+
+    alert_order_ids = {o.id for o in urgent_alerts + measurement_alerts + pre_measurement_alerts + installation_alerts}
+
+    # AS 관련 주문들
+    as_orders_query = db.query(Order).filter(
+        Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
+        Order.is_regional == False
+    )
+    as_orders = get_filtered_orders(as_orders_query).order_by(Order.created_at.desc()).all()
+
+    # 일반 진행 중인 주문들 (알림에 포함되지 않은 것들)
+    normal_orders_query = db.query(Order).filter(
+        Order.status.notin_(['COMPLETED', 'DELETED', 'AS_RECEIVED', 'AS_COMPLETED']),
+        ~Order.id.in_(alert_order_ids),
+        Order.is_regional == False
+    )
+    normal_orders = get_filtered_orders(normal_orders_query).order_by(Order.created_at.desc()).limit(20).all()
+
+    completed_orders_query = db.query(Order).filter(
+        Order.status == 'COMPLETED',
+        Order.is_regional == False
+    )
+    completed_orders = get_filtered_orders(completed_orders_query).order_by(Order.completion_date.desc()).limit(50).all()
+
+    return render_template('metropolitan_dashboard.html',
                            urgent_alerts=urgent_alerts,
                            measurement_alerts=measurement_alerts,
                            pre_measurement_alerts=pre_measurement_alerts,
                            installation_alerts=installation_alerts,
+                           as_orders=as_orders,
                            normal_orders=normal_orders,
-                           completed_orders=completed_orders)
+                           completed_orders=completed_orders,
+                           STATUS=STATUS,
+                           search_query=search_query)
+
 
 if __name__ == '__main__':
     init_db()  # 앱 시작 시 데이터베이스 초기화

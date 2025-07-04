@@ -13,6 +13,20 @@
                 </a>
             </div>
 
+            <!-- 검색 폼 -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <form method="get" action="{{ url_for('metropolitan_dashboard') }}" class="d-flex">
+                                <input type="text" name="search_query" class="form-control me-2" placeholder="주문번호, 고객명, 연락처, 주소, 제품, 담당자 등 통합 검색" value="{{ search_query or '' }}">
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> 검색</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 요약 통계 -->
             <div class="row mb-4">
                 <div class="col-lg-3 col-md-6">
@@ -121,7 +135,7 @@
                                     </thead>
                                     <tbody>
                                         {% for order in urgent_alerts %}
-                                        <tr class="table-urgent">
+                                        <tr class="table-urgent" data-order-id="{{ order.id }}">
                                             <td>{{ order.id }}</td>
                                             <td>
                                                 <div>{{ order.customer_name }}</div>
@@ -218,7 +232,7 @@
                                     </thead>
                                     <tbody>
                                         {% for order in measurement_alerts %}
-                                        <tr class="table-alert">
+                                        <tr class="table-alert" data-order-id="{{ order.id }}">
                                             <td>{{ order.id }}</td>
                                             <td>
                                                 <div>{{ order.customer_name }}</div>
@@ -305,7 +319,7 @@
                                     </thead>
                                     <tbody>
                                         {% for order in pre_measurement_alerts %}
-                                        <tr class="table-pending">
+                                        <tr class="table-pending" data-order-id="{{ order.id }}">
                                             <td>{{ order.id }}</td>
                                             <td>
                                                 <div>{{ order.customer_name }}</div>
@@ -392,7 +406,7 @@
                                     </thead>
                                     <tbody>
                                         {% for order in installation_alerts %}
-                                        <tr class="table-warning">
+                                        <tr class="table-warning" data-order-id="{{ order.id }}">
                                             <td>{{ order.id }}</td>
                                             <td>
                                                 <div>{{ order.customer_name }}</div>
@@ -438,6 +452,92 @@
             </div>
             {% endif %}
 
+            <!-- AS 관련 주문 -->
+            {% if as_orders %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow border-left-info">
+                        <div class="card-header py-3 d-flex justify-content-between align-items-center header-info">
+                            <h6 class="m-0 font-weight-bold">
+                                <i class="fas fa-tools me-2"></i>AS 관련 주문 ({{ as_orders|length }}건)
+                            </h6>
+                            <a href="/?region=metropolitan&status=AS_RECEIVED,AS_COMPLETED" class="btn btn-sm btn-light">
+                                <i class="fas fa-list"></i> 전체 보기
+                            </a>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>번호</th>
+                                            <th>고객명</th>
+                                            <th>주소</th>
+                                            <th>제품</th>
+                                            <th>상태</th>
+                                            <th>담당자</th>
+                                            <th>AS 접수일</th>
+                                            <th>AS 완료일</th>
+                                            <th>작업</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for order in as_orders %}
+                                        <tr data-order-id="{{ order.id }}">
+                                            <td>{{ order.id }}</td>
+                                            <td>
+                                                <div>{{ order.customer_name }}</div>
+                                                <small class="text-muted">{{ order.phone }}</small>
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
+                                                {{ order.address }}
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                                {{ order.product }}
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm status-dropdown status-{{ order.status.lower() }}" 
+                                                        data-order-id="{{ order.id }}" data-field="status">
+                                                    {% for status_key, status_label in STATUS.items() %}
+                                                    <option value="{{ status_key }}" 
+                                                            {% if order.status == status_key %}selected{% endif %}>
+                                                        {{ status_label }}
+                                                    </option>
+                                                    {% endfor %}
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <input type="text" class="form-control form-control-sm inline-edit" 
+                                                       data-order-id="{{ order.id }}" data-field="manager_name" 
+                                                       value="{{ order.manager_name or '' }}" placeholder="담당자명">
+                                            </td>
+                                            <td>
+                                                <input type="date" class="form-control form-control-sm inline-edit" 
+                                                       data-order-id="{{ order.id }}" data-field="as_received_date" 
+                                                       value="{{ order.as_received_date or '' }}">
+                                            </td>
+                                            <td>
+                                                <input type="date" class="form-control form-control-sm inline-edit" 
+                                                       data-order-id="{{ order.id }}" data-field="as_completed_date" 
+                                                       value="{{ order.as_completed_date or '' }}">
+                                            </td>
+                                            <td>
+                                                <a href="{{ url_for('edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                   class="btn btn-sm btn-outline-info" title="수정">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- 정상 진행 중인 주문 -->
             {% if normal_orders %}
             <div class="row mb-4">
@@ -469,7 +569,7 @@
                                     </thead>
                                     <tbody>
                                         {% for order in normal_orders %}
-                                        <tr>
+                                        <tr data-order-id="{{ order.id }}">
                                             <td>{{ order.id }}</td>
                                             <td>
                                                 <div>{{ order.customer_name }}</div>
@@ -547,7 +647,7 @@
                                     </thead>
                                     <tbody>
                                         {% for order in completed_orders %}
-                                        <tr class="table-completed">
+                                        <tr class="table-completed" data-order-id="{{ order.id }}">
                                             <td>{{ order.id }}</td>
                                             <td>
                                                 <div>{{ order.customer_name }}</div>
@@ -952,6 +1052,27 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // 검색 결과 하이라이트 및 스크롤
+    const searchQuery = "{{ search_query|safe }}";
+    if (searchQuery) {
+        const rows = document.querySelectorAll('tr[data-order-id]');
+        let firstMatch = null;
+
+        rows.forEach(row => {
+            const rowText = row.innerText.toLowerCase();
+            if (rowText.includes(searchQuery.toLowerCase())) {
+                row.classList.add('highlight-row');
+                if (!firstMatch) {
+                    firstMatch = row;
+                }
+            }
+        });
+
+        if (firstMatch) {
+            firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
     const toastElement = document.getElementById('status-toast');
     const toastBody = toastElement.querySelector('.toast-body');
     const toast = new bootstrap.Toast(toastElement);

@@ -2,355 +2,584 @@
 
 {% block title %}지방 주문 관리 대시보드{% endblock %}
 
+{% block styles %}
+{{ super() }}
+<style>
+    @keyframes pulse-bg {
+        0% { background: linear-gradient(135deg, var(--pastel-red-dark) 0%, var(--pastel-red) 100%); }
+        50% { background: linear-gradient(135deg, var(--pastel-red) 0%, var(--pastel-red-dark) 100%); }
+        100% { background: linear-gradient(135deg, var(--pastel-red-dark) 0%, var(--pastel-red) 100%); }
+    }
+    .header-alert.pulse-animation {
+        animation: pulse-bg 2s infinite;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0"><i class="fas fa-map-marked-alt text-success"></i> 지방 주문 관리 대시보드</h1>
+        <a href="{{ url_for('add_order', is_regional='true') }}" class="btn btn-success">
+            <i class="fas fa-plus"></i> 새 지방 주문 추가
+        </a>
+    </div>
+
+    <!-- 검색 폼 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <form method="get" action="{{ url_for('regional_dashboard') }}" class="d-flex">
+                        <input type="text" name="search_query" class="form-control me-2" placeholder="주문번호, 고객명, 연락처, 주소, 제품, 메모 등 통합 검색" value="{{ search_query or '' }}">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> 검색</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 요약 통계 -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card summary-card-completed shadow">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1 text-completed">완료된 주문</div>
+                            <div class="h5 mb-0 font-weight-bold text-completed">{{ completed_orders|length }}건</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-completed-icon"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card summary-card-pending shadow">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1 text-pending">진행 중인 주문</div>
+                            <div class="h5 mb-0 font-weight-bold text-pending">{{ pending_orders|length }}건</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clock fa-2x text-pending-icon"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 상차 예정 알림 -->
+    {% if shipping_alerts %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow border-left-danger">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center header-alert pulse-animation">
+                    <h6 class="m-0 font-weight-bold">
+                        <i class="fas fa-shipping-fast me-2"></i>상차 예정 알림 ({{ shipping_alerts|length }}건)
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">번호</th>
+                                    <th style="width: 120px;">메모</th>
+                                    <th style="width: 120px;">고객명</th>
+                                    <th>주소</th>
+                                    <th>제품</th>
+                                    <th>상태</th>
+                                    <th style="width: 180px;">진행 단계 체크리스트</th>
+                                    <th style="width: 90px;">시공 구분</th>
+                                    <th style="width: 90px;">설치일</th>
+                                    <th style="width: 90px;">상차일</th>
+                                    <th style="width: 80px;">작업</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in shipping_alerts %}
+                                <tr data-order-id="{{ order.id }}">
+                                    <td>{{ order.id }}</td>
+                                    <td>
+                                        <textarea class="form-control form-control-sm auto-resize-textarea regional-memo" 
+                                                  rows="1" 
+                                                  placeholder="메모 입력..." 
+                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            {{ order.customer_name }}
+                                            <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"></i>
+                                        </div>
+                                        <small class="text-muted">{{ order.phone }}</small>
+                                    </td>
+                                    <td style="white-space: normal; word-break: break-all;">
+                                        {{ order.address }}
+                                    </td>
+                                    <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                        {{ order.product }}
+                                    </td>
+                                    <td>
+                                        {% set status_colors = {
+                                            'RECEIVED': 'primary',
+                                            'MEASURED': 'warning', 
+                                            'SCHEDULED': 'danger',
+                                            'SHIPPED_PENDING': 'info',
+                                            'COMPLETED': 'success',
+                                            'AS_RECEIVED': 'dark',
+                                            'AS_COMPLETED': 'secondary',
+                                            'ON_HOLD': 'purple'
+                                        } %}
+                                        <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
+                                            {{ STATUS.get(order.status, order.status) }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-column" style="gap: 0.2rem;">
+                                            <div class="form-check">
+                                                <input class="form-check-input regional-checkbox"
+                                                       type="checkbox"
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="measurement_completed"
+                                                       data-label="실측완료"
+                                                       id="measurement_pending_alert_{{ order.id }}"
+                                                       {% if order.measurement_completed %}checked{% endif %}>
+                                                <label class="form-check-label small" for="measurement_pending_alert_{{ order.id }}">
+                                                    0. 실측완료
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input regional-checkbox" 
+                                                       type="checkbox" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="regional_sales_order_upload"
+                                                       data-label="영업발주 업로드"
+                                                       id="sales_order_pending_alert_{{ order.id }}"
+                                                       {% if order.regional_sales_order_upload %}checked{% endif %}>
+                                                <label class="form-check-label small" for="sales_order_pending_alert_{{ order.id }}">
+                                                    1. 영업발주 업로드
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input regional-checkbox" 
+                                                       type="checkbox" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="regional_blueprint_sent"
+                                                       data-label="도면 발송"
+                                                       id="blueprint_pending_alert_{{ order.id }}"
+                                                       {% if order.regional_blueprint_sent %}checked{% endif %}>
+                                                <label class="form-check-label small" for="blueprint_pending_alert_{{ order.id }}">
+                                                    2. 도면 발송
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input regional-checkbox" 
+                                                       type="checkbox" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="regional_order_upload"
+                                                       data-label="발주 업로드"
+                                                       id="order_upload_pending_alert_{{ order.id }}"
+                                                       {% if order.regional_order_upload %}checked{% endif %}>
+                                                <label class="form-check-label small" for="order_upload_pending_alert_{{ order.id }}">
+                                                    3. 발주 업로드
+                                                </label>
+                                            </div>
+                                            {% if order.construction_type == '협력사 시공' %}
+                                            <div class="form-check">
+                                                <input class="form-check-input regional-checkbox" 
+                                                       type="checkbox" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="regional_cargo_sent"
+                                                       data-label="화물 발송"
+                                                       id="cargo_sent_pending_alert_{{ order.id }}"
+                                                       {% if order.regional_cargo_sent %}checked{% endif %}>
+                                                <label class="form-check-label small" for="cargo_sent_pending_alert_{{ order.id }}">
+                                                    4. 화물 발송
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input regional-checkbox" 
+                                                       type="checkbox" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="regional_construction_info_sent"
+                                                       data-label="시공정보 발송"
+                                                       id="construction_info_pending_alert_{{ order.id }}"
+                                                       {% if order.regional_construction_info_sent %}checked{% endif %}>
+                                                <label class="form-check-label small" for="construction_info_pending_alert_{{ order.id }}">
+                                                    5. 시공정보 발송
+                                                </label>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if order.construction_type == '하우드 시공' %}bg-info text-dark{% elif order.construction_type == '협력사 시공' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                                            {{ order.construction_type or '미지정' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <input type="date" class="form-control form-control-sm editable-date" 
+                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               value="{{ order.scheduled_date or '' }}" 
+                                               data-order-id="{{ order.id }}"
+                                               data-field="scheduled_date">
+                                    </td>
+                                    <td class="emphasized-date">
+                                        <input type="date" class="form-control form-control-sm editable-date {% if order.shipping_scheduled_date == today %}blinking-red-date{% elif order.shipping_scheduled_date == tomorrow %}blinking-yellow-date{% endif %}"
+                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               value="{{ order.shipping_scheduled_date or '' }}"
+                                               data-order-id="{{ order.id }}"
+                                               data-field="shipping_scheduled_date">
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
+                                           class="btn btn-sm btn-outline-primary" title="수정">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 진행 중인 주문 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow border-left-pending">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center header-pending">
+                    <h6 class="m-0 font-weight-bold">
+                        <i class="fas fa-clock me-2"></i>진행 중인 주문 ({{ pending_orders|length }}건)
+                    </h6>
+                    <a href="/?region=regional" class="btn btn-sm btn-light">
+                        <i class="fas fa-list"></i> 전체 보기
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if pending_orders %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">번호</th>
+                                    <th style="width: 120px;">메모</th>
+                                    <th style="width: 120px;">고객명</th>
+                                    <th>주소</th>
+                                    <th>제품</th>
+                                    <th>상태</th>
+                                    <th style="width: 180px;">진행 단계 체크리스트</th>
+                                    <th style="width: 90px;">시공 구분</th>
+                                    <th style="width: 90px;">설치일</th>
+                                    <th style="width: 90px;">상차일</th>
+                                    <th style="width: 80px;">작업</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in pending_orders %}
+                                <tr data-order-id="{{ order.id }}">
+                                    <td>{{ order.id }}</td>
+                                    <td>
+                                        <textarea class="form-control form-control-sm auto-resize-textarea regional-memo" 
+                                                  rows="1" 
+                                                  placeholder="메모 입력..." 
+                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            {{ order.customer_name }}
+                                            <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"></i>
+                                        </div>
+                                        <small class="text-muted">{{ order.phone }}</small>
+                                    </td>
+                                    <td style="white-space: normal; word-break: break-all;">
+                                        {{ order.address }}
+                                    </td>
+                                    <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                        {{ order.product }}
+                                    </td>
+                                    <td>
+                                        {% set status_colors = {
+                                            'RECEIVED': 'primary',
+                                            'MEASURED': 'warning', 
+                                            'SCHEDULED': 'danger',
+                                            'SHIPPED_PENDING': 'info',
+                                            'COMPLETED': 'success',
+                                            'AS_RECEIVED': 'dark',
+                                            'AS_COMPLETED': 'secondary',
+                                            'ON_HOLD': 'purple'
+                                        } %}
+                                        <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
+                                            {{ STATUS.get(order.status, order.status) }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-column" style="gap: 0.2rem;">
+                                            <div class="form-check">
+                                                <input class="form-check-input regional-checkbox"
+                                                       type="checkbox"
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="measurement_completed"
+                                                       data-label="실측완료"
+                                                       id="measurement_pending_{{ order.id }}"
+                                                       {% if order.measurement_completed %}checked{% endif %}>
+                                                <label class="form-check-label small" for="measurement_pending_{{ order.id }}">
+                                                    0. 실측완료
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input regional-checkbox" 
+                                                       type="checkbox" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="regional_sales_order_upload"
+                                                       data-label="영업발주 업로드"
+                                                       id="sales_order_pending_{{ order.id }}"
+                                                       {% if order.regional_sales_order_upload %}checked{% endif %}>
+                                                <label class="form-check-label small" for="sales_order_pending_{{ order.id }}">
+                                                    1. 영업발주 업로드
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input regional-checkbox" 
+                                                       type="checkbox" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="regional_blueprint_sent"
+                                                       data-label="도면 발송"
+                                                       id="blueprint_pending_{{ order.id }}"
+                                                       {% if order.regional_blueprint_sent %}checked{% endif %}>
+                                                <label class="form-check-label small" for="blueprint_pending_{{ order.id }}">
+                                                    2. 도면 발송
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input regional-checkbox" 
+                                                       type="checkbox" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="regional_order_upload"
+                                                       data-label="발주 업로드"
+                                                       id="order_upload_pending_{{ order.id }}"
+                                                       {% if order.regional_order_upload %}checked{% endif %}>
+                                                <label class="form-check-label small" for="order_upload_pending_{{ order.id }}">
+                                                    3. 발주 업로드
+                                                </label>
+                                            </div>
+                                            {% if order.construction_type == '협력사 시공' %}
+                                            <div class="form-check">
+                                                <input class="form-check-input regional-checkbox" 
+                                                       type="checkbox" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="regional_cargo_sent"
+                                                       data-label="화물 발송"
+                                                       id="cargo_sent_pending_{{ order.id }}"
+                                                       {% if order.regional_cargo_sent %}checked{% endif %}>
+                                                <label class="form-check-label small" for="cargo_sent_pending_{{ order.id }}">
+                                                    4. 화물 발송
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input regional-checkbox" 
+                                                       type="checkbox" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="regional_construction_info_sent"
+                                                       data-label="시공정보 발송"
+                                                       id="construction_info_pending_{{ order.id }}"
+                                                       {% if order.regional_construction_info_sent %}checked{% endif %}>
+                                                <label class="form-check-label small" for="construction_info_pending_{{ order.id }}">
+                                                    5. 시공정보 발송
+                                                </label>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if order.construction_type == '하우드 시공' %}bg-info text-dark{% elif order.construction_type == '협력사 시공' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                                            {{ order.construction_type or '미지정' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <input type="date" class="form-control form-control-sm editable-date" 
+                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               value="{{ order.scheduled_date or '' }}" 
+                                               data-order-id="{{ order.id }}"
+                                               data-field="scheduled_date">
+                                    </td>
+                                    <td class="{% if order.shipping_scheduled_date == today %}emphasized-date{% endif %}">
+                                        <input type="date" class="form-control form-control-sm editable-date {% if order.shipping_scheduled_date == today %}blinking-red-date{% elif order.shipping_scheduled_date == tomorrow %}blinking-yellow-date{% endif %}" 
+                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               value="{{ order.shipping_scheduled_date or '' }}" 
+                                               data-order-id="{{ order.id }}"
+                                               data-field="shipping_scheduled_date">
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
+                                           class="btn btn-sm btn-outline-primary" title="수정">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
+                        <h5 class="text-muted">진행 중인 지방 주문이 없습니다!</h5>
+                        <p class="text-muted">모든 지방 주문이 완료되었습니다.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 완료된 주문 -->
     <div class="row">
         <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1 class="h3 mb-0"><i class="fas fa-map-marker-alt text-warning"></i> 지방 주문 관리 대시보드</h1>
-                <a href="{{ url_for('add_order') }}" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> 새 주문 추가
-                </a>
-            </div>
-
-            <!-- 요약 통계 -->
-            <div class="row mb-4">
-                <div class="col-md-6">
-                    <div class="card summary-card-completed shadow">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-uppercase mb-1 text-completed">완료된 주문</div>
-                                    <div class="h5 mb-0 font-weight-bold text-completed">{{ completed_orders|length }}건</div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-check-circle fa-2x text-completed-icon"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            <div class="card shadow border-left-completed">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center header-completed">
+                    <h6 class="m-0 font-weight-bold">
+                        <i class="fas fa-check-circle me-2"></i>완료된 주문 ({{ completed_orders|length }}건)
+                    </h6>
+                    <button class="btn btn-sm btn-light" onclick="toggleCompletedOrders()">
+                        <i class="fas fa-eye-slash" id="toggle-icon"></i> <span id="toggle-text">숨기기</span>
+                    </button>
                 </div>
-                <div class="col-md-6">
-                    <div class="card summary-card-pending shadow">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-uppercase mb-1 text-pending">진행 중인 주문</div>
-                                    <div class="h5 mb-0 font-weight-bold text-pending">{{ pending_orders|length }}건</div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-clock fa-2x text-pending-icon"></i>
-                                </div>
-                            </div>
-                        </div>
+                <div class="card-body" id="completed-orders-section" style="display: block;">
+                    {% if completed_orders %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">번호</th>
+                                    <th style="width: 120px;">메모</th>
+                                    <th style="width: 120px;">고객명</th>
+                                    <th>주소</th>
+                                    <th>제품</th>
+                                    <th>상태</th>
+                                    <th style="width: 200px;">완료된 체크리스트</th>
+                                    <th style="width: 90px;">시공 구분</th>
+                                    <th style="width: 90px;">설치일</th>
+                                    <th style="width: 90px;">상차일</th>
+                                    <th style="width: 80px;">작업</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in completed_orders %}
+                                <tr class="table-completed">
+                                    <td>{{ order.id }}</td>
+                                    <td>
+                                        <textarea class="form-control form-control-sm auto-resize-textarea regional-memo" 
+                                                  rows="1" 
+                                                  placeholder="메모 입력..." 
+                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            {{ order.customer_name }}
+                                            <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"></i>
+                                        </div>
+                                        <small class="text-muted">{{ order.phone }}</small>
+                                    </td>
+                                    <td style="white-space: normal; word-break: break-all;">
+                                        {{ order.address }}
+                                    </td>
+                                    <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                        {{ order.product }}
+                                    </td>
+                                    <td>
+                                        {% set status_colors = {
+                                            'RECEIVED': 'primary',
+                                            'MEASURED': 'warning', 
+                                            'SCHEDULED': 'danger',
+                                            'SHIPPED_PENDING': 'info',
+                                            'COMPLETED': 'success',
+                                            'AS_RECEIVED': 'dark',
+                                            'AS_COMPLETED': 'secondary',
+                                            'ON_HOLD': 'purple'
+                                        } %}
+                                        <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
+                                            {{ STATUS.get(order.status, order.status) }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-column" style="gap: 0.2rem;">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-check-circle text-success me-2"></i>
+                                                <small class="text-muted">0. 실측완료</small>
+                                            </div>
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-check-circle text-success me-2"></i>
+                                                <small class="text-muted">1. 영업발주 업로드</small>
+                                            </div>
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-check-circle text-success me-2"></i>
+                                                <small class="text-muted">2. 도면 발송</small>
+                                            </div>
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-check-circle text-success me-2"></i>
+                                                <small class="text-muted">3. 발주 업로드</small>
+                                            </div>
+                                            {% if order.construction_type == '협력사 시공' %}
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-check-circle text-success me-2"></i>
+                                                <small class="text-muted">4. 화물 발송</small>
+                                            </div>
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-check-circle text-success me-2"></i>
+                                                <small class="text-muted">5. 시공정보 발송</small>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if order.construction_type == '하우드 시공' %}bg-info text-dark{% elif order.construction_type == '협력사 시공' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                                            {{ order.construction_type or '미지정' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <input type="date" class="form-control form-control-sm editable-date" 
+                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               value="{{ order.scheduled_date or '' }}" 
+                                               data-order-id="{{ order.id }}"
+                                               data-field="scheduled_date">
+                                    </td>
+                                                                        <td class="{% if order.shipping_scheduled_date == today %}emphasized-date{% endif %}">
+                                        <input type="date" class="form-control form-control-sm editable-date {% if order.shipping_scheduled_date == today %}blinking-red-date{% elif order.shipping_scheduled_date == tomorrow %}blinking-yellow-date{% endif %}"
+                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               value="{{ order.shipping_scheduled_date or '' }}"
+                                               data-order-id="{{ order.id }}"
+                                               data-field="shipping_scheduled_date">
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
+                                           class="btn btn-sm btn-outline-success" title="수정">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
-                </div>
-            </div>
-
-            <!-- 진행 중인 주문 -->
-            <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card shadow border-left-pending">
-                        <div class="card-header py-3 d-flex justify-content-between align-items-center header-pending">
-                            <h6 class="m-0 font-weight-bold">
-                                <i class="fas fa-clock me-2"></i>진행 중인 주문 ({{ pending_orders|length }}건)
-                            </h6>
-                            <a href="/?region=regional" class="btn btn-sm btn-light">
-                                <i class="fas fa-list"></i> 전체 보기
-                            </a>
-                        </div>
-                        <div class="card-body">
-                            {% if pending_orders %}
-                            <div class="table-responsive">
-                                <table class="table table-bordered table-hover">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th style="width: 60px;">번호</th>
-                                            <th style="width: 120px;">메모</th>
-                                            <th style="width: 120px;">고객명</th>
-                                            <th>주소</th>
-                                            <th>제품</th>
-                                            <th>상태</th>
-                                            <th style="width: 180px;">진행 단계 체크리스트</th>
-                                            <th style="width: 90px;">시공 구분</th>
-                                            <th style="width: 90px;">설치일</th>
-                                            <th style="width: 90px;">상차일</th>
-                                            <th style="width: 80px;">작업</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for order in pending_orders %}
-                                        <tr>
-                                            <td>{{ order.id }}</td>
-                                            <td>
-                                                <textarea class="form-control form-control-sm auto-resize-textarea regional-memo" 
-                                                          rows="1" 
-                                                          placeholder="메모 입력..." 
-                                                          style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
-                                                          data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
-                                            </td>
-                                            <td>
-                                                <div>
-                                                    {{ order.customer_name }}
-                                                    <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"></i>
-                                                </div>
-                                                <small class="text-muted">{{ order.phone }}</small>
-                                            </td>
-                                            <td style="white-space: normal; word-break: break-all;">
-                                                {{ order.address }}
-                                            </td>
-                                            <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
-                                                {{ order.product }}
-                                            </td>
-                                            <td>
-                                                {% set status_colors = {
-                                                    'RECEIVED': 'primary',
-                                                    'MEASURED': 'warning', 
-                                                    'SCHEDULED': 'danger',
-                                                    'SHIPPED_PENDING': 'info',
-                                                    'COMPLETED': 'success',
-                                                    'AS_RECEIVED': 'dark',
-                                                    'AS_COMPLETED': 'secondary',
-                                                    'ON_HOLD': 'purple'
-                                                } %}
-                                                <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
-                                                    {{ STATUS.get(order.status, order.status) }}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div class="d-flex flex-column" style="gap: 0.2rem;">
-                                                    <div class="form-check">
-                                                        <input class="form-check-input regional-checkbox"
-                                                               type="checkbox"
-                                                               data-order-id="{{ order.id }}"
-                                                               data-field="measurement_completed"
-                                                               data-label="실측완료"
-                                                               id="measurement_pending_{{ order.id }}"
-                                                               {% if order.measurement_completed %}checked{% endif %}>
-                                                        <label class="form-check-label small" for="measurement_pending_{{ order.id }}">
-                                                            0. 실측완료
-                                                        </label>
-                                                    </div>
-                                                    <div class="form-check">
-                                                        <input class="form-check-input regional-checkbox" 
-                                                               type="checkbox" 
-                                                               data-order-id="{{ order.id }}"
-                                                               data-field="regional_sales_order_upload"
-                                                               data-label="영업발주 업로드"
-                                                               id="sales_order_pending_{{ order.id }}"
-                                                               {% if order.regional_sales_order_upload %}checked{% endif %}>
-                                                        <label class="form-check-label small" for="sales_order_pending_{{ order.id }}">
-                                                            1. 영업발주 업로드
-                                                        </label>
-                                                    </div>
-                                                    <div class="form-check">
-                                                        <input class="form-check-input regional-checkbox" 
-                                                               type="checkbox" 
-                                                               data-order-id="{{ order.id }}"
-                                                               data-field="regional_blueprint_sent"
-                                                               data-label="도면 발송"
-                                                               id="blueprint_pending_{{ order.id }}"
-                                                               {% if order.regional_blueprint_sent %}checked{% endif %}>
-                                                        <label class="form-check-label small" for="blueprint_pending_{{ order.id }}">
-                                                            2. 도면 발송
-                                                        </label>
-                                                    </div>
-                                                    <div class="form-check">
-                                                        <input class="form-check-input regional-checkbox" 
-                                                               type="checkbox" 
-                                                               data-order-id="{{ order.id }}"
-                                                               data-field="regional_order_upload"
-                                                               data-label="발주 업로드"
-                                                               id="order_upload_pending_{{ order.id }}"
-                                                               {% if order.regional_order_upload %}checked{% endif %}>
-                                                        <label class="form-check-label small" for="order_upload_pending_{{ order.id }}">
-                                                            3. 발주 업로드
-                                                        </label>
-                                                    </div>
-                                                    {% if order.construction_type == '협력사 시공' %}
-                                                    <div class="form-check">
-                                                        <input class="form-check-input regional-checkbox" 
-                                                               type="checkbox" 
-                                                               data-order-id="{{ order.id }}"
-                                                               data-field="regional_cargo_sent"
-                                                               data-label="화물 발송"
-                                                               id="cargo_sent_pending_{{ order.id }}"
-                                                               {% if order.regional_cargo_sent %}checked{% endif %}>
-                                                        <label class="form-check-label small" for="cargo_sent_pending_{{ order.id }}">
-                                                            4. 화물 발송
-                                                        </label>
-                                                    </div>
-                                                    <div class="form-check">
-                                                        <input class="form-check-input regional-checkbox" 
-                                                               type="checkbox" 
-                                                               data-order-id="{{ order.id }}"
-                                                               data-field="regional_construction_info_sent"
-                                                               data-label="시공정보 발송"
-                                                               id="construction_info_pending_{{ order.id }}"
-                                                               {% if order.regional_construction_info_sent %}checked{% endif %}>
-                                                        <label class="form-check-label small" for="construction_info_pending_{{ order.id }}">
-                                                            5. 시공정보 발송
-                                                        </label>
-                                                    </div>
-                                                    {% endif %}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <span class="badge {% if order.construction_type == '하우드 시공' %}bg-info text-dark{% elif order.construction_type == '협력사 시공' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
-                                                    {{ order.construction_type or '미지정' }}
-                                                </span>
-                                            </td>
-                                            <td>{{ order.scheduled_date or '-' }}</td>
-                                            <td>{{ order.shipping_scheduled_date or '-' }}</td>
-                                            <td>
-                                                <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
-                                                   class="btn btn-sm btn-outline-primary" title="수정">
-                                                    <i class="fas fa-edit"></i>
-                                                </a>
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                            {% else %}
-                            <div class="text-center py-4">
-                                <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
-                                <h5 class="text-muted">진행 중인 지방 주문이 없습니다!</h5>
-                                <p class="text-muted">모든 지방 주문이 완료되었습니다.</p>
-                            </div>
-                            {% endif %}
-                        </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox text-muted fa-3x mb-3"></i>
+                        <h5 class="text-muted">완료된 지방 주문이 없습니다.</h5>
                     </div>
-                </div>
-            </div>
-
-            <!-- 완료된 주문 -->
-            <div class="row">
-                <div class="col-12">
-                    <div class="card shadow border-left-completed">
-                        <div class="card-header py-3 d-flex justify-content-between align-items-center header-completed">
-                            <h6 class="m-0 font-weight-bold">
-                                <i class="fas fa-check-circle me-2"></i>완료된 주문 ({{ completed_orders|length }}건)
-                            </h6>
-                            <button class="btn btn-sm btn-light" onclick="toggleCompletedOrders()">
-                                <i class="fas fa-eye-slash" id="toggle-icon"></i> <span id="toggle-text">숨기기</span>
-                            </button>
-                        </div>
-                        <div class="card-body" id="completed-orders-section" style="display: block;">
-                            {% if completed_orders %}
-                            <div class="table-responsive">
-                                <table class="table table-bordered table-hover">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th style="width: 60px;">번호</th>
-                                            <th style="width: 120px;">메모</th>
-                                            <th style="width: 120px;">고객명</th>
-                                            <th>주소</th>
-                                            <th>제품</th>
-                                            <th>상태</th>
-                                            <th style="width: 200px;">완료된 체크리스트</th>
-                                            <th style="width: 90px;">시공 구분</th>
-                                            <th style="width: 90px;">설치일</th>
-                                            <th style="width: 90px;">상차일</th>
-                                            <th style="width: 80px;">작업</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for order in completed_orders %}
-                                        <tr class="table-completed">
-                                            <td>{{ order.id }}</td>
-                                            <td>
-                                                <textarea class="form-control form-control-sm auto-resize-textarea regional-memo" 
-                                                          rows="1" 
-                                                          placeholder="메모 입력..." 
-                                                          style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
-                                                          data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
-                                            </td>
-                                            <td>
-                                                <div>
-                                                    {{ order.customer_name }}
-                                                    <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"></i>
-                                                </div>
-                                                <small class="text-muted">{{ order.phone }}</small>
-                                            </td>
-                                            <td style="white-space: normal; word-break: break-all;">
-                                                {{ order.address }}
-                                            </td>
-                                            <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
-                                                {{ order.product }}
-                                            </td>
-                                            <td>
-                                                {% set status_colors = {
-                                                    'RECEIVED': 'primary',
-                                                    'MEASURED': 'warning', 
-                                                    'SCHEDULED': 'danger',
-                                                    'SHIPPED_PENDING': 'info',
-                                                    'COMPLETED': 'success',
-                                                    'AS_RECEIVED': 'dark',
-                                                    'AS_COMPLETED': 'secondary',
-                                                    'ON_HOLD': 'purple'
-                                                } %}
-                                                <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
-                                                    {{ STATUS.get(order.status, order.status) }}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div class="d-flex flex-column" style="gap: 0.2rem;">
-                                                    <div class="d-flex align-items-center">
-                                                        <i class="fas fa-check-circle text-success me-2"></i>
-                                                        <small class="text-muted">0. 실측완료</small>
-                                                    </div>
-                                                    <div class="d-flex align-items-center">
-                                                        <i class="fas fa-check-circle text-success me-2"></i>
-                                                        <small class="text-muted">1. 영업발주 업로드</small>
-                                                    </div>
-                                                    <div class="d-flex align-items-center">
-                                                        <i class="fas fa-check-circle text-success me-2"></i>
-                                                        <small class="text-muted">2. 도면 발송</small>
-                                                    </div>
-                                                    <div class="d-flex align-items-center">
-                                                        <i class="fas fa-check-circle text-success me-2"></i>
-                                                        <small class="text-muted">3. 발주 업로드</small>
-                                                    </div>
-                                                    {% if order.construction_type == '협력사 시공' %}
-                                                    <div class="d-flex align-items-center">
-                                                        <i class="fas fa-check-circle text-success me-2"></i>
-                                                        <small class="text-muted">4. 화물 발송</small>
-                                                    </div>
-                                                    <div class="d-flex align-items-center">
-                                                        <i class="fas fa-check-circle text-success me-2"></i>
-                                                        <small class="text-muted">5. 시공정보 발송</small>
-                                                    </div>
-                                                    {% endif %}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <span class="badge {% if order.construction_type == '하우드 시공' %}bg-info text-dark{% elif order.construction_type == '협력사 시공' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
-                                                    {{ order.construction_type or '미지정' }}
-                                                </span>
-                                            </td>
-                                            <td>{{ order.scheduled_date or '-' }}</td>
-                                            <td>{{ order.shipping_scheduled_date or '-' }}</td>
-                                            <td>
-                                                <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
-                                                   class="btn btn-sm btn-outline-success" title="수정">
-                                                    <i class="fas fa-edit"></i>
-                                                </a>
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                            {% else %}
-                            <div class="text-center py-4">
-                                <i class="fas fa-inbox text-muted fa-3x mb-3"></i>
-                                <h5 class="text-muted">완료된 지방 주문이 없습니다.</h5>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -369,103 +598,29 @@
   </div>
 </div>
 
-<style>
-/* 파스텔 톤 색상 정의 */
-:root {
-    --pastel-green: #d4edda;
-    --pastel-green-dark: #c3e6cb;
-    --pastel-green-text: #155724;
-    --pastel-green-icon: #28a745;
-    
-    --pastel-orange: #fff3cd;
-    --pastel-orange-dark: #ffeaa7;
-    --pastel-orange-text: #856404;
-    --pastel-orange-icon: #ffc107;
-}
-
-/* 요약 카드 스타일 */
-.summary-card-completed {
-    background: linear-gradient(135deg, var(--pastel-green) 0%, var(--pastel-green-dark) 100%);
-    border: 1px solid var(--pastel-green-dark);
-}
-
-.summary-card-pending {
-    background: linear-gradient(135deg, var(--pastel-orange) 0%, var(--pastel-orange-dark) 100%);
-    border: 1px solid var(--pastel-orange-dark);
-}
-
-.text-completed {
-    color: var(--pastel-green-text) !important;
-}
-
-.text-completed-icon {
-    color: var(--pastel-green-icon) !important;
-}
-
-.text-pending {
-    color: var(--pastel-orange-text) !important;
-}
-
-.text-pending-icon {
-    color: var(--pastel-orange-icon) !important;
-}
-
-/* 카드 헤더 스타일 */
-.header-completed {
-    background: linear-gradient(135deg, var(--pastel-green-dark) 0%, var(--pastel-green) 100%);
-    color: var(--pastel-green-text) !important;
-    border-bottom: 1px solid var(--pastel-green-dark);
-}
-
-.header-pending {
-    background: linear-gradient(135deg, var(--pastel-orange-dark) 0%, var(--pastel-orange) 100%);
-    color: var(--pastel-orange-text) !important;
-    border-bottom: 1px solid var(--pastel-orange-dark);
-}
-
-/* 테이블 행 스타일 */
-.table-completed {
-    background-color: rgba(212, 237, 218, 0.3) !important;
-}
-
-/* 보더 스타일 */
-.border-left-completed {
-    border-left: 0.25rem solid var(--pastel-green-icon) !important;
-}
-
-.border-left-pending {
-    border-left: 0.25rem solid var(--pastel-orange-icon) !important;
-}
-
-.border-left-primary {
-    border-left: 0.25rem solid #4e73df !important;
-}
-.border-left-info {
-    border-left: 0.25rem solid #36b9cc !important;
-}
-.text-gray-800 {
-    color: #5a5c69 !important;
-}
-.text-gray-300 {
-    color: #dddfeb !important;
-}
-.regional-checkbox {
-    cursor: pointer;
-}
-.form-check {
-    margin-bottom: 0.1rem;
-}
-
-/* 보라색 뱃지 */
-.bg-purple {
-    background-color: #9b59b6 !important;
-    color: #fff !important;
-    border: 1px solid #7d3c98 !important;
-}
-</style>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // 검색 결과 하이라이트 및 스크롤
+    const searchQuery = "{{ search_query|safe }}";
+    if (searchQuery) {
+        const rows = document.querySelectorAll('tr[data-order-id]');
+        let firstMatch = null;
+
+        rows.forEach(row => {
+            const rowText = row.innerText.toLowerCase();
+            if (rowText.includes(searchQuery.toLowerCase())) {
+                row.classList.add('highlight-row');
+                if (!firstMatch) {
+                    firstMatch = row;
+                }
+            }
+        });
+
+        if (firstMatch) {
+            firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
     const checkboxes = document.querySelectorAll('.regional-checkbox');
     const toastElement = document.getElementById('status-toast');
     const toastBody = toastElement.querySelector('.toast-body');
@@ -495,6 +650,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     toastBody.textContent = `주문 #${orderId}의 '${label}' 상태가 성공적으로 업데이트되었습니다.`;
                     toastElement.classList.remove('bg-danger');
                     toastElement.classList.add('bg-success', 'text-white');
+                    
+                    // Check if all checkboxes for this order are checked
+                    checkAllCompleted(this);
+
                 } else {
                     toastBody.textContent = `오류: ${data.message}`;
                     toastElement.classList.remove('bg-success');
@@ -514,6 +673,42 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
+
+    function checkAllCompleted(checkbox) {
+        const row = checkbox.closest('tr');
+        if (!row) return;
+
+        const orderId = checkbox.dataset.orderId;
+        const allCheckboxes = row.querySelectorAll('.regional-checkbox');
+        const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+
+        if (allChecked) {
+            fetch('/api/update_order_field', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    order_id: orderId,
+                    field_name: 'status',
+                    new_value: 'COMPLETED'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.success) {
+                    alert(`주문 #${orderId}이(가) 완료 처리되었습니다. 페이지를 새로고칩니다.`);
+                    location.reload();
+                } else {
+                    alert(`상태 업데이트 실패: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error updating status to completed:', error);
+                alert('상태 업데이트 중 오류가 발생했습니다.');
+            });
+        }
+    }
 
     // 자동 크기 조정 텍스트 영역 설정
     const autoResizeTextareas = document.querySelectorAll('.auto-resize-textarea');
@@ -595,6 +790,48 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             saveMemo(orderId, memo);
+        });
+    });
+
+    // 날짜 필드 직접 수정 기능
+    document.querySelectorAll('.editable-date').forEach(input => {
+        input.addEventListener('change', function(e) {
+            const orderId = e.target.dataset.orderId;
+            const field = e.target.dataset.field;
+            const value = e.target.value;
+
+            fetch('/api/update_order_field', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    order_id: orderId,
+                    field_name: field,
+                    new_value: value
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 성공 피드백 (예: 잠시 배경색 변경)
+                    e.target.style.backgroundColor = '#d4edda'; // 연한 녹색
+                    setTimeout(() => {
+                        e.target.style.backgroundColor = '';
+                    }, 1500);
+                } else {
+                    // 실패 피드백
+                    alert('오류: ' + data.message);
+                    e.target.style.backgroundColor = '#f8d7da'; // 연한 빨간색
+                     setTimeout(() => {
+                        e.target.style.backgroundColor = '';
+                    }, 2000);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('네트워크 오류가 발생했습니다.');
+            });
         });
     });
 });
