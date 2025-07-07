@@ -18,6 +18,12 @@ body {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); /* 미묘한 그림자 */
 }
 
+/* 대시보드 페이지용 더 넓은 컨테이너 */
+.container.dashboard-container {
+    max-width: 95%;
+    width: 95%;
+}
+
 h1, h2, h3, h4, h5, h6 {
     color: #1d1d1f; /* Apple의 짙은 회색 텍스트 */
     margin-top: 0;
@@ -646,6 +652,7 @@ td .btn:last-child {
 .status-dropdown.status-completed { background-color: #2e7d32 !important; border-color: #1b5e20; }
 .status-dropdown.status-as_received { background-color: #7b1fa2 !important; border-color: #6a1b9a; }
 .status-dropdown.status-as_completed { background-color: #00695c !important; border-color: #004d40; }
+.status-dropdown.status-regional_measured { background-color: #8e24aa !important; border-color: #7b1fa2; }
 .status-dropdown.status-on_hold { background-color: #616161 !important; border-color: #424242; }
 
 /* Badge Styles */
@@ -657,7 +664,7 @@ td .btn:last-child {
 }
 
 .bg-purple {
-    background-color: #6f42c1 !important;
+    background-color: #8e24aa !important;
     color: white;
 }
 
@@ -711,3 +718,231 @@ td .btn:last-child {
     background-color: #fffde7 !important; /* 부드러운 노란색 계열 */
     transition: background-color 0.5s ease-in-out;
 } 
+
+/* 반응형 테이블 스타일 개선 */
+.table-responsive {
+    border-radius: 0.375rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* 일반 페이지 테이블 - 행 높이 최소화 */
+.table-responsive .table td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px; /* 기본 최대 너비 */
+}
+
+/* 주소 컬럼 특별 처리 */
+.table-responsive .table td[title] {
+    max-width: 300px; /* 주소는 조금 더 넓게 */
+}
+
+/* 지방/수도권 대시보드는 예외 처리 */
+.regional-dashboard .table-responsive .table td,
+.metropolitan-dashboard .table-responsive .table td {
+    max-width: none; /* 최대 너비 제한 해제 */
+}
+
+/* 지방 대시보드 특정 설정 재적용 */
+.regional-dashboard .table-responsive .table td:nth-child(4) { /* 주소 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+/* 옵션과 메모 컬럼은 줄바꿈 허용 */
+.table-responsive .table td.options-cell,
+.table-responsive .table td.notes-cell {
+    white-space: normal;
+    max-width: none;
+}
+
+/* 지방 대시보드 전용 가로 스크롤 테이블 */
+.regional-dashboard .table-responsive {
+    overflow-x: auto !important;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    width: 100%;
+    max-width: 100%;
+}
+
+/* 지방 대시보드 테이블 최소 너비 설정 */
+.regional-dashboard .table-responsive .table {
+    min-width: 1800px; /* 테이블 최소 너비 설정 */
+    margin-bottom: 0;
+    width: auto;
+}
+
+/* 지방 대시보드 테이블 셀 줄바꿈 방지 */
+.regional-dashboard .table-responsive .table th,
+.regional-dashboard .table-responsive .table td {
+    white-space: nowrap;
+}
+
+/* 지방 대시보드 특정 컬럼만 줄바꿈 허용 (메모, 진행 단계 체크리스트) */
+.regional-dashboard .table-responsive .table td:nth-child(2), /* 메모 */
+.regional-dashboard .table-responsive .table td:nth-child(8) { /* 진행 단계 체크리스트 */
+    white-space: normal;
+}
+
+/* 지방 대시보드 주소 컬럼 말줄임표 처리 */
+.regional-dashboard .table-responsive .table td:nth-child(4) { /* 주소 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+/* 지방 대시보드 전용 가로 스크롤바 스타일 개선 */
+.regional-dashboard .table-responsive::-webkit-scrollbar {
+    height: 12px;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+}
+
+.regional-dashboard .table-responsive::-webkit-scrollbar-thumb {
+    background: linear-gradient(45deg, #007bff, #0056b3);
+    border-radius: 6px;
+    border: 2px solid #f8f9fa;
+}
+
+.regional-dashboard .table-responsive::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(45deg, #0056b3, #004085);
+}
+
+.regional-dashboard .table-responsive::-webkit-scrollbar-track {
+    background-color: #f8f9fa;
+    border-radius: 6px;
+}
+
+/* 지방 대시보드 Firefox용 스크롤바 스타일 */
+.regional-dashboard .table-responsive {
+    scrollbar-width: thin;
+    scrollbar-color: #007bff #f8f9fa;
+}
+
+/* 지방 대시보드 좁은 화면에서 스크롤 힌트 표시 */
+@media (max-width: 1400px) {
+    .regional-dashboard .table-responsive::after {
+        content: "← 좌우로 스크롤하여 더 많은 정보를 확인하세요 →";
+        display: block;
+        text-align: center;
+        font-size: 0.875rem;
+        color: #6c757d;
+        padding: 0.5rem;
+        background-color: #f8f9fa;
+        border-top: 1px solid #dee2e6;
+        font-style: italic;
+        margin-top: -1px;
+    }
+}
+
+/* 지방 대시보드 매우 좁은 화면에서 중요 컬럼 강조 */
+@media (max-width: 768px) {
+    .regional-dashboard .table th:nth-child(2), /* 메모 */
+    .regional-dashboard .table td:nth-child(2),
+    .regional-dashboard .table th:nth-child(8), /* 진행 단계 체크리스트 */
+    .regional-dashboard .table td:nth-child(8) {
+        background-color: #fff3cd !important;
+        position: sticky;
+        z-index: 1;
+    }
+    
+    /* 지방 대시보드 메모 컬럼 고정 */
+    .regional-dashboard .table th:nth-child(2),
+    .regional-dashboard .table td:nth-child(2) {
+        left: 60px; /* 번호 컬럼 너비만큼 */
+        min-width: 120px;
+    }
+    
+    .regional-dashboard .table-responsive::after {
+        content: "← 메모와 체크리스트 컬럼이 강조되어 있습니다 →";
+        font-size: 0.8rem;
+    }
+}
+
+/* 상차 예정 알림 강력한 애니메이션 */
+@keyframes elegant-red-border {
+    0% { 
+        border-color: #ff0000;
+        box-shadow: 0 0 8px rgba(255, 0, 0, 0.3);
+    }
+    50% { 
+        border-color: #ff6666;
+        box-shadow: 0 0 15px rgba(255, 0, 0, 0.8);
+    }
+    100% { 
+        border-color: #ff0000;
+        box-shadow: 0 0 8px rgba(255, 0, 0, 0.3);
+    }
+}
+
+@keyframes elegant-orange-border {
+    0% { 
+        border-color: #ff8c00;
+        box-shadow: 0 0 8px rgba(255, 140, 0, 0.3);
+    }
+    50% { 
+        border-color: #ffaa44;
+        box-shadow: 0 0 15px rgba(255, 140, 0, 0.8);
+    }
+    100% { 
+        border-color: #ff8c00;
+        box-shadow: 0 0 8px rgba(255, 140, 0, 0.3);
+    }
+}
+
+.shipping-alert-today {
+    animation: elegant-red-border 1.2s infinite;
+    font-weight: 600;
+    font-size: 15px;
+    padding: 10px 15px;
+    margin: 8px 0;
+    border-radius: 8px;
+    border: 2px solid #ff0000;
+    background-color: #f8f9fa;
+    color: #333333;
+    display: block;
+    text-align: left;
+    transition: all 0.3s ease;
+}
+
+.shipping-alert-tomorrow {
+    animation: elegant-orange-border 1.5s infinite;
+    font-weight: 600;
+    font-size: 15px;
+    padding: 10px 15px;
+    margin: 8px 0;
+    border-radius: 8px;
+    border: 2px solid #ff8c00;
+    background-color: #f8f9fa;
+    color: #333333;
+    display: block;
+    text-align: left;
+    transition: all 0.3s ease;
+}
+
+/* 상차 예정 알림 카드 스타일 */
+.shipping-alert-card {
+    background-color: #e8f4f8 !important;
+    border-left: 6px solid #17a2b8 !important;
+    border-radius: 10px !important;
+}
+
+.shipping-alert-header {
+    background-color: #d1ecf1 !important;
+    border-bottom: 2px solid #bee5eb !important;
+    color: #0c5460 !important;
+}
+
+.shipping-alert-header h6 {
+    color: #0c5460 !important;
+    font-size: 18px !important;
+}
+
+.shipping-alert-header i {
+    color: #17a2b8 !important;
+}

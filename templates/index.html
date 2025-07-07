@@ -5,17 +5,14 @@
 <style>
     /* 테이블 및 컬럼 관련 스타일 */
     .table-fixed-header {
-        overflow-x: auto;
         max-height: 70vh;
         border-bottom: 1px solid #dee2e6;
         position: relative; /* For resizing overlay */
     }
     .table-fixed-header table {
-        table-layout: fixed;
-        /* width: 100%; 제거 - 테이블 너비가 내용에 따라 늘어나도록 */
+        width: 100%;
         border-collapse: separate; /* Important for resize handles */
         border-spacing: 0;
-        min-width: 100%; /* 최소 너비는 컨테이너에 맞춤 */
     }
     .table-fixed-header thead th {
         position: sticky;
@@ -30,11 +27,18 @@
         text-align: center; /* 헤더 텍스트 가운데 정렬 */
     }
     .table-fixed-header td {
+        padding: 0.75rem;
+        vertical-align: top; /* Ensure content aligns well */
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        padding: 0.75rem;
-        vertical-align: top; /* Ensure content aligns well */
+    }
+    
+    /* 특정 컬럼은 줄바꿈 허용 (옵션, 메모 등) */
+    .table-fixed-header td.options-cell,
+    .table-fixed-header td.notes-cell {
+        white-space: normal;
+        word-wrap: break-word;
     }
 
     /* 테이블 헤더의 div 요소도 가운데 정렬 */
@@ -42,11 +46,9 @@
         text-align: center;
     }
 
-    /* 전화번호 셀 스타일 - 항상 전체 표시 */
+    /* 전화번호 셀 스타일 */
     td.th-phone {
-        white-space: nowrap !important;
-        overflow: visible !important;
-        text-overflow: clip !important;
+        white-space: nowrap;
     }
     
     /* 옵션 관련 스타일 */
@@ -129,27 +131,12 @@
 
     /* 체크박스 열 스타일 추가 */
     .th-select {
-        width: 45px; /* 너비 약간 조정 및 !important 제거 */
         padding: 0.5rem;
         text-align: center;
     }
-    /* 각 컬럼별 초기 너비 설정 */
-    .th-id { width: 70px; }
-    .th-received-date { width: 120px; }
-    .th-received-time { width: 80px; }
-    .th-customer-name { min-width: 120px; } /* width 제거, min-width 조정하여 JS 자동 맞춤 활용 */
-    .th-phone { width: 130px; }
-    .th-address { width: 600px; min-width: 400px; } /* 주소 너비 2배 증가 */
-    .th-product { width: 150px; min-width: 120px; }
-    .th-options { width: 200px; min-width: 150px; }
-    .th-notes { width: 200px; min-width: 150px; }
-    .th-payment-amount { width: 120px; }
-    .th-measurement-date { width: 120px; }
-    .th-measurement-time { width: 80px; }
-    .th-scheduled-date { width: 120px; }
-    .th-manager-name { width: 100px; }
-    .th-status { width: 90px; }
-    .th-actions { width: 80px; text-align: center; } /* 작업 열 */
+    /* 각 컬럼별 반응형 스타일 */
+    .th-select { text-align: center; }
+    .th-actions { text-align: center; }
     
     /* 보라색 뱃지 */
     .bg-purple {
@@ -350,8 +337,8 @@
                             {% endif %}
                         </td>
                         <td class="th-phone">{{ order.phone }}</td>
-                        <td class="th-address td-address">{{ order.address }}</td>
-                        <td class="th-product">{{ order.product }}</td>
+                                                    <td class="th-address td-address" title="{{ order.address }}">{{ order.address }}</td>
+                                                    <td class="th-product" title="{{ order.product }}">{{ order.product }}</td>
                         <td class="th-options options-cell td-options">
                             {% if order.options %}
                                 {% set options_str = order.options %}
@@ -551,6 +538,7 @@
                             <span class="badge 
                                 {% if order.status == 'RECEIVED' %}bg-primary
                                 {% elif order.status == 'MEASURED' %}bg-warning
+                                {% elif order.status == 'REGIONAL_MEASURED' %}bg-purple
                                 {% elif order.status == 'SCHEDULED' %}bg-danger
                                 {% elif order.status == 'SHIPPED_PENDING' %}bg-info
                                 {% elif order.status == 'COMPLETED' %}bg-success

@@ -3,7 +3,7 @@
 {% block title %}수도권 주문 관리 대시보드{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid metropolitan-dashboard">
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -459,9 +459,9 @@
                     <div class="card shadow border-left-info">
                         <div class="card-header py-3 d-flex justify-content-between align-items-center header-info">
                             <h6 class="m-0 font-weight-bold">
-                                <i class="fas fa-tools me-2"></i>AS 관련 주문 ({{ as_orders|length }}건)
+                                <i class="fas fa-tools me-2"></i>AS 접수된 주문 ({{ as_orders|length }}건)
                             </h6>
-                            <a href="/?region=metropolitan&status=AS_RECEIVED,AS_COMPLETED" class="btn btn-sm btn-light">
+                            <a href="/?region=metropolitan&status=AS_RECEIVED" class="btn btn-sm btn-light">
                                 <i class="fas fa-list"></i> 전체 보기
                             </a>
                         </div>
@@ -585,6 +585,7 @@
                                                 {% set status_colors = {
                                                     'RECEIVED': 'primary',
                                                     'MEASURED': 'warning', 
+                                                    'REGIONAL_MEASURED': 'purple',
                                                     'SCHEDULED': 'danger',
                                                     'SHIPPED_PENDING': 'info',
                                                     'COMPLETED': 'success',
@@ -622,7 +623,7 @@
                     <div class="card shadow border-left-completed">
                         <div class="card-header py-3 d-flex justify-content-between align-items-center header-completed">
                             <h6 class="m-0 font-weight-bold">
-                                <i class="fas fa-check-circle me-2"></i>완료된 주문 ({{ completed_orders|length }}건)
+                                <i class="fas fa-check-circle me-2"></i>완료된 주문 (설치완료 + AS완료) ({{ completed_orders|length }}건)
                             </h6>
                             <button class="btn btn-sm btn-light" onclick="toggleCompletedOrders()">
                                 <i class="fas fa-eye-slash" id="toggle-icon"></i> <span id="toggle-text">숨기기</span>
@@ -641,7 +642,9 @@
                                             <th>상태</th>
                                             <th>담당자</th>
                                             <th>실측일</th>
-                                            <th>설치일</th>
+                                            <th>설치완료일</th>
+                                            <th>AS접수일</th>
+                                            <th>AS완료일</th>
                                             <th>작업</th>
                                         </tr>
                                     </thead>
@@ -663,6 +666,7 @@
                                                 {% set status_colors = {
                                                     'RECEIVED': 'primary',
                                                     'MEASURED': 'warning', 
+                                                    'REGIONAL_MEASURED': 'purple',
                                                     'SCHEDULED': 'danger',
                                                     'SHIPPED_PENDING': 'info',
                                                     'COMPLETED': 'success',
@@ -676,7 +680,9 @@
                                             </td>
                                             <td>{{ order.manager_name or '-' }}</td>
                                             <td>{{ order.measurement_date or '-' }}</td>
-                                            <td>{{ order.scheduled_date or '-' }}</td>
+                                            <td>{{ order.completion_date or '-' }}</td>
+                                            <td>{{ order.as_received_date or '-' }}</td>
+                                            <td>{{ order.as_completed_date or '-' }}</td>
                                             <td>
                                                 <a href="{{ url_for('edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-success" title="수정">
@@ -995,6 +1001,11 @@
     color: white;
 }
 
+.status-dropdown option[value="REGIONAL_MEASURED"] {
+    background-color: #8e24aa;
+    color: white;
+}
+
 .status-dropdown option[value="ON_HOLD"] {
     background-color: #616161;
     color: white;
@@ -1041,6 +1052,12 @@
     background-color: #00695c !important;
     color: white !important;
     border-color: #004d40;
+}
+
+.status-dropdown.status-regional_measured {
+    background-color: #8e24aa !important;
+    color: white !important;
+    border-color: #7b1fa2;
 }
 
 .status-dropdown.status-on_hold {

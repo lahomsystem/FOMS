@@ -41,6 +41,7 @@ def allowed_file(filename):
 STATUS = {
     'RECEIVED': '접수',
     'MEASURED': '실측',
+    'REGIONAL_MEASURED': '지방실측',
     'SCHEDULED': '설치 예정',
     'SHIPPED_PENDING': '상차 예정',
     'COMPLETED': '완료',
@@ -2394,7 +2395,8 @@ def update_order_field():
         'measurement_completed', 'regional_sales_order_upload',  # 지방 체크박스 필드들
         'regional_blueprint_sent', 'regional_order_upload',
         'regional_cargo_sent', 'regional_construction_info_sent',
-        'as_received_date', 'as_completed_date'  # AS 관련 날짜 필드들
+        'as_received_date', 'as_completed_date',  # AS 관련 날짜 필드들
+        'measurement_date'  # 실측일 필드
     ]
     if field not in allowed_fields:
         return jsonify({'success': False, 'message': f'허용되지 않은 필드입니다: {field}'}), 400
@@ -2521,22 +2523,36 @@ def regional_dashboard():
         else:
             pending_orders.append(order)
     
-    # 상차 예정 알림 필터링 (검색된 결과 중에서)
-    shipping_alerts = [order for order in pending_orders 
-                      if order.status in ['SCHEDULED', 'SHIPPED_PENDING']]
+    # 상차 예정 알림 필터링 (D-2부터 표시)
+    today = date.today()
+    day_after_tomorrow = today + timedelta(days=2)  # D-2
     
-    # 오늘과 내일 날짜 계산
-    today = date.today().strftime('%Y-%m-%d')
-    tomorrow = (date.today() + timedelta(days=1)).strftime('%Y-%m-%d')
+    shipping_alerts = []
+    for order in pending_orders:
+        if (order.status in ['SCHEDULED', 'SHIPPED_PENDING'] and 
+            order.shipping_scheduled_date and 
+            order.shipping_scheduled_date.strip()):
+            try:
+                shipping_date = datetime.datetime.strptime(order.shipping_scheduled_date, '%Y-%m-%d').date()
+                # D-2부터 오늘까지 (과거 포함)의 상차 예정일이면 알림 표시
+                if shipping_date <= day_after_tomorrow:
+                    shipping_alerts.append(order)
+            except (ValueError, TypeError):
+                # 날짜 형식이 잘못된 경우 무시
+                pass
     
+    # 오늘과 내일 날짜 계산 (템플릿에서 사용)
+    today_str = today.strftime('%Y-%m-%d')
+    tomorrow_str = (today + timedelta(days=1)).strftime('%Y-%m-%d')
+        
     return render_template('regional_dashboard.html', 
                            pending_orders=pending_orders, 
                            completed_orders=completed_orders,
                            shipping_alerts=shipping_alerts,
                            STATUS=STATUS,
                            search_query=search_query,
-                           today=today,
-                           tomorrow=tomorrow)
+                           today=today_str,
+                           tomorrow=tomorrow_str)
 
 @app.route('/metropolitan_dashboard')
 @login_required
@@ -2614,9 +2630,9 @@ def metropolitan_dashboard():
 
     alert_order_ids = {o.id for o in urgent_alerts + measurement_alerts + pre_measurement_alerts + installation_alerts}
 
-    # AS 관련 주문들
+    # AS 관련 주문들 (AS_RECEIVED만 포함)
     as_orders_query = db.query(Order).filter(
-        Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
+        Order.status == 'AS_RECEIVED',
         Order.is_regional == False
     )
     as_orders = get_filtered_orders(as_orders_query).order_by(Order.created_at.desc()).all()
@@ -2629,13 +2645,14 @@ def metropolitan_dashboard():
     )
     normal_orders = get_filtered_orders(normal_orders_query).order_by(Order.created_at.desc()).limit(20).all()
 
+    # 완료된 주문들 (COMPLETED와 AS_COMPLETED 포함)
     completed_orders_query = db.query(Order).filter(
-        Order.status == 'COMPLETED',
+        Order.status.in_(['COMPLETED', 'AS_COMPLETED']),
         Order.is_regional == False
     )
     completed_orders = get_filtered_orders(completed_orders_query).order_by(Order.completion_date.desc()).limit(50).all()
-
-    return render_template('metropolitan_dashboard.html',
+        
+    return render_template('metropolitan_dashboard.html', 
                            urgent_alerts=urgent_alerts,
                            measurement_alerts=measurement_alerts,
                            pre_measurement_alerts=pre_measurement_alerts,

@@ -48,10 +48,10 @@
                     </div>
                     
                     <div class="row mb-3">
-                        <div class="col-md-12">
-                            <label for="address" class="form-label">주소 <span class="text-danger">*</span></label>
-                            <textarea class="form-control" id="address" name="address" rows="10" required></textarea>
-                            <div id="address-info" class="mt-2"></div>
+                    <div class="col-md-12">
+                        <label for="address" class="form-label">주소 <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="address" name="address" rows="10" required></textarea>
+                        <div id="address-info" class="mt-2"></div>
                         </div>
                     </div>
                     
@@ -76,7 +76,7 @@
 발주사 : 라홈
 시공일 : 상담
 주 소 :
-연락처 :  
+연락처 : 
 
 제품명 :
 규 격 :
@@ -295,7 +295,7 @@ https://mkt.shopping.naver.com/link/685de66bd4f017474416f9e9</textarea>
             textarea.style.height = 'auto';
             textarea.style.height = textarea.scrollHeight + 'px';
         }
-
+        
         // 온라인 옵션 자동 채우기 기능
         function fillOnlineOptions() {
             const optionsOnline = document.getElementById('options_online');
@@ -469,7 +469,7 @@ https://mkt.shopping.naver.com/link/685de66bd4f017474416f9e9</textarea>
         const measurementTimeInput = document.getElementById('measurement_time');
 
         if (measurementTimeSelect && measurementTimeInput) {
-            measurementTimeInput.style.display = 'block';
+            measurementTimeInput.style.display = 'block'; 
 
             measurementTimeSelect.addEventListener('change', function() {
                 if (this.value === "종일") {
@@ -510,7 +510,7 @@ https://mkt.shopping.naver.com/link/685de66bd4f017474416f9e9</textarea>
                 if (paymentAmountInput) {
                     paymentAmountInput.value = paymentAmountInput.value.replace(/,/g, '');
                 }
-            });
+                });
         }
 
         // 지방 주문 관련 기능

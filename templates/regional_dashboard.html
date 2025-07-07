@@ -13,11 +13,76 @@
     .header-alert.pulse-animation {
         animation: pulse-bg 2s infinite;
     }
+    
+    /* 상차일 알림 초강력 블링크 스타일 */
+    @keyframes blink-red-simple {
+        0%, 100% { 
+            opacity: 1;
+            color: #ff0000 !important;
+            background-color: rgba(255, 0, 0, 0.2) !important;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.8) !important;
+            transform: scale(1) !important;
+        }
+        50% { 
+            opacity: 0.3;
+            color: #ff6666 !important;
+            background-color: rgba(255, 102, 102, 0.1) !important;
+            box-shadow: 0 0 5px rgba(255, 102, 102, 0.5) !important;
+            transform: scale(1.1) !important;
+        }
+    }
+    
+    @keyframes blink-yellow-simple {
+        0%, 100% { 
+            opacity: 1;
+            color: #ff8800 !important;
+            background-color: rgba(255, 136, 0, 0.2) !important;
+            box-shadow: 0 0 20px rgba(255, 136, 0, 0.8) !important;
+            transform: scale(1) !important;
+        }
+        50% { 
+            opacity: 0.3;
+            color: #ffaa44 !important;
+            background-color: rgba(255, 170, 68, 0.1) !important;
+            box-shadow: 0 0 5px rgba(255, 170, 68, 0.5) !important;
+            transform: scale(1.1) !important;
+        }
+    }
+    
+    .shipping-alert-today {
+        animation: blink-red-simple 0.8s infinite ease-in-out !important;
+        font-weight: bold !important;
+        font-size: 18px !important;
+        letter-spacing: 1px !important;
+        display: inline-block !important;
+        padding: 6px 12px !important;
+        border-radius: 8px !important;
+        margin: 4px 0 !important;
+        border: 3px solid #ff0000 !important;
+    }
+    
+    .shipping-alert-tomorrow {
+        animation: blink-yellow-simple 0.9s infinite ease-in-out !important;
+        font-weight: bold !important;
+        font-size: 18px !important;
+        letter-spacing: 1px !important;
+        display: inline-block !important;
+        padding: 6px 12px !important;
+        border-radius: 8px !important;
+        margin: 4px 0 !important;
+        border: 3px solid #ff8800 !important;
+    }
+    
+    .shipping-customer-list {
+        font-size: 14px;
+        margin-top: 5px;
+        line-height: 1.4;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid regional-dashboard">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0"><i class="fas fa-map-marked-alt text-success"></i> 지방 주문 관리 대시보드</h1>
         <a href="{{ url_for('add_order', is_regional='true') }}" class="btn btn-success">
@@ -75,13 +140,47 @@
 
     <!-- 상차 예정 알림 -->
     {% if shipping_alerts %}
+    {% set today_shipping = [] %}
+    {% set tomorrow_shipping = [] %}
+    {% for order in shipping_alerts %}
+        {% if order.shipping_scheduled_date == today %}
+            {% set _ = today_shipping.append(order) %}
+        {% elif order.shipping_scheduled_date == tomorrow %}
+            {% set _ = tomorrow_shipping.append(order) %}
+        {% endif %}
+    {% endfor %}
+    
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card shadow border-left-danger">
-                <div class="card-header py-3 d-flex justify-content-between align-items-center header-alert pulse-animation">
-                    <h6 class="m-0 font-weight-bold">
-                        <i class="fas fa-shipping-fast me-2"></i>상차 예정 알림 ({{ shipping_alerts|length }}건)
-                    </h6>
+            <div class="card shadow shipping-alert-card">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center shipping-alert-header">
+                    <div>
+                        <h6 class="m-0 font-weight-bold">
+                            <i class="fas fa-shipping-fast me-2"></i>상차 예정 알림 ({{ shipping_alerts|length }}건)
+                        </h6>
+                        <div class="shipping-customer-list">
+                            {% if today_shipping %}
+                            <div class="shipping-alert-today">
+                                {% for order in today_shipping %}{{ order.customer_name }}{% if not loop.last %}, {% endif %}{% endfor %} 상차일
+                            </div>
+                            {% endif %}
+                            {% if tomorrow_shipping %}
+                            <div class="shipping-alert-tomorrow">
+                                {% for order in tomorrow_shipping %}{{ order.customer_name }}{% if not loop.last %}, {% endif %}{% endfor %} 상차 D-1
+                            </div>
+                            {% endif %}
+                            
+                            <!-- 애니메이션 테스트용 - 실제 데이터가 없을 때만 표시 -->
+                            {% if not today_shipping and not tomorrow_shipping %}
+                            <div class="shipping-alert-today">
+                                애니메이션 테스트 - 오늘 상차일
+                            </div>
+                            <div class="shipping-alert-tomorrow">
+                                애니메이션 테스트 - 내일 상차 D-1
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -91,9 +190,9 @@
                                     <th style="width: 60px;">번호</th>
                                     <th style="width: 120px;">메모</th>
                                     <th style="width: 120px;">고객명</th>
-                                    <th>주소</th>
-                                    <th>제품</th>
-                                    <th>상태</th>
+                                    <th style="width: 200px;">주소</th>
+                                    <th style="width: 200px;">제품</th>
+                                    <th style="width: 100px;">상태</th>
                                     <th style="width: 180px;">진행 단계 체크리스트</th>
                                     <th style="width: 90px;">시공 구분</th>
                                     <th style="width: 90px;">설치일</th>
@@ -119,7 +218,7 @@
                                         </div>
                                         <small class="text-muted">{{ order.phone }}</small>
                                     </td>
-                                    <td style="white-space: normal; word-break: break-all;">
+                                    <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">
                                         {{ order.address }}
                                     </td>
                                     <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
@@ -128,7 +227,8 @@
                                     <td>
                                         {% set status_colors = {
                                             'RECEIVED': 'primary',
-                                            'MEASURED': 'warning', 
+                                            'MEASURED': 'warning',
+                                            'REGIONAL_MEASURED': 'purple',
                                             'SCHEDULED': 'danger',
                                             'SHIPPED_PENDING': 'info',
                                             'COMPLETED': 'success',
@@ -275,9 +375,10 @@
                                     <th style="width: 60px;">번호</th>
                                     <th style="width: 120px;">메모</th>
                                     <th style="width: 120px;">고객명</th>
-                                    <th>주소</th>
-                                    <th>제품</th>
-                                    <th>상태</th>
+                                    <th style="width: 200px;">주소</th>
+                                    <th style="width: 200px;">제품</th>
+                                    <th style="width: 100px;">상태</th>
+                                    <th style="width: 90px;">실측일</th>
                                     <th style="width: 180px;">진행 단계 체크리스트</th>
                                     <th style="width: 90px;">시공 구분</th>
                                     <th style="width: 90px;">설치일</th>
@@ -303,7 +404,7 @@
                                         </div>
                                         <small class="text-muted">{{ order.phone }}</small>
                                     </td>
-                                    <td style="white-space: normal; word-break: break-all;">
+                                    <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">
                                         {{ order.address }}
                                     </td>
                                     <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
@@ -318,11 +419,19 @@
                                             'COMPLETED': 'success',
                                             'AS_RECEIVED': 'dark',
                                             'AS_COMPLETED': 'secondary',
+                                            'REGIONAL_MEASURED': 'purple',
                                             'ON_HOLD': 'purple'
                                         } %}
                                         <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
                                             {{ STATUS.get(order.status, order.status) }}
                                         </span>
+                                    </td>
+                                    <td>
+                                        <input type="date" class="form-control form-control-sm editable-date" 
+                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               value="{{ order.measurement_date or '' }}" 
+                                               data-order-id="{{ order.id }}"
+                                               data-field="measurement_date">
                                     </td>
                                     <td>
                                         <div class="d-flex flex-column" style="gap: 0.2rem;">
@@ -465,9 +574,10 @@
                                     <th style="width: 60px;">번호</th>
                                     <th style="width: 120px;">메모</th>
                                     <th style="width: 120px;">고객명</th>
-                                    <th>주소</th>
-                                    <th>제품</th>
-                                    <th>상태</th>
+                                    <th style="width: 200px;">주소</th>
+                                    <th style="width: 200px;">제품</th>
+                                    <th style="width: 100px;">상태</th>
+                                    <th style="width: 90px;">실측일</th>
                                     <th style="width: 200px;">완료된 체크리스트</th>
                                     <th style="width: 90px;">시공 구분</th>
                                     <th style="width: 90px;">설치일</th>
@@ -493,7 +603,7 @@
                                         </div>
                                         <small class="text-muted">{{ order.phone }}</small>
                                     </td>
-                                    <td style="white-space: normal; word-break: break-all;">
+                                    <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">
                                         {{ order.address }}
                                     </td>
                                     <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
@@ -508,11 +618,19 @@
                                             'COMPLETED': 'success',
                                             'AS_RECEIVED': 'dark',
                                             'AS_COMPLETED': 'secondary',
+                                            'REGIONAL_MEASURED': 'purple',
                                             'ON_HOLD': 'purple'
                                         } %}
                                         <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
                                             {{ STATUS.get(order.status, order.status) }}
                                         </span>
+                                    </td>
+                                    <td>
+                                        <input type="date" class="form-control form-control-sm editable-date" 
+                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               value="{{ order.measurement_date or '' }}" 
+                                               data-order-id="{{ order.id }}"
+                                               data-field="measurement_date">
                                     </td>
                                     <td>
                                         <div class="d-flex flex-column" style="gap: 0.2rem;">
