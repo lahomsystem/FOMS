@@ -16,6 +16,9 @@ from datetime import date
 from db import get_db, close_db, init_db
 from models import Order, User, SecurityLog
 
+# 백업 시스템 임포트
+from simple_backup_system import SimpleBackupSystem
+
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = 'furniture_order_management_secret_key'
@@ -2664,6 +2667,85 @@ def metropolitan_dashboard():
                            completed_orders=completed_orders,
                            STATUS=STATUS,
                            search_query=search_query)
+
+# 백업 시스템 라우트들
+@app.route('/api/simple_backup', methods=['POST'])
+@login_required
+@role_required(['ADMIN'])
+def execute_simple_backup():
+    """간단한 2단계 백업 실행"""
+    try:
+        backup_system = SimpleBackupSystem()
+        results = backup_system.execute_backup()
+        
+        # 결과 요약
+        success_count = sum(1 for r in results.values() if r["success"])
+        success_rate = success_count * 50  # 2단계이므로 50%씩
+        
+        # 로그 기록
+        log_access(f"백업 실행 - 성공률: {success_rate}%", session.get('user_id'), {
+            "tier1_success": results["tier1"]["success"],
+            "tier2_success": results["tier2"]["success"]
+        })
+        
+        return jsonify({
+            "success": True,
+            "message": f"백업 완료! 성공률: {success_rate}%",
+            "results": results,
+            "success_count": success_count,
+            "total_tiers": 2
+        })
+        
+    except Exception as e:
+        log_access(f"백업 실행 실패: {str(e)}", session.get('user_id'))
+        return jsonify({
+            "success": False,
+            "message": f"백업 실행 중 오류가 발생했습니다: {str(e)}"
+        }), 500
+
+@app.route('/api/backup_status')
+@login_required
+@role_required(['ADMIN'])
+def check_backup_status():
+    """백업 상태 확인"""
+    try:
+        backup_system = SimpleBackupSystem()
+        
+        status = {
+            "tier1": {
+                "path": backup_system.tier1_path,
+                "exists": os.path.exists(backup_system.tier1_path),
+                "latest_backup": None
+            },
+            "tier2": {
+                "path": backup_system.tier2_path,
+                "exists": os.path.exists(backup_system.tier2_path),
+                "latest_backup": None
+            }
+        }
+        
+        # 각 티어의 최신 백업 정보 조회
+        for tier_name, tier_info in status.items():
+            if tier_info["exists"]:
+                try:
+                    info_file = os.path.join(tier_info["path"], "backup_info.json")
+                    if os.path.exists(info_file):
+                        with open(info_file, 'r', encoding='utf-8') as f:
+                            backup_info = json.load(f)
+                            tier_info["latest_backup"] = backup_info
+                except Exception as e:
+                    tier_info["error"] = str(e)
+        
+        return jsonify({
+            "success": True,
+            "status": status
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"백업 상태 확인 중 오류: {str(e)}"
+        }), 500
 
 
 if __name__ == '__main__':
