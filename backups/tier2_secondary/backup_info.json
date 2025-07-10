@@ -1,0 +1,13 @@
+{
+  "backup_time": "2025-07-10T19:37:22.725763",
+  "database_file": "database_backup_20250710_193722.sql",
+  "system_files": [
+    "app.py",
+    "models.py",
+    "db.py",
+    "requirements.txt",
+    "menu_config.json"
+  ],
+  "backup_location": "backups/tier2_secondary",
+  "database_size": 626210
+}

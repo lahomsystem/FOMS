@@ -11,6 +11,7 @@
                 <div class="d-grid gap-2 mb-4">
                     <a href="{{ url_for('user_list') }}" class="btn btn-primary">사용자 관리</a>
                     <a href="{{ url_for('security_logs') }}" class="btn btn-info">보안 로그 조회</a>
+                    <button id="backupBtn" class="btn btn-warning">🚨 시스템 백업 실행</button>
                 </div>
 
                 <ul class="nav nav-tabs" id="adminTabs" role="tablist">
@@ -76,6 +77,60 @@
                 alert('유효하지 않은 JSON 형식입니다: ' + e.message);
                 event.preventDefault();
             }
+        });
+        
+        // 백업 버튼 기능
+        document.getElementById('backupBtn').addEventListener('click', function() {
+                         if (!confirm('시스템 백업을 실행하시겠습니까?\n\n백업 내용:\n- 데이터베이스 전체\n- 시스템 파일들\n\n백업 위치:\n1차: 로컬 (backups/tier1_primary)\n2차: 다른 폴더 (backups/tier2_secondary)')) {
+                return;
+            }
+            
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '🔄 백업 실행 중...';
+            
+            fetch('/api/simple_backup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✅ ${data.message}\n\n성공한 백업: ${data.success_count}/${data.total_tiers}`);
+                    
+                    // 백업 상태 확인
+                    fetch('/api/backup_status')
+                    .then(response => response.json())
+                    .then(statusData => {
+                        if (statusData.success) {
+                            let statusMsg = '\n📊 백업 상태:\n';
+                            for (const [tier, info] of Object.entries(statusData.status)) {
+                                const status = info.exists ? '✅ 존재' : '❌ 없음';
+                                statusMsg += `${tier.toUpperCase()}: ${status} (${info.path})\n`;
+                                
+                                if (info.latest_backup) {
+                                    const date = new Date(info.latest_backup.backup_time).toLocaleString('ko-KR');
+                                    const sizeMB = (info.latest_backup.database_size / (1024*1024)).toFixed(2);
+                                    statusMsg += `  └ 최신 백업: ${date} (${sizeMB}MB)\n`;
+                                }
+                            }
+                            console.log(statusMsg);
+                        }
+                    });
+                } else {
+                    alert(`❌ 백업 실패: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                console.error('백업 오류:', error);
+                alert('❌ 백업 실행 중 오류가 발생했습니다.');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = '🚨 시스템 백업 실행';
+            });
         });
     });
 </script>
