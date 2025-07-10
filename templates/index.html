@@ -52,7 +52,16 @@
     }
     
     /* 옵션 관련 스타일 */
-    .options-cell, .notes-cell { position: relative; }
+    .options-cell, .notes-cell { 
+        position: relative;
+        overflow: visible !important;
+    }
+    
+    /* 옵션이 펼쳐진 셀은 다른 내용 위에 표시 */
+    .options-cell.expanded, .notes-cell.expanded {
+        z-index: 10;
+        position: relative;
+    }
     .options-summary-container, .notes-summary-container {
         display: flex;
         align-items: center;
@@ -69,11 +78,20 @@
         display: none;
         white-space: normal;
         word-break: break-word;
-        padding: 8px;
+        padding: 12px;
         border: 1px solid #e0e0e0;
         background-color: #f9f9f9;
-        margin-top: 5px;
-        border-radius: 4px;
+        margin-top: 8px;
+        border-radius: 6px;
+        min-width: 300px;
+        max-width: 500px;
+        max-height: 200px;
+        overflow-y: auto;
+        line-height: 1.4;
+        font-size: 0.9rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        position: relative;
+        z-index: 100;
     }
     .toggle-options, .toggle-notes {
         flex-shrink: 0; /* 버튼 크기 유지 */
@@ -672,6 +690,9 @@
             $summaryText.toggle(); 
             $fullContent.toggle();    
             
+            // 셀에 expanded 클래스 토글
+            $cell.toggleClass('expanded', $fullContent.is(':visible'));
+            
             // 아이콘 토글 (간소화)
             $button.find('i').toggleClass('fa-plus fa-minus');
             $button.attr('aria-expanded', $fullContent.is(':visible')); // 접근성 속성 추가
@@ -689,6 +710,9 @@
             // 요약 텍스트와 상세 내용 토글 (버튼은 남김)
             $summaryText.toggle(); 
             $fullContent.toggle();    
+            
+            // 셀에 expanded 클래스 토글
+            $cell.toggleClass('expanded', $fullContent.is(':visible'));
             
             // 아이콘 토글 (간소화)
             $button.find('i').toggleClass('fa-plus fa-minus');
@@ -718,11 +742,13 @@
                 if (expanding && !isCurrentlyExpanded) { // 확장
                     $summaryText.hide();
                     $fullContent.show();
+                    $cell.addClass('expanded');
                     $individualButton.find('i').removeClass('fa-plus').addClass('fa-minus');
                     $individualButton.attr('aria-expanded', true);
                 } else if (!expanding && isCurrentlyExpanded) { // 축소
                     $summaryText.show();
                     $fullContent.hide();
+                    $cell.removeClass('expanded');
                     $individualButton.find('i').removeClass('fa-minus').addClass('fa-plus');
                     $individualButton.attr('aria-expanded', false);
                 }
@@ -750,11 +776,13 @@
                 if (expanding && !isCurrentlyExpanded) { // 확장
                     $summaryText.hide();
                     $fullContent.show();
+                    $cell.addClass('expanded');
                     $individualButton.find('i').removeClass('fa-plus').addClass('fa-minus');
                     $individualButton.attr('aria-expanded', true);
                 } else if (!expanding && isCurrentlyExpanded) { // 축소
                     $summaryText.show();
                     $fullContent.hide();
+                    $cell.removeClass('expanded');
                     $individualButton.find('i').removeClass('fa-minus').addClass('fa-plus');
                     $individualButton.attr('aria-expanded', false);
                 }

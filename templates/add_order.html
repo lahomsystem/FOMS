@@ -165,6 +165,8 @@ https://mkt.shopping.naver.com/link/685de66bd4f017474416f9e9</textarea>
                             <label for="measurement_time_select" class="form-label">실측시간</label>
                             <select class="form-select" id="measurement_time_select" name="measurement_time_select">
                                 <option value="time_input" selected>시간 직접 입력</option>
+                                <option value="오전">오전</option>
+                                <option value="오후">오후</option>
                                 <option value="종일">종일</option>
                             </select>
                             <input type="time" class="form-control mt-2" id="measurement_time" name="measurement_time" autocomplete="off">
@@ -472,7 +474,7 @@ https://mkt.shopping.naver.com/link/685de66bd4f017474416f9e9</textarea>
             measurementTimeInput.style.display = 'block'; 
 
             measurementTimeSelect.addEventListener('change', function() {
-                if (this.value === "종일") {
+                if (this.value === "종일" || this.value === "오전" || this.value === "오후") {
                     measurementTimeInput.style.display = 'none';
                     measurementTimeInput.value = ''; 
                 } else {
@@ -486,7 +488,7 @@ https://mkt.shopping.naver.com/link/685de66bd4f017474416f9e9</textarea>
             addForm.addEventListener('submit', function(event) {
                 // 실측시간 처리
                 if (measurementTimeSelect && measurementTimeInput) {
-                    if (measurementTimeSelect.value === '종일') {
+                    if (measurementTimeSelect.value === '종일' || measurementTimeSelect.value === '오전' || measurementTimeSelect.value === '오후') {
                         let hiddenInput = document.getElementById('measurement_time_hidden_for_submit');
                         if (!hiddenInput) {
                             hiddenInput = document.createElement('input');
@@ -495,7 +497,7 @@ https://mkt.shopping.naver.com/link/685de66bd4f017474416f9e9</textarea>
                             hiddenInput.id = 'measurement_time_hidden_for_submit';
                             addForm.appendChild(hiddenInput);
                         }
-                        hiddenInput.value = '종일';
+                        hiddenInput.value = measurementTimeSelect.value;
                         measurementTimeInput.name = ''; 
                     } else {
                         measurementTimeInput.name = 'measurement_time';

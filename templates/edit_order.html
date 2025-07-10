@@ -154,6 +154,8 @@
                             <label for="measurement_time_select" class="form-label">실측시간</label>
                             <select class="form-select" id="measurement_time_select" name="measurement_time_select">
                                 <option value="time_input">시간 직접 입력</option>
+                                <option value="오전">오전</option>
+                                <option value="오후">오후</option>
                                 <option value="종일">종일</option>
                             </select>
                             <input type="time" class="form-control mt-2" id="measurement_time" name="measurement_time" value="{{ order.measurement_time if order.measurement_time != '종일' else '' }}" autocomplete="off">
@@ -422,11 +424,12 @@
 
         // 초기 상태 설정
         if (measurementTimeSelect && measurementTimeInput) {
-            if ("{{ order.measurement_time }}" === "종일") {
-                measurementTimeSelect.value = "종일";
+            const currentTime = "{{ order.measurement_time }}";
+            if (currentTime === "종일" || currentTime === "오전" || currentTime === "오후") {
+                measurementTimeSelect.value = currentTime;
                 measurementTimeInput.style.display = 'none';
                 measurementTimeInput.value = ''; 
-            } else if ("{{ order.measurement_time }}") {
+            } else if (currentTime) {
                 measurementTimeSelect.value = "time_input";
                 measurementTimeInput.style.display = 'block';
             } else { 
@@ -435,7 +438,7 @@
             }
 
             measurementTimeSelect.addEventListener('change', function() {
-                if (this.value === "종일") {
+                if (this.value === "종일" || this.value === "오전" || this.value === "오후") {
                     measurementTimeInput.style.display = 'none';
                     measurementTimeInput.value = ''; 
                 } else {
@@ -449,9 +452,9 @@
         if (editForm) {
             editForm.addEventListener('submit', function(event) { // event 파라미터 추가
                 if (measurementTimeSelect && measurementTimeInput) {
-                    if (measurementTimeSelect.value === '종일') {
-                        // '종일'이 선택된 경우, measurement_time input의 값을 '종일'로 설정
-                        // 단, type="time"은 '종일'을 허용하지 않으므로,
+                    if (measurementTimeSelect.value === '종일' || measurementTimeSelect.value === '오전' || measurementTimeSelect.value === '오후') {
+                        // '종일', '오전', '오후'가 선택된 경우, measurement_time input의 값을 해당 값으로 설정
+                        // 단, type="time"은 이런 텍스트 값을 허용하지 않으므로,
                         // 새로운 hidden input을 만들어서 값을 전달합니다.
                         let hiddenInput = document.getElementById('measurement_time_hidden_for_submit');
                         if (!hiddenInput) {
@@ -461,7 +464,7 @@
                             hiddenInput.id = 'measurement_time_hidden_for_submit';
                             editForm.appendChild(hiddenInput);
                         }
-                        hiddenInput.value = '종일';
+                        hiddenInput.value = measurementTimeSelect.value;
                         measurementTimeInput.name = ''; // 기존 time input은 전송되지 않도록 이름을 제거
                     } else {
                         // 시간 직접 입력 시에는 원래 input의 name을 사용
