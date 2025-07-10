@@ -946,3 +946,38 @@ td .btn:last-child {
 .shipping-alert-header i {
     color: #17a2b8 !important;
 }
+
+/* 전체 주문 페이지 비고 컬럼 너비 제한 */
+.th-notes {
+    width: 80px !important;
+    max-width: 80px !important;
+    min-width: 60px !important;
+}
+
+.th-notes .options-summary,
+.th-notes .notes-summary {
+    max-width: 60px !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem !important;
+}
+
+/* 비고 컬럼 전체 폰트 크기 조정 */
+.th-notes {
+    font-size: 0.75rem !important;
+    padding: 0.4rem !important;
+}
+
+/* 비고 컬럼 필터 입력 상자도 작게 */
+.th-notes input.column-filter {
+    font-size: 0.7rem !important;
+    padding: 0.2rem !important;
+}
+
+/* 비고 토글 버튼도 작게 */
+.th-notes button {
+    font-size: 0.5rem !important;
+    width: 14px !important;
+    height: 14px !important;
+}

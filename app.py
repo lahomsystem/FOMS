@@ -1882,8 +1882,8 @@ def api_orders():
         
         time_str = status_time_map.get(order.status)
         
-        # '실측' 상태이고 measurement_time이 '종일'인 경우 allDay를 true로 설정
-        if order.status == 'MEASURED' and order.measurement_time == '종일':
+        # '실측' 상태이고 measurement_time이 '종일', '오전', '오후'인 경우 allDay를 true로 설정
+        if order.status == 'MEASURED' and order.measurement_time in ['종일', '오전', '오후']:
             start_datetime = start_date # 날짜만 사용
             all_day = True
         elif time_str: # 기존 시간 처리 로직
@@ -2523,23 +2523,25 @@ def regional_dashboard():
         else:
             pending_orders.append(order)
     
-    # 상차 예정 알림 필터링 (D-2부터 표시)
+    # 상차 예정 알림 필터링 (오늘 이후 상차일만 표시)
     today = date.today()
-    day_after_tomorrow = today + timedelta(days=2)  # D-2
     
     shipping_alerts = []
-    for order in pending_orders:
-        if (order.status in ['SCHEDULED', 'SHIPPED_PENDING'] and 
-            order.shipping_scheduled_date and 
+    # 모든 지방 주문에서 상차일이 입력되고 오늘 이후인 건들만 표시
+    for order in all_regional_orders:
+        if (order.shipping_scheduled_date and 
             order.shipping_scheduled_date.strip()):
             try:
                 shipping_date = datetime.datetime.strptime(order.shipping_scheduled_date, '%Y-%m-%d').date()
-                # D-2부터 오늘까지 (과거 포함)의 상차 예정일이면 알림 표시
-                if shipping_date <= day_after_tomorrow:
+                # 오늘 이후의 상차일만 표시 (지난 상차일은 제외)
+                if shipping_date >= today:
                     shipping_alerts.append(order)
             except (ValueError, TypeError):
                 # 날짜 형식이 잘못된 경우 무시
                 pass
+    
+    # 상차일 기준으로 정렬 (가까운 날짜부터)
+    shipping_alerts.sort(key=lambda x: datetime.datetime.strptime(x.shipping_scheduled_date, '%Y-%m-%d').date())
     
     # 오늘과 내일 날짜 계산 (템플릿에서 사용)
     today_str = today.strftime('%Y-%m-%d')
