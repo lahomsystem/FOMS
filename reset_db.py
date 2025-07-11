@@ -1,7 +1,7 @@
 import os
 import sqlite3
 from db import init_db, db_session
-from models import Order, User, AccessLog
+from models import Order, User
 
 def reset_orders_only():
     """주문 데이터만 리셋하는 함수, 사용자 및 로그 정보는 유지"""

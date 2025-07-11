@@ -39,7 +39,7 @@ Base.query = db_session.query_property()
 def init_db():
     """데이터베이스 초기화 및 테이블 생성"""
     try:
-        from models import Order, User, AccessLog  # 모델 임포트
+        from models import Order, User, AccessLog, SecurityLog  # 모든 모델 임포트
         Base.metadata.create_all(bind=engine)
         print("데이터베이스 테이블 초기화 완료")
     except Exception as e:

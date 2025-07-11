@@ -9,10 +9,13 @@
 
 from app import app, get_db
 from sqlalchemy import text
-import sys
 
 def remove_columns():
-    """삭제된 컬럼들을 데이터베이스에서 제거"""
+    """삭제된 컬럼들을 데이터베이스에서 제거
+    
+    Returns:
+        bool: 성공시 True, 실패시 False
+    """
     
     columns_to_remove = [
         'regional_measurement_upload',
@@ -55,11 +58,14 @@ def remove_columns():
             print("\n남은 지방 주문 관련 컬럼들:")
             for row in remaining_columns:
                 print(f"  - {row[0]}")
+            
+            return True
                 
         except Exception as e:
             db.rollback()
-            print(f"오류 발생: {str(e)}")
-            sys.exit(1)
+            print(f"❌ 오류 발생: {str(e)}")
+            print("데이터베이스 변경사항이 롤백되었습니다.")
+            return False
 
 if __name__ == '__main__':
     print("=== 지방 주문 관리 컬럼 삭제 마이그레이션 ===")
@@ -70,6 +76,10 @@ if __name__ == '__main__':
     
     confirm = input("계속 진행하시겠습니까? (y/N): ")
     if confirm.lower() in ['y', 'yes']:
-        remove_columns()
+        success = remove_columns()
+        if success:
+            print("\n✅ 마이그레이션이 성공적으로 완료되었습니다.")
+        else:
+            print("\n❌ 마이그레이션 중 오류가 발생했습니다. 로그를 확인해주세요.")
     else:
         print("작업이 취소되었습니다.") 
