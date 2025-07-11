@@ -1,16 +1,15 @@
 import os
 import datetime
-from datetime import timedelta
 import json
 import pandas as pd
+import re
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, g, session, send_file, current_app
-from markupsafe import Markup # Markup import 변경
+from markupsafe import Markup
 from werkzeug.utils import secure_filename
-from werkzeug.security import generate_password_hash, check_password_hash  # For password hashing
-import re  # For validation
-from sqlalchemy import or_, text, func, String  # Import or_ function, text for raw SQL, func for distinct, String for casting
-import copy # 객체 복사를 위해 추가
-from datetime import date
+from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import or_, text, func, String
+import copy
+from datetime import date, timedelta
 
 # 데이터베이스 관련 임포트
 from db import get_db, close_db, init_db
@@ -453,8 +452,8 @@ def index():
                 query = query.filter(column_attr.like(filter_term))
     
     # URL에서 정렬 정보 가져오기
-    sort_by = request.args.get('sort_by', 'id')
-    sort_order = request.args.get('sort_order', 'desc')
+    sort_column = request.args.get('sort_by', 'id')
+    sort_direction = request.args.get('sort_order', 'desc')
 
     # 정렬 적용 (index 함수와 동일한 로직)
     if hasattr(Order, sort_column):
@@ -463,8 +462,8 @@ def index():
             query = query.order_by(column_to_sort.asc())
         else:
             query = query.order_by(column_to_sort.desc())
-    else: # Corrected indentation for line 1175
-        query = query.order_by(Order.id.desc()) # Corrected indentation for line 1176 (기본 정렬)
+    else:
+        query = query.order_by(Order.id.desc())  # 기본 정렬
 
     # 페이지네이션 적용
     total_orders = query.count()
@@ -2317,6 +2316,7 @@ def security_logs():
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def update_regional_status():
     """지방 주문 체크리스트 상태 업데이트"""
+    db = get_db()
     data = request.get_json()
     
     order_id = data.get('order_id')
@@ -2354,6 +2354,7 @@ def update_regional_status():
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def update_regional_memo():
     """지방 주문 메모 업데이트"""
+    db = get_db()
     data = request.get_json()
     
     order_id = data.get('order_id')
@@ -2749,46 +2750,66 @@ def check_backup_status():
 
 
 if __name__ == '__main__':
-    init_db()  # 앱 시작 시 데이터베이스 초기화
-    
-    # 애플리케이션 컨텍스트 내에서 실행
-    with app.app_context():
+    # 안전한 시작 프로세스 실행 (SystemExit 방지)
+    try:
+        import logging
+        import sys
+        
+        # 로깅 설정
+        logging.basicConfig(
+            level=logging.INFO, 
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler('app_startup.log', encoding='utf-8'),
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+        logger = logging.getLogger('FOMS_Startup')
+        
+        logger.info("[START] FOMS 애플리케이션 시작 중...")
+        startup_success = True
+        
+        # 1. 데이터베이스 초기화 시도
         try:
-            db = get_db()
-            # 컬럼이 존재하지 않는 경우에만 추가
-            for column, column_type in [
-                ('measurement_date', 'VARCHAR'),
-                ('measurement_time', 'VARCHAR'),
-                ('completion_date', 'VARCHAR'),
-                ('manager_name', 'VARCHAR'),
-                ('payment_amount', 'INTEGER'), # payment_amount 컬럼 추가
-                ('scheduled_date', 'VARCHAR'), # 설치 예정일
-                ('as_received_date', 'VARCHAR'), # AS 접수일
-                ('as_completed_date', 'VARCHAR'), # AS 완료일
-                # 지방 주문 관리 컬럼들 추가
-                ('is_regional', 'BOOLEAN DEFAULT FALSE'),
-                ('regional_sales_order_upload', 'BOOLEAN DEFAULT FALSE'),
-                ('regional_blueprint_sent', 'BOOLEAN DEFAULT FALSE'),
-                ('regional_order_upload', 'BOOLEAN DEFAULT FALSE'),
-                ('shipping_scheduled_date', 'VARCHAR') # 상차 예정일 컬럼 추가
-            ]:
-                # 해당 컬럼이 이미 존재하는지 확인
-                query = text(f"""
-                SELECT column_name FROM information_schema.columns 
-                WHERE table_name='orders' AND column_name='{column}'
-                """)
-                result = db.execute(query).fetchone()
-                
-                # 컬럼이 없으면 추가
-                if not result:
-                    alter_query = text(f"ALTER TABLE orders ADD COLUMN {column} {column_type}")
-                    db.execute(alter_query)
-                    print(f"Added column {column} to orders table")
-            
-            db.commit()
-            print("Database column update completed")
+            init_db()
+            logger.info("[OK] 데이터베이스 초기화 완료")
         except Exception as e:
-            db.rollback()
-            print(f"Error updating database schema: {str(e)}")
-    
-    app.run(host='0.0.0.0', port=5000, debug=True)
+            logger.error(f"[ERROR] 데이터베이스 초기화 실패: {str(e)}")
+            startup_success = False
+        
+        # 2. 안전한 스키마 마이그레이션 시도
+        try:
+            from safe_schema_migration import run_safe_migration
+            
+            # Flask 앱 컨텍스트 내에서 마이그레이션 실행
+            with app.app_context():
+                migration_success = run_safe_migration(app.app_context())
+                if migration_success:
+                    logger.info("[OK] 스키마 마이그레이션 완료")
+                else:
+                    logger.warning("[WARN] 스키마 마이그레이션 실패 - 기존 스키마로 계속 진행")
+                    startup_success = False
+        except Exception as e:
+            logger.error(f"[ERROR] 스키마 마이그레이션 중 예외: {str(e)}")
+            startup_success = False
+        
+        # 3. 시작 결과 요약
+        if startup_success:
+            logger.info("[SUCCESS] 모든 시작 프로세스가 성공적으로 완료되었습니다!")
+            print("[OK] FOMS 시스템이 준비되었습니다!")
+        else:
+            logger.warning("[WARN] 일부 시작 프로세스에서 오류가 발생했지만 앱은 정상적으로 시작됩니다.")
+            print("[WARN] 일부 기능에 제한이 있을 수 있습니다. 로그를 확인해주세요.")
+        
+        # 4. Flask 웹 서버 시작 (안전한 설정)
+        print("[START] 웹 서버를 시작합니다...")
+        app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+        
+    except KeyboardInterrupt:
+        print("\n[STOP] 사용자에 의해 서버가 중단되었습니다.")
+    except Exception as e:
+        print(f"[ERROR] 서버 시작 중 오류: {str(e)}")
+        print("[INFO] 로그 파일(app_startup.log)을 확인해주세요.")
+        # SystemExit 대신 정상 종료
+    finally:
+        print("[END] FOMS 시스템을 종료합니다.")
