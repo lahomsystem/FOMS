@@ -2547,12 +2547,18 @@ def regional_dashboard():
     # 상차일 기준으로 정렬 (가까운 날짜부터)
     shipping_alerts.sort(key=lambda x: datetime.datetime.strptime(x.shipping_scheduled_date, '%Y-%m-%d').date())
     
+    # 상차 예정 알림에 포함된 주문 ID들을 수집
+    shipping_alert_order_ids = {order.id for order in shipping_alerts}
+    
+    # 진행중인 주문에서 상차 예정 알림에 포함된 주문들을 제외
+    filtered_pending_orders = [order for order in pending_orders if order.id not in shipping_alert_order_ids]
+    
     # 오늘과 내일 날짜 계산 (템플릿에서 사용)
     today_str = today.strftime('%Y-%m-%d')
     tomorrow_str = (today + timedelta(days=1)).strftime('%Y-%m-%d')
         
     return render_template('regional_dashboard.html', 
-                           pending_orders=pending_orders, 
+                           pending_orders=filtered_pending_orders, 
                            completed_orders=completed_orders,
                            shipping_alerts=shipping_alerts,
                            STATUS=STATUS,
