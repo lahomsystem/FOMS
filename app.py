@@ -7,7 +7,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from markupsafe import Markup
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import or_, text, func, String
+from sqlalchemy import or_, and_, text, func, String
 import copy
 from datetime import date, timedelta
 
@@ -2500,65 +2500,50 @@ def regional_dashboard():
     # 모든 지방 주문 가져오기
     all_regional_orders = base_query.order_by(Order.id.desc()).all()
     
-    # 완료/미완료로 분리
-    completed_orders = []
-    pending_orders = []
-    
-    for order in all_regional_orders:
-        # 기본 체크리스트 항목들
-        basic_checklist_completed = (
-            order.regional_sales_order_upload and 
-            order.regional_order_upload and 
-            order.regional_blueprint_sent
-        )
-        
-        # 협력사 시공인 경우 추가 체크리스트 확인
-        if order.construction_type == '협력사 시공':
-            additional_checklist_completed = (
-                order.regional_cargo_sent and
-                order.regional_construction_info_sent
-            )
-            is_completed = basic_checklist_completed and additional_checklist_completed
-        else:
-            is_completed = basic_checklist_completed
-        
-        if is_completed:
-            completed_orders.append(order)
-        else:
-            pending_orders.append(order)
-    
-    # 상차 예정 알림 필터링 (오늘 이후 상차일만 표시)
+    # 오늘 날짜
     today = date.today()
     
+    # 완료된 주문 분류
+    completed_orders = [
+        order for order in all_regional_orders
+        if order.status == 'COMPLETED'
+    ]
+    
+    # 상차 예정 알림: 실측 완료 + 상차일 지정 + 미완료 상태 + 상차일이 오늘 이후
     shipping_alerts = []
-    # 모든 지방 주문에서 상차일이 입력되고 오늘 이후인 건들만 표시
     for order in all_regional_orders:
-        if (order.shipping_scheduled_date and 
-            order.shipping_scheduled_date.strip()):
+        if (getattr(order, 'measurement_completed', False) and 
+            order.shipping_scheduled_date and 
+            order.shipping_scheduled_date.strip() and
+            order.status != 'COMPLETED'):  # 완료된 주문 제외
             try:
                 shipping_date = datetime.datetime.strptime(order.shipping_scheduled_date, '%Y-%m-%d').date()
-                # 오늘 이후의 상차일만 표시 (지난 상차일은 제외)
+                # 오늘 이후의 상차일만 포함 (지난 상차일은 제외)
                 if shipping_date >= today:
                     shipping_alerts.append(order)
             except (ValueError, TypeError):
                 # 날짜 형식이 잘못된 경우 무시
                 pass
-    
+
+    # 진행 중인 주문: 실측 미완료 + 완료되지 않은 주문 + 상차 예정 알림에 없는 주문
+    shipping_alert_order_ids = {order.id for order in shipping_alerts}
+    pending_orders = [
+        order for order in all_regional_orders
+        if (order.status != 'COMPLETED' and 
+            order.id not in shipping_alert_order_ids and
+            (not getattr(order, 'measurement_completed', False) or 
+             not order.shipping_scheduled_date or 
+             not order.shipping_scheduled_date.strip()))
+    ]
+
     # 상차일 기준으로 정렬 (가까운 날짜부터)
     shipping_alerts.sort(key=lambda x: datetime.datetime.strptime(x.shipping_scheduled_date, '%Y-%m-%d').date())
-    
-    # 상차 예정 알림에 포함된 주문 ID들을 수집
-    shipping_alert_order_ids = {order.id for order in shipping_alerts}
-    
-    # 진행중인 주문에서 상차 예정 알림에 포함된 주문들을 제외
-    filtered_pending_orders = [order for order in pending_orders if order.id not in shipping_alert_order_ids]
-    
-    # 오늘과 내일 날짜 계산 (템플릿에서 사용)
+
     today_str = today.strftime('%Y-%m-%d')
     tomorrow_str = (today + timedelta(days=1)).strftime('%Y-%m-%d')
         
     return render_template('regional_dashboard.html', 
-                           pending_orders=filtered_pending_orders, 
+                           pending_orders=pending_orders, 
                            completed_orders=completed_orders,
                            shipping_alerts=shipping_alerts,
                            STATUS=STATUS,
@@ -2610,24 +2595,37 @@ def metropolitan_dashboard():
     )
     urgent_alerts = get_filtered_orders(urgent_alerts_query).order_by(Order.measurement_date.asc()).all()
 
+    # 실측 후 미처리: 실측일이 도래했고, 설치일이 없는 경우
     measurement_alerts_query = base_query.filter(
         Order.status.in_(['MEASURED']),
-        or_(
-            Order.manager_name == None,
-            Order.manager_name == '',
-            Order.scheduled_date == None
-        ),
         Order.measurement_date != None,
         Order.measurement_date != '',
-        func.date(Order.measurement_date) < date.today()
+        func.date(Order.measurement_date) <= date.today(),  # 실측일이 도래한 건들만
+        or_(
+            Order.scheduled_date == None,
+            Order.scheduled_date == ''
+        )
     )
     measurement_alerts = get_filtered_orders(measurement_alerts_query).order_by(Order.measurement_date.asc()).all()
 
     pre_measurement_alerts_query = base_query.filter(
-        Order.status.in_(['RECEIVED']),
-        Order.measurement_date != None,
-        Order.measurement_date != '',
-        func.date(Order.measurement_date) > date.today()
+        or_(
+            # 실측일이 미래인 경우
+            and_(
+                Order.status.in_(['RECEIVED', 'MEASURED']),
+                Order.measurement_date != None,
+                Order.measurement_date != '',
+                func.date(Order.measurement_date) > date.today()
+            ),
+            # 실측일이 없거나 상태가 RECEIVED인 경우 (실측 전 단계)
+            and_(
+                Order.status == 'RECEIVED',
+                or_(
+                    Order.measurement_date == None,
+                    Order.measurement_date == ''
+                )
+            )
+        )
     )
     pre_measurement_alerts = get_filtered_orders(pre_measurement_alerts_query).order_by(Order.measurement_date.asc()).all()
 
@@ -2649,7 +2647,7 @@ def metropolitan_dashboard():
     )
     as_orders = get_filtered_orders(as_orders_query).order_by(Order.created_at.desc()).all()
 
-    # 일반 진행 중인 주문들 (알림에 포함되지 않은 것들)
+    # 정상 진행 중인 주문들 (알림에 포함되지 않은 진행 중인 주문들)
     normal_orders_query = db.query(Order).filter(
         Order.status.notin_(['COMPLETED', 'DELETED', 'AS_RECEIVED', 'AS_COMPLETED']),
         ~Order.id.in_(alert_order_ids),

@@ -298,6 +298,39 @@ https://mkt.shopping.naver.com/link/685de66bd4f017474416f9e9</textarea>
             textarea.style.height = textarea.scrollHeight + 'px';
         }
         
+        // 날짜를 한국어 형태로 변환하는 함수
+        function formatDateToKorean(dateString, timeString = '') {
+            if (!dateString) return '';
+            
+            const date = new Date(dateString);
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            
+            let result = `${month}월 ${day}일`;
+            
+            if (timeString) {
+                const [hours, minutes] = timeString.split(':');
+                const hour = parseInt(hours);
+                const min = parseInt(minutes);
+                
+                if (hour === 0) {
+                    result += ` 오전 12시`;
+                } else if (hour < 12) {
+                    result += ` 오전 ${hour}시`;
+                } else if (hour === 12) {
+                    result += ` 오후 12시`;
+                } else {
+                    result += ` 오후 ${hour - 12}시`;
+                }
+                
+                if (min > 0) {
+                    result += ` ${min}분`;
+                }
+            }
+            
+            return result;
+        }
+
         // 온라인 옵션 자동 채우기 기능
         function fillOnlineOptions() {
             const optionsOnline = document.getElementById('options_online');
@@ -308,7 +341,52 @@ https://mkt.shopping.naver.com/link/685de66bd4f017474416f9e9</textarea>
             const address = document.getElementById('address').value || '';
             const firstLineAddress = address.split('\n')[0].trim();
             
+            // 실측일, 실측시간, 설치 예정일 정보 가져오기
+            const measurementDate = document.getElementById('measurement_date').value || '';
+            const measurementTimeSelect = document.getElementById('measurement_time_select').value || '';
+            const measurementTime = document.getElementById('measurement_time').value || '';
+            const scheduledDate = document.getElementById('scheduled_date').value || '';
+            
             let content = optionsOnline.value;
+            
+            // 실측일 업데이트
+            if (content.includes('실측일 :')) {
+                const lines = content.split('\n');
+                for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].startsWith('실측일 :')) {
+                        let measurementInfo = '';
+                        if (measurementDate) {
+                            // 실측시간 정보에 따른 처리
+                            if (measurementTimeSelect === 'time_input' && measurementTime) {
+                                measurementInfo = formatDateToKorean(measurementDate, measurementTime);
+                            } else if (measurementTimeSelect !== 'time_input' && measurementTimeSelect) {
+                                measurementInfo = formatDateToKorean(measurementDate) + ` ${measurementTimeSelect}`;
+                            } else {
+                                measurementInfo = formatDateToKorean(measurementDate);
+                            }
+                        }
+                        lines[i] = `실측일 : ${measurementInfo}`;
+                        break;
+                    }
+                }
+                content = lines.join('\n');
+            }
+            
+            // 시공일 업데이트 (설치 예정일)
+            if (content.includes('시공일 :')) {
+                const lines = content.split('\n');
+                for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].startsWith('시공일 :')) {
+                        if (scheduledDate) {
+                            lines[i] = `시공일 : ${formatDateToKorean(scheduledDate)}`;
+                        } else {
+                            lines[i] = `시공일 : 상담`;
+                        }
+                        break;
+                    }
+                }
+                content = lines.join('\n');
+            }
             
             // 고객명 업데이트
             if (content.includes('고객명 :')) {
@@ -354,10 +432,18 @@ https://mkt.shopping.naver.com/link/685de66bd4f017474416f9e9</textarea>
         const customerNameInput = document.getElementById('customer_name');
         const phoneInput = document.getElementById('phone');
         const addressInput = document.getElementById('address');
+        const measurementDateInput = document.getElementById('measurement_date');
+        const measurementTimeSelectInput = document.getElementById('measurement_time_select');
+        const measurementTimeForFill = document.getElementById('measurement_time');
+        const scheduledDateInput = document.getElementById('scheduled_date');
         
-        [customerNameInput, phoneInput, addressInput].forEach(input => {
+        [customerNameInput, phoneInput, addressInput, measurementDateInput, measurementTimeSelectInput, measurementTimeForFill, scheduledDateInput].forEach(input => {
             if (input) {
                 input.addEventListener('input', fillOnlineOptions);
+                // select 요소의 경우 change 이벤트도 추가
+                if (input.tagName === 'SELECT') {
+                    input.addEventListener('change', fillOnlineOptions);
+                }
             }
         });
 
