@@ -507,6 +507,12 @@ td .btn:last-child {
     --pastel-blue-text: #0c5460;
     --pastel-blue-icon: #17a2b8;
     
+    /* Purple (Hold) */
+    --pastel-purple: #e2d8f2;
+    --pastel-purple-dark: #d7c9e8;
+    --pastel-purple-text: #4c2c72;
+    --pastel-purple-icon: #8b5a96;
+    
     /* Urgent Red (Urgent) */
     --urgent-red: #f5c6cb;
     --urgent-red-dark: #f1b0b7;
@@ -547,6 +553,12 @@ td .btn:last-child {
     background: linear-gradient(135deg, var(--pastel-blue-dark) 0%, var(--pastel-blue) 100%);
     color: var(--pastel-blue-text) !important;
     border-bottom: 1px solid var(--pastel-blue-dark);
+}
+
+.header-hold {
+    background: linear-gradient(135deg, var(--pastel-purple-dark) 0%, var(--pastel-purple) 100%);
+    color: var(--pastel-purple-text) !important;
+    border-bottom: 1px solid var(--pastel-purple-dark);
 }
 
 .header-urgent {
@@ -620,6 +632,7 @@ td .btn:last-child {
 .border-left-alert { border-left: 0.25rem solid var(--pastel-red-icon) !important; }
 .border-left-warning { border-left: 0.25rem solid var(--pastel-yellow-icon) !important; }
 .border-left-normal { border-left: 0.25rem solid var(--pastel-blue-icon) !important; }
+.border-left-hold { border-left: 0.25rem solid var(--pastel-purple-icon) !important; }
 .border-left-urgent {
     border-left: 0.5rem solid var(--urgent-red-icon) !important;
 }
