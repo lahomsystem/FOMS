@@ -2503,19 +2503,25 @@ def regional_dashboard():
     # 오늘 날짜
     today = date.today()
     
-    # 완료된 주문 분류
+        # 완료된 주문 분류
     completed_orders = [
         order for order in all_regional_orders
         if order.status == 'COMPLETED'
     ]
-    
-    # 상차 예정 알림: 실측 완료 + 상차일 지정 + 미완료 상태 + 상차일이 오늘 이후
+
+    # 보류 상태 주문 분류
+    hold_orders = [
+        order for order in all_regional_orders
+        if order.status == 'ON_HOLD'
+    ]
+
+    # 상차 예정 알림: 실측 완료 + 상차일 지정 + 미완료 상태 + 상차일이 오늘 이후 + 보류 상태 제외
     shipping_alerts = []
     for order in all_regional_orders:
         if (getattr(order, 'measurement_completed', False) and 
             order.shipping_scheduled_date and 
             order.shipping_scheduled_date.strip() and
-            order.status != 'COMPLETED'):  # 완료된 주문 제외
+            order.status not in ['COMPLETED', 'ON_HOLD']):  # 완료된 주문과 보류 상태 제외
             try:
                 shipping_date = datetime.datetime.strptime(order.shipping_scheduled_date, '%Y-%m-%d').date()
                 # 오늘 이후의 상차일만 포함 (지난 상차일은 제외)
@@ -2525,11 +2531,11 @@ def regional_dashboard():
                 # 날짜 형식이 잘못된 경우 무시
                 pass
 
-    # 진행 중인 주문: 실측 미완료 + 완료되지 않은 주문 + 상차 예정 알림에 없는 주문
+    # 진행 중인 주문: 실측 미완료 + 완료되지 않은 주문 + 상차 예정 알림에 없는 주문 + 보류 상태 제외
     shipping_alert_order_ids = {order.id for order in shipping_alerts}
     pending_orders = [
         order for order in all_regional_orders
-        if (order.status != 'COMPLETED' and 
+        if (order.status not in ['COMPLETED', 'ON_HOLD'] and 
             order.id not in shipping_alert_order_ids and
             (not getattr(order, 'measurement_completed', False) or 
              not order.shipping_scheduled_date or 
@@ -2545,6 +2551,7 @@ def regional_dashboard():
     return render_template('regional_dashboard.html', 
                            pending_orders=pending_orders, 
                            completed_orders=completed_orders,
+                           hold_orders=hold_orders,
                            shipping_alerts=shipping_alerts,
                            STATUS=STATUS,
                            search_query=search_query,
@@ -2595,12 +2602,12 @@ def metropolitan_dashboard():
     )
     urgent_alerts = get_filtered_orders(urgent_alerts_query).order_by(Order.measurement_date.asc()).all()
 
-    # 실측 후 미처리: 실측일이 도래했고, 설치일이 없는 경우
+    # 실측 후 미처리: 실측일이 도래했고, 설치일이 없는 경우 (당일 실측 건 제외)
     measurement_alerts_query = base_query.filter(
         Order.status.in_(['MEASURED']),
         Order.measurement_date != None,
         Order.measurement_date != '',
-        func.date(Order.measurement_date) <= date.today(),  # 실측일이 도래한 건들만
+        func.date(Order.measurement_date) < date.today(),  # 당일 제외, 과거 실측일만
         or_(
             Order.scheduled_date == None,
             Order.scheduled_date == ''
@@ -2647,9 +2654,16 @@ def metropolitan_dashboard():
     )
     as_orders = get_filtered_orders(as_orders_query).order_by(Order.created_at.desc()).all()
 
-    # 정상 진행 중인 주문들 (알림에 포함되지 않은 진행 중인 주문들)
+    # 보류 상태 주문들 (ON_HOLD)
+    hold_orders_query = db.query(Order).filter(
+        Order.status == 'ON_HOLD',
+        Order.is_regional == False
+    )
+    hold_orders = get_filtered_orders(hold_orders_query).order_by(Order.created_at.desc()).all()
+
+    # 정상 진행 중인 주문들 (알림에 포함되지 않은 진행 중인 주문들, 보류 상태 제외)
     normal_orders_query = db.query(Order).filter(
-        Order.status.notin_(['COMPLETED', 'DELETED', 'AS_RECEIVED', 'AS_COMPLETED']),
+        Order.status.notin_(['COMPLETED', 'DELETED', 'AS_RECEIVED', 'AS_COMPLETED', 'ON_HOLD']),
         ~Order.id.in_(alert_order_ids),
         Order.is_regional == False
     )
@@ -2668,6 +2682,7 @@ def metropolitan_dashboard():
                            pre_measurement_alerts=pre_measurement_alerts,
                            installation_alerts=installation_alerts,
                            as_orders=as_orders,
+                           hold_orders=hold_orders,
                            normal_orders=normal_orders,
                            completed_orders=completed_orders,
                            STATUS=STATUS,
