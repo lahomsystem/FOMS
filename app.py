@@ -2531,12 +2531,29 @@ def regional_dashboard():
                 # 날짜 형식이 잘못된 경우 무시
                 pass
 
-    # 진행 중인 주문: 실측 미완료 + 완료되지 않은 주문 + 상차 예정 알림에 없는 주문 + 보류 상태 제외
+    # 상차완료: 상차일이 지났지만 완료 처리되지 않은 주문들 + 보류 상태 제외
+    shipping_completed_orders = []
+    for order in all_regional_orders:
+        if (order.shipping_scheduled_date and 
+            order.shipping_scheduled_date.strip() and
+            order.status not in ['COMPLETED', 'ON_HOLD']):  # 완료된 주문과 보류 상태 제외
+            try:
+                shipping_date = datetime.datetime.strptime(order.shipping_scheduled_date, '%Y-%m-%d').date()
+                # 상차일이 오늘보다 이전인 경우 (지난 상차일)
+                if shipping_date < today:
+                    shipping_completed_orders.append(order)
+            except (ValueError, TypeError):
+                # 날짜 형식이 잘못된 경우 무시
+                pass
+
+    # 진행 중인 주문: 실측 미완료 + 완료되지 않은 주문 + 상차 예정 알림에 없는 주문 + 상차완료에 없는 주문 + 보류 상태 제외
     shipping_alert_order_ids = {order.id for order in shipping_alerts}
+    shipping_completed_order_ids = {order.id for order in shipping_completed_orders}
     pending_orders = [
         order for order in all_regional_orders
         if (order.status not in ['COMPLETED', 'ON_HOLD'] and 
             order.id not in shipping_alert_order_ids and
+            order.id not in shipping_completed_order_ids and
             (not getattr(order, 'measurement_completed', False) or 
              not order.shipping_scheduled_date or 
              not order.shipping_scheduled_date.strip()))
@@ -2544,6 +2561,12 @@ def regional_dashboard():
 
     # 상차일 기준으로 정렬 (가까운 날짜부터)
     shipping_alerts.sort(key=lambda x: datetime.datetime.strptime(x.shipping_scheduled_date, '%Y-%m-%d').date())
+    shipping_completed_orders.sort(key=lambda x: datetime.datetime.strptime(x.shipping_scheduled_date, '%Y-%m-%d').date())
+
+    # 디버그 출력
+    print(f"DEBUG: shipping_completed_orders 개수: {len(shipping_completed_orders)}")
+    for order in shipping_completed_orders:
+        print(f"DEBUG: 상차완료 주문 - ID: {order.id}, 고객명: {order.customer_name}, 상차일: {order.shipping_scheduled_date}")
 
     today_str = today.strftime('%Y-%m-%d')
     tomorrow_str = (today + timedelta(days=1)).strftime('%Y-%m-%d')
@@ -2553,6 +2576,7 @@ def regional_dashboard():
                            completed_orders=completed_orders,
                            hold_orders=hold_orders,
                            shipping_alerts=shipping_alerts,
+                           shipping_completed_orders=shipping_completed_orders,
                            STATUS=STATUS,
                            search_query=search_query,
                            today=today_str,

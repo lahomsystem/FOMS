@@ -1,16 +1,15 @@
 import os
 import datetime
-from datetime import timedelta
 import json
 import pandas as pd
+import re
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, g, session, send_file, current_app
-from markupsafe import Markup # Markup import 변경
+from markupsafe import Markup
 from werkzeug.utils import secure_filename
-from werkzeug.security import generate_password_hash, check_password_hash  # For password hashing
-import re  # For validation
-from sqlalchemy import or_, text, func, String  # Import or_ function, text for raw SQL, func for distinct, String for casting
-import copy # 객체 복사를 위해 추가
-from datetime import date
+from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import or_, and_, text, func, String
+import copy
+from datetime import date, timedelta
 
 # 데이터베이스 관련 임포트
 from db import get_db, close_db, init_db
@@ -453,8 +452,8 @@ def index():
                 query = query.filter(column_attr.like(filter_term))
     
     # URL에서 정렬 정보 가져오기
-    sort_by = request.args.get('sort_by', 'id')
-    sort_order = request.args.get('sort_order', 'desc')
+    sort_column = request.args.get('sort_by', 'id')
+    sort_direction = request.args.get('sort_order', 'desc')
 
     # 정렬 적용 (index 함수와 동일한 로직)
     if hasattr(Order, sort_column):
@@ -463,8 +462,8 @@ def index():
             query = query.order_by(column_to_sort.asc())
         else:
             query = query.order_by(column_to_sort.desc())
-    else: # Corrected indentation for line 1175
-        query = query.order_by(Order.id.desc()) # Corrected indentation for line 1176 (기본 정렬)
+    else:
+        query = query.order_by(Order.id.desc())  # 기본 정렬
 
     # 페이지네이션 적용
     total_orders = query.count()
@@ -2317,6 +2316,7 @@ def security_logs():
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def update_regional_status():
     """지방 주문 체크리스트 상태 업데이트"""
+    db = get_db()
     data = request.get_json()
     
     order_id = data.get('order_id')
@@ -2354,6 +2354,7 @@ def update_regional_status():
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def update_regional_memo():
     """지방 주문 메모 업데이트"""
+    db = get_db()
     data = request.get_json()
     
     order_id = data.get('order_id')
@@ -2499,61 +2500,83 @@ def regional_dashboard():
     # 모든 지방 주문 가져오기
     all_regional_orders = base_query.order_by(Order.id.desc()).all()
     
-    # 완료/미완료로 분리
-    completed_orders = []
-    pending_orders = []
-    
-    for order in all_regional_orders:
-        # 기본 체크리스트 항목들
-        basic_checklist_completed = (
-            order.regional_sales_order_upload and 
-            order.regional_order_upload and 
-            order.regional_blueprint_sent
-        )
-        
-        # 협력사 시공인 경우 추가 체크리스트 확인
-        if order.construction_type == '협력사 시공':
-            additional_checklist_completed = (
-                order.regional_cargo_sent and
-                order.regional_construction_info_sent
-            )
-            is_completed = basic_checklist_completed and additional_checklist_completed
-        else:
-            is_completed = basic_checklist_completed
-        
-        if is_completed:
-            completed_orders.append(order)
-        else:
-            pending_orders.append(order)
-    
-    # 상차 예정 알림 필터링 (오늘 이후 상차일만 표시)
+    # 오늘 날짜
     today = date.today()
     
+        # 완료된 주문 분류
+    completed_orders = [
+        order for order in all_regional_orders
+        if order.status == 'COMPLETED'
+    ]
+
+    # 보류 상태 주문 분류
+    hold_orders = [
+        order for order in all_regional_orders
+        if order.status == 'ON_HOLD'
+    ]
+
+    # 상차 예정 알림: 실측 완료 + 상차일 지정 + 미완료 상태 + 상차일이 오늘 이후 + 보류 상태 제외
     shipping_alerts = []
-    # 모든 지방 주문에서 상차일이 입력되고 오늘 이후인 건들만 표시
     for order in all_regional_orders:
-        if (order.shipping_scheduled_date and 
-            order.shipping_scheduled_date.strip()):
+        if (getattr(order, 'measurement_completed', False) and 
+            order.shipping_scheduled_date and 
+            order.shipping_scheduled_date.strip() and
+            order.status not in ['COMPLETED', 'ON_HOLD']):  # 완료된 주문과 보류 상태 제외
             try:
                 shipping_date = datetime.datetime.strptime(order.shipping_scheduled_date, '%Y-%m-%d').date()
-                # 오늘 이후의 상차일만 표시 (지난 상차일은 제외)
+                # 오늘 이후의 상차일만 포함 (지난 상차일은 제외)
                 if shipping_date >= today:
                     shipping_alerts.append(order)
             except (ValueError, TypeError):
                 # 날짜 형식이 잘못된 경우 무시
                 pass
-    
+
+    # 상차완료: 상차일이 지났지만 완료 처리되지 않은 주문들 + 보류 상태 제외
+    shipping_completed_orders = []
+    for order in all_regional_orders:
+        if (order.shipping_scheduled_date and 
+            order.shipping_scheduled_date.strip() and
+            order.status not in ['COMPLETED', 'ON_HOLD']):  # 완료된 주문과 보류 상태 제외
+            try:
+                shipping_date = datetime.datetime.strptime(order.shipping_scheduled_date, '%Y-%m-%d').date()
+                # 상차일이 오늘보다 이전인 경우 (지난 상차일)
+                if shipping_date < today:
+                    shipping_completed_orders.append(order)
+            except (ValueError, TypeError):
+                # 날짜 형식이 잘못된 경우 무시
+                pass
+
+    # 진행 중인 주문: 실측 미완료 + 완료되지 않은 주문 + 상차 예정 알림에 없는 주문 + 상차완료에 없는 주문 + 보류 상태 제외
+    shipping_alert_order_ids = {order.id for order in shipping_alerts}
+    shipping_completed_order_ids = {order.id for order in shipping_completed_orders}
+    pending_orders = [
+        order for order in all_regional_orders
+        if (order.status not in ['COMPLETED', 'ON_HOLD'] and 
+            order.id not in shipping_alert_order_ids and
+            order.id not in shipping_completed_order_ids and
+            (not getattr(order, 'measurement_completed', False) or 
+             not order.shipping_scheduled_date or 
+             not order.shipping_scheduled_date.strip()))
+    ]
+
     # 상차일 기준으로 정렬 (가까운 날짜부터)
     shipping_alerts.sort(key=lambda x: datetime.datetime.strptime(x.shipping_scheduled_date, '%Y-%m-%d').date())
-    
-    # 오늘과 내일 날짜 계산 (템플릿에서 사용)
+    shipping_completed_orders.sort(key=lambda x: datetime.datetime.strptime(x.shipping_scheduled_date, '%Y-%m-%d').date())
+
+    # 디버그 출력
+    print(f"DEBUG: shipping_completed_orders 개수: {len(shipping_completed_orders)}")
+    for order in shipping_completed_orders:
+        print(f"DEBUG: 상차완료 주문 - ID: {order.id}, 고객명: {order.customer_name}, 상차일: {order.shipping_scheduled_date}")
+
     today_str = today.strftime('%Y-%m-%d')
     tomorrow_str = (today + timedelta(days=1)).strftime('%Y-%m-%d')
         
     return render_template('regional_dashboard.html', 
                            pending_orders=pending_orders, 
                            completed_orders=completed_orders,
+                           hold_orders=hold_orders,
                            shipping_alerts=shipping_alerts,
+                           shipping_completed_orders=shipping_completed_orders,
                            STATUS=STATUS,
                            search_query=search_query,
                            today=today_str,
@@ -2603,24 +2626,37 @@ def metropolitan_dashboard():
     )
     urgent_alerts = get_filtered_orders(urgent_alerts_query).order_by(Order.measurement_date.asc()).all()
 
+    # 실측 후 미처리: 실측일이 도래했고, 설치일이 없는 경우 (당일 실측 건 제외)
     measurement_alerts_query = base_query.filter(
         Order.status.in_(['MEASURED']),
-        or_(
-            Order.manager_name == None,
-            Order.manager_name == '',
-            Order.scheduled_date == None
-        ),
         Order.measurement_date != None,
         Order.measurement_date != '',
-        func.date(Order.measurement_date) < date.today()
+        func.date(Order.measurement_date) < date.today(),  # 당일 제외, 과거 실측일만
+        or_(
+            Order.scheduled_date == None,
+            Order.scheduled_date == ''
+        )
     )
     measurement_alerts = get_filtered_orders(measurement_alerts_query).order_by(Order.measurement_date.asc()).all()
 
     pre_measurement_alerts_query = base_query.filter(
-        Order.status.in_(['RECEIVED']),
-        Order.measurement_date != None,
-        Order.measurement_date != '',
-        func.date(Order.measurement_date) > date.today()
+        or_(
+            # 실측일이 미래인 경우
+            and_(
+                Order.status.in_(['RECEIVED', 'MEASURED']),
+                Order.measurement_date != None,
+                Order.measurement_date != '',
+                func.date(Order.measurement_date) > date.today()
+            ),
+            # 실측일이 없거나 상태가 RECEIVED인 경우 (실측 전 단계)
+            and_(
+                Order.status == 'RECEIVED',
+                or_(
+                    Order.measurement_date == None,
+                    Order.measurement_date == ''
+                )
+            )
+        )
     )
     pre_measurement_alerts = get_filtered_orders(pre_measurement_alerts_query).order_by(Order.measurement_date.asc()).all()
 
@@ -2642,9 +2678,16 @@ def metropolitan_dashboard():
     )
     as_orders = get_filtered_orders(as_orders_query).order_by(Order.created_at.desc()).all()
 
-    # 일반 진행 중인 주문들 (알림에 포함되지 않은 것들)
+    # 보류 상태 주문들 (ON_HOLD)
+    hold_orders_query = db.query(Order).filter(
+        Order.status == 'ON_HOLD',
+        Order.is_regional == False
+    )
+    hold_orders = get_filtered_orders(hold_orders_query).order_by(Order.created_at.desc()).all()
+
+    # 정상 진행 중인 주문들 (알림에 포함되지 않은 진행 중인 주문들, 보류 상태 제외)
     normal_orders_query = db.query(Order).filter(
-        Order.status.notin_(['COMPLETED', 'DELETED', 'AS_RECEIVED', 'AS_COMPLETED']),
+        Order.status.notin_(['COMPLETED', 'DELETED', 'AS_RECEIVED', 'AS_COMPLETED', 'ON_HOLD']),
         ~Order.id.in_(alert_order_ids),
         Order.is_regional == False
     )
@@ -2663,6 +2706,7 @@ def metropolitan_dashboard():
                            pre_measurement_alerts=pre_measurement_alerts,
                            installation_alerts=installation_alerts,
                            as_orders=as_orders,
+                           hold_orders=hold_orders,
                            normal_orders=normal_orders,
                            completed_orders=completed_orders,
                            STATUS=STATUS,
@@ -2749,46 +2793,66 @@ def check_backup_status():
 
 
 if __name__ == '__main__':
-    init_db()  # 앱 시작 시 데이터베이스 초기화
-    
-    # 애플리케이션 컨텍스트 내에서 실행
-    with app.app_context():
+    # 안전한 시작 프로세스 실행 (SystemExit 방지)
+    try:
+        import logging
+        import sys
+        
+        # 로깅 설정
+        logging.basicConfig(
+            level=logging.INFO, 
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler('app_startup.log', encoding='utf-8'),
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+        logger = logging.getLogger('FOMS_Startup')
+        
+        logger.info("[START] FOMS 애플리케이션 시작 중...")
+        startup_success = True
+        
+        # 1. 데이터베이스 초기화 시도
         try:
-            db = get_db()
-            # 컬럼이 존재하지 않는 경우에만 추가
-            for column, column_type in [
-                ('measurement_date', 'VARCHAR'),
-                ('measurement_time', 'VARCHAR'),
-                ('completion_date', 'VARCHAR'),
-                ('manager_name', 'VARCHAR'),
-                ('payment_amount', 'INTEGER'), # payment_amount 컬럼 추가
-                ('scheduled_date', 'VARCHAR'), # 설치 예정일
-                ('as_received_date', 'VARCHAR'), # AS 접수일
-                ('as_completed_date', 'VARCHAR'), # AS 완료일
-                # 지방 주문 관리 컬럼들 추가
-                ('is_regional', 'BOOLEAN DEFAULT FALSE'),
-                ('regional_sales_order_upload', 'BOOLEAN DEFAULT FALSE'),
-                ('regional_blueprint_sent', 'BOOLEAN DEFAULT FALSE'),
-                ('regional_order_upload', 'BOOLEAN DEFAULT FALSE'),
-                ('shipping_scheduled_date', 'VARCHAR') # 상차 예정일 컬럼 추가
-            ]:
-                # 해당 컬럼이 이미 존재하는지 확인
-                query = text(f"""
-                SELECT column_name FROM information_schema.columns 
-                WHERE table_name='orders' AND column_name='{column}'
-                """)
-                result = db.execute(query).fetchone()
-                
-                # 컬럼이 없으면 추가
-                if not result:
-                    alter_query = text(f"ALTER TABLE orders ADD COLUMN {column} {column_type}")
-                    db.execute(alter_query)
-                    print(f"Added column {column} to orders table")
-            
-            db.commit()
-            print("Database column update completed")
+            init_db()
+            logger.info("[OK] 데이터베이스 초기화 완료")
         except Exception as e:
-            db.rollback()
-            print(f"Error updating database schema: {str(e)}")
-    
-    app.run(host='0.0.0.0', port=5000, debug=True)
+            logger.error(f"[ERROR] 데이터베이스 초기화 실패: {str(e)}")
+            startup_success = False
+        
+        # 2. 안전한 스키마 마이그레이션 시도
+        try:
+            from safe_schema_migration import run_safe_migration
+            
+            # Flask 앱 컨텍스트 내에서 마이그레이션 실행
+            with app.app_context():
+                migration_success = run_safe_migration(app.app_context())
+                if migration_success:
+                    logger.info("[OK] 스키마 마이그레이션 완료")
+                else:
+                    logger.warning("[WARN] 스키마 마이그레이션 실패 - 기존 스키마로 계속 진행")
+                    startup_success = False
+        except Exception as e:
+            logger.error(f"[ERROR] 스키마 마이그레이션 중 예외: {str(e)}")
+            startup_success = False
+        
+        # 3. 시작 결과 요약
+        if startup_success:
+            logger.info("[SUCCESS] 모든 시작 프로세스가 성공적으로 완료되었습니다!")
+            print("[OK] FOMS 시스템이 준비되었습니다!")
+        else:
+            logger.warning("[WARN] 일부 시작 프로세스에서 오류가 발생했지만 앱은 정상적으로 시작됩니다.")
+            print("[WARN] 일부 기능에 제한이 있을 수 있습니다. 로그를 확인해주세요.")
+        
+        # 4. Flask 웹 서버 시작 (안전한 설정)
+        print("[START] 웹 서버를 시작합니다...")
+        app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+        
+    except KeyboardInterrupt:
+        print("\n[STOP] 사용자에 의해 서버가 중단되었습니다.")
+    except Exception as e:
+        print(f"[ERROR] 서버 시작 중 오류: {str(e)}")
+        print("[INFO] 로그 파일(app_startup.log)을 확인해주세요.")
+        # SystemExit 대신 정상 종료
+    finally:
+        print("[END] FOMS 시스템을 종료합니다.")
