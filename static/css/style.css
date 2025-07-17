@@ -513,6 +513,12 @@ td .btn:last-child {
     --pastel-purple-text: #4c2c72;
     --pastel-purple-icon: #8b5a96;
     
+    /* Orange (Shipped) */
+    --pastel-orange-shipped: #ffe8cc;
+    --pastel-orange-shipped-dark: #ffd699;
+    --pastel-orange-shipped-text: #b8660a;
+    --pastel-orange-shipped-icon: #fd7e14;
+    
     /* Urgent Red (Urgent) */
     --urgent-red: #f5c6cb;
     --urgent-red-dark: #f1b0b7;
@@ -561,6 +567,12 @@ td .btn:last-child {
     border-bottom: 1px solid var(--pastel-purple-dark);
 }
 
+.header-shipped {
+    background: linear-gradient(135deg, var(--pastel-orange-shipped-dark) 0%, var(--pastel-orange-shipped) 100%);
+    color: var(--pastel-orange-shipped-text) !important;
+    border-bottom: 1px solid var(--pastel-orange-shipped-dark);
+}
+
 .header-urgent {
     background: linear-gradient(135deg, var(--urgent-red-dark) 0%, var(--urgent-red) 100%);
     color: var(--urgent-red-text) !important;
@@ -599,6 +611,14 @@ td .btn:last-child {
     border: 2px solid var(--urgent-red-dark);
     animation: pulse-urgent 2s infinite;
 }
+.summary-card-hold {
+    background: linear-gradient(135deg, var(--pastel-purple) 0%, var(--pastel-purple-dark) 100%);
+    border: 1px solid var(--pastel-purple-dark);
+}
+.summary-card-shipped {
+    background: linear-gradient(135deg, var(--pastel-orange-shipped) 0%, var(--pastel-orange-shipped-dark) 100%);
+    border: 1px solid var(--pastel-orange-shipped-dark);
+}
 
 @keyframes pulse-urgent {
     0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
@@ -625,6 +645,10 @@ td .btn:last-child {
 .text-urgent-icon {
     color: var(--urgent-red-icon) !important;
 }
+.text-hold { color: var(--pastel-purple-text) !important; }
+.text-hold-icon { color: var(--pastel-purple-icon) !important; }
+.text-shipped { color: var(--pastel-orange-shipped-text) !important; }
+.text-shipped-icon { color: var(--pastel-orange-shipped-icon) !important; }
 
 /* Border Styles */
 .border-left-completed { border-left: 0.25rem solid var(--pastel-green-icon) !important; }
@@ -636,12 +660,15 @@ td .btn:last-child {
 .border-left-urgent {
     border-left: 0.5rem solid var(--urgent-red-icon) !important;
 }
+.border-left-shipped { border-left: 0.25rem solid var(--pastel-orange-shipped-icon) !important; }
 
 /* Table Row Styles */
 .table-completed { background-color: rgba(212, 237, 218, 0.3) !important; }
 .table-alert { background-color: rgba(248, 215, 218, 0.3) !important; }
 .table-warning { background-color: rgba(255, 243, 205, 0.3) !important; }
 .table-urgent { background-color: rgba(245, 198, 203, 0.5) !important; border-left: 4px solid var(--urgent-red-icon); }
+.table-hold { background-color: rgba(226, 216, 242, 0.3) !important; }
+.table-shipped { background-color: rgba(255, 232, 204, 0.3) !important; }
 
 /* Inline Edit Styles */
 .inline-edit { border: 1px solid #dee2e6; transition: all 0.3s ease; }

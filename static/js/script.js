@@ -50,6 +50,17 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+    
+    // 상태 드롭다운 초기 색상 적용
+    const statusSelects = document.querySelectorAll('select[data-field="status"]');
+    statusSelects.forEach(function(select) {
+        applyStatusColor(select);
+        
+        // 상태 변경 시 색상 업데이트
+        select.addEventListener('change', function() {
+            applyStatusColor(this);
+        });
+    });
 });
 
 // Phone number formatting logic updated for conditional hyphenation
@@ -85,6 +96,28 @@ function formatPhoneNumber(input) {
     // 숫자 이외의 문자 모두 제거
     input.value = input.value.replace(/\D/g, '');
 }
+
+// 상태별 색상 클래스 적용 함수
+function applyStatusColor(selectElement) {
+    const status = selectElement.value;
+    
+    // 기존 상태 클래스 제거
+    selectElement.classList.remove('status-received', 'status-measured', 'status-regional_measured', 
+                                  'status-scheduled', 'status-shipped_pending', 'status-completed', 
+                                  'status-as_received', 'status-as_completed', 'status-on_hold');
+    
+    // status-dropdown 클래스 추가 (아직 없다면)
+    if (!selectElement.classList.contains('status-dropdown')) {
+        selectElement.classList.add('status-dropdown');
+    }
+    
+    // 새로운 상태 클래스 추가
+    if (status) {
+        selectElement.classList.add('status-' + status.toLowerCase());
+    }
+}
+
+
 
 // Phone input event handler (attach to phone inputs)
 /*
