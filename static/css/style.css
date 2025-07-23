@@ -688,7 +688,7 @@ td .btn:last-child {
 .status-dropdown.status-received { background-color: #1976d2 !important; border-color: #1565c0; }
 .status-dropdown.status-measured { background-color: #f57c00 !important; border-color: #ef6c00; }
 .status-dropdown.status-scheduled { background-color: #d32f2f !important; border-color: #c62828; }
-.status-dropdown.status-shipped_pending { background-color: #ff6b35 !important; border-color: #e55a2b; }
+.status-dropdown.status-shipped_pending { background-color: #17a2b8 !important; border-color: #138496; }
 .status-dropdown.status-completed { background-color: #2e7d32 !important; border-color: #1b5e20; }
 .status-dropdown.status-as_received { background-color: #7b1fa2 !important; border-color: #6a1b9a; }
 .status-dropdown.status-as_completed { background-color: #00695c !important; border-color: #004d40; }

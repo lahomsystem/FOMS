@@ -102,7 +102,7 @@ def update_last_login(user_id):
             db.commit()
     except Exception as e:
         db.rollback()
-        print(f"Error updating last login: {str(e)}")
+        # Error updating last login silently handled
 
 def login_required(f):
     """Decorator to require login for routes"""
@@ -1283,13 +1283,13 @@ def reset_order_ids(db):
             if seq_name:
                 # 정확한 시퀀스 이름을 사용하여 재설정
                 db.execute(text(f"ALTER SEQUENCE {seq_name} RESTART WITH {max_id + 1}"))
-                print(f"시퀀스 {seq_name}을 {max_id + 1}로 재설정했습니다.")
+                # 시퀀스 재설정 완료
             else:
                 # 이름을 찾지 못한 경우 기본 이름 사용
                 db.execute(text(f"ALTER SEQUENCE orders_id_seq RESTART WITH {max_id + 1}"))
-                print(f"기본 시퀀스 orders_id_seq를 {max_id + 1}로 재설정했습니다.")
+                # 기본 시퀀스 재설정 완료
         except Exception as seq_error:
-            print(f"시퀀스 재설정 중 오류 발생: {str(seq_error)}")
+            # 시퀀스 재설정 중 오류 발생 (무시)
             # 기본 이름을 사용해서 시도
             try:
                 db.execute(text(f"ALTER SEQUENCE orders_id_seq RESTART WITH {max_id + 1}"))
@@ -1308,7 +1308,7 @@ def reset_order_ids(db):
             db.execute(text("DROP TABLE IF EXISTS temp_order_mapping"))
         except:
             pass
-        print(f"주문 ID 재정렬 중 오류 발생: {str(e)}")
+        # 주문 ID 재정렬 중 오류 발생 (무시)
         raise e
 
 @app.route('/bulk_action', methods=['POST'])
@@ -1497,7 +1497,7 @@ def upload_excel():
                     try:
                         os.remove(file_path)
                     except OSError as e: # 구체적인 에러 타입 명시
-                        print(f"업로드된 파일 삭제 오류: {file_path}: {e}")
+                        # 업로드된 파일 삭제 오류 (무시)
                         log_access(f"업로드된 파일 삭제 오류: {file_path} - {e}", session.get('user_id'),
                                    {"filename": file_path, "error": str(e)})
                     return redirect(request.url)
@@ -1540,7 +1540,7 @@ def upload_excel():
                                     minutes = int((time_float * 24 * 60) % 60)
                                     received_time = f"{hours:02d}:{minutes:02d}"
                                 except (ValueError, TypeError):
-                                    print(f"Warning: Invalid time format for '접수시간': {received_time_raw}")
+                                    # Warning: Invalid time format for 접수시간 (using default)
                                     received_time = None # 유효하지 않으면 None
                         # 추가: Excel에서 시간 형식이 숫자로 (예: 0.5 = 12:00 PM) 읽히는 경우 처리
                         elif isinstance(received_time_raw, (int, float)):
@@ -1551,7 +1551,7 @@ def upload_excel():
                                 minutes = (total_seconds % 3600) // 60
                                 received_time = f"{hours:02d}:{minutes:02d}"
                             except Exception:
-                                 print(f"Warning: Could not convert numeric time for '접수시간': {received_time_raw}")
+                                                                   # Warning: Could not convert numeric time for 접수시간 (using default)
                                  received_time = None
 
 
@@ -1572,7 +1572,7 @@ def upload_excel():
                                     minutes = int((time_float * 24 * 60) % 60)
                                     measurement_time = f"{hours:02d}:{minutes:02d}"
                                 except (ValueError, TypeError):
-                                    print(f"Warning: Invalid time format for '실측시간': {measurement_time_raw}")
+                                    # Warning: Invalid time format for 실측시간 (using default)
                                     measurement_time = None
                         elif isinstance(measurement_time_raw, (int, float)):
                             try:
@@ -1581,7 +1581,7 @@ def upload_excel():
                                 minutes = (total_seconds % 3600) // 60
                                 measurement_time = f"{hours:02d}:{minutes:02d}"
                             except Exception:
-                                 print(f"Warning: Could not convert numeric time for '실측시간': {measurement_time_raw}")
+                                 # Warning: Could not convert numeric time for 실측시간 (using default)
                                  measurement_time = None
                     
                     # Handle options column if it exists (한글 컬럼명 '옵션')
@@ -1607,7 +1607,7 @@ def upload_excel():
                             elif isinstance(payment_amount_raw, (int, float)):
                                 payment_amount = int(payment_amount_raw)
                         except ValueError:
-                            print(f"Warning: Invalid payment amount format for '결제금액': {payment_amount_raw}, defaulting to 0.")
+                            # Warning: Invalid payment amount format for 결제금액 (defaulting to 0)
                             payment_amount = 0 # 변환 실패 시 0
 
                     new_order = Order(
@@ -1655,7 +1655,7 @@ def upload_excel():
             try:
                 os.remove(file_path)
             except OSError as e: # 구체적인 에러 타입 명시
-                print(f"Error deleting uploaded file {file_path}: {e}")
+                # Error deleting uploaded file (ignored)
                 log_access(f"업로드된 파일 삭제 오류: {file_path} - {e}", session.get('user_id'),
                            {"filename": file_path, "error": str(e)})
 
@@ -1731,9 +1731,11 @@ def download_excel():
                          query = query.filter(column_attr.like(f"%{filter_value}%"))
                 except AttributeError:
                     # 컬럼이 없거나 LIKE 사용 불가 시 경고 (index 함수와 동일)
-                    print(f"Warning: Column {column_name} not found or cannot be filtered with LIKE in download_excel.")
+                    # Warning: Column not found or cannot be filtered with LIKE in download_excel
+                    pass
             else:
-                 print(f"Warning: Column {column_name} not found in Order model in download_excel.")
+                 # Warning: Column not found in Order model in download_excel
+                 pass
                 
     # 정렬 적용 (루프 바깥으로 이동)
     if hasattr(Order, sort_column):
@@ -2563,10 +2565,8 @@ def regional_dashboard():
     shipping_alerts.sort(key=lambda x: datetime.datetime.strptime(x.shipping_scheduled_date, '%Y-%m-%d').date())
     shipping_completed_orders.sort(key=lambda x: datetime.datetime.strptime(x.shipping_scheduled_date, '%Y-%m-%d').date())
 
-    # 디버그 출력
-    print(f"DEBUG: shipping_completed_orders 개수: {len(shipping_completed_orders)}")
-    for order in shipping_completed_orders:
-        print(f"DEBUG: 상차완료 주문 - ID: {order.id}, 고객명: {order.customer_name}, 상차일: {order.shipping_scheduled_date}")
+
+
 
     today_str = today.strftime('%Y-%m-%d')
     tomorrow_str = (today + timedelta(days=1)).strftime('%Y-%m-%d')
