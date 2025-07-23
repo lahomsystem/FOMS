@@ -130,6 +130,26 @@
         font-weight: bold;
         box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     }
+
+    /* 상태별 드롭다운 색상 */
+    .status-dropdown {
+        font-weight: 500;
+        transition: all 0.2s ease;
+        color: white !important;
+        width: 80px !important;
+        font-size: 0.75rem !important;
+        padding: 0.25rem 0.5rem !important;
+    }
+    .status-dropdown option { color: black; background-color: white; }
+    .status-dropdown.status-received { background-color: #1976d2 !important; border-color: #1565c0; }
+    .status-dropdown.status-measured { background-color: #f57c00 !important; border-color: #ef6c00; }
+    .status-dropdown.status-scheduled { background-color: #d32f2f !important; border-color: #c62828; }
+    .status-dropdown.status-shipped_pending { background-color: #17a2b8 !important; border-color: #138496; }
+    .status-dropdown.status-completed { background-color: #2e7d32 !important; border-color: #1b5e20; }
+    .status-dropdown.status-as_received { background-color: #7b1fa2 !important; border-color: #6a1b9a; }
+    .status-dropdown.status-as_completed { background-color: #00695c !important; border-color: #004d40; }
+    .status-dropdown.status-regional_measured { background-color: #8e24aa !important; border-color: #7b1fa2; }
+    .status-dropdown.status-on_hold { background-color: #616161 !important; border-color: #424242; }
 </style>
 {% endblock %}
 
@@ -305,20 +325,15 @@
                                         {{ order.product }}
                                     </td>
                                     <td>
-                                        {% set status_colors = {
-                                            'RECEIVED': 'primary',
-                                            'MEASURED': 'warning',
-                                            'REGIONAL_MEASURED': 'purple',
-                                            'SCHEDULED': 'danger',
-                                            'SHIPPED_PENDING': 'info',
-                                            'COMPLETED': 'success',
-                                            'AS_RECEIVED': 'dark',
-                                            'AS_COMPLETED': 'secondary',
-                                            'ON_HOLD': 'purple'
-                                        } %}
-                                        <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
-                                            {{ STATUS.get(order.status, order.status) }}
-                                        </span>
+                                        <select class="form-select form-select-sm inline-edit status-dropdown" 
+                                                data-order-id="{{ order.id }}"
+                                                data-field="status">
+                                            {% for status_code, status_name in STATUS.items() %}
+                                                <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
+                                                    {{ status_name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
                                     </td>
                                     <td>
                                         <div class="d-flex flex-column" style="gap: 0.2rem;">
@@ -519,20 +534,15 @@
                                                 {{ order.product }}
                                             </td>
                                             <td>
-                                                {% set status_colors = {
-                                                    'RECEIVED': 'primary',
-                                                    'MEASURED': 'warning', 
-                                                    'SCHEDULED': 'danger',
-                                            'SHIPPED_PENDING': 'info',
-                                                    'COMPLETED': 'success',
-                                                    'AS_RECEIVED': 'dark',
-                                                    'AS_COMPLETED': 'secondary',
-                                            'REGIONAL_MEASURED': 'purple',
-                                                    'ON_HOLD': 'purple'
-                                                } %}
-                                                <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
-                                                    {{ STATUS.get(order.status, order.status) }}
-                                                </span>
+                                                <select class="form-select form-select-sm inline-edit status-dropdown" 
+                                                        data-order-id="{{ order.id }}"
+                                                        data-field="status">
+                                                    {% for status_code, status_name in STATUS.items() %}
+                                                        <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
+                                                            {{ status_name }}
+                                                        </option>
+                                                    {% endfor %}
+                                                </select>
                                             </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
@@ -716,20 +726,15 @@
                                                 {{ order.product }}
                                             </td>
                                             <td>
-                                                {% set status_colors = {
-                                                    'RECEIVED': 'primary',
-                                                    'MEASURED': 'warning',
-                                                    'REGIONAL_MEASURED': 'purple',
-                                                    'SCHEDULED': 'danger',
-                                                    'SHIPPED_PENDING': 'info',
-                                                    'COMPLETED': 'success',
-                                                    'AS_RECEIVED': 'dark',
-                                                    'AS_COMPLETED': 'secondary',
-                                                    'ON_HOLD': 'purple'
-                                                } %}
-                                                <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
-                                                    {{ STATUS.get(order.status, order.status) }}
-                                                </span>
+                                                <select class="form-select form-select-sm inline-edit status-dropdown" 
+                                                        data-order-id="{{ order.id }}"
+                                                        data-field="status">
+                                                    {% for status_code, status_name in STATUS.items() %}
+                                                        <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
+                                                            {{ status_name }}
+                                                        </option>
+                                                    {% endfor %}
+                                                </select>
                                             </td>
                                             <td>{{ order.measurement_date or '-' }}</td>
                                             <td>
@@ -838,9 +843,8 @@
             {% endif %}
 
             <!-- 상차완료 섹션 -->
-            <!-- DEBUG: shipping_completed_orders 개수: {{ shipping_completed_orders|length if shipping_completed_orders else '변수 없음' }} -->
-            <!-- 임시로 항상 표시하도록 변경 -->
-            {% if shipping_completed_orders or true %}
+            
+                          {% if shipping_completed_orders %}
             <div class="row mb-4">
                 <div class="col-12">
                     <div class="card shadow border-left-shipped">
@@ -1096,20 +1100,15 @@
                                                 {{ order.product }}
                                             </td>
                                             <td>
-                                                {% set status_colors = {
-                                                    'RECEIVED': 'primary',
-                                                    'MEASURED': 'warning', 
-                                                    'SCHEDULED': 'danger',
-                                            'SHIPPED_PENDING': 'info',
-                                                    'COMPLETED': 'success',
-                                                    'AS_RECEIVED': 'dark',
-                                                    'AS_COMPLETED': 'secondary',
-                                            'REGIONAL_MEASURED': 'purple',
-                                                    'ON_HOLD': 'purple'
-                                                } %}
-                                                <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
-                                                    {{ STATUS.get(order.status, order.status) }}
-                                                </span>
+                                                <select class="form-select form-select-sm inline-edit status-dropdown" 
+                                                        data-order-id="{{ order.id }}"
+                                                        data-field="status">
+                                                    {% for status_code, status_name in STATUS.items() %}
+                                                        <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
+                                                            {{ status_name }}
+                                                        </option>
+                                                    {% endfor %}
+                                                </select>
                                             </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date" 
