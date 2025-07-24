@@ -1,0 +1,820 @@
+{% extends "layout.html" %}
+
+{% block title %}자가실측 대시보드{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    @keyframes pulse-bg {
+        0% { background: linear-gradient(135deg, var(--pastel-blue-dark) 0%, var(--pastel-blue) 100%); }
+        50% { background: linear-gradient(135deg, var(--pastel-blue) 0%, var(--pastel-blue-dark) 100%); }
+        100% { background: linear-gradient(135deg, var(--pastel-blue-dark) 0%, var(--pastel-blue) 100%); }
+    }
+    .header-alert.pulse-animation {
+        animation: pulse-bg 2s infinite;
+    }
+    
+    /* 자가실측 전용 스타일 */
+    .self-measurement-row {
+        background-color: rgba(13, 202, 240, 0.03) !important;
+        border-left: 3px solid #0dcaf0;
+    }
+    
+    .self-measurement-row:hover {
+        background-color: rgba(13, 202, 240, 0.08) !important;
+    }
+    
+    /* 상태별 드롭다운 색상 */
+    .status-dropdown {
+        font-weight: 500;
+        transition: all 0.2s ease;
+        color: white !important;
+        width: 80px !important;
+        font-size: 0.75rem !important;
+        padding: 0.25rem 0.5rem !important;
+    }
+    .status-dropdown option { color: black; background-color: white; }
+    .status-dropdown.status-received { background-color: #1976d2 !important; border-color: #1565c0; }
+    .status-dropdown.status-measured { background-color: #f57c00 !important; border-color: #ef6c00; }
+    .status-dropdown.status-scheduled { background-color: #d32f2f !important; border-color: #c62828; }
+    .status-dropdown.status-shipped_pending { background-color: #17a2b8 !important; border-color: #138496; }
+    .status-dropdown.status-completed { background-color: #2e7d32 !important; border-color: #1b5e20; }
+    .status-dropdown.status-as_received { background-color: #7b1fa2 !important; border-color: #6a1b9a; }
+    .status-dropdown.status-as_completed { background-color: #00695c !important; border-color: #004d40; }
+    .status-dropdown.status-regional_measured { background-color: #8e24aa !important; border-color: #7b1fa2; }
+    .status-dropdown.status-on_hold { background-color: #616161 !important; border-color: #424242; }
+    
+    /* 버튼 호버 효과 */
+    .card-header button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* 활성화된 버튼 스타일 */
+    .card-header button.active {
+        font-weight: bold;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid self-measurement-dashboard">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0"><i class="fas fa-ruler-combined text-info"></i> 자가실측 대시보드</h1>
+        <a href="{{ url_for('add_order', is_self_measurement='true') }}" class="btn btn-info">
+            <i class="fas fa-plus"></i> 새 자가실측 주문 추가
+        </a>
+    </div>
+
+    <!-- 검색 폼 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <form method="get" action="{{ url_for('self_measurement_dashboard') }}" class="d-flex">
+                        <input type="text" name="search_query" class="form-control me-2" placeholder="주문번호, 고객명, 연락처, 주소, 제품 등 통합 검색" value="{{ search_query or '' }}">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> 검색</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 요약 통계 -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card summary-card-completed shadow">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1 text-completed">완료된 자가실측</div>
+                            <div class="h5 mb-0 font-weight-bold text-completed">{{ completed_orders|length }}건</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-completed-icon"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card summary-card-pending shadow">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1 text-pending">진행 중인 자가실측</div>
+                            <div class="h5 mb-0 font-weight-bold text-pending">{{ pending_orders|length }}건</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clock fa-2x text-pending-icon"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 진행 중인 자가실측 주문 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow border-left-pending">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center header-pending">
+                    <h6 class="m-0 font-weight-bold">
+                        <i class="fas fa-ruler-combined me-2"></i>진행 중인 자가실측 ({{ pending_orders|length }}건)
+                    </h6>
+                    <div class="d-flex gap-2">
+                        <a href="/?is_self_measurement=true" class="btn btn-sm btn-light">
+                            <i class="fas fa-list"></i> 목록으로
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if pending_orders %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">번호</th>
+                                    <th style="width: 120px;">메모</th>
+                                    <th style="width: 120px;">고객명</th>
+                                    <th style="width: 200px;">주소</th>
+                                    <th style="width: 200px;">제품</th>
+                                    <th style="width: 100px;">상태</th>
+                                    <th style="width: 180px;">진행 단계 체크리스트</th>
+                                    <th style="width: 90px;">설치일</th>
+                                    <th style="width: 120px;">담당자</th>
+                                    <th style="width: 80px;">작업</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in pending_orders %}
+                                <tr data-order-id="{{ order.id }}" class="self-measurement-row">
+                                    <td>{{ order.id }}</td>
+                                    <td>
+                                        <textarea class="form-control form-control-sm auto-resize-textarea self-measurement-memo" 
+                                                  rows="1" 
+                                                  placeholder="메모 입력..." 
+                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            {{ order.customer_name }}
+                                            <i class="fas fa-ruler-combined text-info ms-1" title="자가실측"></i>
+                                        </div>
+                                        <small class="text-muted">{{ order.phone }}</small>
+                                    </td>
+                                    <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">
+                                        {{ order.address }}
+                                    </td>
+                                    <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                        {{ order.product }}
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm inline-edit status-dropdown" 
+                                                data-order-id="{{ order.id }}"
+                                                data-field="status">
+                                            {% for status_code, status_name in STATUS.items() %}
+                                                <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
+                                                    {{ status_name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-column" style="gap: 0.2rem;">
+                                            <div class="form-check">
+                                                <input class="form-check-input self-measurement-checkbox"
+                                                       type="checkbox"
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="measurement_completed"
+                                                       data-label="실측완료"
+                                                       id="measurement_pending_{{ order.id }}"
+                                                       {% if order.measurement_completed %}checked{% endif %}>
+                                                <label class="form-check-label small" for="measurement_pending_{{ order.id }}">
+                                                    0. 실측완료
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input self-measurement-checkbox" 
+                                                       type="checkbox" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="regional_sales_order_upload"
+                                                       data-label="영업발주 업로드"
+                                                       id="sales_order_pending_{{ order.id }}"
+                                                       {% if order.regional_sales_order_upload %}checked{% endif %}>
+                                                <label class="form-check-label small" for="sales_order_pending_{{ order.id }}">
+                                                    1. 영업발주 업로드
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input self-measurement-checkbox" 
+                                                       type="checkbox" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="regional_blueprint_sent"
+                                                       data-label="도면 발송"
+                                                       id="blueprint_pending_{{ order.id }}"
+                                                       {% if order.regional_blueprint_sent %}checked{% endif %}>
+                                                <label class="form-check-label small" for="blueprint_pending_{{ order.id }}">
+                                                    2. 도면 발송
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input self-measurement-checkbox" 
+                                                       type="checkbox" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="regional_order_upload"
+                                                       data-label="발주 업로드"
+                                                       id="order_upload_pending_{{ order.id }}"
+                                                       {% if order.regional_order_upload %}checked{% endif %}>
+                                                <label class="form-check-label small" for="order_upload_pending_{{ order.id }}">
+                                                    3. 발주 업로드
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="date" class="form-control form-control-sm editable-date" 
+                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               value="{{ order.scheduled_date or '' }}" 
+                                               data-order-id="{{ order.id }}"
+                                               data-field="scheduled_date">
+                                    </td>
+                                    <td>
+                                        <textarea class="form-control form-control-sm auto-resize-textarea" 
+                                                  rows="1" 
+                                                  placeholder="담당자 입력..." 
+                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  data-order-id="{{ order.id }}"
+                                                  data-field="manager_name">{{ order.manager_name or '' }}</textarea>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('edit_order', order_id=order.id, return_to='self_measurement_dashboard') }}" 
+                                           class="btn btn-sm btn-outline-primary" title="수정">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-ruler-combined text-info fa-3x mb-3"></i>
+                        <h5 class="text-muted">진행 중인 자가실측 주문이 없습니다!</h5>
+                        <p class="text-muted">모든 자가실측 주문이 완료되었습니다.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 완료된 자가실측 주문 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow border-left-completed">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center header-completed">
+                    <h6 class="m-0 font-weight-bold" id="completed-orders-title">
+                        <i class="fas fa-check-circle me-2"></i>완료된 자가실측 ({{ completed_orders|length }}건)
+                    </h6>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-light" onclick="toggleCompletedOrders()">
+                            <i class="fas fa-eye-slash" id="toggle-icon"></i> <span id="toggle-text">숨기기</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body" id="completed-orders-section" style="display: block;">
+                    {% if completed_orders %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">번호</th>
+                                    <th style="width: 120px;">메모</th>
+                                    <th style="width: 120px;">고객명</th>
+                                    <th style="width: 200px;">주소</th>
+                                    <th style="width: 200px;">제품</th>
+                                    <th style="width: 100px;">상태</th>
+                                    <th style="width: 180px;">완료된 체크리스트</th>
+                                    <th style="width: 90px;">설치일</th>
+                                    <th style="width: 90px;">완료일</th>
+                                    <th style="width: 120px;">담당자</th>
+                                    <th style="width: 80px;">작업</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in completed_orders %}
+                                <tr class="table-completed self-measurement-row">
+                                    <td>{{ order.id }}</td>
+                                    <td>
+                                        <textarea class="form-control form-control-sm auto-resize-textarea self-measurement-memo" 
+                                                  rows="1" 
+                                                  placeholder="메모 입력..." 
+                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            {{ order.customer_name }}
+                                            <i class="fas fa-ruler-combined text-info ms-1" title="자가실측"></i>
+                                        </div>
+                                        <small class="text-muted">{{ order.phone }}</small>
+                                    </td>
+                                    <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">
+                                        {{ order.address }}
+                                    </td>
+                                    <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                        {{ order.product }}
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm inline-edit status-dropdown" 
+                                                data-order-id="{{ order.id }}"
+                                                data-field="status">
+                                            {% for status_code, status_name in STATUS.items() %}
+                                                <option value="{{ status_code }}" {% if order.status == status_code %}selected{% endif %}>
+                                                    {{ status_name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-column" style="gap: 0.2rem;">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-check-circle text-success me-2"></i>
+                                                <small class="text-muted">0. 실측완료</small>
+                                            </div>
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-check-circle text-success me-2"></i>
+                                                <small class="text-muted">1. 영업발주 업로드</small>
+                                            </div>
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-check-circle text-success me-2"></i>
+                                                <small class="text-muted">2. 도면 발송</small>
+                                            </div>
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-check-circle text-success me-2"></i>
+                                                <small class="text-muted">3. 발주 업로드</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="date" class="form-control form-control-sm editable-date" 
+                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               value="{{ order.scheduled_date or '' }}" 
+                                               data-order-id="{{ order.id }}"
+                                               data-field="scheduled_date">
+                                    </td>
+                                    <td>
+                                        <input type="date" class="form-control form-control-sm editable-date" 
+                                               style="font-size: 15px; padding: .2rem .4rem;"
+                                               value="{{ order.completion_date or '' }}" 
+                                               data-order-id="{{ order.id }}"
+                                               data-field="completion_date">
+                                    </td>
+                                    <td>
+                                        <textarea class="form-control form-control-sm auto-resize-textarea" 
+                                                  rows="1" 
+                                                  placeholder="담당자 입력..." 
+                                                  style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  data-order-id="{{ order.id }}"
+                                                  data-field="manager_name">{{ order.manager_name or '' }}</textarea>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('edit_order', order_id=order.id, return_to='self_measurement_dashboard') }}" 
+                                           class="btn btn-sm btn-outline-success" title="수정">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox text-muted fa-3x mb-3"></i>
+                        <h5 class="text-muted">완료된 자가실측 주문이 없습니다.</h5>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast 컨테이너 -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+  <div id="status-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-header">
+      <strong class="me-auto">알림</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+    <div class="toast-body">
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 검색 결과 하이라이트 및 스크롤
+    const searchQuery = "{{ search_query|safe }}";
+    if (searchQuery) {
+        const rows = document.querySelectorAll('tr[data-order-id]');
+        let firstMatch = null;
+
+        rows.forEach(row => {
+            const rowText = row.innerText.toLowerCase();
+            if (rowText.includes(searchQuery.toLowerCase())) {
+                row.classList.add('highlight-row');
+                if (!firstMatch) {
+                    firstMatch = row;
+                }
+            }
+        });
+
+        if (firstMatch) {
+            firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
+    // 자가실측 체크박스 처리
+    const checkboxes = document.querySelectorAll('.self-measurement-checkbox');
+    const toastElement = document.getElementById('status-toast');
+    const toastBody = toastElement.querySelector('.toast-body');
+    const toast = new bootstrap.Toast(toastElement);
+
+    checkboxes.forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            const orderId = this.dataset.orderId;
+            const field = this.dataset.field;
+            const isChecked = this.checked;
+            const label = this.dataset.label;
+
+            fetch('/api/update_regional_status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    order_id: orderId,
+                    field: field,
+                    value: isChecked
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    toastBody.textContent = `자가실측 #${orderId}의 '${label}' 상태가 성공적으로 업데이트되었습니다.`;
+                    toastElement.classList.remove('bg-danger');
+                    toastElement.classList.add('bg-success', 'text-white');
+                    
+                    // Check if all checkboxes for this order are checked
+                    checkAllCompleted(this);
+
+                } else {
+                    toastBody.textContent = `오류: ${data.message}`;
+                    toastElement.classList.remove('bg-success');
+                    toastElement.classList.add('bg-danger', 'text-white');
+                    // 실패 시 체크박스를 원래 상태로 되돌립니다.
+                    this.checked = !isChecked; 
+                }
+                toast.show();
+            })
+            .catch(error => {
+                toastBody.textContent = '서버 통신 중 오류가 발생했습니다.';
+                toastElement.classList.remove('bg-success');
+                toastElement.classList.add('bg-danger', 'text-white');
+                toast.show();
+                // 오류 발생 시 체크박스를 원래 상태로 되돌립니다.
+                this.checked = !isChecked;
+            });
+        });
+    });
+
+    function checkAllCompleted(checkbox) {
+        const row = checkbox.closest('tr');
+        if (!row) return;
+
+        const orderId = checkbox.dataset.orderId;
+        const allCheckboxes = row.querySelectorAll('.self-measurement-checkbox');
+        const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+
+        if (allChecked) {
+            fetch('/api/update_order_field', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    order_id: orderId,
+                    field_name: 'status',
+                    new_value: 'COMPLETED'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.success) {
+                    alert(`자가실측 #${orderId}이(가) 완료 처리되었습니다. 페이지를 새로고칩니다.`);
+                    location.reload();
+                } else {
+                    alert(`상태 업데이트 실패: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error updating status to completed:', error);
+                alert('상태 업데이트 중 오류가 발생했습니다.');
+            });
+        }
+    }
+
+    // 메모 자동 저장 기능
+    const memoTextareas = document.querySelectorAll('.self-measurement-memo');
+    const memoSaveTimeouts = new Map();
+
+    function saveMemo(orderId, memo) {
+        fetch('/api/update_regional_memo', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                order_id: orderId,
+                memo: memo
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                console.error('메모 저장 실패:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('메모 저장 중 오류:', error);
+        });
+    }
+
+    memoTextareas.forEach(function(textarea) {
+        textarea.addEventListener('input', function() {
+            const orderId = this.dataset.orderId;
+            const memo = this.value;
+            
+            // 기존 타이머가 있으면 제거
+            if (memoSaveTimeouts.has(orderId)) {
+                clearTimeout(memoSaveTimeouts.get(orderId));
+            }
+            
+            // 1초 후에 자동 저장
+            const timeoutId = setTimeout(() => {
+                saveMemo(orderId, memo);
+                memoSaveTimeouts.delete(orderId);
+            }, 1000);
+            
+            memoSaveTimeouts.set(orderId, timeoutId);
+        });
+        
+        // 포커스를 잃을 때도 즉시 저장
+        textarea.addEventListener('blur', function() {
+            const orderId = this.dataset.orderId;
+            const memo = this.value;
+            
+            // 기존 타이머가 있으면 제거하고 즉시 저장
+            if (memoSaveTimeouts.has(orderId)) {
+                clearTimeout(memoSaveTimeouts.get(orderId));
+                memoSaveTimeouts.delete(orderId);
+            }
+            
+            saveMemo(orderId, memo);
+        });
+    });
+
+    // 자동 크기 조정 텍스트 영역 설정
+    const autoResizeTextareas = document.querySelectorAll('.auto-resize-textarea');
+    
+    function adjustHeight(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.max(32, textarea.scrollHeight) + 'px';
+    }
+
+    autoResizeTextareas.forEach(function(textarea) {
+        // 초기 높이 설정
+        adjustHeight(textarea);
+        
+        // 입력 시 높이 조정
+        textarea.addEventListener('input', function() {
+            adjustHeight(this);
+        });
+        
+        // 포커스 시 높이 조정
+        textarea.addEventListener('focus', function() {
+            adjustHeight(this);
+        });
+    });
+
+    // 필드 자동 저장 기능
+    const autoSaveFields = document.querySelectorAll('.auto-resize-textarea');
+    const saveTimeouts = new Map();
+
+    function saveField(orderId, field, value) {
+        fetch('/api/update_order_field', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                order_id: orderId,
+                field_name: field,
+                new_value: value
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                console.error('필드 저장 실패:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('필드 저장 중 오류:', error);
+        });
+    }
+
+    autoSaveFields.forEach(function(field) {
+        field.addEventListener('input', function() {
+            const orderId = this.dataset.orderId;
+            const fieldName = this.dataset.field;
+            const value = this.value;
+            const key = `${orderId}_${fieldName}`;
+            
+            // 기존 타이머가 있으면 제거
+            if (saveTimeouts.has(key)) {
+                clearTimeout(saveTimeouts.get(key));
+            }
+            
+            // 1초 후에 자동 저장
+            const timeoutId = setTimeout(() => {
+                saveField(orderId, fieldName, value);
+                saveTimeouts.delete(key);
+            }, 1000);
+            
+            saveTimeouts.set(key, timeoutId);
+        });
+        
+        // 포커스를 잃을 때도 즉시 저장
+        field.addEventListener('blur', function() {
+            const orderId = this.dataset.orderId;
+            const fieldName = this.dataset.field;
+            const value = this.value;
+            const key = `${orderId}_${fieldName}`;
+            
+            // 기존 타이머가 있으면 제거하고 즉시 저장
+            if (saveTimeouts.has(key)) {
+                clearTimeout(saveTimeouts.get(key));
+                saveTimeouts.delete(key);
+            }
+            
+            saveField(orderId, fieldName, value);
+        });
+    });
+
+    // 날짜 필드 직접 수정 기능
+    document.querySelectorAll('.editable-date').forEach(input => {
+        input.addEventListener('change', function(e) {
+            const orderId = e.target.dataset.orderId;
+            const field = e.target.dataset.field;
+            const value = e.target.value;
+
+            fetch('/api/update_order_field', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    order_id: orderId,
+                    field_name: field,
+                    new_value: value
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 성공 피드백 (예: 잠시 배경색 변경)
+                    e.target.style.backgroundColor = '#d4edda'; // 연한 녹색
+                    setTimeout(() => {
+                        e.target.style.backgroundColor = '';
+                    }, 1500);
+                } else {
+                    // 실패 피드백
+                    alert('오류: ' + data.message);
+                    e.target.style.backgroundColor = '#f8d7da'; // 연한 빨간색
+                     setTimeout(() => {
+                        e.target.style.backgroundColor = '';
+                    }, 2000);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('네트워크 오류가 발생했습니다.');
+            });
+        });
+    });
+
+    // 인라인 편집 이벤트 처리
+    const inlineEditInputs = document.querySelectorAll('.inline-edit');
+    
+    inlineEditInputs.forEach(function(input) {
+        let originalValue = input.value;
+        
+        input.addEventListener('focus', function() {
+            originalValue = this.value;
+        });
+        
+        input.addEventListener('blur', function() {
+            if (this.value !== originalValue) {
+                updateOrderFieldInline(this);
+            }
+        });
+        
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                this.blur();
+            }
+        });
+        
+        // select 요소인 경우 change 이벤트도 처리
+        if (input.tagName.toLowerCase() === 'select') {
+            input.addEventListener('change', function() {
+                if (this.value !== originalValue) {
+                    updateOrderFieldInline(this);
+                }
+            });
+        }
+    });
+});
+
+// 인라인 편집 필드 업데이트 함수
+function updateOrderFieldInline(input) {
+    const orderId = input.dataset.orderId;
+    const field = input.dataset.field;
+    const value = input.value.trim();
+
+    // 시각적 피드백
+    input.style.backgroundColor = '#fff3cd';
+    
+    fetch('/api/update_order_field', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            order_id: orderId,
+            field_name: field,
+            new_value: value
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            input.style.backgroundColor = '#d4edda';
+            
+            setTimeout(() => {
+                input.style.backgroundColor = '';
+            }, 2000);
+        } else {
+            input.style.backgroundColor = '#f8d7da';
+            
+            setTimeout(() => {
+                input.style.backgroundColor = '';
+            }, 2000);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        input.style.backgroundColor = '#f8d7da';
+        
+        setTimeout(() => {
+            input.style.backgroundColor = '';
+        }, 2000);
+    });
+}
+
+function toggleCompletedOrders() {
+    var section = document.getElementById('completed-orders-section');
+    var icon = document.getElementById('toggle-icon');
+    var text = document.getElementById('toggle-text');
+    
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+        text.innerText = '숨기기';
+    } else {
+        section.style.display = 'none';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+        text.innerText = '보이기';
+    }
+}
+</script>
+{% endblock %} 

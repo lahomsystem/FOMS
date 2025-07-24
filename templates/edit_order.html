@@ -197,6 +197,13 @@
                             </label>
                             <small class="form-text text-muted d-block">지방 주문으로 설정하면 추가 관리 절차가 적용됩니다.</small>
                         </div>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="is_self_measurement" name="is_self_measurement" value="1" {{ 'checked' if order.is_self_measurement else '' }}>
+                            <label class="form-check-label" for="is_self_measurement">
+                                <i class="fas fa-ruler-combined text-info"></i> 자가실측
+                            </label>
+                            <small class="form-text text-muted d-block">자가실측으로 설정하면 별도 대시보드에서 관리됩니다.</small>
+                        </div>
                     </div>
                     
                     <!-- 지방 주문 관리 섹션 -->

@@ -1,69 +1,147 @@
-{
-  "main_menu": [
-    {
-      "id": "calendar",
-      "name": "\uce98\ub9b0\ub354",
-      "url": "/calendar"
-    },
-    {
-      "id": "order_list",
-      "name": "\uc804\uccb4 \uc8fc\ubb38",
-      "url": "/"
-    },
-    {
-      "id": "metro_orders",
-      "name": "\uc218\ub3c4\uad8c \uc8fc\ubb38",
-      "url": "/?region=metro"
-    },
-    {
-      "id": "regional_orders",
-      "name": "\uc9c0\ubc29 \uc8fc\ubb38",
-      "url": "/?region=regional"
-    },
-    {
-      "id": "regional_dashboard",
-      "name": "\uc9c0\ubc29 \uc8fc\ubb38 \ub300\uc2dc\ubcf4\ub4dc",
-      "url": "/regional_dashboard"
-    },
-    {
-      "id": "metropolitan_dashboard",
-      "name": "\uc218\ub3c4\uad8c \uc8fc\ubb38 \ub300\uc2dc\ubcf4\ub4dc",
-      "url": "/metropolitan_dashboard"
-    },
-    {
-      "id": "received",
-      "name": "\uc811\uc218",
-      "url": "/?status=RECEIVED"
-    },
-    {
-      "id": "measured",
-      "name": "\uc2e4\uce21",
-      "url": "/?status=MEASURED"
-    },
-    {
-      "id": "scheduled",
-      "name": "\uc124\uce58 \uc608\uc815",
-      "url": "/?status=SCHEDULED"
-    },
-    {
-      "id": "completed",
-      "name": "\uc644\ub8cc",
-      "url": "/?status=COMPLETED"
-    },
-    {
-      "id": "as_received",
-      "name": "AS \uc811\uc218",
-      "url": "/?status=AS_RECEIVED"
-    },
-    {
-      "id": "as_completed",
-      "name": "AS \uc644\ub8cc",
-      "url": "/?status=AS_COMPLETED"
-    },
-    {
-      "id": "trash",
-      "name": "\ud734\uc9c0\ud1b5",
-      "url": "/trash"
-    }
-  ]
+{
+
+  "main_menu": [
+
+    {
+
+      "id": "calendar",
+
+      "name": "\uce98\ub9b0\ub354",
+
+      "url": "/calendar"
+
+    },
+
+    {
+
+      "id": "order_list",
+
+      "name": "\uc804\uccb4 \uc8fc\ubb38",
+
+      "url": "/"
+
+    },
+
+    {
+
+      "id": "metro_orders",
+
+      "name": "\uc218\ub3c4\uad8c \uc8fc\ubb38",
+
+      "url": "/?region=metro"
+
+    },
+
+    {
+
+      "id": "regional_orders",
+
+      "name": "\uc9c0\ubc29 \uc8fc\ubb38",
+
+      "url": "/?region=regional"
+
+    },
+
+    {
+
+      "id": "regional_dashboard",
+
+      "name": "\uc9c0\ubc29 \uc8fc\ubb38 \ub300\uc2dc\ubcf4\ub4dc",
+
+      "url": "/regional_dashboard"
+
+    },
+
+    {
+
+      "id": "self_measurement_dashboard",
+
+      "name": "\uc790\uac00\uc2e4\uce21 \ub300\uc2dc\ubcf4\ub4dc",
+
+      "url": "/self_measurement_dashboard"
+
+    },
+
+    {
+
+      "id": "metropolitan_dashboard",
+
+      "name": "\uc218\ub3c4\uad8c \uc8fc\ubb38 \ub300\uc2dc\ubcf4\ub4dc",
+
+      "url": "/metropolitan_dashboard"
+
+    },
+
+    {
+
+      "id": "received",
+
+      "name": "\uc811\uc218",
+
+      "url": "/?status=RECEIVED"
+
+    },
+
+    {
+
+      "id": "measured",
+
+      "name": "\uc2e4\uce21",
+
+      "url": "/?status=MEASURED"
+
+    },
+
+    {
+
+      "id": "scheduled",
+
+      "name": "\uc124\uce58 \uc608\uc815",
+
+      "url": "/?status=SCHEDULED"
+
+    },
+
+    {
+
+      "id": "completed",
+
+      "name": "\uc644\ub8cc",
+
+      "url": "/?status=COMPLETED"
+
+    },
+
+    {
+
+      "id": "as_received",
+
+      "name": "AS \uc811\uc218",
+
+      "url": "/?status=AS_RECEIVED"
+
+    },
+
+    {
+
+      "id": "as_completed",
+
+      "name": "AS \uc644\ub8cc",
+
+      "url": "/?status=AS_COMPLETED"
+
+    },
+
+    {
+
+      "id": "trash",
+
+      "name": "\ud734\uc9c0\ud1b5",
+
+      "url": "/trash"
+
+    }
+
+  ]
+
 }

@@ -448,6 +448,22 @@ td .btn:last-child {
     outline: none;
 }
 
+/* 자가실측 대시보드 메모 스타일 */
+.self-measurement-memo {
+    color: #cc00c2 !important; /* 핫핑크 */
+    font-weight: 500;
+}
+
+.self-measurement-memo::placeholder {
+    color: #000000 !important; /* 검정색 */
+}
+
+.self-measurement-memo:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    outline: none;
+}
+
 /* Animation for shipping alerts */
 @keyframes blink-icon {
     50% {
