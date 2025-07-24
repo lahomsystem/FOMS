@@ -549,6 +549,9 @@ def add_order():
             # 지방 주문 여부 설정
             is_regional_val = 'is_regional' in request.form
             
+            # 자가실측 여부 설정
+            is_self_measurement_val = 'is_self_measurement' in request.form
+            
             # 지방 주문일 경우, 체크리스트 항목들도 가져옴
             measurement_completed_val = False
             regional_sales_order_upload_val = False
@@ -584,6 +587,7 @@ def add_order():
                 as_received_date=request.form.get('as_received_date'),
                 as_completed_date=request.form.get('as_completed_date'),
                 is_regional=is_regional_val,
+                is_self_measurement=is_self_measurement_val,
                 measurement_completed=measurement_completed_val,
                 regional_sales_order_upload=regional_sales_order_upload_val,
                 regional_blueprint_sent=regional_blueprint_sent_val,
@@ -780,6 +784,10 @@ def edit_order(order_id):
             is_regional_new = 'is_regional' in request.form
             if order.is_regional != is_regional_new: changes['is_regional'] = {'old': order.is_regional, 'new': is_regional_new}
             
+            # 자가실측 관련 필드 변경 감지
+            is_self_measurement_new = 'is_self_measurement' in request.form
+            if order.is_self_measurement != is_self_measurement_new: changes['is_self_measurement'] = {'old': order.is_self_measurement, 'new': is_self_measurement_new}
+            
             measurement_completed_new = 'measurement_completed' in request.form
             if order.measurement_completed != measurement_completed_new: changes['measurement_completed'] = {'old': order.measurement_completed, 'new': measurement_completed_new}
             
@@ -827,6 +835,9 @@ def edit_order(order_id):
             
             # 지방 주문 여부 사용자 선택 (체크박스는 체크되지 않으면 폼에 포함되지 않음)
             order.is_regional = is_regional_new
+            
+            # 자가실측 여부 사용자 선택 (체크박스는 체크되지 않으면 폼에 포함되지 않음)
+            order.is_self_measurement = is_self_measurement_new
 
             # 시공 구분 업데이트
             order.construction_type = construction_type_new
@@ -869,6 +880,7 @@ def edit_order(order_id):
                 'manager_name': '담당자',
                 'payment_amount': '결제금액',
                 'is_regional': '지방 주문',
+                'is_self_measurement': '자가실측',
                 'measurement_completed': '실측완료',
                 'construction_type': '시공 구분',
                 'regional_sales_order_upload': '영업발주 업로드',
@@ -2317,7 +2329,7 @@ def security_logs():
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def update_regional_status():
-    """지방 주문 체크리스트 상태 업데이트"""
+    """지방 주문 및 자가실측 체크리스트 상태 업데이트"""
     db = get_db()
     data = request.get_json()
     
@@ -2327,7 +2339,7 @@ def update_regional_status():
 
     order = db.query(Order).filter_by(id=order_id).first()
 
-    if not order or not order.is_regional:
+    if not order or (not order.is_regional and not order.is_self_measurement):
         return jsonify({'success': False, 'message': '유효하지 않은 주문입니다.'}), 404
 
     # 업데이트 가능한 필드인지 확인 (보안 목적)
@@ -2345,7 +2357,8 @@ def update_regional_status():
     try:
         setattr(order, field, value)
         db.commit()
-        log_access(f"지방 주문 #{order.id}의 '{field}' 상태를 '{value}'(으)로 변경", session['user_id'])
+        order_type = "자가실측" if order.is_self_measurement else "지방 주문"
+        log_access(f"{order_type} #{order.id}의 '{field}' 상태를 '{value}'(으)로 변경", session['user_id'])
         return jsonify({'success': True, 'message': '상태가 업데이트되었습니다.'})
     except Exception as e:
         db.rollback()
@@ -2364,13 +2377,14 @@ def update_regional_memo():
 
     order = db.query(Order).filter_by(id=order_id).first()
 
-    if not order or not order.is_regional:
+    if not order or (not order.is_regional and not order.is_self_measurement):
         return jsonify({'success': False, 'message': '유효하지 않은 주문입니다.'}), 404
 
     try:
         order.regional_memo = memo
         db.commit()
-        log_access(f"지방 주문 #{order.id}의 메모를 업데이트", session['user_id'])
+        order_type = "자가실측" if order.is_self_measurement else "지방 주문"
+        log_access(f"{order_type} #{order.id}의 메모를 업데이트", session['user_id'])
         return jsonify({'success': True, 'message': '메모가 저장되었습니다.'})
     except Exception as e:
         db.rollback()
@@ -2791,6 +2805,63 @@ def check_backup_status():
             "message": f"백업 상태 확인 중 오류: {str(e)}"
         }), 500
 
+@app.route('/self_measurement_dashboard')
+@login_required
+def self_measurement_dashboard():
+    """자가실측 대시보드"""
+    db = get_db()
+    search_query = request.args.get('search_query', '').strip()
+    
+    # 기본 쿼리
+    base_query = db.query(Order).filter(
+        Order.is_self_measurement == True,
+        Order.status != 'DELETED'
+    )
+    
+    # 검색 기능 적용
+    if search_query:
+        search_term = f"%{search_query}%"
+        # ID 검색을 위한 숫자 체크
+        id_conditions = []
+        try:
+            # 검색어가 숫자인 경우 ID로 검색
+            search_id = int(search_query)
+            id_conditions.append(Order.id == search_id)
+        except ValueError:
+            # 숫자가 아닌 경우 ID를 문자열로 캐스팅해서 검색
+            id_conditions.append(func.cast(Order.id, String).ilike(search_term))
+        
+        base_query = base_query.filter(
+            or_(
+                Order.customer_name.ilike(search_term),
+                Order.phone.ilike(search_term),
+                Order.address.ilike(search_term),
+                Order.product.ilike(search_term),
+                Order.notes.ilike(search_term),
+                *id_conditions
+            )
+        )
+    
+    # 모든 자가실측 주문 가져오기
+    all_self_measurement_orders = base_query.order_by(Order.id.desc()).all()
+    
+    # 완료된 주문 분류
+    completed_orders = [
+        order for order in all_self_measurement_orders
+        if order.status == 'COMPLETED'
+    ]
+    
+    # 진행 중인 주문 분류 (완료되지 않은 모든 주문)
+    pending_orders = [
+        order for order in all_self_measurement_orders
+        if order.status != 'COMPLETED'
+    ]
+    
+    return render_template('self_measurement_dashboard.html',
+                           pending_orders=pending_orders,
+                           completed_orders=completed_orders,
+                           search_query=search_query,
+                           STATUS=STATUS)
 
 if __name__ == '__main__':
     # 안전한 시작 프로세스 실행 (SystemExit 방지)
