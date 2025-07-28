@@ -511,20 +511,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({
                     order_id: orderId,
                     field_name: 'status',
-                    new_value: 'COMPLETED'
+                    new_value: 'SCHEDULED'
                 })
             })
             .then(response => response.json())
             .then(data => {
                 if(data.success) {
-                    alert(`자가실측 #${orderId}이(가) 완료 처리되었습니다. 페이지를 새로고칩니다.`);
+                    alert(`자가실측 #${orderId}이(가) 설치 예정 상태로 변경되었습니다. 페이지를 새로고칩니다.`);
                     location.reload();
                 } else {
                     alert(`상태 업데이트 실패: ${data.message}`);
                 }
             })
             .catch(error => {
-                console.error('Error updating status to completed:', error);
+                console.error('Error updating status to scheduled:', error);
                 alert('상태 업데이트 중 오류가 발생했습니다.');
             });
         }
