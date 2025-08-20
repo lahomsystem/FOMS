@@ -18,6 +18,10 @@ from models import Order, User, SecurityLog
 # 백업 시스템 임포트
 from simple_backup_system import SimpleBackupSystem
 
+# 지도 시스템 임포트
+from foms_address_converter import FOMSAddressConverter
+from foms_map_generator import FOMSMapGenerator
+
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = 'furniture_order_management_secret_key'
@@ -1821,6 +1825,368 @@ def download_excel():
 @login_required
 def calendar():
     return render_template('calendar.html')
+
+@app.route('/map_view')
+@login_required
+def map_view():
+    """지도 보기 페이지"""
+    return render_template('map_view.html')
+
+@app.route('/api/map_data')
+@login_required
+def api_map_data():
+    """지도 표시용 주문 데이터 API"""
+    try:
+        # 요청 파라미터
+        date_filter = request.args.get('date')  # YYYY-MM-DD 형식
+        status_filter = request.args.get('status')  # 상태 필터
+        limit = int(request.args.get('limit', 100))  # 최대 주문 수
+        
+        db = get_db()
+        
+        # 기본 쿼리
+        query = db.query(Order).filter(Order.status != 'DELETED')
+        
+        # 상태 필터 적용
+        if status_filter and status_filter != 'ALL':
+            query = query.filter(Order.status == status_filter)
+        
+        # 수도권 주문만 필터링 (지방 주문 및 자가실측 제외)
+        query = query.filter(
+            Order.is_regional != True,  # 지방 주문 제외
+            ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])  # 자가실측 제외
+        )
+        
+        # 날짜 필터 적용 (상태별 날짜 필드 사용)
+        if date_filter:
+            from sqlalchemy import and_, or_
+            
+            # 상태별 날짜 필드 조건들
+            date_conditions = []
+            
+            # RECEIVED 상태: received_date 사용
+            date_conditions.append(
+                and_(Order.status == 'RECEIVED', Order.received_date == date_filter)
+            )
+            
+            # MEASURED 상태: measurement_date 사용  
+            date_conditions.append(
+                and_(Order.status == 'MEASURED', Order.measurement_date == date_filter)
+            )
+            
+            # SCHEDULED 상태: scheduled_date 사용
+            date_conditions.append(
+                and_(Order.status == 'SCHEDULED', Order.scheduled_date == date_filter)
+            )
+            
+            # SHIPPED_PENDING 상태: scheduled_date 사용
+            date_conditions.append(
+                and_(Order.status == 'SHIPPED_PENDING', Order.scheduled_date == date_filter)
+            )
+            
+            # COMPLETED 상태: completion_date 사용
+            date_conditions.append(
+                and_(Order.status == 'COMPLETED', Order.completion_date == date_filter)
+            )
+            
+            # AS_RECEIVED 상태: as_received_date 사용
+            date_conditions.append(
+                and_(Order.status == 'AS_RECEIVED', Order.as_received_date == date_filter)
+            )
+            
+            # AS_COMPLETED 상태: as_completed_date 사용
+            date_conditions.append(
+                and_(Order.status == 'AS_COMPLETED', Order.as_completed_date == date_filter)
+            )
+            
+            # 모든 조건을 OR로 연결
+            query = query.filter(or_(*date_conditions))
+        
+        # 최신 주문부터 정렬하고 제한
+        orders = query.order_by(Order.id.desc()).limit(limit).all()
+        
+        # 주소 변환 시스템 초기화
+        converter = FOMSAddressConverter()
+        
+        # 주문 데이터를 지도용 데이터로 변환
+        map_data = []
+        for order in orders:
+            # 주소를 좌표로 변환
+            lat, lng, status = converter.convert_address(order.address)
+            
+            if lat is not None and lng is not None:
+                map_data.append({
+                    'id': order.id,
+                    'customer_name': order.customer_name,
+                    'phone': order.phone,
+                    'address': order.address,
+                    'product': order.product,
+                    'status': order.status,
+                    'received_date': order.received_date,
+                    'latitude': lat,
+                    'longitude': lng,
+                    'conversion_status': status
+                })
+        
+        return jsonify({
+            'success': True,
+            'data': map_data,
+            'total_orders': len(orders),
+            'converted_orders': len(map_data)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/generate_map')
+@login_required
+def api_generate_map():
+    """지도 HTML 생성 API"""
+    try:
+        # 요청 파라미터
+        date_filter = request.args.get('date')
+        status_filter = request.args.get('status')
+        title = request.args.get('title', '주문 위치 지도')
+        
+        db = get_db()
+        
+        # 기본 쿼리
+        query = db.query(Order).filter(Order.status != 'DELETED')
+        
+        # 상태 필터 적용
+        if status_filter and status_filter != 'ALL':
+            query = query.filter(Order.status == status_filter)
+        
+        # 수도권 주문만 필터링 (지방 주문 및 자가실측 제외)
+        query = query.filter(
+            Order.is_regional != True,  # 지방 주문 제외
+            ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])  # 자가실측 제외
+        )
+        
+        # 날짜 필터 적용 (상태별 날짜 필드 사용)
+        if date_filter:
+            from sqlalchemy import and_, or_
+            
+            # 상태별 날짜 필드 조건들
+            date_conditions = []
+            
+            # RECEIVED 상태: received_date 사용
+            date_conditions.append(
+                and_(Order.status == 'RECEIVED', Order.received_date == date_filter)
+            )
+            
+            # MEASURED 상태: measurement_date 사용  
+            date_conditions.append(
+                and_(Order.status == 'MEASURED', Order.measurement_date == date_filter)
+            )
+            
+            # SCHEDULED 상태: scheduled_date 사용
+            date_conditions.append(
+                and_(Order.status == 'SCHEDULED', Order.scheduled_date == date_filter)
+            )
+            
+            # SHIPPED_PENDING 상태: scheduled_date 사용
+            date_conditions.append(
+                and_(Order.status == 'SHIPPED_PENDING', Order.scheduled_date == date_filter)
+            )
+            
+            # COMPLETED 상태: completion_date 사용
+            date_conditions.append(
+                and_(Order.status == 'COMPLETED', Order.completion_date == date_filter)
+            )
+            
+            # AS_RECEIVED 상태: as_received_date 사용
+            date_conditions.append(
+                and_(Order.status == 'AS_RECEIVED', Order.as_received_date == date_filter)
+            )
+            
+            # AS_COMPLETED 상태: as_completed_date 사용
+            date_conditions.append(
+                and_(Order.status == 'AS_COMPLETED', Order.as_completed_date == date_filter)
+            )
+            
+            # 모든 조건을 OR로 연결
+            query = query.filter(or_(*date_conditions))
+        
+        orders = query.order_by(Order.id.desc()).limit(100).all()
+        
+        # 주소 변환
+        converter = FOMSAddressConverter()
+        map_data = []
+        
+        for order in orders:
+            lat, lng, status = converter.convert_address(order.address)
+            
+            if lat is not None and lng is not None:
+                map_data.append({
+                    'id': order.id,
+                    'customer_name': order.customer_name,
+                    'phone': order.phone,
+                    'address': order.address,
+                    'product': order.product,
+                    'status': order.status,
+                    'received_date': order.received_date,
+                    'latitude': lat,
+                    'longitude': lng
+                })
+        
+        # 지도 생성
+        map_generator = FOMSMapGenerator()
+        
+        if map_data:
+            folium_map = map_generator.create_map(map_data, title)
+            
+            if folium_map:
+                map_html = folium_map._repr_html_()
+                return jsonify({
+                    'success': True,
+                    'map_html': map_html,
+                    'total_orders': len(map_data)
+                })
+        
+        # 주문이 없어도 빈 지도 생성
+        empty_map = map_generator.create_empty_map(title)
+        if empty_map:
+            map_html = empty_map._repr_html_()
+            return jsonify({
+                'success': True,
+                'map_html': map_html,
+                'total_orders': 0,
+                'message': f'{title}에 해당하는 주문이 없습니다.'
+            })
+        
+        return jsonify({
+            'success': False,
+            'error': '지도를 생성할 수 없습니다.'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/calculate_route')
+@login_required
+def api_calculate_route():
+    """두 지점 간 경로 계산 API"""
+    try:
+        start_lat = request.args.get('start_lat', type=float)
+        start_lng = request.args.get('start_lng', type=float)
+        end_lat = request.args.get('end_lat', type=float)
+        end_lng = request.args.get('end_lng', type=float)
+        
+        if not all([start_lat, start_lng, end_lat, end_lng]):
+            return jsonify({
+                'success': False,
+                'error': '출발지와 도착지 좌표가 모두 필요합니다.'
+            }), 400
+        
+        # 주소 변환기 초기화
+        address_converter = FOMSAddressConverter()
+        
+        # 경로 계산
+        route_result = address_converter.calculate_route(
+            start_lat, start_lng, end_lat, end_lng
+        )
+        
+        if route_result['status'] == 'success':
+            return jsonify({
+                'success': True,
+                'data': route_result
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': route_result['message']
+            }), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'경로 계산 중 오류: {str(e)}'
+        }), 500
+
+@app.route('/api/address_suggestions')
+@login_required
+def api_address_suggestions():
+    """주소 교정 제안 API"""
+    try:
+        address = request.args.get('address')
+        if not address:
+            return jsonify({'success': False, 'error': '주소가 필요합니다.'}), 400
+        
+        converter = FOMSAddressConverter()
+        suggestions = converter.get_address_suggestions(address)
+        
+        return jsonify({
+            'success': True,
+            'suggestions': suggestions
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/add_address_learning', methods=['POST'])
+@login_required
+def api_add_address_learning():
+    """주소 학습 데이터 추가 API"""
+    try:
+        data = request.get_json()
+        
+        original_address = data.get('original_address')
+        corrected_address = data.get('corrected_address')
+        latitude = data.get('latitude')
+        longitude = data.get('longitude')
+        
+        if not all([original_address, corrected_address, latitude, longitude]):
+            return jsonify({
+                'success': False, 
+                'error': '모든 필드가 필요합니다.'
+            }), 400
+        
+        converter = FOMSAddressConverter()
+        converter.add_learning_data(original_address, corrected_address, latitude, longitude)
+        
+        return jsonify({
+            'success': True,
+            'message': '학습 데이터가 추가되었습니다.'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/validate_address')
+@login_required
+def api_validate_address():
+    """주소 유효성 검증 API"""
+    try:
+        address = request.args.get('address')
+        if not address:
+            return jsonify({'success': False, 'error': '주소가 필요합니다.'}), 400
+        
+        converter = FOMSAddressConverter()
+        validation = converter.validate_address(address)
+        
+        return jsonify({
+            'success': True,
+            'validation': validation
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/orders')
 @login_required

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주문 위치 지도 - FOMS</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .header-bar {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 10px 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            height: 60px;
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 100%;
+        }
+        
+        .header-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin: 0;
+        }
+        
+        .header-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .filter-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .filter-label {
+            font-size: 0.9rem;
+            margin: 0;
+        }
+        
+        .form-select-sm {
+            padding: 5px 10px;
+            font-size: 0.85rem;
+            border: 1px solid rgba(255,255,255,0.3);
+            background-color: rgba(255,255,255,0.1);
+            color: white;
+            border-radius: 4px;
+        }
+        
+        .form-select-sm option {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .btn-header {
+            padding: 5px 15px;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.3);
+            background-color: rgba(255,255,255,0.1);
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-header:hover {
+            background-color: rgba(255,255,255,0.2);
+            color: white;
+        }
+        
+        .map-container {
+            margin-top: 60px;
+            height: calc(100vh - 60px);
+            width: 100%;
+            position: relative;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(248, 249, 250, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+        }
+        
+        .loading-content {
+            text-align: center;
+            color: #007bff;
+        }
+        
+        .loading-spinner {
+            margin-bottom: 15px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: white;
+            margin-left: 5px;
+        }
+        
+        .error-message {
+            color: #dc3545;
+            text-align: center;
+            padding: 20px;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            margin: 20px;
+        }
+        
+        #map-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-bar">
+        <div class="header-content">
+            <h1 class="header-title">
+                <i class="fas fa-map-marked-alt"></i> 주문 위치 지도
+            </h1>
+            
+            <div class="header-controls">
+                <div class="filter-group">
+                    <label class="filter-label">날짜:</label>
+                    <input type="date" id="date-filter" class="form-select-sm">
+                </div>
+                
+                <div class="filter-group">
+                    <label class="filter-label">상태:</label>
+                    <select id="status-filter" class="form-select-sm">
+                        <option value="ALL">모든 상태</option>
+                        <option value="RECEIVED">접수</option>
+                        <option value="CONFIRMED">확인</option>
+                        <option value="IN_PRODUCTION">제작중</option>
+                        <option value="COMPLETED">완료</option>
+                        <option value="SHIPPED">배송</option>
+                        <option value="DELIVERED">배송완료</option>
+                        <option value="CANCELLED">취소</option>
+                        <option value="ON_HOLD">보류</option>
+                    </select>
+                </div>
+                
+                <button type="button" class="btn btn-header" onclick="loadMap()">
+                    <i class="fas fa-sync-alt"></i> 새로고침
+                </button>
+                
+                <button type="button" class="btn btn-header" onclick="window.close()">
+                    <i class="fas fa-times"></i> 닫기
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="map-container">
+        <div id="loading-overlay" class="loading-overlay">
+            <div class="loading-content">
+                <div class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin fa-3x"></i>
+                </div>
+                <div>
+                    <h5>지도를 로딩중입니다...</h5>
+                    <p>주소를 좌표로 변환하고 있습니다.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div id="map-content" style="display: none;">
+            <!-- 지도가 여기에 표시됩니다 -->
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // URL 파라미터에서 초기값 가져오기
+        const urlParams = new URLSearchParams(window.location.search);
+        const initialDate = urlParams.get('date') || new Date().toISOString().split('T')[0];
+        const initialStatus = urlParams.get('status') || 'ALL';
+        
+        // 초기값 설정
+        document.getElementById('date-filter').value = initialDate;
+        document.getElementById('status-filter').value = initialStatus;
+        
+        // 페이지 로드 시 로그인 상태 확인 및 지도 로드
+        document.addEventListener('DOMContentLoaded', function() {
+            // 현재 페이지가 로그인 페이지인지 확인
+            if (window.location.pathname === '/login') {
+                // 로그인 페이지라면 부모 창으로 알림
+                if (window.opener) {
+                    window.opener.postMessage('login_required', '*');
+                    window.close();
+                }
+                return;
+            }
+            
+            loadMap();
+        });
+        
+        // 필터 변경 시 자동 업데이트
+        document.getElementById('date-filter').addEventListener('change', loadMap);
+        document.getElementById('status-filter').addEventListener('change', loadMap);
+        
+        function showLoading() {
+            document.getElementById('loading-overlay').style.display = 'flex';
+            document.getElementById('map-content').style.display = 'none';
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading-overlay').style.display = 'none';
+            document.getElementById('map-content').style.display = 'block';
+        }
+        
+        function showError(message) {
+            hideLoading();
+            document.getElementById('map-content').innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h5>오류 발생</h5>
+                    <p>${message}</p>
+                    <button class="btn btn-primary" onclick="loadMap()">다시 시도</button>
+                    <button class="btn btn-secondary" onclick="showAddressHelp()" style="margin-left: 10px;">주소 변환 도움말</button>
+                </div>
+            `;
+        }
+        
+        function showAddressHelp() {
+            const helpContent = `
+                <div class="error-message">
+                    <i class="fas fa-info-circle"></i>
+                    <h5>AI 주소 변환 시스템</h5>
+                    <p>FOMS는 고급 AI 주소 처리 시스템을 사용합니다:</p>
+                    <ul style="text-align: left; margin: 20px;">
+                        <li><strong>학습 기반 변환:</strong> 이전 수정 데이터를 학습하여 정확도 향상</li>
+                        <li><strong>지능형 주소 정리:</strong> 불완전한 주소를 자동으로 보완</li>
+                        <li><strong>다중 전략 시도:</strong> 여러 방법으로 주소 변환 시도</li>
+                        <li><strong>구성 요소 분석:</strong> 주소를 세분화하여 처리</li>
+                    </ul>
+                    <p>주소 변환이 실패하는 경우:</p>
+                    <ul style="text-align: left; margin: 20px;">
+                        <li>더 정확한 주소로 주문을 수정해 주세요</li>
+                        <li>시/도, 구/군, 동 정보가 포함되어야 합니다</li>
+                        <li>아파트명이나 건물명을 추가해 보세요</li>
+                    </ul>
+                    <button class="btn btn-primary" onclick="loadMap()">다시 시도</button>
+                </div>
+            `;
+            document.getElementById('map-content').innerHTML = helpContent;
+        }
+        
+        function loadMap() {
+            showLoading();
+            
+            const dateFilter = document.getElementById('date-filter').value;
+            const statusFilter = document.getElementById('status-filter').value;
+            
+            // 헤더 제목 업데이트
+            updateHeaderTitle(dateFilter, statusFilter);
+            
+            // API 요청
+            const params = new URLSearchParams({
+                date: dateFilter,
+                status: statusFilter,
+                title: `${dateFilter} 주문 지도`
+            });
+            
+            fetch(`/api/generate_map?${params}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('map-content').innerHTML = data.map_html;
+                        hideLoading();
+                        
+                        // 성공 메시지 표시 (선택적)
+                        console.log(`지도 로드 완료: ${data.total_orders}개 주문`);
+                    } else {
+                        showError(data.error || '지도를 로드할 수 없습니다.');
+                    }
+                })
+                .catch(error => {
+                    console.error('지도 로드 오류:', error);
+                    showError('서버 연결 오류가 발생했습니다.');
+                });
+        }
+        
+        function updateHeaderTitle(date, status) {
+            const statusNames = {
+                'ALL': '모든 상태',
+                'RECEIVED': '접수',
+                'CONFIRMED': '확인',
+                'IN_PRODUCTION': '제작중',
+                'COMPLETED': '완료',
+                'SHIPPED': '배송',
+                'DELIVERED': '배송완료',
+                'CANCELLED': '취소',
+                'ON_HOLD': '보류'
+            };
+            
+            const statusName = statusNames[status] || '모든 상태';
+            const headerTitle = document.querySelector('.header-title');
+            headerTitle.innerHTML = `
+                <i class="fas fa-map-marked-alt"></i> 
+                ${date} - ${statusName} 주문 지도
+            `;
+        }
+        
+        // 키보드 단축키
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+                e.preventDefault();
+                loadMap();
+            } else if (e.key === 'Escape') {
+                window.close();
+            }
+        });
+        
+        // 창 크기 조정 시 지도 새로고침 (선택적)
+        window.addEventListener('resize', function() {
+            // 필요시 지도 크기 조정 로직 추가
+        });
+    </script>
+</body>
+</html>
