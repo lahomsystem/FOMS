@@ -108,13 +108,19 @@
     <div class="mb-3 d-flex justify-content-between align-items-center">
         <h4 class="mb-0">주문 캘린더</h4>
         
-        <div class="calendar-filters">
-            <select id="status-filter" class="form-select">
-                <option value="">모든 상태</option>
-                {% for code, name in STATUS.items() %}
-                <option value="{{ code }}">{{ name }}</option>
-                {% endfor %}
-            </select>
+        <div class="d-flex gap-2 align-items-center">
+            <button type="button" class="btn btn-success" onclick="openMapView()">
+                <i class="fas fa-map-marked-alt"></i> 지도 보기
+            </button>
+            
+            <div class="calendar-filters">
+                <select id="status-filter" class="form-select">
+                    <option value="">모든 상태</option>
+                    {% for code, name in STATUS.items() %}
+                    <option value="{{ code }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
         </div>
     </div>
     
@@ -174,9 +180,11 @@
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/locales-all.min.js"></script>
 
 <script>
+    // 전역 변수 선언
+    let calendar;
+    
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize variables
-        let calendar;
         let currentOrderId = null;
         let currentEvent = null;
         
@@ -516,6 +524,60 @@
                 alert('오류가 발생했습니다.');
             });
         });
+    });
+
+    // 지도 보기 함수 (전역 스코프)
+    function openMapView() {
+        // 먼저 로그인 상태 확인
+        fetch('/api/orders', {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => {
+            if (response.status === 401 || response.redirected) {
+                // 로그인이 필요한 경우
+                alert('로그인이 필요합니다. 먼저 로그인을 해주세요.');
+                window.location.href = '/login';
+                return;
+            }
+            
+            // 로그인 상태 확인됨, 지도 창 열기
+            openMapWindow();
+        })
+        .catch(error => {
+            console.error('로그인 상태 확인 오류:', error);
+            // 그래도 지도 창을 시도해 봄
+            openMapWindow();
+        });
+    }
+    
+    function openMapWindow() {
+        // 현재 선택된 날짜와 상태 필터 가져오기
+        const selectedDate = calendar ? calendar.getDate().toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+        const statusFilter = document.getElementById('status-filter').value;
+        
+        // 새 창으로 지도 페이지 열기 (듀얼 모니터용)
+        const mapUrl = `/map_view?date=${selectedDate}&status=${statusFilter || 'ALL'}`;
+        const mapWindow = window.open(
+            mapUrl, 
+            'mapWindow', 
+            'width=1400,height=900,left=100,top=100,resizable=yes,scrollbars=yes,toolbar=no,menubar=no,location=no,status=no'
+        );
+        
+        // 새 창이 로드된 후 포커스
+        if (mapWindow) {
+            mapWindow.focus();
+        }
+    }
+    
+    // 지도 창에서 오는 메시지 처리
+    window.addEventListener('message', function(event) {
+        if (event.data === 'login_required') {
+            alert('로그인이 필요합니다. 다시 로그인해 주세요.');
+            window.location.href = '/login';
+        }
     });
 </script>
 {% endblock %} 
