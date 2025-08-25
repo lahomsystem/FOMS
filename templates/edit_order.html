@@ -451,7 +451,19 @@
                 } else {
                     measurementTimeInput.style.display = 'block';
                 }
+                // 온라인 옵션의 시간 필드 업데이트
+                updateOnlineOptionsTime();
             });
+
+            // 실측시간 직접 입력 시
+            measurementTimeInput.addEventListener('input', function() {
+                updateOnlineOptionsTime();
+            });
+        }
+
+        // 온라인 옵션의 시간 필드 업데이트 함수 (개별 업데이트 방식으로 변경)
+        function updateOnlineOptionsTime() {
+            updateMeasurementTime();
         }
         
         // 폼 제출 시 measurement_time 필드에 올바른 값을 설정하는 로직 추가
@@ -611,106 +623,90 @@
             return result;
         }
 
-        // 온라인 옵션 자동 채우기 기능
-        function fillOnlineOptions() {
+        // 개별 필드 업데이트 함수 (다른 필드에 영향 없음)
+        function updateSpecificField(fieldPattern, newValue, exactSpacing = true) {
             const optionsOnline = document.getElementById('options_online');
             if (!optionsOnline) return;
             
-            const customerName = document.getElementById('customer_name').value || '';
-            const phone = document.getElementById('phone').value || '';
-            const address = document.getElementById('address').value || '';
-            const firstLineAddress = address.split('\n')[0].trim();
-            
-            // 실측일, 실측시간, 설치 예정일 정보 가져오기
-            const measurementDate = document.getElementById('measurement_date').value || '';
-            const measurementTimeSelect = document.getElementById('measurement_time_select') ? document.getElementById('measurement_time_select').value || '' : '';
-            const measurementTime = document.getElementById('measurement_time').value || '';
-            const scheduledDate = document.getElementById('scheduled_date') ? document.getElementById('scheduled_date').value || '' : '';
-            const completionDate = document.getElementById('completion_date') ? document.getElementById('completion_date').value || '' : '';
-            
             let content = optionsOnline.value;
+            const lines = content.split('\n');
             
-            // 고객명 업데이트
-            if (content.includes('고객명 :')) {
-                const lines = content.split('\n');
-                for (let i = 0; i < lines.length; i++) {
-                    if (lines[i].startsWith('고객명 :')) {
-                        lines[i] = `고객명 :  ${customerName}`;
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].match(fieldPattern)) {
+                    // 기존 라인의 패턴을 유지하면서 값만 변경
+                    const colonIndex = lines[i].indexOf(':');
+                    if (colonIndex !== -1) {
+                        const fieldName = lines[i].substring(0, colonIndex + 1);
+                        const spacing = exactSpacing ? lines[i].substring(colonIndex + 1).match(/^\s*/)[0] : ' ';
+                        lines[i] = `${fieldName}${spacing}${newValue}`;
                         break;
                     }
                 }
-                content = lines.join('\n');
             }
             
-            // 연락처 업데이트
-            if (content.includes('연락처 :')) {
-                const lines = content.split('\n');
-                for (let i = 0; i < lines.length; i++) {
-                    if (lines[i].startsWith('연락처 :')) {
-                        lines[i] = `연락처 :  ${phone}`;
-                        break;
-                    }
-                }
-                content = lines.join('\n');
-            }
-            
-            // 주소 업데이트
-            if (content.includes('주 소 :')) {
-                const lines = content.split('\n');
-                for (let i = 0; i < lines.length; i++) {
-                    if (lines[i].startsWith('주 소 :')) {
-                        lines[i] = `주 소 : ${firstLineAddress}`;
-                        break;
-                    }
-                }
-                content = lines.join('\n');
-            }
-            
-            // 실측일 업데이트
-            if (content.includes('실측일 :')) {
-                const lines = content.split('\n');
-                for (let i = 0; i < lines.length; i++) {
-                    if (lines[i].startsWith('실측일 :')) {
-                        let measurementInfo = '';
-                        if (measurementDate) {
-                            // 실측시간 정보에 따른 처리
-                            if (measurementTimeSelect === 'time_input' && measurementTime) {
-                                measurementInfo = formatDateToKorean(measurementDate, measurementTime);
-                            } else if (measurementTimeSelect !== 'time_input' && measurementTimeSelect) {
-                                measurementInfo = formatDateToKorean(measurementDate) + ` ${measurementTimeSelect}`;
-                            } else {
-                                measurementInfo = formatDateToKorean(measurementDate);
-                            }
-                        }
-                        lines[i] = `실측일 : ${measurementInfo}`;
-                        break;
-                    }
-                }
-                content = lines.join('\n');
-            }
-            
-            // 시공일 업데이트 (설치 예정일 또는 완료일)
-            if (content.includes('시공일 :')) {
-                const lines = content.split('\n');
-                for (let i = 0; i < lines.length; i++) {
-                    if (lines[i].startsWith('시공일 :')) {
-                        // 완료일이 있으면 완료일을, 없으면 예정일을 사용
-                        const dateToUse = completionDate || scheduledDate;
-                        if (dateToUse) {
-                            lines[i] = `시공일 : ${formatDateToKorean(dateToUse)}`;
-                        } else {
-                            lines[i] = `시공일 : 상담`;
-                        }
-                        break;
-                    }
-                }
-                content = lines.join('\n');
-            }
-            
-            optionsOnline.value = content;
+            optionsOnline.value = lines.join('\n');
+            adjustTextareaHeight(optionsOnline);
         }
         
-        // 자동 채우기 이벤트 리스너 등록
+        // 개별 필드별 업데이트 함수들
+        function updateCustomerName() {
+            const customerName = document.getElementById('customer_name').value || '';
+            updateSpecificField(/^고객명\s*:/, customerName);
+        }
+        
+        function updatePhone() {
+            const phone = document.getElementById('phone').value || '';
+            updateSpecificField(/^연락처\s*:/, phone);
+        }
+        
+        function updateAddress() {
+            const address = document.getElementById('address').value || '';
+            const firstLineAddress = address.split('\n')[0].trim();
+            updateSpecificField(/^주\s*소\s*:/, firstLineAddress);
+        }
+        
+        function updateMeasurementDate() {
+            const measurementDate = document.getElementById('measurement_date').value || '';
+            let measurementInfo = '';
+            
+            if (measurementDate) {
+                measurementInfo = formatDateToKorean(measurementDate);
+            }
+            
+            updateSpecificField(/^실측일\s*:/, measurementInfo);
+        }
+        
+        function updateMeasurementTime() {
+            const measurementTimeSelect = document.getElementById('measurement_time_select').value || '';
+            const measurementTime = document.getElementById('measurement_time').value || '';
+            let timeInfo = '';
+            
+            if (measurementTimeSelect === 'time_input' && measurementTime) {
+                timeInfo = measurementTime;
+            } else if (measurementTimeSelect !== 'time_input' && measurementTimeSelect) {
+                timeInfo = measurementTimeSelect;
+            }
+            
+            updateSpecificField(/^시\s*간\s*:/, timeInfo);
+        }
+        
+        function updateScheduledDate() {
+            const scheduledDate = document.getElementById('scheduled_date') ? document.getElementById('scheduled_date').value || '' : '';
+            const completionDate = document.getElementById('completion_date') ? document.getElementById('completion_date').value || '' : '';
+            let dateInfo = '';
+            
+            // 완료일이 있으면 완료일을, 없으면 예정일을 사용
+            const dateToUse = completionDate || scheduledDate;
+            if (dateToUse) {
+                dateInfo = formatDateToKorean(dateToUse);
+            } else {
+                dateInfo = '상담';
+            }
+            
+            updateSpecificField(/^시공일\s*:/, dateInfo);
+        }
+        
+        // 개별 필드별 이벤트 리스너 등록
         const customerNameInput = document.getElementById('customer_name');
         const phoneInput = document.getElementById('phone');
         const addressInput = document.getElementById('address');
@@ -720,15 +716,38 @@
         const scheduledDateInput = document.getElementById('scheduled_date');
         const completionDateInput = document.getElementById('completion_date');
         
-        [customerNameInput, phoneInput, addressInput, measurementDateInput, measurementTimeSelectInput, measurementTimeForFill, scheduledDateInput, completionDateInput].forEach(input => {
-            if (input) {
-                input.addEventListener('input', fillOnlineOptions);
-                // select 요소의 경우 change 이벤트도 추가
-                if (input.tagName === 'SELECT') {
-                    input.addEventListener('change', fillOnlineOptions);
-                }
-            }
-        });
+        // 각 필드마다 개별 업데이트 함수 연결
+        if (customerNameInput) {
+            customerNameInput.addEventListener('input', updateCustomerName);
+        }
+        
+        if (phoneInput) {
+            phoneInput.addEventListener('input', updatePhone);
+        }
+        
+        if (addressInput) {
+            addressInput.addEventListener('input', updateAddress);
+        }
+        
+        if (measurementDateInput) {
+            measurementDateInput.addEventListener('input', updateMeasurementDate);
+        }
+        
+        if (measurementTimeSelectInput) {
+            measurementTimeSelectInput.addEventListener('change', updateMeasurementTime);
+        }
+        
+        if (measurementTimeForFill) {
+            measurementTimeForFill.addEventListener('input', updateMeasurementTime);
+        }
+        
+        if (scheduledDateInput) {
+            scheduledDateInput.addEventListener('input', updateScheduledDate);
+        }
+        
+        if (completionDateInput) {
+            completionDateInput.addEventListener('input', updateScheduledDate);
+        }
     });
 </script>
 {% endblock %} 

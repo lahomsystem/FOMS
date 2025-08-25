@@ -180,7 +180,7 @@ class FOMSMapGenerator:
                 var marker = e.target;
                 var lat = {lat};
                 var lng = {lng};
-                var orderId = {order.get('id', idx)};
+                var orderId = {order_data.get('id', idx)};
                 var customerName = "{customer_name}";
                 
                 if (window.selectedMarkers) {{
@@ -263,7 +263,7 @@ class FOMSMapGenerator:
                     markers.forEach(function(markerEl, index) {{
                         if (index === {idx - 1}) {{ // 현재 마커 인덱스
                             markerEl.addEventListener('click', function() {{
-                                handleMarkerClick({lat}, {lng}, {order.get('id', idx)}, "{customer_name}", {idx});
+                                handleMarkerClick({lat}, {lng}, {order_data.get('id', idx)}, "{customer_name}", {idx});
                             }});
                         }}
                     }});

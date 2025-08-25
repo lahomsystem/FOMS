@@ -369,138 +369,145 @@ def utility_processor():
 @app.route('/')
 @login_required
 def index():
-    db = get_db()
-    status_filter = request.args.get('status')
-    search_query = request.args.get('search', '').strip()
-    sort_column = request.args.get('sort', 'id')
-    sort_direction = request.args.get('direction', 'desc')
-    page = request.args.get('page', 1, type=int)
-    per_page = 100 # 페이지당 표시할 항목 수
+    try:
+        db = get_db()
+        status_filter = request.args.get('status')
+        search_query = request.args.get('search', '').strip()
+        sort_column = request.args.get('sort', 'id')
+        sort_direction = request.args.get('direction', 'desc')
+        page = request.args.get('page', 1, type=int)
+        per_page = 100
 
-    # 상태 필터 적용
-    status_filter = request.args.get('status')
-    
-    # 지역 필터 적용 (새로 추가)
-    region_filter = request.args.get('region')
-    
-    # URL에서 정렬 정보 가져오기
-    sort_by = request.args.get('sort_by', 'id')
-    sort_order = request.args.get('sort_order', 'desc')
-    
-    # 컬럼별 필터 값 수집
-    filterable_columns = [
-        'id', 'received_date', 'received_time', 'customer_name', 'phone', 
-        'address', 'product', 'options', 'notes', 'status', 
-        'measurement_date', 'measurement_time', 'completion_date', 'manager_name', 'payment_amount'
-    ]
-    
-    # 컬럼별 입력 필터 값을 딕셔너리로 수집
-    column_filters = {}
-    for column_name in filterable_columns:
-        filter_value = request.args.get(f'filter_{column_name}', '').strip()
-        column_filters[column_name] = filter_value
-    
-    # 활성화된 컬럼 필터만 별도로 저장 (빈 값이 아닌 것만)
-    active_column_filters = {k: v for k, v in column_filters.items() if v}
-    
-    # 기본 쿼리
-    query = db.query(Order).filter(Order.deleted_at.is_(None))
-    
-    if status_filter:
-        # 접수 탭에서는 RECEIVED와 ON_HOLD 상태를 모두 표시
-        if status_filter == 'RECEIVED':
-            query = query.filter(Order.status.in_(['RECEIVED', 'ON_HOLD']))
-        else:
-            query = query.filter(Order.status == status_filter)
-    
-    # 지역 필터 적용
-    if region_filter == 'metro':
-        query = query.filter(Order.is_regional == False)  # 수도권 주문 (지방 아님)
-    elif region_filter == 'regional':
-        query = query.filter(Order.is_regional == True)   # 지방 주문
-    
-    # 검색어 필터 적용
-    if search_query:
-        search_term = f"%{search_query}%"
-        query = query.filter( # Corrected indentation for line 1139
-            or_(
-                Order.id.cast(String).like(search_term),  # integer 타입을 String으로 캐스팅
-                Order.received_date.like(search_term),
-                Order.received_time.like(search_term),
-                Order.customer_name.like(search_term),
-                Order.phone.like(search_term),
-                Order.address.like(search_term),
-                Order.product.like(search_term),
-                Order.options.like(search_term),
-                Order.notes.like(search_term),
-                Order.status.like(search_term),
-                Order.measurement_date.like(search_term),
-                Order.measurement_time.like(search_term),
-                Order.scheduled_date.like(search_term), # 설치 예정일 검색 추가
-                Order.completion_date.like(search_term),
-                Order.manager_name.like(search_term)
+        status_filter = request.args.get('status')
+        region_filter = request.args.get('region')
+        sort_by = request.args.get('sort_by', 'id')
+        sort_order = request.args.get('sort_order', 'desc')
+
+        filterable_columns = [
+            'id', 'received_date', 'received_time', 'customer_name', 'phone',
+            'address', 'product', 'options', 'notes', 'status',
+            'measurement_date', 'measurement_time', 'completion_date', 'manager_name', 'payment_amount'
+        ]
+
+        column_filters = {}
+        for col in filterable_columns:
+            filter_key = f'filter_{col}'
+            if filter_key in request.args:
+                column_filters[col] = request.args[filter_key]
+        
+        active_column_filters = {k: v for k, v in column_filters.items() if v}
+
+        query = db.query(Order)
+
+        if status_filter:
+            if status_filter == 'ALL':
+                pass
+            else:
+                query = query.filter(Order.status == status_filter)
+        
+        if region_filter == 'metro':
+            query = query.filter(Order.is_regional == False)
+        elif region_filter == 'regional':
+            query = query.filter(Order.is_regional == True)
+        
+        if search_query:
+            search_term = f"%{search_query}%"
+            query = query.filter(
+                or_(
+                    Order.id.cast(String).like(search_term),
+                    Order.received_date.like(search_term),
+                    Order.received_time.like(search_term),
+                    Order.customer_name.like(search_term),
+                    Order.phone.like(search_term),
+                    Order.address.like(search_term),
+                    Order.product.like(search_term),
+                    Order.options.like(search_term),
+                    Order.notes.like(search_term),
+                    Order.status.like(search_term),
+                    Order.measurement_date.like(search_term),
+                    Order.measurement_time.like(search_term),
+                    Order.scheduled_date.like(search_term),
+                    Order.completion_date.like(search_term),
+                    Order.manager_name.like(search_term)
+                )
             )
-        )
 
-    # 열별 필터링 논리
-    for column, filter_value in active_column_filters.items():
-        if filter_value:
-            filter_term = f"%{filter_value}%"
-            if column == 'id':
-                query = query.filter(Order.id.cast(String).like(filter_term))  # ID 필터링 시 캐스팅
-            elif column == 'payment_amount':
-                # payment_amount는 정수형이므로 String으로 캐스팅 후 LIKE 적용
-                query = query.filter(Order.payment_amount.cast(String).like(filter_term))
-            elif hasattr(Order, column):
-                column_attr = getattr(Order, column)
-                query = query.filter(column_attr.like(filter_term))
-    
-    # URL에서 정렬 정보 가져오기
-    sort_column = request.args.get('sort_by', 'id')
-    sort_direction = request.args.get('sort_order', 'desc')
+        for column, filter_value in active_column_filters.items():
+            if filter_value:
+                filter_term = f"%{filter_value}%"
+                if column == 'id':
+                    query = query.filter(Order.id.cast(String).like(filter_term))
+                elif column == 'payment_amount':
+                    query = query.filter(Order.payment_amount.cast(String).like(filter_term))
+                elif hasattr(Order, column):
+                    column_attr = getattr(Order, column)
+                    query = query.filter(column_attr.like(filter_term))
+        
+        sort_column = request.args.get('sort_by', 'id')
+        sort_direction = request.args.get('sort_order', 'desc')
 
-    # 정렬 적용 (index 함수와 동일한 로직)
-    if hasattr(Order, sort_column):
-        column_to_sort = getattr(Order, sort_column)
-        if sort_direction == 'asc':
-            query = query.order_by(column_to_sort.asc())
+        if hasattr(Order, sort_column):
+            column_to_sort = getattr(Order, sort_column)
+            if sort_direction == 'asc':
+                query = query.order_by(column_to_sort.asc())
+            else:
+                query = query.order_by(column_to_sort.desc())
         else:
-            query = query.order_by(column_to_sort.desc())
-    else:
-        query = query.order_by(Order.id.desc())  # 기본 정렬
+            query = query.order_by(Order.id.desc())
 
-    # 페이지네이션 적용
-    total_orders = query.count()
-    orders_from_db = query.offset((page - 1) * per_page).limit(per_page).all()
+        total_orders = query.count()
+        orders_from_db = query.offset((page - 1) * per_page).limit(per_page).all()
 
-    # 옵션 표시를 위한 헬퍼 함수 호출 (이제 전역 함수 사용)
-    processed_orders = []
-    for order_db_item in orders_from_db:
-        order_display_data = copy.deepcopy(order_db_item)
-        order_display_data.display_options = format_options_for_display(order_db_item.options) # 전역 함수 호출
-        processed_orders.append(order_display_data)
+        processed_orders = []
+        for order_db_item in orders_from_db:
+            order_display_data = copy.deepcopy(order_db_item)
+            order_display_data.display_options = format_options_for_display(order_db_item.options)
+            processed_orders.append(order_display_data)
 
-    # 사용자 정보 가져오기 (예: 역할 기반 UI 표시용)
-    user = None
-    if 'user_id' in session:
-        user = get_user_by_id(session['user_id'])
-    
-    return render_template(
-        'index.html',
-                          orders=processed_orders, 
-        status_list=STATUS, # 상태 목록은 여전히 필요
-        STATUS=STATUS, # 명시적으로 STATUS 전체 목록 전달
-                          current_status=status_filter,
-        search_query=search_query,
-        sort_column=sort_column,
-        sort_direction=sort_direction,
-        page=page,
-        per_page=per_page,
-        total_orders=total_orders,
-        active_column_filters=column_filters, # 입력 필터 값 전달 (변경 후)
-        user=user, # 사용자 정보 전달
-        current_region=region_filter  # 현재 지역 필터 추가
-    )
+        user = None
+        if 'user_id' in session:
+            user = get_user_by_id(session['user_id'])
+        
+        return render_template(
+            'index.html',
+            orders=processed_orders,
+            status_list=STATUS,
+            STATUS=STATUS,
+            current_status=status_filter,
+            search_query=search_query,
+            sort_column=sort_column,
+            sort_direction=sort_direction,
+            page=page,
+            per_page=per_page,
+            total_orders=total_orders,
+            active_column_filters=column_filters,
+            user=user,
+            current_region=region_filter
+        )
+    except UnicodeDecodeError as e:
+        print(f"Index 페이지 로딩 중 인코딩 오류: {str(e)}")
+        flash('데이터베이스 연결 중 인코딩 문제가 발생했습니다. 관리자에게 문의하세요.', 'error')
+        # 빈 데이터로 페이지 렌더링 시도
+        return render_template(
+            'index.html',
+            orders=[], 
+            status_list=STATUS,
+            STATUS=STATUS,
+            current_status=None,
+            search_query='',
+            sort_column='id',
+            sort_direction='desc',
+            page=1,
+            per_page=100,
+            total_orders=0,
+            active_column_filters={},
+            user=None,
+            current_region=None
+        )
+    except Exception as e:
+        print(f"Index 페이지 로딩 중 오류: {str(e)}")
+        flash('페이지 로딩 중 오류가 발생했습니다.', 'error')
+        return redirect(url_for('login'))
 
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
