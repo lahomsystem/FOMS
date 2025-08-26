@@ -10,24 +10,38 @@ class SimpleBackupSystem:
         # 백업 설정
         self.db_name = "furniture_orders"
         self.db_user = "postgres"
-        self.db_pass = "postgres"
+        self.db_pass = "lahom"  # 실제 비밀번호로 수정
         self.db_host = "localhost"
-        # PostgreSQL 설치 경로 확인 (버전에 따라 다를 수 있음)
+        # PostgreSQL 설치 경로 확인 (더 정확한 검색)
         possible_paths = [
             r"C:\Program Files\PostgreSQL\16\bin\pg_dump.exe",
             r"C:\Program Files\PostgreSQL\15\bin\pg_dump.exe", 
             r"C:\Program Files\PostgreSQL\14\bin\pg_dump.exe",
-            r"C:\Program Files\PostgreSQL\13\bin\pg_dump.exe"
+            r"C:\Program Files\PostgreSQL\13\bin\pg_dump.exe",
+            r"C:\Program Files\PostgreSQL\12\bin\pg_dump.exe",
+            r"C:\Program Files\PostgreSQL\11\bin\pg_dump.exe"
         ]
         
         self.pg_dump_path = None
         for path in possible_paths:
             if os.path.exists(path):
                 self.pg_dump_path = path
+                print(f"✅ PostgreSQL pg_dump 발견: {path}")
                 break
+        
+        # PATH에서도 찾기
+        if not self.pg_dump_path:
+            try:
+                result = subprocess.run(['where', 'pg_dump'], capture_output=True, text=True, shell=True)
+                if result.returncode == 0:
+                    self.pg_dump_path = result.stdout.strip().split('\n')[0]
+                    print(f"✅ PATH에서 pg_dump 발견: {self.pg_dump_path}")
+            except:
+                pass
         
         if not self.pg_dump_path:
             self.pg_dump_path = r"C:\Program Files\PostgreSQL\16\bin\pg_dump.exe"  # 기본값
+            print(f"⚠️ pg_dump 경로를 찾을 수 없어 기본값 사용: {self.pg_dump_path}")
         
         # 백업 경로 설정
         self.tier1_path = "backups/tier1_primary"  # 1차: 로컬 백업
@@ -69,21 +83,41 @@ class SimpleBackupSystem:
             "-d", self.db_name, 
             "-h", self.db_host,
             "-f", backup_file,
-            "--encoding=UTF8"
+            "--encoding=UTF8",
+            "--verbose"  # 상세 로그 추가
         ]
         
         # 비밀번호 환경변수 설정
         env = os.environ.copy()
         env["PGPASSWORD"] = self.db_pass
         
+        print(f"🔍 백업 명령어: {' '.join(command[:4])} ... -f {backup_file}")
+        print(f"🔍 데이터베이스: {self.db_name} (사용자: {self.db_user})")
+        
         try:
+            # 먼저 pg_dump 파일 존재 확인
+            if not os.path.exists(self.pg_dump_path):
+                print(f"❌ pg_dump 실행 파일이 존재하지 않습니다: {self.pg_dump_path}")
+                return None
+            
             result = subprocess.run(command, check=True, capture_output=True, text=True, env=env)
             print(f"✅ 데이터베이스 백업 완료: {backup_file}")
-            return backup_file
+            
+            # 백업 파일 크기 확인
+            if os.path.exists(backup_file):
+                size = os.path.getsize(backup_file)
+                print(f"📊 백업 파일 크기: {size / (1024*1024):.2f} MB")
+                return backup_file
+            else:
+                print("❌ 백업 파일이 생성되지 않았습니다.")
+                return None
+                
         except subprocess.CalledProcessError as e:
-            print(f"❌ 데이터베이스 백업 실패: {e}")
+            print(f"❌ 데이터베이스 백업 실패 (코드: {e.returncode})")
+            if e.stdout:
+                print(f"출력: {e.stdout}")
             if e.stderr:
-                print(f"에러 상세: {e.stderr}")
+                print(f"에러: {e.stderr}")
             return None
         except FileNotFoundError:
             print(f"❌ pg_dump 실행 파일을 찾을 수 없습니다: {self.pg_dump_path}")
@@ -108,13 +142,25 @@ class SimpleBackupSystem:
                         dest_file = os.path.join(files_dir, os.path.basename(item))
                         shutil.copy2(item, dest_file)
                         backed_up_files.append(item)
+                        print(f"✅ 파일 백업: {item}")
                     elif os.path.isdir(item):
-                        # 디렉토리 복사
+                        # 디렉토리 복사 (권한 문제 해결)
                         dest_dir = os.path.join(files_dir, item)
                         if os.path.exists(dest_dir):
-                            shutil.rmtree(dest_dir)
-                        shutil.copytree(item, dest_dir)
-                        backed_up_files.append(item)
+                            try:
+                                shutil.rmtree(dest_dir)
+                            except PermissionError:
+                                print(f"⚠️ 기존 디렉토리 삭제 실패 (권한): {dest_dir}")
+                                continue
+                        
+                        try:
+                            shutil.copytree(item, dest_dir, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+                            backed_up_files.append(item)
+                            print(f"✅ 디렉토리 백업: {item}")
+                        except PermissionError as e:
+                            print(f"⚠️ 디렉토리 백업 실패 (권한): {item} - {e}")
+                        except Exception as e:
+                            print(f"⚠️ 디렉토리 백업 실패: {item} - {e}")
                 except Exception as e:
                     print(f"⚠️ 파일 백업 실패: {item} - {e}")
             else:

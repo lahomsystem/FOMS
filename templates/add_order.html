@@ -340,7 +340,7 @@ https://mkt.shopping.naver.com/link/685de66bd4f017474416f9e9</textarea>
         }
 
         // 개별 필드 업데이트 함수 (다른 필드에 영향 없음)
-        function updateSpecificField(fieldPattern, newValue, exactSpacing = true) {
+        function updateSpecificField(fieldPattern, newValue) {
             const optionsOnline = document.getElementById('options_online');
             if (!optionsOnline) return;
             
@@ -349,12 +349,11 @@ https://mkt.shopping.naver.com/link/685de66bd4f017474416f9e9</textarea>
             
             for (let i = 0; i < lines.length; i++) {
                 if (lines[i].match(fieldPattern)) {
-                    // 기존 라인의 패턴을 유지하면서 값만 변경
+                    // 콜론 위치를 찾아서 정확히 1스페이스로 통일
                     const colonIndex = lines[i].indexOf(':');
                     if (colonIndex !== -1) {
                         const fieldName = lines[i].substring(0, colonIndex + 1);
-                        const spacing = exactSpacing ? lines[i].substring(colonIndex + 1).match(/^\s*/)[0] : ' ';
-                        lines[i] = `${fieldName}${spacing}${newValue}`;
+                        lines[i] = `${fieldName} ${newValue}`;
                         break;
                     }
                 }
