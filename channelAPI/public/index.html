@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 채널톡 실측/시공일 검색</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 헤더 -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-search"></i> 채널톡 실측/시공일 검색</h1>
+                <div class="connection-status">
+                    <span id="connection-indicator" class="status-indicator">
+                        <i class="fas fa-circle"></i> 연결 확인 중...
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 메인 콘텐츠 -->
+        <main class="main-content">
+            <!-- 검색 옵션 -->
+            <section class="search-section">
+                <div class="card">
+                    <h2><i class="fas fa-filter"></i> 검색 옵션</h2>
+                    
+
+
+                    <div class="form-group">
+                        <label for="start-date">
+                            <i class="fas fa-calendar"></i> 시작 날짜 (한국 표준시)
+                        </label>
+                        <input type="date" id="start-date" />
+                        <small>이 날짜 이후의 메시지만 검색합니다 (KST 기준)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="max-chats">
+                            <i class="fas fa-envelope"></i> 최대 검색 메시지 수
+                        </label>
+                        <input type="number" id="max-chats" min="1" max="5000" value="500" />
+                        <small>팀챗 그룹에서 검색할 메시지 수 (1-5000)</small>
+                    </div>
+
+                    <div class="search-buttons">
+                        <button id="search-measurements-btn" class="btn btn-primary" style="background: linear-gradient(135deg, #ff6b6b, #ee5a52);">
+                            <i class="fas fa-ruler-combined"></i> 실측스케쥴 검색
+                        </button>
+                        <button id="search-constructions-btn" class="btn btn-primary" style="background: linear-gradient(135deg, #4ecdc4, #44a08d);">
+                            <i class="fas fa-hard-hat"></i> 시공일 검색
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+
+
+            <!-- 진행 상황 -->
+            <section id="progress-section" class="progress-section" style="display: none;">
+                <div class="card">
+                    <h2><i class="fas fa-spinner fa-spin"></i> 검색 진행 상황</h2>
+                    
+                    <div class="progress-bar">
+                        <div id="progress-fill" class="progress-fill"></div>
+                    </div>
+                    
+                    <div id="progress-text" class="progress-text">
+                        검색을 준비하는 중...
+                    </div>
+
+                    <div id="progress-details" class="progress-details"></div>
+
+                    <button id="cancel-search-btn" class="btn btn-cancel">
+                        <i class="fas fa-stop"></i> 검색 중단
+                    </button>
+                </div>
+            </section>
+
+            <!-- 검색 결과 -->
+            <section id="results-section" class="results-section" style="display: none;">
+                <div class="card">
+                    <h2><i class="fas fa-list"></i> 검색 결과</h2>
+                    
+                    <div id="results-summary" class="results-summary"></div>
+                    
+                    <div class="results-tabs">
+                        <button id="tab-list" class="tab-button active">
+                            <i class="fas fa-list"></i> 목록 보기
+                        </button>
+                        <button id="tab-dashboard" class="tab-button">
+                            <i class="fas fa-chart-bar"></i> 대시보드
+                        </button>
+                    </div>
+                    
+                    <div id="results-container" class="results-container"></div>
+                    <div id="dashboard-container" class="dashboard-container" style="display: none;"></div>
+
+                    <div class="results-actions">
+                        <button id="export-results-btn" class="btn btn-secondary">
+                            <i class="fas fa-download"></i> 결과 내보내기
+                        </button>
+                        <button id="new-search-btn" class="btn btn-primary">
+                            <i class="fas fa-search"></i> 새로운 검색
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+
+        </main>
+
+
+
+        <!-- 토스트 알림 -->
+        <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <!-- Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
