@@ -2043,6 +2043,13 @@ def api_generate_map():
         # 지도 생성
         map_generator = FOMSMapGenerator()
         
+        # 디버깅: map_data 타입과 내용 확인
+        print(f"DEBUG: map_data 타입: {type(map_data)}")
+        print(f"DEBUG: map_data 길이: {len(map_data) if hasattr(map_data, '__len__') else 'N/A'}")
+        if map_data and len(map_data) > 0:
+            print(f"DEBUG: 첫 번째 항목 타입: {type(map_data[0])}")
+            print(f"DEBUG: 첫 번째 항목: {map_data[0]}")
+        
         if map_data:
             folium_map = map_generator.create_map(map_data, title)
             
@@ -2071,9 +2078,28 @@ def api_generate_map():
         })
         
     except Exception as e:
+        # 상세한 오류 로깅
+        import traceback
+        import sys
+        
+        error_msg = str(e)
+        error_type = type(e).__name__
+        traceback_str = traceback.format_exc()
+        
+        print(f"ERROR: generate_map 에러 발생")
+        print(f"ERROR: 타입: {error_type}")
+        print(f"ERROR: 메시지: {error_msg}")
+        print(f"ERROR: 전체 스택 트레이스:")
+        print(traceback_str)
+        
+        # 로그 파일에도 기록
+        app.logger.error(f"generate_map 에러: {error_type}: {error_msg}")
+        app.logger.error(f"스택 트레이스: {traceback_str}")
+        
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': f'{error_type}: {error_msg}',
+            'debug_info': traceback_str if app.debug else None
         }), 500
 
 @app.route('/api/calculate_route')
