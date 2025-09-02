@@ -85,11 +85,27 @@ class FOMSMapGenerator:
         if not order_data:
             return None
         
+        # 디버깅: 데이터 타입 확인
+        print(f"DEBUG create_map: order_data 타입: {type(order_data)}")
+        print(f"DEBUG create_map: order_data 길이: {len(order_data) if hasattr(order_data, '__len__') else 'N/A'}")
+        if order_data and len(order_data) > 0:
+            print(f"DEBUG create_map: 첫 번째 항목 타입: {type(order_data[0])}")
+            print(f"DEBUG create_map: 첫 번째 항목: {order_data[0]}")
+        
         # 성공한 좌표만 필터링
-        valid_data = [
-            order for order in order_data 
-            if order.get('latitude') is not None and order.get('longitude') is not None
-        ]
+        valid_data = []
+        for i, order in enumerate(order_data):
+            try:
+                # 타입 체크
+                if not isinstance(order, dict):
+                    print(f"ERROR: order[{i}]는 딕셔너리가 아닙니다. 타입: {type(order)}, 값: {order}")
+                    continue
+                    
+                if order.get('latitude') is not None and order.get('longitude') is not None:
+                    valid_data.append(order)
+            except Exception as e:
+                print(f"ERROR: order[{i}] 처리 중 오류: {e}, 타입: {type(order)}")
+                continue
         
         if not valid_data:
             return None
@@ -180,7 +196,7 @@ class FOMSMapGenerator:
                 var marker = e.target;
                 var lat = {lat};
                 var lng = {lng};
-                var orderId = {order_data.get('id', idx)};
+                var orderId = {order.get('id', idx)};
                 var customerName = "{customer_name}";
                 
                 if (window.selectedMarkers) {{
@@ -263,7 +279,7 @@ class FOMSMapGenerator:
                     markers.forEach(function(markerEl, index) {{
                         if (index === {idx - 1}) {{ // 현재 마커 인덱스
                             markerEl.addEventListener('click', function() {{
-                                handleMarkerClick({lat}, {lng}, {order_data.get('id', idx)}, "{customer_name}", {idx});
+                                handleMarkerClick({lat}, {lng}, {order.get('id', idx)}, "{customer_name}", {idx});
                             }});
                         }}
                     }});
@@ -476,13 +492,13 @@ class FOMSMapGenerator:
         # 기본 위치 (서울)
         center = [37.5665, 126.9780]
         
-        # 지도 생성 - 카카오맵 스타일
+        # 지도 생성 - OpenStreetMap 스타일
         m = folium.Map(
             location=center,
             zoom_start=10,
             width="100%",
             height="100vh",
-            tiles=None
+            tiles='OpenStreetMap'
         )
         
         # OpenStreetMap만 사용 (레이어 컨트롤 불필요)
