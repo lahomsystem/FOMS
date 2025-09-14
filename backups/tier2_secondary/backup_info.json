@@ -1,6 +1,6 @@
 {
-  "backup_time": "2025-08-27T22:17:47.061713",
-  "database_file": "database_backup_20250827_221746.sql",
+  "backup_time": "2025-09-14T11:37:22.798482",
+  "database_file": "database_backup_20250914_113722.sql",
   "system_files": [
     "app.py",
     "models.py",
@@ -9,5 +9,5 @@
     "menu_config.json"
   ],
   "backup_location": "backups/tier2_secondary",
-  "database_size": 2092662
+  "database_size": 2631307
 }
