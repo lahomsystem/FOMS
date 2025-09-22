@@ -2821,12 +2821,20 @@ def update_order_field():
         return jsonify({'success': False, 'message': f'허용되지 않은 필드입니다: {field}'}), 400
 
     try:
+        old_value = getattr(order, field, None)
         setattr(order, field, value)
         db.commit()
-        log_access(f"주문 #{order.id}의 '{field}' 필드를 '{value}'(으)로 변경", session['user_id'])
+        
+        # 상태 변경 시 특별한 로깅
+        if field == 'status':
+            log_access(f"자가실측 주문 #{order.id} 상태 변경: '{old_value}' → '{value}'", session['user_id'])
+        else:
+            log_access(f"주문 #{order.id}의 '{field}' 필드를 '{value}'(으)로 변경", session['user_id'])
+        
         return jsonify({'success': True, 'message': '정보가 업데이트되었습니다.'})
     except Exception as e:
         db.rollback()
+        current_app.logger.error(f"주문 #{order_id} 필드 업데이트 실패: {str(e)}")
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
 
 @app.route('/api/update_order_status', methods=['POST'])
@@ -3250,14 +3258,21 @@ def self_measurement_dashboard():
         if order.status == 'COMPLETED'
     ]
     
-    # 진행 중인 주문 분류 (완료되지 않은 모든 주문)
+    # 설치예정인 주문 분류
+    scheduled_orders = [
+        order for order in all_self_measurement_orders
+        if order.status == 'SCHEDULED'
+    ]
+    
+    # 진행 중인 주문 분류 (완료되지 않고 설치예정도 아닌 주문)
     pending_orders = [
         order for order in all_self_measurement_orders
-        if order.status != 'COMPLETED'
+        if order.status != 'COMPLETED' and order.status != 'SCHEDULED'
     ]
     
     return render_template('self_measurement_dashboard.html',
                            pending_orders=pending_orders,
+                           scheduled_orders=scheduled_orders,
                            completed_orders=completed_orders,
                            search_query=search_query,
                            STATUS=STATUS)

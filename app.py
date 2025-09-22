@@ -2828,7 +2828,6 @@ def update_order_field():
         # 상태 변경 시 특별한 로깅
         if field == 'status':
             log_access(f"자가실측 주문 #{order.id} 상태 변경: '{old_value}' → '{value}'", session['user_id'])
-            current_app.logger.info(f"자가실측 주문 #{order.id} 상태 변경: '{old_value}' → '{value}'")
         else:
             log_access(f"주문 #{order.id}의 '{field}' 필드를 '{value}'(으)로 변경", session['user_id'])
         
@@ -3253,9 +3252,6 @@ def self_measurement_dashboard():
     # 모든 자가실측 주문 가져오기
     all_self_measurement_orders = base_query.order_by(Order.id.desc()).all()
     
-    # 디버깅을 위한 로그
-    current_app.logger.info(f"자가실측 대시보드: 총 {len(all_self_measurement_orders)}개 주문 로드")
-    
     # 완료된 주문 분류
     completed_orders = [
         order for order in all_self_measurement_orders
@@ -3273,21 +3269,6 @@ def self_measurement_dashboard():
         order for order in all_self_measurement_orders
         if order.status != 'COMPLETED' and order.status != 'SCHEDULED'
     ]
-    
-    # 디버깅을 위한 로그
-    current_app.logger.info(f"자가실측 대시보드 분류: 완료={len(completed_orders)}, 설치예정={len(scheduled_orders)}, 진행중={len(pending_orders)}")
-    
-    # SCHEDULED 상태인 주문들의 ID 로깅
-    if scheduled_orders:
-        scheduled_ids = [order.id for order in scheduled_orders]
-        current_app.logger.info(f"설치예정 주문 IDs: {scheduled_ids}")
-    
-    # 진행중인 주문들의 상태별 분류 로깅
-    status_counts = {}
-    for order in pending_orders:
-        status_counts[order.status] = status_counts.get(order.status, 0) + 1
-    if status_counts:
-        current_app.logger.info(f"진행중 주문 상태별 분류: {status_counts}")
     
     return render_template('self_measurement_dashboard.html',
                            pending_orders=pending_orders,
