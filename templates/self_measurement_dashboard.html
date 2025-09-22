@@ -696,8 +696,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const allCheckboxes = row.querySelectorAll('.self-measurement-checkbox');
         const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
 
-        console.log(`Order ${orderId}: All checkboxes checked: ${allChecked}`);
-
         if (allChecked) {
             // 모든 체크박스가 체크된 경우 - 설치예정 상태로 변경
             updateOrderStatus(orderId, 'SCHEDULED', '설치 예정');
@@ -708,8 +706,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateOrderStatus(orderId, newStatus, statusName) {
-        console.log(`Updating order ${orderId} status to ${newStatus}`);
-        
         fetch('/api/update_order_field', {
             method: 'POST',
             headers: {
@@ -721,25 +717,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 new_value: newStatus
             })
         })
-        .then(response => {
-            console.log(`Response status: ${response.status}`);
-            return response.json();
-        })
+        .then(response => response.json())
         .then(data => {
-            console.log(`Response data:`, data);
             if(data.success) {
-                console.log(`Order ${orderId} status successfully updated to ${newStatus}`);
                 // 상태 변경 성공 시 즉시 페이지 새로고침
                 setTimeout(() => {
                     location.reload();
                 }, 500); // 0.5초 후 새로고침
             } else {
-                console.error(`Status update failed: ${data.message}`);
                 alert(`상태 업데이트 실패: ${data.message}`);
             }
         })
         .catch(error => {
-            console.error('Error updating status:', error);
             alert('상태 업데이트 중 오류가 발생했습니다.');
         });
     }
