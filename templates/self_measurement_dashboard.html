@@ -77,6 +77,34 @@
         background: linear-gradient(135deg, #ffc107 0%, #ffb300 100%);
         color: white;
     }
+    
+    /* 메모 토글 버튼 스타일 */
+    .memo-toggle-btn {
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        font-size: 12px;
+        line-height: 1;
+        border-radius: 4px;
+        border: 1px solid #dee2e6;
+        background-color: #f8f9fa;
+        color: #6c757d;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .memo-toggle-btn:hover {
+        background-color: #6c757d;
+        border-color: #6c757d;
+        color: white;
+    }
+    
+    .memo-toggle-btn:focus {
+        box-shadow: 0 0 0 0.2rem rgba(108, 117, 125, 0.25);
+        outline: none;
+    }
 </style>
 {% endblock %}
 
@@ -173,7 +201,14 @@
                             <thead class="table-light">
                                 <tr>
                                     <th style="width: 60px;">번호</th>
-                                    <th style="width: 120px;">메모</th>
+                                    <th style="width: 120px;">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <span>메모</span>
+                                            <button type="button" class="btn btn-sm memo-toggle-btn" data-section="pending" title="메모 1줄/전체 토글">
+                                                <i class="fas fa-minus"></i>
+                                            </button>
+                                        </div>
+                                    </th>
                                     <th style="width: 120px;">고객명</th>
                                     <th style="width: 200px;">주소</th>
                                     <th style="width: 200px;">제품</th>
@@ -330,7 +365,14 @@
                             <thead class="table-light">
                                 <tr>
                                     <th style="width: 60px;">번호</th>
-                                    <th style="width: 120px;">메모</th>
+                                    <th style="width: 120px;">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <span>메모</span>
+                                            <button type="button" class="btn btn-sm memo-toggle-btn" data-section="scheduled" title="메모 1줄/전체 토글">
+                                                <i class="fas fa-minus"></i>
+                                            </button>
+                                        </div>
+                                    </th>
                                     <th style="width: 120px;">고객명</th>
                                     <th style="width: 200px;">주소</th>
                                     <th style="width: 200px;">제품</th>
@@ -487,7 +529,14 @@
                             <thead class="table-light">
                                 <tr>
                                     <th style="width: 60px;">번호</th>
-                                    <th style="width: 120px;">메모</th>
+                                    <th style="width: 120px;">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <span>메모</span>
+                                            <button type="button" class="btn btn-sm memo-toggle-btn" data-section="completed" title="메모 1줄/전체 토글">
+                                                <i class="fas fa-minus"></i>
+                                            </button>
+                                        </div>
+                                    </th>
                                     <th style="width: 120px;">고객명</th>
                                     <th style="width: 200px;">주소</th>
                                     <th style="width: 200px;">제품</th>
@@ -1018,6 +1067,160 @@ function toggleCompletedOrders() {
         icon.classList.add('fa-eye');
         text.innerText = '보이기';
     }
+}
+
+// 메모 토글 기능
+document.addEventListener('DOMContentLoaded', function() {
+    // 메모 토글 버튼 이벤트
+    document.querySelectorAll('.memo-toggle-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const section = this.dataset.section;
+            toggleMemoVisibility(section);
+        });
+    });
+    
+    // 메모 클릭 시 자동 확장 기능 추가
+    addMemoClickHandlers();
+    
+    // 페이지 로드 시 저장된 메모 상태 복원
+    restoreMemoStates();
+});
+
+// 메모 1줄/전체 토글 함수
+function toggleMemoVisibility(section) {
+    const textareas = getSectionTextareas(section);
+    const button = document.querySelector(`.memo-toggle-btn[data-section="${section}"]`);
+    const isExpanded = isMemoExpanded(section);
+    
+    if (isExpanded) {
+        // 1줄 모드로 변경
+        textareas.forEach(function(textarea) {
+            textarea.style.height = '32px';
+            textarea.style.overflow = 'hidden';
+            textarea.style.resize = 'none';
+        });
+        // 버튼 아이콘 변경
+        button.innerHTML = '<i class="fas fa-plus"></i>';
+        saveMemoState(section, 'collapsed');
+    } else {
+        // 전체 모드로 변경
+        textareas.forEach(function(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.overflow = 'hidden';
+            textarea.style.resize = 'none';
+            // 내용에 맞게 높이 조정
+            textarea.style.height = Math.max(32, textarea.scrollHeight) + 'px';
+        });
+        // 버튼 아이콘 변경
+        button.innerHTML = '<i class="fas fa-minus"></i>';
+        saveMemoState(section, 'expanded');
+    }
+}
+
+// 섹션별 메모 textarea 선택
+function getSectionTextareas(section) {
+    let textareas = [];
+    
+    if (section === 'pending') {
+        // 진행 중인 자가실측 섹션
+        const pendingCard = document.querySelector('.header-pending').closest('.card');
+        textareas = pendingCard.querySelectorAll('textarea.self-measurement-memo');
+    } else if (section === 'scheduled') {
+        // 설치예정인 자가실측 섹션
+        const scheduledCard = document.querySelector('.header-scheduled').closest('.card');
+        textareas = scheduledCard.querySelectorAll('textarea.self-measurement-memo');
+    } else if (section === 'completed') {
+        // 완료된 자가실측 섹션
+        const completedCard = document.querySelector('.header-completed').closest('.card');
+        textareas = completedCard.querySelectorAll('textarea.self-measurement-memo');
+    }
+    
+    return textareas;
+}
+
+// 메모가 전체 모드인지 확인
+function isMemoExpanded(section) {
+    const textareas = getSectionTextareas(section);
+    if (textareas.length > 0) {
+        const firstTextarea = textareas[0];
+        const height = parseInt(firstTextarea.style.height);
+        return height > 32; // 32px보다 크면 전체 모드
+    }
+    return false; // 기본값은 1줄 모드
+}
+
+// 메모 클릭 시 자동 확장 기능
+function addMemoClickHandlers() {
+    document.querySelectorAll('textarea.self-measurement-memo').forEach(function(textarea) {
+        textarea.addEventListener('click', function() {
+            const section = getSectionFromTextarea(this);
+            if (section && !isMemoExpanded(section)) {
+                // 1줄 모드일 때만 자동 확장
+                toggleMemoVisibility(section);
+            }
+        });
+    });
+}
+
+// textarea에서 섹션 정보 가져오기
+function getSectionFromTextarea(textarea) {
+    const card = textarea.closest('.card');
+    if (card) {
+        const header = card.querySelector('.card-header');
+        if (header) {
+            if (header.classList.contains('header-pending')) return 'pending';
+            if (header.classList.contains('header-scheduled')) return 'scheduled';
+            if (header.classList.contains('header-completed')) return 'completed';
+        }
+    }
+    return null;
+}
+
+// 메모 상태 저장
+function saveMemoState(section, state) {
+    const key = `memo_state_${section}`;
+    localStorage.setItem(key, state);
+}
+
+// 저장된 메모 상태 복원
+function restoreMemoStates() {
+    const sections = ['pending', 'scheduled', 'completed'];
+    
+    sections.forEach(function(section) {
+        const key = `memo_state_${section}`;
+        const savedState = localStorage.getItem(key);
+        
+        if (savedState === 'expanded') {
+            // 전체 모드로 복원
+            const textareas = getSectionTextareas(section);
+            const button = document.querySelector(`.memo-toggle-btn[data-section="${section}"]`);
+            
+            textareas.forEach(function(textarea) {
+                textarea.style.height = 'auto';
+                textarea.style.overflow = 'hidden';
+                textarea.style.resize = 'none';
+                textarea.style.height = Math.max(32, textarea.scrollHeight) + 'px';
+            });
+            
+            if (button) {
+                button.innerHTML = '<i class="fas fa-minus"></i>';
+            }
+        } else {
+            // 1줄 모드로 복원 (기본값)
+            const textareas = getSectionTextareas(section);
+            const button = document.querySelector(`.memo-toggle-btn[data-section="${section}"]`);
+            
+            textareas.forEach(function(textarea) {
+                textarea.style.height = '32px';
+                textarea.style.overflow = 'hidden';
+                textarea.style.resize = 'none';
+            });
+            
+            if (button) {
+                button.innerHTML = '<i class="fas fa-plus"></i>';
+            }
+        }
+    });
 }
 </script>
 {% endblock %} 
