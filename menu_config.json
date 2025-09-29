@@ -44,6 +44,16 @@
 
     {
 
+      "id": "storage_dashboard",
+
+      "name": "수납장 대시보드",
+
+      "url": "/storage_dashboard"
+
+    },
+
+    {
+
       "id": "regional_dashboard",
 
       "name": "\uc9c0\ubc29 \uc8fc\ubb38 \ub300\uc2dc\ubcf4\ub4dc",

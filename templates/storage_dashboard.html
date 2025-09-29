@@ -1,0 +1,331 @@
+{% extends "layout.html" %}
+
+{% block title %}수납장 대시보드{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    .storage-row { background-color: rgba(108,117,125,0.03) !important; border-left: 3px solid #6c757d; }
+    .storage-row:hover { background-color: rgba(108,117,125,0.08) !important; }
+    .header-received { background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%) !important; color: white !important; }
+    .header-inprod { background: linear-gradient(135deg, #f57c00 0%, #ef6c00 100%) !important; color: white !important; }
+    .header-shipped { background: linear-gradient(135deg, #17a2b8 0%, #138496 100%) !important; color: white !important; }
+    .summary-card { border-left: 4px solid transparent; }
+    .summary-received { border-left-color: #1976d2; }
+    .summary-inprod { border-left-color: #f57c00; }
+    .summary-shipped { border-left-color: #17a2b8; }
+    .border-left-received { border-left: 4px solid #1976d2; }
+    .border-left-inprod { border-left: 4px solid #f57c00; }
+    .border-left-shipped { border-left: 4px solid #17a2b8; }
+    .status-dropdown { width: 100px !important; font-size: 0.8rem !important; color: #fff !important; font-weight: 600; }
+    .status-dropdown option { color: #000; }
+    .status-received { background-color: #1976d2 !important; border-color: #1565c0; }
+    .status-inprod { background-color: #f57c00 !important; border-color: #ef6c00; }
+    .status-shipped { background-color: #17a2b8 !important; border-color: #138496; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0"><i class="fas fa-box-archive text-secondary"></i> 수납장 대시보드</h1>
+        <a href="{{ url_for('add_order') }}" class="btn btn-secondary">
+            <i class="fas fa-plus"></i> 새 수납장 주문 추가
+        </a>
+    </div>
+
+    <!-- 검색 폼 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <form method="get" action="{{ url_for('storage_dashboard') }}" class="d-flex">
+                        <input type="text" name="search_query" class="form-control me-2" placeholder="주문번호, 고객명, 연락처, 주소, 제품 등 통합 검색" value="{{ search_query or '' }}">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> 검색</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 접수 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow border-left-received">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center header-received">
+                    <h6 class="m-0 font-weight-bold"><i class="fas fa-inbox me-2"></i>접수 ({{ received_orders|length }}건)</h6>
+                    <a href="/?is_cabinet=true" class="btn btn-sm btn-light"><i class="fas fa-list"></i> 목록으로</a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">번호</th>
+                                    <th style="width: 120px;">메모</th>
+                                    <th style="width: 120px;">고객명</th>
+                                    <th style="width: 200px;">주소</th>
+                                    <th style="width: 200px;">제품</th>
+                                    <th style="width: 120px;">상태</th>
+                                    <th style="width: 120px;">담당자</th>
+                                    <th style="width: 80px;">작업</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in received_orders %}
+                                <tr data-order-id="{{ order.id }}" class="storage-row">
+                                    <td>{{ order.id }}</td>
+                                    <td>
+                                        <textarea class="form-control form-control-sm auto-resize-textarea"
+                                                  rows="1" style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  data-order-id="{{ order.id }}" data-field="regional_memo">{{ order.regional_memo or '' }}</textarea>
+                                    </td>
+                                    <td>{{ order.customer_name }}</td>
+                                    <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">{{ order.address }}</td>
+                                    <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">{{ order.product }}</td>
+                                    <td>
+                                        <select class="form-select form-select-sm inline-edit status-dropdown {{ 'status-received' if (order.cabinet_status or 'RECEIVED') == 'RECEIVED' else ('status-inprod' if order.cabinet_status == 'IN_PRODUCTION' else 'status-shipped') }}"
+                                                data-order-id="{{ order.id }}" data-field="cabinet_status">
+                                            {% for code, name in CABINET_STATUS.items() %}
+                                                <option value="{{ code }}" {% if (order.cabinet_status or 'RECEIVED') == code %}selected{% endif %}>{{ name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <textarea class="form-control form-control-sm auto-resize-textarea"
+                                                  rows="1" style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  data-order-id="{{ order.id }}" data-field="manager_name">{{ order.manager_name or '' }}</textarea>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('edit_order', order_id=order.id, return_to='storage_dashboard') }}" class="btn btn-sm btn-outline-primary" title="수정">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if not received_orders %}
+                    <div class="text-center py-4"><i class="fas fa-inbox text-muted fa-3x mb-3"></i><h5 class="text-muted">접수된 수납장 주문이 없습니다.</h5></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 제작중 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow border-left-inprod">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center header-inprod">
+                    <h6 class="m-0 font-weight-bold"><i class="fas fa-industry me-2"></i>제작중 ({{ in_production_orders|length }}건)</h6>
+                    <a href="/?is_cabinet=true" class="btn btn-sm btn-light"><i class="fas fa-list"></i> 목록으로</a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">번호</th>
+                                    <th style="width: 120px;">메모</th>
+                                    <th style="width: 120px;">고객명</th>
+                                    <th style="width: 200px;">주소</th>
+                                    <th style="width: 200px;">제품</th>
+                                    <th style="width: 120px;">상태</th>
+                                    <th style="width: 120px;">담당자</th>
+                                    <th style="width: 80px;">작업</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in in_production_orders %}
+                                <tr data-order-id="{{ order.id }}" class="storage-row">
+                                    <td>{{ order.id }}</td>
+                                    <td>
+                                        <textarea class="form-control form-control-sm auto-resize-textarea"
+                                                  rows="1" style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  data-order-id="{{ order.id }}" data-field="regional_memo">{{ order.regional_memo or '' }}</textarea>
+                                    </td>
+                                    <td>{{ order.customer_name }}</td>
+                                    <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">{{ order.address }}</td>
+                                    <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">{{ order.product }}</td>
+                                    <td>
+                                        <select class="form-select form-select-sm inline-edit status-dropdown {{ 'status-received' if order.cabinet_status == 'RECEIVED' else ('status-inprod' if order.cabinet_status == 'IN_PRODUCTION' else 'status-shipped') }}"
+                                                data-order-id="{{ order.id }}" data-field="cabinet_status">
+                                            {% for code, name in CABINET_STATUS.items() %}
+                                                <option value="{{ code }}" {% if order.cabinet_status == code %}selected{% endif %}>{{ name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <textarea class="form-control form-control-sm auto-resize-textarea"
+                                                  rows="1" style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  data-order-id="{{ order.id }}" data-field="manager_name">{{ order.manager_name or '' }}</textarea>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('edit_order', order_id=order.id, return_to='storage_dashboard') }}" class="btn btn-sm btn-outline-primary" title="수정">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if not in_production_orders %}
+                    <div class="text-center py-4"><i class="fas fa-industry text-muted fa-3x mb-3"></i><h5 class="text-muted">제작중 수납장 주문이 없습니다.</h5></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 발송 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow border-left-shipped">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center header-shipped">
+                    <h6 class="m-0 font-weight-bold"><i class="fas fa-truck me-2"></i>발송 ({{ shipped_orders|length }}건)</h6>
+                    <a href="/?is_cabinet=true" class="btn btn-sm btn-light"><i class="fas fa-list"></i> 목록으로</a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">번호</th>
+                                    <th style="width: 120px;">메모</th>
+                                    <th style="width: 120px;">고객명</th>
+                                    <th style="width: 200px;">주소</th>
+                                    <th style="width: 200px;">제품</th>
+                                    <th style="width: 120px;">상태</th>
+                                    <th style="width: 120px;">담당자</th>
+                                    <th style="width: 80px;">작업</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in shipped_orders %}
+                                <tr data-order-id="{{ order.id }}" class="storage-row">
+                                    <td>{{ order.id }}</td>
+                                    <td>
+                                        <textarea class="form-control form-control-sm auto-resize-textarea"
+                                                  rows="1" style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  data-order-id="{{ order.id }}" data-field="regional_memo">{{ order.regional_memo or '' }}</textarea>
+                                    </td>
+                                    <td>{{ order.customer_name }}</td>
+                                    <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">{{ order.address }}</td>
+                                    <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">{{ order.product }}</td>
+                                    <td>
+                                        <select class="form-select form-select-sm inline-edit status-dropdown {{ 'status-received' if order.cabinet_status == 'RECEIVED' else ('status-inprod' if order.cabinet_status == 'IN_PRODUCTION' else 'status-shipped') }}"
+                                                data-order-id="{{ order.id }}" data-field="cabinet_status">
+                                            {% for code, name in CABINET_STATUS.items() %}
+                                                <option value="{{ code }}" {% if order.cabinet_status == code %}selected{% endif %}>{{ name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <textarea class="form-control form-control-sm auto-resize-textarea"
+                                                  rows="1" style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
+                                                  data-order-id="{{ order.id }}" data-field="manager_name">{{ order.manager_name or '' }}</textarea>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('edit_order', order_id=order.id, return_to='storage_dashboard') }}" class="btn btn-sm btn-outline-primary" title="수정">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if not shipped_orders %}
+                    <div class="text-center py-4"><i class="fas fa-truck text-muted fa-3x mb-3"></i><h5 class="text-muted">발송된 수납장 주문이 없습니다.</h5></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 인라인 편집 공통 함수 재사용 (self_measurement_dashboard와 동일한 패턴)
+document.addEventListener('DOMContentLoaded', function() {
+    function saveField(orderId, field, value) {
+        return fetch('/api/update_order_field', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: orderId, field_name: field, new_value: value })
+        }).then(r => r.json()).then(data => { if (!data.success) alert('오류: ' + data.message); return data; });
+    }
+
+    document.querySelectorAll('.auto-resize-textarea').forEach(function(textarea) {
+        function adjustHeight(el){ el.style.height='auto'; el.style.height=Math.max(32, el.scrollHeight)+'px'; }
+        adjustHeight(textarea);
+        textarea.addEventListener('input', function(){ adjustHeight(this); });
+        textarea.addEventListener('blur', function(){ saveField(this.dataset.orderId, this.dataset.field, this.value); });
+    });
+
+    // 드롭다운 색상 클래스 유틸
+    function setStatusClass(selectEl){
+        if (!selectEl) return;
+        selectEl.classList.remove('status-received','status-inprod','status-shipped');
+        const v = selectEl.value;
+        if (v === 'RECEIVED') selectEl.classList.add('status-received');
+        else if (v === 'IN_PRODUCTION') selectEl.classList.add('status-inprod');
+        else if (v === 'SHIPPED') selectEl.classList.add('status-shipped');
+    }
+
+    // 초기 색상 반영
+    document.querySelectorAll('select.status-dropdown').forEach(setStatusClass);
+
+    // 상태 변경 델리게이션: 저장 + 즉시 DOM 이동 + 색상 갱신
+    document.addEventListener('change', function(e){
+        const target = e.target;
+        if (!target.matches('select.status-dropdown')) return;
+        const orderId = target.dataset.orderId;
+        const field = target.dataset.field;
+        const value = target.value;
+        saveField(orderId, field, value).then(function(data){
+            // 저장 성공 시 약간의 지연 후 최신 데이터 보장을 위해 새로고침
+            if (data && data.success) {
+                setTimeout(function(){ location.reload(); }, 400);
+            }
+        });
+        setStatusClass(target);
+
+        // 행을 해당 섹션 테이블로 이동
+        const row = target.closest('tr');
+        if (!row) return;
+        let targetTbody = null;
+        if (value === 'RECEIVED') {
+            targetTbody = document.querySelector('.header-received').closest('.card').querySelector('tbody');
+        } else if (value === 'IN_PRODUCTION') {
+            targetTbody = document.querySelector('.header-inprod').closest('.card').querySelector('tbody');
+        } else if (value === 'SHIPPED') {
+            targetTbody = document.querySelector('.header-shipped').closest('.card').querySelector('tbody');
+        }
+        if (targetTbody) {
+            const sourceTbody = row.parentElement;
+            row.parentElement.removeChild(row);
+            targetTbody.appendChild(row);
+
+            // 카운트 갱신
+            function updateCount(headerSelector){
+                const card = document.querySelector(headerSelector).closest('.card');
+                const count = card.querySelectorAll('tbody tr').length;
+                const title = card.querySelector('h6');
+                if (title) {
+                    const txt = title.innerText.replace(/\(.*?건\)/, '');
+                    title.innerText = txt.trim() + ` (${count}건)`;
+                }
+            }
+            updateCount('.header-received');
+            updateCount('.header-inprod');
+            updateCount('.header-shipped');
+        }
+    });
+});
+</script>
+{% endblock %}
+
+

@@ -57,6 +57,13 @@ STATUS = {
     'DELETED': '삭제됨'
 }
 
+# 수납장 상태 매핑
+CABINET_STATUS = {
+    'RECEIVED': '접수',
+    'IN_PRODUCTION': '제작중',
+    'SHIPPED': '발송'
+}
+
 # User roles 
 ROLES = {
     'ADMIN': '관리자',         # Full access
@@ -562,6 +569,8 @@ def add_order():
             
             # 자가실측 여부 설정
             is_self_measurement_val = 'is_self_measurement' in request.form
+            # 수납장 여부 설정
+            is_cabinet_val = 'is_cabinet' in request.form
             
             # 지방 주문일 경우, 체크리스트 항목들도 가져옴
             measurement_completed_val = False
@@ -599,6 +608,8 @@ def add_order():
                 as_completed_date=request.form.get('as_completed_date'),
                 is_regional=is_regional_val,
                 is_self_measurement=is_self_measurement_val,
+                is_cabinet=is_cabinet_val,
+                cabinet_status='RECEIVED' if is_cabinet_val else None,
                 measurement_completed=measurement_completed_val,
                 regional_sales_order_upload=regional_sales_order_upload_val,
                 regional_blueprint_sent=regional_blueprint_sent_val,
@@ -2815,7 +2826,9 @@ def update_order_field():
         'regional_blueprint_sent', 'regional_order_upload',
         'regional_cargo_sent', 'regional_construction_info_sent',
         'as_received_date', 'as_completed_date',  # AS 관련 날짜 필드들
-        'measurement_date'  # 실측일 필드
+        'measurement_date',  # 실측일 필드
+        'regional_memo',  # 메모 필드 허용 (수납장 대시보드 등)
+        'is_cabinet', 'cabinet_status'  # 수납장 관련
     ]
     if field not in allowed_fields:
         return jsonify({'success': False, 'message': f'허용되지 않은 필드입니다: {field}'}), 400
@@ -3275,6 +3288,53 @@ def self_measurement_dashboard():
                            scheduled_orders=scheduled_orders,
                            completed_orders=completed_orders,
                            search_query=search_query,
+                           STATUS=STATUS)
+
+@app.route('/storage_dashboard')
+@login_required
+def storage_dashboard():
+    """수납장 대시보드"""
+    db = get_db()
+    search_query = request.args.get('search_query', '').strip()
+
+    base_query = db.query(Order).filter(
+        Order.is_cabinet == True,
+        Order.status != 'DELETED'
+    )
+
+    if search_query:
+        search_term = f"%{search_query}%"
+        id_conditions = []
+        try:
+            search_id = int(search_query)
+            id_conditions.append(Order.id == search_id)
+        except ValueError:
+            id_conditions.append(func.cast(Order.id, String).ilike(search_term))
+
+        base_query = base_query.filter(
+            or_(
+                Order.customer_name.ilike(search_term),
+                Order.phone.ilike(search_term),
+                Order.address.ilike(search_term),
+                Order.product.ilike(search_term),
+                Order.notes.ilike(search_term),
+                *id_conditions
+            )
+        )
+
+    all_cabinet_orders = base_query.order_by(Order.id.desc()).all()
+
+    # 카테고리 분류: 접수(RECEIVED), 제작중(IN_PRODUCTION), 발송(SHIPPED)
+    received_orders = [o for o in all_cabinet_orders if (o.cabinet_status or 'RECEIVED') == 'RECEIVED']
+    in_production_orders = [o for o in all_cabinet_orders if o.cabinet_status == 'IN_PRODUCTION']
+    shipped_orders = [o for o in all_cabinet_orders if o.cabinet_status == 'SHIPPED']
+
+    return render_template('storage_dashboard.html',
+                           received_orders=received_orders,
+                           in_production_orders=in_production_orders,
+                           shipped_orders=shipped_orders,
+                           search_query=search_query,
+                           CABINET_STATUS=CABINET_STATUS,
                            STATUS=STATUS)
 
 if __name__ == '__main__':
