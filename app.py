@@ -1277,51 +1277,72 @@ def permanent_delete_all_orders():
 def reset_order_ids(db):
     """주문 ID를 1부터 연속적으로 재정렬합니다."""
     try:
-        # 임시 테이블 생성
-        db.execute(text("CREATE TEMPORARY TABLE temp_order_mapping (old_id INT, new_id INT)"))
-        
         # 현재 존재하는 모든 주문 목록 (삭제되지 않은 주문만)
         orders = db.query(Order).filter(Order.status != 'DELETED').order_by(Order.id).all()
         
-        # 새로운 ID 값 배정
-        new_id = 0
-        for new_id, order in enumerate(orders, 1):
-            # 이전 ID와 새 ID 매핑 저장
-            if order.id != new_id:
-                db.execute(text("INSERT INTO temp_order_mapping (old_id, new_id) VALUES (:old_id, :new_id)"), 
-                          {"old_id": order.id, "new_id": new_id})
+        if not orders:
+            # 주문이 없으면 시퀀스만 재설정
+            try:
+                seq_query = "SELECT pg_get_serial_sequence('orders', 'id')"
+                seq_name = db.execute(text(seq_query)).scalar()
+                if seq_name:
+                    db.execute(text(f"ALTER SEQUENCE {seq_name} RESTART WITH 1"))
+                else:
+                    db.execute(text("ALTER SEQUENCE orders_id_seq RESTART WITH 1"))
+            except Exception:
+                pass
+            return
         
-        # 실제 ID 업데이트 쿼리 준비
-        mapping_exists = db.execute(text("SELECT COUNT(*) FROM temp_order_mapping")).scalar() > 0
+        # 완전히 안전한 방법: 새 테이블을 만들어서 데이터 복사 후 교체
+        # 임시 테이블 생성
+        db.execute(text("""
+            CREATE TEMPORARY TABLE orders_new AS 
+            SELECT * FROM orders WHERE status != 'DELETED' ORDER BY id
+        """))
         
-        # 시퀀스 재설정 준비 (최대 ID 값 + 1로 설정)
-        max_id = new_id if orders else 0  # 주문이 없으면 0부터 시작
+        # 임시 테이블에서 ID를 1부터 다시 할당
+        db.execute(text("""
+            ALTER TABLE orders_new ADD COLUMN new_id SERIAL
+        """))
         
-        if mapping_exists:
-            # ID 변경이 필요한 경우에만 진행
-            # 매핑 테이블을 사용해 주문 ID 업데이트
-            db.execute(text("""
-                UPDATE orders 
-                SET id = (SELECT new_id FROM temp_order_mapping WHERE temp_order_mapping.old_id = orders.id)
-                WHERE id IN (SELECT old_id FROM temp_order_mapping)
-            """))
-            
-            # 로그 데이터 업데이트 기능 제거
+        # 기존 테이블의 모든 데이터 삭제 (DELETED 상태가 아닌 것만)
+        db.execute(text("DELETE FROM orders WHERE status != 'DELETED'"))
         
-        # 시퀀스 재설정 (PostgreSQL 전용) - 항상 실행
+        # 새로운 ID로 데이터 다시 삽입 (모든 컬럼을 정확히 맞춤)
+        db.execute(text("""
+            INSERT INTO orders (
+                received_date, received_time, customer_name, phone, address, product, options, notes, 
+                status, original_status, deleted_at, created_at, measurement_date, measurement_time, 
+                completion_date, manager_name, payment_amount, scheduled_date, as_received_date, 
+                as_completed_date, is_regional, is_self_measurement, is_cabinet, cabinet_status, 
+                regional_sales_order_upload, regional_blueprint_sent, regional_order_upload, 
+                regional_cargo_sent, regional_construction_info_sent, measurement_completed, 
+                construction_type, regional_memo, shipping_scheduled_date
+            )
+            SELECT 
+                received_date, received_time, customer_name, phone, address, product, options, notes, 
+                status, original_status, deleted_at, created_at, measurement_date, measurement_time, 
+                completion_date, manager_name, payment_amount, scheduled_date, as_received_date, 
+                as_completed_date, is_regional, is_self_measurement, is_cabinet, cabinet_status, 
+                regional_sales_order_upload, regional_blueprint_sent, regional_order_upload, 
+                regional_cargo_sent, regional_construction_info_sent, measurement_completed, 
+                construction_type, regional_memo, shipping_scheduled_date
+            FROM orders_new ORDER BY new_id
+        """))
+        
+        # 임시 테이블 삭제
+        db.execute(text("DROP TABLE orders_new"))
+        
+        # 시퀀스 재설정 (PostgreSQL 전용)
+        max_id = len(orders)
         try:
-            # 시퀀스 이름 확인
             seq_query = "SELECT pg_get_serial_sequence('orders', 'id')"
             seq_name = db.execute(text(seq_query)).scalar()
             
             if seq_name:
-                # 정확한 시퀀스 이름을 사용하여 재설정
                 db.execute(text(f"ALTER SEQUENCE {seq_name} RESTART WITH {max_id + 1}"))
-                # 시퀀스 재설정 완료
             else:
-                # 이름을 찾지 못한 경우 기본 이름 사용
                 db.execute(text(f"ALTER SEQUENCE orders_id_seq RESTART WITH {max_id + 1}"))
-                # 기본 시퀀스 재설정 완료
         except Exception as seq_error:
             # 시퀀스 재설정 중 오류 발생 (무시)
             # 기본 이름을 사용해서 시도
@@ -1332,17 +1353,15 @@ def reset_order_ids(db):
             
         db.commit()
         
-        # 임시 테이블 삭제
-        db.execute(text("DROP TABLE IF EXISTS temp_order_mapping"))
-        
     except Exception as e:
         db.rollback()
-        # 오류 발생 시 임시 테이블 제거 시도
+        # 오류 발생 시 임시 테이블 정리
         try:
-            db.execute(text("DROP TABLE IF EXISTS temp_order_mapping"))
+            db.execute(text("DROP TABLE IF EXISTS orders_new"))
         except:
             pass
-        # 주문 ID 재정렬 중 오류 발생 (무시)
+        # 주문 ID 재정렬 중 오류 발생 시 로그만 기록하고 계속 진행
+        print(f"ID 재정렬 중 오류 발생: {str(e)}")
         raise e
 
 @app.route('/bulk_action', methods=['POST'])
@@ -2945,6 +2964,12 @@ def regional_dashboard():
         if order.status == 'COMPLETED'
     ]
 
+    # 설치예정인 주문 분류
+    scheduled_orders = [
+        order for order in all_regional_orders
+        if order.status == 'SCHEDULED'
+    ]
+
     # 보류 상태 주문 분류
     hold_orders = [
         order for order in all_regional_orders
@@ -2982,12 +3007,12 @@ def regional_dashboard():
                 # 날짜 형식이 잘못된 경우 무시
                 pass
 
-    # 진행 중인 주문: 실측 미완료 + 완료되지 않은 주문 + 상차 예정 알림에 없는 주문 + 상차완료에 없는 주문 + 보류 상태 제외
+    # 진행 중인 주문: 실측 미완료 + 완료되지 않은 주문 + 상차 예정 알림에 없는 주문 + 상차완료에 없는 주문 + 보류 상태 및 설치예정 상태 제외
     shipping_alert_order_ids = {order.id for order in shipping_alerts}
     shipping_completed_order_ids = {order.id for order in shipping_completed_orders}
     pending_orders = [
         order for order in all_regional_orders
-        if (order.status not in ['COMPLETED', 'ON_HOLD'] and 
+        if (order.status not in ['COMPLETED', 'ON_HOLD', 'SCHEDULED'] and 
             order.id not in shipping_alert_order_ids and
             order.id not in shipping_completed_order_ids and
             (not getattr(order, 'measurement_completed', False) or 
@@ -3007,6 +3032,7 @@ def regional_dashboard():
         
     return render_template('regional_dashboard.html', 
                            pending_orders=pending_orders, 
+                           scheduled_orders=scheduled_orders,
                            completed_orders=completed_orders,
                            hold_orders=hold_orders,
                            shipping_alerts=shipping_alerts,
