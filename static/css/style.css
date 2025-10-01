@@ -812,7 +812,7 @@ td .btn:last-child {
 .table-responsive .table td.options-cell,
 .table-responsive .table td.notes-cell {
     white-space: normal;
-    max-width: none;
+    /* max-width: none; - index.html에서 제어 */
 }
 
 /* 지방 대시보드 전용 가로 스크롤 테이블 */
@@ -1010,6 +1010,7 @@ td .btn:last-child {
     min-width: 60px !important;
 }
 
+/* 비고 요약 스타일 - index.html에서 제어하도록 주석 처리
 .th-notes .options-summary,
 .th-notes .notes-summary {
     max-width: 60px !important;
@@ -1018,12 +1019,14 @@ td .btn:last-child {
     white-space: nowrap;
     font-size: 0.75rem !important;
 }
+*/
 
-/* 비고 컬럼 전체 폰트 크기 조정 */
+/* 비고 컬럼 전체 폰트 크기 조정 - index.html에서 제어하도록 주석 처리
 .th-notes {
     font-size: 0.75rem !important;
     padding: 0.4rem !important;
 }
+*/
 
 /* 비고 컬럼 필터 입력 상자도 작게 */
 .th-notes input.column-filter {
@@ -1031,9 +1034,10 @@ td .btn:last-child {
     padding: 0.2rem !important;
 }
 
-/* 비고 토글 버튼도 작게 */
+/* 비고 토글 버튼도 작게 - index.html에서 제어하도록 주석 처리
 .th-notes button {
     font-size: 0.5rem !important;
     width: 14px !important;
     height: 14px !important;
 }
+*/

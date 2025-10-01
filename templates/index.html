@@ -56,6 +56,20 @@
         position: relative;
         overflow: visible !important;
     }
+    .options-cell {
+        width: 300px !important;
+        max-width: 400px !important;
+    }
+    .notes-cell {
+        width: 350px !important; /* 비고 너비 증가 */
+        max-width: 400px !important;
+        font-size: 1rem !important; /* 폰트 사이즈 증가 */
+    }
+    
+    /* 비고 셀 내부의 모든 텍스트 */
+    .notes-cell * {
+        font-size: 1rem !important;
+    }
     
     /* 옵션이 펼쳐진 셀은 다른 내용 위에 표시 */
     .options-cell.expanded, .notes-cell.expanded {
@@ -65,38 +79,126 @@
     .options-summary-container, .notes-summary-container {
         display: flex;
         align-items: center;
+        gap: 6px;
+        width: 100%;
     }
-    .options-summary, .notes-summary {
+    /* 옵션 요약만 적용 */
+    .options-summary {
         flex-grow: 1;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap; /* 줄바꿈 방지 - 한 줄만 표시 */
-        padding-right: 5px; /* 버튼과의 간격 */
-        max-width: calc(100% - 30px); /* 버튼 공간 제외 */
+        padding: 4px 6px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        color: #495057;
+    }
+    /* 비고 요약 박스 - 구체적 선택자로 우선순위 높임 */
+    .notes-summary-container .notes-summary,
+    span.notes-summary {
+        flex-grow: 1;
+        background-color: #fff3cd !important;
+        border: 1px solid #ffc107 !important;
+        font-size: 1rem !important; /* 텍스트 크기 */
+        line-height: 1.5 !important; /* 줄간격 증가 */
+        padding: 8px 10px !important; /* 패딩 증가로 높이 확보 */
+        display: block !important;
+        width: 100% !important; /* 컨테이너 너비에 맞게 확장 */
+        box-sizing: border-box !important;
+        
+        /* 한 줄만 표시 - 중요! */
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        height: auto !important; /* 자동 높이 - 1줄이 완전히 보이도록 */
+    }
+    
+    /* 비고 요약 내부 텍스트 */
+    .notes-summary * {
+        font-size: 1rem !important;
     }
     .options-full-content, .notes-full-content {
         display: none;
         white-space: normal;
         word-break: break-word;
         padding: 12px;
-        border: 1px solid #e0e0e0;
-        background-color: #f9f9f9;
+        border: 1px solid #dee2e6;
+        background-color: #ffffff;
         margin-top: 8px;
         border-radius: 6px;
         min-width: 300px;
         max-width: 500px;
         max-height: 200px;
         overflow-y: auto;
-        line-height: 1.4;
+        line-height: 1.5;
         font-size: 0.9rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         position: relative;
         z-index: 100;
     }
+    .notes-full-content {
+        background-color: #fffbf0;
+        border-color: #ffc107;
+        font-size: 1rem !important; /* 비고 요약과 동일한 폰트 사이즈 */
+        line-height: 1.5 !important;
+    }
+    
+    /* 비고 전체 내용 내부 텍스트 */
+    .notes-full-content * {
+        font-size: 1rem !important;
+    }
+    
+    /* 비고 전체 내용 텍스트 */
+    .notes-content-text {
+        white-space: pre-wrap;
+        word-break: break-all;
+        font-size: 1rem !important;
+        line-height: 1.5;
+    }
     .toggle-options, .toggle-notes {
         flex-shrink: 0; /* 버튼 크기 유지 */
-        padding: 0.1rem 0.3rem; /* 버튼 크기 미세 조정 */
-        line-height: 1; /* 버튼 내 텍스트 정렬 */
+        padding: 6px 8px !important; /* 버튼 크기 조정 */
+        line-height: 1.2 !important;
+        font-size: 0.85rem !important; /* 아이콘 크기 조정 */
+        border-radius: 4px !important;
+        position: relative;
+        z-index: 5; /* 버튼이 다른 요소 위에 표시되도록 */
+        cursor: pointer !important; /* 명시적 커서 설정 */
+        pointer-events: auto !important; /* 클릭 가능하도록 */
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-height: 28px !important;
+    }
+    /* 비고 토글 버튼 - 구체적 선택자 */
+    button.toggle-notes,
+    .notes-summary-container button.toggle-notes {
+        background-color: #ffc107 !important;
+        color: #000 !important;
+        border: 1px solid #ffc107 !important;
+        padding: 6px 8px !important;
+    }
+    button.toggle-notes:hover,
+    .notes-summary-container button.toggle-notes:hover {
+        background-color: #e0a800 !important;
+        border-color: #d39e00 !important;
+    }
+    
+    .toggle-notes i,
+    button.toggle-notes i {
+        font-size: 0.85rem !important;
+    }
+    
+    /* 헤더의 전체 토글 버튼 */
+    #toggle-all-notes {
+        padding: 2px 6px !important;
+        font-size: 0.75rem !important;
+        line-height: 1 !important;
+    }
+    
+    #toggle-all-notes i {
+        font-size: 0.75rem !important;
     }
 
     /* 리사이즈 핸들 */
@@ -155,6 +257,27 @@
     /* 각 컬럼별 반응형 스타일 */
     .th-select { text-align: center; }
     .th-actions { text-align: center; }
+    
+    /* 옵션과 비고 컬럼 너비 조정 */
+    .th-options, th.th-options {
+        width: 300px !important; /* 옵션 너비 */
+        min-width: 300px !important;
+        max-width: 400px !important;
+    }
+    .th-notes, th.th-notes {
+        width: 250px !important; /* 비고 너비 증가 */
+        min-width: 250px !important;
+    }
+    
+    /* TD 셀에도 적용 */
+    td.th-options, td.td-options, td.options-cell {
+        width: 300px !important;
+        max-width: 400px !important;
+    }
+    td.th-notes, td.td-notes, td.notes-cell {
+        width: 250px !important; /* 비고 너비 증가 */
+        min-width: 250px !important;
+    }
     
     /* 보라색 뱃지 */
     .bg-purple {
@@ -259,10 +382,10 @@
                         </th>
                         <th class="th-notes" data-column-name="notes">
                             비고
-                            <button type="button" id="toggle-all-notes" class="btn btn-xs btn-outline-secondary ms-1 p-0" 
-                                style="font-size: 0.6rem; line-height: 1; width: 18px; height: 18px;" 
-                                aria-expanded="false" aria-label="모든 비고 토글">
-                                <i class="fas fa-plus"></i>
+                            <button type="button" id="toggle-all-notes" class="btn btn-sm btn-outline-primary ms-2" 
+                                style="padding: 2px 6px; font-size: 0.75rem;" 
+                                title="모든 비고 펼치기/접기">
+                                <i class="fas fa-chevron-down"></i>
                             </button>
                             <span class="resize-handle"></span>
                         </th>
@@ -516,29 +639,19 @@
                         </td>
                         <td class="th-notes td-notes notes-cell">
                             {% if order.notes %}
-                                {% set notes_content = order.notes %}
-                                {% set notes_lines = notes_content.split('\n') if notes_content else [] %}
-                                {% set has_notes_extra_content = notes_lines | length > 1 %}
+                                {% set notes_content = order.notes | string %}
+                                {# 비고가 있으면 항상 버튼 표시 (간단하게 변경) #}
                                 
                                 <div class="notes-summary-container">
-                                    {% if notes_lines | length > 0 %}
-                                        <span class="notes-summary">{{ notes_lines[0] }}</span>
-                                    {% else %}
-                                        <span class="notes-summary">{{ notes_content }}</span>
-                                    {% endif %}
-                                    
-                                    {% if has_notes_extra_content %}
-                                    <button type="button" class="btn btn-sm btn-outline-secondary toggle-notes" aria-expanded="false" aria-label="비고 상세 내용 보기">
-                                        <i class="fas fa-plus"></i>
+                                    <span class="notes-summary">{{ notes_content }}</span>
+                                    <button type="button" class="toggle-notes" title="펼치기/접기">
+                                        <i class="fas fa-chevron-down"></i>
                                     </button>
-                                    {% endif %}
                                 </div>
 
-                                {% if has_notes_extra_content %}
                                 <div id="notes-full-{{ order.id }}" class="notes-full-content" style="display: none;">
-                                    <pre style="white-space: pre-wrap; word-break: break-all; margin-bottom: 0;">{{ notes_content }}</pre>
+                                    <div class="notes-content-text">{{ notes_content }}</div>
                                 </div>
-                                {% endif %}
                             {% else %}
                                 ''
                             {% endif %}
@@ -679,8 +792,11 @@
             else if (actionSelect.val() === 'change_manager') $('#manager-name-input').removeClass('d-none');
         });
 
-        // 옵션 토글 버튼 이벤트
-        $('.toggle-options').on('click', function() {
+        // 옵션 토글 버튼 이벤트 (동적 바인딩)
+        $(document).on('click', '.toggle-options', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
             var $button = $(this);
             var $cell = $button.closest('.options-cell');
             var $summaryText = $cell.find('.options-summary');
@@ -700,8 +816,11 @@
             updateToggleAllOptionsButtonState();
         });
 
-        // 비고 토글 버튼 이벤트
-        $('.toggle-notes').on('click', function() {
+        // 비고 토글 버튼 이벤트 (동적 바인딩)
+        $(document).on('click', '.toggle-notes', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
             var $button = $(this);
             var $cell = $button.closest('.notes-cell');
             var $summaryText = $cell.find('.notes-summary');
@@ -714,9 +833,8 @@
             // 셀에 expanded 클래스 토글
             $cell.toggleClass('expanded', $fullContent.is(':visible'));
             
-            // 아이콘 토글 (간소화)
-            $button.find('i').toggleClass('fa-plus fa-minus');
-            $button.attr('aria-expanded', $fullContent.is(':visible')); // 접근성 속성 추가
+            // 아이콘 토글 (chevron으로 변경)
+            $button.find('i').toggleClass('fa-chevron-down fa-chevron-up');
             
             updateToggleAllNotesButtonState();
         });
@@ -756,13 +874,16 @@
         });
 
         // 비고 전체 토글 버튼
-        $('#toggle-all-notes').on('click', function() {
+        $('#toggle-all-notes').on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
             var $button = $(this);
             var $icon = $button.find('i');
-            var expanding = $icon.hasClass('fa-plus');
+            var expanding = $icon.hasClass('fa-chevron-down');
             
-            $icon.toggleClass('fa-plus fa-minus');
-            $button.attr('aria-expanded', expanding); // 접근성 속성 추가
+            // 아이콘 변경
+            $icon.toggleClass('fa-chevron-down fa-chevron-up');
 
             $('.notes-cell').each(function() {
                 var $cell = $(this);
@@ -777,14 +898,12 @@
                     $summaryText.hide();
                     $fullContent.show();
                     $cell.addClass('expanded');
-                    $individualButton.find('i').removeClass('fa-plus').addClass('fa-minus');
-                    $individualButton.attr('aria-expanded', true);
+                    $individualButton.find('i').removeClass('fa-chevron-down').addClass('fa-chevron-up');
                 } else if (!expanding && isCurrentlyExpanded) { // 축소
                     $summaryText.show();
                     $fullContent.hide();
                     $cell.removeClass('expanded');
-                    $individualButton.find('i').removeClass('fa-minus').addClass('fa-plus');
-                    $individualButton.attr('aria-expanded', false);
+                    $individualButton.find('i').removeClass('fa-chevron-up').addClass('fa-chevron-down');
                 }
             });
         });
@@ -824,14 +943,11 @@
             // 모든 상세 내용 표시 상태 확인
             var expandedCount = $('.notes-full-content:visible').length;
             var allExpanded = expandedCount === $toggleButtons.length;
-            var allCollapsed = expandedCount === 0;
 
             if (allExpanded) {
-                $toggleAllIcon.removeClass('fa-plus').addClass('fa-minus');
-                $toggleAllButton.attr('aria-expanded', true);
+                $toggleAllIcon.removeClass('fa-chevron-down').addClass('fa-chevron-up');
             } else {
-                $toggleAllIcon.removeClass('fa-minus').addClass('fa-plus');
-                $toggleAllButton.attr('aria-expanded', false);
+                $toggleAllIcon.removeClass('fa-chevron-up').addClass('fa-chevron-down');
             }
         }
         
