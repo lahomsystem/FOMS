@@ -854,6 +854,18 @@ def edit_order(order_id):
             
             # 자가실측 여부 사용자 선택 (체크박스는 체크되지 않으면 폼에 포함되지 않음)
             order.is_self_measurement = is_self_measurement_new
+            
+            # 수납장 여부 사용자 선택 (체크박스는 체크되지 않으면 폼에 포함되지 않음)
+            is_cabinet_new = 'is_cabinet' in request.form
+            if order.is_cabinet != is_cabinet_new:
+                changes['is_cabinet'] = {'old': order.is_cabinet, 'new': is_cabinet_new}
+            order.is_cabinet = is_cabinet_new
+            
+            # 수납장 상태 업데이트 (수납장으로 설정되면 기본 상태를 RECEIVED로 설정)
+            if is_cabinet_new and not order.cabinet_status:
+                order.cabinet_status = 'RECEIVED'
+            elif not is_cabinet_new:
+                order.cabinet_status = None
 
             # 시공 구분 업데이트
             order.construction_type = construction_type_new
@@ -897,6 +909,7 @@ def edit_order(order_id):
                 'payment_amount': '결제금액',
                 'is_regional': '지방 주문',
                 'is_self_measurement': '자가실측',
+                'is_cabinet': '수납장',
                 'measurement_completed': '실측완료',
                 'construction_type': '시공 구분',
                 'regional_sales_order_upload': '영업발주 업로드',
