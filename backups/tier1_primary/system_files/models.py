@@ -35,6 +35,9 @@ class Order(Base):
     # Regional order management fields (지방 주문 관리)
     is_regional = Column(Boolean, default=False)  # 지방 주문 여부
     is_self_measurement = Column(Boolean, default=False)  # 자가실측 여부
+    # Cabinet (수납장) management flag and status
+    is_cabinet = Column(Boolean, default=False)  # 수납장 주문 여부
+    cabinet_status = Column(String, default=None, nullable=True)  # 수납장 상태: RECEIVED/IN_PRODUCTION/SHIPPED
     regional_sales_order_upload = Column(Boolean, default=False)  # 영업발주 업로드  
     regional_blueprint_sent = Column(Boolean, default=False)  # 도면발송
     regional_order_upload = Column(Boolean, default=False)  # 발주 업로드
