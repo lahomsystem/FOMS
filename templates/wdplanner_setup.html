@@ -1,0 +1,104 @@
+{% extends "layout.html" %}
+
+{% block head %}
+<title>WDPLANNER 설정 안내 - 가구 주문 관리 시스템</title>
+<style>
+    .setup-guide {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+    .code-block {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 1rem;
+        margin: 1rem 0;
+        font-family: 'Courier New', monospace;
+        overflow-x: auto;
+    }
+    .step {
+        margin: 2rem 0;
+        padding: 1.5rem;
+        background-color: #fff;
+        border-left: 4px solid #0d6efd;
+    }
+    .step h3 {
+        color: #0d6efd;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="setup-guide">
+    <h1 class="mb-4">WDPLANNER 설정 안내</h1>
+    
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> WDPlanner를 사용하려면 먼저 빌드 파일을 생성해야 합니다.
+    </div>
+
+    <div class="step">
+        <h3>1단계: WDPlanner 디렉토리로 이동</h3>
+        <div class="code-block">
+cd "Add In Program\WDPlanner"
+        </div>
+    </div>
+
+    <div class="step">
+        <h3>2단계: 의존성 설치 (처음 한 번만)</h3>
+        <div class="code-block">
+npm install
+        </div>
+    </div>
+
+    <div class="step">
+        <h3>3단계: 웹 빌드 실행</h3>
+        <div class="code-block">
+npm run build
+        </div>
+        <p class="mt-2">이 명령은 <code>dist</code> 폴더에 웹 빌드 파일을 생성합니다.</p>
+    </div>
+
+    <div class="step">
+        <h3>4단계: 빌드 파일 복사</h3>
+        <p>빌드가 완료되면 <code>dist</code> 폴더의 모든 파일을 다음 위치로 복사하세요:</p>
+        <div class="code-block">
+static\wdplanner\
+        </div>
+        <p class="mt-2">또는 다음 명령을 사용할 수 있습니다 (PowerShell):</p>
+        <div class="code-block">
+xcopy /E /I /Y "Add In Program\WDPlanner\dist\*" "static\wdplanner\"
+        </div>
+    </div>
+
+    <div class="step">
+        <h3>5단계: 확인</h3>
+        <p>다음 파일이 존재하는지 확인하세요:</p>
+        <div class="code-block">
+static\wdplanner\index.html
+        </div>
+        <p class="mt-2">파일이 준비되면 이 페이지를 새로고침하거나 WDPLANNER 메뉴를 다시 클릭하세요.</p>
+    </div>
+
+    <div class="alert alert-warning mt-4">
+        <i class="fas fa-exclamation-triangle"></i> <strong>주의사항:</strong>
+        <ul class="mb-0 mt-2">
+            <li>빌드 파일이 없으면 WDPlanner를 사용할 수 없습니다.</li>
+            <li>WDPlanner 소스 코드를 수정한 후에는 다시 빌드해야 합니다.</li>
+            <li>빌드 파일은 <code>static/wdplanner</code> 폴더에 있어야 합니다.</li>
+        </ul>
+    </div>
+
+    <div class="mt-4">
+        <a href="{{ url_for('index') }}" class="btn btn-primary">
+            <i class="fas fa-arrow-left"></i> 메인으로 돌아가기
+        </a>
+        <a href="{{ url_for('wdplanner') }}" class="btn btn-secondary">
+            <i class="fas fa-sync"></i> 새로고침
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+
