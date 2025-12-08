@@ -3378,6 +3378,452 @@ def storage_dashboard():
                            CABINET_STATUS=CABINET_STATUS,
                            STATUS=STATUS)
 
+# ==================== WDCalculator (가구 견적 계산기) ====================
+
+# JSON 파일 경로
+WD_CALCULATOR_DATA_PATH = os.path.join(os.path.dirname(__file__), 'data', 'products.json')
+WD_ADDITIONAL_OPTIONS_PATH = os.path.join(os.path.dirname(__file__), 'data', 'additional_options.json')
+
+def clean_categories_data(categories):
+    """카테고리 데이터에서 JSON 직렬화 불가능한 값 제거"""
+    if not categories:
+        return []
+    
+    cleaned = []
+    for category in categories:
+        if category is None:
+            continue
+        
+        cleaned_category = {
+            'id': category.get('id') if category.get('id') is not None else None,
+            'name': category.get('name') or '',
+            'options': []
+        }
+        
+        # 옵션 정리
+        if category.get('options'):
+            for option in category.get('options', []):
+                if option is None:
+                    continue
+                cleaned_option = {
+                    'id': option.get('id') if option.get('id') is not None else None,
+                    'name': option.get('name') or '',
+                    'price': float(option.get('price', 0)) if option.get('price') is not None else 0
+                }
+                cleaned_category['options'].append(cleaned_option)
+        
+        cleaned.append(cleaned_category)
+    
+    return cleaned
+
+def load_additional_option_categories():
+    """추가 옵션 카테고리 데이터를 JSON 파일에서 로드"""
+    try:
+        if os.path.exists(WD_ADDITIONAL_OPTIONS_PATH):
+            with open(WD_ADDITIONAL_OPTIONS_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                categories = data.get('categories', [])
+                return clean_categories_data(categories)
+        return []
+    except Exception as e:
+        print(f"Error loading additional option categories: {e}")
+        return []
+
+def save_additional_option_categories(categories):
+    """추가 옵션 카테고리 데이터를 JSON 파일에 저장"""
+    try:
+        os.makedirs(os.path.dirname(WD_ADDITIONAL_OPTIONS_PATH), exist_ok=True)
+        data = {'categories': categories}
+        with open(WD_ADDITIONAL_OPTIONS_PATH, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error saving additional option categories: {e}")
+        return False
+
+def load_products():
+    """제품 데이터를 JSON 파일에서 로드"""
+    try:
+        if os.path.exists(WD_CALCULATOR_DATA_PATH):
+            with open(WD_CALCULATOR_DATA_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data.get('products', [])
+        return []
+    except Exception as e:
+        print(f"Error loading products: {e}")
+        return []
+
+def save_products(products):
+    """제품 데이터를 JSON 파일에 저장"""
+    try:
+        os.makedirs(os.path.dirname(WD_CALCULATOR_DATA_PATH), exist_ok=True)
+        data = {'products': products}
+        with open(WD_CALCULATOR_DATA_PATH, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error saving products: {e}")
+        return False
+
+def calculate_estimate(product, width_mm, additional_options=None):
+    """견적 계산 함수"""
+    if not product:
+        return 0
+    
+    base_price = 0
+    
+    if product['pricing_type'] == '1m':
+        # 1m 옵션: (가로넓이 / 1000) * 1m 비용
+        meters = width_mm / 1000
+        base_price = meters * product.get('price_1m', 0)
+    elif product['pricing_type'] == '30cm':
+        # 30cm 옵션: (가로넓이 / 300) * 30cm 비용 + (나머지 / 10) * 1cm 비용
+        # 예: 3100mm = 10 * 300mm + 100mm → (10 * 30cm 설정가) + (10 * 1cm 설정가)
+        # 예: 3300mm = 11 * 300mm + 0mm → (11 * 30cm 설정가)
+        units_30cm = width_mm // 300
+        remainder_mm = width_mm % 300
+        # 나머지를 10으로 나눈 개수만큼 1cm 설정가 적용
+        units_1cm = remainder_mm // 10
+        base_price = (units_30cm * product.get('price_30cm', 0)) + (units_1cm * product.get('price_1cm', 0))
+    
+    # 추가 옵션 가격 합산
+    additional_price = 0
+    if additional_options:
+        for option in additional_options:
+            if isinstance(option, dict) and 'price' in option:
+                additional_price += float(option.get('price', 0))
+    
+    total_price = base_price + additional_price
+    return total_price
+
+def apply_coupon(total_price, coupon_type, coupon_value):
+    """쿠폰가 적용"""
+    if coupon_type == 'percentage':
+        # 할인율 적용
+        discount = total_price * (float(coupon_value) / 100)
+        return total_price - discount
+    elif coupon_type == 'fixed':
+        # 고정 금액 할인
+        return max(0, total_price - float(coupon_value))
+    return total_price
+
+@app.route('/wdcalculator')
+@login_required
+def wdcalculator():
+    """견적 계산 메인 페이지"""
+    try:
+        categories = load_additional_option_categories()
+        if categories is None:
+            categories = []
+        # 추가로 한 번 더 정리 (안전장치)
+        categories = clean_categories_data(categories)
+    except Exception as e:
+        print(f"Error loading categories: {e}")
+        categories = []
+    return render_template('wdcalculator/calculator.html', categories=categories)
+
+@app.route('/wdcalculator/product-settings')
+@login_required
+def wdcalculator_product_settings():
+    """제품 설정 페이지"""
+    try:
+        products = load_products()
+        if products is None:
+            products = []
+    except Exception as e:
+        print(f"Error loading products: {e}")
+        products = []
+    
+    try:
+        categories = load_additional_option_categories()
+        if categories is None:
+            categories = []
+        # 추가로 한 번 더 정리 (안전장치)
+        categories = clean_categories_data(categories)
+    except Exception as e:
+        print(f"Error loading categories: {e}")
+        categories = []
+    
+    return render_template('wdcalculator/product_settings.html', products=products, categories=categories)
+
+@app.route('/api/wdcalculator/products', methods=['GET'])
+@login_required
+def api_wdcalculator_get_products():
+    """제품 목록 조회"""
+    products = load_products()
+    return jsonify({'success': True, 'products': products})
+
+@app.route('/api/wdcalculator/products', methods=['POST'])
+@login_required
+def api_wdcalculator_save_product():
+    """제품 추가/수정"""
+    try:
+        data = request.get_json()
+        products = load_products()
+        
+        product_id = data.get('id')
+        
+        if product_id:
+            # 수정
+            for i, product in enumerate(products):
+                if product['id'] == product_id:
+                    products[i] = data
+                    break
+        else:
+            # 추가
+            new_id = max([p['id'] for p in products], default=0) + 1
+            data['id'] = new_id
+            products.append(data)
+        
+        if save_products(products):
+            return jsonify({'success': True, 'message': '제품이 저장되었습니다.'})
+        else:
+            return jsonify({'success': False, 'message': '제품 저장에 실패했습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/wdcalculator/products/<int:product_id>', methods=['DELETE'])
+@login_required
+def api_wdcalculator_delete_product(product_id):
+    """제품 삭제"""
+    try:
+        products = load_products()
+        products = [p for p in products if p['id'] != product_id]
+        
+        if save_products(products):
+            return jsonify({'success': True, 'message': '제품이 삭제되었습니다.'})
+        else:
+            return jsonify({'success': False, 'message': '제품 삭제에 실패했습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/wdcalculator/calculate', methods=['POST'])
+@login_required
+def api_wdcalculator_calculate():
+    """견적 계산 API"""
+    try:
+        data = request.get_json()
+        product_id = data.get('product_id')
+        width_mm = float(data.get('width_mm', 0))
+        additional_options = data.get('additional_options', [])
+        coupon_type = data.get('coupon_type', 'percentage')
+        coupon_value = data.get('coupon_value', 0)
+        
+        products = load_products()
+        product = next((p for p in products if p['id'] == product_id), None)
+        
+        if not product:
+            return jsonify({'success': False, 'message': '제품을 찾을 수 없습니다.'})
+        
+        total_price = calculate_estimate(product, width_mm, additional_options)
+        final_price = apply_coupon(total_price, coupon_type, coupon_value)
+        
+        return jsonify({
+            'success': True,
+            'base_price': total_price,
+            'final_price': final_price
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+# 추가 옵션 카테고리 관리 API
+@app.route('/api/wdcalculator/additional-options/categories', methods=['GET'])
+@login_required
+def api_wdcalculator_get_categories():
+    """추가 옵션 카테고리 목록 조회"""
+    categories = load_additional_option_categories()
+    return jsonify({'success': True, 'categories': categories})
+
+@app.route('/api/wdcalculator/additional-options/categories', methods=['POST'])
+@login_required
+def api_wdcalculator_save_category():
+    """추가 옵션 카테고리 추가/수정"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '데이터가 없습니다.'})
+        
+        # 필수 필드 검증
+        if not data.get('name'):
+            return jsonify({'success': False, 'message': '카테고리명을 입력해주세요.'})
+        
+        categories = load_additional_option_categories()
+        
+        category_id = data.get('id')
+        
+        # 데이터 정리
+        category_data = {
+            'name': data.get('name', '').strip(),
+            'options': data.get('options', [])
+        }
+        
+        if category_id:
+            # 수정
+            category_data['id'] = category_id
+            found = False
+            for i, category in enumerate(categories):
+                if category.get('id') == category_id:
+                    # 기존 옵션은 유지하고 새로운 옵션만 추가
+                    if 'options' in category_data and category_data['options']:
+                        existing_options = category.get('options', [])
+                        # 기존 옵션 ID 유지
+                        for new_option in category_data['options']:
+                            if 'id' not in new_option or not new_option.get('id'):
+                                # 새 옵션 ID 생성
+                                option_ids = [o.get('id') or 0 for o in existing_options if o.get('id')]
+                                new_option_id = max(option_ids, default=0) + 1
+                                new_option['id'] = new_option_id
+                                existing_options.append(new_option)
+                        category_data['options'] = existing_options
+                    categories[i] = category_data
+                    found = True
+                    break
+            if not found:
+                return jsonify({'success': False, 'message': '카테고리를 찾을 수 없습니다.'})
+        else:
+            # 추가 - 카테고리명으로 기존 카테고리 찾기
+            existing_category = next((c for c in categories if c.get('name') == category_data['name']), None)
+            if existing_category:
+                # 기존 카테고리에 옵션 추가
+                if 'options' in category_data and category_data['options']:
+                    existing_options = existing_category.get('options', [])
+                    for new_option in category_data['options']:
+                        if 'id' not in new_option or not new_option.get('id'):
+                            option_ids = [o.get('id') or 0 for o in existing_options if o.get('id')]
+                            new_option_id = max(option_ids, default=0) + 1
+                            new_option['id'] = new_option_id
+                            existing_options.append(new_option)
+                    existing_category['options'] = existing_options
+            else:
+                # 새 카테고리 생성
+                new_id = max([c.get('id', 0) for c in categories], default=0) + 1
+                category_data['id'] = new_id
+                if 'options' not in category_data:
+                    category_data['options'] = []
+                # 옵션에 ID 부여
+                for option in category_data['options']:
+                    if 'id' not in option or not option.get('id'):
+                        # 모든 카테고리의 모든 옵션에서 최대 ID 찾기
+                        all_option_ids = []
+                        for cat in categories:
+                            if cat.get('options'):
+                                all_option_ids.extend([o.get('id') or 0 for o in cat['options'] if o.get('id')])
+                        # 현재 카테고리의 옵션 ID도 확인
+                        current_option_ids = [o.get('id') or 0 for o in category_data['options'] if o.get('id')]
+                        all_option_ids.extend(current_option_ids)
+                        option_id = max(all_option_ids, default=0) + 1
+                        option['id'] = option_id
+                categories.append(category_data)
+        
+        # 데이터 정리 후 저장
+        cleaned_categories = clean_categories_data(categories)
+        if save_additional_option_categories(cleaned_categories):
+            return jsonify({'success': True, 'message': '카테고리가 저장되었습니다.'})
+        else:
+            return jsonify({'success': False, 'message': '카테고리 저장에 실패했습니다.'})
+    except Exception as e:
+        import traceback
+        print(f"Error saving category: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': f'오류가 발생했습니다: {str(e)}'})
+
+@app.route('/api/wdcalculator/additional-options/categories/<int:category_id>', methods=['DELETE'])
+@login_required
+def api_wdcalculator_delete_category(category_id):
+    """추가 옵션 카테고리 삭제"""
+    try:
+        categories = load_additional_option_categories()
+        categories = [c for c in categories if c['id'] != category_id]
+        
+        if save_additional_option_categories(categories):
+            return jsonify({'success': True, 'message': '카테고리가 삭제되었습니다.'})
+        else:
+            return jsonify({'success': False, 'message': '카테고리 삭제에 실패했습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/wdcalculator/additional-options/categories/<int:category_id>/options', methods=['POST'])
+@login_required
+def api_wdcalculator_save_option(category_id):
+    """카테고리 내 옵션 추가/수정"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '데이터가 없습니다.'})
+        
+        # 필수 필드 검증
+        if not data.get('name'):
+            return jsonify({'success': False, 'message': '옵션명을 입력해주세요.'})
+        if data.get('price') is None:
+            return jsonify({'success': False, 'message': '가격을 입력해주세요.'})
+        
+        categories = load_additional_option_categories()
+        
+        category = next((c for c in categories if c.get('id') == category_id), None)
+        if not category:
+            return jsonify({'success': False, 'message': '카테고리를 찾을 수 없습니다.'})
+        
+        # 데이터 정리
+        option_data = {
+            'name': data.get('name', '').strip(),
+            'price': int(float(data.get('price', 0)))
+        }
+        
+        option_id = data.get('id')
+        
+        if option_id:
+            # 수정
+            option_data['id'] = option_id
+            found = False
+            for i, option in enumerate(category.get('options', [])):
+                if option.get('id') == option_id:
+                    category['options'][i] = option_data
+                    found = True
+                    break
+            if not found:
+                return jsonify({'success': False, 'message': '옵션을 찾을 수 없습니다.'})
+        else:
+            # 추가
+            if 'options' not in category:
+                category['options'] = []
+            # None 값을 제외한 ID 목록 생성
+            option_ids = [o.get('id') or 0 for o in category['options'] if o.get('id')]
+            new_id = max(option_ids, default=0) + 1
+            option_data['id'] = new_id
+            category['options'].append(option_data)
+        
+        # 데이터 정리 후 저장
+        cleaned_categories = clean_categories_data(categories)
+        if save_additional_option_categories(cleaned_categories):
+            return jsonify({'success': True, 'message': '옵션이 저장되었습니다.'})
+        else:
+            return jsonify({'success': False, 'message': '옵션 저장에 실패했습니다.'})
+    except Exception as e:
+        import traceback
+        print(f"Error saving option: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': f'오류가 발생했습니다: {str(e)}'})
+
+@app.route('/api/wdcalculator/additional-options/categories/<int:category_id>/options/<int:option_id>', methods=['DELETE'])
+@login_required
+def api_wdcalculator_delete_option(category_id, option_id):
+    """카테고리 내 옵션 삭제"""
+    try:
+        categories = load_additional_option_categories()
+        
+        category = next((c for c in categories if c['id'] == category_id), None)
+        if not category:
+            return jsonify({'success': False, 'message': '카테고리를 찾을 수 없습니다.'})
+        
+        category['options'] = [o for o in category['options'] if o.get('id') != option_id]
+        
+        if save_additional_option_categories(categories):
+            return jsonify({'success': True, 'message': '옵션이 삭제되었습니다.'})
+        else:
+            return jsonify({'success': False, 'message': '옵션 삭제에 실패했습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
 if __name__ == '__main__':
     # 안전한 시작 프로세스 실행 (SystemExit 방지)
     try:

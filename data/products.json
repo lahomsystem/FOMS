@@ -1,0 +1,73 @@
+{
+  "products": [
+    {
+      "id": 2,
+      "name": "몰딩(푸쉬)",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 84400,
+      "price_1cm": 2820
+    },
+    {
+      "id": 3,
+      "name": "주방(국산 인조대리석)-상하부장",
+      "pricing_type": "1m",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_1m": 650000
+    },
+    {
+      "id": 4,
+      "name": "몰딩(피닉스바)",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 88900,
+      "price_1cm": 2970
+    },
+    {
+      "id": 5,
+      "name": "무몰딩(푸쉬)",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 89900,
+      "price_1cm": 3000
+    },
+    {
+      "id": 6,
+      "name": "무몰딩(피닉스바)",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 94400,
+      "price_1cm": 3150
+    },
+    {
+      "id": 7,
+      "name": "슬라이딩",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 102000,
+      "price_1cm": 34000
+    },
+    {
+      "id": 8,
+      "name": "ㄱ자,ㄷ자",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 108900,
+      "price_1cm": 3630
+    }
+  ]
+}
