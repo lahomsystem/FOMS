@@ -3,7 +3,7 @@ import datetime
 import json
 import pandas as pd
 import re
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, g, session, send_file, current_app
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, g, session, send_file, send_from_directory, current_app
 from markupsafe import Markup
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -1851,6 +1851,35 @@ def download_excel():
 def calendar():
     return render_template('calendar.html')
 
+@app.route('/wdplanner')
+@login_required
+def wdplanner():
+    """WDPlanner - 붙박이장 3D 설계 프로그램 (FOMS 레이아웃 포함)"""
+    # FOMS 레이아웃을 유지하면서 iframe으로 WDPlanner를 표시
+    return render_template('wdplanner.html')
+
+# WDPlanner 정적 파일 서빙 - Flask의 기본 static 폴더 활용
+@app.route('/wdplanner/app/<path:filename>')
+@login_required
+def wdplanner_static(filename):
+    """WDPlanner 정적 파일 서빙 (JS, CSS, assets 등)"""
+    # static/wdplanner/ 경로에서 파일 서빙
+    return send_from_directory('static/wdplanner', filename)
+
+@app.route('/wdplanner/app')
+@login_required
+def wdplanner_app():
+    """WDPlanner 앱 자체 (iframe 내부에서 로드)"""
+    wdplanner_index = os.path.join('static', 'wdplanner', 'index.html')
+    if os.path.exists(wdplanner_index):
+        # index.html을 Flask 템플릿으로 렌더링하여 url_for 사용 가능하게 함
+        with open(wdplanner_index, 'r', encoding='utf-8') as f:
+            content = f.read()
+        from flask import render_template_string
+        return render_template_string(content)
+    else:
+        return render_template('wdplanner_setup.html')
+
 @app.route('/map_view')
 @login_required
 def map_view():
@@ -2673,16 +2702,14 @@ def load_menu_config():
         'main_menu': [
             {'id': 'calendar', 'name': '캘린더', 'url': '/calendar'},
             {'id': 'order_list', 'name': '전체 주문', 'url': '/'},
-            {'id': 'metro_orders', 'name': '수도권 주문', 'url': '/?region=metro'},
-            {'id': 'regional_orders', 'name': '지방 주문', 'url': '/?region=regional'},
-            {'id': 'regional_dashboard', 'name': '지방 주문 대시보드', 'url': '/regional_dashboard'},
-            {'id': 'metropolitan_dashboard', 'name': '수도권 주문 대시보드', 'url': '/metropolitan_dashboard'},
             {'id': 'received', 'name': '접수', 'url': '/?status=RECEIVED'},
             {'id': 'measured', 'name': '실측', 'url': '/?status=MEASURED'},
-            {'id': 'scheduled', 'name': '설치 예정', 'url': '/?status=SCHEDULED'},
-            {'id': 'completed', 'name': '완료', 'url': '/?status=COMPLETED'},
-            {'id': 'as_received', 'name': 'AS 접수', 'url': '/?status=AS_RECEIVED'},
-            {'id': 'as_completed', 'name': 'AS 완료', 'url': '/?status=AS_COMPLETED'},
+            {'id': 'metro_orders', 'name': '수도권 주문', 'url': '/?region=metro'},
+            {'id': 'regional_orders', 'name': '지방 주문', 'url': '/?region=regional'},
+            {'id': 'storage_dashboard', 'name': '수납장 대시보드', 'url': '/storage_dashboard'},
+            {'id': 'regional_dashboard', 'name': '지방 주문 대시보드', 'url': '/regional_dashboard'},
+            {'id': 'self_measurement_dashboard', 'name': '자가실측 대시보드', 'url': '/self_measurement_dashboard'},
+            {'id': 'metropolitan_dashboard', 'name': '수도권 주문 대시보드', 'url': '/metropolitan_dashboard'},
             {'id': 'trash', 'name': '휴지통', 'url': '/trash'}
         ],
         'admin_menu': [

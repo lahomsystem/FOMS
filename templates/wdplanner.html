@@ -1,0 +1,149 @@
+{% extends "layout.html" %}
+
+{% block head %}
+<title>WDPLANNER - 가구 주문 관리 시스템</title>
+<style>
+    /* WDPlanner 페이지 전용 스타일 오버라이드 */
+    body.wdplanner-page .container-fluid {
+        padding: 0 !important;
+        margin: 0 !important;
+        height: 100%;
+        max-width: 100% !important;
+    }
+    
+    /* 전체 화면 래퍼 */
+    .wdplanner-wrapper {
+        position: fixed;
+        left: 0;
+        right: 0;
+        width: 100vw;
+        margin: 0;
+        padding: 0;
+        background-color: #fff;
+        overflow: hidden;
+        z-index: 1;
+        /* 높이는 JavaScript로 동적 계산 */
+    }
+    
+    /* iframe 전체 화면 */
+    #wdplanner-iframe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border: none;
+        display: block;
+        margin: 0;
+        padding: 0;
+    }
+    
+    /* 로딩 인디케이터 */
+    .wdplanner-loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        z-index: 100;
+        background-color: rgba(255, 255, 255, 0.95);
+        padding: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .wdplanner-loading .spinner-border {
+        width: 3rem;
+        height: 3rem;
+        border-width: 0.3rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wdplanner-wrapper">
+    <div class="wdplanner-loading" id="wdplanner-loading">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">로딩 중...</span>
+        </div>
+        <p class="mt-3 text-muted">WDPlanner를 불러오는 중...</p>
+    </div>
+    <iframe 
+        id="wdplanner-iframe"
+        src="{{ url_for('wdplanner_app') }}"
+        title="WDPlanner - 붙박이장 3D 설계"
+        allow="fullscreen"
+        onload="document.getElementById('wdplanner-loading').style.display='none';"
+    ></iframe>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // body에 클래스 추가 (스타일 적용용)
+    document.body.classList.add('wdplanner-page');
+    
+    // 동적 높이 계산 (헤더와 네비게이션 높이 자동 감지)
+    function adjustWDPlannerHeight() {
+        const header = document.querySelector('header');
+        const nav = document.querySelector('nav');
+        const wrapper = document.querySelector('.wdplanner-wrapper');
+        
+        if (header && nav && wrapper) {
+            const headerHeight = header.offsetHeight || header.clientHeight;
+            const navHeight = nav.offsetHeight || nav.clientHeight;
+            const totalHeight = headerHeight + navHeight;
+            const viewportHeight = window.innerHeight;
+            
+            // iframe 높이를 동적으로 조정 (전체 화면 - 헤더/네비게이션)
+            wrapper.style.top = totalHeight + 'px';
+            wrapper.style.height = (viewportHeight - totalHeight) + 'px';
+            wrapper.style.width = '100vw';
+        }
+    }
+    
+    // 페이지 로드 시 높이 조정
+    function initWDPlanner() {
+        adjustWDPlannerHeight();
+        
+        // 리사이즈 이벤트 리스너 (디바운싱)
+        let resizeTimer;
+        window.addEventListener('resize', function() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(adjustWDPlannerHeight, 100);
+        });
+        
+        // 짧은 지연 후 다시 조정 (레이아웃 완료 대기)
+        setTimeout(adjustWDPlannerHeight, 100);
+        setTimeout(adjustWDPlannerHeight, 300);
+        setTimeout(adjustWDPlannerHeight, 500);
+    }
+    
+    // DOMContentLoaded 또는 이미 로드된 경우
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initWDPlanner);
+    } else {
+        initWDPlanner();
+    }
+    
+    // iframe 로딩 오류 처리
+    const iframe = document.getElementById('wdplanner-iframe');
+    if (iframe) {
+        iframe.addEventListener('error', function() {
+            const loading = document.getElementById('wdplanner-loading');
+            if (loading) {
+                loading.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> WDPlanner를 불러올 수 없습니다. 빌드 파일이 준비되었는지 확인하세요.</div>';
+            }
+        });
+        
+        // iframe 로드 완료 시 높이 재조정
+        iframe.addEventListener('load', function() {
+            adjustWDPlannerHeight();
+            // 추가 지연 후 한 번 더 조정
+            setTimeout(adjustWDPlannerHeight, 200);
+        });
+    }
+</script>
+{% endblock %}
+
+
