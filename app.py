@@ -1872,11 +1872,8 @@ def wdplanner_app():
     """WDPlanner 앱 자체 (iframe 내부에서 로드)"""
     wdplanner_index = os.path.join('static', 'wdplanner', 'index.html')
     if os.path.exists(wdplanner_index):
-        # index.html을 Flask 템플릿으로 렌더링하여 url_for 사용 가능하게 함
-        with open(wdplanner_index, 'r', encoding='utf-8') as f:
-            content = f.read()
-        from flask import render_template_string
-        return render_template_string(content)
+        # index.html 파일을 직접 반환 (Content-Type 자동 설정)
+        return send_from_directory('static/wdplanner', 'index.html')
     else:
         return render_template('wdplanner_setup.html')
 

@@ -9,7 +9,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  base: '/wdplanner/',
+  base: '/wdplanner/app/',
   server: {
     port: 5173,
     host: '0.0.0.0', // 모든 네트워크 인터페이스에서 접근 가능
