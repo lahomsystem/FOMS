@@ -834,8 +834,8 @@
                 const totalBasePrice = estimateData.totalBasePrice || 0;
                 const totalAdditionalPrice = estimateData.totalAdditionalPrice || 0;
                 const totalPrice = estimateData.totalPrice || 0;
-                const finalPrice = estimateData.finalPrice || totalPrice; // 쿠폰 적용가, 없으면 총합
-                const couponInfo = estimateData.couponInfo || null;
+                const finalPrice = totalPrice; // 쿠폰 제거됨
+                const notes = estimateData.notes || '';
 
                 html += `
                     <div class="card mb-3 border-left-info shadow-sm">
@@ -845,6 +845,13 @@
                                     <i class="fas fa-file-invoice-dollar me-2"></i>견적서 #${estimate.id} - ${estimate.customer_name}
                                 </h6>
                                 <small class="text-muted">생성일: ${estimate.created_at}</small>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-warning edit-estimate-from-order-btn" 
+                                        data-estimate-id="${estimate.id}"
+                                        title="견적 수정">
+                                    <i class="fas fa-edit"></i> 수정
+                                </button>
                             </div>
                         </div>
                         <div class="card-body p-0">
@@ -900,17 +907,6 @@
                                         </tr>
                 `;
 
-                if (couponInfo) {
-                    html += `
-                        <tr class="text-danger">
-                            <td colspan="3" class="text-end">
-                                <i class="fas fa-tag"></i> 쿠폰 할인 (${couponInfo})
-                            </td>
-                            <td class="text-end">-${formatNumber(totalPrice - finalPrice)}원</td>
-                        </tr>
-                    `;
-                }
-
                 html += `
                                         <tr class="table-info">
                                             <td colspan="3" class="text-end fw-bold">총 견적 금액</td>
@@ -919,12 +915,49 @@
                                     </tfoot>
                                 </table>
                             </div>
+                `;
+                
+                // 비고 정보 표시
+                if (notes) {
+                    html += `
+                        <div class="card-footer bg-light">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-sticky-note text-warning me-2 mt-1"></i>
+                                <div>
+                                    <strong>비고:</strong>
+                                    <p class="mb-0 text-muted" style="white-space: pre-wrap;">${notes.replace(/\n/g, '<br>')}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                html += `
                         </div>
                     </div>
                 `;
             });
             
             container.innerHTML = html;
+            
+            // 수정 버튼 이벤트 리스너 등록
+            document.querySelectorAll('.edit-estimate-from-order-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const estimateId = this.dataset.estimateId;
+                    const orderId = {{ order.id }};
+                    console.log('수정 버튼 클릭:', { estimateId, orderId });
+                    if (!estimateId) {
+                        alert('견적 ID를 찾을 수 없습니다.');
+                        return;
+                    }
+                    // 계산기 페이지로 이동하면서 견적 ID와 주문 ID 전달
+                    const url = `/wdcalculator?estimate_id=${estimateId}&order_id=${orderId}`;
+                    console.log('이동할 URL:', url);
+                    window.location.href = url;
+                });
+            });
         }
         
         // 숫자 포맷팅
