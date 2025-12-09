@@ -10,9 +10,23 @@
     <div class="col-md-8 mx-auto">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">주문 수정 (ID: {{ order.id }})</h5>
+                <ul class="nav nav-tabs card-header-tabs" id="orderTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="order-info-tab" data-bs-toggle="tab" data-bs-target="#order-info" type="button" role="tab">
+                            <i class="fas fa-info-circle"></i> 주문 정보
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="calculator-tab" data-bs-toggle="tab" data-bs-target="#calculator" type="button" role="tab">
+                            <i class="fas fa-calculator"></i> 계산기
+                        </button>
+                    </li>
+                </ul>
             </div>
             <div class="card-body">
+                <div class="tab-content" id="orderTabContent">
+                    <!-- 주문 정보 탭 -->
+                    <div class="tab-pane fade show active" id="order-info" role="tabpanel">
                 <form method="post" action="{{ url_for('edit_order', order_id=order.id, **preserved_args) }}" id="editOrderForm">
                     <input type="hidden" name="referrer" value="{{ request.referrer or url_for('index') }}">
                     <div class="row mb-3">
@@ -317,6 +331,34 @@
                         <button type="submit" class="btn btn-primary">주문 수정</button>
                     </div>
                 </form>
+                    </div>
+                    
+                    <!-- 계산기 탭 -->
+                    <div class="tab-pane fade" id="calculator" role="tabpanel">
+                        <div id="calculatorTabContent">
+                            <h6 class="mb-3"><i class="fas fa-calculator"></i> 매칭된 견적</h6>
+                            <div id="matchedEstimatesList">
+                                <p class="text-muted">로딩 중...</p>
+                            </div>
+                            
+                            <hr class="my-4">
+                            
+                            <h6 class="mb-3"><i class="fas fa-link"></i> 견적 매칭</h6>
+                            <div class="mb-3">
+                                <label for="matchCustomerName" class="form-label">고객명으로 견적 검색</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="matchCustomerName" placeholder="고객명을 입력하세요" value="{{ order.customer_name }}">
+                                    <button class="btn btn-primary" type="button" id="searchEstimatesForMatchBtn">
+                                        <i class="fas fa-search"></i> 검색
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="matchEstimatesResults" style="display: none;">
+                                <div id="matchEstimatesList"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -753,6 +795,171 @@
         
         if (completionDateInput) {
             completionDateInput.addEventListener('input', updateScheduledDate);
+        }
+        
+        // 계산기 탭: 매칭된 견적 로드
+        function loadMatchedEstimates() {
+            const orderId = {{ order.id }};
+            
+            fetch(`/api/wdcalculator/order-estimates/${orderId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayMatchedEstimates(data.estimates);
+                    } else {
+                        document.getElementById('matchedEstimatesList').innerHTML = 
+                            '<p class="text-muted">매칭된 견적이 없습니다.</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('matchedEstimatesList').innerHTML = 
+                        '<p class="text-danger">견적을 불러오는 중 오류가 발생했습니다.</p>';
+                });
+        }
+        
+        // 매칭된 견적 표시
+        function displayMatchedEstimates(estimates) {
+            const container = document.getElementById('matchedEstimatesList');
+            
+            if (estimates.length === 0) {
+                container.innerHTML = '<p class="text-muted">매칭된 견적이 없습니다.</p>';
+                return;
+            }
+            
+            let html = '<div class="list-group">';
+            estimates.forEach(estimate => {
+                const estimateData = estimate.estimate_data;
+                const totalPrice = estimateData.totalPrice || 0;
+                const basePrice = estimateData.totalBasePrice || 0;
+                const additionalPrice = estimateData.totalAdditionalPrice || 0;
+                
+                html += `
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">${estimate.customer_name}</h6>
+                                <small class="text-muted">생성일: ${estimate.created_at}</small>
+                                <div class="mt-2">
+                                    <small>기본 견적 총합: ${formatNumber(basePrice)}원</small><br>
+                                    <small>추가 옵션 총합: ${formatNumber(additionalPrice)}원</small><br>
+                                    <strong>총 견적: ${formatNumber(totalPrice)}원</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            container.innerHTML = html;
+        }
+        
+        // 숫자 포맷팅
+        function formatNumber(num) {
+            return Math.round(num).toLocaleString('ko-KR');
+        }
+        
+        // 계산기 탭 클릭 시 매칭된 견적 로드
+        document.getElementById('calculator-tab').addEventListener('shown.bs.tab', function() {
+            loadMatchedEstimates();
+        });
+        
+        // 견적 검색 및 매칭
+        document.getElementById('searchEstimatesForMatchBtn').addEventListener('click', function() {
+            const customerName = document.getElementById('matchCustomerName').value.trim();
+            if (!customerName) {
+                alert('고객명을 입력해주세요.');
+                return;
+            }
+            
+            fetch(`/api/wdcalculator/search-estimates?customer_name=${encodeURIComponent(customerName)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayMatchEstimatesResults(data.estimates);
+                    } else {
+                        alert(data.message || '검색 중 오류가 발생했습니다.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('검색 중 오류가 발생했습니다.');
+                });
+        });
+        
+        // 매칭용 견적 검색 결과 표시
+        function displayMatchEstimatesResults(estimates) {
+            const container = document.getElementById('matchEstimatesList');
+            const resultsDiv = document.getElementById('matchEstimatesResults');
+            
+            if (estimates.length === 0) {
+                container.innerHTML = '<p class="text-muted">검색 결과가 없습니다.</p>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+            
+            let html = '<div class="list-group">';
+            estimates.forEach(estimate => {
+                const estimateData = estimate.estimate_data;
+                const totalPrice = estimateData.totalPrice || 0;
+                
+                html += `
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">${estimate.customer_name}</h6>
+                                <small class="text-muted">생성일: ${estimate.created_at}</small>
+                                <div class="mt-2">
+                                    <strong>총 견적: ${formatNumber(totalPrice)}원</strong>
+                                </div>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-success match-estimate-to-order-btn" 
+                                        data-estimate-id="${estimate.id}">
+                                    <i class="fas fa-link"></i> 매칭
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            container.innerHTML = html;
+            resultsDiv.style.display = 'block';
+            
+            // 매칭 버튼 이벤트
+            document.querySelectorAll('.match-estimate-to-order-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const estimateId = parseInt(this.dataset.estimateId);
+                    const orderId = {{ order.id }};
+                    
+                    fetch('/api/wdcalculator/match-order', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            estimate_id: estimateId,
+                            order_id: orderId
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('견적과 주문이 매칭되었습니다.');
+                            loadMatchedEstimates(); // 매칭된 견적 목록 새로고침
+                        } else {
+                            alert(data.message || '매칭 중 오류가 발생했습니다.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('매칭 중 오류가 발생했습니다.');
+                    });
+                });
+            });
         }
     });
 </script>
