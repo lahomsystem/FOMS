@@ -827,30 +827,102 @@
                 return;
             }
             
-            let html = '<div class="list-group">';
-            estimates.forEach(estimate => {
+            let html = '';
+            estimates.forEach((estimate, index) => {
                 const estimateData = estimate.estimate_data;
+                const items = estimateData.estimates || [];
+                const totalBasePrice = estimateData.totalBasePrice || 0;
+                const totalAdditionalPrice = estimateData.totalAdditionalPrice || 0;
                 const totalPrice = estimateData.totalPrice || 0;
-                const basePrice = estimateData.totalBasePrice || 0;
-                const additionalPrice = estimateData.totalAdditionalPrice || 0;
-                
+                const finalPrice = estimateData.finalPrice || totalPrice; // 쿠폰 적용가, 없으면 총합
+                const couponInfo = estimateData.couponInfo || null;
+
                 html += `
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-start">
+                    <div class="card mb-3 border-left-info shadow-sm">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="mb-1">${estimate.customer_name}</h6>
+                                <h6 class="m-0 font-weight-bold text-primary">
+                                    <i class="fas fa-file-invoice-dollar me-2"></i>견적서 #${estimate.id} - ${estimate.customer_name}
+                                </h6>
                                 <small class="text-muted">생성일: ${estimate.created_at}</small>
-                                <div class="mt-2">
-                                    <small>기본 견적 총합: ${formatNumber(basePrice)}원</small><br>
-                                    <small>추가 옵션 총합: ${formatNumber(additionalPrice)}원</small><br>
-                                    <strong>총 견적: ${formatNumber(totalPrice)}원</strong>
-                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped mb-0" style="font-size: 0.9rem;">
+                                    <thead class="table-primary text-dark">
+                                        <tr>
+                                            <th style="width: 25%">제품명</th>
+                                            <th style="width: 15%">규격(mm)</th>
+                                            <th style="width: 40%">상세 옵션</th>
+                                            <th style="width: 20%" class="text-end">금액</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                `;
+
+                if (items.length > 0) {
+                    items.forEach(item => {
+                        let optionsHtml = '';
+                        if (item.options && item.options.length > 0) {
+                            optionsHtml = '<ul class="list-unstyled mb-0 small">';
+                            item.options.forEach(opt => {
+                                optionsHtml += `<li>- ${opt.name}: +${formatNumber(opt.price)}원</li>`;
+                            });
+                            optionsHtml += '</ul>';
+                        } else {
+                            optionsHtml = '<span class="text-muted">-</span>';
+                        }
+
+                        html += `
+                            <tr>
+                                <td class="align-middle fw-bold">${item.productName}</td>
+                                <td class="align-middle">${formatNumber(item.widthMm)}mm</td>
+                                <td class="align-middle">${optionsHtml}</td>
+                                <td class="align-middle text-end">${formatNumber(item.totalPrice)}원</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    html += `<tr><td colspan="4" class="text-center text-muted">견적 상세 내역이 없습니다.</td></tr>`;
+                }
+
+                html += `
+                                    </tbody>
+                                    <tfoot class="table-light">
+                                        <tr>
+                                            <td colspan="3" class="text-end">기본 견적 합계</td>
+                                            <td class="text-end">${formatNumber(totalBasePrice)}원</td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="3" class="text-end">추가 옵션 합계</td>
+                                            <td class="text-end">${formatNumber(totalAdditionalPrice)}원</td>
+                                        </tr>
+                `;
+
+                if (couponInfo) {
+                    html += `
+                        <tr class="text-danger">
+                            <td colspan="3" class="text-end">
+                                <i class="fas fa-tag"></i> 쿠폰 할인 (${couponInfo})
+                            </td>
+                            <td class="text-end">-${formatNumber(totalPrice - finalPrice)}원</td>
+                        </tr>
+                    `;
+                }
+
+                html += `
+                                        <tr class="table-info">
+                                            <td colspan="3" class="text-end fw-bold">총 견적 금액</td>
+                                            <td class="text-end fw-bold text-primary h6 mb-0">${formatNumber(finalPrice)}원</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
                             </div>
                         </div>
                     </div>
                 `;
             });
-            html += '</div>';
             
             container.innerHTML = html;
         }
