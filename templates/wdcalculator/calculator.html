@@ -100,36 +100,52 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid py-4">
+    <div class="row">
+        <!-- [LEFT] 저장된 견적 목록 사이드바 -->
+        <div class="col-lg-3 mb-4">
+            <div class="card shadow-sm sticky-top" style="top: 20px; max-height: calc(100vh - 40px); display: flex; flex-direction: column;">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                    <h5 class="mb-0 fw-bold"><i class="fas fa-history text-info"></i> 저장된 견적</h5>
+                    <button class="btn btn-sm btn-outline-primary" id="refreshEstimatesBtn" title="새로고침">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <div class="card-body p-2 d-flex flex-column" style="overflow: hidden;">
+                    <!-- 검색 -->
+                    <div class="input-group mb-3 flex-shrink-0">
+                        <input type="text" class="form-control" id="sidebarSearchInput" placeholder="고객명 검색...">
+                        <button class="btn btn-outline-secondary" type="button" id="sidebarSearchBtn">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- 목록 (스크롤 영역) -->
+                    <div class="flex-grow-1 overflow-auto" id="savedEstimatesListContainer" style="min-height: 0;">
+                        <div class="text-center py-5 text-muted" id="savedEstimatesLoading">
+                            <div class="spinner-border spinner-border-sm mb-2" role="status"></div>
+                            <p>견적 목록을 불러오는 중...</p>
+                        </div>
+                        <div class="list-group list-group-flush" id="savedEstimatesList">
+                            <!-- JS로 렌더링됨 -->
+                        </div>
+                        <div class="text-center py-5 text-muted" id="noSavedEstimates" style="display: none;">
+                            <i class="far fa-folder-open fa-3x mb-3"></i>
+                            <p>저장된 견적이 없습니다.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- [RIGHT] 계산기 메인 영역 -->
+        <div class="col-lg-9">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0"><i class="fas fa-calculator text-info"></i> 가구 견적 계산기</h1>
         <div>
             <a href="{{ url_for('wdcalculator_product_settings') }}" class="btn btn-info">
                 <i class="fas fa-cog"></i> 제품 설정
             </a>
-        </div>
-    </div>
-    
-    <!-- 견적 검색 섹션 -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0"><i class="fas fa-search"></i> 저장된 견적 검색</h5>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-8">
-                    <input type="text" class="form-control" id="searchCustomerName" placeholder="고객명을 입력하세요">
-                </div>
-                <div class="col-md-4">
-                    <button type="button" class="btn btn-primary w-100" id="searchEstimateBtn">
-                        <i class="fas fa-search"></i> 검색
-                    </button>
-                </div>
-            </div>
-            <div id="searchResults" class="mt-3" style="display: none;">
-                <h6>검색 결과</h6>
-                <div id="searchResultsList"></div>
-            </div>
         </div>
     </div>
 
@@ -190,24 +206,24 @@
                         </button>
                     </div>
 
-                    <!-- 쿠폰가 설정 (고정: 11,000원) -->
+                            <!-- 쿠폰가 설정 (고정: 11,000원) -->
                     <div class="mb-3">
                         <label class="form-label">쿠폰가 설정</label>
                         <div class="row">
                             <div class="col-md-6">
-                                <select class="form-select" id="couponType" disabled>
+                                        <select class="form-select" id="couponType" disabled>
                                     <option value="percentage">할인율 (%)</option>
-                                    <option value="fixed" selected>고정 금액 (원)</option>
+                                            <option value="fixed" selected>고정 금액 (원)</option>
                                 </select>
-                                <input type="hidden" id="couponTypeHidden" value="fixed">
+                                        <input type="hidden" id="couponTypeHidden" value="fixed">
                             </div>
                             <div class="col-md-6">
-                                <input type="number" class="form-control" id="couponValue" min="0" step="1" value="11000" placeholder="쿠폰가 값" readonly>
+                                        <input type="number" class="form-control" id="couponValue" min="0" step="1" value="11000" placeholder="쿠폰가 값" readonly>
                             </div>
                         </div>
-                        <small class="form-text text-muted">
-                            <i class="fas fa-info-circle"></i> 쿠폰가는 고정 금액 11,000원으로 설정되어 있습니다.
-                        </small>
+                                <small class="form-text text-muted">
+                                    <i class="fas fa-info-circle"></i> 쿠폰가는 고정 금액 11,000원으로 설정되어 있습니다.
+                                </small>
                     </div>
                 </div>
             </div>
@@ -223,19 +239,19 @@
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
-                        <div class="mb-2">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span>기본 견적:</span>
-                                <strong id="totalBasePrice">0원</strong>
-                            </div>
-                            <div class="text-muted small" id="baseEstimateDetail" style="padding-left: 0.5rem;"></div>
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span>기본 견적:</span>
+                            <strong id="totalBasePrice">0원</strong>
                         </div>
-                        <div class="mb-2">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span>추가 옵션 합계:</span>
-                                <strong id="totalAdditionalPrice">0원</strong>
-                            </div>
-                            <div class="text-muted small" id="additionalOptionsDetail" style="padding-left: 0.5rem;"></div>
+                                    <div class="text-muted small" id="baseEstimateDetail" style="padding-left: 0.5rem;"></div>
+                                </div>
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span>추가 옵션 합계:</span>
+                            <strong id="totalAdditionalPrice">0원</strong>
+                                    </div>
+                                    <div class="text-muted small" id="additionalOptionsDetail" style="padding-left: 0.5rem;"></div>
                         </div>
                         <hr>
                         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -258,57 +274,59 @@
                         <button type="button" class="btn btn-success w-100" id="calculateBtn">
                             <i class="fas fa-calculator"></i> 견적 계산
                         </button>
-                        <button type="button" class="btn btn-primary w-100 mt-2" id="addEstimateBtn" style="display: none;">
-                            <i class="fas fa-plus"></i> 견적 추가
-                        </button>
-                        <button type="button" class="btn btn-info w-100 mt-2" id="saveEstimateBtn" style="display: none;">
-                            <i class="fas fa-save"></i> 견적 저장
+                                <button type="button" class="btn btn-primary w-100 mt-2" id="addEstimateBtn" style="display: none;">
+                                    <i class="fas fa-plus"></i> 견적 추가
+                                </button>
+                                <button type="button" class="btn btn-info w-100 mt-2" id="saveEstimateBtn" style="display: none;">
+                                    <i class="fas fa-save"></i> 견적 저장
                         </button>
                     </div>
                 </div>
             </div>
         </div>
-        
-        <!-- 진행 중인 견적 목록 -->
-        <div class="col-lg-12 mt-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-list"></i> 진행 중인 견적</h5>
-                </div>
-                <div class="card-body">
-                    <div id="estimatesListContainer">
-                        <p class="text-muted text-center mb-0">추가된 견적이 없습니다.</p>
-                    </div>
-                    
-                    <!-- 전체 견적 총 합계 -->
-                    <div id="totalEstimatesSummary" style="display: none;" class="mt-4">
-                        <div class="card border-primary">
-                            <div class="card-header bg-primary text-white">
-                                <h5 class="mb-0"><i class="fas fa-calculator"></i> 전체 견적 총 합계</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <span>기본 견적 총합:</span>
-                                            <strong id="totalAllBasePrice">0원</strong>
-                                        </div>
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <span>추가 옵션 총합:</span>
-                                            <strong id="totalAllAdditionalPrice">0원</strong>
-                                        </div>
-                                        <hr>
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <span class="h5 mb-0">총 견적 합계:</span>
-                                            <strong class="h4 text-primary mb-0" id="totalAllPrice">0원</strong>
-                                        </div>
+                
+                <!-- 진행 중인 견적 목록 -->
+                <div class="col-lg-12 mt-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-list"></i> 진행 중인 견적</h5>
+    </div>
+                        <div class="card-body">
+                            <div id="estimatesListContainer">
+                                <p class="text-muted text-center mb-0">추가된 견적이 없습니다.</p>
+</div>
+
+                            <!-- 전체 견적 총 합계 -->
+                            <div id="totalEstimatesSummary" style="display: none;" class="mt-4">
+                                <div class="card border-primary">
+                                    <div class="card-header bg-primary text-white">
+                                        <h5 class="mb-0"><i class="fas fa-calculator"></i> 전체 견적 총 합계</h5>
                                     </div>
-                                    <div class="col-md-6">
-                                        <div class="card bg-light">
-                                            <div class="card-body text-center">
-                                                <h6 class="card-title mb-3">최종 견적 (쿠폰 적용)</h6>
-                                                <div class="final-price-display mb-2" id="totalAllFinalPrice">0원</div>
-                                                <small class="text-muted" id="totalAllCouponInfo">쿠폰가 미적용</small>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <span>기본 견적 총합:</span>
+                                                    <strong id="totalAllBasePrice">0원</strong>
+                                                </div>
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <span>추가 옵션 총합:</span>
+                                                    <strong id="totalAllAdditionalPrice">0원</strong>
+                                                </div>
+                                                <hr>
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <span class="h5 mb-0">총 견적 합계:</span>
+                                                    <strong class="h4 text-primary mb-0" id="totalAllPrice">0원</strong>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="card bg-light">
+                                                    <div class="card-body text-center">
+                                                        <h6 class="card-title mb-3">최종 견적 (쿠폰 적용)</h6>
+                                                        <div class="final-price-display mb-2" id="totalAllFinalPrice">0원</div>
+                                                        <small class="text-muted" id="totalAllCouponInfo">쿠폰가 미적용</small>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -317,10 +335,10 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
+            </div> <!-- 메인 컨텐츠 내부 row 종료 -->
+        </div> <!-- col-lg-9 종료 -->
+    </div> <!-- 최상위 row 종료 -->
+</div> <!-- container-fluid 종료 -->
 
 <script>
     // Jinja2 템플릿 변수를 JavaScript 변수로 변환
@@ -331,7 +349,32 @@ document.addEventListener('DOMContentLoaded', function() {
     let products = [];
     let additionalOptions = [];
     let estimates = []; // 견적 목록 저장
-    let editingEstimateId = null; // 수정 중인 견적 ID
+    let editingEstimateId = null; // 수정 중인 견적 ID (내부 목록용)
+    let currentDatabaseEstimateId = null; // DB에 저장된 견적 ID (수정 시 사용)
+
+    // 견적 ID 생성 함수 (통일된 형식)
+    function generateEstimateId() {
+        return 'est_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+    
+    // ID 비교를 위한 헬퍼 함수
+    function isSameId(id1, id2) {
+        return String(id1) === String(id2);
+    }
+    
+    // ID를 문자열로 정규화
+    function normalizeId(id) {
+        if (!id) return null;
+        return String(id);
+    }
+    
+    // XSS 방지를 위한 HTML 이스케이프 함수
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
     
     // 카테고리 데이터 확인 (디버깅)
     console.log('로드된 카테고리 데이터:', wdCalculatorCategories);
@@ -392,7 +435,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         calculateEstimate();
-        });
+    });
     }
     
     // 제품 정보 표시
@@ -400,20 +443,31 @@ document.addEventListener('DOMContentLoaded', function() {
         const infoDiv = document.getElementById('productInfo');
         const contentDiv = document.getElementById('productInfoContent');
         
-        let infoHtml = `<div><strong>${product.name}</strong></div>`;
+        if (!infoDiv || !contentDiv) {
+            console.warn('제품 정보 표시 요소를 찾을 수 없습니다.');
+            return;
+        }
+        
+        if (!product) {
+            console.warn('제품 정보가 없습니다.');
+            infoDiv.style.display = 'none';
+            return;
+        }
+        
+        let infoHtml = `<div><strong>${escapeHtml(product.name || '')}</strong></div>`;
         infoHtml += `<div>가격 옵션: ${product.pricing_type === '1m' ? '1m' : '30cm'}</div>`;
         
         if (product.pricing_type === '1m') {
-            infoHtml += `<div>1m 비용: ${formatNumber(product.price_1m)}원</div>`;
+            infoHtml += `<div>1m 비용: ${formatNumber(product.price_1m || 0)}원</div>`;
         } else {
-            infoHtml += `<div>30cm 비용: ${formatNumber(product.price_30cm)}원</div>`;
-            infoHtml += `<div>1cm 비용: ${formatNumber(product.price_1cm)}원</div>`;
+            infoHtml += `<div>30cm 비용: ${formatNumber(product.price_30cm || 0)}원</div>`;
+            infoHtml += `<div>1cm 비용: ${formatNumber(product.price_1cm || 0)}원</div>`;
         }
         
         if (product.additional_options && product.additional_options.length > 0) {
             infoHtml += `<div class="mt-2"><strong>사용 가능한 추가 옵션:</strong></div>`;
             product.additional_options.forEach(option => {
-                infoHtml += `<div>- ${option.name}: ${formatNumber(option.price)}원</div>`;
+                infoHtml += `<div>- ${escapeHtml(option.name || '')}: ${formatNumber(option.price || 0)}원</div>`;
             });
             infoHtml += `<div class="mt-1"><small class="text-muted">※ 견적 계산 시 드롭다운에서 선택하거나 직접 입력할 수 있습니다.</small></div>`;
         }
@@ -426,8 +480,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const widthInput = document.getElementById('widthInput');
     if (widthInput) {
         widthInput.addEventListener('input', function() {
-            calculateEstimate();
-        });
+        calculateEstimate();
+    });
     }
     
     // 추가 옵션 추가 버튼 (null 체크 추가)
@@ -440,7 +494,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // 카테고리별 옵션 목록 생성 (먼저 생성)
         let allOptionsHtml = '<option value="">카테고리 > 옵션을 선택하세요</option>';
         if (wdCalculatorCategories && Array.isArray(wdCalculatorCategories)) {
-            wdCalculatorCategories.forEach(category => {
+        wdCalculatorCategories.forEach(category => {
                 if (category && category.options && Array.isArray(category.options) && category.options.length > 0) {
                     category.options.forEach(option => {
                         if (option && option.id && option.name && option.price !== undefined) {
@@ -467,7 +521,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             </button>
                             <select class="form-select form-select-sm category-option-select flex-grow-1" data-category-option-select>
                                 ${allOptionsHtml}
-                            </select>
+                        </select>
                         </div>
                         <input type="text" class="form-control form-control-sm option-name-input" placeholder="또는 옵션명 직접 입력 (예: 화장대 > 화장대A)" data-option-name style="display: none; margin-top: 0;">
                     </div>
@@ -558,7 +612,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (this.value < 1) {
                 this.value = 1;
             }
-            calculateEstimate();
+                calculateEstimate();
         });
         
         // 직접 입력 토글 버튼
@@ -589,7 +643,7 @@ document.addEventListener('DOMContentLoaded', function() {
         priceInput.addEventListener('input', calculateEstimate);
         nameInput.addEventListener('input', calculateEstimate);
         quantityInput.addEventListener('input', calculateEstimate);
-        });
+    });
     }
     
     // 추가 옵션 삭제
@@ -705,8 +759,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 총 견적에서 쿠폰가 1번만 적용
         if (couponValue > 0 && totalPrice > 0) {
-            finalPrice = Math.max(0, totalPrice - couponValue);
-            couponInfo = `${formatNumber(couponValue)}원 할인`;
+                finalPrice = Math.max(0, totalPrice - couponValue);
+                couponInfo = `${formatNumber(couponValue)}원 할인`;
         }
         
         // 결과 표시
@@ -812,20 +866,24 @@ document.addEventListener('DOMContentLoaded', function() {
         
         let html = '<div class="row g-3">';
         estimates.forEach((estimate, index) => {
-            const optionsDetail = estimate.options.length > 0 
-                ? estimate.options.map(opt => `${opt.name} × ${opt.quantity}`).join(', ')
+            const optionsDetail = estimate.options && estimate.options.length > 0 
+                ? estimate.options.map(opt => `${escapeHtml(opt.name)} × ${opt.quantity}`).join(', ')
                 : '없음';
+            
+            // ID를 문자열로 통일하여 HTML 속성에 저장 (XSS 방지를 위해 이스케이프)
+            const estimateIdStr = escapeHtml(String(estimate.id));
+            const productNameEscaped = escapeHtml(estimate.productName || '');
             
             html += `
                 <div class="col-md-6 col-lg-4">
-                    <div class="card h-100" data-estimate-id="${estimate.id}">
+                    <div class="card h-100" data-estimate-id="${estimateIdStr}">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <strong>견적 ${index + 1}</strong>
                             <div>
-                                <button class="btn btn-sm btn-outline-primary edit-estimate-btn" data-estimate-id="${estimate.id}" title="수정">
+                                <button class="btn btn-sm btn-outline-primary edit-estimate-btn" data-estimate-id="${estimateIdStr}" title="수정">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button class="btn btn-sm btn-outline-danger delete-estimate-btn" data-estimate-id="${estimate.id}" title="삭제">
+                                <button class="btn btn-sm btn-outline-danger delete-estimate-btn" data-estimate-id="${estimateIdStr}" title="삭제">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
@@ -834,7 +892,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="mb-2">
                                 <small class="text-muted">기본 견적:</small>
                                 <div><strong>${formatNumber(estimate.basePrice)}원</strong></div>
-                                <small class="text-muted">${estimate.productName} ${formatNumber(estimate.widthMm)}mm</small>
+                                <small class="text-muted">${productNameEscaped} ${formatNumber(estimate.widthMm)}mm</small>
                             </div>
                             <div class="mb-2">
                                 <small class="text-muted">추가 옵션 합계:</small>
@@ -902,14 +960,17 @@ document.addEventListener('DOMContentLoaded', function() {
             .map(([name, qty]) => `${name} × ${qty}`)
             .join(', ');
         
-        // 견적 결과 섹션 표시
-        document.getElementById('totalBasePrice').textContent = formatNumber(totalBasePrice) + '원';
-        document.getElementById('totalAdditionalPrice').textContent = formatNumber(totalAdditionalPrice) + '원';
-        document.getElementById('totalPrice').textContent = formatNumber(totalPrice) + '원';
-        document.getElementById('finalPrice').textContent = formatNumber(finalPrice) + '원';
-        document.getElementById('baseEstimateDetail').textContent = baseDetails;
-        document.getElementById('additionalOptionsDetail').textContent = additionalDetails || '';
-        document.getElementById('couponInfo').textContent = couponInfo;
+        // 견적 결과 섹션 표시 (수정 모드가 아닐 때만 업데이트)
+        // editingEstimateId가 설정되어 있으면 입력 폼의 calculateEstimate() 결과를 보존
+        if (!editingEstimateId) {
+            document.getElementById('totalBasePrice').textContent = formatNumber(totalBasePrice) + '원';
+            document.getElementById('totalAdditionalPrice').textContent = formatNumber(totalAdditionalPrice) + '원';
+            document.getElementById('totalPrice').textContent = formatNumber(totalPrice) + '원';
+            document.getElementById('finalPrice').textContent = formatNumber(finalPrice) + '원';
+            document.getElementById('baseEstimateDetail').textContent = baseDetails;
+            document.getElementById('additionalOptionsDetail').textContent = additionalDetails || '';
+            document.getElementById('couponInfo').textContent = couponInfo;
+        }
         
         // 전체 견적 총 합계 섹션 표시
         document.getElementById('totalEstimatesSummary').style.display = 'block';
@@ -930,19 +991,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            if (editingEstimateId !== null) {
-            // 수정 모드: 기존 견적 업데이트
-            const index = estimates.findIndex(est => est.id === editingEstimateId);
-            if (index !== -1) {
-                estimates[index] = { ...estimate, id: editingEstimateId };
-                editingEstimateId = null;
-                this.innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
+            // editingEstimateId 확인
+            const normalizedEditingId = normalizeId(editingEstimateId);
+            
+            if (normalizedEditingId) {
+                // 수정 모드: 기존 견적 업데이트
+                console.log('=== UPDATE MODE ===');
+                console.log('editingEstimateId:', normalizedEditingId);
+                console.log('Current estimates count:', estimates.length);
+                
+                const index = estimates.findIndex(est => isSameId(est.id, normalizedEditingId));
+                
+                if (index !== -1) {
+                    console.log('Found estimate at index:', index, 'ID:', estimates[index].id);
+                    // 원본 ID 유지 (절대 변경하지 않음!)
+                    const originalId = estimates[index].id;
+                    estimates[index] = { ...estimate, id: originalId };
+                    console.log('Updated estimate:', estimates[index]);
+                    editingEstimateId = null;
+                    this.innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
+                } else {
+                    console.error('견적을 찾을 수 없습니다.');
+                    console.error('editingEstimateId:', normalizedEditingId);
+                    console.error('Available IDs:', estimates.map(e => e.id));
+                    alert('수정할 견적을 찾을 수 없습니다.');
+                    return;
+                }
+            } else {
+                // 추가 모드: 새 견적 추가
+                console.log('=== ADD MODE ===');
+                estimate.id = generateEstimateId();
+                estimates.push(estimate);
+                console.log('Added new estimate:', estimate);
             }
-        } else {
-            // 추가 모드: 새 견적 추가
-            estimate.id = Date.now();
-            estimates.push(estimate);
-        }
         
         renderEstimatesList();
         
@@ -952,38 +1033,232 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('additionalOptionsContainer').innerHTML = '';
         document.getElementById('addEstimateBtn').style.display = 'none';
         
+        // 제품 정보 및 견적 결과 초기화
+        document.getElementById('productInfo').style.display = 'none';
+        document.getElementById('baseEstimateSection').style.display = 'none';
+        document.getElementById('totalBasePrice').textContent = '0원';
+        document.getElementById('totalAdditionalPrice').textContent = '0원';
+        document.getElementById('totalPrice').textContent = '0원';
+        document.getElementById('finalPrice').textContent = '0원';
+        document.getElementById('baseEstimateDetail').textContent = '';
+        document.getElementById('additionalOptionsDetail').textContent = '';
+        
         // 견적이 있으면 저장 버튼 표시
         if (estimates.length > 0) {
             document.getElementById('saveEstimateBtn').style.display = 'block';
         }
         
+        // 합계 다시 계산 (초기화 후)
         calculateEstimate();
+        calculateTotalEstimates();
         });
     }
     
-    // 견적 수정
+    // 견적 수정/삭제 이벤트 위임 (document에 등록하여 동적 요소에도 작동)
+    // 로딩 중 플래그로 중복 실행 방지
+    let isLoadingEstimate = false;
+    
+    // document에 이벤트 위임 등록 (동적으로 생성되는 요소에도 작동)
     document.addEventListener('click', function(e) {
-        if (e.target.closest('.edit-estimate-btn')) {
-            const estimateId = parseInt(e.target.closest('.edit-estimate-btn').dataset.estimateId);
-            const estimate = estimates.find(est => est.id === estimateId);
-            if (!estimate) return;
+        // estimatesListContainer 내부의 요소인지 확인
+        const container = document.getElementById('estimatesListContainer');
+        if (!container || !container.contains(e.target)) {
+            return;
+        }
+        
+        // 로딩 중이면 무시
+        if (isLoadingEstimate) {
+            console.log('이미 견적을 로딩 중입니다. 대기 중...');
+            return;
+        }
+        
+        // 수정 버튼 클릭
+        const editBtn = e.target.closest('.edit-estimate-btn');
+        if (editBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+            isLoadingEstimate = true;
+            const estimateId = normalizeId(editBtn.dataset.estimateId);
+            console.log('Edit button clicked, ID:', estimateId);
+            if (estimateId) {
+                loadEstimateToInputForm(estimateId);
+            } else {
+                isLoadingEstimate = false;
+            }
+            return;
+        }
+        
+        // 삭제 버튼 클릭
+        const deleteBtn = e.target.closest('.delete-estimate-btn');
+        if (deleteBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+            if (!confirm('이 견적을 삭제하시겠습니까?')) return;
             
-            // 입력 폼에 견적 데이터 로드
-            document.getElementById('productSelect').value = estimate.productId;
-            document.getElementById('widthInput').value = estimate.widthMm;
+            const estimateId = normalizeId(deleteBtn.dataset.estimateId);
+            console.log('Delete button clicked, ID:', estimateId);
             
-            // 제품 정보 표시
-            const product = products.find(p => p.id === estimate.productId);
-            if (product) {
-                showProductInfo(product);
+            if (estimateId) {
+                estimates = estimates.filter(est => !isSameId(est.id, estimateId));
+                
+                if (isSameId(editingEstimateId, estimateId)) {
+                    editingEstimateId = null;
+                    const addBtn = document.getElementById('addEstimateBtn');
+                    if (addBtn) {
+                        addBtn.innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
+                    }
+                }
+                
+                renderEstimatesList();
+            }
+            return;
+        }
+        
+        // 카드 전체 클릭 시 수정 모드 진입 (버튼 클릭은 제외)
+        const card = e.target.closest('.card[data-estimate-id]');
+        if (card && !e.target.closest('button')) {
+            isLoadingEstimate = true;
+            const estimateId = normalizeId(card.dataset.estimateId);
+            console.log('Card clicked, ID:', estimateId);
+            if (estimateId) {
+                loadEstimateToInputForm(estimateId);
+            } else {
+                isLoadingEstimate = false;
+            }
+        }
+    });
+    
+    // 견적 데이터를 입력 폼에 로드하는 함수 (완전 재작성)
+    function loadEstimateToInputForm(estimateId) {
+        console.log('=== loadEstimateToInputForm START ===');
+        console.log('Requested ID:', estimateId, 'Type:', typeof estimateId);
+        
+        // 다른 견적 수정 중인지 확인
+        if (editingEstimateId) {
+            const currentEstimate = estimates.find(est => isSameId(est.id, editingEstimateId));
+            if (currentEstimate) {
+                const hasChanges = confirm('현재 수정 중인 견적이 있습니다. 다른 견적을 불러오시겠습니까?\n(현재 수정 내용은 저장되지 않습니다)');
+                if (!hasChanges) {
+                    console.log('사용자가 취소했습니다.');
+                    return;
+                }
+            }
+        }
+        
+        // ID 정규화
+        const normalizedId = normalizeId(estimateId);
+        if (!normalizedId) {
+            console.error('Invalid estimate ID');
+            return;
+        }
+        
+        // 견적 찾기
+        const estimate = estimates.find(est => isSameId(est.id, normalizedId));
+        
+        if (!estimate) {
+            console.error('견적을 찾을 수 없습니다.');
+            console.error('Requested ID:', normalizedId);
+            console.error('Available IDs:', estimates.map(e => e.id));
+            alert(`견적을 찾을 수 없습니다. (ID: ${normalizedId})`);
+            return;
+        }
+
+        console.log('Found estimate:', estimate);
+        
+        // 1. 폼 초기화
+        document.getElementById('additionalOptionsContainer').innerHTML = '';
+        
+        // 2. 제품 선택 (재시도 로직 포함)
+        const productSelect = document.getElementById('productSelect');
+        const productId = estimate.productId;
+        
+        let checkInterval = null;
+        
+        function setProductSelection() {
+            // 숫자/문자열 모두 시도
+            productSelect.value = String(productId);
+            
+            if (!productSelect.value && productId) {
+                // 모든 옵션 순회하며 찾기
+                for (let i = 0; i < productSelect.options.length; i++) {
+                    const optionValue = productSelect.options[i].value;
+                    if (String(optionValue) === String(productId) || 
+                        Number(optionValue) === Number(productId)) {
+                        productSelect.selectedIndex = i;
+                        break;
+                    }
+                }
             }
             
-            // 추가 옵션 초기화 후 재생성
-            const container = document.getElementById('additionalOptionsContainer');
-            container.innerHTML = '';
+            // 제품 선택 성공 여부 확인
+            const product = products.find(p => p.id === productId);
+            if (product) {
+                showProductInfo(product);
+                console.log('제품 선택 성공:', product.name);
+            } else {
+                document.getElementById('productInfo').style.display = 'none';
+                if (productId) {
+                    console.warn('제품을 찾을 수 없습니다. ProductID:', productId);
+                    // 제품 선택 실패 시에도 계속 진행하되 경고 표시
+                    alert(`경고: 제품 ID ${productId}를 찾을 수 없습니다. 제품 정보가 표시되지 않을 수 있습니다.`);
+                }
+            }
+        }
+        
+        // 제품 목록이 로드되지 않았으면 대기
+        if (productSelect.options.length <= 1) {
+            console.warn('제품 목록이 아직 로드되지 않았습니다. 대기 중...');
+            checkInterval = setInterval(() => {
+                if (productSelect.options.length > 1) {
+                    clearInterval(checkInterval);
+                    checkInterval = null;
+                    setProductSelection();
+                }
+            }, 100);
             
-            estimate.options.forEach(opt => {
-                const optionId = Date.now() + Math.random();
+            // 최대 3초 대기 후 강제 실행
+            setTimeout(() => {
+                if (checkInterval) {
+                    clearInterval(checkInterval);
+                    checkInterval = null;
+                }
+                setProductSelection();
+            }, 3000);
+        } else {
+            setProductSelection();
+        }
+        
+        // 3. 가로넓이 설정
+        document.getElementById('widthInput').value = estimate.widthMm;
+        console.log('Width set to:', estimate.widthMm);
+        
+        // 4. 추가 옵션 로드 (동기적으로 처리)
+        const container = document.getElementById('additionalOptionsContainer');
+        
+        // 카테고리 옵션 목록 HTML 생성
+        let allOptionsHtml = '<option value="">카테고리 > 옵션을 선택하세요</option>';
+        if (wdCalculatorCategories && Array.isArray(wdCalculatorCategories)) {
+            wdCalculatorCategories.forEach(category => {
+                if (category && category.options && Array.isArray(category.options)) {
+                    category.options.forEach(option => {
+                        if (option && option.name && option.price !== undefined) {
+                            allOptionsHtml += `<option value="${category.name}|${option.name}|${option.price}">${category.name} > ${option.name} (${formatNumber(option.price)}원)</option>`;
+                        }
+                    });
+                }
+            });
+        }
+        
+        // 각 옵션을 순회하며 DOM에 추가
+        if (estimate.options && Array.isArray(estimate.options) && estimate.options.length > 0) {
+            estimate.options.forEach((opt, optIdx) => {
+                if (!opt || !opt.name) return;
+                
+                const optionId = 'opt_' + Date.now() + '_' + optIdx;
+                const escapedName = escapeHtml(opt.name || '');
+                const optPrice = Math.max(0, parseFloat(opt.price) || 0);
+                const optQuantity = Math.max(1, parseInt(opt.quantity) || 1);
+                
                 const optionHtml = `
                     <div class="additional-option-item" data-option-id="${optionId}">
                         <div class="row gx-2 align-items-center">
@@ -994,18 +1269,18 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <i class="fas fa-keyboard"></i>
                                     </button>
                                     <select class="form-select form-select-sm category-option-select flex-grow-1" data-category-option-select style="display: none;">
-                                        <option value="">카테고리 > 옵션을 선택하세요</option>
+                                        ${allOptionsHtml}
                                     </select>
                                 </div>
-                                <input type="text" class="form-control form-control-sm option-name-input" placeholder="또는 옵션명 직접 입력 (예: 화장대 > 화장대A)" data-option-name style="display: block; margin-top: 0;" value="${opt.name}">
+                                <input type="text" class="form-control form-control-sm option-name-input" placeholder="또는 옵션명 직접 입력 (예: 화장대 > 화장대A)" data-option-name style="display: block; margin-top: 0;" value="${escapedName}">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label small">가격 (원)</label>
-                                <input type="number" class="form-control form-control-sm option-price-input" placeholder="가격을 입력하세요" min="0" step="1" data-option-price value="${opt.price}">
+                                <input type="number" class="form-control form-control-sm option-price-input" placeholder="가격을 입력하세요" min="0" step="1" data-option-price value="${optPrice}">
                             </div>
                             <div class="col-md-1 quantity-col">
                                 <label class="form-label small">수량</label>
-                                <input type="number" class="form-control form-control-sm option-quantity-input" placeholder="수량" min="1" step="1" value="${opt.quantity}" data-option-quantity>
+                                <input type="number" class="form-control form-control-sm option-quantity-input" placeholder="수량" min="1" step="1" value="${optQuantity}" data-option-quantity>
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label small" style="visibility: hidden;">작업</label>
@@ -1017,39 +1292,99 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 `;
                 container.insertAdjacentHTML('beforeend', optionHtml);
+                
+                // 즉시 이벤트 리스너 등록 (동기적으로)
+                const item = container.lastElementChild;
+                const select = item.querySelector('.category-option-select');
+                const nameInput = item.querySelector('.option-name-input');
+                const priceInput = item.querySelector('[data-option-price]');
+                const quantityInput = item.querySelector('[data-option-quantity]');
+                const toggleBtn = item.querySelector('[data-toggle-direct-input]');
+                
+                // 카테고리 선택 이벤트
+                select.addEventListener('change', function() {
+                    if (this.value && this.value !== '') {
+                        const [categoryName, optionName, price] = this.value.split('|');
+                        nameInput.value = `${categoryName} > ${optionName}`;
+                        priceInput.value = price;
+                        nameInput.style.display = 'none';
+                        select.style.display = 'block';
+                        calculateEstimate();
+                    }
+                });
+                
+                // 직접입력 토글 이벤트
+                toggleBtn.addEventListener('click', function() {
+                    if (nameInput.style.display === 'none') {
+                        nameInput.style.display = 'block';
+                        select.style.display = 'none';
+                        select.value = '';
+                        nameInput.value = '';
+                        priceInput.value = '';
+                        this.innerHTML = '<i class="fas fa-list"></i>';
+                    } else {
+                        nameInput.style.display = 'none';
+                        select.style.display = 'block';
+                        nameInput.value = '';
+                        priceInput.value = '';
+                        this.innerHTML = '<i class="fas fa-keyboard"></i>';
+                    }
+                    calculateEstimate();
+                });
+                
+                // 입력 이벤트
+                priceInput.addEventListener('input', calculateEstimate);
+                nameInput.addEventListener('input', calculateEstimate);
+                quantityInput.addEventListener('input', calculateEstimate);
+                
+                // 옵션 이름이 카테고리 목록에 있는지 확인
+                let found = false;
+                Array.from(select.options).forEach(option => {
+                    const parts = option.value.split('|');
+                    if (parts.length >= 2) {
+                        const fullName = `${parts[0]} > ${parts[1]}`;
+                        if (fullName === opt.name) {
+                            select.value = option.value;
+                            found = true;
+                        }
+                    }
+                });
+                
+                // UI 업데이트
+                if (found) {
+                    nameInput.style.display = 'none';
+                    select.style.display = 'block';
+                    toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>';
+                } else {
+                    nameInput.style.display = 'block';
+                    select.style.display = 'none';
+                    toggleBtn.innerHTML = '<i class="fas fa-list"></i>';
+                }
             });
-            
-            // 이벤트 리스너 재등록 (간단한 방법으로)
-            setTimeout(() => {
-                calculateEstimate();
-                // 추가 옵션 이벤트 리스너는 기존 코드가 자동으로 처리
-            }, 100);
-            
-            editingEstimateId = estimateId;
-            document.getElementById('addEstimateBtn').innerHTML = '<i class="fas fa-save"></i> 견적 저장';
-            document.getElementById('addEstimateBtn').style.display = 'block';
-            
-            // 스크롤을 입력 폼으로 이동
-            document.getElementById('productSelect').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            console.log('Loaded', estimate.options.length, 'options');
         }
-    });
+        
+        // 5. editingEstimateId 설정 (원본 ID 유지)
+        editingEstimateId = estimate.id;
+        console.log('editingEstimateId set to:', editingEstimateId, 'Type:', typeof editingEstimateId);
+
+        // 6. UI 업데이트
+        document.getElementById('addEstimateBtn').innerHTML = '<i class="fas fa-save"></i> 견적 수정 적용'; 
+        document.getElementById('addEstimateBtn').style.display = 'block';
+        
+        // 7. 스크롤 이동
+        document.getElementById('productSelect').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // 8. 계산 수행
+        calculateEstimate();
+        
+        console.log('=== loadEstimateToInputForm END ===');
+        
+        // 로딩 플래그 해제 (함수 완료 시)
+        isLoadingEstimate = false;
+    }
     
-    // 견적 삭제
-    document.addEventListener('click', function(e) {
-        if (e.target.closest('.delete-estimate-btn')) {
-            if (!confirm('이 견적을 삭제하시겠습니까?')) return;
-            
-            const estimateId = parseInt(e.target.closest('.delete-estimate-btn').dataset.estimateId);
-            estimates = estimates.filter(est => est.id !== estimateId);
-            
-            if (editingEstimateId === estimateId) {
-                editingEstimateId = null;
-                document.getElementById('addEstimateBtn').innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
-            }
-            
-            renderEstimatesList();
-        }
-    });
+    // 견적 삭제는 이벤트 위임 패턴으로 estimatesListContainer에서 처리됨
     
     // 숫자 포맷팅 (천 단위 구분)
     function formatNumber(num) {
@@ -1060,8 +1395,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const calculateBtn = document.getElementById('calculateBtn');
     if (calculateBtn) {
         calculateBtn.addEventListener('click', function() {
-            calculateEstimate();
-        });
+        calculateEstimate();
+    });
     }
     
     // 초기 제품 목록 로드
@@ -1097,9 +1432,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     alert('검색 중 오류가 발생했습니다.');
                 });
         });
-    } else {
-        console.warn('searchEstimateBtn element not found');
     }
+    // searchEstimateBtn은 사이드바 검색 기능이므로 없어도 정상 작동함 (경고 무시)
     
     // 검색 결과 표시
     function displaySearchResults(estimates) {
@@ -1177,6 +1511,30 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 견적을 폼에 로드
     function loadEstimateToForm(estimate) {
+        currentDatabaseEstimateId = estimate.id; // DB ID 저장
+        
+        // 편집 모드 알림 표시
+        const headerTitle = document.querySelector('.header-primary h6');
+        if (headerTitle) {
+            headerTitle.innerHTML = `<i class="fas fa-edit me-2"></i>견적 수정: ${estimate.customer_name} <span class="badge bg-warning text-dark ms-2">수정모드</span>`;
+        }
+        
+        // 취소(새 견적 작성) 버튼 표시
+        let resetBtn = document.getElementById('resetEstimateBtn');
+        if (!resetBtn) {
+            const btnContainer = document.querySelector('.header-primary');
+            resetBtn = document.createElement('button');
+            resetBtn.id = 'resetEstimateBtn';
+            resetBtn.className = 'btn btn-sm btn-light float-end';
+            resetBtn.innerHTML = '<i class="fas fa-undo"></i> 새 견적 작성';
+            resetBtn.onclick = function() {
+                if(confirm('현재 작성/수정 중인 내용을 초기화하고 새 견적을 작성하시겠습니까?')) {
+                    location.reload();
+                }
+            };
+            btnContainer.appendChild(resetBtn);
+        }
+
         const estimateData = estimate.estimate_data;
         
         // 고객명 설정
@@ -1187,76 +1545,39 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 저장된 견적 데이터의 estimates 배열을 현재 견적 목록에 로드
         if (estimateData.estimates && estimateData.estimates.length > 0) {
-            estimates = estimateData.estimates.map(est => ({
-                id: est.id || Date.now() + Math.random(),
-                productId: est.productId,
-                productName: est.productName,
-                widthMm: est.widthMm,
-                basePrice: est.basePrice,
-                options: est.options || [],
-                additionalPrice: est.additionalPrice || 0,
-                totalPrice: est.totalPrice || 0
-            }));
-            
-            // 첫 번째 견적을 입력 폼에 로드
-            const firstEstimate = estimates[0];
-            
-            // 제품 선택
-            document.getElementById('productSelect').value = firstEstimate.productId;
-            document.getElementById('widthInput').value = firstEstimate.widthMm;
-            
-            // 제품 정보 표시
-            const product = products.find(p => p.id === firstEstimate.productId);
-            if (product) {
-                showProductInfo(product);
-            }
-            
-            // 추가 옵션 초기화 후 재생성
-            const container = document.getElementById('additionalOptionsContainer');
-            container.innerHTML = '';
-            
-            // 첫 번째 견적의 옵션들을 추가 옵션으로 생성
-            firstEstimate.options.forEach(opt => {
-                const optionId = Date.now() + Math.random();
-                const optionHtml = `
-                    <div class="additional-option-item" data-option-id="${optionId}">
-                        <div class="row gx-2 align-items-center">
-                            <div class="col-md-5">
-                                <label class="form-label small">카테고리 > 옵션 선택</label>
-                                <div class="d-flex gap-2 align-items-center">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle-direct-input title="직접입력">
-                                        <i class="fas fa-keyboard"></i>
-                                    </button>
-                                    <select class="form-select form-select-sm category-option-select flex-grow-1" data-category-option-select style="display: none;">
-                                        <option value="">카테고리 > 옵션을 선택하세요</option>
-                                    </select>
-                                </div>
-                                <input type="text" class="form-control form-control-sm option-name-input" placeholder="또는 옵션명 직접 입력 (예: 화장대 > 화장대A)" data-option-name style="display: block; margin-top: 0;" value="${opt.name}">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label small">가격 (원)</label>
-                                <input type="number" class="form-control form-control-sm option-price-input" placeholder="가격을 입력하세요" min="0" step="1" data-option-price value="${opt.price}">
-                            </div>
-                            <div class="col-md-1 quantity-col">
-                                <label class="form-label small">수량</label>
-                                <input type="number" class="form-control form-control-sm option-quantity-input" placeholder="수량" min="1" step="1" value="${opt.quantity}" data-option-quantity>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label small" style="visibility: hidden;">작업</label>
-                                <button type="button" class="btn btn-sm btn-outline-danger remove-option-btn">
-                                    <i class="fas fa-times"></i> 삭제
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                container.insertAdjacentHTML('beforeend', optionHtml);
+            estimates = estimateData.estimates.map((est, idx) => {
+                // ID를 문자열로 통일 (저장된 ID가 있으면 사용, 없으면 새로 생성)
+                const newId = est.id ? String(est.id) : generateEstimateId();
+                console.log(`Loading estimate ${idx + 1}: ID=${newId} (original: ${est.id})`);
+                return {
+                    id: newId,
+                    productId: est.productId,
+                    productName: est.productName,
+                    widthMm: est.widthMm,
+                    basePrice: est.basePrice,
+                    options: est.options || [],
+                    additionalPrice: est.additionalPrice || 0,
+                    totalPrice: est.totalPrice || 0
+                };
             });
+            console.log('Loaded estimates:', estimates.map(e => ({ id: e.id, type: typeof e.id })));
             
             // 견적 목록 렌더링
             renderEstimatesList();
             
-            // 계산 실행
+            // 입력 폼 초기화 (첫 번째 견적 자동 로드 제거)
+            document.getElementById('productSelect').value = '';
+            document.getElementById('widthInput').value = '';
+            document.getElementById('additionalOptionsContainer').innerHTML = '';
+            document.getElementById('productInfo').style.display = 'none';
+            document.getElementById('baseEstimateSection').style.display = 'none';
+            document.getElementById('addEstimateBtn').innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
+            document.getElementById('addEstimateBtn').style.display = 'none';
+            
+            // 알림 메시지
+            alert('견적을 불러왔습니다.\n아래 "진행 중인 견적" 목록에서 수정할 항목을 선택하세요.');
+            
+            // 계산 실행 (초기화 상태로)
             calculateEstimate();
         }
     }
@@ -1390,7 +1711,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             // 현재 견적을 배열에 추가
-            currentEstimate.id = Date.now();
+            currentEstimate.id = generateEstimateId();
             estimatesToSave = [currentEstimate];
         }
         
@@ -1408,6 +1729,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
+                estimate_id: currentDatabaseEstimateId,
                 customer_name: customerName,
                 estimate_data: estimateData
             })
@@ -1415,11 +1737,22 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert('견적이 저장되었습니다.');
+                alert(data.message); // 서버 메시지 사용 (저장/수정 구분)
                 // 저장된 견적을 진행 중인 견적 목록에 추가 (선택사항)
                 // estimates = []; // 목록 초기화하지 않음 (사용자가 계속 추가할 수 있도록)
                 renderEstimatesList();
-                // 저장 버튼은 유지 (추가 견적 저장 가능)
+                
+                // 신규 저장이면 ID 업데이트하여 연속 수정 가능하게 함
+                if (data.estimate_id) {
+                    currentDatabaseEstimateId = data.estimate_id;
+                    const headerTitle = document.querySelector('.header-primary h6');
+                    if (headerTitle) {
+                        headerTitle.innerHTML = `<i class="fas fa-edit me-2"></i>견적 수정: ${customerName} <span class="badge bg-warning text-dark ms-2">수정모드</span>`;
+                    }
+                }
+                
+                // 목록 새로고침
+                setTimeout(() => loadSidebarEstimates(), 500);
             } else {
                 alert(data.message || '견적 저장 중 오류가 발생했습니다.');
             }
@@ -1447,7 +1780,176 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // === 사이드바 견적 목록 기능 ===
+    
+    const sidebarSearchInput = document.getElementById('sidebarSearchInput');
+    const sidebarSearchBtn = document.getElementById('sidebarSearchBtn');
+    const refreshEstimatesBtn = document.getElementById('refreshEstimatesBtn');
+    const savedEstimatesList = document.getElementById('savedEstimatesList');
+    const savedEstimatesLoading = document.getElementById('savedEstimatesLoading');
+    const noSavedEstimates = document.getElementById('noSavedEstimates');
+    
+    // 목록 불러오기 함수
+    function loadSidebarEstimates(searchQuery = '') {
+        if (!savedEstimatesList) return;
+        
+        savedEstimatesLoading.style.display = 'block';
+        savedEstimatesList.innerHTML = '';
+        noSavedEstimates.style.display = 'none';
+        
+        // 캐시 방지용 타임스탬프 추가
+        let url = `/api/wdcalculator/search-estimates?_t=${Date.now()}`;
+        if (searchQuery) {
+            url += `&customer_name=${encodeURIComponent(searchQuery)}`;
+        }
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                savedEstimatesLoading.style.display = 'none';
+                
+                if (data.success && data.estimates.length > 0) {
+                    data.estimates.forEach(est => {
+                        const item = document.createElement('div');
+                        item.className = 'list-group-item list-group-item-action p-3 border-bottom';
+                        
+                        // 날짜 포맷팅
+                        const dateStr = est.created_at ? new Date(est.created_at).toLocaleDateString() : '';
+                        
+                        // 총 금액 계산 (데이터 구조에 따라 다름)
+                        let totalPrice = 0;
+                        let productNames = [];
+                        
+                        if (est.estimate_data) {
+                            if (est.estimate_data.totalPrice) {
+                                totalPrice = est.estimate_data.totalPrice;
+                            }
+                            
+                            // 포함된 제품명 요약
+                            if (est.estimate_data.estimates && Array.isArray(est.estimate_data.estimates)) {
+                                productNames = est.estimate_data.estimates.map(e => e.productName || (e.product ? e.product.name : '알 수 없음'));
+                            }
+                        }
+                        
+                        const productNameStr = productNames.length > 0 
+                            ? (productNames.length > 1 ? `${productNames[0]} 외 ${productNames.length - 1}건` : productNames[0])
+                            : '제품 정보 없음';
+                        
+                        item.innerHTML = `
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <h6 class="mb-0 fw-bold text-truncate" style="max-width: 140px;">${est.customer_name}</h6>
+                                <small class="text-muted">${dateStr}</small>
+                            </div>
+                            <p class="mb-1 small text-dark">${productNameStr}</p>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <span class="fw-bold text-primary">${formatNumber(totalPrice)}원</span>
+                                <div>
+                                    <button class="btn btn-xs btn-outline-primary load-estimate-btn me-1" data-id="${est.id}" title="불러오기">
+                                        <i class="fas fa-folder-open"></i>
+                                    </button>
+                                    <button class="btn btn-xs btn-outline-success match-order-btn me-1" data-estimate-id="${est.id}" data-customer-name="${est.customer_name}" title="주문 매칭">
+                                        <i class="fas fa-link"></i>
+                                    </button>
+                                    <button class="btn btn-xs btn-outline-danger delete-estimate-btn" data-id="${est.id}" title="삭제">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // 불러오기 버튼 이벤트
+                        const loadBtn = item.querySelector('.load-estimate-btn');
+                        loadBtn.addEventListener('click', (e) => {
+                            e.stopPropagation(); // 부모 클릭 방지
+                            if (confirm(`'${est.customer_name}' 님의 견적을 불러오시겠습니까?\n현재 작성 중인 내용은 사라질 수 있습니다.`)) {
+                                loadEstimateToForm(est);
+                            }
+                        });
+                        
+                        // 삭제 버튼 이벤트
+                        const deleteBtn = item.querySelector('.delete-estimate-btn');
+                        deleteBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            if (confirm(`정말로 '${est.customer_name}' 님의 견적을 삭제하시겠습니까?`)) {
+                                deleteEstimate(est.id);
+                            }
+                        });
+                        
+                        savedEstimatesList.appendChild(item);
+                    });
+                } else {
+                    noSavedEstimates.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading estimates:', error);
+                savedEstimatesLoading.style.display = 'none';
+                savedEstimatesList.innerHTML = '<div class="text-center text-danger py-3">목록을 불러오는 중 오류가 발생했습니다.</div>';
+            });
+    }
+    
+    // 견적 삭제 함수
+    function deleteEstimate(id) {
+        fetch(`/api/wdcalculator/estimate/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // alert('삭제되었습니다.'); // 너무 잦은 알림 방지
+                loadSidebarEstimates(sidebarSearchInput.value); // 목록 새로고침
+            } else {
+                alert(data.message || '삭제 실패');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting estimate:', error);
+            alert('삭제 중 오류가 발생했습니다.');
+        });
+    }
+    
+    // 검색 이벤트
+    if (sidebarSearchBtn) {
+        sidebarSearchBtn.addEventListener('click', () => {
+            loadSidebarEstimates(sidebarSearchInput.value);
+        });
+    }
+    
+    if (sidebarSearchInput) {
+        sidebarSearchInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                loadSidebarEstimates(sidebarSearchInput.value);
+            }
+        });
+    }
+    
+    if (refreshEstimatesBtn) {
+        refreshEstimatesBtn.addEventListener('click', () => {
+            sidebarSearchInput.value = '';
+            loadSidebarEstimates();
+        });
+    }
+    
+    // 초기 목록 로드
+    loadSidebarEstimates();
+    
+    // 견적 저장 후 목록 새로고침 (기존 저장 로직에 연결)
+    // 기존 fetch 성공 콜백 내부에 renderEstimatesList() 호출 부분이 있으므로,
+    // 이벤트를 감지하거나 함수를 오버라이드 해야 함.
+    // 가장 간단한 방법은 기존 저장 버튼 이벤트 리스너 내에서 loadSidebarEstimates()를 호출하도록 수정하는 것인데,
+    // 이미 이벤트 리스너가 등록되어 있으므로, 여기서는 setInterval로 주기적 체크하거나
+    // 사용자가 '저장'을 눌렀을 때 목록이 갱신되도록 saveEstimateBtn의 이벤트를 수정하는 게 좋음.
+    
+    // 기존 저장 버튼 이벤트에 목록 갱신 추가
+    if (saveEstimateBtn) {
+        // addEventListener는 중복 등록 가능하므로, 추가적인 동작만 등록
+        saveEstimateBtn.addEventListener('click', function() {
+            // 저장이 완료될 즈음 (약간의 지연 후) 목록 갱신 시도
+            setTimeout(() => loadSidebarEstimates(), 1000);
+        });
+    }
+
 });
 </script>
 {% endblock %}
-

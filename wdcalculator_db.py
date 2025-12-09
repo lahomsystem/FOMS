@@ -27,7 +27,7 @@ def init_wdcalculator_db():
     """견적 계산기 데이터베이스 초기화 및 테이블 생성"""
     try:
         # 순환 참조 방지를 위해 함수 내부에서 임포트
-        from wdcalculator_models import Estimate, EstimateOrderMatch
+        from wdcalculator_models import Estimate, EstimateOrderMatch, EstimateHistory
         WDCalculatorBase.metadata.create_all(bind=wd_calculator_engine)
         print("견적 계산기 데이터베이스 테이블 초기화 완료")
     except Exception as e:
