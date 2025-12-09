@@ -15,6 +15,10 @@ from datetime import date, timedelta
 from db import get_db, close_db, init_db
 from models import Order, User, SecurityLog
 
+# 견적 계산기 독립 데이터베이스 임포트
+from wdcalculator_db import get_wdcalculator_db, close_wdcalculator_db, init_wdcalculator_db
+from wdcalculator_models import Estimate, EstimateOrderMatch
+
 # 백업 시스템 임포트
 from simple_backup_system import SimpleBackupSystem
 
@@ -38,6 +42,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # 데이터베이스 연결 설정
 app.teardown_appcontext(close_db)
+app.teardown_appcontext(close_wdcalculator_db)  # 견적 계산기 독립 DB
 
 # Function to check if file has allowed extension
 def allowed_file(filename):
@@ -373,6 +378,11 @@ def utility_processor():
     return dict(parse_json_string=parse_json_string)
 
 # Routes
+@app.route('/favicon.ico')
+def favicon():
+    """favicon 요청 처리 (404 방지)"""
+    return '', 204  # No Content
+
 @app.route('/')
 @login_required
 def index():
@@ -3417,10 +3427,19 @@ def load_additional_option_categories():
     """추가 옵션 카테고리 데이터를 JSON 파일에서 로드"""
     try:
         if os.path.exists(WD_ADDITIONAL_OPTIONS_PATH):
-            with open(WD_ADDITIONAL_OPTIONS_PATH, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                categories = data.get('categories', [])
-                return clean_categories_data(categories)
+            # 먼저 UTF-8로 시도
+            try:
+                with open(WD_ADDITIONAL_OPTIONS_PATH, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    categories = data.get('categories', [])
+                    return clean_categories_data(categories)
+            except UnicodeDecodeError:
+                # 실패 시 CP949로 시도 (Windows 호환)
+                print("UTF-8 decoding failed for additional options, trying CP949...")
+                with open(WD_ADDITIONAL_OPTIONS_PATH, 'r', encoding='cp949') as f:
+                    data = json.load(f)
+                    categories = data.get('categories', [])
+                    return clean_categories_data(categories)
         return []
     except Exception as e:
         print(f"Error loading additional option categories: {e}")
@@ -3431,8 +3450,10 @@ def save_additional_option_categories(categories):
     try:
         os.makedirs(os.path.dirname(WD_ADDITIONAL_OPTIONS_PATH), exist_ok=True)
         data = {'categories': categories}
+        # 저장할 때는 UTF-8 (ensure_ascii=False) 또는 ASCII (ensure_ascii=True)로 통일
+        # 여기서는 호환성을 위해 ensure_ascii=True로 변경하여 인코딩 문제 원천 차단
         with open(WD_ADDITIONAL_OPTIONS_PATH, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            json.dump(data, f, ensure_ascii=True, indent=2)
         return True
     except Exception as e:
         print(f"Error saving additional option categories: {e}")
@@ -3442,9 +3463,17 @@ def load_products():
     """제품 데이터를 JSON 파일에서 로드"""
     try:
         if os.path.exists(WD_CALCULATOR_DATA_PATH):
-            with open(WD_CALCULATOR_DATA_PATH, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return data.get('products', [])
+            # 먼저 UTF-8로 시도
+            try:
+                with open(WD_CALCULATOR_DATA_PATH, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    return data.get('products', [])
+            except UnicodeDecodeError:
+                # 실패 시 CP949로 시도
+                print("UTF-8 decoding failed for products, trying CP949...")
+                with open(WD_CALCULATOR_DATA_PATH, 'r', encoding='cp949') as f:
+                    data = json.load(f)
+                    return data.get('products', [])
         return []
     except Exception as e:
         print(f"Error loading products: {e}")
@@ -3455,8 +3484,9 @@ def save_products(products):
     try:
         os.makedirs(os.path.dirname(WD_CALCULATOR_DATA_PATH), exist_ok=True)
         data = {'products': products}
+        # 저장할 때는 인코딩 문제 방지를 위해 ensure_ascii=True 사용
         with open(WD_CALCULATOR_DATA_PATH, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            json.dump(data, f, ensure_ascii=True, indent=2)
         return True
     except Exception as e:
         print(f"Error saving products: {e}")
@@ -3821,6 +3851,359 @@ def api_wdcalculator_delete_option(category_id, option_id):
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
+def normalize_string_to_utf8(value):
+    """문자열을 UTF-8로 안전하게 정규화 (재귀적으로 딕셔너리/리스트 처리)"""
+    if isinstance(value, str):
+        # 문자열인 경우 UTF-8로 안전하게 정규화
+        # 검증 없이 바로 errors='replace'로 처리하여 손상된 문자를 ?로 대체
+        try:
+            # 먼저 UTF-8로 인코딩 시도 (이미 UTF-8이면 문제없음)
+            # errors='replace'를 사용하여 손상된 문자를 ?로 대체
+            normalized = value.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
+            return normalized
+        except Exception:
+            # 인코딩 실패 시 최후의 수단
+            try:
+                # latin1로 인코딩하여 바이트로 변환 후 다른 인코딩으로 디코딩 시도
+                if all(ord(c) < 256 for c in value):
+                    try:
+                        # CP949로 디코딩 시도
+                        decoded = value.encode('latin1').decode('cp949', errors='replace')
+                        return decoded.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
+                    except:
+                        pass
+                # 실패 시 강제 변환
+                return value.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
+            except:
+                # 최종 실패 시 원본 반환 (손실 최소화)
+                return str(value)
+    elif isinstance(value, bytes):
+        # bytes인 경우 안전하게 디코딩
+        for encoding in ['utf-8', 'cp949', 'euc-kr', 'latin1']:
+            try:
+                decoded = value.decode(encoding, errors='replace')
+                return normalize_string_to_utf8(decoded)
+            except Exception:
+                continue
+        # 모든 인코딩 실패 시
+        return value.decode('utf-8', errors='ignore')
+    elif isinstance(value, dict):
+        # 딕셔너리인 경우 재귀적으로 처리
+        return {normalize_string_to_utf8(k): normalize_string_to_utf8(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        # 리스트인 경우 재귀적으로 처리
+        return [normalize_string_to_utf8(item) for item in value]
+    elif isinstance(value, (int, float, bool)) or value is None:
+        # 숫자, 불린, None은 그대로 반환
+        return value
+    else:
+        # 기타 타입은 문자열로 변환 후 정규화
+        return normalize_string_to_utf8(str(value))
+
+# 견적 저장 API
+@app.route('/api/wdcalculator/save-estimate', methods=['POST'])
+@login_required
+def api_wdcalculator_save_estimate():
+    """견적 저장"""
+    try:
+        # 원시 바이트 데이터를 받아서 UTF-8로 디코딩 후 JSON 파싱
+        # 이렇게 하면 request.get_json()의 자동 인코딩 처리 문제를 우회
+        try:
+            raw_data = request.get_data(as_text=False)  # bytes로 받기
+            if raw_data:
+                # UTF-8로 디코딩 시도
+                try:
+                    json_str = raw_data.decode('utf-8')
+                except UnicodeDecodeError:
+                    # UTF-8 실패 시 CP949 시도
+                    try:
+                        json_str = raw_data.decode('cp949')
+                    except UnicodeDecodeError:
+                        # 최후의 수단
+                        json_str = raw_data.decode('utf-8', errors='replace')
+                data = json.loads(json_str)
+            else:
+                # 빈 데이터인 경우 기본 방식 사용
+                data = request.get_json()
+        except Exception as parse_error:
+            # 원시 바이트 파싱 실패 시 기본 방식 사용
+            import traceback
+            print(f"Warning: Raw data parsing failed, using get_json(): {str(parse_error)}")
+            print(traceback.format_exc())
+            data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': '요청 데이터가 없습니다.'})
+        
+        customer_name = data.get('customer_name', '').strip()
+        estimate_data = data.get('estimate_data', {})
+        
+        if not customer_name:
+            return jsonify({'success': False, 'message': '고객명을 입력해주세요.'})
+        
+        if not estimate_data:
+            return jsonify({'success': False, 'message': '견적 데이터가 없습니다.'})
+        
+        db = get_wdcalculator_db()
+        
+        # 고객명과 estimate_data를 재귀적으로 UTF-8로 정규화
+        # 이렇게 하면 딕셔너리 안의 모든 문자열이 안전하게 처리됨
+        customer_name = normalize_string_to_utf8(customer_name)
+        estimate_data = normalize_string_to_utf8(estimate_data)
+        
+        # 새 견적 생성 (JSONB 사용으로 인코딩 문제 완전 차단)
+        try:
+            # customer_name은 문자열이므로 정규화 유지
+            try:
+                normalized_customer_name = customer_name.encode('utf-8', errors='replace').decode('utf-8')
+            except:
+                normalized_customer_name = customer_name.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
+            
+            # estimate_data는 딕셔너리(JSON 객체) 그대로 저장
+            # SQLAlchemy가 자동으로 JSONB로 처리함
+            estimate = Estimate(
+                customer_name=normalized_customer_name,
+                estimate_data=estimate_data
+            )
+        except Exception as create_error:
+            import traceback
+            print(f"Error creating Estimate object: {str(create_error)}")
+            print(traceback.format_exc())
+            return jsonify({'success': False, 'message': f'견적 객체 생성 오류: {str(create_error)}'})
+        
+        try:
+            db.add(estimate)
+            db.commit()
+        except Exception as commit_error:
+            db.rollback()
+            import traceback
+            print(f"Error committing estimate: {str(commit_error)}")
+            print(traceback.format_exc())
+            return jsonify({'success': False, 'message': f'견적 저장 중 오류: {str(commit_error)}'})
+        
+        return jsonify({
+            'success': True,
+            'message': '견적이 저장되었습니다.',
+            'estimate_id': estimate.id
+        })
+    except Exception as e:
+        db = get_wdcalculator_db()
+        db.rollback()
+        return jsonify({'success': False, 'message': f'견적 저장 중 오류: {str(e)}'})
+
+# 견적 검색 API
+@app.route('/api/wdcalculator/search-estimates', methods=['GET'])
+@login_required
+def api_wdcalculator_search_estimates():
+    """고객명으로 견적 검색"""
+    try:
+        customer_name = request.args.get('customer_name', '').strip()
+        
+        if not customer_name:
+            return jsonify({'success': False, 'message': '고객명을 입력해주세요.'})
+        
+        db = get_wdcalculator_db()
+        
+        # 고객명으로 견적 검색 (부분 일치)
+        estimates = db.query(Estimate).filter(
+            Estimate.customer_name.ilike(f'%{customer_name}%')
+        ).order_by(Estimate.created_at.desc()).all()
+        
+        # JSONB 사용으로 인해 복잡한 파싱 로직 불필요
+        # to_dict() 메서드가 이미 딕셔너리를 반환함
+        estimates_list = [est.to_dict() for est in estimates]
+        
+        return jsonify({
+            'success': True,
+            'estimates': estimates_list,
+            'count': len(estimates_list)
+        })
+    except Exception as e:
+        import traceback
+        print(f"Error in search_estimates: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': f'견적 검색 중 오류: {str(e)}'})
+
+# 주문과 견적 매칭 API
+@app.route('/api/wdcalculator/match-order', methods=['POST'])
+@login_required
+def api_wdcalculator_match_order():
+    """견적과 FOMS 주문 매칭"""
+    try:
+        data = request.get_json()
+        estimate_id = data.get('estimate_id')
+        order_id = data.get('order_id')
+        
+        if not estimate_id or not order_id:
+            return jsonify({'success': False, 'message': '견적 ID와 주문 ID가 필요합니다.'})
+        
+        # 견적 존재 확인 (독립 DB)
+        wd_db = get_wdcalculator_db()
+        estimate = wd_db.query(Estimate).filter(Estimate.id == estimate_id).first()
+        if not estimate:
+            return jsonify({'success': False, 'message': '견적을 찾을 수 없습니다.'})
+        
+        # FOMS 주문 존재 확인 (읽기 전용, FOMS DB 직접 조회)
+        foms_db = get_db()
+        order = foms_db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'})
+        
+        # 이미 매칭되어 있는지 확인
+        existing_match = wd_db.query(EstimateOrderMatch).filter(
+            EstimateOrderMatch.estimate_id == estimate_id,
+            EstimateOrderMatch.order_id == order_id
+        ).first()
+        
+        if existing_match:
+            return jsonify({'success': False, 'message': '이미 매칭된 주문입니다.'})
+        
+        # 매칭 생성
+        match = EstimateOrderMatch(
+            estimate_id=estimate_id,
+            order_id=order_id
+        )
+        
+        wd_db.add(match)
+        wd_db.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '견적과 주문이 매칭되었습니다.',
+            'match_id': match.id
+        })
+    except Exception as e:
+        wd_db = get_wdcalculator_db()
+        wd_db.rollback()
+        return jsonify({'success': False, 'message': f'매칭 중 오류: {str(e)}'})
+
+# 주문별 견적 조회 API
+@app.route('/api/wdcalculator/order-estimates/<int:order_id>', methods=['GET'])
+@login_required
+def api_wdcalculator_get_order_estimates(order_id):
+    """특정 주문에 매칭된 견적 조회"""
+    try:
+        # FOMS 주문 존재 확인 (읽기 전용)
+        foms_db = get_db()
+        order = foms_db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'})
+        
+        # 매칭된 견적 조회 (독립 DB)
+        wd_db = get_wdcalculator_db()
+        matches = wd_db.query(EstimateOrderMatch).filter(
+            EstimateOrderMatch.order_id == order_id
+        ).all()
+        
+        estimates = []
+        for match in matches:
+            estimate = wd_db.query(Estimate).filter(Estimate.id == match.estimate_id).first()
+            if estimate:
+                try:
+                    # estimate_data를 직접 처리하여 인코딩 문제 해결
+                    estimate_dict = {
+                        'id': estimate.id,
+                        'customer_name': estimate.customer_name,
+                        'created_at': estimate.created_at.strftime('%Y-%m-%d %H:%M:%S') if estimate.created_at else None,
+                        'updated_at': estimate.updated_at.strftime('%Y-%m-%d %H:%M:%S') if estimate.updated_at else None
+                    }
+                    
+                    # estimate_data 안전하게 파싱 - __dict__로 직접 접근
+                    estimate_data_parsed = None
+                    try:
+                        raw_estimate_data = estimate.__dict__.get('estimate_data', None)
+                        
+                        if raw_estimate_data is None:
+                            estimate_data_parsed = {}
+                        else:
+                            if isinstance(raw_estimate_data, bytes):
+                                decoded_str = None
+                                # 더 많은 인코딩 시도 (한국어 인코딩 우선)
+                                for encoding in ['utf-8', 'cp949', 'euc-kr', 'latin1', 'iso-8859-1', 'windows-1252']:
+                                    try:
+                                        decoded_str = raw_estimate_data.decode(encoding, errors='strict')
+                                        estimate_data_parsed = json.loads(decoded_str)
+                                        break
+                                    except (UnicodeDecodeError, json.JSONDecodeError):
+                                        continue
+                                
+                                if estimate_data_parsed is None:
+                                    try:
+                                        # 먼저 replace로 시도 (손상된 문자를 ?로 대체)
+                                        decoded_str = raw_estimate_data.decode('utf-8', errors='replace')
+                                        estimate_data_parsed = json.loads(decoded_str)
+                                    except json.JSONDecodeError:
+                                        try:
+                                            # cp949로도 시도
+                                            decoded_str = raw_estimate_data.decode('cp949', errors='replace')
+                                            estimate_data_parsed = json.loads(decoded_str)
+                                        except (UnicodeDecodeError, json.JSONDecodeError):
+                                            # 최종적으로 빈 딕셔너리 반환
+                                            estimate_data_parsed = {}
+                            elif isinstance(raw_estimate_data, str):
+                                try:
+                                    estimate_data_parsed = json.loads(raw_estimate_data)
+                                except json.JSONDecodeError:
+                                    estimate_data_parsed = {}
+                            else:
+                                try:
+                                    estimate_data_parsed = json.loads(str(raw_estimate_data))
+                                except (json.JSONDecodeError, TypeError):
+                                    estimate_data_parsed = {}
+                    except Exception as parse_error:
+                        print(f"Warning: Failed to parse estimate_data for estimate {estimate.id}: {str(parse_error)}")
+                        estimate_data_parsed = {}
+                    
+                    estimate_dict['estimate_data'] = estimate_data_parsed
+                    estimates.append(estimate_dict)
+                except Exception as e:
+                    print(f"Warning: Failed to convert estimate {estimate.id} to dict: {str(e)}")
+                    continue
+        
+        return jsonify({
+            'success': True,
+            'estimates': estimates,
+            'count': len(estimates)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'견적 조회 중 오류: {str(e)}'})
+
+# FOMS 주문 검색 API (고객명으로, 견적 매칭용)
+@app.route('/api/wdcalculator/search-orders', methods=['GET'])
+@login_required
+def api_wdcalculator_search_orders():
+    """고객명으로 FOMS 주문 검색 (견적 매칭용, 읽기 전용)"""
+    try:
+        customer_name = request.args.get('customer_name', '').strip()
+        
+        if not customer_name:
+            return jsonify({'success': False, 'message': '고객명을 입력해주세요.'})
+        
+        # FOMS 주문 검색 (읽기 전용)
+        foms_db = get_db()
+        orders = foms_db.query(Order).filter(
+            Order.customer_name.ilike(f'%{customer_name}%')
+        ).order_by(Order.created_at.desc()).limit(50).all()
+        
+        orders_list = [{
+            'id': order.id,
+            'customer_name': order.customer_name,
+            'phone': order.phone,
+            'address': order.address,
+            'product': order.product,
+            'status': order.status,
+            'received_date': order.received_date,
+            'created_at': order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None
+        } for order in orders]
+        
+        return jsonify({
+            'success': True,
+            'orders': orders_list,
+            'count': len(orders_list)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'주문 검색 중 오류: {str(e)}'})
+
 if __name__ == '__main__':
     # 안전한 시작 프로세스 실행 (SystemExit 방지)
     try:
@@ -3844,10 +4227,19 @@ if __name__ == '__main__':
         # 1. 데이터베이스 초기화 시도
         try:
             init_db()
-            logger.info("[OK] 데이터베이스 초기화 완료")
+            logger.info("[OK] FOMS 데이터베이스 초기화 완료")
         except Exception as e:
-            logger.error(f"[ERROR] 데이터베이스 초기화 실패: {str(e)}")
+            logger.error(f"[ERROR] FOMS 데이터베이스 초기화 실패: {str(e)}")
             startup_success = False
+        
+        # 1-1. 견적 계산기 독립 데이터베이스 초기화 시도
+        try:
+            with app.app_context():
+                init_wdcalculator_db()
+            logger.info("[OK] 견적 계산기 데이터베이스 초기화 완료")
+        except Exception as e:
+            logger.warning(f"[WARN] 견적 계산기 데이터베이스 초기화 실패 (견적 기능 제한): {str(e)}")
+            # 견적 계산기 DB 실패는 전체 시스템에 영향 없음
         
         # 2. 안전한 스키마 마이그레이션 시도
         try:
