@@ -3390,6 +3390,7 @@ def storage_dashboard():
 # JSON 파일 경로
 WD_CALCULATOR_DATA_PATH = os.path.join(os.path.dirname(__file__), 'data', 'products.json')
 WD_ADDITIONAL_OPTIONS_PATH = os.path.join(os.path.dirname(__file__), 'data', 'additional_options.json')
+WD_NOTES_CATEGORIES_PATH = os.path.join(os.path.dirname(__file__), 'data', 'notes_categories.json')
 
 def clean_categories_data(categories):
     """카테고리 데이터에서 JSON 직렬화 불가능한 값 제거"""
@@ -3457,6 +3458,38 @@ def save_additional_option_categories(categories):
         return True
     except Exception as e:
         print(f"Error saving additional option categories: {e}")
+        return False
+
+def load_notes_categories():
+    """비고 카테고리 데이터를 JSON 파일에서 로드"""
+    try:
+        if os.path.exists(WD_NOTES_CATEGORIES_PATH):
+            try:
+                with open(WD_NOTES_CATEGORIES_PATH, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    categories = data.get('categories', [])
+                    return clean_categories_data(categories)
+            except UnicodeDecodeError:
+                print("UTF-8 decoding failed for notes categories, trying CP949...")
+                with open(WD_NOTES_CATEGORIES_PATH, 'r', encoding='cp949') as f:
+                    data = json.load(f)
+                    categories = data.get('categories', [])
+                    return clean_categories_data(categories)
+        return []
+    except Exception as e:
+        print(f"Error loading notes categories: {e}")
+        return []
+
+def save_notes_categories(categories):
+    """비고 카테고리 데이터를 JSON 파일에 저장"""
+    try:
+        os.makedirs(os.path.dirname(WD_NOTES_CATEGORIES_PATH), exist_ok=True)
+        data = {'categories': categories}
+        with open(WD_NOTES_CATEGORIES_PATH, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=True, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error saving notes categories: {e}")
         return False
 
 def load_products():
@@ -3547,7 +3580,18 @@ def wdcalculator():
     except Exception as e:
         print(f"Error loading categories: {e}")
         categories = []
-    return render_template('wdcalculator/calculator.html', categories=categories)
+    
+    try:
+        notes_categories = load_notes_categories()
+        if notes_categories is None:
+            notes_categories = []
+        # 추가로 한 번 더 정리 (안전장치)
+        notes_categories = clean_categories_data(notes_categories)
+    except Exception as e:
+        print(f"Error loading notes categories: {e}")
+        notes_categories = []
+    
+    return render_template('wdcalculator/calculator.html', categories=categories, notes_categories=notes_categories)
 
 @app.route('/wdcalculator/product-settings')
 @login_required
@@ -3571,7 +3615,17 @@ def wdcalculator_product_settings():
         print(f"Error loading categories: {e}")
         categories = []
     
-    return render_template('wdcalculator/product_settings.html', products=products, categories=categories)
+    try:
+        notes_categories = load_notes_categories()
+        if notes_categories is None:
+            notes_categories = []
+        # 추가로 한 번 더 정리 (안전장치)
+        notes_categories = clean_categories_data(notes_categories)
+    except Exception as e:
+        print(f"Error loading notes categories: {e}")
+        notes_categories = []
+    
+    return render_template('wdcalculator/product_settings.html', products=products, categories=categories, notes_categories=notes_categories)
 
 @app.route('/api/wdcalculator/products', methods=['GET'])
 @login_required
@@ -3851,6 +3905,134 @@ def api_wdcalculator_delete_option(category_id, option_id):
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
+# 비고 카테고리 관리 API
+@app.route('/api/wdcalculator/notes/categories', methods=['GET'])
+@login_required
+def api_wdcalculator_get_notes_categories():
+    """비고 카테고리 목록 조회"""
+    categories = load_notes_categories()
+    return jsonify({'success': True, 'categories': categories})
+
+@app.route('/api/wdcalculator/notes/categories', methods=['POST'])
+@login_required
+def api_wdcalculator_save_notes_category():
+    """비고 카테고리 추가/수정"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '데이터가 없습니다.'})
+        
+        if not data.get('name'):
+            return jsonify({'success': False, 'message': '카테고리명을 입력해주세요.'})
+        
+        categories = load_notes_categories()
+        
+        category_id = data.get('id')
+        
+        category_data = {
+            'name': data.get('name', '').strip(),
+            'options': data.get('options', [])
+        }
+        
+        if category_id:
+            # 수정
+            category = next((c for c in categories if c.get('id') == category_id), None)
+            if category:
+                category.update(category_data)
+            else:
+                return jsonify({'success': False, 'message': '카테고리를 찾을 수 없습니다.'})
+        else:
+            # 추가
+            max_id = max([c.get('id', 0) for c in categories] + [0])
+            category_data['id'] = max_id + 1
+            categories.append(category_data)
+        
+        if save_notes_categories(categories):
+            return jsonify({'success': True, 'message': '비고 카테고리가 저장되었습니다.', 'category': category_data})
+        else:
+            return jsonify({'success': False, 'message': '비고 카테고리 저장에 실패했습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/wdcalculator/notes/categories/<int:category_id>', methods=['DELETE'])
+@login_required
+def api_wdcalculator_delete_notes_category(category_id):
+    """비고 카테고리 삭제"""
+    try:
+        categories = load_notes_categories()
+        categories = [c for c in categories if c.get('id') != category_id]
+        
+        if save_notes_categories(categories):
+            return jsonify({'success': True, 'message': '비고 카테고리가 삭제되었습니다.'})
+        else:
+            return jsonify({'success': False, 'message': '비고 카테고리 삭제에 실패했습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/wdcalculator/notes/categories/<int:category_id>/options', methods=['POST'])
+@login_required
+def api_wdcalculator_save_notes_option(category_id):
+    """비고 카테고리 내 옵션 추가/수정"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '데이터가 없습니다.'})
+        
+        if not data.get('name'):
+            return jsonify({'success': False, 'message': '옵션명을 입력해주세요.'})
+        
+        categories = load_notes_categories()
+        category = next((c for c in categories if c.get('id') == category_id), None)
+        if not category:
+            return jsonify({'success': False, 'message': '카테고리를 찾을 수 없습니다.'})
+        
+        option_id = data.get('id')
+        option_data = {
+            'name': data.get('name', '').strip(),
+            'price': 0  # 비고는 가격이 없음
+        }
+        
+        if option_id:
+            # 수정
+            option = next((o for o in category.get('options', []) if o.get('id') == option_id), None)
+            if option:
+                option.update(option_data)
+            else:
+                return jsonify({'success': False, 'message': '옵션을 찾을 수 없습니다.'})
+        else:
+            # 추가
+            max_id = max([o.get('id', 0) for o in category.get('options', [])] + [0])
+            option_data['id'] = max_id + 1
+            if 'options' not in category:
+                category['options'] = []
+            category['options'].append(option_data)
+        
+        if save_notes_categories(categories):
+            return jsonify({'success': True, 'message': '비고 옵션이 저장되었습니다.', 'option': option_data})
+        else:
+            return jsonify({'success': False, 'message': '비고 옵션 저장에 실패했습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/wdcalculator/notes/categories/<int:category_id>/options/<int:option_id>', methods=['DELETE'])
+@login_required
+def api_wdcalculator_delete_notes_option(category_id, option_id):
+    """비고 카테고리 내 옵션 삭제"""
+    try:
+        categories = load_notes_categories()
+        
+        category = next((c for c in categories if c.get('id') == category_id), None)
+        if not category:
+            return jsonify({'success': False, 'message': '카테고리를 찾을 수 없습니다.'})
+        
+        category['options'] = [o for o in category.get('options', []) if o.get('id') != option_id]
+        
+        if save_notes_categories(categories):
+            return jsonify({'success': True, 'message': '비고 옵션이 삭제되었습니다.'})
+        else:
+            return jsonify({'success': False, 'message': '비고 옵션 삭제에 실패했습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 # 견적 저장 API
 @app.route('/api/wdcalculator/save-estimate', methods=['POST'])
@@ -3957,26 +4139,38 @@ def api_wdcalculator_search_estimates():
         print(traceback.format_exc())
         return jsonify({'success': False, 'message': f'견적 검색 중 오류: {str(e)}'})
 
-# 견적 삭제 API
-@app.route('/api/wdcalculator/estimate/<int:estimate_id>', methods=['DELETE'])
+# 견적 조회 및 삭제 API
+@app.route('/api/wdcalculator/estimate/<int:estimate_id>', methods=['GET', 'DELETE'])
 @login_required
-def api_wdcalculator_delete_estimate(estimate_id):
-    """견적 삭제"""
+def api_wdcalculator_estimate(estimate_id):
+    """견적 ID로 단일 견적 조회 또는 삭제"""
     try:
         db = get_wdcalculator_db()
         estimate = db.query(Estimate).filter(Estimate.id == estimate_id).first()
         
         if not estimate:
             return jsonify({'success': False, 'message': '견적을 찾을 수 없습니다.'})
-            
-        db.delete(estimate)
-        db.commit()
         
-        return jsonify({'success': True, 'message': '견적이 삭제되었습니다.'})
+        # DELETE 메서드인 경우 삭제
+        if request.method == 'DELETE':
+            db.delete(estimate)
+            db.commit()
+            return jsonify({'success': True, 'message': '견적이 삭제되었습니다.'})
+        
+        # GET 메서드인 경우 조회
+        return jsonify({
+            'success': True,
+            'estimate': estimate.to_dict()
+        })
     except Exception as e:
         db = get_wdcalculator_db()
         db.rollback()
-        return jsonify({'success': False, 'message': f'견적 삭제 중 오류: {str(e)}'})
+        import traceback
+        print(f"Error in estimate API: {str(e)}")
+        print(traceback.format_exc())
+        if request.method == 'DELETE':
+            return jsonify({'success': False, 'message': f'견적 삭제 중 오류: {str(e)}'})
+        return jsonify({'success': False, 'message': f'견적 조회 중 오류: {str(e)}'})
 
 # 주문과 견적 매칭 API
 @app.route('/api/wdcalculator/match-order', methods=['POST'])

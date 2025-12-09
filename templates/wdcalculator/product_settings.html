@@ -339,6 +339,107 @@
             </div>
         </div>
     </div>
+
+    <!-- 구분선 -->
+    <hr class="my-5" style="border-top: 3px solid #ffc107;">
+
+    <!-- 비고 카테고리 관리 섹션 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow" style="border-left: 4px solid #ffc107;">
+                <div class="card-header py-3" style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); color: white;">
+                    <h5 class="m-0 font-weight-bold">
+                        <i class="fas fa-sticky-note me-2"></i>비고 카테고리 관리
+                        <small class="ms-2">({{ notes_categories|length }}개 카테고리)</small>
+                    </h5>
+                    <small class="d-block mt-1 opacity-75">
+                        <i class="fas fa-info-circle"></i> 비고는 견적서에 표시되는 메모입니다.
+                    </small>
+                </div>
+                <div class="card-body">
+                    <!-- 비고 카테고리 추가 폼 -->
+                    <form id="notesCategoryForm">
+                        <input type="hidden" id="notesCategoryId" name="id" value="">
+                        <input type="hidden" id="notesCategoryCategoryId" name="category_id" value="">
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="notesCategoryName" class="form-label">카테고리명 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="notesCategoryName" name="category_name" required placeholder="예: 배송, 설치, 기타">
+                                <small class="form-text text-muted">대분류 카테고리명을 입력하세요</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="notesOptionName" class="form-label">옵션명 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="notesOptionName" name="option_name" required placeholder="예: 배송비 별도, 설치비 포함">
+                                <small class="form-text text-muted">세부 옵션명을 입력하세요</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">&nbsp;</label>
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-warning flex-grow-1">
+                                        <i class="fas fa-save"></i> 저장
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" id="resetNotesCategoryFormBtn">
+                                        <i class="fas fa-redo"></i> 초기화
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- 비고 카테고리 목록 -->
+                    <div class="mt-4">
+                        <h6 class="mb-3">비고 카테고리 목록</h6>
+                        {% if notes_categories %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 60px;">ID</th>
+                                        <th>카테고리명</th>
+                                        <th>옵션명</th>
+                                        <th style="width: 180px;">작업</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                        {% for category in notes_categories %}
+                                        {% if category.options %}
+                                        {% for option in category.options %}
+                                        {% if option.id %}
+                                        <tr data-category-id="{{ category.id }}" data-option-id="{{ option.id }}">
+                                            <td>{{ option.id }}</td>
+                                            <td><strong>{{ category.name }}</strong></td>
+                                            <td>{{ option.name }}</td>
+                                            <td>
+                                                <div class="d-flex gap-1">
+                                                    <button class="btn btn-sm btn-outline-primary edit-notes-option-btn" data-category-id="{{ category.id }}" data-option-id="{{ option.id }}" data-category-name="{{ category.name }}" title="수정">
+                                                        <i class="fas fa-edit"></i> 수정
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-danger delete-notes-option-btn" data-category-id="{{ category.id }}" data-option-id="{{ option.id }}" title="삭제">
+                                                        <i class="fas fa-trash"></i> 삭제
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                        {% endfor %}
+                                        {% endif %}
+                                        {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-sticky-note text-muted fa-3x mb-3"></i>
+                            <h5 class="text-muted">등록된 비고 카테고리가 없습니다.</h5>
+                            <p class="text-muted">위 폼을 사용하여 비고 카테고리를 추가해주세요.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Toast 컨테이너 -->
@@ -538,6 +639,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const categories = {{ (categories|default([]))|tojson|safe }};
     let editingAdditionalOptionId = null;
     let editingAdditionalOptionCategoryId = null;
+    
+    // ==================== 비고 카테고리 관리 ====================
+    const notesCategories = {{ (notes_categories|default([]))|tojson|safe }};
+    let editingNotesOptionId = null;
+    let editingNotesCategoryId = null;
 
     // 추가 옵션 폼 제출
     document.getElementById('additionalOptionForm').addEventListener('submit', function(e) {
@@ -749,6 +855,210 @@ document.addEventListener('DOMContentLoaded', function() {
                     }, 1000);
                 } else {
                     showToast(data.message || '옵션 삭제에 실패했습니다.', false);
+                    deleteBtn.disabled = false;
+                    deleteBtn.innerHTML = originalHtml;
+                }
+            })
+            .catch(error => {
+                showToast('서버 통신 중 오류가 발생했습니다.', false);
+                deleteBtn.disabled = false;
+                deleteBtn.innerHTML = originalHtml;
+            });
+        });
+    });
+
+    // 비고 카테고리 폼 제출
+    document.getElementById('notesCategoryForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const categoryName = document.getElementById('notesCategoryName').value.trim();
+        const optionName = document.getElementById('notesOptionName').value.trim();
+        
+        if (!categoryName || !optionName) {
+            showToast('모든 필드를 올바르게 입력해주세요.', false);
+            return;
+        }
+        
+        let category = notesCategories.find(c => c.name === categoryName);
+        let categoryId = editingNotesCategoryId;
+        
+        if (!categoryId && category) {
+            categoryId = category.id;
+        }
+        
+        const optionData = {
+            id: editingNotesOptionId || null,
+            name: optionName
+        };
+        
+        if (categoryId) {
+            // 기존 카테고리에 옵션 추가/수정
+            fetch(`/api/wdcalculator/notes/categories/${categoryId}/options`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(optionData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, true);
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    showToast(data.message, false);
+                }
+            })
+            .catch(error => {
+                showToast('서버 통신 중 오류가 발생했습니다.', false);
+            });
+        } else {
+            // 새 카테고리와 옵션 함께 생성
+            const categoryData = {
+                name: categoryName,
+                options: [optionData]
+            };
+            
+            fetch('/api/wdcalculator/notes/categories', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(categoryData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, true);
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    showToast(data.message, false);
+                }
+            })
+            .catch(error => {
+                showToast('서버 통신 중 오류가 발생했습니다.', false);
+            });
+        }
+    });
+
+    // 비고 카테고리 폼 초기화
+    document.getElementById('resetNotesCategoryFormBtn').addEventListener('click', function() {
+        document.getElementById('notesCategoryForm').reset();
+        document.getElementById('notesCategoryId').value = '';
+        document.getElementById('notesCategoryCategoryId').value = '';
+        editingNotesOptionId = null;
+        editingNotesCategoryId = null;
+    });
+
+    // 비고 옵션 수정
+    document.querySelectorAll('.edit-notes-option-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const categoryIdStr = this.dataset.categoryId;
+            const optionIdStr = this.dataset.optionId;
+            const categoryName = this.dataset.categoryName;
+            
+            if (!categoryIdStr || categoryIdStr === 'None' || !optionIdStr || optionIdStr === 'None') {
+                showToast('옵션 정보를 불러올 수 없습니다. 페이지를 새로고침해주세요.', false);
+                return;
+            }
+            
+            const categoryId = parseInt(categoryIdStr);
+            const optionId = parseInt(optionIdStr);
+            
+            if (isNaN(categoryId) || isNaN(optionId)) {
+                showToast('옵션 정보가 올바르지 않습니다.', false);
+                return;
+            }
+            
+            const category = notesCategories.find(c => c && c.id === categoryId);
+            
+            if (!category) {
+                showToast('카테고리를 찾을 수 없습니다.', false);
+                return;
+            }
+            
+            if (!category.options || !Array.isArray(category.options)) {
+                showToast('옵션 목록을 찾을 수 없습니다.', false);
+                return;
+            }
+            
+            const option = category.options.find(o => o && o.id === optionId);
+            
+            if (!option) {
+                showToast('옵션을 찾을 수 없습니다.', false);
+                return;
+            }
+            
+            editingNotesOptionId = optionId;
+            editingNotesCategoryId = categoryId;
+            
+            document.getElementById('notesCategoryId').value = optionId;
+            document.getElementById('notesCategoryCategoryId').value = categoryId;
+            document.getElementById('notesCategoryName').value = categoryName || category.name;
+            document.getElementById('notesOptionName').value = option.name || '';
+            
+            document.getElementById('notesCategoryForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+
+    // 비고 옵션 삭제
+    document.querySelectorAll('.delete-notes-option-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const categoryIdStr = this.dataset.categoryId;
+            const optionIdStr = this.dataset.optionId;
+            
+            if (!categoryIdStr || categoryIdStr === 'None' || !optionIdStr || optionIdStr === 'None') {
+                showToast('옵션 정보를 불러올 수 없습니다. 페이지를 새로고침해주세요.', false);
+                return;
+            }
+            
+            const categoryId = parseInt(categoryIdStr);
+            const optionId = parseInt(optionIdStr);
+            
+            if (isNaN(categoryId) || isNaN(optionId)) {
+                showToast('옵션 정보가 올바르지 않습니다.', false);
+                return;
+            }
+            
+            const optionRow = this.closest('tr');
+            const categoryName = optionRow ? optionRow.querySelector('td:nth-child(2) strong')?.textContent || '' : '';
+            const optionName = optionRow ? optionRow.querySelector('td:nth-child(3)')?.textContent || '' : '';
+            
+            const confirmMessage = categoryName && optionName 
+                ? `정말 "${categoryName} > ${optionName}" 비고 옵션을 삭제하시겠습니까?\n삭제된 옵션은 복구할 수 없습니다.`
+                : '정말 이 비고 옵션을 삭제하시겠습니까?\n삭제된 옵션은 복구할 수 없습니다.';
+            
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+            
+            const deleteBtn = this;
+            const originalHtml = deleteBtn.innerHTML;
+            deleteBtn.disabled = true;
+            deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 삭제 중...';
+            
+            fetch(`/api/wdcalculator/notes/categories/${categoryId}/options/${optionId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message || '비고 옵션이 삭제되었습니다.', true);
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    showToast(data.message || '비고 옵션 삭제에 실패했습니다.', false);
                     deleteBtn.disabled = false;
                     deleteBtn.innerHTML = originalHtml;
                 }

@@ -2,7 +2,7 @@
   "products": [
     {
       "id": 2,
-      "name": "몰딩(푸쉬)",
+      "name": "\ubab0\ub529(\ud478\uc26c)",
       "pricing_type": "30cm",
       "additional_options": [],
       "coupon_type": "percentage",
@@ -11,17 +11,8 @@
       "price_1cm": 2820
     },
     {
-      "id": 3,
-      "name": "주방(국산 인조대리석)-상하부장",
-      "pricing_type": "1m",
-      "additional_options": [],
-      "coupon_type": "percentage",
-      "coupon_value": 0,
-      "price_1m": 650000
-    },
-    {
       "id": 4,
-      "name": "몰딩(피닉스바)",
+      "name": "\ubab0\ub529(\ud53c\ub2c9\uc2a4\ubc14)",
       "pricing_type": "30cm",
       "additional_options": [],
       "coupon_type": "percentage",
@@ -31,7 +22,7 @@
     },
     {
       "id": 5,
-      "name": "무몰딩(푸쉬)",
+      "name": "\ubb34\ubab0\ub529(\ud478\uc26c)",
       "pricing_type": "30cm",
       "additional_options": [],
       "coupon_type": "percentage",
@@ -41,7 +32,7 @@
     },
     {
       "id": 6,
-      "name": "무몰딩(피닉스바)",
+      "name": "\ubb34\ubab0\ub529(\ud53c\ub2c9\uc2a4\ubc14)",
       "pricing_type": "30cm",
       "additional_options": [],
       "coupon_type": "percentage",
@@ -51,7 +42,7 @@
     },
     {
       "id": 7,
-      "name": "슬라이딩",
+      "name": "\uc2ac\ub77c\uc774\ub529",
       "pricing_type": "30cm",
       "additional_options": [],
       "coupon_type": "percentage",
@@ -61,13 +52,32 @@
     },
     {
       "id": 8,
-      "name": "ㄱ자,ㄷ자",
+      "name": "\u3131\uc790,\u3137\uc790",
       "pricing_type": "30cm",
       "additional_options": [],
       "coupon_type": "percentage",
       "coupon_value": 0,
       "price_30cm": 108900,
       "price_1cm": 3630
+    },
+    {
+      "id": 9,
+      "name": "\uc8fc\ubc29(\uad6d\uc0b0 \uc778\uc870\ub300\ub9ac\uc11d)-\uc0c1\ud558\ubd80\uc7a5",
+      "pricing_type": "1m",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_1m": 650000
+    },
+    {
+      "id": 10,
+      "name": "\ud558\ubc18 \uce68\ub300",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 160000,
+      "price_1cm": 5330
     }
   ]
 }
