@@ -32,13 +32,29 @@
       "options": [
         {
           "id": 1400,
-          "name": "\uc5ec\ub2eb\uc774 \ucd5c\uc18c \uc8fc\ubb38\uc790\uc218 5\uc790 \uc801\uc6a9",
+          "name": "\uc5ec\ub2eb\uc774 5\uc790 \uc801\uc6a9",
           "price": 0.0
         },
         {
-          "name": "\uc2ac\ub77c\uc774\ub529 \ucd5c\uc18c \uc8fc\ubb38\uc790\uc218 8\uc790 \uc801\uc6a9",
+          "id": 1401,
+          "name": "\uc2ac\ub77c\uc774\ub529 8\uc790 \uc801\uc6a9",
+          "price": 0.0
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "\uae4a\uc774",
+      "options": [
+        {
+          "id": 1500,
+          "name": "\uc5ec\ub2eb\uc774 \uc678\uacbd \uae30\uc900 \uae4a\uc774 620 \uc81c\uc791",
+          "price": 0
+        },
+        {
+          "name": "\uc2ac\ub77c\uc774\ub529 \uc678\uacbd \uae30\uc900 \uae4a\uc774 700 \uc81c\uc791",
           "price": 0,
-          "id": 1401
+          "id": 1501
         }
       ]
     }

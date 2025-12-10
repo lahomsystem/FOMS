@@ -362,17 +362,14 @@
                     <!-- 비고 입력 -->
                     <div class="mb-3">
                         <label class="form-label">비고</label>
-                        <div class="d-flex gap-2 align-items-start mb-2">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleNotesDirectInput" title="직접입력">
-                                <i class="fas fa-keyboard"></i>
-                            </button>
-                            <select class="form-select flex-grow-1" id="notesSelect">
-                                <option value="">저장된 비고 선택 또는 직접 입력</option>
-                                </select>
-                            </div>
-                        <textarea class="form-control" id="notesInput" rows="3" placeholder="비고를 입력하세요 (직접 입력 또는 위에서 선택)" style="display: none;"></textarea>
+                        <div id="notesContainer">
+                            <!-- 동적으로 비고 항목들이 추가됨 -->
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btnAddNote">
+                            <i class="fas fa-plus"></i> 비고 추가
+                        </button>
                         <small class="form-text text-muted">
-                            <i class="fas fa-info-circle"></i> 비고는 견적서에 표시됩니다.
+                            <i class="fas fa-info-circle"></i> 비고는 견적서에 표시됩니다. 옵션 선택 또는 직접 입력을 혼합하여 사용할 수 있습니다.
                         </small>
                     </div>
                 </div>
@@ -601,36 +598,237 @@ document.addEventListener('DOMContentLoaded', function() {
     function loadNotesCategories() {
         // 템플릿에서 전달된 비고 카테고리 사용
         notesCategories = wdNotesCategories || [];
-        updateNotesSelect();
     }
     
-    // 비고 드롭다운 업데이트
-    function updateNotesSelect() {
-        const select = document.getElementById('notesSelect');
-        if (!select) return;
-        
-        // 기존 옵션 유지 (첫 번째 옵션만)
-        const firstOption = select.options[0];
-        select.innerHTML = '';
-        if (firstOption) {
-            select.appendChild(firstOption);
-        }
-        
-        // 비고 카테고리 옵션 추가
+    // 비고 드롭다운 옵션 생성 (재사용 가능한 함수)
+    function createNotesSelectOptions() {
+        let optionsHtml = '<option value="">저장된 비고 선택</option>';
         if (notesCategories && Array.isArray(notesCategories)) {
             notesCategories.forEach(category => {
                 if (category && category.options && Array.isArray(category.options)) {
                     category.options.forEach(option => {
                         if (option && option.name) {
-                            const optionElement = document.createElement('option');
-                            optionElement.value = `${category.name} > ${option.name}`;
-                            optionElement.textContent = `${category.name} > ${option.name}`;
-                            select.appendChild(optionElement);
+                            const value = `${category.name} > ${option.name}`;
+                            optionsHtml += `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`;
                         }
                     });
                 }
             });
         }
+        return optionsHtml;
+    }
+    
+    // 비고 항목 추가
+    function addNoteItem(type = 'select') {
+        const index = notesList.length;
+        notesList.push({type: type, value: ''});
+        renderNoteItem(index);
+    }
+    
+    // 비고 항목 삭제
+    function removeNoteItem(index) {
+        if (notesList.length <= 1) {
+            // 최소 1개는 유지
+            return;
+        }
+        notesList.splice(index, 1);
+        renderAllNotes();
+    }
+    
+    // 비고 항목 타입 전환 (select <-> input)
+    function toggleNoteType(index) {
+        if (index >= 0 && index < notesList.length) {
+            const currentType = notesList[index].type;
+            const currentValue = notesList[index].value;
+            notesList[index].type = currentType === 'select' ? 'input' : 'select';
+            // 타입 전환 시 값 유지
+            notesList[index].value = currentValue;
+            renderNoteItem(index);
+        }
+    }
+    
+    // 비고 항목 렌더링
+    function renderNoteItem(index) {
+        const container = document.getElementById('notesContainer');
+        if (!container) return;
+        
+        const note = notesList[index];
+        if (!note) return;
+        
+        const isSelect = note.type === 'select';
+        const noteId = `note-item-${index}`;
+        
+        // 기존 항목이 있으면 업데이트, 없으면 새로 생성
+        let noteItem = document.getElementById(noteId);
+        if (!noteItem) {
+            noteItem = document.createElement('div');
+            noteItem.className = 'note-item mb-2';
+            noteItem.id = noteId;
+            noteItem.setAttribute('data-note-index', index);
+            container.appendChild(noteItem);
+        }
+        
+        noteItem.innerHTML = `
+            <div class="d-flex gap-2 align-items-start">
+                <button type="button" class="btn btn-sm btn-outline-secondary toggle-note-type" data-note-index="${index}" title="${isSelect ? '직접입력' : '옵션 선택'}">
+                    <i class="fas ${isSelect ? 'fa-keyboard' : 'fa-list'}"></i>
+                </button>
+                <select class="form-select flex-grow-1 note-select" data-note-index="${index}" ${isSelect ? '' : 'style="display: none;"'}>
+                    ${createNotesSelectOptions()}
+                </select>
+                <textarea class="form-control note-input" rows="2" placeholder="비고를 직접 입력하세요" data-note-index="${index}" ${isSelect ? 'style="display: none;"' : ''}></textarea>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-note" data-note-index="${index}" title="삭제" ${notesList.length <= 1 ? 'disabled' : ''}>
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        // 값 설정 (innerHTML 후에 설정)
+        if (isSelect) {
+            const select = noteItem.querySelector('.note-select');
+            if (select) {
+                if (note.value) {
+                    select.value = note.value;
+                }
+            }
+        } else {
+            const textarea = noteItem.querySelector('.note-input');
+            if (textarea) {
+                textarea.value = note.value || '';
+            }
+        }
+        
+        // 이벤트 리스너 등록
+        attachNoteItemEvents(noteItem, index);
+    }
+    
+    // 비고 항목 이벤트 리스너 등록
+    function attachNoteItemEvents(noteItem, index) {
+        // 타입 전환 버튼
+        const toggleBtn = noteItem.querySelector('.toggle-note-type');
+        if (toggleBtn) {
+            toggleBtn.replaceWith(toggleBtn.cloneNode(true)); // 기존 리스너 제거
+            noteItem.querySelector('.toggle-note-type').addEventListener('click', function() {
+                toggleNoteType(index);
+            });
+        }
+        
+        // 삭제 버튼
+        const removeBtn = noteItem.querySelector('.remove-note');
+        if (removeBtn) {
+            removeBtn.replaceWith(removeBtn.cloneNode(true)); // 기존 리스너 제거
+            noteItem.querySelector('.remove-note').addEventListener('click', function() {
+                removeNoteItem(index);
+            });
+        }
+        
+        // Select 변경
+        const select = noteItem.querySelector('.note-select');
+        if (select) {
+            select.replaceWith(select.cloneNode(true)); // 기존 리스너 제거
+            noteItem.querySelector('.note-select').addEventListener('change', function() {
+                if (index >= 0 && index < notesList.length) {
+                    notesList[index].value = this.value;
+                }
+            });
+        }
+        
+        // Input 변경 및 blur (숫자 포맷팅)
+        const textarea = noteItem.querySelector('.note-input');
+        if (textarea) {
+            textarea.replaceWith(textarea.cloneNode(true)); // 기존 리스너 제거
+            const newTextarea = noteItem.querySelector('.note-input');
+            newTextarea.addEventListener('input', function() {
+                if (index >= 0 && index < notesList.length) {
+                    notesList[index].value = this.value;
+                }
+            });
+            newTextarea.addEventListener('blur', function() {
+                const formatted = formatNumbersInText(this.value);
+                if (formatted !== this.value) {
+                    this.value = formatted;
+                    if (index >= 0 && index < notesList.length) {
+                        notesList[index].value = formatted;
+                    }
+                }
+            });
+        }
+    }
+    
+    // 모든 비고 항목 렌더링
+    function renderAllNotes() {
+        const container = document.getElementById('notesContainer');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        if (notesList.length === 0) {
+            // 비고가 없으면 기본 1개 추가
+            addNoteItem('select');
+            return;
+        }
+        
+        notesList.forEach((note, index) => {
+            renderNoteItem(index);
+        });
+    }
+    
+    // 비고 수집 (문자열로 변환)
+    function collectNotes() {
+        return notesList
+            .map(item => item.value)
+            .filter(v => v && v.trim())
+            .join('\n');
+    }
+    
+    // 비고 로드 (문자열에서 파싱)
+    function loadNotes(notesString) {
+        if (!notesString || !notesString.trim()) {
+            notesList = [{type: 'select', value: ''}];
+            renderAllNotes();
+            return;
+        }
+        
+        // 줄바꿈으로 분리
+        const lines = notesString.split('\n').filter(v => v.trim());
+        
+        if (lines.length === 0) {
+            notesList = [{type: 'select', value: ''}];
+            renderAllNotes();
+            return;
+        }
+        
+        // 각 라인을 비고 항목으로 변환
+        notesList = lines.map(value => {
+            value = value.trim();
+            // 옵션 목록에 있는지 확인
+            const isOption = checkIfOptionExists(value);
+            return {
+                type: isOption ? 'select' : 'input',
+                value: value
+            };
+        });
+        
+        renderAllNotes();
+    }
+    
+    // 옵션 목록에 존재하는지 확인
+    function checkIfOptionExists(value) {
+        if (!value || !notesCategories) return false;
+        
+        for (const category of notesCategories) {
+            if (category && category.options && Array.isArray(category.options)) {
+                for (const option of category.options) {
+                    if (option && option.name) {
+                        const optionValue = `${category.name} > ${option.name}`;
+                        if (optionValue === value) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
     
     // 비고 숫자 콤마 포맷터
@@ -641,49 +839,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // 비고 직접입력 토글
-    const toggleNotesDirectInputBtn = document.getElementById('toggleNotesDirectInput');
-    const notesSelect = document.getElementById('notesSelect');
-    const notesInput = document.getElementById('notesInput');
-    
-    if (toggleNotesDirectInputBtn && notesSelect && notesInput) {
-        toggleNotesDirectInputBtn.addEventListener('click', function() {
-            if (notesInput.style.display === 'none') {
-                // 직접 입력 모드로 전환
-                notesInput.style.display = 'block';
-                notesSelect.style.display = 'none';
-                notesSelect.value = '';
-                this.innerHTML = '<i class="fas fa-list"></i>';
-                this.title = '선택 모드';
-            } else {
-                // 선택 모드로 전환
-                notesInput.style.display = 'none';
-                notesSelect.style.display = 'block';
-                notesInput.value = '';
-                this.innerHTML = '<i class="fas fa-keyboard"></i>';
-                this.title = '직접입력';
-            }
-        });
-        
-        // 비고 선택 시
-        notesSelect.addEventListener('change', function() {
-            if (this.value && this.value !== '') {
-                // 선택된 비고를 직접 입력 필드에도 표시 (선택사항)
-                // notesInput.value = this.value;
-            }
-        });
-
-        // 비고 입력 시 숫자에 자동 콤마 적용 (blur 시 반영)
-        notesInput.addEventListener('blur', function() {
-            const formatted = formatNumbersInText(notesInput.value);
-            if (formatted !== notesInput.value) {
-                notesInput.value = formatted;
-            }
+    // 비고 추가 버튼 이벤트
+    const btnAddNote = document.getElementById('btnAddNote');
+    if (btnAddNote) {
+        btnAddNote.addEventListener('click', function() {
+            addNoteItem('select');
         });
     }
     
-    // 비고 카테고리 로드
+    // 비고 카테고리 로드 및 초기화
     loadNotesCategories();
+    
+    // 초기 비고 항목 1개 추가
+    notesList = [{type: 'select', value: ''}];
+    renderAllNotes();
     
     // 제품 목록 로드
     function loadProducts() {
@@ -1176,14 +1345,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const totalPrice = basePrice + additionalPrice;
         
         // 비고 정보 수집
-        const notesInput = document.getElementById('notesInput');
-        const notesSelect = document.getElementById('notesSelect');
-        let notes = '';
-        if (notesInput && notesInput.style.display !== 'none' && notesInput.value.trim()) {
-            notes = notesInput.value.trim();
-        } else if (notesSelect && notesSelect.value && notesSelect.value !== '') {
-            notes = notesSelect.value;
-        }
+        const notes = collectNotes();
         
         return {
             productId: productId,
@@ -1492,16 +1654,9 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('additionalOptionsDetail').textContent = additionalDetails || '';
             
             // 비고 표시
-            const notesInput = document.getElementById('notesInput');
-            const notesSelect = document.getElementById('notesSelect');
             const notesDisplaySection = document.getElementById('notesDisplaySection');
             const notesDisplay = document.getElementById('notesDisplay');
-            let notes = '';
-            if (notesInput && notesInput.style.display !== 'none' && notesInput.value.trim()) {
-                notes = notesInput.value.trim();
-            } else if (notesSelect && notesSelect.value && notesSelect.value !== '') {
-                notes = notesSelect.value;
-            }
+            const notes = collectNotes();
             if (notes && notesDisplaySection && notesDisplay) {
                 notesDisplay.textContent = notes;
                 notesDisplaySection.style.display = 'block';
@@ -1589,6 +1744,9 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('productSelect').value = '';
         document.getElementById('widthInput').value = '';
         document.getElementById('additionalOptionsContainer').innerHTML = '';
+        // 비고 초기화
+        notesList = [{type: 'select', value: ''}];
+        renderAllNotes();
         document.getElementById('addEstimateBtn').style.display = 'none';
         
         // 제품 정보 및 견적 결과 초기화
@@ -1725,6 +1883,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 1. 폼 초기화
         document.getElementById('additionalOptionsContainer').innerHTML = '';
+        // 비고 초기화
+        notesList = [{type: 'select', value: ''}];
+        renderAllNotes();
         
         // 2. 제품 선택 (재시도 로직 포함)
         const productSelect = document.getElementById('productSelect');
@@ -1945,24 +2106,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // 4.5. 비고 정보 로드 (개별 견적의 비고)
-        const notesInput = document.getElementById('notesInput');
-        const notesSelect = document.getElementById('notesSelect');
-        if (estimate.notes) {
-            notesInput.value = estimate.notes;
-            notesInput.style.display = 'block';
-            notesSelect.style.display = 'none';
-            notesSelect.value = '';
-            const toggleBtn = document.getElementById('toggleNotesDirectInput');
-            if (toggleBtn) {
-                toggleBtn.innerHTML = '<i class="fas fa-list"></i>';
-                toggleBtn.title = '선택 모드';
-            }
-        } else {
-            notesInput.value = '';
-            notesInput.style.display = 'none';
-            notesSelect.style.display = 'block';
-            notesSelect.value = '';
-        }
+        loadNotes(estimate.notes || '');
         console.log('Notes loaded:', estimate.notes || '(empty)');
         
         // 5. editingEstimateId 설정 (원본 ID 유지)
@@ -2142,27 +2286,10 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('customerName').value = estimate.customer_name;
         
         // 비고 정보 로드 (개별 견적의 비고를 우선 사용, 없으면 전체 견적의 비고 사용)
-        const notesInput = document.getElementById('notesInput');
-        const notesSelect = document.getElementById('notesSelect');
         // estimate 객체에 직접 notes가 있는지 확인 (개별 견적의 비고)
         // 없으면 estimateData.notes 사용 (전체 견적의 비고)
         const notesToLoad = estimate.notes || estimateData.notes || '';
-        if (notesToLoad) {
-            notesInput.value = notesToLoad;
-            notesInput.style.display = 'block';
-            notesSelect.style.display = 'none';
-            notesSelect.value = '';
-            const toggleBtn = document.getElementById('toggleNotesDirectInput');
-            if (toggleBtn) {
-                toggleBtn.innerHTML = '<i class="fas fa-list"></i>';
-                toggleBtn.title = '선택 모드';
-            }
-        } else {
-            notesInput.value = '';
-            notesInput.style.display = 'none';
-            notesSelect.style.display = 'block';
-            notesSelect.value = '';
-        }
+        loadNotes(notesToLoad);
         console.log('Notes loaded:', notesToLoad || '(empty)', 'from estimate.notes:', estimate.notes || '(none)', 'from estimateData.notes:', estimateData.notes || '(none)');
         
         // 견적 목록 초기화
@@ -2355,14 +2482,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // 비고 정보 수집
-        const notesInput = document.getElementById('notesInput');
-        const notesSelect = document.getElementById('notesSelect');
-        let notes = '';
-        if (notesInput && notesInput.style.display !== 'none' && notesInput.value.trim()) {
-            notes = notesInput.value.trim();
-        } else if (notesSelect && notesSelect.value && notesSelect.value !== '') {
-            notes = notesSelect.value;
-        }
+        const notes = collectNotes();
         
         // 현재 견적 목록을 저장
         const estimateData = {
