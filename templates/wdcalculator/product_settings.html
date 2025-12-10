@@ -65,6 +65,38 @@
     table td:last-child {
         min-width: 180px;
     }
+    
+    /* 비고 카테고리 목록 컨테이너 스타일 */
+    #notesCategoriesListContainer {
+        width: 100%;
+        overflow-x: auto;
+    }
+    
+    #notesCategoriesListContainer .table-responsive {
+        display: block !important;
+        width: 100% !important;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    #notesCategoriesListContainer table {
+        display: table !important;
+        width: 100% !important;
+        margin-bottom: 0;
+    }
+    
+    #notesCategoriesListContainer table tbody {
+        display: table-row-group !important;
+    }
+    
+    #notesCategoriesListContainer table tr {
+        display: table-row !important;
+    }
+    
+    #notesCategoriesListContainer table td,
+    #notesCategoriesListContainer table th {
+        display: table-cell !important;
+    }
 </style>
 {% endblock %}
 
@@ -390,32 +422,36 @@
                     <!-- 비고 카테고리 목록 -->
                     <div class="mt-4">
                         <h6 class="mb-3">비고 카테고리 목록</h6>
-                        {% if notes_categories %}
-                        <div class="table-responsive">
-                            <table class="table table-bordered table-hover">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th style="width: 60px;">ID</th>
-                                        <th>카테고리명</th>
-                                        <th>옵션명</th>
-                                        <th style="width: 180px;">작업</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
+                        <div id="notesCategoriesListContainer">
+                            <!-- 서버 사이드 렌더링: 데이터가 있으면 테이블 표시 -->
+                            {% if notes_categories and notes_categories|length > 0 %}
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover" id="notesCategoriesTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 60px;">ID</th>
+                                            <th>카테고리명</th>
+                                            <th>옵션명</th>
+                                            <th style="width: 180px;">작업</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="notesCategoriesTableBody">
+                                        {% set ns = namespace(global_index=0) %}
                                         {% for category in notes_categories %}
-                                        {% if category.options %}
+                                        {% if category and category.options and category.options|length > 0 %}
                                         {% for option in category.options %}
-                                        {% if option.id %}
-                                        <tr data-category-id="{{ category.id }}" data-option-id="{{ option.id }}">
-                                            <td>{{ option.id }}</td>
+                                        {% if option and option.name %}
+                                        {% set ns.global_index = ns.global_index + 1 %}
+                                        <tr data-category-id="{{ category.id }}" data-option-id="{{ option.id if option.id else '' }}" data-option-name="{{ option.name }}" data-option-index="{{ loop.index0 }}">
+                                            <td>{{ ns.global_index }}</td>
                                             <td><strong>{{ category.name }}</strong></td>
                                             <td>{{ option.name }}</td>
                                             <td>
                                                 <div class="d-flex gap-1">
-                                                    <button class="btn btn-sm btn-outline-primary edit-notes-option-btn" data-category-id="{{ category.id }}" data-option-id="{{ option.id }}" data-category-name="{{ category.name }}" title="수정">
+                                                    <button class="btn btn-sm btn-outline-primary edit-notes-option-btn" data-category-id="{{ category.id }}" data-option-id="{{ option.id if option.id else '' }}" data-option-name="{{ option.name }}" data-option-index="{{ loop.index0 }}" data-category-name="{{ category.name }}" title="수정">
                                                         <i class="fas fa-edit"></i> 수정
                                                     </button>
-                                                    <button class="btn btn-sm btn-outline-danger delete-notes-option-btn" data-category-id="{{ category.id }}" data-option-id="{{ option.id }}" title="삭제">
+                                                    <button class="btn btn-sm btn-outline-danger delete-notes-option-btn" data-category-id="{{ category.id }}" data-option-id="{{ option.id if option.id else '' }}" data-option-name="{{ option.name }}" data-option-index="{{ loop.index0 }}" title="삭제">
                                                         <i class="fas fa-trash"></i> 삭제
                                                     </button>
                                                 </div>
@@ -425,16 +461,17 @@
                                         {% endfor %}
                                         {% endif %}
                                         {% endfor %}
-                                </tbody>
-                            </table>
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-4" id="noNotesCategories">
+                                <i class="fas fa-sticky-note text-muted fa-3x mb-3"></i>
+                                <h5 class="text-muted">등록된 비고 카테고리가 없습니다.</h5>
+                                <p class="text-muted">위 폼을 사용하여 비고 카테고리를 추가해주세요.</p>
+                            </div>
+                            {% endif %}
                         </div>
-                        {% else %}
-                        <div class="text-center py-4">
-                            <i class="fas fa-sticky-note text-muted fa-3x mb-3"></i>
-                            <h5 class="text-muted">등록된 비고 카테고리가 없습니다.</h5>
-                            <p class="text-muted">위 폼을 사용하여 비고 카테고리를 추가해주세요.</p>
-                        </div>
-                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -455,7 +492,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const products = {{ products|tojson }};
+    const products = JSON.parse('{{ products|tojson|safe }}') || [];
     let editingProductId = null;
     
     const toastElement = document.getElementById('status-toast');
@@ -636,14 +673,434 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ==================== 추가 옵션 관리 ====================
-    const categories = {{ (categories|default([]))|tojson|safe }};
+    const categories = JSON.parse('{{ (categories|default([]))|tojson|safe }}') || [];
     let editingAdditionalOptionId = null;
     let editingAdditionalOptionCategoryId = null;
     
     // ==================== 비고 카테고리 관리 ====================
-    const notesCategories = {{ (notes_categories|default([]))|tojson|safe }};
+    let notesCategories = JSON.parse('{{ (notes_categories|default([]))|tojson|safe }}') || [];
     let editingNotesOptionId = null;
     let editingNotesCategoryId = null;
+    
+    // 비고 카테고리 목록 새로고침 함수
+    function refreshNotesCategoriesList() {
+        console.log('비고 카테고리 목록 새로고침 시작...');
+        fetch('/api/wdcalculator/notes/categories')
+            .then(response => {
+                console.log('API 응답 상태:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('API 응답 데이터:', data);
+                if (data.success) {
+                    notesCategories = data.categories || [];
+                    console.log('로드된 카테고리 수:', notesCategories.length);
+                    renderNotesCategoriesList();
+                } else {
+                    console.error('비고 카테고리 목록 로드 실패:', data.message);
+                    showToast('목록을 불러오는 중 오류가 발생했습니다: ' + (data.message || '알 수 없는 오류'), false);
+                }
+            })
+            .catch(error => {
+                console.error('비고 카테고리 목록 로드 중 오류:', error);
+                showToast('목록을 불러오는 중 오류가 발생했습니다: ' + error.message, false);
+            });
+    }
+    
+    // 비고 카테고리 목록 렌더링 함수
+    function renderNotesCategoriesList() {
+        console.log('renderNotesCategoriesList 호출됨, 카테고리 수:', notesCategories ? notesCategories.length : 0);
+        const container = document.getElementById('notesCategoriesListContainer');
+        if (!container) {
+            console.error('notesCategoriesListContainer를 찾을 수 없습니다.');
+            return;
+        }
+        
+        // 옵션이 있는지 확인
+        let hasOptions = false;
+        let totalOptions = 0;
+        if (notesCategories && Array.isArray(notesCategories)) {
+            notesCategories.forEach(category => {
+                if (category && category.options && Array.isArray(category.options)) {
+                    category.options.forEach(option => {
+                        if (option && option.id) {
+                            hasOptions = true;
+                            totalOptions++;
+                        }
+                    });
+                }
+            });
+        }
+        
+        console.log('옵션 존재 여부:', hasOptions, '총 옵션 수:', totalOptions);
+        
+        const tbody = document.getElementById('notesCategoriesTableBody');
+        const noNotesCategories = document.getElementById('noNotesCategories');
+        const table = document.getElementById('notesCategoriesTable');
+        const tableResponsive = table ? table.closest('.table-responsive') : null;
+        
+        if (!hasOptions) {
+            // 목록이 없을 때
+            console.log('옵션이 없어서 빈 메시지 표시');
+            if (table && tableResponsive) {
+                tableResponsive.style.display = 'none';
+            }
+            if (noNotesCategories) {
+                noNotesCategories.style.display = 'block';
+            } else {
+                container.innerHTML = `
+                    <div class="text-center py-4" id="noNotesCategories">
+                        <i class="fas fa-sticky-note text-muted fa-3x mb-3"></i>
+                        <h5 class="text-muted">등록된 비고 카테고리가 없습니다.</h5>
+                        <p class="text-muted">위 폼을 사용하여 비고 카테고리를 추가해주세요.</p>
+                    </div>
+                `;
+            }
+            return;
+        }
+        
+        // 목록이 있을 때
+        console.log('옵션이 있어서 테이블 표시');
+        if (noNotesCategories) {
+            noNotesCategories.style.display = 'none';
+        }
+        
+        // 테이블이 없으면 생성
+        if (!tbody || !table) {
+            console.log('테이블이 없어서 새로 생성');
+            container.innerHTML = `
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover" id="notesCategoriesTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 60px;">ID</th>
+                                <th>카테고리명</th>
+                                <th>옵션명</th>
+                                <th style="width: 180px;">작업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="notesCategoriesTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } else {
+            // 테이블이 있으면 보이게 설정
+            console.log('기존 테이블 사용, 표시 설정');
+            if (tableResponsive) {
+                tableResponsive.style.display = 'block';
+                tableResponsive.style.visibility = 'visible';
+            }
+            if (table) {
+                table.style.display = 'table';
+                table.style.visibility = 'visible';
+            }
+        }
+        
+        const newTbody = document.getElementById('notesCategoriesTableBody');
+        if (!newTbody) {
+            console.error('notesCategoriesTableBody를 찾을 수 없습니다.');
+            return;
+        }
+        
+        let html = '';
+        let rowNumber = 1;
+        notesCategories.forEach(category => {
+            if (category && category.options && Array.isArray(category.options)) {
+                category.options.forEach((option, optionIndex) => {
+                    if (option && option.name) {
+                        const displayId = rowNumber;
+                        html += `
+                            <tr data-category-id="${category.id}" data-option-id="${option.id || ''}" data-option-name="${escapeHtml(option.name || '')}" data-option-index="${optionIndex}">
+                                <td>${displayId}</td>
+                                <td><strong>${escapeHtml(category.name || '')}</strong></td>
+                                <td>${escapeHtml(option.name || '')}</td>
+                                <td>
+                                    <div class="d-flex gap-1">
+                                        <button class="btn btn-sm btn-outline-primary edit-notes-option-btn" data-category-id="${category.id}" data-option-id="${option.id || ''}" data-option-name="${escapeHtml(option.name || '')}" data-option-index="${optionIndex}" data-category-name="${escapeHtml(category.name || '')}" title="수정">
+                                            <i class="fas fa-edit"></i> 수정
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger delete-notes-option-btn" data-category-id="${category.id}" data-option-id="${option.id || ''}" data-option-name="${escapeHtml(option.name || '')}" data-option-index="${optionIndex}" title="삭제">
+                                            <i class="fas fa-trash"></i> 삭제
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                        rowNumber++;
+                    }
+                });
+            }
+        });
+        
+        newTbody.innerHTML = html;
+        console.log('비고 카테고리 목록 렌더링 완료, 행 수:', html.split('</tr>').length - 1);
+        
+        // 테이블이 보이도록 강제 설정
+        const finalTable = document.getElementById('notesCategoriesTable');
+        const finalTableResponsive = finalTable ? finalTable.closest('.table-responsive') : null;
+        if (finalTableResponsive) {
+            finalTableResponsive.style.display = 'block';
+            finalTableResponsive.style.visibility = 'visible';
+            finalTableResponsive.style.opacity = '1';
+        }
+        if (finalTable) {
+            finalTable.style.display = 'table';
+            finalTable.style.visibility = 'visible';
+        }
+        
+        // 이벤트 리스너 재등록
+        attachNotesCategoryEventListeners();
+    }
+    
+    // 비고 카테고리 이벤트 리스너 등록 함수
+    function attachNotesCategoryEventListeners() {
+        // 수정 버튼 이벤트
+        document.querySelectorAll('.edit-notes-option-btn').forEach(btn => {
+            btn.removeEventListener('click', handleEditNotesOption);
+            btn.addEventListener('click', handleEditNotesOption);
+        });
+        
+        // 삭제 버튼 이벤트
+        document.querySelectorAll('.delete-notes-option-btn').forEach(btn => {
+            btn.removeEventListener('click', handleDeleteNotesOption);
+            btn.addEventListener('click', handleDeleteNotesOption);
+        });
+    }
+    
+    // 수정 버튼 핸들러
+    function handleEditNotesOption(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const categoryIdStr = this.dataset.categoryId;
+        const optionIdStr = this.dataset.optionId;
+        const optionName = this.dataset.optionName;
+        // optionIndex 파싱 버그 수정: 0도 유효한 값이므로 || -1 대신 명시적 체크
+        const optionIndexStr = this.dataset.optionIndex;
+        const optionIndex = (optionIndexStr !== undefined && optionIndexStr !== '') 
+            ? parseInt(optionIndexStr) 
+            : -1;
+        const categoryName = this.dataset.categoryName;
+        
+        if (!categoryIdStr || categoryIdStr === 'None') {
+            showToast('옵션 정보를 불러올 수 없습니다. 페이지를 새로고침해주세요.', false);
+            return;
+        }
+        
+        const categoryId = parseInt(categoryIdStr);
+        if (isNaN(categoryId)) {
+            showToast('옵션 정보가 올바르지 않습니다.', false);
+            return;
+        }
+        
+        // 타입 안전한 비교를 위해 숫자로 변환
+        const category = notesCategories.find(c => {
+            if (!c) return false;
+            const cId = typeof c.id === 'string' ? parseInt(c.id) : c.id;
+            return cId === categoryId;
+        });
+        
+        if (!category || !category.options || !Array.isArray(category.options)) {
+            showToast('카테고리를 찾을 수 없습니다.', false);
+            return;
+        }
+        
+        // 옵션 찾기: 인덱스를 우선 사용 (가장 안정적)
+        let option = null;
+        if (optionIndex >= 0 && optionIndex < category.options.length) {
+            option = category.options[optionIndex];
+            // 인덱스로 찾은 옵션이 이름도 일치하는지 확인
+            if (optionName && option && option.name !== optionName) {
+                // 이름이 다르면 이름으로 다시 찾기
+                option = category.options.find(o => o && o.name === optionName);
+            }
+        } else if (optionName) {
+            // 인덱스가 유효하지 않으면 이름으로 찾기
+            option = category.options.find(o => o && o.name === optionName);
+        } else if (optionIdStr && optionIdStr !== '' && optionIdStr !== 'None') {
+            // ID로 찾기
+            const optionId = parseInt(optionIdStr);
+            if (!isNaN(optionId)) {
+                option = category.options.find(o => {
+                    if (!o) return false;
+                    const oId = typeof o.id === 'string' ? parseInt(o.id) : o.id;
+                    return oId === optionId;
+                });
+            }
+        }
+        
+        if (!option) {
+            showToast('옵션을 찾을 수 없습니다.', false);
+            return;
+        }
+        
+        document.getElementById('notesCategoryName').value = categoryName || category.name;
+        document.getElementById('notesOptionName').value = option.name;
+        document.getElementById('notesCategoryId').value = option.id || '';
+        document.getElementById('notesCategoryCategoryId').value = categoryId;
+        editingNotesOptionId = option.id;
+        editingNotesCategoryId = categoryId;
+        
+        document.getElementById('notesCategoryForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    
+    // 삭제 버튼 핸들러
+    function handleDeleteNotesOption(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const categoryIdStr = this.dataset.categoryId;
+        const optionIdStr = this.dataset.optionId;
+        const optionName = this.dataset.optionName;
+        // optionIndex 파싱 버그 수정: 0도 유효한 값이므로 || -1 대신 명시적 체크
+        const optionIndexStr = this.dataset.optionIndex;
+        const optionIndex = (optionIndexStr !== undefined && optionIndexStr !== '') 
+            ? parseInt(optionIndexStr) 
+            : -1;
+        
+        if (!categoryIdStr || categoryIdStr === 'None') {
+            showToast('옵션 정보를 불러올 수 없습니다. 페이지를 새로고침해주세요.', false);
+            return;
+        }
+        
+        const categoryId = parseInt(categoryIdStr);
+        if (isNaN(categoryId)) {
+            showToast('옵션 정보가 올바르지 않습니다.', false);
+            return;
+        }
+        
+        // 타입 안전한 비교를 위해 숫자로 변환
+        const category = notesCategories.find(c => {
+            if (!c) return false;
+            const cId = typeof c.id === 'string' ? parseInt(c.id) : c.id;
+            return cId === categoryId;
+        });
+        
+        if (!category || !category.options || !Array.isArray(category.options)) {
+            console.error('카테고리를 찾을 수 없습니다:', { categoryId, notesCategories });
+            showToast('카테고리를 찾을 수 없습니다. 페이지를 새로고침해주세요.', false);
+            return;
+        }
+        
+        // 옵션 찾기: 인덱스를 우선 사용 (가장 안정적)
+        let option = null;
+        if (optionIndex >= 0 && optionIndex < category.options.length) {
+            option = category.options[optionIndex];
+            // 인덱스로 찾은 옵션이 이름도 일치하는지 확인
+            if (optionName && option && option.name !== optionName) {
+                // 이름이 다르면 이름으로 다시 찾기
+                option = category.options.find(o => o && o.name === optionName);
+            }
+        } else if (optionName) {
+            // 인덱스가 유효하지 않으면 이름으로 찾기
+            option = category.options.find(o => o && o.name === optionName);
+        } else if (optionIdStr && optionIdStr !== '' && optionIdStr !== 'None') {
+            // ID로 찾기
+            const optionId = parseInt(optionIdStr);
+            if (!isNaN(optionId)) {
+                option = category.options.find(o => {
+                    if (!o) return false;
+                    const oId = typeof o.id === 'string' ? parseInt(o.id) : o.id;
+                    return oId === optionId;
+                });
+            }
+        }
+        
+        if (!option) {
+            console.error('옵션을 찾을 수 없습니다:', { 
+                categoryId, 
+                optionIdStr, 
+                optionName, 
+                optionIndex,
+                categoryOptions: category.options 
+            });
+            showToast('옵션을 찾을 수 없습니다. 페이지를 새로고침해주세요.', false);
+            return;
+        }
+        
+        // 옵션 ID 확인 및 할당
+        let optionId = option.id;
+        // option.id가 null이나 undefined이면 인덱스 사용 (0은 유효한 ID이므로 제외)
+        if ((optionId === null || optionId === undefined) && optionIndex >= 0) {
+            optionId = optionIndex;
+        }
+        
+        // 최종 검증: null, undefined, NaN 체크
+        if (optionId === null || optionId === undefined || isNaN(Number(optionId))) {
+            console.error('옵션 ID가 유효하지 않습니다:', { 
+                optionId, 
+                option, 
+                optionIndex,
+                optionIdType: typeof optionId,
+                dataset: {
+                    categoryId: this.dataset.categoryId,
+                    optionId: this.dataset.optionId,
+                    optionName: this.dataset.optionName,
+                    optionIndex: this.dataset.optionIndex
+                }
+            });
+            showToast('옵션 정보를 불러올 수 없습니다. 페이지를 새로고침해주세요.', false);
+            return;
+        }
+        
+        deleteOptionWithId(categoryId, optionId, option.name);
+    }
+    
+    // 삭제 함수 분리
+    function deleteOptionWithId(categoryId, optionId, optionName) {
+        const confirmMessage = optionName 
+            ? `정말 "${optionName}" 비고 옵션을 삭제하시겠습니까?\n삭제된 옵션은 복구할 수 없습니다.`
+            : '정말 이 비고 옵션을 삭제하시겠습니까?\n삭제된 옵션은 복구할 수 없습니다.';
+        
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        
+        // 삭제 버튼 찾기 및 상태 업데이트
+        const deleteBtn = document.querySelector(`.delete-notes-option-btn[data-category-id="${categoryId}"][data-option-id="${optionId}"], .delete-notes-option-btn[data-category-id="${categoryId}"][data-option-index="${optionId}"]`);
+        const originalHtml = deleteBtn ? deleteBtn.innerHTML : null;
+        if (deleteBtn) {
+            deleteBtn.disabled = true;
+            deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 삭제 중...';
+        }
+        
+        fetch(`/api/wdcalculator/notes/categories/${categoryId}/options/${optionId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message || '비고 옵션이 삭제되었습니다.', true);
+                refreshNotesCategoriesList();
+            } else {
+                showToast(data.message || '비고 옵션 삭제에 실패했습니다.', false);
+                if (deleteBtn && originalHtml) {
+                    deleteBtn.disabled = false;
+                    deleteBtn.innerHTML = originalHtml;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('삭제 중 오류:', error);
+            showToast('서버 통신 중 오류가 발생했습니다.', false);
+            if (deleteBtn && originalHtml) {
+                deleteBtn.disabled = false;
+                deleteBtn.innerHTML = originalHtml;
+            }
+        });
+    }
+    
+    // HTML 이스케이프 함수
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 
     // 추가 옵션 폼 제출
     document.getElementById('additionalOptionForm').addEventListener('submit', function(e) {
@@ -879,69 +1336,198 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        let category = notesCategories.find(c => c.name === categoryName);
-        let categoryId = editingNotesCategoryId;
+        console.log('=== 비고 카테고리 저장 시작 ===');
+        console.log('카테고리명:', categoryName);
+        console.log('옵션명:', optionName);
+        console.log('editingNotesCategoryId:', editingNotesCategoryId);
+        console.log('editingNotesOptionId:', editingNotesOptionId);
+        console.log('현재 notesCategories:', notesCategories);
         
-        if (!categoryId && category) {
-            categoryId = category.id;
-        }
+        // 수정 모드인지 확인
+        const editingOptionId = editingNotesOptionId;
+        const editingCategoryId = editingNotesCategoryId;
         
-        const optionData = {
-            id: editingNotesOptionId || null,
-            name: optionName
-        };
-        
-        if (categoryId) {
-            // 기존 카테고리에 옵션 추가/수정
-            fetch(`/api/wdcalculator/notes/categories/${categoryId}/options`, {
+        if (editingCategoryId && editingOptionId) {
+            // 수정 모드: 기존 카테고리의 옵션 수정
+            console.log('수정 모드: 옵션 수정');
+            const optionData = {
+                id: editingOptionId,
+                name: optionName
+            };
+            
+            fetch(`/api/wdcalculator/notes/categories/${editingCategoryId}/options`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(optionData)
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(data.message, true);
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1000);
-                } else {
-                    showToast(data.message, false);
+            .then(response => {
+                console.log('옵션 수정 API 응답 상태:', response.status);
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.message || `HTTP ${response.status}: ${response.statusText}`);
+                    });
                 }
+                return response.json();
             })
+                .then(data => {
+                    console.log('옵션 수정 API 응답 데이터:', data);
+                    if (data.success) {
+                        showToast(data.message, true);
+                        // 저장 후 API로 최신 데이터 가져오기
+                        fetch('/api/wdcalculator/notes/categories')
+                            .then(response => response.json())
+                            .then(apiData => {
+                                console.log('저장 후 최신 데이터:', apiData);
+                                if (apiData.success) {
+                                    notesCategories = apiData.categories || [];
+                                    // 1초 후 페이지 새로고침
+                                    setTimeout(() => {
+                                        location.reload();
+                                    }, 1000);
+                                } else {
+                                    showToast('목록을 불러오는 중 오류가 발생했습니다.', false);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('최신 데이터 로드 중 오류:', error);
+                                setTimeout(() => {
+                                    location.reload();
+                                }, 1000);
+                            });
+                    } else {
+                        showToast(data.message, false);
+                    }
+                })
             .catch(error => {
-                showToast('서버 통신 중 오류가 발생했습니다.', false);
+                console.error('옵션 수정 중 오류:', error);
+                console.error('에러 상세:', error.message, error.stack);
+                showToast('서버 통신 중 오류가 발생했습니다: ' + error.message, false);
             });
         } else {
-            // 새 카테고리와 옵션 함께 생성
-            const categoryData = {
-                name: categoryName,
-                options: [optionData]
-            };
+            // 추가 모드: 기존 카테고리 찾기 또는 새로 생성
+            let category = notesCategories.find(c => c && c.name === categoryName);
+            let categoryId = category ? category.id : null;
             
-            fetch('/api/wdcalculator/notes/categories', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(categoryData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(data.message, true);
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1000);
-                } else {
-                    showToast(data.message, false);
+            console.log('추가 모드: 기존 카테고리 찾기 결과:', category);
+            console.log('categoryId:', categoryId);
+            
+            if (categoryId) {
+                // 기존 카테고리에 옵션 추가
+                console.log('기존 카테고리에 옵션 추가');
+                const optionData = {
+                    id: null,
+                    name: optionName
+                };
+                
+                fetch(`/api/wdcalculator/notes/categories/${categoryId}/options`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(optionData)
+                })
+            .then(response => {
+                console.log('옵션 추가 API 응답 상태:', response.status);
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.message || `HTTP ${response.status}: ${response.statusText}`);
+                    });
                 }
+                return response.json();
             })
-            .catch(error => {
-                showToast('서버 통신 중 오류가 발생했습니다.', false);
-            });
+            .then(data => {
+                console.log('옵션 추가 API 응답 데이터:', data);
+                if (data.success) {
+                        showToast(data.message, true);
+                        // 저장 후 API로 최신 데이터 가져오기
+                        fetch('/api/wdcalculator/notes/categories')
+                            .then(response => response.json())
+                            .then(apiData => {
+                                console.log('저장 후 최신 데이터:', apiData);
+                                if (apiData.success) {
+                                    notesCategories = apiData.categories || [];
+                                    // 1초 후 페이지 새로고침
+                                    setTimeout(() => {
+                                        location.reload();
+                                    }, 1000);
+                                } else {
+                                    showToast('목록을 불러오는 중 오류가 발생했습니다.', false);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('최신 데이터 로드 중 오류:', error);
+                                setTimeout(() => {
+                                    location.reload();
+                                }, 1000);
+                            });
+                    } else {
+                        showToast(data.message, false);
+                    }
+                })
+                .catch(error => {
+                    console.error('옵션 추가 중 오류:', error);
+                    console.error('에러 상세:', error.message, error.stack);
+                    showToast('서버 통신 중 오류가 발생했습니다: ' + error.message, false);
+                });
+            } else {
+                // 새 카테고리와 옵션 함께 생성
+                console.log('새 카테고리와 옵션 함께 생성');
+                const categoryData = {
+                    name: categoryName,
+                    options: [{
+                        id: null,
+                        name: optionName
+                    }]
+                };
+                
+                fetch('/api/wdcalculator/notes/categories', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(categoryData)
+                })
+                .then(response => {
+                    console.log('카테고리 생성 API 응답 상태:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('카테고리 생성 API 응답 데이터:', data);
+                    if (data.success) {
+                        showToast(data.message, true);
+                        // 저장 후 API로 최신 데이터 가져오기
+                        fetch('/api/wdcalculator/notes/categories')
+                            .then(response => response.json())
+                            .then(apiData => {
+                                console.log('저장 후 최신 데이터:', apiData);
+                                if (apiData.success) {
+                                    notesCategories = apiData.categories || [];
+                                    // 1초 후 페이지 새로고침
+                                    setTimeout(() => {
+                                        location.reload();
+                                    }, 1000);
+                                } else {
+                                    showToast('목록을 불러오는 중 오류가 발생했습니다.', false);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('최신 데이터 로드 중 오류:', error);
+                                setTimeout(() => {
+                                    location.reload();
+                                }, 1000);
+                            });
+                    } else {
+                        showToast(data.message, false);
+                    }
+                })
+                .catch(error => {
+                    console.error('카테고리 생성 중 오류:', error);
+                    console.error('에러 상세:', error.message, error.stack);
+                    showToast('서버 통신 중 오류가 발생했습니다: ' + error.message, false);
+                });
+            }
         }
     });
 
@@ -954,122 +1540,98 @@ document.addEventListener('DOMContentLoaded', function() {
         editingNotesCategoryId = null;
     });
 
-    // 비고 옵션 수정
-    document.querySelectorAll('.edit-notes-option-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
+    // 비고 옵션 수정 및 삭제 (이벤트 위임 사용)
+    document.addEventListener('click', function(e) {
+        // 수정 버튼 처리
+        const editBtn = e.target.closest('.edit-notes-option-btn');
+        if (editBtn) {
             e.preventDefault();
             e.stopPropagation();
             
-            const categoryIdStr = this.dataset.categoryId;
-            const optionIdStr = this.dataset.optionId;
-            const categoryName = this.dataset.categoryName;
+            const categoryIdStr = editBtn.dataset.categoryId;
+            const optionIdStr = editBtn.dataset.optionId;
+            const optionName = editBtn.dataset.optionName;
+            // optionIndex 파싱 버그 수정: 0도 유효한 값이므로 || -1 대신 명시적 체크
+            const optionIndexStr = editBtn.dataset.optionIndex;
+            const optionIndex = (optionIndexStr !== undefined && optionIndexStr !== '') 
+                ? parseInt(optionIndexStr) 
+                : -1;
+            const categoryName = editBtn.dataset.categoryName;
             
-            if (!categoryIdStr || categoryIdStr === 'None' || !optionIdStr || optionIdStr === 'None') {
+            if (!categoryIdStr || categoryIdStr === 'None') {
                 showToast('옵션 정보를 불러올 수 없습니다. 페이지를 새로고침해주세요.', false);
                 return;
             }
             
             const categoryId = parseInt(categoryIdStr);
-            const optionId = parseInt(optionIdStr);
-            
-            if (isNaN(categoryId) || isNaN(optionId)) {
+            if (isNaN(categoryId)) {
                 showToast('옵션 정보가 올바르지 않습니다.', false);
                 return;
             }
             
-            const category = notesCategories.find(c => c && c.id === categoryId);
+            // 타입 안전한 비교를 위해 숫자로 변환
+            const category = notesCategories.find(c => {
+                if (!c) return false;
+                const cId = typeof c.id === 'string' ? parseInt(c.id) : c.id;
+                return cId === categoryId;
+            });
             
-            if (!category) {
+            if (!category || !category.options || !Array.isArray(category.options)) {
                 showToast('카테고리를 찾을 수 없습니다.', false);
                 return;
             }
             
-            if (!category.options || !Array.isArray(category.options)) {
-                showToast('옵션 목록을 찾을 수 없습니다.', false);
-                return;
+            // 옵션 찾기: 인덱스를 우선 사용 (가장 안정적)
+            let option = null;
+            if (optionIndex >= 0 && optionIndex < category.options.length) {
+                option = category.options[optionIndex];
+                // 인덱스로 찾은 옵션이 이름도 일치하는지 확인
+                if (optionName && option && option.name !== optionName) {
+                    // 이름이 다르면 이름으로 다시 찾기
+                    option = category.options.find(o => o && o.name === optionName);
+                }
+            } else if (optionName) {
+                // 인덱스가 유효하지 않으면 이름으로 찾기
+                option = category.options.find(o => o && o.name === optionName);
+            } else if (optionIdStr && optionIdStr !== '' && optionIdStr !== 'None') {
+                // ID로 찾기
+                const optionId = parseInt(optionIdStr);
+                if (!isNaN(optionId)) {
+                    option = category.options.find(o => {
+                        if (!o) return false;
+                        const oId = typeof o.id === 'string' ? parseInt(o.id) : o.id;
+                        return oId === optionId;
+                    });
+                }
             }
-            
-            const option = category.options.find(o => o && o.id === optionId);
             
             if (!option) {
                 showToast('옵션을 찾을 수 없습니다.', false);
                 return;
             }
             
-            editingNotesOptionId = optionId;
+            editingNotesOptionId = option.id;
             editingNotesCategoryId = categoryId;
             
-            document.getElementById('notesCategoryId').value = optionId;
+            document.getElementById('notesCategoryId').value = option.id || '';
             document.getElementById('notesCategoryCategoryId').value = categoryId;
             document.getElementById('notesCategoryName').value = categoryName || category.name;
             document.getElementById('notesOptionName').value = option.name || '';
             
             document.getElementById('notesCategoryForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
+            return;
+        }
+        
+        // 삭제 버튼 처리
+        const deleteBtn = e.target.closest('.delete-notes-option-btn');
+        if (deleteBtn) {
+            handleDeleteNotesOption.call(deleteBtn, e);
+        }
     });
 
-    // 비고 옵션 삭제
-    document.querySelectorAll('.delete-notes-option-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const categoryIdStr = this.dataset.categoryId;
-            const optionIdStr = this.dataset.optionId;
-            
-            if (!categoryIdStr || categoryIdStr === 'None' || !optionIdStr || optionIdStr === 'None') {
-                showToast('옵션 정보를 불러올 수 없습니다. 페이지를 새로고침해주세요.', false);
-                return;
-            }
-            
-            const categoryId = parseInt(categoryIdStr);
-            const optionId = parseInt(optionIdStr);
-            
-            if (isNaN(categoryId) || isNaN(optionId)) {
-                showToast('옵션 정보가 올바르지 않습니다.', false);
-                return;
-            }
-            
-            const optionRow = this.closest('tr');
-            const categoryName = optionRow ? optionRow.querySelector('td:nth-child(2) strong')?.textContent || '' : '';
-            const optionName = optionRow ? optionRow.querySelector('td:nth-child(3)')?.textContent || '' : '';
-            
-            const confirmMessage = categoryName && optionName 
-                ? `정말 "${categoryName} > ${optionName}" 비고 옵션을 삭제하시겠습니까?\n삭제된 옵션은 복구할 수 없습니다.`
-                : '정말 이 비고 옵션을 삭제하시겠습니까?\n삭제된 옵션은 복구할 수 없습니다.';
-            
-            if (!confirm(confirmMessage)) {
-                return;
-            }
-            
-            const deleteBtn = this;
-            const originalHtml = deleteBtn.innerHTML;
-            deleteBtn.disabled = true;
-            deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 삭제 중...';
-            
-            fetch(`/api/wdcalculator/notes/categories/${categoryId}/options/${optionId}`, {
-                method: 'DELETE'
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(data.message || '비고 옵션이 삭제되었습니다.', true);
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1000);
-                } else {
-                    showToast(data.message || '비고 옵션 삭제에 실패했습니다.', false);
-                    deleteBtn.disabled = false;
-                    deleteBtn.innerHTML = originalHtml;
-                }
-            })
-            .catch(error => {
-                showToast('서버 통신 중 오류가 발생했습니다.', false);
-                deleteBtn.disabled = false;
-                deleteBtn.innerHTML = originalHtml;
-            });
-        });
-    });
+    // 비고 카테고리 초기 이벤트 리스너 등록 (서버 사이드 렌더링된 테이블용 - 안전장치)
+    // 이벤트 위임 방식이 있지만, 초기 로드 시에도 확실하게 작동하도록 등록
+    attachNotesCategoryEventListeners();
 });
 </script>
 {% endblock %}
