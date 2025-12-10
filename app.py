@@ -3393,12 +3393,14 @@ WD_ADDITIONAL_OPTIONS_PATH = os.path.join(os.path.dirname(__file__), 'data', 'ad
 WD_NOTES_CATEGORIES_PATH = os.path.join(os.path.dirname(__file__), 'data', 'notes_categories.json')
 
 def clean_categories_data(categories):
-    """카테고리 데이터에서 JSON 직렬화 불가능한 값 제거"""
+    """카테고리 데이터에서 JSON 직렬화 불가능한 값 제거 및 id 자동 생성"""
     if not categories:
         return []
     
     cleaned = []
-    for category in categories:
+    base_option_id = 1000  # id가 null인 옵션에 부여할 시작 ID
+    
+    for cat_idx, category in enumerate(categories):
         if category is None:
             continue
         
@@ -3408,13 +3410,26 @@ def clean_categories_data(categories):
             'options': []
         }
         
-        # 옵션 정리
+        # 옵션 정리 및 id 자동 생성
         if category.get('options'):
-            for option in category.get('options', []):
+            # 먼저 기존 옵션들 중 유효한 id 찾기
+            existing_ids = [o.get('id') for o in category.get('options', []) if o and o.get('id') is not None]
+            max_existing_id = max(existing_ids + [0])
+            next_id = max(max_existing_id + 1, base_option_id + (cat_idx * 100))
+            
+            for opt_idx, option in enumerate(category.get('options', [])):
                 if option is None:
                     continue
+                
+                # id가 null이면 자동으로 생성
+                option_id = option.get('id')
+                if option_id is None:
+                    option_id = next_id
+                    next_id += 1
+                    print(f"[DEBUG] clean_categories_data: 옵션 '{option.get('name')}'에 id {option_id} 자동 생성")
+                
                 cleaned_option = {
-                    'id': option.get('id') if option.get('id') is not None else None,
+                    'id': option_id,
                     'name': option.get('name') or '',
                     'price': float(option.get('price', 0)) if option.get('price') is not None else 0
                 }
@@ -3463,33 +3478,62 @@ def save_additional_option_categories(categories):
 def load_notes_categories():
     """비고 카테고리 데이터를 JSON 파일에서 로드"""
     try:
+        print(f"[DEBUG] load_notes_categories 호출됨")
+        print(f"[DEBUG] 파일 경로: {WD_NOTES_CATEGORIES_PATH}")
+        print(f"[DEBUG] 파일 존재 여부: {os.path.exists(WD_NOTES_CATEGORIES_PATH)}")
+        
         if os.path.exists(WD_NOTES_CATEGORIES_PATH):
             try:
                 with open(WD_NOTES_CATEGORIES_PATH, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     categories = data.get('categories', [])
-                    return clean_categories_data(categories)
+                    print(f"[DEBUG] UTF-8로 로드 성공 - 카테고리 수: {len(categories)}")
+                    cleaned = clean_categories_data(categories)
+                    print(f"[DEBUG] 정리 후 카테고리 수: {len(cleaned)}")
+                    return cleaned
             except UnicodeDecodeError:
-                print("UTF-8 decoding failed for notes categories, trying CP949...")
+                print("[DEBUG] UTF-8 decoding failed for notes categories, trying CP949...")
                 with open(WD_NOTES_CATEGORIES_PATH, 'r', encoding='cp949') as f:
                     data = json.load(f)
                     categories = data.get('categories', [])
-                    return clean_categories_data(categories)
+                    print(f"[DEBUG] CP949로 로드 성공 - 카테고리 수: {len(categories)}")
+                    cleaned = clean_categories_data(categories)
+                    print(f"[DEBUG] 정리 후 카테고리 수: {len(cleaned)}")
+                    return cleaned
+        else:
+            print(f"[DEBUG] 파일이 존재하지 않음 - 빈 배열 반환")
         return []
     except Exception as e:
-        print(f"Error loading notes categories: {e}")
+        print(f"[ERROR] Error loading notes categories: {e}")
+        import traceback
+        print(traceback.format_exc())
         return []
 
 def save_notes_categories(categories):
     """비고 카테고리 데이터를 JSON 파일에 저장"""
     try:
+        print(f"[DEBUG] save_notes_categories 호출됨")
+        print(f"[DEBUG] 저장할 카테고리 수: {len(categories) if categories else 0}")
+        print(f"[DEBUG] 저장할 카테고리 데이터: {json.dumps(categories, ensure_ascii=False, indent=2)}")
+        
         os.makedirs(os.path.dirname(WD_NOTES_CATEGORIES_PATH), exist_ok=True)
         data = {'categories': categories}
         with open(WD_NOTES_CATEGORIES_PATH, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=True, indent=2)
+        
+        print(f"[DEBUG] 파일 저장 완료: {WD_NOTES_CATEGORIES_PATH}")
+        
+        # 저장 후 확인
+        if os.path.exists(WD_NOTES_CATEGORIES_PATH):
+            with open(WD_NOTES_CATEGORIES_PATH, 'r', encoding='utf-8') as f:
+                saved_data = json.load(f)
+                print(f"[DEBUG] 저장된 파일 확인 - 카테고리 수: {len(saved_data.get('categories', []))}")
+        
         return True
     except Exception as e:
-        print(f"Error saving notes categories: {e}")
+        print(f"[ERROR] Error saving notes categories: {e}")
+        import traceback
+        print(traceback.format_exc())
         return False
 
 def load_products():
@@ -3919,6 +3963,9 @@ def api_wdcalculator_save_notes_category():
     """비고 카테고리 추가/수정"""
     try:
         data = request.get_json()
+        print(f"[DEBUG] api_wdcalculator_save_notes_category 호출됨")
+        print(f"[DEBUG] 받은 데이터: {json.dumps(data, ensure_ascii=False, indent=2)}")
+        
         if not data:
             return jsonify({'success': False, 'message': '데이터가 없습니다.'})
         
@@ -3926,6 +3973,7 @@ def api_wdcalculator_save_notes_category():
             return jsonify({'success': False, 'message': '카테고리명을 입력해주세요.'})
         
         categories = load_notes_categories()
+        print(f"[DEBUG] 기존 카테고리 수: {len(categories)}")
         
         category_id = data.get('id')
         
@@ -3936,22 +3984,32 @@ def api_wdcalculator_save_notes_category():
         
         if category_id:
             # 수정
+            print(f"[DEBUG] 카테고리 수정 모드 - category_id: {category_id}")
             category = next((c for c in categories if c.get('id') == category_id), None)
             if category:
                 category.update(category_data)
+                print(f"[DEBUG] 카테고리 수정 완료")
             else:
+                print(f"[DEBUG] 카테고리를 찾을 수 없음 - category_id: {category_id}")
                 return jsonify({'success': False, 'message': '카테고리를 찾을 수 없습니다.'})
         else:
             # 추가
+            print(f"[DEBUG] 카테고리 추가 모드")
             max_id = max([c.get('id', 0) for c in categories] + [0])
             category_data['id'] = max_id + 1
             categories.append(category_data)
+            print(f"[DEBUG] 새 카테고리 추가 - id: {category_data['id']}, name: {category_data['name']}, options: {len(category_data.get('options', []))}")
         
         if save_notes_categories(categories):
+            print(f"[DEBUG] 저장 성공")
             return jsonify({'success': True, 'message': '비고 카테고리가 저장되었습니다.', 'category': category_data})
         else:
+            print(f"[DEBUG] 저장 실패")
             return jsonify({'success': False, 'message': '비고 카테고리 저장에 실패했습니다.'})
     except Exception as e:
+        print(f"[ERROR] api_wdcalculator_save_notes_category 오류: {e}")
+        import traceback
+        print(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/wdcalculator/notes/categories/<int:category_id>', methods=['DELETE'])
@@ -3975,6 +4033,10 @@ def api_wdcalculator_save_notes_option(category_id):
     """비고 카테고리 내 옵션 추가/수정"""
     try:
         data = request.get_json()
+        print(f"[DEBUG] api_wdcalculator_save_notes_option 호출됨")
+        print(f"[DEBUG] category_id: {category_id}")
+        print(f"[DEBUG] 받은 데이터: {json.dumps(data, ensure_ascii=False, indent=2)}")
+        
         if not data:
             return jsonify({'success': False, 'message': '데이터가 없습니다.'})
         
@@ -3982,9 +4044,14 @@ def api_wdcalculator_save_notes_option(category_id):
             return jsonify({'success': False, 'message': '옵션명을 입력해주세요.'})
         
         categories = load_notes_categories()
+        print(f"[DEBUG] 기존 카테고리 수: {len(categories)}")
+        
         category = next((c for c in categories if c.get('id') == category_id), None)
         if not category:
+            print(f"[DEBUG] 카테고리를 찾을 수 없음 - category_id: {category_id}")
             return jsonify({'success': False, 'message': '카테고리를 찾을 수 없습니다.'})
+        
+        print(f"[DEBUG] 카테고리 찾음 - name: {category.get('name')}, 기존 옵션 수: {len(category.get('options', []))}")
         
         option_id = data.get('id')
         option_data = {
@@ -3994,24 +4061,46 @@ def api_wdcalculator_save_notes_option(category_id):
         
         if option_id:
             # 수정
+            print(f"[DEBUG] 옵션 수정 모드 - option_id: {option_id}")
             option = next((o for o in category.get('options', []) if o.get('id') == option_id), None)
             if option:
                 option.update(option_data)
+                print(f"[DEBUG] 옵션 수정 완료")
             else:
+                print(f"[DEBUG] 옵션을 찾을 수 없음 - option_id: {option_id}")
                 return jsonify({'success': False, 'message': '옵션을 찾을 수 없습니다.'})
         else:
             # 추가
-            max_id = max([o.get('id', 0) for o in category.get('options', [])] + [0])
+            print(f"[DEBUG] 옵션 추가 모드")
+            # 기존 옵션들에서 id가 null이 아닌 것들만 확인
+            existing_ids = [o.get('id') for o in category.get('options', []) if o and o.get('id') is not None]
+            max_id = max(existing_ids + [0])
             option_data['id'] = max_id + 1
             if 'options' not in category:
                 category['options'] = []
             category['options'].append(option_data)
+            print(f"[DEBUG] 새 옵션 추가 - id: {option_data['id']}, name: {option_data['name']}")
+            print(f"[DEBUG] 추가 후 옵션 수: {len(category.get('options', []))}")
+            print(f"[DEBUG] 추가 후 옵션들: {[{'id': o.get('id'), 'name': o.get('name')} for o in category.get('options', [])]}")
+            
+            # 저장 전에 모든 옵션에 id가 있는지 확인하고 없으면 생성
+            for opt in category.get('options', []):
+                if opt and opt.get('id') is None:
+                    print(f"[DEBUG] id가 null인 옵션 발견, 자동 생성: {opt.get('name')}")
+                    existing_ids = [o.get('id') for o in category.get('options', []) if o and o.get('id') is not None]
+                    opt['id'] = max(existing_ids + [0]) + 1
+                    print(f"[DEBUG] 생성된 id: {opt['id']}")
         
         if save_notes_categories(categories):
+            print(f"[DEBUG] 저장 성공")
             return jsonify({'success': True, 'message': '비고 옵션이 저장되었습니다.', 'option': option_data})
         else:
+            print(f"[DEBUG] 저장 실패")
             return jsonify({'success': False, 'message': '비고 옵션 저장에 실패했습니다.'})
     except Exception as e:
+        print(f"[ERROR] api_wdcalculator_save_notes_option 오류: {e}")
+        import traceback
+        print(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/wdcalculator/notes/categories/<int:category_id>/options/<int:option_id>', methods=['DELETE'])
@@ -4025,13 +4114,68 @@ def api_wdcalculator_delete_notes_option(category_id, option_id):
         if not category:
             return jsonify({'success': False, 'message': '카테고리를 찾을 수 없습니다.'})
         
-        category['options'] = [o for o in category.get('options', []) if o.get('id') != option_id]
+        original_options = category.get('options', [])
+        if not original_options:
+            return jsonify({'success': False, 'message': '삭제할 옵션이 없습니다.'})
+        
+        print(f"[DEBUG] 삭제 시작: category_id={category_id}, option_id={option_id}")
+        print(f"[DEBUG] 삭제 전 옵션 수: {len(original_options)}")
+        print(f"[DEBUG] 삭제 전 옵션 목록: {[{'id': o.get('id'), 'name': o.get('name')} for o in original_options]}")
+        
+        # 옵션 ID가 없는 옵션들에 대해 자동으로 ID 생성
+        for opt in original_options:
+            if opt and opt.get('id') is None:
+                existing_ids = [o.get('id') for o in original_options if o and o.get('id') is not None]
+                opt['id'] = max(existing_ids + [0]) + 1
+                print(f"[DEBUG] 옵션 ID 자동 생성: name={opt.get('name')}, id={opt['id']}")
+        
+        # 옵션 삭제: ID로 찾거나, ID가 없으면 인덱스로 찾기
+        remaining_options = []
+        found = False
+        
+        # 먼저 ID로 찾기 시도
+        for i, opt in enumerate(original_options):
+            if not opt:
+                continue
+            
+            opt_id = opt.get('id')
+            if opt_id is not None:
+                # 타입 변환하여 비교
+                opt_id = int(opt_id) if isinstance(opt_id, (int, str)) else opt_id
+                if opt_id == option_id:
+                    found = True
+                    # 이 옵션은 삭제 대상이므로 추가하지 않음
+                    print(f"[DEBUG] ID로 옵션 찾음: id={opt_id}, name={opt.get('name')}, index={i}")
+                    continue
+            
+            # 삭제 대상이 아니면 남은 옵션에 추가
+            remaining_options.append(opt)
+        
+        # ID로 찾지 못했으면, 인덱스로 찾기 시도
+        if not found and 0 <= option_id < len(original_options):
+            print(f"[DEBUG] 인덱스로 옵션 찾기 시도: option_id={option_id}, 총 옵션 수={len(original_options)}")
+            remaining_options = [opt for i, opt in enumerate(original_options) if i != option_id]
+            found = True
+            print(f"[DEBUG] 인덱스로 옵션 찾음: 삭제할 인덱스={option_id}, 남은 옵션 수={len(remaining_options)}")
+        
+        if not found:
+            print(f"[DEBUG] 삭제할 옵션을 찾을 수 없음: category_id={category_id}, option_id={option_id}")
+            print(f"[DEBUG] 옵션 목록: {[{'id': o.get('id'), 'name': o.get('name')} for o in original_options]}")
+            return jsonify({'success': False, 'message': f'삭제할 옵션을 찾을 수 없습니다. (option_id: {option_id})'})
+        
+        category['options'] = remaining_options
+        print(f"[DEBUG] 옵션 삭제 성공: category_id={category_id}, option_id={option_id}")
+        print(f"[DEBUG] 삭제 전 옵션 수: {len(original_options)}, 삭제 후 옵션 수: {len(remaining_options)}")
+        print(f"[DEBUG] 남은 옵션: {[{'id': o.get('id'), 'name': o.get('name')} for o in remaining_options]}")
         
         if save_notes_categories(categories):
             return jsonify({'success': True, 'message': '비고 옵션이 삭제되었습니다.'})
         else:
             return jsonify({'success': False, 'message': '비고 옵션 삭제에 실패했습니다.'})
     except Exception as e:
+        import traceback
+        print(f"[ERROR] api_wdcalculator_delete_notes_option 오류: {e}")
+        print(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)})
 
 # 견적 저장 API

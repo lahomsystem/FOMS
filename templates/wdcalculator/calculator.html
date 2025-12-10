@@ -166,6 +166,89 @@
     #totalAllCouponInfo {
         font-size: 0.95rem !important;
     }
+    
+    /* 견적 건 스타일 개선 - Bootstrap 스타일 우선순위 높이기 */
+    .card-body .estimate-card-item {
+        margin-bottom: 0.75rem !important;
+    }
+    
+    /* 헤더 스타일 (기본 견적, 추가 옵션 합계, 비고) - 모두 파란색, 볼드체 */
+    .card-body .estimate-header-base,
+    .card-body span.estimate-header-base {
+        color: #0d6efd !important; /* 파란색 */
+        font-weight: 800 !important; /* 더 강한 볼드체 */
+        font-size: 0.9rem !important;
+        display: block !important;
+        margin-bottom: 0.25rem !important;
+        line-height: 1.4 !important;
+    }
+    
+    .card-body .estimate-header-options,
+    .card-body span.estimate-header-options {
+        color: #0d6efd !important; /* 파란색 */
+        font-weight: 800 !important; /* 더 강한 볼드체 */
+        font-size: 0.9rem !important;
+        display: block !important;
+        margin-bottom: 0.25rem !important;
+        line-height: 1.4 !important;
+    }
+    
+    .card-body .estimate-header-notes,
+    .card-body span.estimate-header-notes {
+        color: #0d6efd !important; /* 파란색 */
+        font-weight: 800 !important; /* 더 강한 볼드체 */
+        font-size: 0.9rem !important;
+        display: block !important;
+        margin-bottom: 0.25rem !important;
+        line-height: 1.4 !important;
+    }
+    
+    /* 세부내역 스타일 - 모두 더 진한 초록색, 볼드체 */
+    .card-body .estimate-detail-base,
+    .card-body div.estimate-detail-base {
+        color: #0d7a3d !important; /* 더 진한 초록색 */
+        font-weight: 700 !important; /* 볼드체 */
+        font-size: 0.85rem !important;
+        line-height: 1.5 !important;
+        margin-top: 0.25rem !important;
+    }
+    
+    .card-body .estimate-detail-options,
+    .card-body div.estimate-detail-options {
+        color: #0d7a3d !important; /* 더 진한 초록색 */
+        font-weight: 700 !important; /* 볼드체 */
+        font-size: 0.85rem !important;
+        line-height: 1.6 !important;
+        margin-top: 0.25rem !important;
+    }
+    
+    .card-body .estimate-detail-notes,
+    .card-body div.estimate-detail-notes {
+        color: #0d7a3d !important; /* 더 진한 초록색 */
+        font-weight: 700 !important; /* 볼드체 */
+        font-size: 0.85rem !important;
+        line-height: 1.6 !important;
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
+        margin-top: 0.25rem !important;
+    }
+    
+    /* 금액 표시 스타일 - 더 구체적인 선택자 사용 */
+    .card-body .estimate-price,
+    .card-body div.estimate-price {
+        font-size: 1.1rem !important;
+        font-weight: 700 !important;
+        color: #212529 !important;
+        margin-bottom: 0.25rem !important;
+    }
+    
+    .card-body .estimate-total-price,
+    .card-body div.estimate-total-price {
+        font-size: 1.3rem !important;
+        font-weight: 800 !important;
+        color: #0d6efd !important;
+        margin-top: 0.5rem !important;
+    }
 </style>
 {% endblock %}
 
@@ -371,44 +454,8 @@
                         <div class="card-body">
                             <div id="estimatesListContainer">
                                 <p class="text-muted text-center mb-0">추가된 견적이 없습니다.</p>
-</div>
-
-                            <!-- 전체 견적 총 합계 -->
-                            <div id="totalEstimatesSummary" style="display: none;" class="mt-4">
-                                <div class="card border-primary">
-                                    <div class="card-header bg-primary text-white">
-                                        <h5 class="mb-0"><i class="fas fa-calculator"></i> 전체 견적 총 합계</h5>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-6 mb-3">
-                                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                                    <span>기본 견적 총합:</span>
-                                                    <strong id="totalAllBasePrice">0원</strong>
-                                                </div>
-                                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                                    <span>추가 옵션 총합:</span>
-                                                    <strong id="totalAllAdditionalPrice">0원</strong>
-                                                </div>
-                                                <hr>
-                                                <div class="d-flex justify-content-between align-items-center">
-                                                    <span class="h5 mb-0">총 견적 합계:</span>
-                                                    <strong class="h4 text-primary mb-0" id="totalAllPrice">0원</strong>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-6">
-                                                <div class="card bg-light final-summary-card text-center">
-                                                    <div class="card-body">
-                                                        <h6 class="card-title mb-3">최종 견적</h6>
-                                                        <div class="final-price-display mb-2" id="totalAllFinalPrice">0원</div>
-                                                        <small class="text-muted" id="totalAllCouponInfo">쿠폰가 미적용</small>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
+                            <!-- 전체 견적 총 합계는 renderEstimatesList()에서 동적으로 생성됩니다 -->
                         </div>
                     </div>
                 </div>
@@ -1161,9 +1208,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         let html = '<div class="row g-3">';
         estimates.forEach((estimate, index) => {
-            const optionsDetail = estimate.options && estimate.options.length > 0 
-                ? estimate.options.map(opt => `${escapeHtml(opt.name)} × ${opt.quantity}`).join(', ')
-                : '없음';
+            // 추가 옵션을 줄바꿈으로 표시
+            let optionsDetailHtml = '없음';
+            if (estimate.options && estimate.options.length > 0) {
+                optionsDetailHtml = estimate.options.map(opt => 
+                    `<div style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 0.85rem !important; line-height: 1.6 !important;">${escapeHtml(opt.name)} × ${opt.quantity}</div>`
+                ).join('');
+            }
             
             // ID를 문자열로 통일하여 HTML 속성에 저장 (XSS 방지를 위해 이스케이프)
             const estimateIdStr = escapeHtml(String(estimate.id));
@@ -1184,34 +1235,188 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         </div>
                         <div class="card-body">
-                            <div class="mb-2">
-                                <small class="text-muted">기본 견적:</small>
-                                <div><strong>${formatNumber(estimate.basePrice)}원</strong></div>
-                                <small class="text-muted">${productNameEscaped} ${formatNumber(estimate.widthMm)}mm</small>
+                            <div class="mb-3 estimate-card-item">
+                                <span class="estimate-header-base" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 0.9rem !important; display: block !important; margin-bottom: 0.25rem !important;">기본 견적:</span>
+                                <div class="estimate-price mb-1" style="font-size: 1.1rem !important; font-weight: 700 !important; color: #212529 !important;">${formatNumber(estimate.basePrice)}원</div>
+                                <div class="estimate-detail-base" style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 0.85rem !important; line-height: 1.5 !important; margin-top: 0.25rem !important;">${productNameEscaped} ${formatNumber(estimate.widthMm)}mm</div>
                             </div>
-                            <div class="mb-2">
-                                <small class="text-muted">추가 옵션 합계:</small>
-                                <div><strong>${formatNumber(estimate.additionalPrice)}원</strong></div>
-                                <small class="text-muted">${optionsDetail}</small>
+                            <div class="mb-3 estimate-card-item">
+                                <span class="estimate-header-options" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 0.9rem !important; display: block !important; margin-bottom: 0.25rem !important;">추가 옵션 합계:</span>
+                                <div class="estimate-price mb-1" style="font-size: 1.1rem !important; font-weight: 700 !important; color: #212529 !important;">${formatNumber(estimate.additionalPrice)}원</div>
+                                <div class="estimate-detail-options" style="margin-top: 0.25rem !important;">${optionsDetailHtml}</div>
                             </div>
                             ${estimate.notes ? `
-                            <div class="mb-2">
-                                <small class="text-muted">비고:</small>
-                                <div class="text-muted small" style="white-space: pre-wrap;">${escapeHtml(estimate.notes)}</div>
+                            <div class="mb-3 estimate-card-item">
+                                <span class="estimate-header-notes" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 0.9rem !important; display: block !important; margin-bottom: 0.25rem !important;">비고:</span>
+                                <div class="estimate-detail-notes" style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 0.85rem !important; line-height: 1.6 !important; white-space: pre-wrap !important; word-break: break-word !important; margin-top: 0.25rem !important;">${escapeHtml(estimate.notes)}</div>
                             </div>
                             ` : ''}
-                            <hr>
-                            <div>
-                                <small class="text-muted">총견적:</small>
-                                <div class="h5 mb-0"><strong>${formatNumber(estimate.totalPrice)}원</strong></div>
+                            <hr class="my-3">
+                            <div class="mt-3">
+                                <small class="text-muted d-block mb-1">총견적:</small>
+                                <div class="estimate-total-price" style="font-size: 1.3rem !important; font-weight: 800 !important; color: #0d6efd !important; margin-top: 0.5rem !important;">${formatNumber(estimate.totalPrice)}원</div>
                             </div>
                         </div>
                     </div>
                 </div>
             `;
         });
+        
+        // 전체 견적 총 합계를 견적 카드들과 같은 row에 추가
+        if (estimates.length > 0) {
+            // 견적 개수에 따라 col 클래스 결정
+            let colClass = 'col-md-12';
+            if (estimates.length === 1) {
+                colClass = 'col-md-6 col-lg-4'; // 견적 1건과 동일한 넓이
+            } else if (estimates.length === 2) {
+                colClass = 'col-md-12 col-lg-8'; // 견적 2건의 넓이 (lg에서 2/3)
+            } else {
+                colClass = 'col-md-12 col-lg-12'; // 견적 3건 이상의 넓이
+            }
+            
+            // 견적 1개일 경우와 2개 이상일 경우 다른 레이아웃 사용
+            if (estimates.length === 1) {
+                // 견적 1개: 총 견적 합계 제거, 최종 견적을 그 자리에 배치
+                html += `
+                    <div class="${colClass} mt-3" id="totalEstimatesSummary">
+                        <div class="card border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0"><i class="fas fa-calculator"></i> 전체 견적 총 합계</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span>기본 견적 총합:</span>
+                                    <strong id="totalAllBasePrice">0원</strong>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <span>추가 옵션 총합:</span>
+                                    <strong id="totalAllAdditionalPrice">0원</strong>
+                                </div>
+                                <hr>
+                                <div class="card bg-light final-summary-card text-center mt-3">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-3">최종 견적</h6>
+                                        <div class="final-price-display mb-2" id="totalAllFinalPrice">0원</div>
+                                        <small class="text-muted" id="totalAllCouponInfo">쿠폰가 미적용</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // 견적 2개 이상: 기존 레이아웃 유지 (2열 구조)
+                html += `
+                    <div class="${colClass} mt-3" id="totalEstimatesSummary">
+                        <div class="card border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0"><i class="fas fa-calculator"></i> 전체 견적 총 합계</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span>기본 견적 총합:</span>
+                                            <strong id="totalAllBasePrice">0원</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span>추가 옵션 총합:</span>
+                                            <strong id="totalAllAdditionalPrice">0원</strong>
+                                        </div>
+                                        <hr>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="h5 mb-0">총 견적 합계:</span>
+                                            <strong class="h4 text-primary mb-0" id="totalAllPrice">0원</strong>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card bg-light final-summary-card text-center">
+                                            <div class="card-body">
+                                                <h6 class="card-title mb-3">최종 견적</h6>
+                                                <div class="final-price-display mb-2" id="totalAllFinalPrice">0원</div>
+                                                <small class="text-muted" id="totalAllCouponInfo">쿠폰가 미적용</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
         html += '</div>';
         container.innerHTML = html;
+        
+        // 동적으로 생성된 요소에 스타일 강제 적용 (CSS 우선순위 문제 해결)
+        setTimeout(() => {
+            container.querySelectorAll('.estimate-header-base').forEach(el => {
+                el.style.setProperty('color', '#0d6efd', 'important');
+                el.style.setProperty('font-weight', '800', 'important');
+                el.style.setProperty('font-size', '0.9rem', 'important');
+                el.style.setProperty('display', 'block', 'important');
+                el.style.setProperty('margin-bottom', '0.25rem', 'important');
+            });
+            
+            container.querySelectorAll('.estimate-header-options').forEach(el => {
+                el.style.setProperty('color', '#0d6efd', 'important');
+                el.style.setProperty('font-weight', '800', 'important');
+                el.style.setProperty('font-size', '0.9rem', 'important');
+                el.style.setProperty('display', 'block', 'important');
+                el.style.setProperty('margin-bottom', '0.25rem', 'important');
+            });
+            
+            container.querySelectorAll('.estimate-header-notes').forEach(el => {
+                el.style.setProperty('color', '#0d6efd', 'important');
+                el.style.setProperty('font-weight', '800', 'important');
+                el.style.setProperty('font-size', '0.9rem', 'important');
+                el.style.setProperty('display', 'block', 'important');
+                el.style.setProperty('margin-bottom', '0.25rem', 'important');
+            });
+            
+            container.querySelectorAll('.estimate-detail-base').forEach(el => {
+                el.style.setProperty('color', '#0d7a3d', 'important');
+                el.style.setProperty('font-weight', '700', 'important');
+                el.style.setProperty('font-size', '0.85rem', 'important');
+                el.style.setProperty('line-height', '1.5', 'important');
+                el.style.setProperty('margin-top', '0.25rem', 'important');
+            });
+            
+            // 추가 옵션 세부내역은 이미 HTML에 인라인 스타일이 포함되어 있으므로 별도 처리 불필요
+            // 하지만 혹시 모를 경우를 대비해 스타일 확인
+            container.querySelectorAll('.estimate-detail-options').forEach(el => {
+                // 내부 div 요소들에 스타일 적용
+                el.querySelectorAll('div').forEach(divEl => {
+                    divEl.style.setProperty('color', '#0d7a3d', 'important');
+                    divEl.style.setProperty('font-weight', '700', 'important');
+                    divEl.style.setProperty('font-size', '0.85rem', 'important');
+                    divEl.style.setProperty('line-height', '1.6', 'important');
+                });
+            });
+            
+            container.querySelectorAll('.estimate-detail-notes').forEach(el => {
+                el.style.setProperty('color', '#0d7a3d', 'important');
+                el.style.setProperty('font-weight', '700', 'important');
+                el.style.setProperty('font-size', '0.85rem', 'important');
+                el.style.setProperty('line-height', '1.6', 'important');
+                el.style.setProperty('white-space', 'pre-wrap', 'important');
+                el.style.setProperty('word-break', 'break-word', 'important');
+                el.style.setProperty('margin-top', '0.25rem', 'important');
+            });
+            
+            container.querySelectorAll('.estimate-price').forEach(el => {
+                el.style.setProperty('font-size', '1.1rem', 'important');
+                el.style.setProperty('font-weight', '700', 'important');
+                el.style.setProperty('color', '#212529', 'important');
+            });
+            
+            container.querySelectorAll('.estimate-total-price').forEach(el => {
+                el.style.setProperty('font-size', '1.3rem', 'important');
+                el.style.setProperty('font-weight', '800', 'important');
+                el.style.setProperty('color', '#0d6efd', 'important');
+            });
+        }, 10);
         
         // 견적이 존재하면 저장 버튼을 노출 (수정/저장 가능)
         const saveBtnInList = document.getElementById('saveEstimateBtn');
@@ -1232,7 +1437,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('finalPrice').textContent = '0원';
             document.getElementById('baseEstimateDetail').textContent = '';
             document.getElementById('additionalOptionsDetail').textContent = '';
-            document.getElementById('totalEstimatesSummary').style.display = 'none';
+            // 전체 견적 총 합계는 renderEstimatesList()에서 제거되므로 여기서는 처리 불필요
             return;
         }
         
@@ -1306,10 +1511,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
         
         // 전체 견적 총 합계 섹션 표시
-        document.getElementById('totalEstimatesSummary').style.display = 'block';
+        // (넓이는 renderEstimatesList()에서 이미 설정되므로 여기서는 표시만 처리)
+        const totalEstimatesSummaryEl = document.getElementById('totalEstimatesSummary');
+        if (totalEstimatesSummaryEl) {
+            totalEstimatesSummaryEl.style.display = 'block';
+        }
+        
         document.getElementById('totalAllBasePrice').textContent = formatNumber(totalBasePrice) + '원';
         document.getElementById('totalAllAdditionalPrice').textContent = formatNumber(totalAdditionalPrice) + '원';
-        document.getElementById('totalAllPrice').textContent = formatNumber(totalPrice) + '원';
+        // 견적 1개일 경우 totalAllPrice 요소가 없을 수 있으므로 체크
+        const totalAllPriceEl = document.getElementById('totalAllPrice');
+        if (totalAllPriceEl) {
+            totalAllPriceEl.textContent = formatNumber(totalPrice) + '원';
+        }
         // 전체 최종 견적 표시 (인라인 스타일 직접 적용)
         const totalAllFinalPriceEl = document.getElementById('totalAllFinalPrice');
         if (totalAllFinalPriceEl) {
@@ -1320,7 +1534,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // 전체 쿠폰 정보 표시 (인라인 스타일 직접 적용)
         const totalAllCouponInfoEl = document.getElementById('totalAllCouponInfo');
         if (totalAllCouponInfoEl) {
-            totalAllCouponInfoEl.textContent = couponValue > 0 ? `${formatNumber(couponValue)}원 할인` : '쿠폰가 미적용';
+            totalAllCouponInfoEl.textContent = couponValue > 0 ? `${formatNumber(couponValue)}할인(쿠폰적용)` : '쿠폰가 미적용';
             applyCouponDiscountStyle(totalAllCouponInfoEl, couponValue > 0);
         }
     }
@@ -1730,6 +1944,27 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Loaded', estimate.options.length, 'options');
         }
         
+        // 4.5. 비고 정보 로드 (개별 견적의 비고)
+        const notesInput = document.getElementById('notesInput');
+        const notesSelect = document.getElementById('notesSelect');
+        if (estimate.notes) {
+            notesInput.value = estimate.notes;
+            notesInput.style.display = 'block';
+            notesSelect.style.display = 'none';
+            notesSelect.value = '';
+            const toggleBtn = document.getElementById('toggleNotesDirectInput');
+            if (toggleBtn) {
+                toggleBtn.innerHTML = '<i class="fas fa-list"></i>';
+                toggleBtn.title = '선택 모드';
+            }
+        } else {
+            notesInput.value = '';
+            notesInput.style.display = 'none';
+            notesSelect.style.display = 'block';
+            notesSelect.value = '';
+        }
+        console.log('Notes loaded:', estimate.notes || '(empty)');
+        
         // 5. editingEstimateId 설정 (원본 ID 유지)
         editingEstimateId = estimate.id;
         console.log('editingEstimateId set to:', editingEstimateId, 'Type:', typeof editingEstimateId);
@@ -1906,11 +2141,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // 고객명 설정
         document.getElementById('customerName').value = estimate.customer_name;
         
-        // 비고 정보 로드
+        // 비고 정보 로드 (개별 견적의 비고를 우선 사용, 없으면 전체 견적의 비고 사용)
         const notesInput = document.getElementById('notesInput');
         const notesSelect = document.getElementById('notesSelect');
-        if (estimateData.notes) {
-            notesInput.value = estimateData.notes;
+        // estimate 객체에 직접 notes가 있는지 확인 (개별 견적의 비고)
+        // 없으면 estimateData.notes 사용 (전체 견적의 비고)
+        const notesToLoad = estimate.notes || estimateData.notes || '';
+        if (notesToLoad) {
+            notesInput.value = notesToLoad;
             notesInput.style.display = 'block';
             notesSelect.style.display = 'none';
             notesSelect.value = '';
@@ -1925,6 +2163,7 @@ document.addEventListener('DOMContentLoaded', function() {
             notesSelect.style.display = 'block';
             notesSelect.value = '';
         }
+        console.log('Notes loaded:', notesToLoad || '(empty)', 'from estimate.notes:', estimate.notes || '(none)', 'from estimateData.notes:', estimateData.notes || '(none)');
         
         // 견적 목록 초기화
         estimates = [];
@@ -2255,11 +2494,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             <p class="mb-1 small text-dark">${productNameStr}</p>
                             <div class="d-flex justify-content-between align-items-center mt-2">
                                 <span class="fw-bold text-primary">${formatNumber(totalPrice)}원</span>
-                                <div>
-                                    <button class="btn btn-xs btn-outline-primary load-estimate-btn me-1" data-id="${est.id}" title="불러오기">
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-xs btn-outline-primary load-estimate-btn" data-id="${est.id}" title="불러오기">
                                         <i class="fas fa-folder-open"></i>
                                     </button>
-                                    <button class="btn btn-xs btn-outline-success match-order-btn me-1" data-estimate-id="${est.id}" data-customer-name="${est.customer_name}" title="주문 매칭">
+                                    <button class="btn btn-xs btn-outline-success match-order-btn" data-estimate-id="${est.id}" data-customer-name="${est.customer_name}" title="주문 매칭">
                                         <i class="fas fa-link"></i>
                                     </button>
                                     <button class="btn btn-xs btn-outline-danger delete-estimate-btn" data-id="${est.id}" title="삭제">

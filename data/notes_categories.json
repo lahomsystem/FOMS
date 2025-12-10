@@ -1,0 +1,46 @@
+{
+  "categories": [
+    {
+      "id": 1,
+      "name": "\uad6c\uc131",
+      "options": [
+        {
+          "id": 1000,
+          "name": "\ub0b4\ubd80 \uad6c\uc131\ub530\ub77c \ucd94\uac00\ube44\uc6a9 \ubc1c\uc0dd",
+          "price": 0.0
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "\ud14c\uc2a4\ud2b8",
+      "options": []
+    },
+    {
+      "id": 3,
+      "name": "\ud14c\uc2a4\ud2b8",
+      "options": []
+    },
+    {
+      "id": 4,
+      "name": "\ud14c\uc2a4\ud2b8",
+      "options": []
+    },
+    {
+      "id": 5,
+      "name": "\ucd5c\uc18c \uc8fc\ubb38 \uc790\uc218",
+      "options": [
+        {
+          "id": 1400,
+          "name": "\uc5ec\ub2eb\uc774 \ucd5c\uc18c \uc8fc\ubb38\uc790\uc218 5\uc790 \uc801\uc6a9",
+          "price": 0.0
+        },
+        {
+          "name": "\uc2ac\ub77c\uc774\ub529 \ucd5c\uc18c \uc8fc\ubb38\uc790\uc218 8\uc790 \uc801\uc6a9",
+          "price": 0,
+          "id": 1401
+        }
+      ]
+    }
+  ]
+}

@@ -818,6 +818,14 @@
                 });
         }
         
+        // XSS 방지를 위한 HTML 이스케이프 함수
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
         // 매칭된 견적 표시
         function displayMatchedEstimates(estimates) {
             const container = document.getElementById('matchedEstimatesList');
@@ -842,7 +850,7 @@
                         <div class="card-header bg-light d-flex justify-content-between align-items-center">
                             <div>
                                 <h6 class="m-0 font-weight-bold text-primary">
-                                    <i class="fas fa-file-invoice-dollar me-2"></i>견적서 #${estimate.id} - ${estimate.customer_name}
+                                    <i class="fas fa-file-invoice-dollar me-2"></i>견적서 #${estimate.id} - ${escapeHtml(estimate.customer_name)}
                                 </h6>
                                 <small class="text-muted">생성일: ${estimate.created_at}</small>
                             </div>
@@ -873,19 +881,39 @@
                         let optionsHtml = '';
                         if (item.options && item.options.length > 0) {
                             optionsHtml = '<ul class="list-unstyled mb-0 small">';
-                            item.options.forEach(opt => {
-                                optionsHtml += `<li>- ${opt.name}: +${formatNumber(opt.price)}원</li>`;
+                                item.options.forEach(opt => {
+                                optionsHtml += `<li>- ${escapeHtml(opt.name || '')}: +${formatNumber(opt.price)}원</li>`;
                             });
                             optionsHtml += '</ul>';
                         } else {
                             optionsHtml = '<span class="text-muted">-</span>';
                         }
+                        
+                        // 제품별 비고가 있으면 표시
+                        const itemNotes = item.notes || '';
+                        let itemNotesHtml = '';
+                        if (itemNotes) {
+                            const escapedNotes = escapeHtml(itemNotes).replace(/\n/g, '<br>');
+                            itemNotesHtml = `
+                                <div class="mt-2 pt-2 border-top border-warning border-opacity-25">
+                                    <small class="text-warning fw-bold d-block mb-1" style="font-size: 0.85rem; font-weight: 700 !important;">
+                                        <i class="fas fa-sticky-note me-1"></i>비고:
+                                    </small>
+                                    <div class="small" style="color: #0d7a3d !important; font-weight: 600 !important; white-space: pre-wrap; line-height: 1.6;">
+                                        ${escapedNotes}
+                                    </div>
+                                </div>
+                            `;
+                        }
 
                         html += `
                             <tr>
-                                <td class="align-middle fw-bold">${item.productName}</td>
+                                <td class="align-middle fw-bold">${escapeHtml(item.productName || '')}</td>
                                 <td class="align-middle">${formatNumber(item.widthMm)}mm</td>
-                                <td class="align-middle">${optionsHtml}</td>
+                                <td class="align-middle">
+                                    ${optionsHtml}
+                                    ${itemNotesHtml}
+                                </td>
                                 <td class="align-middle text-end">${formatNumber(item.totalPrice)}원</td>
                             </tr>
                         `;
@@ -917,15 +945,20 @@
                             </div>
                 `;
                 
-                // 비고 정보 표시
+                // 전체 견적 비고 정보 표시 (개선된 스타일)
                 if (notes) {
+                    const escapedNotes = escapeHtml(notes).replace(/\n/g, '<br>');
                     html += `
-                        <div class="card-footer bg-light">
+                        <div class="card-footer bg-light border-top border-warning border-opacity-50">
                             <div class="d-flex align-items-start">
-                                <i class="fas fa-sticky-note text-warning me-2 mt-1"></i>
-                                <div>
-                                    <strong>비고:</strong>
-                                    <p class="mb-0 text-muted" style="white-space: pre-wrap;">${notes.replace(/\n/g, '<br>')}</p>
+                                <i class="fas fa-sticky-note text-warning me-2 mt-1" style="font-size: 1.1rem;"></i>
+                                <div class="flex-grow-1">
+                                    <strong class="text-warning d-block mb-2" style="font-size: 0.95rem; font-weight: 700 !important;">
+                                        전체 견적 비고:
+                                    </strong>
+                                    <div style="color: #0d7a3d !important; font-weight: 600 !important; font-size: 0.9rem; white-space: pre-wrap; line-height: 1.6;">
+                                        ${escapedNotes}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1013,7 +1046,7 @@
                     <div class="list-group-item">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
-                                <h6 class="mb-1">${estimate.customer_name}</h6>
+                                <h6 class="mb-1">${escapeHtml(estimate.customer_name)}</h6>
                                 <small class="text-muted">생성일: ${estimate.created_at}</small>
                                 <div class="mt-2">
                                     <strong>총 견적: ${formatNumber(totalPrice)}원</strong>
