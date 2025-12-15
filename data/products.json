@@ -108,6 +108,16 @@
       "coupon_value": 0,
       "price_30cm": 120000,
       "price_1cm": 4000
+    },
+    {
+      "id": 15,
+      "name": "\ub9ac\ub77c TV\uc6d4\ud50c\ub809\uc2a4",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 160000,
+      "price_1cm": 5340
     }
   ]
 }

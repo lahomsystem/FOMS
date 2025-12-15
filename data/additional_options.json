@@ -2,7 +2,7 @@
   "categories": [
     {
       "id": 1,
-      "name": "화장대",
+      "name": "\ud654\uc7a5\ub300",
       "options": [
         {
           "id": 1,
@@ -71,83 +71,83 @@
       "name": "EP",
       "options": [
         {
-          "id": null,
-          "name": "폭 300mm이하",
+          "id": 1100,
+          "name": "\ud3ed 300mm\uc774\ud558",
           "price": 40000.0
         },
         {
           "id": 2,
-          "name": "폭 300mm이하",
+          "name": "\ud3ed 300mm\uc774\ud558",
           "price": 40000.0
         },
         {
           "id": 3,
-          "name": "폭 301~600mm",
+          "name": "\ud3ed 301~600mm",
           "price": 50000.0
         },
         {
           "id": 4,
-          "name": "폭 601~800mm",
+          "name": "\ud3ed 601~800mm",
           "price": 70000.0
         },
         {
           "id": 5,
-          "name": "폭 800mm 초과",
+          "name": "\ud3ed 800mm \ucd08\uacfc",
           "price": 90000.0
         }
       ]
     },
     {
       "id": 3,
-      "name": "스타일러",
+      "name": "\uc2a4\ud0c0\uc77c\ub7ec",
       "options": [
         {
           "id": 6,
-          "name": "스타일러장",
+          "name": "\uc2a4\ud0c0\uc77c\ub7ec\uc7a5",
           "price": 170000.0
         }
       ]
     },
     {
       "id": 4,
-      "name": "서랍",
+      "name": "\uc11c\ub78d",
       "options": [
         {
           "id": 7,
-          "name": "소서랍",
+          "name": "\uc18c\uc11c\ub78d",
           "price": 25000.0
         },
         {
           "id": 8,
-          "name": "대서랍",
+          "name": "\ub300\uc11c\ub78d",
           "price": 50000.0
         },
         {
           "id": 9,
-          "name": "외부서랍",
+          "name": "\uc678\ubd80\uc11c\ub78d",
           "price": 80000.0
         }
       ]
     },
     {
       "id": 5,
-      "name": "거울도어",
+      "name": "\uac70\uc6b8\ub3c4\uc5b4",
       "options": [
         {
           "id": 9,
-          "name": "스윙",
+          "name": "\uc2a4\uc719",
           "price": 90000.0
         },
         {
           "id": 10,
-          "name": "슬라이딩",
+          "name": "\uc2ac\ub77c\uc774\ub529",
           "price": 120000.0
         }
       ]
     },
     {
       "id": 6,
-      "name": "내부구성",
+      "name": "\ub0b4\ubd80\uad6c\uc131",
       "options": [
         {
           "id": 13,
@@ -178,6 +178,53 @@
           "id": 18,
           "name": "J",
           "price": 50000.0
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "TV\uc6d4\ud50c\ub809\uc2a4",
+      "options": [
+        {
+          "id": 1101,
+          "name": "\ud648\uce74\ud398",
+          "price": 300000.0
+        },
+        {
+          "id": 1102,
+          "name": "\ud22c\uc6e8\uc774 \ud648\uce74\ud398",
+          "price": 400000.0
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "\uac00\uc804\uc7a5",
+      "options": [
+        {
+          "id": 1103,
+          "name": "\ub85c\ubd07 \uccad\uc18c\uae30\uc7a5",
+          "price": 80000.0
+        },
+        {
+          "id": 1104,
+          "name": "\uc624\ube10\uc7a5",
+          "price": 80000.0
+        },
+        {
+          "id": 1105,
+          "name": "\uc804\uc790\ub80c\uc9c0\uc7a5",
+          "price": 80000.0
+        },
+        {
+          "id": 1106,
+          "name": "\ubc25\uc1a5\uc7a5",
+          "price": 80000.0
+        },
+        {
+          "id": 1107,
+          "name": "\ucee4\uc2a4\ud140",
+          "price": 100000.0
         }
       ]
     }

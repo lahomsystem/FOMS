@@ -177,7 +177,7 @@
     .card-body span.estimate-header-base {
         color: #0d6efd !important; /* 파란색 */
         font-weight: 800 !important; /* 더 강한 볼드체 */
-        font-size: 0.9rem !important;
+        font-size: 1.08rem !important; /* 0.9rem * 1.2 = 1.08rem */
         display: block !important;
         margin-bottom: 0.25rem !important;
         line-height: 1.4 !important;
@@ -187,7 +187,7 @@
     .card-body span.estimate-header-options {
         color: #0d6efd !important; /* 파란색 */
         font-weight: 800 !important; /* 더 강한 볼드체 */
-        font-size: 0.9rem !important;
+        font-size: 1.08rem !important; /* 0.9rem * 1.2 = 1.08rem */
         display: block !important;
         margin-bottom: 0.25rem !important;
         line-height: 1.4 !important;
@@ -197,7 +197,7 @@
     .card-body span.estimate-header-notes {
         color: #0d6efd !important; /* 파란색 */
         font-weight: 800 !important; /* 더 강한 볼드체 */
-        font-size: 0.9rem !important;
+        font-size: 1.08rem !important; /* 0.9rem * 1.2 = 1.08rem */
         display: block !important;
         margin-bottom: 0.25rem !important;
         line-height: 1.4 !important;
@@ -208,7 +208,7 @@
     .card-body div.estimate-detail-base {
         color: #0d7a3d !important; /* 더 진한 초록색 */
         font-weight: 700 !important; /* 볼드체 */
-        font-size: 0.85rem !important;
+        font-size: 1.02rem !important; /* 0.85rem * 1.2 = 1.02rem */
         line-height: 1.5 !important;
         margin-top: 0.25rem !important;
     }
@@ -217,7 +217,7 @@
     .card-body div.estimate-detail-options {
         color: #0d7a3d !important; /* 더 진한 초록색 */
         font-weight: 700 !important; /* 볼드체 */
-        font-size: 0.85rem !important;
+        font-size: 1.02rem !important; /* 0.85rem * 1.2 = 1.02rem */
         line-height: 1.6 !important;
         margin-top: 0.25rem !important;
     }
@@ -226,7 +226,7 @@
     .card-body div.estimate-detail-notes {
         color: #0d7a3d !important; /* 더 진한 초록색 */
         font-weight: 700 !important; /* 볼드체 */
-        font-size: 0.85rem !important;
+        font-size: 1.02rem !important; /* 0.85rem * 1.2 = 1.02rem */
         line-height: 1.6 !important;
         white-space: pre-wrap !important;
         word-break: break-word !important;
@@ -236,7 +236,7 @@
     /* 금액 표시 스타일 - 더 구체적인 선택자 사용 */
     .card-body .estimate-price,
     .card-body div.estimate-price {
-        font-size: 1.1rem !important;
+        font-size: 1.32rem !important; /* 1.1rem * 1.2 = 1.32rem */
         font-weight: 700 !important;
         color: #212529 !important;
         margin-bottom: 0.25rem !important;
@@ -244,10 +244,53 @@
     
     .card-body .estimate-total-price,
     .card-body div.estimate-total-price {
-        font-size: 1.3rem !important;
+        font-size: 1.56rem !important; /* 1.3rem * 1.2 = 1.56rem */
         font-weight: 800 !important;
         color: #0d6efd !important;
         margin-top: 0.5rem !important;
+    }
+    
+    /* 세로 모니터(md 이하) 보호 - 기존 비율 유지 */
+    @media (max-width: 991px) {
+        #estimatesListContainer .row .col-md-6 {
+            width: 50% !important;
+            max-width: 50% !important;
+            flex: 0 0 50% !important;
+            flex-basis: 50% !important;
+        }
+    }
+    
+    /* 가로 모니터(lg 이상)에서 견적 카드 4개 배치 (25%씩) */
+    @media (min-width: 992px) {
+        #estimatesListContainer .row .col-lg-3 {
+            width: 25% !important; /* 4개가 한 줄에 배치 */
+            max-width: 25% !important;
+            flex: 0 0 25% !important;
+            flex-basis: 25% !important;
+        }
+    }
+
+    /* 세로 모니터(orientation: portrait)에서는 기존 비율로 복원 (대략 col-lg-4에 해당하는 33.333%) */
+    @media (orientation: portrait) and (min-width: 992px) {
+        #estimatesListContainer .row .col-lg-3 {
+            width: 33.333333% !important;
+            max-width: 33.333333% !important;
+            flex: 0 0 33.333333% !important;
+            flex-basis: 33.333333% !important;
+        }
+        /* 합계 카드 너비도 카드 개수에 맞춰 복원 */
+        #estimatesListContainer .row .col-lg-6 {
+            width: 66.666667% !important;
+            max-width: 66.666667% !important;
+            flex: 0 0 66.666667% !important;
+            flex-basis: 66.666667% !important;
+        }
+        #estimatesListContainer .row .col-lg-9 {
+            width: 99.999999% !important;
+            max-width: 99.999999% !important;
+            flex: 0 0 99.999999% !important;
+            flex-basis: 99.999999% !important;
+        }
     }
 </style>
 {% endblock %}
@@ -431,10 +474,10 @@
                         <button type="button" class="btn btn-success w-100" id="calculateBtn">
                             <i class="fas fa-calculator"></i> 견적 계산
                         </button>
-                                <button type="button" class="btn btn-primary w-100 mt-2" id="addEstimateBtn" style="display: none;">
+                                <button type="button" class="btn btn-primary w-100 mt-2" id="addEstimateBtn" style="display: block;">
                                     <i class="fas fa-plus"></i> 견적 추가
                                 </button>
-                                <button type="button" class="btn btn-info w-100 mt-2" id="saveEstimateBtn" style="display: none;">
+                                <button type="button" class="btn btn-info w-100 mt-2" id="saveEstimateBtn" style="display: block;">
                                     <i class="fas fa-save"></i> 견적 저장
                         </button>
                     </div>
@@ -600,6 +643,25 @@ document.addEventListener('DOMContentLoaded', function() {
         notesCategories = wdNotesCategories || [];
     }
     
+    // 비고 항목 표시 모드 헬퍼 함수 (추가 옵션과 일관성 유지)
+    function setNoteMode(selectEl, textareaEl, mode) {
+        if (mode === 'select') {
+            // select 표시
+            selectEl.style.setProperty('display', 'block', 'important');
+            selectEl.classList.remove('d-none');
+            // textarea 숨김
+            textareaEl.style.setProperty('display', 'none', 'important');
+            textareaEl.classList.add('d-none');
+        } else {
+            // select 숨김
+            selectEl.style.setProperty('display', 'none', 'important');
+            selectEl.classList.add('d-none');
+            // textarea 표시
+            textareaEl.style.setProperty('display', 'block', 'important');
+            textareaEl.classList.remove('d-none');
+        }
+    }
+    
     // 비고 드롭다운 옵션 생성 (재사용 가능한 함수)
     function createNotesSelectOptions() {
         let optionsHtml = '<option value="">저장된 비고 선택</option>';
@@ -609,7 +671,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     category.options.forEach(option => {
                         if (option && option.name) {
                             const value = `${category.name} > ${option.name}`;
-                            optionsHtml += `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`;
+                            // value 속성에는 원본 값 사용 (HTML 특수문자도 문제없음)
+                            // 표시 텍스트만 이스케이프 처리
+                            optionsHtml += `<option value="${value}">${escapeHtml(value)}</option>`;
                         }
                     });
                 }
@@ -673,28 +737,75 @@ document.addEventListener('DOMContentLoaded', function() {
                 <button type="button" class="btn btn-sm btn-outline-secondary toggle-note-type" data-note-index="${index}" title="${isSelect ? '직접입력' : '옵션 선택'}">
                     <i class="fas ${isSelect ? 'fa-keyboard' : 'fa-list'}"></i>
                 </button>
-                <select class="form-select flex-grow-1 note-select" data-note-index="${index}" ${isSelect ? '' : 'style="display: none;"'}>
+                <select class="form-select flex-grow-1 note-select" data-note-index="${index}">
                     ${createNotesSelectOptions()}
                 </select>
-                <textarea class="form-control note-input" rows="2" placeholder="비고를 직접 입력하세요" data-note-index="${index}" ${isSelect ? 'style="display: none;"' : ''}></textarea>
+                <textarea class="form-control note-input" rows="2" placeholder="비고를 직접 입력하세요" data-note-index="${index}"></textarea>
                 <button type="button" class="btn btn-sm btn-outline-danger remove-note" data-note-index="${index}" title="삭제" ${notesList.length <= 1 ? 'disabled' : ''}>
                     <i class="fas fa-times"></i>
                 </button>
             </div>
         `;
         
-        // 값 설정 (innerHTML 후에 설정)
+        // 요소 참조 가져오기
+        const select = noteItem.querySelector('.note-select');
+        const textarea = noteItem.querySelector('.note-input');
+        
+        // 표시 모드 설정 (setNoteMode 사용)
+        setNoteMode(select, textarea, isSelect ? 'select' : 'input');
+        
+        // 값 설정 (표시 모드 설정 후)
         if (isSelect) {
-            const select = noteItem.querySelector('.note-select');
-            if (select) {
-                if (note.value) {
+            if (select && note.value) {
+                // option이 존재하는지 확인
+                const optionExists = Array.from(select.options).some(opt => opt.value === note.value);
+                console.log('renderNoteItem: isSelect=true, note.value=', note.value, 'optionExists=', optionExists);
+                if (optionExists) {
                     select.value = note.value;
+                    console.log('renderNoteItem: select.value set to', select.value);
+                } else {
+                    console.warn('renderNoteItem: Note option not found in select:', note.value);
+                    // option이 없으면 다시 checkIfOptionExists로 확인
+                    // 만약 옵션이 맞다면 type을 'select'로 강제 변경
+                    const isActuallyOption = checkIfOptionExists(note.value);
+                    if (isActuallyOption) {
+                        console.log('renderNoteItem: value is actually an option, fixing type');
+                        notesList[index].type = 'select';
+                        // 다시 렌더링
+                        setTimeout(() => {
+                            renderNoteItem(index);
+                        }, 0);
+                        return; // 재렌더링되므로 여기서 종료
+                    } else {
+                        // 정말로 옵션이 아니면 빈 값으로 설정
+                        select.value = '';
+                    }
                 }
+                // setTimeout으로 DOM 업데이트 후 재확인 (강제 재렌더링)
+                setTimeout(() => {
+                    const optionExistsAfter = Array.from(select.options).some(opt => opt.value === note.value);
+                    if (optionExistsAfter && select.value !== note.value) {
+                        console.log('renderNoteItem: setTimeout - setting select.value to', note.value);
+                        select.value = note.value;
+                    }
+                }, 0);
             }
         } else {
-            const textarea = noteItem.querySelector('.note-input');
             if (textarea) {
                 textarea.value = note.value || '';
+                // input 타입이지만 실제로는 옵션일 수 있음 - 재확인
+                if (note.value) {
+                    const isActuallyOption = checkIfOptionExists(note.value);
+                    if (isActuallyOption) {
+                        console.log('renderNoteItem: value is actually an option but type is input, fixing');
+                        notesList[index].type = 'select';
+                        // 다시 렌더링
+                        setTimeout(() => {
+                            renderNoteItem(index);
+                        }, 0);
+                        return; // 재렌더링되므로 여기서 종료
+                    }
+                }
             }
         }
         
@@ -725,8 +836,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // Select 변경
         const select = noteItem.querySelector('.note-select');
         if (select) {
-            select.replaceWith(select.cloneNode(true)); // 기존 리스너 제거
-            noteItem.querySelector('.note-select').addEventListener('change', function() {
+            const savedValue = select.value; // 현재 값 저장
+            const newSelect = select.cloneNode(true);
+            select.replaceWith(newSelect);
+            newSelect.value = savedValue; // 값 복원
+            newSelect.addEventListener('change', function() {
                 if (index >= 0 && index < notesList.length) {
                     notesList[index].value = this.value;
                 }
@@ -736,8 +850,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // Input 변경 및 blur (숫자 포맷팅)
         const textarea = noteItem.querySelector('.note-input');
         if (textarea) {
-            textarea.replaceWith(textarea.cloneNode(true)); // 기존 리스너 제거
-            const newTextarea = noteItem.querySelector('.note-input');
+            const savedValue = textarea.value; // 현재 값 저장
+            const newTextarea = textarea.cloneNode(true);
+            textarea.replaceWith(newTextarea);
+            newTextarea.value = savedValue; // 값 복원
             newTextarea.addEventListener('input', function() {
                 if (index >= 0 && index < notesList.length) {
                     notesList[index].value = this.value;
@@ -789,6 +905,21 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // notesCategories가 로드되지 않았으면 재시도
+        if (!notesCategories || notesCategories.length === 0) {
+            loadNotesCategories();
+            // 그래도 없으면 잠시 후 재시도
+            if (!notesCategories || notesCategories.length === 0) {
+                setTimeout(() => {
+                    loadNotesCategories();
+                    if (notesCategories && notesCategories.length > 0) {
+                        loadNotes(notesString); // 재귀 호출
+                    }
+                }, 100);
+                return;
+            }
+        }
+        
         // 줄바꿈으로 분리
         const lines = notesString.split('\n').filter(v => v.trim());
         
@@ -803,18 +934,25 @@ document.addEventListener('DOMContentLoaded', function() {
             value = value.trim();
             // 옵션 목록에 있는지 확인
             const isOption = checkIfOptionExists(value);
+            console.log('loadNotes: processing line', value, 'isOption:', isOption);
             return {
                 type: isOption ? 'select' : 'input',
                 value: value
             };
         });
         
+        console.log('loadNotes: final notesList', notesList);
         renderAllNotes();
     }
     
     // 옵션 목록에 존재하는지 확인
     function checkIfOptionExists(value) {
-        if (!value || !notesCategories) return false;
+        if (!value || !notesCategories) {
+            console.log('checkIfOptionExists: value or notesCategories is empty', { value, notesCategories: notesCategories?.length || 0 });
+            return false;
+        }
+        
+        console.log('checkIfOptionExists: checking value', value, 'against', notesCategories.length, 'categories');
         
         for (const category of notesCategories) {
             if (category && category.options && Array.isArray(category.options)) {
@@ -822,12 +960,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (option && option.name) {
                         const optionValue = `${category.name} > ${option.name}`;
                         if (optionValue === value) {
+                            console.log('checkIfOptionExists: MATCH found', optionValue);
                             return true;
                         }
                     }
                 }
             }
         }
+        
+        console.log('checkIfOptionExists: NO MATCH for', value);
         return false;
     }
     
@@ -951,189 +1092,138 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     }
     
-    // 추가 옵션 추가 버튼 (null 체크 추가)
+    // 추가 옵션 표시 모드 헬퍼 함수
+    function setOptionMode(selectEl, nameInputEl, mode) {
+        if (mode === 'select') {
+            // select 표시
+            selectEl.style.setProperty('display', 'block', 'important');
+            selectEl.classList.remove('d-none');
+            // nameInput 숨김
+            nameInputEl.style.setProperty('display', 'none', 'important');
+            nameInputEl.classList.add('d-none');
+        } else {
+            // select 숨김
+            selectEl.style.setProperty('display', 'none', 'important');
+            selectEl.classList.add('d-none');
+            // nameInput 표시
+            nameInputEl.style.setProperty('display', 'block', 'important');
+            nameInputEl.classList.remove('d-none');
+        }
+    }
+    
+    // 추가 옵션 추가 버튼 (심플한 재구현)
     const addOptionBtn = document.getElementById('addOptionBtn');
     if (addOptionBtn) {
         addOptionBtn.addEventListener('click', function() {
-        const container = document.getElementById('additionalOptionsContainer');
-        const optionId = Date.now();
-        
-        // 카테고리별 옵션 목록 생성 (먼저 생성)
-        let allOptionsHtml = '<option value="">카테고리 > 옵션을 선택하세요</option>';
-        if (wdCalculatorCategories && Array.isArray(wdCalculatorCategories)) {
-        wdCalculatorCategories.forEach(category => {
-                if (category && category.options && Array.isArray(category.options) && category.options.length > 0) {
-                    category.options.forEach(option => {
-                        if (option && option.id && option.name && option.price !== undefined) {
-                            allOptionsHtml += `<option value="${category.name}|${option.name}|${option.price}">${category.name} > ${option.name} (${formatNumber(option.price)}원)</option>`;
-                        }
-                    });
-                }
-            });
-        }
-        
-        // 옵션이 없으면 안내 메시지 추가
-        if (allOptionsHtml === '<option value="">카테고리 > 옵션을 선택하세요</option>') {
-            allOptionsHtml += '<option value="" disabled>등록된 옵션이 없습니다. 직접 입력해주세요.</option>';
-        }
-        
-        const optionHtml = `
-            <div class="additional-option-item" data-option-id="${optionId}">
-                <div class="row gx-2 align-items-center">
-                    <div class="col-md-5">
-                        <label class="form-label small">카테고리 > 옵션 선택</label>
-                        <div class="d-flex gap-2 align-items-center">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle-direct-input title="직접입력">
-                                <i class="fas fa-keyboard"></i>
+            const container = document.getElementById('additionalOptionsContainer');
+            const optionId = Date.now();
+
+            let allOptionsHtml = '<option value="">카테고리 > 옵션을 선택하세요</option>';
+            if (wdCalculatorCategories && Array.isArray(wdCalculatorCategories)) {
+                wdCalculatorCategories.forEach(category => {
+                    if (category?.options?.length) {
+                        category.options.forEach(option => {
+                            if (option && option.name && option.price !== undefined) {
+                                allOptionsHtml += `<option value="${category.name}|${option.name}|${option.price}">${category.name} > ${option.name} (${formatNumber(option.price)}원)</option>`;
+                            }
+                        });
+                    }
+                });
+            }
+
+            const optionHtml = `
+                <div class="additional-option-item" data-option-id="${optionId}">
+                    <div class="row gx-2 align-items-center">
+                        <div class="col-md-5">
+                            <label class="form-label small">카테고리 > 옵션 선택</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle-direct-input title="직접입력">
+                                    <i class="fas fa-keyboard"></i>
+                                </button>
+                                <select class="form-select form-select-sm category-option-select flex-grow-1" data-category-option-select>
+                                    ${allOptionsHtml}
+                                </select>
+                                <input type="text" class="form-control form-control-sm option-name-input flex-grow-1" placeholder="또는 옵션명 직접 입력 (예: 화장대 > 화장대A)" data-option-name>
+                            </div>
+                        </div>
+                        <div class="col-md-3 price-col">
+                            <label class="form-label small">가격 (원)</label>
+                            <input type="text" class="form-control form-control-sm option-price-input" placeholder="가격을 입력하세요" data-option-price inputmode="numeric">
+                        </div>
+                        <div class="col-md-2 quantity-col">
+                            <label class="form-label small">수량</label>
+                            <input type="number" class="form-control form-control-sm option-quantity-input" placeholder="수량" min="1" step="1" value="1" data-option-quantity>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small" style="visibility: hidden;">작업</label>
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-option-btn w-100" style="white-space: nowrap;">
+                                <i class="fas fa-times"></i> 삭제
                             </button>
-                            <select class="form-select form-select-sm category-option-select flex-grow-1" data-category-option-select>
-                                ${allOptionsHtml}
-                        </select>
-                            <input type="text" class="form-control form-control-sm option-name-input flex-grow-1" placeholder="또는 옵션명 직접 입력 (예: 화장대 > 화장대A)" data-option-name style="display: none;">
-                    </div>
-                    </div>
-                    <div class="col-md-3 price-col">
-                        <label class="form-label small">가격 (원)</label>
-                        <input type="text" class="form-control form-control-sm option-price-input" placeholder="가격을 입력하세요" data-option-price inputmode="numeric">
-                    </div>
-                    <div class="col-md-2 quantity-col">
-                        <label class="form-label small">수량</label>
-                        <input type="number" class="form-control form-control-sm option-quantity-input" placeholder="수량" min="1" step="1" value="1" data-option-quantity>
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label small" style="visibility: hidden;">작업</label>
-                        <button type="button" class="btn btn-sm btn-outline-danger remove-option-btn w-100" style="white-space: nowrap;">
-                            <i class="fas fa-times"></i> 삭제
-                        </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
-        container.insertAdjacentHTML('beforeend', optionHtml);
-        
-        // 새로 추가된 옵션의 이벤트 리스너 추가
-        const newOption = container.querySelector(`[data-option-id="${optionId}"]`);
-        const categoryOptionSelect = newOption.querySelector('[data-category-option-select]');
-        const nameInput = newOption.querySelector('[data-option-name]');
-        const priceInput = newOption.querySelector('[data-option-price]');
-        const quantityInput = newOption.querySelector('[data-option-quantity]');
-        const toggleDirectInputBtn = newOption.querySelector('[data-toggle-direct-input]');
-        
-        // 카테고리 드롭다운과 직접입력 텍스트 박스 크기 동기화
-        function syncInputSizes() {
-            if (categoryOptionSelect && nameInput && priceInput) {
-                // 직접입력 텍스트 박스의 너비를 기준으로 드롭다운 크기 맞추기
-                const nameInputWidth = nameInput.offsetWidth || nameInput.clientWidth;
-                if (nameInputWidth > 0) {
-                    categoryOptionSelect.style.width = nameInputWidth + 'px';
+            `;
+            container.insertAdjacentHTML('beforeend', optionHtml);
+
+            const item = container.querySelector(`[data-option-id="${optionId}"]`);
+            const select = item.querySelector('[data-category-option-select]');
+            const nameInput = item.querySelector('[data-option-name]');
+            const priceInput = item.querySelector('[data-option-price]');
+            const qtyInput = item.querySelector('[data-option-quantity]');
+            const toggleBtn = item.querySelector('[data-toggle-direct-input]');
+            const removeBtn = item.querySelector('.remove-option-btn');
+
+            // 초기: 드롭다운 모드
+            setOptionMode(select, nameInput, 'select');
+            // 강제로 다시 적용 (브라우저 렌더링 타이밍 이슈 방지)
+            setTimeout(() => {
+                setOptionMode(select, nameInput, 'select');
+            }, 0);
+            toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>';
+
+            // 토글
+            toggleBtn.addEventListener('click', () => {
+                const selectVisible = select.style.display !== 'none';
+                if (selectVisible) {
+                    setOptionMode(select, nameInput, 'input');
+                    select.value = '';
+                    nameInput.value = '';
+                    priceInput.value = '';
+                    toggleBtn.innerHTML = '<i class="fas fa-list"></i>';
+                } else {
+                    setOptionMode(select, nameInput, 'select');
+                    nameInput.value = '';
+                    priceInput.value = '';
+                    toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>';
                 }
-                // 가격 입력 박스는 CSS로 100%로 설정되어 있으므로 JavaScript에서 크기 설정하지 않음
-                // priceInput.style.width는 CSS의 !important로 덮어쓰지 않도록 제거
-            }
-        }
-        
-        // 초기 크기 동기화 (직접입력 텍스트 박스가 숨겨져 있을 때는 드롭다운 크기 기준)
-        function initSizes() {
-            if (nameInput.style.display === 'none') {
-                // 드롭다운이 보일 때
-                setTimeout(() => {
-                    if (categoryOptionSelect && nameInput && priceInput && quantityInput) {
-                        const selectWidth = categoryOptionSelect.offsetWidth;
-                        nameInput.style.width = selectWidth + 'px';
-                        // 가격 입력 박스는 CSS로 100%로 설정되어 있으므로 JavaScript에서 크기 설정하지 않음
-                        // priceInput.style.width는 CSS의 !important로 덮어쓰지 않도록 제거
-                    }
-                }, 10);
-            } else {
-                // 직접입력 텍스트 박스가 보일 때
-                syncInputSizes();
-            }
-        }
-        
-        // 초기 크기 동기화
-        setTimeout(initSizes, 10);
-        
-        // 윈도우 리사이즈 시 크기 동기화
-        window.addEventListener('resize', initSizes);
-        
-        // 가격 입력 필드에 콤마 포맷팅 적용
-        priceInput.addEventListener('input', function() {
-            const cursorPosition = this.selectionStart;
-            const oldValue = this.value;
-            const formattedValue = formatPrice(this.value);
-            
-            this.value = formattedValue;
-            
-            // 커서 위치 조정 (콤마 추가로 인한 위치 변화 보정)
-            const diff = formattedValue.length - oldValue.length;
-            const newPosition = Math.max(0, cursorPosition + diff);
-            this.setSelectionRange(newPosition, newPosition);
-            
-            calculateEstimate();
-        });
-        
-        // 가격 입력 필드 포커스 아웃 시 포맷팅 확정
-        priceInput.addEventListener('blur', function() {
-            if (this.value) {
-                this.value = formatPrice(this.value);
-            }
-        });
-        
-        // 카테고리 > 옵션 선택 시
-        categoryOptionSelect.addEventListener('change', function() {
-            if (this.value && this.value !== '') {
-                const [categoryName, optionName, price] = this.value.split('|');
-                nameInput.value = `${categoryName} > ${optionName}`;
-                priceInput.value = formatPrice(price);
-                if (!quantityInput.value || quantityInput.value < 1) {
-                    quantityInput.value = 1;
+                calculateEstimate();
+            });
+
+            // 선택 시 자동 반영
+            select.addEventListener('change', function() {
+                if (this.value) {
+                    const [cat, opt, price] = this.value.split('|');
+                    nameInput.value = `${cat} > ${opt}`;
+                    priceInput.value = formatPrice(price);
+                    if (!qtyInput.value || qtyInput.value < 1) qtyInput.value = 1;
+                    setOptionMode(select, nameInput, 'select');
+                    toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>';
+                    calculateEstimate();
+                } else {
+                    nameInput.value = '';
+                    priceInput.value = '';
                 }
-                nameInput.style.display = 'none';
-                categoryOptionSelect.style.display = 'block';
+            });
+
+            // 입력/수량 변경 시 계산
+            [priceInput, nameInput, qtyInput].forEach(el => el.addEventListener('input', calculateEstimate));
+
+            // 삭제
+            removeBtn.addEventListener('click', () => {
+                item.remove();
                 calculateEstimate();
-            } else {
-                nameInput.value = '';
-                priceInput.value = '';
-            }
+            });
         });
-        
-        // 수량 변경 시 계산
-        quantityInput.addEventListener('input', function() {
-            if (this.value < 1) {
-                this.value = 1;
-            }
-                calculateEstimate();
-        });
-        
-        // 직접 입력 토글 버튼
-        toggleDirectInputBtn.addEventListener('click', function() {
-            if (nameInput.style.display === 'none') {
-                // 직접 입력 모드로 전환
-                nameInput.style.display = 'block';
-                categoryOptionSelect.style.display = 'none';
-                categoryOptionSelect.value = '';
-                nameInput.value = '';
-                priceInput.value = '';
-                this.innerHTML = '<i class="fas fa-list"></i>';
-                // 크기 동기화
-                setTimeout(syncInputSizes, 10);
-            } else {
-                // 드롭다운 모드로 전환
-                nameInput.style.display = 'none';
-                categoryOptionSelect.style.display = 'block';
-                nameInput.value = '';
-                priceInput.value = '';
-                this.innerHTML = '<i class="fas fa-keyboard"></i>';
-                // 크기 동기화
-                setTimeout(initSizes, 10);
-            }
-            calculateEstimate();
-        });
-        
-        priceInput.addEventListener('input', calculateEstimate);
-        nameInput.addEventListener('input', calculateEstimate);
-        quantityInput.addEventListener('input', calculateEstimate);
-    });
     }
     
     // 추가 옵션 삭제
@@ -1374,7 +1464,7 @@ document.addEventListener('DOMContentLoaded', function() {
             let optionsDetailHtml = '없음';
             if (estimate.options && estimate.options.length > 0) {
                 optionsDetailHtml = estimate.options.map(opt => 
-                    `<div style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 0.85rem !important; line-height: 1.6 !important;">${escapeHtml(opt.name)} × ${opt.quantity}</div>`
+                    `<div style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 1.02rem !important; line-height: 1.6 !important;">${escapeHtml(opt.name)} × ${opt.quantity}</div>`
                 ).join('');
             }
             
@@ -1383,7 +1473,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const productNameEscaped = escapeHtml(estimate.productName || '');
             
             html += `
-                <div class="col-md-6 col-lg-4">
+                <div class="col-md-6 col-lg-3">
                     <div class="card h-100" data-estimate-id="${estimateIdStr}">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <strong>견적 ${index + 1}</strong>
@@ -1398,25 +1488,25 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                         <div class="card-body">
                             <div class="mb-3 estimate-card-item">
-                                <span class="estimate-header-base" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 0.9rem !important; display: block !important; margin-bottom: 0.25rem !important;">기본 견적:</span>
-                                <div class="estimate-price mb-1" style="font-size: 1.1rem !important; font-weight: 700 !important; color: #212529 !important;">${formatNumber(estimate.basePrice)}원</div>
-                                <div class="estimate-detail-base" style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 0.85rem !important; line-height: 1.5 !important; margin-top: 0.25rem !important;">${productNameEscaped} ${formatNumber(estimate.widthMm)}mm</div>
+                                <span class="estimate-header-base" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 1.08rem !important; display: block !important; margin-bottom: 0.25rem !important;">기본 견적:</span>
+                                <div class="estimate-price mb-1" style="font-size: 1.32rem !important; font-weight: 700 !important; color: #212529 !important;">${formatNumber(estimate.basePrice)}원</div>
+                                <div class="estimate-detail-base" style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 1.02rem !important; line-height: 1.5 !important; margin-top: 0.25rem !important;">${productNameEscaped} ${formatNumber(estimate.widthMm)}mm</div>
                             </div>
                             <div class="mb-3 estimate-card-item">
-                                <span class="estimate-header-options" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 0.9rem !important; display: block !important; margin-bottom: 0.25rem !important;">추가 옵션 합계:</span>
-                                <div class="estimate-price mb-1" style="font-size: 1.1rem !important; font-weight: 700 !important; color: #212529 !important;">${formatNumber(estimate.additionalPrice)}원</div>
+                                <span class="estimate-header-options" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 1.08rem !important; display: block !important; margin-bottom: 0.25rem !important;">추가 옵션 합계:</span>
+                                <div class="estimate-price mb-1" style="font-size: 1.32rem !important; font-weight: 700 !important; color: #212529 !important;">${formatNumber(estimate.additionalPrice)}원</div>
                                 <div class="estimate-detail-options" style="margin-top: 0.25rem !important;">${optionsDetailHtml}</div>
                             </div>
                             ${estimate.notes ? `
                             <div class="mb-3 estimate-card-item">
-                                <span class="estimate-header-notes" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 0.9rem !important; display: block !important; margin-bottom: 0.25rem !important;">비고:</span>
-                                <div class="estimate-detail-notes" style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 0.85rem !important; line-height: 1.6 !important; white-space: pre-wrap !important; word-break: break-word !important; margin-top: 0.25rem !important;">${escapeHtml(estimate.notes)}</div>
+                                <span class="estimate-header-notes" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 1.08rem !important; display: block !important; margin-bottom: 0.25rem !important;">비고:</span>
+                                <div class="estimate-detail-notes" style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 1.02rem !important; line-height: 1.6 !important; white-space: pre-wrap !important; word-break: break-word !important; margin-top: 0.25rem !important;">${escapeHtml(estimate.notes)}</div>
                             </div>
                             ` : ''}
                             <hr class="my-3">
                             <div class="mt-3">
-                                <small class="text-muted d-block mb-1">총견적:</small>
-                                <div class="estimate-total-price" style="font-size: 1.3rem !important; font-weight: 800 !important; color: #0d6efd !important; margin-top: 0.5rem !important;">${formatNumber(estimate.totalPrice)}원</div>
+                                <small class="text-muted d-block mb-1" style="font-size: 1.05rem !important;">총견적:</small>
+                                <div class="estimate-total-price" style="font-size: 1.56rem !important; font-weight: 800 !important; color: #0d6efd !important; margin-top: 0.5rem !important;">${formatNumber(estimate.totalPrice)}원</div>
                             </div>
                         </div>
                     </div>
@@ -1426,14 +1516,21 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 전체 견적 총 합계를 견적 카드들과 같은 row에 추가
         if (estimates.length > 0) {
-            // 견적 개수에 따라 col 클래스 결정
+            // 견적 2개일 때 줄바꿈 강제 (lg 화면에서만) - 카드 2개(50%) 다음 줄바꿈하여 아래에 배치되도록
+            if (estimates.length === 2) {
+                html += '<div class="w-100 d-none d-lg-block"></div>';
+            }
+
+            // 견적 개수에 따라 col 클래스 결정 (가로 모니터에서 반응형)
             let colClass = 'col-md-12';
             if (estimates.length === 1) {
-                colClass = 'col-md-6 col-lg-4'; // 견적 1건과 동일한 넓이
+                colClass = 'col-md-6 col-lg-3'; // 견적 1건과 동일한 넓이 (25%)
             } else if (estimates.length === 2) {
-                colClass = 'col-md-12 col-lg-8'; // 견적 2건의 넓이 (lg에서 2/3)
+                colClass = 'col-md-12 col-lg-6'; // 견적 2건의 넓이 (50%)
+            } else if (estimates.length === 3) {
+                colClass = 'col-md-12 col-lg-9'; // 견적 3건의 넓이 (75%)
             } else {
-                colClass = 'col-md-12 col-lg-12'; // 견적 3건 이상의 넓이
+                colClass = 'col-md-12 col-lg-12'; // 견적 4건 이상의 넓이 (100%)
             }
             
             // 견적 1개일 경우와 2개 이상일 경우 다른 레이아웃 사용
@@ -1516,7 +1613,7 @@ document.addEventListener('DOMContentLoaded', function() {
             container.querySelectorAll('.estimate-header-base').forEach(el => {
                 el.style.setProperty('color', '#0d6efd', 'important');
                 el.style.setProperty('font-weight', '800', 'important');
-                el.style.setProperty('font-size', '0.9rem', 'important');
+                el.style.setProperty('font-size', '1.08rem', 'important');
                 el.style.setProperty('display', 'block', 'important');
                 el.style.setProperty('margin-bottom', '0.25rem', 'important');
             });
@@ -1524,7 +1621,7 @@ document.addEventListener('DOMContentLoaded', function() {
             container.querySelectorAll('.estimate-header-options').forEach(el => {
                 el.style.setProperty('color', '#0d6efd', 'important');
                 el.style.setProperty('font-weight', '800', 'important');
-                el.style.setProperty('font-size', '0.9rem', 'important');
+                el.style.setProperty('font-size', '1.08rem', 'important');
                 el.style.setProperty('display', 'block', 'important');
                 el.style.setProperty('margin-bottom', '0.25rem', 'important');
             });
@@ -1532,7 +1629,7 @@ document.addEventListener('DOMContentLoaded', function() {
             container.querySelectorAll('.estimate-header-notes').forEach(el => {
                 el.style.setProperty('color', '#0d6efd', 'important');
                 el.style.setProperty('font-weight', '800', 'important');
-                el.style.setProperty('font-size', '0.9rem', 'important');
+                el.style.setProperty('font-size', '1.08rem', 'important');
                 el.style.setProperty('display', 'block', 'important');
                 el.style.setProperty('margin-bottom', '0.25rem', 'important');
             });
@@ -1540,7 +1637,7 @@ document.addEventListener('DOMContentLoaded', function() {
             container.querySelectorAll('.estimate-detail-base').forEach(el => {
                 el.style.setProperty('color', '#0d7a3d', 'important');
                 el.style.setProperty('font-weight', '700', 'important');
-                el.style.setProperty('font-size', '0.85rem', 'important');
+                el.style.setProperty('font-size', '1.02rem', 'important');
                 el.style.setProperty('line-height', '1.5', 'important');
                 el.style.setProperty('margin-top', '0.25rem', 'important');
             });
@@ -1552,7 +1649,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 el.querySelectorAll('div').forEach(divEl => {
                     divEl.style.setProperty('color', '#0d7a3d', 'important');
                     divEl.style.setProperty('font-weight', '700', 'important');
-                    divEl.style.setProperty('font-size', '0.85rem', 'important');
+                    divEl.style.setProperty('font-size', '1.02rem', 'important');
                     divEl.style.setProperty('line-height', '1.6', 'important');
                 });
             });
@@ -1560,7 +1657,7 @@ document.addEventListener('DOMContentLoaded', function() {
             container.querySelectorAll('.estimate-detail-notes').forEach(el => {
                 el.style.setProperty('color', '#0d7a3d', 'important');
                 el.style.setProperty('font-weight', '700', 'important');
-                el.style.setProperty('font-size', '0.85rem', 'important');
+                el.style.setProperty('font-size', '1.02rem', 'important');
                 el.style.setProperty('line-height', '1.6', 'important');
                 el.style.setProperty('white-space', 'pre-wrap', 'important');
                 el.style.setProperty('word-break', 'break-word', 'important');
@@ -1568,13 +1665,13 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             container.querySelectorAll('.estimate-price').forEach(el => {
-                el.style.setProperty('font-size', '1.1rem', 'important');
+                el.style.setProperty('font-size', '1.32rem', 'important');
                 el.style.setProperty('font-weight', '700', 'important');
                 el.style.setProperty('color', '#212529', 'important');
             });
             
             container.querySelectorAll('.estimate-total-price').forEach(el => {
-                el.style.setProperty('font-size', '1.3rem', 'important');
+                el.style.setProperty('font-size', '1.56rem', 'important');
                 el.style.setProperty('font-weight', '800', 'important');
                 el.style.setProperty('color', '#0d6efd', 'important');
             });
@@ -1978,6 +2075,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 const optPrice = Math.max(0, parseFloat(opt.price) || 0);
                 const optQuantity = Math.max(1, parseInt(opt.quantity) || 1);
                 
+                // 사전에 등록된 옵션과 매칭 여부 확인
+                let matchedValue = '';
+                if (wdCalculatorCategories && Array.isArray(wdCalculatorCategories)) {
+                    wdCalculatorCategories.some(category => {
+                        if (!category || !category.options) return false;
+                        const found = category.options.find(o => o && o.name === opt.name && o.price !== undefined);
+                        if (found) {
+                            matchedValue = `${category.name}|${found.name}|${found.price}`;
+                            return true;
+                        }
+                        return false;
+                    });
+                }
+
                 const optionHtml = `
                     <div class="additional-option-item" data-option-id="${optionId}">
                         <div class="row gx-2 align-items-center">
@@ -1987,10 +2098,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle-direct-input title="직접입력">
                                         <i class="fas fa-keyboard"></i>
                                     </button>
-                                    <select class="form-select form-select-sm category-option-select flex-grow-1" data-category-option-select style="display: none;">
+                                    <select class="form-select form-select-sm category-option-select flex-grow-1" data-category-option-select>
                                         ${allOptionsHtml}
                                     </select>
-                                    <input type="text" class="form-control form-control-sm option-name-input flex-grow-1" placeholder="또는 옵션명 직접 입력 (예: 화장대 > 화장대A)" data-option-name style="display: block;" value="${escapedName}">
+                                    <input type="text" class="form-control form-control-sm option-name-input flex-grow-1" placeholder="또는 옵션명 직접 입력 (예: 화장대 > 화장대A)" data-option-name value="${escapedName}">
                                 </div>
                             </div>
                             <div class="col-md-3 price-col">
@@ -2019,6 +2130,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 const priceInput = item.querySelector('[data-option-price]');
                 const quantityInput = item.querySelector('[data-option-quantity]');
                 const toggleBtn = item.querySelector('[data-toggle-direct-input]');
+
+                // 초기 모드 설정 (setOptionMode 사용)
+                if (matchedValue) {
+                    select.value = matchedValue;
+                    setOptionMode(select, nameInput, 'select');
+                    // 강제로 다시 적용 (브라우저 렌더링 타이밍 이슈 방지)
+                    setTimeout(() => {
+                        setOptionMode(select, nameInput, 'select');
+                    }, 0);
+                    toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>'; // 직접입력 전환 아이콘
+                } else {
+                    select.value = '';
+                    setOptionMode(select, nameInput, 'input');
+                    // 강제로 다시 적용 (브라우저 렌더링 타이밍 이슈 방지)
+                    setTimeout(() => {
+                        setOptionMode(select, nameInput, 'input');
+                    }, 0);
+                    toggleBtn.innerHTML = '<i class="fas fa-list"></i>'; // 목록 전환 아이콘
+                }
                 
                 // 카테고리 선택 이벤트
                 select.addEventListener('change', function() {
@@ -2026,24 +2156,22 @@ document.addEventListener('DOMContentLoaded', function() {
                         const [categoryName, optionName, price] = this.value.split('|');
                         nameInput.value = `${categoryName} > ${optionName}`;
                         priceInput.value = formatPrice(price);
-                        nameInput.style.display = 'none';
-                        select.style.display = 'block';
+                        setOptionMode(select, nameInput, 'select');
                         calculateEstimate();
                     }
                 });
                 
                 // 직접입력 토글 이벤트
                 toggleBtn.addEventListener('click', function() {
-                    if (nameInput.style.display === 'none') {
-                        nameInput.style.display = 'block';
-                        select.style.display = 'none';
+                    const selectVisible = select.style.display !== 'none';
+                    if (selectVisible) {
+                        setOptionMode(select, nameInput, 'input');
                         select.value = '';
                         nameInput.value = '';
                         priceInput.value = '';
                         this.innerHTML = '<i class="fas fa-list"></i>';
                     } else {
-                        nameInput.style.display = 'none';
-                        select.style.display = 'block';
+                        setOptionMode(select, nameInput, 'select');
                         nameInput.value = '';
                         priceInput.value = '';
                         this.innerHTML = '<i class="fas fa-keyboard"></i>';
@@ -2091,14 +2219,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
                 
-                // UI 업데이트
+                // UI 업데이트 (setOptionMode 사용)
                 if (found) {
-                    nameInput.style.display = 'none';
-                    select.style.display = 'block';
+                    setOptionMode(select, nameInput, 'select');
                     toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>';
                 } else {
-                    nameInput.style.display = 'block';
-                    select.style.display = 'none';
+                    setOptionMode(select, nameInput, 'input');
                     toggleBtn.innerHTML = '<i class="fas fa-list"></i>';
                 }
             });

@@ -71,6 +71,7 @@ function Sidebar() {
     reorderUnits,
     autoGenerateUnits,
     calculateUnitLayout,
+    recalculatePositions,
     calculateTopEP
   } = useClosetStore();
 
@@ -187,10 +188,7 @@ function Sidebar() {
     updateUnit(id, editForm);
     setEditingUnit(null);
     setEditForm({});
-    setTimeout(() => {
-      calculateUnitLayout();
-      calculateTopEP();
-    }, 0);
+    // updateUnit 내부에서 이미 recalculatePositions와 calculateTopEP가 호출됨
   };
 
   const handleCancelEdit = () => {
@@ -388,7 +386,10 @@ function Sidebar() {
                         setEndPanelSize(position, Number(e.target.value));
                         setTimeout(() => {
                           if (position !== 'top') {
-                            calculateUnitLayout();
+                            // EP 수정 시 통 너비는 유지하고 위치만 재계산
+                            recalculatePositions();
+                            calculateTopEP();
+                          } else {
                             calculateTopEP();
                           }
                         }, 0);
