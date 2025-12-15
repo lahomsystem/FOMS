@@ -170,6 +170,7 @@
     /* 견적 건 스타일 개선 - Bootstrap 스타일 우선순위 높이기 */
     .card-body .estimate-card-item {
         margin-bottom: 0.75rem !important;
+        padding-left: 0 !important; /* 왼쪽 패딩 제거 */
     }
     
     /* 헤더 스타일 (기본 견적, 추가 옵션 합계, 비고) - 모두 파란색, 볼드체 */
@@ -224,13 +225,15 @@
     
     .card-body .estimate-detail-notes,
     .card-body div.estimate-detail-notes {
+        margin-top: 0.25rem !important;
+    }
+    
+    /* 비고 내부 각 줄 div 스타일 */
+    .card-body .estimate-detail-notes > div {
         color: #0d7a3d !important; /* 더 진한 초록색 */
         font-weight: 700 !important; /* 볼드체 */
         font-size: 1.02rem !important; /* 0.85rem * 1.2 = 1.02rem */
         line-height: 1.6 !important;
-        white-space: pre-wrap !important;
-        word-break: break-word !important;
-        margin-top: 0.25rem !important;
     }
     
     /* 금액 표시 스타일 - 더 구체적인 선택자 사용 */
@@ -980,6 +983,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // 비고 텍스트 줄 정렬 정리 함수 (각 줄의 앞뒤 공백 제거)
+    function formatNotesText(notes) {
+        if (!notes || !notes.trim()) {
+            return '';
+        }
+        // 각 줄을 분리하고 앞뒤 공백 제거, 빈 줄은 유지
+        return notes
+            .split('\n')
+            .map(line => line.trim())
+            .join('\n');
+    }
+    
     // 비고 추가 버튼 이벤트
     const btnAddNote = document.getElementById('btnAddNote');
     if (btnAddNote) {
@@ -1500,7 +1515,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             ${estimate.notes ? `
                             <div class="mb-3 estimate-card-item">
                                 <span class="estimate-header-notes" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 1.08rem !important; display: block !important; margin-bottom: 0.25rem !important;">비고:</span>
-                                <div class="estimate-detail-notes" style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 1.02rem !important; line-height: 1.6 !important; white-space: pre-wrap !important; word-break: break-word !important; margin-top: 0.25rem !important;">${escapeHtml(estimate.notes)}</div>
+                                <div class="estimate-detail-notes" style="margin-top: 0.25rem !important;">
+                                    ${formatNotesText(estimate.notes).split('\n').filter(line => line.trim()).map(line => 
+                                        `<div style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 1.02rem !important; line-height: 1.6 !important;">${escapeHtml(line.trim())}</div>`
+                                    ).join('')}
+                                </div>
                             </div>
                             ` : ''}
                             <hr class="my-3">
@@ -1655,13 +1674,14 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             container.querySelectorAll('.estimate-detail-notes').forEach(el => {
-                el.style.setProperty('color', '#0d7a3d', 'important');
-                el.style.setProperty('font-weight', '700', 'important');
-                el.style.setProperty('font-size', '1.02rem', 'important');
-                el.style.setProperty('line-height', '1.6', 'important');
-                el.style.setProperty('white-space', 'pre-wrap', 'important');
-                el.style.setProperty('word-break', 'break-word', 'important');
                 el.style.setProperty('margin-top', '0.25rem', 'important');
+                // 내부 div 요소들에 스타일 적용 (각 줄이 개별 div로 렌더링됨)
+                el.querySelectorAll('div').forEach(divEl => {
+                    divEl.style.setProperty('color', '#0d7a3d', 'important');
+                    divEl.style.setProperty('font-weight', '700', 'important');
+                    divEl.style.setProperty('font-size', '1.02rem', 'important');
+                    divEl.style.setProperty('line-height', '1.6', 'important');
+                });
             });
             
             container.querySelectorAll('.estimate-price').forEach(el => {
