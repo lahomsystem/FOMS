@@ -8,7 +8,7 @@
 </style>
 <div class="row">
     <div class="col-md-8 mx-auto">
-        <div class="card">
+        <div class="card" data-order-id="{{ order.id }}">
             <div class="card-header">
                 <ul class="nav nav-tabs card-header-tabs" id="orderTabs" role="tablist">
                     <li class="nav-item" role="presentation">
@@ -367,6 +367,9 @@
 
 {% block scripts %}
 <script>
+    // 주문 ID 상수 선언 (HTML 데이터 속성에서 읽기)
+    const ORDER_ID = parseInt(document.querySelector('.card[data-order-id]')?.dataset.orderId || '0');
+    
     // 텍스트 영역 높이 자동 조절 함수
     function adjustTextareaHeight(textarea) {
         if (!textarea) return;
@@ -799,7 +802,7 @@
         
         // 계산기 탭: 매칭된 견적 로드
         function loadMatchedEstimates() {
-            const orderId = {{ order.id }};
+            const orderId = ORDER_ID;
             
             fetch(`/api/wdcalculator/order-estimates/${orderId}`)
                 .then(response => response.json())
@@ -880,9 +883,9 @@
                     items.forEach(item => {
                         let optionsHtml = '';
                         if (item.options && item.options.length > 0) {
-                            optionsHtml = '<ul class="list-unstyled mb-0 small">';
+                            optionsHtml = '<ul class="list-unstyled mb-0">';
                                 item.options.forEach(opt => {
-                                optionsHtml += `<li>- ${escapeHtml(opt.name || '')}: +${formatNumber(opt.price)}원</li>`;
+                                optionsHtml += `<li style="color: #0d7a3d !important; font-weight: 600 !important; font-size: 0.9rem; line-height: 1.6;">- ${escapeHtml(opt.name || '')}: +${formatNumber(opt.price)}원</li>`;
                             });
                             optionsHtml += '</ul>';
                         } else {
@@ -893,14 +896,17 @@
                         const itemNotes = item.notes || '';
                         let itemNotesHtml = '';
                         if (itemNotes) {
-                            const escapedNotes = escapeHtml(itemNotes).replace(/\n/g, '<br>');
+                            const notesLines = itemNotes.split('\n').filter(line => line.trim());
+                            const notesHtml = notesLines.map(line => 
+                                `<div style="color: #0d7a3d !important; font-weight: 600 !important; font-size: 0.9rem; line-height: 1.6;">${escapeHtml(line.trim())}</div>`
+                            ).join('');
                             itemNotesHtml = `
-                                <div class="mt-2 pt-2 border-top border-warning border-opacity-25">
-                                    <small class="text-warning fw-bold d-block mb-1" style="font-size: 0.85rem; font-weight: 700 !important;">
-                                        <i class="fas fa-sticky-note me-1"></i>비고:
+                                <div class="mt-2 pt-2 border-top border-dark border-opacity-25">
+                                    <small class="text-dark fw-bold d-block mb-1" style="font-size: 0.85rem; font-weight: 700 !important;">
+                                        <i class="fas fa-sticky-note me-1 text-dark"></i>비고:
                                     </small>
-                                    <div class="small" style="color: #0d7a3d !important; font-weight: 600 !important; white-space: pre-wrap; line-height: 1.6;">
-                                        ${escapedNotes}
+                                    <div class="small">
+                                        ${notesHtml}
                                     </div>
                                 </div>
                             `;
@@ -947,17 +953,20 @@
                 
                 // 전체 견적 비고 정보 표시 (개선된 스타일)
                 if (notes) {
-                    const escapedNotes = escapeHtml(notes).replace(/\n/g, '<br>');
+                    const notesLines = notes.split('\n').filter(line => line.trim());
+                    const notesHtml = notesLines.map(line => 
+                        `<div style="color: #0d7a3d !important; font-weight: 600 !important; font-size: 0.9rem; line-height: 1.6;">${escapeHtml(line.trim())}</div>`
+                    ).join('');
                     html += `
-                        <div class="card-footer bg-light border-top border-warning border-opacity-50">
+                        <div class="card-footer bg-light border-top border-dark border-opacity-50">
                             <div class="d-flex align-items-start">
-                                <i class="fas fa-sticky-note text-warning me-2 mt-1" style="font-size: 1.1rem;"></i>
+                                <i class="fas fa-sticky-note text-dark me-2 mt-1" style="font-size: 1.1rem;"></i>
                                 <div class="flex-grow-1">
-                                    <strong class="text-warning d-block mb-2" style="font-size: 0.95rem; font-weight: 700 !important;">
+                                    <strong class="text-dark d-block mb-2" style="font-size: 0.95rem; font-weight: 700 !important;">
                                         전체 견적 비고:
                                     </strong>
-                                    <div style="color: #0d7a3d !important; font-weight: 600 !important; font-size: 0.9rem; white-space: pre-wrap; line-height: 1.6;">
-                                        ${escapedNotes}
+                                    <div>
+                                        ${notesHtml}
                                     </div>
                                 </div>
                             </div>
@@ -979,7 +988,7 @@
                     e.preventDefault();
                     e.stopPropagation();
                     const estimateId = this.dataset.estimateId;
-                    const orderId = {{ order.id }};
+                    const orderId = ORDER_ID;
                     console.log('수정 버튼 클릭:', { estimateId, orderId });
                     if (!estimateId) {
                         alert('견적 ID를 찾을 수 없습니다.');
@@ -1071,7 +1080,7 @@
             document.querySelectorAll('.match-estimate-to-order-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const estimateId = parseInt(this.dataset.estimateId);
-                    const orderId = {{ order.id }};
+                    const orderId = ORDER_ID;
                     
                     fetch('/api/wdcalculator/match-order', {
                         method: 'POST',
