@@ -6,3 +6,5 @@ engine = create_engine(WD_CALCULATOR_DB_URL)
 WDCalculatorBase.metadata.create_all(engine)
 print("Updated database schema.")
 
+
+

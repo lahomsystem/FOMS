@@ -15,6 +15,10 @@ from datetime import date, timedelta
 from db import get_db, close_db, init_db
 from models import Order, User, SecurityLog
 
+# 견적 계산기 독립 데이터베이스 임포트
+from wdcalculator_db import get_wdcalculator_db, close_wdcalculator_db, init_wdcalculator_db
+from wdcalculator_models import Estimate, EstimateOrderMatch, EstimateHistory
+
 # 백업 시스템 임포트
 from simple_backup_system import SimpleBackupSystem
 
@@ -38,6 +42,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # 데이터베이스 연결 설정
 app.teardown_appcontext(close_db)
+app.teardown_appcontext(close_wdcalculator_db)  # 견적 계산기 독립 DB
 
 # Function to check if file has allowed extension
 def allowed_file(filename):
@@ -373,6 +378,11 @@ def utility_processor():
     return dict(parse_json_string=parse_json_string)
 
 # Routes
+@app.route('/favicon.ico')
+def favicon():
+    """favicon 요청 처리 (404 방지)"""
+    return '', 204  # No Content
+
 @app.route('/')
 @login_required
 def index():
@@ -3380,14 +3390,17 @@ def storage_dashboard():
 # JSON 파일 경로
 WD_CALCULATOR_DATA_PATH = os.path.join(os.path.dirname(__file__), 'data', 'products.json')
 WD_ADDITIONAL_OPTIONS_PATH = os.path.join(os.path.dirname(__file__), 'data', 'additional_options.json')
+WD_NOTES_CATEGORIES_PATH = os.path.join(os.path.dirname(__file__), 'data', 'notes_categories.json')
 
 def clean_categories_data(categories):
-    """카테고리 데이터에서 JSON 직렬화 불가능한 값 제거"""
+    """카테고리 데이터에서 JSON 직렬화 불가능한 값 제거 및 id 자동 생성"""
     if not categories:
         return []
     
     cleaned = []
-    for category in categories:
+    base_option_id = 1000  # id가 null인 옵션에 부여할 시작 ID
+    
+    for cat_idx, category in enumerate(categories):
         if category is None:
             continue
         
@@ -3397,13 +3410,26 @@ def clean_categories_data(categories):
             'options': []
         }
         
-        # 옵션 정리
+        # 옵션 정리 및 id 자동 생성
         if category.get('options'):
-            for option in category.get('options', []):
+            # 먼저 기존 옵션들 중 유효한 id 찾기
+            existing_ids = [o.get('id') for o in category.get('options', []) if o and o.get('id') is not None]
+            max_existing_id = max(existing_ids + [0])
+            next_id = max(max_existing_id + 1, base_option_id + (cat_idx * 100))
+            
+            for opt_idx, option in enumerate(category.get('options', [])):
                 if option is None:
                     continue
+                
+                # id가 null이면 자동으로 생성
+                option_id = option.get('id')
+                if option_id is None:
+                    option_id = next_id
+                    next_id += 1
+                    print(f"[DEBUG] clean_categories_data: 옵션 '{option.get('name')}'에 id {option_id} 자동 생성")
+                
                 cleaned_option = {
-                    'id': option.get('id') if option.get('id') is not None else None,
+                    'id': option_id,
                     'name': option.get('name') or '',
                     'price': float(option.get('price', 0)) if option.get('price') is not None else 0
                 }
@@ -3417,10 +3443,19 @@ def load_additional_option_categories():
     """추가 옵션 카테고리 데이터를 JSON 파일에서 로드"""
     try:
         if os.path.exists(WD_ADDITIONAL_OPTIONS_PATH):
-            with open(WD_ADDITIONAL_OPTIONS_PATH, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                categories = data.get('categories', [])
-                return clean_categories_data(categories)
+            # 먼저 UTF-8로 시도
+            try:
+                with open(WD_ADDITIONAL_OPTIONS_PATH, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    categories = data.get('categories', [])
+                    return clean_categories_data(categories)
+            except UnicodeDecodeError:
+                # 실패 시 CP949로 시도 (Windows 호환)
+                print("UTF-8 decoding failed for additional options, trying CP949...")
+                with open(WD_ADDITIONAL_OPTIONS_PATH, 'r', encoding='cp949') as f:
+                    data = json.load(f)
+                    categories = data.get('categories', [])
+                    return clean_categories_data(categories)
         return []
     except Exception as e:
         print(f"Error loading additional option categories: {e}")
@@ -3431,20 +3466,91 @@ def save_additional_option_categories(categories):
     try:
         os.makedirs(os.path.dirname(WD_ADDITIONAL_OPTIONS_PATH), exist_ok=True)
         data = {'categories': categories}
+        # 저장할 때는 UTF-8 (ensure_ascii=False) 또는 ASCII (ensure_ascii=True)로 통일
+        # 여기서는 호환성을 위해 ensure_ascii=True로 변경하여 인코딩 문제 원천 차단
         with open(WD_ADDITIONAL_OPTIONS_PATH, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            json.dump(data, f, ensure_ascii=True, indent=2)
         return True
     except Exception as e:
         print(f"Error saving additional option categories: {e}")
+        return False
+
+def load_notes_categories():
+    """비고 카테고리 데이터를 JSON 파일에서 로드"""
+    try:
+        print(f"[DEBUG] load_notes_categories 호출됨")
+        print(f"[DEBUG] 파일 경로: {WD_NOTES_CATEGORIES_PATH}")
+        print(f"[DEBUG] 파일 존재 여부: {os.path.exists(WD_NOTES_CATEGORIES_PATH)}")
+        
+        if os.path.exists(WD_NOTES_CATEGORIES_PATH):
+            try:
+                with open(WD_NOTES_CATEGORIES_PATH, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    categories = data.get('categories', [])
+                    print(f"[DEBUG] UTF-8로 로드 성공 - 카테고리 수: {len(categories)}")
+                    cleaned = clean_categories_data(categories)
+                    print(f"[DEBUG] 정리 후 카테고리 수: {len(cleaned)}")
+                    return cleaned
+            except UnicodeDecodeError:
+                print("[DEBUG] UTF-8 decoding failed for notes categories, trying CP949...")
+                with open(WD_NOTES_CATEGORIES_PATH, 'r', encoding='cp949') as f:
+                    data = json.load(f)
+                    categories = data.get('categories', [])
+                    print(f"[DEBUG] CP949로 로드 성공 - 카테고리 수: {len(categories)}")
+                    cleaned = clean_categories_data(categories)
+                    print(f"[DEBUG] 정리 후 카테고리 수: {len(cleaned)}")
+                    return cleaned
+        else:
+            print(f"[DEBUG] 파일이 존재하지 않음 - 빈 배열 반환")
+        return []
+    except Exception as e:
+        print(f"[ERROR] Error loading notes categories: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return []
+
+def save_notes_categories(categories):
+    """비고 카테고리 데이터를 JSON 파일에 저장"""
+    try:
+        print(f"[DEBUG] save_notes_categories 호출됨")
+        print(f"[DEBUG] 저장할 카테고리 수: {len(categories) if categories else 0}")
+        print(f"[DEBUG] 저장할 카테고리 데이터: {json.dumps(categories, ensure_ascii=False, indent=2)}")
+        
+        os.makedirs(os.path.dirname(WD_NOTES_CATEGORIES_PATH), exist_ok=True)
+        data = {'categories': categories}
+        with open(WD_NOTES_CATEGORIES_PATH, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=True, indent=2)
+        
+        print(f"[DEBUG] 파일 저장 완료: {WD_NOTES_CATEGORIES_PATH}")
+        
+        # 저장 후 확인
+        if os.path.exists(WD_NOTES_CATEGORIES_PATH):
+            with open(WD_NOTES_CATEGORIES_PATH, 'r', encoding='utf-8') as f:
+                saved_data = json.load(f)
+                print(f"[DEBUG] 저장된 파일 확인 - 카테고리 수: {len(saved_data.get('categories', []))}")
+        
+        return True
+    except Exception as e:
+        print(f"[ERROR] Error saving notes categories: {e}")
+        import traceback
+        print(traceback.format_exc())
         return False
 
 def load_products():
     """제품 데이터를 JSON 파일에서 로드"""
     try:
         if os.path.exists(WD_CALCULATOR_DATA_PATH):
-            with open(WD_CALCULATOR_DATA_PATH, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return data.get('products', [])
+            # 먼저 UTF-8로 시도
+            try:
+                with open(WD_CALCULATOR_DATA_PATH, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    return data.get('products', [])
+            except UnicodeDecodeError:
+                # 실패 시 CP949로 시도
+                print("UTF-8 decoding failed for products, trying CP949...")
+                with open(WD_CALCULATOR_DATA_PATH, 'r', encoding='cp949') as f:
+                    data = json.load(f)
+                    return data.get('products', [])
         return []
     except Exception as e:
         print(f"Error loading products: {e}")
@@ -3455,8 +3561,9 @@ def save_products(products):
     try:
         os.makedirs(os.path.dirname(WD_CALCULATOR_DATA_PATH), exist_ok=True)
         data = {'products': products}
+        # 저장할 때는 인코딩 문제 방지를 위해 ensure_ascii=True 사용
         with open(WD_CALCULATOR_DATA_PATH, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            json.dump(data, f, ensure_ascii=True, indent=2)
         return True
     except Exception as e:
         print(f"Error saving products: {e}")
@@ -3517,7 +3624,18 @@ def wdcalculator():
     except Exception as e:
         print(f"Error loading categories: {e}")
         categories = []
-    return render_template('wdcalculator/calculator.html', categories=categories)
+    
+    try:
+        notes_categories = load_notes_categories()
+        if notes_categories is None:
+            notes_categories = []
+        # 추가로 한 번 더 정리 (안전장치)
+        notes_categories = clean_categories_data(notes_categories)
+    except Exception as e:
+        print(f"Error loading notes categories: {e}")
+        notes_categories = []
+    
+    return render_template('wdcalculator/calculator.html', categories=categories, notes_categories=notes_categories)
 
 @app.route('/wdcalculator/product-settings')
 @login_required
@@ -3541,7 +3659,17 @@ def wdcalculator_product_settings():
         print(f"Error loading categories: {e}")
         categories = []
     
-    return render_template('wdcalculator/product_settings.html', products=products, categories=categories)
+    try:
+        notes_categories = load_notes_categories()
+        if notes_categories is None:
+            notes_categories = []
+        # 추가로 한 번 더 정리 (안전장치)
+        notes_categories = clean_categories_data(notes_categories)
+    except Exception as e:
+        print(f"Error loading notes categories: {e}")
+        notes_categories = []
+    
+    return render_template('wdcalculator/product_settings.html', products=products, categories=categories, notes_categories=notes_categories)
 
 @app.route('/api/wdcalculator/products', methods=['GET'])
 @login_required
@@ -3821,6 +3949,498 @@ def api_wdcalculator_delete_option(category_id, option_id):
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
+# 비고 카테고리 관리 API
+@app.route('/api/wdcalculator/notes/categories', methods=['GET'])
+@login_required
+def api_wdcalculator_get_notes_categories():
+    """비고 카테고리 목록 조회"""
+    categories = load_notes_categories()
+    return jsonify({'success': True, 'categories': categories})
+
+@app.route('/api/wdcalculator/notes/categories', methods=['POST'])
+@login_required
+def api_wdcalculator_save_notes_category():
+    """비고 카테고리 추가/수정"""
+    try:
+        data = request.get_json()
+        print(f"[DEBUG] api_wdcalculator_save_notes_category 호출됨")
+        print(f"[DEBUG] 받은 데이터: {json.dumps(data, ensure_ascii=False, indent=2)}")
+        
+        if not data:
+            return jsonify({'success': False, 'message': '데이터가 없습니다.'})
+        
+        if not data.get('name'):
+            return jsonify({'success': False, 'message': '카테고리명을 입력해주세요.'})
+        
+        categories = load_notes_categories()
+        print(f"[DEBUG] 기존 카테고리 수: {len(categories)}")
+        
+        category_id = data.get('id')
+        
+        category_data = {
+            'name': data.get('name', '').strip(),
+            'options': data.get('options', [])
+        }
+        
+        if category_id:
+            # 수정
+            print(f"[DEBUG] 카테고리 수정 모드 - category_id: {category_id}")
+            category = next((c for c in categories if c.get('id') == category_id), None)
+            if category:
+                category.update(category_data)
+                print(f"[DEBUG] 카테고리 수정 완료")
+            else:
+                print(f"[DEBUG] 카테고리를 찾을 수 없음 - category_id: {category_id}")
+                return jsonify({'success': False, 'message': '카테고리를 찾을 수 없습니다.'})
+        else:
+            # 추가
+            print(f"[DEBUG] 카테고리 추가 모드")
+            max_id = max([c.get('id', 0) for c in categories] + [0])
+            category_data['id'] = max_id + 1
+            categories.append(category_data)
+            print(f"[DEBUG] 새 카테고리 추가 - id: {category_data['id']}, name: {category_data['name']}, options: {len(category_data.get('options', []))}")
+        
+        if save_notes_categories(categories):
+            print(f"[DEBUG] 저장 성공")
+            return jsonify({'success': True, 'message': '비고 카테고리가 저장되었습니다.', 'category': category_data})
+        else:
+            print(f"[DEBUG] 저장 실패")
+            return jsonify({'success': False, 'message': '비고 카테고리 저장에 실패했습니다.'})
+    except Exception as e:
+        print(f"[ERROR] api_wdcalculator_save_notes_category 오류: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/wdcalculator/notes/categories/<int:category_id>', methods=['DELETE'])
+@login_required
+def api_wdcalculator_delete_notes_category(category_id):
+    """비고 카테고리 삭제"""
+    try:
+        categories = load_notes_categories()
+        categories = [c for c in categories if c.get('id') != category_id]
+        
+        if save_notes_categories(categories):
+            return jsonify({'success': True, 'message': '비고 카테고리가 삭제되었습니다.'})
+        else:
+            return jsonify({'success': False, 'message': '비고 카테고리 삭제에 실패했습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/wdcalculator/notes/categories/<int:category_id>/options', methods=['POST'])
+@login_required
+def api_wdcalculator_save_notes_option(category_id):
+    """비고 카테고리 내 옵션 추가/수정"""
+    try:
+        data = request.get_json()
+        print(f"[DEBUG] api_wdcalculator_save_notes_option 호출됨")
+        print(f"[DEBUG] category_id: {category_id}")
+        print(f"[DEBUG] 받은 데이터: {json.dumps(data, ensure_ascii=False, indent=2)}")
+        
+        if not data:
+            return jsonify({'success': False, 'message': '데이터가 없습니다.'})
+        
+        if not data.get('name'):
+            return jsonify({'success': False, 'message': '옵션명을 입력해주세요.'})
+        
+        categories = load_notes_categories()
+        print(f"[DEBUG] 기존 카테고리 수: {len(categories)}")
+        
+        category = next((c for c in categories if c.get('id') == category_id), None)
+        if not category:
+            print(f"[DEBUG] 카테고리를 찾을 수 없음 - category_id: {category_id}")
+            return jsonify({'success': False, 'message': '카테고리를 찾을 수 없습니다.'})
+        
+        print(f"[DEBUG] 카테고리 찾음 - name: {category.get('name')}, 기존 옵션 수: {len(category.get('options', []))}")
+        
+        option_id = data.get('id')
+        option_data = {
+            'name': data.get('name', '').strip(),
+            'price': 0  # 비고는 가격이 없음
+        }
+        
+        if option_id:
+            # 수정
+            print(f"[DEBUG] 옵션 수정 모드 - option_id: {option_id}")
+            option = next((o for o in category.get('options', []) if o.get('id') == option_id), None)
+            if option:
+                option.update(option_data)
+                print(f"[DEBUG] 옵션 수정 완료")
+            else:
+                print(f"[DEBUG] 옵션을 찾을 수 없음 - option_id: {option_id}")
+                return jsonify({'success': False, 'message': '옵션을 찾을 수 없습니다.'})
+        else:
+            # 추가
+            print(f"[DEBUG] 옵션 추가 모드")
+            # 기존 옵션들에서 id가 null이 아닌 것들만 확인
+            existing_ids = [o.get('id') for o in category.get('options', []) if o and o.get('id') is not None]
+            max_id = max(existing_ids + [0])
+            option_data['id'] = max_id + 1
+            if 'options' not in category:
+                category['options'] = []
+            category['options'].append(option_data)
+            print(f"[DEBUG] 새 옵션 추가 - id: {option_data['id']}, name: {option_data['name']}")
+            print(f"[DEBUG] 추가 후 옵션 수: {len(category.get('options', []))}")
+            print(f"[DEBUG] 추가 후 옵션들: {[{'id': o.get('id'), 'name': o.get('name')} for o in category.get('options', [])]}")
+            
+            # 저장 전에 모든 옵션에 id가 있는지 확인하고 없으면 생성
+            for opt in category.get('options', []):
+                if opt and opt.get('id') is None:
+                    print(f"[DEBUG] id가 null인 옵션 발견, 자동 생성: {opt.get('name')}")
+                    existing_ids = [o.get('id') for o in category.get('options', []) if o and o.get('id') is not None]
+                    opt['id'] = max(existing_ids + [0]) + 1
+                    print(f"[DEBUG] 생성된 id: {opt['id']}")
+        
+        if save_notes_categories(categories):
+            print(f"[DEBUG] 저장 성공")
+            return jsonify({'success': True, 'message': '비고 옵션이 저장되었습니다.', 'option': option_data})
+        else:
+            print(f"[DEBUG] 저장 실패")
+            return jsonify({'success': False, 'message': '비고 옵션 저장에 실패했습니다.'})
+    except Exception as e:
+        print(f"[ERROR] api_wdcalculator_save_notes_option 오류: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/wdcalculator/notes/categories/<int:category_id>/options/<int:option_id>', methods=['DELETE'])
+@login_required
+def api_wdcalculator_delete_notes_option(category_id, option_id):
+    """비고 카테고리 내 옵션 삭제"""
+    try:
+        categories = load_notes_categories()
+        
+        category = next((c for c in categories if c.get('id') == category_id), None)
+        if not category:
+            return jsonify({'success': False, 'message': '카테고리를 찾을 수 없습니다.'})
+        
+        original_options = category.get('options', [])
+        if not original_options:
+            return jsonify({'success': False, 'message': '삭제할 옵션이 없습니다.'})
+        
+        print(f"[DEBUG] 삭제 시작: category_id={category_id}, option_id={option_id}")
+        print(f"[DEBUG] 삭제 전 옵션 수: {len(original_options)}")
+        print(f"[DEBUG] 삭제 전 옵션 목록: {[{'id': o.get('id'), 'name': o.get('name')} for o in original_options]}")
+        
+        # 옵션 ID가 없는 옵션들에 대해 자동으로 ID 생성
+        for opt in original_options:
+            if opt and opt.get('id') is None:
+                existing_ids = [o.get('id') for o in original_options if o and o.get('id') is not None]
+                opt['id'] = max(existing_ids + [0]) + 1
+                print(f"[DEBUG] 옵션 ID 자동 생성: name={opt.get('name')}, id={opt['id']}")
+        
+        # 옵션 삭제: ID로 찾거나, ID가 없으면 인덱스로 찾기
+        remaining_options = []
+        found = False
+        
+        # 먼저 ID로 찾기 시도
+        for i, opt in enumerate(original_options):
+            if not opt:
+                continue
+            
+            opt_id = opt.get('id')
+            if opt_id is not None:
+                # 타입 변환하여 비교
+                opt_id = int(opt_id) if isinstance(opt_id, (int, str)) else opt_id
+                if opt_id == option_id:
+                    found = True
+                    # 이 옵션은 삭제 대상이므로 추가하지 않음
+                    print(f"[DEBUG] ID로 옵션 찾음: id={opt_id}, name={opt.get('name')}, index={i}")
+                    continue
+            
+            # 삭제 대상이 아니면 남은 옵션에 추가
+            remaining_options.append(opt)
+        
+        # ID로 찾지 못했으면, 인덱스로 찾기 시도
+        if not found and 0 <= option_id < len(original_options):
+            print(f"[DEBUG] 인덱스로 옵션 찾기 시도: option_id={option_id}, 총 옵션 수={len(original_options)}")
+            remaining_options = [opt for i, opt in enumerate(original_options) if i != option_id]
+            found = True
+            print(f"[DEBUG] 인덱스로 옵션 찾음: 삭제할 인덱스={option_id}, 남은 옵션 수={len(remaining_options)}")
+        
+        if not found:
+            print(f"[DEBUG] 삭제할 옵션을 찾을 수 없음: category_id={category_id}, option_id={option_id}")
+            print(f"[DEBUG] 옵션 목록: {[{'id': o.get('id'), 'name': o.get('name')} for o in original_options]}")
+            return jsonify({'success': False, 'message': f'삭제할 옵션을 찾을 수 없습니다. (option_id: {option_id})'})
+        
+        category['options'] = remaining_options
+        print(f"[DEBUG] 옵션 삭제 성공: category_id={category_id}, option_id={option_id}")
+        print(f"[DEBUG] 삭제 전 옵션 수: {len(original_options)}, 삭제 후 옵션 수: {len(remaining_options)}")
+        print(f"[DEBUG] 남은 옵션: {[{'id': o.get('id'), 'name': o.get('name')} for o in remaining_options]}")
+        
+        if save_notes_categories(categories):
+            return jsonify({'success': True, 'message': '비고 옵션이 삭제되었습니다.'})
+        else:
+            return jsonify({'success': False, 'message': '비고 옵션 삭제에 실패했습니다.'})
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] api_wdcalculator_delete_notes_option 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)})
+
+# 견적 저장 API
+@app.route('/api/wdcalculator/save-estimate', methods=['POST'])
+@login_required
+def api_wdcalculator_save_estimate():
+    """견적 저장 (신규 생성 또는 업데이트)"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': '요청 데이터가 없습니다.'})
+        
+        # estimate_id가 있으면 업데이트, 없으면 신규 생성
+        estimate_id = data.get('estimate_id')
+        customer_name = data.get('customer_name', '').strip()
+        estimate_data = data.get('estimate_data', {})
+        
+        if not customer_name:
+            return jsonify({'success': False, 'message': '고객명을 입력해주세요.'})
+        
+        if not estimate_data:
+            return jsonify({'success': False, 'message': '견적 데이터가 없습니다.'})
+        
+        db = get_wdcalculator_db()
+        
+        if estimate_id:
+            # 기존 견적 업데이트
+            estimate = db.query(Estimate).filter(Estimate.id == estimate_id).first()
+            if not estimate:
+                return jsonify({'success': False, 'message': '수정할 견적을 찾을 수 없습니다.'})
+            
+            # 히스토리 저장 (변경 전 데이터)
+            try:
+                history = EstimateHistory(
+                    estimate_id=estimate.id,
+                    estimate_data=estimate.estimate_data
+                )
+                db.add(history)
+            except Exception as history_error:
+                print(f"Warning: Failed to save estimate history: {str(history_error)}")
+                # 히스토리 저장 실패해도 견적 업데이트는 진행
+            
+            # 견적 업데이트
+            # customer_name: 일반 문자열
+            # estimate_data: 딕셔너리(JSON 객체) 그대로 저장 (SQLAlchemy + JSONB가 자동 처리)
+            estimate.customer_name = customer_name
+            estimate.estimate_data = estimate_data
+            # updated_at은 onupdate=func.now()에 의해 자동 갱신됨
+            
+            message = '견적이 수정되었습니다.'
+        else:
+            # 새 견적 생성 (JSONB 사용으로 인코딩 문제 완전 차단)
+            estimate = Estimate(
+                customer_name=customer_name,
+                estimate_data=estimate_data
+            )
+            db.add(estimate)
+            message = '견적이 저장되었습니다.'
+            
+        db.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'estimate_id': estimate.id
+        })
+    except Exception as e:
+        db = get_wdcalculator_db()
+        db.rollback()
+        import traceback
+        print(f"Error saving estimate: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': f'견적 저장 중 오류: {str(e)}'})
+
+# 견적 검색 API (전체 목록 조회 포함)
+@app.route('/api/wdcalculator/search-estimates', methods=['GET'])
+@login_required
+def api_wdcalculator_search_estimates():
+    """고객명으로 견적 검색 (파라미터 없으면 전체 목록)"""
+    try:
+        customer_name = request.args.get('customer_name', '').strip()
+        
+        db = get_wdcalculator_db()
+        
+        query = db.query(Estimate)
+        
+        if customer_name:
+            query = query.filter(Estimate.customer_name.ilike(f'%{customer_name}%'))
+            
+        # 최신순 정렬
+        estimates = query.order_by(Estimate.created_at.desc()).limit(50).all()
+        
+        # JSONB 사용으로 인해 복잡한 파싱 로직 불필요
+        estimates_list = [est.to_dict() for est in estimates]
+        
+        return jsonify({
+            'success': True,
+            'estimates': estimates_list,
+            'count': len(estimates_list)
+        })
+    except Exception as e:
+        import traceback
+        print(f"Error in search_estimates: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': f'견적 검색 중 오류: {str(e)}'})
+
+# 견적 조회 및 삭제 API
+@app.route('/api/wdcalculator/estimate/<int:estimate_id>', methods=['GET', 'DELETE'])
+@login_required
+def api_wdcalculator_estimate(estimate_id):
+    """견적 ID로 단일 견적 조회 또는 삭제"""
+    try:
+        db = get_wdcalculator_db()
+        estimate = db.query(Estimate).filter(Estimate.id == estimate_id).first()
+        
+        if not estimate:
+            return jsonify({'success': False, 'message': '견적을 찾을 수 없습니다.'})
+        
+        # DELETE 메서드인 경우 삭제
+        if request.method == 'DELETE':
+            db.delete(estimate)
+            db.commit()
+            return jsonify({'success': True, 'message': '견적이 삭제되었습니다.'})
+        
+        # GET 메서드인 경우 조회
+        return jsonify({
+            'success': True,
+            'estimate': estimate.to_dict()
+        })
+    except Exception as e:
+        db = get_wdcalculator_db()
+        db.rollback()
+        import traceback
+        print(f"Error in estimate API: {str(e)}")
+        print(traceback.format_exc())
+        if request.method == 'DELETE':
+            return jsonify({'success': False, 'message': f'견적 삭제 중 오류: {str(e)}'})
+        return jsonify({'success': False, 'message': f'견적 조회 중 오류: {str(e)}'})
+
+# 주문과 견적 매칭 API
+@app.route('/api/wdcalculator/match-order', methods=['POST'])
+@login_required
+def api_wdcalculator_match_order():
+    """견적과 FOMS 주문 매칭"""
+    try:
+        data = request.get_json()
+        estimate_id = data.get('estimate_id')
+        order_id = data.get('order_id')
+        
+        if not estimate_id or not order_id:
+            return jsonify({'success': False, 'message': '견적 ID와 주문 ID가 필요합니다.'})
+        
+        # 견적 존재 확인 (독립 DB)
+        wd_db = get_wdcalculator_db()
+        estimate = wd_db.query(Estimate).filter(Estimate.id == estimate_id).first()
+        if not estimate:
+            return jsonify({'success': False, 'message': '견적을 찾을 수 없습니다.'})
+        
+        # FOMS 주문 존재 확인 (읽기 전용, FOMS DB 직접 조회)
+        foms_db = get_db()
+        order = foms_db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'})
+        
+        # 이미 매칭되어 있는지 확인
+        existing_match = wd_db.query(EstimateOrderMatch).filter(
+            EstimateOrderMatch.estimate_id == estimate_id,
+            EstimateOrderMatch.order_id == order_id
+        ).first()
+        
+        if existing_match:
+            return jsonify({'success': False, 'message': '이미 매칭된 주문입니다.'})
+        
+        # 매칭 생성
+        match = EstimateOrderMatch(
+            estimate_id=estimate_id,
+            order_id=order_id
+        )
+        
+        wd_db.add(match)
+        wd_db.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '견적과 주문이 매칭되었습니다.',
+            'match_id': match.id
+        })
+    except Exception as e:
+        wd_db = get_wdcalculator_db()
+        wd_db.rollback()
+        return jsonify({'success': False, 'message': f'매칭 중 오류: {str(e)}'})
+
+# 주문별 견적 조회 API
+@app.route('/api/wdcalculator/order-estimates/<int:order_id>', methods=['GET'])
+@login_required
+def api_wdcalculator_get_order_estimates(order_id):
+    """특정 주문에 매칭된 견적 조회"""
+    try:
+        # FOMS 주문 존재 확인 (읽기 전용)
+        foms_db = get_db()
+        order = foms_db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'})
+        
+        # 매칭된 견적 조회 (독립 DB)
+        wd_db = get_wdcalculator_db()
+        matches = wd_db.query(EstimateOrderMatch).filter(
+            EstimateOrderMatch.order_id == order_id
+        ).all()
+        
+        estimates = []
+        for match in matches:
+            estimate = wd_db.query(Estimate).filter(Estimate.id == match.estimate_id).first()
+            if estimate:
+                # JSONB 사용으로 인해 복잡한 파싱 로직 불필요
+                estimates.append(estimate.to_dict())
+        
+        return jsonify({
+            'success': True,
+            'estimates': estimates,
+            'count': len(estimates)
+        })
+    except Exception as e:
+        import traceback
+        print(f"Error in get_order_estimates: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': f'견적 조회 중 오류: {str(e)}'})
+
+# FOMS 주문 검색 API (고객명으로, 견적 매칭용)
+@app.route('/api/wdcalculator/search-orders', methods=['GET'])
+@login_required
+def api_wdcalculator_search_orders():
+    """고객명으로 FOMS 주문 검색 (견적 매칭용, 읽기 전용)"""
+    try:
+        customer_name = request.args.get('customer_name', '').strip()
+        
+        if not customer_name:
+            return jsonify({'success': False, 'message': '고객명을 입력해주세요.'})
+        
+        # FOMS 주문 검색 (읽기 전용)
+        foms_db = get_db()
+        orders = foms_db.query(Order).filter(
+            Order.customer_name.ilike(f'%{customer_name}%')
+        ).order_by(Order.created_at.desc()).limit(50).all()
+        
+        orders_list = [{
+            'id': order.id,
+            'customer_name': order.customer_name,
+            'phone': order.phone,
+            'address': order.address,
+            'product': order.product,
+            'status': order.status,
+            'received_date': order.received_date,
+            'created_at': order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None
+        } for order in orders]
+        
+        return jsonify({
+            'success': True,
+            'orders': orders_list,
+            'count': len(orders_list)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'주문 검색 중 오류: {str(e)}'})
+
 if __name__ == '__main__':
     # 안전한 시작 프로세스 실행 (SystemExit 방지)
     try:
@@ -3844,10 +4464,19 @@ if __name__ == '__main__':
         # 1. 데이터베이스 초기화 시도
         try:
             init_db()
-            logger.info("[OK] 데이터베이스 초기화 완료")
+            logger.info("[OK] FOMS 데이터베이스 초기화 완료")
         except Exception as e:
-            logger.error(f"[ERROR] 데이터베이스 초기화 실패: {str(e)}")
+            logger.error(f"[ERROR] FOMS 데이터베이스 초기화 실패: {str(e)}")
             startup_success = False
+        
+        # 1-1. 견적 계산기 독립 데이터베이스 초기화 시도
+        try:
+            with app.app_context():
+                init_wdcalculator_db()
+            logger.info("[OK] 견적 계산기 데이터베이스 초기화 완료")
+        except Exception as e:
+            logger.warning(f"[WARN] 견적 계산기 데이터베이스 초기화 실패 (견적 기능 제한): {str(e)}")
+            # 견적 계산기 DB 실패는 전체 시스템에 영향 없음
         
         # 2. 안전한 스키마 마이그레이션 시도
         try:

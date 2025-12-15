@@ -16,6 +16,8 @@ interface ClosetStore extends ClosetConfig {
   toggleEP20: (position: 'left' | 'right') => void; // EP 20mm 옵션 토글
   autoGenerateUnits: () => void; // 사이즈에 따라 자동 통 생성
   calculateUnitLayout: () => void; // 통 배치 자동 계산
+  recalculatePositions: () => void; // 통 위치만 재계산 (너비 유지)
+  recalculateEP: () => void; // 통 너비 변경에 따라 좌우 EP 자동 재계산
   calculateTopEP: () => void; // 상부 EP 자동 계산
   // 프로젝트 저장/불러오기
   loadProject: (config: ClosetConfig) => void; // 프로젝트 데이터 로드
@@ -82,9 +84,16 @@ export const useClosetStore = create<ClosetStore>((set) => ({
     return newState;
   }),
 
-  updateUnit: (id, updates) => set((state) => ({
-    units: state.units.map(u => u.id === id ? { ...u, ...updates } : u)
-  })),
+  updateUnit: (id, updates) => set((state) => {
+    const updatedUnits = state.units.map(u => u.id === id ? { ...u, ...updates } : u);
+    // 통 수정 후 EP 재계산, 위치 재계산, 상부 EP 재계산
+    setTimeout(() => {
+      useClosetStore.getState().recalculateEP(); // 통 너비 변경에 따라 EP 자동 재계산
+      useClosetStore.getState().recalculatePositions(); // 위치 재계산
+      useClosetStore.getState().calculateTopEP(); // 상부 EP 재계산
+    }, 0);
+    return { units: updatedUnits };
+  }),
 
   addUnit: (unit) => set((state) => ({
     units: [...state.units, unit]
@@ -1558,6 +1567,96 @@ export const useClosetStore = create<ClosetStore>((set) => ({
 
       return {
         units: repositionedUnits,
+        endPanelSizes: {
+          ...state.endPanelSizes,
+          left: newEPLeft,
+          right: newEPRight
+        }
+      };
+    });
+  },
+
+  recalculatePositions: () => {
+    set((state) => {
+      if (state.units.length === 0) return state;
+
+      // 통 위치만 재계산 (너비는 유지)
+      const sortedUnits = [...state.units].sort((a, b) => (a.order || 0) - (b.order || 0));
+      
+      // EP와 통 사이 틈 없이 붙이기
+      let currentX = -state.totalWidth / 2; // totalWidth의 왼쪽 끝
+      if (state.endPanels.left) {
+        // EP가 있으면: EP의 오른쪽 끝에서 통 시작
+        currentX = -state.totalWidth / 2 + state.endPanelSizes.left;
+      }
+      
+      const repositionedUnits = sortedUnits.map((unit) => {
+        // 통 중심 위치 계산 (mm 단위)
+        const unitCenterX = currentX + unit.width / 2;
+        // cm로 변환하여 저장
+        const position = unitCenterX / 10;
+        // 다음 통은 이전 통의 오른쪽 끝에서 바로 시작 (틈 없음)
+        currentX += unit.width;
+        return { ...unit, position };
+      });
+
+      return {
+        units: repositionedUnits
+      };
+    });
+  },
+
+  recalculateEP: () => {
+    set((state) => {
+      if (state.units.length === 0) return state;
+
+      const minEPSize = 20; // EP 최소 크기 20mm
+      const maxEPSize = 100; // EP 최대 크기 100mm
+
+      // 통의 총 너비 계산
+      const totalUnitsWidth = state.units.reduce((sum, unit) => sum + unit.width, 0);
+      
+      // 사용 가능한 EP 공간 계산
+      const availableEPSpace = state.totalWidth - totalUnitsWidth;
+      
+      // EP가 활성화되지 않은 경우 처리
+      if (!state.endPanels.left && !state.endPanels.right) {
+        return state; // EP가 없으면 변경하지 않음
+      }
+
+      let newEPLeft = state.endPanelSizes.left;
+      let newEPRight = state.endPanelSizes.right;
+
+      if (state.endPanels.left && state.endPanels.right) {
+        // 좌우 EP 모두 활성화: 균등 분배
+        const epEach = availableEPSpace / 2;
+        newEPLeft = Math.max(minEPSize, Math.min(maxEPSize, epEach));
+        newEPRight = Math.max(minEPSize, Math.min(maxEPSize, epEach));
+        
+        // 균등 분배 후 남은 공간이 있으면 다시 분배 (둘 다 최대값에 도달하지 않은 경우)
+        const remaining = availableEPSpace - (newEPLeft + newEPRight);
+        if (remaining > 0) {
+          if (newEPLeft < maxEPSize && newEPRight < maxEPSize) {
+            const halfRemaining = remaining / 2;
+            newEPLeft = Math.min(maxEPSize, newEPLeft + halfRemaining);
+            newEPRight = Math.min(maxEPSize, newEPRight + (remaining - halfRemaining));
+          } else if (newEPLeft < maxEPSize) {
+            newEPLeft = Math.min(maxEPSize, newEPLeft + remaining);
+          } else if (newEPRight < maxEPSize) {
+            newEPRight = Math.min(maxEPSize, newEPRight + remaining);
+          }
+        }
+      } else if (state.endPanels.left) {
+        // 좌측 EP만 활성화
+        newEPLeft = Math.max(minEPSize, Math.min(maxEPSize, availableEPSpace));
+        newEPRight = 0;
+      } else if (state.endPanels.right) {
+        // 우측 EP만 활성화
+        newEPLeft = 0;
+        newEPRight = Math.max(minEPSize, Math.min(maxEPSize, availableEPSpace));
+      }
+
+      return {
         endPanelSizes: {
           ...state.endPanelSizes,
           left: newEPLeft,
