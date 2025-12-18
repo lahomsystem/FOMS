@@ -118,6 +118,102 @@
       "coupon_value": 0,
       "price_30cm": 160000,
       "price_1cm": 5340
+    },
+    {
+      "id": 16,
+      "name": "\ub9b0\ub2e4 TV\uc6d4\ud50c\ub809\uc2a4",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 165000,
+      "price_1cm": 5500
+    },
+    {
+      "id": 17,
+      "name": "\t\uc8fc\ubc29(\uc5d4\uc9c0\ub2c8\uc5b4\ub4dc\uc2a4\ud1a4)-\uc0c1\ud558\ubd80\uc7a5",
+      "pricing_type": "1m",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_1m": 750000
+    },
+    {
+      "id": 18,
+      "name": "\ud558\uc6b0\ub4dc\ubb34\ubab0\ub529",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 120000,
+      "price_1cm": 4000
+    },
+    {
+      "id": 19,
+      "name": "\ud558\uc6b0\ub4dc\ubab0\ub529",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 110000,
+      "price_1cm": 3670
+    },
+    {
+      "id": 20,
+      "name": "\uc2e0\ubc1c\uc7a5\ubbf8\ub4dc\uc6e8\uc774\ucee4\uc2a4\ud140(\uc778\uc870\ub300\ub9ac\uc11d)",
+      "pricing_type": "1m",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_1m": 650000
+    },
+    {
+      "id": 21,
+      "name": "\uc2e0\ubc1c\uc7a5\ubca4\uce58\ud615\ucee4\uc2a4\ud140",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 160000,
+      "price_1cm": 5340
+    },
+    {
+      "id": 22,
+      "name": "\uc544\uc77c\ub79c\ub4dc",
+      "pricing_type": "1m",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_1m": 550000
+    },
+    {
+      "id": 23,
+      "name": "\uc591\uba74 \uc544\uc77c\ub79c\ub4dc",
+      "pricing_type": "1m",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_1m": 1000000
+    },
+    {
+      "id": 24,
+      "name": "LED\uc2ac\ub77c\uc774\ub529",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 155000,
+      "price_1cm": 5200
+    },
+    {
+      "id": 25,
+      "name": "\uc801\uce35\uc7a5",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 187000,
+      "price_1cm": 6240
     }
   ]
 }

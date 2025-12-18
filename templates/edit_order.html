@@ -8,7 +8,7 @@
 </style>
 <div class="row">
     <div class="col-md-8 mx-auto">
-        <div class="card" data-order-id="{{ order.id }}">
+        <div class="card" data-order-id="{{ order.id }}" data-payment-amount="{{ order.payment_amount or 0 }}">
             <div class="card-header">
                 <ul class="nav nav-tabs card-header-tabs" id="orderTabs" role="tablist">
                     <li class="nav-item" role="presentation">
@@ -838,6 +838,9 @@
                 return;
             }
             
+            // 주문의 결제 금액(선 결제 금액) 읽기
+            const paymentAmount = parseInt(document.querySelector('.card[data-order-id]')?.dataset.paymentAmount || '0');
+            
             let html = '';
             estimates.forEach((estimate, index) => {
                 const estimateData = estimate.estimate_data;
@@ -845,7 +848,18 @@
                 const totalBasePrice = estimateData.totalBasePrice || 0;
                 const totalAdditionalPrice = estimateData.totalAdditionalPrice || 0;
                 const totalPrice = estimateData.totalPrice || 0;
-                const finalPrice = totalPrice; // 쿠폰 제거됨
+                // 할인 쿠폰 정보 추출
+                const couponDiscount = estimateData.coupon_discount || 0;
+                // 배송비 정보 추출
+                const shippingCost = estimateData.shipping_cost || 0;
+                // 배송비 포함 여부 (기본값: false - 별도 표기만)
+                const shippingIncluded = estimateData.shipping_included || false;
+                // 총 견적 = 기본 + 추가옵션 - 할인쿠폰
+                const totalEstimate = totalBasePrice + totalAdditionalPrice - couponDiscount;
+                // 최종 금액 계산 (배송비 포함 여부에 따라)
+                const finalPrice = shippingIncluded ? totalEstimate + shippingCost : totalEstimate;
+                // 추가결제금액 = 최종 금액 - 결제 금액 (음수면 0)
+                const additionalPayment = Math.max(0, finalPrice - paymentAmount);
                 const notes = estimateData.notes || '';
 
                 html += `
@@ -914,8 +928,8 @@
 
                         html += `
                             <tr>
-                                <td class="align-middle fw-bold">${escapeHtml(item.productName || '')}</td>
-                                <td class="align-middle">${formatNumber(item.widthMm)}mm</td>
+                                <td class="align-middle fw-bold">${escapeHtml(item.displayName || item.productName || '')}</td>
+                                <td class="align-middle">${item.displayName ? '-' : `${formatNumber(item.widthMm)}mm`}</td>
                                 <td class="align-middle">
                                     ${optionsHtml}
                                     ${itemNotesHtml}
@@ -940,12 +954,63 @@
                                             <td class="text-end">${formatNumber(totalAdditionalPrice)}원</td>
                                         </tr>
                 `;
-
+                
+                // 할인 쿠폰 표시 (있는 경우)
+                if (couponDiscount > 0) {
+                    html += `
+                                        <tr class="table-warning">
+                                            <td colspan="3" class="text-end fw-bold">
+                                                <i class="fas fa-tag me-1 text-warning"></i>할인 쿠폰
+                                            </td>
+                                            <td class="text-end fw-bold text-warning">-${formatNumber(couponDiscount)}원</td>
+                                        </tr>
+                    `;
+                }
+                
                 html += `
                                         <tr class="table-info">
                                             <td colspan="3" class="text-end fw-bold">총 견적 금액</td>
-                                            <td class="text-end fw-bold text-primary h6 mb-0">${formatNumber(finalPrice)}원</td>
+                                            <td class="text-end fw-bold text-primary h6 mb-0">${formatNumber(totalEstimate)}원</td>
                                         </tr>
+                `;
+                
+                // 배송비 표시 (있는 경우)
+                if (shippingCost > 0) {
+                    html += `
+                                        <tr class="table-secondary">
+                                            <td colspan="3" class="text-end fw-bold">
+                                                <i class="fas fa-truck me-1 text-secondary"></i>배송비
+                                            </td>
+                                            <td class="text-end fw-bold text-secondary">${formatNumber(shippingCost)}원</td>
+                                        </tr>
+                    `;
+                }
+                
+                html += `
+                                        <tr class="table-success" style="background-color: #d1e7dd !important;">
+                                            <td colspan="3" class="text-end fw-bold" style="font-size: 1.1rem;">
+                                                <i class="fas fa-calculator me-2"></i>최종 금액
+                                            </td>
+                                            <td class="text-end fw-bold text-success h5 mb-0" style="color: #0f5132 !important; font-weight: 700 !important;">${formatNumber(finalPrice)}원</td>
+                                        </tr>
+                `;
+                
+                // 추가결제금액 표시 (최종 금액 - 결제 금액)
+                if (paymentAmount > 0 || additionalPayment > 0) {
+                    html += `
+                                        <tr class="table-warning" style="background-color: #fff3cd !important;">
+                                            <td colspan="3" class="text-end fw-bold" style="font-size: 1rem;">
+                                                <i class="fas fa-money-bill-wave me-2 text-warning"></i>추가결제금액
+                                                <small class="text-muted d-block" style="font-size: 0.85rem; font-weight: 400;">
+                                                    (최종 금액 - 선 결제 금액)
+                                                </small>
+                                            </td>
+                                            <td class="text-end fw-bold text-warning h6 mb-0" style="color: #856404 !important; font-weight: 700 !important;">${formatNumber(additionalPayment)}원</td>
+                                        </tr>
+                    `;
+                }
+                
+                html += `
                                     </tfoot>
                                 </table>
                             </div>
@@ -967,6 +1032,33 @@
                                     </strong>
                                     <div>
                                         ${notesHtml}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // 배송비 섹션 추가 (비고 아래, 배송비가 있는 경우)
+                if (shippingCost > 0) {
+                    const shippingStatusText = shippingIncluded ? '최종 금액에 포함됨' : '별도 표기 (최종 금액 미포함)';
+                    const shippingStatusClass = shippingIncluded ? 'text-success' : 'text-info';
+                    html += `
+                        <div class="card-footer bg-light border-top border-dark border-opacity-50" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-truck text-primary me-2 mt-1" style="font-size: 1.2rem;"></i>
+                                <div class="flex-grow-1">
+                                    <strong class="text-primary d-block mb-2" style="font-size: 0.95rem; font-weight: 700 !important;">
+                                        배송비:
+                                    </strong>
+                                    <div class="d-flex align-items-center flex-wrap">
+                                        <span class="badge bg-primary text-white px-3 py-2" style="font-size: 1rem; font-weight: 600;">
+                                            ${formatNumber(shippingCost)}원
+                                        </span>
+                                        <small class="text-muted ms-2">(지방시공/자가실측/특정 지역)</small>
+                                        <small class="${shippingStatusClass} ms-2 fw-bold">
+                                            <i class="fas fa-info-circle"></i> ${shippingStatusText}
+                                        </small>
                                     </div>
                                 </div>
                             </div>
