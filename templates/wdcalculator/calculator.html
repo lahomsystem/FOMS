@@ -296,6 +296,59 @@
         }
     }
 </style>
+
+<style>
+/* 복합 기본견적 입력 행: 카드 폭에 맞춘 반응형 정렬/간격 */
+#baseComponentsContainer .base-component-row .card-body {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+#baseComponentsContainer .base-component-row {
+  --base-row-control-h: 36px;
+}
+#baseComponentsContainer .base-component-row .form-label.small {
+  font-weight: 700;
+  color: #495057;
+}
+#baseComponentsContainer .base-component-row .form-control-sm,
+#baseComponentsContainer .base-component-row .form-select-sm {
+  height: var(--base-row-control-h);
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+  line-height: 1.2;
+}
+#baseComponentsContainer .base-component-row .form-control-sm,
+#baseComponentsContainer .base-component-row .form-select-sm,
+#baseComponentsContainer .base-component-row .btn,
+#baseComponentsContainer .base-component-row .btn-group,
+#baseComponentsContainer .base-component-row .input-group,
+#baseComponentsContainer .base-component-row .input-group > * {
+  margin-bottom: 0 !important;
+}
+#baseComponentsContainer .base-component-row .btn-group {
+  height: var(--base-row-control-h);
+}
+#baseComponentsContainer .base-component-row .btn-group .btn {
+  height: 100%;
+  padding: 0.25rem 0.5rem;
+  line-height: 1.2;
+}
+#baseComponentsContainer .base-component-row .base-remove-btn {
+  min-width: 38px;
+  height: var(--base-row-control-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#baseComponentsContainer .base-component-row .base-details-area {
+  min-width: 0; /* select가 줄어들면서 overflow 나는 것 방지 */
+}
+@media (max-width: 576px) {
+  #baseComponentsContainer .base-component-row .text-end {
+    text-align: left !important;
+  }
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -363,73 +416,20 @@
                         <input type="text" class="form-control" id="customerName" placeholder="고객명을 입력하세요">
                     </div>
 
+                    <!-- 기본 구성(복합 기본 견적) -->
                     <div class="mb-3">
-                        <label for="productSelect" class="form-label">제품 선택 <span class="text-danger">*</span></label>
-                        <select class="form-select" id="productSelect" required>
-                            <option value="">제품을 선택하세요</option>
-                        </select>
-                    </div>
-
-                    <!-- 제품 선택 방식 (드랍다운 / 직접입력) -->
-                    <div class="mb-3">
-                        <label class="form-label">제품 선택 방식</label>
-                        <div class="d-flex flex-wrap gap-3 align-items-center">
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="productInputMode" id="productInputModeSelect" value="select" checked>
-                                <label class="form-check-label" for="productInputModeSelect">
-                                    드랍다운 선택
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="productInputMode" id="productInputModeManual" value="manual">
-                                <label class="form-check-label" for="productInputModeManual">
-                                    직접입력
-                                </label>
-                            </div>
+                        <label class="form-label">기본 구성 <span class="text-danger">*</span></label>
+                        <div id="baseComponentsContainer">
+                            <!-- JS로 구성 행이 렌더링됩니다 -->
+                        </div>
+                        <div class="d-flex gap-2 mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-info" id="addBaseComponentBtn">
+                                <i class="fas fa-plus"></i> 기본 구성 추가
+                            </button>
                         </div>
                         <small class="form-text text-muted">
-                            <i class="fas fa-info-circle"></i> 직접입력은 30cm/1cm 또는 1m 단가를 입력하여 계산합니다. 견적 저장 후 카드에서 이름을 수정할 수 있습니다.
+                            <i class="fas fa-info-circle"></i> 서로 다른 제품/단가 방식(드랍다운/직접입력/1m/30cm)을 하나의 견적으로 묶어 기본 견적을 합산할 수 있습니다.
                         </small>
-                    </div>
-
-                    <!-- 직접입력 단가 입력 -->
-                    <div id="manualPricingSection" class="mb-3" style="display:none;">
-                        <div class="card border-warning">
-                            <div class="card-body">
-                                <h6 class="card-title mb-3">
-                                    <i class="fas fa-pen me-2 text-warning"></i>직접입력 단가
-                                </h6>
-                                <div class="row g-3 align-items-end">
-                                    <div class="col-md-4">
-                                        <label for="manualPricingType" class="form-label">단가 방식</label>
-                                        <select id="manualPricingType" class="form-select">
-                                            <option value="30cm">30cm / 1cm</option>
-                                            <option value="1m">1m</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-4" id="manualPrice30Col">
-                                        <label for="manualPrice30cm" class="form-label">30cm 단가 (원)</label>
-                                        <input type="number" class="form-control" id="manualPrice30cm" min="0" step="1" placeholder="예: 187000">
-                                        <small class="form-text text-muted"></small>
-                                    </div>
-                                    <div class="col-md-4" id="manualPrice1Col">
-                                        <label for="manualPrice1cm" class="form-label">1cm 단가 (원, 자동)</label>
-                                        <input type="number" class="form-control" id="manualPrice1cm" min="0" step="10" readonly>
-                                        <small class="form-text text-muted"></small>
-                                    </div>
-                                    <div class="col-md-4" id="manualPrice1mCol" style="display:none;">
-                                        <label for="manualPrice1m" class="form-label">1m 단가 (원)</label>
-                                        <input type="number" class="form-control" id="manualPrice1m" min="0" step="1" placeholder="예: 330000">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="widthInput" class="form-label">가로넓이 (mm) <span class="text-danger">*</span></label>
-                        <input type="number" class="form-control" id="widthInput" placeholder="가로넓이를 입력하세요" min="0" step="1" required>
-                        <small class="form-text text-muted">밀리미터 단위로 입력하세요 (예: 2000, 3100)</small>
                     </div>
 
                     <!-- 제품 정보 표시 -->
@@ -633,73 +633,145 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentDatabaseEstimateId = null; // DB에 저장된 견적 ID (수정 시 사용)
     const DEFAULT_COUPON_VALUE = 11000; // 기본 쿠폰 금액
 
-    // 제품 입력 모드 (select / manual)
-    function getProductInputMode() {
-        const manual = document.getElementById('productInputModeManual');
-        return manual && manual.checked ? 'manual' : 'select';
-    }
-
+    // ==================== 복합 기본견적(Base Components) ====================
     // 10원 단위 올림
     function ceilToTens(value) {
         const v = Number(value) || 0;
         return Math.ceil(v / 10) * 10;
     }
 
-    function updateManualPrice1cm() {
-        const price30Input = document.getElementById('manualPrice30cm');
-        const price1Input = document.getElementById('manualPrice1cm');
-        if (!price30Input || !price1Input) return;
-        const price30 = Number(price30Input.value) || 0;
-        const raw = price30 / 30;
-        const rounded = ceilToTens(raw);
-        price1Input.value = String(rounded);
+    function computeAutoPrice1cmFrom30cm(price30) {
+        return ceilToTens((Number(price30) || 0) / 30);
     }
 
-    function syncProductModeUI() {
-        const mode = getProductInputMode();
-        const productSelect = document.getElementById('productSelect');
-        const manualSection = document.getElementById('manualPricingSection');
-        if (productSelect) {
-            productSelect.disabled = mode === 'manual';
-        }
-        if (manualSection) {
-            manualSection.style.display = mode === 'manual' ? 'block' : 'none';
-        }
-        // 직접입력일 때 제품정보 영역은 숨김(제품 설정 기반이 아니므로)
-        const productInfo = document.getElementById('productInfo');
-        if (productInfo && mode === 'manual') {
-            productInfo.style.display = 'none';
-        }
-        calculateEstimate();
+    function getProductsOptionsHtml() {
+        let html = '<option value="">제품을 선택하세요</option>';
+        (products || []).forEach(p => {
+            if (!p) return;
+            html += `<option value="${p.id}">${escapeHtml(p.name || '')}</option>`;
+        });
+        return html;
     }
 
-    function syncManualPricingTypeUI() {
-        const pricingType = document.getElementById('manualPricingType')?.value || '30cm';
-        const col30 = document.getElementById('manualPrice30Col');
-        const col1 = document.getElementById('manualPrice1Col');
-        const col1m = document.getElementById('manualPrice1mCol');
-        if (pricingType === '1m') {
-            if (col30) col30.style.display = 'none';
-            if (col1) col1.style.display = 'none';
-            if (col1m) col1m.style.display = '';
-        } else {
-            if (col30) col30.style.display = '';
-            if (col1) col1.style.display = '';
-            if (col1m) col1m.style.display = 'none';
-            updateManualPrice1cm();
-        }
-        calculateEstimate();
+    function renderBaseComponentRow(component = {}) {
+        const mode = component.mode || 'select'; // select | manual
+        const manualPricingType = component.manualPricing?.pricing_type || '30cm';
+        const widthMm = component.widthMm ?? '';
+        const productId = component.productId ?? '';
+        const price30 = component.manualPricing?.price_30cm ?? '';
+        const price1 = component.manualPricing?.price_1cm ?? (price30 ? computeAutoPrice1cmFrom30cm(price30) : 0);
+        const price1m = component.manualPricing?.price_1m ?? '';
+
+        return `
+            <div class="card mb-2 border-light base-component-row" data-mode="${mode}">
+                <div class="card-body py-2">
+                    <div class="row g-2 align-items-end">
+                        <!-- 방식 -->
+                        <div class="col-6 col-md-2">
+                            <label class="form-label small mb-1">방식</label>
+                            <div class="btn-group w-100" role="group">
+                                <button type="button" class="btn btn-sm ${mode === 'select' ? 'btn-info' : 'btn-outline-info'} base-mode-btn" data-mode="select">선택</button>
+                                <button type="button" class="btn btn-sm ${mode === 'manual' ? 'btn-warning' : 'btn-outline-warning'} base-mode-btn" data-mode="manual">직접</button>
+                            </div>
+                        </div>
+
+                        <!-- 선택/직접 상세 영역 (항상 같은 컬럼을 차지해서 남는 공간 제거) -->
+                        <div class="col-12 col-md-6 base-details-area">
+                            <!-- 제품(선택 모드) -->
+                            <div class="base-select-area" style="${mode === 'manual' ? 'display:none;' : ''}">
+                                <label class="form-label small mb-1">제품</label>
+                                <select class="form-select form-select-sm base-product-select">
+                                    ${getProductsOptionsHtml()}
+                                </select>
+                            </div>
+
+                            <!-- 직접입력(직접 모드) -->
+                            <div class="base-manual-area" style="${mode === 'manual' ? '' : 'display:none;'}">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-4">
+                                        <label class="form-label small mb-1">단가 방식</label>
+                                        <select class="form-select form-select-sm base-manual-pricing-type">
+                                            <option value="30cm" ${manualPricingType === '30cm' ? 'selected' : ''}>30cm/1cm</option>
+                                            <option value="1m" ${manualPricingType === '1m' ? 'selected' : ''}>1m</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-5 base-manual-30cm-col" style="${manualPricingType === '1m' ? 'display:none;' : ''}">
+                                        <label class="form-label small mb-1">30cm(원)</label>
+                                        <input type="number" class="form-control form-control-sm base-manual-price30" min="0" step="1" placeholder="예: 187000" value="${escapeHtml(String(price30))}">
+                                    </div>
+                                    <div class="col-3 base-manual-1cm-col" style="${manualPricingType === '1m' ? 'display:none;' : ''}">
+                                        <label class="form-label small mb-1">1cm(자동)</label>
+                                        <input type="number" class="form-control form-control-sm base-manual-price1" min="0" step="10" readonly value="${escapeHtml(String(price1))}">
+                                    </div>
+                                    <div class="col-8 base-manual-1m-col" style="${manualPricingType === '1m' ? '' : 'display:none;'}">
+                                        <label class="form-label small mb-1">1m(원)</label>
+                                        <input type="number" class="form-control form-control-sm base-manual-price1m" min="0" step="1" placeholder="예: 330000" value="${escapeHtml(String(price1m))}">
+                                    </div>
+                                </div>
+                                
+                            </div>
+                        </div>
+
+                        <!-- 가로 (직접: 마지막 / 선택: 제품 다음) -->
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small mb-1">가로(mm)</label>
+                            <input type="number" class="form-control form-control-sm base-width-input" min="0" step="1" placeholder="예: 4470" value="${escapeHtml(String(widthMm))}">
+                        </div>
+
+                        <!-- 삭제 -->
+                        <div class="col-6 col-md-1 text-end">
+                            <button type="button" class="btn btn-sm btn-outline-danger base-remove-btn" title="삭제">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
-    // 제품 입력 모드 이벤트
-    document.getElementById('productInputModeSelect')?.addEventListener('change', syncProductModeUI);
-    document.getElementById('productInputModeManual')?.addEventListener('change', syncProductModeUI);
-    document.getElementById('manualPricingType')?.addEventListener('change', syncManualPricingTypeUI);
-    document.getElementById('manualPrice30cm')?.addEventListener('input', () => {
-        updateManualPrice1cm();
-        calculateEstimate();
-    });
-    document.getElementById('manualPrice1m')?.addEventListener('input', calculateEstimate);
+    function ensureBaseComponentsUI(components = null) {
+        const container = document.getElementById('baseComponentsContainer');
+        if (!container) return;
+        container.innerHTML = '';
+        const list = (components && Array.isArray(components) && components.length)
+            ? components
+            : [{ mode: 'select' }];
+        container.innerHTML = list.map(c => renderBaseComponentRow(c)).join('');
+        // 선택값 세팅 (렌더 뒤)
+        container.querySelectorAll('.base-component-row').forEach((rowEl, idx) => {
+            const comp = list[idx] || {};
+            const sel = rowEl.querySelector('.base-product-select');
+            if (sel && comp.productId) {
+                sel.value = String(comp.productId);
+            }
+        });
+    }
+
+    function readBaseComponentsFromUI() {
+        const container = document.getElementById('baseComponentsContainer');
+        if (!container) return [];
+        const rows = Array.from(container.querySelectorAll('.base-component-row'));
+        return rows.map(rowEl => {
+            const mode = rowEl.dataset.mode || 'select';
+            const widthMm = Number(rowEl.querySelector('.base-width-input')?.value) || 0;
+            if (mode === 'manual') {
+                const pricingType = rowEl.querySelector('.base-manual-pricing-type')?.value || '30cm';
+                if (pricingType === '1m') {
+                    const price1m = Number(rowEl.querySelector('.base-manual-price1m')?.value) || 0;
+                    return { mode, widthMm, manualPricing: { pricing_type: '1m', price_1m: price1m } };
+                }
+                const price30 = Number(rowEl.querySelector('.base-manual-price30')?.value) || 0;
+                const auto1 = computeAutoPrice1cmFrom30cm(price30);
+                // 항상 자동값으로 맞춤
+                const price1El = rowEl.querySelector('.base-manual-price1');
+                if (price1El) price1El.value = String(auto1);
+                return { mode, widthMm, manualPricing: { pricing_type: '30cm', price_30cm: price30, price_1cm: auto1 } };
+            }
+            const productId = Number(rowEl.querySelector('.base-product-select')?.value) || null;
+            return { mode, widthMm, productId };
+        });
+    }
     
     // 쿠폰 값을 가져오는 함수 (매번 DOM에서 직접 읽기 - 가장 확실한 방법)
     function getCouponValue() {
@@ -1175,6 +1247,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success) {
                     products = data.products;
                     updateProductSelect();
+                    // 제품 로드 후 기본 구성 UI를 최신 옵션으로 갱신
+                    if (document.getElementById('baseComponentsContainer')) {
+                        // 기존 행의 선택값 보존하며 옵션만 업데이트
+                        updateBaseProductSelectOptions();
+                        // 초기 로드 시 행이 없으면 1개 생성
+                        if (document.querySelectorAll('.base-component-row').length === 0) {
+                            ensureBaseComponentsUI();
+                        }
+                    }
                 }
             })
             .catch(error => {
@@ -1184,14 +1265,25 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 제품 선택 드롭다운 업데이트
     function updateProductSelect() {
+        // (레거시) productSelect는 더 이상 사용하지 않지만, 구 코드 호환을 위해 null-safe 처리
         const select = document.getElementById('productSelect');
+        if (!select) return;
         select.innerHTML = '<option value="">제품을 선택하세요</option>';
-        
         products.forEach(product => {
             const option = document.createElement('option');
             option.value = product.id;
             option.textContent = product.name;
             select.appendChild(option);
+        });
+    }
+
+    // 복합 기본견적 행들의 제품 드랍다운 옵션 업데이트
+    function updateBaseProductSelectOptions() {
+        const optionHtml = getProductsOptionsHtml();
+        document.querySelectorAll('.base-component-row .base-product-select').forEach(sel => {
+            const prev = sel.value;
+            sel.innerHTML = optionHtml;
+            if (prev) sel.value = prev;
         });
     }
     
@@ -1256,13 +1348,7 @@ document.addEventListener('DOMContentLoaded', function() {
         infoDiv.style.display = 'block';
     }
     
-    // 가로넓이 입력 시 실시간 계산 (null 체크 추가)
-    const widthInput = document.getElementById('widthInput');
-    if (widthInput) {
-        widthInput.addEventListener('input', function() {
-        calculateEstimate();
-    });
-    }
+    // (구버전) 단일 가로넓이 입력(widthInput)은 복합 기본구성 도입으로 제거됨
     
     // 추가 옵션 표시 모드 헬퍼 함수
     function setOptionMode(selectEl, nameInputEl, mode) {
@@ -1412,12 +1498,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 견적 계산 함수
     function calculateEstimate() {
-        const mode = getProductInputMode();
-        const productId = parseInt(document.getElementById('productSelect').value);
-        const widthMm = parseFloat(document.getElementById('widthInput').value) || 0;
-        
-        // 입력 검증: 드랍다운 모드면 productId 필요, 직접입력 모드면 단가 입력 필요
-        if (widthMm <= 0 || (mode === 'select' && !productId)) {
+        const baseComponents = readBaseComponentsFromUI();
+        // 모든 구성의 유효성 체크
+        if (!baseComponents.length) {
             document.getElementById('baseEstimateSection').style.display = 'none';
             document.getElementById('totalBasePrice').textContent = '0원';
             document.getElementById('totalAdditionalPrice').textContent = '0원';
@@ -1431,43 +1514,52 @@ document.addEventListener('DOMContentLoaded', function() {
         // 기본 견적 계산
         let basePrice = 0;
         let baseEstimateDetail = '';
-        if (mode === 'manual') {
-            const pricingType = document.getElementById('manualPricingType')?.value || '30cm';
-            if (pricingType === '1m') {
-                const price1m = Number(document.getElementById('manualPrice1m')?.value) || 0;
-                if (price1m <= 0) {
-                    document.getElementById('baseEstimateSection').style.display = 'none';
-                    return;
+        const detailLines = [];
+        for (const comp of baseComponents) {
+            const widthMm = Number(comp.widthMm) || 0;
+            if (widthMm <= 0) continue;
+            if (comp.mode === 'manual') {
+                const pricingType = comp.manualPricing?.pricing_type || '30cm';
+                if (pricingType === '1m') {
+                    const price1m = Number(comp.manualPricing?.price_1m) || 0;
+                    if (price1m <= 0) continue;
+                    const meters = widthMm / 1000;
+                    const price = meters * price1m;
+                    basePrice += price;
+                    detailLines.push(`직접입력(1m) ${formatNumber(widthMm)}mm`);
+                } else {
+                    const price30 = Number(comp.manualPricing?.price_30cm) || 0;
+                    const price1 = Number(comp.manualPricing?.price_1cm) || 0;
+                    if (price30 <= 0 || price1 <= 0) continue;
+                    const units30cm = Math.floor(widthMm / 300);
+                    const remainderMm = widthMm % 300;
+                    const units1cm = Math.floor(remainderMm / 10);
+                    const price = (units30cm * price30) + (units1cm * price1);
+                    basePrice += price;
+                    detailLines.push(`직접입력(30cm) ${formatNumber(widthMm)}mm`);
                 }
-                const meters = widthMm / 1000;
-                basePrice = meters * price1m;
-                baseEstimateDetail = `직접입력(1m) ${formatNumber(widthMm)}mm`;
             } else {
-                const price30 = Number(document.getElementById('manualPrice30cm')?.value) || 0;
-                const price1 = Number(document.getElementById('manualPrice1cm')?.value) || 0;
-                if (price30 <= 0 || price1 <= 0) {
-                    document.getElementById('baseEstimateSection').style.display = 'none';
-                    return;
+                const productId = Number(comp.productId) || 0;
+                if (!productId) continue;
+                const product = products.find(p => p.id === productId);
+                if (!product) continue;
+                let price = 0;
+                if (product.pricing_type === '1m') {
+                    price = (widthMm / 1000) * (product.price_1m || 0);
+                } else if (product.pricing_type === '30cm') {
+                    const units30cm = Math.floor(widthMm / 300);
+                    const remainderMm = widthMm % 300;
+                    const units1cm = Math.floor(remainderMm / 10);
+                    price = (units30cm * (product.price_30cm || 0)) + (units1cm * (product.price_1cm || 0));
                 }
-                const units30cm = Math.floor(widthMm / 300);
-                const remainderMm = widthMm % 300;
-                const units1cm = Math.floor(remainderMm / 10);
-                basePrice = (units30cm * price30) + (units1cm * price1);
-                baseEstimateDetail = `직접입력(30cm) ${formatNumber(widthMm)}mm`;
+                basePrice += price;
+                detailLines.push(`${product.name} ${formatNumber(widthMm)}mm`);
             }
-        } else {
-            const product = products.find(p => p.id === productId);
-            if (!product) return;
-            if (product.pricing_type === '1m') {
-                const meters = widthMm / 1000;
-                basePrice = meters * (product.price_1m || 0);
-            } else if (product.pricing_type === '30cm') {
-                const units30cm = Math.floor(widthMm / 300);
-                const remainderMm = widthMm % 300;
-                const units1cm = Math.floor(remainderMm / 10);
-                basePrice = (units30cm * (product.price_30cm || 0)) + (units1cm * (product.price_1cm || 0));
-            }
-            baseEstimateDetail = `${product.name} ${formatNumber(widthMm)}mm`;
+        }
+        baseEstimateDetail = detailLines.join(' / ');
+        if (!baseEstimateDetail) {
+            document.getElementById('baseEstimateSection').style.display = 'none';
+            return;
         }
 
         document.getElementById('baseEstimateDetail').textContent = baseEstimateDetail;
@@ -1575,52 +1667,72 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 현재 입력 폼의 견적 데이터 수집
     function collectCurrentEstimate() {
-        const mode = getProductInputMode();
-        const productId = parseInt(document.getElementById('productSelect').value);
-        const widthMm = parseFloat(document.getElementById('widthInput').value) || 0;
-        
-        if (widthMm <= 0 || (mode === 'select' && !productId)) {
+        const baseComponents = readBaseComponentsFromUI();
+        if (!baseComponents.length) {
             return null;
         }
 
         // 기본 견적 계산
         let basePrice = 0;
-        let productName = '';
-        let manualPricing = null;
-        if (mode === 'manual') {
-            const pricingType = document.getElementById('manualPricingType')?.value || '30cm';
-            if (pricingType === '1m') {
-                const price1m = Number(document.getElementById('manualPrice1m')?.value) || 0;
-                if (price1m <= 0) return null;
-                const meters = widthMm / 1000;
-                basePrice = meters * price1m;
-                productName = '직접입력(1m)';
-                manualPricing = { pricing_type: '1m', price_1m: price1m };
+        const normalizedComponents = [];
+        const displayParts = [];
+        for (const comp of baseComponents) {
+            const widthMm = Number(comp.widthMm) || 0;
+            if (widthMm <= 0) continue;
+            if (comp.mode === 'manual') {
+                const pricingType = comp.manualPricing?.pricing_type || '30cm';
+                if (pricingType === '1m') {
+                    const price1m = Number(comp.manualPricing?.price_1m) || 0;
+                    if (price1m <= 0) continue;
+                    const price = (widthMm / 1000) * price1m;
+                    basePrice += price;
+                    normalizedComponents.push({
+                        mode: 'manual',
+                        widthMm,
+                        manualPricing: { pricing_type: '1m', price_1m: price1m }
+                    });
+                    displayParts.push(`직접입력(1m) ${formatNumber(widthMm)}mm`);
+                } else {
+                    const price30 = Number(comp.manualPricing?.price_30cm) || 0;
+                    const price1 = Number(comp.manualPricing?.price_1cm) || 0;
+                    if (price30 <= 0 || price1 <= 0) continue;
+                    const units30cm = Math.floor(widthMm / 300);
+                    const remainderMm = widthMm % 300;
+                    const units1cm = Math.floor(remainderMm / 10);
+                    const price = (units30cm * price30) + (units1cm * price1);
+                    basePrice += price;
+                    normalizedComponents.push({
+                        mode: 'manual',
+                        widthMm,
+                        manualPricing: { pricing_type: '30cm', price_30cm: price30, price_1cm: price1 }
+                    });
+                    displayParts.push(`직접입력(30cm) ${formatNumber(widthMm)}mm`);
+                }
             } else {
-                const price30 = Number(document.getElementById('manualPrice30cm')?.value) || 0;
-                const price1 = Number(document.getElementById('manualPrice1cm')?.value) || 0;
-                if (price30 <= 0 || price1 <= 0) return null;
-                const units30cm = Math.floor(widthMm / 300);
-                const remainderMm = widthMm % 300;
-                const units1cm = Math.floor(remainderMm / 10);
-                basePrice = (units30cm * price30) + (units1cm * price1);
-                productName = '직접입력(30cm)';
-                manualPricing = { pricing_type: '30cm', price_30cm: price30, price_1cm: price1 };
-            }
-        } else {
-            const product = products.find(p => p.id === productId);
-            if (!product) return null;
-            productName = product.name;
-            if (product.pricing_type === '1m') {
-                const meters = widthMm / 1000;
-                basePrice = meters * (product.price_1m || 0);
-            } else if (product.pricing_type === '30cm') {
-                const units30cm = Math.floor(widthMm / 300);
-                const remainderMm = widthMm % 300;
-                const units1cm = Math.floor(remainderMm / 10);
-                basePrice = (units30cm * (product.price_30cm || 0)) + (units1cm * (product.price_1cm || 0));
+                const productId = Number(comp.productId) || 0;
+                if (!productId) continue;
+                const product = products.find(p => p.id === productId);
+                if (!product) continue;
+                let price = 0;
+                if (product.pricing_type === '1m') {
+                    price = (widthMm / 1000) * (product.price_1m || 0);
+                } else if (product.pricing_type === '30cm') {
+                    const units30cm = Math.floor(widthMm / 300);
+                    const remainderMm = widthMm % 300;
+                    const units1cm = Math.floor(remainderMm / 10);
+                    price = (units30cm * (product.price_30cm || 0)) + (units1cm * (product.price_1cm || 0));
+                }
+                basePrice += price;
+                normalizedComponents.push({
+                    mode: 'select',
+                    productId,
+                    widthMm
+                });
+                displayParts.push(`${product.name} ${formatNumber(widthMm)}mm`);
             }
         }
+
+        if (!normalizedComponents.length) return null;
         
         // 추가 옵션 수집
         const options = [];
@@ -1657,17 +1769,19 @@ document.addEventListener('DOMContentLoaded', function() {
         // 비고 정보 수집
         const notes = collectNotes();
         
-        const defaultDisplayName = `${productName} ${formatNumber(widthMm)}mm`;
+        const defaultDisplayName = normalizedComponents.length >= 2
+            ? `복합 기본 (${normalizedComponents.length}건)`
+            : (displayParts[0] || '기본 구성');
         return {
-            productId: mode === 'manual' ? null : productId,
-            productName: productName,
+            productId: null,
+            productName: normalizedComponents.length >= 2 ? '복합 기본' : (displayParts[0] || '기본 구성'),
             displayName: defaultDisplayName, // 사용자 편집 가능한 표시 이름
-            widthMm: widthMm,
+            widthMm: 0,
             basePrice: basePrice,
             options: options,
             additionalPrice: additionalPrice,
             totalPrice: totalPrice,
-            manualPricing: manualPricing,
+            baseComponents: normalizedComponents,
             notes: notes // 비고 정보 추가
         };
     }
@@ -2088,7 +2202,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 입력 폼 초기화
         document.getElementById('productSelect').value = '';
-        document.getElementById('widthInput').value = '';
         document.getElementById('additionalOptionsContainer').innerHTML = '';
         // 비고 초기화
         notesList = [{type: 'select', value: ''}];
@@ -2327,100 +2440,23 @@ document.addEventListener('DOMContentLoaded', function() {
         notesList = [{type: 'select', value: ''}];
         renderAllNotes();
         
-        // 2. 제품 입력 모드 설정 (직접입력/드랍다운)
-        const isManual = !!estimate.manualPricing || !estimate.productId;
-        const modeSelect = document.getElementById('productInputModeSelect');
-        const modeManual = document.getElementById('productInputModeManual');
-        if (modeSelect && modeManual) {
-            modeManual.checked = isManual;
-            modeSelect.checked = !isManual;
-            syncProductModeUI();
-        }
-
-        // 2. 제품 선택 (재시도 로직 포함) - 드랍다운 모드에서만
-        const productSelect = document.getElementById('productSelect');
-        const productId = estimate.productId;
-        
-        let checkInterval = null;
-        
-        function setProductSelection() {
-            if (isManual) {
-                productSelect.value = '';
-                document.getElementById('productInfo').style.display = 'none';
-                return;
-            }
-            // 숫자/문자열 모두 시도
-            productSelect.value = String(productId);
-            
-            if (!productSelect.value && productId) {
-                // 모든 옵션 순회하며 찾기
-                for (let i = 0; i < productSelect.options.length; i++) {
-                    const optionValue = productSelect.options[i].value;
-                    if (String(optionValue) === String(productId) || 
-                        Number(optionValue) === Number(productId)) {
-                        productSelect.selectedIndex = i;
-                        break;
-                    }
-                }
-            }
-            
-            // 제품 선택 성공 여부 확인
-            const product = products.find(p => p.id === productId);
-            if (product) {
-                showProductInfo(product);
-                console.log('제품 선택 성공:', product.name);
-            } else {
-                document.getElementById('productInfo').style.display = 'none';
-                if (productId) {
-                    console.warn('제품을 찾을 수 없습니다. ProductID:', productId);
-                    // 제품 선택 실패 시에도 계속 진행하되 경고 표시
-                    alert(`경고: 제품 ID ${productId}를 찾을 수 없습니다. 제품 정보가 표시되지 않을 수 있습니다.`);
-                }
-            }
-        }
-        
-        // 제품 목록이 로드되지 않았으면 대기 (직접입력은 즉시 진행)
-        if (!isManual && productSelect.options.length <= 1) {
-            console.warn('제품 목록이 아직 로드되지 않았습니다. 대기 중...');
-            checkInterval = setInterval(() => {
-                if (productSelect.options.length > 1) {
-                    clearInterval(checkInterval);
-                    checkInterval = null;
-                    setProductSelection();
-                }
-            }, 100);
-            
-            // 최대 3초 대기 후 강제 실행
-            setTimeout(() => {
-                if (checkInterval) {
-                    clearInterval(checkInterval);
-                    checkInterval = null;
-                }
-                setProductSelection();
-            }, 3000);
+        // 2. 기본 구성 UI 로드 (복합/단일 모두 처리)
+        if (estimate.baseComponents && Array.isArray(estimate.baseComponents) && estimate.baseComponents.length > 0) {
+            ensureBaseComponentsUI(estimate.baseComponents);
         } else {
-            setProductSelection();
+            // 구버전 데이터 호환: 단일 productId/manualPricing 기반이면 1개 행으로 변환
+            const legacy = [];
+            if (estimate.manualPricing) {
+                legacy.push({ mode: 'manual', widthMm: estimate.widthMm || 0, manualPricing: estimate.manualPricing });
+            } else if (estimate.productId) {
+                legacy.push({ mode: 'select', widthMm: estimate.widthMm || 0, productId: estimate.productId });
+            } else {
+                legacy.push({ mode: 'select' });
+            }
+            ensureBaseComponentsUI(legacy);
         }
         
-        // 3. 가로넓이 설정
-        document.getElementById('widthInput').value = estimate.widthMm;
-        console.log('Width set to:', estimate.widthMm);
-
-        // 3.1 직접입력 단가 로드
-        if (isManual && estimate.manualPricing) {
-            const pricingTypeEl = document.getElementById('manualPricingType');
-            if (pricingTypeEl) pricingTypeEl.value = estimate.manualPricing.pricing_type || '30cm';
-            if ((estimate.manualPricing.pricing_type || '30cm') === '1m') {
-                const price1mEl = document.getElementById('manualPrice1m');
-                if (price1mEl) price1mEl.value = String(estimate.manualPricing.price_1m || 0);
-            } else {
-                const price30El = document.getElementById('manualPrice30cm');
-                const price1El = document.getElementById('manualPrice1cm');
-                if (price30El) price30El.value = String(estimate.manualPricing.price_30cm || 0);
-                if (price1El) price1El.value = String(estimate.manualPricing.price_1cm || 0);
-            }
-            syncManualPricingTypeUI();
-        }
+        // 3. (구버전) 단일 widthInput 제거됨
         
         // 4. 추가 옵션 로드 (동기적으로 처리)
         const container = document.getElementById('additionalOptionsContainer');
@@ -2646,6 +2682,91 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 초기 제품 목록 로드
     loadProducts();
+
+    // 기본 구성 추가 버튼
+    document.getElementById('addBaseComponentBtn')?.addEventListener('click', function() {
+        const container = document.getElementById('baseComponentsContainer');
+        if (!container) return;
+        container.insertAdjacentHTML('beforeend', renderBaseComponentRow({ mode: 'select' }));
+        calculateEstimate();
+    });
+
+    // 기본 구성 이벤트 위임
+    document.getElementById('baseComponentsContainer')?.addEventListener('click', function(e) {
+        const rowEl = e.target.closest('.base-component-row');
+        if (!rowEl) return;
+
+        const modeBtn = e.target.closest('.base-mode-btn');
+        if (modeBtn) {
+            const newMode = modeBtn.dataset.mode;
+            rowEl.dataset.mode = newMode;
+            // 토글 UI
+            const selectArea = rowEl.querySelector('.base-select-area');
+            const manualArea = rowEl.querySelector('.base-manual-area');
+            if (selectArea) selectArea.style.display = newMode === 'manual' ? 'none' : '';
+            if (manualArea) manualArea.style.display = newMode === 'manual' ? '' : 'none';
+            // 버튼 스타일
+            rowEl.querySelectorAll('.base-mode-btn').forEach(btn => {
+                const m = btn.dataset.mode;
+                btn.classList.remove('btn-info','btn-outline-info','btn-warning','btn-outline-warning');
+                if (m === 'select') btn.classList.add(m === newMode ? 'btn-info' : 'btn-outline-info');
+                if (m === 'manual') btn.classList.add(m === newMode ? 'btn-warning' : 'btn-outline-warning');
+            });
+            calculateEstimate();
+            return;
+        }
+
+        const removeBtn = e.target.closest('.base-remove-btn');
+        if (removeBtn) {
+            const container = document.getElementById('baseComponentsContainer');
+            const rows = container ? container.querySelectorAll('.base-component-row') : [];
+            if (rows.length <= 1) {
+                // 최소 1개 유지
+                return;
+            }
+            rowEl.remove();
+            calculateEstimate();
+            return;
+        }
+    });
+
+    document.getElementById('baseComponentsContainer')?.addEventListener('input', function(e) {
+        // 직접입력 30cm 변경 시 1cm 자동 업데이트
+        const rowEl = e.target.closest('.base-component-row');
+        if (!rowEl) return;
+        if (e.target.classList.contains('base-manual-price30')) {
+            const price30 = Number(e.target.value) || 0;
+            const auto1 = computeAutoPrice1cmFrom30cm(price30);
+            const price1El = rowEl.querySelector('.base-manual-price1');
+            if (price1El) price1El.value = String(auto1);
+        }
+        calculateEstimate();
+    });
+
+    document.getElementById('baseComponentsContainer')?.addEventListener('change', function(e) {
+        const rowEl = e.target.closest('.base-component-row');
+        if (!rowEl) return;
+        if (e.target.classList.contains('base-manual-pricing-type')) {
+            const pricingType = e.target.value || '30cm';
+            const col30 = rowEl.querySelector('.base-manual-30cm-col');
+            const col1 = rowEl.querySelector('.base-manual-1cm-col');
+            const col1m = rowEl.querySelector('.base-manual-1m-col');
+            if (pricingType === '1m') {
+                if (col30) col30.style.display = 'none';
+                if (col1) col1.style.display = 'none';
+                if (col1m) col1m.style.display = '';
+            } else {
+                if (col30) col30.style.display = '';
+                if (col1) col1.style.display = '';
+                if (col1m) col1m.style.display = 'none';
+                const price30El = rowEl.querySelector('.base-manual-price30');
+                const auto1 = computeAutoPrice1cmFrom30cm(Number(price30El?.value) || 0);
+                const price1El = rowEl.querySelector('.base-manual-price1');
+                if (price1El) price1El.value = String(auto1);
+            }
+        }
+        calculateEstimate();
+    });
     
     // 견적 검색 기능 (null 체크 추가)
     const searchEstimateBtn = document.getElementById('searchEstimateBtn');
@@ -2835,6 +2956,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     options: est.options || [],
                     additionalPrice: est.additionalPrice || 0,
                     totalPrice: est.totalPrice || 0,
+                    baseComponents: est.baseComponents || null,
                     notes: est.notes || globalNotes // 개별 비고가 있으면 사용, 없으면 전체 비고 사용
                 };
             });
@@ -2850,8 +2972,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // 입력 폼 초기화 (첫 번째 견적 자동 로드 제거)
-            document.getElementById('productSelect').value = '';
-            document.getElementById('widthInput').value = '';
+            // 복합 기본견적 UI 기준으로 초기화
+            ensureBaseComponentsUI();
             document.getElementById('additionalOptionsContainer').innerHTML = '';
             document.getElementById('productInfo').style.display = 'none';
             document.getElementById('baseEstimateSection').style.display = 'none';
@@ -3352,9 +3474,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // 초기 UI 동기화
-    syncProductModeUI();
-    syncManualPricingTypeUI();
+    // 초기 기본 구성 UI (제품 목록 로드 전이라도 기본 1행은 렌더)
+    ensureBaseComponentsUI();
 
     // 배송비 입력 필드 변경 시 자동 재계산
     const shippingCostInputField = document.getElementById('shippingCost');
