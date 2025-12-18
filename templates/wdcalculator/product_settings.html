@@ -490,9 +490,32 @@
     </div>
 </div>
 
+<!-- 초기 데이터 안전 주입 -->
+<script type="application/json" id="initial-products">
+{{ products|tojson }}
+</script>
+<script type="application/json" id="initial-categories">
+{{ (categories|default([]))|tojson }}
+</script>
+<script type="application/json" id="initial-notes-categories">
+{{ (notes_categories|default([]))|tojson }}
+</script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const products = JSON.parse('{{ products|tojson|safe }}') || [];
+    function safeParseJson(elId) {
+        try {
+            const el = document.getElementById(elId);
+            if (!el) return [];
+            return JSON.parse(el.textContent || '[]') || [];
+        } catch (err) {
+            console.error('JSON parse error from', elId, err);
+            showToast && showToast('데이터를 불러오는 중 오류가 발생했습니다. 새로고침 후 다시 시도해주세요.', false);
+            return [];
+        }
+    }
+
+    const products = safeParseJson('initial-products');
     let editingProductId = null;
     
     const toastElement = document.getElementById('status-toast');
@@ -673,12 +696,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ==================== 추가 옵션 관리 ====================
-    const categories = JSON.parse('{{ (categories|default([]))|tojson|safe }}') || [];
+    const categories = safeParseJson('initial-categories');
     let editingAdditionalOptionId = null;
     let editingAdditionalOptionCategoryId = null;
     
     // ==================== 비고 카테고리 관리 ====================
-    let notesCategories = JSON.parse('{{ (notes_categories|default([]))|tojson|safe }}') || [];
+    let notesCategories = safeParseJson('initial-notes-categories');
     let editingNotesOptionId = null;
     let editingNotesCategoryId = null;
     

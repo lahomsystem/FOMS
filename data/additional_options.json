@@ -184,18 +184,7 @@
     {
       "id": 7,
       "name": "TV\uc6d4\ud50c\ub809\uc2a4",
-      "options": [
-        {
-          "id": 1101,
-          "name": "\ud648\uce74\ud398",
-          "price": 300000.0
-        },
-        {
-          "id": 1102,
-          "name": "\ud22c\uc6e8\uc774 \ud648\uce74\ud398",
-          "price": 400000.0
-        }
-      ]
+      "options": []
     },
     {
       "id": 8,
@@ -225,6 +214,22 @@
           "id": 1107,
           "name": "\ucee4\uc2a4\ud140",
           "price": 100000.0
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "\ud648\uce74\ud398\uc7a5",
+      "options": [
+        {
+          "id": 1108,
+          "name": "\ud648\uce74\ud398\uc7a5",
+          "price": 300000.0
+        },
+        {
+          "id": 1109,
+          "name": "\ud22c\uc6e8\uc774 \ud648\uce74\ud398\uc7a5",
+          "price": 400000.0
         }
       ]
     }
