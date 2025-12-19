@@ -427,9 +427,7 @@
                                 <i class="fas fa-plus"></i> 기본 구성 추가
                             </button>
                         </div>
-                        <small class="form-text text-muted">
-                            <i class="fas fa-info-circle"></i> 서로 다른 제품/단가 방식(드랍다운/직접입력/1m/30cm)을 하나의 견적으로 묶어 기본 견적을 합산할 수 있습니다.
-                        </small>
+                        
                     </div>
 
                     <!-- 제품 정보 표시 -->
@@ -470,9 +468,7 @@
                         <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btnAddNote">
                             <i class="fas fa-plus"></i> 비고 추가
                         </button>
-                        <small class="form-text text-muted">
-                            <i class="fas fa-info-circle"></i> 비고는 견적서에 표시됩니다. 옵션 선택 또는 직접 입력을 혼합하여 사용할 수 있습니다.
-                        </small>
+                        
                     </div>
                 </div>
             </div>
@@ -661,10 +657,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const price30 = component.manualPricing?.price_30cm ?? '';
         const price1 = component.manualPricing?.price_1cm ?? (price30 ? computeAutoPrice1cmFrom30cm(price30) : 0);
         const price1m = component.manualPricing?.price_1m ?? '';
+        const additionalFee = component.additionalFee ?? ''; // 추가금
 
         return `
             <div class="card mb-2 border-light base-component-row" data-mode="${mode}">
                 <div class="card-body py-2">
+                    <!-- 첫 번째 행: 방식, 제품/직접입력, 가로, 삭제 -->
                     <div class="row g-2 align-items-end">
                         <!-- 방식 -->
                         <div class="col-6 col-md-2">
@@ -725,6 +723,15 @@ document.addEventListener('DOMContentLoaded', function() {
                             </button>
                         </div>
                     </div>
+                    
+                    <!-- 두 번째 행: 추가금 입력 (방식 라인 아래 별도) -->
+                    <div class="row g-2 align-items-end mt-2">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small mb-1">추가금 (원)</label>
+                            <input type="number" class="form-control form-control-sm base-additional-fee" min="0" step="1" placeholder="예: 50000" value="${escapeHtml(String(additionalFee))}">
+                            
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -738,12 +745,17 @@ document.addEventListener('DOMContentLoaded', function() {
             ? components
             : [{ mode: 'select' }];
         container.innerHTML = list.map(c => renderBaseComponentRow(c)).join('');
-        // 선택값 세팅 (렌더 뒤)
+        // 선택값 및 추가금 세팅 (렌더 뒤)
         container.querySelectorAll('.base-component-row').forEach((rowEl, idx) => {
             const comp = list[idx] || {};
             const sel = rowEl.querySelector('.base-product-select');
             if (sel && comp.productId) {
                 sel.value = String(comp.productId);
+            }
+            // 추가금 값 설정
+            const additionalFeeInput = rowEl.querySelector('.base-additional-fee');
+            if (additionalFeeInput && comp.additionalFee !== undefined) {
+                additionalFeeInput.value = String(comp.additionalFee || '');
             }
         });
     }
@@ -755,21 +767,22 @@ document.addEventListener('DOMContentLoaded', function() {
         return rows.map(rowEl => {
             const mode = rowEl.dataset.mode || 'select';
             const widthMm = Number(rowEl.querySelector('.base-width-input')?.value) || 0;
+            const additionalFee = Number(rowEl.querySelector('.base-additional-fee')?.value) || 0; // 추가금 읽기
             if (mode === 'manual') {
                 const pricingType = rowEl.querySelector('.base-manual-pricing-type')?.value || '30cm';
                 if (pricingType === '1m') {
                     const price1m = Number(rowEl.querySelector('.base-manual-price1m')?.value) || 0;
-                    return { mode, widthMm, manualPricing: { pricing_type: '1m', price_1m: price1m } };
+                    return { mode, widthMm, additionalFee, manualPricing: { pricing_type: '1m', price_1m: price1m } };
                 }
                 const price30 = Number(rowEl.querySelector('.base-manual-price30')?.value) || 0;
                 const auto1 = computeAutoPrice1cmFrom30cm(price30);
                 // 항상 자동값으로 맞춤
                 const price1El = rowEl.querySelector('.base-manual-price1');
                 if (price1El) price1El.value = String(auto1);
-                return { mode, widthMm, manualPricing: { pricing_type: '30cm', price_30cm: price30, price_1cm: auto1 } };
+                return { mode, widthMm, additionalFee, manualPricing: { pricing_type: '30cm', price_30cm: price30, price_1cm: auto1 } };
             }
             const productId = Number(rowEl.querySelector('.base-product-select')?.value) || null;
-            return { mode, widthMm, productId };
+            return { mode, widthMm, additionalFee, productId };
         });
     }
     
@@ -1517,44 +1530,56 @@ document.addEventListener('DOMContentLoaded', function() {
         const detailLines = [];
         for (const comp of baseComponents) {
             const widthMm = Number(comp.widthMm) || 0;
-            if (widthMm <= 0) continue;
-            if (comp.mode === 'manual') {
-                const pricingType = comp.manualPricing?.pricing_type || '30cm';
-                if (pricingType === '1m') {
-                    const price1m = Number(comp.manualPricing?.price_1m) || 0;
-                    if (price1m <= 0) continue;
-                    const meters = widthMm / 1000;
-                    const price = meters * price1m;
-                    basePrice += price;
-                    detailLines.push(`직접입력(1m) ${formatNumber(widthMm)}mm`);
+            const additionalFee = Number(comp.additionalFee) || 0; // 추가금 읽기
+            let compPrice = 0; // 이 구성의 가격
+            
+            if (widthMm > 0) {
+                if (comp.mode === 'manual') {
+                    const pricingType = comp.manualPricing?.pricing_type || '30cm';
+                    if (pricingType === '1m') {
+                        const price1m = Number(comp.manualPricing?.price_1m) || 0;
+                        if (price1m > 0) {
+                            const meters = widthMm / 1000;
+                            compPrice = meters * price1m;
+                            detailLines.push(`직접입력(1m) ${formatNumber(widthMm)}mm`);
+                        }
+                    } else {
+                        const price30 = Number(comp.manualPricing?.price_30cm) || 0;
+                        const price1 = Number(comp.manualPricing?.price_1cm) || 0;
+                        if (price30 > 0 && price1 > 0) {
+                            const units30cm = Math.floor(widthMm / 300);
+                            const remainderMm = widthMm % 300;
+                            const units1cm = Math.floor(remainderMm / 10);
+                            compPrice = (units30cm * price30) + (units1cm * price1);
+                            detailLines.push(`직접입력(30cm) ${formatNumber(widthMm)}mm`);
+                        }
+                    }
                 } else {
-                    const price30 = Number(comp.manualPricing?.price_30cm) || 0;
-                    const price1 = Number(comp.manualPricing?.price_1cm) || 0;
-                    if (price30 <= 0 || price1 <= 0) continue;
-                    const units30cm = Math.floor(widthMm / 300);
-                    const remainderMm = widthMm % 300;
-                    const units1cm = Math.floor(remainderMm / 10);
-                    const price = (units30cm * price30) + (units1cm * price1);
-                    basePrice += price;
-                    detailLines.push(`직접입력(30cm) ${formatNumber(widthMm)}mm`);
+                    const productId = Number(comp.productId) || 0;
+                    if (productId) {
+                        const product = products.find(p => p.id === productId);
+                        if (product) {
+                            if (product.pricing_type === '1m') {
+                                compPrice = (widthMm / 1000) * (product.price_1m || 0);
+                            } else if (product.pricing_type === '30cm') {
+                                const units30cm = Math.floor(widthMm / 300);
+                                const remainderMm = widthMm % 300;
+                                const units1cm = Math.floor(remainderMm / 10);
+                                compPrice = (units30cm * (product.price_30cm || 0)) + (units1cm * (product.price_1cm || 0));
+                            }
+                            detailLines.push(`${product.name} ${formatNumber(widthMm)}mm`);
+                        }
+                    }
                 }
-            } else {
-                const productId = Number(comp.productId) || 0;
-                if (!productId) continue;
-                const product = products.find(p => p.id === productId);
-                if (!product) continue;
-                let price = 0;
-                if (product.pricing_type === '1m') {
-                    price = (widthMm / 1000) * (product.price_1m || 0);
-                } else if (product.pricing_type === '30cm') {
-                    const units30cm = Math.floor(widthMm / 300);
-                    const remainderMm = widthMm % 300;
-                    const units1cm = Math.floor(remainderMm / 10);
-                    price = (units30cm * (product.price_30cm || 0)) + (units1cm * (product.price_1cm || 0));
-                }
-                basePrice += price;
-                detailLines.push(`${product.name} ${formatNumber(widthMm)}mm`);
             }
+            
+            // 추가금 합산
+            if (additionalFee > 0) {
+                compPrice += additionalFee;
+                detailLines.push(`+ 추가금 ${formatNumber(additionalFee)}원`);
+            }
+            
+            basePrice += compPrice;
         }
         baseEstimateDetail = detailLines.join(' / ');
         if (!baseEstimateDetail) {
@@ -1678,57 +1703,87 @@ document.addEventListener('DOMContentLoaded', function() {
         const displayParts = [];
         for (const comp of baseComponents) {
             const widthMm = Number(comp.widthMm) || 0;
-            if (widthMm <= 0) continue;
-            if (comp.mode === 'manual') {
-                const pricingType = comp.manualPricing?.pricing_type || '30cm';
-                if (pricingType === '1m') {
-                    const price1m = Number(comp.manualPricing?.price_1m) || 0;
-                    if (price1m <= 0) continue;
-                    const price = (widthMm / 1000) * price1m;
-                    basePrice += price;
-                    normalizedComponents.push({
-                        mode: 'manual',
-                        widthMm,
-                        manualPricing: { pricing_type: '1m', price_1m: price1m }
-                    });
-                    displayParts.push(`직접입력(1m) ${formatNumber(widthMm)}mm`);
+            const additionalFee = Number(comp.additionalFee) || 0; // 추가금 읽기
+            let compPrice = 0; // 이 구성의 가격
+            let compData = {};
+            
+            if (widthMm > 0) {
+                if (comp.mode === 'manual') {
+                    const pricingType = comp.manualPricing?.pricing_type || '30cm';
+                    if (pricingType === '1m') {
+                        const price1m = Number(comp.manualPricing?.price_1m) || 0;
+                        if (price1m > 0) {
+                            compPrice = (widthMm / 1000) * price1m;
+                            compData = {
+                                mode: 'manual',
+                                widthMm,
+                                additionalFee, // 추가금 저장
+                                manualPricing: { pricing_type: '1m', price_1m: price1m }
+                            };
+                            displayParts.push(`직접입력(1m) ${formatNumber(widthMm)}mm`);
+                        }
+                    } else {
+                        const price30 = Number(comp.manualPricing?.price_30cm) || 0;
+                        const price1 = Number(comp.manualPricing?.price_1cm) || 0;
+                        if (price30 > 0 && price1 > 0) {
+                            const units30cm = Math.floor(widthMm / 300);
+                            const remainderMm = widthMm % 300;
+                            const units1cm = Math.floor(remainderMm / 10);
+                            compPrice = (units30cm * price30) + (units1cm * price1);
+                            compData = {
+                                mode: 'manual',
+                                widthMm,
+                                additionalFee, // 추가금 저장
+                                manualPricing: { pricing_type: '30cm', price_30cm: price30, price_1cm: price1 }
+                            };
+                            displayParts.push(`직접입력(30cm) ${formatNumber(widthMm)}mm`);
+                        }
+                    }
                 } else {
-                    const price30 = Number(comp.manualPricing?.price_30cm) || 0;
-                    const price1 = Number(comp.manualPricing?.price_1cm) || 0;
-                    if (price30 <= 0 || price1 <= 0) continue;
-                    const units30cm = Math.floor(widthMm / 300);
-                    const remainderMm = widthMm % 300;
-                    const units1cm = Math.floor(remainderMm / 10);
-                    const price = (units30cm * price30) + (units1cm * price1);
-                    basePrice += price;
-                    normalizedComponents.push({
-                        mode: 'manual',
-                        widthMm,
-                        manualPricing: { pricing_type: '30cm', price_30cm: price30, price_1cm: price1 }
-                    });
-                    displayParts.push(`직접입력(30cm) ${formatNumber(widthMm)}mm`);
+                    const productId = Number(comp.productId) || 0;
+                    if (productId) {
+                        const product = products.find(p => p.id === productId);
+                        if (product) {
+                            if (product.pricing_type === '1m') {
+                                compPrice = (widthMm / 1000) * (product.price_1m || 0);
+                            } else if (product.pricing_type === '30cm') {
+                                const units30cm = Math.floor(widthMm / 300);
+                                const remainderMm = widthMm % 300;
+                                const units1cm = Math.floor(remainderMm / 10);
+                                compPrice = (units30cm * (product.price_30cm || 0)) + (units1cm * (product.price_1cm || 0));
+                            }
+                            compData = {
+                                mode: 'select',
+                                productId,
+                                widthMm,
+                                additionalFee // 추가금 저장
+                            };
+                            displayParts.push(`${product.name} ${formatNumber(widthMm)}mm`);
+                        }
+                    }
                 }
-            } else {
-                const productId = Number(comp.productId) || 0;
-                if (!productId) continue;
-                const product = products.find(p => p.id === productId);
-                if (!product) continue;
-                let price = 0;
-                if (product.pricing_type === '1m') {
-                    price = (widthMm / 1000) * (product.price_1m || 0);
-                } else if (product.pricing_type === '30cm') {
-                    const units30cm = Math.floor(widthMm / 300);
-                    const remainderMm = widthMm % 300;
-                    const units1cm = Math.floor(remainderMm / 10);
-                    price = (units30cm * (product.price_30cm || 0)) + (units1cm * (product.price_1cm || 0));
-                }
-                basePrice += price;
-                normalizedComponents.push({
-                    mode: 'select',
-                    productId,
-                    widthMm
-                });
-                displayParts.push(`${product.name} ${formatNumber(widthMm)}mm`);
+            }
+            
+            // 추가금만 있는 경우도 처리
+            if (widthMm <= 0 && additionalFee > 0) {
+                compData = {
+                    mode: comp.mode || 'select',
+                    widthMm: 0,
+                    additionalFee,
+                    productId: comp.productId || null
+                };
+                displayParts.push(`추가금 ${formatNumber(additionalFee)}원`);
+            }
+            
+            // 추가금 합산
+            compPrice += additionalFee;
+            if (additionalFee > 0 && widthMm > 0) {
+                displayParts.push(`+ 추가금 ${formatNumber(additionalFee)}원`);
+            }
+            
+            if (Object.keys(compData).length > 0) {
+                basePrice += compPrice;
+                normalizedComponents.push(compData);
             }
         }
 
@@ -2754,6 +2809,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const price1El = rowEl.querySelector('.base-manual-price1');
             if (price1El) price1El.value = String(auto1);
         }
+        // 추가금 입력 시에도 계산 (이미 calculateEstimate() 호출됨)
         calculateEstimate();
     });
 
