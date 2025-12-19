@@ -2402,64 +2402,69 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('=== loadEstimateToInputForm START ===');
         console.log('Requested ID:', estimateId, 'Type:', typeof estimateId);
         
-        // 다른 견적 수정 중인지 확인
-        if (editingEstimateId) {
-            const currentEstimate = estimates.find(est => isSameId(est.id, editingEstimateId));
-            if (currentEstimate) {
-                const hasChanges = confirm('현재 수정 중인 견적이 있습니다. 다른 견적을 불러오시겠습니까?\n(현재 수정 내용은 저장되지 않습니다)');
-                if (!hasChanges) {
-                    console.log('사용자가 취소했습니다.');
-                    return;
+        // 로딩 플래그 설정 (에러 발생 시에도 해제되도록 try-finally 사용)
+        isLoadingEstimate = true;
+        
+        try {
+            // 다른 견적 수정 중인지 확인
+            if (editingEstimateId) {
+                const currentEstimate = estimates.find(est => isSameId(est.id, editingEstimateId));
+                if (currentEstimate) {
+                    const hasChanges = confirm('현재 수정 중인 견적이 있습니다. 다른 견적을 불러오시겠습니까?\n(현재 수정 내용은 저장되지 않습니다)');
+                    if (!hasChanges) {
+                        console.log('사용자가 취소했습니다.');
+                        return; // finally 블록에서 플래그 해제됨
+                    }
                 }
             }
-        }
-        
-        // ID 정규화
-        const normalizedId = normalizeId(estimateId);
-        if (!normalizedId) {
-            console.error('Invalid estimate ID');
-            return;
-        }
-        
-        // 견적 찾기
-        const estimate = estimates.find(est => isSameId(est.id, normalizedId));
-        
-        if (!estimate) {
-            console.error('견적을 찾을 수 없습니다.');
-            console.error('Requested ID:', normalizedId);
-            console.error('Available IDs:', estimates.map(e => e.id));
-            alert(`견적을 찾을 수 없습니다. (ID: ${normalizedId})`);
-            return;
-        }
-
-        console.log('Found estimate:', estimate);
-        
-        // 1. 폼 초기화
-        document.getElementById('additionalOptionsContainer').innerHTML = '';
-        // 비고 초기화
-        notesList = [{type: 'select', value: ''}];
-        renderAllNotes();
-        
-        // 2. 기본 구성 UI 로드 (복합/단일 모두 처리)
-        if (estimate.baseComponents && Array.isArray(estimate.baseComponents) && estimate.baseComponents.length > 0) {
-            ensureBaseComponentsUI(estimate.baseComponents);
-        } else {
-            // 구버전 데이터 호환: 단일 productId/manualPricing 기반이면 1개 행으로 변환
-            const legacy = [];
-            if (estimate.manualPricing) {
-                legacy.push({ mode: 'manual', widthMm: estimate.widthMm || 0, manualPricing: estimate.manualPricing });
-            } else if (estimate.productId) {
-                legacy.push({ mode: 'select', widthMm: estimate.widthMm || 0, productId: estimate.productId });
-            } else {
-                legacy.push({ mode: 'select' });
+            
+            // ID 정규화
+            const normalizedId = normalizeId(estimateId);
+            if (!normalizedId) {
+                console.error('Invalid estimate ID');
+                alert('잘못된 견적 ID입니다.');
+                return; // finally 블록에서 플래그 해제됨
             }
-            ensureBaseComponentsUI(legacy);
-        }
-        
-        // 3. (구버전) 단일 widthInput 제거됨
-        
-        // 4. 추가 옵션 로드 (동기적으로 처리)
-        const container = document.getElementById('additionalOptionsContainer');
+            
+            // 견적 찾기
+            const estimate = estimates.find(est => isSameId(est.id, normalizedId));
+            
+            if (!estimate) {
+                console.error('견적을 찾을 수 없습니다.');
+                console.error('Requested ID:', normalizedId);
+                console.error('Available IDs:', estimates.map(e => e.id));
+                alert(`견적을 찾을 수 없습니다. (ID: ${normalizedId})`);
+                return; // finally 블록에서 플래그 해제됨
+            }
+
+            console.log('Found estimate:', estimate);
+            
+            // 1. 폼 초기화
+            document.getElementById('additionalOptionsContainer').innerHTML = '';
+            // 비고 초기화
+            notesList = [{type: 'select', value: ''}];
+            renderAllNotes();
+            
+            // 2. 기본 구성 UI 로드 (복합/단일 모두 처리)
+            if (estimate.baseComponents && Array.isArray(estimate.baseComponents) && estimate.baseComponents.length > 0) {
+                ensureBaseComponentsUI(estimate.baseComponents);
+            } else {
+                // 구버전 데이터 호환: 단일 productId/manualPricing 기반이면 1개 행으로 변환
+                const legacy = [];
+                if (estimate.manualPricing) {
+                    legacy.push({ mode: 'manual', widthMm: estimate.widthMm || 0, manualPricing: estimate.manualPricing });
+                } else if (estimate.productId) {
+                    legacy.push({ mode: 'select', widthMm: estimate.widthMm || 0, productId: estimate.productId });
+                } else {
+                    legacy.push({ mode: 'select' });
+                }
+                ensureBaseComponentsUI(legacy);
+            }
+            
+            // 3. (구버전) 단일 widthInput 제거됨
+            
+            // 4. 추가 옵션 로드 (동기적으로 처리)
+            const container = document.getElementById('additionalOptionsContainer');
         
         // 카테고리 옵션 목록 HTML 생성
         let allOptionsHtml = '<option value="">카테고리 > 옵션을 선택하세요</option>';
@@ -2475,8 +2480,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
-        // 각 옵션을 순회하며 DOM에 추가
-        if (estimate.options && Array.isArray(estimate.options) && estimate.options.length > 0) {
+            // 각 옵션을 순회하며 DOM에 추가
+            if (estimate.options && Array.isArray(estimate.options) && estimate.options.length > 0) {
             estimate.options.forEach((opt, optIdx) => {
                 if (!opt || !opt.name) return;
                 
@@ -2637,32 +2642,41 @@ document.addEventListener('DOMContentLoaded', function() {
                     setOptionMode(select, nameInput, 'input');
                     toggleBtn.innerHTML = '<i class="fas fa-list"></i>';
                 }
-            });
-            console.log('Loaded', estimate.options.length, 'options');
-        }
-        
-        // 4.5. 비고 정보 로드 (개별 견적의 비고)
-        loadNotes(estimate.notes || '');
-        console.log('Notes loaded:', estimate.notes || '(empty)');
-        
-        // 5. editingEstimateId 설정 (원본 ID 유지)
-        editingEstimateId = estimate.id;
-        console.log('editingEstimateId set to:', editingEstimateId, 'Type:', typeof editingEstimateId);
+                });
+                console.log('Loaded', estimate.options.length, 'options');
+            }
+            
+            // 4.5. 비고 정보 로드 (개별 견적의 비고)
+            loadNotes(estimate.notes || '');
+            console.log('Notes loaded:', estimate.notes || '(empty)');
+            
+            // 5. editingEstimateId 설정 (원본 ID 유지)
+            editingEstimateId = estimate.id;
+            console.log('editingEstimateId set to:', editingEstimateId, 'Type:', typeof editingEstimateId);
 
-        // 6. UI 업데이트
-        document.getElementById('addEstimateBtn').innerHTML = '<i class="fas fa-save"></i> 견적 수정 적용'; 
-        document.getElementById('addEstimateBtn').style.display = 'block';
-        
-        // 7. 스크롤 이동
-        document.getElementById('productSelect').scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
-        // 8. 계산 수행
-        calculateEstimate();
-        
-        console.log('=== loadEstimateToInputForm END ===');
-        
-        // 로딩 플래그 해제 (함수 완료 시)
-        isLoadingEstimate = false;
+            // 6. UI 업데이트
+            document.getElementById('addEstimateBtn').innerHTML = '<i class="fas fa-save"></i> 견적 수정 적용'; 
+            document.getElementById('addEstimateBtn').style.display = 'block';
+            
+            // 7. 스크롤 이동 (안전한 요소로 이동)
+            const scrollTarget = document.getElementById('baseComponentsContainer') || 
+                                 document.getElementById('customerName') || 
+                                 document.querySelector('.header-primary');
+            if (scrollTarget) {
+                scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            
+            // 8. 계산 수행
+            calculateEstimate();
+            
+            console.log('=== loadEstimateToInputForm END ===');
+        } catch (error) {
+            console.error('Error in loadEstimateToInputForm:', error);
+            alert('견적을 불러오는 중 오류가 발생했습니다: ' + (error.message || error));
+        } finally {
+            // 로딩 플래그 해제 (에러 발생 시에도 반드시 해제)
+            isLoadingEstimate = false;
+        }
     }
     
     // 견적 삭제는 이벤트 위임 패턴으로 estimatesListContainer에서 처리됨
@@ -2927,12 +2941,9 @@ document.addEventListener('DOMContentLoaded', function() {
             shippingIncludedCheckbox.checked = shippingIncluded;
         }
         
-        // 비고 정보 로드 (개별 견적의 비고를 우선 사용, 없으면 전체 견적의 비고 사용)
-        // estimate 객체에 직접 notes가 있는지 확인 (개별 견적의 비고)
-        // 없으면 estimateData.notes 사용 (전체 견적의 비고)
-        const notesToLoad = estimate.notes || estimateData.notes || '';
-        loadNotes(notesToLoad);
-        console.log('Notes loaded:', notesToLoad || '(empty)', 'from estimate.notes:', estimate.notes || '(none)', 'from estimateData.notes:', estimateData.notes || '(none)');
+        // 비고 초기화 (저장된 견적 로드 시 비고는 로드하지 않음)
+        notesList = [{type: 'select', value: ''}];
+        renderAllNotes();
         
         // 견적 목록 초기화
         estimates = [];

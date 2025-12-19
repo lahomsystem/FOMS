@@ -232,6 +232,17 @@
           "price": 400000.0
         }
       ]
+    },
+    {
+      "id": 10,
+      "name": "\uaddc\uaca9\ub9de\ucda4\uc81c\uc791",
+      "options": [
+        {
+          "id": 1110,
+          "name": "\ud1b5 \ub2f9",
+          "price": 50000.0
+        }
+      ]
     }
   ]
 }
