@@ -147,7 +147,9 @@ function Sidebar() {
         : Math.min(HALF_UNIT_WIDTHS[0], availableWidth); // 사용 가능한 공간이 없으면 최소 크기 또는 availableWidth 중 작은 것
     } else {
       // 통: 사용 가능한 공간에 맞는 가장 큰 통 규격 선택
-      const suitableFullWidths = UNIT_WIDTHS.filter(w => w <= availableWidth);
+      // 미닫이(sliding) 문 타입일 때는 700mm 포함
+      const fullWidths = doorType === 'sliding' ? [700, ...UNIT_WIDTHS] : UNIT_WIDTHS;
+      const suitableFullWidths = fullWidths.filter(w => w <= availableWidth);
       if (suitableFullWidths.length > 0) {
         newUnitWidth = suitableFullWidths[suitableFullWidths.length - 1]; // 가장 큰 것
       } else {
@@ -505,7 +507,7 @@ function Sidebar() {
                           calculateTopEP();
                         }, 0);
                       }}
-                      UNIT_WIDTHS={UNIT_WIDTHS}
+                      UNIT_WIDTHS={doorType === 'sliding' ? [700, ...UNIT_WIDTHS] : UNIT_WIDTHS}
                       HALF_UNIT_WIDTHS={HALF_UNIT_WIDTHS}
                       UNIT_HEIGHTS={UNIT_HEIGHTS}
                     />

@@ -208,8 +208,11 @@ export const useClosetStore = create<ClosetStore>((set) => ({
           return Math.sqrt(variance);
         };
         
-        // 표준 통 너비 배열
-        const standardWidths = [...UNIT_WIDTHS] as number[];
+        // 표준 통 너비 배열 (문 타입에 따라 다름)
+        // 미닫이(sliding) 문 타입일 때는 700mm 포함
+        const standardWidths = doorType === 'sliding' 
+          ? [700, ...UNIT_WIDTHS] as number[]
+          : [...UNIT_WIDTHS] as number[];
         const halfWidths = [...HALF_UNIT_WIDTHS] as number[];
         
         // 문 타입에 따라 통 개수 결정
@@ -535,13 +538,15 @@ export const useClosetStore = create<ClosetStore>((set) => ({
               const excess = finalTotal - targetWidth;
               const reductionPerUnit = excess / requiredFullUnits;
               
+              // 미닫이(sliding) 문 타입일 때는 700mm 포함
+              const fullWidths = state.doorType === 'sliding' ? [700, ...UNIT_WIDTHS] : UNIT_WIDTHS;
               const adjustedUnitWidths = unitWidths.map((width) => {
-                const targetWidth2 = Math.max(UNIT_WIDTHS[0] as number, width - reductionPerUnit);
-                const widths = [...UNIT_WIDTHS] as number[];
+                const targetWidth2 = Math.max(fullWidths[0] as number, width - reductionPerUnit);
+                const widths = [...fullWidths] as number[];
                 const suitableWidths = widths.filter(w => w <= targetWidth2);
                 return suitableWidths.length > 0 
                   ? suitableWidths[suitableWidths.length - 1]
-                  : UNIT_WIDTHS[0] as number;
+                  : fullWidths[0] as number;
               });
               
               const adjustedTotal = adjustedUnitWidths.reduce((sum, w) => sum + w, 0);
@@ -650,7 +655,10 @@ export const useClosetStore = create<ClosetStore>((set) => ({
         const rounded50 = roundTo50(clampedWidth);
         
         // 50 단위 값이 표준 규격에 있으면 사용
-        const widths = isHalfUnit ? [...HALF_UNIT_WIDTHS] : [...UNIT_WIDTHS];
+        // 미닫이(sliding) 문 타입일 때는 700mm 포함
+        const widths = isHalfUnit 
+          ? [...HALF_UNIT_WIDTHS] 
+          : (state.doorType === 'sliding' ? [700, ...UNIT_WIDTHS] : [...UNIT_WIDTHS]);
         const widthsArray = widths as readonly number[];
         if (widthsArray.some(w => w === rounded50)) {
           return rounded50;
@@ -704,7 +712,8 @@ export const useClosetStore = create<ClosetStore>((set) => ({
           // 통에 할당할 이상적인 너비 (전체 availableWidth 사용)
           const idealFullWidth = availableWidth / fullUnitCount;
           // 통 규격 중 가장 가까운 값 선택 (반통 로직과 동일하게)
-          const widths = [...UNIT_WIDTHS] as number[];
+          // 미닫이(sliding) 문 타입일 때는 700mm 포함
+          const widths = state.doorType === 'sliding' ? [700, ...UNIT_WIDTHS] as number[] : [...UNIT_WIDTHS] as number[];
           
           // 통들이 서로 다른 크기일 수 있으므로, 통 너비의 합계가 availableWidth를 초과하지 않도록 보장
           // 먼저 각 통이 같은 크기라고 가정하고 계산
@@ -1121,8 +1130,10 @@ export const useClosetStore = create<ClosetStore>((set) => ({
                 width: roundToStandardWidth(newWidth, true)
               };
             });
+            // roundToStandardWidth 함수가 이미 doorType을 고려하므로 그대로 사용
             currentFullUnits = currentFullUnits.map((unit) => {
-              const newWidth = Math.max(UNIT_WIDTHS[0] as number, unit.width - reductionPerUnit);
+              const fullWidths = state.doorType === 'sliding' ? [700, ...UNIT_WIDTHS] : UNIT_WIDTHS;
+              const newWidth = Math.max(fullWidths[0] as number, unit.width - reductionPerUnit);
               return {
                 ...unit,
                 width: roundToStandardWidth(newWidth, false)
@@ -1491,13 +1502,15 @@ export const useClosetStore = create<ClosetStore>((set) => ({
             };
           });
           
+          // 미닫이(sliding) 문 타입일 때는 700mm 포함
+          const fullWidthsForReduction = state.doorType === 'sliding' ? [700, ...UNIT_WIDTHS] : UNIT_WIDTHS;
           currentFullUnits = currentFullUnits.map((unit) => {
-            const targetWidth = Math.max(UNIT_WIDTHS[0] as number, unit.width - reductionPerUnit);
-            const widths = [...UNIT_WIDTHS] as number[];
+            const targetWidth = Math.max(fullWidthsForReduction[0] as number, unit.width - reductionPerUnit);
+            const widths = [...fullWidthsForReduction] as number[];
             const suitableWidths = widths.filter(w => w <= targetWidth);
             return {
               ...unit,
-              width: suitableWidths.length > 0 ? suitableWidths[suitableWidths.length - 1] : UNIT_WIDTHS[0] as number
+              width: suitableWidths.length > 0 ? suitableWidths[suitableWidths.length - 1] : fullWidthsForReduction[0] as number
             };
           });
           

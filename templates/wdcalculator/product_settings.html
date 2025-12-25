@@ -154,8 +154,9 @@
                                 <input type="number" class="form-control" id="price30cm" name="price_30cm" min="0" step="1">
                             </div>
                             <div class="col-md-6">
-                                <label for="price1cm" class="form-label">1cm 비용 (원) <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="price1cm" name="price_1cm" min="0" step="1">
+                                <label for="price1cm" class="form-label">1cm 비용 (자동) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="price1cm" name="price_1cm" min="0" step="10" readonly>
+                                <small class="form-text text-muted">1cm 자동: ceil((30cm/30)/10)*10</small>
                             </div>
                         </div>
 
@@ -533,6 +534,16 @@ document.addEventListener('DOMContentLoaded', function() {
         toast.show();
     }
     
+    // 1cm 자동 계산 함수 (calculator.html과 동일한 방식)
+    function ceilToTens(value) {
+        const v = Number(value) || 0;
+        return Math.ceil(v / 10) * 10;
+    }
+    
+    function computeAutoPrice1cmFrom30cm(price30) {
+        return ceilToTens((Number(price30) || 0) / 30);
+    }
+    
     // 가격 옵션 선택에 따른 입력 필드 표시/숨김
     document.getElementById('pricingType').addEventListener('change', function() {
         const pricingType = this.value;
@@ -549,11 +560,24 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('price1m').required = false;
             document.getElementById('price30cm').required = true;
             document.getElementById('price1cm').required = true;
+            // 30cm 선택 시 기존 값이 있으면 1cm 자동 계산
+            const price30 = document.getElementById('price30cm').value;
+            if (price30) {
+                const auto1 = computeAutoPrice1cmFrom30cm(price30);
+                document.getElementById('price1cm').value = auto1;
+            }
         } else {
             document.getElementById('price1m').required = false;
             document.getElementById('price30cm').required = false;
             document.getElementById('price1cm').required = false;
         }
+    });
+    
+    // 30cm 입력 시 1cm 자동 계산
+    document.getElementById('price30cm').addEventListener('input', function() {
+        const price30 = Number(this.value) || 0;
+        const auto1 = computeAutoPrice1cmFrom30cm(price30);
+        document.getElementById('price1cm').value = auto1;
     });
     
     // 폼 제출
@@ -573,8 +597,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (formData.pricing_type === '1m') {
             formData.price_1m = parseInt(document.getElementById('price1m').value) || 0;
         } else if (formData.pricing_type === '30cm') {
-            formData.price_30cm = parseInt(document.getElementById('price30cm').value) || 0;
-            formData.price_1cm = parseInt(document.getElementById('price1cm').value) || 0;
+            const price30 = parseInt(document.getElementById('price30cm').value) || 0;
+            formData.price_30cm = price30;
+            // 1cm는 자동 계산된 값 사용 (항상 최신 값으로 계산)
+            formData.price_1cm = computeAutoPrice1cmFrom30cm(price30);
         }
         
         // API 호출
@@ -626,8 +652,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (product.pricing_type === '1m') {
                     document.getElementById('price1m').value = product.price_1m || 0;
                 } else if (product.pricing_type === '30cm') {
-                    document.getElementById('price30cm').value = product.price_30cm || 0;
-                    document.getElementById('price1cm').value = product.price_1cm || 0;
+                    const price30 = product.price_30cm || 0;
+                    document.getElementById('price30cm').value = price30;
+                    // 1cm는 자동 계산된 값으로 설정 (저장된 값이 아닌 최신 계산 방식 적용)
+                    const auto1 = computeAutoPrice1cmFrom30cm(price30);
+                    document.getElementById('price1cm').value = auto1;
                 }
                 
                 document.getElementById('couponType').value = product.coupon_type || 'percentage';

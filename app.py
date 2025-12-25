@@ -4369,6 +4369,43 @@ def api_wdcalculator_match_order():
         wd_db.rollback()
         return jsonify({'success': False, 'message': f'매칭 중 오류: {str(e)}'})
 
+# 견적과 주문 매칭 해제 API
+@app.route('/api/wdcalculator/unmatch-order', methods=['POST'])
+@login_required
+def api_wdcalculator_unmatch_order():
+    """견적과 주문 매칭 해제"""
+    try:
+        data = request.get_json()
+        estimate_id = data.get('estimate_id')
+        order_id = data.get('order_id')
+        
+        if not estimate_id or not order_id:
+            return jsonify({'success': False, 'message': '견적 ID와 주문 ID가 필요합니다.'})
+        
+        wd_db = get_wdcalculator_db()
+        
+        # 매칭 찾기
+        match = wd_db.query(EstimateOrderMatch).filter(
+            EstimateOrderMatch.estimate_id == estimate_id,
+            EstimateOrderMatch.order_id == order_id
+        ).first()
+        
+        if not match:
+            return jsonify({'success': False, 'message': '매칭된 견적을 찾을 수 없습니다.'})
+        
+        # 매칭 삭제
+        wd_db.delete(match)
+        wd_db.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '매칭이 해제되었습니다.'
+        })
+    except Exception as e:
+        wd_db = get_wdcalculator_db()
+        wd_db.rollback()
+        return jsonify({'success': False, 'message': f'매칭 해제 중 오류: {str(e)}'})
+
 # 주문별 견적 조회 API
 @app.route('/api/wdcalculator/order-estimates/<int:order_id>', methods=['GET'])
 @login_required
