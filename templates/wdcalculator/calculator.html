@@ -942,7 +942,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function addNoteItem(type = 'select') {
         const index = notesList.length;
         notesList.push({type: type, value: ''});
-        renderNoteItem(index);
+        renderAllNotes();
     }
     
     // 비고 항목 삭제
@@ -955,20 +955,23 @@ document.addEventListener('DOMContentLoaded', function() {
         renderAllNotes();
     }
     
-    // 비고 항목 타입 전환 (select <-> input)
+    // 비고 항목 타입 전환 (select <-> input) - 간단하고 명확한 버전
     function toggleNoteType(index) {
-        if (index >= 0 && index < notesList.length) {
-            const currentType = notesList[index].type;
-            const currentValue = notesList[index].value;
-            notesList[index].type = currentType === 'select' ? 'input' : 'select';
-            // 타입 전환 시 값 유지
-            notesList[index].value = currentValue;
-            // renderNoteItem 대신 renderAllNotes 호출하여 이벤트 리스너 재등록 보장
-            renderAllNotes();
+        if (index < 0 || index >= notesList.length) {
+            console.error('toggleNoteType: Invalid index', index);
+            return;
         }
+        
+        const note = notesList[index];
+        // 타입 전환: select ↔ input
+        note.type = note.type === 'select' ? 'input' : 'select';
+        // 값은 유지
+        
+        // 해당 항목만 재렌더링
+        renderNoteItem(index);
     }
     
-    // 비고 항목 렌더링
+    // 비고 항목 렌더링 - 간단하고 명확한 버전
     function renderNoteItem(index) {
         const container = document.getElementById('notesContainer');
         if (!container) return;
@@ -989,6 +992,7 @@ document.addEventListener('DOMContentLoaded', function() {
             container.appendChild(noteItem);
         }
         
+        // DOM 구조 생성
         noteItem.innerHTML = `
             <div class="d-flex gap-2 align-items-start">
                 <button type="button" class="btn btn-sm btn-outline-secondary toggle-note-type" data-note-index="${index}" title="${isSelect ? '직접입력' : '옵션 선택'}">
@@ -1007,56 +1011,16 @@ document.addEventListener('DOMContentLoaded', function() {
         // 요소 참조 가져오기
         const select = noteItem.querySelector('.note-select');
         const textarea = noteItem.querySelector('.note-input');
+        const toggleBtn = noteItem.querySelector('.toggle-note-type');
+        const removeBtn = noteItem.querySelector('.remove-note');
         
-        // 표시 모드 설정 (setNoteMode 사용)
+        // 표시 모드 설정
         setNoteMode(select, textarea, isSelect ? 'select' : 'input');
         
-        // 값 설정 (표시 모드 설정 후)
-        if (isSelect) {
-            if (select && note.value) {
-                // option이 존재하는지 확인
-                const optionExists = Array.from(select.options).some(opt => opt.value === note.value);
-                if (optionExists) {
-                    select.value = note.value;
-                } else {
-                    // option이 없으면 다시 checkIfOptionExists로 확인
-                    const isActuallyOption = checkIfOptionExists(note.value);
-                    if (isActuallyOption) {
-                        // 타입 수정 후 전체 재렌더링 (이벤트 리스너 보장)
-                        notesList[index].type = 'select';
-                        renderAllNotes();
-                        return;
-                    } else {
-                        // 정말로 옵션이 아니면 빈 값으로 설정
-                        select.value = '';
-                    }
-                }
-            }
-        } else {
-            if (textarea) {
-                textarea.value = note.value || '';
-                // input 타입이지만 실제로는 옵션일 수 있음 - 재확인
-                if (note.value) {
-                    const isActuallyOption = checkIfOptionExists(note.value);
-                    if (isActuallyOption) {
-                        // 타입 수정 후 전체 재렌더링 (이벤트 리스너 보장)
-                        notesList[index].type = 'select';
-                        renderAllNotes();
-                        return;
-                    }
-                }
-            }
-        }
+        // 이벤트 리스너 등록 (cloneNode로 교체하여 중복 방지 및 값 설정)
         
-        // 이벤트 리스너는 이벤트 위임으로 처리 (renderAllNotes에서 한 번만 등록)
-    }
-    
-    // 비고 항목 이벤트 리스너 등록
-    function attachNoteItemEvents(noteItem, index) {
-        // 타입 전환 버튼
-        const toggleBtn = noteItem.querySelector('.toggle-note-type');
+        // 토글 버튼
         if (toggleBtn) {
-            // 클론 생성 후 이벤트 리스너 추가, 그 다음 교체
             const newToggleBtn = toggleBtn.cloneNode(true);
             newToggleBtn.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -1067,9 +1031,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // 삭제 버튼
-        const removeBtn = noteItem.querySelector('.remove-note');
         if (removeBtn) {
-            // 클론 생성 후 이벤트 리스너 추가, 그 다음 교체
             const newRemoveBtn = removeBtn.cloneNode(true);
             newRemoveBtn.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -1079,27 +1041,35 @@ document.addEventListener('DOMContentLoaded', function() {
             removeBtn.replaceWith(newRemoveBtn);
         }
         
-        // Select 변경
-        const select = noteItem.querySelector('.note-select');
+        // Select change 이벤트 (값 설정 포함)
         if (select) {
-            const savedValue = select.value; // 현재 값 저장
             const newSelect = select.cloneNode(true);
-            select.replaceWith(newSelect);
-            newSelect.value = savedValue; // 값 복원
+            // 값 설정 (이벤트 리스너 등록 전에)
+            if (note.value) {
+                const optionExists = Array.from(newSelect.options).some(opt => opt.value === note.value);
+                if (optionExists) {
+                    newSelect.value = note.value;
+                } else {
+                    newSelect.value = '';
+                }
+            } else {
+                newSelect.value = '';
+            }
+            // 이벤트 리스너 등록
             newSelect.addEventListener('change', function() {
                 if (index >= 0 && index < notesList.length) {
                     notesList[index].value = this.value;
                 }
             });
+            select.replaceWith(newSelect);
         }
         
-        // Input 변경 및 blur (숫자 포맷팅)
-        const textarea = noteItem.querySelector('.note-input');
+        // Textarea input/blur 이벤트 (값 설정 포함)
         if (textarea) {
-            const savedValue = textarea.value; // 현재 값 저장
             const newTextarea = textarea.cloneNode(true);
-            textarea.replaceWith(newTextarea);
-            newTextarea.value = savedValue; // 값 복원
+            // 값 설정
+            newTextarea.value = note.value || '';
+            // 이벤트 리스너 등록
             newTextarea.addEventListener('input', function() {
                 if (index >= 0 && index < notesList.length) {
                     notesList[index].value = this.value;
@@ -1114,38 +1084,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             });
+            textarea.replaceWith(newTextarea);
         }
     }
     
-    // notesContainer 이벤트 핸들러 (전역 변수로 저장하여 재사용)
-    let notesContainerClickHandler = null;
-    let notesContainerChangeHandler = null;
-    let notesContainerInputHandler = null;
-    let notesContainerBlurHandler = null;
-    
-    // 모든 비고 항목 렌더링
+    // 모든 비고 항목 렌더링 - 간단하고 명확한 버전
     function renderAllNotes() {
         const container = document.getElementById('notesContainer');
         if (!container) return;
         
-        // innerHTML을 비우기 전에 기존 이벤트 리스너 제거
-        if (notesContainerClickHandler) {
-            container.removeEventListener('click', notesContainerClickHandler);
-        }
-        if (notesContainerChangeHandler) {
-            container.removeEventListener('change', notesContainerChangeHandler);
-        }
-        if (notesContainerInputHandler) {
-            container.removeEventListener('input', notesContainerInputHandler);
-        }
-        if (notesContainerBlurHandler) {
-            container.removeEventListener('blur', notesContainerBlurHandler, true);
-        }
-        
         container.innerHTML = '';
         
         if (notesList.length === 0) {
-            // 비고가 없으면 기본 1개 추가
             addNoteItem('select');
             return;
         }
@@ -1153,98 +1103,6 @@ document.addEventListener('DOMContentLoaded', function() {
         notesList.forEach((note, index) => {
             renderNoteItem(index);
         });
-        
-        // 이벤트 위임: notesContainer에 이벤트 리스너 항상 다시 등록
-        attachNotesContainerEvents();
-    }
-    
-    // notesContainer에 이벤트 위임으로 이벤트 리스너 등록
-    function attachNotesContainerEvents() {
-        const container = document.getElementById('notesContainer');
-        if (!container) return;
-        
-        // 기존 리스너 제거 (안전장치)
-        if (notesContainerClickHandler) {
-            container.removeEventListener('click', notesContainerClickHandler);
-        }
-        if (notesContainerChangeHandler) {
-            container.removeEventListener('change', notesContainerChangeHandler);
-        }
-        if (notesContainerInputHandler) {
-            container.removeEventListener('input', notesContainerInputHandler);
-        }
-        if (notesContainerBlurHandler) {
-            container.removeEventListener('blur', notesContainerBlurHandler, true);
-        }
-        
-        // 새 리스너 생성 및 등록
-        notesContainerClickHandler = function(e) {
-            const toggleBtn = e.target.closest('.toggle-note-type');
-            if (toggleBtn) {
-                e.preventDefault();
-                e.stopPropagation();
-                const index = parseInt(toggleBtn.dataset.noteIndex);
-                if (!isNaN(index) && index >= 0 && index < notesList.length) {
-                    toggleNoteType(index);
-                }
-                return;
-            }
-            
-            // 삭제 버튼
-            const removeBtn = e.target.closest('.remove-note');
-            if (removeBtn) {
-                e.preventDefault();
-                e.stopPropagation();
-                const index = parseInt(removeBtn.dataset.noteIndex);
-                if (!isNaN(index) && index >= 0 && index < notesList.length) {
-                    removeNoteItem(index);
-                }
-                return;
-            }
-        };
-        
-        notesContainerChangeHandler = function(e) {
-            if (e.target.classList.contains('note-select')) {
-                const index = parseInt(e.target.dataset.noteIndex);
-                if (!isNaN(index) && index >= 0 && index < notesList.length) {
-                    notesList[index].value = e.target.value;
-                    // 메뉴 선택 후 비동기로 재렌더링하여 이벤트 리스너 재등록 보장
-                    // setTimeout을 사용하여 현재 이벤트 핸들러 실행이 완료된 후 실행
-                    // 이렇게 하면 DOM 업데이트와 이벤트 리스너 재등록이 안전하게 처리됨
-                    setTimeout(() => {
-                        renderAllNotes();
-                    }, 0);
-                }
-            }
-        };
-        
-        notesContainerInputHandler = function(e) {
-            if (e.target.classList.contains('note-input')) {
-                const index = parseInt(e.target.dataset.noteIndex);
-                if (!isNaN(index) && index >= 0 && index < notesList.length) {
-                    notesList[index].value = e.target.value;
-                }
-            }
-        };
-        
-        notesContainerBlurHandler = function(e) {
-            if (e.target.classList.contains('note-input')) {
-                const formatted = formatNumbersInText(e.target.value);
-                if (formatted !== e.target.value) {
-                    e.target.value = formatted;
-                    const index = parseInt(e.target.dataset.noteIndex);
-                    if (!isNaN(index) && index >= 0 && index < notesList.length) {
-                        notesList[index].value = formatted;
-                    }
-                }
-            }
-        };
-        
-        // 이벤트 리스너 등록
-        container.addEventListener('click', notesContainerClickHandler);
-        container.addEventListener('change', notesContainerChangeHandler);
-        container.addEventListener('input', notesContainerInputHandler);
-        container.addEventListener('blur', notesContainerBlurHandler, true);
     }
     
     // 비고 수집 (문자열로 변환)
