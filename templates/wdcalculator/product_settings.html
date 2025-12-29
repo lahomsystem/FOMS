@@ -932,20 +932,11 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // 옵션 찾기: 인덱스를 우선 사용 (가장 안정적)
+        // 옵션 찾기: ID를 최우선으로 사용 (고유 식별자)
         let option = null;
-        if (optionIndex >= 0 && optionIndex < category.options.length) {
-            option = category.options[optionIndex];
-            // 인덱스로 찾은 옵션이 이름도 일치하는지 확인
-            if (optionName && option && option.name !== optionName) {
-                // 이름이 다르면 이름으로 다시 찾기
-                option = category.options.find(o => o && o.name === optionName);
-            }
-        } else if (optionName) {
-            // 인덱스가 유효하지 않으면 이름으로 찾기
-            option = category.options.find(o => o && o.name === optionName);
-        } else if (optionIdStr && optionIdStr !== '' && optionIdStr !== 'None') {
-            // ID로 찾기
+        
+        // 1순위: ID로 찾기 (가장 신뢰할 수 있음)
+        if (optionIdStr && optionIdStr !== '' && optionIdStr !== 'None') {
             const optionId = parseInt(optionIdStr);
             if (!isNaN(optionId)) {
                 option = category.options.find(o => {
@@ -953,6 +944,39 @@ document.addEventListener('DOMContentLoaded', function() {
                     const oId = typeof o.id === 'string' ? parseInt(o.id) : o.id;
                     return oId === optionId;
                 });
+                if (option) {
+                    console.log('옵션을 ID로 찾음:', option.id, option.name);
+                }
+            }
+        }
+        
+        // 2순위: 인덱스로 찾기 (ID가 없거나 찾지 못했을 때)
+        if (!option && optionIndex >= 0 && optionIndex < category.options.length) {
+            option = category.options[optionIndex];
+            // 인덱스로 찾은 옵션이 이름도 일치하는지 확인
+            if (optionName && option && option.name !== optionName) {
+                console.warn('인덱스로 찾은 옵션의 이름이 일치하지 않음:', {
+                    found: option.name,
+                    expected: optionName,
+                    optionIndex
+                });
+                // 이름이 다르면 null로 설정 (다음 단계로)
+                option = null;
+            } else if (option) {
+                console.log('옵션을 인덱스로 찾음:', optionIndex, option.id, option.name);
+            }
+        }
+        
+        // 3순위: 이름으로 찾기 (ID와 인덱스 모두 실패했을 때만, 경고 표시)
+        if (!option && optionName) {
+            const foundOptions = category.options.filter(o => o && o.name === optionName);
+            if (foundOptions.length > 1) {
+                console.warn('같은 이름의 옵션이 여러 개 있습니다:', foundOptions.length, '개');
+                console.warn('옵션 ID를 사용하는 것을 권장합니다.');
+            }
+            option = foundOptions[0]; // 첫 번째 것만 사용
+            if (option) {
+                console.log('옵션을 이름으로 찾음 (경고: 같은 이름이 여러 개일 수 있음):', option.id, option.name);
             }
         }
         
@@ -1347,6 +1371,65 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // 옵션 수정 함수 분리
+    function updateNotesOption(categoryId, optionId, optionName) {
+        const optionData = {
+            id: optionId,
+            name: optionName
+        };
+        
+        fetch(`/api/wdcalculator/notes/categories/${categoryId}/options`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(optionData)
+        })
+        .then(response => {
+            console.log('옵션 수정 API 응답 상태:', response.status);
+            if (!response.ok) {
+                return response.json().then(err => {
+                    throw new Error(err.message || `HTTP ${response.status}: ${response.statusText}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('옵션 수정 API 응답 데이터:', data);
+            if (data.success) {
+                showToast(data.message, true);
+                // 저장 후 API로 최신 데이터 가져오기
+                fetch('/api/wdcalculator/notes/categories')
+                    .then(response => response.json())
+                    .then(apiData => {
+                        console.log('저장 후 최신 데이터:', apiData);
+                        if (apiData.success) {
+                            notesCategories = apiData.categories || [];
+                            // 1초 후 페이지 새로고침
+                            setTimeout(() => {
+                                location.reload();
+                            }, 1000);
+                        } else {
+                            showToast('목록을 불러오는 중 오류가 발생했습니다.', false);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('최신 데이터 로드 중 오류:', error);
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1000);
+                    });
+            } else {
+                showToast(data.message, false);
+            }
+        })
+        .catch(error => {
+            console.error('옵션 수정 중 오류:', error);
+            console.error('에러 상세:', error.message, error.stack);
+            showToast('서버 통신 중 오류가 발생했습니다: ' + error.message, false);
+        });
+    }
+
     // 비고 카테고리 폼 제출
     document.getElementById('notesCategoryForm').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -1371,63 +1454,80 @@ document.addEventListener('DOMContentLoaded', function() {
         const editingCategoryId = editingNotesCategoryId;
         
         if (editingCategoryId && editingOptionId) {
-            // 수정 모드: 기존 카테고리의 옵션 수정
-            console.log('수정 모드: 옵션 수정');
-            const optionData = {
-                id: editingOptionId,
-                name: optionName
-            };
+            // 수정 모드: 카테고리명과 옵션명 모두 확인
+            console.log('수정 모드: 카테고리명 및 옵션명 수정');
             
-            fetch(`/api/wdcalculator/notes/categories/${editingCategoryId}/options`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(optionData)
-            })
-            .then(response => {
-                console.log('옵션 수정 API 응답 상태:', response.status);
-                if (!response.ok) {
-                    return response.json().then(err => {
-                        throw new Error(err.message || `HTTP ${response.status}: ${response.statusText}`);
-                    });
-                }
-                return response.json();
-            })
+            // 현재 카테고리 정보 가져오기
+            const currentCategory = notesCategories.find(c => {
+                if (!c) return false;
+                const cId = typeof c.id === 'string' ? parseInt(c.id) : c.id;
+                return cId === editingCategoryId;
+            });
+            
+            if (!currentCategory) {
+                showToast('카테고리를 찾을 수 없습니다.', false);
+                return;
+            }
+            
+            // 카테고리명이 변경되었는지 확인
+            const categoryNameChanged = currentCategory.name !== categoryName;
+            
+            // 카테고리명이 변경되었으면 먼저 카테고리 수정 API 호출
+            if (categoryNameChanged) {
+                console.log('카테고리명 변경 감지, 카테고리 수정 API 호출');
+                // 카테고리명만 변경하므로 options는 보내지 않음 (백엔드에서 기존 옵션 유지)
+                const categoryData = {
+                    id: editingCategoryId,
+                    name: categoryName
+                };
+                
+                fetch('/api/wdcalculator/notes/categories', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(categoryData)
+                })
+                .then(response => {
+                    console.log('카테고리 수정 API 응답 상태:', response.status);
+                    if (!response.ok) {
+                        return response.json().then(err => {
+                            throw new Error(err.message || `HTTP ${response.status}: ${response.statusText}`);
+                        });
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    console.log('옵션 수정 API 응답 데이터:', data);
+                    console.log('카테고리 수정 API 응답 데이터:', data);
                     if (data.success) {
-                        showToast(data.message, true);
-                        // 저장 후 API로 최신 데이터 가져오기
-                        fetch('/api/wdcalculator/notes/categories')
-                            .then(response => response.json())
-                            .then(apiData => {
-                                console.log('저장 후 최신 데이터:', apiData);
-                                if (apiData.success) {
-                                    notesCategories = apiData.categories || [];
-                                    // 1초 후 페이지 새로고침
-                                    setTimeout(() => {
-                                        location.reload();
-                                    }, 1000);
-                                } else {
-                                    showToast('목록을 불러오는 중 오류가 발생했습니다.', false);
-                                }
-                            })
-                            .catch(error => {
-                                console.error('최신 데이터 로드 중 오류:', error);
-                                setTimeout(() => {
-                                    location.reload();
-                                }, 1000);
+                        // 카테고리 수정 성공 후 notesCategories 배열 업데이트
+                        if (data.category) {
+                            const categoryIndex = notesCategories.findIndex(c => {
+                                if (!c) return false;
+                                const cId = typeof c.id === 'string' ? parseInt(c.id) : c.id;
+                                return cId === editingCategoryId;
                             });
+                            if (categoryIndex !== -1) {
+                                notesCategories[categoryIndex] = data.category;
+                                console.log('notesCategories 배열 업데이트 완료:', data.category);
+                            } else {
+                                console.warn('카테고리를 notesCategories 배열에서 찾을 수 없음');
+                            }
+                        }
+                        // 카테고리 수정 성공 후 옵션 수정 진행
+                        updateNotesOption(editingCategoryId, editingOptionId, optionName);
                     } else {
                         showToast(data.message, false);
                     }
                 })
-            .catch(error => {
-                console.error('옵션 수정 중 오류:', error);
-                console.error('에러 상세:', error.message, error.stack);
-                showToast('서버 통신 중 오류가 발생했습니다: ' + error.message, false);
-            });
+                .catch(error => {
+                    console.error('카테고리 수정 중 오류:', error);
+                    showToast('카테고리 수정 중 오류가 발생했습니다: ' + error.message, false);
+                });
+            } else {
+                // 카테고리명이 변경되지 않았으면 옵션만 수정
+                updateNotesOption(editingCategoryId, editingOptionId, optionName);
+            }
         } else {
             // 추가 모드: 기존 카테고리 찾기 또는 새로 생성
             let category = notesCategories.find(c => c && c.name === categoryName);
@@ -1604,20 +1704,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // 옵션 찾기: 인덱스를 우선 사용 (가장 안정적)
+            // 옵션 찾기: ID를 최우선으로 사용 (고유 식별자)
             let option = null;
-            if (optionIndex >= 0 && optionIndex < category.options.length) {
-                option = category.options[optionIndex];
-                // 인덱스로 찾은 옵션이 이름도 일치하는지 확인
-                if (optionName && option && option.name !== optionName) {
-                    // 이름이 다르면 이름으로 다시 찾기
-                    option = category.options.find(o => o && o.name === optionName);
-                }
-            } else if (optionName) {
-                // 인덱스가 유효하지 않으면 이름으로 찾기
-                option = category.options.find(o => o && o.name === optionName);
-            } else if (optionIdStr && optionIdStr !== '' && optionIdStr !== 'None') {
-                // ID로 찾기
+            
+            // 1순위: ID로 찾기 (가장 신뢰할 수 있음)
+            if (optionIdStr && optionIdStr !== '' && optionIdStr !== 'None') {
                 const optionId = parseInt(optionIdStr);
                 if (!isNaN(optionId)) {
                     option = category.options.find(o => {
@@ -1625,6 +1716,39 @@ document.addEventListener('DOMContentLoaded', function() {
                         const oId = typeof o.id === 'string' ? parseInt(o.id) : o.id;
                         return oId === optionId;
                     });
+                    if (option) {
+                        console.log('옵션을 ID로 찾음:', option.id, option.name);
+                    }
+                }
+            }
+            
+            // 2순위: 인덱스로 찾기 (ID가 없거나 찾지 못했을 때)
+            if (!option && optionIndex >= 0 && optionIndex < category.options.length) {
+                option = category.options[optionIndex];
+                // 인덱스로 찾은 옵션이 이름도 일치하는지 확인
+                if (optionName && option && option.name !== optionName) {
+                    console.warn('인덱스로 찾은 옵션의 이름이 일치하지 않음:', {
+                        found: option.name,
+                        expected: optionName,
+                        optionIndex
+                    });
+                    // 이름이 다르면 null로 설정 (다음 단계로)
+                    option = null;
+                } else if (option) {
+                    console.log('옵션을 인덱스로 찾음:', optionIndex, option.id, option.name);
+                }
+            }
+            
+            // 3순위: 이름으로 찾기 (ID와 인덱스 모두 실패했을 때만, 경고 표시)
+            if (!option && optionName) {
+                const foundOptions = category.options.filter(o => o && o.name === optionName);
+                if (foundOptions.length > 1) {
+                    console.warn('같은 이름의 옵션이 여러 개 있습니다:', foundOptions.length, '개');
+                    console.warn('옵션 ID를 사용하는 것을 권장합니다.');
+                }
+                option = foundOptions[0]; // 첫 번째 것만 사용
+                if (option) {
+                    console.log('옵션을 이름으로 찾음 (경고: 같은 이름이 여러 개일 수 있음):', option.id, option.name);
                 }
             }
             

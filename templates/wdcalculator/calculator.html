@@ -871,14 +871,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return div.innerHTML;
     }
     
-    // 카테고리 데이터 확인 (디버깅)
-    console.log('로드된 카테고리 데이터:', wdCalculatorCategories);
-    if (wdCalculatorCategories && wdCalculatorCategories.length > 0) {
-        console.log('카테고리 개수:', wdCalculatorCategories.length);
-        wdCalculatorCategories.forEach((cat, idx) => {
-            console.log(`카테고리 ${idx + 1}:`, cat.name, '옵션 개수:', cat.options ? cat.options.length : 0);
-        });
-    } else {
+    // 카테고리 데이터 확인
+    if (!wdCalculatorCategories || wdCalculatorCategories.length === 0) {
         console.warn('카테고리 데이터가 없습니다. 제품 설정에서 추가 옵션을 등록해주세요.');
     }
     
@@ -956,7 +950,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // 비고 항목 렌더링
+    // 비고 항목 렌더링 (간소화 및 최적화)
     function renderNoteItem(index) {
         const container = document.getElementById('notesContainer');
         if (!container) return;
@@ -964,23 +958,56 @@ document.addEventListener('DOMContentLoaded', function() {
         const note = notesList[index];
         if (!note) return;
         
-        const isSelect = note.type === 'select';
         const noteId = `note-item-${index}`;
         
-        // 기존 항목이 있으면 업데이트, 없으면 새로 생성
+        // 기존 항목이 있으면 제거 후 재생성 (이벤트 리스너 정리)
         let noteItem = document.getElementById(noteId);
-        if (!noteItem) {
-            noteItem = document.createElement('div');
-            noteItem.className = 'note-item mb-2';
-            noteItem.id = noteId;
-            noteItem.setAttribute('data-note-index', index);
-            container.appendChild(noteItem);
+        if (noteItem) {
+            noteItem.remove();
         }
+        
+        // 옵션 목록에 값이 있는지 사전 확인 (렌더링 전)
+        let optionValue = '';
+        if (note.value && note.type === 'select') {
+            // 옵션 목록에서 정확히 일치하는 값 찾기
+            if (wdNotesCategories && Array.isArray(wdNotesCategories)) {
+                for (const category of wdNotesCategories) {
+                    if (category && category.options && Array.isArray(category.options)) {
+                        for (const option of category.options) {
+                            if (option && option.name) {
+                                const fullValue = `${category.name} > ${option.name}`;
+                                if (fullValue === note.value) {
+                                    optionValue = fullValue;
+                                    break;
+                                }
+                            }
+                        }
+                        if (optionValue) break;
+                    }
+                }
+            }
+        }
+        
+        // 실제로 옵션이 아니면 타입을 input으로 변경
+        let finalIsSelect = note.type === 'select';
+        if (finalIsSelect && note.value && !optionValue) {
+            const isActuallyOption = checkIfOptionExists(note.value);
+            if (!isActuallyOption) {
+                notesList[index].type = 'input';
+                finalIsSelect = false;
+            }
+        }
+        
+        // 새 항목 생성
+        noteItem = document.createElement('div');
+        noteItem.className = 'note-item mb-2';
+        noteItem.id = noteId;
+        noteItem.setAttribute('data-note-index', index);
         
         noteItem.innerHTML = `
             <div class="d-flex gap-2 align-items-start">
-                <button type="button" class="btn btn-sm btn-outline-secondary toggle-note-type" data-note-index="${index}" title="${isSelect ? '직접입력' : '옵션 선택'}">
-                    <i class="fas ${isSelect ? 'fa-keyboard' : 'fa-list'}"></i>
+                <button type="button" class="btn btn-sm btn-outline-secondary toggle-note-type" data-note-index="${index}" title="${finalIsSelect ? '직접입력' : '옵션 선택'}">
+                    <i class="fas ${finalIsSelect ? 'fa-keyboard' : 'fa-list'}"></i>
                 </button>
                 <select class="form-select flex-grow-1 note-select" data-note-index="${index}">
                     ${createNotesSelectOptions()}
@@ -992,79 +1019,35 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
         
+        container.appendChild(noteItem);
+        
         // 요소 참조 가져오기
         const select = noteItem.querySelector('.note-select');
         const textarea = noteItem.querySelector('.note-input');
         
-        // 표시 모드 설정 (setNoteMode 사용)
-        setNoteMode(select, textarea, isSelect ? 'select' : 'input');
+        // 표시 모드 설정
+        setNoteMode(select, textarea, finalIsSelect ? 'select' : 'input');
         
-        // 값 설정 (표시 모드 설정 후)
-        if (isSelect) {
-            if (select && note.value) {
-                // option이 존재하는지 확인
-                const optionExists = Array.from(select.options).some(opt => opt.value === note.value);
-                console.log('renderNoteItem: isSelect=true, note.value=', note.value, 'optionExists=', optionExists);
-                if (optionExists) {
-                    select.value = note.value;
-                    console.log('renderNoteItem: select.value set to', select.value);
-                } else {
-                    console.warn('renderNoteItem: Note option not found in select:', note.value);
-                    // option이 없으면 다시 checkIfOptionExists로 확인
-                    // 만약 옵션이 맞다면 type을 'select'로 강제 변경
-                    const isActuallyOption = checkIfOptionExists(note.value);
-                    if (isActuallyOption) {
-                        console.log('renderNoteItem: value is actually an option, fixing type');
-                        notesList[index].type = 'select';
-                        // 다시 렌더링
-                        setTimeout(() => {
-                            renderNoteItem(index);
-                        }, 0);
-                        return; // 재렌더링되므로 여기서 종료
-                    } else {
-                        // 정말로 옵션이 아니면 빈 값으로 설정
-                        select.value = '';
-                    }
-                }
-                // setTimeout으로 DOM 업데이트 후 재확인 (강제 재렌더링)
-                setTimeout(() => {
-                    const optionExistsAfter = Array.from(select.options).some(opt => opt.value === note.value);
-                    if (optionExistsAfter && select.value !== note.value) {
-                        console.log('renderNoteItem: setTimeout - setting select.value to', note.value);
-                        select.value = note.value;
-                    }
-                }, 0);
-            }
-        } else {
-            if (textarea) {
-                textarea.value = note.value || '';
-                // input 타입이지만 실제로는 옵션일 수 있음 - 재확인
-                if (note.value) {
-                    const isActuallyOption = checkIfOptionExists(note.value);
-                    if (isActuallyOption) {
-                        console.log('renderNoteItem: value is actually an option but type is input, fixing');
-                        notesList[index].type = 'select';
-                        // 다시 렌더링
-                        setTimeout(() => {
-                            renderNoteItem(index);
-                        }, 0);
-                        return; // 재렌더링되므로 여기서 종료
-                    }
-                }
-            }
+        // 값 설정
+        if (finalIsSelect && select) {
+            // 옵션 값이 있으면 설정, 없으면 빈 값
+            select.value = optionValue || '';
+        } else if (textarea) {
+            textarea.value = note.value || '';
         }
         
-        // 이벤트 리스너 등록
+        // 이벤트 리스너 등록 (효율적인 방식)
         attachNoteItemEvents(noteItem, index);
     }
     
-    // 비고 항목 이벤트 리스너 등록
+    // 비고 항목 이벤트 리스너 등록 (개선된 버전 - cloneNode 제거)
     function attachNoteItemEvents(noteItem, index) {
         // 타입 전환 버튼
         const toggleBtn = noteItem.querySelector('.toggle-note-type');
         if (toggleBtn) {
-            toggleBtn.replaceWith(toggleBtn.cloneNode(true)); // 기존 리스너 제거
-            noteItem.querySelector('.toggle-note-type').addEventListener('click', function() {
+            toggleBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
                 toggleNoteType(index);
             });
         }
@@ -1072,8 +1055,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // 삭제 버튼
         const removeBtn = noteItem.querySelector('.remove-note');
         if (removeBtn) {
-            removeBtn.replaceWith(removeBtn.cloneNode(true)); // 기존 리스너 제거
-            noteItem.querySelector('.remove-note').addEventListener('click', function() {
+            removeBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
                 removeNoteItem(index);
             });
         }
@@ -1081,30 +1065,25 @@ document.addEventListener('DOMContentLoaded', function() {
         // Select 변경
         const select = noteItem.querySelector('.note-select');
         if (select) {
-            const savedValue = select.value; // 현재 값 저장
-            const newSelect = select.cloneNode(true);
-            select.replaceWith(newSelect);
-            newSelect.value = savedValue; // 값 복원
-            newSelect.addEventListener('change', function() {
+            select.addEventListener('change', function() {
                 if (index >= 0 && index < notesList.length) {
                     notesList[index].value = this.value;
+                    notesList[index].type = 'select';
                 }
             });
         }
         
-        // Input 변경 및 blur (숫자 포맷팅)
+        // Textarea 변경 및 blur (숫자 포맷팅)
         const textarea = noteItem.querySelector('.note-input');
         if (textarea) {
-            const savedValue = textarea.value; // 현재 값 저장
-            const newTextarea = textarea.cloneNode(true);
-            textarea.replaceWith(newTextarea);
-            newTextarea.value = savedValue; // 값 복원
-            newTextarea.addEventListener('input', function() {
+            textarea.addEventListener('input', function() {
                 if (index >= 0 && index < notesList.length) {
                     notesList[index].value = this.value;
+                    notesList[index].type = 'input';
                 }
             });
-            newTextarea.addEventListener('blur', function() {
+            
+            textarea.addEventListener('blur', function() {
                 const formatted = formatNumbersInText(this.value);
                 if (formatted !== this.value) {
                     this.value = formatted;
@@ -1179,25 +1158,20 @@ document.addEventListener('DOMContentLoaded', function() {
             value = value.trim();
             // 옵션 목록에 있는지 확인
             const isOption = checkIfOptionExists(value);
-            console.log('loadNotes: processing line', value, 'isOption:', isOption);
             return {
                 type: isOption ? 'select' : 'input',
                 value: value
             };
         });
         
-        console.log('loadNotes: final notesList', notesList);
         renderAllNotes();
     }
     
     // 옵션 목록에 존재하는지 확인
     function checkIfOptionExists(value) {
         if (!value || !notesCategories) {
-            console.log('checkIfOptionExists: value or notesCategories is empty', { value, notesCategories: notesCategories?.length || 0 });
             return false;
         }
-        
-        console.log('checkIfOptionExists: checking value', value, 'against', notesCategories.length, 'categories');
         
         for (const category of notesCategories) {
             if (category && category.options && Array.isArray(category.options)) {
@@ -1205,15 +1179,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (option && option.name) {
                         const optionValue = `${category.name} > ${option.name}`;
                         if (optionValue === value) {
-                            console.log('checkIfOptionExists: MATCH found', optionValue);
                             return true;
                         }
                     }
                 }
             }
         }
-        
-        console.log('checkIfOptionExists: NO MATCH for', value);
         return false;
     }
     
@@ -1276,9 +1247,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
     
-    // 제품 선택 드롭다운 업데이트
+    // 제품 선택 드롭다운 업데이트 (레거시 - 호환성 유지)
     function updateProductSelect() {
-        // (레거시) productSelect는 더 이상 사용하지 않지만, 구 코드 호환을 위해 null-safe 처리
         const select = document.getElementById('productSelect');
         if (!select) return;
         select.innerHTML = '<option value="">제품을 선택하세요</option>';
@@ -1300,8 +1270,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // 제품 선택 시 정보 표시
-    // 제품 선택 (null 체크 추가)
+    // 제품 선택 이벤트 (레거시 - 호환성 유지)
     const productSelect = document.getElementById('productSelect');
     if (productSelect) {
         productSelect.addEventListener('change', function() {
@@ -1505,9 +1474,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // 쿠폰가는 고정값이므로 변경 이벤트 제거
-    // document.getElementById('couponType').addEventListener('change', calculateEstimate);
-    // document.getElementById('couponValue').addEventListener('input', calculateEstimate);
     
     // 견적 계산 함수
     function calculateEstimate() {
@@ -1644,7 +1610,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const totalPrice = basePrice + additionalPrice;
         // 쿠폰 값은 매번 최신 값으로 읽기 (중요!)
         const couponValue = getCouponValue();
-        console.log('calculateEstimate - 쿠폰 값:', couponValue, '총액:', totalPrice);
         const finalPrice = Math.max(0, totalPrice - couponValue);
         const couponInfoText = couponValue > 0 ? `${formatNumber(couponValue)}원 할인` : '쿠폰가 미적용';
         
@@ -1678,7 +1643,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('addEstimateBtn').innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
             document.getElementById('addEstimateBtn').style.display = 'block';
             // 견적 계산이 완료되면 저장 버튼도 표시 (진행 중인 견적이 있거나 현재 계산된 견적이 있으면)
-            if (estimates.length > 0 || (productId && widthMm > 0)) {
+            if (estimates.length > 0 || basePrice > 0 || additionalPrice > 0) {
                 document.getElementById('saveEstimateBtn').style.display = 'block';
             }
         } else {
@@ -1841,6 +1806,173 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
     
+    // 입력 폼 초기화 함수 (고객명 제외) - 재설계된 버전
+    function resetInputFormKeepCustomerName() {
+        try {
+            // 고객명 저장 (가장 먼저)
+            const customerNameEl = document.getElementById('customerName');
+            const customerName = customerNameEl ? customerNameEl.value.trim() : '';
+            
+            // 1. 변수 초기화
+            editingEstimateId = null;
+            // currentDatabaseEstimateId는 유지 (연속 수정 가능하게)
+            
+            // 2. 기본 구성 초기화 (기본 1개 행으로)
+            try {
+                ensureBaseComponentsUI(null);
+            } catch (error) {
+                console.error('Error resetting base components:', error);
+            }
+            
+            // 3. 추가 옵션 초기화
+            try {
+                const additionalOptionsContainer = document.getElementById('additionalOptionsContainer');
+                if (additionalOptionsContainer) {
+                    additionalOptionsContainer.innerHTML = '';
+                }
+            } catch (error) {
+                console.error('Error resetting additional options:', error);
+            }
+            
+            // 4. 비고 초기화
+            try {
+                notesList = [{type: 'select', value: ''}];
+                renderAllNotes();
+            } catch (error) {
+                console.error('Error resetting notes:', error);
+                // 비고 초기화 실패해도 계속 진행
+                notesList = [{type: 'select', value: ''}];
+            }
+            
+            // 5. 견적 결과 표시 영역 초기화
+            try {
+                const productInfo = document.getElementById('productInfo');
+                if (productInfo) {
+                    productInfo.style.display = 'none';
+                }
+                const baseEstimateSection = document.getElementById('baseEstimateSection');
+                if (baseEstimateSection) {
+                    baseEstimateSection.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error hiding estimate sections:', error);
+            }
+            
+            // 6. 금액 표시 초기화
+            try {
+                const elementsToReset = [
+                    'totalBasePrice', 'totalAdditionalPrice', 'totalPrice', 'finalPrice',
+                    'baseEstimateDetail', 'additionalOptionsDetail'
+                ];
+                elementsToReset.forEach(id => {
+                    try {
+                        const el = document.getElementById(id);
+                        if (el) {
+                            if (id.includes('Detail')) {
+                                el.textContent = '';
+                            } else {
+                                el.textContent = '0원';
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`Error resetting ${id}:`, error);
+                    }
+                });
+            } catch (error) {
+                console.error('Error resetting price elements:', error);
+            }
+            
+            // 7. 버튼 상태 초기화
+            try {
+                const addEstimateBtn = document.getElementById('addEstimateBtn');
+                if (addEstimateBtn) {
+                    addEstimateBtn.innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
+                    addEstimateBtn.style.display = 'none';
+                }
+                
+                // 저장 버튼은 진행 중인 견적이 있으면 유지
+                // estimates 배열은 refreshAfterSave()에서 비워지므로 여기서는 직접 체크
+                const saveEstimateBtn = document.getElementById('saveEstimateBtn');
+                if (saveEstimateBtn && estimates.length === 0) {
+                    saveEstimateBtn.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error resetting buttons:', error);
+            }
+            
+            // 8. 고객명 복원 (마지막에)
+            try {
+                const customerNameInput = document.getElementById('customerName');
+                if (customerNameInput && customerName) {
+                    customerNameInput.value = customerName;
+                }
+            } catch (error) {
+                console.error('Error restoring customer name:', error);
+            }
+            
+            // 9. 계산 실행 (초기화 상태로)
+            try {
+                calculateEstimate();
+                calculateTotalEstimates();
+            } catch (error) {
+                console.error('Error in calculateEstimate/calculateTotalEstimates:', error);
+                // 계산 에러는 치명적이지 않으므로 계속 진행
+            }
+        } catch (error) {
+            console.error('Critical error in resetInputFormKeepCustomerName:', error);
+            // 치명적 에러가 발생해도 고객명은 복원 시도
+            try {
+                const customerNameEl = document.getElementById('customerName');
+                const customerName = customerNameEl ? customerNameEl.value.trim() : '';
+                const customerNameInput = document.getElementById('customerName');
+                if (customerNameInput && customerName) {
+                    customerNameInput.value = customerName;
+                }
+            } catch (restoreError) {
+                console.error('Error restoring customer name in error handler:', restoreError);
+            }
+        }
+    }
+    
+    // 견적 저장 후 refresh 함수 (통합 관리)
+    function refreshAfterSave() {
+        try {
+            // 0. 저장된 견적을 estimates 배열에서 제거 (저장된 견적은 DB에 저장되었으므로 로컬 배열에서 제거)
+            estimates = [];
+            
+            // 1. 입력 폼 초기화 (고객명 제외) - 먼저 실행하여 폼을 깨끗하게
+            resetInputFormKeepCustomerName();
+            
+            // 2. 진행 중인 견적 목록 갱신 - 약간의 지연을 두어 DOM 업데이트 완료 보장
+            setTimeout(() => {
+                try {
+                    renderEstimatesList(); // 이제 estimates가 비어있으므로 빈 목록 표시
+                } catch (error) {
+                    console.error('Error in renderEstimatesList during refresh:', error);
+                }
+                
+                // 3. 사이드바 목록 새로고침 - 견적 목록 갱신 후 실행
+                setTimeout(() => {
+                    try {
+                        loadSidebarEstimates();
+                    } catch (error) {
+                        console.error('Error in loadSidebarEstimates during refresh:', error);
+                    }
+                }, 200);
+            }, 50);
+        } catch (error) {
+            console.error('Error in refreshAfterSave:', error);
+            // 에러가 발생해도 기본 동작은 수행
+            try {
+                estimates = []; // 에러 발생 시에도 배열 비우기
+                renderEstimatesList();
+                setTimeout(() => loadSidebarEstimates(), 300);
+            } catch (fallbackError) {
+                console.error('Error in fallback refresh:', fallbackError);
+            }
+        }
+    }
+    
     // 견적 목록 렌더링
     function renderEstimatesList() {
         const container = document.getElementById('estimatesListContainer');
@@ -1939,7 +2071,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 견적 1개일 경우와 2개 이상일 경우 다른 레이아웃 사용
             if (estimates.length === 1) {
-                // 견적 1개: 총 견적 합계 제거, 최종 견적을 그 자리에 배치
+                // 견적 1개: 최종 견적을 그 자리에 배치
                 html += `
                     <div class="${colClass} mt-3" id="totalEstimatesSummary">
                         <div class="card border-primary">
@@ -2111,7 +2243,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 쿠폰 적용 (매번 최신 값으로 읽기 - 중요!)
         const couponValue = getCouponValue();
-        console.log('calculateTotalEstimates - 쿠폰 값:', couponValue, '총액:', totalPrice);
         const totalEstimate = Math.max(0, totalPrice - couponValue);
         
         // 배송비 가져오기
@@ -2217,25 +2348,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
+            // 고객명 저장 (가장 먼저)
+            const customerNameEl = document.getElementById('customerName');
+            const customerName = customerNameEl ? customerNameEl.value.trim() : '';
+            
             // editingEstimateId 확인
             const normalizedEditingId = normalizeId(editingEstimateId);
             
             if (normalizedEditingId) {
                 // 수정 모드: 기존 견적 업데이트
-                console.log('=== UPDATE MODE ===');
-                console.log('editingEstimateId:', normalizedEditingId);
-                console.log('Current estimates count:', estimates.length);
-                
                 const index = estimates.findIndex(est => isSameId(est.id, normalizedEditingId));
                 
                 if (index !== -1) {
-                    console.log('Found estimate at index:', index, 'ID:', estimates[index].id);
                     // 원본 ID 유지 (절대 변경하지 않음!)
                     const originalId = estimates[index].id;
                     // 사용자가 수정한 표시 이름은 유지 (폼 수집값이 기본값으로 덮어쓰지 않도록)
                     const existingDisplayName = estimates[index].displayName;
                     estimates[index] = { ...estimate, id: originalId, displayName: existingDisplayName || estimate.displayName };
-                    console.log('Updated estimate:', estimates[index]);
                     editingEstimateId = null;
                     this.innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
                 } else {
@@ -2247,40 +2376,116 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } else {
                 // 추가 모드: 새 견적 추가
-                console.log('=== ADD MODE ===');
                 estimate.id = generateEstimateId();
                 estimates.push(estimate);
-                console.log('Added new estimate:', estimate);
             }
         
         renderEstimatesList();
         
-        // 입력 폼 초기화
-        document.getElementById('productSelect').value = '';
-        document.getElementById('additionalOptionsContainer').innerHTML = '';
-        // 비고 초기화
-        notesList = [{type: 'select', value: ''}];
-        renderAllNotes();
-        document.getElementById('addEstimateBtn').style.display = 'none';
+        // ========== 입력 폼 초기화 (고객명 제외) ==========
+        // 1. 변수 초기화
+        editingEstimateId = null;
         
-        // 제품 정보 및 견적 결과 초기화
-        document.getElementById('productInfo').style.display = 'none';
-        document.getElementById('baseEstimateSection').style.display = 'none';
-        document.getElementById('totalBasePrice').textContent = '0원';
-        document.getElementById('totalAdditionalPrice').textContent = '0원';
-        document.getElementById('totalPrice').textContent = '0원';
-        document.getElementById('finalPrice').textContent = '0원';
-        document.getElementById('baseEstimateDetail').textContent = '';
-        document.getElementById('additionalOptionsDetail').textContent = '';
-        
-        // 견적이 있으면 저장 버튼 표시
-        if (estimates.length > 0) {
-            document.getElementById('saveEstimateBtn').style.display = 'block';
+        // 2. 기본 구성 초기화 (기본 1개 행으로)
+        try {
+            ensureBaseComponentsUI(null);
+        } catch (error) {
+            console.error('Error resetting base components:', error);
         }
         
-        // 합계 다시 계산 (초기화 후)
-        calculateEstimate();
-        calculateTotalEstimates();
+        // 3. 추가 옵션 초기화
+        try {
+            const additionalOptionsContainer = document.getElementById('additionalOptionsContainer');
+            if (additionalOptionsContainer) {
+                additionalOptionsContainer.innerHTML = '';
+            }
+        } catch (error) {
+            console.error('Error resetting additional options:', error);
+        }
+        
+        // 4. 비고 초기화
+        try {
+            notesList = [{type: 'select', value: ''}];
+            renderAllNotes();
+        } catch (error) {
+            console.error('Error resetting notes:', error);
+            notesList = [{type: 'select', value: ''}];
+        }
+        
+        // 5. 견적 결과 표시 영역 초기화
+        try {
+            const productInfo = document.getElementById('productInfo');
+            if (productInfo) {
+                productInfo.style.display = 'none';
+            }
+            const baseEstimateSection = document.getElementById('baseEstimateSection');
+            if (baseEstimateSection) {
+                baseEstimateSection.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error hiding estimate sections:', error);
+        }
+        
+        // 6. 금액 표시 초기화
+        try {
+            const elementsToReset = [
+                'totalBasePrice', 'totalAdditionalPrice', 'totalPrice', 'finalPrice',
+                'baseEstimateDetail', 'additionalOptionsDetail'
+            ];
+            elementsToReset.forEach(id => {
+                try {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        if (id.includes('Detail')) {
+                            el.textContent = '';
+                        } else {
+                            el.textContent = '0원';
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error resetting ${id}:`, error);
+                }
+            });
+        } catch (error) {
+            console.error('Error resetting price elements:', error);
+        }
+        
+        // 7. 버튼 상태 초기화
+        try {
+            const addEstimateBtn = document.getElementById('addEstimateBtn');
+            if (addEstimateBtn) {
+                addEstimateBtn.innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
+                addEstimateBtn.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error resetting buttons:', error);
+        }
+        
+        // 8. 고객명 복원 (마지막에)
+        try {
+            const customerNameInput = document.getElementById('customerName');
+            if (customerNameInput && customerName) {
+                customerNameInput.value = customerName;
+            }
+        } catch (error) {
+            console.error('Error restoring customer name:', error);
+        }
+        
+        // 9. 견적이 있으면 저장 버튼 표시
+        if (estimates.length > 0) {
+            const saveEstimateBtn = document.getElementById('saveEstimateBtn');
+            if (saveEstimateBtn) {
+                saveEstimateBtn.style.display = 'block';
+            }
+        }
+        
+        // 10. 계산 실행 (초기화 상태로)
+        try {
+            calculateEstimate();
+            calculateTotalEstimates();
+        } catch (error) {
+            console.error('Error in calculateEstimate/calculateTotalEstimates:', error);
+        }
         });
     }
     
@@ -2298,7 +2503,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 로딩 중이면 무시
         if (isLoadingEstimate) {
-            console.log('이미 견적을 로딩 중입니다. 대기 중...');
             return;
         }
         
@@ -2309,7 +2513,6 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             isLoadingEstimate = true;
             const estimateId = normalizeId(editBtn.dataset.estimateId);
-            console.log('Edit button clicked, ID:', estimateId);
             if (estimateId) {
                 loadEstimateToInputForm(estimateId);
             } else {
@@ -2368,28 +2571,89 @@ document.addEventListener('DOMContentLoaded', function() {
             nameSpan.insertAdjacentElement('afterend', saveBtn);
             nameSpan.insertAdjacentElement('afterend', input);
 
+            // 편집 상태 플래그 (렌더링 중 편집 상태 확인용)
+            let isEditing = true;
+            let isCommitting = false;
+
             const cleanup = () => {
-                input.remove();
-                saveBtn.remove();
-                cancelBtn.remove();
-                nameSpan.style.display = '';
-                editNameBtn.style.display = '';
+                if (!isEditing) return; // 이미 정리됨
+                isEditing = false;
+                
+                try {
+                    if (input && input.parentNode) {
+                        input.remove();
+                    }
+                    if (saveBtn && saveBtn.parentNode) {
+                        saveBtn.remove();
+                    }
+                    if (cancelBtn && cancelBtn.parentNode) {
+                        cancelBtn.remove();
+                    }
+                    if (nameSpan) nameSpan.style.display = '';
+                    if (editNameBtn) editNameBtn.style.display = '';
+                } catch (error) {
+                    console.error('Error in cleanup:', error);
+                }
             };
 
             const commit = () => {
-                const newName = (input.value || '').trim();
-                if (!newName) {
+                // 이미 커밋 중이거나 편집이 종료되었으면 무시
+                if (isCommitting || !isEditing) {
                     cleanup();
                     return;
                 }
-                estimates[idx].displayName = newName;
-                // 렌더링 갱신 (title/ellipsis 반영)
-                renderEstimatesList();
+                
+                isCommitting = true;
+                
+                try {
+                    // input이 이미 제거되었는지 확인
+                    if (!input || !input.parentNode) {
+                        cleanup();
+                        return;
+                    }
+                    
+                    const newName = (input.value || '').trim();
+                    if (!newName) {
+                        cleanup();
+                        return;
+                    }
+                    
+                    estimates[idx].displayName = newName;
+                    
+                    // cleanup 먼저 호출하여 편집 UI 제거
+                    cleanup();
+                    
+                    // 렌더링 갱신 (title/ellipsis 반영) - 약간의 지연을 두어 cleanup 완료 보장
+                    setTimeout(() => {
+                        try {
+                            renderEstimatesList();
+                        } catch (error) {
+                            console.error('Error in renderEstimatesList after commit:', error);
+                        }
+                        isCommitting = false;
+                    }, 10);
+                } catch (error) {
+                    console.error('Error in commit:', error);
+                    cleanup();
+                    isCommitting = false;
+                }
             };
 
-            saveBtn.addEventListener('click', commit);
-            cancelBtn.addEventListener('click', cleanup);
+            // 이벤트 리스너 등록 (한 번만 실행되도록)
+            saveBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                commit();
+            });
+            
+            cancelBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                cleanup();
+            });
+            
             input.addEventListener('keydown', (ev) => {
+                if (!isEditing) return;
                 if (ev.key === 'Enter') {
                     ev.preventDefault();
                     commit();
@@ -2398,15 +2662,24 @@ document.addEventListener('DOMContentLoaded', function() {
                     cleanup();
                 }
             });
+            
             input.addEventListener('blur', () => {
-                // blur 시 자동 저장
-                commit();
+                // blur 시 자동 저장 (약간의 지연을 두어 다른 이벤트 처리 후 실행)
+                if (isEditing && !isCommitting) {
+                    setTimeout(() => {
+                        if (isEditing && !isCommitting) {
+                            commit();
+                        }
+                    }, 200);
+                }
             });
 
             // 포커스
             setTimeout(() => {
-                input.focus();
-                input.select();
+                if (input && input.parentNode) {
+                    input.focus();
+                    input.select();
+                }
             }, 0);
 
             return;
@@ -2420,7 +2693,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!confirm('이 견적을 삭제하시겠습니까?')) return;
             
             const estimateId = normalizeId(deleteBtn.dataset.estimateId);
-            console.log('Delete button clicked, ID:', estimateId);
             
             if (estimateId) {
                 estimates = estimates.filter(est => !isSameId(est.id, estimateId));
@@ -2443,7 +2715,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (card && !e.target.closest('button')) {
             isLoadingEstimate = true;
             const estimateId = normalizeId(card.dataset.estimateId);
-            console.log('Card clicked, ID:', estimateId);
             if (estimateId) {
                 loadEstimateToInputForm(estimateId);
             } else {
@@ -2454,8 +2725,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 견적 데이터를 입력 폼에 로드하는 함수 (완전 재작성)
     function loadEstimateToInputForm(estimateId) {
-        console.log('=== loadEstimateToInputForm START ===');
-        console.log('Requested ID:', estimateId, 'Type:', typeof estimateId);
         
         // 로딩 플래그 설정 (에러 발생 시에도 해제되도록 try-finally 사용)
         isLoadingEstimate = true;
@@ -2467,7 +2736,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (currentEstimate) {
                     const hasChanges = confirm('현재 수정 중인 견적이 있습니다. 다른 견적을 불러오시겠습니까?\n(현재 수정 내용은 저장되지 않습니다)');
                     if (!hasChanges) {
-                        console.log('사용자가 취소했습니다.');
                         return; // finally 블록에서 플래그 해제됨
                     }
                 }
@@ -2492,7 +2760,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 return; // finally 블록에서 플래그 해제됨
             }
 
-            console.log('Found estimate:', estimate);
             
             // 1. 폼 초기화
             document.getElementById('additionalOptionsContainer').innerHTML = '';
@@ -2516,7 +2783,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 ensureBaseComponentsUI(legacy);
             }
             
-            // 3. (구버전) 단일 widthInput 제거됨
             
             // 4. 추가 옵션 로드 (동기적으로 처리)
             const container = document.getElementById('additionalOptionsContainer');
@@ -2698,16 +2964,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     toggleBtn.innerHTML = '<i class="fas fa-list"></i>';
                 }
                 });
-                console.log('Loaded', estimate.options.length, 'options');
             }
             
             // 4.5. 비고 정보 로드 (개별 견적의 비고)
             loadNotes(estimate.notes || '');
-            console.log('Notes loaded:', estimate.notes || '(empty)');
             
             // 5. editingEstimateId 설정 (원본 ID 유지)
             editingEstimateId = estimate.id;
-            console.log('editingEstimateId set to:', editingEstimateId, 'Type:', typeof editingEstimateId);
 
             // 6. UI 업데이트
             document.getElementById('addEstimateBtn').innerHTML = '<i class="fas fa-save"></i> 견적 수정 적용'; 
@@ -2724,7 +2987,6 @@ document.addEventListener('DOMContentLoaded', function() {
             // 8. 계산 수행
             calculateEstimate();
             
-            console.log('=== loadEstimateToInputForm END ===');
         } catch (error) {
             console.error('Error in loadEstimateToInputForm:', error);
             alert('견적을 불러오는 중 오류가 발생했습니다: ' + (error.message || error));
@@ -2974,7 +3236,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const estimateData = estimate.estimate_data;
         
         // 고객명 설정
-        document.getElementById('customerName').value = estimate.customer_name;
+        const customerNameEl = document.getElementById('customerName');
+        if (customerNameEl) {
+            customerNameEl.value = estimate.customer_name;
+        }
         
         // 쿠폰 값 로드
         const couponDiscount = estimateData.coupon_discount || 0;
@@ -3012,7 +3277,6 @@ document.addEventListener('DOMContentLoaded', function() {
             estimates = estimateData.estimates.map((est, idx) => {
                 // ID를 문자열로 통일 (저장된 ID가 있으면 사용, 없으면 새로 생성)
                 const newId = est.id ? String(est.id) : generateEstimateId();
-                console.log(`Loading estimate ${idx + 1}: ID=${newId} (original: ${est.id})`);
                 return {
                     id: newId,
                     productId: est.productId,
@@ -3027,7 +3291,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     notes: est.notes || globalNotes // 개별 비고가 있으면 사용, 없으면 전체 비고 사용
                 };
             });
-            console.log('Loaded estimates:', estimates.map(e => ({ id: e.id, type: typeof e.id })));
             
             // 견적 목록 렌더링
             renderEstimatesList();
@@ -3038,18 +3301,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 saveBtnAfterLoad.style.display = 'block';
             }
             
-            // 입력 폼 초기화 (첫 번째 견적 자동 로드 제거)
-            // 복합 기본견적 UI 기준으로 초기화
+            // 입력 폼 초기화
             ensureBaseComponentsUI();
             document.getElementById('additionalOptionsContainer').innerHTML = '';
             document.getElementById('productInfo').style.display = 'none';
             document.getElementById('baseEstimateSection').style.display = 'none';
-            // 버튼은 숨기지 않음 - 사용자가 견적을 선택하면 수정 적용 버튼이 표시됨
             document.getElementById('addEstimateBtn').innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
             document.getElementById('addEstimateBtn').style.display = 'none';
-            
-            // 알림 메시지 제거 (중복 팝업 방지)
-            // alert('견적을 불러왔습니다.\n아래 "진행 중인 견적" 목록에서 수정할 항목을 선택하세요.');
             
             // 계산 실행 (초기화 상태로)
             calculateEstimate();
@@ -3168,98 +3426,108 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // 견적 저장 기능
-    // 견적 저장 버튼 (null 체크 추가)
     const saveEstimateBtn = document.getElementById('saveEstimateBtn');
     if (saveEstimateBtn) {
-        saveEstimateBtn.addEventListener('click', function() {
-        const customerName = document.getElementById('customerName').value.trim();
-        if (!customerName) {
-            alert('고객명을 입력해주세요.');
-            return;
-        }
+        const newSaveBtn = saveEstimateBtn.cloneNode(true);
+        saveEstimateBtn.parentNode.replaceChild(newSaveBtn, saveEstimateBtn);
         
-        // 현재 진행 중인 견적이 없으면 현재 계산된 견적을 추가
-        let estimatesToSave = estimates;
-        if (estimatesToSave.length === 0) {
-            // 현재 폼의 견적을 수집
-            const currentEstimate = collectCurrentEstimate();
-            if (!currentEstimate) {
-                alert('저장할 견적이 없습니다. 먼저 견적을 계산해주세요.');
+        newSaveBtn.addEventListener('click', function() {
+            const customerName = document.getElementById('customerName').value.trim();
+            if (!customerName) {
+                alert('고객명을 입력해주세요.');
                 return;
             }
-            // 현재 견적을 배열에 추가
-            currentEstimate.id = generateEstimateId();
-            estimatesToSave = [currentEstimate];
-        }
-        
-        // 비고 정보 수집
-        const notes = collectNotes();
-        
-        // 쿠폰 할인 금액 계산
-        const couponValue = getCouponValue();
-        const totalBasePrice = estimatesToSave.reduce((sum, est) => sum + est.basePrice, 0);
-        const totalAdditionalPrice = estimatesToSave.reduce((sum, est) => sum + est.additionalPrice, 0);
-        const totalPrice = estimatesToSave.reduce((sum, est) => sum + est.totalPrice, 0);
-        const couponDiscount = couponValue > 0 ? couponValue : 0;
-        
-        // 배송비 값 가져오기
-        const shippingCostInput = document.getElementById('shippingCost');
-        const shippingCost = shippingCostInput ? parseFloat(shippingCostInput.value) || 0 : 0;
-        
-        // 배송비 포함 여부 가져오기
-        const shippingIncludedCheckbox = document.getElementById('shippingIncluded');
-        const shippingIncluded = shippingIncludedCheckbox ? shippingIncludedCheckbox.checked : true;
-        
-        // 현재 견적 목록을 저장
-        const estimateData = {
-            estimates: estimatesToSave,
-            totalBasePrice: totalBasePrice,
-            totalAdditionalPrice: totalAdditionalPrice,
-            totalPrice: totalPrice,
-            coupon_discount: couponDiscount, // 할인 쿠폰 금액 추가
-            shipping_cost: shippingCost, // 배송비 입력값 사용 (하드코딩 제거)
-            shipping_included: shippingIncluded, // 배송비 포함 여부
-            notes: notes // 비고 정보 추가
-        };
-        
-        fetch('/api/wdcalculator/save-estimate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                estimate_id: currentDatabaseEstimateId,
-                customer_name: customerName,
-                estimate_data: estimateData
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(data.message); // 서버 메시지 사용 (저장/수정 구분)
-                // 저장된 견적을 진행 중인 견적 목록에 추가 (선택사항)
-                // estimates = []; // 목록 초기화하지 않음 (사용자가 계속 추가할 수 있도록)
-                renderEstimatesList();
-                
-                // 신규 저장이면 ID 업데이트하여 연속 수정 가능하게 함
-                if (data.estimate_id) {
-                    currentDatabaseEstimateId = data.estimate_id;
-                    const headerTitle = document.querySelector('.header-primary h6');
-                    if (headerTitle) {
-                        headerTitle.innerHTML = `<i class="fas fa-edit me-2"></i>견적 수정: ${customerName} <span class="badge bg-warning text-dark ms-2">수정모드</span>`;
-                    }
+            
+            // 현재 진행 중인 견적이 없으면 현재 계산된 견적을 추가
+            let estimatesToSave = estimates;
+            if (estimatesToSave.length === 0) {
+                const currentEstimate = collectCurrentEstimate();
+                if (!currentEstimate) {
+                    alert('저장할 견적이 없습니다. 먼저 견적을 계산해주세요.');
+                    return;
                 }
-                
-                // 목록 새로고침
-                setTimeout(() => loadSidebarEstimates(), 500);
-            } else {
-                alert(data.message || '견적 저장 중 오류가 발생했습니다.');
+                currentEstimate.id = generateEstimateId();
+                estimatesToSave = [currentEstimate];
             }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('견적 저장 중 오류가 발생했습니다.');
-        });
+            
+            // 비고 정보 수집
+            const notes = collectNotes();
+            
+            // 쿠폰 할인 금액 계산
+            const couponValue = getCouponValue();
+            const totalBasePrice = estimatesToSave.reduce((sum, est) => sum + est.basePrice, 0);
+            const totalAdditionalPrice = estimatesToSave.reduce((sum, est) => sum + est.additionalPrice, 0);
+            const totalPrice = estimatesToSave.reduce((sum, est) => sum + est.totalPrice, 0);
+            const couponDiscount = couponValue > 0 ? couponValue : 0;
+            
+            // 배송비 값 가져오기
+            const shippingCostInput = document.getElementById('shippingCost');
+            const shippingCost = shippingCostInput ? parseFloat(shippingCostInput.value) || 0 : 0;
+            
+            // 배송비 포함 여부 가져오기
+            const shippingIncludedCheckbox = document.getElementById('shippingIncluded');
+            const shippingIncluded = shippingIncludedCheckbox ? shippingIncludedCheckbox.checked : true;
+            
+            // 현재 견적 목록을 저장
+            const estimateData = {
+                estimates: estimatesToSave,
+                totalBasePrice: totalBasePrice,
+                totalAdditionalPrice: totalAdditionalPrice,
+                totalPrice: totalPrice,
+                coupon_discount: couponDiscount,
+                shipping_cost: shippingCost,
+                shipping_included: shippingIncluded,
+                notes: notes
+            };
+            
+            // 저장 버튼 비활성화 (중복 클릭 방지)
+            newSaveBtn.disabled = true;
+            const originalText = newSaveBtn.innerHTML;
+            newSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장 중...';
+            
+            fetch('/api/wdcalculator/save-estimate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    estimate_id: currentDatabaseEstimateId,
+                    customer_name: customerName,
+                    estimate_data: estimateData
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 버튼 복원
+                newSaveBtn.disabled = false;
+                newSaveBtn.innerHTML = originalText;
+                
+                if (data.success) {
+                    alert(data.message);
+                    
+                    // 신규 저장이면 ID 업데이트
+                    if (data.estimate_id) {
+                        currentDatabaseEstimateId = data.estimate_id;
+                        const headerTitle = document.querySelector('.header-primary h6');
+                        if (headerTitle) {
+                            headerTitle.innerHTML = `<i class="fas fa-edit me-2"></i>견적 수정: ${customerName} <span class="badge bg-warning text-dark ms-2">수정모드</span>`;
+                        }
+                    }
+                    
+                    // 견적 저장 후 refresh (순서 중요)
+                    refreshAfterSave();
+                } else {
+                    alert(data.message || '견적 저장 중 오류가 발생했습니다.');
+                }
+            })
+            .catch(error => {
+                // 에러 시 버튼 복원
+                newSaveBtn.disabled = false;
+                newSaveBtn.innerHTML = originalText;
+                
+                console.error('Error:', error);
+                alert('견적 저장 중 오류가 발생했습니다.');
+            });
         });
     } else {
         console.warn('saveEstimateBtn element not found');
@@ -3432,22 +3700,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 초기 목록 로드
     loadSidebarEstimates();
-    
-    // 견적 저장 후 목록 새로고침 (기존 저장 로직에 연결)
-    // 기존 fetch 성공 콜백 내부에 renderEstimatesList() 호출 부분이 있으므로,
-    // 이벤트를 감지하거나 함수를 오버라이드 해야 함.
-    // 가장 간단한 방법은 기존 저장 버튼 이벤트 리스너 내에서 loadSidebarEstimates()를 호출하도록 수정하는 것인데,
-    // 이미 이벤트 리스너가 등록되어 있으므로, 여기서는 setInterval로 주기적 체크하거나
-    // 사용자가 '저장'을 눌렀을 때 목록이 갱신되도록 saveEstimateBtn의 이벤트를 수정하는 게 좋음.
-    
-    // 기존 저장 버튼 이벤트에 목록 갱신 추가
-    if (saveEstimateBtn) {
-        // addEventListener는 중복 등록 가능하므로, 추가적인 동작만 등록
-        saveEstimateBtn.addEventListener('click', function() {
-            // 저장이 완료될 즈음 (약간의 지연 후) 목록 갱신 시도
-            setTimeout(() => loadSidebarEstimates(), 1000);
-        });
-    }
     
     // URL 파라미터에서 estimate_id 읽기 및 자동 로드
     const urlParams = new URLSearchParams(window.location.search);
