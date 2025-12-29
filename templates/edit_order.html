@@ -995,7 +995,19 @@
                                         </tr>
                 `;
                 
-                // 추가결제금액 표시 (최종 금액 - 결제 금액)
+                // 선 결제 금액 표시 (paymentAmount가 있는 경우)
+                if (paymentAmount > 0) {
+                    html += `
+                                        <tr class="table-info" style="background-color: #cfe2ff !important;">
+                                            <td colspan="3" class="text-end fw-bold" style="font-size: 1rem;">
+                                                <i class="fas fa-credit-card me-2 text-info"></i>선 결제 금액
+                                            </td>
+                                            <td class="text-end fw-bold text-info h6 mb-0" style="color: #084298 !important; font-weight: 700 !important;">${formatNumber(paymentAmount)}원</td>
+                                        </tr>
+                    `;
+                }
+                
+                // 추가결제금액 표시 (최종 금액 - 선 결제 금액)
                 if (paymentAmount > 0 || additionalPayment > 0) {
                     html += `
                                         <tr class="table-warning" style="background-color: #fff3cd !important;">
