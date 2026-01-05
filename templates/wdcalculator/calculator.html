@@ -657,7 +657,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const price30 = component.manualPricing?.price_30cm ?? '';
         const price1 = component.manualPricing?.price_1cm ?? (price30 ? computeAutoPrice1cmFrom30cm(price30) : 0);
         const price1m = component.manualPricing?.price_1m ?? '';
-        const additionalFee = component.additionalFee ?? ''; // 추가금
+        // 추가금을 배열로 처리 (기존 단일 값과 호환)
+        const additionalFees = component.additionalFees || (component.additionalFee ? [{ name: '', amount: component.additionalFee }] : []);
 
         return `
             <div class="card mb-2 border-light base-component-row" data-mode="${mode}">
@@ -724,12 +725,30 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                     
-                    <!-- 두 번째 행: 추가금 입력 (방식 라인 아래 별도) -->
-                    <div class="row g-2 align-items-end mt-2">
-                        <div class="col-12 col-md-4">
-                            <label class="form-label small mb-1">추가금 (원)</label>
-                            <input type="number" class="form-control form-control-sm base-additional-fee" min="0" step="1" placeholder="예: 50000" value="${escapeHtml(String(additionalFee))}">
-                            
+                    <!-- 두 번째 행: 추가금 입력 (리스트 형태) -->
+                    <div class="mt-2">
+                        <label class="form-label small mb-2">추가금</label>
+                        <div class="base-additional-fees-list">
+                            ${additionalFees.map((fee, idx) => `
+                                <div class="row g-2 align-items-end mb-2 base-additional-fee-item">
+                                    <div class="col-12 col-md-5">
+                                        <input type="text" class="form-control form-control-sm base-additional-fee-name" placeholder="제품명 입력" value="${escapeHtml(fee.name || '')}">
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <input type="number" class="form-control form-control-sm base-additional-fee-amount" min="0" step="1" placeholder="금액 (원)" value="${escapeHtml(String(fee.amount || ''))}">
+                                    </div>
+                                    <div class="col-12 col-md-3 text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-danger base-remove-fee-btn" title="삭제">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary base-add-fee-btn">
+                                <i class="fas fa-plus"></i> 추가금 추가
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -745,19 +764,17 @@ document.addEventListener('DOMContentLoaded', function() {
             ? components
             : [{ mode: 'select' }];
         container.innerHTML = list.map(c => renderBaseComponentRow(c)).join('');
-        // 선택값 및 추가금 세팅 (렌더 뒤)
+        // 선택값 세팅 (렌더 뒤)
         container.querySelectorAll('.base-component-row').forEach((rowEl, idx) => {
             const comp = list[idx] || {};
             const sel = rowEl.querySelector('.base-product-select');
             if (sel && comp.productId) {
                 sel.value = String(comp.productId);
             }
-            // 추가금 값 설정
-            const additionalFeeInput = rowEl.querySelector('.base-additional-fee');
-            if (additionalFeeInput && comp.additionalFee !== undefined) {
-                additionalFeeInput.value = String(comp.additionalFee || '');
-            }
         });
+        
+        // 추가금 추가/삭제 버튼 이벤트 바인딩
+        bindAdditionalFeeEvents();
     }
 
     function readBaseComponentsFromUI() {
@@ -767,22 +784,88 @@ document.addEventListener('DOMContentLoaded', function() {
         return rows.map(rowEl => {
             const mode = rowEl.dataset.mode || 'select';
             const widthMm = Number(rowEl.querySelector('.base-width-input')?.value) || 0;
-            const additionalFee = Number(rowEl.querySelector('.base-additional-fee')?.value) || 0; // 추가금 읽기
+            
+            // 추가금 배열 읽기
+            const additionalFees = [];
+            rowEl.querySelectorAll('.base-additional-fee-item').forEach(itemEl => {
+                const name = itemEl.querySelector('.base-additional-fee-name')?.value?.trim() || '';
+                const amount = Number(itemEl.querySelector('.base-additional-fee-amount')?.value) || 0;
+                if (name || amount > 0) {
+                    additionalFees.push({ name, amount });
+                }
+            });
+            
             if (mode === 'manual') {
                 const pricingType = rowEl.querySelector('.base-manual-pricing-type')?.value || '30cm';
                 if (pricingType === '1m') {
                     const price1m = Number(rowEl.querySelector('.base-manual-price1m')?.value) || 0;
-                    return { mode, widthMm, additionalFee, manualPricing: { pricing_type: '1m', price_1m: price1m } };
+                    return { mode, widthMm, additionalFees, manualPricing: { pricing_type: '1m', price_1m: price1m } };
                 }
                 const price30 = Number(rowEl.querySelector('.base-manual-price30')?.value) || 0;
                 const auto1 = computeAutoPrice1cmFrom30cm(price30);
                 // 항상 자동값으로 맞춤
                 const price1El = rowEl.querySelector('.base-manual-price1');
                 if (price1El) price1El.value = String(auto1);
-                return { mode, widthMm, additionalFee, manualPricing: { pricing_type: '30cm', price_30cm: price30, price_1cm: auto1 } };
+                return { mode, widthMm, additionalFees, manualPricing: { pricing_type: '30cm', price_30cm: price30, price_1cm: auto1 } };
             }
             const productId = Number(rowEl.querySelector('.base-product-select')?.value) || null;
-            return { mode, widthMm, additionalFee, productId };
+            return { mode, widthMm, additionalFees, productId };
+        });
+    }
+    
+    // 추가금 추가/삭제 버튼 이벤트 바인딩 함수
+    function bindAdditionalFeeEvents() {
+        const container = document.getElementById('baseComponentsContainer');
+        if (!container) return;
+        
+        // 추가금 추가 버튼
+        container.querySelectorAll('.base-add-fee-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const rowEl = this.closest('.base-component-row');
+                const feesList = rowEl.querySelector('.base-additional-fees-list');
+                if (feesList) {
+                    const newItem = document.createElement('div');
+                    newItem.className = 'row g-2 align-items-end mb-2 base-additional-fee-item';
+                    newItem.innerHTML = `
+                        <div class="col-12 col-md-5">
+                            <input type="text" class="form-control form-control-sm base-additional-fee-name" placeholder="제품명 입력" value="">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <input type="number" class="form-control form-control-sm base-additional-fee-amount" min="0" step="1" placeholder="금액 (원)" value="">
+                        </div>
+                        <div class="col-12 col-md-3 text-end">
+                            <button type="button" class="btn btn-sm btn-outline-danger base-remove-fee-btn" title="삭제">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    `;
+                    feesList.appendChild(newItem);
+                    
+                    // 새로 추가된 항목의 삭제 버튼 이벤트 바인딩
+                    newItem.querySelector('.base-remove-fee-btn').addEventListener('click', function() {
+                        newItem.remove();
+                        calculateEstimate();
+                    });
+                    
+                    // 입력 시 자동 계산
+                    newItem.querySelectorAll('input').forEach(input => {
+                        input.addEventListener('input', calculateEstimate);
+                    });
+                }
+            });
+        });
+        
+        // 추가금 삭제 버튼
+        container.querySelectorAll('.base-remove-fee-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.closest('.base-additional-fee-item').remove();
+                calculateEstimate();
+            });
+        });
+        
+        // 추가금 입력 시 자동 계산
+        container.querySelectorAll('.base-additional-fee-name, .base-additional-fee-amount').forEach(input => {
+            input.addEventListener('input', calculateEstimate);
         });
     }
     
@@ -1496,7 +1579,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const detailLines = [];
         for (const comp of baseComponents) {
             const widthMm = Number(comp.widthMm) || 0;
-            const additionalFee = Number(comp.additionalFee) || 0; // 추가금 읽기
+            const additionalFees = comp.additionalFees || []; // 추가금 배열 읽기
             let compPrice = 0; // 이 구성의 가격
             
             if (widthMm > 0) {
@@ -1539,11 +1622,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            // 추가금 합산
-            if (additionalFee > 0) {
-                compPrice += additionalFee;
-                detailLines.push(`+ 추가금 ${formatNumber(additionalFee)}원`);
-            }
+            // 추가금 합산 (배열 처리)
+            additionalFees.forEach(fee => {
+                const amount = Number(fee.amount) || 0;
+                if (amount > 0) {
+                    compPrice += amount;
+                    const feeName = fee.name ? `${fee.name} ` : '';
+                    detailLines.push(`+ ${feeName}추가금 ${formatNumber(amount)}원`);
+                }
+            });
             
             basePrice += compPrice;
         }
@@ -1668,7 +1755,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const displayParts = [];
         for (const comp of baseComponents) {
             const widthMm = Number(comp.widthMm) || 0;
-            const additionalFee = Number(comp.additionalFee) || 0; // 추가금 읽기
+            const additionalFees = comp.additionalFees || []; // 추가금 배열 읽기
             let compPrice = 0; // 이 구성의 가격
             let compData = {};
             
@@ -1682,7 +1769,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             compData = {
                                 mode: 'manual',
                                 widthMm,
-                                additionalFee, // 추가금 저장
+                                additionalFees, // 추가금 배열 저장
                                 manualPricing: { pricing_type: '1m', price_1m: price1m }
                             };
                             displayParts.push(`직접입력(1m) ${formatNumber(widthMm)}mm`);
@@ -1698,7 +1785,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             compData = {
                                 mode: 'manual',
                                 widthMm,
-                                additionalFee, // 추가금 저장
+                                additionalFees, // 추가금 배열 저장
                                 manualPricing: { pricing_type: '30cm', price_30cm: price30, price_1cm: price1 }
                             };
                             displayParts.push(`직접입력(30cm) ${formatNumber(widthMm)}mm`);
@@ -1721,7 +1808,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 mode: 'select',
                                 productId,
                                 widthMm,
-                                additionalFee // 추가금 저장
+                                additionalFees // 추가금 배열 저장
                             };
                             displayParts.push(`${product.name} ${formatNumber(widthMm)}mm`);
                         }
@@ -1730,21 +1817,34 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // 추가금만 있는 경우도 처리
-            if (widthMm <= 0 && additionalFee > 0) {
+            const totalAdditionalFee = additionalFees.reduce((sum, fee) => sum + (Number(fee.amount) || 0), 0);
+            if (widthMm <= 0 && totalAdditionalFee > 0) {
                 compData = {
                     mode: comp.mode || 'select',
                     widthMm: 0,
-                    additionalFee,
+                    additionalFees,
                     productId: comp.productId || null
                 };
-                displayParts.push(`추가금 ${formatNumber(additionalFee)}원`);
+                additionalFees.forEach(fee => {
+                    const amount = Number(fee.amount) || 0;
+                    if (amount > 0) {
+                        const feeName = fee.name ? `${fee.name} ` : '';
+                        displayParts.push(`${feeName}추가금 ${formatNumber(amount)}원`);
+                    }
+                });
             }
             
-            // 추가금 합산
-            compPrice += additionalFee;
-            if (additionalFee > 0 && widthMm > 0) {
-                displayParts.push(`+ 추가금 ${formatNumber(additionalFee)}원`);
-            }
+            // 추가금 합산 (배열 처리)
+            additionalFees.forEach(fee => {
+                const amount = Number(fee.amount) || 0;
+                if (amount > 0) {
+                    compPrice += amount;
+                    const feeName = fee.name ? `${fee.name} ` : '';
+                    if (widthMm > 0) {
+                        displayParts.push(`+ ${feeName}추가금 ${formatNumber(amount)}원`);
+                    }
+                }
+            });
             
             if (Object.keys(compData).length > 0) {
                 basePrice += compPrice;
