@@ -3411,14 +3411,16 @@ def clean_categories_data(categories):
         }
         
         # 옵션 정리 및 id 자동 생성
-        if category.get('options'):
+        options = category.get('options')
+        if options and isinstance(options, list) and len(options) > 0:
             # 먼저 기존 옵션들 중 유효한 id 찾기
-            existing_ids = [o.get('id') for o in category.get('options', []) if o and o.get('id') is not None]
-            max_existing_id = max(existing_ids + [0])
+            existing_ids = [o.get('id') for o in options if o and isinstance(o, dict) and o.get('id') is not None]
+            max_existing_id = max(existing_ids + [0]) if existing_ids else 0
             next_id = max(max_existing_id + 1, base_option_id + (cat_idx * 100))
             
-            for opt_idx, option in enumerate(category.get('options', [])):
-                if option is None:
+            for opt_idx, option in enumerate(options):
+                if option is None or not isinstance(option, dict):
+                    print(f"[DEBUG] clean_categories_data: 유효하지 않은 옵션 건너뜀 (인덱스 {opt_idx})")
                     continue
                 
                 # id가 null이면 자동으로 생성
@@ -3430,10 +3432,12 @@ def clean_categories_data(categories):
                 
                 cleaned_option = {
                     'id': option_id,
-                    'name': option.get('name') or '',
-                    'price': float(option.get('price', 0)) if option.get('price') is not None else 0
+                    'name': str(option.get('name') or '').strip(),
+                    'price': float(option.get('price', 0)) if option.get('price') is not None else 0.0
                 }
                 cleaned_category['options'].append(cleaned_option)
+        elif options is not None and not isinstance(options, list):
+            print(f"[DEBUG] clean_categories_data: 카테고리 {category.get('id')}의 options가 리스트가 아님: {type(options)}")
         
         cleaned.append(cleaned_category)
     
@@ -3977,24 +3981,29 @@ def api_wdcalculator_save_notes_category():
         
         category_id = data.get('id')
         
-        category_data = {
-            'name': data.get('name', '').strip(),
-            'options': data.get('options', [])
-        }
-        
         if category_id:
             # 수정
             print(f"[DEBUG] 카테고리 수정 모드 - category_id: {category_id}")
             category = next((c for c in categories if c.get('id') == category_id), None)
             if category:
-                category.update(category_data)
-                print(f"[DEBUG] 카테고리 수정 완료")
+                # 카테고리명만 업데이트 (options는 기존 것 유지)
+                category['name'] = data.get('name', '').strip()
+                # options가 명시적으로 전달된 경우에만 업데이트 (카테고리 추가 시에만 사용)
+                if 'options' in data and data['options'] is not None:
+                    category['options'] = data['options']
+                    print(f"[DEBUG] 카테고리 수정 완료 - name: {category['name']}, options 수: {len(category.get('options', []))}")
+                else:
+                    print(f"[DEBUG] 카테고리 수정 완료 - name: {category['name']}, 기존 options 유지 (수: {len(category.get('options', []))})")
             else:
                 print(f"[DEBUG] 카테고리를 찾을 수 없음 - category_id: {category_id}")
                 return jsonify({'success': False, 'message': '카테고리를 찾을 수 없습니다.'})
         else:
             # 추가
             print(f"[DEBUG] 카테고리 추가 모드")
+            category_data = {
+                'name': data.get('name', '').strip(),
+                'options': data.get('options', [])
+            }
             max_id = max([c.get('id', 0) for c in categories] + [0])
             category_data['id'] = max_id + 1
             categories.append(category_data)
@@ -4002,7 +4011,17 @@ def api_wdcalculator_save_notes_category():
         
         if save_notes_categories(categories):
             print(f"[DEBUG] 저장 성공")
-            return jsonify({'success': True, 'message': '비고 카테고리가 저장되었습니다.', 'category': category_data})
+            # 수정 모드인 경우 업데이트된 category 객체 반환, 추가 모드인 경우 category_data 반환
+            return_category = category if category_id else category_data
+            # 카테고리 객체를 복사하여 반환 (참조 문제 방지)
+            if return_category:
+                return_category_copy = {
+                    'id': return_category.get('id'),
+                    'name': return_category.get('name'),
+                    'options': return_category.get('options', [])[:] if return_category.get('options') else []
+                }
+                return jsonify({'success': True, 'message': '비고 카테고리가 저장되었습니다.', 'category': return_category_copy})
+            return jsonify({'success': True, 'message': '비고 카테고리가 저장되었습니다.', 'category': return_category})
         else:
             print(f"[DEBUG] 저장 실패")
             return jsonify({'success': False, 'message': '비고 카테고리 저장에 실패했습니다.'})
