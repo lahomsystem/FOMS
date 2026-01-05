@@ -202,14 +202,15 @@
       ]
     },
     {
-      "name": "\ub9c8\uac10\ud310",
+      "id": 18,
+      "name": "EP \ub9c8\uac10\ud310",
       "options": [
         {
-          "id": null,
-          "name": "\uac01 +70,000 (\ud544\uc694\uc2dc)"
+          "id": 2700,
+          "name": "\uac01 +70,000 (\ud544\uc694\uc2dc)",
+          "price": 0
         }
-      ],
-      "id": 18
+      ]
     }
   ]
 }
