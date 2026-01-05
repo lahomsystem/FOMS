@@ -120,7 +120,13 @@
             <div class="card shadow border-left-inprod">
                 <div class="card-header py-3 d-flex justify-content-between align-items-center header-inprod">
                     <h6 class="m-0 font-weight-bold"><i class="fas fa-industry me-2"></i>제작중 ({{ in_production_orders|length }}건)</h6>
-                    <a href="/?is_cabinet=true" class="btn btn-sm btn-light"><i class="fas fa-list"></i> 목록으로</a>
+                    <div class="d-flex gap-2">
+                        <a href="/api/storage_dashboard/export_excel{% if search_query %}?search_query={{ search_query }}{% endif %}" 
+                           class="btn btn-sm btn-light">
+                            <i class="fas fa-file-excel me-1"></i> 엑셀 다운로드
+                        </a>
+                        <a href="/?is_cabinet=true" class="btn btn-sm btn-light"><i class="fas fa-list"></i> 목록으로</a>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
