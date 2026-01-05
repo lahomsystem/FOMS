@@ -898,8 +898,18 @@
                         let optionsHtml = '';
                         if (item.options && item.options.length > 0) {
                             optionsHtml = '<ul class="list-unstyled mb-0">';
-                                item.options.forEach(opt => {
-                                optionsHtml += `<li style="color: #0d7a3d !important; font-weight: 600 !important; font-size: 0.9rem; line-height: 1.6;">- ${escapeHtml(opt.name || '')}: +${formatNumber(opt.price)}원</li>`;
+                            item.options.forEach(opt => {
+                                const optQuantity = opt.quantity || 1;
+                                const optPrice = opt.price || 0;
+                                const totalOptionPrice = optPrice * optQuantity;
+                                
+                                if (optQuantity > 1) {
+                                    // 수량이 1보다 크면: "옵션명 × 수량 = 총금액원" 형식
+                                    optionsHtml += `<li style="color: #0d7a3d !important; font-weight: 600 !important; font-size: 0.9rem; line-height: 1.6;">- ${escapeHtml(opt.name || '')} × ${optQuantity} = 총${formatNumber(totalOptionPrice)}원</li>`;
+                                } else {
+                                    // 수량이 1이면 기존 형식 유지
+                                    optionsHtml += `<li style="color: #0d7a3d !important; font-weight: 600 !important; font-size: 0.9rem; line-height: 1.6;">- ${escapeHtml(opt.name || '')}: +${formatNumber(optPrice)}원</li>`;
+                                }
                             });
                             optionsHtml += '</ul>';
                         } else {
@@ -944,14 +954,18 @@
 
                 html += `
                                     </tbody>
-                                    <tfoot class="table-light">
-                                        <tr>
-                                            <td colspan="3" class="text-end">기본 견적 합계</td>
-                                            <td class="text-end">${formatNumber(totalBasePrice)}원</td>
+                                    <tfoot>
+                                        <tr style="background-color: #2c3e50 !important;">
+                                            <td colspan="3" class="text-end fw-bold" style="color: #ffffff !important; font-size: 0.95rem !important;">
+                                                <i class="fas fa-cube me-1"></i>기본 견적 합계
+                                            </td>
+                                            <td class="text-end fw-bold" style="color: #ffffff !important; font-size: 1rem !important;">${formatNumber(totalBasePrice)}원</td>
                                         </tr>
-                                        <tr>
-                                            <td colspan="3" class="text-end">추가 옵션 합계</td>
-                                            <td class="text-end">${formatNumber(totalAdditionalPrice)}원</td>
+                                        <tr style="background-color: #d35400 !important;">
+                                            <td colspan="3" class="text-end fw-bold" style="color: #ffffff !important; font-size: 0.95rem !important;">
+                                                <i class="fas fa-plus-circle me-1"></i>추가 옵션 합계
+                                            </td>
+                                            <td class="text-end fw-bold" style="color: #ffffff !important; font-size: 1rem !important;">${formatNumber(totalAdditionalPrice)}원</td>
                                         </tr>
                 `;
                 

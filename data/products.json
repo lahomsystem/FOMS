@@ -224,6 +224,26 @@
       "coupon_value": 0,
       "price_30cm": 136250,
       "price_1cm": 4550
+    },
+    {
+      "id": 27,
+      "name": "\uc2dc\uc2a4\ud15c\ud589\uac70",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 55000,
+      "price_1cm": 1840
+    },
+    {
+      "id": 28,
+      "name": "LED\uc2dc\uc2a4\ud15c\ud589\uac70",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 99000,
+      "price_1cm": 3300
     }
   ]
 }

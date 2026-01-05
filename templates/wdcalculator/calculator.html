@@ -2362,9 +2362,57 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (index !== -1) {
                     // 원본 ID 유지 (절대 변경하지 않음!)
                     const originalId = estimates[index].id;
-                    // 사용자가 수정한 표시 이름은 유지 (폼 수집값이 기본값으로 덮어쓰지 않도록)
-                    const existingDisplayName = estimates[index].displayName;
-                    estimates[index] = { ...estimate, id: originalId, displayName: existingDisplayName || estimate.displayName };
+                    const existingEstimate = estimates[index];
+                    
+                    // 제품 변경 감지: baseComponents의 productId 비교
+                    let productChanged = false;
+                    const oldBaseComponents = existingEstimate.baseComponents || [];
+                    const newBaseComponents = estimate.baseComponents || [];
+                    
+                    // baseComponents 길이가 다르면 변경된 것으로 간주
+                    if (oldBaseComponents.length !== newBaseComponents.length) {
+                        productChanged = true;
+                    } else {
+                        // 각 baseComponent의 productId 비교
+                        for (let i = 0; i < oldBaseComponents.length; i++) {
+                            const oldComp = oldBaseComponents[i];
+                            const newComp = newBaseComponents[i];
+                            
+                            // productId 비교
+                            const oldProductId = oldComp?.productId || null;
+                            const newProductId = newComp?.productId || null;
+                            
+                            if (oldProductId !== newProductId) {
+                                productChanged = true;
+                                break;
+                            }
+                            
+                            // mode가 다르면 변경된 것으로 간주 (select -> manual 또는 반대)
+                            if (oldComp?.mode !== newComp?.mode) {
+                                productChanged = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // 제품이 변경되었으면 최신 제품 이름으로 업데이트
+                    if (productChanged) {
+                        console.log('제품 변경 감지 - 최신 제품 이름으로 업데이트');
+                        estimates[index] = { 
+                            ...estimate, 
+                            id: originalId,
+                            productName: estimate.productName,  // 최신 제품 이름
+                            displayName: estimate.displayName   // 최신 표시 이름
+                        };
+                    } else {
+                        // 제품이 변경되지 않았으면 기존 displayName 유지 (사용자가 수동으로 편집한 경우)
+                        estimates[index] = { 
+                            ...estimate, 
+                            id: originalId, 
+                            displayName: existingEstimate.displayName || estimate.displayName 
+                        };
+                    }
+                    
                     editingEstimateId = null;
                     this.innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
                 } else {
