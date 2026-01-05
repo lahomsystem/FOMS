@@ -2869,7 +2869,8 @@ def update_order_field():
         'as_received_date', 'as_completed_date',  # AS 관련 날짜 필드들
         'measurement_date',  # 실측일 필드
         'regional_memo',  # 메모 필드 허용 (수납장 대시보드 등)
-        'is_cabinet', 'cabinet_status'  # 수납장 관련
+        'is_cabinet', 'cabinet_status',  # 수납장 관련
+        'shipping_fee'  # 배송비 필드 (수납장 대시보드용)
     ]
     if field not in allowed_fields:
         return jsonify({'success': False, 'message': f'허용되지 않은 필드입니다: {field}'}), 400

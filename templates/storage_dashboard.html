@@ -130,8 +130,10 @@
                                     <th style="width: 60px;">번호</th>
                                     <th style="width: 120px;">메모</th>
                                     <th style="width: 120px;">고객명</th>
+                                    <th style="width: 130px;">전화번호</th>
                                     <th style="width: 200px;">주소</th>
                                     <th style="width: 200px;">제품</th>
+                                    <th style="width: 100px;">배송비</th>
                                     <th style="width: 120px;">상태</th>
                                     <th style="width: 120px;">설치 예정일</th>
                                     <th style="width: 80px;">작업</th>
@@ -147,8 +149,17 @@
                                                   data-order-id="{{ order.id }}" data-field="regional_memo">{{ order.regional_memo or '' }}</textarea>
                                     </td>
                                     <td>{{ order.customer_name }}</td>
-                                    <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">{{ order.address }}</td>
-                                    <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">{{ order.product }}</td>
+                                    <td>{{ order.phone }}</td>
+                                    <td style="word-break: break-word; white-space: normal; max-width: 200px;">{{ order.address }}</td>
+                                    <td style="word-break: break-word; white-space: normal; max-width: 200px;">{{ order.product }}</td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm inline-edit-number" 
+                                               value="{{ '{:,}'.format(order.shipping_fee or 0) }}"
+                                               data-order-id="{{ order.id }}" 
+                                               data-field="shipping_fee"
+                                               style="min-width: 90px; text-align: right;"
+                                               placeholder="0">
+                                    </td>
                                     <td>
                                         <select class="form-select form-select-sm inline-edit status-dropdown {{ 'status-received' if order.cabinet_status == 'RECEIVED' else ('status-inprod' if order.cabinet_status == 'IN_PRODUCTION' else 'status-shipped') }}"
                                                 data-order-id="{{ order.id }}" data-field="cabinet_status">
@@ -268,6 +279,51 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.inline-edit-date').forEach(function(input) {
         input.addEventListener('change', function() {
             saveField(this.dataset.orderId, this.dataset.field, this.value);
+        });
+    });
+
+    // 배송비 숫자 입력 필드 인라인 편집 (콤마 포맷팅 포함)
+    document.querySelectorAll('.inline-edit-number').forEach(function(input) {
+        // 숫자에 콤마 추가하는 함수
+        function formatNumberWithComma(value) {
+            // 숫자가 아닌 문자 제거
+            const numValue = value.toString().replace(/[^0-9]/g, '');
+            if (!numValue) return '0';
+            // 콤마 추가
+            return parseInt(numValue, 10).toLocaleString('ko-KR');
+        }
+        
+        // 콤마 제거하는 함수
+        function removeComma(value) {
+            return value.toString().replace(/,/g, '');
+        }
+        
+        // 입력 시 실시간 포맷팅
+        input.addEventListener('input', function(e) {
+            const cursorPosition = this.selectionStart;
+            const oldValue = this.value;
+            const newValue = formatNumberWithComma(this.value);
+            
+            this.value = newValue;
+            
+            // 커서 위치 조정 (콤마 추가로 인한 위치 변화 보정)
+            const addedCommas = (newValue.match(/,/g) || []).length - (oldValue.match(/,/g) || []).length;
+            const newCursorPosition = Math.max(0, cursorPosition + addedCommas);
+            this.setSelectionRange(newCursorPosition, newCursorPosition);
+        });
+        
+        // 포커스 아웃 시 저장
+        input.addEventListener('blur', function() {
+            const numValue = parseInt(removeComma(this.value)) || 0;
+            this.value = formatNumberWithComma(numValue); // 저장 후 포맷팅 유지
+            saveField(this.dataset.orderId, this.dataset.field, numValue);
+        });
+        
+        // 엔터키로도 저장 가능
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                this.blur();
+            }
         });
     });
 
