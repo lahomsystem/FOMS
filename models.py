@@ -50,6 +50,9 @@ class Order(Base):
     # 상차 예정일 추가
     shipping_scheduled_date = Column(String)
     
+    # 배송비 추가 (수납장 대시보드용)
+    shipping_fee = Column(Integer, nullable=True, default=0)
+    
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
