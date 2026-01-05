@@ -195,11 +195,21 @@
           "price": 0.0
         },
         {
+          "id": 2602,
           "name": "\ub77c\uc6b4\ub4dc EP\ub9c8\uac10 +330,000\uc6d0",
-          "price": 0,
-          "id": 2602
+          "price": 0.0
         }
       ]
+    },
+    {
+      "name": "\ub9c8\uac10\ud310",
+      "options": [
+        {
+          "id": null,
+          "name": "\uac01 +70,000 (\ud544\uc694\uc2dc)"
+        }
+      ],
+      "id": 18
     }
   ]
 }
