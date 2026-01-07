@@ -3916,8 +3916,11 @@ def api_wdcalculator_save_category():
             found = False
             for i, category in enumerate(categories):
                 if category.get('id') == category_id:
-                    # 기존 옵션은 유지하고 새로운 옵션만 추가
-                    if 'options' in category_data and category_data['options']:
+                    # 카테고리명만 업데이트 (options는 기존 것 유지)
+                    category['name'] = category_data['name']
+                    # options가 명시적으로 전달된 경우에만 업데이트 (카테고리 추가 시에만 사용)
+                    if 'options' in category_data and category_data['options'] is not None:
+                        # 기존 옵션은 유지하고 새로운 옵션만 추가
                         existing_options = category.get('options', [])
                         # 기존 옵션 ID 유지
                         for new_option in category_data['options']:
@@ -3927,8 +3930,8 @@ def api_wdcalculator_save_category():
                                 new_option_id = max(option_ids, default=0) + 1
                                 new_option['id'] = new_option_id
                                 existing_options.append(new_option)
-                        category_data['options'] = existing_options
-                    categories[i] = category_data
+                        category['options'] = existing_options
+                    # options가 없으면 기존 옵션 유지 (카테고리명만 변경)
                     found = True
                     break
             if not found:
@@ -3971,6 +3974,17 @@ def api_wdcalculator_save_category():
         # 데이터 정리 후 저장
         cleaned_categories = clean_categories_data(categories)
         if save_additional_option_categories(cleaned_categories):
+            # 수정 모드인 경우 업데이트된 category 객체 반환, 추가 모드인 경우 category_data 반환
+            if category_id:
+                updated_category = next((c for c in cleaned_categories if c.get('id') == category_id), None)
+                if updated_category:
+                    # 카테고리 객체를 복사하여 반환 (참조 문제 방지)
+                    return_category_copy = {
+                        'id': updated_category.get('id'),
+                        'name': updated_category.get('name', ''),
+                        'options': updated_category.get('options', [])[:] if updated_category.get('options') else []
+                    }
+                    return jsonify({'success': True, 'message': '카테고리가 저장되었습니다.', 'category': return_category_copy})
             return jsonify({'success': True, 'message': '카테고리가 저장되었습니다.'})
         else:
             return jsonify({'success': False, 'message': '카테고리 저장에 실패했습니다.'})
