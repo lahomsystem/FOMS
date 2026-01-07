@@ -1162,79 +1162,197 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // 카테고리 찾기 또는 생성
-        let category = categories.find(c => c.name === categoryName);
-        let categoryId = editingAdditionalOptionCategoryId;
+        // 수정 모드인지 확인
+        const editingOptionId = editingAdditionalOptionId;
+        const editingCategoryId = editingAdditionalOptionCategoryId;
         
-        // 수정 모드가 아니면 카테고리명으로 검색
-        if (!categoryId && category) {
-            categoryId = category.id;
-        }
-        
-        // 카테고리를 찾지 못했으면 새로 생성
-        if (!categoryId && !category) {
-            categoryId = null; // 새로 생성할 카테고리
-        }
-        
-        // 옵션 데이터 준비
-        const optionData = {
-            id: editingAdditionalOptionId || null,
-            name: optionName,
-            price: optionPrice
-        };
-        
-        // 카테고리가 있으면 옵션만 추가/수정, 없으면 카테고리와 옵션 함께 생성
-        if (categoryId) {
-            // 기존 카테고리에 옵션 추가/수정
-            fetch(`/api/wdcalculator/additional-options/categories/${categoryId}/options`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(optionData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(data.message, true);
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1000);
-                } else {
-                    showToast(data.message, false);
-                }
-            })
-            .catch(error => {
-                showToast('서버 통신 중 오류가 발생했습니다.', false);
+        if (editingCategoryId && editingOptionId) {
+            // 수정 모드: 카테고리명과 옵션명 모두 확인
+            console.log('=== 추가 옵션 수정 모드 ===');
+            console.log('카테고리명:', categoryName);
+            console.log('옵션명:', optionName);
+            console.log('가격:', optionPrice);
+            console.log('editingCategoryId:', editingCategoryId);
+            console.log('editingOptionId:', editingOptionId);
+            console.log('현재 categories:', categories);
+            
+            // 현재 카테고리 정보 가져오기
+            const currentCategory = categories.find(c => {
+                if (!c) return false;
+                const cId = typeof c.id === 'string' ? parseInt(c.id) : c.id;
+                return cId === editingCategoryId;
             });
-        } else {
-            // 새 카테고리와 옵션 함께 생성
-            const categoryData = {
-                name: categoryName,
-                options: [optionData]
+            
+            if (!currentCategory) {
+                showToast('카테고리를 찾을 수 없습니다.', false);
+                return;
+            }
+            
+            // 카테고리명이 변경되었는지 확인
+            const categoryNameChanged = currentCategory.name !== categoryName;
+            
+            // 옵션 데이터 준비
+            const optionData = {
+                id: editingOptionId,
+                name: optionName,
+                price: optionPrice
             };
             
-            fetch('/api/wdcalculator/additional-options/categories', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(categoryData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(data.message, true);
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1000);
-                } else {
-                    showToast(data.message, false);
-                }
-            })
-            .catch(error => {
-                showToast('서버 통신 중 오류가 발생했습니다.', false);
-            });
+            // 옵션 수정 함수
+            const updateAdditionalOption = (categoryId, optionId, optionData) => {
+                fetch(`/api/wdcalculator/additional-options/categories/${categoryId}/options`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(optionData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(data.message, true);
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1000);
+                    } else {
+                        showToast(data.message, false);
+                    }
+                })
+                .catch(error => {
+                    showToast('서버 통신 중 오류가 발생했습니다.', false);
+                });
+            };
+            
+            // 카테고리명이 변경되었으면 먼저 카테고리 수정 API 호출
+            if (categoryNameChanged) {
+                console.log('카테고리명 변경 감지, 카테고리 수정 API 호출');
+                // 카테고리명만 변경하므로 options는 보내지 않음 (백엔드에서 기존 옵션 유지)
+                const categoryData = {
+                    id: editingCategoryId,
+                    name: categoryName
+                };
+                
+                fetch('/api/wdcalculator/additional-options/categories', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(categoryData)
+                })
+                .then(response => {
+                    console.log('카테고리 수정 API 응답 상태:', response.status);
+                    if (!response.ok) {
+                        return response.json().then(err => {
+                            throw new Error(err.message || `HTTP ${response.status}: ${response.statusText}`);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('카테고리 수정 API 응답 데이터:', data);
+                    if (data.success) {
+                        // 카테고리 수정 성공 후 categories 배열 업데이트
+                        const categoryIndex = categories.findIndex(c => {
+                            if (!c) return false;
+                            const cId = typeof c.id === 'string' ? parseInt(c.id) : c.id;
+                            return cId === editingCategoryId;
+                        });
+                        if (categoryIndex !== -1) {
+                            categories[categoryIndex].name = categoryName;
+                            console.log('categories 배열 업데이트 완료:', categoryName);
+                        } else {
+                            console.warn('카테고리를 categories 배열에서 찾을 수 없음');
+                        }
+                        // 카테고리 수정 성공 후 옵션 수정 진행
+                        updateAdditionalOption(editingCategoryId, editingOptionId, optionData);
+                    } else {
+                        showToast(data.message, false);
+                    }
+                })
+                .catch(error => {
+                    console.error('카테고리 수정 중 오류:', error);
+                    showToast('카테고리 수정 중 오류가 발생했습니다: ' + error.message, false);
+                });
+            } else {
+                // 카테고리명이 변경되지 않았으면 옵션만 수정
+                updateAdditionalOption(editingCategoryId, editingOptionId, optionData);
+            }
+        } else {
+            // 추가 모드: 기존 로직 유지
+            // 카테고리 찾기 또는 생성
+            let category = categories.find(c => c.name === categoryName);
+            let categoryId = editingAdditionalOptionCategoryId;
+            
+            // 수정 모드가 아니면 카테고리명으로 검색
+            if (!categoryId && category) {
+                categoryId = category.id;
+            }
+            
+            // 카테고리를 찾지 못했으면 새로 생성
+            if (!categoryId && !category) {
+                categoryId = null; // 새로 생성할 카테고리
+            }
+            
+            // 옵션 데이터 준비
+            const optionData = {
+                id: editingAdditionalOptionId || null,
+                name: optionName,
+                price: optionPrice
+            };
+            
+            // 카테고리가 있으면 옵션만 추가/수정, 없으면 카테고리와 옵션 함께 생성
+            if (categoryId) {
+                // 기존 카테고리에 옵션 추가/수정
+                fetch(`/api/wdcalculator/additional-options/categories/${categoryId}/options`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(optionData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(data.message, true);
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1000);
+                    } else {
+                        showToast(data.message, false);
+                    }
+                })
+                .catch(error => {
+                    showToast('서버 통신 중 오류가 발생했습니다.', false);
+                });
+            } else {
+                // 새 카테고리와 옵션 함께 생성
+                const categoryData = {
+                    name: categoryName,
+                    options: [optionData]
+                };
+                
+                fetch('/api/wdcalculator/additional-options/categories', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(categoryData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(data.message, true);
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1000);
+                    } else {
+                        showToast(data.message, false);
+                    }
+                })
+                .catch(error => {
+                    showToast('서버 통신 중 오류가 발생했습니다.', false);
+                });
+            }
         }
     });
 
