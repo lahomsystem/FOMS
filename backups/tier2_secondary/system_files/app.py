@@ -2869,7 +2869,8 @@ def update_order_field():
         'as_received_date', 'as_completed_date',  # AS 관련 날짜 필드들
         'measurement_date',  # 실측일 필드
         'regional_memo',  # 메모 필드 허용 (수납장 대시보드 등)
-        'is_cabinet', 'cabinet_status'  # 수납장 관련
+        'is_cabinet', 'cabinet_status',  # 수납장 관련
+        'shipping_fee'  # 배송비 필드 (수납장 대시보드용)
     ]
     if field not in allowed_fields:
         return jsonify({'success': False, 'message': f'허용되지 않은 필드입니다: {field}'}), 400
@@ -3385,6 +3386,129 @@ def storage_dashboard():
                            CABINET_STATUS=CABINET_STATUS,
                            STATUS=STATUS)
 
+@app.route('/api/storage_dashboard/export_excel')
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def export_storage_dashboard_excel():
+    """수납장 대시보드 제작중 주문 엑셀 내보내기"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+    
+    db = get_db()
+    search_query = request.args.get('search_query', '').strip()
+    
+    # 제작중 주문만 조회
+    base_query = db.query(Order).filter(
+        Order.is_cabinet == True,
+        Order.status != 'DELETED',
+        Order.cabinet_status == 'IN_PRODUCTION'
+    )
+    
+    # 검색어 필터 적용
+    if search_query:
+        search_term = f"%{search_query}%"
+        id_conditions = []
+        try:
+            search_id = int(search_query)
+            id_conditions.append(Order.id == search_id)
+        except ValueError:
+            id_conditions.append(func.cast(Order.id, String).ilike(search_term))
+        
+        base_query = base_query.filter(
+            or_(
+                Order.customer_name.ilike(search_term),
+                Order.phone.ilike(search_term),
+                Order.address.ilike(search_term),
+                Order.product.ilike(search_term),
+                Order.regional_memo.ilike(search_term),
+                *id_conditions
+            )
+        )
+    
+    orders = base_query.order_by(Order.id.desc()).all()
+    
+    if not orders:
+        flash('다운로드할 데이터가 없습니다.', 'warning')
+        return redirect(url_for('storage_dashboard'))
+    
+    # 엑셀 워크북 생성
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "제작중 주문"
+    
+    # 헤더 정의
+    headers = ['번호', '메모', '고객명', '전화번호', '주소', '제품', '배송비', '상태', '설치 예정일']
+    
+    # 스타일 정의
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")  # 파란색 배경
+    header_font = Font(bold=True, color="FFFFFF")  # 흰색 볼드
+    border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    center_alignment = Alignment(horizontal='center', vertical='center')
+    
+    # 헤더 작성
+    for col_idx, header in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.border = border
+        cell.alignment = center_alignment
+    
+    # 데이터 작성
+    for row_idx, order in enumerate(orders, start=2):
+        # 번호
+        ws.cell(row=row_idx, column=1, value=order.id).border = border
+        
+        # 메모
+        ws.cell(row=row_idx, column=2, value=order.regional_memo or '').border = border
+        
+        # 고객명
+        ws.cell(row=row_idx, column=3, value=order.customer_name).border = border
+        
+        # 전화번호
+        ws.cell(row=row_idx, column=4, value=order.phone).border = border
+        
+        # 주소
+        ws.cell(row=row_idx, column=5, value=order.address).border = border
+        
+        # 제품
+        ws.cell(row=row_idx, column=6, value=order.product).border = border
+        
+        # 배송비 (콤마 포맷팅)
+        shipping_fee = order.shipping_fee or 0
+        ws.cell(row=row_idx, column=7, value=f"{shipping_fee:,}").border = border
+        ws.cell(row=row_idx, column=7).alignment = Alignment(horizontal='right', vertical='center')
+        
+        # 상태 (한글 변환)
+        status_korean = CABINET_STATUS.get(order.cabinet_status, order.cabinet_status or '')
+        ws.cell(row=row_idx, column=8, value=status_korean).border = border
+        ws.cell(row=row_idx, column=8).alignment = center_alignment
+        
+        # 설치 예정일
+        ws.cell(row=row_idx, column=9, value=order.scheduled_date or '').border = border
+    
+    # 컬럼 너비 자동 조정
+    column_widths = [10, 25, 15, 15, 35, 30, 12, 12, 15]
+    for col_idx, width in enumerate(column_widths, start=1):
+        ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = width
+    
+    # 파일 저장
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    excel_filename = f"storage_in_production_{timestamp}.xlsx"
+    excel_path = os.path.join(app.config['UPLOAD_FOLDER'], excel_filename)
+    
+    wb.save(excel_path)
+    
+    # 로그 기록
+    log_access(f"수납장 대시보드 제작중 엑셀 다운로드: {excel_filename} ({len(orders)}건)", session.get('user_id'))
+    
+    # 파일 다운로드
+    return send_file(excel_path, as_attachment=True, download_name=excel_filename)
+
 # ==================== WDCalculator (가구 견적 계산기) ====================
 
 # JSON 파일 경로
@@ -3792,8 +3916,11 @@ def api_wdcalculator_save_category():
             found = False
             for i, category in enumerate(categories):
                 if category.get('id') == category_id:
-                    # 기존 옵션은 유지하고 새로운 옵션만 추가
-                    if 'options' in category_data and category_data['options']:
+                    # 카테고리명만 업데이트 (options는 기존 것 유지)
+                    category['name'] = category_data['name']
+                    # options가 명시적으로 전달된 경우에만 업데이트 (카테고리 추가 시에만 사용)
+                    if 'options' in category_data and category_data['options'] is not None:
+                        # 기존 옵션은 유지하고 새로운 옵션만 추가
                         existing_options = category.get('options', [])
                         # 기존 옵션 ID 유지
                         for new_option in category_data['options']:
@@ -3803,8 +3930,8 @@ def api_wdcalculator_save_category():
                                 new_option_id = max(option_ids, default=0) + 1
                                 new_option['id'] = new_option_id
                                 existing_options.append(new_option)
-                        category_data['options'] = existing_options
-                    categories[i] = category_data
+                        category['options'] = existing_options
+                    # options가 없으면 기존 옵션 유지 (카테고리명만 변경)
                     found = True
                     break
             if not found:
@@ -3847,6 +3974,17 @@ def api_wdcalculator_save_category():
         # 데이터 정리 후 저장
         cleaned_categories = clean_categories_data(categories)
         if save_additional_option_categories(cleaned_categories):
+            # 수정 모드인 경우 업데이트된 category 객체 반환, 추가 모드인 경우 category_data 반환
+            if category_id:
+                updated_category = next((c for c in cleaned_categories if c.get('id') == category_id), None)
+                if updated_category:
+                    # 카테고리 객체를 복사하여 반환 (참조 문제 방지)
+                    return_category_copy = {
+                        'id': updated_category.get('id'),
+                        'name': updated_category.get('name', ''),
+                        'options': updated_category.get('options', [])[:] if updated_category.get('options') else []
+                    }
+                    return jsonify({'success': True, 'message': '카테고리가 저장되었습니다.', 'category': return_category_copy})
             return jsonify({'success': True, 'message': '카테고리가 저장되었습니다.'})
         else:
             return jsonify({'success': False, 'message': '카테고리 저장에 실패했습니다.'})

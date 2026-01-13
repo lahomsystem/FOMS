@@ -3,7 +3,7 @@ echo 🚨 FOMS 시스템 복구 스크립트
 echo 실행 전 PostgreSQL 서비스가 실행 중인지 확인하세요.
 echo.
 echo 현재 백업 위치: backups/tier2_secondary
-echo 데이터베이스 백업 파일: database_backup_20260105_093650.sql
+echo 데이터베이스 백업 파일: database_backup_20260109_154759.sql
 echo.
 pause
 
@@ -17,7 +17,7 @@ REM 새 데이터베이스 생성
 psql -U postgres -h localhost -c "CREATE DATABASE furniture_orders;" postgres
 
 REM 백업 데이터 복원
-psql -U postgres -h localhost -d furniture_orders -f "backups/tier2_secondary\database_backup_20260105_093650.sql"
+psql -U postgres -h localhost -d furniture_orders -f "backups/tier2_secondary\database_backup_20260109_154759.sql"
 
 echo 데이터베이스 복구가 완료되었습니다!
 echo.
