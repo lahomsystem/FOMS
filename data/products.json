@@ -244,6 +244,16 @@
       "coupon_value": 0,
       "price_30cm": 99000,
       "price_1cm": 3300
+    },
+    {
+      "id": 29,
+      "name": "\uc774\ub9ac\uc2a4 \ub3c4\uc7a5 \ubd99\ubc15\uc774",
+      "pricing_type": "30cm",
+      "additional_options": [],
+      "coupon_type": "percentage",
+      "coupon_value": 0,
+      "price_30cm": 158000,
+      "price_1cm": 5300
     }
   ]
 }
