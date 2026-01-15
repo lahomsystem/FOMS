@@ -13,7 +13,7 @@ from datetime import date, timedelta
 
 # 데이터베이스 관련 임포트
 from db import get_db, close_db, init_db
-from models import Order, User, SecurityLog
+from models import Order, User, SecurityLog, ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment
 
 # 견적 계산기 독립 데이터베이스 임포트
 from wdcalculator_db import get_wdcalculator_db, close_wdcalculator_db, init_wdcalculator_db
@@ -26,9 +26,26 @@ from simple_backup_system import SimpleBackupSystem
 from foms_address_converter import FOMSAddressConverter
 from foms_map_generator import FOMSMapGenerator
 
+# 스토리지 시스템 임포트 (Quest 2)
+from storage import get_storage
+
+# SocketIO 임포트 (Quest 5)
+try:
+    from flask_socketio import SocketIO, emit, join_room, leave_room
+    SOCKETIO_AVAILABLE = True
+except ImportError:
+    SOCKETIO_AVAILABLE = False
+    print("[WARN] Flask-SocketIO가 설치되지 않았습니다. pip install flask-socketio python-socketio eventlet")
+
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = 'furniture_order_management_secret_key'
+
+# SocketIO 초기화 (Quest 5)
+if SOCKETIO_AVAILABLE:
+    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+else:
+    socketio = None
 
 # 템플릿 캐시 비활성화 (개발 중 변경사항 즉시 반영)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -37,7 +54,18 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
 
+# 채팅 파일 업로드용 확장자 (Quest 3)
+CHAT_ALLOWED_EXTENSIONS = {
+    # 이미지
+    'jpg', 'jpeg', 'png', 'gif', 'webp',
+    # 동영상
+    'mp4', 'mov', 'avi', 'mkv', 'webm',
+    # 일반 파일
+    'pdf', 'doc', 'docx', 'xlsx', 'xls', 'txt', 'zip', 'rar'
+}
+
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB (동영상 고려)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # 데이터베이스 연결 설정
@@ -47,6 +75,27 @@ app.teardown_appcontext(close_wdcalculator_db)  # 견적 계산기 독립 DB
 # Function to check if file has allowed extension
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# 채팅 파일 확장자 검증 (Quest 3)
+def allowed_chat_file(filename):
+    """채팅용 파일 확장자 검증"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in CHAT_ALLOWED_EXTENSIONS
+
+def get_chat_file_max_size(filename):
+    """채팅 파일 타입별 최대 크기 제한 (바이트)"""
+    if not '.' in filename:
+        return 10 * 1024 * 1024  # 기본 10MB
+    
+    ext = filename.rsplit('.', 1)[1].lower()
+    image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+    video_exts = ['mp4', 'mov', 'avi', 'mkv', 'webm']
+    
+    if ext in image_exts:
+        return 10 * 1024 * 1024  # 10MB (사진)
+    elif ext in video_exts:
+        return 500 * 1024 * 1024  # 500MB (동영상)
+    else:
+        return 50 * 1024 * 1024  # 50MB (기타 파일)
 
 # Order status constants
 STATUS = {
@@ -2717,7 +2766,8 @@ def load_menu_config():
             {'id': 'regional_dashboard', 'name': '지방 주문 대시보드', 'url': '/regional_dashboard'},
             {'id': 'self_measurement_dashboard', 'name': '자가실측 대시보드', 'url': '/self_measurement_dashboard'},
             {'id': 'metropolitan_dashboard', 'name': '수도권 주문 대시보드', 'url': '/metropolitan_dashboard'},
-            {'id': 'trash', 'name': '휴지통', 'url': '/trash'}
+            {'id': 'trash', 'name': '휴지통', 'url': '/trash'},
+            {'id': 'chat', 'name': '채팅', 'url': '/chat'}
         ],
         'admin_menu': [
             {'id': 'user_management', 'name': '사용자 관리', 'url': '/admin/users'},
@@ -4598,6 +4648,1116 @@ def api_wdcalculator_search_orders():
     except Exception as e:
         return jsonify({'success': False, 'message': f'주문 검색 중 오류: {str(e)}'})
 
+# ============================================
+# 채팅 시스템 API (Quest 3)
+# ============================================
+
+@app.route('/api/chat/upload', methods=['POST'])
+@login_required
+def api_chat_upload():
+    """채팅 파일 업로드 API (Quest 3)"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': '파일이 선택되지 않았습니다.'}), 400
+        
+        file = request.files['file']
+        room_id = request.form.get('room_id')  # 선택사항 (임시 업로드 시 None 가능)
+        
+        if file.filename == '':
+            return jsonify({'success': False, 'message': '파일명이 없습니다.'}), 400
+        
+        # 파일 확장자 검증
+        if not allowed_chat_file(file.filename):
+            allowed_exts = ', '.join(sorted(CHAT_ALLOWED_EXTENSIONS))
+            return jsonify({
+                'success': False,
+                'message': f'허용되지 않은 파일 형식입니다. 지원 형식: {allowed_exts}'
+            }), 400
+        
+        # 파일 크기 검증
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)
+        
+        max_size = get_chat_file_max_size(file.filename)
+        if file_size > max_size:
+            size_mb = max_size / (1024 * 1024)
+            return jsonify({
+                'success': False,
+                'message': f'파일 크기가 너무 큽니다. 최대 {size_mb:.0f}MB까지 업로드 가능합니다.'
+            }), 400
+        
+        # 스토리지에 업로드
+        storage = get_storage()
+        
+        # 임시 메시지 ID 생성 (실제 메시지 ID는 나중에 생성됨)
+        temp_id = f"temp_{int(datetime.datetime.now().timestamp() * 1000)}"
+        if room_id:
+            temp_id = f"room_{room_id}_{temp_id}"
+        
+        # 파일 업로드
+        result = storage.upload_chat_file(file, file.filename, temp_id, generate_thumbnail=True)
+        
+        if not result.get('success'):
+            return jsonify({
+                'success': False,
+                'message': f'파일 업로드 실패: {result.get("error", "알 수 없는 오류")}'
+            }), 500
+        
+        # 파일 정보 반환
+        file_url = result.get('url')
+        file_info = {
+            'filename': file.filename,
+            'url': file_url,
+            'storage_url': file_url,  # 호환성을 위해 추가
+            'thumbnail_url': result.get('thumbnail_url'),
+            'file_type': result.get('file_type'),
+            'size': file_size,
+            'key': result.get('key')
+        }
+        
+        # 로그 기록
+        log_access(
+            f"채팅 파일 업로드: {file.filename} ({result.get('file_type')}, {file_size / 1024 / 1024:.2f}MB)",
+            session.get('user_id')
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': '파일이 성공적으로 업로드되었습니다.',
+            'file_info': file_info
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"채팅 파일 업로드 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'message': f'파일 업로드 중 오류가 발생했습니다: {str(e)}'
+        }), 500
+
+@app.route('/api/chat/download/<path:storage_key>', methods=['GET'])
+@login_required
+def api_chat_download(storage_key):
+    """채팅 파일 다운로드 API (Quest 4)"""
+    try:
+        # 보안: 경로 탐색 공격 방지
+        if '..' in storage_key or storage_key.startswith('/'):
+            return jsonify({'success': False, 'message': '잘못된 파일 경로입니다.'}), 400
+        
+        storage = get_storage()
+        
+        # 서명된 URL 생성 (클라우드 스토리지) 또는 직접 경로 반환 (로컬)
+        if storage.storage_type in ['r2', 's3']:
+            # 클라우드 스토리지: 서명된 URL로 리다이렉트
+            url = storage.get_download_url(storage_key, expires_in=3600)
+            if url:
+                log_access(f"채팅 파일 다운로드 요청: {storage_key}", session.get('user_id'))
+                return redirect(url)
+            else:
+                return jsonify({'success': False, 'message': '파일을 찾을 수 없습니다.'}), 404
+        else:
+            # 로컬 저장소: 직접 파일 전송
+            file_path = os.path.join(storage.upload_folder, storage_key)
+            if not os.path.exists(file_path):
+                return jsonify({'success': False, 'message': '파일을 찾을 수 없습니다.'}), 404
+            
+            log_access(f"채팅 파일 다운로드: {storage_key}", session.get('user_id'))
+            return send_file(file_path, as_attachment=True)
+            
+    except Exception as e:
+        import traceback
+        print(f"파일 다운로드 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/chat/preview/<path:storage_key>', methods=['GET'])
+@login_required
+def api_chat_preview(storage_key):
+    """채팅 파일 미리보기 API (Quest 4)"""
+    try:
+        # 보안: 경로 탐색 공격 방지
+        if '..' in storage_key or storage_key.startswith('/'):
+            return jsonify({'success': False, 'message': '잘못된 파일 경로입니다.'}), 400
+        
+        storage = get_storage()
+        
+        # 파일 타입 확인
+        filename = storage_key.rsplit('/', 1)[-1] if '/' in storage_key else storage_key
+        file_type = storage._get_file_type(filename)
+        
+        if file_type == 'image':
+            # 이미지: 썸네일 또는 원본 반환
+            if storage.storage_type in ['r2', 's3']:
+                # 썸네일이 있으면 썸네일 URL 반환
+                # 실제로는 DB에서 thumbnail_url을 조회해야 하지만, 여기서는 간단히 처리
+                url = storage.get_download_url(storage_key, expires_in=3600)
+                if url:
+                    return redirect(url)
+                else:
+                    return jsonify({'success': False, 'message': '파일을 찾을 수 없습니다.'}), 404
+            else:
+                # 로컬: 직접 파일 전송
+                file_path = os.path.join(storage.upload_folder, storage_key)
+                if os.path.exists(file_path):
+                    return send_file(file_path)
+                else:
+                    return jsonify({'success': False, 'message': '파일을 찾을 수 없습니다.'}), 404
+        
+        elif file_type == 'video':
+            # 동영상: 서명된 URL 반환 (브라우저에서 재생)
+            if storage.storage_type in ['r2', 's3']:
+                url = storage.get_download_url(storage_key, expires_in=3600)
+                if url:
+                    return jsonify({
+                        'success': True,
+                        'type': 'video',
+                        'url': url
+                    })
+                else:
+                    return jsonify({'success': False, 'message': '파일을 찾을 수 없습니다.'}), 404
+            else:
+                # 로컬: 직접 파일 전송
+                file_path = os.path.join(storage.upload_folder, storage_key)
+                if os.path.exists(file_path):
+                    return send_file(file_path)
+                else:
+                    return jsonify({'success': False, 'message': '파일을 찾을 수 없습니다.'}), 404
+        
+        else:
+            # 일반 파일: 다운로드 링크 반환
+            return jsonify({
+                'success': False,
+                'message': '미리보기를 지원하지 않는 파일 형식입니다.',
+                'type': 'file'
+            }), 400
+            
+    except Exception as e:
+        import traceback
+        print(f"파일 미리보기 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ============================================
+# 채팅방 관리 API (Quest 6)
+# ============================================
+
+@app.route('/api/chat/rooms', methods=['GET'])
+@login_required
+def api_chat_rooms_list():
+    """채팅방 목록 조회 API (Quest 6)"""
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        
+        # 사용자가 멤버로 있는 채팅방만 조회
+        rooms = db.query(ChatRoom).join(
+            ChatRoomMember,
+            ChatRoom.id == ChatRoomMember.room_id
+        ).filter(
+            ChatRoomMember.user_id == user_id
+        ).order_by(ChatRoom.updated_at.desc() if ChatRoom.updated_at else ChatRoom.created_at.desc()).all()
+        
+        rooms_list = []
+        for room in rooms:
+            # 마지막 메시지 조회
+            last_message = db.query(ChatMessage).filter(
+                ChatMessage.room_id == room.id
+            ).order_by(ChatMessage.created_at.desc()).first()
+            
+            # 읽지 않은 메시지 수
+            member = db.query(ChatRoomMember).filter(
+                ChatRoomMember.room_id == room.id,
+                ChatRoomMember.user_id == user_id
+            ).first()
+            
+            unread_count = 0
+            if member and member.last_read_at:
+                unread_count = db.query(ChatMessage).filter(
+                    ChatMessage.room_id == room.id,
+                    ChatMessage.created_at > member.last_read_at
+                ).count()
+            elif member:
+                unread_count = db.query(ChatMessage).filter(
+                    ChatMessage.room_id == room.id
+                ).count()
+            
+            room_data = room.to_dict()
+            room_data['last_message'] = last_message.to_dict() if last_message else None
+            room_data['unread_count'] = unread_count
+            rooms_list.append(room_data)
+        
+        return jsonify({
+            'success': True,
+            'rooms': rooms_list,
+            'count': len(rooms_list)
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"채팅방 목록 조회 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/chat/rooms', methods=['POST'])
+@login_required
+def api_chat_rooms_create():
+    """채팅방 생성 API (Quest 6)"""
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        data = request.get_json()
+        
+        # 필수 필드 검증
+        name = data.get('name', '').strip()
+        if not name:
+            return jsonify({'success': False, 'message': '채팅방 이름은 필수입니다.'}), 400
+        
+        # 채팅방 생성
+        new_room = ChatRoom(
+            name=name,
+            description=data.get('description', '').strip(),
+            order_id=data.get('order_id'),  # 선택사항
+            created_by=user_id
+        )
+        db.add(new_room)
+        db.commit()
+        db.refresh(new_room)
+        
+        # 생성자를 멤버로 추가
+        member = ChatRoomMember(
+            room_id=new_room.id,
+            user_id=user_id
+        )
+        db.add(member)
+        
+        # 추가 멤버가 있으면 추가
+        member_ids = data.get('member_ids', [])
+        if member_ids:
+            for member_id in member_ids:
+                if member_id != user_id:  # 자기 자신은 이미 추가됨
+                    new_member = ChatRoomMember(
+                        room_id=new_room.id,
+                        user_id=member_id
+                    )
+                    db.add(new_member)
+        
+        db.commit()
+        
+        log_access(f"채팅방 생성: {name} (ID: {new_room.id})", user_id)
+        
+        return jsonify({
+            'success': True,
+            'message': '채팅방이 생성되었습니다.',
+            'room': new_room.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"채팅방 생성 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/chat/rooms/<int:room_id>', methods=['GET'])
+@login_required
+def api_chat_rooms_detail(room_id):
+    """채팅방 상세 조회 API (Quest 6)"""
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        
+        # 채팅방 조회
+        room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+        if not room:
+            return jsonify({'success': False, 'message': '채팅방을 찾을 수 없습니다.'}), 404
+        
+        # 멤버 확인
+        member = db.query(ChatRoomMember).filter(
+            ChatRoomMember.room_id == room_id,
+            ChatRoomMember.user_id == user_id
+        ).first()
+        
+        if not member:
+            return jsonify({'success': False, 'message': '채팅방에 접근할 권한이 없습니다.'}), 403
+        
+        # 멤버 목록 조회
+        members = db.query(ChatRoomMember).filter(
+            ChatRoomMember.room_id == room_id
+        ).all()
+        
+        # 메시지 목록 조회 (최근 50개)
+        messages = db.query(ChatMessage).filter(
+            ChatMessage.room_id == room_id
+        ).order_by(ChatMessage.created_at.desc()).limit(50).all()
+        
+        # 각 메시지의 읽음 상태 계산
+        messages_with_read_status = []
+        for msg in messages:
+            msg_dict = msg.to_dict()
+            
+            # 첨부파일 정보 추가
+            attachments = db.query(ChatAttachment).filter(
+                ChatAttachment.message_id == msg.id
+            ).all()
+            if attachments:
+                msg_dict['attachments'] = [a.to_dict() for a in attachments]
+            
+            # 자신의 메시지인 경우에만 읽음 상태 계산
+            if msg.user_id == user_id:
+                # 다른 멤버들이 이 메시지를 읽었는지 확인
+                read_count = 0
+                total_other_members = 0
+                
+                for member in members:
+                    if member.user_id != user_id:  # 자신 제외
+                        total_other_members += 1
+                        if member.last_read_at and member.last_read_at >= msg.created_at:
+                            read_count += 1
+                
+                # 읽음 상태 설정
+                if total_other_members == 0:
+                    msg_dict['read_status'] = 'no_other_members'  # 다른 멤버가 없음
+                elif read_count == 0:
+                    msg_dict['read_status'] = 'unread'  # 아직 아무도 읽지 않음
+                elif read_count == total_other_members:
+                    msg_dict['read_status'] = 'all_read'  # 모두 읽음
+                else:
+                    msg_dict['read_status'] = 'some_read'  # 일부 읽음
+                
+                msg_dict['read_count'] = read_count
+                msg_dict['total_other_members'] = total_other_members
+            else:
+                msg_dict['read_status'] = None  # 자신의 메시지가 아니면 읽음 상태 없음
+                msg_dict['read_count'] = 0
+                msg_dict['total_other_members'] = 0
+            
+            messages_with_read_status.append(msg_dict)
+        
+        room_data = room.to_dict()
+        # 멤버 정보에 사용자 이름 포함
+        room_data['members'] = [{
+            **m.to_dict(),
+            'user_name': m.user.name if m.user else None,
+            'user_username': m.user.username if m.user else None
+        } for m in members]
+        room_data['messages'] = list(reversed(messages_with_read_status))  # 오래된 순으로 정렬
+        
+        # 주문 정보 조회 (연결된 주문이 있는 경우) - Quest 9
+        if room.order_id:
+            try:
+                order = db.query(Order).filter(Order.id == room.order_id).first()
+                if order:
+                    order_data = order.to_dict()
+                    
+                    # 견적 정보도 함께 조회
+                    try:
+                        wd_db = get_wdcalculator_db()
+                        estimates = wd_db.query(EstimateOrderMatch).filter(
+                            EstimateOrderMatch.order_id == room.order_id
+                        ).all()
+                        
+                        estimate_list = []
+                        for match in estimates:
+                            estimate = wd_db.query(Estimate).filter(
+                                Estimate.id == match.estimate_id
+                            ).first()
+                            if estimate:
+                                estimate_list.append(estimate.to_dict())
+                        
+                        order_data['estimates'] = estimate_list
+                    except Exception as e:
+                        print(f"견적 정보 조회 오류 (무시): {e}")
+                        order_data['estimates'] = []
+                    
+                    room_data['order'] = order_data
+            except Exception as e:
+                print(f"주문 정보 조회 오류 (무시): {e}")
+                room_data['order'] = None
+        else:
+            room_data['order'] = None
+        
+        return jsonify({
+            'success': True,
+            'room': room_data
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"채팅방 상세 조회 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/chat/rooms/<int:room_id>', methods=['PUT'])
+@login_required
+def api_chat_rooms_update(room_id):
+    """채팅방 수정 API (Quest 6)"""
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        data = request.get_json()
+        
+        # 채팅방 조회
+        room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+        if not room:
+            return jsonify({'success': False, 'message': '채팅방을 찾을 수 없습니다.'}), 404
+        
+        # 권한 확인 (생성자만 수정 가능)
+        if room.created_by != user_id:
+            return jsonify({'success': False, 'message': '채팅방을 수정할 권한이 없습니다.'}), 403
+        
+        # 수정 가능한 필드 업데이트
+        if 'name' in data:
+            room.name = data['name'].strip()
+        if 'description' in data:
+            room.description = data.get('description', '').strip()
+        if 'order_id' in data:
+            room.order_id = data.get('order_id')
+        
+        room.updated_at = datetime.datetime.now()
+        db.commit()
+        
+        log_access(f"채팅방 수정: {room.name} (ID: {room_id})", user_id)
+        
+        return jsonify({
+            'success': True,
+            'message': '채팅방이 수정되었습니다.',
+            'room': room.to_dict()
+        })
+        
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"채팅방 수정 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/chat/rooms/<int:room_id>', methods=['DELETE'])
+@login_required
+def api_chat_rooms_delete(room_id):
+    """채팅방 삭제 API (Quest 6)"""
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        
+        # 채팅방 조회
+        room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+        if not room:
+            return jsonify({'success': False, 'message': '채팅방을 찾을 수 없습니다.'}), 404
+        
+        # 권한 확인 (생성자만 삭제 가능)
+        if room.created_by != user_id:
+            return jsonify({'success': False, 'message': '채팅방을 삭제할 권한이 없습니다.'}), 403
+        
+        room_name = room.name
+        
+        # 채팅방 삭제 (CASCADE로 메시지, 멤버도 자동 삭제됨)
+        db.delete(room)
+        db.commit()
+        
+        log_access(f"채팅방 삭제: {room_name} (ID: {room_id})", user_id)
+        
+        return jsonify({
+            'success': True,
+            'message': '채팅방이 삭제되었습니다.'
+        })
+        
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"채팅방 삭제 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/chat/rooms/<int:room_id>/members', methods=['POST'])
+@login_required
+def api_chat_rooms_add_member(room_id):
+    """채팅방 멤버 추가 API (Quest 6)"""
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        data = request.get_json()
+        
+        # 채팅방 조회
+        room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+        if not room:
+            return jsonify({'success': False, 'message': '채팅방을 찾을 수 없습니다.'}), 404
+        
+        # 멤버 확인 (멤버만 다른 멤버 추가 가능)
+        member = db.query(ChatRoomMember).filter(
+            ChatRoomMember.room_id == room_id,
+            ChatRoomMember.user_id == user_id
+        ).first()
+        
+        if not member:
+            return jsonify({'success': False, 'message': '채팅방에 접근할 권한이 없습니다.'}), 403
+        
+        # 추가할 사용자 ID
+        new_member_id = data.get('user_id')
+        if not new_member_id:
+            return jsonify({'success': False, 'message': '사용자 ID는 필수입니다.'}), 400
+        
+        # 사용자 존재 확인
+        user = db.query(User).filter(User.id == new_member_id).first()
+        if not user:
+            return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 404
+        
+        # 이미 멤버인지 확인
+        existing_member = db.query(ChatRoomMember).filter(
+            ChatRoomMember.room_id == room_id,
+            ChatRoomMember.user_id == new_member_id
+        ).first()
+        
+        if existing_member:
+            return jsonify({'success': False, 'message': '이미 채팅방 멤버입니다.'}), 400
+        
+        # 멤버 추가
+        new_member = ChatRoomMember(
+            room_id=room_id,
+            user_id=new_member_id
+        )
+        db.add(new_member)
+        db.commit()
+        
+        log_access(f"채팅방 멤버 추가: 방 {room_id}, 사용자 {new_member_id}", user_id)
+        
+        return jsonify({
+            'success': True,
+            'message': '멤버가 추가되었습니다.',
+            'member': new_member.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"멤버 추가 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/chat/rooms/<int:room_id>/members/<int:member_user_id>', methods=['DELETE'])
+@login_required
+def api_chat_rooms_remove_member(room_id, member_user_id):
+    """채팅방 멤버 제거 API (Quest 6)"""
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        
+        # 채팅방 조회
+        room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+        if not room:
+            return jsonify({'success': False, 'message': '채팅방을 찾을 수 없습니다.'}), 404
+        
+        # 권한 확인 (생성자 또는 자기 자신만 제거 가능)
+        if room.created_by != user_id and member_user_id != user_id:
+            return jsonify({'success': False, 'message': '멤버를 제거할 권한이 없습니다.'}), 403
+        
+        # 멤버 조회
+        member = db.query(ChatRoomMember).filter(
+            ChatRoomMember.room_id == room_id,
+            ChatRoomMember.user_id == member_user_id
+        ).first()
+        
+        if not member:
+            return jsonify({'success': False, 'message': '멤버를 찾을 수 없습니다.'}), 404
+        
+        # 멤버 제거
+        db.delete(member)
+        db.commit()
+        
+        log_access(f"채팅방 멤버 제거: 방 {room_id}, 사용자 {member_user_id}", user_id)
+        
+        return jsonify({
+            'success': True,
+            'message': '멤버가 제거되었습니다.'
+        })
+        
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"멤버 제거 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ============================================
+# 주문 연동 API (Quest 8)
+# ============================================
+
+@app.route('/api/chat/orders/<int:order_id>', methods=['GET'])
+@login_required
+def api_chat_order_detail(order_id):
+    """채팅방에서 사용할 주문 상세 정보 조회 API (Quest 8)"""
+    try:
+        db = get_db()
+        
+        # 주문 조회
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        # 주문 정보 구성
+        order_data = order.to_dict()
+        
+        # 견적 정보 조회 (견적 계산기 DB)
+        try:
+            wd_db = get_wdcalculator_db()
+            estimates = wd_db.query(EstimateOrderMatch).filter(
+                EstimateOrderMatch.order_id == order_id
+            ).all()
+            
+            estimate_list = []
+            for match in estimates:
+                estimate = wd_db.query(Estimate).filter(
+                    Estimate.id == match.estimate_id
+                ).first()
+                if estimate:
+                    estimate_list.append(estimate.to_dict())
+            
+            order_data['estimates'] = estimate_list
+        except Exception as e:
+            print(f"견적 정보 조회 오류 (무시): {e}")
+            order_data['estimates'] = []
+        
+        return jsonify({
+            'success': True,
+            'order': order_data
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"주문 정보 조회 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/chat/search-orders', methods=['GET'])
+@login_required
+def api_chat_search_orders():
+    """채팅방에서 주문 검색 API (Quest 8)"""
+    try:
+        db = get_db()
+        query = request.args.get('q', '').strip()  # 검색어
+        limit = int(request.args.get('limit', 20))  # 최대 결과 수
+        
+        if not query:
+            return jsonify({
+                'success': True,
+                'orders': [],
+                'count': 0
+            })
+        
+        # 고객명 또는 주문 ID로 검색
+        orders = db.query(Order).filter(
+            or_(
+                Order.customer_name.ilike(f'%{query}%'),
+                Order.id == query if query.isdigit() else None
+            )
+        ).filter(
+            Order.deleted_at.is_(None)  # 삭제되지 않은 주문만
+        ).order_by(Order.created_at.desc()).limit(limit).all()
+        
+        orders_list = [{
+            'id': order.id,
+            'customer_name': order.customer_name,
+            'phone': order.phone,
+            'address': order.address,
+            'product': order.product,
+            'status': order.status,
+            'received_date': order.received_date,
+            'created_at': order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else None
+        } for order in orders]
+        
+        return jsonify({
+            'success': True,
+            'orders': orders_list,
+            'count': len(orders_list)
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"주문 검색 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ============================================
+# 메시지 읽음 상태 업데이트 API
+# ============================================
+
+@app.route('/api/chat/rooms/<int:room_id>/mark-read', methods=['POST'])
+@login_required
+def api_chat_mark_read(room_id):
+    """메시지 읽음 상태 업데이트 API (Socket.IO 폴백용)"""
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        
+        # 채팅방 존재 확인
+        room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+        if not room:
+            return jsonify({'success': False, 'message': '채팅방을 찾을 수 없습니다.'}), 404
+        
+        # 멤버 조회
+        member = db.query(ChatRoomMember).filter(
+            ChatRoomMember.room_id == room_id,
+            ChatRoomMember.user_id == user_id
+        ).first()
+        
+        if not member:
+            return jsonify({'success': False, 'message': '채팅방 멤버가 아닙니다.'}), 403
+        
+        # 읽은 시간 업데이트
+        member.last_read_at = datetime.datetime.now()
+        db.commit()
+        
+        return jsonify({'success': True})
+            
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"읽음 상태 업데이트 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ============================================
+# 채팅용 사용자 목록 API (Phase 2)
+# ============================================
+
+@app.route('/api/chat/users', methods=['GET'])
+@login_required
+def api_chat_users_list():
+    """채팅 초대용 사용자 목록 조회 API"""
+    try:
+        db = get_db()
+        current_user_id = session.get('user_id')
+        
+        # 활성 사용자만 조회 (자기 자신 제외)
+        users = db.query(User).filter(
+            User.is_active == True,
+            User.id != current_user_id
+        ).order_by(User.name).all()
+        
+        users_list = [{
+            'id': user.id,
+            'name': user.name,
+            'username': user.username,
+            'role': user.role
+        } for user in users]
+        
+        return jsonify({
+            'success': True,
+            'users': users_list
+        })
+    except Exception as e:
+        import traceback
+        print(f"사용자 목록 조회 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ============================================
+# 채팅 메시지 REST API (Socket.IO 폴백용)
+# ============================================
+
+@app.route('/api/chat/messages', methods=['POST'])
+@login_required
+def api_chat_send_message():
+    """메시지 전송 API (Socket.IO 없을 때 폴백)"""
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        data = request.get_json()
+        
+        room_id = data.get('room_id')
+        message_type = data.get('message_type', 'text')
+        content = data.get('content', '').strip()
+        file_info = data.get('file_info')
+        
+        if not room_id:
+            return jsonify({'success': False, 'message': '채팅방 ID는 필수입니다.'}), 400
+        
+        # 채팅방 존재 확인
+        room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+        if not room:
+            return jsonify({'success': False, 'message': '채팅방을 찾을 수 없습니다.'}), 404
+        
+        # 멤버 확인
+        member = db.query(ChatRoomMember).filter(
+            ChatRoomMember.room_id == room_id,
+            ChatRoomMember.user_id == user_id
+        ).first()
+        
+        if not member:
+            return jsonify({'success': False, 'message': '채팅방에 접근할 권한이 없습니다.'}), 403
+        
+        # 메시지 저장
+        new_message = ChatMessage(
+            room_id=room_id,
+            user_id=user_id,
+            message_type=message_type,
+            content=content if message_type == 'text' else None,
+            file_info=file_info if message_type != 'text' else None
+        )
+        db.add(new_message)
+        db.commit()
+        db.refresh(new_message)
+        
+        # 첨부파일이 있으면 저장
+        if file_info and isinstance(file_info, dict):
+            attachment = ChatAttachment(
+                message_id=new_message.id,
+                filename=file_info.get('filename', ''),
+                file_type=file_info.get('file_type', 'file'),
+                file_size=file_info.get('size', 0),
+                storage_key=file_info.get('key', ''),
+                storage_url=file_info.get('url', ''),
+                thumbnail_url=file_info.get('thumbnail_url')
+            )
+            db.add(attachment)
+            db.commit()
+        
+        # 사용자 정보 포함하여 메시지 데이터 구성
+        user = db.query(User).filter(User.id == user_id).first()
+        message_data = new_message.to_dict()
+        if user:
+            message_data['user_name'] = user.name
+            message_data['user_username'] = user.username
+        
+        # 첨부파일 정보 추가
+        attachments = db.query(ChatAttachment).filter(
+            ChatAttachment.message_id == new_message.id
+        ).all()
+        if attachments:
+            message_data['attachments'] = [a.to_dict() for a in attachments]
+        
+        # 채팅방 업데이트 시간 갱신
+        room.updated_at = datetime.datetime.now()
+        db.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': message_data
+        })
+        
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"메시지 전송 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ============================================
+# 채팅 페이지 라우트 (Quest 10)
+# ============================================
+
+@app.route('/chat')
+@login_required
+def chat():
+    """채팅 페이지 (Quest 10)"""
+    return render_template('chat.html', 
+                          current_user=session.get('user'),
+                          socketio_available=SOCKETIO_AVAILABLE and socketio is not None,
+                          current_user_id=session.get('user_id'))
+
+# ============================================
+# SocketIO 이벤트 핸들러 (Quest 5)
+# ============================================
+
+if SOCKETIO_AVAILABLE and socketio:
+    @socketio.on('connect')
+    def handle_connect():
+        """클라이언트 연결 이벤트"""
+        user_id = session.get('user_id')
+        if user_id:
+            print(f"[SocketIO] 사용자 {user_id} 연결됨")
+            emit('connected', {'user_id': user_id, 'message': '연결되었습니다.'})
+        else:
+            print("[SocketIO] 인증되지 않은 연결 시도")
+            return False  # 연결 거부
+    
+    @socketio.on('disconnect')
+    def handle_disconnect():
+        """클라이언트 연결 해제 이벤트"""
+        user_id = session.get('user_id')
+        if user_id:
+            print(f"[SocketIO] 사용자 {user_id} 연결 해제됨")
+    
+    @socketio.on('join_room')
+    def handle_join_room(data):
+        """채팅방 입장"""
+        user_id = session.get('user_id')
+        if not user_id:
+            emit('error', {'message': '인증이 필요합니다.'})
+            return
+        
+        room_id = data.get('room_id')
+        if room_id:
+            join_room(str(room_id))
+            print(f"[SocketIO] 사용자 {user_id}가 채팅방 {room_id}에 입장")
+            emit('joined_room', {'room_id': room_id, 'user_id': user_id})
+            # 방의 다른 사용자들에게 알림
+            socketio.emit('user_joined', {
+                'room_id': room_id,
+                'user_id': user_id
+            }, room=str(room_id))
+    
+    @socketio.on('leave_room')
+    def handle_leave_room(data):
+        """채팅방 퇴장"""
+        user_id = session.get('user_id')
+        if not user_id:
+            emit('error', {'message': '인증이 필요합니다.'})
+            return
+        
+        room_id = data.get('room_id')
+        if room_id:
+            leave_room(str(room_id))
+            print(f"[SocketIO] 사용자 {user_id}가 채팅방 {room_id}에서 퇴장")
+            emit('left_room', {'room_id': room_id, 'user_id': user_id})
+            # 방의 다른 사용자들에게 알림
+            socketio.emit('user_left', {
+                'room_id': room_id,
+                'user_id': user_id
+            }, room=str(room_id))
+    
+    @socketio.on('send_message')
+    def handle_send_message(data):
+        """메시지 전송 (Quest 7)"""
+        user_id = session.get('user_id')
+        if not user_id:
+            emit('error', {'message': '인증이 필요합니다.'})
+            return
+        
+        try:
+            db = get_db()
+            room_id = data.get('room_id')
+            message_type = data.get('message_type', 'text')
+            content = data.get('content', '').strip()
+            file_info = data.get('file_info')  # 파일 정보 (업로드 후)
+            
+            if not room_id:
+                emit('error', {'message': '채팅방 ID는 필수입니다.'})
+                return
+            
+            # 채팅방 존재 확인
+            room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+            if not room:
+                emit('error', {'message': '채팅방을 찾을 수 없습니다.'})
+                return
+            
+            # 멤버 확인
+            member = db.query(ChatRoomMember).filter(
+                ChatRoomMember.room_id == room_id,
+                ChatRoomMember.user_id == user_id
+            ).first()
+            
+            if not member:
+                emit('error', {'message': '채팅방에 접근할 권한이 없습니다.'})
+                return
+            
+            # 메시지 저장
+            new_message = ChatMessage(
+                room_id=room_id,
+                user_id=user_id,
+                message_type=message_type,
+                content=content if message_type == 'text' else None,
+                file_info=file_info if message_type != 'text' else None
+            )
+            db.add(new_message)
+            db.commit()
+            db.refresh(new_message)
+            
+            # 첨부파일이 있으면 저장
+            if file_info and isinstance(file_info, dict):
+                attachment = ChatAttachment(
+                    message_id=new_message.id,
+                    filename=file_info.get('filename', ''),
+                    file_type=file_info.get('file_type', 'file'),
+                    file_size=file_info.get('size', 0),
+                    storage_key=file_info.get('key', ''),
+                    storage_url=file_info.get('url', ''),
+                    thumbnail_url=file_info.get('thumbnail_url')
+                )
+                db.add(attachment)
+                db.commit()
+            
+            # 사용자 정보 포함하여 메시지 데이터 구성
+            user = db.query(User).filter(User.id == user_id).first()
+            message_data = new_message.to_dict()
+            if user:
+                message_data['user_name'] = user.name
+                message_data['user_username'] = user.username
+            
+            # 첨부파일 정보 추가
+            attachments = db.query(ChatAttachment).filter(
+                ChatAttachment.message_id == new_message.id
+            ).all()
+            if attachments:
+                message_data['attachments'] = [a.to_dict() for a in attachments]
+            
+            # 채팅방의 모든 사용자에게 메시지 브로드캐스트
+            socketio.emit('new_message', message_data, room=str(room_id))
+            
+            # 채팅방 업데이트 시간 갱신
+            room.updated_at = datetime.datetime.now()
+            db.commit()
+            
+            print(f"[SocketIO] 메시지 전송: 사용자 {user_id} -> 방 {room_id}")
+            
+        except Exception as e:
+            db.rollback()
+            import traceback
+            print(f"메시지 전송 오류: {e}")
+            print(traceback.format_exc())
+            emit('error', {'message': f'메시지 전송 중 오류가 발생했습니다: {str(e)}'})
+    
+    @socketio.on('typing')
+    def handle_typing(data):
+        """타이핑 중 알림 (Quest 7)"""
+        user_id = session.get('user_id')
+        if not user_id:
+            return
+        
+        room_id = data.get('room_id')
+        is_typing = data.get('is_typing', False)
+        
+        if room_id:
+            # 방의 다른 사용자들에게 타이핑 상태 전송 (자신 제외)
+            socketio.emit('user_typing', {
+                'room_id': room_id,
+                'user_id': user_id,
+                'is_typing': is_typing
+            }, room=str(room_id), skip_sid=request.sid)
+    
+    @socketio.on('mark_read')
+    def handle_mark_read(data):
+        """메시지 읽음 표시 (Quest 7)"""
+        user_id = session.get('user_id')
+        if not user_id:
+            return
+        
+        try:
+            db = get_db()
+            room_id = data.get('room_id')
+            
+            if room_id:
+                # 마지막 읽은 시간 업데이트
+                member = db.query(ChatRoomMember).filter(
+                    ChatRoomMember.room_id == room_id,
+                    ChatRoomMember.user_id == user_id
+                ).first()
+                
+                if member:
+                    member.last_read_at = datetime.datetime.now()
+                    db.commit()
+                    
+                    # 읽음 상태를 다른 사용자들에게 알림
+                    socketio.emit('message_read', {
+                        'room_id': room_id,
+                        'user_id': user_id
+                    }, room=str(room_id))
+        
+        except Exception as e:
+            db.rollback()
+            print(f"읽음 표시 오류: {e}")
+
 if __name__ == '__main__':
     # 안전한 시작 프로세스 실행 (SystemExit 방지)
     try:
@@ -4661,7 +5821,12 @@ if __name__ == '__main__':
         
         # 4. Flask 웹 서버 시작 (안전한 설정)
         print("[START] 웹 서버를 시작합니다...")
-        app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+        if SOCKETIO_AVAILABLE and socketio:
+            # SocketIO 사용 시 socketio.run() 사용
+            socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+        else:
+            # 일반 Flask 실행
+            app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
         
     except KeyboardInterrupt:
         print("\n[STOP] 사용자에 의해 서버가 중단되었습니다.")
