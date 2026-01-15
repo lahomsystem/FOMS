@@ -1,6 +1,7 @@
 import datetime
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import JSONB
 from db import Base
 
 class Order(Base):
@@ -110,4 +111,119 @@ class SecurityLog(Base):
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, server_default=func.now(), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    message = Column(String, nullable=False) 
+    message = Column(String, nullable=False)
+
+
+# ============================================
+# 채팅 시스템 모델 (Quest 1)
+# ============================================
+
+class ChatRoom(Base):
+    """채팅방"""
+    __tablename__ = 'chat_rooms'
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False)  # 채팅방 이름
+    description = Column(Text, nullable=True)  # 설명
+    order_id = Column(Integer, ForeignKey('orders.id'), nullable=True)  # 주문 연결 (선택)
+    created_by = Column(Integer, ForeignKey('users.id'), nullable=False)  # 생성자
+    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now, nullable=True)
+    
+    # 관계
+    messages = relationship('ChatMessage', backref='room', lazy='dynamic', cascade='all, delete-orphan')
+    members = relationship('ChatRoomMember', backref='room', lazy='dynamic', cascade='all, delete-orphan')
+    creator = relationship('User', foreign_keys=[created_by])
+    order = relationship('Order', foreign_keys=[order_id])
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'order_id': self.order_id,
+            'created_by': self.created_by,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
+            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else None
+        }
+
+
+class ChatRoomMember(Base):
+    """채팅방 멤버"""
+    __tablename__ = 'chat_room_members'
+    
+    id = Column(Integer, primary_key=True)
+    room_id = Column(Integer, ForeignKey('chat_rooms.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    joined_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    last_read_at = Column(DateTime, nullable=True)  # 마지막 읽은 시간
+    
+    # 관계
+    user = relationship('User', foreign_keys=[user_id])
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'room_id': self.room_id,
+            'user_id': self.user_id,
+            'joined_at': self.joined_at.strftime('%Y-%m-%d %H:%M:%S') if self.joined_at else None,
+            'last_read_at': self.last_read_at.strftime('%Y-%m-%d %H:%M:%S') if self.last_read_at else None
+        }
+
+
+class ChatMessage(Base):
+    """채팅 메시지"""
+    __tablename__ = 'chat_messages'
+    
+    id = Column(Integer, primary_key=True)
+    room_id = Column(Integer, ForeignKey('chat_rooms.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    message_type = Column(String(20), default='text', nullable=False)  # text, image, video, file
+    content = Column(Text, nullable=True)  # 텍스트 메시지 내용
+    file_info = Column(JSONB, nullable=True)  # 파일 정보 (JSON 형태)
+    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False, index=True)
+    
+    # 관계
+    user = relationship('User', foreign_keys=[user_id])
+    attachments = relationship('ChatAttachment', backref='message', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'room_id': self.room_id,
+            'user_id': self.user_id,
+            'user_name': self.user.name if self.user else None,
+            'message_type': self.message_type,
+            'content': self.content,
+            'file_info': self.file_info,  # JSONB는 자동으로 dict로 변환됨
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
+        }
+
+
+class ChatAttachment(Base):
+    """채팅 첨부파일"""
+    __tablename__ = 'chat_attachments'
+    
+    id = Column(Integer, primary_key=True)
+    message_id = Column(Integer, ForeignKey('chat_messages.id', ondelete='CASCADE'), nullable=False, index=True)
+    filename = Column(String(255), nullable=False)  # 원본 파일명
+    file_type = Column(String(50), nullable=False)  # image, video, file
+    file_size = Column(Integer, nullable=False)  # 바이트 단위
+    storage_key = Column(String(500), nullable=False)  # 클라우드 스토리지 키
+    storage_url = Column(String(1000), nullable=False)  # 다운로드 URL
+    thumbnail_url = Column(String(1000), nullable=True)  # 썸네일 URL (이미지/동영상)
+    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'message_id': self.message_id,
+            'filename': self.filename,
+            'file_type': self.file_type,
+            'file_size': self.file_size,
+            'storage_key': self.storage_key,
+            'storage_url': self.storage_url,
+            'url': self.storage_url,  # 호환성을 위해 추가
+            'thumbnail_url': self.thumbnail_url,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
+        } 

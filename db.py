@@ -24,7 +24,10 @@ def init_db():
     """데이터베이스 초기화 및 테이블 생성"""
     try:
         # models는 함수 내부에서 임포트하여 순환 참조 방지
-        from models import Order, User, AccessLog, SecurityLog
+        from models import (
+            Order, User, AccessLog, SecurityLog,
+            ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment
+        )
         Base.metadata.create_all(bind=engine)
         print("데이터베이스 테이블 초기화 완료")
     except Exception as e:

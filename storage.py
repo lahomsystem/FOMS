@@ -1,0 +1,303 @@
+"""
+Quest 2: 스토리지 추상화 계층
+로컬 저장소와 클라우드 스토리지(R2/S3)를 추상화하여 나중에 쉽게 전환 가능하도록 구현
+"""
+import os
+import io
+from flask import current_app
+from werkzeug.utils import secure_filename
+from datetime import datetime
+
+# 클라우드 스토리지 사용 시에만 import
+try:
+    import boto3
+    from botocore.exceptions import ClientError
+    BOTO3_AVAILABLE = True
+except ImportError:
+    BOTO3_AVAILABLE = False
+
+# 이미지 처리 (썸네일 생성)
+try:
+    from PIL import Image
+    PILLOW_AVAILABLE = True
+except ImportError:
+    PILLOW_AVAILABLE = False
+
+
+class StorageAdapter:
+    """스토리지 추상화 - 로컬 또는 클라우드 스토리지 사용"""
+    
+    def __init__(self):
+        self.storage_type = os.getenv('STORAGE_TYPE', 'local').lower()  # local, r2, s3
+        
+        if self.storage_type in ['r2', 's3']:
+            if not BOTO3_AVAILABLE:
+                raise ImportError("boto3가 설치되지 않았습니다. pip install boto3")
+            
+            # 클라우드 스토리지 설정
+            if self.storage_type == 'r2':
+                # Cloudflare R2 설정
+                self.account_id = os.getenv('R2_ACCOUNT_ID')
+                self.access_key_id = os.getenv('R2_ACCESS_KEY_ID')
+                self.secret_access_key = os.getenv('R2_SECRET_ACCESS_KEY')
+                self.bucket_name = os.getenv('R2_BUCKET_NAME')
+                self.endpoint_url = f"https://{self.account_id}.r2.cloudflarestorage.com"
+            else:
+                # AWS S3 설정
+                self.access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
+                self.secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+                self.bucket_name = os.getenv('S3_BUCKET_NAME')
+                self.region_name = os.getenv('AWS_REGION', 'ap-northeast-2')
+                self.endpoint_url = None
+            
+            # S3 클라이언트 초기화 (R2는 S3 API 호환)
+            self.client = boto3.client(
+                's3',
+                endpoint_url=self.endpoint_url if self.storage_type == 'r2' else None,
+                aws_access_key_id=self.access_key_id,
+                aws_secret_access_key=self.secret_access_key,
+                region_name='auto' if self.storage_type == 'r2' else self.region_name
+            )
+        else:
+            # 로컬 저장소 (개발용)
+            self.upload_folder = os.getenv('UPLOAD_FOLDER', 'static/uploads')
+            os.makedirs(self.upload_folder, exist_ok=True)
+    
+    def upload_file(self, file_obj, filename, folder='uploads'):
+        """파일 업로드 (공통 인터페이스)"""
+        if self.storage_type in ['r2', 's3']:
+            return self._upload_to_cloud(file_obj, filename, folder)
+        else:
+            return self._upload_to_local(file_obj, filename, folder)
+    
+    def upload_chat_file(self, file_obj, filename, message_id, generate_thumbnail=True):
+        """채팅 파일 업로드 (썸네일 생성 포함)"""
+        file_type = self._get_file_type(filename)
+        folder = f"chat/{message_id}"
+        
+        # 파일 업로드
+        result = self.upload_file(file_obj, filename, folder)
+        if not result.get('success'):
+            return result
+        
+        # 이미지/동영상인 경우 썸네일 생성
+        thumbnail_url = None
+        if file_type in ['image', 'video'] and generate_thumbnail and PILLOW_AVAILABLE:
+            thumbnail_url = self._generate_thumbnail(file_obj, filename, folder, file_type, result.get('key'))
+        
+        return {
+            'success': True,
+            'key': result.get('key'),
+            'url': result.get('url'),
+            'thumbnail_url': thumbnail_url,
+            'file_type': file_type
+        }
+    
+    def get_download_url(self, key, expires_in=3600):
+        """다운로드 URL 생성 (서명된 URL)"""
+        if self.storage_type in ['r2', 's3']:
+            try:
+                url = self.client.generate_presigned_url(
+                    'get_object',
+                    Params={'Bucket': self.bucket_name, 'Key': key},
+                    ExpiresIn=expires_in
+                )
+                return url
+            except ClientError as e:
+                print(f"다운로드 URL 생성 오류: {e}")
+                return None
+        else:
+            # 로컬: 직접 경로 반환
+            return f"/static/uploads/{key}"
+    
+    def delete_file(self, key):
+        """파일 삭제"""
+        if self.storage_type in ['r2', 's3']:
+            try:
+                self.client.delete_object(Bucket=self.bucket_name, Key=key)
+                return True
+            except ClientError:
+                return False
+        else:
+            try:
+                file_path = os.path.join(self.upload_folder, key)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                return True
+            except Exception:
+                return False
+    
+    def _upload_to_cloud(self, file_obj, filename, folder):
+        """클라우드 스토리지에 업로드"""
+        try:
+            # 고유한 파일명 생성
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            unique_filename = f"{timestamp}_{secure_filename(filename)}"
+            key = f"{folder}/{unique_filename}"
+            
+            # Content-Type 설정
+            content_type = self._get_content_type(filename)
+            
+            # 파일 업로드
+            file_obj.seek(0)  # 파일 포인터 리셋
+            self.client.upload_fileobj(
+                file_obj,
+                self.bucket_name,
+                key,
+                ExtraArgs={'ContentType': content_type}
+            )
+            
+            # URL 생성
+            url = self._get_public_url(key) if self._is_public_bucket() else self.get_download_url(key)
+            
+            return {
+                'success': True,
+                'key': key,
+                'url': url,
+                'filename': unique_filename
+            }
+        except ClientError as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def _upload_to_local(self, file_obj, filename, folder):
+        """로컬 저장소에 업로드"""
+        try:
+            # 폴더 생성
+            target_folder = os.path.join(self.upload_folder, folder)
+            os.makedirs(target_folder, exist_ok=True)
+            
+            # 고유한 파일명 생성
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            unique_filename = f"{timestamp}_{secure_filename(filename)}"
+            file_path = os.path.join(target_folder, unique_filename)
+            
+            # 파일 저장 (Werkzeug FileStorage 또는 일반 file 객체 모두 지원)
+            file_obj.seek(0)
+            if hasattr(file_obj, 'save'):
+                # Werkzeug FileStorage 객체
+                file_obj.save(file_path)
+            else:
+                # 일반 file 객체
+                with open(file_path, 'wb') as f:
+                    f.write(file_obj.read())
+            
+            return {
+                'success': True,
+                'key': f"{folder}/{unique_filename}",
+                'url': f"/static/uploads/{folder}/{unique_filename}",
+                'filename': unique_filename,
+                'path': file_path
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def _generate_thumbnail(self, file_obj, filename, folder, file_type, storage_key=None):
+        """썸네일 생성 (이미지/동영상)"""
+        try:
+            if file_type == 'image' and PILLOW_AVAILABLE:
+                # 이미지 썸네일
+                file_obj.seek(0)
+                img = Image.open(file_obj)
+                img.thumbnail((300, 300), Image.Resampling.LANCZOS)
+                
+                # 썸네일 저장
+                thumbnail_filename = f"thumb_{filename}"
+                thumbnail_bytes = io.BytesIO()
+                
+                if img.format == 'PNG':
+                    img.save(thumbnail_bytes, format='PNG')
+                else:
+                    img.save(thumbnail_bytes, format='JPEG', quality=85)
+                
+                thumbnail_bytes.seek(0)
+                thumbnail_key = f"{folder}/thumb_{filename}"
+                
+                if self.storage_type in ['r2', 's3']:
+                    # 클라우드에 썸네일 업로드
+                    self.client.upload_fileobj(
+                        thumbnail_bytes,
+                        self.bucket_name,
+                        thumbnail_key,
+                        ExtraArgs={'ContentType': 'image/jpeg'}
+                    )
+                    return self._get_public_url(thumbnail_key) if self._is_public_bucket() else self.get_download_url(thumbnail_key)
+                else:
+                    # 로컬에 썸네일 저장
+                    target_folder = os.path.join(self.upload_folder, folder)
+                    os.makedirs(target_folder, exist_ok=True)
+                    thumbnail_path = os.path.join(target_folder, thumbnail_filename)
+                    with open(thumbnail_path, 'wb') as f:
+                        f.write(thumbnail_bytes.getvalue())
+                    return f"/static/uploads/{folder}/{thumbnail_filename}"
+            
+            elif file_type == 'video':
+                # 동영상 썸네일 (ffmpeg 필요 - 나중에 구현)
+                # 현재는 None 반환
+                return None
+                
+        except Exception as e:
+            print(f"썸네일 생성 오류: {e}")
+            return None
+    
+    def _get_file_type(self, filename):
+        """파일 타입 반환 (image, video, file)"""
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+        video_exts = ['mp4', 'mov', 'avi', 'mkv', 'webm']
+        
+        if ext in image_exts:
+            return 'image'
+        elif ext in video_exts:
+            return 'video'
+        else:
+            return 'file'
+    
+    def _get_content_type(self, filename):
+        """파일 확장자로 Content-Type 결정"""
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        content_types = {
+            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+            'png': 'image/png', 'gif': 'image/gif',
+            'webp': 'image/webp',
+            'mp4': 'video/mp4', 'mov': 'video/quicktime',
+            'avi': 'video/x-msvideo', 'mkv': 'video/x-matroska',
+            'webm': 'video/webm',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'xls': 'application/vnd.ms-excel',
+            'pdf': 'application/pdf',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        }
+        return content_types.get(ext, 'application/octet-stream')
+    
+    def _get_public_url(self, key):
+        """Public URL 반환 (Public bucket인 경우)"""
+        if self.storage_type == 'r2':
+            # R2 Public URL
+            return f"https://pub-{self.account_id}.r2.dev/{key}"
+        elif self.storage_type == 's3':
+            # S3 URL
+            return f"https://{self.bucket_name}.s3.{self.region_name}.amazonaws.com/{key}"
+        return None
+    
+    def _is_public_bucket(self):
+        """Public bucket 여부 확인 (간단한 체크)"""
+        # 실제로는 bucket policy를 확인해야 하지만, 여기서는 환경 변수로 제어
+        return os.getenv('STORAGE_PUBLIC', 'false').lower() == 'true'
+
+
+# 전역 인스턴스
+_storage_instance = None
+
+def get_storage():
+    """스토리지 인스턴스 가져오기 (싱글톤 패턴)"""
+    global _storage_instance
+    if _storage_instance is None:
+        _storage_instance = StorageAdapter()
+    return _storage_instance
