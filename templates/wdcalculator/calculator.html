@@ -3183,6 +3183,49 @@ document.addEventListener('DOMContentLoaded', function() {
     // 기본 구성 이벤트 위임
     document.getElementById('baseComponentsContainer')?.addEventListener('click', function(e) {
         const rowEl = e.target.closest('.base-component-row');
+        
+        // 추가금 추가 버튼 클릭 처리 (이벤트 위임)
+        if (e.target.closest('.base-add-fee-btn')) {
+            if (!rowEl) return;
+            const feesList = rowEl.querySelector('.base-additional-fees-list');
+            if (feesList) {
+                const newItem = document.createElement('div');
+                newItem.className = 'row g-2 align-items-end mb-2 base-additional-fee-item';
+                newItem.innerHTML = `
+                    <div class="col-12 col-md-5">
+                        <input type="text" class="form-control form-control-sm base-additional-fee-name" placeholder="제품명 입력" value="">
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <input type="number" class="form-control form-control-sm base-additional-fee-amount" min="0" step="1" placeholder="금액 (원)" value="">
+                    </div>
+                    <div class="col-12 col-md-3 text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger base-remove-fee-btn" title="삭제">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `;
+                feesList.appendChild(newItem);
+                
+                // 입력 시 자동 계산
+                newItem.querySelectorAll('input').forEach(input => {
+                    input.addEventListener('input', calculateEstimate);
+                });
+                
+                calculateEstimate();
+            }
+            return;
+        }
+        
+        // 추가금 삭제 버튼 클릭 처리 (이벤트 위임)
+        if (e.target.closest('.base-remove-fee-btn')) {
+            const feeItem = e.target.closest('.base-additional-fee-item');
+            if (feeItem) {
+                feeItem.remove();
+                calculateEstimate();
+            }
+            return;
+        }
+        
         if (!rowEl) return;
 
         const modeBtn = e.target.closest('.base-mode-btn');
@@ -3229,7 +3272,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const price1El = rowEl.querySelector('.base-manual-price1');
             if (price1El) price1El.value = String(auto1);
         }
-        // 추가금 입력 시에도 계산 (이미 calculateEstimate() 호출됨)
+        // 모든 입력 시 계산 (추가금 입력 포함, 이벤트 위임으로 자동 처리)
         calculateEstimate();
     });
 
