@@ -42,8 +42,18 @@ app = Flask(__name__)
 app.secret_key = 'furniture_order_management_secret_key'
 
 # SocketIO 초기화 (Quest 5)
+# Windows 환경에서 WebSocket 지원을 위해 threading 모드 사용
+# eventlet은 Windows에서 WebSocket 업그레이드 처리에 문제가 있을 수 있음
 if SOCKETIO_AVAILABLE:
-    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+    try:
+        # threading 모드는 Windows에서 더 안정적
+        socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+        print("[INFO] Socket.IO가 threading 모드로 초기화되었습니다.")
+    except Exception as e:
+        # threading 모드 실패 시 eventlet으로 폴백
+        print(f"[WARN] threading 모드 초기화 실패, eventlet으로 폴백: {e}")
+        socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+        print("[INFO] Socket.IO가 eventlet 모드로 초기화되었습니다.")
 else:
     socketio = None
 
@@ -5667,10 +5677,10 @@ def api_chat_send_message():
 @login_required
 def chat():
     """채팅 페이지 (Quest 10)"""
+    # current_user는 @app.context_processor에서 자동으로 주입됨
+    # menu도 @app.context_processor에서 자동으로 주입됨
     return render_template('chat.html', 
-                          current_user=session.get('user'),
-                          socketio_available=SOCKETIO_AVAILABLE and socketio is not None,
-                          current_user_id=session.get('user_id'))
+                          socketio_available=SOCKETIO_AVAILABLE and socketio is not None)
 
 # ============================================
 # SocketIO 이벤트 핸들러 (Quest 5)
@@ -5683,6 +5693,28 @@ if SOCKETIO_AVAILABLE and socketio:
         user_id = session.get('user_id')
         if user_id:
             print(f"[SocketIO] 사용자 {user_id} 연결됨")
+            
+            # 사용자 전용 room에 join (모든 페이지에서 메시지 받을 수 있게)
+            join_room(f'user_{user_id}')
+            print(f"[SocketIO] 사용자 {user_id}가 자신의 전용 room에 입장: user_{user_id}")
+            
+            # 사용자가 속한 모든 채팅방에 자동으로 join
+            db = get_db()
+            try:
+                user_rooms = db.query(ChatRoomMember).filter(
+                    ChatRoomMember.user_id == user_id
+                ).all()
+                
+                print(f"[SocketIO] 사용자 {user_id}가 속한 채팅방 수: {len(user_rooms)}")
+                for member in user_rooms:
+                    room_id_str = str(member.room_id)
+                    join_room(room_id_str)
+                    print(f"[SocketIO] ✅ 사용자 {user_id}가 채팅방 {member.room_id}에 자동 입장 (room: {room_id_str})")
+            except Exception as e:
+                import traceback
+                print(f"[SocketIO] ❌ 채팅방 자동 입장 오류: {e}")
+                print(traceback.format_exc())
+            
             emit('connected', {'user_id': user_id, 'message': '연결되었습니다.'})
         else:
             print("[SocketIO] 인증되지 않은 연결 시도")
@@ -5809,7 +5841,25 @@ if SOCKETIO_AVAILABLE and socketio:
                 message_data['attachments'] = [a.to_dict() for a in attachments]
             
             # 채팅방의 모든 사용자에게 메시지 브로드캐스트
+            # 1. Room 기반 브로드캐스트 (채팅 페이지에서 실시간 업데이트용)
             socketio.emit('new_message', message_data, room=str(room_id))
+            
+            # 2. User 기반 브로드캐스트 (모든 페이지에서 알림 수신용)
+            # 채팅방 멤버 목록 조회
+            members = db.query(ChatRoomMember).filter(
+                ChatRoomMember.room_id == room_id
+            ).all()
+            
+            # 각 멤버에게 직접 메시지 전송 (발신자 제외)
+            print(f"[SocketIO] 채팅방 {room_id} 멤버 수: {len(members)}")
+            for member in members:
+                if member.user_id != user_id:  # 자신이 보낸 메시지는 자신에게 알림 불필요
+                    user_room = f'user_{member.user_id}'
+                    print(f"[SocketIO] 📤 사용자 {member.user_id}에게 메시지 전송 시도 (room: {user_room})")
+                    socketio.emit('new_message', message_data, room=user_room)
+                    print(f"[SocketIO] ✅ 사용자 {member.user_id}에게 메시지 전송 완료 (room: {user_room})")
+                else:
+                    print(f"[SocketIO] ⏭️ 발신자 {member.user_id}는 알림에서 제외")
             
             # 채팅방 업데이트 시간 갱신
             room.updated_at = datetime.datetime.now()
@@ -5937,11 +5987,15 @@ if __name__ == '__main__':
         
         # 4. Flask 웹 서버 시작 (안전한 설정)
         print("[START] 웹 서버를 시작합니다...")
+        print(f"[INFO] SOCKETIO_AVAILABLE: {SOCKETIO_AVAILABLE}")
+        print(f"[INFO] socketio 객체 존재: {socketio is not None}")
         if SOCKETIO_AVAILABLE and socketio:
             # SocketIO 사용 시 socketio.run() 사용
-            socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+            print("[INFO] Socket.IO 모드로 서버를 시작합니다...")
+            socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=False, allow_unsafe_werkzeug=True)
         else:
             # 일반 Flask 실행
+            print("[WARN] Socket.IO가 비활성화되어 일반 Flask 모드로 시작합니다...")
             app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
         
     except KeyboardInterrupt:

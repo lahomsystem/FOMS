@@ -1,11 +1,46 @@
 /* General Styles */
+/* 전역: html, body 여백 완전 제거 */
+html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100%;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
     background-color: #f9f9f9; /* 밝은 회색 배경 */
     color: #333;
     line-height: 1.6;
-    margin: 0;
-    padding: 0;
+}
+
+/* 헤더 드롭다운 메뉴가 네비게이션 바 위에 표시되도록 */
+header {
+    position: relative;
+    z-index: 1001 !important; /* 네비게이션 바(1000)보다 높게 */
+}
+
+header .dropdown-menu {
+    z-index: 1001 !important; /* 네비게이션 바보다 높게 */
+}
+
+/* 전역: container-fluid 상하 여백 완전 제거 (모든 페이지) */
+.container-fluid {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* 전역: 최상위 container-fluid 여백 제거 */
+body > .container-fluid {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 100vh;
+}
+
+/* 전역: container-fluid 내부 중첩 container-fluid 여백 제거 */
+.container-fluid .container-fluid {
+    margin: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
 }
 
 .container {
@@ -182,7 +217,7 @@ tr:hover {
     background-color: #f8f8f8; /* Apple의 헤더 배경색과 유사 */
     border-bottom: 1px solid #d1d1d6;
     padding: 10px 20px;
-    margin-bottom: 20px;
+    margin-bottom: 0 !important; /* 전역 공백 제거 */
 }
 
 .navbar-brand {

@@ -111,7 +111,7 @@ class SecurityLog(Base):
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, server_default=func.now(), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    message = Column(String, nullable=False)
+    message = Column(String, nullable=False) 
 
 
 # ============================================
