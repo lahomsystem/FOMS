@@ -5379,6 +5379,122 @@ def api_chat_search_orders():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 # ============================================
+# 전체 채팅 검색 API (Quest 1)
+# ============================================
+
+@app.route('/api/chat/search', methods=['GET'])
+@login_required
+def api_chat_search():
+    """전체 채팅 검색 API - 모든 채팅방의 메시지, 주문 정보 포함"""
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        query = request.args.get('q', '').strip()
+        limit = int(request.args.get('limit', 50))
+        
+        if not query or len(query) < 2:
+            return jsonify({
+                'success': True,
+                'results': [],
+                'count': 0
+            })
+        
+        # 사용자가 멤버로 있는 채팅방만 검색
+        user_rooms = db.query(ChatRoom.id).join(
+            ChatRoomMember,
+            ChatRoom.id == ChatRoomMember.room_id
+        ).filter(ChatRoomMember.user_id == user_id).subquery()
+        
+        results = []
+        
+        # 1. 메시지 내용 검색
+        messages = db.query(ChatMessage).join(
+            user_rooms, ChatMessage.room_id == user_rooms.c.id
+        ).filter(
+            ChatMessage.content.ilike(f'%{query}%')
+        ).limit(limit).all()
+        
+        for msg in messages:
+            room = db.query(ChatRoom).filter(ChatRoom.id == msg.room_id).first()
+            results.append({
+                'type': 'message',
+                'room_id': msg.room_id,
+                'room_name': room.name if room else None,
+                'message_id': msg.id,
+                'content': msg.content,
+                'user_name': msg.user.name if msg.user else None,
+                'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S') if msg.created_at else None
+            })
+        
+        # 2. 채팅방 이름/설명 검색
+        rooms = db.query(ChatRoom).join(
+            user_rooms, ChatRoom.id == user_rooms.c.id
+        ).filter(
+            or_(
+                ChatRoom.name.ilike(f'%{query}%'),
+                ChatRoom.description.ilike(f'%{query}%')
+            )
+        ).limit(limit).all()
+        
+        for room in rooms:
+            if not any(r.get('room_id') == room.id and r.get('type') == 'room' for r in results):
+                results.append({
+                    'type': 'room',
+                    'room_id': room.id,
+                    'room_name': room.name,
+                    'description': room.description,
+                    'created_at': room.created_at.strftime('%Y-%m-%d %H:%M:%S') if room.created_at else None
+                })
+        
+        # 3. 연결된 주문 정보 검색
+        orders = db.query(Order).join(
+            ChatRoom, Order.id == ChatRoom.order_id
+        ).join(
+            user_rooms, ChatRoom.id == user_rooms.c.id
+        ).filter(
+            or_(
+                Order.customer_name.ilike(f'%{query}%'),
+                Order.phone.ilike(f'%{query}%'),
+                Order.address.ilike(f'%{query}%')
+            )
+        ).limit(limit).all()
+        
+        for order in orders:
+            room = db.query(ChatRoom).filter(ChatRoom.order_id == order.id).first()
+            if room and not any(r.get('room_id') == room.id and r.get('type') == 'order' for r in results):
+                results.append({
+                    'type': 'order',
+                    'room_id': room.id,
+                    'room_name': room.name,
+                    'order_id': order.id,
+                    'customer_name': order.customer_name,
+                    'phone': order.phone,
+                    'address': order.address,
+                    'product': order.product
+                })
+        
+        # 중복 제거 및 정렬
+        seen = set()
+        unique_results = []
+        for r in results:
+            key = (r['type'], r.get('room_id'), r.get('message_id', 0), r.get('order_id', 0))
+            if key not in seen:
+                seen.add(key)
+                unique_results.append(r)
+        
+        return jsonify({
+            'success': True,
+            'results': unique_results[:limit],
+            'count': len(unique_results)
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"채팅 검색 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ============================================
 # 메시지 읽음 상태 업데이트 API
 # ============================================
 
@@ -5551,10 +5667,10 @@ def api_chat_send_message():
 @login_required
 def chat():
     """채팅 페이지 (Quest 10)"""
+    # current_user는 @app.context_processor에서 자동으로 주입됨
+    # menu도 @app.context_processor에서 자동으로 주입됨
     return render_template('chat.html', 
-                          current_user=session.get('user'),
-                          socketio_available=SOCKETIO_AVAILABLE and socketio is not None,
-                          current_user_id=session.get('user_id'))
+                          socketio_available=SOCKETIO_AVAILABLE and socketio is not None)
 
 # ============================================
 # SocketIO 이벤트 핸들러 (Quest 5)

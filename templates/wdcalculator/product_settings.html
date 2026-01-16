@@ -1279,79 +1279,79 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } else {
             // 추가 모드: 기존 로직 유지
-            // 카테고리 찾기 또는 생성
-            let category = categories.find(c => c.name === categoryName);
-            let categoryId = editingAdditionalOptionCategoryId;
-            
-            // 수정 모드가 아니면 카테고리명으로 검색
-            if (!categoryId && category) {
-                categoryId = category.id;
-            }
-            
-            // 카테고리를 찾지 못했으면 새로 생성
-            if (!categoryId && !category) {
-                categoryId = null; // 새로 생성할 카테고리
-            }
-            
-            // 옵션 데이터 준비
-            const optionData = {
-                id: editingAdditionalOptionId || null,
-                name: optionName,
-                price: optionPrice
+        // 카테고리 찾기 또는 생성
+        let category = categories.find(c => c.name === categoryName);
+        let categoryId = editingAdditionalOptionCategoryId;
+        
+        // 수정 모드가 아니면 카테고리명으로 검색
+        if (!categoryId && category) {
+            categoryId = category.id;
+        }
+        
+        // 카테고리를 찾지 못했으면 새로 생성
+        if (!categoryId && !category) {
+            categoryId = null; // 새로 생성할 카테고리
+        }
+        
+        // 옵션 데이터 준비
+        const optionData = {
+            id: editingAdditionalOptionId || null,
+            name: optionName,
+            price: optionPrice
+        };
+        
+        // 카테고리가 있으면 옵션만 추가/수정, 없으면 카테고리와 옵션 함께 생성
+        if (categoryId) {
+            // 기존 카테고리에 옵션 추가/수정
+            fetch(`/api/wdcalculator/additional-options/categories/${categoryId}/options`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(optionData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, true);
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    showToast(data.message, false);
+                }
+            })
+            .catch(error => {
+                showToast('서버 통신 중 오류가 발생했습니다.', false);
+            });
+        } else {
+            // 새 카테고리와 옵션 함께 생성
+            const categoryData = {
+                name: categoryName,
+                options: [optionData]
             };
             
-            // 카테고리가 있으면 옵션만 추가/수정, 없으면 카테고리와 옵션 함께 생성
-            if (categoryId) {
-                // 기존 카테고리에 옵션 추가/수정
-                fetch(`/api/wdcalculator/additional-options/categories/${categoryId}/options`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(optionData)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast(data.message, true);
-                        setTimeout(() => {
-                            location.reload();
-                        }, 1000);
-                    } else {
-                        showToast(data.message, false);
-                    }
-                })
-                .catch(error => {
-                    showToast('서버 통신 중 오류가 발생했습니다.', false);
-                });
-            } else {
-                // 새 카테고리와 옵션 함께 생성
-                const categoryData = {
-                    name: categoryName,
-                    options: [optionData]
-                };
-                
-                fetch('/api/wdcalculator/additional-options/categories', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(categoryData)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast(data.message, true);
-                        setTimeout(() => {
-                            location.reload();
-                        }, 1000);
-                    } else {
-                        showToast(data.message, false);
-                    }
-                })
-                .catch(error => {
-                    showToast('서버 통신 중 오류가 발생했습니다.', false);
-                });
+            fetch('/api/wdcalculator/additional-options/categories', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(categoryData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, true);
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    showToast(data.message, false);
+                }
+            })
+            .catch(error => {
+                showToast('서버 통신 중 오류가 발생했습니다.', false);
+            });
             }
         }
     });
@@ -1491,61 +1491,61 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 옵션 수정 함수 분리
     function updateNotesOption(categoryId, optionId, optionName) {
-        const optionData = {
+            const optionData = {
             id: optionId,
-            name: optionName
-        };
-        
+                name: optionName
+            };
+            
         fetch(`/api/wdcalculator/notes/categories/${categoryId}/options`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(optionData)
-        })
-        .then(response => {
-            console.log('옵션 수정 API 응답 상태:', response.status);
-            if (!response.ok) {
-                return response.json().then(err => {
-                    throw new Error(err.message || `HTTP ${response.status}: ${response.statusText}`);
-                });
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log('옵션 수정 API 응답 데이터:', data);
-            if (data.success) {
-                showToast(data.message, true);
-                // 저장 후 API로 최신 데이터 가져오기
-                fetch('/api/wdcalculator/notes/categories')
-                    .then(response => response.json())
-                    .then(apiData => {
-                        console.log('저장 후 최신 데이터:', apiData);
-                        if (apiData.success) {
-                            notesCategories = apiData.categories || [];
-                            // 1초 후 페이지 새로고침
-                            setTimeout(() => {
-                                location.reload();
-                            }, 1000);
-                        } else {
-                            showToast('목록을 불러오는 중 오류가 발생했습니다.', false);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('최신 데이터 로드 중 오류:', error);
-                        setTimeout(() => {
-                            location.reload();
-                        }, 1000);
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(optionData)
+            })
+            .then(response => {
+                console.log('옵션 수정 API 응답 상태:', response.status);
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.message || `HTTP ${response.status}: ${response.statusText}`);
                     });
-            } else {
-                showToast(data.message, false);
-            }
-        })
-        .catch(error => {
-            console.error('옵션 수정 중 오류:', error);
-            console.error('에러 상세:', error.message, error.stack);
-            showToast('서버 통신 중 오류가 발생했습니다: ' + error.message, false);
-        });
+                }
+                return response.json();
+            })
+                .then(data => {
+                    console.log('옵션 수정 API 응답 데이터:', data);
+                    if (data.success) {
+                        showToast(data.message, true);
+                        // 저장 후 API로 최신 데이터 가져오기
+                        fetch('/api/wdcalculator/notes/categories')
+                            .then(response => response.json())
+                            .then(apiData => {
+                                console.log('저장 후 최신 데이터:', apiData);
+                                if (apiData.success) {
+                                    notesCategories = apiData.categories || [];
+                                    // 1초 후 페이지 새로고침
+                                    setTimeout(() => {
+                                        location.reload();
+                                    }, 1000);
+                                } else {
+                                    showToast('목록을 불러오는 중 오류가 발생했습니다.', false);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('최신 데이터 로드 중 오류:', error);
+                                setTimeout(() => {
+                                    location.reload();
+                                }, 1000);
+                            });
+                    } else {
+                        showToast(data.message, false);
+                    }
+                })
+            .catch(error => {
+                console.error('옵션 수정 중 오류:', error);
+                console.error('에러 상세:', error.message, error.stack);
+                showToast('서버 통신 중 오류가 발생했습니다: ' + error.message, false);
+            });
     }
 
     // 비고 카테고리 폼 제출
