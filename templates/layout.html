@@ -244,22 +244,24 @@
             console.log('[Global Socket.IO] window.currentRoomId:', window.currentRoomId);
             console.log('[Global Socket.IO] 메시지 room_id:', data.room_id);
             
-            // 채팅 페이지가 아니거나, 다른 채팅방의 메시지면 알림 표시
-            if (!isChatPage || (window.currentRoomId && data.room_id != window.currentRoomId)) {
-                console.log('[Global Socket.IO] ✅ 알림 표시 조건 만족');
-                console.log('[Global Socket.IO] showGlobalChatNotification 함수 존재:', typeof showGlobalChatNotification === 'function');
-                
-                // 전역 알림 표시 함수 호출
-                if (typeof showGlobalChatNotification === 'function') {
-                    console.log('[Global Socket.IO] showGlobalChatNotification 호출');
-                    showGlobalChatNotification(data);
-                } else {
-                    console.log('[Global Socket.IO] showGlobalChatNotification 없음, 브라우저 알림 사용');
-                    // 기본 브라우저 알림
-                    showBrowserNotification(data);
-                }
+            // 채팅 페이지에서는 로컬 Socket.IO가 처리하므로 전역 핸들러는 무시 (중복 방지)
+            if (isChatPage) {
+                console.log('[Global Socket.IO] ⏭️ 채팅 페이지에서는 로컬 핸들러가 처리합니다. 전역 핸들러 무시');
+                return;
+            }
+            
+            // 다른 페이지에서만 알림 표시
+            console.log('[Global Socket.IO] ✅ 알림 표시 조건 만족 (다른 페이지)');
+            console.log('[Global Socket.IO] showGlobalChatNotification 함수 존재:', typeof showGlobalChatNotification === 'function');
+            
+            // 전역 알림 표시 함수 호출
+            if (typeof showGlobalChatNotification === 'function') {
+                console.log('[Global Socket.IO] showGlobalChatNotification 호출');
+                showGlobalChatNotification(data);
             } else {
-                console.log('[Global Socket.IO] ⏭️ 알림 표시 조건 불만족 (현재 채팅방 메시지)');
+                console.log('[Global Socket.IO] showGlobalChatNotification 없음, 브라우저 알림 사용');
+                // 기본 브라우저 알림
+                showBrowserNotification(data);
             }
         });
         
@@ -412,13 +414,18 @@
                 });
             }
             
-            // 클릭 이벤트: 채팅 페이지로 이동
+            // 클릭 이벤트: 채팅 페이지로 이동 (room_id 파라미터 포함)
             notificationEl.addEventListener('click', function(e) {
                 if (!e.target.classList.contains('chat-notification-close') && 
                     !e.target.closest('.chat-notification-close')) {
                     closeGlobalNotification(notificationId, messageId);
-                    // 채팅 페이지로 이동
-                    window.location.href = '/chat';
+                    // 채팅 페이지로 이동 (room_id 파라미터 포함)
+                    const roomId = roomData ? roomData.id : messageData.room_id;
+                    if (roomId) {
+                        window.location.href = `/chat?room_id=${roomId}`;
+                    } else {
+                        window.location.href = '/chat';
+                    }
                 }
             });
             
@@ -517,7 +524,7 @@
         </header>
         
         {% if current_user %}
-        <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom px-4">
+        <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom px-4" style="position: sticky; top: 0; z-index: 1000; background-color: white !important;">
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -558,7 +565,7 @@
         </nav>
         {% endif %}
         
-        <div class="container-fluid py-4 px-4">
+        <div class="container-fluid py-0 px-4">
             <!-- Flash messages -->
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}

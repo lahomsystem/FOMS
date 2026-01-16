@@ -10,6 +10,12 @@
     .chat-sidebar-card {
         display: flex;
         flex-direction: column;
+        height: 100% !important; /* JavaScript 동적 스타일 오버라이드 */
+        max-height: 100% !important; /* JavaScript 동적 스타일 오버라이드 */
+        min-height: 0;
+        overflow: hidden;
+        position: relative !important; /* top 속성 작동을 위해 position 설정, 하지만 실제로는 필요없음 */
+        top: auto !important; /* JavaScript의 top 설정 무시 */
     }
     
     .chat-sidebar-card .card-body {
@@ -17,12 +23,18 @@
         flex: 1;
         display: flex;
         flex-direction: column;
+        min-height: 0;
+        padding: 0.5rem !important; /* p-2를 줄여서 여백 최소화 */
     }
     
     .chat-rooms-list {
         flex: 1;
         overflow-y: auto;
+        overflow-x: hidden;
         min-height: 0;
+        max-height: 100%;
+        scroll-behavior: smooth;
+        padding: 0.25rem 0; /* 좌우 여백 제거, 상하만 최소 유지 */
     }
     
     .chat-room-item {
@@ -75,10 +87,89 @@
         font-weight: 600;
     }
     
+    /* 채팅 페이지 전용: container-fluid 패딩 제거 및 높이 제어 */
+    body:has(.chat-page-wrapper) .container-fluid {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        height: calc(100vh - 140px);
+        max-height: calc(100vh - 140px);
+        overflow: hidden !important;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    /* 채팅 페이지 래퍼 */
+    .chat-page-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        max-height: 100%;
+        overflow: hidden;
+        flex: 1;
+        min-height: 0;
+    }
+    
+    .chat-page-title {
+        flex-shrink: 0;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    .chat-page-content {
+        flex: 1;
+        display: flex;
+        min-height: 0;
+        overflow: hidden;
+        gap: 0 !important;
+        margin: 0;
+        padding: 0;
+    }
+    
+    /* 채팅방 컨테이너 & 채팅 컨테이너 여백 제거 */
+    .chat-page-content .col-lg-3,
+    .chat-page-content .col-lg-9 {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        margin: 0 !important;
+        height: 100% !important; /* 높이를 100%로 설정하여 공백 제거 */
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    
+    .chat-page-content .col-lg-3 {
+        padding-right: 8px !important; /* 좌우 간격을 위한 최소 여백 */
+    }
+    
+    .chat-page-content .col-lg-9 {
+        padding-left: 8px !important; /* 좌우 간격을 위한 최소 여백 */
+    }
+    
+    /* 카드 여백 제거 및 상하단 꽉 채우기 */
+    .chat-sidebar-card,
+    .chat-main-card {
+        margin: 0 !important;
+        border-radius: 0 !important;
+    }
+    
+    /* 채팅방 컨테이너와 채팅 컨테이너가 상하단을 꽉 채우도록 */
+    .chat-sidebar-card {
+        border-left: 1px solid #dee2e6;
+        border-right: 1px solid #dee2e6;
+    }
+    
+    .chat-main-card {
+        border-left: 1px solid #dee2e6;
+        border-right: 1px solid #dee2e6;
+    }
+    
     /* 메인 채팅 카드 스타일 */
     .chat-main-card {
         display: flex;
         flex-direction: column;
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
+        overflow: hidden;
     }
     
     .chat-main-card .card-body {
@@ -87,6 +178,7 @@
         flex-direction: column;
         overflow: hidden;
         padding: 0;
+        min-height: 0;
     }
     
     .chat-header {
@@ -238,9 +330,11 @@
     .chat-messages {
         flex: 1;
         overflow-y: auto;
+        overflow-x: hidden;
         padding: 20px;
         background-color: #f5f5f5;
         min-height: 0;
+        scroll-behavior: smooth;
     }
     
     .message-item {
@@ -313,6 +407,19 @@
         padding: 15px 20px;
         border-top: 1px solid #ddd;
         background-color: white;
+        flex-shrink: 0;
+        position: relative;
+        z-index: 10;
+    }
+    
+    /* textarea 자동 높이 조절 (채널톡 스타일) */
+    #message-input {
+        resize: none !important;
+        min-height: 38px;
+        max-height: 120px;
+        overflow-y: auto;
+        line-height: 1.5;
+        transition: height 0.2s ease;
     }
     
     .chat-input-wrapper {
@@ -349,6 +456,43 @@
         max-height: 200px;
         border-radius: 8px;
         background-color: white;
+    }
+    
+    /* 파일 미리보기 컨테이너를 relative로 설정 */
+    #preview-content {
+        position: relative;
+        display: inline-block;
+    }
+    
+    /* 파일 삭제 버튼 (X 버튼) */
+    .file-remove-btn {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background-color: #dc3545;
+        color: white;
+        border: 2px solid white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: bold;
+        z-index: 10;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s;
+    }
+    
+    .file-remove-btn:hover {
+        background-color: #c82333;
+        transform: scale(1.1);
+    }
+    
+    .file-remove-btn:active {
+        transform: scale(0.95);
     }
     
     .btn-new-room {
@@ -759,20 +903,20 @@
 {% endblock %}
 
 {% block content %}
-<!-- container-fluid py-4 제거: layout.html이 이미 감싸고 있음 -->
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="mb-0"><i class="fas fa-comments text-primary"></i> 채팅</h2>
-</div>
+<div class="chat-page-wrapper">
+    <div class="d-flex justify-content-between align-items-center chat-page-title">
+        <h2 class="mb-0"><i class="fas fa-comments text-primary"></i> 채팅</h2>
+    </div>
 
-<div class="row">
-    <!-- 사이드바: 채팅방 목록 -->
-    <div class="col-lg-3 mb-4">
-            <div class="card shadow-sm sticky-top chat-sidebar-card" 
+    <div class="chat-page-content">
+        <!-- 사이드바: 채팅방 목록 -->
+        <div class="col-lg-3" style="display: flex; flex-direction: column; min-height: 0;">
+            <div class="card shadow-sm chat-sidebar-card" 
                  data-sticky-top="true"
                  data-socketio-available="{% if socketio_available %}true{% else %}false{% endif %}"
                  data-socketio-available-value="{{ socketio_available }}"
                  data-user-id="{% if session.get('user_id') %}{{ session.get('user_id') }}{% else %}0{% endif %}"
-                 style="top: 100px; max-height: calc(100vh - 150px);">
+                 style="height: 100%; max-height: 100%;">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
                     <h5 class="mb-0 fw-bold"><i class="fas fa-comments text-primary"></i> 채팅방</h5>
                     <button class="btn btn-primary btn-sm" onclick="showCreateRoomModal()" title="새 채팅방">
@@ -800,8 +944,8 @@
         </div>
         
         <!-- 메인 영역: 메시지 -->
-        <div class="col-lg-9">
-            <div class="card shadow-sm chat-main-card" data-min-height="true" style="min-height: calc(100vh - 150px);">
+        <div class="col-lg-9" style="display: flex; flex-direction: column; min-height: 0;">
+            <div class="card shadow-sm chat-main-card">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center chat-header" id="chat-header">
                     <div class="text-center text-muted py-4" style="flex: 1;">
                         채팅방을 선택하세요
@@ -823,25 +967,27 @@
                         </div>
                     </div>
                     
-                    <!-- 메시지 영역 -->
+                    <!-- 메시지 영역 (스크롤 가능) -->
                     <div class="chat-messages" id="messages-container">
                         <!-- 메시지가 여기에 표시됩니다 -->
                     </div>
-                    
-                    <!-- 입력 영역 (숨김) -->
-                    <div id="chat-input-area" class="p-3 border-top flex-shrink-0" style="display: none;">
-                        <div id="file-preview" class="mb-2"></div>
-                        <div class="chat-input-wrapper">
-                            <input type="file" id="file-input" multiple style="display: none;" 
-                                   accept="image/*,video/*,.pdf,.doc,.docx,.xlsx">
-                            <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('file-input').click()">
-                                <i class="fas fa-paperclip"></i>
-                            </button>
-                            <textarea id="message-input" class="form-control" rows="1" placeholder="메시지 입력..." onkeyup="handleTyping()"></textarea>
-                            <button class="btn btn-primary" type="button" onclick="sendMessage()">
-                                <i class="fas fa-paper-plane"></i> 전송
-                            </button>
-                        </div>
+                </div>
+                
+                <!-- 입력 영역 (card-body 밖으로 이동, 하단 고정) -->
+                <div id="chat-input-area" class="p-3 border-top flex-shrink-0" style="display: none;">
+                    <div id="file-preview" class="mb-2">
+                        <div id="preview-content"></div>
+                    </div>
+                    <div class="chat-input-wrapper">
+                        <input type="file" id="file-input" multiple style="display: none;" 
+                               accept="image/*,video/*,.pdf,.doc,.docx,.xlsx">
+                        <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('file-input').click()">
+                            <i class="fas fa-paperclip"></i>
+                        </button>
+                        <textarea id="message-input" class="form-control" rows="1" placeholder="메시지 입력..." onkeyup="handleTyping()"></textarea>
+                        <button class="btn btn-primary" type="button" onclick="sendMessage()">
+                            <i class="fas fa-paper-plane"></i> 전송
+                        </button>
                     </div>
                 </div>
             </div>
@@ -871,46 +1017,6 @@
 
 <!-- 채팅 알림 팝업 컨테이너 -->
 <div id="chat-notification-container" class="chat-notification-container"></div>
-
-<!-- 알림 팝업 디버그 패널 -->
-<button id="notification-debug-toggle" onclick="toggleNotificationDebugPanel()" title="알림 팝업 디버그 패널" style="position: fixed; bottom: 20px; left: 20px; z-index: 10001; width: 50px; height: 50px; border-radius: 50%; background: #007aff; color: white; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 20px;">
-    <i class="fas fa-bell"></i>
-</button>
-<div id="notification-debug-panel" style="display: none; position: fixed; bottom: 80px; left: 20px; width: 400px; max-height: 600px; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 10000; overflow: hidden;">
-    <div style="padding: 15px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; background: #f8f9fa;">
-        <h6 style="margin: 0; font-weight: 600;"><i class="fas fa-bell"></i> 알림 팝업 디버그</h6>
-        <button type="button" onclick="toggleNotificationDebugPanel()" style="background: none; border: none; font-size: 18px; cursor: pointer; color: #666;">&times;</button>
-    </div>
-    <div style="padding: 15px; overflow-y: auto; max-height: 550px;">
-        <div style="margin-bottom: 15px;">
-            <h6 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; color: #333;">알림 상태</h6>
-            <div style="font-size: 0.85rem; color: #666; margin-bottom: 4px;">
-                활성 알림: <span id="debug-notification-count" style="font-weight: 600; color: #007aff;">0</span>
-            </div>
-            <div style="font-size: 0.85rem; color: #666; margin-bottom: 4px;">
-                중복 방지 Set 크기: <span id="debug-notification-ids-size" style="font-weight: 600; color: #007aff;">0</span>
-            </div>
-            <div style="font-size: 0.85rem; color: #666; margin-bottom: 4px;">
-                현재 채팅방 ID: <span id="debug-current-room-id" style="font-weight: 600; color: #007aff;">-</span>
-            </div>
-            <div style="font-size: 0.85rem; color: #666; margin-bottom: 4px;">
-                현재 사용자 ID: <span id="debug-current-user-id" style="font-weight: 600; color: #007aff;">-</span>
-            </div>
-            <div style="font-size: 0.85rem; color: #666;">
-                Socket.IO 상태: <span id="debug-socket-status" style="font-weight: 600;">-</span>
-            </div>
-        </div>
-        <div style="margin-bottom: 15px;">
-            <h6 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; color: #333;">최근 알림 이벤트</h6>
-            <div id="notification-debug-logs" style="background: #f8f9fa; border-radius: 8px; padding: 10px; max-height: 300px; overflow-y: auto; font-size: 0.8rem; font-family: monospace;">
-                <div style="color: #999; text-align: center; padding: 10px;">이벤트 로그가 여기에 표시됩니다</div>
-            </div>
-        </div>
-        <div>
-            <button onclick="clearNotificationDebugLogs()" style="width: 100%; padding: 8px; background: #f0f0f0; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">로그 지우기</button>
-        </div>
-    </div>
-</div>
 
 <!-- 새 채팅방 생성 모달 -->
 <div class="modal fade" id="createRoomModal" tabindex="-1">
@@ -986,6 +1092,32 @@
     </div>
 </div>
 
+<!-- 멤버 초대 모달 -->
+<div class="modal fade" id="inviteMemberModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">멤버 초대</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">초대할 사용자 선택</label>
+                    <div id="invite-user-select-container" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background-color: #f8f9fa;">
+                        <div class="text-center text-muted py-2">
+                            <i class="fas fa-spinner fa-spin"></i> 사용자 목록 로딩 중...
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" onclick="inviteMembers()">초대</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // 설정 정보를 DOM에서 가져오기
 const chatContainer = document.querySelector('.chat-sidebar-card');
@@ -997,93 +1129,23 @@ let currentRoomId = null;
 let currentUserId = userIdFromData;
 window.SOCKETIO_AVAILABLE = window.SOCKETIO_AVAILABLE || socketioAvailable;
 
-// 디버그 패널 토글
-// 알림 팝업 디버그 패널 토글
-function toggleNotificationDebugPanel() {
-    const panel = document.getElementById('notification-debug-panel');
-    if (panel) {
-        if (panel.style.display === 'none' || !panel.style.display) {
-            panel.style.display = 'block';
-            updateNotificationDebugPanel();
-        } else {
-            panel.style.display = 'none';
-        }
-    }
-}
-
-// 알림 팝업 디버그 패널 업데이트
-function updateNotificationDebugPanel() {
-    const countEl = document.getElementById('debug-notification-count');
-    const idsSizeEl = document.getElementById('debug-notification-ids-size');
-    const roomIdEl = document.getElementById('debug-current-room-id');
-    const userIdEl = document.getElementById('debug-current-user-id');
-    const socketStatusEl = document.getElementById('debug-socket-status');
-    
-    if (countEl) countEl.textContent = notificationStack.length;
-    if (idsSizeEl) idsSizeEl.textContent = notificationIds.size;
-    if (roomIdEl) roomIdEl.textContent = currentRoomId || '-';
-    if (userIdEl) userIdEl.textContent = currentUserId || '-';
-    
-    // Socket.IO 연결 상태 표시
-    if (socketStatusEl) {
-        if (socket && socket.connected) {
-            socketStatusEl.textContent = '연결됨';
-            socketStatusEl.style.color = '#4caf50';
-        } else if (socket) {
-            socketStatusEl.textContent = '연결 해제됨';
-            socketStatusEl.style.color = '#ff9800';
-        } else {
-            socketStatusEl.textContent = '미연결';
-            socketStatusEl.style.color = '#f44336';
-        }
-    }
-}
-
-// 알림 팝업 디버그 로그 추가
-function addNotificationDebugLog(message, type) {
-    type = type || 'info';
-    const logsDiv = document.getElementById('notification-debug-logs');
-    if (!logsDiv) return;
-    
-    // 첫 로그인 경우 안내 메시지 제거
-    if (logsDiv.children.length === 1 && logsDiv.children[0].textContent.includes('이벤트 로그가')) {
-        logsDiv.innerHTML = '';
-    }
-    
-    const timestamp = new Date().toLocaleTimeString();
-    const logItem = document.createElement('div');
-    logItem.style.cssText = `padding: 6px; margin-bottom: 4px; border-left: 3px solid ${
-        type === 'success' ? '#4caf50' : 
-        type === 'error' ? '#f44336' : 
-        type === 'warning' ? '#ff9800' : '#2196f3'
-    }; background: ${type === 'error' ? '#ffebee' : type === 'warning' ? '#fff3e0' : '#e3f2fd'}; border-radius: 4px;`;
-    
-    logItem.innerHTML = `<span style="color: #666; font-size: 0.75rem;">[${timestamp}]</span> <span style="color: #333;">${escapeHtml(message)}</span>`;
-    logsDiv.appendChild(logItem);
-    logsDiv.scrollTop = logsDiv.scrollHeight;
-    
-    // 최대 100개 로그 유지
-    while (logsDiv.children.length > 100) {
-        logsDiv.removeChild(logsDiv.firstChild);
-    }
-}
-
-// 알림 팝업 디버그 로그 지우기
-function clearNotificationDebugLogs() {
-    const logsDiv = document.getElementById('notification-debug-logs');
-    if (logsDiv) {
-        logsDiv.innerHTML = '<div style="color: #999; text-align: center; padding: 10px;">이벤트 로그가 여기에 표시됩니다</div>';
-    }
-}
 
 // 새 메시지 처리 함수 (통합)
 function handleNewMessage(data) {
-    addNotificationDebugLog(`[handleNewMessage] 호출: room_id=${data.room_id}, user_id=${data.user_id}, currentRoomId=${currentRoomId}, currentUserId=${currentUserId}`, 'info');
     console.log('새 메시지 수신:', data);
     
     if (data.room_id == currentRoomId) {
+        // 중복 방지: 이미 존재하는 메시지 ID인지 확인 (이중 방어)
+        if (data.id) {
+            const container = document.getElementById('messages-container');
+            const existingMessage = container.querySelector(`[data-message-id="${data.id}"]`);
+            if (existingMessage) {
+                console.log('[handleNewMessage] 중복 메시지 스킵:', data.id);
+                return; // 이미 존재하는 메시지는 추가하지 않음
+            }
+        }
+        
         // 현재 채팅방이면 메시지 추가
-        addNotificationDebugLog(`현재 채팅방 메시지: 메시지 추가 (알림 표시 안 함)`, 'info');
         appendMessage(data);
         scrollToBottom();
         
@@ -1097,28 +1159,20 @@ function handleNewMessage(data) {
         }
     } else {
         // 다른 채팅방이면 알림 표시
-        addNotificationDebugLog(`다른 채팅방 메시지 감지: room_id=${data.room_id} != currentRoomId=${currentRoomId}`, 'info');
         if (data.user_id != currentUserId) {
-            addNotificationDebugLog(`다른 사용자 메시지: user_id=${data.user_id} != currentUserId=${currentUserId}`, 'info');
-            addNotificationDebugLog(`채팅방 정보 조회 시작: room_id=${data.room_id}`, 'info');
             fetch(`/api/chat/rooms/${data.room_id}`)
                 .then(response => response.json())
                 .then(result => {
                     if (result.success && result.room) {
-                        addNotificationDebugLog(`채팅방 정보 조회 성공: ${result.room.name}`, 'success');
                         showChatNotification(data, result.room);
                     } else {
-                        addNotificationDebugLog(`채팅방 정보 조회 실패: 알 수 없는 채팅방으로 표시`, 'warning');
                         showChatNotification(data, { id: data.room_id, name: '알 수 없는 채팅방' });
                     }
                 })
                 .catch(err => {
-                    addNotificationDebugLog(`채팅방 정보 조회 오류: ${err.message}`, 'error');
                     console.error('채팅방 정보 조회 오류:', err);
                     showChatNotification(data, { id: data.room_id, name: '알 수 없는 채팅방' });
                 });
-        } else {
-            addNotificationDebugLog(`알림 스킵: 자신이 보낸 메시지 (user_id=${data.user_id})`, 'warning');
         }
     }
 }
@@ -1126,15 +1180,11 @@ function handleNewMessage(data) {
 // Socket.IO 초기화 함수
 function initializeSocketIO() {
     try {
-        addNotificationDebugLog('Socket.IO 초기화 시작', 'info');
-        
         if (typeof io === 'undefined') {
             console.error('Socket.IO가 로드되지 않았습니다.');
-            addNotificationDebugLog('Socket.IO 스크립트가 로드되지 않았습니다.', 'error');
             return;
         }
         
-        addNotificationDebugLog('Socket.IO 스크립트 확인됨, 연결 시도 중...', 'info');
         socket = io({
             transports: ['polling'], // polling만 사용 (WebSocket 업그레이드 비활성화로 오류 방지)
             upgrade: false, // WebSocket 업그레이드 비활성화
@@ -1147,21 +1197,15 @@ function initializeSocketIO() {
         
         socket.on('connect', function() {
             console.log('Socket.IO 연결 성공');
-            addNotificationDebugLog('Socket.IO 연결 성공', 'success');
-            updateNotificationDebugPanel();
             loadRooms();
         });
         
         socket.on('connect_error', function(error) {
             console.error('Socket.IO 연결 오류:', error);
-            addNotificationDebugLog(`Socket.IO 연결 오류: ${error.message || error}`, 'error');
-            updateNotificationDebugPanel();
         });
         
         socket.on('disconnect', function(reason) {
             console.log('Socket.IO 연결 해제:', reason);
-            addNotificationDebugLog(`Socket.IO 연결 해제: ${reason}`, 'warning');
-            updateNotificationDebugPanel();
             if (reason === 'io server disconnect') {
                 socket.connect();
             }
@@ -1169,13 +1213,10 @@ function initializeSocketIO() {
         
         socket.on('reconnect', function(attemptNumber) {
             console.log('Socket.IO 재연결 성공:', attemptNumber);
-            addNotificationDebugLog(`Socket.IO 재연결 성공 (시도 ${attemptNumber})`, 'success');
-            updateNotificationDebugPanel();
         });
         
         // 새 메시지 이벤트
         socket.on('new_message', function(data) {
-            addNotificationDebugLog(`[Socket.IO] new_message 이벤트 수신: room_id=${data.room_id}, user_id=${data.user_id}, user_name=${data.user_name || '알 수 없음'}`, 'info');
             handleNewMessage(data);
         });
         
@@ -1193,13 +1234,9 @@ function initializeSocketIO() {
             }
         });
         
-        addNotificationDebugLog('Socket.IO 이벤트 핸들러 등록 완료', 'success');
-        updateNotificationDebugPanel();
         
     } catch (error) {
         console.error('Socket.IO 초기화 오류:', error);
-        addNotificationDebugLog(`Socket.IO 초기화 오류: ${error.message}`, 'error');
-        updateNotificationDebugPanel();
     }
 }
 
@@ -1293,31 +1330,22 @@ const NOTIFICATION_DURATION = 5000; // 5초
 let notificationIds = new Set(); // 중복 방지용
 
 function showChatNotification(messageData, roomData) {
-    addNotificationDebugLog(`showChatNotification 호출: room_id=${messageData.room_id}, user_id=${messageData.user_id}, currentRoomId=${currentRoomId}, currentUserId=${currentUserId}`, 'info');
-    
     // 현재 채팅방이면 알림 표시 안 함
     if (messageData.room_id == currentRoomId) {
-        addNotificationDebugLog(`알림 스킵: 현재 채팅방 (room_id=${messageData.room_id})`, 'warning');
-        updateNotificationDebugPanel();
         return;
     }
     
     // 자신이 보낸 메시지는 알림 표시 안 함
     if (messageData.user_id == currentUserId) {
-        addNotificationDebugLog(`알림 스킵: 자신이 보낸 메시지 (user_id=${messageData.user_id})`, 'warning');
-        updateNotificationDebugPanel();
         return;
     }
     
     // 중복 알림 방지: 같은 메시지 ID는 한 번만 표시
     const messageId = messageData.id || (messageData.room_id + '_' + messageData.created_at);
     if (notificationIds.has(messageId)) {
-        addNotificationDebugLog(`알림 스킵: 중복 메시지 (messageId=${messageId})`, 'warning');
-        updateNotificationDebugPanel();
         return;
     }
     notificationIds.add(messageId);
-    addNotificationDebugLog(`새 알림 추가: messageId=${messageId}, 방=${roomData?.name || '알 수 없음'}, 발신자=${messageData.user_name || '알 수 없음'}`, 'success');
     
     // 알림 스택에 추가
     const notificationId = 'notification-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
@@ -1334,7 +1362,6 @@ function showChatNotification(messageData, roomData) {
     // 최대 개수 초과 시 오래된 알림 제거
     if (notificationStack.length > MAX_NOTIFICATIONS) {
         const oldest = notificationStack.shift();
-        addNotificationDebugLog(`최대 개수 초과: 오래된 알림 제거 (${oldest.id})`, 'info');
         closeNotification(oldest.id);
         if (oldest.messageId) {
             notificationIds.delete(oldest.messageId);
@@ -1344,23 +1371,19 @@ function showChatNotification(messageData, roomData) {
     // 알림 DOM 생성
     const container = document.getElementById('chat-notification-container');
     if (!container) {
-        addNotificationDebugLog('오류: 알림 컨테이너를 찾을 수 없습니다.', 'error');
         console.error('알림 컨테이너를 찾을 수 없습니다.');
         return;
     }
     
     const notificationEl = createNotificationElement(notification);
     container.appendChild(notificationEl);
-    addNotificationDebugLog(`알림 DOM 생성 완료: ${notificationId}`, 'success');
     
     // 자동 닫기 타이머
     const autoCloseTimer = setTimeout(() => {
-        addNotificationDebugLog(`자동 닫기: ${notificationId}`, 'info');
         closeNotification(notificationId);
         if (messageId) {
             notificationIds.delete(messageId);
         }
-        updateNotificationDebugPanel();
     }, NOTIFICATION_DURATION);
     
     // 알림 요소에 타이머 ID 저장
@@ -1370,7 +1393,6 @@ function showChatNotification(messageData, roomData) {
     notificationEl.addEventListener('click', function(e) {
         if (!e.target.classList.contains('chat-notification-close') && 
             !e.target.closest('.chat-notification-close')) {
-            addNotificationDebugLog(`알림 클릭: 채팅방 이동 (room_id=${roomData?.id})`, 'info');
             closeNotification(notificationId);
             if (messageId) {
                 notificationIds.delete(messageId);
@@ -1379,11 +1401,8 @@ function showChatNotification(messageData, roomData) {
                 selectRoom(roomData.id);
                 window.focus();
             }
-            updateNotificationDebugPanel();
         }
     });
-    
-    updateNotificationDebugPanel();
 }
 
 // showChatNotification 함수를 전역으로 노출 (layout.html에서 사용 가능)
@@ -1476,7 +1495,6 @@ function createNotificationElement(notification) {
 function closeNotification(notificationId) {
     const notificationEl = document.getElementById(notificationId);
     if (!notificationEl) {
-        addNotificationDebugLog(`알림 닫기 실패: 요소를 찾을 수 없음 (${notificationId})`, 'error');
         return;
     }
     
@@ -1490,9 +1508,6 @@ function closeNotification(notificationId) {
     const notification = notificationStack.find(n => n.id === notificationId);
     if (notification && notification.messageId) {
         notificationIds.delete(notification.messageId);
-        addNotificationDebugLog(`알림 닫기: ${notificationId} (messageId=${notification.messageId})`, 'info');
-    } else {
-        addNotificationDebugLog(`알림 닫기: ${notificationId}`, 'info');
     }
     
     // 닫기 애니메이션
@@ -1502,7 +1517,6 @@ function closeNotification(notificationId) {
         notificationEl.remove();
         // 스택에서도 제거
         notificationStack = notificationStack.filter(n => n.id !== notificationId);
-        updateNotificationDebugPanel();
     }, 300);
 }
 
@@ -1521,10 +1535,79 @@ function formatNotificationTime(dateString) {
     return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 }
 
+// textarea 자동 높이 조절 함수 (채널톡 스타일)
+function autoResizeTextarea(textarea) {
+    if (!textarea) return;
+    // 높이 초기화
+    textarea.style.height = 'auto';
+    // scrollHeight로 내용 높이 계산
+    const scrollHeight = textarea.scrollHeight;
+    // 최소 38px, 최대 120px로 제한
+    const newHeight = Math.max(38, Math.min(scrollHeight, 120));
+    textarea.style.height = newHeight + 'px';
+}
+
+// 채팅 페이지 높이 동적 계산 (반응형)
+function adjustChatPageHeight() {
+    const header = document.querySelector('header');
+    const nav = document.querySelector('nav.navbar');
+    
+    if (header && nav) {
+        const headerHeight = header.offsetHeight || 0;
+        const navHeight = nav.offsetHeight || 0;
+        const totalHeight = headerHeight + navHeight;
+        
+        // container-fluid 높이 조절
+        const container = document.querySelector('.container-fluid');
+        if (container && container.querySelector('.chat-page-wrapper')) {
+            container.style.height = `calc(100vh - ${totalHeight}px)`;
+            container.style.maxHeight = `calc(100vh - ${totalHeight}px)`;
+            container.style.overflow = 'hidden';
+        }
+    }
+}
+
 // Socket.IO 연결
 document.addEventListener('DOMContentLoaded', function() {
+    // 채팅 페이지 높이 조절
+    adjustChatPageHeight();
+    
+    // 리사이즈 이벤트 리스너
+    let resizeTimer;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function() {
+            adjustChatPageHeight();
+        }, 100);
+    });
+    
+    // textarea 자동 높이 조절
+    const messageInput = document.getElementById('message-input');
+    if (messageInput) {
+        // 입력 시 자동 높이 조절
+        messageInput.addEventListener('input', function() {
+            autoResizeTextarea(this);
+        });
+        
+        // 포커스 시 초기 높이 설정
+        messageInput.addEventListener('focus', function() {
+            autoResizeTextarea(this);
+        });
+        
+        // 초기 높이 설정
+        autoResizeTextarea(messageInput);
+    }
+    
     // 네비게이션 바 높이 계산 및 sticky-top 요소 위치 조정
     function adjustStickyPositions() {
+        // 채팅 페이지에서는 sticky positioning을 사용하지 않으므로 이 함수 비활성화
+        // 채팅 페이지인지 확인
+        const isChatPage = document.querySelector('.chat-page-wrapper') !== null;
+        if (isChatPage) {
+            // 채팅 페이지에서는 이 함수를 실행하지 않음
+            return;
+        }
+        
         const header = document.querySelector('header');
         const nav = document.querySelector('nav.navbar');
         
@@ -1590,10 +1673,6 @@ document.addEventListener('DOMContentLoaded', function() {
         loadRooms();
     }
     
-    // 주기적으로 알림 팝업 디버그 패널 업데이트 (1초마다)
-    setInterval(function() {
-        updateNotificationDebugPanel();
-    }, 1000);
     
     // Enter 키로 메시지 전송
     document.getElementById('message-input').addEventListener('keypress', function(e) {
@@ -1737,64 +1816,74 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatInputArea = document.getElementById('chat-input-area');
     const dragOverlay = document.getElementById('drag-overlay');
     
-    // 드래그 오버 이벤트
-    chatInputArea.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        chatInputArea.classList.add('drag-over');
-        dragOverlay.classList.add('active');
-    });
-    
-    chatInputArea.addEventListener('dragleave', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        // 드래그가 자식 요소로 이동한 경우는 제외
-        if (!chatInputArea.contains(e.relatedTarget)) {
+    // 요소 존재 확인
+    if (!chatInputArea) {
+        console.error('chat-input-area 요소를 찾을 수 없습니다.');
+    } else if (!dragOverlay) {
+        console.error('drag-overlay 요소를 찾을 수 없습니다.');
+    } else {
+        // 드래그 오버 이벤트
+        chatInputArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            chatInputArea.classList.add('drag-over');
+            dragOverlay.classList.add('active');
+        });
+        
+        chatInputArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            // 드래그가 자식 요소로 이동한 경우는 제외
+            if (!chatInputArea.contains(e.relatedTarget)) {
+                chatInputArea.classList.remove('drag-over');
+                dragOverlay.classList.remove('active');
+            }
+        });
+        
+        // 드롭 이벤트
+        chatInputArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
             chatInputArea.classList.remove('drag-over');
             dragOverlay.classList.remove('active');
-        }
-    });
-    
-    // 드롭 이벤트
-    chatInputArea.addEventListener('drop', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        chatInputArea.classList.remove('drag-over');
-        dragOverlay.classList.remove('active');
-        
-        const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            handleFileSelect(files);
-        }
-    });
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files);
+            }
+        });
+    }
     
     // 전체 화면 드래그 오버 (채팅 영역 밖에서도)
-    document.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        // 채팅 입력 영역이 보이는 경우에만 오버레이 표시
-        if (chatInputArea.style.display !== 'none') {
-            dragOverlay.classList.add('active');
-        }
-    });
-    
-    document.addEventListener('dragleave', function(e) {
-        e.preventDefault();
-        // 드래그가 완전히 벗어난 경우
-        if (!e.relatedTarget || e.relatedTarget === document.body) {
-            dragOverlay.classList.remove('active');
-        }
-    });
-    
-    document.addEventListener('drop', function(e) {
-        e.preventDefault();
-        dragOverlay.classList.remove('active');
+    // chatInputArea와 dragOverlay가 존재할 때만 처리
+    if (chatInputArea && dragOverlay) {
+        document.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            // 채팅 입력 영역이 보이는 경우에만 오버레이 표시
+            if (chatInputArea.style.display !== 'none') {
+                dragOverlay.classList.add('active');
+            }
+        });
         
-        // 채팅 입력 영역이 보이는 경우에만 파일 처리
-        if (chatInputArea.style.display !== 'none' && e.dataTransfer.files.length > 0) {
-            const files = e.dataTransfer.files;
-            handleFileSelect(files);
-        }
-    });
+        document.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            // 드래그가 완전히 벗어난 경우
+            if (!e.relatedTarget || e.relatedTarget === document.body) {
+                dragOverlay.classList.remove('active');
+            }
+        });
+        
+        document.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dragOverlay.classList.remove('active');
+            
+            // 채팅 입력 영역이 보이는 경우에만 파일 처리
+            if (chatInputArea.style.display !== 'none' && e.dataTransfer.files.length > 0) {
+                const files = e.dataTransfer.files;
+                handleFileSelect(files);
+            }
+        });
+    }
 });
 
 // 채팅방 목록 로드
@@ -1804,6 +1893,26 @@ function loadRooms() {
         .then(data => {
             if (data.success) {
                 renderRooms(data.rooms);
+                
+                // URL 파라미터에서 room_id 확인 및 자동 선택
+                const urlParams = new URLSearchParams(window.location.search);
+                const roomIdFromUrl = urlParams.get('room_id');
+                
+                if (roomIdFromUrl) {
+                    const roomId = parseInt(roomIdFromUrl, 10);
+                    if (roomId && !isNaN(roomId)) {
+                        // 채팅방이 목록에 있는지 확인
+                        const roomExists = data.rooms.some(room => room.id === roomId);
+                        if (roomExists) {
+                            // 약간의 지연 후 선택 (DOM 렌더링 완료 대기)
+                            setTimeout(() => {
+                                selectRoom(roomId);
+                            }, 100);
+                        } else {
+                            console.warn(`채팅방 ID ${roomId}를 찾을 수 없습니다.`);
+                        }
+                    }
+                }
             }
         })
         .catch(error => {
@@ -1842,6 +1951,11 @@ function renderRooms(rooms) {
 // 채팅방 선택
 function selectRoom(roomId) {
     currentRoomId = roomId;
+    
+    // URL 업데이트 (브라우저 히스토리 관리)
+    const url = new URL(window.location);
+    url.searchParams.set('room_id', roomId);
+    window.history.pushState({ room_id: roomId }, '', url);
     
     // UI 업데이트
     document.querySelectorAll('.chat-room-item').forEach(item => {
@@ -2136,6 +2250,17 @@ function renderMessage(msg) {
 // 메시지 추가 (실시간)
 function appendMessage(msg) {
     const container = document.getElementById('messages-container');
+    
+    // 중복 방지: 메시지 ID로 이미 존재하는지 확인
+    if (msg.id) {
+        const existingMessage = container.querySelector(`[data-message-id="${msg.id}"]`);
+        if (existingMessage) {
+            console.log('[appendMessage] 중복 메시지 스킵:', msg.id);
+            return; // 이미 존재하는 메시지는 추가하지 않음
+        }
+    }
+    
+    // 메시지 추가
     container.innerHTML += renderMessage(msg);
 }
 
@@ -2209,17 +2334,33 @@ function handleFileSelect(files) {
     formData.append('file', file);
     formData.append('room_id', currentRoomId);
     
-    // 로딩 표시
+    // 요소 가져오기 및 null 체크
     const preview = document.getElementById('file-preview');
-    const content = document.getElementById('preview-content');
+    let content = document.getElementById('preview-content');
     const chatInputArea = document.getElementById('chat-input-area');
+    
+    // 요소가 없으면 에러 처리
+    if (!preview) {
+        console.error('file-preview 요소를 찾을 수 없습니다.');
+        alert('파일 미리보기 영역을 찾을 수 없습니다.');
+        return;
+    }
+    
+    // preview-content가 없으면 생성
+    if (!content && preview) {
+        content = document.createElement('div');
+        content.id = 'preview-content';
+        preview.appendChild(content);
+    }
     
     // chat-input-area 표시 보장
     if (chatInputArea && chatInputArea.style.display === 'none') {
         chatInputArea.style.display = 'block';
     }
     
-    content.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 업로드 중...';
+    // content가 여전히 null이면 preview를 직접 사용
+    const finalContent = content || preview;
+    finalContent.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 업로드 중...';
     preview.classList.add('active');
     
     // 파일 업로드
@@ -2237,34 +2378,55 @@ function handleFileSelect(files) {
             showPreview(data.file_info);
         } else {
             preview.classList.remove('active');
+            if (finalContent) finalContent.innerHTML = '';
             alert('파일 업로드 실패: ' + data.message);
         }
     })
     .catch(error => {
         console.error('파일 업로드 오류:', error);
         preview.classList.remove('active');
+        if (finalContent) finalContent.innerHTML = '';
         alert('파일 업로드 중 오류가 발생했습니다.');
     });
 }
 
 function showPreview(fileInfo) {
     const preview = document.getElementById('file-preview');
-    const content = document.getElementById('preview-content');
+    let content = document.getElementById('preview-content');
     const chatInputArea = document.getElementById('chat-input-area');
+    
+    // 요소가 없으면 에러 처리
+    if (!preview) {
+        console.error('file-preview 요소를 찾을 수 없습니다.');
+        return;
+    }
+    
+    // preview-content가 없으면 생성
+    if (!content && preview) {
+        content = document.createElement('div');
+        content.id = 'preview-content';
+        preview.appendChild(content);
+    }
     
     // chat-input-area가 숨겨져 있으면 표시
     if (chatInputArea && chatInputArea.style.display === 'none') {
         chatInputArea.style.display = 'block';
     }
     
+    // content가 여전히 null이면 preview를 직접 사용
+    const finalContent = content || preview;
+    
+    // X 버튼 HTML
+    const removeBtn = '<button type="button" class="file-remove-btn" onclick="removePreview()" title="파일 삭제">×</button>';
+    
     if (fileInfo.file_type === 'image') {
         const imageUrl = fileInfo.thumbnail_url || fileInfo.url || fileInfo.storage_url;
-        content.innerHTML = `<img src="${imageUrl}" style="max-width: 200px; background-color: white; padding: 4px;">`;
+        finalContent.innerHTML = `<div style="position: relative; display: inline-block;">${removeBtn}<img src="${imageUrl}" style="max-width: 200px; background-color: white; padding: 4px; border-radius: 8px; display: block;"></div>`;
     } else if (fileInfo.file_type === 'video') {
         const videoUrl = fileInfo.url || fileInfo.storage_url;
-        content.innerHTML = `<video controls style="max-width: 200px;"><source src="${videoUrl}"></video>`;
+        finalContent.innerHTML = `<div style="position: relative; display: inline-block;">${removeBtn}<video controls style="max-width: 200px; border-radius: 8px; display: block;"><source src="${videoUrl}"></video></div>`;
     } else {
-        content.innerHTML = `<i class="fas fa-file"></i> ${fileInfo.filename}`;
+        finalContent.innerHTML = `<div style="position: relative; display: inline-block; padding: 8px 12px; background-color: white; border-radius: 8px; border: 1px solid #ddd;">${removeBtn}<i class="fas fa-file"></i> ${escapeHtml(fileInfo.filename)}</div>`;
     }
     
     preview.classList.add('active');
@@ -2272,8 +2434,21 @@ function showPreview(fileInfo) {
 
 function removePreview() {
     previewFile = null;
-    document.getElementById('file-preview').classList.remove('active');
-    document.getElementById('file-input').value = '';
+    const preview = document.getElementById('file-preview');
+    const content = document.getElementById('preview-content');
+    
+    if (preview) {
+        preview.classList.remove('active');
+    }
+    
+    if (content) {
+        content.innerHTML = '';
+    }
+    
+    const fileInput = document.getElementById('file-input');
+    if (fileInput) {
+        fileInput.value = '';
+    }
 }
 
 // 사용자 목록 로드 함수
