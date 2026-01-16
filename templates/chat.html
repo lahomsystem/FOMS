@@ -1,12 +1,7 @@
 {% extends "layout.html" %}
 
 {% block head %}
-{% if socketio_available %}
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-{% endif %}
-<script>
-    // Socket.IO 사용 가능 여부는 DOM에서 가져옴
-</script>
+<!-- Socket.IO 스크립트는 layout.html에서 전역으로 로드되므로 여기서는 제거 -->
 {% endblock %}
 
 {% block styles %}
@@ -583,6 +578,183 @@
         margin-bottom: 20px;
         display: block;
     }
+    
+    /* 채팅 알림 팝업 스타일 (채널톡 스타일) */
+    .chat-notification-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-width: 380px;
+        pointer-events: none;
+    }
+    
+    .chat-notification {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        padding: 16px;
+        min-width: 320px;
+        max-width: 380px;
+        pointer-events: auto;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-left: 4px solid #007aff;
+        animation: slideInRight 0.3s ease-out;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .chat-notification:hover {
+        transform: translateX(-4px);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+    }
+    
+    .chat-notification.closing {
+        animation: slideOutRight 0.3s ease-in forwards;
+    }
+    
+    .chat-notification-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 8px;
+    }
+    
+    .chat-notification-room-name {
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: #1d1d1f !important;
+        margin: 0;
+    }
+    
+    .chat-notification-close {
+        background: none;
+        border: none;
+        color: #8e8e93;
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+    
+    .chat-notification-close:hover {
+        background-color: #f2f2f7;
+        color: #1d1d1f;
+    }
+    
+    .chat-notification-content {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+    }
+    
+    .chat-notification-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #007aff 0%, #0051d5 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 0.9rem;
+        flex-shrink: 0;
+    }
+    
+    .chat-notification-body {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .chat-notification-sender {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #1d1d1f !important;
+        margin-bottom: 4px;
+    }
+    
+    .chat-notification-message {
+        font-size: 0.875rem;
+        color: #8e8e93 !important;
+        line-height: 1.4;
+        word-wrap: break-word;
+        display: block;
+        max-height: 2.8em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .chat-notification-time {
+        font-size: 0.75rem;
+        color: #8e8e93 !important;
+        margin-top: 4px;
+    }
+    
+    .chat-notification-image {
+        width: 60px;
+        height: 60px;
+        border-radius: 8px;
+        object-fit: cover;
+        flex-shrink: 0;
+        margin-top: 8px;
+    }
+    
+    .chat-notification-file {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        background-color: #f2f2f7;
+        border-radius: 8px;
+        margin-top: 4px;
+    }
+    
+    .chat-notification-file-icon {
+        color: #007aff;
+        font-size: 1.2rem;
+    }
+    
+    .chat-notification-file-name {
+        font-size: 0.8rem;
+        color: #1d1d1f;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOutRight {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -598,6 +770,7 @@
             <div class="card shadow-sm sticky-top chat-sidebar-card" 
                  data-sticky-top="true"
                  data-socketio-available="{% if socketio_available %}true{% else %}false{% endif %}"
+                 data-socketio-available-value="{{ socketio_available }}"
                  data-user-id="{% if session.get('user_id') %}{{ session.get('user_id') }}{% else %}0{% endif %}"
                  style="top: 100px; max-height: calc(100vh - 150px);">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
@@ -696,6 +869,49 @@
     </div>
 </div>
 
+<!-- 채팅 알림 팝업 컨테이너 -->
+<div id="chat-notification-container" class="chat-notification-container"></div>
+
+<!-- 알림 팝업 디버그 패널 -->
+<button id="notification-debug-toggle" onclick="toggleNotificationDebugPanel()" title="알림 팝업 디버그 패널" style="position: fixed; bottom: 20px; left: 20px; z-index: 10001; width: 50px; height: 50px; border-radius: 50%; background: #007aff; color: white; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 20px;">
+    <i class="fas fa-bell"></i>
+</button>
+<div id="notification-debug-panel" style="display: none; position: fixed; bottom: 80px; left: 20px; width: 400px; max-height: 600px; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 10000; overflow: hidden;">
+    <div style="padding: 15px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; background: #f8f9fa;">
+        <h6 style="margin: 0; font-weight: 600;"><i class="fas fa-bell"></i> 알림 팝업 디버그</h6>
+        <button type="button" onclick="toggleNotificationDebugPanel()" style="background: none; border: none; font-size: 18px; cursor: pointer; color: #666;">&times;</button>
+    </div>
+    <div style="padding: 15px; overflow-y: auto; max-height: 550px;">
+        <div style="margin-bottom: 15px;">
+            <h6 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; color: #333;">알림 상태</h6>
+            <div style="font-size: 0.85rem; color: #666; margin-bottom: 4px;">
+                활성 알림: <span id="debug-notification-count" style="font-weight: 600; color: #007aff;">0</span>
+            </div>
+            <div style="font-size: 0.85rem; color: #666; margin-bottom: 4px;">
+                중복 방지 Set 크기: <span id="debug-notification-ids-size" style="font-weight: 600; color: #007aff;">0</span>
+            </div>
+            <div style="font-size: 0.85rem; color: #666; margin-bottom: 4px;">
+                현재 채팅방 ID: <span id="debug-current-room-id" style="font-weight: 600; color: #007aff;">-</span>
+            </div>
+            <div style="font-size: 0.85rem; color: #666; margin-bottom: 4px;">
+                현재 사용자 ID: <span id="debug-current-user-id" style="font-weight: 600; color: #007aff;">-</span>
+            </div>
+            <div style="font-size: 0.85rem; color: #666;">
+                Socket.IO 상태: <span id="debug-socket-status" style="font-weight: 600;">-</span>
+            </div>
+        </div>
+        <div style="margin-bottom: 15px;">
+            <h6 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; color: #333;">최근 알림 이벤트</h6>
+            <div id="notification-debug-logs" style="background: #f8f9fa; border-radius: 8px; padding: 10px; max-height: 300px; overflow-y: auto; font-size: 0.8rem; font-family: monospace;">
+                <div style="color: #999; text-align: center; padding: 10px;">이벤트 로그가 여기에 표시됩니다</div>
+            </div>
+        </div>
+        <div>
+            <button onclick="clearNotificationDebugLogs()" style="width: 100%; padding: 8px; background: #f0f0f0; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">로그 지우기</button>
+        </div>
+    </div>
+</div>
+
 <!-- 새 채팅방 생성 모달 -->
 <div class="modal fade" id="createRoomModal" tabindex="-1">
     <div class="modal-dialog">
@@ -781,6 +997,212 @@ let currentRoomId = null;
 let currentUserId = userIdFromData;
 window.SOCKETIO_AVAILABLE = window.SOCKETIO_AVAILABLE || socketioAvailable;
 
+// 디버그 패널 토글
+// 알림 팝업 디버그 패널 토글
+function toggleNotificationDebugPanel() {
+    const panel = document.getElementById('notification-debug-panel');
+    if (panel) {
+        if (panel.style.display === 'none' || !panel.style.display) {
+            panel.style.display = 'block';
+            updateNotificationDebugPanel();
+        } else {
+            panel.style.display = 'none';
+        }
+    }
+}
+
+// 알림 팝업 디버그 패널 업데이트
+function updateNotificationDebugPanel() {
+    const countEl = document.getElementById('debug-notification-count');
+    const idsSizeEl = document.getElementById('debug-notification-ids-size');
+    const roomIdEl = document.getElementById('debug-current-room-id');
+    const userIdEl = document.getElementById('debug-current-user-id');
+    const socketStatusEl = document.getElementById('debug-socket-status');
+    
+    if (countEl) countEl.textContent = notificationStack.length;
+    if (idsSizeEl) idsSizeEl.textContent = notificationIds.size;
+    if (roomIdEl) roomIdEl.textContent = currentRoomId || '-';
+    if (userIdEl) userIdEl.textContent = currentUserId || '-';
+    
+    // Socket.IO 연결 상태 표시
+    if (socketStatusEl) {
+        if (socket && socket.connected) {
+            socketStatusEl.textContent = '연결됨';
+            socketStatusEl.style.color = '#4caf50';
+        } else if (socket) {
+            socketStatusEl.textContent = '연결 해제됨';
+            socketStatusEl.style.color = '#ff9800';
+        } else {
+            socketStatusEl.textContent = '미연결';
+            socketStatusEl.style.color = '#f44336';
+        }
+    }
+}
+
+// 알림 팝업 디버그 로그 추가
+function addNotificationDebugLog(message, type) {
+    type = type || 'info';
+    const logsDiv = document.getElementById('notification-debug-logs');
+    if (!logsDiv) return;
+    
+    // 첫 로그인 경우 안내 메시지 제거
+    if (logsDiv.children.length === 1 && logsDiv.children[0].textContent.includes('이벤트 로그가')) {
+        logsDiv.innerHTML = '';
+    }
+    
+    const timestamp = new Date().toLocaleTimeString();
+    const logItem = document.createElement('div');
+    logItem.style.cssText = `padding: 6px; margin-bottom: 4px; border-left: 3px solid ${
+        type === 'success' ? '#4caf50' : 
+        type === 'error' ? '#f44336' : 
+        type === 'warning' ? '#ff9800' : '#2196f3'
+    }; background: ${type === 'error' ? '#ffebee' : type === 'warning' ? '#fff3e0' : '#e3f2fd'}; border-radius: 4px;`;
+    
+    logItem.innerHTML = `<span style="color: #666; font-size: 0.75rem;">[${timestamp}]</span> <span style="color: #333;">${escapeHtml(message)}</span>`;
+    logsDiv.appendChild(logItem);
+    logsDiv.scrollTop = logsDiv.scrollHeight;
+    
+    // 최대 100개 로그 유지
+    while (logsDiv.children.length > 100) {
+        logsDiv.removeChild(logsDiv.firstChild);
+    }
+}
+
+// 알림 팝업 디버그 로그 지우기
+function clearNotificationDebugLogs() {
+    const logsDiv = document.getElementById('notification-debug-logs');
+    if (logsDiv) {
+        logsDiv.innerHTML = '<div style="color: #999; text-align: center; padding: 10px;">이벤트 로그가 여기에 표시됩니다</div>';
+    }
+}
+
+// 새 메시지 처리 함수 (통합)
+function handleNewMessage(data) {
+    addNotificationDebugLog(`[handleNewMessage] 호출: room_id=${data.room_id}, user_id=${data.user_id}, currentRoomId=${currentRoomId}, currentUserId=${currentUserId}`, 'info');
+    console.log('새 메시지 수신:', data);
+    
+    if (data.room_id == currentRoomId) {
+        // 현재 채팅방이면 메시지 추가
+        addNotificationDebugLog(`현재 채팅방 메시지: 메시지 추가 (알림 표시 안 함)`, 'info');
+        appendMessage(data);
+        scrollToBottom();
+        
+        // 새 메시지 수신 시 읽음 상태 업데이트
+        if (socket && socket.connected) {
+            socket.emit('mark_read', { room_id: currentRoomId });
+        } else {
+            fetch(`/api/chat/rooms/${currentRoomId}/mark-read`, {
+                method: 'POST'
+            }).catch(err => console.error('읽음 상태 업데이트 오류:', err));
+        }
+    } else {
+        // 다른 채팅방이면 알림 표시
+        addNotificationDebugLog(`다른 채팅방 메시지 감지: room_id=${data.room_id} != currentRoomId=${currentRoomId}`, 'info');
+        if (data.user_id != currentUserId) {
+            addNotificationDebugLog(`다른 사용자 메시지: user_id=${data.user_id} != currentUserId=${currentUserId}`, 'info');
+            addNotificationDebugLog(`채팅방 정보 조회 시작: room_id=${data.room_id}`, 'info');
+            fetch(`/api/chat/rooms/${data.room_id}`)
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success && result.room) {
+                        addNotificationDebugLog(`채팅방 정보 조회 성공: ${result.room.name}`, 'success');
+                        showChatNotification(data, result.room);
+                    } else {
+                        addNotificationDebugLog(`채팅방 정보 조회 실패: 알 수 없는 채팅방으로 표시`, 'warning');
+                        showChatNotification(data, { id: data.room_id, name: '알 수 없는 채팅방' });
+                    }
+                })
+                .catch(err => {
+                    addNotificationDebugLog(`채팅방 정보 조회 오류: ${err.message}`, 'error');
+                    console.error('채팅방 정보 조회 오류:', err);
+                    showChatNotification(data, { id: data.room_id, name: '알 수 없는 채팅방' });
+                });
+        } else {
+            addNotificationDebugLog(`알림 스킵: 자신이 보낸 메시지 (user_id=${data.user_id})`, 'warning');
+        }
+    }
+}
+
+// Socket.IO 초기화 함수
+function initializeSocketIO() {
+    try {
+        addNotificationDebugLog('Socket.IO 초기화 시작', 'info');
+        
+        if (typeof io === 'undefined') {
+            console.error('Socket.IO가 로드되지 않았습니다.');
+            addNotificationDebugLog('Socket.IO 스크립트가 로드되지 않았습니다.', 'error');
+            return;
+        }
+        
+        addNotificationDebugLog('Socket.IO 스크립트 확인됨, 연결 시도 중...', 'info');
+        socket = io({
+            transports: ['polling'], // polling만 사용 (WebSocket 업그레이드 비활성화로 오류 방지)
+            upgrade: false, // WebSocket 업그레이드 비활성화
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 20000
+        });
+        
+        socket.on('connect', function() {
+            console.log('Socket.IO 연결 성공');
+            addNotificationDebugLog('Socket.IO 연결 성공', 'success');
+            updateNotificationDebugPanel();
+            loadRooms();
+        });
+        
+        socket.on('connect_error', function(error) {
+            console.error('Socket.IO 연결 오류:', error);
+            addNotificationDebugLog(`Socket.IO 연결 오류: ${error.message || error}`, 'error');
+            updateNotificationDebugPanel();
+        });
+        
+        socket.on('disconnect', function(reason) {
+            console.log('Socket.IO 연결 해제:', reason);
+            addNotificationDebugLog(`Socket.IO 연결 해제: ${reason}`, 'warning');
+            updateNotificationDebugPanel();
+            if (reason === 'io server disconnect') {
+                socket.connect();
+            }
+        });
+        
+        socket.on('reconnect', function(attemptNumber) {
+            console.log('Socket.IO 재연결 성공:', attemptNumber);
+            addNotificationDebugLog(`Socket.IO 재연결 성공 (시도 ${attemptNumber})`, 'success');
+            updateNotificationDebugPanel();
+        });
+        
+        // 새 메시지 이벤트
+        socket.on('new_message', function(data) {
+            addNotificationDebugLog(`[Socket.IO] new_message 이벤트 수신: room_id=${data.room_id}, user_id=${data.user_id}, user_name=${data.user_name || '알 수 없음'}`, 'info');
+            handleNewMessage(data);
+        });
+        
+        // 읽음 상태 이벤트
+        socket.on('message_read', function(data) {
+            if (data.room_id == currentRoomId) {
+                console.log('읽음 상태 업데이트:', data);
+            }
+        });
+        
+        // 타이핑 이벤트
+        socket.on('user_typing', function(data) {
+            if (data.room_id == currentRoomId && data.user_id != currentUserId) {
+                showTypingIndicator(data.user_id, data.is_typing);
+            }
+        });
+        
+        addNotificationDebugLog('Socket.IO 이벤트 핸들러 등록 완료', 'success');
+        updateNotificationDebugPanel();
+        
+    } catch (error) {
+        console.error('Socket.IO 초기화 오류:', error);
+        addNotificationDebugLog(`Socket.IO 초기화 오류: ${error.message}`, 'error');
+        updateNotificationDebugPanel();
+    }
+}
+
 // ============================================
 // 이미지 확대/축소 기능 (Lightbox) - 전역 스코프
 // ============================================
@@ -862,6 +1284,243 @@ function updateImageTransform() {
     }
 }
 
+// ============================================
+// 채팅 알림 팝업 관리 (채널톡 스타일)
+// ============================================
+let notificationStack = [];
+const MAX_NOTIFICATIONS = 5;
+const NOTIFICATION_DURATION = 5000; // 5초
+let notificationIds = new Set(); // 중복 방지용
+
+function showChatNotification(messageData, roomData) {
+    addNotificationDebugLog(`showChatNotification 호출: room_id=${messageData.room_id}, user_id=${messageData.user_id}, currentRoomId=${currentRoomId}, currentUserId=${currentUserId}`, 'info');
+    
+    // 현재 채팅방이면 알림 표시 안 함
+    if (messageData.room_id == currentRoomId) {
+        addNotificationDebugLog(`알림 스킵: 현재 채팅방 (room_id=${messageData.room_id})`, 'warning');
+        updateNotificationDebugPanel();
+        return;
+    }
+    
+    // 자신이 보낸 메시지는 알림 표시 안 함
+    if (messageData.user_id == currentUserId) {
+        addNotificationDebugLog(`알림 스킵: 자신이 보낸 메시지 (user_id=${messageData.user_id})`, 'warning');
+        updateNotificationDebugPanel();
+        return;
+    }
+    
+    // 중복 알림 방지: 같은 메시지 ID는 한 번만 표시
+    const messageId = messageData.id || (messageData.room_id + '_' + messageData.created_at);
+    if (notificationIds.has(messageId)) {
+        addNotificationDebugLog(`알림 스킵: 중복 메시지 (messageId=${messageId})`, 'warning');
+        updateNotificationDebugPanel();
+        return;
+    }
+    notificationIds.add(messageId);
+    addNotificationDebugLog(`새 알림 추가: messageId=${messageId}, 방=${roomData?.name || '알 수 없음'}, 발신자=${messageData.user_name || '알 수 없음'}`, 'success');
+    
+    // 알림 스택에 추가
+    const notificationId = 'notification-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    const notification = {
+        id: notificationId,
+        message: messageData,
+        room: roomData,
+        timestamp: new Date(),
+        messageId: messageId
+    };
+    
+    notificationStack.push(notification);
+    
+    // 최대 개수 초과 시 오래된 알림 제거
+    if (notificationStack.length > MAX_NOTIFICATIONS) {
+        const oldest = notificationStack.shift();
+        addNotificationDebugLog(`최대 개수 초과: 오래된 알림 제거 (${oldest.id})`, 'info');
+        closeNotification(oldest.id);
+        if (oldest.messageId) {
+            notificationIds.delete(oldest.messageId);
+        }
+    }
+    
+    // 알림 DOM 생성
+    const container = document.getElementById('chat-notification-container');
+    if (!container) {
+        addNotificationDebugLog('오류: 알림 컨테이너를 찾을 수 없습니다.', 'error');
+        console.error('알림 컨테이너를 찾을 수 없습니다.');
+        return;
+    }
+    
+    const notificationEl = createNotificationElement(notification);
+    container.appendChild(notificationEl);
+    addNotificationDebugLog(`알림 DOM 생성 완료: ${notificationId}`, 'success');
+    
+    // 자동 닫기 타이머
+    const autoCloseTimer = setTimeout(() => {
+        addNotificationDebugLog(`자동 닫기: ${notificationId}`, 'info');
+        closeNotification(notificationId);
+        if (messageId) {
+            notificationIds.delete(messageId);
+        }
+        updateNotificationDebugPanel();
+    }, NOTIFICATION_DURATION);
+    
+    // 알림 요소에 타이머 ID 저장
+    notificationEl.dataset.timerId = autoCloseTimer;
+    
+    // 클릭 이벤트: 해당 채팅방으로 이동
+    notificationEl.addEventListener('click', function(e) {
+        if (!e.target.classList.contains('chat-notification-close') && 
+            !e.target.closest('.chat-notification-close')) {
+            addNotificationDebugLog(`알림 클릭: 채팅방 이동 (room_id=${roomData?.id})`, 'info');
+            closeNotification(notificationId);
+            if (messageId) {
+                notificationIds.delete(messageId);
+            }
+            if (roomData && roomData.id) {
+                selectRoom(roomData.id);
+                window.focus();
+            }
+            updateNotificationDebugPanel();
+        }
+    });
+    
+    updateNotificationDebugPanel();
+}
+
+// showChatNotification 함수를 전역으로 노출 (layout.html에서 사용 가능)
+window.showChatNotification = showChatNotification;
+
+function createNotificationElement(notification) {
+    const { message, room } = notification;
+    const senderName = message.user_name || '알 수 없음';
+    const roomName = room ? room.name : '알 수 없는 채팅방';
+    const senderInitial = senderName.charAt(0).toUpperCase();
+    
+    // 메시지 내용 추출
+    let messageContent = '';
+    let hasAttachment = false;
+    
+    if (message.message_type === 'text') {
+        messageContent = escapeHtml(message.content || '(메시지 없음)');
+    } else if (message.attachments && message.attachments.length > 0) {
+        const attachment = message.attachments[0];
+        hasAttachment = true;
+        if (attachment.file_type === 'image') {
+            messageContent = '📷 이미지';
+        } else if (attachment.file_type === 'video') {
+            messageContent = '🎥 동영상';
+        } else {
+            messageContent = '📎 ' + escapeHtml(attachment.filename || '파일');
+        }
+    } else {
+        messageContent = '(내용 없음)';
+    }
+    
+    // 시간 포맷
+    const timeStr = formatNotificationTime(message.created_at);
+    
+    const notificationEl = document.createElement('div');
+    notificationEl.className = 'chat-notification';
+    notificationEl.id = notification.id;
+    notificationEl.dataset.roomId = message.room_id;
+    
+    let attachmentHtml = '';
+    if (hasAttachment && message.attachments && message.attachments[0]) {
+        const attachment = message.attachments[0];
+        if (attachment.file_type === 'image' && attachment.thumbnail_url) {
+            attachmentHtml = `<img src="${attachment.thumbnail_url}" class="chat-notification-image" alt="이미지">`;
+        } else {
+            const fileIcon = attachment.file_type === 'video' ? 'fa-video' : 'fa-file';
+            attachmentHtml = `
+                <div class="chat-notification-file">
+                    <i class="fas ${fileIcon} chat-notification-file-icon"></i>
+                    <span class="chat-notification-file-name">${escapeHtml(attachment.filename || '파일')}</span>
+                </div>
+            `;
+        }
+    }
+    
+    notificationEl.innerHTML = `
+        <div class="chat-notification-header">
+            <h6 class="chat-notification-room-name">${escapeHtml(roomName)}</h6>
+            <button class="chat-notification-close" type="button" aria-label="닫기">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="chat-notification-content">
+            <div class="chat-notification-avatar">${senderInitial}</div>
+            <div class="chat-notification-body">
+                <div class="chat-notification-sender">${escapeHtml(senderName)}</div>
+                <div class="chat-notification-message">${messageContent}</div>
+                ${attachmentHtml}
+                <div class="chat-notification-time">${timeStr}</div>
+            </div>
+        </div>
+    `;
+    
+    // 닫기 버튼 이벤트 핸들러 추가 (인라인 onclick 대신)
+    const closeBtn = notificationEl.querySelector('.chat-notification-close');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            closeNotification(notification.id);
+            if (notification.messageId) {
+                notificationIds.delete(notification.messageId);
+            }
+        });
+    }
+    
+    return notificationEl;
+}
+
+function closeNotification(notificationId) {
+    const notificationEl = document.getElementById(notificationId);
+    if (!notificationEl) {
+        addNotificationDebugLog(`알림 닫기 실패: 요소를 찾을 수 없음 (${notificationId})`, 'error');
+        return;
+    }
+    
+    // 타이머 취소
+    const timerId = notificationEl.dataset.timerId;
+    if (timerId) {
+        clearTimeout(parseInt(timerId));
+    }
+    
+    // messageId 제거
+    const notification = notificationStack.find(n => n.id === notificationId);
+    if (notification && notification.messageId) {
+        notificationIds.delete(notification.messageId);
+        addNotificationDebugLog(`알림 닫기: ${notificationId} (messageId=${notification.messageId})`, 'info');
+    } else {
+        addNotificationDebugLog(`알림 닫기: ${notificationId}`, 'info');
+    }
+    
+    // 닫기 애니메이션
+    notificationEl.classList.add('closing');
+    
+    setTimeout(() => {
+        notificationEl.remove();
+        // 스택에서도 제거
+        notificationStack = notificationStack.filter(n => n.id !== notificationId);
+        updateNotificationDebugPanel();
+    }, 300);
+}
+
+function formatNotificationTime(dateString) {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now - date;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    
+    if (minutes < 1) return '방금 전';
+    if (minutes < 60) return `${minutes}분 전`;
+    if (hours < 24) return `${hours}시간 전`;
+    
+    return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+}
+
 // Socket.IO 연결
 document.addEventListener('DOMContentLoaded', function() {
     // 네비게이션 바 높이 계산 및 sticky-top 요소 위치 조정
@@ -907,65 +1566,34 @@ document.addEventListener('DOMContentLoaded', function() {
     // 윈도우 리사이즈 시 다시 조정
     window.addEventListener('resize', adjustStickyPositions);
     
-    // Socket.IO 연결 시도
-    try {
+    // Socket.IO 초기화
+    if (socketioAvailable) {
+        // Socket.IO 스크립트가 로드될 때까지 대기
         if (typeof io !== 'undefined') {
-            socket = io();
-            
-            socket.on('connect', function() {
-                console.log('Socket.IO 연결됨');
-                loadRooms();
-            });
-            
-            socket.on('disconnect', function() {
-                console.log('Socket.IO 연결 해제됨');
-            });
-            
-            socket.on('connect_error', function(error) {
-                console.warn('Socket.IO 연결 오류:', error);
-                // Socket.IO 없이도 기본 기능은 작동하도록 계속 진행
-                loadRooms();
-            });
-            
-            socket.on('new_message', function(data) {
-                if (data.room_id == currentRoomId) {
-                    appendMessage(data);
-                    scrollToBottom();
-                    
-                    // 새 메시지 수신 시 읽음 상태 업데이트
-                    if (socket && socket.connected) {
-                        socket.emit('mark_read', { room_id: currentRoomId });
-                    } else {
-                        fetch(`/api/chat/rooms/${currentRoomId}/mark-read`, {
-                            method: 'POST'
-                        }).catch(err => console.error('읽음 상태 업데이트 오류:', err));
-                    }
-                }
-            });
-            
-            socket.on('message_read', function(data) {
-                // 다른 사용자가 읽었을 때 읽음 상태 업데이트
-                if (data.room_id == currentRoomId) {
-                    // 메시지 목록 새로고침하여 읽음 상태 업데이트
-                    loadRoomDetail(currentRoomId);
-                }
-            });
-            
-    socket.on('user_typing', function(data) {
-        // 타이핑 인디케이터 표시 (채널톡 스타일)
-        if (data.room_id == currentRoomId && data.user_id != currentUserId) {
-            showTypingIndicator(data.user_id, data.is_typing);
-        }
-    });
+            initializeSocketIO();
         } else {
-            console.warn('Socket.IO가 로드되지 않았습니다. 실시간 기능이 제한됩니다.');
-            loadRooms();
+            // 스크립트 로드를 기다림
+            let attempts = 0;
+            const checkIO = setInterval(function() {
+                attempts++;
+                if (typeof io !== 'undefined') {
+                    clearInterval(checkIO);
+                    initializeSocketIO();
+                } else if (attempts >= 50) {
+                    clearInterval(checkIO);
+                    console.error('Socket.IO 스크립트를 로드할 수 없습니다.');
+                    loadRooms();
+                }
+            }, 100);
         }
-    } catch (error) {
-        console.error('Socket.IO 초기화 오류:', error);
-        // Socket.IO 없이도 기본 기능은 작동하도록 계속 진행
+    } else {
         loadRooms();
     }
+    
+    // 주기적으로 알림 팝업 디버그 패널 업데이트 (1초마다)
+    setInterval(function() {
+        updateNotificationDebugPanel();
+    }, 1000);
     
     // Enter 키로 메시지 전송
     document.getElementById('message-input').addEventListener('keypress', function(e) {
