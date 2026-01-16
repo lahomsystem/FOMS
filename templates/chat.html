@@ -5,44 +5,29 @@
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 {% endif %}
 <script>
-    // Socket.IO 사용 가능 여부를 JavaScript에서 사용
-    window.SOCKETIO_AVAILABLE = {{ 'true' if socketio_available else 'false' }};
+    // Socket.IO 사용 가능 여부는 DOM에서 가져옴
 </script>
 {% endblock %}
 
 {% block styles %}
 <style>
-    .chat-container {
-        display: flex;
-        height: calc(100vh - 200px);
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        overflow: hidden;
-    }
-    
-    .chat-sidebar {
-        width: 300px;
-        border-right: 1px solid #ddd;
-        background-color: #f8f9fa;
+    /* 채팅방 카드 스타일 (calculator.html 참고) */
+    .chat-sidebar-card {
         display: flex;
         flex-direction: column;
     }
     
-    .chat-sidebar-header {
-        padding: 15px;
-        border-bottom: 1px solid #ddd;
-        background-color: white;
-    }
-    
-    .chat-sidebar-header h3 {
-        margin: 0;
-        font-size: 1.2rem;
+    .chat-sidebar-card .card-body {
+        overflow: hidden;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
     }
     
     .chat-rooms-list {
         flex: 1;
         overflow-y: auto;
-        padding: 10px;
+        min-height: 0;
     }
     
     .chat-room-item {
@@ -95,17 +80,164 @@
         font-weight: 600;
     }
     
-    .chat-main {
+    /* 메인 채팅 카드 스타일 */
+    .chat-main-card {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .chat-main-card .card-body {
         flex: 1;
         display: flex;
         flex-direction: column;
-        background-color: white;
+        overflow: hidden;
+        padding: 0;
     }
     
     .chat-header {
         padding: 15px 20px;
         border-bottom: 1px solid #ddd;
         background-color: #f8f9fa;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background-color: white;
+    }
+    
+    .chat-order-widget-container {
+        position: sticky;
+        top: 0;
+        z-index: 99;
+        background-color: white;
+        border-bottom: 1px solid #ddd;
+        padding: 0;
+    }
+    
+    .chat-order-widget-table {
+        margin: 0;
+        font-size: 0.875rem;
+    }
+    
+    .chat-order-widget-table table {
+        margin: 0;
+        border: 1px solid #ddd;
+    }
+    
+    .chat-order-widget-table .table th {
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+        padding: 8px 12px;
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+    
+    .chat-order-widget-table .table td {
+        padding: 8px 12px;
+        vertical-align: middle;
+    }
+    
+    /* 고객명, 주소, 제품 컬럼 반응형 설정 - 줄바꿈 허용 */
+    .chat-order-widget-table .table td:nth-child(2),
+    .chat-order-widget-table .table td:nth-child(3),
+    .chat-order-widget-table .table td:nth-child(4) {
+        white-space: normal;
+        word-wrap: break-word;
+        word-break: break-word;
+        max-width: 0;  /* 반응형 테이블을 위한 설정 */
+    }
+    
+    .chat-order-widget-table .table th:nth-child(2),
+    .chat-order-widget-table .table th:nth-child(3),
+    .chat-order-widget-table .table th:nth-child(4) {
+        white-space: normal;
+    }
+    
+    .chat-order-widget-table .unprocessed-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+    
+    .chat-order-widget-table .badge {
+        font-size: 0.7rem;
+        padding: 2px 6px;
+    }
+    
+    .chat-order-widget-table .status-dropdown {
+        font-size: 0.75rem;
+        padding: 4px 8px;
+        min-width: 100px;
+        color: #212529 !important;  /* 기본 텍스트 색상 (검은색) */
+        background-color: white !important;  /* 기본 배경색 */
+        border: 1px solid #ced4da !important;
+    }
+    
+    /* 상태별 배경색 클래스 - 글자색은 흰색 */
+    .chat-order-widget-table .status-dropdown.status-received {
+        background-color: #1976d2 !important;
+        color: white !important;
+        border-color: #1565c0 !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-measured {
+        background-color: #f57c00 !important;
+        color: white !important;
+        border-color: #ef6c00 !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-regional_measured {
+        background-color: #8e24aa !important;
+        color: white !important;
+        border-color: #7b1fa2 !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-scheduled {
+        background-color: #d32f2f !important;
+        color: white !important;
+        border-color: #c62828 !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-shipped_pending {
+        background-color: #17a2b8 !important;
+        color: white !important;
+        border-color: #138496 !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-completed {
+        background-color: #2e7d32 !important;
+        color: white !important;
+        border-color: #1b5e20 !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-as_received {
+        background-color: #7b1fa2 !important;
+        color: white !important;
+        border-color: #6a1b9a !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-as_completed {
+        background-color: #00695c !important;
+        color: white !important;
+        border-color: #004d40 !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-on_hold {
+        background-color: #616161 !important;
+        color: white !important;
+        border-color: #424242 !important;
+    }
+    
+    /* option 요소는 항상 검은색 텍스트 */
+    .chat-order-widget-table .status-dropdown option {
+        color: #212529 !important;
+        background-color: white !important;
+    }
+    
+    .chat-order-widget-table .form-control-sm,
+    .chat-order-widget-table .form-select-sm {
+        font-size: 0.75rem;
+        padding: 4px 8px;
+        height: 28px;
     }
     
     .chat-messages {
@@ -113,6 +245,7 @@
         overflow-y: auto;
         padding: 20px;
         background-color: #f5f5f5;
+        min-height: 0;
     }
     
     .message-item {
@@ -454,29 +587,49 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid p-4">
-    <h2 class="mb-4">채팅</h2>
-    
-    <div class="chat-container">
-        <!-- 사이드바: 채팅방 목록 -->
-        <div class="chat-sidebar">
-            <div class="chat-sidebar-header">
-                <h3>채팅방</h3>
-                <button class="btn btn-primary btn-sm btn-new-room" onclick="showCreateRoomModal()">
-                    <i class="fas fa-plus"></i> 새 채팅방
-                </button>
-            </div>
-            <div class="chat-rooms-list" id="rooms-list">
-                <div class="text-center text-muted py-4">
-                    <i class="fas fa-spinner fa-spin"></i> 로딩 중...
+<!-- container-fluid py-4 제거: layout.html이 이미 감싸고 있음 -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0"><i class="fas fa-comments text-primary"></i> 채팅</h2>
+</div>
+
+<div class="row">
+    <!-- 사이드바: 채팅방 목록 -->
+    <div class="col-lg-3 mb-4">
+            <div class="card shadow-sm sticky-top chat-sidebar-card" 
+                 data-sticky-top="true"
+                 data-socketio-available="{% if socketio_available %}true{% else %}false{% endif %}"
+                 data-user-id="{% if session.get('user_id') %}{{ session.get('user_id') }}{% else %}0{% endif %}"
+                 style="top: 100px; max-height: calc(100vh - 150px);">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                    <h5 class="mb-0 fw-bold"><i class="fas fa-comments text-primary"></i> 채팅방</h5>
+                    <button class="btn btn-primary btn-sm" onclick="showCreateRoomModal()" title="새 채팅방">
+                        <i class="fas fa-plus"></i> 새 채팅방
+                    </button>
+                </div>
+                <div class="card-body p-2 d-flex flex-column">
+                    <!-- 전역 검색 -->
+                    <div class="input-group mb-2 flex-shrink-0">
+                        <input type="text" id="global-search-input" class="form-control form-control-sm" 
+                               placeholder="전체 검색 (메시지, 주문 정보 등)" 
+                               onkeyup="performGlobalSearch(this.value)">
+                    </div>
+                    <div id="global-search-results" class="mb-2 flex-shrink-0" style="display: none; max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; background-color: white;"></div>
+                    
+                    <!-- 채팅방 목록 -->
+                    <div class="chat-rooms-list" id="rooms-list">
+                        <div class="text-center py-5 text-muted">
+                            <div class="spinner-border spinner-border-sm mb-2" role="status"></div>
+                            <p>채팅방 목록을 불러오는 중...</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         
         <!-- 메인 영역: 메시지 -->
-        <div class="chat-main">
-            <div class="chat-header" id="chat-header">
-                <div class="d-flex justify-content-between align-items-center">
+        <div class="col-lg-9">
+            <div class="card shadow-sm chat-main-card" data-min-height="true" style="min-height: calc(100vh - 150px);">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center chat-header" id="chat-header">
                     <div class="text-center text-muted py-4" style="flex: 1;">
                         채팅방을 선택하세요
                     </div>
@@ -484,33 +637,39 @@
                         <i class="fas fa-search"></i>
                     </button>
                 </div>
-            </div>
-            <div class="message-search" id="message-search" style="display: none;">
-                <div style="position: relative;">
-                    <input type="text" id="search-input" class="form-control" placeholder="메시지 검색..." onkeyup="searchMessages(this.value)">
-                    <button class="btn btn-sm btn-link" onclick="closeSearch()" style="position: absolute; right: 5px; top: 50%; transform: translateY(-50%); padding: 0 5px;">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="chat-messages" id="messages-container">
-                <!-- 메시지가 여기에 표시됩니다 -->
-            </div>
-            <div class="chat-input-area" id="chat-input-area" style="display: none;">
-                <div class="file-preview" id="file-preview">
-                    <button type="button" class="btn-close float-end" onclick="removePreview()"></button>
-                    <div id="preview-content"></div>
-                </div>
-                <div class="chat-input-wrapper">
-                    <input type="file" id="file-input" multiple style="display: none;" 
-                           accept="image/*,video/*,.pdf,.doc,.docx,.xlsx">
-                    <button class="btn btn-outline-secondary" onclick="document.getElementById('file-input').click()">
-                        <i class="fas fa-paperclip"></i>
-                    </button>
-                    <textarea id="message-input" placeholder="메시지 입력..." rows="1" onkeyup="handleTyping()"></textarea>
-                    <button class="btn btn-primary" onclick="sendMessage()">
-                        <i class="fas fa-paper-plane"></i> 전송
-                    </button>
+                <!-- 연결된 주문 정보 영역 (고정) -->
+                <div id="chat-order-widget-container" class="chat-order-widget-container" style="display: none;"></div>
+                <div class="card-body">
+                    <!-- 메시지 검색 (숨김) -->
+                    <div id="message-search" class="px-3 pt-2 pb-2 border-bottom flex-shrink-0" style="display: none;">
+                        <div class="input-group">
+                            <input type="text" id="search-input" class="form-control form-control-sm" placeholder="메시지 검색..." onkeyup="searchMessages(this.value)">
+                            <button class="btn btn-sm btn-link" type="button" onclick="closeSearch()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 메시지 영역 -->
+                    <div class="chat-messages" id="messages-container">
+                        <!-- 메시지가 여기에 표시됩니다 -->
+                    </div>
+                    
+                    <!-- 입력 영역 (숨김) -->
+                    <div id="chat-input-area" class="p-3 border-top flex-shrink-0" style="display: none;">
+                        <div id="file-preview" class="mb-2"></div>
+                        <div class="chat-input-wrapper">
+                            <input type="file" id="file-input" multiple style="display: none;" 
+                                   accept="image/*,video/*,.pdf,.doc,.docx,.xlsx">
+                            <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('file-input').click()">
+                                <i class="fas fa-paperclip"></i>
+                            </button>
+                            <textarea id="message-input" class="form-control" rows="1" placeholder="메시지 입력..." onkeyup="handleTyping()"></textarea>
+                            <button class="btn btn-primary" type="button" onclick="sendMessage()">
+                                <i class="fas fa-paper-plane"></i> 전송
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -612,9 +771,15 @@
 </div>
 
 <script>
+// 설정 정보를 DOM에서 가져오기
+const chatContainer = document.querySelector('.chat-sidebar-card');
+const socketioAvailable = chatContainer ? chatContainer.getAttribute('data-socketio-available') === 'true' : false;
+const userIdFromData = chatContainer ? parseInt(chatContainer.getAttribute('data-user-id') || '0', 10) : 0;
+
 let socket = null;
 let currentRoomId = null;
-let currentUserId = {{ session.get('user_id', 0) }};
+let currentUserId = userIdFromData;
+window.SOCKETIO_AVAILABLE = window.SOCKETIO_AVAILABLE || socketioAvailable;
 
 // ============================================
 // 이미지 확대/축소 기능 (Lightbox) - 전역 스코프
@@ -699,6 +864,49 @@ function updateImageTransform() {
 
 // Socket.IO 연결
 document.addEventListener('DOMContentLoaded', function() {
+    // 네비게이션 바 높이 계산 및 sticky-top 요소 위치 조정
+    function adjustStickyPositions() {
+        const header = document.querySelector('header');
+        const nav = document.querySelector('nav.navbar');
+        
+        if (header && nav) {
+            const headerHeight = header.offsetHeight;
+            const navHeight = nav.offsetHeight;
+            const totalHeight = headerHeight + navHeight + 20; // 여유 공간 20px
+            
+            // sticky-top 요소들 위치 조정
+            const stickyCards = document.querySelectorAll('[data-sticky-top="true"]');
+            stickyCards.forEach(card => {
+                card.style.top = totalHeight + 'px';
+                card.style.maxHeight = `calc(100vh - ${totalHeight + 40}px)`;
+            });
+            
+            // min-height가 필요한 요소들 조정
+            const minHeightCards = document.querySelectorAll('[data-min-height="true"]');
+            minHeightCards.forEach(card => {
+                card.style.minHeight = `calc(100vh - ${totalHeight + 40}px)`;
+            });
+        } else {
+            // 네비게이션 바가 없는 경우 기본값 사용
+            const stickyCards = document.querySelectorAll('[data-sticky-top="true"]');
+            stickyCards.forEach(card => {
+                card.style.top = '20px';
+                card.style.maxHeight = 'calc(100vh - 40px)';
+            });
+            
+            const minHeightCards = document.querySelectorAll('[data-min-height="true"]');
+            minHeightCards.forEach(card => {
+                card.style.minHeight = 'calc(100vh - 40px)';
+            });
+        }
+    }
+    
+    // 초기 위치 조정
+    adjustStickyPositions();
+    
+    // 윈도우 리사이즈 시 다시 조정
+    window.addEventListener('resize', adjustStickyPositions);
+    
     // Socket.IO 연결 시도
     try {
         if (typeof io !== 'undefined') {
@@ -1058,41 +1266,138 @@ function loadRoomDetail(roomId) {
 // 채팅방 헤더 렌더링
 function renderRoomHeader(room) {
     const header = document.getElementById('chat-header');
+    const orderWidgetContainer = document.getElementById('chat-order-widget-container');
     let orderWidget = '';
     
-    // 주문 정보 위젯 (Quest 12)
+    // 주문 정보 위젯 (Quest 12) - 테이블 형식으로 표시
     if (room.order) {
         const order = room.order;
-        let estimatesHtml = '';
-        if (order.estimates && order.estimates.length > 0) {
-            estimatesHtml = '<div class="estimates-list"><strong>연결된 견적:</strong>';
-            order.estimates.forEach(est => {
-                estimatesHtml += `<div class="estimate-item">
-                    고객: ${escapeHtml(est.customer_name)} | 
-                    생성일: ${formatDate(est.created_at)}
-                </div>`;
-            });
-            estimatesHtml += '</div>';
+        
+        // 미처리 항목 확인
+        let unprocessedBadges = '';
+        const unprocessedItems = [];
+        if (!order.manager_name) {
+            unprocessedItems.push('<span class="badge bg-danger">담당자 미지정</span>');
+        }
+        if (!order.scheduled_date) {
+            unprocessedItems.push('<span class="badge bg-danger">설치일 미지정</span>');
+        }
+        unprocessedBadges = unprocessedItems.length > 0 
+            ? `<div class="unprocessed-badges">${unprocessedItems.join('')}</div>` 
+            : '-';
+        
+        // 상태 옵션 생성
+        const statusList = {
+            'RECEIVED': '접수',
+            'MEASURED': '실측',
+            'REGIONAL_MEASURED': '지방실측',
+            'SCHEDULED': '설치 예정',
+            'SHIPPED_PENDING': '상차 예정',
+            'COMPLETED': '완료',
+            'AS_RECEIVED': 'AS 접수',
+            'AS_COMPLETED': 'AS 완료',
+            'ON_HOLD': '보류'
+        };
+        
+        // order.status 값 정규화 및 디버깅
+        const currentStatus = (order.status || 'RECEIVED').toString().trim().toUpperCase();
+        console.log('Order ID:', order.id, 'Current Status:', currentStatus, 'Raw Status:', order.status);
+        
+        let statusOptions = '';
+        for (const [code, name] of Object.entries(statusList)) {
+            const codeUpper = code.toUpperCase();
+            const selected = (currentStatus === codeUpper) ? 'selected' : '';
+            statusOptions += `<option value="${code}" ${selected}>${name}</option>`;
         }
         
+        // statusOptions가 비어있는 경우 기본값 설정
+        if (!statusOptions) {
+            console.warn('Status options is empty, using default');
+            statusOptions = '<option value="RECEIVED" selected>접수</option>';
+        }
+        
+        console.log('Generated status options:', statusOptions.substring(0, 200));
+        
         orderWidget = `
-            <div class="order-widget">
-                <h6><i class="fas fa-shopping-cart"></i> 연결된 주문 정보</h6>
-                <div class="order-info">
-                    <strong>주문 ID:</strong> #${order.id}<br>
-                    <strong>고객명:</strong> ${escapeHtml(order.customer_name)}<br>
-                    <strong>연락처:</strong> ${escapeHtml(order.phone || '-')}<br>
-                    <strong>주소:</strong> ${escapeHtml(order.address || '-')}<br>
-                    <strong>제품:</strong> ${escapeHtml(order.product || '-')}<br>
-                    <strong>상태:</strong> ${escapeHtml(order.status || '-')}<br>
-                    <strong>접수일:</strong> ${escapeHtml(order.received_date || '-')}
+            <div class="chat-order-widget-table">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm mb-0" style="table-layout: auto; width: 100%;">
+                        <thead>
+                            <tr>
+                                <th style="width: 60px;">번호</th>
+                                <th>고객명</th>
+                                <th>주소</th>
+                                <th>제품</th>
+                                <th style="width: 100px;">상태</th>
+                                <th style="width: 100px;">실측일</th>
+                                <th style="width: 150px;">미처리 항목</th>
+                                <th style="width: 120px;">담당자</th>
+                                <th style="width: 140px;">설치 예정일</th>
+                                <th style="width: 80px;">작업</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>#${order.id}</td>
+                                <td>
+                                    <div>${escapeHtml(order.customer_name || '-')}</div>
+                                    <small class="text-muted">${escapeHtml(order.phone || '-')}</small>
+                                </td>
+                                <td title="${escapeHtml(order.address || '-')}">
+                                    ${escapeHtml(order.address || '-')}
+                                </td>
+                                <td title="${escapeHtml(order.product || '-')}">
+                                    ${escapeHtml(order.product || '-')}
+                                </td>
+                                <td>
+                                    <select class="form-select form-select-sm status-dropdown status-${(currentStatus || 'RECEIVED').toLowerCase().replace(/_/g, '_')}" 
+                                            data-order-id="${order.id}" 
+                                            data-current-status="${currentStatus || 'RECEIVED'}"
+                                            onchange="updateOrderStatus(${order.id}, this.value); if(typeof applyStatusColor === 'function') applyStatusColor(this);">
+                                        ${statusOptions || '<option value="RECEIVED" selected>접수</option>'}
+                                    </select>
+                                </td>
+                                <td>${order.measurement_date || '-'}</td>
+                                <td>${unprocessedBadges}</td>
+                                <td>
+                                    <input type="text" 
+                                           class="form-control form-control-sm" 
+                                           value="${escapeHtml(order.manager_name || '')}"
+                                           placeholder="담당자 입력"
+                                           data-order-id="${order.id}"
+                                           data-field="manager_name"
+                                           onblur="updateOrderField(${order.id}, 'manager_name', this.value)">
+                                </td>
+                                <td>
+                                    <input type="date" 
+                                           class="form-control form-control-sm" 
+                                           value="${order.scheduled_date || ''}"
+                                           data-order-id="${order.id}"
+                                           data-field="scheduled_date"
+                                           onchange="updateOrderField(${order.id}, 'scheduled_date', this.value)">
+                                </td>
+                                <td>
+                                    <a href="/edit/${order.id}" 
+                                       class="btn btn-sm btn-outline-secondary" 
+                                       title="수정"
+                                       target="_blank">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-                ${estimatesHtml}
-                <button class="btn btn-sm btn-outline-primary mt-2" onclick="viewOrderDetail(${order.id})">
-                    <i class="fas fa-external-link-alt"></i> 주문 상세 보기
-                </button>
             </div>
         `;
+        orderWidgetContainer.innerHTML = orderWidget;
+        orderWidgetContainer.style.display = 'block';
+        // order-widget-container의 top을 chat-header 높이로 설정
+        const headerHeight = header.offsetHeight;
+        orderWidgetContainer.style.top = headerHeight + 'px';
+    } else {
+        orderWidgetContainer.innerHTML = '';
+        orderWidgetContainer.style.display = 'none';
     }
     
     // 멤버 목록 표시
@@ -1101,6 +1406,7 @@ function renderRoomHeader(room) {
         return `<span class="badge bg-secondary me-1">${escapeHtml(userName)}</span>`;
     }).join('') : '';
     
+    // 헤더에는 채팅방 정보와 버튼만 표시
     header.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-2">
             <div>
@@ -1111,6 +1417,9 @@ function renderRoomHeader(room) {
                 <button class="btn btn-sm btn-outline-secondary me-1" onclick="toggleSearch()" title="메시지 검색">
                     <i class="fas fa-search"></i>
                 </button>
+                ${room.created_by == currentUserId ? `<button class="btn btn-sm btn-outline-secondary me-1" onclick="showEditRoomNameModal(${room.id}, '${escapeHtml(room.name)}')" title="이름 수정">
+                    <i class="fas fa-edit"></i>
+                </button>` : ''}
                 ${!room.order ? `<button class="btn btn-sm btn-outline-info me-1" onclick="showConnectOrderModal(${room.id})" title="주문 연결">
                     <i class="fas fa-link"></i> 주문 연결
                 </button>` : `<button class="btn btn-sm btn-outline-warning me-1" onclick="disconnectOrder(${room.id})" title="주문 연결 해제">
@@ -1124,8 +1433,7 @@ function renderRoomHeader(room) {
                 </button>
             </div>
         </div>
-        ${membersHtml ? `<div class="mb-2"><small class="text-muted">멤버: </small>${membersHtml}</div>` : ''}
-        ${orderWidget}
+        ${membersHtml ? `<div class="mb-0"><small class="text-muted">멤버: </small>${membersHtml}</div>` : ''}
     `;
 }
 
@@ -1148,9 +1456,11 @@ function renderMessage(msg) {
         const attachment = msg.attachments[0];
         if (attachment.file_type === 'image') {
             const imageUrl = attachment.url || attachment.storage_url;
-            content = `<img src="${attachment.thumbnail_url || imageUrl}" 
-                           onclick="openImageLightbox('${imageUrl}')" 
-                           style="cursor: zoom-in; max-width: 300px; border-radius: 8px; background-color: white; padding: 4px;">`;
+            content = `<div class="message-file">
+                          <img src="${attachment.thumbnail_url || imageUrl}" 
+                               onclick="openImageLightbox('${imageUrl}')" 
+                               style="cursor: zoom-in;">
+                       </div>`;
         } else if (attachment.file_type === 'video') {
             const videoUrl = attachment.url || attachment.storage_url;
             content = `<video controls style="max-width: 300px;">
@@ -1183,7 +1493,7 @@ function renderMessage(msg) {
     }
     
     return `
-        <div class="message-item ${className}">
+        <div class="message-item ${className}" data-message-id="${msg.id}">
             <div class="message-bubble">
                 ${content}
             </div>
@@ -1467,6 +1777,83 @@ function viewOrderDetail(orderId) {
     window.open(`/edit/${orderId}`, '_blank');
 }
 
+// 주문 상태 업데이트
+function updateOrderStatus(orderId, newStatus) {
+    fetch('/api/update_order_status', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            order_id: orderId,
+            status: newStatus
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('주문 상태가 업데이트되었습니다.');
+            // 상태 드롭다운 색상 업데이트
+            const selectElement = document.querySelector(`select[data-order-id="${orderId}"]`);
+            if (selectElement) {
+                // 기존 상태 클래스 제거
+                selectElement.classList.remove('status-received', 'status-measured', 'status-regional_measured', 
+                                              'status-scheduled', 'status-shipped_pending', 'status-completed', 
+                                              'status-as_received', 'status-as_completed', 'status-on_hold');
+                // 새로운 상태 클래스 추가
+                if (newStatus) {
+                    selectElement.classList.add('status-' + newStatus.toLowerCase());
+                }
+                // applyStatusColor 함수가 있으면 호출
+                if (typeof applyStatusColor === 'function') {
+                    applyStatusColor(selectElement);
+                }
+            }
+            // 주문이 연결된 경우 헤더를 다시 렌더링
+            if (currentRoomId) {
+                loadRoomDetail(currentRoomId);
+            }
+        } else {
+            alert('주문 상태 업데이트 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('주문 상태 업데이트 오류:', error);
+        alert('주문 상태 업데이트 중 오류가 발생했습니다.');
+    });
+}
+
+// 주문 필드 업데이트 (담당자, 설치 예정일 등)
+function updateOrderField(orderId, field, value) {
+    fetch('/api/update_order_field', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            order_id: orderId,
+            field: field,
+            value: value || null
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log(`주문 ${field}가 업데이트되었습니다.`);
+            // 주문이 연결된 경우 헤더를 다시 렌더링
+            if (currentRoomId) {
+                loadRoomDetail(currentRoomId);
+            }
+        } else {
+            alert(`주문 ${field} 업데이트 실패: ` + data.message);
+        }
+    })
+    .catch(error => {
+        console.error(`주문 ${field} 업데이트 오류:`, error);
+        alert(`주문 ${field} 업데이트 중 오류가 발생했습니다.`);
+    });
+}
+
 // 주문 연결 관련 함수들
 let selectedOrderId = null;
 let connectRoomId = null;
@@ -1604,6 +1991,37 @@ function disconnectOrder(roomId) {
     });
 }
 
+// 채팅방 이름 수정
+function showEditRoomNameModal(roomId, currentName) {
+    const newName = prompt('채팅방 이름을 입력하세요:', currentName);
+    if (!newName || newName.trim() === '' || newName.trim() === currentName) {
+        return;
+    }
+    
+    fetch(`/api/chat/rooms/${roomId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            name: newName.trim()
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadRoomDetail(roomId);
+            loadRooms(); // 채팅방 목록도 업데이트
+        } else {
+            alert('이름 수정 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('이름 수정 오류:', error);
+        alert('이름 수정 중 오류가 발생했습니다.');
+    });
+}
+
 // 멤버 초대 관련 함수들
 let inviteRoomId = null;
 
@@ -1735,7 +2153,9 @@ function deleteRoom(roomId) {
         if (data.success) {
             alert('채팅방이 삭제되었습니다.');
             currentRoomId = null;
-            document.getElementById('chat-header').innerHTML = '<div class="text-center text-muted py-4">채팅방을 선택하세요</div>';
+            document.getElementById('chat-header').innerHTML = '<div class="text-center text-muted py-4" style="flex: 1;">채팅방을 선택하세요</div><button class="btn btn-sm btn-outline-secondary" onclick="toggleSearch()" title="메시지 검색" style="display: none;" id="search-btn"><i class="fas fa-search"></i></button>';
+            document.getElementById('chat-order-widget-container').innerHTML = '';
+            document.getElementById('chat-order-widget-container').style.display = 'none';
             document.getElementById('messages-container').innerHTML = '';
             document.getElementById('chat-input-area').style.display = 'none';
             loadRooms();
@@ -1834,6 +2254,78 @@ function searchMessages(query) {
             msg.style.backgroundColor = '';
         }
     });
+}
+
+// 전역 검색 기능
+function performGlobalSearch(query) {
+    const resultsDiv = document.getElementById('global-search-results');
+    const roomsList = document.getElementById('rooms-list');
+    
+    if (!query || query.length < 2) {
+        resultsDiv.style.display = 'none';
+        roomsList.style.display = 'block';
+        return;
+    }
+    
+    fetch(`/api/chat/search?q=${encodeURIComponent(query)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.results.length > 0) {
+                resultsDiv.innerHTML = data.results.map(result => {
+                    let html = '';
+                    if (result.type === 'message') {
+                        const contentPreview = result.content ? escapeHtml(result.content.substring(0, 50)) + (result.content.length > 50 ? '...' : '') : '메시지';
+                        html = `
+                            <div class="p-2 border-bottom" style="cursor: pointer; background-color: white;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'" onclick="selectRoomAndHighlight(${result.room_id}, ${result.message_id})">
+                                <strong>${escapeHtml(result.room_name || '알 수 없음')}</strong><br>
+                                <small>메시지: ${contentPreview}</small><br>
+                                <small class="text-muted">${escapeHtml(result.user_name || '알 수 없음')} | ${result.created_at || ''}</small>
+                            </div>
+                        `;
+                    } else if (result.type === 'room') {
+                        html = `
+                            <div class="p-2 border-bottom" style="cursor: pointer; background-color: white;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'" onclick="selectRoom(${result.room_id})">
+                                <strong>채팅방: ${escapeHtml(result.room_name)}</strong>
+                                ${result.description ? `<br><small class="text-muted">${escapeHtml(result.description)}</small>` : ''}
+                            </div>
+                        `;
+                    } else if (result.type === 'order') {
+                        html = `
+                            <div class="p-2 border-bottom" style="cursor: pointer; background-color: white;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'" onclick="selectRoom(${result.room_id})">
+                                <strong>${escapeHtml(result.room_name || '알 수 없음')}</strong><br>
+                                <small>주문 #${result.order_id}: ${escapeHtml(result.customer_name || '-')} | ${escapeHtml(result.phone || '-')} | ${escapeHtml(result.address || '-')}</small>
+                            </div>
+                        `;
+                    }
+                    return html;
+                }).join('');
+                resultsDiv.style.display = 'block';
+                roomsList.style.display = 'none';
+            } else {
+                resultsDiv.innerHTML = '<div class="text-center text-muted py-2">검색 결과가 없습니다</div>';
+                resultsDiv.style.display = 'block';
+                roomsList.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('전체 검색 오류:', error);
+            resultsDiv.innerHTML = '<div class="text-center text-danger py-2">검색 중 오류가 발생했습니다</div>';
+            resultsDiv.style.display = 'block';
+        });
+}
+
+function selectRoomAndHighlight(roomId, messageId) {
+    selectRoom(roomId);
+    setTimeout(() => {
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            messageElement.style.backgroundColor = '#fff3cd';
+            setTimeout(() => {
+                messageElement.style.backgroundColor = '';
+            }, 3000);
+        }
+    }, 500);
 }
 
 // 채팅방 헤더에 검색 버튼 표시
