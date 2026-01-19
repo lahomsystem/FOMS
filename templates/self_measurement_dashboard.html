@@ -231,11 +231,20 @@
                                                   data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
                                     </td>
                                     <td>
-                                        <div>
-                                            {{ order.customer_name }}
-                                            <i class="fas fa-ruler-combined text-info ms-1" title="자가실측"></i>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div>
+                                                <div>
+                                                    {{ order.customer_name }}
+                                                    <i class="fas fa-ruler-combined text-info ms-1" title="자가실측"></i>
+                                                </div>
+                                                <small class="text-muted">{{ order.phone }}</small>
+                                            </div>
+                                            {% if order.blueprint_image_url %}
+                                            <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                <i class="fas fa-drafting-compass"></i> 도면
+                                            </button>
+                                            {% endif %}
                                         </div>
-                                        <small class="text-muted">{{ order.phone }}</small>
                                     </td>
                                     <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">
                                         {{ order.address }}
@@ -395,11 +404,20 @@
                                                   data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
                                     </td>
                                     <td>
-                                        <div>
-                                            {{ order.customer_name }}
-                                            <i class="fas fa-ruler-combined text-info ms-1" title="자가실측"></i>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div>
+                                                <div>
+                                                    {{ order.customer_name }}
+                                                    <i class="fas fa-ruler-combined text-info ms-1" title="자가실측"></i>
+                                                </div>
+                                                <small class="text-muted">{{ order.phone }}</small>
+                                            </div>
+                                            {% if order.blueprint_image_url %}
+                                            <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                <i class="fas fa-drafting-compass"></i> 도면
+                                            </button>
+                                            {% endif %}
                                         </div>
-                                        <small class="text-muted">{{ order.phone }}</small>
                                     </td>
                                     <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">
                                         {{ order.address }}
@@ -560,11 +578,20 @@
                                                   data-order-id="{{ order.id }}">{{ order.regional_memo or '' }}</textarea>
                                     </td>
                                     <td>
-                                        <div>
-                                            {{ order.customer_name }}
-                                            <i class="fas fa-ruler-combined text-info ms-1" title="자가실측"></i>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div>
+                                                <div>
+                                                    {{ order.customer_name }}
+                                                    <i class="fas fa-ruler-combined text-info ms-1" title="자가실측"></i>
+                                                </div>
+                                                <small class="text-muted">{{ order.phone }}</small>
+                                            </div>
+                                            {% if order.blueprint_image_url %}
+                                            <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                <i class="fas fa-drafting-compass"></i> 도면
+                                            </button>
+                                            {% endif %}
                                         </div>
-                                        <small class="text-muted">{{ order.phone }}</small>
                                     </td>
                                     <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">
                                         {{ order.address }}

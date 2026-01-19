@@ -2082,8 +2082,17 @@ function renderRoomHeader(room) {
                             <tr>
                                 <td>#${order.id}</td>
                                 <td>
-                                    <div>${escapeHtml(order.customer_name || '-')}</div>
-                                    <small class="text-muted">${escapeHtml(order.phone || '-')}</small>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div>
+                                            <div>${escapeHtml(order.customer_name || '-')}</div>
+                                            <small class="text-muted">${escapeHtml(order.phone || '-')}</small>
+                                        </div>
+                                        ${order.blueprint_image_url ? `
+                                            <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer(${order.id})" title="도면 보기">
+                                                <i class="fas fa-drafting-compass"></i> 도면
+                                            </button>
+                                        ` : ''}
+                                    </div>
                                 </td>
                                 <td title="${escapeHtml(order.address || '-')}">
                                     ${escapeHtml(order.address || '-')}

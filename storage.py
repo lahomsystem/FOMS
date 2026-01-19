@@ -1,6 +1,8 @@
 """
 Quest 2: 스토리지 추상화 계층
 로컬 저장소와 클라우드 스토리지(R2/S3)를 추상화하여 나중에 쉽게 전환 가능하도록 구현
+로컬: 기본적으로 로컬 저장소 사용
+Railway: R2 환경 변수가 있으면 자동으로 R2 사용
 """
 import os
 import io
@@ -25,14 +27,20 @@ except ImportError:
 
 
 class StorageAdapter:
-    """스토리지 추상화 - 로컬 또는 클라우드 스토리지 사용"""
+    """스토리지 추상화 - 로컬 또는 클라우드 스토리지 사용 (자동 감지)"""
     
     def __init__(self):
-        self.storage_type = os.getenv('STORAGE_TYPE', 'local').lower()  # local, r2, s3
+        # 자동 감지 로직
+        self.storage_type = self._detect_storage_type()
         
         if self.storage_type in ['r2', 's3']:
             if not BOTO3_AVAILABLE:
-                raise ImportError("boto3가 설치되지 않았습니다. pip install boto3")
+                print("[WARNING] boto3가 설치되지 않았습니다. 로컬 저장소로 폴백합니다.")
+                print("[INFO] 클라우드 스토리지를 사용하려면: pip install boto3")
+                self.storage_type = 'local'
+                self.upload_folder = os.getenv('UPLOAD_FOLDER', 'static/uploads')
+                os.makedirs(self.upload_folder, exist_ok=True)
+                return
             
             # 클라우드 스토리지 설정
             if self.storage_type == 'r2':
@@ -41,6 +49,22 @@ class StorageAdapter:
                 self.access_key_id = os.getenv('R2_ACCESS_KEY_ID')
                 self.secret_access_key = os.getenv('R2_SECRET_ACCESS_KEY')
                 self.bucket_name = os.getenv('R2_BUCKET_NAME')
+                
+                # R2 설정 검증
+                if not all([self.account_id, self.access_key_id, self.secret_access_key, self.bucket_name]):
+                    missing = []
+                    if not self.account_id: missing.append('R2_ACCOUNT_ID')
+                    if not self.access_key_id: missing.append('R2_ACCESS_KEY_ID')
+                    if not self.secret_access_key: missing.append('R2_SECRET_ACCESS_KEY')
+                    if not self.bucket_name: missing.append('R2_BUCKET_NAME')
+                    
+                    print(f"[WARNING] R2 환경 변수가 누락되었습니다: {', '.join(missing)}")
+                    print("[INFO] 로컬 저장소로 폴백합니다.")
+                    self.storage_type = 'local'
+                    self.upload_folder = os.getenv('UPLOAD_FOLDER', 'static/uploads')
+                    os.makedirs(self.upload_folder, exist_ok=True)
+                    return
+                
                 self.endpoint_url = f"https://{self.account_id}.r2.cloudflarestorage.com"
             else:
                 # AWS S3 설정
@@ -49,19 +73,91 @@ class StorageAdapter:
                 self.bucket_name = os.getenv('S3_BUCKET_NAME')
                 self.region_name = os.getenv('AWS_REGION', 'ap-northeast-2')
                 self.endpoint_url = None
+                
+                # S3 설정 검증
+                if not all([self.access_key_id, self.secret_access_key, self.bucket_name]):
+                    print("[WARNING] S3 환경 변수가 누락되었습니다. 로컬 저장소로 폴백합니다.")
+                    self.storage_type = 'local'
+                    self.upload_folder = os.getenv('UPLOAD_FOLDER', 'static/uploads')
+                    os.makedirs(self.upload_folder, exist_ok=True)
+                    return
             
             # S3 클라이언트 초기화 (R2는 S3 API 호환)
-            self.client = boto3.client(
-                's3',
-                endpoint_url=self.endpoint_url if self.storage_type == 'r2' else None,
-                aws_access_key_id=self.access_key_id,
-                aws_secret_access_key=self.secret_access_key,
-                region_name='auto' if self.storage_type == 'r2' else self.region_name
-            )
+            try:
+                self.client = boto3.client(
+                    's3',
+                    endpoint_url=self.endpoint_url if self.storage_type == 'r2' else None,
+                    aws_access_key_id=self.access_key_id,
+                    aws_secret_access_key=self.secret_access_key,
+                    region_name='auto' if self.storage_type == 'r2' else self.region_name
+                )
+                print(f"[INFO] [OK] {self.storage_type.upper()} 스토리지가 활성화되었습니다.")
+            except Exception as e:
+                print(f"[ERROR] 클라우드 스토리지 초기화 실패: {e}")
+                print("[INFO] 로컬 저장소로 폴백합니다.")
+                self.storage_type = 'local'
+                self.upload_folder = os.getenv('UPLOAD_FOLDER', 'static/uploads')
+                os.makedirs(self.upload_folder, exist_ok=True)
         else:
             # 로컬 저장소 (개발용)
             self.upload_folder = os.getenv('UPLOAD_FOLDER', 'static/uploads')
             os.makedirs(self.upload_folder, exist_ok=True)
+            print(f"[INFO] 로컬 저장소를 사용합니다: {self.upload_folder}")
+    
+    def _detect_storage_type(self):
+        """
+        스토리지 타입 자동 감지
+        우선순위:
+        1. STORAGE_TYPE 환경 변수가 명시적으로 설정된 경우 -> 해당 타입 사용
+        2. Railway 환경 감지 + R2 환경 변수 모두 있는 경우 -> r2 자동 사용
+        3. 그 외 -> local (로컬 개발 환경)
+        """
+        # 1. 명시적으로 설정된 경우 (최우선)
+        explicit_type = os.getenv('STORAGE_TYPE', '').lower()
+        if explicit_type in ['local', 'r2', 's3']:
+            if explicit_type == 'local':
+                return 'local'
+            elif explicit_type == 'r2':
+                print("[INFO] STORAGE_TYPE=r2로 명시적으로 설정되었습니다.")
+                return 'r2'
+            elif explicit_type == 's3':
+                print("[INFO] STORAGE_TYPE=s3로 명시적으로 설정되었습니다.")
+                return 's3'
+        
+        # 2. Railway 환경 감지
+        is_railway = any([
+            os.getenv('RAILWAY_ENVIRONMENT'),
+            os.getenv('RAILWAY_SERVICE_NAME'),
+            os.getenv('RAILWAY_PROJECT_ID')
+        ])
+        
+        if is_railway:
+            # Railway 환경에서 R2 환경 변수 확인
+            r2_account_id = os.getenv('R2_ACCOUNT_ID')
+            r2_access_key = os.getenv('R2_ACCESS_KEY_ID')
+            r2_secret_key = os.getenv('R2_SECRET_ACCESS_KEY')
+            r2_bucket = os.getenv('R2_BUCKET_NAME')
+            
+            if all([r2_account_id, r2_access_key, r2_secret_key, r2_bucket]):
+                print("[INFO] [RAILWAY] Railway 환경에서 R2 환경 변수가 감지되었습니다.")
+                print("[INFO] [OK] Cloudflare R2를 자동으로 사용합니다.")
+                return 'r2'
+            else:
+                # Railway 환경이지만 R2 환경 변수가 없음
+                missing = []
+                if not r2_account_id: missing.append('R2_ACCOUNT_ID')
+                if not r2_access_key: missing.append('R2_ACCESS_KEY_ID')
+                if not r2_secret_key: missing.append('R2_SECRET_ACCESS_KEY')
+                if not r2_bucket: missing.append('R2_BUCKET_NAME')
+                
+                print("[WARNING] [RAILWAY] Railway 환경이지만 R2 환경 변수가 설정되지 않았습니다.")
+                print(f"[WARNING] 누락된 환경 변수: {', '.join(missing)}")
+                print("[WARNING] 로컬 저장소를 사용합니다. (재배포 시 파일이 삭제될 수 있음)")
+                print("[INFO] 영구 저장을 원하면 Railway 대시보드에서 R2 환경 변수를 설정하세요.")
+                return 'local'
+        
+        # 3. 기본값: 로컬 (로컬 개발 환경)
+        return 'local'
     
     def upload_file(self, file_obj, filename, folder='uploads'):
         """파일 업로드 (공통 인터페이스)"""
@@ -159,7 +255,8 @@ class StorageAdapter:
         except ClientError as e:
             return {
                 'success': False,
-                'error': str(e)
+                'error': str(e),
+                'message': f'클라우드 스토리지 업로드 실패: {str(e)}'
             }
     
     def _upload_to_local(self, file_obj, filename, folder):
@@ -194,7 +291,8 @@ class StorageAdapter:
         except Exception as e:
             return {
                 'success': False,
-                'error': str(e)
+                'error': str(e),
+                'message': f'로컬 저장소 업로드 실패: {str(e)}'
             }
     
     def _generate_thumbnail(self, file_obj, filename, folder, file_type, storage_key=None):

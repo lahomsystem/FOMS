@@ -138,8 +138,17 @@
                                         <tr class="table-urgent" data-order-id="{{ order.id }}">
                                             <td>{{ order.id }}</td>
                                             <td>
-                                                <div>{{ order.customer_name }}</div>
-                                                <small class="text-muted">{{ order.phone }}</small>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
                                             </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
@@ -235,8 +244,17 @@
                                         <tr class="table-alert" data-order-id="{{ order.id }}">
                                             <td>{{ order.id }}</td>
                                             <td>
-                                                <div>{{ order.customer_name }}</div>
-                                                <small class="text-muted">{{ order.phone }}</small>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
                                             </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
@@ -322,8 +340,17 @@
                                         <tr class="table-pending" data-order-id="{{ order.id }}">
                                             <td>{{ order.id }}</td>
                                             <td>
-                                                <div>{{ order.customer_name }}</div>
-                                                <small class="text-muted">{{ order.phone }}</small>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
                                             </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
@@ -409,8 +436,17 @@
                                         <tr class="table-warning" data-order-id="{{ order.id }}">
                                             <td>{{ order.id }}</td>
                                             <td>
-                                                <div>{{ order.customer_name }}</div>
-                                                <small class="text-muted">{{ order.phone }}</small>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
                                             </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
@@ -486,8 +522,17 @@
                                         <tr data-order-id="{{ order.id }}">
                                             <td>{{ order.id }}</td>
                                             <td>
-                                                <div>{{ order.customer_name }}</div>
-                                                <small class="text-muted">{{ order.phone }}</small>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
                                             </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
@@ -572,8 +617,17 @@
                                         <tr data-order-id="{{ order.id }}">
                                             <td>{{ order.id }}</td>
                                             <td>
-                                                <div>{{ order.customer_name }}</div>
-                                                <small class="text-muted">{{ order.phone }}</small>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
                                             </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
@@ -656,8 +710,17 @@
                                         <tr data-order-id="{{ order.id }}">
                                             <td>{{ order.id }}</td>
                                             <td>
-                                                <div>{{ order.customer_name }}</div>
-                                                <small class="text-muted">{{ order.phone }}</small>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
                                             </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
@@ -737,8 +800,17 @@
                                         <tr class="table-completed" data-order-id="{{ order.id }}">
                                             <td>{{ order.id }}</td>
                                             <td>
-                                                <div>{{ order.customer_name }}</div>
-                                                <small class="text-muted">{{ order.phone }}</small>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
                                             </td>
                                             <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
                                                 {{ order.address }}
