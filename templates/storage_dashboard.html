@@ -80,7 +80,16 @@
                                                   rows="1" style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}" data-field="regional_memo">{{ order.regional_memo or '' }}</textarea>
                                     </td>
-                                    <td>{{ order.customer_name }}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div>{{ order.customer_name }}</div>
+                                            {% if order.blueprint_image_url %}
+                                            <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                <i class="fas fa-drafting-compass"></i> 도면
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
                                     <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">{{ order.address }}</td>
                                     <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">{{ order.product }}</td>
                                     <td>
@@ -154,7 +163,16 @@
                                                   rows="1" style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}" data-field="regional_memo">{{ order.regional_memo or '' }}</textarea>
                                     </td>
-                                    <td>{{ order.customer_name }}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div>{{ order.customer_name }}</div>
+                                            {% if order.blueprint_image_url %}
+                                            <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                <i class="fas fa-drafting-compass"></i> 도면
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
                                     <td>{{ order.phone }}</td>
                                     <td style="word-break: break-word; white-space: normal; max-width: 200px;">{{ order.address }}</td>
                                     <td style="word-break: break-word; white-space: normal; max-width: 200px;">{{ order.product }}</td>
@@ -229,7 +247,16 @@
                                                   rows="1" style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
                                                   data-order-id="{{ order.id }}" data-field="regional_memo">{{ order.regional_memo or '' }}</textarea>
                                     </td>
-                                    <td>{{ order.customer_name }}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div>{{ order.customer_name }}</div>
+                                            {% if order.blueprint_image_url %}
+                                            <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                <i class="fas fa-drafting-compass"></i> 도면
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
                                     <td class="text-truncate" style="max-width: 200px;" title="{{ order.address }}">{{ order.address }}</td>
                                     <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">{{ order.product }}</td>
                                     <td>

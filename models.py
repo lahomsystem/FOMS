@@ -54,6 +54,9 @@ class Order(Base):
     # 배송비 추가 (수납장 대시보드용)
     shipping_fee = Column(Integer, nullable=True, default=0)
     
+    # 도면 이미지 URL
+    blueprint_image_url = Column(Text, nullable=True)
+    
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 

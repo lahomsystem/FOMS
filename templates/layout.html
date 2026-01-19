@@ -588,12 +588,172 @@
     <div id="chat-notification-container" class="chat-notification-container"></div>
     {% endif %}
     
+    <!-- 도면 뷰어 모달 (모든 페이지에서 사용) -->
+    <div class="modal fade" id="blueprintViewerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content bg-dark">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-white">
+                        <i class="fas fa-drafting-compass"></i> 도면 보기
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3" id="blueprint-viewer-body" style="overflow: auto; display: flex; align-items: center; justify-content: center; min-height: 400px;">
+                    <img id="blueprint-viewer-img" src="" alt="도면" style="max-width: 100%; max-height: calc(100vh - 200px); width: auto; height: auto; object-fit: contain; display: block; cursor: grab; user-select: none; transition: transform 0.1s;">
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> 닫기
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    
+    <!-- 도면 뷰어 전역 JavaScript -->
+    <script>
+        // 도면 뷰어 줌 관련 변수
+        let blueprintZoom = {
+            scale: 1,
+            minScale: 0.5,
+            maxScale: 5,
+            translateX: 0,
+            translateY: 0
+        };
+        
+        function updateBlueprintTransform() {
+            const img = document.getElementById('blueprint-viewer-img');
+            if (img) {
+                img.style.transform = `translate(${blueprintZoom.translateX}px, ${blueprintZoom.translateY}px) scale(${blueprintZoom.scale})`;
+                img.style.transformOrigin = 'center center';
+            }
+        }
+        
+        function resetBlueprintZoom() {
+            blueprintZoom.scale = 1;
+            blueprintZoom.translateX = 0;
+            blueprintZoom.translateY = 0;
+            updateBlueprintTransform();
+        }
+        
+        // 전역 함수로 노출
+        window.openBlueprintViewer = function(orderId) {
+            fetch(`/api/orders/${orderId}/blueprint`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.url) {
+                        const modal = new bootstrap.Modal(document.getElementById('blueprintViewerModal'));
+                        const img = document.getElementById('blueprint-viewer-img');
+                        const modalBody = document.getElementById('blueprint-viewer-body');
+                        
+                        // 줌 리셋
+                        resetBlueprintZoom();
+                        
+                        // 이미지 로드 후 transform 적용
+                        img.onload = function() {
+                            resetBlueprintZoom();
+                        };
+                        
+                        // 이미지 소스 설정
+                        img.src = data.url;
+                        
+                        // 모달 표시
+                        modal.show();
+                    } else {
+                        alert('도면이 없습니다.');
+                    }
+                })
+                .catch(error => {
+                    console.error('도면 조회 오류:', error);
+                    alert('도면을 불러올 수 없습니다.');
+                });
+        };
+        
+        // 마우스 휠로 줌 인/아웃
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('blueprintViewerModal');
+            const modalBody = document.getElementById('blueprint-viewer-body');
+            const img = document.getElementById('blueprint-viewer-img');
+            
+            if (modal && modalBody && img) {
+                // 마우스 휠 이벤트
+                modalBody.addEventListener('wheel', function(e) {
+                    // 모달이 활성화되어 있는지 확인
+                    if (!modal.classList.contains('show')) {
+                        return;
+                    }
+                    
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                    const newScale = Math.max(blueprintZoom.minScale, 
+                                             Math.min(blueprintZoom.maxScale, blueprintZoom.scale + delta));
+                    
+                    // 마우스 위치를 중심으로 확대/축소
+                    const rect = modalBody.getBoundingClientRect();
+                    const mouseX = e.clientX - rect.left - rect.width / 2;
+                    const mouseY = e.clientY - rect.top - rect.height / 2;
+                    
+                    const scaleChange = newScale / blueprintZoom.scale;
+                    blueprintZoom.translateX = blueprintZoom.translateX * scaleChange + mouseX * (1 - scaleChange);
+                    blueprintZoom.translateY = blueprintZoom.translateY * scaleChange + mouseY * (1 - scaleChange);
+                    
+                    blueprintZoom.scale = newScale;
+                    updateBlueprintTransform();
+                }, { passive: false });
+                
+                // 드래그로 이미지 이동
+                let isDragging = false;
+                let dragStartX = 0;
+                let dragStartY = 0;
+                let startTranslateX = 0;
+                let startTranslateY = 0;
+                
+                img.addEventListener('mousedown', function(e) {
+                    if (e.button === 0 && modal.classList.contains('show')) { // 왼쪽 마우스 버튼만
+                        isDragging = true;
+                        dragStartX = e.clientX;
+                        dragStartY = e.clientY;
+                        startTranslateX = blueprintZoom.translateX;
+                        startTranslateY = blueprintZoom.translateY;
+                        img.style.cursor = 'grabbing';
+                        e.preventDefault();
+                    }
+                });
+                
+                document.addEventListener('mousemove', function(e) {
+                    if (isDragging && modal.classList.contains('show')) {
+                        const deltaX = e.clientX - dragStartX;
+                        const deltaY = e.clientY - dragStartY;
+                        blueprintZoom.translateX = startTranslateX + deltaX;
+                        blueprintZoom.translateY = startTranslateY + deltaY;
+                        updateBlueprintTransform();
+                    }
+                });
+                
+                document.addEventListener('mouseup', function(e) {
+                    if (isDragging) {
+                        isDragging = false;
+                        img.style.cursor = 'grab';
+                    }
+                });
+                
+                // 모달이 닫힐 때 줌 리셋
+                modal.addEventListener('hidden.bs.modal', function() {
+                    resetBlueprintZoom();
+                });
+            }
+        });
+    </script>
+    
     {% block scripts %}{% endblock %}
 </body>
 </html> 

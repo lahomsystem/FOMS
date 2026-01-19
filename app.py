@@ -3980,7 +3980,7 @@ def api_wdcalculator_save_category():
                     category['name'] = category_data['name']
                     # options가 명시적으로 전달된 경우에만 업데이트 (카테고리 추가 시에만 사용)
                     if 'options' in category_data and category_data['options'] is not None:
-                        # 기존 옵션은 유지하고 새로운 옵션만 추가
+                    # 기존 옵션은 유지하고 새로운 옵션만 추가
                         existing_options = category.get('options', [])
                         # 기존 옵션 ID 유지
                         for new_option in category_data['options']:
@@ -5389,6 +5389,116 @@ def api_chat_search_orders():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 # ============================================
+# 도면 관리 API
+# ============================================
+
+@app.route('/api/orders/<int:order_id>/blueprint', methods=['POST'])
+@login_required
+def api_upload_blueprint(order_id):
+    """도면 이미지 업로드"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': '파일이 없습니다.'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'message': '파일명이 없습니다.'}), 400
+        
+        # 이미지 파일 검증
+        allowed_image_exts = ['png', 'jpg', 'jpeg', 'gif', 'webp']
+        file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+        if file_ext not in allowed_image_exts:
+            return jsonify({'success': False, 'message': '이미지 파일만 업로드 가능합니다. (png, jpg, jpeg, gif, webp)'}), 400
+        
+        # 파일 크기 검증 (최대 50MB)
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)
+        max_size = 50 * 1024 * 1024  # 50MB
+        if file_size > max_size:
+            return jsonify({'success': False, 'message': f'파일 크기가 너무 큽니다. 최대 50MB까지 업로드 가능합니다.'}), 400
+        
+        # 주문 존재 확인
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        # 기존 도면이 있으면 삭제 (선택사항 - 덮어쓰기)
+        # if order.blueprint_image_url:
+        #     # 기존 파일 삭제 로직 (필요시 구현)
+        #     pass
+        
+        # 파일 업로드
+        storage = get_storage()
+        folder = f"orders/{order_id}/blueprint"
+        result = storage.upload_file(file, file.filename, folder)
+        
+        if not result.get('success'):
+            return jsonify({'success': False, 'message': '파일 업로드 실패: ' + result.get('message', '알 수 없는 오류')}), 500
+        
+        # DB에 URL 저장
+        order.blueprint_image_url = result.get('url')
+        db.commit()
+        
+        return jsonify({
+            'success': True,
+            'url': result.get('url'),
+            'message': '도면이 업로드되었습니다.'
+        })
+    except Exception as e:
+        import traceback
+        print(f"도면 업로드 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/orders/<int:order_id>/blueprint', methods=['GET'])
+@login_required
+def api_get_blueprint(order_id):
+    """도면 이미지 조회"""
+    try:
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        return jsonify({
+            'success': True,
+            'url': order.blueprint_image_url if order.blueprint_image_url else None
+        })
+    except Exception as e:
+        import traceback
+        print(f"도면 조회 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/orders/<int:order_id>/blueprint', methods=['DELETE'])
+@login_required
+def api_delete_blueprint(order_id):
+    """도면 이미지 삭제"""
+    try:
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        # 파일 삭제 (선택사항 - URL만 제거)
+        # if order.blueprint_image_url:
+        #     storage = get_storage()
+        #     # URL에서 key 추출하여 삭제 (구현 필요)
+        #     pass
+        
+        order.blueprint_image_url = None
+        db.commit()
+        
+        return jsonify({'success': True, 'message': '도면이 삭제되었습니다.'})
+    except Exception as e:
+        import traceback
+        print(f"도면 삭제 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ============================================
 # 전체 채팅 검색 API (Quest 1)
 # ============================================
 
@@ -5996,7 +6106,7 @@ if __name__ == '__main__':
         else:
             # 일반 Flask 실행
             print("[WARN] Socket.IO가 비활성화되어 일반 Flask 모드로 시작합니다...")
-            app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+        app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
         
     except KeyboardInterrupt:
         print("\n[STOP] 사용자에 의해 서버가 중단되었습니다.")

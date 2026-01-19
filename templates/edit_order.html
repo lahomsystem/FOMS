@@ -21,6 +21,11 @@
                             <i class="fas fa-calculator"></i> 계산기
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="blueprint-tab" data-bs-toggle="tab" data-bs-target="#blueprint" type="button" role="tab">
+                            <i class="fas fa-drafting-compass"></i> 도면
+                        </button>
+                    </li>
                 </ul>
             </div>
             <div class="card-body">
@@ -355,6 +360,56 @@
                             </div>
                             <div id="matchEstimatesResults" style="display: none;">
                                 <div id="matchEstimatesList"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 도면 탭 -->
+                    <div class="tab-pane fade" id="blueprint" role="tabpanel">
+                        <div id="blueprintTabContent">
+                            <h6 class="mb-3"><i class="fas fa-drafting-compass"></i> 도면 이미지</h6>
+                            
+                            <!-- 업로드 영역 -->
+                            <div id="blueprint-upload-area" class="mb-3">
+                                <div class="border rounded p-4 text-center" 
+                                     style="border-style: dashed !important; cursor: pointer; background-color: #f8f9fa;" 
+                                     onclick="document.getElementById('blueprint-file-input').click()"
+                                     ondrop="handleBlueprintDrop(event)" 
+                                     ondragover="event.preventDefault(); this.style.backgroundColor='#e9ecef';" 
+                                     ondragleave="event.preventDefault(); this.style.backgroundColor='#f8f9fa';">
+                                    <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-2"></i>
+                                    <p class="text-muted mb-0">도면 이미지를 드래그하거나 클릭하여 업로드</p>
+                                    <small class="text-muted">(PNG, JPG, JPEG, GIF, WEBP - 최대 50MB)</small>
+                                    <input type="file" id="blueprint-file-input" accept="image/*" style="display: none;" onchange="handleBlueprintSelect(event)">
+                                </div>
+                            </div>
+                            
+                            <!-- 미리보기 영역 -->
+                            <div id="blueprint-preview" style="display: none;">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <h6 class="mb-0">업로드된 도면</h6>
+                                            <div>
+                                                <button class="btn btn-sm btn-info me-2" onclick="if(typeof window.openBlueprintViewer === 'function') { window.openBlueprintViewer({{ order.id }}); } else { alert('도면 뷰어를 불러올 수 없습니다.'); }" title="도면 보기">
+                                                    <i class="fas fa-eye"></i> 보기
+                                                </button>
+                                                <button class="btn btn-sm btn-danger" onclick="deleteBlueprint({{ order.id }})" title="도면 삭제">
+                                                    <i class="fas fa-trash"></i> 삭제
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <img id="blueprint-preview-img" src="" alt="도면" class="img-fluid rounded" style="max-height: 500px; cursor: pointer; border: 1px solid #ddd;" onclick="if(typeof window.openBlueprintViewer === 'function') { window.openBlueprintViewer({{ order.id }}); } else { alert('도면 뷰어를 불러올 수 없습니다.'); }">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 로딩 표시 -->
+                            <div id="blueprint-loading" class="text-center" style="display: none;">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">로딩 중...</span>
+                                </div>
+                                <p class="text-muted mt-2">업로드 중...</p>
                             </div>
                         </div>
                     </div>
@@ -1227,5 +1282,132 @@
             });
         }
     });
+    
+    // ============================================
+    // 도면 관리 함수
+    // ============================================
+    
+    // 페이지 로드 시 도면 조회
+    document.addEventListener('DOMContentLoaded', function() {
+        loadBlueprint({{ order.id }});
+    });
+    
+    // 도면 탭 클릭 시 도면 조회
+    document.getElementById('blueprint-tab')?.addEventListener('shown.bs.tab', function() {
+        loadBlueprint({{ order.id }});
+    });
+    
+    function loadBlueprint(orderId) {
+        fetch(`/api/orders/${orderId}/blueprint`)
+            .then(response => response.json())
+            .then(data => {
+                const preview = document.getElementById('blueprint-preview');
+                const uploadArea = document.getElementById('blueprint-upload-area');
+                const previewImg = document.getElementById('blueprint-preview-img');
+                
+                if (data.success && data.url) {
+                    previewImg.src = data.url;
+                    preview.style.display = 'block';
+                    uploadArea.style.display = 'none';
+                } else {
+                    preview.style.display = 'none';
+                    uploadArea.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('도면 조회 오류:', error);
+            });
+    }
+    
+    function handleBlueprintSelect(event) {
+        const file = event.target.files[0];
+        if (file) {
+            uploadBlueprint({{ order.id }}, file);
+        }
+    }
+    
+    function handleBlueprintDrop(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.style.backgroundColor = '#f8f9fa';
+        
+        const files = event.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            if (file.type.startsWith('image/')) {
+                uploadBlueprint({{ order.id }}, file);
+            } else {
+                alert('이미지 파일만 업로드 가능합니다.');
+            }
+        }
+    }
+    
+    function uploadBlueprint(orderId, file) {
+        const loading = document.getElementById('blueprint-loading');
+        const uploadArea = document.getElementById('blueprint-upload-area');
+        const preview = document.getElementById('blueprint-preview');
+        
+        // 파일 크기 검증
+        const maxSize = 50 * 1024 * 1024; // 50MB
+        if (file.size > maxSize) {
+            alert('파일 크기가 너무 큽니다. 최대 50MB까지 업로드 가능합니다.');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        loading.style.display = 'block';
+        uploadArea.style.display = 'none';
+        preview.style.display = 'none';
+        
+        fetch(`/api/orders/${orderId}/blueprint`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            loading.style.display = 'none';
+            if (data.success) {
+                alert('도면이 업로드되었습니다.');
+                loadBlueprint(orderId);
+            } else {
+                alert('도면 업로드 실패: ' + data.message);
+                uploadArea.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            loading.style.display = 'none';
+            console.error('도면 업로드 오류:', error);
+            alert('도면 업로드 중 오류가 발생했습니다.');
+            uploadArea.style.display = 'block';
+        });
+    }
+    
+    function deleteBlueprint(orderId) {
+        if (!confirm('도면을 삭제하시겠습니까?')) {
+            return;
+        }
+        
+        fetch(`/api/orders/${orderId}/blueprint`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('도면이 삭제되었습니다.');
+                loadBlueprint(orderId);
+            } else {
+                alert('도면 삭제 실패: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('도면 삭제 오류:', error);
+            alert('도면 삭제 중 오류가 발생했습니다.');
+        });
+    }
+    
+    // 도면 뷰어 함수 (layout.html의 window.openBlueprintViewer 호출)
+    // 로컬 함수를 정의하지 않고 전역 함수를 직접 호출
 </script>
 {% endblock %} 
