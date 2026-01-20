@@ -13,7 +13,10 @@ from datetime import date, timedelta
 
 # 데이터베이스 관련 임포트
 from db import get_db, close_db, init_db
-from models import Order, User, SecurityLog, ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment
+from models import Order, User, SecurityLog, ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment, OrderAttachment, OrderEvent, OrderTask
+from business_calendar import add_business_days
+from erp_automation import apply_auto_tasks
+from erp_policy import recommend_owner_team
 
 # 견적 계산기 독립 데이터베이스 임포트
 from wdcalculator_db import get_wdcalculator_db, close_wdcalculator_db, init_wdcalculator_db
@@ -30,6 +33,7 @@ from foms_map_generator import FOMSMapGenerator
 from storage import get_storage
 from erp_order_text_parser import parse_order_text
 from map_config import KAKAO_REST_API_KEY
+from business_calendar import business_days_until
 
 # SocketIO 임포트 (Quest 5)
 try:
@@ -76,6 +80,13 @@ CHAT_ALLOWED_EXTENSIONS = {
     'pdf', 'doc', 'docx', 'xlsx', 'xls', 'txt', 'zip', 'rar'
 }
 
+ERP_MEDIA_ALLOWED_EXTENSIONS = {
+    # 이미지
+    'jpg', 'jpeg', 'png', 'gif', 'webp',
+    # 동영상
+    'mp4', 'mov', 'avi', 'mkv', 'webm',
+}
+
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB (동영상 고려)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -108,6 +119,29 @@ def get_chat_file_max_size(filename):
         return 500 * 1024 * 1024  # 500MB (동영상)
     else:
         return 50 * 1024 * 1024  # 50MB (기타 파일)
+
+def allowed_erp_media_file(filename):
+    """ERP Beta 첨부(사진/동영상) 확장자 검증"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ERP_MEDIA_ALLOWED_EXTENSIONS
+
+def get_erp_media_max_size(filename):
+    """ERP Beta 첨부 파일 타입별 최대 크기 (바이트)"""
+    if not '.' in filename:
+        return 10 * 1024 * 1024
+    ext = filename.rsplit('.', 1)[1].lower()
+    image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+    video_exts = ['mp4', 'mov', 'avi', 'mkv', 'webm']
+    if ext in image_exts:
+        return 20 * 1024 * 1024  # 20MB
+    if ext in video_exts:
+        return 500 * 1024 * 1024  # 500MB
+    return 20 * 1024 * 1024
+
+def build_file_view_url(storage_key: str) -> str:
+    return f"/api/files/view/{storage_key}"
+
+def build_file_download_url(storage_key: str) -> str:
+    return f"/api/files/download/{storage_key}"
 
 # Order status constants
 STATUS = {
@@ -214,6 +248,611 @@ def role_required(roles):
         decorated_function.__name__ = f.__name__
         return decorated_function
     return decorator
+
+# ============================================
+# ERP Process Dashboard (Palantir-style)
+# ============================================
+
+def _erp_get_urgent_flag(structured_data):
+    try:
+        return bool((structured_data or {}).get('flags', {}).get('urgent'))
+    except Exception:
+        return False
+
+def _erp_get_stage(order, structured_data):
+    # Canonical: structured_data.workflow.stage 우선
+    try:
+        st = ((structured_data or {}).get('workflow') or {}).get('stage')
+        if st:
+            mapping = {
+                'RECEIVED': '주문접수',
+                'HAPPYCALL': '해피콜',
+                'MEASURE': '실측',
+                'DRAWING': '도면',
+                'CONFIRM': '고객컨펌',
+                'PRODUCTION': '생산',
+                'CONSTRUCTION': '시공',
+            }
+            return mapping.get(st, '주문접수')
+    except Exception:
+        pass
+
+    # ERP Beta 테스트 기준: 레거시(Order 컬럼)로 추정하지 않음
+    return '주문접수'
+
+def _erp_has_media(order, attachments_count: int):
+    # ERP Beta 테스트 기준: 레거시(Order 컬럼) 첨부(blueprint_image_url)로 판단하지 않음
+    return attachments_count > 0
+
+def _erp_alerts(order, structured_data, attachments_count: int):
+    """
+    경보 규칙(영업일 기준):
+    - 도면 48h: MVP에서는 도면 업로드 시각 정보가 없어 '도면있고 컨펌 미완' 등을 추후 고도화 필요.
+      여기서는 structured_updated_at이 있고 blueprint가 있으면 48h 체크용으로 사용(보수적).
+    - 실측 D-4: measurement_date
+    - 시공 D-3: scheduled_date (기존 주문 필드)
+    - 생산 D-2: scheduled_date 기준
+    - 긴급 발주: structured_data.flags.urgent
+    """
+    urgent = _erp_get_urgent_flag(structured_data)
+    meas_date = (((structured_data or {}).get('schedule') or {}).get('measurement') or {}).get('date')
+    cons_date = (((structured_data or {}).get('schedule') or {}).get('construction') or {}).get('date')
+
+    meas_d = business_days_until(meas_date) if meas_date else None
+    cons_d = business_days_until(cons_date) if cons_date else None
+
+    measurement_d4 = meas_d is not None and 0 <= meas_d <= 4
+    construction_d3 = cons_d is not None and 0 <= cons_d <= 3
+    # 생산 D-2: 시공일이 임박했고(workday<=2), 아직 시공 단계가 아니면 생산 준비 경보로 간주(MVP)
+    try:
+        stage = ((structured_data or {}).get('workflow') or {}).get('stage')
+    except Exception:
+        stage = None
+    production_d2 = cons_d is not None and 0 <= cons_d <= 2 and stage not in ('CONSTRUCTION',)
+
+    drawing_overdue = False
+    try:
+        wf = (structured_data or {}).get('workflow') or {}
+        stage = wf.get('stage')
+        stage_updated_at = wf.get('stage_updated_at')
+        if stage in ('DRAWING', 'CONFIRM') and stage_updated_at:
+            ts = datetime.datetime.fromisoformat(str(stage_updated_at))
+            delta = datetime.datetime.now() - ts
+            drawing_overdue = delta.total_seconds() >= (48 * 3600)
+    except Exception:
+        drawing_overdue = False
+
+    return {
+        'urgent': urgent,
+        'measurement_d4': measurement_d4,
+        'construction_d3': construction_d3,
+        'production_d2': production_d2,
+        'drawing_overdue': drawing_overdue
+    }
+
+
+## NOTE: auto task 로직은 erp_automation.py 로 분리됨
+
+@app.route('/erp/dashboard')
+@login_required
+def erp_dashboard():
+    """ERP 프로세스 대시보드(MVP)"""
+    db = get_db()
+    # filters (query params)
+    f_stage = (request.args.get('stage') or '').strip()
+    f_urgent = (request.args.get('urgent') or '').strip()  # '1'
+    f_has_alert = (request.args.get('has_alert') or '').strip()  # '1'
+    f_has_task = (request.args.get('has_task') or '').strip()  # '1'
+    f_q = (request.args.get('q') or '').strip()
+
+    # ERP 대시보드: ERP Beta로 생성된 주문만 표시 (기존 주문은 과거 기록용)
+    orders = (
+        db.query(Order)
+        .filter(Order.deleted_at.is_(None), Order.is_erp_beta.is_(True))
+        .order_by(Order.created_at.desc())
+        .limit(300)
+        .all()
+    )
+
+    # order_attachments count map
+    att_counts = {}
+    try:
+        rows = db.execute(text("SELECT order_id, COUNT(*) AS cnt FROM order_attachments GROUP BY order_id")).fetchall()
+        for r in rows:
+            att_counts[int(r.order_id)] = int(r.cnt)
+    except Exception:
+        att_counts = {}
+
+    enriched = []
+    # open tasks count
+    open_tasks_by_order = {}
+    try:
+        rows = db.execute(text("""
+            SELECT order_id, COUNT(*) AS cnt
+            FROM order_tasks
+            WHERE status IN ('OPEN', 'IN_PROGRESS')
+            GROUP BY order_id
+        """)).fetchall()
+        for r in rows:
+            open_tasks_by_order[int(r.order_id)] = int(r.cnt)
+    except Exception:
+        open_tasks_by_order = {}
+
+    for o in orders:
+        sd = o.structured_data or {}
+        cnt = att_counts.get(o.id, 0)
+        stage = _erp_get_stage(o, sd)
+        alerts = _erp_alerts(o, sd, cnt)
+        has_media = _erp_has_media(o, cnt)
+        open_tasks = open_tasks_by_order.get(o.id, 0)
+
+        enriched.append({
+            'id': o.id,
+            'customer_name': (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-',
+            'phone': (((sd.get('parties') or {}).get('customer') or {}).get('phone')) or '-',
+            'address': (((sd.get('site') or {}).get('address_full')) or ((sd.get('site') or {}).get('address_main'))) or '-',
+            'measurement_date': (((sd.get('schedule') or {}).get('measurement') or {}).get('date')),
+            'construction_date': (((sd.get('schedule') or {}).get('construction') or {}).get('date')),
+            'manager_name': (((sd.get('parties') or {}).get('manager') or {}).get('name')) or '-',
+            'stage': stage,
+            'alerts': alerts,
+            'has_media': has_media,
+            'open_tasks': open_tasks,
+            'recommended_owner_team': recommend_owner_team(sd) or None,
+        })
+
+    # apply filters (ERP Beta = raw/structured 기준)
+    filtered = []
+    for r in enriched:
+        if f_stage and r.get('stage') != f_stage:
+            continue
+        if f_urgent == '1' and not (r.get('alerts') or {}).get('urgent'):
+            continue
+        if f_has_alert == '1':
+            a = r.get('alerts') or {}
+            if not (a.get('urgent') or a.get('drawing_overdue') or a.get('measurement_d4') or a.get('construction_d3') or a.get('production_d2')):
+                continue
+        if f_has_task == '1' and not (r.get('open_tasks') or 0) > 0:
+            continue
+        if f_q:
+            hay = ' '.join([
+                str(r.get('customer_name') or ''),
+                str(r.get('phone') or ''),
+                str(r.get('address') or ''),
+                str(r.get('manager_name') or ''),
+            ]).lower()
+            if f_q.lower() not in hay:
+                continue
+        filtered.append(r)
+
+    # KPI/프로세스맵도 "필터 결과 기준"으로 재계산 (필터가 안 먹는 것처럼 보이는 문제 방지)
+    kpis = {
+        'urgent_count': 0,
+        'measurement_d4_count': 0,
+        'construction_d3_count': 0,
+        'production_d2_count': 0,
+        'open_tasks_count': 0,
+    }
+
+    step_stats = {
+        '주문접수': {'count': 0, 'overdue': 0, 'imminent': 0},
+        '해피콜': {'count': 0, 'overdue': 0, 'imminent': 0},
+        '실측': {'count': 0, 'overdue': 0, 'imminent': 0},
+        '도면': {'count': 0, 'overdue': 0, 'imminent': 0},
+        '고객컨펌': {'count': 0, 'overdue': 0, 'imminent': 0},
+        '생산': {'count': 0, 'overdue': 0, 'imminent': 0},
+        '시공': {'count': 0, 'overdue': 0, 'imminent': 0},
+    }
+
+    for r in filtered:
+        alerts = r.get('alerts') or {}
+        stage = r.get('stage')
+        kpis['open_tasks_count'] += int(r.get('open_tasks') or 0)
+
+        if alerts.get('urgent'):
+            kpis['urgent_count'] += 1
+        if alerts.get('measurement_d4'):
+            kpis['measurement_d4_count'] += 1
+        if alerts.get('construction_d3'):
+            kpis['construction_d3_count'] += 1
+        if alerts.get('production_d2'):
+            kpis['production_d2_count'] += 1
+
+        if stage in step_stats:
+            step_stats[stage]['count'] += 1
+            if alerts.get('drawing_overdue'):
+                step_stats[stage]['overdue'] += 1
+            if alerts.get('measurement_d4') or alerts.get('construction_d3') or alerts.get('production_d2'):
+                step_stats[stage]['imminent'] += 1
+
+    process_steps = [
+        {'label': '주문접수', **step_stats['주문접수']},
+        {'label': '해피콜', **step_stats['해피콜']},
+        {'label': '실측', **step_stats['실측']},
+        {'label': '도면', **step_stats['도면']},
+        {'label': '고객컨펌', **step_stats['고객컨펌']},
+        {'label': '생산', **step_stats['생산']},
+        {'label': '시공', **step_stats['시공']},
+    ]
+
+    return render_template(
+        'erp_dashboard.html',
+        orders=filtered,
+        kpis=kpis,
+        process_steps=process_steps,
+        filters={
+            'stage': f_stage,
+            'urgent': f_urgent,
+            'has_alert': f_has_alert,
+            'has_task': f_has_task,
+            'q': f_q,
+        },
+    )
+
+# ============================================
+# Files API (view/download) + ERP Beta Attachments API
+# (login_required 정의 이후에 위치해야 함)
+# ============================================
+
+@app.route('/api/files/view/<path:storage_key>', methods=['GET'])
+@login_required
+def api_files_view(storage_key):
+    """공용 파일 미리보기(인라인) - 로컬은 send_file, R2/S3는 presigned redirect"""
+    try:
+        if '..' in storage_key or storage_key.startswith('/'):
+            return jsonify({'success': False, 'message': '잘못된 파일 경로입니다.'}), 400
+
+        storage = get_storage()
+        if storage.storage_type in ['r2', 's3']:
+            url = storage.get_download_url(storage_key, expires_in=3600)
+            if not url:
+                return jsonify({'success': False, 'message': '파일을 찾을 수 없습니다.'}), 404
+            return redirect(url)
+
+        file_path = os.path.join(storage.upload_folder, storage_key)
+        if not os.path.exists(file_path):
+            return jsonify({'success': False, 'message': '파일을 찾을 수 없습니다.'}), 404
+        return send_file(file_path, as_attachment=False)
+    except Exception as e:
+        import traceback
+        print(f"파일 미리보기 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/files/download/<path:storage_key>', methods=['GET'])
+@login_required
+def api_files_download(storage_key):
+    """공용 파일 다운로드 - 로컬은 attachment, R2/S3는 presigned redirect"""
+    try:
+        if '..' in storage_key or storage_key.startswith('/'):
+            return jsonify({'success': False, 'message': '잘못된 파일 경로입니다.'}), 400
+
+        storage = get_storage()
+        if storage.storage_type in ['r2', 's3']:
+            url = storage.get_download_url(storage_key, expires_in=3600)
+            if not url:
+                return jsonify({'success': False, 'message': '파일을 찾을 수 없습니다.'}), 404
+            return redirect(url)
+
+        file_path = os.path.join(storage.upload_folder, storage_key)
+        if not os.path.exists(file_path):
+            return jsonify({'success': False, 'message': '파일을 찾을 수 없습니다.'}), 404
+        return send_file(file_path, as_attachment=True)
+    except Exception as e:
+        import traceback
+        print(f"파일 다운로드 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/orders/<int:order_id>/attachments', methods=['GET'])
+@login_required
+def api_order_attachments_list(order_id):
+    """주문 첨부 목록(ERP Beta 사진/동영상)"""
+    try:
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        atts = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id).order_by(OrderAttachment.created_at.desc()).all()
+        items = []
+        for a in atts:
+            d = a.to_dict()
+            d['view_url'] = build_file_view_url(a.storage_key)
+            d['download_url'] = build_file_download_url(a.storage_key)
+            d['thumbnail_view_url'] = build_file_view_url(a.thumbnail_key) if a.thumbnail_key else None
+            items.append(d)
+
+        return jsonify({'success': True, 'attachments': items})
+    except Exception as e:
+        import traceback
+        print(f"주문 첨부 목록 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/orders/<int:order_id>/attachments', methods=['POST'])
+@login_required
+def api_order_attachments_upload(order_id):
+    """주문 첨부 업로드(ERP Beta 사진/동영상)"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': '파일이 없습니다.'}), 400
+        file = request.files['file']
+        if not file or file.filename == '':
+            return jsonify({'success': False, 'message': '파일명이 없습니다.'}), 400
+
+        if not allowed_erp_media_file(file.filename):
+            allowed_exts = ', '.join(sorted(ERP_MEDIA_ALLOWED_EXTENSIONS))
+            return jsonify({'success': False, 'message': f'허용되지 않은 파일 형식입니다. 지원 형식: {allowed_exts}'}), 400
+
+        # 파일 크기 검증
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)
+        max_size = get_erp_media_max_size(file.filename)
+        if file_size > max_size:
+            size_mb = max_size / (1024 * 1024)
+            return jsonify({'success': False, 'message': f'파일 크기가 너무 큽니다. 최대 {size_mb:.0f}MB까지 업로드 가능합니다.'}), 400
+
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        storage = get_storage()
+        folder = f"orders/{order_id}/attachments"
+
+        # 원본 업로드(스토리지가 unique filename을 생성)
+        result = storage.upload_file(file, file.filename, folder)
+        if not result.get('success'):
+            return jsonify({'success': False, 'message': '파일 업로드 실패: ' + result.get('message', '알 수 없는 오류')}), 500
+
+        storage_key = result.get('key')
+        filename = file.filename
+        file_type = storage._get_file_type(filename)
+        if file_type not in ['image', 'video']:
+            return jsonify({'success': False, 'message': '이미지/동영상만 업로드 가능합니다.'}), 400
+
+        # 이미지 썸네일 생성(가능할 때만)
+        thumbnail_key = None
+        try:
+            if file_type == 'image' and hasattr(storage, '_generate_thumbnail'):
+                unique_filename = storage_key.rsplit('/', 1)[-1] if storage_key else None
+                if unique_filename:
+                    file.seek(0)
+                    storage._generate_thumbnail(file, unique_filename, folder, 'image', storage_key=storage_key)
+                    thumbnail_key = f"{folder}/thumb_{unique_filename}"
+        except Exception:
+            thumbnail_key = None
+
+        att = OrderAttachment(
+            order_id=order_id,
+            filename=filename,
+            file_type=file_type,
+            file_size=file_size,
+            storage_key=storage_key,
+            thumbnail_key=thumbnail_key
+        )
+        db.add(att)
+        db.commit()
+        db.refresh(att)
+
+        d = att.to_dict()
+        d['view_url'] = build_file_view_url(att.storage_key)
+        d['download_url'] = build_file_download_url(att.storage_key)
+        d['thumbnail_view_url'] = build_file_view_url(att.thumbnail_key) if att.thumbnail_key else None
+
+        return jsonify({'success': True, 'attachment': d})
+    except Exception as e:
+        db = get_db()
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        import traceback
+        print(f"주문 첨부 업로드 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/orders/<int:order_id>/attachments/<int:attachment_id>', methods=['DELETE'])
+@login_required
+def api_order_attachments_delete(order_id, attachment_id):
+    """주문 첨부 삭제(ERP Beta)"""
+    try:
+        db = get_db()
+        att = db.query(OrderAttachment).filter(
+            OrderAttachment.id == attachment_id,
+            OrderAttachment.order_id == order_id
+        ).first()
+        if not att:
+            return jsonify({'success': False, 'message': '첨부파일을 찾을 수 없습니다.'}), 404
+
+        storage = get_storage()
+        try:
+            if att.storage_key:
+                storage.delete_file(att.storage_key)
+            if att.thumbnail_key:
+                storage.delete_file(att.thumbnail_key)
+        except Exception:
+            pass
+
+        db.delete(att)
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db = get_db()
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        import traceback
+        print(f"주문 첨부 삭제 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ============================================
+# ERP: Events & Tasks API (Palantir-style)
+# ============================================
+
+@app.route('/api/orders/<int:order_id>/events', methods=['GET'])
+@login_required
+def api_order_events(order_id):
+    """주문 이벤트 스트림 조회(최근 N개)"""
+    try:
+        db = get_db()
+        limit = int(request.args.get('limit', 50))
+        limit = max(1, min(limit, 200))
+
+        rows = db.query(OrderEvent).filter(OrderEvent.order_id == order_id).order_by(OrderEvent.created_at.desc()).limit(limit).all()
+        events = []
+        for r in rows:
+            events.append({
+                'id': r.id,
+                'order_id': r.order_id,
+                'event_type': r.event_type,
+                'payload': r.payload,
+                'created_by_user_id': r.created_by_user_id,
+                'created_at': r.created_at.strftime('%Y-%m-%d %H:%M:%S') if r.created_at else None
+            })
+        return jsonify({'success': True, 'events': events})
+    except Exception as e:
+        import traceback
+        print(f"주문 이벤트 조회 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/orders/<int:order_id>/tasks', methods=['GET'])
+@login_required
+def api_order_tasks_list(order_id):
+    """주문 팔로업(Task) 목록"""
+    try:
+        db = get_db()
+        rows = db.query(OrderTask).filter(OrderTask.order_id == order_id).order_by(OrderTask.updated_at.desc()).all()
+        tasks = []
+        for t in rows:
+            tasks.append({
+                'id': t.id,
+                'order_id': t.order_id,
+                'title': t.title,
+                'status': t.status,
+                'owner_team': t.owner_team,
+                'owner_user_id': t.owner_user_id,
+                'due_date': t.due_date,
+                'meta': t.meta,
+                'created_at': t.created_at.strftime('%Y-%m-%d %H:%M:%S') if t.created_at else None,
+                'updated_at': t.updated_at.strftime('%Y-%m-%d %H:%M:%S') if t.updated_at else None,
+            })
+        return jsonify({'success': True, 'tasks': tasks})
+    except Exception as e:
+        import traceback
+        print(f"주문 Task 목록 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/orders/<int:order_id>/tasks', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_order_tasks_create(order_id):
+    """주문 팔로업(Task) 생성"""
+    try:
+        db = get_db()
+        payload = request.get_json(silent=True) or {}
+        title = (payload.get('title') or '').strip()
+        if not title:
+            return jsonify({'success': False, 'message': 'title이 필요합니다.'}), 400
+
+        task = OrderTask(
+            order_id=order_id,
+            title=title,
+            status=(payload.get('status') or 'OPEN'),
+            owner_team=(payload.get('owner_team') or None),
+            owner_user_id=(payload.get('owner_user_id') or None),
+            due_date=(payload.get('due_date') or None),
+            meta=(payload.get('meta') if isinstance(payload.get('meta'), dict) else None),
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+        )
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        return jsonify({'success': True, 'task_id': task.id})
+    except Exception as e:
+        db = get_db()
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        import traceback
+        print(f"주문 Task 생성 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/orders/<int:order_id>/tasks/<int:task_id>', methods=['PUT'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_order_tasks_update(order_id, task_id):
+    """주문 팔로업(Task) 수정"""
+    try:
+        db = get_db()
+        task = db.query(OrderTask).filter(OrderTask.id == task_id, OrderTask.order_id == order_id).first()
+        if not task:
+            return jsonify({'success': False, 'message': 'Task를 찾을 수 없습니다.'}), 404
+
+        payload = request.get_json(silent=True) or {}
+        if 'title' in payload:
+            task.title = (payload.get('title') or '').strip()
+        if 'status' in payload:
+            task.status = payload.get('status') or task.status
+        if 'owner_team' in payload:
+            task.owner_team = payload.get('owner_team') or None
+        if 'owner_user_id' in payload:
+            task.owner_user_id = payload.get('owner_user_id') or None
+        if 'due_date' in payload:
+            task.due_date = payload.get('due_date') or None
+        if 'meta' in payload and isinstance(payload.get('meta'), dict):
+            task.meta = payload.get('meta')
+
+        task.updated_at = datetime.datetime.now()
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db = get_db()
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        import traceback
+        print(f"주문 Task 수정 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/orders/<int:order_id>/tasks/<int:task_id>', methods=['DELETE'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_order_tasks_delete(order_id, task_id):
+    """주문 팔로업(Task) 삭제"""
+    try:
+        db = get_db()
+        task = db.query(OrderTask).filter(OrderTask.id == task_id, OrderTask.order_id == order_id).first()
+        if not task:
+            return jsonify({'success': False, 'message': 'Task를 찾을 수 없습니다.'}), 404
+        db.delete(task)
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db = get_db()
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        import traceback
+        print(f"주문 Task 삭제 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 # 지방 주문 자동 필터링 함수 제거 - 사용자가 직접 선택하도록 변경
 
@@ -592,7 +1231,85 @@ def add_order():
     if request.method == 'POST':
         try:
             db = get_db()
+
+            create_mode = (request.form.get('create_mode') or 'LEGACY').upper().strip()
             
+            if create_mode == 'ERP_BETA':
+                # ERP Beta 생성: raw/structured 중심. Order의 NOT NULL 컬럼은 fallback으로 채움.
+                raw_text = (request.form.get('raw_order_text') or '').strip()
+                structured_json = (request.form.get('structured_data_json') or '').strip()
+                stage = (request.form.get('erp_stage') or 'RECEIVED').strip()
+                owner_team = (request.form.get('erp_owner_team') or '').strip()
+                urgent = bool(request.form.get('erp_urgent') == '1')
+                urgent_reason = (request.form.get('erp_urgent_reason') or '').strip()
+                meas_date = (request.form.get('erp_measurement_date') or '').strip()
+                cons_date = (request.form.get('erp_construction_date') or '').strip()
+
+                structured_data = {}
+                if structured_json:
+                    try:
+                        parsed = json.loads(structured_json)
+                        if isinstance(parsed, dict):
+                            structured_data = parsed
+                    except Exception:
+                        structured_data = {}
+
+                # 최소 구조 보정
+                structured_data.setdefault('workflow', {})
+                structured_data['workflow'].setdefault('stage', stage or 'RECEIVED')
+                structured_data['workflow']['stage_updated_at'] = datetime.datetime.now().isoformat()
+
+                structured_data.setdefault('assignments', {})
+                if owner_team:
+                    structured_data['assignments']['owner_team'] = owner_team
+
+                structured_data.setdefault('flags', {})
+                if urgent:
+                    structured_data['flags']['urgent'] = True
+                    if urgent_reason:
+                        structured_data['flags']['urgent_reason'] = urgent_reason
+
+                structured_data.setdefault('schedule', {})
+                if meas_date:
+                    structured_data['schedule'].setdefault('measurement', {})
+                    structured_data['schedule']['measurement']['date'] = meas_date
+                if cons_date:
+                    structured_data['schedule'].setdefault('construction', {})
+                    structured_data['schedule']['construction']['date'] = cons_date
+
+                # Order NOT NULL fallback (가능하면 structured에서 뽑고, 없으면 placeholder)
+                cust_name = ((structured_data.get('parties') or {}).get('customer') or {}).get('name') or (request.form.get('erp_customer_name') or '').strip() or 'ERP Beta'
+                cust_phone = ((structured_data.get('parties') or {}).get('customer') or {}).get('phone') or (request.form.get('erp_customer_phone') or '').strip() or '000-0000-0000'
+                addr = ((structured_data.get('site') or {}).get('address_full') or (structured_data.get('site') or {}).get('address_main')) or (request.form.get('erp_address') or '').strip() or '-'
+                prod = (request.form.get('erp_product') or '').strip() or 'ERP Beta'
+
+                new_order = Order(
+                    received_date=request.form.get('received_date') or datetime.datetime.now().strftime('%Y-%m-%d'),
+                    received_time=request.form.get('received_time') or datetime.datetime.now().strftime('%H:%M'),
+                    customer_name=cust_name,
+                    phone=cust_phone,
+                    address=addr,
+                    product=prod,
+                    options=None,
+                    notes=request.form.get('notes') or None,
+                    status='RECEIVED',
+                    is_erp_beta=True,
+                    raw_order_text=raw_text,
+                    structured_data=structured_data,
+                    structured_schema_version=1,
+                    structured_confidence=None,
+                    structured_updated_at=datetime.datetime.now(),
+                )
+
+                db.add(new_order)
+                db.flush()
+                db.commit()
+                flash('ERP Beta 주문이 성공적으로 추가되었습니다.', 'success')
+                return redirect(url_for('index'))
+
+            # ==========================
+            # LEGACY(기존 주문) 생성 로직
+            # ==========================
             # 필수 필드 검증
             required_fields = ['customer_name', 'phone', 'address', 'product']
             for field in required_fields:
@@ -683,7 +1400,8 @@ def add_order():
                 regional_sales_order_upload=regional_sales_order_upload_val,
                 regional_blueprint_sent=regional_blueprint_sent_val,
                 regional_order_upload=regional_order_upload_val,
-                construction_type=construction_type_val
+                construction_type=construction_type_val,
+                is_erp_beta=False,
             )
             
             db.add(new_order)
@@ -4962,16 +5680,21 @@ def api_chat_upload():
                 'message': f'파일 업로드 실패: {result.get("error", "알 수 없는 오류")}'
             }), 500
         
-        # 파일 정보 반환
-        file_url = result.get('url')
+        # ⚠️ presigned URL 만료 문제 방지:
+        # DB/클라이언트에 presigned URL을 저장/전달하지 않고, key 기반 view/download 엔드포인트를 사용한다.
+        storage_key = result.get('key')
+        file_url = build_file_view_url(storage_key)
+        thumbnail_key = result.get('thumbnail_key')
+        thumbnail_url = build_file_view_url(thumbnail_key) if thumbnail_key else None
         file_info = {
             'filename': file.filename,
             'url': file_url,
             'storage_url': file_url,  # 호환성을 위해 추가
-            'thumbnail_url': result.get('thumbnail_url'),
+            'thumbnail_url': thumbnail_url,
             'file_type': result.get('file_type'),
             'size': file_size,
-            'key': result.get('key')
+            'key': storage_key,
+            'download_url': f"/api/chat/download/{storage_key}"
         }
         
         # 로그 기록
@@ -5685,8 +6408,9 @@ def api_upload_blueprint(order_id):
         if not result.get('success'):
             return jsonify({'success': False, 'message': '파일 업로드 실패: ' + result.get('message', '알 수 없는 오류')}), 500
         
-        # DB에 URL 저장
-        order.blueprint_image_url = result.get('url')
+        # ⚠️ presigned URL 만료 문제 방지:
+        # DB에는 key 기반 view URL을 저장하여, R2/S3에서도 항상 동작하게 한다.
+        order.blueprint_image_url = build_file_view_url(result.get('key'))
         db.commit()
         
         return jsonify({
@@ -6179,55 +6903,110 @@ def api_put_order_structured(order_id):
             _record_build_step(db, step_key, "FAILED", message="structured_data must be an object")
             return jsonify({'success': False, 'message': 'structured_data는 JSON 객체여야 합니다.'}), 400
 
+        old_sd = order.structured_data or {}
+
         if raw_order_text is not None:
             order.raw_order_text = raw_order_text
         if structured_data is not None:
+            # Canonical ERP mode: structured_data를 원천 데이터로 사용
+            # workflow/flags/assignments 기본 구조 보정
+            if not structured_data.get('workflow'):
+                structured_data['workflow'] = {}
+            if not structured_data.get('flags'):
+                structured_data['flags'] = {}
+            if not structured_data.get('assignments'):
+                structured_data['assignments'] = {}
+
+            # workflow.stage 변경 감지 + timestamp 기록
+            try:
+                new_stage = (structured_data.get('workflow') or {}).get('stage')
+                old_stage = (old_sd.get('workflow') or {}).get('stage')
+                if new_stage and new_stage != old_stage:
+                    (structured_data.get('workflow') or {})['stage_updated_at'] = datetime.datetime.now().isoformat()
+                    # 이벤트 기록
+                    ev = OrderEvent(
+                        order_id=order.id,
+                        event_type='STAGE_CHANGED',
+                        payload={'from': old_stage, 'to': new_stage},
+                        created_by_user_id=session.get('user_id')
+                    )
+                    db.add(ev)
+            except Exception as _e:
+                pass
+
+            # 긴급 변경 이벤트
+            try:
+                new_urgent = bool((structured_data.get('flags') or {}).get('urgent'))
+                old_urgent = bool((old_sd.get('flags') or {}).get('urgent'))
+                if new_urgent != old_urgent:
+                    ev = OrderEvent(
+                        order_id=order.id,
+                        event_type='URGENT_CHANGED',
+                        payload={'from': old_urgent, 'to': new_urgent, 'reason': (structured_data.get('flags') or {}).get('urgent_reason')},
+                        created_by_user_id=session.get('user_id')
+                    )
+                    db.add(ev)
+            except Exception:
+                pass
+
+            # 일정 변경 이벤트(실측/시공)
+            try:
+                new_meas = ((structured_data.get('schedule') or {}).get('measurement') or {}).get('date')
+                old_meas = ((old_sd.get('schedule') or {}).get('measurement') or {}).get('date')
+                if new_meas != old_meas:
+                    db.add(OrderEvent(
+                        order_id=order.id,
+                        event_type='MEASUREMENT_DATE_CHANGED',
+                        payload={'from': old_meas, 'to': new_meas},
+                        created_by_user_id=session.get('user_id')
+                    ))
+            except Exception:
+                pass
+
+            try:
+                new_cons = ((structured_data.get('schedule') or {}).get('construction') or {}).get('date')
+                old_cons = ((old_sd.get('schedule') or {}).get('construction') or {}).get('date')
+                if new_cons != old_cons:
+                    db.add(OrderEvent(
+                        order_id=order.id,
+                        event_type='CONSTRUCTION_DATE_CHANGED',
+                        payload={'from': old_cons, 'to': new_cons},
+                        created_by_user_id=session.get('user_id')
+                    ))
+            except Exception:
+                pass
+
+            # 오너팀 변경 이벤트
+            try:
+                new_team = (structured_data.get('assignments') or {}).get('owner_team')
+                old_team = (old_sd.get('assignments') or {}).get('owner_team')
+                if new_team != old_team:
+                    db.add(OrderEvent(
+                        order_id=order.id,
+                        event_type='OWNER_TEAM_CHANGED',
+                        payload={'from': old_team, 'to': new_team},
+                        created_by_user_id=session.get('user_id')
+                    ))
+            except Exception:
+                pass
+
+            # ------------------------------------------------------------
+            # SLA 기반 자동 Task 생성(중복 방지)
+            # ------------------------------------------------------------
+            try:
+                apply_auto_tasks(db, order.id, structured_data)
+            except Exception as _e:
+                # 자동화 실패가 저장 자체를 막지 않음
+                print(f"[ERP_BETA] auto-task apply warning: {_e}")
+
             order.structured_data = structured_data
         order.structured_schema_version = int(schema_version) if schema_version else 1
         order.structured_confidence = confidence or (structured_data.get('confidence') if structured_data else None)
         order.structured_updated_at = datetime.datetime.now()
 
-        # ============================================
-        # Bridge: structured_data -> Order columns
-        # (기존 캘린더/지도/검색과 즉시 연동되도록)
-        # ============================================
-        if structured_data and isinstance(structured_data, dict):
-            try:
-                cust_name = (structured_data.get('parties', {}).get('customer', {}) or {}).get('name')
-                cust_phone = (structured_data.get('parties', {}).get('customer', {}) or {}).get('phone')
-                addr_full = (structured_data.get('site', {}) or {}).get('address_full')
-                mgr_name = (structured_data.get('parties', {}).get('manager', {}) or {}).get('name')
-
-                meas = (structured_data.get('schedule', {}) or {}).get('measurement', {}) or {}
-                meas_date = meas.get('date')
-                meas_time = meas.get('time')
-
-                # payment_amount는 선결제(prepayment.amount)가 있으면 반영
-                pay = (structured_data.get('payments', {}) or {}).get('prepayment', {}) or {}
-                prepay_amount = pay.get('amount')
-
-                # 안전 업데이트: 값이 "있을 때만" 덮어쓰기 (빈값으로 기존 데이터 삭제 방지)
-                def has_value(v):
-                    return v is not None and str(v).strip() != ''
-
-                if has_value(cust_name):
-                    order.customer_name = str(cust_name).strip()
-                if has_value(cust_phone):
-                    order.phone = str(cust_phone).strip()
-                if has_value(addr_full):
-                    order.address = str(addr_full).strip()
-                if has_value(mgr_name):
-                    order.manager_name = str(mgr_name).strip()
-                if has_value(meas_date):
-                    order.measurement_date = str(meas_date).strip()
-                if has_value(meas_time):
-                    order.measurement_time = str(meas_time).strip()
-
-                if isinstance(prepay_amount, int):
-                    order.payment_amount = prepay_amount
-            except Exception as sync_err:
-                # 동기화 실패는 저장 자체를 막지 않음 (ERP Beta 단계에서 유연성 유지)
-                print(f"[ERP_BETA] structured->order sync warning: {sync_err}")
+        # NOTE: 기존 주문 정보(Order 컬럼)는 레거시/호환용으로 유지될 수 있으나,
+        # ERP 구현 기준에서는 structured_data가 원천 데이터다.
+        # (필요 시 별도 스텝/옵션으로 브릿지 재활성화 가능)
 
         db.commit()
         _record_build_step(db, step_key, "COMPLETED", message="Saved structured data")

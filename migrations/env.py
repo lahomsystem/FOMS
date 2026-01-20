@@ -25,6 +25,22 @@ from db import Base
 from models import Order, User, AccessLog, SecurityLog
 target_metadata = Base.metadata
 
+def _normalize_postgres_url(url: str) -> str:
+    """
+    Railway 등에서 DATABASE_URL이 'postgres://'로 내려오는 경우가 있어
+    SQLAlchemy/psycopg2 호환을 위해 'postgresql://'로 정규화.
+    """
+    if not url:
+        return url
+    if url.startswith("postgres://"):
+        return "postgresql://" + url[len("postgres://"):]
+    return url
+
+def _get_database_url() -> str:
+    # env 우선, 없으면 alembic.ini 값을 사용
+    env_url = os.getenv("DATABASE_URL")
+    ini_url = config.get_main_option("sqlalchemy.url")
+    return _normalize_postgres_url(env_url or ini_url)
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
@@ -43,7 +59,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = _get_database_url()
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -62,6 +78,9 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # env 기반 URL을 alembic config에 주입 (Railway 대응)
+    config.set_main_option("sqlalchemy.url", _get_database_url())
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
