@@ -403,6 +403,46 @@
         padding: 4px;
     }
     
+    /* 채팅 이미지 다운로드 버튼 */
+    .message-file-image-wrapper {
+        position: relative;
+        display: inline-block;
+        margin: 4px;
+    }
+    
+    .chat-image-download-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-color: rgba(0, 0, 0, 0.6);
+        color: white;
+        border: 2px solid white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        z-index: 10;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        transition: all 0.2s;
+    }
+    
+    .chat-image-download-btn:hover {
+        background-color: rgba(0, 0, 0, 0.8);
+        transform: scale(1.1);
+    }
+    
+    .chat-image-download-btn:active {
+        transform: scale(0.95);
+    }
+    
+    .message-file-image-wrapper:hover .chat-image-download-btn {
+        opacity: 1;
+    }
+    
     .chat-input-area {
         padding: 15px 20px;
         border-top: 1px solid #ddd;
@@ -2204,24 +2244,69 @@ function renderMessage(msg) {
     if (msg.message_type === 'text') {
         content = escapeHtml(msg.content || '');
     } else if (msg.attachments && msg.attachments.length > 0) {
-        const attachment = msg.attachments[0];
-        if (attachment.file_type === 'image') {
-            const imageUrl = attachment.url || attachment.storage_url;
-            content = `<div class="message-file">
-                          <img src="${attachment.thumbnail_url || imageUrl}" 
-                               onclick="openImageLightbox('${imageUrl}')" 
-                               style="cursor: zoom-in;">
-                       </div>`;
-        } else if (attachment.file_type === 'video') {
-            const videoUrl = attachment.url || attachment.storage_url;
-            content = `<video controls style="max-width: 300px;">
-                          <source src="${videoUrl}">
-                       </video>`;
+        // 이미지 첨부파일 필터링
+        const imageAttachments = msg.attachments.filter(a => a.file_type === 'image');
+        const hasMultipleImages = imageAttachments.length > 1;
+        
+        if (imageAttachments.length > 0) {
+            // 이미지들 렌더링 (다운로드 아이콘 포함)
+            const imageHtml = imageAttachments.map((attachment, index) => {
+                const imageUrl = attachment.url || attachment.storage_url;
+                const storageKey = attachment.storage_key || '';
+                const filename = attachment.filename || `image_${index + 1}.jpg`;
+                
+                return `
+                    <div class="message-file-image-wrapper">
+                        <img src="${attachment.thumbnail_url || imageUrl}" 
+                             onclick="openImageLightbox('${imageUrl}')" 
+                             style="cursor: zoom-in; max-width: 300px; border-radius: 8px; background-color: white; padding: 4px; display: block;">
+                        <button class="chat-image-download-btn" 
+                                onclick="downloadChatImage('${storageKey}', '${escapeHtml(filename)}', event)"
+                                title="다운로드">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+            
+            // 여러 이미지가 있으면 "전체 다운로드" 버튼 추가
+            const downloadAllBtn = hasMultipleImages ? `
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-outline-primary" 
+                            onclick="downloadAllChatImages(${msg.id}, event)"
+                            title="모든 이미지 다운로드">
+                        <i class="fas fa-download"></i> 전체 다운로드 (${imageAttachments.length}개)
+                    </button>
+                </div>
+            ` : '';
+            
+            content = `<div class="message-file">${imageHtml}${downloadAllBtn}</div>`;
         } else {
-            const fileUrl = attachment.url || attachment.storage_url;
-            content = `<a href="${fileUrl}" target="_blank" class="btn btn-sm btn-outline-primary">
-                          <i class="fas fa-download"></i> ${escapeHtml(attachment.filename)}
-                       </a>`;
+            // 이미지가 아닌 첨부파일 처리
+            const attachment = msg.attachments[0];
+            if (attachment.file_type === 'video') {
+                const videoUrl = attachment.url || attachment.storage_url;
+                const storageKey = attachment.storage_key || '';
+                const filename = attachment.filename || 'video.mp4';
+                
+                content = `
+                    <div class="message-file" style="position: relative; display: inline-block;">
+                        <video controls style="max-width: 300px;">
+                            <source src="${videoUrl}">
+                        </video>
+                        <button class="chat-image-download-btn" 
+                                onclick="downloadChatImage('${storageKey}', '${escapeHtml(filename)}', event)"
+                                title="다운로드">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </div>
+                `;
+            } else {
+                const fileUrl = attachment.url || attachment.storage_url;
+                content = `<a href="${fileUrl}" target="_blank" class="btn btn-sm btn-outline-primary">
+                              <i class="fas fa-download"></i> ${escapeHtml(attachment.filename)}
+                           </a>`;
+            }
         }
     }
     
@@ -2458,6 +2543,68 @@ function removePreview() {
     if (fileInput) {
         fileInput.value = '';
     }
+}
+
+// 채팅 이미지 다운로드 함수
+function downloadChatImage(storageKey, filename, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    
+    if (!storageKey) {
+        alert('다운로드할 수 없습니다. 파일 정보가 없습니다.');
+        return;
+    }
+    
+    // 다운로드 API 호출
+    const downloadUrl = `/api/chat/download/${encodeURIComponent(storageKey)}`;
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// 전체 이미지 다운로드 함수
+function downloadAllChatImages(messageId, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    
+    // 현재 채팅방의 메시지 데이터에서 attachments 찾기
+    fetch(`/api/chat/messages/${messageId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.message && data.message.attachments) {
+                const imageAttachments = data.message.attachments.filter(a => a.file_type === 'image');
+                
+                if (imageAttachments.length === 0) {
+                    alert('다운로드할 이미지가 없습니다.');
+                    return;
+                }
+                
+                // 각 이미지를 순차적으로 다운로드
+                imageAttachments.forEach((attachment, index) => {
+                    setTimeout(() => {
+                        const storageKey = attachment.storage_key || '';
+                        const filename = attachment.filename || `image_${index + 1}.jpg`;
+                        if (storageKey) {
+                            downloadChatImage(storageKey, filename, null);
+                        }
+                    }, index * 300); // 300ms 간격으로 다운로드
+                });
+            } else {
+                alert('메시지 정보를 가져올 수 없습니다.');
+            }
+        })
+        .catch(error => {
+            console.error('메시지 조회 오류:', error);
+            alert('메시지 정보를 가져오는 중 오류가 발생했습니다.');
+        });
 }
 
 // 사용자 목록 로드 함수
