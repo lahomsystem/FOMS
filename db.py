@@ -4,14 +4,28 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from flask import g
 
-# 데이터베이스 연결 정보 하드코딩
+def _normalize_postgres_url(url: str) -> str:
+    """
+    Railway 등에서 DATABASE_URL이 'postgres://'로 내려오는 경우가 있어
+    SQLAlchemy/psycopg2 호환을 위해 'postgresql://'로 정규화.
+    """
+    if not url:
+        return url
+    if url.startswith("postgres://"):
+        return "postgresql://" + url[len("postgres://"):]
+    return url
+
+# 데이터베이스 연결 정보 (환경변수 우선)
 # psycopg2 드라이버를 명시적으로 지정
-DB_URL = "postgresql+psycopg2://postgres:lahom@localhost/furniture_orders"
+DB_URL = _normalize_postgres_url(
+    os.getenv("DATABASE_URL") or "postgresql+psycopg2://postgres:lahom@localhost/furniture_orders"
+)
 
 # SQLAlchemy 엔진 생성
 engine = create_engine(
     DB_URL,
     connect_args={"client_encoding": "utf8"},
+    pool_pre_ping=True,
     echo=False  # SQL 로그 비활성화
 )
 
@@ -26,7 +40,8 @@ def init_db():
         # models는 함수 내부에서 임포트하여 순환 참조 방지
         from models import (
             Order, User, AccessLog, SecurityLog,
-            ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment
+            ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment,
+            OrderAttachment, OrderEvent, OrderTask
         )
         Base.metadata.create_all(bind=engine)
         print("데이터베이스 테이블 초기화 완료")

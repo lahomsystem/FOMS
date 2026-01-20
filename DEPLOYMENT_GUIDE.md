@@ -11,6 +11,17 @@ Railway 대시보드에서 다음 환경 변수를 설정하세요:
 DATABASE_URL=postgresql://user:password@host:port/dbname
 ```
 
+#### WDCalculator (권장: 단일 DB + 스키마 분리)
+- 기본 동작: WDCalculator는 `DATABASE_URL`과 **같은 DB**를 사용하고, 테이블은 `wdcalculator` 스키마에 생성됩니다.
+- 스키마명 변경(선택):
+```
+WD_CALCULATOR_SCHEMA=wdcalculator
+```
+- 레거시(별도 DB) 모드로 유지하고 싶다면(선택):
+```
+WD_CALCULATOR_DATABASE_URL=postgresql://user:password@host:port/wdcalculator_estimates
+```
+
 #### 스토리지 설정 (선택사항)
 - 로컬 저장소 사용 (개발용):
 ```
@@ -79,6 +90,11 @@ railway link
 4. 데이터베이스 마이그레이션 실행:
 ```bash
 railway run python -c "from app import app; from db import init_db; app.app_context().push(); init_db()"
+```
+
+5. WDCalculator 스키마/테이블 초기화(권장: 배포 직후 1회 실행):
+```bash
+railway run python -c "from app import app; from wdcalculator_db import init_wdcalculator_db; app.app_context().push(); init_wdcalculator_db()"
 ```
 
 ### 5. 파일 저장소 설정

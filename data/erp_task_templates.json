@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "stages": {
+    "RECEIVED": [
+      {
+        "key": "VERIFY_INFO",
+        "title": "주문 정보 확인(고객/연락처/주소)",
+        "owner_team": "SALES"
+      }
+    ],
+    "HAPPYCALL": [
+      {
+        "key": "HAPPYCALL_CONTACT",
+        "title": "해피콜 진행(실측/시공 일정 확정)",
+        "owner_team": "CS",
+        "due": { "type": "measurement_date", "offset_business_days": -4 }
+      }
+    ],
+    "MEASURE": [
+      {
+        "key": "MEASURE_CONFIRM",
+        "title": "실측 진행 및 결과 정리",
+        "owner_team": "MEASURE",
+        "due": { "type": "measurement_date", "offset_business_days": 0 }
+      }
+    ],
+    "DRAWING": [
+      {
+        "key": "DRAWING_CREATE",
+        "title": "도면 작성/업로드",
+        "owner_team": "DRAWING",
+        "due": { "type": "blueprint_sla", "offset_hours": 48 }
+      },
+      {
+        "key": "REQUEST_CONFIRM",
+        "title": "고객 컨펌 요청/추적",
+        "owner_team": "CS",
+        "due": { "type": "construction_date", "offset_business_days": -3 }
+      }
+    ],
+    "CONFIRM": [
+      {
+        "key": "FINAL_CONFIRM",
+        "title": "최종 컨펌 수집/기록",
+        "owner_team": "CS",
+        "due": { "type": "construction_date", "offset_business_days": -3 }
+      }
+    ],
+    "PRODUCTION": [
+      {
+        "key": "PRODUCTION_PLAN",
+        "title": "생산 착수/일정 확정",
+        "owner_team": "PRODUCTION",
+        "due": { "type": "construction_date", "offset_business_days": -2 }
+      }
+    ],
+    "CONSTRUCTION": [
+      {
+        "key": "CONSTRUCTION_PREP",
+        "title": "시공 준비/자재/인력 확인",
+        "owner_team": "CONSTRUCTION",
+        "due": { "type": "construction_date", "offset_business_days": -1 }
+      },
+      {
+        "key": "CONSTRUCTION_DONE",
+        "title": "시공 완료 처리/사진 정리",
+        "owner_team": "CONSTRUCTION",
+        "due": { "type": "construction_date", "offset_business_days": 0 }
+      }
+    ]
+  }
+}
+

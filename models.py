@@ -60,6 +60,8 @@ class Order(Base):
     # ============================================
     # ERP Beta (Palantir-style structured data)
     # ============================================
+    # ERP Beta로 생성된 주문인지 여부 (ERP 대시보드 노출/운영 분리용)
+    is_erp_beta = Column(Boolean, nullable=False, default=False, server_default='false')
     raw_order_text = Column(Text, nullable=True)  # 원문 텍스트(붙여넣기) 보관
     structured_data = Column(JSONB, nullable=True)  # 구조화 데이터(JSONB)
     structured_schema_version = Column(Integer, nullable=False, default=1)
@@ -68,6 +70,71 @@ class Order(Base):
     
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+
+class OrderAttachment(Base):
+    """주문(ERP Beta 등) 첨부파일: 사진/동영상 메타데이터만 저장 (파일 바이너리는 스토리지에 저장)"""
+    __tablename__ = 'order_attachments'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+
+    filename = Column(String(255), nullable=False)
+    file_type = Column(String(50), nullable=False)  # image / video
+    file_size = Column(Integer, nullable=False, default=0)
+
+    storage_key = Column(String(500), nullable=False)  # static/uploads 기준 key 또는 R2 key
+    thumbnail_key = Column(String(500), nullable=True)  # 이미지 썸네일 key (선택)
+
+    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+
+    order = relationship('Order', foreign_keys=[order_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'filename': self.filename,
+            'file_type': self.file_type,
+            'file_size': self.file_size,
+            'storage_key': self.storage_key,
+            'thumbnail_key': self.thumbnail_key,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
+        }
+
+
+class OrderEvent(Base):
+    """ERP 이벤트 스트림(단계 변경/일정 변경/긴급 발주/컨펌 등)"""
+    __tablename__ = 'order_events'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    event_type = Column(String(50), nullable=False, index=True)  # e.g. STAGE_CHANGED, URGENT_SET
+    payload = Column(JSONB, nullable=True)
+    created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False, index=True)
+
+    order = relationship('Order', foreign_keys=[order_id])
+    created_by = relationship('User', foreign_keys=[created_by_user_id])
+
+
+class OrderTask(Base):
+    """팔로업/이슈 추적(Task)"""
+    __tablename__ = 'order_tasks'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    status = Column(String(30), nullable=False, default='OPEN')  # OPEN/IN_PROGRESS/DONE/CANCELLED
+    owner_team = Column(String(50), nullable=True)  # CS/SALES/MEASURE/DRAWING/PRODUCTION/CONSTRUCTION
+    owner_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    due_date = Column(String, nullable=True)  # YYYY-MM-DD
+    meta = Column(JSONB, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+
+    order = relationship('Order', foreign_keys=[order_id])
+    owner_user = relationship('User', foreign_keys=[owner_user_id])
 
 
 class SystemBuildStep(Base):

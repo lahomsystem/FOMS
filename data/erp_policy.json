@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "rules": {
+    "blueprint_sla_hours": 48,
+    "measurement_imminent_business_days": 4,
+    "construction_imminent_business_days": 3,
+    "production_imminent_business_days": 2
+  },
+  "teams": {
+    "default_owner_team_by_stage": {
+      "RECEIVED": "SALES",
+      "HAPPYCALL": "CS",
+      "MEASURE": "MEASURE",
+      "DRAWING": "DRAWING",
+      "CONFIRM": "DRAWING",
+      "PRODUCTION": "PRODUCTION",
+      "CONSTRUCTION": "CONSTRUCTION"
+    }
+  },
+  "automation": {
+    "enable_auto_tasks": true,
+    "enable_stage_templates": true,
+    "enabled_auto_keys": [
+      "AUTO_URGENT",
+      "AUTO_BLUEPRINT_48H",
+      "AUTO_MEASURE_D4",
+      "AUTO_CONSTRUCT_D3",
+      "AUTO_PRODUCTION_D2"
+    ]
+  }
+}
+
