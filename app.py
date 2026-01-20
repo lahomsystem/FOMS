@@ -28,6 +28,8 @@ from foms_map_generator import FOMSMapGenerator
 
 # 스토리지 시스템 임포트 (Quest 2)
 from storage import get_storage
+from erp_order_text_parser import parse_order_text
+from map_config import KAKAO_REST_API_KEY
 
 # SocketIO 임포트 (Quest 5)
 try:
@@ -406,13 +408,17 @@ def inject_status_list():
     current_user = None
     if 'user_id' in session:
         current_user = get_user_by_id(session['user_id'])
+
+    # ERP Beta 플래그 (기본: 활성) - 필요 시 환경변수로 OFF 가능
+    erp_beta_enabled = str(os.getenv('ERP_BETA_ENABLED', 'true')).lower() in ['1', 'true', 'yes', 'y', 'on']
     
     return dict(
         STATUS=display_status, 
         BULK_ACTION_STATUS=bulk_action_status,
         ALL_STATUS=STATUS, 
         ROLES=ROLES,
-        current_user=current_user
+        current_user=current_user,
+        erp_beta_enabled=erp_beta_enabled
     )
 
 def parse_json_string(json_string):
@@ -1952,6 +1958,227 @@ def map_view():
     """지도 보기 페이지"""
     return render_template('map_view.html')
 
+
+# ============================================
+# ERP Beta Dashboards (Next Build)
+# ============================================
+
+@app.route('/erp/measurement')
+@login_required
+def erp_measurement_dashboard():
+    """ERP Beta - 실측 대시보드 (structured_data 기반, MVP는 Order 컬럼 연동으로 운용)"""
+    db = get_db()
+    selected_date = request.args.get('date') or datetime.datetime.now().strftime('%Y-%m-%d')
+    manager_filter = (request.args.get('manager') or '').strip()
+    open_map = request.args.get('open_map') == '1'
+
+    query = db.query(Order).filter(Order.status != 'DELETED')
+
+    # MVP: 기존 컬럼 기반(ERP Beta 저장 시 동기화되므로 바로 활용 가능)
+    if selected_date:
+        query = query.filter(Order.measurement_date == selected_date)
+    if manager_filter:
+        query = query.filter(Order.manager_name.ilike(f'%{manager_filter}%'))
+
+    rows = query.order_by(Order.id.desc()).limit(300).all()
+
+    # 지도 보기 요청이면 기존 map_view를 date/status 파라미터로 오픈하도록 리다이렉트
+    # (map_view가 URL param을 읽어 초기값 설정)
+    if open_map:
+        return redirect(url_for('map_view', date=selected_date, status='MEASURED'))
+
+    return render_template(
+        'erp_measurement_dashboard.html',
+        selected_date=selected_date,
+        manager_filter=manager_filter,
+        rows=rows
+    )
+
+
+@app.route('/api/erp/measurement/route')
+@login_required
+def api_erp_measurement_route():
+    """
+    ERP Beta - 실측 동선 추천 (MVP)
+    - 지정 날짜/담당자 기준으로 주문 주소를 좌표로 변환
+    - 간단한 그리디(최근접)로 방문 순서 추천
+    - 거리 계산은 Haversine(근사) 사용 (API 과호출 방지)
+    """
+    db = get_db()
+    date_filter = request.args.get('date') or datetime.datetime.now().strftime('%Y-%m-%d')
+    manager_filter = (request.args.get('manager') or '').strip()
+    limit = int(request.args.get('limit', 20))
+
+    # 과도한 주소 변환/API 호출 방지
+    limit = max(1, min(limit, 30))
+
+    query = db.query(Order).filter(Order.status != 'DELETED')
+    query = query.filter(Order.measurement_date == date_filter)
+    if manager_filter:
+        query = query.filter(Order.manager_name.ilike(f'%{manager_filter}%'))
+
+    orders = query.order_by(Order.measurement_time.asc().nullslast(), Order.id.asc()).limit(limit).all()
+
+    converter = FOMSAddressConverter()
+
+    points = []
+    for o in orders:
+        lat, lng, status = converter.convert_address(o.address)
+        if lat is None or lng is None:
+            continue
+        points.append({
+            "id": o.id,
+            "customer_name": o.customer_name,
+            "phone": o.phone,
+            "address": o.address,
+            "measurement_time": o.measurement_time,
+            "manager_name": o.manager_name,
+            "status": o.status,
+            "lat": float(lat),
+            "lng": float(lng),
+            "geo_status": status
+        })
+
+    if len(points) <= 1:
+        return jsonify({
+            "success": True,
+            "date": date_filter,
+            "manager": manager_filter,
+            "total_points": len(points),
+            "route": points,
+            "total_distance_km": 0
+        })
+
+    # 옵션: 카카오 내비 경로(차량) 기반으로 구간 거리/시간 계산
+    use_kakao = request.args.get('use_kakao') in ['1', 'true', 'True', 'yes', 'on']
+    kakao_max_legs = int(request.args.get('kakao_max_legs', 12))  # 과도한 API 호출 방지
+    kakao_max_legs = max(0, min(kakao_max_legs, 30))
+
+    # Haversine distance (km) - 순서 추천(최근접)용
+    import math
+    def haversine_km(a, b):
+        R = 6371.0
+        lat1 = math.radians(a["lat"])
+        lon1 = math.radians(a["lng"])
+        lat2 = math.radians(b["lat"])
+        lon2 = math.radians(b["lng"])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        return 2 * R * math.asin(math.sqrt(h))
+
+    # 시작점: 실측시간이 가장 빠른 항목(정렬 결과의 첫번째)
+    remaining = points[:]
+    route = [remaining.pop(0)]
+    total_km = 0.0
+
+    while remaining:
+        last = route[-1]
+        best_i = 0
+        best_d = float("inf")
+        for i, cand in enumerate(remaining):
+            d = haversine_km(last, cand)
+            if d < best_d:
+                best_d = d
+                best_i = i
+        next_pt = remaining.pop(best_i)
+        total_km += best_d
+        route.append(next_pt)
+
+    # 구간 거리(legs)
+    # - 기본: Haversine(근사)
+    # - use_kakao=1이면: 카카오 내비 API로 구간 거리/시간(차량) 계산 (호출 수 제한)
+    legs = []
+    total_km_h = 0.0
+    total_km_kakao = 0.0
+    total_min_kakao = 0
+
+    for i in range(len(route) - 1):
+        a = route[i]
+        b = route[i + 1]
+        d_h = haversine_km(a, b)
+        total_km_h += d_h
+
+        leg = {
+            "from_id": a["id"],
+            "to_id": b["id"],
+            "distance_km_est": round(d_h, 2),
+        }
+
+        if use_kakao and i < kakao_max_legs:
+            route_info = converter.calculate_route(a["lat"], a["lng"], b["lat"], b["lng"])
+            if route_info and route_info.get("status") == "success":
+                leg["distance_km"] = route_info.get("distance_km")
+                leg["duration_min"] = route_info.get("duration_min")
+                leg["toll"] = route_info.get("toll")
+                leg["summary"] = route_info.get("summary")
+                if isinstance(route_info.get("distance_km"), (int, float)):
+                    total_km_kakao += float(route_info["distance_km"])
+                if isinstance(route_info.get("duration_min"), (int, float)):
+                    total_min_kakao += int(round(route_info["duration_min"]))
+            else:
+                # 카카오 실패 시 근사치만 유지
+                leg["distance_km"] = round(d_h, 2)
+        else:
+            leg["distance_km"] = round(d_h, 2)
+
+        legs.append(leg)
+
+    return jsonify({
+        "success": True,
+        "date": date_filter,
+        "manager": manager_filter,
+        "total_points": len(route),
+        "route": route,
+        "legs": legs,
+        "total_distance_km": round(total_km_kakao, 2) if use_kakao and total_km_kakao > 0 else round(total_km_h, 2),
+        "total_duration_min": total_min_kakao if use_kakao and total_min_kakao > 0 else None,
+        "note": (
+            f"카카오 내비 경로 기반(구간 {min(len(route)-1, kakao_max_legs)}개 계산)입니다."
+            if use_kakao else
+            "거리/동선은 직선거리(Haversine) 기반 근사치입니다."
+        )
+    })
+
+
+@app.route('/erp/as')
+@login_required
+def erp_as_dashboard():
+    """ERP Beta - AS 대시보드 (MVP: AS 상태 주문 리스트)"""
+    db = get_db()
+    status_filter = (request.args.get('status') or '').strip()
+    manager_filter = (request.args.get('manager') or '').strip()
+    selected_date = request.args.get('date')  # map_view 연동용(선택)
+    open_map = request.args.get('open_map') == '1'
+
+    query = db.query(Order).filter(Order.status != 'DELETED')
+
+    if status_filter:
+        query = query.filter(Order.status == status_filter)
+    else:
+        # 기본은 AS 관련 상태만
+        query = query.filter(Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']))
+
+    if manager_filter:
+        query = query.filter(Order.manager_name.ilike(f'%{manager_filter}%'))
+
+    rows = query.order_by(Order.id.desc()).limit(300).all()
+
+    if open_map:
+        # 날짜가 없으면 오늘
+        date_val = selected_date or datetime.datetime.now().strftime('%Y-%m-%d')
+        # 상태가 없으면 ALL로
+        status_val = status_filter or 'ALL'
+        return redirect(url_for('map_view', date=date_val, status=status_val))
+
+    return render_template(
+        'erp_as_dashboard.html',
+        status_filter=status_filter,
+        manager_filter=manager_filter,
+        selected_date=selected_date,
+        rows=rows
+    )
+
 @app.route('/api/map_data')
 @login_required
 def api_map_data():
@@ -2788,6 +3015,20 @@ def load_menu_config():
 @app.context_processor
 def inject_menu():
     menu_config = load_menu_config()
+
+    # ERP Beta ON이면 메뉴에 테스트 대시보드를 "자동 추가" (파일 저장 없이)
+    erp_beta_enabled = str(os.getenv('ERP_BETA_ENABLED', 'true')).lower() in ['1', 'true', 'yes', 'y', 'on']
+    if erp_beta_enabled and isinstance(menu_config, dict):
+        main_menu = menu_config.get('main_menu', [])
+        if isinstance(main_menu, list):
+            existing_urls = {m.get('url') for m in main_menu if isinstance(m, dict)}
+            # 중복 방지
+            if '/erp/measurement' not in existing_urls:
+                main_menu.append({'id': 'erp_measurement', 'name': 'ERP 실측(베타)', 'url': '/erp/measurement'})
+            if '/erp/as' not in existing_urls:
+                main_menu.append({'id': 'erp_as', 'name': 'ERP AS(베타)', 'url': '/erp/as'})
+            menu_config['main_menu'] = main_menu
+
     return dict(menu=menu_config)
 
 # Jinja 필터: 메시지 내 "주문 #<번호>"를 클릭 가능한 링크로 변환
@@ -3374,10 +3615,16 @@ def self_measurement_dashboard():
     # 모든 자가실측 주문 가져오기
     all_self_measurement_orders = base_query.order_by(Order.id.desc()).all()
     
+    # AS 접수된 주문 분류
+    as_orders = [
+        order for order in all_self_measurement_orders
+        if order.status == 'AS_RECEIVED'
+    ]
+
     # 완료된 주문 분류
     completed_orders = [
         order for order in all_self_measurement_orders
-        if order.status == 'COMPLETED'
+        if order.status in ['COMPLETED', 'AS_COMPLETED']
     ]
     
     # 설치예정인 주문 분류
@@ -3386,15 +3633,16 @@ def self_measurement_dashboard():
         if order.status == 'SCHEDULED'
     ]
     
-    # 진행 중인 주문 분류 (완료되지 않고 설치예정도 아닌 주문)
+    # 진행 중인 주문 분류 (완료/설치예정/AS접수 제외)
     pending_orders = [
         order for order in all_self_measurement_orders
-        if order.status != 'COMPLETED' and order.status != 'SCHEDULED'
+        if order.status not in ['COMPLETED', 'AS_COMPLETED', 'SCHEDULED', 'AS_RECEIVED']
     ]
     
     return render_template('self_measurement_dashboard.html',
                            pending_orders=pending_orders,
                            scheduled_orders=scheduled_orders,
+                           as_orders=as_orders,
                            completed_orders=completed_orders,
                            search_query=search_query,
                            STATUS=STATUS)
@@ -5779,6 +6027,292 @@ def api_chat_send_message():
         print(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)}), 500
 
+@app.route('/api/chat/messages/<int:message_id>', methods=['GET'])
+@login_required
+def api_chat_get_message(message_id):
+    """단일 메시지 조회 API"""
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        
+        message = db.query(ChatMessage).filter(ChatMessage.id == message_id).first()
+        
+        if not message:
+            return jsonify({'success': False, 'message': '메시지를 찾을 수 없습니다.'}), 404
+        
+        # 권한 확인 (채팅방 멤버인지)
+        member = db.query(ChatRoomMember).filter(
+            ChatRoomMember.room_id == message.room_id,
+            ChatRoomMember.user_id == user_id
+        ).first()
+        
+        if not member:
+            return jsonify({'success': False, 'message': '권한이 없습니다.'}), 403
+        
+        # 메시지 데이터 구성
+        message_data = message.to_dict()
+        user = db.query(User).filter(User.id == message.user_id).first()
+        if user:
+            message_data['user_name'] = user.name
+        
+        # 첨부파일 정보 추가
+        attachments = db.query(ChatAttachment).filter(
+            ChatAttachment.message_id == message.id
+        ).all()
+        if attachments:
+            message_data['attachments'] = [a.to_dict() for a in attachments]
+        
+        return jsonify({
+            'success': True,
+            'message': message_data
+        })
+    except Exception as e:
+        import traceback
+        print(f"메시지 조회 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ============================================
+# ERP Beta: Structured Order Data APIs (Step 3)
+# ============================================
+
+def _ensure_system_build_steps_table(db):
+    """B안: 진행상태는 DB 테이블에만 기록. 테이블이 없으면 생성."""
+    db.execute(text("""
+    CREATE TABLE IF NOT EXISTS system_build_steps (
+        step_key VARCHAR(100) PRIMARY KEY,
+        status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+        started_at TIMESTAMP NULL,
+        completed_at TIMESTAMP NULL,
+        message TEXT NULL,
+        meta JSONB NULL
+    );
+    """))
+    db.commit()
+
+
+def _record_build_step(db, step_key, status, message=None, meta=None):
+    # 빌드 체크포인트는 "부가 기능"이므로, 실패해도 API 자체는 죽지 않게 한다.
+    try:
+        _ensure_system_build_steps_table(db)
+        meta_json = json.dumps(meta, ensure_ascii=False) if isinstance(meta, (dict, list)) else None
+        now = datetime.datetime.now()
+        db.execute(
+            text("""
+            INSERT INTO system_build_steps (step_key, status, started_at, completed_at, message, meta)
+            VALUES (:k, :s, :started, :completed, :m, CAST(:meta AS JSONB))
+            ON CONFLICT (step_key)
+            DO UPDATE SET
+                status = EXCLUDED.status,
+                started_at = COALESCE(system_build_steps.started_at, EXCLUDED.started_at),
+                completed_at = CASE WHEN EXCLUDED.status IN ('COMPLETED','FAILED') THEN EXCLUDED.completed_at ELSE system_build_steps.completed_at END,
+                message = EXCLUDED.message,
+                meta = COALESCE(EXCLUDED.meta, system_build_steps.meta);
+            """),
+            {
+                "k": step_key,
+                "s": status,
+                "started": now if status == "RUNNING" else None,
+                "completed": now if status in ["COMPLETED", "FAILED"] else None,
+                "m": message,
+                "meta": meta_json,
+            }
+        )
+        db.commit()
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        print(f"[ERP_BETA] build-step log warning: {e}")
+
+
+@app.route('/api/orders/<int:order_id>/structured', methods=['GET'])
+@login_required
+def api_get_order_structured(order_id):
+    """구조화 데이터 조회(전사 공용)."""
+    db = get_db()
+    try:
+        order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        return jsonify({
+            'success': True,
+            'order_id': order.id,
+            'raw_order_text': order.raw_order_text,
+            'structured_data': order.structured_data,
+            'structured_schema_version': order.structured_schema_version,
+            'structured_confidence': order.structured_confidence,
+            'structured_updated_at': order.structured_updated_at.strftime('%Y-%m-%d %H:%M:%S') if order.structured_updated_at else None
+        })
+    except Exception as e:
+        import traceback
+        print(f"[ERP_BETA] structured GET 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/orders/<int:order_id>/structured', methods=['PUT'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_put_order_structured(order_id):
+    """구조화 데이터 저장(전사 공용)."""
+    db = get_db()
+    step_key = f"ERP_BETA_API_SAVE_{order_id}"
+    _record_build_step(db, step_key, "RUNNING", message="Saving structured data")
+    try:
+        order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
+        if not order:
+            _record_build_step(db, step_key, "FAILED", message="Order not found")
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        payload = request.get_json(silent=True) or {}
+        structured_data = payload.get('structured_data')
+        raw_order_text = payload.get('raw_order_text')
+        schema_version = payload.get('structured_schema_version', 1)
+        confidence = payload.get('structured_confidence')
+
+        # 최소 검증: dict 형태
+        if structured_data is not None and not isinstance(structured_data, dict):
+            _record_build_step(db, step_key, "FAILED", message="structured_data must be an object")
+            return jsonify({'success': False, 'message': 'structured_data는 JSON 객체여야 합니다.'}), 400
+
+        if raw_order_text is not None:
+            order.raw_order_text = raw_order_text
+        if structured_data is not None:
+            order.structured_data = structured_data
+        order.structured_schema_version = int(schema_version) if schema_version else 1
+        order.structured_confidence = confidence or (structured_data.get('confidence') if structured_data else None)
+        order.structured_updated_at = datetime.datetime.now()
+
+        # ============================================
+        # Bridge: structured_data -> Order columns
+        # (기존 캘린더/지도/검색과 즉시 연동되도록)
+        # ============================================
+        if structured_data and isinstance(structured_data, dict):
+            try:
+                cust_name = (structured_data.get('parties', {}).get('customer', {}) or {}).get('name')
+                cust_phone = (structured_data.get('parties', {}).get('customer', {}) or {}).get('phone')
+                addr_full = (structured_data.get('site', {}) or {}).get('address_full')
+                mgr_name = (structured_data.get('parties', {}).get('manager', {}) or {}).get('name')
+
+                meas = (structured_data.get('schedule', {}) or {}).get('measurement', {}) or {}
+                meas_date = meas.get('date')
+                meas_time = meas.get('time')
+
+                # payment_amount는 선결제(prepayment.amount)가 있으면 반영
+                pay = (structured_data.get('payments', {}) or {}).get('prepayment', {}) or {}
+                prepay_amount = pay.get('amount')
+
+                # 안전 업데이트: 값이 "있을 때만" 덮어쓰기 (빈값으로 기존 데이터 삭제 방지)
+                def has_value(v):
+                    return v is not None and str(v).strip() != ''
+
+                if has_value(cust_name):
+                    order.customer_name = str(cust_name).strip()
+                if has_value(cust_phone):
+                    order.phone = str(cust_phone).strip()
+                if has_value(addr_full):
+                    order.address = str(addr_full).strip()
+                if has_value(mgr_name):
+                    order.manager_name = str(mgr_name).strip()
+                if has_value(meas_date):
+                    order.measurement_date = str(meas_date).strip()
+                if has_value(meas_time):
+                    order.measurement_time = str(meas_time).strip()
+
+                if isinstance(prepay_amount, int):
+                    order.payment_amount = prepay_amount
+            except Exception as sync_err:
+                # 동기화 실패는 저장 자체를 막지 않음 (ERP Beta 단계에서 유연성 유지)
+                print(f"[ERP_BETA] structured->order sync warning: {sync_err}")
+
+        db.commit()
+        _record_build_step(db, step_key, "COMPLETED", message="Saved structured data")
+
+        return jsonify({'success': True})
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"[ERP_BETA] structured PUT 오류: {e}")
+        print(traceback.format_exc())
+        _record_build_step(db, step_key, "FAILED", message=str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/orders/parse-text', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_parse_order_text():
+    """텍스트 붙여넣기 → 구조화 파싱(미리보기용). 저장은 하지 않음."""
+    db = get_db()
+    _record_build_step(db, "ERP_BETA_API_PARSE_TEXT", "RUNNING", message="Parsing order text")
+    try:
+        payload = request.get_json(silent=True) or {}
+        raw_text = (payload.get('raw_text') or '').strip()
+        if not raw_text:
+            _record_build_step(db, "ERP_BETA_API_PARSE_TEXT", "FAILED", message="raw_text is empty")
+            return jsonify({'success': False, 'message': 'raw_text가 필요합니다.'}), 400
+
+        structured = parse_order_text(raw_text)
+        _record_build_step(db, "ERP_BETA_API_PARSE_TEXT", "COMPLETED", message="Parsed order text")
+        return jsonify({'success': True, 'structured_data': structured})
+    except Exception as e:
+        import traceback
+        print(f"[ERP_BETA] parse-text 오류: {e}")
+        print(traceback.format_exc())
+        _record_build_step(db, "ERP_BETA_API_PARSE_TEXT", "FAILED", message=str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/address/search', methods=['GET'])
+@login_required
+def api_address_search():
+    """Kakao Local API 프록시: 주소 검색 (키를 프론트에 노출하지 않음)"""
+    try:
+        q = (request.args.get('q') or '').strip()
+        if not q:
+            return jsonify({'success': False, 'message': 'q가 필요합니다.'}), 400
+
+        size = int(request.args.get('size', 10))
+        size = max(1, min(size, 15))
+
+        import requests
+        url = "https://dapi.kakao.com/v2/local/search/address.json"
+        headers = {"Authorization": f"KakaoAK {KAKAO_REST_API_KEY}"}
+        params = {"query": q, "size": size}
+        r = requests.get(url, headers=headers, params=params, timeout=10)
+
+        if r.status_code != 200:
+            return jsonify({'success': False, 'message': f'Kakao API 오류: {r.status_code}'}), 502
+
+        data = r.json() or {}
+        docs = data.get('documents', []) or []
+
+        results = []
+        for d in docs:
+            addr = d.get('address') or {}
+            road = d.get('road_address') or {}
+            results.append({
+                "address_name": d.get('address_name') or addr.get('address_name') or road.get('address_name'),
+                "road_address_name": road.get('address_name'),
+                "region_1depth_name": addr.get('region_1depth_name') or road.get('region_1depth_name'),
+                "region_2depth_name": addr.get('region_2depth_name') or road.get('region_2depth_name'),
+                "region_3depth_name": addr.get('region_3depth_name') or road.get('region_3depth_name'),
+                "building_name": road.get('building_name'),
+                "x": road.get('x') or addr.get('x'),
+                "y": road.get('y') or addr.get('y'),
+            })
+
+        return jsonify({'success': True, 'results': results})
+    except Exception as e:
+        import traceback
+        print(f"[ADDR] search error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 # ============================================
 # 채팅 페이지 라우트 (Quest 10)
 # ============================================
@@ -6106,7 +6640,7 @@ if __name__ == '__main__':
         else:
             # 일반 Flask 실행
             print("[WARN] Socket.IO가 비활성화되어 일반 Flask 모드로 시작합니다...")
-        app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+            app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
         
     except KeyboardInterrupt:
         print("\n[STOP] 사용자에 의해 서버가 중단되었습니다.")

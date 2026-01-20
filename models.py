@@ -56,9 +56,30 @@ class Order(Base):
     
     # 도면 이미지 URL
     blueprint_image_url = Column(Text, nullable=True)
+
+    # ============================================
+    # ERP Beta (Palantir-style structured data)
+    # ============================================
+    raw_order_text = Column(Text, nullable=True)  # 원문 텍스트(붙여넣기) 보관
+    structured_data = Column(JSONB, nullable=True)  # 구조화 데이터(JSONB)
+    structured_schema_version = Column(Integer, nullable=False, default=1)
+    structured_confidence = Column(String(20), nullable=True)  # high/medium/low
+    structured_updated_at = Column(DateTime, nullable=True)
     
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+
+class SystemBuildStep(Base):
+    """빌드/마이그레이션 단계 진행상태 저장 (끊김 시 이어서 실행용)"""
+    __tablename__ = 'system_build_steps'
+
+    step_key = Column(String(100), primary_key=True)  # 예: ERP_BETA_STEP_1_SCHEMA
+    status = Column(String(30), nullable=False, default='PENDING')  # PENDING/RUNNING/COMPLETED/FAILED
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    message = Column(Text, nullable=True)
+    meta = Column(JSONB, nullable=True)
 
 class User(Base):
     __tablename__ = 'users'

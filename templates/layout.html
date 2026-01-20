@@ -602,6 +602,9 @@
                     <img id="blueprint-viewer-img" src="" alt="도면" style="max-width: 100%; max-height: calc(100vh - 200px); width: auto; height: auto; object-fit: contain; display: block; cursor: grab; user-select: none; transition: transform 0.1s;">
                 </div>
                 <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" onclick="downloadBlueprint()" id="blueprint-download-btn" style="display: none;">
+                        <i class="fas fa-download"></i> 다운로드
+                    </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="fas fa-times"></i> 닫기
                     </button>
@@ -643,6 +646,30 @@
             updateBlueprintTransform();
         }
         
+        // 도면 다운로드 관련 변수
+        let currentBlueprintUrl = null;
+        let currentBlueprintOrderId = null;
+        
+        // 도면 다운로드 함수
+        function downloadBlueprint() {
+            if (!currentBlueprintUrl) {
+                alert('다운로드할 도면이 없습니다.');
+                return;
+            }
+            
+            // 이미지 URL에서 파일명 추출 또는 orderId 기반 파일명 생성
+            const filename = `blueprint_${currentBlueprintOrderId || 'image'}.jpg`;
+            
+            // 다운로드 링크 생성
+            const link = document.createElement('a');
+            link.href = currentBlueprintUrl;
+            link.download = filename;
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
         // 전역 함수로 노출
         window.openBlueprintViewer = function(orderId) {
             fetch(`/api/orders/${orderId}/blueprint`)
@@ -652,6 +679,14 @@
                         const modal = new bootstrap.Modal(document.getElementById('blueprintViewerModal'));
                         const img = document.getElementById('blueprint-viewer-img');
                         const modalBody = document.getElementById('blueprint-viewer-body');
+                        const downloadBtn = document.getElementById('blueprint-download-btn');
+                        
+                        // 다운로드 버튼 표시 및 URL 저장
+                        currentBlueprintUrl = data.url;
+                        currentBlueprintOrderId = orderId;
+                        if (downloadBtn) {
+                            downloadBtn.style.display = 'inline-block';
+                        }
                         
                         // 줌 리셋
                         resetBlueprintZoom();
@@ -749,6 +784,13 @@
                 // 모달이 닫힐 때 줌 리셋
                 modal.addEventListener('hidden.bs.modal', function() {
                     resetBlueprintZoom();
+                    // 다운로드 관련 변수 초기화
+                    currentBlueprintUrl = null;
+                    currentBlueprintOrderId = null;
+                    const downloadBtn = document.getElementById('blueprint-download-btn');
+                    if (downloadBtn) {
+                        downloadBtn.style.display = 'none';
+                    }
                 });
             }
         });

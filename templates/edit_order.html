@@ -26,6 +26,11 @@
                             <i class="fas fa-drafting-compass"></i> 도면
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="erp-beta-tab" data-bs-toggle="tab" data-bs-target="#erp-beta" type="button" role="tab">
+                            <i class="fas fa-layer-group"></i> ERP Beta
+                        </button>
+                    </li>
                 </ul>
             </div>
             <div class="card-body">
@@ -413,7 +418,209 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- ERP Beta 탭 -->
+                    <div class="tab-pane fade" id="erp-beta" role="tabpanel">
+                        <div class="card border-secondary">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div class="fw-bold">
+                                    <i class="fas fa-layer-group"></i> ERP Beta (TEST)
+                                </div>
+                                <span class="badge {% if erp_beta_enabled %}bg-success{% else %}bg-secondary{% endif %}">
+                                    {% if erp_beta_enabled %}ON{% else %}OFF{% endif %}
+                                </span>
+                            </div>
+                            <div class="card-body">
+                                {% if not erp_beta_enabled %}
+                                    <div class="alert alert-secondary mb-0">
+                                        ERP Beta 패널은 현재 비활성입니다.
+                                    </div>
+                                {% else %}
+                                    <ul class="nav nav-pills mb-3" id="erpBetaTabs" role="tablist">
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link active" id="erp-form-tab" data-bs-toggle="pill" data-bs-target="#erp-form" type="button" role="tab">
+                                                <i class="fas fa-pen"></i> 구조화 입력
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link" id="erp-text-tab" data-bs-toggle="pill" data-bs-target="#erp-text" type="button" role="tab">
+                                                <i class="fas fa-paste"></i> 텍스트 붙여넣기
+                                            </button>
+                                        </li>
+                                    </ul>
+                                    <div class="tab-content">
+                                        <div class="tab-pane fade show active" id="erp-form" role="tabpanel">
+                                            <div class="small text-muted mb-2">
+                                                저장 대상: orders.structured_data(JSONB) / raw_order_text / confidence
+                                            </div>
+
+                                            <div class="row g-2">
+                                                <div class="col-md-6">
+                                                    <label class="form-label mb-1">고객명</label>
+                                                    <input type="text" class="form-control form-control-sm" id="erp-customer-name" autocomplete="off">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label mb-1">연락처</label>
+                                                    <input type="tel" class="form-control form-control-sm" id="erp-customer-phone" autocomplete="tel">
+                                                    <div class="form-check mt-1">
+                                                        <input class="form-check-input" type="checkbox" id="erp-manual-phone-input" autocomplete="off">
+                                                        <label class="form-check-label" for="erp-manual-phone-input">수동입력</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label mb-1">연락처 특이사항</label>
+                                                    <input type="text" class="form-control form-control-sm" id="erp-phone-note" placeholder="예: 부재중/문자 요청/통화 가능 시간 등" autocomplete="off">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label mb-1">발주사(개인/회사명)</label>
+                                                    <input type="text" class="form-control form-control-sm" id="erp-orderer" autocomplete="off">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label mb-1">담당자</label>
+                                                    <input type="text" class="form-control form-control-sm" id="erp-manager" autocomplete="off">
+                                                </div>
+                                                <div class="col-12">
+                                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                                        <label class="form-label mb-0">주소</label>
+                                                        <div class="d-flex gap-2 align-items-center">
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="radio" name="erp-address-mode" id="erp-address-mode-search" value="search" checked>
+                                                                <label class="form-check-label" for="erp-address-mode-search">주소찾기</label>
+                                                            </div>
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="radio" name="erp-address-mode" id="erp-address-mode-manual" value="manual">
+                                                                <label class="form-check-label" for="erp-address-mode-manual">직접입력</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- 주소찾기 모드 -->
+                                                    <div id="erp-address-search-wrap" class="input-group input-group-sm">
+                                                        <input type="text" class="form-control" id="erp-address-search" placeholder="도로명/지번 주소를 검색하세요" autocomplete="off">
+                                                        <button class="btn btn-outline-primary" type="button" id="erp-address-search-btn">
+                                                            <i class="fas fa-search"></i> 찾기
+                                                        </button>
+                                                    </div>
+
+                                                    <!-- 직접입력 모드 -->
+                                                    <div id="erp-address-manual-wrap" style="display:none;">
+                                                        <input type="text" class="form-control form-control-sm" id="erp-address" placeholder="주소 직접 입력" autocomplete="off">
+                                                    </div>
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label mb-1">상세주소</label>
+                                                    <input type="text" class="form-control form-control-sm" id="erp-address-detail" placeholder="동/호/현관/경비실 등" autocomplete="off">
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label mb-1">주소 특이사항</label>
+                                                    <input type="text" class="form-control form-control-sm" id="erp-address-note" placeholder="예: 주차/출입/엘리베이터/경비실 등" autocomplete="off">
+                                                </div>
+                                            </div>
+
+                                            <hr class="my-3">
+                                            <div class="row g-2">
+                                                <div class="col-md-6">
+                                                    <label class="form-label mb-1">실측일</label>
+                                                    <input type="date" class="form-control form-control-sm" id="erp-measurement-date" autocomplete="off">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label mb-1">실측시간</label>
+                                                    <input type="time" class="form-control form-control-sm" id="erp-measurement-time" autocomplete="off">
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label mb-1">실측 특이사항</label>
+                                                    <input type="text" class="form-control form-control-sm" id="erp-measurement-note" placeholder="예: 시간 변경 가능/현장 특이사항/준비물 등" autocomplete="off">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label mb-1">시공일</label>
+                                                    <input type="date" class="form-control form-control-sm" id="erp-construction-date" autocomplete="off">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label mb-1">시공상태</label>
+                                                    <select class="form-select form-select-sm" id="erp-construction-status">
+                                                        <option value="">-</option>
+                                                        <option value="CONSULT">상담</option>
+                                                        <option value="DATE">날짜</option>
+                                                        <option value="UNKNOWN">미정</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <hr class="my-3">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <div class="fw-bold"><i class="fas fa-box"></i> 제품 항목(1..n)</div>
+                                                <button class="btn btn-sm btn-outline-secondary" type="button" id="erp-add-item-btn">
+                                                    <i class="fas fa-plus"></i> 항목 추가
+                                                </button>
+                                            </div>
+                                            <div id="erp-items"></div>
+
+                                            <div class="d-flex justify-content-end align-items-center gap-2 mt-2">
+                                                <div class="fw-bold">총 금액</div>
+                                                <div class="badge bg-primary" id="erp-items-total" style="font-size: 1rem;">0원</div>
+                                            </div>
+
+                                            <hr class="my-3">
+                                            <div class="d-flex gap-2">
+                                                <button class="btn btn-sm btn-primary" type="button" id="erp-save-btn">
+                                                    <i class="fas fa-save"></i> 저장
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-secondary" type="button" id="erp-load-btn">
+                                                    <i class="fas fa-sync"></i> 불러오기
+                                                </button>
+                                            </div>
+                                            <div class="small text-muted mt-2" id="erp-status-text"></div>
+                                        </div>
+
+                                        <div class="tab-pane fade" id="erp-text" role="tabpanel">
+                                            <label class="form-label mb-1">원문 텍스트</label>
+                                            <textarea class="form-control form-control-sm" id="erp-raw-text" rows="8" placeholder="텍스트를 붙여넣고 '파싱'을 누르세요."></textarea>
+                                            <div class="d-flex gap-2 mt-2">
+                                                <button class="btn btn-sm btn-outline-primary" type="button" id="erp-parse-btn">
+                                                    <i class="fas fa-magic"></i> 파싱
+                                                </button>
+                                                <button class="btn btn-sm btn-primary" type="button" id="erp-apply-btn" disabled>
+                                                    <i class="fas fa-check"></i> 폼에 적용
+                                                </button>
+                                            </div>
+                                            <div class="mt-3">
+                                                <label class="form-label mb-1">파싱 결과(미리보기)</label>
+                                                <pre class="p-2 border rounded bg-light small" id="erp-parsed-preview" style="max-height: 220px; overflow: auto;"></pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ERP 주소 검색 모달 -->
+<div class="modal fade" id="erpAddressSearchModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-map-marker-alt"></i> 주소 검색</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" id="erp-address-modal-query" placeholder="예: 송파대로 345" autocomplete="off">
+                    <button class="btn btn-primary" type="button" id="erp-address-modal-search-btn">
+                        <i class="fas fa-search"></i> 검색
+                    </button>
+                </div>
+                <div id="erp-address-modal-status" class="small text-muted mb-2"></div>
+                <div class="list-group" id="erp-address-modal-results"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> 닫기
+                </button>
             </div>
         </div>
     </div>
@@ -424,6 +631,23 @@
 <script>
     // 주문 ID 상수 선언 (HTML 데이터 속성에서 읽기)
     const ORDER_ID = parseInt(document.querySelector('.card[data-order-id]')?.dataset.orderId || '0');
+    const ERP_BETA_ENABLED = {{ 'true' if erp_beta_enabled else 'false' }};
+
+    // 전역 XSS 방지 HTML 이스케이프 함수 (ERP Beta 등 전역에서 사용)
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+
+    // ERP Beta: 전화번호 자동 하이픈 포맷 (수동입력 체크 시 비활성)
+    function formatPhoneAuto(value) {
+        const digits = String(value || '').replace(/[^0-9]/g, '');
+        if (digits.length === 11) return `${digits.slice(0,3)}-${digits.slice(3,7)}-${digits.slice(7,11)}`;
+        if (digits.length === 10) return `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6,10)}`;
+        return value || '';
+    }
     
     // 텍스트 영역 높이 자동 조절 함수
     function adjustTextareaHeight(textarea) {
@@ -876,13 +1100,7 @@
                 });
         }
         
-        // XSS 방지를 위한 HTML 이스케이프 함수
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+        // (주의) escapeHtml은 위에서 전역으로 정의됨
         
         // 매칭된 견적 표시
         function displayMatchedEstimates(estimates) {
@@ -1281,6 +1499,471 @@
                 });
             });
         }
+    });
+
+    // ============================================
+    // ERP Beta Panel (TEST)
+    // ============================================
+    function erpSetStatus(text, isError=false) {
+        const el = document.getElementById('erp-status-text');
+        if (!el) return;
+        el.textContent = text || '';
+        el.style.color = isError ? '#b02a37' : '#6c757d';
+    }
+
+    function erpFormatMoneyKRW(num) {
+        const n = Number(num);
+        if (!Number.isFinite(n)) return '0원';
+        return `${Math.round(n).toLocaleString('ko-KR')}원`;
+    }
+
+    function erpRecalcItemsTotal() {
+        const itemsWrap = document.getElementById('erp-items');
+        const totalEl = document.getElementById('erp-items-total');
+        if (!itemsWrap || !totalEl) return;
+        let sum = 0;
+        itemsWrap.querySelectorAll('[data-erp="price"]').forEach(inp => {
+            const digits = String(inp.value || '').replace(/[^0-9]/g, '');
+            if (digits) sum += parseInt(digits, 10);
+        });
+        totalEl.textContent = erpFormatMoneyKRW(sum);
+    }
+
+    function erpNewItemRow(item = {}) {
+        const row = document.createElement('div');
+        row.className = 'border rounded p-2 mb-2';
+
+        const defaultConsult = (v) => {
+            const s = String(v ?? '').trim();
+            return s ? s : '상담';
+        };
+
+        const productName = String(item.product_name || '').trim();
+        const spec = String(item.spec || '').trim();
+        const internal = defaultConsult(item.internal);
+        const color = defaultConsult(item.color);
+        const optionDetail = defaultConsult(item.option_detail);
+        const handle = defaultConsult(item.handle);
+        const misc = defaultConsult(item.misc);
+        const price = String(item.price ?? '').trim();
+        const extraInput = String(item.extra_input ?? '').trim();
+
+        row.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="fw-bold small">항목</div>
+                <button type="button" class="btn btn-sm btn-outline-danger erp-remove-item-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <label class="form-label mb-1 small text-primary">제품명</label>
+                    <input class="form-control form-control-sm" data-erp="product_name" value="${escapeHtml(productName)}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label mb-1 small text-primary">규격</label>
+                    <input class="form-control form-control-sm" data-erp="spec" value="${escapeHtml(spec)}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label mb-1 small text-primary">내부</label>
+                    <input class="form-control form-control-sm" data-erp="internal" value="${escapeHtml(internal)}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label mb-1 small text-primary">색상</label>
+                    <input class="form-control form-control-sm" data-erp="color" value="${escapeHtml(color)}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label mb-1 small text-primary">옵션</label>
+                    <input class="form-control form-control-sm" data-erp="option_detail" value="${escapeHtml(optionDetail)}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label mb-1 small text-primary">손잡이</label>
+                    <input class="form-control form-control-sm" data-erp="handle" value="${escapeHtml(handle)}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
+                    <input class="form-control form-control-sm" data-erp="misc" value="${escapeHtml(misc)}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
+                    <input class="form-control form-control-sm" data-erp="price" inputmode="numeric" value="${escapeHtml(price)}">
+                </div>
+                <div class="col-12">
+                    <label class="form-label mb-1 small text-primary">추가 입력</label>
+                    <textarea class="form-control form-control-sm" data-erp="extra_input" rows="3" placeholder="추가 내용을 입력하세요 (여러 줄 가능)">${escapeHtml(extraInput)}</textarea>
+                </div>
+            </div>
+        `;
+
+        row.querySelector('.erp-remove-item-btn')?.addEventListener('click', () => {
+            row.remove();
+            erpRecalcItemsTotal();
+        });
+        row.querySelectorAll('[data-erp]').forEach(inp => {
+            inp.addEventListener('input', () => {
+                if (inp.dataset.erp === 'price') {
+                    // 가격 입력 시 숫자만 남기지는 않되, 합계는 digits로 계산
+                }
+                erpRecalcItemsTotal();
+            });
+        });
+        // 초기 합계 반영
+        setTimeout(erpRecalcItemsTotal, 0);
+        return row;
+    }
+
+    async function erpLoadStructured() {
+        if (!ERP_BETA_ENABLED) return;
+        if (!ORDER_ID) return;
+        erpSetStatus('불러오는 중...');
+        const res = await fetch(`/api/orders/${ORDER_ID}/structured`);
+        const data = await res.json();
+        if (!data.success) {
+            erpSetStatus(data.message || '불러오기 실패', true);
+            return;
+        }
+
+        const sd = data.structured_data || {};
+        document.getElementById('erp-customer-name').value = sd?.parties?.customer?.name || '';
+        document.getElementById('erp-customer-phone').value = sd?.parties?.customer?.phone || '';
+        // 수동 입력 OFF일 때만 자동 포맷 적용
+        try {
+            const erpManualPhone = document.getElementById('erp-manual-phone-input');
+            if (!erpManualPhone || !erpManualPhone.checked) {
+                document.getElementById('erp-customer-phone').value = formatPhoneAuto(document.getElementById('erp-customer-phone').value);
+            }
+        } catch (e) {}
+        document.getElementById('erp-phone-note').value = sd?.notes?.phone_note || '';
+        document.getElementById('erp-orderer').value = sd?.parties?.orderer?.name || '';
+        document.getElementById('erp-manager').value = sd?.parties?.manager?.name || '';
+        document.getElementById('erp-address').value = sd?.site?.address_main || sd?.site?.address_full || '';
+        document.getElementById('erp-address-detail').value = sd?.site?.address_detail || '';
+        document.getElementById('erp-address-note').value = sd?.notes?.address_note || '';
+        document.getElementById('erp-measurement-date').value = sd?.schedule?.measurement?.date || '';
+        document.getElementById('erp-measurement-time').value = sd?.schedule?.measurement?.time || '';
+        document.getElementById('erp-measurement-note').value = sd?.notes?.measurement_note || '';
+        document.getElementById('erp-construction-date').value = sd?.schedule?.construction?.date || '';
+        document.getElementById('erp-construction-status').value = sd?.schedule?.construction?.status || '';
+        document.getElementById('erp-raw-text').value = data.raw_order_text || (sd?.raw?.text || '');
+
+        const itemsWrap = document.getElementById('erp-items');
+        itemsWrap.innerHTML = '';
+        const items = Array.isArray(sd.items) ? sd.items : [];
+        if (items.length === 0) {
+            itemsWrap.appendChild(erpNewItemRow({}));
+        } else {
+            items.forEach(it => itemsWrap.appendChild(erpNewItemRow(it)));
+        }
+
+        erpSetStatus(`불러오기 완료 (confidence: ${data.structured_confidence || sd.confidence || '-'})`);
+        erpRecalcItemsTotal();
+    }
+
+    function erpCollectStructured() {
+        const itemsWrap = document.getElementById('erp-items');
+        const items = [];
+        let itemsTotal = 0;
+        itemsWrap.querySelectorAll('.border.rounded.p-2').forEach(row => {
+            const obj = {};
+            row.querySelectorAll('[data-erp]').forEach(inp => {
+                obj[inp.dataset.erp] = inp.value;
+            });
+            // price 정수화 시도
+            if (obj.price) {
+                const digits = String(obj.price).replace(/[^0-9]/g, '');
+                obj.price = digits ? parseInt(digits, 10) : obj.price;
+                if (typeof obj.price === 'number' && Number.isFinite(obj.price)) {
+                    itemsTotal += obj.price;
+                }
+            }
+            items.push(obj);
+        });
+
+        return {
+            entity_type: 'order_structured',
+            schema_version: 1,
+            confidence: null,
+            totals: {
+                items_total: itemsTotal
+            },
+            parties: {
+                customer: {
+                    name: document.getElementById('erp-customer-name').value,
+                    phone: document.getElementById('erp-customer-phone').value
+                },
+                orderer: {
+                    name: document.getElementById('erp-orderer').value
+                },
+                manager: {
+                    name: document.getElementById('erp-manager').value
+                }
+            },
+            site: (function() {
+                const main = (document.getElementById('erp-address').value || '').trim();
+                const detail = (document.getElementById('erp-address-detail').value || '').trim();
+                return {
+                    address_main: main,
+                    address_detail: detail,
+                    address_full: detail ? `${main} ${detail}`.trim() : main
+                };
+            })(),
+            schedule: {
+                measurement: {
+                    date: document.getElementById('erp-measurement-date').value,
+                    time: document.getElementById('erp-measurement-time').value
+                },
+                construction: {
+                    raw: '',
+                    status: document.getElementById('erp-construction-status').value
+                    ,
+                    date: document.getElementById('erp-construction-date').value
+                }
+            },
+            notes: {
+                phone_note: document.getElementById('erp-phone-note').value,
+                address_note: document.getElementById('erp-address-note').value,
+                measurement_note: document.getElementById('erp-measurement-note').value
+            },
+            items
+        };
+    }
+
+    async function erpSaveStructured() {
+        if (!ERP_BETA_ENABLED) return;
+        if (!ORDER_ID) return;
+        erpSetStatus('저장 중...');
+        const structured_data = erpCollectStructured();
+        const raw_order_text = document.getElementById('erp-raw-text')?.value || '';
+        const res = await fetch(`/api/orders/${ORDER_ID}/structured`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                structured_data,
+                raw_order_text,
+                structured_schema_version: 1,
+                structured_confidence: structured_data.confidence
+            })
+        });
+        const data = await res.json();
+        if (!data.success) {
+            erpSetStatus(data.message || '저장 실패', true);
+            return;
+        }
+        erpSetStatus('저장 완료');
+    }
+
+    async function erpParseRawText() {
+        const raw = document.getElementById('erp-raw-text')?.value || '';
+        if (!raw.trim()) {
+            alert('원문 텍스트를 입력해 주세요.');
+            return;
+        }
+        const preview = document.getElementById('erp-parsed-preview');
+        preview.textContent = '파싱 중...';
+        let res;
+        try {
+            res = await fetch('/api/orders/parse-text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ raw_text: raw })
+            });
+        } catch (e) {
+            preview.textContent = `네트워크 오류: ${String(e?.message || e)}`;
+            document.getElementById('erp-apply-btn').disabled = true;
+            return;
+        }
+
+        // 500 등에서 HTML이 떨어져도 메시지를 볼 수 있게 처리
+        let data = null;
+        let rawText = null;
+        try {
+            data = await res.json();
+        } catch (e) {
+            try {
+                rawText = await res.text();
+            } catch (_) {}
+        }
+
+        if (!res.ok) {
+            const msg = (data && (data.message || data.error)) ? (data.message || data.error) : (rawText || `HTTP ${res.status}`);
+            preview.textContent = msg;
+            document.getElementById('erp-apply-btn').disabled = true;
+            return;
+        }
+
+        if (!data || !data.success) {
+            preview.textContent = (data && data.message) ? data.message : '파싱 실패';
+            document.getElementById('erp-apply-btn').disabled = true;
+            return;
+        }
+        window.__erpParsed = data.structured_data;
+        preview.textContent = JSON.stringify(data.structured_data, null, 2);
+        document.getElementById('erp-apply-btn').disabled = false;
+    }
+
+    function erpApplyParsedToForm() {
+        const sd = window.__erpParsed;
+        if (!sd) return;
+        document.getElementById('erp-customer-name').value = sd?.parties?.customer?.name || '';
+        document.getElementById('erp-customer-phone').value = sd?.parties?.customer?.phone || '';
+        try {
+            const erpManualPhone = document.getElementById('erp-manual-phone-input');
+            if (!erpManualPhone || !erpManualPhone.checked) {
+                document.getElementById('erp-customer-phone').value = formatPhoneAuto(document.getElementById('erp-customer-phone').value);
+            }
+        } catch (e) {}
+        document.getElementById('erp-orderer').value = sd?.parties?.orderer?.name || '';
+        document.getElementById('erp-manager').value = sd?.parties?.manager?.name || '';
+        document.getElementById('erp-address').value = sd?.site?.address_main || sd?.site?.address_full || '';
+        document.getElementById('erp-address-detail').value = sd?.site?.address_detail || '';
+        document.getElementById('erp-measurement-date').value = sd?.schedule?.measurement?.date || '';
+        document.getElementById('erp-measurement-time').value = sd?.schedule?.measurement?.time || '';
+        document.getElementById('erp-construction-date').value = sd?.schedule?.construction?.date || '';
+        document.getElementById('erp-construction-status').value = sd?.schedule?.construction?.status || '';
+        document.getElementById('erp-phone-note').value = sd?.notes?.phone_note || '';
+        document.getElementById('erp-address-note').value = sd?.notes?.address_note || '';
+        document.getElementById('erp-measurement-note').value = sd?.notes?.measurement_note || '';
+
+        const itemsWrap = document.getElementById('erp-items');
+        itemsWrap.innerHTML = '';
+        const items = Array.isArray(sd.items) ? sd.items : [];
+        if (items.length === 0) {
+            itemsWrap.appendChild(erpNewItemRow({}));
+        } else {
+            items.forEach(it => itemsWrap.appendChild(erpNewItemRow(it)));
+        }
+
+        erpSetStatus(`파싱 결과 적용 완료 (confidence: ${sd.confidence || '-'})`);
+        erpRecalcItemsTotal();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        if (!ERP_BETA_ENABLED) return;
+
+        // ERP Beta: 주소 입력 모드 전환(주소찾기/직접입력)
+        const addrModeSearch = document.getElementById('erp-address-mode-search');
+        const addrModeManual = document.getElementById('erp-address-mode-manual');
+        const addrSearchWrap = document.getElementById('erp-address-search-wrap');
+        const addrManualWrap = document.getElementById('erp-address-manual-wrap');
+        const addrSearchInput = document.getElementById('erp-address-search');
+        const addrManualInput = document.getElementById('erp-address');
+
+        function setAddrMode(mode) {
+            const isSearch = mode === 'search';
+            if (addrSearchWrap) addrSearchWrap.style.display = isSearch ? '' : 'none';
+            if (addrManualWrap) addrManualWrap.style.display = isSearch ? 'none' : '';
+        }
+        if (addrModeSearch) addrModeSearch.addEventListener('change', () => setAddrMode('search'));
+        if (addrModeManual) addrModeManual.addEventListener('change', () => setAddrMode('manual'));
+        // 기본은 주소찾기
+        setAddrMode('search');
+
+        // ERP Beta: 주소 검색 모달
+        const addrModalEl = document.getElementById('erpAddressSearchModal');
+        const addrModal = addrModalEl ? new bootstrap.Modal(addrModalEl) : null;
+        const addrModalQuery = document.getElementById('erp-address-modal-query');
+        const addrModalSearchBtn = document.getElementById('erp-address-modal-search-btn');
+        const addrModalStatus = document.getElementById('erp-address-modal-status');
+        const addrModalResults = document.getElementById('erp-address-modal-results');
+        const openSearchBtn = document.getElementById('erp-address-search-btn');
+
+        async function doAddressSearch(query) {
+            if (!query || !query.trim()) return;
+            if (addrModalStatus) addrModalStatus.textContent = '검색 중...';
+            if (addrModalResults) addrModalResults.innerHTML = '';
+            const qs = new URLSearchParams({ q: query.trim(), size: '10' });
+            const res = await fetch(`/api/address/search?${qs.toString()}`);
+            const data = await res.json();
+            if (!data.success) {
+                if (addrModalStatus) addrModalStatus.textContent = data.message || '검색 실패';
+                return;
+            }
+            const results = data.results || [];
+            if (addrModalStatus) addrModalStatus.textContent = `${results.length}건 검색됨`;
+            results.forEach(r => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'list-group-item list-group-item-action';
+                const main = r.road_address_name || r.address_name || '-';
+                const sub = [r.building_name, r.region_3depth_name].filter(Boolean).join(' · ');
+                item.innerHTML = `<div class="fw-semibold">${escapeHtml(main)}</div><div class="small text-muted">${escapeHtml(sub)}</div>`;
+                item.addEventListener('click', () => {
+                    // 선택 시: 실제 저장 필드(#erp-address)에 반영
+                    if (addrManualInput) addrManualInput.value = main;
+                    // 검색 입력도 동기화
+                    if (addrSearchInput) addrSearchInput.value = main;
+                    // 모드는 주소찾기 유지하되, 저장 필드는 항상 #erp-address 사용
+                    if (addrModal) addrModal.hide();
+                });
+                addrModalResults.appendChild(item);
+            });
+        }
+
+        if (openSearchBtn && addrModal) {
+            openSearchBtn.addEventListener('click', () => {
+                if (addrModalQuery) addrModalQuery.value = addrSearchInput?.value || '';
+                if (addrModalStatus) addrModalStatus.textContent = '';
+                if (addrModalResults) addrModalResults.innerHTML = '';
+                addrModal.show();
+                setTimeout(() => addrModalQuery?.focus(), 200);
+            });
+        }
+
+        if (addrModalSearchBtn) {
+            addrModalSearchBtn.addEventListener('click', () => doAddressSearch(addrModalQuery?.value || ''));
+        }
+        if (addrModalQuery) {
+            addrModalQuery.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    doAddressSearch(addrModalQuery.value);
+                }
+            });
+        }
+
+        // ERP Beta: 연락처 자동 포맷 처리
+        const erpManualPhone = document.getElementById('erp-manual-phone-input');
+        const erpPhoneInput = document.getElementById('erp-customer-phone');
+        function applyErpPhoneFormat() {
+            if (!erpPhoneInput) return;
+            if (erpManualPhone && erpManualPhone.checked) return;
+            erpPhoneInput.value = formatPhoneAuto(erpPhoneInput.value);
+        }
+        if (erpPhoneInput) {
+            erpPhoneInput.addEventListener('blur', applyErpPhoneFormat);
+            erpPhoneInput.addEventListener('change', applyErpPhoneFormat);
+        }
+        if (erpManualPhone) {
+            erpManualPhone.addEventListener('change', function() {
+                // 수동입력 해제 시 즉시 포맷
+                if (!this.checked) applyErpPhoneFormat();
+            });
+        }
+
+        // ERP Beta: 시공일을 선택하면 상태를 DATE로 자동 설정(선택적)
+        const erpConstructionDate = document.getElementById('erp-construction-date');
+        const erpConstructionStatus = document.getElementById('erp-construction-status');
+        if (erpConstructionDate && erpConstructionStatus) {
+            erpConstructionDate.addEventListener('change', function() {
+                if (this.value) {
+                    if (!erpConstructionStatus.value || erpConstructionStatus.value === 'UNKNOWN' || erpConstructionStatus.value === 'CONSULT') {
+                        erpConstructionStatus.value = 'DATE';
+                    }
+                }
+            });
+        }
+
+        document.getElementById('erp-add-item-btn')?.addEventListener('click', function() {
+            document.getElementById('erp-items')?.appendChild(erpNewItemRow({}));
+            erpRecalcItemsTotal();
+        });
+        document.getElementById('erp-save-btn')?.addEventListener('click', erpSaveStructured);
+        document.getElementById('erp-load-btn')?.addEventListener('click', erpLoadStructured);
+        document.getElementById('erp-parse-btn')?.addEventListener('click', erpParseRawText);
+        document.getElementById('erp-apply-btn')?.addEventListener('click', erpApplyParsedToForm);
+
+        // 초기 로드
+        erpLoadStructured();
     });
     
     // ============================================
