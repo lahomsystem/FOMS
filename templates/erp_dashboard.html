@@ -79,7 +79,14 @@
       <div class="row g-2">
         {% for step in process_steps %}
         <div class="col">
-          <div class="border rounded p-2 text-center" style="min-width: 120px;">
+          <div
+            class="border rounded p-2 text-center erp-process-step {% if (filters.get('stage') or '') == step.label %}border-primary{% endif %}"
+            style="min-width: 120px; cursor: pointer;"
+            role="button"
+            tabindex="0"
+            data-stage="{{ step.label }}"
+            title="클릭하면 '{{ step.label }}' 단계만 표시"
+          >
             <div class="small text-muted">{{ step.label }}</div>
             <div class="fw-bold">{{ step.count }}</div>
             <div class="small">
@@ -112,7 +119,7 @@
       <div class="card">
         <div class="card-body">
           <div class="fw-bold mb-2"><i class="fas fa-filter"></i> 필터</div>
-          <form method="get" action="{{ url_for('erp_dashboard') }}" class="d-grid gap-2">
+          <form method="get" action="{{ url_for('erp_dashboard') }}" class="d-grid gap-2" id="erp-filters-form">
             <input class="form-control form-control-sm" name="q" placeholder="검색(고객/연락/주소/담당)" value="{{ (filters.get('q') or '') }}">
 
             <select class="form-select form-select-sm" name="stage">
@@ -193,7 +200,7 @@
                   <td>{% if o.has_media %}<span class="badge bg-primary">📎</span>{% else %}<span class="text-muted">-</span>{% endif %}</td>
                   <td>{% if o.open_tasks and o.open_tasks > 0 %}<span class="badge bg-secondary">{{ o.open_tasks }}</span>{% else %}<span class="text-muted">-</span>{% endif %}</td>
                   <td class="text-end">
-                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('edit_order', order_id=o.id) }}" target="_blank" rel="noopener">열기</a>
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('erp_order_object', order_id=o.id) }}" target="_blank" rel="noopener">열기</a>
                   </td>
                 </tr>
                 {% endfor %}
@@ -406,11 +413,17 @@
                     <span class="text-muted">${due ? `(due:${due})` : ''}</span>
                   </div>
                   <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" type="button" title="오픈(되돌리기)" onclick="updateTaskStatus(${t.id}, 'OPEN')">
+                      <i class="fas fa-undo"></i>
+                    </button>
                     <button class="btn btn-outline-success" type="button" title="완료" onclick="updateTaskStatus(${t.id}, 'DONE')">
                       <i class="fas fa-check"></i>
                     </button>
                     <button class="btn btn-outline-secondary" type="button" title="진행중" onclick="updateTaskStatus(${t.id}, 'IN_PROGRESS')">
                       <i class="fas fa-play"></i>
+                    </button>
+                    <button class="btn btn-outline-warning" type="button" title="취소" onclick="updateTaskStatus(${t.id}, 'CANCELLED')">
+                      <i class="fas fa-ban"></i>
                     </button>
                     <button class="btn btn-outline-danger" type="button" title="삭제" onclick="deleteTask(${t.id})">
                       <i class="fas fa-trash"></i>
@@ -520,6 +533,27 @@
         });
       });
       document.getElementById('d-task-add-btn')?.addEventListener('click', addTaskFromDetail);
+
+      // 프로세스 맵 클릭 → 좌측 필터(stage) 적용 후 리로드 (KPI/맵/그리드 모두 동기화)
+      const form = document.getElementById('erp-filters-form');
+      const stageSel = form ? form.querySelector('select[name="stage"]') : null;
+      if (form && stageSel) {
+        const applyStage = (stageLabel) => {
+          const next = stageLabel || '';
+          // 같은 단계를 다시 클릭하면 해제(전체)
+          stageSel.value = ((stageSel.value || '') === next) ? '' : next;
+          form.submit();
+        };
+        document.querySelectorAll('.erp-process-step[data-stage]').forEach(el => {
+          el.addEventListener('click', () => applyStage(el.dataset.stage || ''));
+          el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              applyStage(el.dataset.stage || '');
+            }
+          });
+        });
+      }
     });
   </script>
 </div>

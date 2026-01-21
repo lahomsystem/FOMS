@@ -16,7 +16,7 @@
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-erp-beta" data-bs-toggle="tab" data-bs-target="#pane-erp-beta" type="button" role="tab">
+                        <button class="nav-link" id="erp-beta-tab" data-bs-toggle="tab" data-bs-target="#erp-beta" type="button" role="tab">
                             <i class="fas fa-layer-group"></i> ERP Beta
                         </button>
                     </li>
@@ -319,114 +319,7 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
                     </div>
 
                     <!-- ERP Beta -->
-                    <div class="tab-pane fade" id="pane-erp-beta" role="tabpanel">
-                        <form method="post" action="{{ url_for('add_order') }}" id="erp-beta-create-form">
-                            <input type="hidden" name="create_mode" value="ERP_BETA">
-                            <input type="hidden" name="structured_data_json" id="structured_data_json" value="">
-
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">접수일</label>
-                                    <input type="date" class="form-control" id="erp_received_date" name="received_date" value="{{ today }}" autocomplete="off">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">접수시간</label>
-                                    <input type="time" class="form-control" id="erp_received_time" name="received_time" value="{{ current_time }}" autocomplete="off">
-                                </div>
-                            </div>
-
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">단계(Workflow)</label>
-                                    <select class="form-select" name="erp_stage">
-                                        <option value="RECEIVED" selected>주문접수</option>
-                                        <option value="HAPPYCALL">해피콜</option>
-                                        <option value="MEASURE">실측</option>
-                                        <option value="DRAWING">도면</option>
-                                        <option value="CONFIRM">고객컨펌</option>
-                                        <option value="PRODUCTION">생산</option>
-                                        <option value="CONSTRUCTION">시공</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">오너팀</label>
-                                    <select class="form-select" name="erp_owner_team">
-                                        <option value="">-</option>
-                                        <option value="CS">CS(해피콜)</option>
-                                        <option value="SALES">영업(실측)</option>
-                                        <option value="MEASURE">실측팀</option>
-                                        <option value="DRAWING">도면팀</option>
-                                        <option value="PRODUCTION">생산팀</option>
-                                        <option value="CONSTRUCTION">시공팀</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">고객명(선택)</label>
-                                    <input type="text" class="form-control" name="erp_customer_name" autocomplete="off">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">연락처(선택)</label>
-                                    <input type="text" class="form-control" name="erp_customer_phone" autocomplete="off">
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">주소(선택)</label>
-                                <input type="text" class="form-control" name="erp_address" autocomplete="off">
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">제품/메모(선택)</label>
-                                <input type="text" class="form-control" name="erp_product" placeholder="ERP Beta" autocomplete="off">
-                            </div>
-
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">실측일(선택)</label>
-                                    <input type="date" class="form-control" name="erp_measurement_date" autocomplete="off">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">시공일(선택)</label>
-                                    <input type="date" class="form-control" name="erp_construction_date" autocomplete="off">
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="erp_urgent" name="erp_urgent" value="1">
-                                    <label class="form-check-label" for="erp_urgent">긴급 발주</label>
-                                </div>
-                                <textarea class="form-control mt-2" name="erp_urgent_reason" rows="2" placeholder="긴급 사유(선택)"></textarea>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">원문 텍스트(raw)</label>
-                                <textarea class="form-control" name="raw_order_text" id="raw_order_text" rows="8" placeholder="텍스트를 붙여넣고 '파싱'을 누르세요."></textarea>
-                                <div class="d-flex gap-2 mt-2">
-                                    <button type="button" class="btn btn-sm btn-outline-primary" id="btn-parse-raw">
-                                        <i class="fas fa-magic"></i> 파싱
-                                    </button>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-clear-structured">
-                                        구조화 초기화
-                                    </button>
-                                </div>
-                                <div class="small text-muted mt-2" id="parse-status"></div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">구조화 데이터(저장될 JSON, 선택)</label>
-                                <textarea class="form-control" id="structured_preview" rows="8" placeholder="파싱 결과가 여기에 표시됩니다. 필요하면 수정할 수 있습니다."></textarea>
-                            </div>
-
-                            <div class="d-flex justify-content-between">
-                                <a href="{{ url_for('index') }}" class="btn btn-secondary">취소</a>
-                                <button type="submit" class="btn btn-primary">ERP Beta 주문 추가</button>
-                            </div>
-                        </form>
-                    </div>
+                    {% include "partials/erp_beta_tab.html" %}
                 </div>
             </div>
         </div>
@@ -801,57 +694,15 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
 </script>
 
 <script>
-    // ERP Beta: raw 텍스트 파싱(저장 전 미리보기)
-    document.addEventListener('DOMContentLoaded', () => {
-        const btnParse = document.getElementById('btn-parse-raw');
-        const btnClear = document.getElementById('btn-clear-structured');
-        const rawEl = document.getElementById('raw_order_text');
-        const previewEl = document.getElementById('structured_preview');
-        const hiddenEl = document.getElementById('structured_data_json');
-        const statusEl = document.getElementById('parse-status');
-        const form = document.getElementById('erp-beta-create-form');
+    // add_order (ERP Beta): ORDER_ID는 탭 오픈 시 draft 생성으로 확보
+    let ORDER_ID = 0;
+    const ERP_BETA_ENABLED = {{ 'true' if erp_beta_enabled else 'false' }};
+    window.__ERP_BETA_DRAFT_MODE = true;
+    window.__ERP_BETA_DRAFT_ENDPOINT = '/api/orders/erp-beta/draft';
+</script>
 
-        if (btnParse) {
-            btnParse.addEventListener('click', async () => {
-                const raw = (rawEl?.value || '').trim();
-                if (!raw) {
-                    if (statusEl) statusEl.textContent = 'raw 텍스트가 필요합니다.';
-                    return;
-                }
-                if (statusEl) statusEl.textContent = '파싱 중...';
-                const res = await fetch('/api/orders/parse-text', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ raw_text: raw })
-                });
-                const data = await res.json();
-                if (!data.success) {
-                    if (statusEl) statusEl.textContent = data.message || '파싱 실패';
-                    return;
-                }
-                const sd = data.structured_data || {};
-                const txt = JSON.stringify(sd, null, 2);
-                if (previewEl) previewEl.value = txt;
-                if (hiddenEl) hiddenEl.value = txt;
-                if (statusEl) statusEl.textContent = '파싱 완료. 저장하면 ERP Beta로 등록됩니다.';
-            });
-        }
-
-        if (btnClear) {
-            btnClear.addEventListener('click', () => {
-                if (previewEl) previewEl.value = '';
-                if (hiddenEl) hiddenEl.value = '';
-                if (statusEl) statusEl.textContent = '구조화 데이터를 초기화했습니다.';
-            });
-        }
-
-        if (form) {
-            form.addEventListener('submit', () => {
-                const txt = (previewEl?.value || '').trim();
-                if (hiddenEl) hiddenEl.value = txt;
-            });
-        }
-    });
+<script>
+    {% include "partials/erp_beta_js.html" %}
 </script>
 
 <style>

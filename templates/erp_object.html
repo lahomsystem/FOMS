@@ -1,0 +1,399 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+      <h4 class="mb-0"><i class="fas fa-cube"></i> ERP 주문 상세</h4>
+      <div class="small text-muted">Object Page (ERP Beta)</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('erp_dashboard') }}">
+        <i class="fas fa-arrow-left"></i> 대시보드
+      </a>
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('edit_order', order_id=order_id) }}?open=erp-beta" target="_blank" rel="noopener">
+        <i class="fas fa-edit"></i> 편집(ERP Beta)
+      </a>
+    </div>
+  </div>
+
+  <style>
+    .obj-header { position: sticky; top: 64px; z-index: 5; background: #fff; border: 1px solid rgba(0,0,0,.08); border-radius: .5rem; }
+    .obj-kv { display:flex; justify-content:space-between; gap:12px; }
+    .obj-kv .k { color:#6c757d; }
+    .obj-kv .v { font-weight:600; text-align:right; }
+    .obj-section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .obj-media-thumb { background:#fff; padding:4px; border-radius: .5rem; border: 1px solid rgba(0,0,0,.08); cursor: pointer; }
+    .obj-media-thumb:hover { border-color: rgba(13,110,253,.4); }
+  </style>
+
+  <!-- Sticky header summary -->
+  <div class="obj-header p-3 mb-3">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+      <div>
+        <div class="fw-bold" id="h-customer">-</div>
+        <div class="small text-muted">
+          <span class="me-2" id="h-phone">-</span>
+          <span class="me-2">·</span>
+          <span id="h-address">-</span>
+        </div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap justify-content-end">
+        <span class="badge bg-secondary" id="h-stage">-</span>
+        <span class="badge bg-light text-dark" id="h-owner-team">-</span>
+        <span class="badge bg-danger" id="h-urgent" style="display:none;">긴급</span>
+      </div>
+    </div>
+    <hr class="my-2">
+    <div class="row g-2">
+      <div class="col-md-4"><div class="obj-kv"><div class="k">주문번호</div><div class="v">#{{ order_id }}</div></div></div>
+      <div class="col-md-4"><div class="obj-kv"><div class="k">실측일</div><div class="v" id="h-measure">-</div></div></div>
+      <div class="col-md-4"><div class="obj-kv"><div class="k">시공일</div><div class="v" id="h-construct">-</div></div></div>
+    </div>
+  </div>
+
+  <div class="row g-2">
+    <!-- Left -->
+    <div class="col-xl-7 col-lg-7">
+      <div class="card mb-2">
+        <div class="card-body">
+          <div class="obj-section-title">
+            <div class="fw-bold"><i class="fas fa-info-circle"></i> 요약</div>
+            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="copySummary()">
+              <i class="fas fa-copy"></i> 복사
+            </button>
+          </div>
+          <div class="row g-2 mt-1">
+            <div class="col-md-6">
+              <div class="obj-kv"><div class="k">고객명</div><div class="v" id="v-customer">-</div></div>
+              <div class="obj-kv"><div class="k">연락처</div><div class="v" id="v-phone">-</div></div>
+              <div class="obj-kv"><div class="k">발주사</div><div class="v" id="v-orderer">-</div></div>
+              <div class="obj-kv"><div class="k">담당자</div><div class="v" id="v-manager">-</div></div>
+            </div>
+            <div class="col-md-6">
+              <div class="obj-kv"><div class="k">주소</div><div class="v" id="v-address">-</div></div>
+              <div class="obj-kv"><div class="k">주소특이</div><div class="v" id="v-address-note">-</div></div>
+              <div class="obj-kv"><div class="k">연락특이</div><div class="v" id="v-phone-note">-</div></div>
+              <div class="obj-kv"><div class="k">실측특이</div><div class="v" id="v-measure-note">-</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-2">
+        <div class="card-body">
+          <div class="fw-bold mb-2"><i class="fas fa-box"></i> 제품 항목</div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead>
+                <tr>
+                  <th>제품명</th>
+                  <th>규격</th>
+                  <th>색상</th>
+                  <th>옵션</th>
+                  <th>기타</th>
+                  <th class="text-end">금액</th>
+                </tr>
+              </thead>
+              <tbody id="items-tbody">
+                <tr><td colspan="6" class="text-muted small">로딩 중...</td></tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="5" class="text-end fw-bold">합계</td>
+                  <td class="text-end fw-bold" id="items-total">-</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-2">
+        <div class="card-body">
+          <div class="fw-bold mb-2"><i class="fas fa-stream"></i> 타임라인(Event)</div>
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <tbody id="events-tbody">
+                <tr><td class="text-muted small">로딩 중...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-2">
+        <div class="card-body">
+          <div class="obj-section-title">
+            <div class="fw-bold"><i class="fas fa-file-alt"></i> 원문(raw)</div>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawCollapse">
+              접기/펼치기
+            </button>
+          </div>
+          <div class="collapse mt-2" id="rawCollapse">
+            <pre class="p-2 border rounded bg-light small" id="raw-text" style="max-height: 280px; overflow:auto;"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right -->
+    <div class="col-xl-5 col-lg-5">
+      <div class="card mb-2">
+        <div class="card-body">
+          <div class="obj-section-title">
+            <div class="fw-bold"><i class="fas fa-paperclip"></i> 도면 / 사진 / 영상</div>
+            <div class="small text-muted" id="media-count">-</div>
+          </div>
+          <div class="row g-2 mt-1" id="media-grid">
+            <div class="col-12"><div class="text-muted small">로딩 중...</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-2">
+        <div class="card-body">
+          <div class="obj-section-title">
+            <div class="fw-bold"><i class="fas fa-clipboard-check"></i> Task</div>
+            <div class="small text-muted" id="task-status"></div>
+          </div>
+          <div class="d-flex gap-2 mt-2">
+            <input class="form-control form-control-sm" id="task-title" placeholder="Task 제목">
+            <button class="btn btn-sm btn-outline-primary" type="button" onclick="addTask()"><i class="fas fa-plus"></i> 추가</button>
+          </div>
+          <div class="table-responsive mt-2">
+            <table class="table table-sm align-middle">
+              <tbody id="tasks-tbody">
+                <tr><td class="text-muted small">로딩 중...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="erpAttachmentPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-paperclip"></i> 첨부 미리보기</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="erp-attachment-preview-body"></div>
+        </div>
+        <div class="modal-footer">
+          <a class="btn btn-primary" id="erp-attachment-preview-download" href="#" target="_blank" rel="noopener">
+            <i class="fas fa-download"></i> 다운로드
+          </a>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> 닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const ORDER_ID = {{ order_id }};
+  const TEAM_LABELS = { CS:'CS(해피콜)', SALES:'영업(실측)', MEASURE:'실측팀', DRAWING:'도면팀', PRODUCTION:'생산팀', CONSTRUCTION:'시공팀' };
+  const STAGE_LABELS = { RECEIVED:'주문접수', HAPPYCALL:'해피콜', MEASURE:'실측', DRAWING:'도면', CONFIRM:'고객컨펌', PRODUCTION:'생산', CONSTRUCTION:'시공' };
+  const EVENT_LABELS = { STAGE_CHANGED:'단계 변경', URGENT_CHANGED:'긴급 변경', OWNER_TEAM_CHANGED:'오너팀 변경', MEASUREMENT_DATE_CHANGED:'실측일 변경', CONSTRUCTION_DATE_CHANGED:'시공일 변경' };
+  const TASK_STATUS_LABELS = { OPEN:'오픈', IN_PROGRESS:'진행중', DONE:'완료', CANCELLED:'취소' };
+
+  function label(map, code, fallback='-') { if (!code) return fallback; return map[code] || code; }
+  function escapeHtml(text) { if (!text) return ''; const div=document.createElement('div'); div.textContent=String(text); return div.innerHTML; }
+  function moneyKRW(num){ const n=Number(num); if(!Number.isFinite(n)) return '-'; return `${Math.round(n).toLocaleString('ko-KR')}원`; }
+
+  let __attachments = [];
+
+  function openAttachmentPreview(attachmentId) {
+    const a = (__attachments || []).find(x => x.id === attachmentId);
+    if (!a) return;
+    const modalEl = document.getElementById('erpAttachmentPreviewModal');
+    const body = document.getElementById('erp-attachment-preview-body');
+    const dl = document.getElementById('erp-attachment-preview-download');
+    if (!modalEl || !body || !dl) return;
+    const viewUrl = a.view_url || '#';
+    const downloadUrl = a.download_url || '#';
+    dl.href = downloadUrl;
+    if (a.file_type === 'video') {
+      body.innerHTML = `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;"><video src="${viewUrl}" controls autoplay style="width:100%;height:100%;"></video></div><div class="small text-muted mt-2">${escapeHtml(a.filename || '')}</div>`;
+    } else {
+      body.innerHTML = `<img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded" style="background:#fff; padding:4px;"><div class="small text-muted mt-2">${escapeHtml(a.filename || '')}</div>`;
+    }
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  }
+
+  function formatEventPayload(ev) {
+    const t = ev?.event_type;
+    const p = ev?.payload || {};
+    if (t === 'STAGE_CHANGED') return `${label(STAGE_LABELS, p.from, '-') } → ${label(STAGE_LABELS, p.to, '-')}`;
+    if (t === 'OWNER_TEAM_CHANGED') return `${label(TEAM_LABELS, p.from, '-') } → ${label(TEAM_LABELS, p.to, '-')}`;
+    if (t === 'MEASUREMENT_DATE_CHANGED' || t === 'CONSTRUCTION_DATE_CHANGED') return `${p.from || '-'} → ${p.to || '-'}`;
+    if (t === 'URGENT_CHANGED') return `${p.from ? '긴급' : '일반'} → ${p.to ? '긴급' : '일반'}${p.reason ? ` (${p.reason})` : ''}`;
+    return JSON.stringify(p);
+  }
+
+  function copySummary() {
+    const lines = [];
+    lines.push(`주문 #${ORDER_ID}`);
+    lines.push(`고객명: ${document.getElementById('v-customer').textContent || '-'}`);
+    lines.push(`연락처: ${document.getElementById('v-phone').textContent || '-'}`);
+    lines.push(`주소: ${document.getElementById('v-address').textContent || '-'}`);
+    lines.push(`단계: ${document.getElementById('h-stage').textContent || '-'}`);
+    lines.push(`오너팀: ${document.getElementById('h-owner-team').textContent || '-'}`);
+    navigator.clipboard?.writeText(lines.join('\\n'));
+  }
+
+  async function addTask() {
+    const title = (document.getElementById('task-title').value || '').trim();
+    if (!title) return;
+    document.getElementById('task-status').textContent = '추가 중...';
+    const res = await fetch(`/api/orders/${ORDER_ID}/tasks`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ title }) });
+    const data = await res.json();
+    if (!data.success) { document.getElementById('task-status').textContent = data.message || '추가 실패'; return; }
+    document.getElementById('task-title').value = '';
+    await loadAll();
+  }
+  async function updateTask(taskId, status) {
+    document.getElementById('task-status').textContent = '업데이트 중...';
+    const res = await fetch(`/api/orders/${ORDER_ID}/tasks/${taskId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
+    const data = await res.json();
+    if (!data.success) { document.getElementById('task-status').textContent = data.message || '업데이트 실패'; return; }
+    await loadAll();
+  }
+  async function deleteTask(taskId) {
+    if (!confirm('Task를 삭제할까요?')) return;
+    document.getElementById('task-status').textContent = '삭제 중...';
+    const res = await fetch(`/api/orders/${ORDER_ID}/tasks/${taskId}`, { method:'DELETE' });
+    const data = await res.json();
+    if (!data.success) { document.getElementById('task-status').textContent = data.message || '삭제 실패'; return; }
+    await loadAll();
+  }
+
+  function renderTasks(list) {
+    const tb = document.getElementById('tasks-tbody');
+    const tasks = Array.isArray(list) ? list : [];
+    if (!tasks.length) { tb.innerHTML = `<tr><td class="text-muted small">Task 없음</td></tr>`; return; }
+    tb.innerHTML = tasks.map(t => {
+      const status = label(TASK_STATUS_LABELS, t.status, t.status);
+      const team = label(TEAM_LABELS, t.owner_team, t.owner_team || '-');
+      const title = escapeHtml(t.title || '');
+      const due = escapeHtml(t.due_date || '');
+      return `
+        <tr><td class="small">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div>
+              <span class="badge bg-secondary me-1">${escapeHtml(status)}</span>
+              ${t.owner_team ? `<span class="badge bg-light text-dark me-1">${escapeHtml(team)}</span>` : ''}
+              <span class="fw-bold">${title}</span>
+              <span class="text-muted">${due ? `(due:${due})` : ''}</span>
+            </div>
+            <div class="d-flex flex-wrap gap-1 justify-content-end flex-shrink-0">
+              <button class="btn btn-sm btn-outline-primary" type="button" title="오픈" onclick="updateTask(${t.id}, 'OPEN')"><i class="fas fa-undo"></i></button>
+              <button class="btn btn-sm btn-outline-secondary" type="button" title="진행중" onclick="updateTask(${t.id}, 'IN_PROGRESS')"><i class="fas fa-play"></i></button>
+              <button class="btn btn-sm btn-outline-success" type="button" title="완료" onclick="updateTask(${t.id}, 'DONE')"><i class="fas fa-check"></i></button>
+              <button class="btn btn-sm btn-outline-warning" type="button" title="취소" onclick="updateTask(${t.id}, 'CANCELLED')"><i class="fas fa-ban"></i></button>
+              <button class="btn btn-sm btn-outline-danger" type="button" title="삭제" onclick="deleteTask(${t.id})"><i class="fas fa-trash"></i></button>
+            </div>
+          </div>
+        </td></tr>
+      `;
+    }).join('');
+    document.getElementById('task-status').textContent = '';
+  }
+
+  function renderEvents(list) {
+    const tb = document.getElementById('events-tbody');
+    const events = Array.isArray(list) ? list : [];
+    if (!events.length) { tb.innerHTML = `<tr><td class="text-muted small">Event 없음</td></tr>`; return; }
+    tb.innerHTML = events.map(ev => {
+      const when = escapeHtml(ev.created_at || '');
+      const type = escapeHtml(label(EVENT_LABELS, ev.event_type || '', ev.event_type || ''));
+      const payload = escapeHtml(formatEventPayload(ev));
+      return `<tr><td class="small"><div class="text-muted">${when}</div><div class="fw-bold">${type}</div><div class="text-muted">${payload}</div></td></tr>`;
+    }).join('');
+  }
+
+  function renderItems(sd) {
+    const tb = document.getElementById('items-tbody');
+    const items = Array.isArray(sd.items) ? sd.items : [];
+    if (!items.length) { tb.innerHTML = `<tr><td colspan="6" class="text-muted small">항목 없음</td></tr>`; document.getElementById('items-total').textContent='-'; return; }
+    tb.innerHTML = items.map(it => {
+      const price = (typeof it.price === 'number') ? it.price : Number(String(it.price||'').replace(/[^0-9]/g,'')||'0');
+      return `<tr><td class="fw-bold">${escapeHtml(it.product_name||'')}</td><td>${escapeHtml(it.spec||'')}</td><td>${escapeHtml(it.color||'')}</td><td>${escapeHtml(it.option_detail||'')}</td><td>${escapeHtml(it.misc||'')}</td><td class="text-end">${moneyKRW(price)}</td></tr>`;
+    }).join('');
+    document.getElementById('items-total').textContent = moneyKRW(((sd.totals||{}).items_total));
+  }
+
+  function renderMedia(list) {
+    const wrap = document.getElementById('media-grid');
+    const items = Array.isArray(list) ? list : [];
+    document.getElementById('media-count').textContent = `${items.length}개`;
+    if (!items.length) { wrap.innerHTML = `<div class="col-12"><div class="text-muted small">첨부 없음</div></div>`; return; }
+    wrap.innerHTML = items.map(a => {
+      const name = escapeHtml(a.filename || '');
+      const viewUrl = a.view_url || '#';
+      const thumb = a.thumbnail_view_url || viewUrl;
+      if (a.file_type === 'video') {
+        return `<div class="col-12"><div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;"><video src="${viewUrl}" controls preload="metadata" style="width:100%;height:100%;"></video></div><div class="small text-muted">${name}</div></div>`;
+      }
+      return `<div class="col-6"><img src="${thumb}" class="img-fluid obj-media-thumb" alt="${name}" onclick="openAttachmentPreview(${a.id})"><div class="small text-muted text-truncate">${name}</div></div>`;
+    }).join('');
+  }
+
+  async function loadAll() {
+    const [structured, tasks, events, attachments] = await Promise.all([
+      fetch(`/api/orders/${ORDER_ID}/structured`).then(r => r.json()),
+      fetch(`/api/orders/${ORDER_ID}/tasks`).then(r => r.json()),
+      fetch(`/api/orders/${ORDER_ID}/events?limit=80`).then(r => r.json()),
+      fetch(`/api/orders/${ORDER_ID}/attachments`).then(r => r.json()),
+    ]);
+    const sd = (structured && structured.structured_data) || {};
+    const customer = (((sd.parties||{}).customer||{}).name) || '-';
+    const phone = (((sd.parties||{}).customer||{}).phone) || '-';
+    const address = ((sd.site||{}).address_full) || ((sd.site||{}).address_main) || '-';
+    const orderer = (((sd.parties||{}).orderer||{}).name) || '-';
+    const manager = (((sd.parties||{}).manager||{}).name) || '-';
+    const measure = (((sd.schedule||{}).measurement||{}).date) || '-';
+    const construct = (((sd.schedule||{}).construction||{}).date) || '-';
+    const stage = (sd.workflow||{}).stage || '';
+    const ownerTeam = (sd.assignments||{}).owner_team || '';
+    const urgent = !!((sd.flags||{}).urgent);
+
+    document.getElementById('h-customer').textContent = customer;
+    document.getElementById('h-phone').textContent = phone;
+    document.getElementById('h-address').textContent = address;
+    document.getElementById('h-measure').textContent = measure;
+    document.getElementById('h-construct').textContent = construct;
+    document.getElementById('h-stage').textContent = label(STAGE_LABELS, stage, '-');
+    document.getElementById('h-owner-team').textContent = label(TEAM_LABELS, ownerTeam, '-');
+    document.getElementById('h-urgent').style.display = urgent ? '' : 'none';
+
+    document.getElementById('v-customer').textContent = customer;
+    document.getElementById('v-phone').textContent = phone;
+    document.getElementById('v-address').textContent = address;
+    document.getElementById('v-orderer').textContent = orderer;
+    document.getElementById('v-manager').textContent = manager;
+    document.getElementById('v-address-note').textContent = ((sd.notes||{}).address_note) || '-';
+    document.getElementById('v-phone-note').textContent = ((sd.notes||{}).phone_note) || '-';
+    document.getElementById('v-measure-note').textContent = ((sd.notes||{}).measurement_note) || '-';
+
+    document.getElementById('raw-text').textContent = (structured && structured.raw_order_text) || '';
+    renderItems(sd);
+    renderEvents((events && events.events) || []);
+    __attachments = (attachments && attachments.attachments) || [];
+    renderMedia(__attachments);
+    renderTasks((tasks && tasks.tasks) || []);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => loadAll());
+</script>
+{% endblock %}
+
