@@ -1,0 +1,802 @@
+// ============================================================
+// ERP Beta JS (shared): edit_order + add_order
+//
+// Required globals:
+// - ERP_BETA_ENABLED (boolean)
+// - ORDER_ID (number; in add_order should be "let", in edit_order can be const)
+// - window.__ERP_BETA_DRAFT_MODE (boolean): true on add_order, false on edit_order
+// - window.__ERP_BETA_DRAFT_ENDPOINT (string): optional, default '/api/orders/erp-beta/draft'
+// ============================================================
+
+// helpers (define only if missing to avoid collisions)
+if (typeof escapeHtml !== 'function') {
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+}
+
+if (typeof formatPhoneAuto !== 'function') {
+    function formatPhoneAuto(value) {
+        const digits = String(value || '').replace(/[^0-9]/g, '');
+        if (digits.length === 11) return `${digits.slice(0,3)}-${digits.slice(3,7)}-${digits.slice(7,11)}`;
+        if (digits.length === 10) return `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6,10)}`;
+        return value || '';
+    }
+}
+
+if (typeof adjustTextareaHeight !== 'function') {
+    function adjustTextareaHeight(textarea) {
+        if (!textarea) return;
+        textarea.style.height = 'auto';
+        textarea.style.height = (textarea.scrollHeight) + 'px';
+    }
+}
+
+function erpGetDraftEndpoint() {
+    return window.__ERP_BETA_DRAFT_ENDPOINT || '/api/orders/erp-beta/draft';
+}
+
+function erpSetDraftBanner(orderId) {
+    const banner = document.getElementById('erp-draft-banner');
+    const idEl = document.getElementById('erp-draft-order-id');
+    const link = document.getElementById('erp-draft-edit-link');
+    if (idEl) idEl.textContent = String(orderId || '-');
+    if (link && orderId) {
+        link.href = `/edit/${orderId}`;
+        link.style.display = '';
+    }
+    if (banner) banner.style.display = orderId ? '' : 'none';
+}
+
+function erpSetOrderId(newId) {
+    try {
+        // add_order에서는 let ORDER_ID 이므로 갱신 가능
+        // edit_order에서는 draft mode가 아니므로 호출되지 않음
+        ORDER_ID = parseInt(String(newId || '0'), 10) || 0;
+    } catch (e) {}
+
+    // data attr 동기화(선택)
+    const host = document.querySelector('.card[data-erp-order-id]') || document.querySelector('[data-erp-order-id]');
+    if (host) {
+        host.setAttribute('data-erp-order-id', String(ORDER_ID));
+    }
+    erpSetDraftBanner(ORDER_ID);
+}
+
+async function erpEnsureDraftOrderId() {
+    if (!ERP_BETA_ENABLED) return 0;
+    if (!window.__ERP_BETA_DRAFT_MODE) return ORDER_ID || 0;
+    if (ORDER_ID && ORDER_ID > 0) return ORDER_ID;
+
+    // idempotent draft 생성: 서버가 세션 기반으로 재사용
+    const res = await fetch(erpGetDraftEndpoint(), { method: 'POST' });
+    const data = await res.json();
+    if (!data || !data.success) {
+        throw new Error((data && data.message) ? data.message : `Draft 생성 실패 (HTTP ${res.status})`);
+    }
+    erpSetOrderId(data.order_id);
+    return ORDER_ID;
+}
+
+async function erpRequireOrderIdOrWarn(contextText='') {
+    try {
+        const id = await erpEnsureDraftOrderId();
+        if (!id) {
+            erpSetStatus(`${contextText} 주문번호 생성 실패`, true);
+            return 0;
+        }
+        return id;
+    } catch (e) {
+        console.error(e);
+        erpSetStatus(`${contextText} ${String(e?.message || e)}`, true);
+        return 0;
+    }
+}
+
+// ============================================
+// ERP Beta Panel (TEST) - core
+// ============================================
+function erpSetStatus(text, isError=false) {
+    const el = document.getElementById('erp-status-text');
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = isError ? '#b02a37' : '#6c757d';
+}
+
+function erpFormatMoneyKRW(num) {
+    const n = Number(num);
+    if (!Number.isFinite(n)) return '0원';
+    return `${Math.round(n).toLocaleString('ko-KR')}원`;
+}
+
+function erpRecalcItemsTotal() {
+    const itemsWrap = document.getElementById('erp-items');
+    const totalEl = document.getElementById('erp-items-total');
+    if (!itemsWrap || !totalEl) return;
+    let sum = 0;
+    itemsWrap.querySelectorAll('[data-erp="price"]').forEach(inp => {
+        const digits = String(inp.value || '').replace(/[^0-9]/g, '');
+        if (digits) sum += parseInt(digits, 10);
+    });
+    totalEl.textContent = erpFormatMoneyKRW(sum);
+}
+
+function erpNewItemRow(item = {}) {
+    const row = document.createElement('div');
+    row.className = 'border rounded p-2 mb-2';
+
+    const defaultConsult = (v) => {
+        const s = String(v ?? '').trim();
+        return s ? s : '상담';
+    };
+
+    const productName = String(item.product_name || '').trim();
+    const spec = String(item.spec || '').trim();
+    const internal = defaultConsult(item.internal);
+    const color = defaultConsult(item.color);
+    const optionDetail = defaultConsult(item.option_detail);
+    const handle = defaultConsult(item.handle);
+    const misc = defaultConsult(item.misc);
+    const price = String(item.price ?? '').trim();
+    const extraInput = String(item.extra_input ?? '').trim();
+
+    row.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-bold small">항목</div>
+            <button type="button" class="btn btn-sm btn-outline-danger erp-remove-item-btn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="row g-2">
+            <div class="col-md-6">
+                <label class="form-label mb-1 small text-primary">제품명</label>
+                <input class="form-control form-control-sm" data-erp="product_name" value="${escapeHtml(productName)}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label mb-1 small text-primary">규격</label>
+                <input class="form-control form-control-sm" data-erp="spec" value="${escapeHtml(spec)}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label mb-1 small text-primary">내부</label>
+                <input class="form-control form-control-sm" data-erp="internal" value="${escapeHtml(internal)}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label mb-1 small text-primary">색상</label>
+                <input class="form-control form-control-sm" data-erp="color" value="${escapeHtml(color)}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label mb-1 small text-primary">옵션</label>
+                <input class="form-control form-control-sm" data-erp="option_detail" value="${escapeHtml(optionDetail)}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label mb-1 small text-primary">손잡이</label>
+                <input class="form-control form-control-sm" data-erp="handle" value="${escapeHtml(handle)}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
+                <input class="form-control form-control-sm" data-erp="misc" value="${escapeHtml(misc)}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
+                <input class="form-control form-control-sm" data-erp="price" inputmode="numeric" value="${escapeHtml(price)}">
+            </div>
+            <div class="col-12">
+                <label class="form-label mb-1 small text-primary">추가 입력</label>
+                <textarea class="form-control form-control-sm" data-erp="extra_input" rows="3" placeholder="추가 내용을 입력하세요 (여러 줄 가능)">${escapeHtml(extraInput)}</textarea>
+            </div>
+        </div>
+    `;
+
+    row.querySelector('.erp-remove-item-btn')?.addEventListener('click', () => {
+        row.remove();
+        erpRecalcItemsTotal();
+    });
+    row.querySelectorAll('[data-erp]').forEach(inp => {
+        inp.addEventListener('input', () => {
+            erpRecalcItemsTotal();
+        });
+    });
+    setTimeout(erpRecalcItemsTotal, 0);
+    return row;
+}
+
+async function erpLoadStructured() {
+    if (!ERP_BETA_ENABLED) return;
+    if (!ORDER_ID) return;
+    erpSetStatus('불러오는 중...');
+    const res = await fetch(`/api/orders/${ORDER_ID}/structured`);
+    const data = await res.json();
+    if (!data.success) {
+        erpSetStatus(data.message || '불러오기 실패', true);
+        return;
+    }
+
+    const sd = data.structured_data || {};
+    document.getElementById('erp-customer-name').value = sd?.parties?.customer?.name || '';
+    document.getElementById('erp-customer-phone').value = sd?.parties?.customer?.phone || '';
+    try {
+        const erpManualPhone = document.getElementById('erp-manual-phone-input');
+        if (!erpManualPhone || !erpManualPhone.checked) {
+            document.getElementById('erp-customer-phone').value = formatPhoneAuto(document.getElementById('erp-customer-phone').value);
+        }
+    } catch (e) {}
+    document.getElementById('erp-phone-note').value = sd?.notes?.phone_note || '';
+    document.getElementById('erp-orderer').value = sd?.parties?.orderer?.name || '';
+    document.getElementById('erp-manager').value = sd?.parties?.manager?.name || '';
+    document.getElementById('erp-workflow-stage').value = sd?.workflow?.stage || '';
+    document.getElementById('erp-owner-team').value = sd?.assignments?.owner_team || '';
+    document.getElementById('erp-urgent-flag').checked = !!sd?.flags?.urgent;
+    document.getElementById('erp-urgent-reason').value = sd?.flags?.urgent_reason || '';
+    document.getElementById('erp-address').value = sd?.site?.address_main || sd?.site?.address_full || '';
+    document.getElementById('erp-address-detail').value = sd?.site?.address_detail || '';
+    document.getElementById('erp-address-note').value = sd?.notes?.address_note || '';
+    document.getElementById('erp-measurement-date').value = sd?.schedule?.measurement?.date || '';
+    document.getElementById('erp-measurement-time').value = sd?.schedule?.measurement?.time || '';
+    document.getElementById('erp-measurement-note').value = sd?.notes?.measurement_note || '';
+    document.getElementById('erp-construction-date').value = sd?.schedule?.construction?.date || '';
+    document.getElementById('erp-construction-status').value = sd?.schedule?.construction?.status || '';
+    document.getElementById('erp-raw-text').value = data.raw_order_text || (sd?.raw?.text || '');
+
+    const itemsWrap = document.getElementById('erp-items');
+    itemsWrap.innerHTML = '';
+    const items = Array.isArray(sd.items) ? sd.items : [];
+    if (items.length === 0) {
+        itemsWrap.appendChild(erpNewItemRow({}));
+    } else {
+        items.forEach(it => itemsWrap.appendChild(erpNewItemRow(it)));
+    }
+
+    erpSetStatus(`불러오기 완료 (confidence: ${data.structured_confidence || sd.confidence || '-'})`);
+    erpRecalcItemsTotal();
+}
+
+function erpCollectStructured() {
+    const itemsWrap = document.getElementById('erp-items');
+    const items = [];
+    let itemsTotal = 0;
+    itemsWrap.querySelectorAll('.border.rounded.p-2').forEach(row => {
+        const obj = {};
+        row.querySelectorAll('[data-erp]').forEach(inp => {
+            obj[inp.dataset.erp] = inp.value;
+        });
+        if (obj.price) {
+            const digits = String(obj.price).replace(/[^0-9]/g, '');
+            obj.price = digits ? parseInt(digits, 10) : obj.price;
+            if (typeof obj.price === 'number' && Number.isFinite(obj.price)) {
+                itemsTotal += obj.price;
+            }
+        }
+        items.push(obj);
+    });
+
+    return {
+        entity_type: 'order_structured',
+        schema_version: 1,
+        confidence: null,
+        totals: { items_total: itemsTotal },
+        parties: {
+            customer: { name: document.getElementById('erp-customer-name').value, phone: document.getElementById('erp-customer-phone').value },
+            orderer: { name: document.getElementById('erp-orderer').value },
+            manager: { name: document.getElementById('erp-manager').value }
+        },
+        site: (function() {
+            const main = (document.getElementById('erp-address').value || '').trim();
+            const detail = (document.getElementById('erp-address-detail').value || '').trim();
+            return { address_main: main, address_detail: detail, address_full: detail ? `${main} ${detail}`.trim() : main };
+        })(),
+        schedule: {
+            measurement: { date: document.getElementById('erp-measurement-date').value, time: document.getElementById('erp-measurement-time').value },
+            construction: { raw: '', status: document.getElementById('erp-construction-status').value, date: document.getElementById('erp-construction-date').value }
+        },
+        notes: {
+            phone_note: document.getElementById('erp-phone-note').value,
+            address_note: document.getElementById('erp-address-note').value,
+            measurement_note: document.getElementById('erp-measurement-note').value
+        },
+        workflow: { stage: document.getElementById('erp-workflow-stage').value },
+        assignments: { owner_team: document.getElementById('erp-owner-team').value, owner_user_id: null, owner_user_name: null },
+        flags: { urgent: !!document.getElementById('erp-urgent-flag').checked, urgent_reason: document.getElementById('erp-urgent-reason').value },
+        items
+    };
+}
+
+async function erpSaveStructured() {
+    if (!ERP_BETA_ENABLED) return;
+    if (!ORDER_ID) {
+        const ok = await erpRequireOrderIdOrWarn('저장:');
+        if (!ok) return;
+    }
+    erpSetStatus('저장 중...');
+    const structured_data = erpCollectStructured();
+    const raw_order_text = document.getElementById('erp-raw-text')?.value || '';
+    const res = await fetch(`/api/orders/${ORDER_ID}/structured`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            structured_data,
+            raw_order_text,
+            structured_schema_version: 1,
+            structured_confidence: structured_data.confidence
+        })
+    });
+    const data = await res.json();
+    if (!data.success) {
+        erpSetStatus(data.message || '저장 실패', true);
+        return;
+    }
+    erpSetStatus('저장 완료');
+}
+
+async function erpParseRawText() {
+    const raw = document.getElementById('erp-raw-text')?.value || '';
+    if (!raw.trim()) {
+        alert('원문 텍스트를 입력해 주세요.');
+        return;
+    }
+    const preview = document.getElementById('erp-parsed-preview');
+    preview.textContent = '파싱 중...';
+    let res;
+    try {
+        res = await fetch('/api/orders/parse-text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ raw_text: raw })
+        });
+    } catch (e) {
+        preview.textContent = `네트워크 오류: ${String(e?.message || e)}`;
+        document.getElementById('erp-apply-btn').disabled = true;
+        return;
+    }
+
+    let data = null;
+    let rawText = null;
+    try { data = await res.json(); } catch (e) { try { rawText = await res.text(); } catch (_) {} }
+
+    if (!res.ok) {
+        const msg = (data && (data.message || data.error)) ? (data.message || data.error) : (rawText || `HTTP ${res.status}`);
+        preview.textContent = msg;
+        document.getElementById('erp-apply-btn').disabled = true;
+        return;
+    }
+
+    if (!data || !data.success) {
+        preview.textContent = (data && data.message) ? data.message : '파싱 실패';
+        document.getElementById('erp-apply-btn').disabled = true;
+        return;
+    }
+    window.__erpParsed = data.structured_data;
+    preview.textContent = JSON.stringify(data.structured_data, null, 2);
+    document.getElementById('erp-apply-btn').disabled = false;
+}
+
+function erpApplyParsedToForm() {
+    const sd = window.__erpParsed;
+    if (!sd) return;
+    document.getElementById('erp-customer-name').value = sd?.parties?.customer?.name || '';
+    document.getElementById('erp-customer-phone').value = sd?.parties?.customer?.phone || '';
+    try {
+        const erpManualPhone = document.getElementById('erp-manual-phone-input');
+        if (!erpManualPhone || !erpManualPhone.checked) {
+            document.getElementById('erp-customer-phone').value = formatPhoneAuto(document.getElementById('erp-customer-phone').value);
+        }
+    } catch (e) {}
+    document.getElementById('erp-orderer').value = sd?.parties?.orderer?.name || '';
+    document.getElementById('erp-manager').value = sd?.parties?.manager?.name || '';
+    document.getElementById('erp-address').value = sd?.site?.address_main || sd?.site?.address_full || '';
+    document.getElementById('erp-address-detail').value = sd?.site?.address_detail || '';
+    document.getElementById('erp-measurement-date').value = sd?.schedule?.measurement?.date || '';
+    document.getElementById('erp-measurement-time').value = sd?.schedule?.measurement?.time || '';
+    document.getElementById('erp-construction-date').value = sd?.schedule?.construction?.date || '';
+    document.getElementById('erp-construction-status').value = sd?.schedule?.construction?.status || '';
+    document.getElementById('erp-phone-note').value = sd?.notes?.phone_note || '';
+    document.getElementById('erp-address-note').value = sd?.notes?.address_note || '';
+    document.getElementById('erp-measurement-note').value = sd?.notes?.measurement_note || '';
+
+    const itemsWrap = document.getElementById('erp-items');
+    itemsWrap.innerHTML = '';
+    const items = Array.isArray(sd.items) ? sd.items : [];
+    if (items.length === 0) {
+        itemsWrap.appendChild(erpNewItemRow({}));
+    } else {
+        items.forEach(it => itemsWrap.appendChild(erpNewItemRow(it)));
+    }
+
+    erpSetStatus(`파싱 결과 적용 완료 (confidence: ${sd.confidence || '-'})`);
+    erpRecalcItemsTotal();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (!ERP_BETA_ENABLED) return;
+
+    // 기본 항목 1개
+    const itemsWrap = document.getElementById('erp-items');
+    if (itemsWrap && itemsWrap.children.length === 0) {
+        itemsWrap.appendChild(erpNewItemRow({}));
+        erpRecalcItemsTotal();
+    }
+
+    document.getElementById('erp-add-item-btn')?.addEventListener('click', function() {
+        document.getElementById('erp-items')?.appendChild(erpNewItemRow({}));
+        erpRecalcItemsTotal();
+    });
+    document.getElementById('erp-save-btn')?.addEventListener('click', erpSaveStructured);
+    document.getElementById('erp-load-btn')?.addEventListener('click', erpLoadStructured);
+    document.getElementById('erp-parse-btn')?.addEventListener('click', erpParseRawText);
+    document.getElementById('erp-apply-btn')?.addEventListener('click', erpApplyParsedToForm);
+
+    // add_order(draft) 모드에선 tab 오픈 시 draft 생성 후 로드, edit_order에선 즉시 로드
+    if (!window.__ERP_BETA_DRAFT_MODE) {
+        erpLoadStructured();
+    }
+});
+
+// ============================================
+// ERP Beta: Attachments (photo/video)
+// ============================================
+let __erpAttachments = [];
+
+function erpAttachmentsSetStatus(text, isError=false) {
+    const el = document.getElementById('erp-attachments-status');
+    if (!el) return;
+    el.textContent = text || '';
+    el.classList.toggle('text-danger', !!isError);
+    el.classList.toggle('text-muted', !isError);
+}
+
+function erpRenderAttachments() {
+    const wrap = document.getElementById('erp-attachments-gallery');
+    if (!wrap) return;
+    const items = Array.isArray(__erpAttachments) ? __erpAttachments : [];
+    if (!items.length) {
+        wrap.innerHTML = `<div class="col-12"><div class="small text-muted">첨부된 파일이 없습니다.</div></div>`;
+        return;
+    }
+
+    wrap.innerHTML = items.map(a => {
+        const name = escapeHtml(a.filename || '');
+        const type = a.file_type || 'file';
+        const thumb = a.thumbnail_view_url || a.view_url;
+        const viewUrl = a.view_url || '#';
+        const downloadUrl = a.download_url || '#';
+
+        const mediaHtml = (type === 'video')
+            ? `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
+                    <video src="${viewUrl}" controls preload="metadata" style="width:100%;height:100%;"></video>
+               </div>`
+            : `<img src="${thumb}" alt="${name}" class="img-fluid rounded" style="max-height: 220px; cursor: zoom-in; background:#fff; padding:4px;"
+                    onclick="erpOpenAttachmentPreview(${a.id})">`;
+
+        return `
+            <div class="col-md-4 col-sm-6 col-12">
+                <div class="card h-100">
+                    <div class="card-body p-2">
+                        ${mediaHtml}
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <div class="small text-truncate" title="${name}" style="max-width: 70%;">${name}</div>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" type="button" title="미리보기" onclick="erpOpenAttachmentPreview(${a.id})">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <a class="btn btn-outline-primary" href="${downloadUrl}" title="다운로드" target="_blank" rel="noopener">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                <button class="btn btn-outline-danger" type="button" title="삭제" onclick="erpDeleteAttachment(${a.id})">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function erpLoadAttachments() {
+    if (!ERP_BETA_ENABLED) return;
+    if (!ORDER_ID) return;
+    try {
+        const res = await fetch(`/api/orders/${ORDER_ID}/attachments`);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '첨부 목록 조회 실패');
+        __erpAttachments = data.attachments || [];
+        erpRenderAttachments();
+    } catch (e) {
+        console.error(e);
+        erpAttachmentsSetStatus(String(e?.message || e), true);
+    }
+}
+
+function erpOpenAttachmentPreview(attachmentId) {
+    const a = (__erpAttachments || []).find(x => x.id === attachmentId);
+    if (!a) return;
+    const modalEl = document.getElementById('erpAttachmentPreviewModal');
+    const body = document.getElementById('erp-attachment-preview-body');
+    const dl = document.getElementById('erp-attachment-preview-download');
+    if (!modalEl || !body || !dl) return;
+
+    const viewUrl = a.view_url || '#';
+    const downloadUrl = a.download_url || '#';
+    dl.href = downloadUrl;
+
+    if (a.file_type === 'video') {
+        body.innerHTML = `
+            <div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
+                <video src="${viewUrl}" controls autoplay style="width:100%;height:100%;"></video>
+            </div>
+            <div class="small text-muted mt-2">${escapeHtml(a.filename || '')}</div>
+        `;
+    } else {
+        body.innerHTML = `
+            <img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded" style="background:#fff; padding:4px;">
+            <div class="small text-muted mt-2">${escapeHtml(a.filename || '')}</div>
+        `;
+    }
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+}
+
+async function erpUploadSelectedAttachments() {
+    if (!ERP_BETA_ENABLED) return;
+    if (!ORDER_ID) {
+        const ok = await erpRequireOrderIdOrWarn('첨부 업로드:');
+        if (!ok) return;
+    }
+    const input = document.getElementById('erp-attachments-input');
+    if (!input || !input.files || input.files.length === 0) {
+        erpAttachmentsSetStatus('업로드할 파일을 선택하세요.', true);
+        return;
+    }
+
+    const files = Array.from(input.files);
+    erpAttachmentsSetStatus(`업로드 중... (${files.length}개)`);
+
+    let ok = 0;
+    for (const f of files) {
+        const fd = new FormData();
+        fd.append('file', f);
+        const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) ok += 1;
+        else console.warn('upload failed', data);
+    }
+
+    input.value = '';
+    erpAttachmentsSetStatus(`업로드 완료: ${ok}/${files.length}`);
+    await erpLoadAttachments();
+}
+
+async function erpDeleteAttachment(attachmentId) {
+    if (!confirm('첨부파일을 삭제할까요?')) return;
+    try {
+        const res = await fetch(`/api/orders/${ORDER_ID}/attachments/${attachmentId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '삭제 실패');
+        erpAttachmentsSetStatus('삭제 완료');
+        await erpLoadAttachments();
+    } catch (e) {
+        console.error(e);
+        erpAttachmentsSetStatus(String(e?.message || e), true);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (!ERP_BETA_ENABLED) return;
+    document.getElementById('erp-attachments-upload-btn')?.addEventListener('click', erpUploadSelectedAttachments);
+
+    // ERP Beta 탭이 열릴 때: add_order는 draft 생성 후 로드, edit_order는 바로 로드
+    document.getElementById('erp-beta-tab')?.addEventListener('shown.bs.tab', async function() {
+        if (window.__ERP_BETA_DRAFT_MODE) {
+            const ok = await erpRequireOrderIdOrWarn('주문 생성:');
+            if (!ok) return;
+        }
+        erpLoadStructured();
+        erpLoadAttachments();
+        erpLoadTasks();
+        erpLoadEvents();
+    });
+});
+
+// ============================================
+// ERP Beta: Tasks & Events
+// ============================================
+let __erpTasks = [];
+let __erpEvents = [];
+
+const ERP_TEAM_LABELS = {
+    CS: 'CS(해피콜)',
+    SALES: '영업(실측)',
+    MEASURE: '실측팀',
+    DRAWING: '도면팀',
+    PRODUCTION: '생산팀',
+    CONSTRUCTION: '시공팀',
+};
+
+const ERP_EVENT_LABELS = {
+    STAGE_CHANGED: '단계 변경',
+    URGENT_CHANGED: '긴급 변경',
+    OWNER_TEAM_CHANGED: '오너팀 변경',
+    MEASUREMENT_DATE_CHANGED: '실측일 변경',
+    CONSTRUCTION_DATE_CHANGED: '시공일 변경',
+};
+
+const ERP_TASK_STATUS_LABELS = {
+    OPEN: '오픈',
+    IN_PROGRESS: '진행중',
+    DONE: '완료',
+    CANCELLED: '취소',
+};
+
+const ERP_STAGE_LABELS = {
+    RECEIVED: '주문접수',
+    HAPPYCALL: '해피콜',
+    MEASURE: '실측',
+    DRAWING: '도면',
+    CONFIRM: '고객컨펌',
+    PRODUCTION: '생산',
+    CONSTRUCTION: '시공',
+};
+
+function erpLabel(map, code, fallback='-') {
+    if (!code) return fallback;
+    return map[code] || code;
+}
+
+function erpFormatEventPayload(ev) {
+    const t = ev?.event_type;
+    const p = ev?.payload || {};
+    if (t === 'STAGE_CHANGED') return `${erpLabel(ERP_STAGE_LABELS, p.from, '-') } → ${erpLabel(ERP_STAGE_LABELS, p.to, '-')}`;
+    if (t === 'URGENT_CHANGED') return `${p.from ? '긴급' : '일반'} → ${p.to ? '긴급' : '일반'}${p.reason ? ` (${p.reason})` : ''}`;
+    if (t === 'OWNER_TEAM_CHANGED') return `${erpLabel(ERP_TEAM_LABELS, p.from, '-') } → ${erpLabel(ERP_TEAM_LABELS, p.to, '-')}`;
+    if (t === 'MEASUREMENT_DATE_CHANGED') return `${p.from || '-'} → ${p.to || '-'}`;
+    if (t === 'CONSTRUCTION_DATE_CHANGED') return `${p.from || '-'} → ${p.to || '-'}`;
+    return JSON.stringify(p);
+}
+
+function erpSetTaskStatus(text, isError=false) {
+    const el = document.getElementById('erp-task-status-text');
+    if (!el) return;
+    el.textContent = text || '';
+    el.classList.toggle('text-danger', !!isError);
+    el.classList.toggle('text-muted', !isError);
+}
+
+function erpRenderTasks() {
+    const tb = document.getElementById('erp-tasks-tbody');
+    if (!tb) return;
+    const tasks = Array.isArray(__erpTasks) ? __erpTasks : [];
+    if (!tasks.length) {
+        tb.innerHTML = `<tr><td colspan="6" class="text-muted small">Task가 없습니다.</td></tr>`;
+        return;
+    }
+    tb.innerHTML = tasks.map(t => {
+        const status = escapeHtml(erpLabel(ERP_TASK_STATUS_LABELS, t.status || '', t.status || '-'));
+        const owner = escapeHtml(erpLabel(ERP_TEAM_LABELS, t.owner_team || '', t.owner_team || '-'));
+        const title = escapeHtml(t.title || '');
+        const due = escapeHtml(t.due_date || '');
+        const upd = escapeHtml(t.updated_at || '');
+        return `
+            <tr>
+                <td>
+                    <select class="form-select form-select-sm" onchange="erpUpdateTask(${t.id}, {status: this.value})">
+                        ${['OPEN','IN_PROGRESS','DONE','CANCELLED'].map(s => `<option value="${s}" ${s===t.status?'selected':''}>${erpLabel(ERP_TASK_STATUS_LABELS, s, s)}</option>`).join('')}
+                    </select>
+                </td>
+                <td>${owner}</td>
+                <td class="small">${title}</td>
+                <td class="small">${due}</td>
+                <td class="small text-muted">${upd}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger" type="button" onclick="erpDeleteTask(${t.id})"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function erpLoadTasks() {
+    if (!ERP_BETA_ENABLED || !ORDER_ID) return;
+    try {
+        const res = await fetch(`/api/orders/${ORDER_ID}/tasks`);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || 'Task 조회 실패');
+        __erpTasks = data.tasks || [];
+        erpRenderTasks();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function erpAddTask() {
+    if (!ERP_BETA_ENABLED) return;
+    if (!ORDER_ID) {
+        const ok = await erpRequireOrderIdOrWarn('Task:');
+        if (!ok) return;
+    }
+    const title = (document.getElementById('erp-task-title')?.value || '').trim();
+    if (!title) {
+        erpSetTaskStatus('제목이 필요합니다.', true);
+        return;
+    }
+    const owner_team = document.getElementById('erp-task-owner-team')?.value || '';
+    const status = document.getElementById('erp-task-status')?.value || 'OPEN';
+    const due_date = document.getElementById('erp-task-due-date')?.value || null;
+    const res = await fetch(`/api/orders/${ORDER_ID}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, owner_team, status, due_date })
+    });
+    const data = await res.json();
+    if (!data.success) {
+        erpSetTaskStatus(data.message || '추가 실패', true);
+        return;
+    }
+    document.getElementById('erp-task-title').value = '';
+    erpSetTaskStatus('추가 완료');
+    await erpLoadTasks();
+}
+
+async function erpUpdateTask(taskId, patch) {
+    const res = await fetch(`/api/orders/${ORDER_ID}/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch || {})
+    });
+    const data = await res.json();
+    if (!data.success) {
+        erpSetTaskStatus(data.message || '수정 실패', true);
+        return;
+    }
+    erpSetTaskStatus('수정 완료');
+    await erpLoadTasks();
+}
+
+async function erpDeleteTask(taskId) {
+    if (!confirm('Task를 삭제할까요?')) return;
+    const res = await fetch(`/api/orders/${ORDER_ID}/tasks/${taskId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.success) {
+        erpSetTaskStatus(data.message || '삭제 실패', true);
+        return;
+    }
+    erpSetTaskStatus('삭제 완료');
+    await erpLoadTasks();
+}
+
+function erpRenderEvents() {
+    const tb = document.getElementById('erp-events-tbody');
+    if (!tb) return;
+    const events = Array.isArray(__erpEvents) ? __erpEvents : [];
+    if (!events.length) {
+        tb.innerHTML = `<tr><td colspan="3" class="text-muted small">이벤트가 없습니다.</td></tr>`;
+        return;
+    }
+    tb.innerHTML = events.map(ev => {
+        const when = escapeHtml(ev.created_at || '');
+        const type = escapeHtml(erpLabel(ERP_EVENT_LABELS, ev.event_type || '', ev.event_type || ''));
+        const payload = escapeHtml(erpFormatEventPayload(ev));
+        return `<tr><td class="small text-muted">${when}</td><td class="fw-bold">${type}</td><td class="small">${payload}</td></tr>`;
+    }).join('');
+}
+
+async function erpLoadEvents() {
+    if (!ERP_BETA_ENABLED || !ORDER_ID) return;
+    try {
+        const res = await fetch(`/api/orders/${ORDER_ID}/events?limit=80`);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '이벤트 조회 실패');
+        __erpEvents = data.events || [];
+        erpRenderEvents();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (!ERP_BETA_ENABLED) return;
+    document.getElementById('erp-task-add-btn')?.addEventListener('click', erpAddTask);
+});

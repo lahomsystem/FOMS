@@ -489,6 +489,21 @@ def erp_dashboard():
         },
     )
 
+
+@app.route('/erp/order/<int:order_id>')
+@login_required
+def erp_order_object(order_id: int):
+    """ERP Object Page (Fiori-style): ERP Beta 주문 상세(미디어/구조화/태스크/이벤트)"""
+    db = get_db()
+    order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
+    if not order:
+        flash('주문을 찾을 수 없습니다.', 'error')
+        return redirect(url_for('erp_dashboard'))
+    if not getattr(order, 'is_erp_beta', False):
+        return redirect(url_for('edit_order', order_id=order_id))
+
+    return render_template('erp_object.html', order_id=order_id)
+
 # ============================================
 # Files API (view/download) + ERP Beta Attachments API
 # (login_required 정의 이후에 위치해야 함)
@@ -7043,6 +7058,75 @@ def api_parse_order_text():
         print(f"[ERP_BETA] parse-text 오류: {e}")
         print(traceback.format_exc())
         _record_build_step(db, "ERP_BETA_API_PARSE_TEXT", "FAILED", message=str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ============================================
+# ERP Beta: Draft Order API (for Add Order screen)
+# ============================================
+@app.route('/api/orders/erp-beta/draft', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_erp_beta_create_draft():
+    """
+    ERP Beta '새 주문' 화면에서 모든 기능(첨부/태스크/이벤트/구조화 저장)을 즉시 사용하기 위해
+    order_id를 먼저 확보하는 draft 주문 생성 API.
+
+    - 세션에 draft가 있으면 재사용(중복 생성 방지)
+    - 없으면 placeholder Order를 생성하고 is_erp_beta=True로 마킹
+    """
+    db = get_db()
+    try:
+        existing_id = session.get('erp_beta_draft_order_id')
+        if existing_id:
+            order = db.query(Order).filter(Order.id == int(existing_id), Order.status != 'DELETED').first()
+            if order:
+                return jsonify({'success': True, 'order_id': order.id, 'reused': True})
+
+        now = datetime.datetime.now()
+        today = now.strftime('%Y-%m-%d')
+        time_str = now.strftime('%H:%M')
+
+        # 최소 placeholder (NOT NULL 컬럼 충족)
+        structured = {
+            'workflow': {'stage': 'RECEIVED', 'stage_updated_at': now.isoformat()},
+            'flags': {'urgent': False},
+            'assignments': {},
+            'schedule': {},
+            'meta': {'draft': True, 'created_via': 'ADD_ORDER'},
+        }
+
+        order = Order(
+            received_date=today,
+            received_time=time_str,
+            customer_name='ERP Beta',
+            phone='000-0000-0000',
+            address='-',
+            product='ERP Beta',
+            options=None,
+            notes=None,
+            status='RECEIVED',
+            is_erp_beta=True,
+            raw_order_text='',
+            structured_data=structured,
+            structured_schema_version=1,
+            structured_confidence=None,
+            structured_updated_at=now,
+        )
+        db.add(order)
+        db.commit()
+        db.refresh(order)
+
+        session['erp_beta_draft_order_id'] = order.id
+        return jsonify({'success': True, 'order_id': order.id, 'reused': False})
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        import traceback
+        print(f"[ERP_BETA] draft create error: {e}")
+        print(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
