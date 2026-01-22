@@ -32,24 +32,38 @@ STAGE_LABELS: Dict[str, str] = {
 
 
 DEFAULT_OWNER_TEAM_BY_STAGE: Dict[str, str] = {
-    "RECEIVED": "SALES",
+    "RECEIVED": "CS",
     "HAPPYCALL": "CS",
-    "MEASURE": "MEASURE",
+    "MEASURE": "SALES",
     "DRAWING": "DRAWING",
-    "CONFIRM": "DRAWING",
+    "CONFIRM": "SALES",
     "PRODUCTION": "PRODUCTION",
     "CONSTRUCTION": "CONSTRUCTION",
+}
+
+# 한글 단계명을 영문 코드로 변환하는 매핑 (app.py의 _erp_get_stage() 매핑의 역매핑)
+STAGE_NAME_TO_CODE: Dict[str, str] = {
+    "주문접수": "RECEIVED",
+    "해피콜": "HAPPYCALL",
+    "실측": "MEASURE",
+    "도면": "DRAWING",
+    "고객컨펌": "CONFIRM",
+    "생산": "PRODUCTION",
+    "시공": "CONSTRUCTION",
 }
 
 _DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 _POLICY_PATH = os.path.join(_DATA_DIR, "erp_policy.json")
 _TEMPLATES_PATH = os.path.join(_DATA_DIR, "erp_task_templates.json")
+_QUEST_TEMPLATES_PATH = os.path.join(_DATA_DIR, "erp_quest_templates.json")
 
 _CACHE: Dict[str, Any] = {
     "policy_mtime": None,
     "policy": None,
     "tpl_mtime": None,
     "templates": None,
+    "quest_tpl_mtime": None,
+    "quest_templates": None,
 }
 
 
@@ -361,4 +375,240 @@ def build_stage_template_tasks(sd: Dict[str, Any], now: Optional[datetime.dateti
             meta={"auto_key": auto_key, "template_stage": stage, "template_key": key},
         ))
     return out
+
+
+# -----------------------------
+# Stage Transition Validation
+# -----------------------------
+
+def get_required_task_keys_for_stage(stage: Optional[str]) -> List[str]:
+    """
+    주어진 단계의 필수 Task 템플릿 키 목록을 반환합니다.
+    단계 전환 시 이 Task들이 모두 완료되어야 합니다.
+    """
+    if not stage:
+        return []
+    
+    tpl = get_task_templates()
+    stages = (tpl.get("stages") or {}) if isinstance(tpl.get("stages"), dict) else {}
+    items = stages.get(stage) or []
+    if not isinstance(items, list):
+        return []
+    
+    keys = []
+    for it in items:
+        if isinstance(it, dict):
+            key = (it.get("key") or "").strip()
+            if key:
+                keys.append(key)
+    return keys
+
+
+# -----------------------------
+# Quest System
+# -----------------------------
+
+def get_quest_templates() -> Dict[str, Any]:
+    """
+    Quest 템플릿 로드(+ 캐시). 각 단계별로 1개의 명확한 퀘스트만 정의.
+    """
+    mtime = _get_mtime(_QUEST_TEMPLATES_PATH)
+    if _CACHE.get("quest_templates") is not None and _CACHE.get("quest_tpl_mtime") == mtime:
+        return _CACHE["quest_templates"]
+    
+    default = {"version": 1, "stages": {}}
+    loaded = _safe_read_json(_QUEST_TEMPLATES_PATH) or {}
+    merged = default
+    merged.update({k: v for k, v in loaded.items() if k in ("version", "stages") and v is not None})
+    if isinstance(default.get("stages"), dict) and isinstance(loaded.get("stages"), dict):
+        merged["stages"] = {**default["stages"], **loaded["stages"]}
+    
+    _CACHE["quest_tpl_mtime"] = mtime
+    _CACHE["quest_templates"] = merged
+    return merged
+
+
+def get_quest_template_for_stage(stage: Optional[str]) -> Optional[Dict[str, Any]]:
+    """
+    주어진 단계의 Quest 템플릿을 반환합니다.
+    한글 단계명('주문접수', '해피콜' 등)과 영문 코드('RECEIVED', 'HAPPYCALL' 등) 모두 지원합니다.
+    """
+    if not stage:
+        return None
+    
+    # 한글 단계명을 영문 코드로 변환
+    stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
+    
+    tpl = get_quest_templates()
+    stages = (tpl.get("stages") or {}) if isinstance(tpl.get("stages"), dict) else {}
+    return stages.get(stage_code)
+
+
+def get_required_approval_teams_for_stage(stage: Optional[str]) -> List[str]:
+    """
+    주어진 단계의 필수 승인 팀 목록을 반환합니다.
+    """
+    quest_tpl = get_quest_template_for_stage(stage)
+    if not quest_tpl:
+        return []
+    
+    required_approvals = quest_tpl.get("required_approvals")
+    if isinstance(required_approvals, list):
+        return [str(t) for t in required_approvals if t]
+    return []
+
+
+def get_next_stage_for_completed_quest(stage: Optional[str]) -> Optional[str]:
+    """
+    현재 단계의 Quest가 완료되었을 때 다음 단계를 반환합니다.
+    """
+    quest_tpl = get_quest_template_for_stage(stage)
+    if not quest_tpl:
+        return None
+    
+    next_stage = quest_tpl.get("next_stage")
+    return str(next_stage) if next_stage else None
+
+
+def check_quest_approvals_complete(sd: Dict[str, Any], stage: Optional[str]) -> tuple[bool, List[str]]:
+    """
+    현재 단계의 Quest에 대한 모든 필수 팀 승인이 완료되었는지 확인합니다.
+    stage는 한글 단계명 또는 영문 코드 모두 지원합니다.
+    
+    Returns:
+        (is_complete, missing_teams): 승인 완료 여부와 미승인 팀 목록
+    """
+    if not stage:
+        return (False, [])
+    
+    required_teams = get_required_approval_teams_for_stage(stage)
+    if not required_teams:
+        return (True, [])  # 승인 필요 없으면 완료로 간주
+    
+    # structured_data.quests에서 현재 단계의 quest 찾기
+    quests = sd.get("quests") or []
+    if not isinstance(quests, list):
+        return (False, required_teams)
+    
+    # stage가 한글 단계명인 경우 영문 코드로도 변환하여 비교
+    stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
+    current_quest = None
+    for q in quests:
+        if isinstance(q, dict):
+            quest_stage = q.get("stage")
+            # 한글 단계명 또는 영문 코드 모두 확인
+            if quest_stage == stage or quest_stage == stage_code:
+                current_quest = q
+                break
+    
+    if not current_quest:
+        return (False, required_teams)
+    
+    # team_approvals 확인
+    team_approvals = current_quest.get("team_approvals") or {}
+    if not isinstance(team_approvals, dict):
+        return (False, required_teams)
+    
+    # quest_status 확인
+    quest_status = current_quest.get("status", "OPEN")
+    
+    # 새로 생성된 quest (status가 OPEN이고 team_approvals가 모두 미승인 상태)는 항상 미승인 상태
+    if quest_status == "OPEN":
+        # team_approvals를 확인하여 모든 팀이 미승인 상태인지 확인
+        all_unapproved = True
+        for team in required_teams:
+            team_key = str(team)
+            approval = team_approvals.get(team_key) or team_approvals.get(team)
+            if approval is not None:
+                if isinstance(approval, dict):
+                    if approval.get("approved", False):
+                        all_unapproved = False
+                        break
+                elif bool(approval):
+                    all_unapproved = False
+                    break
+        
+        # 모든 팀이 미승인 상태면 미승인으로 반환
+        if all_unapproved:
+            return (False, required_teams)
+    
+    # 실제 승인 상태 확인
+    missing_teams = []
+    for team in required_teams:
+        # create_quest_from_template에서는 str(team)으로 저장하므로, 문자열과 원본 타입 모두 확인
+        team_key = str(team)
+        approval = team_approvals.get(team_key) or team_approvals.get(team)
+        
+        if approval is None:
+            # team_approvals에 해당 팀이 없으면 미승인
+            missing_teams.append(team)
+        elif isinstance(approval, dict):
+            if not approval.get("approved", False):
+                missing_teams.append(team)
+        else:
+            # boolean 형태인 경우
+            if not bool(approval):
+                missing_teams.append(team)
+    
+    return (len(missing_teams) == 0, missing_teams)
+
+
+def create_quest_from_template(stage: Optional[str], owner_person: Optional[str] = None, structured_data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    """
+    템플릿 기반으로 Quest 객체를 생성합니다.
+    
+    Args:
+        stage: 단계명 (한글 또는 영문 코드)
+        owner_person: 담당자 이름
+        structured_data: 주문의 structured_data (발주사 정보 확인용)
+    """
+    if not stage:
+        return None
+    
+    quest_tpl = get_quest_template_for_stage(stage)
+    if not quest_tpl:
+        return None
+    
+    now = datetime.datetime.now()
+    required_teams = quest_tpl.get("required_approvals") or []
+    owner_team = quest_tpl.get("owner_team") or ""
+    
+    # 담당 팀 재배정 규칙:
+    # - 주문접수, 해피콜: 라홈팀(CS) - 템플릿에서 이미 설정됨
+    # - 실측, 고객컨펌: 영업팀(SALES) - 단, 발주사에 '라홈' 포함 시 라홈팀(CS)으로 변경
+    # - 도면: 도면팀(DRAWING) - 템플릿에서 이미 설정됨
+    # - 생산: 생산팀(PRODUCTION) - 템플릿에서 이미 설정됨
+    # - 시공: 시공팀(CONSTRUCTION) - 템플릿에서 이미 설정됨
+    
+    # 실측, 고객컨펌 단계에서 발주사에 '라홈' 텍스트가 포함되면 라홈팀(CS)으로 변경
+    if stage in ("실측", "MEASURE", "고객컨펌", "CONFIRM"):
+        if structured_data:
+            orderer_name = (((structured_data.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
+            if orderer_name and "라홈" in orderer_name:
+                owner_team = "CS"
+                # required_approvals도 CS로 변경
+                required_teams = ["CS"]
+    
+    quest = {
+        "stage": stage,
+        "title": quest_tpl.get("title") or "",
+        "description": quest_tpl.get("description") or "",
+        "owner_team": owner_team,
+        "owner_person": owner_person or "",
+        "status": "OPEN",  # OPEN, IN_PROGRESS, COMPLETED
+        "team_approvals": {},
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+    }
+    
+    # 필수 승인 팀 초기화
+    for team in required_teams:
+        if team:
+            quest["team_approvals"][str(team)] = {
+                "approved": False,
+                "approved_by": None,
+                "approved_at": None,
+            }
+    
+    return quest
 

@@ -8,11 +8,11 @@
   },
   "teams": {
     "default_owner_team_by_stage": {
-      "RECEIVED": "SALES",
+      "RECEIVED": "CS",
       "HAPPYCALL": "CS",
-      "MEASURE": "MEASURE",
+      "MEASURE": "SALES",
       "DRAWING": "DRAWING",
-      "CONFIRM": "DRAWING",
+      "CONFIRM": "SALES",
       "PRODUCTION": "PRODUCTION",
       "CONSTRUCTION": "CONSTRUCTION"
     }

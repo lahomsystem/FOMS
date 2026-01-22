@@ -88,18 +88,6 @@
                                     <option value="CONSTRUCTION">시공</option>
                                 </select>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label mb-1">오너 팀</label>
-                                <select class="form-select form-select-sm" id="erp-owner-team">
-                                    <option value="">-</option>
-                                    <option value="CS">CS(해피콜)</option>
-                                    <option value="SALES">영업(실측)</option>
-                                    <option value="MEASURE">실측팀</option>
-                                    <option value="DRAWING">도면팀</option>
-                                    <option value="PRODUCTION">생산팀</option>
-                                    <option value="CONSTRUCTION">시공팀</option>
-                                </select>
-                            </div>
                             <div class="col-12">
                                 <div class="d-flex align-items-center justify-content-between mb-1">
                                     <label class="form-label mb-0">긴급 발주</label>
@@ -162,15 +150,6 @@
                                 <label class="form-label mb-1">시공일</label>
                                 <input type="date" class="form-control form-control-sm" id="erp-construction-date" autocomplete="off">
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label mb-1">시공상태</label>
-                                <select class="form-select form-select-sm" id="erp-construction-status">
-                                    <option value="">-</option>
-                                    <option value="CONSULT">상담</option>
-                                    <option value="DATE">날짜</option>
-                                    <option value="UNKNOWN">미정</option>
-                                </select>
-                            </div>
                         </div>
 
                         <hr class="my-3">
@@ -211,73 +190,6 @@
                             <div class="small text-muted mt-2" id="erp-attachments-status"></div>
                         </div>
                         <div class="row g-2 mt-2" id="erp-attachments-gallery"></div>
-
-                        <hr class="my-3">
-                        <div class="fw-bold mb-2"><i class="fas fa-clipboard-check"></i> 팔로업 / 이슈(Task)</div>
-                        <div class="row g-2 mb-2">
-                            <div class="col-md-6">
-                                <input type="text" class="form-control form-control-sm" id="erp-task-title" placeholder="팔로업 제목 (예: 고객 컨펌 연락, 도면 수정 요청 등)" autocomplete="off">
-                            </div>
-                            <div class="col-md-2">
-                                <select class="form-select form-select-sm" id="erp-task-owner-team">
-                                    <option value="">오너팀</option>
-                                    <option value="CS">CS</option>
-                                    <option value="SALES">영업</option>
-                                    <option value="MEASURE">실측</option>
-                                    <option value="DRAWING">도면</option>
-                                    <option value="PRODUCTION">생산</option>
-                                    <option value="CONSTRUCTION">시공</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <select class="form-select form-select-sm" id="erp-task-status">
-                                    <option value="OPEN">오픈</option>
-                                    <option value="IN_PROGRESS">진행중</option>
-                                    <option value="DONE">완료</option>
-                                    <option value="CANCELLED">취소</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <input type="date" class="form-control form-control-sm" id="erp-task-due-date" title="기한(선택)">
-                            </div>
-                            <div class="col-12 d-flex gap-2">
-                                <button class="btn btn-sm btn-outline-primary" type="button" id="erp-task-add-btn">
-                                    <i class="fas fa-plus"></i> 추가
-                                </button>
-                                <small class="text-muted" id="erp-task-status-text"></small>
-                            </div>
-                        </div>
-                        <div class="table-responsive">
-                            <table class="table table-sm align-middle">
-                                <thead>
-                                    <tr>
-                                        <th>상태</th>
-                                        <th>오너팀</th>
-                                        <th>제목</th>
-                                        <th>기한</th>
-                                        <th>업데이트</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="erp-tasks-tbody"></tbody>
-                            </table>
-                        </div>
-
-                        <hr class="my-3">
-                        <div class="fw-bold mb-2"><i class="fas fa-stream"></i> 타임라인(Event)</div>
-                        <div class="small text-muted mb-2">단계/긴급 등 주요 변경 이력</div>
-                        <div class="table-responsive">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>시간</th>
-                                        <th>이벤트</th>
-                                        <th>내용</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="erp-events-tbody"></tbody>
-                            </table>
-                        </div>
                     </div>
 
                     <div class="tab-pane fade" id="erp-text" role="tabpanel">

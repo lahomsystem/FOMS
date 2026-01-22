@@ -8,6 +8,7 @@ from markupsafe import Markup
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import or_, and_, text, func, String
+from sqlalchemy.orm.attributes import flag_modified
 import copy
 from datetime import date, timedelta
 
@@ -16,7 +17,20 @@ from db import get_db, close_db, init_db
 from models import Order, User, SecurityLog, ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment, OrderAttachment, OrderEvent, OrderTask
 from business_calendar import add_business_days
 from erp_automation import apply_auto_tasks
-from erp_policy import recommend_owner_team
+from erp_policy import (
+    recommend_owner_team, 
+    get_required_task_keys_for_stage, 
+    STAGE_LABELS,
+    STAGE_NAME_TO_CODE,
+    get_quest_templates,
+    get_quest_template_for_stage,
+    get_required_approval_teams_for_stage,
+    get_next_stage_for_completed_quest,
+    check_quest_approvals_complete,
+    create_quest_from_template,
+    get_stage,
+    DEFAULT_OWNER_TEAM_BY_STAGE,
+)
 
 # 견적 계산기 독립 데이터베이스 임포트
 from wdcalculator_db import get_wdcalculator_db, close_wdcalculator_db, init_wdcalculator_db
@@ -286,24 +300,27 @@ def _erp_has_media(order, attachments_count: int):
 
 def _erp_alerts(order, structured_data, attachments_count: int):
     """
-    경보 규칙(영업일 기준):
+    경보 규칙(영업일 기준, 오늘 기준):
     - 도면 48h: MVP에서는 도면 업로드 시각 정보가 없어 '도면있고 컨펌 미완' 등을 추후 고도화 필요.
       여기서는 structured_updated_at이 있고 blueprint가 있으면 48h 체크용으로 사용(보수적).
-    - 실측 D-4: measurement_date
-    - 시공 D-3: scheduled_date (기존 주문 필드)
-    - 생산 D-2: scheduled_date 기준
+    - 실측 D-4: measurement_date 기준 오늘부터 영업일 계산
+    - 시공 D-3: construction_date 기준 오늘부터 영업일 계산
+    - 생산 D-2: construction_date 기준 오늘부터 영업일 계산
     - 긴급 발주: structured_data.flags.urgent
     """
     urgent = _erp_get_urgent_flag(structured_data)
     meas_date = (((structured_data or {}).get('schedule') or {}).get('measurement') or {}).get('date')
     cons_date = (((structured_data or {}).get('schedule') or {}).get('construction') or {}).get('date')
 
+    # 오늘을 기준으로 영업일 계산 (business_days_until은 이미 오늘을 기준으로 계산함)
     meas_d = business_days_until(meas_date) if meas_date else None
     cons_d = business_days_until(cons_date) if cons_date else None
 
+    # 실측 D-4: 실측일 기준 오늘부터 영업일 0~4일 이내
     measurement_d4 = meas_d is not None and 0 <= meas_d <= 4
+    # 시공 D-3: 시공일 기준 오늘부터 영업일 0~3일 이내
     construction_d3 = cons_d is not None and 0 <= cons_d <= 3
-    # 생산 D-2: 시공일이 임박했고(workday<=2), 아직 시공 단계가 아니면 생산 준비 경보로 간주(MVP)
+    # 생산 D-2: 시공일 기준 오늘부터 영업일 0~2일 이내, 아직 시공 단계가 아니면 생산 준비 경보로 간주(MVP)
     try:
         stage = ((structured_data or {}).get('workflow') or {}).get('stage')
     except Exception:
@@ -325,8 +342,11 @@ def _erp_alerts(order, structured_data, attachments_count: int):
     return {
         'urgent': urgent,
         'measurement_d4': measurement_d4,
+        'measurement_days': meas_d,  # 실제 D-값 표시용
         'construction_d3': construction_d3,
+        'construction_days': cons_d,  # 실제 D-값 표시용
         'production_d2': production_d2,
+        'production_days': cons_d,  # 생산도 시공일 기준
         'drawing_overdue': drawing_overdue
     }
 
@@ -338,12 +358,21 @@ def _erp_alerts(order, structured_data, attachments_count: int):
 def erp_dashboard():
     """ERP 프로세스 대시보드(MVP)"""
     db = get_db()
+    
+    # 현재 사용자 확인 (관리자 여부 체크)
+    is_admin = False
+    if 'user_id' in session:
+        user = get_user_by_id(session['user_id'])
+        if user and user.role == 'ADMIN':
+            is_admin = True
+    
     # filters (query params)
     f_stage = (request.args.get('stage') or '').strip()
     f_urgent = (request.args.get('urgent') or '').strip()  # '1'
     f_has_alert = (request.args.get('has_alert') or '').strip()  # '1'
-    f_has_task = (request.args.get('has_task') or '').strip()  # '1'
+    f_alert_type = (request.args.get('alert_type') or '').strip()  # 'urgent', 'measurement_d4', 'construction_d3', 'production_d2'
     f_q = (request.args.get('q') or '').strip()
+    f_team = (request.args.get('team') or '').strip()  # 팀 필터 추가
 
     # ERP 대시보드: ERP Beta로 생성된 주문만 표시 (기존 주문은 과거 기록용)
     orders = (
@@ -363,29 +392,188 @@ def erp_dashboard():
     except Exception:
         att_counts = {}
 
-    enriched = []
-    # open tasks count
-    open_tasks_by_order = {}
-    try:
-        rows = db.execute(text("""
-            SELECT order_id, COUNT(*) AS cnt
-            FROM order_tasks
-            WHERE status IN ('OPEN', 'IN_PROGRESS')
-            GROUP BY order_id
-        """)).fetchall()
-        for r in rows:
-            open_tasks_by_order[int(r.order_id)] = int(r.cnt)
-    except Exception:
-        open_tasks_by_order = {}
+    # TEAM_LABELS 정의
+    TEAM_LABELS = {
+        'CS': '라홈팀',
+        'SALES': '영업팀',
+        'MEASURE': '실측팀',
+        'DRAWING': '도면팀',
+        'PRODUCTION': '생산팀',
+        'CONSTRUCTION': '시공팀',
+    }
 
+    enriched = []
     for o in orders:
         sd = o.structured_data or {}
         cnt = att_counts.get(o.id, 0)
         stage = _erp_get_stage(o, sd)
         alerts = _erp_alerts(o, sd, cnt)
         has_media = _erp_has_media(o, cnt)
-        open_tasks = open_tasks_by_order.get(o.id, 0)
 
+        # Quest 정보 가져오기 (quests는 리스트 형태로 저장됨)
+        current_quest = None
+        quests = sd.get('quests') or []
+        if stage:
+            # 리스트에서 현재 단계의 quest 찾기 (한글/영문 모두 확인)
+            # stage는 한글 단계명이지만, quest의 stage는 한글 또는 영문일 수 있음
+            # 가장 최근의 퀘스트를 찾기 위해 created_at 기준으로 정렬
+            CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
+            stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
+            
+            # 현재 단계에 해당하는 모든 퀘스트 찾기
+            matching_quests = []
+            for q in quests:
+                if isinstance(q, dict):
+                    quest_stage = q.get('stage')
+                    # 한글 단계명 또는 영문 코드 모두 확인
+                    if quest_stage == stage or quest_stage == stage_code:
+                        matching_quests.append(q)
+            
+            # 가장 최근의 퀘스트 선택 (created_at 기준, 없으면 updated_at 기준)
+            # status가 OPEN인 퀘스트를 우선 선택 (새로 생성된 퀘스트)
+            if matching_quests:
+                # OPEN 상태인 퀘스트를 먼저 찾기
+                open_quests = [q for q in matching_quests if str(q.get('status', 'OPEN')).upper() == 'OPEN']
+                if open_quests:
+                    # OPEN 퀘스트 중 가장 최근 것 선택
+                    open_quests.sort(key=lambda x: (
+                        x.get('created_at') or x.get('updated_at') or '1970-01-01T00:00:00',
+                    ), reverse=True)
+                    current_quest = open_quests[0]
+                else:
+                    # OPEN 퀘스트가 없으면 모든 퀘스트 중 가장 최근 것 선택
+                    matching_quests.sort(key=lambda x: (
+                        x.get('created_at') or x.get('updated_at') or '1970-01-01T00:00:00',
+                    ), reverse=True)
+                    current_quest = matching_quests[0]
+            
+            # Quest가 없으면 템플릿에서 생성 (표시용, 저장하지 않음)
+            if not current_quest:
+                quest_tpl = get_quest_template_for_stage(stage)
+                if quest_tpl:
+                    # create_quest_from_template을 사용하여 동적 팀 할당 적용
+                    temp_quest = create_quest_from_template(stage, None, sd)
+                    if temp_quest:
+                        current_quest = temp_quest
+                    else:
+                        # 폴백: 기본 템플릿 사용
+                        team_approvals_template = {}
+                        for team in quest_tpl.get('required_approvals', []):
+                            if team:
+                                team_approvals_template[str(team)] = {
+                                    'approved': False,
+                                    'approved_by': None,
+                                    'approved_at': None,
+                                }
+                        current_quest = {
+                            'stage': stage,
+                            'title': quest_tpl.get('title', ''),
+                            'description': quest_tpl.get('description', ''),
+                            'owner_team': quest_tpl.get('owner_team', ''),
+                            'status': 'OPEN',
+                            'team_approvals': team_approvals_template
+                        }
+
+        # Quest 승인 상태 확인
+        all_approved = False
+        missing_teams = []
+        team_approvals = {}
+        required_teams = []
+        if current_quest:
+            # 담당 팀 재배정 규칙 (표시용 quest에도 동적 팀 할당 반영):
+            # - 주문접수, 해피콜: 라홈팀(CS) - 템플릿에서 이미 설정됨
+            # - 실측, 고객컨펌: 영업팀(SALES) - 단, 발주사에 '라홈' 포함 시 라홈팀(CS)으로 변경
+            # - 도면: 도면팀(DRAWING) - 템플릿에서 이미 설정됨
+            # - 생산: 생산팀(PRODUCTION) - 템플릿에서 이미 설정됨
+            # - 시공: 시공팀(CONSTRUCTION) - 템플릿에서 이미 설정됨
+            
+            # ============================================
+            # 새로운 접근법: 단순하고 명확한 규칙만 사용
+            # ============================================
+            # 규칙 1: status == 'OPEN' → 무조건 all_approved = False (절대 예외 없음)
+            # 규칙 2: status == 'COMPLETED' → all_approved = True
+            # 규칙 3: 그 외 → 실제 승인 상태 확인
+            
+            quest_status = str(current_quest.get('status', 'OPEN')).upper()
+            team_approvals_raw = current_quest.get('team_approvals', {})
+            
+            # required_teams는 템플릿에서 가져옴
+            required_teams = get_required_approval_teams_for_stage(stage)
+            
+            # 동적 팀 할당: 실측/고객컨펌에서 발주사에 '라홈' 포함 시 라홈팀(CS)으로 변경
+            if stage in ("실측", "MEASURE", "고객컨펌", "CONFIRM"):
+                orderer_name = (((sd.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
+                if orderer_name and "라홈" in orderer_name:
+                    # owner_team과 required_teams를 CS로 변경
+                    current_quest['owner_team'] = 'CS'
+                    required_teams = ['CS']  # required_teams도 CS로 변경
+                    # team_approvals도 CS로 변경 (기존 승인 상태 유지)
+                    existing_cs_approval = current_quest.get('team_approvals', {}).get('CS', {})
+                    if isinstance(existing_cs_approval, dict):
+                        approved_status = existing_cs_approval.get('approved', False)
+                    else:
+                        approved_status = bool(existing_cs_approval)
+                    
+                    current_quest['team_approvals'] = {
+                        'CS': {
+                            'approved': approved_status,
+                            'approved_by': existing_cs_approval.get('approved_by') if isinstance(existing_cs_approval, dict) else None,
+                            'approved_at': existing_cs_approval.get('approved_at') if isinstance(existing_cs_approval, dict) else None,
+                        }
+                    }
+                    # team_approvals_raw도 업데이트
+                    team_approvals_raw = current_quest.get('team_approvals', {})
+            
+            # 규칙 1: OPEN 상태는 무조건 미승인
+            if quest_status == 'OPEN':
+                all_approved = False
+                missing_teams = required_teams.copy() if required_teams else []
+                team_approvals = {}
+                for team in required_teams:
+                    team_approvals[team] = False
+            
+            # 규칙 2: COMPLETED 상태는 무조건 완료
+            elif quest_status == 'COMPLETED':
+                all_approved = True
+                missing_teams = []
+                team_approvals = {}
+                for team in required_teams:
+                    team_approvals[team] = True
+            
+            # 규칙 3: 그 외 상태 (IN_PROGRESS 등)는 실제 승인 상태 확인
+            else:
+                if not required_teams:
+                    # 승인 필요 없으면 status로만 판단
+                    all_approved = (quest_status == 'COMPLETED')
+                    missing_teams = []
+                    team_approvals = {}
+                else:
+                    # 실제 승인 상태 확인
+                    team_approvals = {}
+                    for team in required_teams:
+                        team_key = str(team)
+                        approval_data = team_approvals_raw.get(team_key) or team_approvals_raw.get(team)
+                        
+                        if approval_data is None:
+                            team_approvals[team] = False
+                        elif isinstance(approval_data, dict):
+                            team_approvals[team] = approval_data.get('approved', False)
+                        else:
+                            team_approvals[team] = bool(approval_data)
+                    
+                    missing_teams = [t for t in required_teams if not team_approvals.get(t, False)]
+                    all_approved = (len(missing_teams) == 0)
+
+        # 담당팀: 각 단계의 해당 담당팀으로 표기
+        # stage는 한글 단계명이므로 영문 코드로 변환 필요
+        stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
+        responsible_team = DEFAULT_OWNER_TEAM_BY_STAGE.get(stage_code, None)
+        # 실측/고객컨펌에서 발주사에 '라홈' 포함 시 라홈팀(CS)으로 변경
+        if stage_code in ("MEASURE", "CONFIRM"):
+            orderer_name_check = (((sd.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
+            if orderer_name_check and "라홈" in orderer_name_check:
+                responsible_team = 'CS'
+        
         enriched.append({
             'id': o.id,
             'customer_name': (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-',
@@ -394,11 +582,23 @@ def erp_dashboard():
             'measurement_date': (((sd.get('schedule') or {}).get('measurement') or {}).get('date')),
             'construction_date': (((sd.get('schedule') or {}).get('construction') or {}).get('date')),
             'manager_name': (((sd.get('parties') or {}).get('manager') or {}).get('name')) or '-',
+            'orderer_name': (((sd.get('parties') or {}).get('orderer') or {}).get('name') or '').strip() or None,
+            'owner_team': responsible_team,
             'stage': stage,
             'alerts': alerts,
             'has_media': has_media,
-            'open_tasks': open_tasks,
+            'attachments_count': cnt,  # 첨부 파일 개수
             'recommended_owner_team': recommend_owner_team(sd) or None,
+            'current_quest': {
+                'title': current_quest.get('title', '') if current_quest else '',
+                'description': current_quest.get('description', '') if current_quest else '',
+                'owner_team': current_quest.get('owner_team', '') if current_quest else '',
+                'status': current_quest.get('status', 'OPEN') if current_quest else 'OPEN',
+                'all_approved': all_approved,
+                'missing_teams': missing_teams,
+                'required_approvals': required_teams,  # 템플릿에서 사용할 수 있도록 추가
+                'team_approvals': team_approvals,
+            } if current_quest else None,
         })
 
     # apply filters (ERP Beta = raw/structured 기준)
@@ -412,8 +612,17 @@ def erp_dashboard():
             a = r.get('alerts') or {}
             if not (a.get('urgent') or a.get('drawing_overdue') or a.get('measurement_d4') or a.get('construction_d3') or a.get('production_d2')):
                 continue
-        if f_has_task == '1' and not (r.get('open_tasks') or 0) > 0:
-            continue
+        # 알람 타입별 필터링
+        if f_alert_type:
+            a = r.get('alerts') or {}
+            if f_alert_type == 'urgent' and not a.get('urgent'):
+                continue
+            elif f_alert_type == 'measurement_d4' and not a.get('measurement_d4'):
+                continue
+            elif f_alert_type == 'construction_d3' and not a.get('construction_d3'):
+                continue
+            elif f_alert_type == 'production_d2' and not a.get('production_d2'):
+                continue
         if f_q:
             hay = ' '.join([
                 str(r.get('customer_name') or ''),
@@ -423,6 +632,14 @@ def erp_dashboard():
             ]).lower()
             if f_q.lower() not in hay:
                 continue
+        # 팀 필터: 관리자가 아닐 때만 적용 (관리자는 모든 Quest 접근 가능)
+        if f_team and not is_admin:
+            quest = r.get('current_quest')
+            if not quest:
+                continue
+            required_teams = get_required_approval_teams_for_stage(r.get('stage'))
+            if f_team not in required_teams:
+                continue
         filtered.append(r)
 
     # KPI/프로세스맵도 "필터 결과 기준"으로 재계산 (필터가 안 먹는 것처럼 보이는 문제 방지)
@@ -431,7 +648,6 @@ def erp_dashboard():
         'measurement_d4_count': 0,
         'construction_d3_count': 0,
         'production_d2_count': 0,
-        'open_tasks_count': 0,
     }
 
     step_stats = {
@@ -447,7 +663,6 @@ def erp_dashboard():
     for r in filtered:
         alerts = r.get('alerts') or {}
         stage = r.get('stage')
-        kpis['open_tasks_count'] += int(r.get('open_tasks') or 0)
 
         if alerts.get('urgent'):
             kpis['urgent_count'] += 1
@@ -484,25 +699,30 @@ def erp_dashboard():
             'stage': f_stage,
             'urgent': f_urgent,
             'has_alert': f_has_alert,
-            'has_task': f_has_task,
+            'alert_type': f_alert_type,
             'q': f_q,
+            'team': f_team,
         },
+        team_labels=TEAM_LABELS,
+        stage_labels=STAGE_LABELS,
+        is_admin=is_admin,
     )
 
 
-@app.route('/erp/order/<int:order_id>')
-@login_required
-def erp_order_object(order_id: int):
-    """ERP Object Page (Fiori-style): ERP Beta 주문 상세(미디어/구조화/태스크/이벤트)"""
-    db = get_db()
-    order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
-    if not order:
-        flash('주문을 찾을 수 없습니다.', 'error')
-        return redirect(url_for('erp_dashboard'))
-    if not getattr(order, 'is_erp_beta', False):
-        return redirect(url_for('edit_order', order_id=order_id))
-
-    return render_template('erp_object.html', order_id=order_id)
+# ERP 주문 상세 페이지 제거됨 - edit_order?open=erp-beta로 대체
+# @app.route('/erp/order/<int:order_id>')
+# @login_required
+# def erp_order_object(order_id: int):
+#     """ERP Object Page (Fiori-style): ERP Beta 주문 상세(미디어/구조화/태스크/이벤트)"""
+#     db = get_db()
+#     order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
+#     if not order:
+#         flash('주문을 찾을 수 없습니다.', 'error')
+#         return redirect(url_for('erp_dashboard'))
+#     if not getattr(order, 'is_erp_beta', False):
+#         return redirect(url_for('edit_order', order_id=order_id))
+#
+#     return render_template('erp_object.html', order_id=order_id)
 
 # ============================================
 # Files API (view/download) + ERP Beta Attachments API
@@ -866,6 +1086,334 @@ def api_order_tasks_delete(order_id, task_id):
             pass
         import traceback
         print(f"주문 Task 삭제 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# -----------------------------
+# Quest API (단계별 명확한 퀘스트 시스템)
+# -----------------------------
+
+@app.route('/api/orders/<int:order_id>/quest', methods=['GET'])
+@login_required
+def api_order_quest_get(order_id):
+    """현재 단계의 Quest 조회"""
+    try:
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        sd = order.structured_data or {}
+        current_stage = get_stage(sd)
+        
+        if not current_stage:
+            return jsonify({'success': True, 'quest': None, 'stage': None})
+        
+        # 현재 단계의 quest 찾기
+        quests = sd.get("quests") or []
+        current_quest = None
+        for q in quests:
+            if isinstance(q, dict) and q.get("stage") == current_stage:
+                current_quest = q
+                break
+        
+        # quest가 없으면 템플릿에서 생성하고 DB에 저장
+        if not current_quest:
+            quest_tpl = get_quest_template_for_stage(current_stage)
+            if quest_tpl:
+                owner_person = session.get('username') or ''
+                current_quest = create_quest_from_template(current_stage, owner_person, sd)
+                if current_quest:
+                    # DB에 저장
+                    if not sd.get("quests"):
+                        sd["quests"] = []
+                    sd["quests"].append(current_quest)
+                    order.structured_data = sd
+                    order.updated_at = datetime.datetime.now()
+                    db.commit()
+        
+        return jsonify({
+            'success': True,
+            'quest': current_quest,
+            'stage': current_stage,
+            'stage_label': STAGE_LABELS.get(current_stage, current_stage),
+        })
+    except Exception as e:
+        import traceback
+        print(f"Quest 조회 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/orders/<int:order_id>/quest', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_order_quest_create(order_id):
+    """Quest 생성 (현재 단계 기준)"""
+    try:
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        payload = request.get_json(silent=True) or {}
+        stage = payload.get('stage') or get_stage(order.structured_data or {})
+        
+        if not stage:
+            return jsonify({'success': False, 'message': '단계가 지정되지 않았습니다.'}), 400
+        
+        # 이미 해당 단계의 quest가 있는지 확인
+        sd = order.structured_data or {}
+        if not sd.get("quests"):
+            sd["quests"] = []
+        
+        existing = None
+        for q in sd["quests"]:
+            if isinstance(q, dict) and q.get("stage") == stage:
+                existing = q
+                break
+        
+        if existing:
+            return jsonify({'success': False, 'message': '이미 해당 단계의 Quest가 존재합니다.'}), 400
+        
+        # Quest 생성
+        owner_person = payload.get('owner_person') or session.get('username') or ''
+        new_quest = create_quest_from_template(stage, owner_person, sd)
+        
+        if not new_quest:
+            return jsonify({'success': False, 'message': 'Quest 템플릿을 찾을 수 없습니다.'}), 400
+        
+        sd["quests"].append(new_quest)
+        order.structured_data = sd
+        order.updated_at = datetime.datetime.now()
+        db.commit()
+        
+        return jsonify({'success': True, 'quest': new_quest})
+    except Exception as e:
+        db = get_db()
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        import traceback
+        print(f"Quest 생성 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/orders/<int:order_id>/quest/approve', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_order_quest_approve(order_id):
+    """팀별 Quest 승인 및 자동 단계 전환"""
+    try:
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        payload = request.get_json(silent=True) or {}
+        team = (payload.get('team') or '').strip()
+        
+        if not team:
+            return jsonify({'success': False, 'message': '팀이 지정되지 않았습니다.'}), 400
+        
+        sd = order.structured_data or {}
+        current_stage_code = get_stage(sd)  # 영문 코드 (예: 'RECEIVED')
+        
+        if not current_stage_code:
+            return jsonify({'success': False, 'message': '현재 단계가 없습니다.'}), 400
+        
+        # 영문 코드를 한글 단계명으로 변환 (quest의 stage는 한글 단계명으로 저장됨)
+        CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
+        current_stage_name = CODE_TO_STAGE_NAME.get(current_stage_code, current_stage_code)
+        
+        # 현재 단계의 quest 찾기 (한글 단계명으로 저장된 quest와 비교)
+        quests = sd.get("quests") or []
+        current_quest = None
+        quest_index = -1
+        for i, q in enumerate(quests):
+            if isinstance(q, dict):
+                # quest의 stage는 한글 단계명 또는 영문 코드일 수 있으므로 둘 다 확인
+                quest_stage = q.get("stage")
+                if quest_stage == current_stage_name or quest_stage == current_stage_code:
+                    current_quest = q
+                    quest_index = i
+                    break
+        
+        if not current_quest:
+            # Quest가 없으면 생성 (한글 단계명으로 생성)
+            owner_person = session.get('username') or ''
+            current_quest = create_quest_from_template(current_stage_name, owner_person, sd)
+            if not current_quest:
+                return jsonify({'success': False, 'message': 'Quest 템플릿을 찾을 수 없습니다.'}), 400
+            if not sd.get("quests"):
+                sd["quests"] = []
+            sd["quests"].append(current_quest)
+            quest_index = len(sd["quests"]) - 1
+        
+        # 팀 승인 처리
+        if not current_quest.get("team_approvals"):
+            current_quest["team_approvals"] = {}
+        
+        user_id = session.get('user_id')
+        username = session.get('username') or ''
+        now = datetime.datetime.now()
+        
+        current_quest["team_approvals"][team] = {
+            "approved": True,
+            "approved_by": user_id,
+            "approved_by_name": username,
+            "approved_at": now.isoformat(),
+        }
+        
+        current_quest["updated_at"] = now.isoformat()
+        if current_quest.get("status") == "OPEN":
+            current_quest["status"] = "IN_PROGRESS"
+        
+        # quests 배열 업데이트
+        sd["quests"][quest_index] = current_quest
+        
+        # 모든 필수 팀 승인 완료 확인 (한글 단계명 사용)
+        is_complete, missing_teams = check_quest_approvals_complete(sd, current_stage_name)
+        
+        auto_transitioned = False
+        if is_complete:
+            # Quest 완료 처리
+            current_quest["status"] = "COMPLETED"
+            current_quest["completed_at"] = now.isoformat()
+            sd["quests"][quest_index] = current_quest
+            
+            # 다음 단계로 자동 전환
+            # get_next_stage_for_completed_quest는 영문 코드를 반환함 (템플릿의 next_stage가 영문 코드)
+            next_stage_code = get_next_stage_for_completed_quest(current_stage_name)
+            if next_stage_code:
+                # 영문 코드를 한글 단계명으로 변환 (quest 생성 시 사용)
+                CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
+                next_stage_name = CODE_TO_STAGE_NAME.get(next_stage_code, next_stage_code)
+                
+                workflow = sd.get("workflow") or {}
+                old_stage = workflow.get("stage")
+                workflow["stage"] = next_stage_code  # 영문 코드로 저장
+                workflow["stage_updated_at"] = now.isoformat()
+                sd["workflow"] = workflow
+                
+                # 다음 단계의 Quest 자동 생성 (한글 단계명으로 생성)
+                next_quest = create_quest_from_template(next_stage_name, username, sd)
+                if next_quest:
+                    if not sd.get("quests"):
+                        sd["quests"] = []
+                    sd["quests"].append(next_quest)
+                
+                # 이벤트 기록
+                ev = OrderEvent(
+                    order_id=order.id,
+                    event_type='STAGE_AUTO_TRANSITIONED',
+                    payload={
+                        'from': old_stage,
+                        'to': next_stage_code,
+                        'reason': 'quest_approvals_complete',
+                        'approved_teams': get_required_approval_teams_for_stage(current_stage_name),
+                    },
+                    created_by_user_id=user_id
+                )
+                db.add(ev)
+                auto_transitioned = True
+        
+        # 최종 structured_data 저장 및 변경 감지
+        order.structured_data = sd
+        flag_modified(order, "structured_data")  # JSONB 필드 변경 명시적 표시
+        order.updated_at = now
+        db.commit()
+        
+        # 응답용 next_stage는 한글 단계명으로 변환
+        next_stage_for_response = None
+        if is_complete:
+            next_stage_code = get_next_stage_for_completed_quest(current_stage_name)
+            if next_stage_code:
+                CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
+                next_stage_for_response = CODE_TO_STAGE_NAME.get(next_stage_code, next_stage_code)
+        
+        return jsonify({
+            'success': True,
+            'quest': current_quest,
+            'all_approved': is_complete,
+            'missing_teams': missing_teams,
+            'auto_transitioned': auto_transitioned,
+            'next_stage': next_stage_for_response,
+        })
+    except Exception as e:
+        db = get_db()
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        import traceback
+        print(f"Quest 승인 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/orders/<int:order_id>/quest/status', methods=['PUT'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_order_quest_update_status(order_id):
+    """Quest 상태 수동 업데이트 (OPEN, IN_PROGRESS, COMPLETED)"""
+    try:
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        payload = request.get_json(silent=True) or {}
+        status = payload.get('status')
+        owner_person = payload.get('owner_person')
+        
+        if status not in ['OPEN', 'IN_PROGRESS', 'COMPLETED']:
+            return jsonify({'success': False, 'message': '유효하지 않은 상태입니다.'}), 400
+        
+        sd = order.structured_data or {}
+        current_stage = get_stage(sd)
+        
+        if not current_stage:
+            return jsonify({'success': False, 'message': '현재 단계가 없습니다.'}), 400
+        
+        # 현재 단계의 quest 찾기
+        quests = sd.get("quests") or []
+        quest_index = -1
+        for i, q in enumerate(quests):
+            if isinstance(q, dict) and q.get("stage") == current_stage:
+                quest_index = i
+                break
+        
+        if quest_index == -1:
+            return jsonify({'success': False, 'message': 'Quest를 찾을 수 없습니다.'}), 404
+        
+        now = datetime.datetime.now()
+        quests[quest_index]["status"] = status
+        quests[quest_index]["updated_at"] = now.isoformat()
+        
+        if owner_person:
+            quests[quest_index]["owner_person"] = owner_person
+        
+        if status == "COMPLETED" and not quests[quest_index].get("completed_at"):
+            quests[quest_index]["completed_at"] = now.isoformat()
+        
+        sd["quests"] = quests
+        order.structured_data = sd
+        order.updated_at = now
+        db.commit()
+        
+        return jsonify({'success': True, 'quest': quests[quest_index]})
+    except Exception as e:
+        db = get_db()
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        import traceback
+        print(f"Quest 상태 업데이트 오류: {e}")
         print(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -6932,21 +7480,58 @@ def api_put_order_structured(order_id):
             if not structured_data.get('assignments'):
                 structured_data['assignments'] = {}
 
-            # workflow.stage 변경 감지 + timestamp 기록
+            # workflow.stage 변경 감지 + timestamp 기록 + 검증
             try:
                 new_stage = (structured_data.get('workflow') or {}).get('stage')
                 old_stage = (old_sd.get('workflow') or {}).get('stage')
                 if new_stage and new_stage != old_stage:
+                    # 단계 전환 검증: Quest 시스템 사용 시 팀 승인 완료 여부 확인
+                    # (수동 단계 변경 시에도 Quest 승인 완료 여부를 확인)
+                    is_quest_complete, missing_teams = check_quest_approvals_complete(old_sd, old_stage)
+                    
+                    if not is_quest_complete and missing_teams:
+                        # Quest 승인 미완료 시 경고 (강제 전환은 허용하되 경고)
+                        stage_label = STAGE_LABELS.get(old_stage, old_stage) if old_stage else '알 수 없음'
+                        # 팀 라벨 매핑
+                        TEAM_LABELS = {
+                            'CS': '라홈팀',
+                            'SALES': '영업팀',
+                            'MEASURE': '실측팀',
+                            'DRAWING': '도면팀',
+                            'PRODUCTION': '생산팀',
+                            'CONSTRUCTION': '시공팀',
+                        }
+                        missing_team_labels = [TEAM_LABELS.get(t, t) for t in missing_teams]
+                        # 경고만 표시하고 전환은 허용 (수동 전환 가능하도록)
+                        print(f"경고: [{stage_label}] 단계의 Quest 승인 미완료 팀: {', '.join(missing_team_labels)}")
+                    
+                    # 단계 전환 허용 (Quest 승인 완료 여부와 관계없이 수동 전환 가능)
                     (structured_data.get('workflow') or {})['stage_updated_at'] = datetime.datetime.now().isoformat()
                     # 이벤트 기록
                     ev = OrderEvent(
                         order_id=order.id,
                         event_type='STAGE_CHANGED',
-                        payload={'from': old_stage, 'to': new_stage},
+                        payload={'from': old_stage, 'to': new_stage, 'manual': True},
                         created_by_user_id=session.get('user_id')
                     )
                     db.add(ev)
+                    
+                    # 새 단계의 Quest가 없으면 자동 생성
+                    quests = structured_data.get('quests') or []
+                    has_new_stage_quest = any(
+                        isinstance(q, dict) and q.get('stage') == new_stage 
+                        for q in quests
+                    )
+                    if not has_new_stage_quest:
+                        new_quest = create_quest_from_template(new_stage, session.get('username') or '', structured_data)
+                        if new_quest:
+                            if not structured_data.get('quests'):
+                                structured_data['quests'] = []
+                            structured_data['quests'].append(new_quest)
             except Exception as _e:
+                import traceback
+                print(f"단계 전환 검증 오류: {_e}")
+                print(traceback.format_exc())
                 pass
 
             # 긴급 변경 이벤트
