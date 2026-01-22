@@ -134,7 +134,25 @@ function erpNewItemRow(item = {}) {
     };
 
     const productName = String(item.product_name || '').trim();
-    const spec = String(item.spec || '').trim();
+    // 규격을 W, D, H로 분리 (기존 spec 필드에서 파싱 또는 별도 필드 사용)
+    let specWidth = String(item.spec_width || '').trim();
+    let specDepth = String(item.spec_depth || '').trim();
+    let specHeight = String(item.spec_height || '').trim();
+    // 기존 spec 필드가 있고 W, D, H가 없으면 파싱 시도 (예: "800x600x2000" 또는 "800*600*2000")
+    if (!specWidth && !specDepth && !specHeight && item.spec) {
+      const specStr = String(item.spec || '').trim();
+      const parts = specStr.split(/[xX*×]/).map(s => s.trim());
+      if (parts.length >= 3) {
+        specWidth = parts[0];
+        specDepth = parts[1];
+        specHeight = parts[2];
+      } else if (parts.length === 2) {
+        specWidth = parts[0];
+        specDepth = parts[1];
+      } else if (parts.length === 1) {
+        specWidth = parts[0];
+      }
+    }
     const internal = defaultConsult(item.internal);
     const color = defaultConsult(item.color);
     const optionDetail = defaultConsult(item.option_detail);
@@ -151,13 +169,21 @@ function erpNewItemRow(item = {}) {
             </button>
         </div>
         <div class="row g-2">
-            <div class="col-md-6">
+            <div class="col-12">
                 <label class="form-label mb-1 small text-primary">제품명</label>
                 <input class="form-control form-control-sm" data-erp="product_name" value="${escapeHtml(productName)}">
             </div>
-            <div class="col-md-6">
-                <label class="form-label mb-1 small text-primary">규격</label>
-                <input class="form-control form-control-sm" data-erp="spec" value="${escapeHtml(spec)}">
+            <div class="col-md-3">
+                <label class="form-label mb-1 small text-primary">규격 W(폭)</label>
+                <input class="form-control form-control-sm" data-erp="spec_width" placeholder="폭" value="${escapeHtml(specWidth)}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label mb-1 small text-primary">규격 D(깊이)</label>
+                <input class="form-control form-control-sm" data-erp="spec_depth" placeholder="깊이" value="${escapeHtml(specDepth)}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label mb-1 small text-primary">규격 H(높이)</label>
+                <input class="form-control form-control-sm" data-erp="spec_height" placeholder="높이" value="${escapeHtml(specHeight)}">
             </div>
             <div class="col-md-6">
                 <label class="form-label mb-1 small text-primary">내부</label>
@@ -227,7 +253,6 @@ async function erpLoadStructured() {
     document.getElementById('erp-orderer').value = sd?.parties?.orderer?.name || '';
     document.getElementById('erp-manager').value = sd?.parties?.manager?.name || '';
     document.getElementById('erp-workflow-stage').value = sd?.workflow?.stage || '';
-    document.getElementById('erp-owner-team').value = sd?.assignments?.owner_team || '';
     document.getElementById('erp-urgent-flag').checked = !!sd?.flags?.urgent;
     document.getElementById('erp-urgent-reason').value = sd?.flags?.urgent_reason || '';
     document.getElementById('erp-address').value = sd?.site?.address_main || sd?.site?.address_full || '';
@@ -237,7 +262,6 @@ async function erpLoadStructured() {
     document.getElementById('erp-measurement-time').value = sd?.schedule?.measurement?.time || '';
     document.getElementById('erp-measurement-note').value = sd?.notes?.measurement_note || '';
     document.getElementById('erp-construction-date').value = sd?.schedule?.construction?.date || '';
-    document.getElementById('erp-construction-status').value = sd?.schedule?.construction?.status || '';
     document.getElementById('erp-raw-text').value = data.raw_order_text || (sd?.raw?.text || '');
 
     const itemsWrap = document.getElementById('erp-items');
@@ -262,6 +286,21 @@ function erpCollectStructured() {
         row.querySelectorAll('[data-erp]').forEach(inp => {
             obj[inp.dataset.erp] = inp.value;
         });
+        // W, D, H를 spec 필드로 합성 (호환성을 위해)
+        const w = String(obj.spec_width || '').trim();
+        const d = String(obj.spec_depth || '').trim();
+        const h = String(obj.spec_height || '').trim();
+        if (w || d || h) {
+            const specParts = [];
+            if (w) specParts.push(w);
+            if (d) specParts.push(d);
+            if (h) specParts.push(h);
+            obj.spec = specParts.join('x');
+        } else if (obj.spec) {
+            // 기존 spec 필드가 있으면 유지
+        } else {
+            obj.spec = '';
+        }
         if (obj.price) {
             const digits = String(obj.price).replace(/[^0-9]/g, '');
             obj.price = digits ? parseInt(digits, 10) : obj.price;
@@ -289,7 +328,7 @@ function erpCollectStructured() {
         })(),
         schedule: {
             measurement: { date: document.getElementById('erp-measurement-date').value, time: document.getElementById('erp-measurement-time').value },
-            construction: { raw: '', status: document.getElementById('erp-construction-status').value, date: document.getElementById('erp-construction-date').value }
+            construction: { raw: '', date: document.getElementById('erp-construction-date').value }
         },
         notes: {
             phone_note: document.getElementById('erp-phone-note').value,
@@ -297,7 +336,6 @@ function erpCollectStructured() {
             measurement_note: document.getElementById('erp-measurement-note').value
         },
         workflow: { stage: document.getElementById('erp-workflow-stage').value },
-        assignments: { owner_team: document.getElementById('erp-owner-team').value, owner_user_id: null, owner_user_name: null },
         flags: { urgent: !!document.getElementById('erp-urgent-flag').checked, urgent_reason: document.getElementById('erp-urgent-reason').value },
         items
     };
@@ -390,7 +428,6 @@ function erpApplyParsedToForm() {
     document.getElementById('erp-measurement-date').value = sd?.schedule?.measurement?.date || '';
     document.getElementById('erp-measurement-time').value = sd?.schedule?.measurement?.time || '';
     document.getElementById('erp-construction-date').value = sd?.schedule?.construction?.date || '';
-    document.getElementById('erp-construction-status').value = sd?.schedule?.construction?.status || '';
     document.getElementById('erp-phone-note').value = sd?.notes?.phone_note || '';
     document.getElementById('erp-address-note').value = sd?.notes?.address_note || '';
     document.getElementById('erp-measurement-note').value = sd?.notes?.measurement_note || '';
@@ -588,47 +625,36 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!ERP_BETA_ENABLED) return;
     document.getElementById('erp-attachments-upload-btn')?.addEventListener('click', erpUploadSelectedAttachments);
 
-    // ERP Beta 탭이 열릴 때: add_order는 draft 생성 후 로드, edit_order는 바로 로드
+    // ERP Beta 탭이 열릴 때: ORDER_ID가 있을 때만 데이터 로드 (자동 주문 생성 제거)
+    // 저장 버튼을 눌러야만 주문이 생성되고 저장됨
     document.getElementById('erp-beta-tab')?.addEventListener('shown.bs.tab', async function() {
-        if (window.__ERP_BETA_DRAFT_MODE) {
-            const ok = await erpRequireOrderIdOrWarn('주문 생성:');
-            if (!ok) return;
+        // ORDER_ID가 있을 때만 데이터 로드 (저장 버튼으로 생성된 주문이 있을 때만)
+        if (ORDER_ID && ORDER_ID > 0) {
+            erpLoadStructured();
+            erpLoadAttachments();
+            erpLoadQuest();
         }
-        erpLoadStructured();
-        erpLoadAttachments();
-        erpLoadTasks();
-        erpLoadEvents();
     });
 });
 
 // ============================================
-// ERP Beta: Tasks & Events
+// ERP Beta: Quest System (단계별 명확한 퀘스트)
 // ============================================
-let __erpTasks = [];
-let __erpEvents = [];
+let __erpQuest = null;
 
 const ERP_TEAM_LABELS = {
-    CS: 'CS(해피콜)',
-    SALES: '영업(실측)',
+    CS: '라홈팀',
+    SALES: '영업팀',
     MEASURE: '실측팀',
     DRAWING: '도면팀',
     PRODUCTION: '생산팀',
     CONSTRUCTION: '시공팀',
 };
 
-const ERP_EVENT_LABELS = {
-    STAGE_CHANGED: '단계 변경',
-    URGENT_CHANGED: '긴급 변경',
-    OWNER_TEAM_CHANGED: '오너팀 변경',
-    MEASUREMENT_DATE_CHANGED: '실측일 변경',
-    CONSTRUCTION_DATE_CHANGED: '시공일 변경',
-};
-
-const ERP_TASK_STATUS_LABELS = {
+const ERP_QUEST_STATUS_LABELS = {
     OPEN: '오픈',
     IN_PROGRESS: '진행중',
-    DONE: '완료',
-    CANCELLED: '취소',
+    COMPLETED: '완료',
 };
 
 const ERP_STAGE_LABELS = {
@@ -646,157 +672,182 @@ function erpLabel(map, code, fallback='-') {
     return map[code] || code;
 }
 
-function erpFormatEventPayload(ev) {
-    const t = ev?.event_type;
-    const p = ev?.payload || {};
-    if (t === 'STAGE_CHANGED') return `${erpLabel(ERP_STAGE_LABELS, p.from, '-') } → ${erpLabel(ERP_STAGE_LABELS, p.to, '-')}`;
-    if (t === 'URGENT_CHANGED') return `${p.from ? '긴급' : '일반'} → ${p.to ? '긴급' : '일반'}${p.reason ? ` (${p.reason})` : ''}`;
-    if (t === 'OWNER_TEAM_CHANGED') return `${erpLabel(ERP_TEAM_LABELS, p.from, '-') } → ${erpLabel(ERP_TEAM_LABELS, p.to, '-')}`;
-    if (t === 'MEASUREMENT_DATE_CHANGED') return `${p.from || '-'} → ${p.to || '-'}`;
-    if (t === 'CONSTRUCTION_DATE_CHANGED') return `${p.from || '-'} → ${p.to || '-'}`;
-    return JSON.stringify(p);
-}
-
-function erpSetTaskStatus(text, isError=false) {
-    const el = document.getElementById('erp-task-status-text');
+function erpSetQuestStatus(text, isError=false) {
+    const el = document.getElementById('erp-quest-status-text');
     if (!el) return;
     el.textContent = text || '';
     el.classList.toggle('text-danger', !!isError);
     el.classList.toggle('text-muted', !isError);
 }
 
-function erpRenderTasks() {
-    const tb = document.getElementById('erp-tasks-tbody');
-    if (!tb) return;
-    const tasks = Array.isArray(__erpTasks) ? __erpTasks : [];
-    if (!tasks.length) {
-        tb.innerHTML = `<tr><td colspan="6" class="text-muted small">Task가 없습니다.</td></tr>`;
+function erpRenderQuest() {
+    const quest = __erpQuest;
+    const container = document.getElementById('erp-quest-container');
+    if (!container) return;
+    
+    if (!quest) {
+        container.innerHTML = '<div class="alert alert-secondary">현재 단계의 Quest가 없습니다. Quest는 자동으로 생성됩니다.</div>';
         return;
     }
-    tb.innerHTML = tasks.map(t => {
-        const status = escapeHtml(erpLabel(ERP_TASK_STATUS_LABELS, t.status || '', t.status || '-'));
-        const owner = escapeHtml(erpLabel(ERP_TEAM_LABELS, t.owner_team || '', t.owner_team || '-'));
-        const title = escapeHtml(t.title || '');
-        const due = escapeHtml(t.due_date || '');
-        const upd = escapeHtml(t.updated_at || '');
-        return `
-            <tr>
-                <td>
-                    <select class="form-select form-select-sm" onchange="erpUpdateTask(${t.id}, {status: this.value})">
-                        ${['OPEN','IN_PROGRESS','DONE','CANCELLED'].map(s => `<option value="${s}" ${s===t.status?'selected':''}>${erpLabel(ERP_TASK_STATUS_LABELS, s, s)}</option>`).join('')}
-                    </select>
-                </td>
-                <td>${owner}</td>
-                <td class="small">${title}</td>
-                <td class="small">${due}</td>
-                <td class="small text-muted">${upd}</td>
-                <td>
-                    <button class="btn btn-sm btn-outline-danger" type="button" onclick="erpDeleteTask(${t.id})"><i class="fas fa-trash"></i></button>
-                </td>
-            </tr>
-        `;
-    }).join('');
+    
+    const titleEl = document.getElementById('erp-quest-title');
+    const descEl = document.getElementById('erp-quest-description');
+    const statusBadgeEl = document.getElementById('erp-quest-status-badge');
+    const ownerTeamEl = document.getElementById('erp-quest-owner-team');
+    const approvalsEl = document.getElementById('erp-quest-approvals');
+    
+    if (titleEl) titleEl.textContent = quest.title || '-';
+    if (descEl) descEl.textContent = quest.description || '-';
+    
+    const status = quest.status || 'OPEN';
+    const statusLabel = erpLabel(ERP_QUEST_STATUS_LABELS, status, status);
+    if (statusBadgeEl) {
+        let badgeClass = 'bg-secondary';
+        if (status === 'COMPLETED') badgeClass = 'bg-success';
+        else if (status === 'IN_PROGRESS') badgeClass = 'bg-primary';
+        statusBadgeEl.className = `badge ${badgeClass}`;
+        statusBadgeEl.textContent = statusLabel;
+    }
+    
+    if (ownerTeamEl) {
+        ownerTeamEl.textContent = erpLabel(ERP_TEAM_LABELS, quest.owner_team, quest.owner_team || '-');
+    }
+    
+    // 팀별 승인 표시
+    if (approvalsEl) {
+        const teamApprovals = quest.team_approvals || {};
+        const requiredTeams = Object.keys(teamApprovals);
+        
+        if (requiredTeams.length === 0) {
+            approvalsEl.innerHTML = '<div class="text-muted small">승인 필요 팀이 없습니다.</div>';
+        } else {
+            approvalsEl.innerHTML = requiredTeams.map(team => {
+                const approval = teamApprovals[team] || {};
+                const isApproved = approval.approved === true;
+                const approvedBy = escapeHtml(approval.approved_by_name || approval.approved_by || '-');
+                const approvedAt = approval.approved_at ? new Date(approval.approved_at).toLocaleString('ko-KR') : '-';
+                const teamLabel = escapeHtml(erpLabel(ERP_TEAM_LABELS, team, team));
+                const teamEscaped = escapeHtml(team);
+                
+                return `
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                        <div>
+                            <div class="fw-bold">${teamLabel}</div>
+                            ${isApproved ? `<small class="text-success">승인 완료 (${approvedBy}, ${approvedAt})</small>` : '<small class="text-muted">승인 대기</small>'}
+                        </div>
+                        <div>
+                            ${!isApproved ? `
+                                <button class="btn btn-sm btn-success" type="button" onclick="erpApproveQuestTeam('${teamEscaped}')">
+                                    <i class="fas fa-check"></i> 승인
+                                </button>
+                            ` : `
+                                <span class="badge bg-success"><i class="fas fa-check-circle"></i> 승인됨</span>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
 }
 
-async function erpLoadTasks() {
+async function erpLoadQuest() {
     if (!ERP_BETA_ENABLED || !ORDER_ID) return;
     try {
-        const res = await fetch(`/api/orders/${ORDER_ID}/tasks`);
+        const res = await fetch(`/api/orders/${ORDER_ID}/quest`);
         const data = await res.json();
-        if (!data.success) throw new Error(data.message || 'Task 조회 실패');
-        __erpTasks = data.tasks || [];
-        erpRenderTasks();
+        if (!data.success) throw new Error(data.message || 'Quest 조회 실패');
+        __erpQuest = data.quest;
+        erpRenderQuest();
+        
+        // 자동 전환 알림
+        if (data.auto_transitioned && data.next_stage) {
+            const nextStageLabel = erpLabel(ERP_STAGE_LABELS, data.next_stage, data.next_stage);
+            erpSetQuestStatus(`✅ 모든 팀 승인 완료! 다음 단계(${nextStageLabel})로 자동 전환되었습니다.`);
+            setTimeout(() => {
+                erpLoadQuest(); // 새 Quest 로드
+            }, 1000);
+        }
     } catch (e) {
         console.error(e);
+        erpSetQuestStatus('Quest 조회 실패', true);
     }
 }
 
-async function erpAddTask() {
-    if (!ERP_BETA_ENABLED) return;
-    if (!ORDER_ID) {
-        const ok = await erpRequireOrderIdOrWarn('Task:');
-        if (!ok) return;
-    }
-    const title = (document.getElementById('erp-task-title')?.value || '').trim();
-    if (!title) {
-        erpSetTaskStatus('제목이 필요합니다.', true);
-        return;
-    }
-    const owner_team = document.getElementById('erp-task-owner-team')?.value || '';
-    const status = document.getElementById('erp-task-status')?.value || 'OPEN';
-    const due_date = document.getElementById('erp-task-due-date')?.value || null;
-    const res = await fetch(`/api/orders/${ORDER_ID}/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, owner_team, status, due_date })
-    });
-    const data = await res.json();
-    if (!data.success) {
-        erpSetTaskStatus(data.message || '추가 실패', true);
-        return;
-    }
-    document.getElementById('erp-task-title').value = '';
-    erpSetTaskStatus('추가 완료');
-    await erpLoadTasks();
-}
-
-async function erpUpdateTask(taskId, patch) {
-    const res = await fetch(`/api/orders/${ORDER_ID}/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch || {})
-    });
-    const data = await res.json();
-    if (!data.success) {
-        erpSetTaskStatus(data.message || '수정 실패', true);
-        return;
-    }
-    erpSetTaskStatus('수정 완료');
-    await erpLoadTasks();
-}
-
-async function erpDeleteTask(taskId) {
-    if (!confirm('Task를 삭제할까요?')) return;
-    const res = await fetch(`/api/orders/${ORDER_ID}/tasks/${taskId}`, { method: 'DELETE' });
-    const data = await res.json();
-    if (!data.success) {
-        erpSetTaskStatus(data.message || '삭제 실패', true);
-        return;
-    }
-    erpSetTaskStatus('삭제 완료');
-    await erpLoadTasks();
-}
-
-function erpRenderEvents() {
-    const tb = document.getElementById('erp-events-tbody');
-    if (!tb) return;
-    const events = Array.isArray(__erpEvents) ? __erpEvents : [];
-    if (!events.length) {
-        tb.innerHTML = `<tr><td colspan="3" class="text-muted small">이벤트가 없습니다.</td></tr>`;
-        return;
-    }
-    tb.innerHTML = events.map(ev => {
-        const when = escapeHtml(ev.created_at || '');
-        const type = escapeHtml(erpLabel(ERP_EVENT_LABELS, ev.event_type || '', ev.event_type || ''));
-        const payload = escapeHtml(erpFormatEventPayload(ev));
-        return `<tr><td class="small text-muted">${when}</td><td class="fw-bold">${type}</td><td class="small">${payload}</td></tr>`;
-    }).join('');
-}
-
-async function erpLoadEvents() {
+async function erpApproveQuestTeam(team) {
     if (!ERP_BETA_ENABLED || !ORDER_ID) return;
+    if (!confirm(`${erpLabel(ERP_TEAM_LABELS, team, team)} 승인을 진행하시겠습니까?`)) return;
+    
+    erpSetQuestStatus('승인 처리 중...');
     try {
-        const res = await fetch(`/api/orders/${ORDER_ID}/events?limit=80`);
+        const res = await fetch(`/api/orders/${ORDER_ID}/quest/approve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ team })
+        });
         const data = await res.json();
-        if (!data.success) throw new Error(data.message || '이벤트 조회 실패');
-        __erpEvents = data.events || [];
-        erpRenderEvents();
+        if (!data.success) {
+            erpSetQuestStatus(data.message || '승인 실패', true);
+            return;
+        }
+        
+        __erpQuest = data.quest;
+        erpRenderQuest();
+        
+        if (data.all_approved) {
+            if (data.auto_transitioned && data.next_stage) {
+                const nextStageLabel = erpLabel(ERP_STAGE_LABELS, data.next_stage, data.next_stage);
+                erpSetQuestStatus(`✅ 모든 팀 승인 완료! 다음 단계(${nextStageLabel})로 자동 전환되었습니다.`);
+                setTimeout(() => {
+                    erpLoadQuest(); // 새 Quest 로드
+                    erpLoadStructured(); // structured_data도 새로고침
+                }, 1500);
+            } else {
+                erpSetQuestStatus('✅ 모든 팀 승인 완료!');
+            }
+        } else {
+            const missingTeams = data.missing_teams.map(t => erpLabel(ERP_TEAM_LABELS, t, t)).join(', ');
+            erpSetQuestStatus(`승인 완료. 남은 팀: ${missingTeams}`);
+        }
     } catch (e) {
         console.error(e);
+        erpSetQuestStatus('승인 처리 실패', true);
+    }
+}
+
+async function erpUpdateQuestStatus() {
+    if (!ERP_BETA_ENABLED || !ORDER_ID) return;
+    if (!__erpQuest) return;
+    
+    const currentStatus = __erpQuest.status || 'OPEN';
+    const statuses = ['OPEN', 'IN_PROGRESS', 'COMPLETED'];
+    const currentIndex = statuses.indexOf(currentStatus);
+    const nextIndex = (currentIndex + 1) % statuses.length;
+    const nextStatus = statuses[nextIndex];
+    
+    erpSetQuestStatus('상태 업데이트 중...');
+    try {
+        const res = await fetch(`/api/orders/${ORDER_ID}/quest/status`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: nextStatus })
+        });
+        const data = await res.json();
+        if (!data.success) {
+            erpSetQuestStatus(data.message || '상태 업데이트 실패', true);
+            return;
+        }
+        
+        __erpQuest = data.quest;
+        erpRenderQuest();
+        erpSetQuestStatus('상태 업데이트 완료');
+    } catch (e) {
+        console.error(e);
+        erpSetQuestStatus('상태 업데이트 실패', true);
     }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
     if (!ERP_BETA_ENABLED) return;
-    document.getElementById('erp-task-add-btn')?.addEventListener('click', erpAddTask);
+    document.getElementById('erp-quest-status-btn')?.addEventListener('click', erpUpdateQuestStatus);
 });

@@ -11,7 +11,7 @@
       <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('erp_dashboard') }}">
         <i class="fas fa-arrow-left"></i> 대시보드
       </a>
-      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('edit_order', order_id=order_id) }}?open=erp-beta" target="_blank" rel="noopener">
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('edit_order', order_id=order_id) }}?open=erp-beta">
         <i class="fas fa-edit"></i> 편집(ERP Beta)
       </a>
     </div>
@@ -109,32 +109,6 @@
         </div>
       </div>
 
-      <div class="card mb-2">
-        <div class="card-body">
-          <div class="fw-bold mb-2"><i class="fas fa-stream"></i> 타임라인(Event)</div>
-          <div class="table-responsive">
-            <table class="table table-sm">
-              <tbody id="events-tbody">
-                <tr><td class="text-muted small">로딩 중...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <div class="card mb-2">
-        <div class="card-body">
-          <div class="obj-section-title">
-            <div class="fw-bold"><i class="fas fa-file-alt"></i> 원문(raw)</div>
-            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawCollapse">
-              접기/펼치기
-            </button>
-          </div>
-          <div class="collapse mt-2" id="rawCollapse">
-            <pre class="p-2 border rounded bg-light small" id="raw-text" style="max-height: 280px; overflow:auto;"></pre>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- Right -->
@@ -151,25 +125,20 @@
         </div>
       </div>
 
+      <!-- Quest Slide -->
       <div class="card mb-2">
         <div class="card-body">
-          <div class="obj-section-title">
-            <div class="fw-bold"><i class="fas fa-clipboard-check"></i> Task</div>
-            <div class="small text-muted" id="task-status"></div>
-          </div>
-          <div class="d-flex gap-2 mt-2">
-            <input class="form-control form-control-sm" id="task-title" placeholder="Task 제목">
-            <button class="btn btn-sm btn-outline-primary" type="button" onclick="addTask()"><i class="fas fa-plus"></i> 추가</button>
-          </div>
-          <div class="table-responsive mt-2">
-            <table class="table table-sm align-middle">
-              <tbody id="tasks-tbody">
-                <tr><td class="text-muted small">로딩 중...</td></tr>
-              </tbody>
-            </table>
+          <button class="btn btn-sm btn-outline-info w-100" type="button" data-bs-toggle="collapse" data-bs-target="#quest-collapse-object" aria-expanded="false" aria-controls="quest-collapse-object">
+            <i class="fas fa-chevron-down"></i> 
+            <i class="fas fa-flag-checkered"></i> 현재 단계 퀘스트
+            <span id="quest-status-badge" class="badge ms-2"></span>
+          </button>
+          <div class="collapse mt-3" id="quest-collapse-object">
+            <div id="quest-content" class="text-muted small">로딩 중...</div>
           </div>
         </div>
       </div>
+
     </div>
   </div>
 
@@ -200,10 +169,8 @@
 {% block scripts %}
 <script>
   const ORDER_ID = {{ order_id }};
-  const TEAM_LABELS = { CS:'CS(해피콜)', SALES:'영업(실측)', MEASURE:'실측팀', DRAWING:'도면팀', PRODUCTION:'생산팀', CONSTRUCTION:'시공팀' };
+  const TEAM_LABELS = { CS:'라홈팀', SALES:'영업팀', MEASURE:'실측팀', DRAWING:'도면팀', PRODUCTION:'생산팀', CONSTRUCTION:'시공팀' };
   const STAGE_LABELS = { RECEIVED:'주문접수', HAPPYCALL:'해피콜', MEASURE:'실측', DRAWING:'도면', CONFIRM:'고객컨펌', PRODUCTION:'생산', CONSTRUCTION:'시공' };
-  const EVENT_LABELS = { STAGE_CHANGED:'단계 변경', URGENT_CHANGED:'긴급 변경', OWNER_TEAM_CHANGED:'오너팀 변경', MEASUREMENT_DATE_CHANGED:'실측일 변경', CONSTRUCTION_DATE_CHANGED:'시공일 변경' };
-  const TASK_STATUS_LABELS = { OPEN:'오픈', IN_PROGRESS:'진행중', DONE:'완료', CANCELLED:'취소' };
 
   function label(map, code, fallback='-') { if (!code) return fallback; return map[code] || code; }
   function escapeHtml(text) { if (!text) return ''; const div=document.createElement('div'); div.textContent=String(text); return div.innerHTML; }
@@ -230,16 +197,6 @@
     modal.show();
   }
 
-  function formatEventPayload(ev) {
-    const t = ev?.event_type;
-    const p = ev?.payload || {};
-    if (t === 'STAGE_CHANGED') return `${label(STAGE_LABELS, p.from, '-') } → ${label(STAGE_LABELS, p.to, '-')}`;
-    if (t === 'OWNER_TEAM_CHANGED') return `${label(TEAM_LABELS, p.from, '-') } → ${label(TEAM_LABELS, p.to, '-')}`;
-    if (t === 'MEASUREMENT_DATE_CHANGED' || t === 'CONSTRUCTION_DATE_CHANGED') return `${p.from || '-'} → ${p.to || '-'}`;
-    if (t === 'URGENT_CHANGED') return `${p.from ? '긴급' : '일반'} → ${p.to ? '긴급' : '일반'}${p.reason ? ` (${p.reason})` : ''}`;
-    return JSON.stringify(p);
-  }
-
   function copySummary() {
     const lines = [];
     lines.push(`주문 #${ORDER_ID}`);
@@ -249,76 +206,6 @@
     lines.push(`단계: ${document.getElementById('h-stage').textContent || '-'}`);
     lines.push(`오너팀: ${document.getElementById('h-owner-team').textContent || '-'}`);
     navigator.clipboard?.writeText(lines.join('\\n'));
-  }
-
-  async function addTask() {
-    const title = (document.getElementById('task-title').value || '').trim();
-    if (!title) return;
-    document.getElementById('task-status').textContent = '추가 중...';
-    const res = await fetch(`/api/orders/${ORDER_ID}/tasks`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ title }) });
-    const data = await res.json();
-    if (!data.success) { document.getElementById('task-status').textContent = data.message || '추가 실패'; return; }
-    document.getElementById('task-title').value = '';
-    await loadAll();
-  }
-  async function updateTask(taskId, status) {
-    document.getElementById('task-status').textContent = '업데이트 중...';
-    const res = await fetch(`/api/orders/${ORDER_ID}/tasks/${taskId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
-    const data = await res.json();
-    if (!data.success) { document.getElementById('task-status').textContent = data.message || '업데이트 실패'; return; }
-    await loadAll();
-  }
-  async function deleteTask(taskId) {
-    if (!confirm('Task를 삭제할까요?')) return;
-    document.getElementById('task-status').textContent = '삭제 중...';
-    const res = await fetch(`/api/orders/${ORDER_ID}/tasks/${taskId}`, { method:'DELETE' });
-    const data = await res.json();
-    if (!data.success) { document.getElementById('task-status').textContent = data.message || '삭제 실패'; return; }
-    await loadAll();
-  }
-
-  function renderTasks(list) {
-    const tb = document.getElementById('tasks-tbody');
-    const tasks = Array.isArray(list) ? list : [];
-    if (!tasks.length) { tb.innerHTML = `<tr><td class="text-muted small">Task 없음</td></tr>`; return; }
-    tb.innerHTML = tasks.map(t => {
-      const status = label(TASK_STATUS_LABELS, t.status, t.status);
-      const team = label(TEAM_LABELS, t.owner_team, t.owner_team || '-');
-      const title = escapeHtml(t.title || '');
-      const due = escapeHtml(t.due_date || '');
-      return `
-        <tr><td class="small">
-          <div class="d-flex justify-content-between align-items-start gap-2">
-            <div>
-              <span class="badge bg-secondary me-1">${escapeHtml(status)}</span>
-              ${t.owner_team ? `<span class="badge bg-light text-dark me-1">${escapeHtml(team)}</span>` : ''}
-              <span class="fw-bold">${title}</span>
-              <span class="text-muted">${due ? `(due:${due})` : ''}</span>
-            </div>
-            <div class="d-flex flex-wrap gap-1 justify-content-end flex-shrink-0">
-              <button class="btn btn-sm btn-outline-primary" type="button" title="오픈" onclick="updateTask(${t.id}, 'OPEN')"><i class="fas fa-undo"></i></button>
-              <button class="btn btn-sm btn-outline-secondary" type="button" title="진행중" onclick="updateTask(${t.id}, 'IN_PROGRESS')"><i class="fas fa-play"></i></button>
-              <button class="btn btn-sm btn-outline-success" type="button" title="완료" onclick="updateTask(${t.id}, 'DONE')"><i class="fas fa-check"></i></button>
-              <button class="btn btn-sm btn-outline-warning" type="button" title="취소" onclick="updateTask(${t.id}, 'CANCELLED')"><i class="fas fa-ban"></i></button>
-              <button class="btn btn-sm btn-outline-danger" type="button" title="삭제" onclick="deleteTask(${t.id})"><i class="fas fa-trash"></i></button>
-            </div>
-          </div>
-        </td></tr>
-      `;
-    }).join('');
-    document.getElementById('task-status').textContent = '';
-  }
-
-  function renderEvents(list) {
-    const tb = document.getElementById('events-tbody');
-    const events = Array.isArray(list) ? list : [];
-    if (!events.length) { tb.innerHTML = `<tr><td class="text-muted small">Event 없음</td></tr>`; return; }
-    tb.innerHTML = events.map(ev => {
-      const when = escapeHtml(ev.created_at || '');
-      const type = escapeHtml(label(EVENT_LABELS, ev.event_type || '', ev.event_type || ''));
-      const payload = escapeHtml(formatEventPayload(ev));
-      return `<tr><td class="small"><div class="text-muted">${when}</div><div class="fw-bold">${type}</div><div class="text-muted">${payload}</div></td></tr>`;
-    }).join('');
   }
 
   function renderItems(sd) {
@@ -348,11 +235,127 @@
     }).join('');
   }
 
+  async function loadQuest() {
+    try {
+      const res = await fetch(`/api/orders/${ORDER_ID}/quest`);
+      const data = await res.json();
+      if (data.error || !data.quest) {
+        document.getElementById('quest-content').innerHTML = '<div class="text-muted small">퀘스트 없음</div>';
+        document.getElementById('quest-status-badge').textContent = '';
+        return;
+      }
+      
+      const quest = data.quest;
+      const requiredTeams = quest.required_approvals || [];
+      const teamApprovalsRaw = quest.team_approvals || {};
+      const allApproved = quest.all_approved || false;
+      
+      // 상태 배지 업데이트
+      const statusBadge = document.getElementById('quest-status-badge');
+      if (allApproved) {
+        statusBadge.className = 'badge bg-success ms-2';
+        statusBadge.textContent = '완료';
+      } else {
+        statusBadge.className = 'badge bg-warning ms-2';
+        statusBadge.textContent = '진행중';
+      }
+      
+      // 퀘스트 내용 렌더링
+      let html = `
+        <div class="card mb-3">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <h6 class="card-title mb-1">${escapeHtml(quest.title || '')}</h6>
+                <small class="text-muted">${escapeHtml(quest.description || '')}</small>
+              </div>
+              <span class="badge ${allApproved ? 'bg-success' : 'bg-warning'}">
+                ${allApproved ? '완료' : '진행중'}
+              </span>
+            </div>
+            <div class="mb-3">
+              <div class="small text-muted mb-1">담당 팀</div>
+              <div class="fw-bold">${escapeHtml(label(TEAM_LABELS, quest.owner_team, quest.owner_team || '-'))}</div>
+            </div>
+            <div class="mb-3">
+              <div class="small text-muted mb-2">팀별 승인</div>
+              <div id="quest-approvals-object">
+      `;
+      
+      for (const team of requiredTeams) {
+        const approvalData = teamApprovalsRaw[team];
+        let approved = false;
+        if (typeof approvalData === 'object' && approvalData !== null) {
+          approved = approvalData.approved === true;
+        } else {
+          approved = Boolean(approvalData);
+        }
+        const teamLabel = label(TEAM_LABELS, team, team);
+        html += `
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="small">${escapeHtml(teamLabel)}</span>
+            ${approved 
+              ? '<span class="badge bg-success">승인완료</span>'
+              : `<button class="btn btn-sm btn-primary" onclick="approveQuestTeam(${ORDER_ID}, '${escapeHtml(team)}')">승인</button>`
+            }
+          </div>
+        `;
+      }
+      
+      html += `
+              </div>
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-outline-primary" type="button" onclick="loadQuest()">
+                <i class="fas fa-sync"></i> 상태 업데이트
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.getElementById('quest-content').innerHTML = html;
+    } catch (err) {
+      console.error('Quest 로드 실패:', err);
+      document.getElementById('quest-content').innerHTML = '<div class="text-danger small">로드 실패</div>';
+    }
+  }
+  
+  async function approveQuestTeam(orderId, team) {
+    try {
+      const res = await fetch(`/api/orders/${orderId}/quest/approve`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({team: team})
+      });
+      const data = await res.json();
+      
+      if (!data.success) {
+        alert('승인 실패: ' + (data.message || data.error || '알 수 없는 오류'));
+        return;
+      }
+      
+      if (data.auto_transitioned && data.next_stage) {
+        const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
+        alert('✅ 모든 팀 승인 완료! 다음 단계(' + nextStageLabel + ')로 자동 전환되었습니다.');
+      } else if (data.all_approved) {
+        alert('✅ 모든 팀 승인 완료!');
+      } else {
+        const missingTeams = data.missing_teams.map(t => label(TEAM_LABELS, t, t)).join(', ');
+        alert('승인 완료. 남은 팀: ' + missingTeams);
+      }
+      
+      await loadQuest();
+      window.location.reload();
+    } catch (err) {
+      console.error('승인 실패:', err);
+      alert('승인 중 오류가 발생했습니다.');
+    }
+  }
+
   async function loadAll() {
-    const [structured, tasks, events, attachments] = await Promise.all([
+    const [structured, attachments] = await Promise.all([
       fetch(`/api/orders/${ORDER_ID}/structured`).then(r => r.json()),
-      fetch(`/api/orders/${ORDER_ID}/tasks`).then(r => r.json()),
-      fetch(`/api/orders/${ORDER_ID}/events?limit=80`).then(r => r.json()),
       fetch(`/api/orders/${ORDER_ID}/attachments`).then(r => r.json()),
     ]);
     const sd = (structured && structured.structured_data) || {};
@@ -385,12 +388,12 @@
     document.getElementById('v-phone-note').textContent = ((sd.notes||{}).phone_note) || '-';
     document.getElementById('v-measure-note').textContent = ((sd.notes||{}).measurement_note) || '-';
 
-    document.getElementById('raw-text').textContent = (structured && structured.raw_order_text) || '';
     renderItems(sd);
-    renderEvents((events && events.events) || []);
     __attachments = (attachments && attachments.attachments) || [];
     renderMedia(__attachments);
-    renderTasks((tasks && tasks.tasks) || []);
+    
+    // 퀘스트 로드
+    loadQuest();
   }
 
   document.addEventListener('DOMContentLoaded', () => loadAll());

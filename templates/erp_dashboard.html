@@ -3,103 +3,92 @@
 {% block content %}
 {% set filters = filters or {} %}
 <div class="container-fluid">
-  <div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h4 class="mb-0"><i class="fas fa-layer-group"></i> ERP 프로세스 대시보드</h4>
-      <div class="small text-muted">프로세스/경보/긴급발주를 한 화면에서 확인</div>
+      <h3 class="mb-1 fw-bold text-dark"><i class="fas fa-layer-group text-primary"></i> ERP 프로세스 대시보드</h3>
+      <div class="text-muted fw-normal">프로세스/경보/긴급발주를 한 화면에서 확인</div>
     </div>
     <div class="d-flex gap-2">
-      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('index') }}"><i class="fas fa-home"></i> 홈</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('index') }}"><i class="fas fa-home"></i> 홈</a>
     </div>
   </div>
 
   <!-- Top Alerts -->
-  <div class="row g-2 mb-3">
+  <div class="row g-3 mb-4">
     <div class="col-md-3">
-      <div class="card border-danger">
+      {% set is_urgent_active = filters.get('alert_type') == 'urgent' %}
+      <div class="card border-danger shadow-sm erp-alert-card {% if is_urgent_active %}border-primary border-2{% endif %}" data-alert-type="urgent" style="cursor: pointer; transition: all 0.2s;{% if is_urgent_active %} background-color: #f0f7ff;{% endif %}" onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
         <div class="card-body py-2">
           <div class="d-flex justify-content-between align-items-center">
-            <div class="fw-bold text-danger"><i class="fas fa-bolt"></i> 긴급 발주</div>
-            <span class="badge bg-danger">{{ kpis.urgent_count }}</span>
+            <div class="fw-bold text-danger fs-6"><i class="fas fa-bolt"></i> <strong>긴급 발주</strong></div>
+            <span class="badge bg-danger fs-6 px-3 py-2"><strong>{{ kpis.urgent_count }}</strong></span>
           </div>
-          <div class="small text-muted">urgent=true (ERP Beta)</div>
         </div>
       </div>
     </div>
     <div class="col-md-3">
-      <div class="card border-warning">
+      {% set is_measurement_active = filters.get('alert_type') == 'measurement_d4' %}
+      <div class="card border-warning shadow-sm erp-alert-card {% if is_measurement_active %}border-primary border-2{% endif %}" data-alert-type="measurement_d4" style="cursor: pointer; transition: all 0.2s;{% if is_measurement_active %} background-color: #f0f7ff;{% endif %}" onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
         <div class="card-body py-2">
           <div class="d-flex justify-content-between align-items-center">
-            <div class="fw-bold text-warning"><i class="fas fa-ruler-combined"></i> 실측 D-4</div>
-            <span class="badge bg-warning text-dark">{{ kpis.measurement_d4_count }}</span>
+            <div class="fw-bold text-warning fs-6"><i class="fas fa-ruler-combined"></i> <strong>실측 D-4</strong></div>
+            <span class="badge bg-warning text-dark fs-6 px-3 py-2"><strong>{{ kpis.measurement_d4_count }}</strong></span>
           </div>
-          <div class="small text-muted">영업일 기준 ≤ 4</div>
         </div>
       </div>
     </div>
     <div class="col-md-3">
-      <div class="card border-warning">
+      {% set is_construction_active = filters.get('alert_type') == 'construction_d3' %}
+      <div class="card border-warning shadow-sm erp-alert-card {% if is_construction_active %}border-primary border-2{% endif %}" data-alert-type="construction_d3" style="cursor: pointer; transition: all 0.2s;{% if is_construction_active %} background-color: #f0f7ff;{% endif %}" onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
         <div class="card-body py-2">
           <div class="d-flex justify-content-between align-items-center">
-            <div class="fw-bold text-warning"><i class="fas fa-tools"></i> 시공 D-3</div>
-            <span class="badge bg-warning text-dark">{{ kpis.construction_d3_count }}</span>
+            <div class="fw-bold text-warning fs-6"><i class="fas fa-tools"></i> <strong>시공 D-3</strong></div>
+            <span class="badge bg-warning text-dark fs-6 px-3 py-2"><strong>{{ kpis.construction_d3_count }}</strong></span>
           </div>
-          <div class="small text-muted">영업일 기준 ≤ 3</div>
         </div>
       </div>
     </div>
     <div class="col-md-3">
-      <div class="card border-warning">
+      {% set is_production_active = filters.get('alert_type') == 'production_d2' %}
+      <div class="card border-warning shadow-sm erp-alert-card {% if is_production_active %}border-primary border-2{% endif %}" data-alert-type="production_d2" style="cursor: pointer; transition: all 0.2s;{% if is_production_active %} background-color: #f0f7ff;{% endif %}" onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
         <div class="card-body py-2">
           <div class="d-flex justify-content-between align-items-center">
-            <div class="fw-bold text-warning"><i class="fas fa-industry"></i> 생산 D-2</div>
-            <span class="badge bg-warning text-dark">{{ kpis.production_d2_count }}</span>
+            <div class="fw-bold text-warning fs-6"><i class="fas fa-industry"></i> <strong>생산 D-2</strong></div>
+            <span class="badge bg-warning text-dark fs-6 px-3 py-2"><strong>{{ kpis.production_d2_count }}</strong></span>
           </div>
-          <div class="small text-muted">영업일 기준 ≤ 2</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card border-secondary">
-        <div class="card-body py-2">
-          <div class="d-flex justify-content-between align-items-center">
-            <div class="fw-bold text-secondary"><i class="fas fa-clipboard-check"></i> 오픈 Task</div>
-            <span class="badge bg-secondary">{{ kpis.open_tasks_count }}</span>
-          </div>
-          <div class="small text-muted">OPEN / IN_PROGRESS</div>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Process Map -->
-  <div class="card mb-3">
-    <div class="card-body">
-      <div class="fw-bold mb-2"><i class="fas fa-project-diagram"></i> 프로세스 맵</div>
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body py-3">
+      <div class="fw-bold mb-2 text-dark" style="font-size: 1.35rem;"><i class="fas fa-project-diagram text-primary"></i> 프로세스 맵</div>
       <div class="row g-2">
         {% for step in process_steps %}
         <div class="col">
           <div
-            class="border rounded p-2 text-center erp-process-step {% if (filters.get('stage') or '') == step.label %}border-primary{% endif %}"
-            style="min-width: 120px; cursor: pointer;"
+            class="border rounded p-2 text-center erp-process-step shadow-sm {% if (filters.get('stage') or '') == step.label %}border-primary border-2{% else %}border-1{% endif %}"
+            style="min-width: 120px; cursor: pointer; background: {% if (filters.get('stage') or '') == step.label %}#f0f7ff{% else %}#fff{% endif %};"
             role="button"
             tabindex="0"
             data-stage="{{ step.label }}"
             title="클릭하면 '{{ step.label }}' 단계만 표시"
           >
-            <div class="small text-muted">{{ step.label }}</div>
-            <div class="fw-bold">{{ step.count }}</div>
-            <div class="small">
-              <span class="badge bg-danger" title="지연">{{ step.overdue }}</span>
-              <span class="badge bg-warning text-dark" title="임박">{{ step.imminent }}</span>
+            <div class="d-flex align-items-center justify-content-center gap-2 mb-1">
+              <div class="fw-bold text-dark" style="font-size: 1.5rem;">{{ step.count }}</div>
+              {% if step.overdue > 0 %}
+              <span class="badge bg-danger fw-bold" title="지연" style="font-size: 0.9rem; padding: 0.3em 0.6em;">{{ step.overdue }}</span>
+              {% endif %}
+              {% if step.imminent > 0 %}
+              <span class="badge bg-warning text-dark fw-bold" title="임박" style="font-size: 0.9rem; padding: 0.3em 0.6em;">{{ step.imminent }}</span>
+              {% endif %}
             </div>
+            <div class="text-muted fw-normal" style="font-size: 1.1rem;">{{ step.label }}</div>
           </div>
         </div>
         {% endfor %}
-      </div>
-      <div class="small text-muted mt-2">
-        단계: 주문접수 → 해피콜 → 실측 → 도면 → 고객컨펌 → 생산 → 시공
-        / 지연·임박 계산: 도면 48h + 실측 D-4 + 시공 D-3 + 생산 D-2 (영업일 기준, 주말/공휴일 제외)
       </div>
     </div>
   </div>
@@ -111,18 +100,115 @@
     .erp-kv { display:flex; justify-content:space-between; gap:12px; }
     .erp-kv .k { color:#6c757d; }
     .erp-kv .v { font-weight:600; text-align:right; }
+    
+    /* 가독성 개선 스타일 - 텍스트 크기 증가 */
+    #erp-grid {
+      font-size: 1rem;
+    }
+    #erp-grid thead th {
+      background-color: #f8f9fa;
+      font-weight: 600;
+      color: #495057;
+      border-bottom: 2px solid #dee2e6;
+      padding: 1rem 0.75rem;
+      white-space: nowrap;
+      font-size: 1rem;
+    }
+    #erp-grid tbody td {
+      padding: 1rem 0.75rem;
+      vertical-align: middle;
+      border-bottom: 1px solid #e9ecef;
+      font-size: 1rem;
+    }
+    #erp-grid tbody tr:hover {
+      background-color: #f8f9fa;
+    }
+    #erp-grid .fw-bold {
+      font-weight: 600 !important;
+      color: #212529;
+      font-size: 1rem;
+    }
+    #erp-grid .text-muted {
+      color: #6c757d !important;
+      font-size: 0.95rem;
+    }
+    /* 키워드 강조 */
+    #erp-grid .badge {
+      font-weight: 600;
+      padding: 0.5em 0.75em;
+      font-size: 0.95rem;
+    }
+    #erp-grid .badge.bg-danger {
+      background-color: #dc3545 !important;
+      color: #fff !important;
+    }
+    #erp-grid .badge.bg-warning {
+      background-color: #ffc107 !important;
+      color: #000 !important;
+    }
+    #erp-grid .badge.bg-success {
+      background-color: #198754 !important;
+      color: #fff !important;
+    }
+    #erp-grid .badge.bg-secondary {
+      background-color: #6c757d !important;
+      color: #fff !important;
+    }
+    #erp-grid .badge.bg-info {
+      background-color: #0dcaf0 !important;
+      color: #000 !important;
+    }
+    #erp-grid .badge.bg-primary {
+      background-color: #0d6efd !important;
+      color: #fff !important;
+    }
+    /* 버튼 스타일 개선 */
+    #erp-grid .btn-sm {
+      font-weight: 500;
+      padding: 0.4rem 0.75rem;
+      font-size: 1rem;
+    }
+    /* 텍스트 가독성 */
+    #erp-grid .text-truncate {
+      max-width: 200px;
+      font-size: 1rem;
+    }
+    /* 전체 텍스트 크기 증가 */
+    .card-body {
+      font-size: 1rem;
+    }
+    .card-body .small {
+      font-size: 0.95rem !important;
+    }
+    .card-body h5, .card-body h6 {
+      font-size: 1.25rem;
+    }
+    .card-body .fw-bold {
+      font-size: 1.1rem;
+    }
+    /* 프로세스 맵 호버 효과 */
+    .erp-process-step {
+      transition: all 0.2s ease;
+    }
+    .erp-process-step:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+    }
   </style>
 
   <div class="row g-2">
     <!-- Left: Filters -->
     <div class="col-xl-2 col-lg-3">
-      <div class="card">
+      <div class="card shadow-sm">
         <div class="card-body">
-          <div class="fw-bold mb-2"><i class="fas fa-filter"></i> 필터</div>
+          <div class="fw-bold mb-3 text-dark" style="font-size: 1.15rem;"><i class="fas fa-filter text-primary"></i> 필터</div>
           <form method="get" action="{{ url_for('erp_dashboard') }}" class="d-grid gap-2" id="erp-filters-form">
-            <input class="form-control form-control-sm" name="q" placeholder="검색(고객/연락/주소/담당)" value="{{ (filters.get('q') or '') }}">
+            {% if filters.get('alert_type') %}
+            <input type="hidden" name="alert_type" value="{{ filters.get('alert_type') }}">
+            {% endif %}
+            <input class="form-control" name="q" placeholder="검색(고객/연락/주소/담당)" value="{{ (filters.get('q') or '') }}" style="font-size: 1rem; padding: 0.5rem;">
 
-            <select class="form-select form-select-sm" name="stage">
+            <select class="form-select" name="stage" style="font-size: 1rem; padding: 0.5rem;">
               <option value="">단계: 전체</option>
               <option value="주문접수" {% if filters.get('stage')=='주문접수' %}selected{% endif %}>주문접수</option>
               <option value="해피콜" {% if filters.get('stage')=='해피콜' %}selected{% endif %}>해피콜</option>
@@ -133,74 +219,208 @@
               <option value="시공" {% if filters.get('stage')=='시공' %}selected{% endif %}>시공</option>
             </select>
 
+            <select class="form-select" name="team" style="font-size: 1rem; padding: 0.5rem;">
+              <option value="">팀: 전체</option>
+              <option value="CS" {% if filters.get('team')=='CS' %}selected{% endif %}>라홈팀</option>
+              <option value="SALES" {% if filters.get('team')=='SALES' %}selected{% endif %}>영업팀</option>
+              <option value="MEASURE" {% if filters.get('team')=='MEASURE' %}selected{% endif %}>실측팀</option>
+              <option value="DRAWING" {% if filters.get('team')=='DRAWING' %}selected{% endif %}>도면팀</option>
+              <option value="PRODUCTION" {% if filters.get('team')=='PRODUCTION' %}selected{% endif %}>생산팀</option>
+              <option value="CONSTRUCTION" {% if filters.get('team')=='CONSTRUCTION' %}selected{% endif %}>시공팀</option>
+            </select>
+            {% if is_admin %}
+            <div class="text-info" style="font-size: 1rem;"><i class="fas fa-info-circle"></i> 관리자는 모든 퀘스트에 접근 가능합니다.</div>
+            {% endif %}
+
             <div class="form-check">
-              <input class="form-check-input" type="checkbox" value="1" id="f-urgent" name="urgent" {% if filters.get('urgent')=='1' %}checked{% endif %}>
-              <label class="form-check-label" for="f-urgent">긴급만</label>
+              <input class="form-check-input" type="checkbox" value="1" id="f-urgent" name="urgent" {% if filters.get('urgent')=='1' %}checked{% endif %} style="width: 1.2em; height: 1.2em;">
+              <label class="form-check-label fw-semibold" for="f-urgent" style="font-size: 1rem;">긴급만</label>
             </div>
             <div class="form-check">
-              <input class="form-check-input" type="checkbox" value="1" id="f-has-alert" name="has_alert" {% if filters.get('has_alert')=='1' %}checked{% endif %}>
-              <label class="form-check-label" for="f-has-alert">경보만</label>
-            </div>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" value="1" id="f-has-task" name="has_task" {% if filters.get('has_task')=='1' %}checked{% endif %}>
-              <label class="form-check-label" for="f-has-task">오픈 Task만</label>
+              <input class="form-check-input" type="checkbox" value="1" id="f-has-alert" name="has_alert" {% if filters.get('has_alert')=='1' %}checked{% endif %} style="width: 1.2em; height: 1.2em;">
+              <label class="form-check-label fw-semibold" for="f-has-alert" style="font-size: 1rem;">경보만</label>
             </div>
 
-            <button class="btn btn-sm btn-primary" type="submit"><i class="fas fa-search"></i> 적용</button>
-            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('erp_dashboard') }}">초기화</a>
+            <button class="btn btn-primary fw-semibold" type="submit" style="font-size: 1rem; padding: 0.6rem;"><i class="fas fa-search"></i> 적용</button>
+            <a class="btn btn-outline-secondary fw-semibold" href="{{ url_for('erp_dashboard') }}" style="font-size: 1rem; padding: 0.6rem;">초기화</a>
           </form>
+          <script>
+            // 필터 폼 제출 시 alert_type 파라미터 유지
+            document.getElementById('erp-filters-form')?.addEventListener('submit', function(e) {
+              const url = new URL(window.location.href);
+              const currentAlertType = url.searchParams.get('alert_type');
+              if (currentAlertType) {
+                let alertTypeInput = this.querySelector('input[name="alert_type"]');
+                if (!alertTypeInput) {
+                  alertTypeInput = document.createElement('input');
+                  alertTypeInput.type = 'hidden';
+                  alertTypeInput.name = 'alert_type';
+                  this.appendChild(alertTypeInput);
+                }
+                alertTypeInput.value = currentAlertType;
+              }
+            });
+          </script>
           <hr class="my-3">
-          <div class="small text-muted">표 클릭 → 우측 상세 패널</div>
         </div>
       </div>
     </div>
 
     <!-- Middle: Grid -->
-    <div class="col-xl-7 col-lg-9">
+    <div class="col-xl-10 col-lg-12">
       <div class="card">
         <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <div class="fw-bold"><i class="fas fa-table"></i> 작업 큐</div>
-            <div class="small text-muted">표시: {{ orders|length }}건</div>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-table text-primary"></i> 작업 큐</h5>
+              <small class="text-muted">주문 처리 및 퀘스트 관리</small>
+            </div>
+            <div>
+              <span class="badge bg-primary fs-6 px-3 py-2">표시: <strong>{{ orders|length }}</strong>건</span>
+            </div>
           </div>
           <div class="table-responsive">
-            <table class="table table-sm table-hover align-middle" id="erp-grid">
+            <table class="table table-sm table-hover align-middle" id="erp-grid" style="table-layout: fixed; width: 100%;">
               <thead>
                 <tr>
-                  <th>경보</th>
-                  <th>단계</th>
-                  <th>고객</th>
-                  <th>연락처</th>
-                  <th>주소</th>
-                  <th>실측일</th>
-                  <th>시공일</th>
-                  <th>담당</th>
-                  <th>첨부</th>
-                  <th>Task</th>
-                  <th></th>
+                  <th style="width: 10%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">경보</th>
+                  <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">단계</th>
+                  <th style="width: 15%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">퀘스트</th>
+                  <th style="width: 10%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">고객</th>
+                  <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">연락처</th>
+                  <th style="width: 20%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">주소</th>
+                  <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">실측일</th>
+                  <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">시공일</th>
+                  <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">담당</th>
+                  <th style="width: 10%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">첨부</th>
+                  <th style="width: 5%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;"></th>
                 </tr>
               </thead>
               <tbody>
                 {% for o in orders %}
                 <tr data-order-id="{{ o.id }}">
                   <td>
-                    {% if o.alerts.urgent %}<span class="badge bg-danger">긴급</span>{% endif %}
-                    {% if o.alerts.drawing_overdue %}<span class="badge bg-danger">도면48h</span>{% endif %}
-                    {% if o.alerts.measurement_d4 %}<span class="badge bg-warning text-dark">실측D-4</span>{% endif %}
-                    {% if o.alerts.construction_d3 %}<span class="badge bg-warning text-dark">시공D-3</span>{% endif %}
-                    {% if o.alerts.production_d2 %}<span class="badge bg-warning text-dark">생산D-2</span>{% endif %}
+                    {% if o.alerts.urgent %}<span class="badge bg-danger fw-bold" style="font-size: 1.1rem; padding: 0.5em 0.8em;">긴급</span>{% endif %}
+                    {% if o.alerts.drawing_overdue %}<span class="badge bg-danger fw-bold" style="font-size: 1.1rem; padding: 0.5em 0.8em;">도면48h</span>{% endif %}
+                    {% if o.alerts.measurement_d4 %}
+                      {% set meas_d = o.alerts['measurement_days'] if 'measurement_days' in o.alerts else none %}
+                      <span class="badge bg-warning text-dark fw-bold" style="font-size: 1.1rem; padding: 0.5em 0.8em;">실측D-{{ meas_d if meas_d is not none else '4' }}</span>
+                    {% endif %}
+                    {% if o.alerts.construction_d3 %}
+                      {% set cons_d = o.alerts['construction_days'] if 'construction_days' in o.alerts else none %}
+                      <span class="badge bg-warning text-dark fw-bold" style="font-size: 1.1rem; padding: 0.5em 0.8em;">시공D-{{ cons_d if cons_d is not none else '3' }}</span>
+                    {% endif %}
+                    {% if o.alerts.production_d2 %}
+                      {% set prod_d = o.alerts['production_days'] if 'production_days' in o.alerts else none %}
+                      <span class="badge bg-warning text-dark fw-bold" style="font-size: 1.1rem; padding: 0.5em 0.8em;">생산D-{{ prod_d if prod_d is not none else '2' }}</span>
+                    {% endif %}
                   </td>
-                  <td><span class="badge bg-secondary">{{ o.stage }}</span></td>
-                  <td class="fw-bold">{{ o.customer_name }}</td>
-                  <td>{{ o.phone }}</td>
-                  <td class="text-truncate" style="max-width: 240px;">{{ o.address }}</td>
-                  <td>{{ o.measurement_date or '-' }}</td>
-                  <td>{{ o.construction_date or '-' }}</td>
-                  <td>{{ o.manager_name or '-' }}</td>
-                  <td>{% if o.has_media %}<span class="badge bg-primary">📎</span>{% else %}<span class="text-muted">-</span>{% endif %}</td>
-                  <td>{% if o.open_tasks and o.open_tasks > 0 %}<span class="badge bg-secondary">{{ o.open_tasks }}</span>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                  <td><span class="badge bg-secondary" style="font-size: 1.1rem; padding: 0.5em 0.7em;">{{ o.stage }}</span></td>
+                  <td>
+                    {% if o.current_quest %}
+                      <button class="btn btn-sm btn-outline-info fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#quest-collapse-{{ o.id }}" aria-expanded="false" aria-controls="quest-collapse-{{ o.id }}" style="font-size: 1.1rem; padding: 0.5em 0.8em;">
+                        <i class="fas fa-chevron-down"></i> 
+                        {% if o.current_quest.all_approved %}
+                          <i class="fas fa-check-circle text-success"></i>
+                        {% else %}
+                          <i class="fas fa-circle-notch text-warning"></i>
+                        {% endif %}
+                        <strong>{{ o.current_quest.title }}</strong>
+                      </button>
+                      {% if o.current_quest.all_approved %}
+                        <span class="badge bg-success ms-1" style="font-size: 1rem; padding: 0.4em 0.7em;">완료</span>
+                      {% else %}
+                        <span class="badge bg-warning ms-1" style="font-size: 1rem; padding: 0.4em 0.7em;">진행중</span>
+                      {% endif %}
+                    {% else %}
+                      <span class="text-muted" style="font-size: 1.1rem;">-</span>
+                    {% endif %}
+                  </td>
+                  <td class="fw-bold" style="font-size: 1.1rem; color: #212529;">{{ o.customer_name }}</td>
+                  <td style="font-size: 1.1rem; color: #495057;">{{ o.phone }}</td>
+                  <td style="font-size: 1.1rem; color: #495057; word-break: break-word;">{{ o.address }}</td>
+                  <td class="fw-semibold" style="font-size: 1.1rem; color: #495057;">{{ o.measurement_date or '-' }}</td>
+                  <td class="fw-semibold" style="font-size: 1.1rem; color: #495057;">{{ o.construction_date or '-' }}</td>
+                  <td style="font-size: 1.1rem; color: #495057;">{{ o.manager_name or '-' }}</td>
+                  <td>
+                    {% if o.has_media %}
+                      <span class="badge bg-primary text-white fw-bold" style="cursor: pointer; font-size: 1.1rem; padding: 0.5em 0.8em;" onclick="openAttachmentsPreview({{ o.id }})" title="첨부 파일 미리보기"><i class="fas fa-paperclip"></i> 첨부 <span class="badge bg-light text-dark ms-1" style="font-size: 1rem;">{{ o.attachments_count }}</span></span>
+                    {% else %}
+                      <span class="text-muted" style="font-size: 1.1rem;">-</span>
+                    {% endif %}
+                  </td>
                   <td class="text-end">
-                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('erp_order_object', order_id=o.id) }}" target="_blank" rel="noopener">열기</a>
+                    <div class="d-flex gap-1 justify-content-end">
+                      <a class="btn btn-sm btn-outline-info" href="{{ url_for('edit_order', order_id=o.id) }}?open=erp-beta" title="ERP Beta 주문 상세">
+                        <i class="fas fa-external-link-alt"></i>
+                      </a>
+                      <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#order-detail-collapse-{{ o.id }}" aria-expanded="false" aria-controls="order-detail-collapse-{{ o.id }}">
+                        <i class="fas fa-chevron-down"></i> 열기
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                {% if o.current_quest %}
+                <tr>
+                  <td colspan="13" class="p-0">
+                    <div class="collapse" id="quest-collapse-{{ o.id }}">
+                      <div class="card card-body border-0 bg-light">
+                        <div class="fw-bold mb-3" style="font-size: 1.2rem;"><i class="fas fa-flag-checkered text-primary"></i> 현재 단계 퀘스트</div>
+                        <div class="text-muted mb-3" style="font-size: 1rem;">각 단계별 명확한 퀘스트 및 팀 승인</div>
+                        <div class="card mb-3 shadow-sm">
+                          <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                              <div>
+                                <h5 class="card-title mb-2 fw-bold" style="font-size: 1.25rem;">{{ o.current_quest.title }}</h5>
+                                <div class="text-muted" style="font-size: 1rem;">{{ o.current_quest.description }}</div>
+                              </div>
+                              <span class="badge {% if o.current_quest.all_approved %}bg-success{% else %}bg-warning{% endif %}" style="font-size: 1rem; padding: 0.5em 0.75em;">
+                                {% if o.current_quest.all_approved %}완료{% else %}진행중{% endif %}
+                              </span>
+                            </div>
+                            <div class="mb-3">
+                              <div class="text-muted mb-2 fw-semibold" style="font-size: 1.05rem;">담당 팀</div>
+                              <div class="fw-bold" style="font-size: 1.15rem;">{{ team_labels.get(o.current_quest.owner_team, o.current_quest.owner_team) }}</div>
+                            </div>
+                            <div class="mb-3">
+                              <div class="text-muted mb-2 fw-semibold" style="font-size: 1.05rem;">팀별 승인</div>
+                              <div id="quest-approvals-{{ o.id }}">
+                                {% for team in o.current_quest.required_approvals %}
+                                {% set approved = o.current_quest.team_approvals.get(team, False) %}
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                  <span class="fw-semibold" style="font-size: 1rem;">{{ team_labels.get(team, team) }}</span>
+                                  {% if approved %}
+                                    <span class="badge bg-success" style="font-size: 1rem; padding: 0.4em 0.7em;">승인완료</span>
+                                  {% else %}
+                                    <button class="btn btn-primary fw-semibold" onclick="approveQuestTeam({{ o.id }}, '{{ team }}')" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>
+                                  {% endif %}
+                                </div>
+                                {% endfor %}
+                              </div>
+                            </div>
+                            <div class="d-flex gap-2">
+                              <button class="btn btn-outline-primary fw-semibold" type="button" onclick="refreshQuestStatus({{ o.id }})" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                                <i class="fas fa-sync"></i> 상태 새로고침
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                {% endif %}
+                <!-- Order Detail Slide -->
+                <tr>
+                  <td colspan="13" class="p-0">
+                    <div class="collapse" id="order-detail-collapse-{{ o.id }}">
+                      <div class="card card-body border-0 bg-light">
+                        <div class="fw-bold mb-3"><i class="fas fa-info-circle"></i> 주문 상세</div>
+                        <div id="order-detail-content-{{ o.id }}" class="order-detail-content">
+                          <div class="text-muted small">로딩 중...</div>
+                        </div>
+                      </div>
+                    </div>
                   </td>
                 </tr>
                 {% endfor %}
@@ -211,59 +431,32 @@
       </div>
     </div>
 
-    <!-- Right: Detail -->
-    <div class="col-xl-3 d-none d-xl-block">
-      <div class="card erp-detail-panel">
-        <div class="card-body">
-          <div class="fw-bold mb-2"><i class="fas fa-info-circle"></i> 상세</div>
-          <div id="erp-detail-empty" class="text-muted small">좌측 표에서 주문을 선택하세요.</div>
+  </div>
 
-          <div id="erp-detail" style="display:none;">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <div class="fw-bold" id="d-customer">-</div>
-                <div class="small text-muted" id="d-order-id">#-</div>
-              </div>
-              <div class="text-end">
-                <span class="badge bg-secondary" id="d-stage">-</span>
-              </div>
-            </div>
-
-            <div class="mt-2" id="d-alerts"></div>
-
-            <hr class="my-3">
-            <div class="fw-bold mb-2"><i class="fas fa-list"></i> 요약</div>
-            <div class="erp-kv"><div class="k">연락처</div><div class="v" id="d-phone">-</div></div>
-            <div class="erp-kv"><div class="k">주소</div><div class="v" id="d-address">-</div></div>
-            <div class="erp-kv"><div class="k">실측일</div><div class="v" id="d-measure">-</div></div>
-            <div class="erp-kv"><div class="k">시공일</div><div class="v" id="d-construct">-</div></div>
-            <div class="erp-kv"><div class="k">오너팀</div><div class="v" id="d-owner-team">-</div></div>
-
-            <hr class="my-3">
-            <div class="fw-bold mb-2"><i class="fas fa-clipboard-check"></i> Task</div>
-            <div class="d-flex gap-2 mb-2">
-              <input class="form-control form-control-sm" id="d-task-title" placeholder="Task 제목">
-              <button class="btn btn-sm btn-outline-primary" type="button" id="d-task-add-btn">추가</button>
-            </div>
-            <div class="small text-muted mb-2" id="d-task-status"></div>
-            <div class="table-responsive">
-              <table class="table table-sm">
-                <tbody id="d-tasks"></tbody>
-              </table>
-            </div>
-
-            <hr class="my-3">
-            <div class="fw-bold mb-2"><i class="fas fa-stream"></i> Event</div>
-            <div class="table-responsive">
-              <table class="table table-sm">
-                <tbody id="d-events"></tbody>
-              </table>
-            </div>
-
-            <hr class="my-3">
-            <div class="fw-bold mb-2"><i class="fas fa-paperclip"></i> 첨부</div>
-            <div class="row g-2" id="d-attachments"></div>
-          </div>
+  <!-- 첨부 파일 미리보기 모달 -->
+  <div class="modal fade" id="erpAttachmentPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 60vw; width: 60vw; height: 90vh; max-height: 90vh; margin: auto;">
+      <div class="modal-content" style="height: 100%; display: flex; flex-direction: column;">
+        <div class="modal-header" style="flex-shrink: 0; position: relative;">
+          <h5 class="modal-title"><i class="fas fa-paperclip"></i> 첨부 미리보기 <span id="erp-attachment-preview-counter" class="badge bg-secondary ms-2"></span></h5>
+          <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="erp-attachment-preview-prev" style="display: none;" title="이전 파일">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="erp-attachment-preview-next" style="display: none;" title="다음 파일">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" style="padding: 0; overflow: hidden; flex: 1; display: flex; flex-direction: column; min-height: 0;">
+          <div id="erp-attachment-preview-body" style="padding: 1rem; flex: 1; overflow: auto; display: flex; flex-direction: column;"></div>
+        </div>
+        <div class="modal-footer" style="flex-shrink: 0;">
+          <a class="btn btn-primary" id="erp-attachment-preview-download" href="#" target="_blank" rel="noopener">
+            <i class="fas fa-download"></i> 다운로드
+          </a>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> 닫기
+          </button>
         </div>
       </div>
     </div>
@@ -277,65 +470,383 @@
       return div.innerHTML;
     }
 
+    // 알람 바 클릭 이벤트 처리
+    document.addEventListener('DOMContentLoaded', function() {
+      const alertCards = document.querySelectorAll('.erp-alert-card');
+      alertCards.forEach(card => {
+        card.addEventListener('click', function() {
+          const alertType = this.getAttribute('data-alert-type');
+          if (alertType) {
+            // 현재 URL 파라미터 가져오기
+            const url = new URL(window.location.href);
+            const currentAlertType = url.searchParams.get('alert_type');
+            // 같은 알람 바를 다시 클릭하면 필터 해제
+            if (currentAlertType === alertType) {
+              url.searchParams.delete('alert_type');
+            } else {
+              url.searchParams.set('alert_type', alertType);
+            }
+            // 다른 필터는 유지하되 alert_type만 설정/해제
+            window.location.href = url.toString();
+          }
+        });
+      });
+    });
+
     // === 표시용 한글 라벨(저장은 영문 코드 유지) ===
-    const TEAM_LABELS = {
-      CS: 'CS(해피콜)',
-      SALES: '영업(실측)',
-      MEASURE: '실측팀',
-      DRAWING: '도면팀',
-      PRODUCTION: '생산팀',
-      CONSTRUCTION: '시공팀',
-    };
-
-    const STAGE_LABELS = {
-      RECEIVED: '주문접수',
-      HAPPYCALL: '해피콜',
-      MEASURE: '실측',
-      DRAWING: '도면',
-      CONFIRM: '고객컨펌',
-      PRODUCTION: '생산',
-      CONSTRUCTION: '시공',
-    };
-
-    const EVENT_LABELS = {
-      STAGE_CHANGED: '단계 변경',
-      URGENT_CHANGED: '긴급 변경',
-      OWNER_TEAM_CHANGED: '오너팀 변경',
-      MEASUREMENT_DATE_CHANGED: '실측일 변경',
-      CONSTRUCTION_DATE_CHANGED: '시공일 변경',
-    };
-
-    const TASK_STATUS_LABELS = {
-      OPEN: '오픈',
-      IN_PROGRESS: '진행중',
-      DONE: '완료',
-      CANCELLED: '취소',
-    };
+    const TEAM_LABELS = {{ team_labels|tojson|safe }};
+    const STAGE_LABELS = {{ stage_labels|tojson|safe }};
 
     function label(map, code, fallback = '-') {
       if (!code) return fallback;
       return map[code] || code;
     }
 
-    function formatEventPayload(ev) {
-      const t = ev?.event_type;
-      const p = ev?.payload || {};
-      if (t === 'STAGE_CHANGED') {
-        return `from: ${label(STAGE_LABELS, p.from, '-')}, to: ${label(STAGE_LABELS, p.to, '-')}`;
+    let __selectedOrderId = null;
+    let __attachmentsCache = {};
+    let __currentAttachmentList = [];
+    let __currentAttachmentIndex = 0;
+
+    // 첨부 파일 미리보기 모달 열기 (단일 파일)
+    function openAttachmentPreviewModal(attachmentId, viewUrl, downloadUrl, filename, fileType) {
+      const modalEl = document.getElementById('erpAttachmentPreviewModal');
+      const body = document.getElementById('erp-attachment-preview-body');
+      const dl = document.getElementById('erp-attachment-preview-download');
+      if (!modalEl || !body || !dl) return;
+      
+      dl.href = downloadUrl || viewUrl || '#';
+      
+      if (fileType === 'video') {
+        body.innerHTML = `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;"><video src="${viewUrl}" controls autoplay style="width:100%;height:100%;"></video></div><div class="small text-muted mt-2">${escapeHtml(filename || '')}</div>`;
+      } else {
+        // 이미지 줌 기능을 위한 구조 (윤곽 없이 전체 확대/축소)
+        body.innerHTML = `
+          <div class="position-relative" style="overflow: hidden; cursor: grab; user-select: none; height: 100%; display: flex; align-items: center; justify-content: center;" id="image-zoom-container">
+            <img src="${viewUrl}" alt="${escapeHtml(filename || '')}" 
+                 id="preview-zoom-image" 
+                 style="display: block; max-width: 100%; max-height: 100%; transition: transform 0.1s ease-out; transform-origin: center center;"
+                 draggable="false">
+            <div class="position-absolute top-0 end-0 m-2">
+              <div class="badge bg-dark bg-opacity-75" id="zoom-level-badge" style="display: none;">100%</div>
+            </div>
+          </div>
+          <div class="small text-muted mt-2 text-center" style="flex-shrink: 0;">${escapeHtml(filename || '')} <span class="text-muted">(휠 스크롤로 줌 인/아웃)</span></div>
+        `;
+        
+        // 이미지 줌 기능 초기화
+        setupImageZoom();
       }
-      if (t === 'OWNER_TEAM_CHANGED') {
-        return `from: ${label(TEAM_LABELS, p.from, '-')}, to: ${label(TEAM_LABELS, p.to, '-')}`;
+      
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      
+      // 네비게이션 버튼 이벤트 리스너 등록
+      const prevBtn = document.getElementById('erp-attachment-preview-prev');
+      const nextBtn = document.getElementById('erp-attachment-preview-next');
+      if (prevBtn) {
+        prevBtn.onclick = showPreviousAttachment;
       }
-      if (t === 'MEASUREMENT_DATE_CHANGED' || t === 'CONSTRUCTION_DATE_CHANGED') {
-        return `from: ${p.from || '-'}, to: ${p.to || '-'}`;
+      if (nextBtn) {
+        nextBtn.onclick = showNextAttachment;
       }
-      if (t === 'URGENT_CHANGED') {
-        return `from: ${String(p.from)}, to: ${String(p.to)}${p.reason ? `, 사유: ${p.reason}` : ''}`;
+      
+      // 네비게이션 업데이트
+      updateAttachmentNavigation();
+      
+      // 키보드 이벤트 리스너 (좌우 화살표 키)
+      const handleKeyDown = (e) => {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          showPreviousAttachment();
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          showNextAttachment();
+        }
+      };
+      
+      // 모달이 열릴 때 키보드 이벤트 리스너 추가
+      modalEl.addEventListener('keydown', handleKeyDown);
+      
+      // 모달이 닫힐 때 키보드 이벤트 리스너 제거
+      modalEl.addEventListener('hidden.bs.modal', () => {
+        modalEl.removeEventListener('keydown', handleKeyDown);
+      }, { once: true });
+      
+      modal.show();
+    }
+    
+    // 이미지 줌 기능 설정 (윤곽 없이 전체 확대/축소)
+    function setupImageZoom() {
+      const container = document.getElementById('image-zoom-container');
+      const img = document.getElementById('preview-zoom-image');
+      const badge = document.getElementById('zoom-level-badge');
+      if (!container || !img || !badge) return;
+      
+      let scale = 1;
+      let panX = 0;
+      let panY = 0;
+      let isDragging = false;
+      let startX = 0;
+      let startY = 0;
+      let startPanX = 0;
+      let startPanY = 0;
+      
+      // 초기 이미지 크기 저장
+      let initialWidth = img.naturalWidth || img.width;
+      let initialHeight = img.naturalHeight || img.height;
+      
+      // 이미지 로드 후 초기 크기 설정
+      if (img.complete) {
+        initialWidth = img.naturalWidth || img.width;
+        initialHeight = img.naturalHeight || img.height;
+      } else {
+        img.addEventListener('load', () => {
+          initialWidth = img.naturalWidth || img.width;
+          initialHeight = img.naturalHeight || img.height;
+        });
       }
-      return JSON.stringify(p);
+      
+      // 줌 레벨 표시 업데이트
+      function updateZoomBadge() {
+        badge.textContent = Math.round(scale * 100) + '%';
+        badge.style.display = scale !== 1 ? 'block' : 'none';
+      }
+      
+      // 이미지 변환 적용 (윤곽 없이 전체 확대)
+      function applyTransform() {
+        img.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+        img.style.border = 'none';
+        img.style.boxShadow = 'none';
+        img.style.borderRadius = '0';
+        img.style.padding = '0';
+        img.style.background = 'transparent';
+        updateZoomBadge();
+      }
+      
+      // 줌 인/아웃 (마우스 위치 중심)
+      function zoomAtPoint(delta, clientX, clientY) {
+        const rect = container.getBoundingClientRect();
+        const containerCenterX = rect.left + rect.width / 2;
+        const containerCenterY = rect.top + rect.height / 2;
+        
+        // 마우스 위치를 컨테이너 중심 기준으로 변환
+        const x = clientX - containerCenterX;
+        const y = clientY - containerCenterY;
+        
+        const oldScale = scale;
+        const zoomFactor = delta > 0 ? 0.9 : 1.1;
+        scale = Math.max(0.5, Math.min(10, scale * zoomFactor));
+        
+        // 마우스 위치를 중심으로 줌
+        if (scale !== oldScale) {
+          const scaleChange = scale / oldScale;
+          panX = x - (x - panX) * scaleChange;
+          panY = y - (y - panY) * scaleChange;
+        }
+        
+        applyTransform();
+      }
+      
+      // 휠 스크롤로 줌 (모든 경우)
+      container.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zoomAtPoint(e.deltaY, e.clientX, e.clientY);
+      }, { passive: false });
+      
+      // 모달 body에도 휠 이벤트 추가 (이미지 영역 밖에서도 작동)
+      const modalBody = document.querySelector('#erpAttachmentPreviewModal .modal-body');
+      if (modalBody) {
+        modalBody.addEventListener('wheel', (e) => {
+          const target = e.target;
+          if (target !== container && !container.contains(target)) {
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = modalBody.getBoundingClientRect();
+            zoomAtPoint(e.deltaY, rect.left + rect.width / 2, rect.top + rect.height / 2);
+          }
+        }, { passive: false });
+      }
+      
+      // 드래그로 패닝
+      container.addEventListener('mousedown', (e) => {
+        if (scale > 1) {
+          isDragging = true;
+          container.style.cursor = 'grabbing';
+          startX = e.clientX;
+          startY = e.clientY;
+          startPanX = panX;
+          startPanY = panY;
+          e.preventDefault();
+        }
+      });
+      
+      document.addEventListener('mousemove', (e) => {
+        if (isDragging && scale > 1) {
+          panX = startPanX + (e.clientX - startX);
+          panY = startPanY + (e.clientY - startY);
+          applyTransform();
+          e.preventDefault();
+        }
+      });
+      
+      document.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          container.style.cursor = scale > 1 ? 'grab' : 'default';
+        }
+      });
+      
+      container.addEventListener('mouseleave', () => {
+        if (isDragging) {
+          isDragging = false;
+          container.style.cursor = scale > 1 ? 'grab' : 'default';
+        }
+      });
+      
+      // 더블클릭으로 리셋
+      container.addEventListener('dblclick', () => {
+        scale = 1;
+        panX = 0;
+        panY = 0;
+        applyTransform();
+      });
+      
+      // 터치 제스처 지원 (모바일)
+      let touchStartDistance = 0;
+      let touchStartScale = 1;
+      let touchStartPanX = 0;
+      let touchStartPanY = 0;
+      
+      container.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          const touch = e.touches[0];
+          startX = touch.clientX;
+          startY = touch.clientY;
+          startPanX = panX;
+          startPanY = panY;
+        } else if (e.touches.length === 2) {
+          const touch1 = e.touches[0];
+          const touch2 = e.touches[1];
+          touchStartDistance = Math.hypot(
+            touch2.clientX - touch1.clientX,
+            touch2.clientY - touch1.clientY
+          );
+          touchStartScale = scale;
+          touchStartPanX = panX;
+          touchStartPanY = panY;
+        }
+      }, { passive: true });
+      
+      container.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && scale > 1) {
+          e.preventDefault();
+          const touch = e.touches[0];
+          panX = startPanX + (touch.clientX - startX);
+          panY = startPanY + (touch.clientY - startY);
+          applyTransform();
+        } else if (e.touches.length === 2) {
+          e.preventDefault();
+          const touch1 = e.touches[0];
+          const touch2 = e.touches[1];
+          const distance = Math.hypot(
+            touch2.clientX - touch1.clientX,
+            touch2.clientY - touch1.clientY
+          );
+          scale = Math.max(0.5, Math.min(10, touchStartScale * (distance / touchStartDistance)));
+          applyTransform();
+        }
+      }, { passive: false });
+      
+      updateZoomBadge();
     }
 
-    let __selectedOrderId = null;
+    // 주문의 첨부 파일 미리보기 (첨부 배지 클릭 시) - 좌우 네비게이션 지원
+    async function openAttachmentsPreview(orderId) {
+      try {
+        // 캐시 확인
+        let aList = null;
+        if (__attachmentsCache[orderId]) {
+          aList = __attachmentsCache[orderId];
+        } else {
+          const res = await fetch(`/api/orders/${orderId}/attachments`);
+          const data = await res.json();
+          aList = (data && data.attachments) || [];
+          __attachmentsCache[orderId] = aList;
+        }
+        
+        if (aList.length > 0) {
+          __currentAttachmentList = aList;
+          __currentAttachmentIndex = 0;
+          showAttachmentAtIndex(0);
+        } else {
+          alert('첨부 파일이 없습니다.');
+        }
+      } catch (err) {
+        console.error('첨부 파일 로드 실패:', err);
+        alert('첨부 파일을 불러올 수 없습니다.');
+      }
+    }
+
+    // 특정 인덱스의 첨부 파일 표시
+    function showAttachmentAtIndex(index) {
+      if (!__currentAttachmentList || index < 0 || index >= __currentAttachmentList.length) {
+        return;
+      }
+      
+      __currentAttachmentIndex = index;
+      const attachment = __currentAttachmentList[index];
+      
+      openAttachmentPreviewModal(
+        attachment.id,
+        attachment.view_url || '#',
+        attachment.download_url || attachment.view_url || '#',
+        attachment.filename || '',
+        attachment.file_type || 'image'
+      );
+      
+      // 네비게이션 버튼 및 카운터 업데이트
+      updateAttachmentNavigation();
+    }
+
+    // 첨부 파일 네비게이션 업데이트
+    function updateAttachmentNavigation() {
+      const prevBtn = document.getElementById('erp-attachment-preview-prev');
+      const nextBtn = document.getElementById('erp-attachment-preview-next');
+      const counter = document.getElementById('erp-attachment-preview-counter');
+      
+      if (!prevBtn || !nextBtn || !counter) return;
+      
+      const total = __currentAttachmentList.length;
+      const current = __currentAttachmentIndex + 1;
+      
+      // 카운터 표시
+      counter.textContent = `${current} / ${total}`;
+      
+      // 이전/다음 버튼 표시
+      if (total > 1) {
+        prevBtn.style.display = 'inline-block';
+        nextBtn.style.display = 'inline-block';
+        prevBtn.disabled = (__currentAttachmentIndex === 0);
+        nextBtn.disabled = (__currentAttachmentIndex === total - 1);
+      } else {
+        prevBtn.style.display = 'none';
+        nextBtn.style.display = 'none';
+      }
+    }
+
+    // 이전 파일 보기
+    function showPreviousAttachment() {
+      if (__currentAttachmentIndex > 0) {
+        showAttachmentAtIndex(__currentAttachmentIndex - 1);
+      }
+    }
+
+    // 다음 파일 보기
+    function showNextAttachment() {
+      if (__currentAttachmentIndex < __currentAttachmentList.length - 1) {
+        showAttachmentAtIndex(__currentAttachmentIndex + 1);
+      }
+    }
 
     function renderBadges(alerts) {
       const a = alerts || {};
@@ -348,191 +859,287 @@
       return out.join('') || '<span class="text-muted small">경보 없음</span>';
     }
 
-    async function loadDetail(orderId) {
-      __selectedOrderId = orderId;
-      document.getElementById('erp-detail-empty').style.display = 'none';
-      document.getElementById('erp-detail').style.display = 'block';
-      document.getElementById('d-order-id').textContent = `#${orderId}`;
-      document.getElementById('d-task-status').textContent = '로딩 중...';
-      document.getElementById('d-tasks').innerHTML = '';
-      document.getElementById('d-events').innerHTML = '';
-      document.getElementById('d-attachments').innerHTML = '';
-
-      const [structured, tasks, events, attachments] = await Promise.all([
-        fetch(`/api/orders/${orderId}/structured`).then(r => r.json()),
-        fetch(`/api/orders/${orderId}/tasks`).then(r => r.json()),
-        fetch(`/api/orders/${orderId}/events?limit=50`).then(r => r.json()),
-        fetch(`/api/orders/${orderId}/attachments`).then(r => r.json()),
-      ]);
-
-      const sd = (structured && structured.structured_data) || {};
-      const customer = (((sd.parties||{}).customer||{}).name) || '-';
-      const phone = (((sd.parties||{}).customer||{}).phone) || '-';
-      const address = ((sd.site||{}).address_full) || ((sd.site||{}).address_main) || '-';
-      const measure = (((sd.schedule||{}).measurement||{}).date) || '-';
-      const construct = (((sd.schedule||{}).construction||{}).date) || '-';
-      const ownerTeam = (((sd.assignments||{}).owner_team)) || '-';
-      const stage = (((sd.workflow||{}).stage)) || '-';
-
-      document.getElementById('d-customer').textContent = customer;
-      document.getElementById('d-phone').textContent = phone;
-      document.getElementById('d-address').textContent = address;
-      document.getElementById('d-measure').textContent = measure;
-      document.getElementById('d-construct').textContent = construct;
-      document.getElementById('d-owner-team').textContent = label(TEAM_LABELS, ownerTeam, '-');
-      document.getElementById('d-stage').textContent = label(STAGE_LABELS, stage, '-');
-
-      // alerts: derive from grid row (best-effort)
-      const row = document.querySelector(`#erp-grid tr[data-order-id="${orderId}"]`);
-      if (row) {
-        const badges = row.querySelector('td')?.innerHTML || '';
-        document.getElementById('d-alerts').innerHTML = badges || '<span class="text-muted small">-</span>';
-      } else {
-        document.getElementById('d-alerts').innerHTML = '<span class="text-muted small">-</span>';
+    async function approveQuestTeam(orderId, team) {
+      try {
+        const res = await fetch(`/api/orders/${orderId}/quest/approve`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({team: team})
+        });
+        const data = await res.json();
+        
+        // success 필드 확인 (API는 success 필드를 반환함)
+        if (!data.success) {
+          alert('승인 실패: ' + (data.message || data.error || '알 수 없는 오류'));
+          return;
+        }
+        
+        // 자동 단계 전환 알림
+        if (data.auto_transitioned && data.next_stage) {
+          const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
+          alert('✅ 모든 팀 승인 완료! 다음 단계(' + nextStageLabel + ')로 자동 전환되었습니다.');
+        } else if (data.all_approved) {
+          alert('✅ 모든 팀 승인 완료!');
+        } else {
+          const missingTeams = data.missing_teams.map(t => label(TEAM_LABELS, t, t)).join(', ');
+          alert('승인 완료. 남은 팀: ' + missingTeams);
+        }
+        
+        // 슬라이드 내 Quest 정보 업데이트
+        await loadQuestDetail(orderId);
+        // 페이지 새로고침 (주문 목록 업데이트)
+        window.location.reload();
+      } catch (err) {
+        console.error('승인 실패:', err);
+        alert('승인 중 오류가 발생했습니다.');
       }
+    }
 
-      // tasks
-      const tWrap = document.getElementById('d-tasks');
-      const tList = (tasks && tasks.tasks) || [];
-      if (!tList.length) {
-        tWrap.innerHTML = `<tr><td class="text-muted small">Task 없음</td></tr>`;
-      } else {
-        tWrap.innerHTML = tList.map(t => {
-          const status = escapeHtml(label(TASK_STATUS_LABELS, t.status || '', t.status || ''));
-          const title = escapeHtml(t.title || '');
-          const due = escapeHtml(t.due_date || '');
-          const teamLabel = escapeHtml(label(TEAM_LABELS, t.owner_team || '', ''));
-          return `
-            <tr>
-              <td class="small">
-                <div class="d-flex justify-content-between align-items-start gap-2">
-                  <div>
-                    <span class="badge bg-secondary me-1">${status}</span>
-                    ${teamLabel ? `<span class="badge bg-light text-dark me-1">${teamLabel}</span>` : ''}
-                    <span class="fw-bold">${title}</span>
-                    <span class="text-muted">${due ? `(due:${due})` : ''}</span>
-                  </div>
-                  <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-primary" type="button" title="오픈(되돌리기)" onclick="updateTaskStatus(${t.id}, 'OPEN')">
-                      <i class="fas fa-undo"></i>
-                    </button>
-                    <button class="btn btn-outline-success" type="button" title="완료" onclick="updateTaskStatus(${t.id}, 'DONE')">
-                      <i class="fas fa-check"></i>
-                    </button>
-                    <button class="btn btn-outline-secondary" type="button" title="진행중" onclick="updateTaskStatus(${t.id}, 'IN_PROGRESS')">
-                      <i class="fas fa-play"></i>
-                    </button>
-                    <button class="btn btn-outline-warning" type="button" title="취소" onclick="updateTaskStatus(${t.id}, 'CANCELLED')">
-                      <i class="fas fa-ban"></i>
-                    </button>
-                    <button class="btn btn-outline-danger" type="button" title="삭제" onclick="deleteTask(${t.id})">
-                      <i class="fas fa-trash"></i>
-                    </button>
+    async function loadQuestDetail(orderId) {
+      try {
+        const res = await fetch(`/api/orders/${orderId}/quest`);
+        const data = await res.json();
+        if (data.error) {
+          console.error('Quest 로드 실패:', data.error);
+          return;
+        }
+        // 슬라이드 내 Quest 정보 업데이트
+        const questContainer = document.querySelector(`#quest-collapse-${orderId} #quest-approvals-${orderId}`);
+        if (questContainer) {
+          const quest = data.quest || {};
+          const requiredTeams = quest.required_approvals || [];
+          const teamApprovalsRaw = quest.team_approvals || {};
+
+          let html = '';
+          for (const team of requiredTeams) {
+            // team_approvals는 딕셔너리 형태일 수 있음: {team: {"approved": True, ...}} 또는 {team: True}
+            const approvalData = teamApprovalsRaw[team];
+            let approved = false;
+            if (typeof approvalData === 'object' && approvalData !== null) {
+              approved = approvalData.approved === true;
+            } else {
+              approved = Boolean(approvalData);
+            }
+            const teamLabel = label(TEAM_LABELS, team, team);
+            html += `<div class="d-flex justify-content-between align-items-center mb-2">`;
+            html += `<span class="small">${escapeHtml(teamLabel)}</span>`;
+            if (approved) {
+              html += `<span class="badge bg-success">승인완료</span>`;
+            } else {
+              html += `<button class="btn btn-sm btn-primary" onclick="approveQuestTeam(${orderId}, '${escapeHtml(team)}')">승인</button>`;
+            }
+            html += `</div>`;
+          }
+          questContainer.innerHTML = html;
+        }
+      } catch (err) {
+        console.error('Quest 상세 로드 실패:', err);
+      }
+    }
+
+    // 퀘스트 상태 새로고침 (전체 페이지 새로고침)
+    async function refreshQuestStatus(orderId) {
+      try {
+        // Quest 정보를 서버에서 다시 가져와서 슬라이드 업데이트
+        await loadQuestDetail(orderId);
+        // 작업 큐의 퀘스트 버튼 상태도 업데이트하기 위해 페이지 새로고침
+        window.location.reload();
+      } catch (err) {
+        console.error('퀘스트 상태 새로고침 실패:', err);
+        alert('퀘스트 상태를 새로고침하는 중 오류가 발생했습니다.');
+      }
+    }
+
+    async function loadOrderDetail(orderId) {
+      const container = document.getElementById(`order-detail-content-${orderId}`);
+      if (!container) return;
+      
+      try {
+        container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
+        
+        const [structured, attachments] = await Promise.all([
+          fetch(`/api/orders/${orderId}/structured`).then(r => r.json()),
+          fetch(`/api/orders/${orderId}/attachments`).then(r => r.json()),
+        ]);
+
+        const sd = (structured && structured.structured_data) || {};
+        const customer = (((sd.parties||{}).customer||{}).name) || '-';
+        const orderer = (((sd.parties||{}).orderer||{}).name) || '-';
+        const phone = (((sd.parties||{}).customer||{}).phone) || '-';
+        const address = ((sd.site||{}).address_full) || ((sd.site||{}).address_main) || '-';
+        const addressNote = ((sd.site||{}).address_note) || '-';
+        const phoneNote = (((sd.parties||{}).customer||{}).phone_note) || '-';
+        const measureNote = (((sd.schedule||{}).measurement||{}).note) || '-';
+        const measure = (((sd.schedule||{}).measurement||{}).date) || '-';
+        const construct = (((sd.schedule||{}).construction||{}).date) || '-';
+        const manager = (((sd.parties||{}).manager||{}).name) || '-';
+        const stage = (((sd.workflow||{}).stage)) || '-';
+        const urgent = ((sd.flags||{}).urgent) || false;
+        
+        // 담당팀: 현재 단계의 담당팀으로 자동 계산
+        const STAGE_TO_TEAM = {
+          'RECEIVED': 'CS',
+          'HAPPYCALL': 'CS',
+          'MEASURE': 'SALES',
+          'DRAWING': 'DRAWING',
+          'CONFIRM': 'SALES',
+          'PRODUCTION': 'PRODUCTION',
+          'CONSTRUCTION': 'CONSTRUCTION'
+        };
+        let ownerTeam = STAGE_TO_TEAM[stage] || '-';
+        // 실측/고객컨펌에서 발주사에 '라홈' 포함 시 라홈팀(CS)으로 변경
+        if (stage === 'MEASURE' || stage === 'CONFIRM') {
+          const ordererName = (((sd.parties||{}).orderer||{}).name || '').trim();
+          if (ordererName && ordererName.includes('라홈')) {
+            ownerTeam = 'CS';
+          }
+        }
+
+        // 제품 항목 (모든 상세 정보 표시)
+        const items = (sd.items || []) || [];
+        let itemsHtml = '';
+        if (items.length > 0) {
+          itemsHtml = '<div class="table-responsive mt-3"><table class="table table-bordered" style="font-size: 1.15rem;"><thead class="table-light"><tr><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem;">제품명</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem; width: 80px;">규격 W</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem; width: 80px;">규격 D</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem; width: 80px;">규격 H</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem;">내부</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem;">색상</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem;">옵션</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem;">손잡이</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem;">기타</th><th class="text-end" style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem;">금액</th></tr></thead><tbody>';
+          items.forEach(item => {
+            // 규격을 W, D, H로 분리
+            let specW = item.spec_width || '';
+            let specD = item.spec_depth || '';
+            let specH = item.spec_height || '';
+            // 기존 spec 필드가 있고 W, D, H가 없으면 파싱
+            if (!specW && !specD && !specH && item.spec) {
+              const specStr = String(item.spec || '').trim();
+              const parts = specStr.split(/[xX*×]/).map(s => s.trim());
+              if (parts.length >= 3) {
+                specW = parts[0];
+                specD = parts[1];
+                specH = parts[2];
+              } else if (parts.length === 2) {
+                specW = parts[0];
+                specD = parts[1];
+              } else if (parts.length === 1) {
+                specW = parts[0];
+              }
+            }
+            itemsHtml += `<tr>
+              <td class="fw-semibold" style="font-size: 1.15rem; color: #212529; padding: 0.75rem;">${escapeHtml(item.product_name || item.name || '-')}</td>
+              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem; width: 80px; text-align: center;">${escapeHtml(specW || '-')}</td>
+              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem; width: 80px; text-align: center;">${escapeHtml(specD || '-')}</td>
+              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem; width: 80px; text-align: center;">${escapeHtml(specH || '-')}</td>
+              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem;">${escapeHtml(item.internal || '-')}</td>
+              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem;">${escapeHtml(item.color || '-')}</td>
+              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem;">${escapeHtml(item.option_detail || item.options || '-')}</td>
+              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem;">${escapeHtml(item.handle || '-')}</td>
+              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem;">${escapeHtml(item.misc || '-')}</td>
+              <td class="text-end fw-bold" style="font-size: 1.15rem; color: #212529; padding: 0.75rem;">${escapeHtml(item.price ? item.price.toLocaleString('ko-KR') + '원' : '-')}</td>
+            </tr>`;
+          });
+          itemsHtml += '</tbody></table></div>';
+        } else {
+          itemsHtml = '<div class="text-muted mt-3" style="font-size: 1rem;">제품 항목 없음</div>';
+        }
+
+        // 첨부 파일 (여백 최소화, 미리보기 기능)
+        const aList = (attachments && attachments.attachments) || [];
+        // 첨부 파일 캐시 저장
+        __attachmentsCache[orderId] = aList;
+        
+        let attachmentsHtml = '';
+        if (aList.length > 0) {
+          attachmentsHtml = '<div class="d-flex flex-wrap gap-1 mt-2">';
+          aList.forEach(a => {
+            const name = escapeHtml(a.filename || '');
+            const viewUrl = a.view_url || '#';
+            const thumb = a.thumbnail_view_url || viewUrl;
+            const downloadUrl = a.download_url || viewUrl;
+            const fileType = a.file_type || 'image';
+            if (fileType === 'video') {
+              attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'video')">
+                <div style="width: 80px; height: 60px; background: #000; display: flex; align-items: center; justify-content: center;">
+                  <video src="${viewUrl}" preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>
+                </div>
+                <div class="position-absolute top-0 start-0 bg-dark bg-opacity-75 text-white p-1" style="font-size: 10px;"><i class="fas fa-play"></i></div>
+              </div>`;
+            } else {
+              attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'image')">
+                <img src="${thumb}" style="width: 80px; height: 60px; object-fit: cover; background:#fff; display: block;" alt="${name}">
+              </div>`;
+            }
+          });
+          attachmentsHtml += '</div>';
+        } else {
+          attachmentsHtml = '<div class="text-muted small mt-2">첨부 없음</div>';
+        }
+
+        container.innerHTML = `
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title fw-bold" style="font-size: 1.4rem;"><i class="fas fa-info-circle text-primary"></i> 기본 정보</h5>
+                  <div style="font-size: 1.15rem;">
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">주문번호:</strong> <span class="fw-bold" style="color: #212529; margin-left: 0.5rem;">#${orderId}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">고객명:</strong> <span class="fw-semibold" style="color: #212529; margin-left: 0.5rem;">${escapeHtml(customer)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">발주사:</strong> <span style="color: #495057; margin-left: 0.5rem;">${escapeHtml(orderer)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">연락처:</strong> <span style="color: #495057; margin-left: 0.5rem;">${escapeHtml(phone)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">주소:</strong> <span style="color: #495057; margin-left: 0.5rem;">${escapeHtml(address)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">담당자:</strong> <span style="color: #495057; margin-left: 0.5rem;">${escapeHtml(manager)}</span></div>
                   </div>
                 </div>
-              </td>
-            </tr>
-          `;
-        }).join('');
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title fw-bold" style="font-size: 1.4rem;"><i class="fas fa-calendar text-primary"></i> 일정 및 특이사항</h5>
+                  <div style="font-size: 1.15rem;">
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">실측일:</strong> <span class="fw-semibold" style="color: #212529; margin-left: 0.5rem;">${escapeHtml(measure)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">시공일:</strong> <span class="fw-semibold" style="color: #212529; margin-left: 0.5rem;">${escapeHtml(construct)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">주소특이:</strong> <span style="color: #495057; margin-left: 0.5rem;">${escapeHtml(addressNote)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">연락특이:</strong> <span style="color: #495057; margin-left: 0.5rem;">${escapeHtml(phoneNote)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">실측특이:</strong> <span style="color: #495057; margin-left: 0.5rem;">${escapeHtml(measureNote)}</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title fw-bold mb-3" style="font-size: 1.4rem;"><i class="fas fa-box text-primary"></i> 제품 항목</h5>
+                  ${itemsHtml}
+                </div>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title fw-bold mb-3" style="font-size: 1.25rem;"><i class="fas fa-paperclip text-primary"></i> 첨부 파일 <span class="badge bg-secondary" style="font-size: 1rem;">${aList.length}개</span></h5>
+                  ${attachmentsHtml}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        console.error('주문 상세 로드 실패:', err);
+        container.innerHTML = '<div class="text-danger small">로드 실패: ' + escapeHtml(err.message) + '</div>';
       }
-
-      // events
-      const eWrap = document.getElementById('d-events');
-      const eList = (events && events.events) || [];
-      if (!eList.length) {
-        eWrap.innerHTML = `<tr><td class="text-muted small">Event 없음</td></tr>`;
-      } else {
-        eWrap.innerHTML = eList.map(ev => {
-          const when = escapeHtml(ev.created_at || '');
-          const type = escapeHtml(label(EVENT_LABELS, ev.event_type || '', ev.event_type || ''));
-          const payload = escapeHtml(formatEventPayload(ev));
-          return `<tr><td class="small"><div class="text-muted">${when}</div><div class="fw-bold">${type}</div><div class="text-muted">${payload}</div></td></tr>`;
-        }).join('');
-      }
-
-      // attachments
-      const aWrap = document.getElementById('d-attachments');
-      const aList = (attachments && attachments.attachments) || [];
-      if (!aList.length) {
-        aWrap.innerHTML = `<div class="col-12"><div class="text-muted small">첨부 없음</div></div>`;
-      } else {
-        aWrap.innerHTML = aList.slice(0, 6).map(a => {
-          const name = escapeHtml(a.filename || '');
-          const viewUrl = a.view_url || '#';
-          const thumb = a.thumbnail_view_url || viewUrl;
-          if (a.file_type === 'video') {
-            return `<div class="col-12"><div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;"><video src="${viewUrl}" controls preload="metadata" style="width:100%;height:100%;"></video></div><div class="small text-muted">${name}</div></div>`;
-          }
-          return `<div class="col-6"><img src="${thumb}" class="img-fluid rounded" style="background:#fff; padding:4px;" alt="${name}"><div class="small text-muted text-truncate">${name}</div></div>`;
-        }).join('');
-      }
-
-      document.getElementById('d-task-status').textContent = '';
-    }
-
-    async function addTaskFromDetail() {
-      const orderId = __selectedOrderId;
-      if (!orderId) return;
-      const titleEl = document.getElementById('d-task-title');
-      const title = (titleEl.value || '').trim();
-      if (!title) return;
-      document.getElementById('d-task-status').textContent = '추가 중...';
-      const res = await fetch(`/api/orders/${orderId}/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title })
-      });
-      const data = await res.json();
-      if (!data.success) {
-        document.getElementById('d-task-status').textContent = data.message || '추가 실패';
-        return;
-      }
-      titleEl.value = '';
-      await loadDetail(orderId);
-    }
-
-    async function updateTaskStatus(taskId, status) {
-      const orderId = __selectedOrderId;
-      if (!orderId || !taskId) return;
-      document.getElementById('d-task-status').textContent = '업데이트 중...';
-      const res = await fetch(`/api/orders/${orderId}/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
-      const data = await res.json();
-      if (!data.success) {
-        document.getElementById('d-task-status').textContent = data.message || '업데이트 실패';
-        return;
-      }
-      await loadDetail(orderId);
-    }
-
-    async function deleteTask(taskId) {
-      const orderId = __selectedOrderId;
-      if (!orderId || !taskId) return;
-      if (!confirm('Task를 삭제할까요?')) return;
-      document.getElementById('d-task-status').textContent = '삭제 중...';
-      const res = await fetch(`/api/orders/${orderId}/tasks/${taskId}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (!data.success) {
-        document.getElementById('d-task-status').textContent = data.message || '삭제 실패';
-        return;
-      }
-      await loadDetail(orderId);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('#erp-grid tbody tr[data-order-id]').forEach(tr => {
-        tr.addEventListener('click', (e) => {
-          if (e.target && (e.target.tagName === 'A' || e.target.closest('a'))) return;
-          document.querySelectorAll('#erp-grid tbody tr').forEach(x => x.classList.remove('erp-row-selected'));
-          tr.classList.add('erp-row-selected');
-          const oid = parseInt(tr.dataset.orderId || '0');
-          if (oid) loadDetail(oid);
+      // 주문 상세 슬라이드 토글 이벤트
+      document.querySelectorAll('[data-bs-target^="#order-detail-collapse-"]').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const targetId = this.getAttribute('data-bs-target');
+          const orderId = targetId.replace('#order-detail-collapse-', '');
+          const collapseEl = document.querySelector(targetId);
+          
+          if (collapseEl) {
+            collapseEl.addEventListener('shown.bs.collapse', function() {
+              loadOrderDetail(parseInt(orderId));
+            }, { once: true });
+          }
         });
       });
-      document.getElementById('d-task-add-btn')?.addEventListener('click', addTaskFromDetail);
 
       // 프로세스 맵 클릭 → 좌측 필터(stage) 적용 후 리로드 (KPI/맵/그리드 모두 동기화)
       const form = document.getElementById('erp-filters-form');
@@ -542,6 +1149,20 @@
           const next = stageLabel || '';
           // 같은 단계를 다시 클릭하면 해제(전체)
           stageSel.value = ((stageSel.value || '') === next) ? '' : next;
+          // alert_type 등 다른 필터 파라미터 유지
+          const url = new URL(window.location.href);
+          const currentAlertType = url.searchParams.get('alert_type');
+          if (currentAlertType) {
+            // alert_type을 hidden input으로 추가
+            let alertTypeInput = form.querySelector('input[name="alert_type"]');
+            if (!alertTypeInput) {
+              alertTypeInput = document.createElement('input');
+              alertTypeInput.type = 'hidden';
+              alertTypeInput.name = 'alert_type';
+              form.appendChild(alertTypeInput);
+            }
+            alertTypeInput.value = currentAlertType;
+          }
           form.submit();
         };
         document.querySelectorAll('.erp-process-step[data-stage]').forEach(el => {

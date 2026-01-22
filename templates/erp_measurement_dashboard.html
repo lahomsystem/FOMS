@@ -165,7 +165,7 @@
         (data.route || []).forEach((p, idx) => {
           const li = document.createElement('li');
           const time = p.measurement_time ? `(${p.measurement_time}) ` : '';
-          li.innerHTML = `${time}<a href="/edit/${p.id}" target="_blank">주문 #${p.id}</a> - ${escapeHtml(String(p.customer_name || '-'))} / ${escapeHtml(String(p.address || '-'))}`;
+          li.innerHTML = `${time}<a href="/edit/${p.id}">주문 #${p.id}</a> - ${escapeHtml(String(p.customer_name || '-'))} / ${escapeHtml(String(p.address || '-'))}`;
           list.appendChild(li);
         });
 

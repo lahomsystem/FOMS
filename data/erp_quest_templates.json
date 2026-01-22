@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "stages": {
+    "RECEIVED": {
+      "title": "주문 정보 확인",
+      "description": "고객 정보, 연락처, 주소 확인 및 검증",
+      "owner_team": "CS",
+      "required_approvals": ["CS"],
+      "next_stage": "HAPPYCALL"
+    },
+    "HAPPYCALL": {
+      "title": "해피콜 및 일정 확정",
+      "description": "고객과 해피콜 진행 및 실측/시공 일정 확정",
+      "owner_team": "CS",
+      "required_approvals": ["CS"],
+      "next_stage": "MEASURE"
+    },
+    "MEASURE": {
+      "title": "실측",
+      "description": "현장 실측 진행 및 결과 정리",
+      "owner_team": "SALES",
+      "required_approvals": ["SALES"],
+      "next_stage": "DRAWING"
+    },
+    "DRAWING": {
+      "title": "도면 작성",
+      "description": "도면 작성 및 업로드 완료",
+      "owner_team": "DRAWING",
+      "required_approvals": ["DRAWING"],
+      "next_stage": "CONFIRM"
+    },
+    "CONFIRM": {
+      "title": "고객 컨펌",
+      "description": "고객 최종 컨펌 수집 및 기록",
+      "owner_team": "SALES",
+      "required_approvals": ["SALES"],
+      "next_stage": "PRODUCTION"
+    },
+    "PRODUCTION": {
+      "title": "생산 준비",
+      "description": "생산 착수 및 일정 확정",
+      "owner_team": "PRODUCTION",
+      "required_approvals": ["PRODUCTION"],
+      "next_stage": "CONSTRUCTION"
+    },
+    "CONSTRUCTION": {
+      "title": "시공",
+      "description": "시공 진행 및 완료 처리",
+      "owner_team": "CONSTRUCTION",
+      "required_approvals": ["CONSTRUCTION"],
+      "next_stage": null
+    }
+  }
+}
