@@ -7460,6 +7460,8 @@ def api_put_order_structured(order_id):
         raw_order_text = payload.get('raw_order_text')
         schema_version = payload.get('structured_schema_version', 1)
         confidence = payload.get('structured_confidence')
+        now = datetime.datetime.now()
+        draft_cleared = False
 
         # 최소 검증: dict 형태
         if structured_data is not None and not isinstance(structured_data, dict):
@@ -7599,10 +7601,30 @@ def api_put_order_structured(order_id):
                 # 자동화 실패가 저장 자체를 막지 않음
                 print(f"[ERP_BETA] auto-task apply warning: {_e}")
 
+            # Draft 주문이면 draft 플래그 해제 (신규 주문 덮어쓰기 방지)
+            try:
+                meta = structured_data.get('meta') or {}
+                if meta.get('draft') is True:
+                    meta['draft'] = False
+                    meta['finalized_at'] = now.isoformat()
+                    structured_data['meta'] = meta
+                    draft_cleared = True
+            except Exception:
+                pass
+
             order.structured_data = structured_data
         order.structured_schema_version = int(schema_version) if schema_version else 1
         order.structured_confidence = confidence or (structured_data.get('confidence') if structured_data else None)
-        order.structured_updated_at = datetime.datetime.now()
+        order.structured_updated_at = now
+
+        # ERP Beta draft 세션 제거 (다음 새 주문에서 재사용되지 않도록)
+        try:
+            existing_id = session.get('erp_beta_draft_order_id')
+            if existing_id and int(existing_id) == order.id:
+                session.pop('erp_beta_draft_order_id', None)
+                draft_cleared = True
+        except Exception:
+            pass
 
         # NOTE: 기존 주문 정보(Order 컬럼)는 레거시/호환용으로 유지될 수 있으나,
         # ERP 구현 기준에서는 structured_data가 원천 데이터다.
@@ -7611,7 +7633,7 @@ def api_put_order_structured(order_id):
         db.commit()
         _record_build_step(db, step_key, "COMPLETED", message="Saved structured data")
 
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'draft_cleared': draft_cleared})
     except Exception as e:
         db.rollback()
         import traceback

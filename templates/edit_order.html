@@ -9,8 +9,26 @@
 <div class="row">
     <div class="col-md-8 mx-auto">
         <div class="card" data-order-id="{{ order.id }}" data-payment-amount="{{ order.payment_amount or 0 }}">
+            {% set is_erp_beta_order = erp_beta_enabled and order.is_erp_beta %}
             <div class="card-header">
                 <ul class="nav nav-tabs card-header-tabs" id="orderTabs" role="tablist">
+                    {% if is_erp_beta_order %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="erp-beta-tab" data-bs-toggle="tab" data-bs-target="#erp-beta" type="button" role="tab">
+                            <i class="fas fa-layer-group"></i> ERPbeta
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="calculator-tab" data-bs-toggle="tab" data-bs-target="#calculator" type="button" role="tab">
+                            <i class="fas fa-calculator"></i> 계산기
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="blueprint-tab" data-bs-toggle="tab" data-bs-target="#blueprint" type="button" role="tab">
+                            <i class="fas fa-drafting-compass"></i> 도면
+                        </button>
+                    </li>
+                    {% else %}
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active" id="order-info-tab" data-bs-toggle="tab" data-bs-target="#order-info" type="button" role="tab">
                             <i class="fas fa-info-circle"></i> 주문 정보
@@ -33,11 +51,13 @@
                         </button>
                     </li>
                     {% endif %}
+                    {% endif %}
                 </ul>
             </div>
             <div class="card-body">
                 <div class="tab-content" id="orderTabContent">
                     <!-- 주문 정보 탭 -->
+                    {% if not is_erp_beta_order %}
                     <div class="tab-pane fade show active" id="order-info" role="tabpanel">
                 <form method="post" action="{{ url_for('edit_order', order_id=order.id, **preserved_args) }}" id="editOrderForm">
                     <input type="hidden" name="referrer" value="{{ request.referrer or url_for('index') }}">
@@ -344,6 +364,7 @@
                     </div>
                 </form>
             </div>
+            {% endif %}
                     
                     <!-- 계산기 탭 -->
                     <div class="tab-pane fade" id="calculator" role="tabpanel">
@@ -423,6 +444,7 @@
 
                     <!-- ERP Beta 탭 (shared partial) -->
                     {% if erp_beta_enabled and order.is_erp_beta %}
+                        {% set erp_beta_active = is_erp_beta_order %}
                         {% include "partials/erp_beta_tab.html" %}
                     {% endif %}
                 </div>
@@ -1695,32 +1717,36 @@
             if (!query || !query.trim()) return;
             if (addrModalStatus) addrModalStatus.textContent = '검색 중...';
             if (addrModalResults) addrModalResults.innerHTML = '';
-            const qs = new URLSearchParams({ q: query.trim(), size: '10' });
-            const res = await fetch(`/api/address/search?${qs.toString()}`);
-            const data = await res.json();
-            if (!data.success) {
-                if (addrModalStatus) addrModalStatus.textContent = data.message || '검색 실패';
-                return;
-            }
-            const results = data.results || [];
-            if (addrModalStatus) addrModalStatus.textContent = `${results.length}건 검색됨`;
-            results.forEach(r => {
-                const item = document.createElement('button');
-                item.type = 'button';
-                item.className = 'list-group-item list-group-item-action';
-                const main = r.road_address_name || r.address_name || '-';
-                const sub = [r.building_name, r.region_3depth_name].filter(Boolean).join(' · ');
-                item.innerHTML = `<div class="fw-semibold">${escapeHtml(main)}</div><div class="small text-muted">${escapeHtml(sub)}</div>`;
-                item.addEventListener('click', () => {
-                    // 선택 시: 실제 저장 필드(#erp-address)에 반영
-                    if (addrManualInput) addrManualInput.value = main;
-                    // 검색 입력도 동기화
-                    if (addrSearchInput) addrSearchInput.value = main;
-                    // 모드는 주소찾기 유지하되, 저장 필드는 항상 #erp-address 사용
-                    if (addrModal) addrModal.hide();
+            try {
+                const qs = new URLSearchParams({ q: query.trim(), size: '10' });
+                const res = await fetch(`/api/address/search?${qs.toString()}`);
+                const data = await res.json();
+                if (!data.success) {
+                    if (addrModalStatus) addrModalStatus.textContent = data.message || '검색 실패';
+                    return;
+                }
+                const results = data.results || [];
+                if (addrModalStatus) addrModalStatus.textContent = `${results.length}건 검색됨`;
+                results.forEach(r => {
+                    const item = document.createElement('button');
+                    item.type = 'button';
+                    item.className = 'list-group-item list-group-item-action';
+                    const main = r.road_address_name || r.address_name || '-';
+                    const sub = [r.building_name, r.region_3depth_name].filter(Boolean).join(' · ');
+                    item.innerHTML = `<div class="fw-semibold">${escapeHtml(main)}</div><div class="small text-muted">${escapeHtml(sub)}</div>`;
+                    item.addEventListener('click', () => {
+                        // 선택 시: 실제 저장 필드(#erp-address)에 반영
+                        if (addrManualInput) addrManualInput.value = main;
+                        // 검색 입력도 동기화
+                        if (addrSearchInput) addrSearchInput.value = main;
+                        // 모드는 주소찾기 유지하되, 저장 필드는 항상 #erp-address 사용
+                        if (addrModal) addrModal.hide();
+                    });
+                    addrModalResults.appendChild(item);
                 });
-                addrModalResults.appendChild(item);
-            });
+            } catch (e) {
+                if (addrModalStatus) addrModalStatus.textContent = `검색 실패: ${String(e?.message || e)}`;
+            }
         }
 
         if (openSearchBtn && addrModal) {
@@ -1754,6 +1780,7 @@
             erpPhoneInput.value = formatPhoneAuto(erpPhoneInput.value);
         }
         if (erpPhoneInput) {
+            erpPhoneInput.addEventListener('input', applyErpPhoneFormat);
             erpPhoneInput.addEventListener('blur', applyErpPhoneFormat);
             erpPhoneInput.addEventListener('change', applyErpPhoneFormat);
         }
