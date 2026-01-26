@@ -17,7 +17,11 @@
   <div class="row g-3 mb-4">
     <div class="col-md-3">
       {% set is_urgent_active = filters.get('alert_type') == 'urgent' %}
-      <div class="card border-danger shadow-sm erp-alert-card {% if is_urgent_active %}border-primary border-2{% endif %}" data-alert-type="urgent" style="cursor: pointer; transition: all 0.2s;{% if is_urgent_active %} background-color: #f0f7ff;{% endif %}" onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
+      {% set urgent_style = 'cursor: pointer; transition: all 0.2s;' %}
+      {% if is_urgent_active %}
+        {% set urgent_style = urgent_style + ' background-color: #f0f7ff;' %}
+      {% endif %}
+      <div class="card border-danger shadow-sm erp-alert-card {% if is_urgent_active %}border-primary border-2{% endif %}" data-alert-type="urgent" style="{{ urgent_style }}" onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
         <div class="card-body py-2">
           <div class="d-flex justify-content-between align-items-center">
             <div class="fw-bold text-danger fs-6"><i class="fas fa-bolt"></i> <strong>긴급 발주</strong></div>
@@ -28,7 +32,11 @@
     </div>
     <div class="col-md-3">
       {% set is_measurement_active = filters.get('alert_type') == 'measurement_d4' %}
-      <div class="card border-warning shadow-sm erp-alert-card {% if is_measurement_active %}border-primary border-2{% endif %}" data-alert-type="measurement_d4" style="cursor: pointer; transition: all 0.2s;{% if is_measurement_active %} background-color: #f0f7ff;{% endif %}" onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
+      {% set measurement_style = 'cursor: pointer; transition: all 0.2s;' %}
+      {% if is_measurement_active %}
+        {% set measurement_style = measurement_style + ' background-color: #f0f7ff;' %}
+      {% endif %}
+      <div class="card border-warning shadow-sm erp-alert-card {% if is_measurement_active %}border-primary border-2{% endif %}" data-alert-type="measurement_d4" style="{{ measurement_style }}" onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
         <div class="card-body py-2">
           <div class="d-flex justify-content-between align-items-center">
             <div class="fw-bold text-warning fs-6"><i class="fas fa-ruler-combined"></i> <strong>실측 D-4</strong></div>
@@ -39,7 +47,11 @@
     </div>
     <div class="col-md-3">
       {% set is_construction_active = filters.get('alert_type') == 'construction_d3' %}
-      <div class="card border-warning shadow-sm erp-alert-card {% if is_construction_active %}border-primary border-2{% endif %}" data-alert-type="construction_d3" style="cursor: pointer; transition: all 0.2s;{% if is_construction_active %} background-color: #f0f7ff;{% endif %}" onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
+      {% set construction_style = 'cursor: pointer; transition: all 0.2s;' %}
+      {% if is_construction_active %}
+        {% set construction_style = construction_style + ' background-color: #f0f7ff;' %}
+      {% endif %}
+      <div class="card border-warning shadow-sm erp-alert-card {% if is_construction_active %}border-primary border-2{% endif %}" data-alert-type="construction_d3" style="{{ construction_style }}" onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
         <div class="card-body py-2">
           <div class="d-flex justify-content-between align-items-center">
             <div class="fw-bold text-warning fs-6"><i class="fas fa-tools"></i> <strong>시공 D-3</strong></div>
@@ -50,7 +62,11 @@
     </div>
     <div class="col-md-3">
       {% set is_production_active = filters.get('alert_type') == 'production_d2' %}
-      <div class="card border-warning shadow-sm erp-alert-card {% if is_production_active %}border-primary border-2{% endif %}" data-alert-type="production_d2" style="cursor: pointer; transition: all 0.2s;{% if is_production_active %} background-color: #f0f7ff;{% endif %}" onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
+      {% set production_style = 'cursor: pointer; transition: all 0.2s;' %}
+      {% if is_production_active %}
+        {% set production_style = production_style + ' background-color: #f0f7ff;' %}
+      {% endif %}
+      <div class="card border-warning shadow-sm erp-alert-card {% if is_production_active %}border-primary border-2{% endif %}" data-alert-type="production_d2" style="{{ production_style }}" onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
         <div class="card-body py-2">
           <div class="d-flex justify-content-between align-items-center">
             <div class="fw-bold text-warning fs-6"><i class="fas fa-industry"></i> <strong>생산 D-2</strong></div>
@@ -68,9 +84,11 @@
       <div class="row g-2">
         {% for step in process_steps %}
         <div class="col">
+          {% set is_step_active = (filters.get('stage') or '') == step.label %}
+          {% set step_bg = '#f0f7ff' if is_step_active else '#fff' %}
           <div
-            class="border rounded p-2 text-center erp-process-step shadow-sm {% if (filters.get('stage') or '') == step.label %}border-primary border-2{% else %}border-1{% endif %}"
-            style="min-width: 120px; cursor: pointer; background: {% if (filters.get('stage') or '') == step.label %}#f0f7ff{% else %}#fff{% endif %};"
+            class="border rounded p-2 text-center erp-process-step shadow-sm {% if is_step_active %}border-primary border-2{% else %}border-1{% endif %}"
+            style="min-width: 120px; cursor: pointer; background: {{ step_bg }};"
             role="button"
             tabindex="0"
             data-stage="{{ step.label }}"
@@ -173,6 +191,37 @@
       max-width: 200px;
       font-size: 1rem;
     }
+    /* 열기 버튼 잘림 방지 */
+    #erp-grid .erp-open-btn {
+      white-space: nowrap;
+    }
+    /* 작업 큐 가로 스크롤 및 최소 너비 확보 */
+    #erp-grid {
+      min-width: 1200px;
+    }
+    .table-responsive {
+      overflow-x: auto;
+    }
+    @media (max-width: 992px) {
+      #erp-grid {
+        min-width: 1100px;
+      }
+    }
+    @media (max-width: 1200px) {
+      #erp-grid {
+        min-width: 1100px;
+        table-layout: fixed;
+      }
+      #erp-grid thead th,
+      #erp-grid tbody td {
+        padding: 0.6rem 0.5rem;
+        font-size: 0.95rem;
+        white-space: nowrap;
+      }
+      #erp-grid .erp-open-text {
+        display: none;
+      }
+    }
     /* 전체 텍스트 크기 증가 */
     .card-body {
       font-size: 1rem;
@@ -198,7 +247,7 @@
 
   <div class="row g-2">
     <!-- Left: Filters -->
-    <div class="col-xl-2 col-lg-3">
+    <div class="col-xl-1 col-lg-2 col-md-3 col-12">
       <div class="card shadow-sm">
         <div class="card-body">
           <div class="fw-bold mb-3 text-dark" style="font-size: 1.15rem;"><i class="fas fa-filter text-primary"></i> 필터</div>
@@ -244,30 +293,13 @@
             <button class="btn btn-primary fw-semibold" type="submit" style="font-size: 1rem; padding: 0.6rem;"><i class="fas fa-search"></i> 적용</button>
             <a class="btn btn-outline-secondary fw-semibold" href="{{ url_for('erp_dashboard') }}" style="font-size: 1rem; padding: 0.6rem;">초기화</a>
           </form>
-          <script>
-            // 필터 폼 제출 시 alert_type 파라미터 유지
-            document.getElementById('erp-filters-form')?.addEventListener('submit', function(e) {
-              const url = new URL(window.location.href);
-              const currentAlertType = url.searchParams.get('alert_type');
-              if (currentAlertType) {
-                let alertTypeInput = this.querySelector('input[name="alert_type"]');
-                if (!alertTypeInput) {
-                  alertTypeInput = document.createElement('input');
-                  alertTypeInput.type = 'hidden';
-                  alertTypeInput.name = 'alert_type';
-                  this.appendChild(alertTypeInput);
-                }
-                alertTypeInput.value = currentAlertType;
-              }
-            });
-          </script>
           <hr class="my-3">
         </div>
       </div>
     </div>
 
     <!-- Middle: Grid -->
-    <div class="col-xl-10 col-lg-12">
+    <div class="col-xl-11 col-lg-10 col-md-9 col-12">
       <div class="card">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-3">
@@ -292,14 +324,15 @@
                   <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">실측일</th>
                   <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">시공일</th>
                   <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">담당</th>
-                  <th style="width: 10%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">첨부</th>
+                  <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">첨부</th>
+                  <th style="width: 5%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">상세</th>
                   <th style="width: 5%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;"></th>
                 </tr>
               </thead>
               <tbody>
                 {% for o in orders %}
-                <tr data-order-id="{{ o.id }}">
-                  <td>
+                <tr class="erp-main-row" data-order-id="{{ o.id }}">
+                  <td data-label="경보">
                     {% if o.alerts.urgent %}<span class="badge bg-danger fw-bold" style="font-size: 1.1rem; padding: 0.5em 0.8em;">긴급</span>{% endif %}
                     {% if o.alerts.drawing_overdue %}<span class="badge bg-danger fw-bold" style="font-size: 1.1rem; padding: 0.5em 0.8em;">도면48h</span>{% endif %}
                     {% if o.alerts.measurement_d4 %}
@@ -315,8 +348,8 @@
                       <span class="badge bg-warning text-dark fw-bold" style="font-size: 1.1rem; padding: 0.5em 0.8em;">생산D-{{ prod_d if prod_d is not none else '2' }}</span>
                     {% endif %}
                   </td>
-                  <td><span class="badge bg-secondary" style="font-size: 1.1rem; padding: 0.5em 0.7em;">{{ o.stage }}</span></td>
-                  <td>
+                  <td data-label="단계"><span class="badge bg-secondary" style="font-size: 1.1rem; padding: 0.5em 0.7em;">{{ o.stage }}</span></td>
+                  <td data-label="퀘스트" class="erp-quest-cell">
                     {% if o.current_quest %}
                       <button class="btn btn-sm btn-outline-info fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#quest-collapse-{{ o.id }}" aria-expanded="false" aria-controls="quest-collapse-{{ o.id }}" style="font-size: 1.1rem; padding: 0.5em 0.8em;">
                         <i class="fas fa-chevron-down"></i> 
@@ -336,33 +369,35 @@
                       <span class="text-muted" style="font-size: 1.1rem;">-</span>
                     {% endif %}
                   </td>
-                  <td class="fw-bold" style="font-size: 1.1rem; color: #212529;">{{ o.customer_name }}</td>
-                  <td style="font-size: 1.1rem; color: #495057;">{{ o.phone }}</td>
-                  <td style="font-size: 1.1rem; color: #495057; word-break: break-word;">{{ o.address }}</td>
-                  <td class="fw-semibold" style="font-size: 1.1rem; color: #495057;">{{ o.measurement_date or '-' }}</td>
-                  <td class="fw-semibold" style="font-size: 1.1rem; color: #495057;">{{ o.construction_date or '-' }}</td>
-                  <td style="font-size: 1.1rem; color: #495057;">{{ o.manager_name or '-' }}</td>
-                  <td>
+                  <td data-label="고객" class="fw-bold" style="font-size: 1.1rem; color: #212529;">{{ o.customer_name }}</td>
+                  <td data-label="연락처" style="font-size: 1.1rem; color: #495057;">{{ o.phone }}</td>
+                  <td data-label="주소" style="font-size: 1.1rem; color: #495057; word-break: break-word;">{{ o.address }}</td>
+                  <td data-label="실측일" class="fw-semibold" style="font-size: 1.1rem; color: #495057;">{{ o.measurement_date or '-' }}</td>
+                  <td data-label="시공일" class="fw-semibold" style="font-size: 1.1rem; color: #495057;">{{ o.construction_date or '-' }}</td>
+                  <td data-label="담당" style="font-size: 1.1rem; color: #495057;">{{ o.manager_name or '-' }}</td>
+                  <td data-label="첨부">
                     {% if o.has_media %}
-                      <span class="badge bg-primary text-white fw-bold" style="cursor: pointer; font-size: 1.1rem; padding: 0.5em 0.8em;" onclick="openAttachmentsPreview({{ o.id }})" title="첨부 파일 미리보기"><i class="fas fa-paperclip"></i> 첨부 <span class="badge bg-light text-dark ms-1" style="font-size: 1rem;">{{ o.attachments_count }}</span></span>
+                      {% set order_id_att = o.id %}
+                      <span class="badge bg-primary text-white fw-bold" style="cursor: pointer; font-size: 1.1rem; padding: 0.4em 0.5em; min-width: 2em; text-align: center; display: inline-block;" onclick="openAttachmentsPreview({{ order_id_att }})" title="첨부 파일 미리보기">{{ o.attachments_count }}</span>
                     {% else %}
                       <span class="text-muted" style="font-size: 1.1rem;">-</span>
                     {% endif %}
                   </td>
-                  <td class="text-end">
-                    <div class="d-flex gap-1 justify-content-end">
-                      <a class="btn btn-sm btn-outline-info" href="{{ url_for('edit_order', order_id=o.id) }}?open=erp-beta" title="ERP Beta 주문 상세">
-                        <i class="fas fa-external-link-alt"></i>
-                      </a>
-                      <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#order-detail-collapse-{{ o.id }}" aria-expanded="false" aria-controls="order-detail-collapse-{{ o.id }}">
-                        <i class="fas fa-chevron-down"></i> 열기
-                      </button>
-                    </div>
+                  <td data-label="상세" class="text-center">
+                    {% set order_id_detail = o.id %}
+                    <a class="badge bg-info text-white fw-bold" href="{{ url_for('edit_order', order_id=order_id_detail) }}?open=erp-beta" title="제품 상세정보" style="cursor: pointer; font-size: 1.1rem; padding: 0.4em 0.5em; min-width: 2em; text-align: center; display: inline-block; text-decoration: none;">
+                      <i class="fas fa-clipboard-list"></i>
+                    </a>
+                  </td>
+                  <td data-label="열기" class="text-end erp-cell-actions">
+                    <button class="btn btn-sm btn-outline-primary erp-open-btn" type="button" data-bs-toggle="collapse" data-bs-target="#order-detail-collapse-{{ o.id }}" aria-expanded="false" aria-controls="order-detail-collapse-{{ o.id }}">
+                      <i class="fas fa-chevron-down"></i><span class="erp-open-text"> 열기</span>
+                    </button>
                   </td>
                 </tr>
                 {% if o.current_quest %}
                 <tr>
-                  <td colspan="13" class="p-0">
+                  <td colspan="12" class="p-0">
                     <div class="collapse" id="quest-collapse-{{ o.id }}">
                       <div class="card card-body border-0 bg-light">
                         <div class="fw-bold mb-3" style="font-size: 1.2rem;"><i class="fas fa-flag-checkered text-primary"></i> 현재 단계 퀘스트</div>
@@ -392,14 +427,17 @@
                                   {% if approved %}
                                     <span class="badge bg-success" style="font-size: 1rem; padding: 0.4em 0.7em;">승인완료</span>
                                   {% else %}
-                                    <button class="btn btn-primary fw-semibold" onclick="approveQuestTeam({{ o.id }}, '{{ team }}')" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>
+                                    {% set order_id_approve = o.id %}
+                                    {% set team_name = team %}
+                                    <button class="btn btn-primary fw-semibold" onclick="approveQuestTeam({{ order_id_approve }}, '{{ team_name }}')" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>
                                   {% endif %}
                                 </div>
                                 {% endfor %}
                               </div>
                             </div>
                             <div class="d-flex gap-2">
-                              <button class="btn btn-outline-primary fw-semibold" type="button" onclick="refreshQuestStatus({{ o.id }})" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                              {% set order_id_refresh = o.id %}
+                              <button class="btn btn-outline-primary fw-semibold" type="button" onclick="refreshQuestStatus({{ order_id_refresh }})" style="font-size: 1rem; padding: 0.5rem 1rem;">
                                 <i class="fas fa-sync"></i> 상태 새로고침
                               </button>
                             </div>
@@ -412,7 +450,7 @@
                 {% endif %}
                 <!-- Order Detail Slide -->
                 <tr>
-                  <td colspan="13" class="p-0">
+                  <td colspan="12" class="p-0">
                     <div class="collapse" id="order-detail-collapse-{{ o.id }}">
                       <div class="card card-body border-0 bg-light">
                         <div class="fw-bold mb-3"><i class="fas fa-info-circle"></i> 주문 상세</div>
@@ -937,16 +975,97 @@
       }
     }
 
-    // 퀘스트 상태 새로고침 (전체 페이지 새로고침)
+    // 퀘스트 상태 새로고침 (서버에서 최신 상태를 가져와서 슬라이드와 작업 큐 모두 업데이트)
     async function refreshQuestStatus(orderId) {
       try {
         // Quest 정보를 서버에서 다시 가져와서 슬라이드 업데이트
         await loadQuestDetail(orderId);
-        // 작업 큐의 퀘스트 버튼 상태도 업데이트하기 위해 페이지 새로고침
-        window.location.reload();
+        
+        // 작업 큐의 퀘스트 버튼 상태도 업데이트하기 위해 해당 주문의 퀘스트 정보 다시 가져오기
+        const res = await fetch(`/api/orders/${orderId}/quest`);
+        const data = await res.json();
+        if (data.error) {
+          console.error('Quest 로드 실패:', data.error);
+          return;
+        }
+        
+        const quest = data.quest || {};
+        const questStatus = quest.status || 'OPEN';
+        const requiredTeams = quest.required_approvals || [];
+        const teamApprovalsRaw = quest.team_approvals || {};
+        
+        // 모든 팀이 승인했는지 확인
+        let allApproved = true;
+        for (const team of requiredTeams) {
+          const approvalData = teamApprovalsRaw[team];
+          let approved = false;
+          if (typeof approvalData === 'object' && approvalData !== null) {
+            approved = approvalData.approved === true;
+          } else {
+            approved = Boolean(approvalData);
+          }
+          if (!approved) {
+            allApproved = false;
+            break;
+          }
+        }
+        
+        // 작업 큐의 퀘스트 버튼과 배지 업데이트
+        const questRow = document.querySelector(`tr[data-order-id="${orderId}"]`);
+        if (questRow) {
+          const questCell = questRow.querySelector('td:nth-child(3)'); // 퀘스트 컬럼
+          if (questCell) {
+            const questButton = questCell.querySelector('button[data-bs-toggle="collapse"]');
+            const questBadge = questCell.querySelector('.badge');
+            
+            if (questButton) {
+              // 버튼 내부 아이콘 업데이트
+              const icon = questButton.querySelector('i.fa-check-circle, i.fa-circle-notch');
+              if (icon) {
+                if (questStatus === 'COMPLETED' || allApproved) {
+                  icon.className = 'fas fa-check-circle text-success';
+                } else {
+                  icon.className = 'fas fa-circle-notch text-warning';
+                }
+              }
+            }
+            
+            // 배지 업데이트
+            if (questBadge) {
+              if (questStatus === 'COMPLETED' || allApproved) {
+                questBadge.className = 'badge bg-success ms-1';
+                questBadge.style.fontSize = '1rem';
+                questBadge.style.padding = '0.4em 0.7em';
+                questBadge.textContent = '완료';
+              } else {
+                questBadge.className = 'badge bg-warning ms-1';
+                questBadge.style.fontSize = '1rem';
+                questBadge.style.padding = '0.4em 0.7em';
+                questBadge.textContent = '진행중';
+              }
+            }
+          }
+        }
+        
+        // 성공 메시지 표시
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-success alert-dismissible fade show';
+        alertDiv.style.position = 'fixed';
+        alertDiv.style.top = '20px';
+        alertDiv.style.right = '20px';
+        alertDiv.style.zIndex = '9999';
+        alertDiv.innerHTML = '<i class="fas fa-check-circle"></i> 퀘스트 상태가 업데이트되었습니다. <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+        document.body.appendChild(alertDiv);
+        
+        // 3초 후 자동으로 제거
+        setTimeout(() => {
+          if (alertDiv.parentNode) {
+            alertDiv.remove();
+          }
+        }, 3000);
       } catch (err) {
         console.error('퀘스트 상태 새로고침 실패:', err);
-        alert('퀘스트 상태를 새로고침하는 중 오류가 발생했습니다.');
+        alert('퀘스트 상태를 새로고침하는 중 오류가 발생했습니다: ' + err.message);
       }
     }
 
@@ -1126,6 +1245,25 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+      // 필터 폼 제출 시 alert_type 파라미터 유지
+      const form = document.getElementById('erp-filters-form');
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          const url = new URL(window.location.href);
+          const currentAlertType = url.searchParams.get('alert_type');
+          if (currentAlertType) {
+            let alertTypeInput = this.querySelector('input[name="alert_type"]');
+            if (!alertTypeInput) {
+              alertTypeInput = document.createElement('input');
+              alertTypeInput.type = 'hidden';
+              alertTypeInput.name = 'alert_type';
+              this.appendChild(alertTypeInput);
+            }
+            alertTypeInput.value = currentAlertType;
+          }
+        });
+      }
+
       // 주문 상세 슬라이드 토글 이벤트
       document.querySelectorAll('[data-bs-target^="#order-detail-collapse-"]').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -1142,7 +1280,6 @@
       });
 
       // 프로세스 맵 클릭 → 좌측 필터(stage) 적용 후 리로드 (KPI/맵/그리드 모두 동기화)
-      const form = document.getElementById('erp-filters-form');
       const stageSel = form ? form.querySelector('select[name="stage"]') : null;
       if (form && stageSel) {
         const applyStage = (stageLabel) => {

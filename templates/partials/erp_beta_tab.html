@@ -1,10 +1,11 @@
-{# 
+{#
   ERP Beta Tab Pane (shared between add_order and edit_order)
   - Requires: erp_beta_enabled (from context_processor)
   - Optional: order (for edit_order); add_order may pass none.
   - JS expects a tab button with id="erp-beta-tab" to hook tab shown events.
 #}
-<div class="tab-pane fade" id="erp-beta" role="tabpanel">
+{% set erp_beta_active = erp_beta_active or false %}
+<div class="tab-pane fade{% if erp_beta_active %} show active{% endif %}" id="erp-beta" role="tabpanel">
     <div class="card border-secondary" data-erp-order-id="{{ order.id if order is defined and order else 0 }}">
         <div class="card-header d-flex justify-content-between align-items-center">
             <div class="fw-bold">
@@ -140,7 +141,13 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label mb-1">실측시간</label>
-                                <input type="time" class="form-control form-control-sm" id="erp-measurement-time" autocomplete="off">
+                                <select class="form-select form-select-sm" id="erp-measurement-time-select" autocomplete="off">
+                                    <option value="time_input" selected>시간 직접 입력</option>
+                                    <option value="오전">오전</option>
+                                    <option value="오후">오후</option>
+                                    <option value="종일">종일</option>
+                                </select>
+                                <input type="time" class="form-control form-control-sm mt-2" id="erp-measurement-time" autocomplete="off">
                             </div>
                             <div class="col-12">
                                 <label class="form-label mb-1">실측 특이사항</label>
