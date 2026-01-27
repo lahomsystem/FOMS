@@ -2,7 +2,7 @@
 
 {% block content %}
 {% set filters = filters or {} %}
-<div class="container-fluid">
+<div class="container-fluid erp-dashboard">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
       <h3 class="mb-1 fw-bold text-dark"><i class="fas fa-layer-group text-primary"></i> ERP 프로세스 대시보드</h3>
@@ -113,11 +113,102 @@
 
   <!-- 3-Panel Layout -->
   <style>
+    /* 제품 항목 테이블 컬럼 너비 강제 설정 */
+    .erp-product-items-table {
+      table-layout: fixed !important;
+    }
+    .erp-product-items-table th:nth-child(1),
+    .erp-product-items-table td:nth-child(1) {
+      width: 250px !important;
+      min-width: 250px !important;
+    }
+    .erp-product-items-table th:nth-child(2),
+    .erp-product-items-table td:nth-child(2),
+    .erp-product-items-table th:nth-child(3),
+    .erp-product-items-table td:nth-child(3),
+    .erp-product-items-table th:nth-child(4),
+    .erp-product-items-table td:nth-child(4) {
+      width: 70px !important;
+      min-width: 70px !important;
+      max-width: 70px !important;
+    }
+    .erp-product-items-table th:nth-child(5),
+    .erp-product-items-table td:nth-child(5) {
+      width: 180px !important;
+      min-width: 180px !important;
+    }
+    .erp-product-items-table th:nth-child(6),
+    .erp-product-items-table td:nth-child(6),
+    .erp-product-items-table th:nth-child(7),
+    .erp-product-items-table td:nth-child(7),
+    .erp-product-items-table th:nth-child(8),
+    .erp-product-items-table td:nth-child(8) {
+      width: 80px !important;
+      min-width: 80px !important;
+      max-width: 80px !important;
+    }
+    .erp-product-items-table th:nth-child(9),
+    .erp-product-items-table td:nth-child(9) {
+      width: 180px !important;
+      min-width: 180px !important;
+    }
+    .erp-product-items-table th:nth-child(10),
+    .erp-product-items-table td:nth-child(10) {
+      width: 120px !important;
+      min-width: 120px !important;
+      max-width: 120px !important;
+    }
     .erp-row-selected { background: rgba(13,110,253,.08) !important; }
     .erp-detail-panel { position: sticky; top: 76px; max-height: calc(100vh - 92px); overflow: auto; }
     .erp-kv { display:flex; justify-content:space-between; gap:12px; }
     .erp-kv .k { color:#6c757d; }
     .erp-kv .v { font-weight:600; text-align:right; }
+    /* ERP 대시보드 내부 섹션에 padding 적용 */
+    .erp-dashboard > .d-flex,
+    .erp-dashboard > .row,
+    .erp-dashboard > .card {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+    /* erp-dashboard-layout은 전체 너비 사용, 내부 요소에 padding 적용 */
+    .erp-dashboard-layout { 
+      display: grid; 
+      grid-template-columns: 280px minmax(0, 1fr); 
+      gap: 16px; 
+      align-items: start;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      padding-left: 1rem;
+      padding-right: 1rem;
+      box-sizing: border-box !important;
+      margin: 0 !important;
+    }
+    .erp-dashboard-filters, .erp-dashboard-workqueue { 
+      min-width: 0; 
+    }
+    .erp-dashboard-workqueue {
+      min-width: 0;
+      flex: 1;
+    }
+    @media (max-width: 1400px) {
+      .erp-dashboard-layout { grid-template-columns: 240px minmax(0, 1fr); }
+    }
+    @media (max-width: 1200px) {
+      .erp-dashboard-layout { grid-template-columns: 220px minmax(0, 1fr); }
+    }
+    @media (max-width: 992px) {
+      .erp-dashboard-layout { 
+        grid-template-columns: 1fr; 
+        width: 100%;
+        max-width: 100%;
+        gap: 12px;
+      }
+      .erp-dashboard-workqueue {
+        width: 100%;
+        max-width: 100%;
+      }
+    }
     
     /* 가독성 개선 스타일 - 텍스트 크기 증가 */
     #erp-grid {
@@ -128,15 +219,23 @@
       font-weight: 600;
       color: #495057;
       border-bottom: 2px solid #dee2e6;
+      border-right: 1px solid #dee2e6;
       padding: 1rem 0.75rem;
       white-space: nowrap;
       font-size: 1rem;
+    }
+    #erp-grid thead th:last-child {
+      border-right: none;
     }
     #erp-grid tbody td {
       padding: 1rem 0.75rem;
       vertical-align: middle;
       border-bottom: 1px solid #e9ecef;
+      border-right: 1px solid #e9ecef;
       font-size: 1rem;
+    }
+    #erp-grid tbody td:last-child {
+      border-right: none;
     }
     #erp-grid tbody tr:hover {
       background-color: #f8f9fa;
@@ -195,31 +294,617 @@
     #erp-grid .erp-open-btn {
       white-space: nowrap;
     }
-    /* 작업 큐 가로 스크롤 및 최소 너비 확보 */
-    #erp-grid {
-      min-width: 1200px;
+    /* 경보 컬럼: 배지 겹침 방지 및 세로 정렬 */
+    #erp-grid tbody td:nth-child(1) {
+      padding: 0.5rem 0.75rem;
+      vertical-align: top;
     }
+    #erp-grid tbody td:nth-child(1) .badge {
+      font-size: 0.85rem !important;
+      padding: 0.35em 0.6em !important;
+      margin: 0 0 4px 0;
+      white-space: nowrap;
+      display: block;
+      line-height: 1.2;
+      width: fit-content;
+    }
+    #erp-grid tbody td:nth-child(1) .badge:last-child {
+      margin-bottom: 0;
+    }
+    /* 단계 컬럼: 배지 겹침 방지 */
+    #erp-grid tbody td:nth-child(2) {
+      padding: 0.5rem 0.75rem;
+      vertical-align: middle;
+    }
+    #erp-grid tbody td:nth-child(2) .badge {
+      font-size: 0.85rem !important;
+      padding: 0.35em 0.6em !important;
+      margin: 0 0 4px 0;
+      white-space: nowrap;
+      display: block;
+      line-height: 1.2;
+      width: fit-content;
+    }
+    #erp-grid tbody td:nth-child(2) .badge:last-child {
+      margin-bottom: 0;
+    }
+    /* 작업 큐 가로 스크롤 및 최소 너비 확보 */
     .table-responsive {
       overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box;
     }
-    @media (max-width: 992px) {
-      #erp-grid {
-        min-width: 1100px;
+    /* PC 화면: 컬럼 너비 고정, 가로 스크롤 활성화 */
+    @media (min-width: 993px) {
+      .table-responsive {
+        overflow-x: auto !important;
+        overflow-y: visible;
+        width: 100% !important;
+        max-width: 100% !important;
       }
-    }
-    @media (max-width: 1200px) {
       #erp-grid {
-        min-width: 1100px;
-        table-layout: fixed;
+        min-width: 1520px !important;
+        width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: separate;
+        border-spacing: 0;
+      }
+      #erp-grid thead th {
+        border-right: 1px solid #dee2e6;
+      }
+      #erp-grid thead th:last-child {
+        border-right: none;
       }
       #erp-grid thead th,
       #erp-grid tbody td {
-        padding: 0.6rem 0.5rem;
+        padding: 0.8rem 0.75rem;
         font-size: 0.95rem;
         white-space: nowrap;
+        overflow: visible;
+        text-overflow: clip;
+        vertical-align: top;
+      }
+      #erp-grid tbody td {
+        border-right: 1px solid #e9ecef;
+      }
+      #erp-grid tbody td:last-child {
+        border-right: none;
+      }
+      /* PC: 경보/단계 컬럼 내부 배지 세로 정렬 (td는 table-cell 유지) */
+      #erp-grid tbody td:nth-child(1) {
+        display: table-cell !important;
+        vertical-align: top;
+        white-space: normal;
+      }
+      #erp-grid tbody td:nth-child(2) {
+        display: table-cell !important;
+        vertical-align: middle;
+        white-space: normal;
+      }
+      /* 경보/단계 컬럼 내부 배지들 세로 정렬 */
+      #erp-grid tbody td:nth-child(1) .badge,
+      #erp-grid tbody td:nth-child(2) .badge {
+        display: block !important;
+        margin-bottom: 4px !important;
+        width: fit-content;
+      }
+      #erp-grid tbody td:nth-child(1) .badge:last-child,
+      #erp-grid tbody td:nth-child(2) .badge:last-child {
+        margin-bottom: 0 !important;
+      }
+      /* 다른 컬럼들은 기본 테이블 셀 동작 유지 */
+      #erp-grid tbody td:nth-child(n+3) {
+        display: table-cell !important;
+        vertical-align: middle;
+      }
+      /* 각 컬럼 고정 너비 설정 (PC 화면에서만) - 합계: 1520px */
+      #erp-grid thead th:nth-child(1),
+      #erp-grid tbody td:nth-child(1) { width: 140px !important; min-width: 140px !important; max-width: 140px !important; } /* 경보 */
+      #erp-grid thead th:nth-child(2),
+      #erp-grid tbody td:nth-child(2) { width: 100px !important; min-width: 100px !important; max-width: 100px !important; } /* 단계 */
+      #erp-grid thead th:nth-child(3),
+      #erp-grid tbody td:nth-child(3) { width: 200px !important; min-width: 200px !important; max-width: 200px !important; white-space: normal !important; overflow: visible !important; } /* 퀘스트 */
+      #erp-grid thead th:nth-child(4),
+      #erp-grid tbody td:nth-child(4) { width: 120px !important; min-width: 120px !important; max-width: 120px !important; } /* 고객 */
+      #erp-grid thead th:nth-child(5),
+      #erp-grid tbody td:nth-child(5) { width: 120px !important; min-width: 120px !important; max-width: 120px !important; } /* 연락처 */
+      #erp-grid thead th:nth-child(6),
+      #erp-grid tbody td:nth-child(6) { width: 280px !important; min-width: 280px !important; max-width: 280px !important; white-space: normal !important; word-break: break-word !important; overflow: visible !important; } /* 주소 */
+      #erp-grid thead th:nth-child(7),
+      #erp-grid tbody td:nth-child(7) { width: 110px !important; min-width: 110px !important; max-width: 110px !important; } /* 실측일 */
+      #erp-grid thead th:nth-child(8),
+      #erp-grid tbody td:nth-child(8) { width: 110px !important; min-width: 110px !important; max-width: 110px !important; } /* 시공일 */
+      #erp-grid thead th:nth-child(9),
+      #erp-grid tbody td:nth-child(9) { width: 100px !important; min-width: 100px !important; max-width: 100px !important; } /* 담당 */
+      #erp-grid thead th:nth-child(10),
+      #erp-grid tbody td:nth-child(10) { width: 80px !important; min-width: 80px !important; max-width: 80px !important; } /* 첨부 */
+      #erp-grid thead th:nth-child(11),
+      #erp-grid tbody td:nth-child(11) { width: 70px !important; min-width: 70px !important; max-width: 70px !important; } /* 상세 */
+      #erp-grid thead th:nth-child(12),
+      #erp-grid tbody td:nth-child(12) { width: 90px !important; min-width: 90px !important; max-width: 90px !important; } /* 열기 */
+      #erp-grid .erp-open-text {
+        display: inline;
+      }
+      #erp-grid .erp-quest-cell {
+        white-space: normal !important;
+        overflow: visible !important;
+      }
+    }
+    @media (min-width: 993px) and (max-width: 1600px) {
+      #erp-grid {
+        min-width: 1520px !important;
+        width: 100% !important;
       }
       #erp-grid .erp-open-text {
         display: none;
+      }
+    }
+    @media (max-width: 992px) {
+      .table-responsive {
+        overflow-x: visible;
+        width: 100%;
+      }
+      .erp-dashboard-workqueue {
+        width: 100%;
+        max-width: 100%;
+        padding: 0;
+      }
+      .erp-dashboard-workqueue .card {
+        width: 100%;
+        margin: 0;
+      }
+      .erp-dashboard-workqueue .card-body {
+        padding: 1rem;
+        width: 100%;
+      }
+      #erp-grid {
+        min-width: 0;
+        width: 100%;
+        table-layout: auto;
+        display: block;
+      }
+      #erp-grid thead {
+        display: none;
+      }
+      #erp-grid,
+      #erp-grid tbody,
+      #erp-grid tr,
+      #erp-grid td {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+      }
+      #erp-grid tr.erp-main-row {
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: #fff;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      #erp-grid tbody tr.erp-main-row td {
+        padding: 0.5rem 0;
+        border: none;
+        font-size: 1rem;
+        display: grid;
+        grid-template-columns: 75px 1fr;
+        gap: 12px;
+        white-space: normal;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+      /* 모바일: 첨부, 상세, 열기 버튼이 들어있는 td는 flex로 변경하여 버튼 크기 고정 */
+      #erp-grid tbody tr.erp-main-row td[data-label="첨부"],
+      #erp-grid tbody tr.erp-main-row td[data-label="상세"],
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"] {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        grid-template-columns: none !important;
+      }
+      #erp-grid tbody tr.erp-main-row td[data-label="첨부"]::before,
+      #erp-grid tbody tr.erp-main-row td[data-label="상세"]::before {
+        flex-shrink: 0 !important;
+      }
+      /* 모바일: 열기 헤더 삭제 및 버튼 중앙 정렬 */
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"]::before {
+        display: none !important;
+      }
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"] {
+        justify-content: center !important;
+      }
+      /* 모바일: 경보/단계 컬럼의 배지들 가로 정렬 (1라인) */
+      #erp-grid tbody tr.erp-main-row td:nth-child(1) {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        gap: 4px !important;
+        white-space: nowrap !important;
+        overflow-x: auto !important;
+        grid-template-columns: none !important;
+      }
+      #erp-grid tbody tr.erp-main-row td:nth-child(1)::before {
+        flex-shrink: 0 !important;
+        margin-right: 8px !important;
+      }
+      #erp-grid tbody tr.erp-main-row td:nth-child(1) .badge {
+        display: inline-block !important;
+        margin-right: 4px !important;
+        margin-bottom: 0 !important;
+        width: fit-content !important;
+        flex-shrink: 0 !important;
+        white-space: nowrap !important;
+      }
+      #erp-grid tbody tr.erp-main-row td:nth-child(1) .badge:last-child {
+        margin-right: 0 !important;
+      }
+      #erp-grid tbody tr.erp-main-row td:nth-child(2) .badge {
+        display: inline-block;
+        margin-right: 4px;
+        margin-bottom: 0;
+        width: fit-content;
+      }
+      #erp-grid tbody tr.erp-main-row td::before {
+        content: attr(data-label);
+        color: #6c757d;
+        font-weight: 600;
+        white-space: nowrap;
+        font-size: 0.95rem;
+        text-align: left;
+        align-self: start;
+      }
+      #erp-grid tbody tr:not(.erp-main-row) td {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      #erp-grid tbody tr:not(.erp-main-row) td::before {
+        content: none;
+      }
+      #erp-grid .erp-open-text {
+        display: inline;
+      }
+      #erp-grid .erp-cell-actions {
+        justify-content: flex-end;
+        align-items: center;
+        grid-template-columns: 75px 1fr;
+      }
+      /* 모바일: 퀘스트 셀을 flex로 변경하여 헤더와 버튼을 같은 줄에 배치 */
+      #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"] {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        grid-template-columns: none !important;
+      }
+      #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"]::before {
+        flex-shrink: 0 !important;
+        margin-right: 0 !important;
+      }
+      #erp-grid .erp-quest-cell .btn {
+        white-space: normal;
+        text-align: left;
+        line-height: 1.25;
+        width: auto !important;
+        flex-shrink: 0 !important;
+      }
+      #erp-grid .erp-quest-cell .badge {
+        margin-top: 0 !important;
+        flex-shrink: 0 !important;
+      }
+      /* 모바일: 첨부, 상세, 열기 버튼 사이즈 고정 (진행중 배지 사이즈) - 992px 이하 */
+      #erp-grid tbody tr.erp-main-row td[data-label="첨부"] .badge,
+      #erp-grid tbody tr.erp-main-row td[data-label="상세"] .badge,
+      #erp-grid tbody tr.erp-main-row td[data-label="상세"] .badge i,
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn,
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn i,
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn .erp-open-text {
+        font-size: 1rem !important;
+        padding: 0.4em 0.7em !important;
+        width: fit-content !important;
+        min-width: auto !important;
+        max-width: none !important;
+        flex-shrink: 0 !important;
+        display: inline-block !important;
+      }
+      /* 모바일: 필터 적용/초기화 버튼 사이즈 고정 - 992px 이하 */
+      #erp-filters-form .btn-primary,
+      #erp-filters-form .btn-outline-secondary {
+        width: fit-content !important;
+        min-width: auto !important;
+        max-width: none !important;
+        font-size: 1rem !important;
+        padding: 0.4em 0.7em !important;
+      }
+      /* 모바일: 제품 항목 테이블 - 수직 스태킹 카드 형태 */
+      .order-detail-content .erp-product-items-wrapper {
+        overflow-x: visible !important;
+        width: 100% !important;
+      }
+      .order-detail-content .erp-product-items-wrapper table {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+      }
+      .order-detail-content .erp-product-items-wrapper thead {
+        display: none !important; /* 헤더는 각 카드 내부에 표시 */
+      }
+      .order-detail-content .erp-product-items-wrapper tbody {
+        display: block !important;
+        width: 100% !important;
+      }
+      .order-detail-content .erp-product-items-wrapper tr {
+        display: block !important;
+        width: 100% !important;
+        border: 1px solid #dee2e6 !important;
+        border-radius: 8px !important;
+        margin-bottom: 1rem !important;
+        padding: 1rem !important;
+        background: #fff !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+      }
+      .order-detail-content .erp-product-items-wrapper td {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: flex-start !important;
+        gap: 12px !important;
+        width: 100% !important;
+        padding: 0.75rem 0 !important;
+        border: none !important;
+        border-bottom: 1px solid #f0f0f0 !important;
+        line-height: 1.5 !important;
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        word-break: keep-all !important; /* 한글은 단어 단위로 줄바꿈, 숫자/영어는 단어 단위 */
+        overflow-wrap: break-word !important;
+        overflow: visible !important; /* 텍스트 잘림 방지 */
+        text-overflow: clip !important; /* 텍스트 잘림 방지 */
+        writing-mode: horizontal-tb !important; /* 가로 방향 텍스트 보장 */
+        text-orientation: mixed !important;
+        position: relative !important; /* border-bottom을 위한 위치 지정 */
+      }
+      /* 모바일: 각 헤더 아래 라인이 균일하게 끝까지 이어지도록 */
+      @media (max-width: 992px) {
+        .order-detail-content .erp-product-items-wrapper td {
+          border-bottom: 1px solid #f0f0f0 !important;
+        }
+        /* border-bottom이 전체 너비에 걸치도록 보장 */
+        .order-detail-content .erp-product-items-wrapper tr {
+          position: relative !important;
+        }
+        .order-detail-content .erp-product-items-wrapper td {
+          position: relative !important;
+        }
+        .order-detail-content .erp-product-items-wrapper td::after {
+          content: '' !important;
+          position: absolute !important;
+          bottom: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
+          height: 1px !important;
+          background-color: #f0f0f0 !important;
+          width: 100% !important;
+          z-index: 1 !important;
+        }
+      }
+      /* 값 부분이 잘리지 않도록 */
+      .order-detail-content .erp-product-items-wrapper td > * {
+        overflow: visible !important;
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        word-break: keep-all !important;
+      }
+      .order-detail-content .erp-product-items-wrapper tr:last-child td:last-child {
+        border-bottom: none !important;
+      }
+      .order-detail-content .erp-product-items-wrapper td::before {
+        content: attr(data-label) ":" !important;
+        font-weight: 700 !important;
+        color: #0d6efd !important;
+        font-size: 1.1rem !important;
+        display: inline-block !important;
+        min-width: 100px !important;
+        flex-shrink: 0 !important;
+        white-space: nowrap !important;
+        vertical-align: top !important;
+      }
+      .order-detail-content .erp-product-items-wrapper td.text-end {
+        text-align: left !important;
+      }
+      /* PC 화면: 규격 W, D, H 개별 표시, 통합 규격 완전히 숨김 */
+      @media (min-width: 993px) {
+        .order-detail-content .erp-product-items-wrapper .erp-spec-w,
+        .order-detail-content .erp-product-items-wrapper .erp-spec-d,
+        .order-detail-content .erp-product-items-wrapper .erp-spec-h {
+          display: table-cell !important;
+        }
+        .order-detail-content .erp-product-items-wrapper .erp-spec-combined {
+          display: none !important;
+          visibility: hidden !important;
+          width: 0 !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          border: none !important;
+          position: absolute !important;
+          left: -9999px !important;
+        }
+        .order-detail-content .erp-product-items-wrapper thead .erp-spec-w-header,
+        .order-detail-content .erp-product-items-wrapper thead .erp-spec-d-header,
+        .order-detail-content .erp-product-items-wrapper thead .erp-spec-h-header {
+          display: table-cell !important;
+        }
+        .order-detail-content .erp-product-items-wrapper thead .erp-spec-combined-header {
+          display: none !important;
+          visibility: hidden !important;
+          width: 0 !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          border: none !important;
+          position: absolute !important;
+          left: -9999px !important;
+        }
+      }
+      /* 모바일: 규격 W, D, H를 숨기고 통합 규격만 표시 */
+      @media (max-width: 992px) {
+        .order-detail-content .erp-product-items-wrapper .erp-spec-w,
+        .order-detail-content .erp-product-items-wrapper .erp-spec-d,
+        .order-detail-content .erp-product-items-wrapper .erp-spec-h {
+          display: none !important;
+        }
+        .order-detail-content .erp-product-items-wrapper .erp-spec-combined {
+          display: flex !important;
+        }
+        .order-detail-content .erp-product-items-wrapper thead .erp-spec-w-header,
+        .order-detail-content .erp-product-items-wrapper thead .erp-spec-d-header,
+        .order-detail-content .erp-product-items-wrapper thead .erp-spec-h-header {
+          display: none !important;
+        }
+        .order-detail-content .erp-product-items-wrapper thead .erp-spec-combined-header {
+          display: table-cell !important;
+        }
+      }
+      /* 모바일: 다른 테이블 (제품 항목 제외) */
+      .order-detail-content .table-responsive:not(.erp-product-items-wrapper) {
+        overflow-x: auto;
+      }
+      .order-detail-content .table-responsive:not(.erp-product-items-wrapper) table {
+        width: 100%;
+        min-width: 100%;
+      }
+      .order-detail-content .table-responsive:not(.erp-product-items-wrapper) table,
+      .order-detail-content .table-responsive:not(.erp-product-items-wrapper) thead,
+      .order-detail-content .table-responsive:not(.erp-product-items-wrapper) tbody,
+      .order-detail-content .table-responsive:not(.erp-product-items-wrapper) tr,
+      .order-detail-content .table-responsive:not(.erp-product-items-wrapper) td {
+        display: block !important;
+        width: 100% !important;
+      }
+      .order-detail-content .table-responsive:not(.erp-product-items-wrapper) thead {
+        display: none !important;
+      }
+      .order-detail-content .table-responsive:not(.erp-product-items-wrapper) tr {
+        border: 1px solid #dee2e6 !important;
+        border-radius: 8px !important;
+        margin-bottom: 1rem !important;
+        padding: 0.75rem !important;
+        background: #fff !important;
+      }
+      .order-detail-content .table-responsive:not(.erp-product-items-wrapper) td {
+        padding: 0.5rem 0 !important;
+        border: none !important;
+        display: grid !important;
+        grid-template-columns: 80px 1fr !important;
+        gap: 8px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        font-size: 1.2rem !important;
+        text-align: left !important;
+      }
+      .order-detail-content .table-responsive:not(.erp-product-items-wrapper) td[data-label^="규격"] {
+        text-align: left !important;
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      .order-detail-content .table-responsive:not(.erp-product-items-wrapper) td[data-label]::before {
+        content: attr(data-label) ":" !important;
+        font-weight: 700 !important;
+        color: #0d6efd !important;
+        font-size: 1.2rem !important;
+        display: block !important;
+      }
+      .order-detail-content .table-responsive:not(.erp-product-items-wrapper) td.text-end {
+        text-align: left !important;
+      }
+    }
+    @media (max-width: 576px) {
+      .erp-dashboard-workqueue .card-body {
+        padding: 0.75rem;
+      }
+      #erp-grid tbody tr.erp-main-row {
+        padding: 0.875rem;
+        margin-bottom: 0.875rem;
+      }
+      #erp-grid tbody tr.erp-main-row td {
+        grid-template-columns: 70px 1fr;
+        gap: 10px;
+        font-size: 0.95rem;
+      }
+      #erp-grid tbody tr.erp-main-row td::before {
+        font-size: 0.9rem;
+        text-align: left;
+        align-self: start;
+      }
+      /* 모바일: 퀘스트 셀을 flex로 변경하여 헤더와 버튼을 같은 줄에 배치 - 576px 이하 */
+      #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"] {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        grid-template-columns: none !important;
+      }
+      #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"]::before {
+        flex-shrink: 0 !important;
+        margin-right: 0 !important;
+      }
+      #erp-grid .erp-quest-cell .btn {
+        width: auto !important;
+        flex-shrink: 0 !important;
+      }
+      #erp-grid .erp-quest-cell .badge {
+        margin-top: 0 !important;
+        flex-shrink: 0 !important;
+      }
+      /* 모바일: 열기 헤더 삭제 및 버튼 중앙 정렬 - 576px 이하 */
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"]::before {
+        display: none !important;
+      }
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"] {
+        justify-content: center !important;
+      }
+      #erp-grid .erp-cell-actions {
+        grid-template-columns: 70px 1fr;
+      }
+      /* 모바일: 경보/단계 배지 작게 */
+      #erp-grid tbody td:nth-child(1) .badge,
+      #erp-grid tbody td:nth-child(2) .badge {
+        font-size: 0.7rem !important;
+        padding: 0.2em 0.45em !important;
+        line-height: 1.1;
+      }
+      /* 모바일: 첨부, 상세, 열기 버튼 사이즈 고정 (진행중 배지 사이즈) - 576px 이하 */
+      #erp-grid tbody tr.erp-main-row td[data-label="첨부"] .badge,
+      #erp-grid tbody tr.erp-main-row td[data-label="상세"] .badge,
+      #erp-grid tbody tr.erp-main-row td[data-label="상세"] .badge i,
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn,
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn i,
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn .erp-open-text {
+        font-size: 1rem !important;
+        padding: 0.4em 0.7em !important;
+        width: fit-content !important;
+        min-width: auto !important;
+        max-width: none !important;
+        flex-shrink: 0 !important;
+        display: inline-block !important;
+      }
+      /* 모바일: 필터 적용/초기화 버튼 사이즈 고정 - 576px 이하 */
+      #erp-filters-form .btn-primary,
+      #erp-filters-form .btn-outline-secondary {
+        width: fit-content !important;
+        min-width: auto !important;
+        max-width: none !important;
+        font-size: 1rem !important;
+        padding: 0.4em 0.7em !important;
+      }
+      #erp-grid tbody td:nth-child(1),
+      #erp-grid tbody td:nth-child(2) {
+        gap: 2px;
+        padding: 0.3rem 0.5rem;
       }
     }
     /* 전체 텍스트 크기 증가 */
@@ -245,9 +930,9 @@
     }
   </style>
 
-  <div class="row g-2">
+  <div class="erp-dashboard-layout">
     <!-- Left: Filters -->
-    <div class="col-xl-1 col-lg-2 col-md-3 col-12">
+    <div class="erp-dashboard-filters">
       <div class="card shadow-sm">
         <div class="card-body">
           <div class="fw-bold mb-3 text-dark" style="font-size: 1.15rem;"><i class="fas fa-filter text-primary"></i> 필터</div>
@@ -299,7 +984,7 @@
     </div>
 
     <!-- Middle: Grid -->
-    <div class="col-xl-11 col-lg-10 col-md-9 col-12">
+    <div class="erp-dashboard-workqueue">
       <div class="card">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-3">
@@ -312,21 +997,21 @@
             </div>
           </div>
           <div class="table-responsive">
-            <table class="table table-sm table-hover align-middle" id="erp-grid" style="table-layout: fixed; width: 100%;">
+            <table class="table table-sm table-hover align-middle" id="erp-grid">
               <thead>
                 <tr>
-                  <th style="width: 10%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">경보</th>
-                  <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">단계</th>
-                  <th style="width: 15%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">퀘스트</th>
-                  <th style="width: 10%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">고객</th>
-                  <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">연락처</th>
-                  <th style="width: 20%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">주소</th>
-                  <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">실측일</th>
-                  <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">시공일</th>
-                  <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">담당</th>
-                  <th style="width: 8%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">첨부</th>
-                  <th style="width: 5%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">상세</th>
-                  <th style="width: 5%; font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;"></th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">경보</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">단계</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">퀘스트</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">고객</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">연락처</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">주소</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">실측일</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">시공일</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">담당</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">첨부</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">상세</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;"></th>
                 </tr>
               </thead>
               <tbody>
@@ -349,48 +1034,48 @@
                     {% endif %}
                   </td>
                   <td data-label="단계"><span class="badge bg-secondary" style="font-size: 1.1rem; padding: 0.5em 0.7em;">{{ o.stage }}</span></td>
-                  <td data-label="퀘스트" class="erp-quest-cell">
+                  <td data-label="퀘스트" class="erp-quest-cell erp-wrap">
                     {% if o.current_quest %}
-                      <button class="btn btn-sm btn-outline-info fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#quest-collapse-{{ o.id }}" aria-expanded="false" aria-controls="quest-collapse-{{ o.id }}" style="font-size: 1.1rem; padding: 0.5em 0.8em;">
-                        <i class="fas fa-chevron-down"></i> 
+                      <div class="d-inline-flex align-items-center gap-2">
                         {% if o.current_quest.all_approved %}
-                          <i class="fas fa-check-circle text-success"></i>
+                          <span class="badge bg-success" style="font-size: 1rem; padding: 0.4em 0.7em;">완료</span>
                         {% else %}
-                          <i class="fas fa-circle-notch text-warning"></i>
+                          <span class="badge bg-warning" style="font-size: 1rem; padding: 0.4em 0.7em;">진행중</span>
                         {% endif %}
-                        <strong>{{ o.current_quest.title }}</strong>
-                      </button>
-                      {% if o.current_quest.all_approved %}
-                        <span class="badge bg-success ms-1" style="font-size: 1rem; padding: 0.4em 0.7em;">완료</span>
-                      {% else %}
-                        <span class="badge bg-warning ms-1" style="font-size: 1rem; padding: 0.4em 0.7em;">진행중</span>
-                      {% endif %}
+                        <button class="btn btn-sm btn-outline-info fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#quest-collapse-{{ o.id }}" aria-expanded="false" aria-controls="quest-collapse-{{ o.id }}" style="font-size: 1.1rem; padding: 0.5em 0.8em;">
+                          <i class="fas fa-chevron-down"></i> 
+                          {% if o.current_quest.all_approved %}
+                            <i class="fas fa-check-circle text-success"></i>
+                          {% endif %}
+                          <strong>{{ o.current_quest.title }}</strong>
+                        </button>
+                      </div>
                     {% else %}
                       <span class="text-muted" style="font-size: 1.1rem;">-</span>
                     {% endif %}
                   </td>
-                  <td data-label="고객" class="fw-bold" style="font-size: 1.1rem; color: #212529;">{{ o.customer_name }}</td>
+                  <td data-label="고객" class="fw-bold erp-wrap" style="font-size: 1.1rem; color: #212529;">{{ o.customer_name }}</td>
                   <td data-label="연락처" style="font-size: 1.1rem; color: #495057;">{{ o.phone }}</td>
-                  <td data-label="주소" style="font-size: 1.1rem; color: #495057; word-break: break-word;">{{ o.address }}</td>
+                  <td data-label="주소" class="erp-wrap" style="font-size: 1.1rem; color: #495057; word-break: break-word;">{{ o.address }}</td>
                   <td data-label="실측일" class="fw-semibold" style="font-size: 1.1rem; color: #495057;">{{ o.measurement_date or '-' }}</td>
                   <td data-label="시공일" class="fw-semibold" style="font-size: 1.1rem; color: #495057;">{{ o.construction_date or '-' }}</td>
                   <td data-label="담당" style="font-size: 1.1rem; color: #495057;">{{ o.manager_name or '-' }}</td>
                   <td data-label="첨부">
                     {% if o.has_media %}
                       {% set order_id_att = o.id %}
-                      <span class="badge bg-primary text-white fw-bold" style="cursor: pointer; font-size: 1.1rem; padding: 0.4em 0.5em; min-width: 2em; text-align: center; display: inline-block;" onclick="openAttachmentsPreview({{ order_id_att }})" title="첨부 파일 미리보기">{{ o.attachments_count }}</span>
+                      <span class="badge bg-primary text-white fw-bold" style="cursor: pointer; font-size: 1rem !important; padding: 0.4em 0.7em !important; text-align: center; display: inline-block;" onclick="openAttachmentsPreview({{ order_id_att }})" title="첨부 파일 미리보기">{{ o.attachments_count }}</span>
                     {% else %}
                       <span class="text-muted" style="font-size: 1.1rem;">-</span>
                     {% endif %}
                   </td>
                   <td data-label="상세" class="text-center">
                     {% set order_id_detail = o.id %}
-                    <a class="badge bg-info text-white fw-bold" href="{{ url_for('edit_order', order_id=order_id_detail) }}?open=erp-beta" title="제품 상세정보" style="cursor: pointer; font-size: 1.1rem; padding: 0.4em 0.5em; min-width: 2em; text-align: center; display: inline-block; text-decoration: none;">
-                      <i class="fas fa-clipboard-list"></i>
+                    <a class="badge bg-info text-white fw-bold" href="{{ url_for('edit_order', order_id=order_id_detail) }}?open=erp-beta" title="제품 상세정보" style="cursor: pointer; font-size: 1rem !important; padding: 0.4em 0.7em !important; text-align: center; display: inline-block; text-decoration: none;">
+                      <i class="fas fa-clipboard-list" style="font-size: 1rem !important;"></i>
                     </a>
                   </td>
                   <td data-label="열기" class="text-end erp-cell-actions">
-                    <button class="btn btn-sm btn-outline-primary erp-open-btn" type="button" data-bs-toggle="collapse" data-bs-target="#order-detail-collapse-{{ o.id }}" aria-expanded="false" aria-controls="order-detail-collapse-{{ o.id }}">
+                    <button class="btn btn-outline-primary erp-open-btn" type="button" data-bs-toggle="collapse" data-bs-target="#order-detail-collapse-{{ o.id }}" aria-expanded="false" aria-controls="order-detail-collapse-{{ o.id }}" style="font-size: 1rem !important; padding: 0.4em 0.7em !important;">
                       <i class="fas fa-chevron-down"></i><span class="erp-open-text"> 열기</span>
                     </button>
                   </td>
@@ -422,14 +1107,14 @@
                               <div id="quest-approvals-{{ o.id }}">
                                 {% for team in o.current_quest.required_approvals %}
                                 {% set approved = o.current_quest.team_approvals.get(team, False) %}
-                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="mb-2">
                                   <span class="fw-semibold" style="font-size: 1rem;">{{ team_labels.get(team, team) }}</span>
                                   {% if approved %}
-                                    <span class="badge bg-success" style="font-size: 1rem; padding: 0.4em 0.7em;">승인완료</span>
+                                    <span class="badge bg-success ms-2" style="font-size: 1rem; padding: 0.4em 0.7em;">승인완료</span>
                                   {% else %}
                                     {% set order_id_approve = o.id %}
                                     {% set team_name = team %}
-                                    <button class="btn btn-primary fw-semibold" onclick="approveQuestTeam({{ order_id_approve }}, '{{ team_name }}')" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>
+                                    <button class="btn btn-primary fw-semibold ms-2" onclick="approveQuestTeam({{ order_id_approve }}, '{{ team_name }}')" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>
                                   {% endif %}
                                 </div>
                                 {% endfor %}
@@ -959,12 +1644,12 @@
               approved = Boolean(approvalData);
             }
             const teamLabel = label(TEAM_LABELS, team, team);
-            html += `<div class="d-flex justify-content-between align-items-center mb-2">`;
-            html += `<span class="small">${escapeHtml(teamLabel)}</span>`;
+            html += `<div class="mb-2">`;
+            html += `<span class="fw-semibold" style="font-size: 1rem;">${escapeHtml(teamLabel)}</span>`;
             if (approved) {
-              html += `<span class="badge bg-success">승인완료</span>`;
+              html += `<span class="badge bg-success ms-2" style="font-size: 1rem; padding: 0.4em 0.7em;">승인완료</span>`;
             } else {
-              html += `<button class="btn btn-sm btn-primary" onclick="approveQuestTeam(${orderId}, '${escapeHtml(team)}')">승인</button>`;
+              html += `<button class="btn btn-primary fw-semibold ms-2" onclick="approveQuestTeam(${orderId}, '${escapeHtml(team)}')" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>`;
             }
             html += `</div>`;
           }
@@ -1025,7 +1710,8 @@
                 if (questStatus === 'COMPLETED' || allApproved) {
                   icon.className = 'fas fa-check-circle text-success';
                 } else {
-                  icon.className = 'fas fa-circle-notch text-warning';
+                  // 노란색 동그라미 아이콘 제거
+                  if (icon) icon.remove();
                 }
               }
             }
@@ -1077,18 +1763,31 @@
         container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
         
         const [structured, attachments] = await Promise.all([
-          fetch(`/api/orders/${orderId}/structured`).then(r => r.json()),
-          fetch(`/api/orders/${orderId}/attachments`).then(r => r.json()),
+          fetch(`/api/orders/${orderId}/structured`).then(r => r.json()).catch(err => {
+            console.error('Structured data fetch error:', err);
+            return { success: false, structured_data: {} };
+          }),
+          fetch(`/api/orders/${orderId}/attachments`).then(r => r.json()).catch(err => {
+            console.error('Attachments fetch error:', err);
+            return { success: false, attachments: [] };
+          }),
         ]);
 
         const sd = (structured && structured.structured_data) || {};
         const customer = (((sd.parties||{}).customer||{}).name) || '-';
         const orderer = (((sd.parties||{}).orderer||{}).name) || '-';
         const phone = (((sd.parties||{}).customer||{}).phone) || '-';
-        const address = ((sd.site||{}).address_full) || ((sd.site||{}).address_main) || '-';
-        const addressNote = ((sd.site||{}).address_note) || '-';
-        const phoneNote = (((sd.parties||{}).customer||{}).phone_note) || '-';
-        const measureNote = (((sd.schedule||{}).measurement||{}).note) || '-';
+        // 주소: address_full 우선, 없으면 address_main + address_detail 조합, 없으면 address_main만
+        const site = sd.site || {};
+        const addressFull = site.address_full || '';
+        const addressMain = site.address_main || '';
+        const addressDetail = site.address_detail || '';
+        const address = addressFull || (addressMain && addressDetail ? `${addressMain} ${addressDetail}`.trim() : addressMain) || addressDetail || '-';
+        // 특이사항: notes 객체에서 읽기 (erpbeta 저장 경로와 일치)
+        const notes = sd.notes || {};
+        const addressNote = notes.address_note || '-';
+        const phoneNote = notes.phone_note || '-';
+        const measureNote = notes.measurement_note || '-';
         const measure = (((sd.schedule||{}).measurement||{}).date) || '-';
         const construct = (((sd.schedule||{}).construction||{}).date) || '-';
         const manager = (((sd.parties||{}).manager||{}).name) || '-';
@@ -1118,7 +1817,19 @@
         const items = (sd.items || []) || [];
         let itemsHtml = '';
         if (items.length > 0) {
-          itemsHtml = '<div class="table-responsive mt-3"><table class="table table-bordered" style="font-size: 1.15rem;"><thead class="table-light"><tr><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem;">제품명</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem; width: 80px;">규격 W</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem; width: 80px;">규격 D</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem; width: 80px;">규격 H</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem;">내부</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem;">색상</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem;">옵션</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem;">손잡이</th><th style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem;">기타</th><th class="text-end" style="font-weight: 700; font-size: 1.2rem; color: #495057; background-color: #e9ecef; padding: 0.75rem;">금액</th></tr></thead><tbody>';
+          itemsHtml = '<div class="table-responsive erp-product-items-wrapper mt-3"><table class="table table-bordered erp-product-items-table" style="font-size: 1.2rem; table-layout: fixed; width: 100%;"><thead class="table-light"><tr>' +
+            '<th style="font-weight: 700; font-size: 1.2rem; color: #0d6efd; background-color: #e9ecef; padding: 0.75rem; width: 250px !important; min-width: 250px !important;">제품명</th>' +
+            '<th class="erp-spec-w-header" style="font-weight: 700; font-size: 1.2rem; color: #0d6efd; background-color: #e9ecef; padding: 0.75rem; width: 70px !important; min-width: 70px !important; max-width: 70px !important;">규격 W</th>' +
+            '<th class="erp-spec-d-header" style="font-weight: 700; font-size: 1.2rem; color: #0d6efd; background-color: #e9ecef; padding: 0.75rem; width: 70px !important; min-width: 70px !important; max-width: 70px !important;">규격 D</th>' +
+            '<th class="erp-spec-h-header" style="font-weight: 700; font-size: 1.2rem; color: #0d6efd; background-color: #e9ecef; padding: 0.75rem; width: 70px !important; min-width: 70px !important; max-width: 70px !important;">규격 H</th>' +
+            '<th class="erp-spec-combined-header" style="font-weight: 700; font-size: 1.2rem; color: #0d6efd; background-color: #e9ecef; padding: 0.75rem; display: none;">규격</th>' +
+            '<th style="font-weight: 700; font-size: 1.2rem; color: #0d6efd; background-color: #e9ecef; padding: 0.75rem; width: 180px !important; min-width: 180px !important;">내부</th>' +
+            '<th style="font-weight: 700; font-size: 1.2rem; color: #0d6efd; background-color: #e9ecef; padding: 0.75rem; width: 80px !important; min-width: 80px !important; max-width: 80px !important;">색상</th>' +
+            '<th style="font-weight: 700; font-size: 1.2rem; color: #0d6efd; background-color: #e9ecef; padding: 0.75rem; width: 80px !important; min-width: 80px !important; max-width: 80px !important;">옵션</th>' +
+            '<th style="font-weight: 700; font-size: 1.2rem; color: #0d6efd; background-color: #e9ecef; padding: 0.75rem; width: 80px !important; min-width: 80px !important; max-width: 80px !important;">손잡이</th>' +
+            '<th style="font-weight: 700; font-size: 1.2rem; color: #0d6efd; background-color: #e9ecef; padding: 0.75rem; width: 180px !important; min-width: 180px !important;">기타</th>' +
+            '<th class="text-end" style="font-weight: 700; font-size: 1.2rem; color: #0d6efd; background-color: #e9ecef; padding: 0.75rem; width: 120px !important; min-width: 120px !important; max-width: 120px !important;">금액</th>' +
+            '</tr></thead><tbody>';
           items.forEach(item => {
             // 규격을 W, D, H로 분리
             let specW = item.spec_width || '';
@@ -1139,17 +1850,34 @@
                 specW = parts[0];
               }
             }
+            // 규격을 한 줄로 통합 (모바일용)
+            const specParts = [];
+            if (specW && specW !== '-') specParts.push(`W:${specW}`);
+            if (specD && specD !== '-') specParts.push(`D:${specD}`);
+            if (specH && specH !== '-') specParts.push(`H:${specH}`);
+            const specCombined = specParts.length > 0 ? specParts.join(' × ') : '-';
+            
+            // 값이 빈 문자열이거나 null/undefined일 때 '-'로 표시
+            const safeValue = (val) => {
+              if (val === null || val === undefined || val === '') return '-';
+              return String(val).trim() || '-';
+            };
+            
+            // PC와 모바일에서 다른 표기법 적용
+            // PC: 규격 W, D, H 개별 컬럼 + 통합 규격 td는 완전히 숨김
+            // 모바일: 통합 규격만 표시, 개별 규격 W/D/H는 숨김
             itemsHtml += `<tr>
-              <td class="fw-semibold" style="font-size: 1.15rem; color: #212529; padding: 0.75rem;">${escapeHtml(item.product_name || item.name || '-')}</td>
-              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem; width: 80px; text-align: center;">${escapeHtml(specW || '-')}</td>
-              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem; width: 80px; text-align: center;">${escapeHtml(specD || '-')}</td>
-              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem; width: 80px; text-align: center;">${escapeHtml(specH || '-')}</td>
-              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem;">${escapeHtml(item.internal || '-')}</td>
-              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem;">${escapeHtml(item.color || '-')}</td>
-              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem;">${escapeHtml(item.option_detail || item.options || '-')}</td>
-              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem;">${escapeHtml(item.handle || '-')}</td>
-              <td style="font-size: 1.15rem; color: #495057; padding: 0.75rem;">${escapeHtml(item.misc || '-')}</td>
-              <td class="text-end fw-bold" style="font-size: 1.15rem; color: #212529; padding: 0.75rem;">${escapeHtml(item.price ? item.price.toLocaleString('ko-KR') + '원' : '-')}</td>
+              <td data-label="제품명" class="fw-bold" style="font-size: 1.2rem; color: #212529;">${escapeHtml(safeValue(item.product_name || item.name))}</td>
+              <td data-label="규격 W" class="fw-bold erp-spec-w" style="font-size: 1.2rem; color: #212529;">${escapeHtml(safeValue(specW))}</td>
+              <td data-label="규격 D" class="fw-bold erp-spec-d" style="font-size: 1.2rem; color: #212529;">${escapeHtml(safeValue(specD))}</td>
+              <td data-label="규격 H" class="fw-bold erp-spec-h" style="font-size: 1.2rem; color: #212529;">${escapeHtml(safeValue(specH))}</td>
+              <td data-label="규격" class="fw-bold erp-spec-combined" style="font-size: 1.2rem; color: #212529;">${escapeHtml(specCombined)}</td>
+              <td data-label="내부" class="fw-bold" style="font-size: 1.2rem; color: #212529;">${escapeHtml(safeValue(item.internal))}</td>
+              <td data-label="색상" class="fw-bold" style="font-size: 1.2rem; color: #212529;">${escapeHtml(safeValue(item.color))}</td>
+              <td data-label="옵션" class="fw-bold" style="font-size: 1.2rem; color: #212529;">${escapeHtml(safeValue(item.option_detail || item.options))}</td>
+              <td data-label="손잡이" class="fw-bold" style="font-size: 1.2rem; color: #212529;">${escapeHtml(safeValue(item.handle))}</td>
+              <td data-label="기타" class="fw-bold" style="font-size: 1.2rem; color: #212529;">${escapeHtml(safeValue(item.misc))}</td>
+              <td data-label="금액" class="text-end fw-bold" style="font-size: 1.2rem; color: #212529;">${escapeHtml(item.price ? item.price.toLocaleString('ko-KR') + '원' : '-')}</td>
             </tr>`;
           });
           itemsHtml += '</tbody></table></div>';
@@ -1158,7 +1886,18 @@
         }
 
         // 첨부 파일 (여백 최소화, 미리보기 기능)
-        const aList = (attachments && attachments.attachments) || [];
+        // API 응답 구조 확인: attachments.attachments 또는 attachments (배열 직접 반환)
+        let aList = [];
+        if (attachments) {
+          if (Array.isArray(attachments)) {
+            aList = attachments;
+          } else if (attachments.attachments && Array.isArray(attachments.attachments)) {
+            aList = attachments.attachments;
+          } else if (attachments.success === false) {
+            console.warn('Attachments API returned error:', attachments.message || 'Unknown error');
+            aList = [];
+          }
+        }
         // 첨부 파일 캐시 저장
         __attachmentsCache[orderId] = aList;
         
@@ -1189,37 +1928,46 @@
           attachmentsHtml = '<div class="text-muted small mt-2">첨부 없음</div>';
         }
 
-        container.innerHTML = `
-          <div class="row g-3">
+        // 모바일 여부 확인 (992px 이하)
+        const isMobile = window.innerWidth <= 992;
+        
+        const basicInfoHtml = isMobile ? '' : `
             <div class="col-md-6">
               <div class="card">
                 <div class="card-body">
                   <h5 class="card-title fw-bold" style="font-size: 1.4rem;"><i class="fas fa-info-circle text-primary"></i> 기본 정보</h5>
                   <div style="font-size: 1.15rem;">
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">주문번호:</strong> <span class="fw-bold" style="color: #212529; margin-left: 0.5rem;">#${orderId}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">고객명:</strong> <span class="fw-semibold" style="color: #212529; margin-left: 0.5rem;">${escapeHtml(customer)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">발주사:</strong> <span style="color: #495057; margin-left: 0.5rem;">${escapeHtml(orderer)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">연락처:</strong> <span style="color: #495057; margin-left: 0.5rem;">${escapeHtml(phone)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">주소:</strong> <span style="color: #495057; margin-left: 0.5rem;">${escapeHtml(address)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">담당자:</strong> <span style="color: #495057; margin-left: 0.5rem;">${escapeHtml(manager)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">주문번호:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">#${orderId}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">고객명:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(customer)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">발주사:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(orderer)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">연락처:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(phone)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">주소:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(address)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">담당자:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(manager)}</span></div>
                   </div>
                 </div>
               </div>
-            </div>
-            <div class="col-md-6">
+            </div>`;
+        
+        const scheduleHtml = `
+            <div class="${isMobile ? 'col-12' : 'col-md-6'}">
               <div class="card">
                 <div class="card-body">
                   <h5 class="card-title fw-bold" style="font-size: 1.4rem;"><i class="fas fa-calendar text-primary"></i> 일정 및 특이사항</h5>
                   <div style="font-size: 1.15rem;">
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">실측일:</strong> <span class="fw-semibold" style="color: #212529; margin-left: 0.5rem;">${escapeHtml(measure)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">시공일:</strong> <span class="fw-semibold" style="color: #212529; margin-left: 0.5rem;">${escapeHtml(construct)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">주소특이:</strong> <span style="color: #495057; margin-left: 0.5rem;">${escapeHtml(addressNote)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">연락특이:</strong> <span style="color: #495057; margin-left: 0.5rem;">${escapeHtml(phoneNote)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">실측특이:</strong> <span style="color: #495057; margin-left: 0.5rem;">${escapeHtml(measureNote)}</span></div>
+                    ${isMobile ? '' : `<div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">실측일:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(measure)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">시공일:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(construct)}</span></div>`}
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">주소특이:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(addressNote)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">연락특이:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(phoneNote)}</span></div>
+                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">실측특이:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(measureNote)}</span></div>
                   </div>
                 </div>
               </div>
-            </div>
+            </div>`;
+        
+        container.innerHTML = `
+          <div class="row g-3">
+            ${basicInfoHtml}
+            ${scheduleHtml}
             <div class="col-12">
               <div class="card">
                 <div class="card-body">

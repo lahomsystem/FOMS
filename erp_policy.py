@@ -481,14 +481,10 @@ def check_quest_approvals_complete(sd: Dict[str, Any], stage: Optional[str]) -> 
     if not stage:
         return (False, [])
     
-    required_teams = get_required_approval_teams_for_stage(stage)
-    if not required_teams:
-        return (True, [])  # 승인 필요 없으면 완료로 간주
-    
     # structured_data.quests에서 현재 단계의 quest 찾기
     quests = sd.get("quests") or []
     if not isinstance(quests, list):
-        return (False, required_teams)
+        return (False, [])
     
     # stage가 한글 단계명인 경우 영문 코드로도 변환하여 비교
     stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
@@ -502,7 +498,18 @@ def check_quest_approvals_complete(sd: Dict[str, Any], stage: Optional[str]) -> 
                 break
     
     if not current_quest:
+        # quest가 없으면 템플릿에서 기본값 사용
+        required_teams = get_required_approval_teams_for_stage(stage)
         return (False, required_teams)
+    
+    # quest에 required_approvals가 있으면 우선 사용 (발주사에 "라홈" 포함 시 변경된 값)
+    # 없으면 템플릿에서 기본값 사용
+    required_teams = current_quest.get("required_approvals")
+    if not required_teams or not isinstance(required_teams, list):
+        required_teams = get_required_approval_teams_for_stage(stage)
+    
+    if not required_teams:
+        return (True, [])  # 승인 필요 없으면 완료로 간주
     
     # team_approvals 확인
     team_approvals = current_quest.get("team_approvals") or {}
@@ -596,6 +603,7 @@ def create_quest_from_template(stage: Optional[str], owner_person: Optional[str]
         "owner_team": owner_team,
         "owner_person": owner_person or "",
         "status": "OPEN",  # OPEN, IN_PROGRESS, COMPLETED
+        "required_approvals": required_teams,  # 필수 승인 팀 목록 저장 (발주사에 "라홈" 포함 시 변경된 값)
         "team_approvals": {},
         "created_at": now.isoformat(),
         "updated_at": now.isoformat(),

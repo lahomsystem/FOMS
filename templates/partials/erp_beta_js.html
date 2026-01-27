@@ -271,8 +271,14 @@ async function erpLoadStructured() {
     document.getElementById('erp-workflow-stage').value = sd?.workflow?.stage || '';
     document.getElementById('erp-urgent-flag').checked = !!sd?.flags?.urgent;
     document.getElementById('erp-urgent-reason').value = sd?.flags?.urgent_reason || '';
-    document.getElementById('erp-address').value = sd?.site?.address_main || sd?.site?.address_full || '';
-    document.getElementById('erp-address-detail').value = sd?.site?.address_detail || '';
+    // 주소 로드: address_main과 address_detail이 있으면 각각 사용, 없으면 address_full 사용
+    const site = sd?.site || {};
+    const addressMain = site.address_main || '';
+    const addressDetail = site.address_detail || '';
+    const addressFull = site.address_full || '';
+    // address_main이 있으면 사용, 없으면 address_full 사용
+    document.getElementById('erp-address').value = addressMain || addressFull || '';
+    document.getElementById('erp-address-detail').value = addressDetail || '';
     document.getElementById('erp-address-note').value = sd?.notes?.address_note || '';
     document.getElementById('erp-measurement-date').value = sd?.schedule?.measurement?.date || '';
     const measurementTime = sd?.schedule?.measurement?.time || '';
@@ -303,6 +309,11 @@ async function erpLoadStructured() {
 
     erpSetStatus(`불러오기 완료 (confidence: ${data.structured_confidence || sd.confidence || '-'})`);
     erpRecalcItemsTotal();
+    
+    // 첨부파일도 함께 로드
+    if (typeof erpLoadAttachments === 'function') {
+        erpLoadAttachments();
+    }
 }
 
 function erpCollectStructured() {
@@ -503,22 +514,8 @@ function erpApplyParsedToForm() {
 document.addEventListener('DOMContentLoaded', function() {
     if (!ERP_BETA_ENABLED) return;
 
-    // ERP Beta: 주소 입력 모드 전환(주소찾기/직접입력)
-    const addrModeSearch = document.getElementById('erp-address-mode-search');
-    const addrModeManual = document.getElementById('erp-address-mode-manual');
-    const addrSearchWrap = document.getElementById('erp-address-search-wrap');
-    const addrManualWrap = document.getElementById('erp-address-manual-wrap');
-    const addrSearchInput = document.getElementById('erp-address-search');
-    const addrManualInput = document.getElementById('erp-address');
-
-    function setAddrMode(mode) {
-        const isSearch = mode === 'search';
-        if (addrSearchWrap) addrSearchWrap.style.display = isSearch ? '' : 'none';
-        if (addrManualWrap) addrManualWrap.style.display = isSearch ? 'none' : '';
-    }
-    if (addrModeSearch) addrModeSearch.addEventListener('change', () => setAddrMode('search'));
-    if (addrModeManual) addrModeManual.addEventListener('change', () => setAddrMode('manual'));
-    setAddrMode('search');
+    // ERP Beta: 주소 입력 (통합 - 찾기 버튼으로 주소 검색 또는 직접 입력 가능)
+    const addrInput = document.getElementById('erp-address');
 
     // ERP Beta: 주소 검색 모달
     const addrModalEl = document.getElementById('erpAddressSearchModal');
@@ -551,8 +548,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const sub = [r.building_name, r.region_3depth_name].filter(Boolean).join(' · ');
                 item.innerHTML = `<div class="fw-semibold">${escapeHtml(main)}</div><div class="small text-muted">${escapeHtml(sub)}</div>`;
                 item.addEventListener('click', () => {
-                    if (addrManualInput) addrManualInput.value = main;
-                    if (addrSearchInput) addrSearchInput.value = main;
+                    // 찾은 주소를 erp-address 필드에 직접 입력
+                    if (addrInput) addrInput.value = main;
                     if (addrModal) addrModal.hide();
                 });
                 addrModalResults.appendChild(item);
@@ -564,7 +561,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (openSearchBtn && addrModal) {
         openSearchBtn.addEventListener('click', () => {
-            if (addrModalQuery) addrModalQuery.value = addrSearchInput?.value || '';
+            // 현재 입력된 주소를 모달 검색창에 표시
+            if (addrModalQuery) addrModalQuery.value = addrInput?.value || '';
             if (addrModalStatus) addrModalStatus.textContent = '';
             if (addrModalResults) addrModalResults.innerHTML = '';
             addrModal.show();

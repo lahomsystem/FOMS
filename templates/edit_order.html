@@ -1470,8 +1470,28 @@
         document.getElementById('erp-owner-team').value = sd?.assignments?.owner_team || '';
         document.getElementById('erp-urgent-flag').checked = !!sd?.flags?.urgent;
         document.getElementById('erp-urgent-reason').value = sd?.flags?.urgent_reason || '';
-        document.getElementById('erp-address').value = sd?.site?.address_main || sd?.site?.address_full || '';
-        document.getElementById('erp-address-detail').value = sd?.site?.address_detail || '';
+        // 주소 로드: address_full이 있으면 분리하여 표시, 없으면 address_main과 address_detail 사용
+        const addressFull = sd?.site?.address_full || '';
+        const addressMain = sd?.site?.address_main || '';
+        const addressDetail = sd?.site?.address_detail || '';
+        
+        if (addressFull) {
+            // address_full이 있으면 address_main과 address_detail로 분리 시도
+            // address_full이 "주소1 주소2" 형식일 수 있으므로, address_detail이 있으면 그대로 사용
+            if (addressDetail) {
+                document.getElementById('erp-address').value = addressMain || addressFull;
+                document.getElementById('erp-address-detail').value = addressDetail;
+            } else {
+                // address_detail이 없으면 address_full을 그대로 사용
+                document.getElementById('erp-address').value = addressFull;
+                document.getElementById('erp-address-detail').value = '';
+            }
+        } else {
+            // address_full이 없으면 address_main과 address_detail 사용
+            document.getElementById('erp-address').value = addressMain || '';
+            document.getElementById('erp-address-detail').value = addressDetail || '';
+        }
+        
         document.getElementById('erp-address-note').value = sd?.notes?.address_note || '';
         document.getElementById('erp-measurement-date').value = sd?.schedule?.measurement?.date || '';
         document.getElementById('erp-measurement-time').value = sd?.schedule?.measurement?.time || '';
@@ -1491,6 +1511,11 @@
 
         erpSetStatus(`불러오기 완료 (confidence: ${data.structured_confidence || sd.confidence || '-'})`);
         erpRecalcItemsTotal();
+        
+        // 첨부파일도 함께 로드
+        if (typeof erpLoadAttachments === 'function') {
+            erpLoadAttachments();
+        }
     }
 
     function erpCollectStructured() {

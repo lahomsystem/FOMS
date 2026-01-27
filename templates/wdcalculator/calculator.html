@@ -352,7 +352,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+<div class="container-fluid py-4 wdcalculator-container">
     <div class="row">
         <!-- [LEFT] 저장된 견적 목록 사이드바 -->
         <div class="col-lg-3 mb-4">
@@ -814,58 +814,31 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // 추가금 추가/삭제 버튼 이벤트 바인딩 함수
+    // 주의: 추가금 추가 버튼은 이벤트 위임 방식으로 처리되므로 여기서는 바인딩하지 않음
     function bindAdditionalFeeEvents() {
         const container = document.getElementById('baseComponentsContainer');
         if (!container) return;
         
-        // 추가금 추가 버튼
-        container.querySelectorAll('.base-add-fee-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const rowEl = this.closest('.base-component-row');
-                const feesList = rowEl.querySelector('.base-additional-fees-list');
-                if (feesList) {
-                    const newItem = document.createElement('div');
-                    newItem.className = 'row g-2 align-items-end mb-2 base-additional-fee-item';
-                    newItem.innerHTML = `
-                        <div class="col-12 col-md-5">
-                            <input type="text" class="form-control form-control-sm base-additional-fee-name" placeholder="제품명 입력" value="">
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <input type="number" class="form-control form-control-sm base-additional-fee-amount" min="0" step="1" placeholder="금액 (원)" value="">
-                        </div>
-                        <div class="col-12 col-md-3 text-end">
-                            <button type="button" class="btn btn-sm btn-outline-danger base-remove-fee-btn" title="삭제">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                    `;
-                    feesList.appendChild(newItem);
-                    
-                    // 새로 추가된 항목의 삭제 버튼 이벤트 바인딩
-                    newItem.querySelector('.base-remove-fee-btn').addEventListener('click', function() {
-                        newItem.remove();
-                        calculateEstimate();
-                    });
-                    
-                    // 입력 시 자동 계산
-                    newItem.querySelectorAll('input').forEach(input => {
-                        input.addEventListener('input', calculateEstimate);
-                    });
-                }
-            });
-        });
-        
-        // 추가금 삭제 버튼
+        // 추가금 삭제 버튼 (기존 항목에 대한 이벤트만 바인딩)
+        // 새로 추가되는 항목은 이벤트 위임으로 처리됨
         container.querySelectorAll('.base-remove-fee-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                this.closest('.base-additional-fee-item').remove();
-                calculateEstimate();
-            });
+            // 이미 이벤트가 바인딩되어 있는지 확인
+            if (!btn.hasAttribute('data-bound')) {
+                btn.addEventListener('click', function() {
+                    this.closest('.base-additional-fee-item').remove();
+                    calculateEstimate();
+                });
+                btn.setAttribute('data-bound', 'true');
+            }
         });
         
-        // 추가금 입력 시 자동 계산
+        // 추가금 입력 시 자동 계산 (기존 항목에 대한 이벤트만 바인딩)
         container.querySelectorAll('.base-additional-fee-name, .base-additional-fee-amount').forEach(input => {
-            input.addEventListener('input', calculateEstimate);
+            // 이미 이벤트가 바인딩되어 있는지 확인
+            if (!input.hasAttribute('data-bound')) {
+                input.addEventListener('input', calculateEstimate);
+                input.setAttribute('data-bound', 'true');
+            }
         });
     }
     
