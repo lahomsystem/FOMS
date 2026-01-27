@@ -1105,25 +1105,33 @@ def api_order_quest_get(order_id):
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
         
         sd = order.structured_data or {}
-        current_stage = get_stage(sd)
+        current_stage_code = get_stage(sd)  # 영문 코드 (예: 'RECEIVED')
         
-        if not current_stage:
+        if not current_stage_code:
             return jsonify({'success': True, 'quest': None, 'stage': None})
         
-        # 현재 단계의 quest 찾기
+        # 영문 코드를 한글 단계명으로 변환 (quest의 stage는 한글 단계명으로 저장될 수 있음)
+        CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
+        current_stage_name = CODE_TO_STAGE_NAME.get(current_stage_code, current_stage_code)
+        
+        # 현재 단계의 quest 찾기 (한글 단계명 또는 영문 코드 모두 확인)
         quests = sd.get("quests") or []
         current_quest = None
         for q in quests:
-            if isinstance(q, dict) and q.get("stage") == current_stage:
-                current_quest = q
-                break
+            if isinstance(q, dict):
+                quest_stage = q.get("stage")
+                # 한글 단계명 또는 영문 코드 모두 확인
+                if quest_stage == current_stage_name or quest_stage == current_stage_code:
+                    current_quest = q
+                    break
         
-        # quest가 없으면 템플릿에서 생성하고 DB에 저장
+        # quest가 없으면 템플릿에서 생성하고 DB에 저장 (한글 단계명으로 생성)
         if not current_quest:
-            quest_tpl = get_quest_template_for_stage(current_stage)
+            quest_tpl = get_quest_template_for_stage(current_stage_code)
             if quest_tpl:
                 owner_person = session.get('username') or ''
-                current_quest = create_quest_from_template(current_stage, owner_person, sd)
+                # 한글 단계명으로 quest 생성 (일관성 유지)
+                current_quest = create_quest_from_template(current_stage_name, owner_person, sd)
                 if current_quest:
                     # DB에 저장
                     if not sd.get("quests"):
@@ -1740,6 +1748,63 @@ def index():
         for order_db_item in orders_from_db:
             order_display_data = copy.deepcopy(order_db_item)
             order_display_data.display_options = format_options_for_display(order_db_item.options)
+            
+            # ERP Beta 주문인 경우 structured_data에서 정보 추출하여 표시
+            if order_db_item.is_erp_beta and order_db_item.structured_data:
+                sd = order_db_item.structured_data
+                
+                # 고객명: structured_data.parties.customer.name
+                customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
+                if customer_name:
+                    order_display_data.customer_name = customer_name
+                
+                # 연락처: structured_data.parties.customer.phone
+                phone = ((sd.get('parties') or {}).get('customer') or {}).get('phone')
+                if phone:
+                    order_display_data.phone = phone
+                
+                # 주소: structured_data.site.address_full 또는 address_main
+                address = ((sd.get('site') or {}).get('address_full') or 
+                          (sd.get('site') or {}).get('address_main'))
+                if address:
+                    order_display_data.address = address
+                
+                # 제품: structured_data.items에서 첫 번째 제품명 또는 items의 요약
+                items = sd.get('items') or []
+                if items and len(items) > 0:
+                    # 첫 번째 제품의 product_name 또는 name 사용
+                    first_item = items[0]
+                    product_name = first_item.get('product_name') or first_item.get('name')
+                    if product_name:
+                        # 여러 제품이 있으면 "제품1 외 N개" 형식으로 표시
+                        if len(items) > 1:
+                            order_display_data.product = f"{product_name} 외 {len(items) - 1}개"
+                        else:
+                            order_display_data.product = product_name
+                
+                # 실측일: structured_data.schedule.measurement.date
+                measurement_date = (((sd.get('schedule') or {}).get('measurement') or {}).get('date'))
+                if measurement_date:
+                    order_display_data.measurement_date = measurement_date
+                
+                # 실측시간: structured_data.schedule.measurement.time
+                # "종일", "오전", "오후" 또는 실제 시간(예: "14:00") 형식 지원
+                measurement_time = (((sd.get('schedule') or {}).get('measurement') or {}).get('time'))
+                if measurement_time:
+                    # 시간 값이 있으면 그대로 사용 (종일, 오전, 오후, 또는 실제 시간)
+                    order_display_data.measurement_time = measurement_time
+                
+                # 시공일: structured_data.schedule.construction.date
+                construction_date = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
+                if construction_date:
+                    # scheduled_date 필드에 저장 (Order 모델에 construction_date가 없으므로)
+                    order_display_data.scheduled_date = construction_date
+                
+                # 담당자: structured_data.parties.manager.name
+                manager_name = ((sd.get('parties') or {}).get('manager') or {}).get('name')
+                if manager_name:
+                    order_display_data.manager_name = manager_name
+            
             processed_orders.append(order_display_data)
 
         user = None
@@ -3486,6 +3551,8 @@ def api_map_data():
         )
         
         # 날짜 필터 적용 (상태별 날짜 필드 사용)
+        # ERP Beta 주문의 경우 structured_data의 measurement_date도 고려해야 하므로
+        # 먼저 SQL 쿼리로 기본 필터링 후 Python에서 추가 필터링
         if date_filter:
             from sqlalchemy import and_, or_
             
@@ -3527,11 +3594,37 @@ def api_map_data():
                 and_(Order.status == 'AS_COMPLETED', Order.as_completed_date == date_filter)
             )
             
+            # ERP Beta 주문의 경우 Order 테이블의 measurement_date도 고려 (상태와 관계없이)
+            date_conditions.append(
+                and_(Order.is_erp_beta == True, Order.measurement_date == date_filter)
+            )
+            
             # 모든 조건을 OR로 연결
             query = query.filter(or_(*date_conditions))
         
-        # 최신 주문부터 정렬하고 제한
-        orders = query.order_by(Order.id.desc()).limit(limit).all()
+        # 최신 주문부터 정렬하고 제한 (ERP Beta 주문을 포함하기 위해 limit 증가)
+        orders = query.order_by(Order.id.desc()).limit(limit * 2).all()
+        
+        # ERP Beta 주문의 경우 structured_data에서 measurement_date를 확인하여 추가 필터링
+        if date_filter:
+            filtered_orders = []
+            for order in orders:
+                # ERP Beta 주문이고 structured_data에 measurement_date가 있는 경우 확인
+                if order.is_erp_beta and order.structured_data:
+                    sd = order.structured_data
+                    erp_measurement_date = (((sd.get('schedule') or {}).get('measurement') or {}).get('date'))
+                    if erp_measurement_date and erp_measurement_date == date_filter:
+                        # structured_data의 measurement_date가 필터 날짜와 일치하면 포함
+                        filtered_orders.append(order)
+                    elif not erp_measurement_date:
+                        # structured_data에 measurement_date가 없으면 기존 필터링 결과 사용
+                        filtered_orders.append(order)
+                    # erp_measurement_date가 있지만 날짜가 일치하지 않으면 제외
+                else:
+                    # 일반 주문은 기존 필터링 결과 사용
+                    filtered_orders.append(order)
+            
+            orders = filtered_orders[:limit]  # 최종 결과를 limit로 제한
         
         # 주소 변환 시스템 초기화
         converter = FOMSAddressConverter()
@@ -3539,16 +3632,52 @@ def api_map_data():
         # 주문 데이터를 지도용 데이터로 변환
         map_data = []
         for order in orders:
+            # ERP Beta 주문의 경우 structured_data에서 정보 추출
+            customer_name = order.customer_name
+            phone = order.phone
+            address_to_use = order.address
+            product = order.product
+            
+            if order.is_erp_beta and order.structured_data:
+                sd = order.structured_data
+                
+                # 고객명: structured_data.parties.customer.name
+                erp_customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
+                if erp_customer_name:
+                    customer_name = erp_customer_name
+                
+                # 연락처: structured_data.parties.customer.phone
+                erp_phone = ((sd.get('parties') or {}).get('customer') or {}).get('phone')
+                if erp_phone:
+                    phone = erp_phone
+                
+                # 주소: structured_data.site.address_full 또는 address_main
+                erp_address = ((sd.get('site') or {}).get('address_full') or 
+                              (sd.get('site') or {}).get('address_main'))
+                if erp_address and erp_address.strip() and erp_address != '-':
+                    address_to_use = erp_address.strip()
+                
+                # 제품: structured_data.items에서 첫 번째 제품명 또는 items의 요약
+                items = sd.get('items') or []
+                if items and len(items) > 0:
+                    first_item = items[0]
+                    product_name = first_item.get('product_name') or first_item.get('name')
+                    if product_name:
+                        if len(items) > 1:
+                            product = f"{product_name} 외 {len(items) - 1}개"
+                        else:
+                            product = product_name
+            
             # 주소를 좌표로 변환
-            lat, lng, status = converter.convert_address(order.address)
+            lat, lng, status = converter.convert_address(address_to_use)
             
             if lat is not None and lng is not None:
                 map_data.append({
                     'id': order.id,
-                    'customer_name': order.customer_name,
-                    'phone': order.phone,
-                    'address': order.address,
-                    'product': order.product,
+                    'customer_name': customer_name,
+                    'phone': phone,
+                    'address': address_to_use,
+                    'product': product,
                     'status': order.status,
                     'received_date': order.received_date,
                     'latitude': lat,
@@ -3595,6 +3724,8 @@ def api_generate_map():
         )
         
         # 날짜 필터 적용 (상태별 날짜 필드 사용)
+        # ERP Beta 주문의 경우 structured_data의 measurement_date도 고려해야 하므로
+        # 먼저 SQL 쿼리로 기본 필터링 후 Python에서 추가 필터링
         if date_filter:
             from sqlalchemy import and_, or_
             
@@ -3636,25 +3767,135 @@ def api_generate_map():
                 and_(Order.status == 'AS_COMPLETED', Order.as_completed_date == date_filter)
             )
             
+            # ERP Beta 주문의 경우 Order 테이블의 measurement_date도 고려 (상태와 관계없이)
+            date_conditions.append(
+                and_(Order.is_erp_beta == True, Order.measurement_date == date_filter)
+            )
+            
             # 모든 조건을 OR로 연결
             query = query.filter(or_(*date_conditions))
         
-        orders = query.order_by(Order.id.desc()).limit(100).all()
+        orders = query.order_by(Order.id.desc()).limit(200).all()  # ERP Beta 주문을 포함하기 위해 limit 증가
         
-        # 주소 변환
+        # ERP Beta 주문의 경우 structured_data에서 measurement_date를 확인하여 추가 필터링
+        if date_filter:
+            filtered_orders = []
+            for order in orders:
+                # ERP Beta 주문이고 structured_data에 measurement_date가 있는 경우 확인
+                if order.is_erp_beta and order.structured_data:
+                    sd = order.structured_data
+                    erp_measurement_date = (((sd.get('schedule') or {}).get('measurement') or {}).get('date'))
+                    if erp_measurement_date and erp_measurement_date == date_filter:
+                        # structured_data의 measurement_date가 필터 날짜와 일치하면 포함
+                        filtered_orders.append(order)
+                    elif not erp_measurement_date:
+                        # structured_data에 measurement_date가 없으면 기존 필터링 결과 사용
+                        filtered_orders.append(order)
+                    # erp_measurement_date가 있지만 날짜가 일치하지 않으면 제외
+                else:
+                    # 일반 주문은 기존 필터링 결과 사용
+                    filtered_orders.append(order)
+            
+            orders = filtered_orders[:100]  # 최종 결과를 100개로 제한
+        
+        # 주소 변환 및 지도 데이터 준비
         converter = FOMSAddressConverter()
         map_data = []
+        orders_list = []
         
         for order in orders:
-            lat, lng, status = converter.convert_address(order.address)
+            # ERP Beta 주문의 경우 structured_data에서 정보 추출
+            customer_name = order.customer_name
+            phone = order.phone
+            address_to_use = order.address
+            product = order.product
+            measurement_date = order.measurement_date
+            scheduled_date = order.scheduled_date
+            manager_name = order.manager_name or '-'
             
+            if order.is_erp_beta and order.structured_data:
+                sd = order.structured_data
+                
+                # 고객명: structured_data.parties.customer.name
+                erp_customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
+                if erp_customer_name:
+                    customer_name = erp_customer_name
+                
+                # 연락처: structured_data.parties.customer.phone
+                erp_phone = ((sd.get('parties') or {}).get('customer') or {}).get('phone')
+                if erp_phone:
+                    phone = erp_phone
+                
+                # 주소: structured_data.site.address_full 또는 address_main
+                erp_address = ((sd.get('site') or {}).get('address_full') or 
+                              (sd.get('site') or {}).get('address_main'))
+                if erp_address and erp_address.strip() and erp_address != '-':
+                    address_to_use = erp_address.strip()
+                
+                # 제품: structured_data.items에서 첫 번째 제품명 또는 items의 요약
+                items = sd.get('items') or []
+                if items and len(items) > 0:
+                    first_item = items[0]
+                    product_name = first_item.get('product_name') or first_item.get('name')
+                    if product_name:
+                        if len(items) > 1:
+                            product = f"{product_name} 외 {len(items) - 1}개"
+                        else:
+                            product = product_name
+                
+                # 실측일: structured_data.schedule.measurement.date
+                erp_measurement_date = (((sd.get('schedule') or {}).get('measurement') or {}).get('date'))
+                if erp_measurement_date:
+                    measurement_date = erp_measurement_date
+                
+                # 시공일: structured_data.schedule.construction.date
+                erp_scheduled_date = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
+                if erp_scheduled_date:
+                    scheduled_date = erp_scheduled_date
+                
+                # 담당자: structured_data.parties.manager.name
+                erp_manager_name = ((sd.get('parties') or {}).get('manager') or {}).get('name')
+                if erp_manager_name:
+                    manager_name = erp_manager_name
+            
+            # 주소 변환 시도
+            lat, lng, status = converter.convert_address(address_to_use)
+            
+            # 날짜 필드 처리 (datetime 객체 또는 문자열 모두 처리)
+            def format_date(date_value):
+                if date_value is None:
+                    return None
+                if isinstance(date_value, str):
+                    return date_value
+                if hasattr(date_value, 'strftime'):
+                    return date_value.strftime('%Y-%m-%d')
+                return str(date_value)
+            
+            # 주문 목록 데이터 준비 (주소 변환 성공 여부와 관계없이 모든 주문 포함)
+            order_list_item = {
+                'id': order.id,
+                'customer_name': customer_name,
+                'phone': phone,
+                'address': address_to_use,
+                'product': product,
+                'status': order.status,
+                'received_date': format_date(order.received_date),
+                'measurement_date': format_date(measurement_date),
+                'scheduled_date': format_date(scheduled_date),
+                'completion_date': format_date(order.completion_date),
+                'manager_name': manager_name,
+                'notes': order.notes or '-'
+            }
+            orders_list.append(order_list_item)
+            
+            # 주소 변환이 성공한 경우에만 지도 마커 추가
             if lat is not None and lng is not None:
                 map_data.append({
                     'id': order.id,
-                    'customer_name': order.customer_name,
-                    'phone': order.phone,
-                    'address': order.address,
-                    'product': order.product,
+                    'customer_name': customer_name,
+                    'phone': phone,
+                    'address': address_to_use,
+                    'product': product,
                     'status': order.status,
                     'received_date': order.received_date,
                     'latitude': lat,
@@ -3664,23 +3905,29 @@ def api_generate_map():
         # 지도 생성
         map_generator = FOMSMapGenerator()
         
-        # 디버깅: map_data 타입과 내용 확인
-        print(f"DEBUG: map_data 타입: {type(map_data)}")
-        print(f"DEBUG: map_data 길이: {len(map_data) if hasattr(map_data, '__len__') else 'N/A'}")
-        if map_data and len(map_data) > 0:
-            print(f"DEBUG: 첫 번째 항목 타입: {type(map_data[0])}")
-            print(f"DEBUG: 첫 번째 항목: {map_data[0]}")
+        # 디버깅: 주문 목록 데이터 확인
+        print(f"DEBUG: orders_list 길이: {len(orders_list)}")
+        print(f"DEBUG: map_data 길이: {len(map_data)}")
+        if orders_list and len(orders_list) > 0:
+            print(f"DEBUG: 첫 번째 주문: {orders_list[0]}")
         
         if map_data:
             folium_map = map_generator.create_map(map_data, title)
             
             if folium_map:
                 map_html = folium_map._repr_html_()
-                return jsonify({
-                    'success': True,
-                    'map_html': map_html,
-                    'total_orders': len(map_data)
-                })
+            else:
+                map_html = '<div class="error-message">지도를 생성할 수 없습니다.</div>'
+            
+            response_data = {
+                'success': True,
+                'map_html': map_html,
+                'total_orders': len(map_data),
+                'orders': orders_list
+            }
+            print(f"DEBUG: 응답 데이터 - orders 필드 길이: {len(orders_list)}")
+            print(f"DEBUG: 응답 데이터 - map_data 길이: {len(map_data)}")
+            return jsonify(response_data)
         
         # 주문이 없어도 빈 지도 생성
         empty_map = map_generator.create_empty_map(title)
@@ -3690,6 +3937,7 @@ def api_generate_map():
                 'success': True,
                 'map_html': map_html,
                 'total_orders': 0,
+                'orders': [],
                 'message': f'{title}에 해당하는 주문이 없습니다.'
             })
         
@@ -3863,14 +4111,28 @@ def api_orders():
             query = query.filter(Order.status == status_filter)
     
     # Add date range filter if provided
+    # ERP Beta 주문의 경우 measurement_date도 고려해야 하므로 OR 조건 사용
     if start_date and end_date:
+        from sqlalchemy import or_
         # Handle date and datetime format properly
         if 'T' in start_date:  # ISO format with time (YYYY-MM-DDTHH:MM:SS)
             start_date_only = start_date.split('T')[0]
             end_date_only = end_date.split('T')[0]
-            query = query.filter(Order.received_date.between(start_date_only, end_date_only))
+            # received_date 또는 measurement_date가 범위 내에 있는 주문 포함
+            query = query.filter(
+                or_(
+                    Order.received_date.between(start_date_only, end_date_only),
+                    Order.measurement_date.between(start_date_only, end_date_only)
+                )
+            )
         else:  # Date only format (YYYY-MM-DD)
-            query = query.filter(Order.received_date.between(start_date, end_date))
+            # received_date 또는 measurement_date가 범위 내에 있는 주문 포함
+            query = query.filter(
+                or_(
+                    Order.received_date.between(start_date, end_date),
+                    Order.measurement_date.between(start_date, end_date)
+                )
+            )
     
     orders = query.all()
     
@@ -3887,28 +4149,88 @@ def api_orders():
     
     events = []
     for order in orders:
-        # 상태별 날짜 필드 매핑
-        status_date_map = {
-            'RECEIVED': order.received_date,  
-            'MEASURED': order.measurement_date,
-            'SCHEDULED': order.scheduled_date,  # 설치 예정일 필드 사용
-            'SHIPPED_PENDING': order.scheduled_date,  # 상차 예정도 스케줄된 날짜 사용
-            'COMPLETED': order.completion_date,
-            'AS_RECEIVED': order.as_received_date,  # AS 접수일 필드 사용
-            'AS_COMPLETED': order.as_completed_date  # AS 완료일 필드 사용
-        }
+        # ERP Beta 주문인 경우 structured_data에서 정보 추출
+        customer_name = order.customer_name
+        phone = order.phone
+        address = order.address
+        product = order.product
+        measurement_date = order.measurement_date
+        measurement_time = order.measurement_time
+        scheduled_date = order.scheduled_date
         
-        # 상태에 맞는 날짜 선택, 없는 경우 기본값으로 received_date 사용
-        start_date = status_date_map.get(order.status)
+        if order.is_erp_beta and order.structured_data:
+            sd = order.structured_data
+            
+            # 고객명: structured_data.parties.customer.name
+            erp_customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
+            if erp_customer_name:
+                customer_name = erp_customer_name
+            
+            # 연락처: structured_data.parties.customer.phone
+            erp_phone = ((sd.get('parties') or {}).get('customer') or {}).get('phone')
+            if erp_phone:
+                phone = erp_phone
+            
+            # 주소: structured_data.site.address_full 또는 address_main
+            erp_address = ((sd.get('site') or {}).get('address_full') or 
+                          (sd.get('site') or {}).get('address_main'))
+            if erp_address:
+                address = erp_address
+            
+            # 제품: structured_data.items에서 첫 번째 제품명 또는 items의 요약
+            items = sd.get('items') or []
+            if items and len(items) > 0:
+                first_item = items[0]
+                product_name = first_item.get('product_name') or first_item.get('name')
+                if product_name:
+                    if len(items) > 1:
+                        product = f"{product_name} 외 {len(items) - 1}개"
+                    else:
+                        product = product_name
+            
+            # 실측일: structured_data.schedule.measurement.date
+            erp_measurement_date = (((sd.get('schedule') or {}).get('measurement') or {}).get('date'))
+            if erp_measurement_date:
+                measurement_date = erp_measurement_date
+            
+            # 실측시간: structured_data.schedule.measurement.time
+            erp_measurement_time = (((sd.get('schedule') or {}).get('measurement') or {}).get('time'))
+            if erp_measurement_time:
+                measurement_time = erp_measurement_time
+            
+            # 시공일: structured_data.schedule.construction.date
+            erp_scheduled_date = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
+            if erp_scheduled_date:
+                scheduled_date = erp_scheduled_date
+        
+        # ERP Beta 주문의 경우 measurement_date가 있으면 우선 사용 (상태와 관계없이)
+        # 일반 주문의 경우 상태별 날짜 필드 매핑
+        if order.is_erp_beta and measurement_date:
+            # ERP Beta 주문이고 measurement_date가 있으면 실측일 기준으로 표시
+            start_date = measurement_date
+        else:
+            # 상태별 날짜 필드 매핑
+            status_date_map = {
+                'RECEIVED': order.received_date,  
+                'MEASURED': measurement_date,  # ERP Beta 주문의 경우 structured_data에서 추출한 날짜 사용
+                'SCHEDULED': scheduled_date,  # ERP Beta 주문의 경우 structured_data에서 추출한 날짜 사용
+                'SHIPPED_PENDING': scheduled_date,  # 상차 예정도 스케줄된 날짜 사용
+                'COMPLETED': order.completion_date,
+                'AS_RECEIVED': order.as_received_date,  # AS 접수일 필드 사용
+                'AS_COMPLETED': order.as_completed_date  # AS 완료일 필드 사용
+            }
+            
+            # 상태에 맞는 날짜 선택, 없는 경우 기본값으로 received_date 사용
+            start_date = status_date_map.get(order.status)
         
         # 날짜 필드가 없는 경우 이벤트를 생성하지 않음
         if not start_date:
             continue
             
-        # 시간 필드 매핑
+        # 시간 필드 매핑 (ERP Beta 주문의 경우 추출한 시간 사용)
         status_time_map = {
             'RECEIVED': order.received_time,
-            'MEASURED': order.measurement_time,
+            'MEASURED': measurement_time,  # ERP Beta 주문의 경우 structured_data에서 추출한 시간 사용
             'SCHEDULED': None,  # 설치 예정은 일반적으로 시간 없음
             'SHIPPED_PENDING': None,  # 상차 예정은 일반적으로 시간 없음
             'COMPLETED': None,  # 완료는 일반적으로 시간 없음
@@ -3919,7 +4241,7 @@ def api_orders():
         time_str = status_time_map.get(order.status)
         
         # '실측' 상태이고 measurement_time이 '종일', '오전', '오후'인 경우 allDay를 true로 설정
-        if order.status == 'MEASURED' and order.measurement_time in ['종일', '오전', '오후']:
+        if order.status == 'MEASURED' and measurement_time in ['종일', '오전', '오후']:
             start_datetime = start_date # 날짜만 사용
             all_day = True
         elif time_str: # 기존 시간 처리 로직
@@ -3930,7 +4252,7 @@ def api_orders():
             all_day = True
             
         color = status_colors.get(order.status, '#3788d8')
-        title = f"{order.customer_name} | {order.phone} | {order.product}"
+        title = f"{customer_name} | {phone} | {product}"
         
         events.append({
             'id': order.id,
@@ -3940,19 +4262,19 @@ def api_orders():
             'backgroundColor': color,
             'borderColor': color,
             'extendedProps': {
-                'customer_name': order.customer_name,
-                'phone': order.phone,
-                'address': order.address,
-                'product': order.product,
+                'customer_name': customer_name,
+                'phone': phone,
+                'address': address,
+                'product': product,
                 'options': order.options,
                 'notes': order.notes,
                 'status': order.status,
                 'received_date': order.received_date,
                 'received_time': order.received_time,
-                'measurement_date': order.measurement_date,
-                'measurement_time': order.measurement_time,
+                'measurement_date': measurement_date,
+                'measurement_time': measurement_time,
                 'completion_date': order.completion_date,
-                'scheduled_date': order.scheduled_date,
+                'scheduled_date': scheduled_date,
                 'as_received_date': order.as_received_date,
                 'as_completed_date': order.as_completed_date,
                 'manager_name': order.manager_name

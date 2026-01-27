@@ -21,16 +21,16 @@
         }
         
         .header-bar {
-            background: linear-gradient(135deg, #007bff, #0056b3);
+            background: linear-gradient(135deg, #0d6efd, #0056b3);
             color: white;
-            padding: 10px 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 12px 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             z-index: 1000;
-            height: 60px;
+            height: 64px;
         }
         
         .header-content {
@@ -41,62 +41,270 @@
         }
         
         .header-title {
-            font-size: 1.2rem;
-            font-weight: bold;
+            font-size: 1.3rem;
+            font-weight: 700;
             margin: 0;
         }
         
         .header-controls {
             display: flex;
-            gap: 10px;
+            gap: 12px;
             align-items: center;
         }
         
         .filter-group {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             align-items: center;
         }
         
         .filter-label {
             font-size: 0.9rem;
             margin: 0;
+            font-weight: 500;
         }
         
         .form-select-sm {
-            padding: 5px 10px;
-            font-size: 0.85rem;
+            padding: 6px 12px;
+            font-size: 0.875rem;
             border: 1px solid rgba(255,255,255,0.3);
-            background-color: rgba(255,255,255,0.1);
+            background-color: rgba(255,255,255,0.15);
             color: white;
-            border-radius: 4px;
+            border-radius: 6px;
         }
         
         .form-select-sm option {
-            background-color: #007bff;
+            background-color: #0d6efd;
             color: white;
         }
         
         .btn-header {
-            padding: 5px 15px;
-            font-size: 0.85rem;
-            border-radius: 4px;
+            padding: 6px 16px;
+            font-size: 0.875rem;
+            border-radius: 6px;
             border: 1px solid rgba(255,255,255,0.3);
-            background-color: rgba(255,255,255,0.1);
+            background-color: rgba(255,255,255,0.15);
             color: white;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
+            font-weight: 500;
         }
         
         .btn-header:hover {
-            background-color: rgba(255,255,255,0.2);
+            background-color: rgba(255,255,255,0.25);
             color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         
         .map-container {
-            margin-top: 60px;
-            height: calc(100vh - 60px);
+            margin-top: 64px;
+            height: calc(100vh - 64px);
             width: 100%;
             position: relative;
+            display: flex;
+        }
+        
+        .map-left {
+            flex: 1;
+            position: relative;
+            min-width: 0;
+            background-color: #fff;
+        }
+        
+        .map-right-panel {
+            width: 420px;
+            background-color: #fff;
+            border-left: 2px solid #dee2e6;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: -2px 0 8px rgba(0,0,0,0.05);
+        }
+        
+        .order-list-header {
+            padding: 1rem 1.25rem;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-bottom: 2px solid #dee2e6;
+            font-weight: 700;
+            font-size: 1.15rem;
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .order-list-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.75rem;
+            background-color: #f8f9fa;
+        }
+        
+        .order-item {
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background-color: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .order-item:hover {
+            background-color: #f0f7ff;
+            border-color: #0d6efd;
+            box-shadow: 0 2px 8px rgba(13,110,253,0.15);
+            transform: translateY(-1px);
+        }
+        
+        .order-item.selected {
+            background-color: rgba(13,110,253,.08);
+            border-color: #0d6efd;
+            border-width: 2px;
+            box-shadow: 0 2px 8px rgba(13,110,253,0.2);
+        }
+        
+        .order-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .order-id {
+            font-weight: 700;
+            color: #0d6efd;
+            font-size: 1.1rem;
+        }
+        
+        .order-status {
+            font-size: 0.8rem;
+            padding: 0.3em 0.6em;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        
+        .order-info {
+            font-size: 0.9rem;
+            color: #495057;
+            line-height: 1.6;
+        }
+        
+        .order-info-row {
+            margin-bottom: 0.4rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+        
+        .order-info-label {
+            font-weight: 600;
+            color: #6c757d;
+            min-width: 70px;
+            font-size: 0.85rem;
+        }
+        
+        .order-info-value {
+            color: #212529;
+            flex: 1;
+            font-size: 0.9rem;
+        }
+        
+        .order-detail-panel {
+            padding: 1.25rem;
+            background-color: #fff;
+            border-top: 2px solid #dee2e6;
+            max-height: 50%;
+            overflow-y: auto;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
+        }
+        
+        .order-detail-header {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: #495057;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .order-detail-content {
+            font-size: 0.95rem;
+        }
+        
+        .detail-section {
+            margin-bottom: 1.25rem;
+        }
+        
+        .detail-section-title {
+            font-weight: 700;
+            font-size: 1.05rem;
+            color: #0d6efd;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #6c757d;
+            min-width: 100px;
+            font-size: 0.9rem;
+        }
+        
+        .detail-value {
+            color: #212529;
+            text-align: right;
+            flex: 1;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: white;
+        }
+        
+        .status-RECEIVED { background-color: #007bff; }
+        .status-MEASURED { background-color: #28a745; }
+        .status-SCHEDULED { background-color: #ffc107; color: #000; }
+        .status-SHIPPED_PENDING { background-color: #17a2b8; }
+        .status-COMPLETED { background-color: #6c757d; }
+        .status-AS_RECEIVED { background-color: #7b1fa2; }
+        .status-AS_COMPLETED { background-color: #00695c; }
+        
+        @media (max-width: 992px) {
+            .map-container {
+                flex-direction: column;
+            }
+            
+            .map-right-panel {
+                width: 100%;
+                height: 40vh;
+                border-left: none;
+                border-top: 2px solid #dee2e6;
+            }
         }
         
         .loading-overlay {
@@ -105,7 +313,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: rgba(248, 249, 250, 0.9);
+            background-color: rgba(248, 249, 250, 0.95);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -114,21 +322,11 @@
         
         .loading-content {
             text-align: center;
-            color: #007bff;
+            color: #0d6efd;
         }
         
         .loading-spinner {
             margin-bottom: 15px;
-        }
-        
-        .status-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: bold;
-            color: white;
-            margin-left: 5px;
         }
         
         .error-message {
@@ -137,7 +335,7 @@
             padding: 20px;
             background-color: #f8d7da;
             border: 1px solid #f5c6cb;
-            border-radius: 4px;
+            border-radius: 8px;
             margin: 20px;
         }
         
@@ -145,6 +343,18 @@
             width: 100%;
             height: 100%;
             border: none;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #6c757d;
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
         }
     </style>
 </head>
@@ -165,7 +375,6 @@
                     <label class="filter-label">상태:</label>
                     <select id="status-filter" class="form-select-sm">
                         <option value="ALL">모든 상태</option>
-                        <!-- FOMS 상태(현재 시스템 기준) -->
                         <option value="RECEIVED">접수</option>
                         <option value="MEASURED">실측</option>
                         <option value="SCHEDULED">설치 예정</option>
@@ -188,20 +397,45 @@
     </div>
     
     <div class="map-container">
-        <div id="loading-overlay" class="loading-overlay">
-            <div class="loading-content">
-                <div class="loading-spinner">
-                    <i class="fas fa-spinner fa-spin fa-3x"></i>
+        <div class="map-left">
+            <div id="loading-overlay" class="loading-overlay">
+                <div class="loading-content">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin fa-3x"></i>
+                    </div>
+                    <div>
+                        <h5>지도를 로딩중입니다...</h5>
+                        <p>주소를 좌표로 변환하고 있습니다.</p>
+                    </div>
                 </div>
-                <div>
-                    <h5>지도를 로딩중입니다...</h5>
-                    <p>주소를 좌표로 변환하고 있습니다.</p>
-                </div>
+            </div>
+            
+            <div id="map-content" style="display: none;">
+                <!-- 지도가 여기에 표시됩니다 -->
             </div>
         </div>
         
-        <div id="map-content" style="display: none;">
-            <!-- 지도가 여기에 표시됩니다 -->
+        <div class="map-right-panel">
+            <div class="order-list-header">
+                <i class="fas fa-list"></i> 주문 목록
+                <span id="order-count-badge" class="badge bg-primary ms-2">0</span>
+            </div>
+            <div class="order-list-content" id="order-list-content">
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-spinner fa-spin"></i> 로딩 중...
+                </div>
+            </div>
+            <div class="order-detail-panel" id="order-detail-panel" style="display: none;">
+                <div class="order-detail-header">
+                    <span><i class="fas fa-info-circle"></i> 세부 실측 정보</span>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="closeOrderDetail()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="order-detail-content" id="order-detail-content">
+                    <!-- 세부 정보가 여기에 표시됩니다 -->
+                </div>
+            </div>
         </div>
     </div>
 
@@ -209,6 +443,9 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
+        let currentOrders = [];
+        let selectedOrderId = null;
+        
         // URL 파라미터에서 초기값 가져오기
         const urlParams = new URLSearchParams(window.location.search);
         const initialDate = urlParams.get('date') || new Date().toISOString().split('T')[0];
@@ -220,9 +457,7 @@
         
         // 페이지 로드 시 로그인 상태 확인 및 지도 로드
         document.addEventListener('DOMContentLoaded', function() {
-            // 현재 페이지가 로그인 페이지인지 확인
             if (window.location.pathname === '/login') {
-                // 로그인 페이지라면 부모 창으로 알림
                 if (window.opener) {
                     window.opener.postMessage('login_required', '*');
                     window.close();
@@ -255,33 +490,8 @@
                     <h5>오류 발생</h5>
                     <p>${message}</p>
                     <button class="btn btn-primary" onclick="loadMap()">다시 시도</button>
-                    <button class="btn btn-secondary" onclick="showAddressHelp()" style="margin-left: 10px;">주소 변환 도움말</button>
                 </div>
             `;
-        }
-        
-        function showAddressHelp() {
-            const helpContent = `
-                <div class="error-message">
-                    <i class="fas fa-info-circle"></i>
-                    <h5>AI 주소 변환 시스템</h5>
-                    <p>FOMS는 고급 AI 주소 처리 시스템을 사용합니다:</p>
-                    <ul style="text-align: left; margin: 20px;">
-                        <li><strong>학습 기반 변환:</strong> 이전 수정 데이터를 학습하여 정확도 향상</li>
-                        <li><strong>지능형 주소 정리:</strong> 불완전한 주소를 자동으로 보완</li>
-                        <li><strong>다중 전략 시도:</strong> 여러 방법으로 주소 변환 시도</li>
-                        <li><strong>구성 요소 분석:</strong> 주소를 세분화하여 처리</li>
-                    </ul>
-                    <p>주소 변환이 실패하는 경우:</p>
-                    <ul style="text-align: left; margin: 20px;">
-                        <li>더 정확한 주소로 주문을 수정해 주세요</li>
-                        <li>시/도, 구/군, 동 정보가 포함되어야 합니다</li>
-                        <li>아파트명이나 건물명을 추가해 보세요</li>
-                    </ul>
-                    <button class="btn btn-primary" onclick="loadMap()">다시 시도</button>
-                </div>
-            `;
-            document.getElementById('map-content').innerHTML = helpContent;
         }
         
         function loadMap() {
@@ -290,10 +500,8 @@
             const dateFilter = document.getElementById('date-filter').value;
             const statusFilter = document.getElementById('status-filter').value;
             
-            // 헤더 제목 업데이트
             updateHeaderTitle(dateFilter, statusFilter);
             
-            // API 요청
             const params = new URLSearchParams({
                 date: dateFilter,
                 status: statusFilter,
@@ -303,19 +511,34 @@
             fetch(`/api/generate_map?${params}`)
                 .then(response => response.json())
                 .then(data => {
+                    console.log('API 응답 데이터:', data);
+                    console.log('orders 필드:', data.orders);
+                    console.log('orders 타입:', typeof data.orders);
+                    console.log('orders 길이:', data.orders ? data.orders.length : 'undefined');
+                    
                     if (data.success) {
                         document.getElementById('map-content').innerHTML = data.map_html;
                         hideLoading();
                         
-                        // 성공 메시지 표시 (선택적)
-                        console.log(`지도 로드 완료: ${data.total_orders}개 주문`);
+                        // 주문 목록 업데이트
+                        currentOrders = data.orders || [];
+                        console.log('currentOrders 설정:', currentOrders);
+                        console.log('currentOrders 길이:', currentOrders.length);
+                        updateOrderList(currentOrders);
+                        document.getElementById('order-count-badge').textContent = currentOrders.length;
+                        
+                        console.log(`지도 로드 완료: ${data.total_orders}개 주문, 주문 목록: ${currentOrders.length}개`);
                     } else {
                         showError(data.error || '지도를 로드할 수 없습니다.');
+                        currentOrders = [];
+                        updateOrderList([]);
                     }
                 })
                 .catch(error => {
                     console.error('지도 로드 오류:', error);
                     showError('서버 연결 오류가 발생했습니다.');
+                    currentOrders = [];
+                    updateOrderList([]);
                 });
         }
         
@@ -323,13 +546,12 @@
             const statusNames = {
                 'ALL': '모든 상태',
                 'RECEIVED': '접수',
-                'CONFIRMED': '확인',
-                'IN_PRODUCTION': '제작중',
+                'MEASURED': '실측',
+                'SCHEDULED': '설치 예정',
+                'SHIPPED_PENDING': '출고 예정',
                 'COMPLETED': '완료',
-                'SHIPPED': '배송',
-                'DELIVERED': '배송완료',
-                'CANCELLED': '취소',
-                'ON_HOLD': '보류'
+                'AS_RECEIVED': 'AS 접수',
+                'AS_COMPLETED': 'AS 완료'
             };
             
             const statusName = statusNames[status] || '모든 상태';
@@ -340,19 +562,229 @@
             `;
         }
         
+        function updateOrderList(orders) {
+            const container = document.getElementById('order-list-content');
+            
+            console.log('updateOrderList 호출됨, orders:', orders);
+            console.log('orders 타입:', typeof orders);
+            console.log('orders가 배열인가?', Array.isArray(orders));
+            console.log('orders.length:', orders ? orders.length : 'undefined');
+            
+            if (!orders || !Array.isArray(orders) || orders.length === 0) {
+                console.log('주문 목록이 비어있음');
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-map-marked-alt"></i>
+                        <p>표시할 주문이 없습니다.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            console.log(`${orders.length}개의 주문을 표시합니다.`);
+            
+            let html = '';
+            orders.forEach(order => {
+                const statusClass = `status-${order.status}`;
+                const statusText = getStatusText(order.status);
+                
+                html += `
+                    <div class="order-item ${selectedOrderId === order.id ? 'selected' : ''}" 
+                         onclick="selectOrder(${order.id})" 
+                         data-order-id="${order.id}">
+                        <div class="order-item-header">
+                            <span class="order-id">#${order.id}</span>
+                            <span class="order-status status-badge ${statusClass}">${statusText}</span>
+                        </div>
+                        <div class="order-info">
+                            <div class="order-info-row">
+                                <span class="order-info-label">고객:</span>
+                                <span class="order-info-value">${escapeHtml(order.customer_name || '-')}</span>
+                            </div>
+                            <div class="order-info-row">
+                                <span class="order-info-label">연락처:</span>
+                                <span class="order-info-value">${escapeHtml(order.phone || '-')}</span>
+                            </div>
+                            <div class="order-info-row">
+                                <span class="order-info-label">주소:</span>
+                                <span class="order-info-value">${escapeHtml(order.address || '-')}</span>
+                            </div>
+                            <div class="order-info-row">
+                                <span class="order-info-label">제품:</span>
+                                <span class="order-info-value">${escapeHtml(order.product || '-')}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        function selectOrder(orderId) {
+            selectedOrderId = orderId;
+            
+            // 선택 상태 업데이트
+            document.querySelectorAll('.order-item').forEach(item => {
+                if (parseInt(item.dataset.orderId) === orderId) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+            
+            // 세부 정보 로드
+            loadOrderDetail(orderId);
+        }
+        
+        async function loadOrderDetail(orderId) {
+            const panel = document.getElementById('order-detail-panel');
+            const content = document.getElementById('order-detail-content');
+            
+            panel.style.display = 'block';
+            content.innerHTML = '<div class="text-muted text-center py-3"><i class="fas fa-spinner fa-spin"></i> 로딩 중...</div>';
+            
+            try {
+                const [structured, attachments] = await Promise.all([
+                    fetch(`/api/orders/${orderId}/structured`).then(r => r.json()),
+                    fetch(`/api/orders/${orderId}/attachments`).then(r => r.json()),
+                ]);
+
+                const sd = (structured && structured.structured_data) || {};
+                const customer = (((sd.parties||{}).customer||{}).name) || '-';
+                const phone = (((sd.parties||{}).customer||{}).phone) || '-';
+                const address = ((sd.site||{}).address_full) || ((sd.site||{}).address_main) || '-';
+                const addressNote = ((sd.site||{}).address_note) || '-';
+                const phoneNote = (((sd.parties||{}).customer||{}).phone_note) || '-';
+                const measureNote = (((sd.schedule||{}).measurement||{}).note) || '-';
+                const measure = (((sd.schedule||{}).measurement||{}).date) || '-';
+                const construct = (((sd.schedule||{}).construction||{}).date) || '-';
+                const manager = (((sd.parties||{}).manager||{}).name) || '-';
+                
+                // 제품 항목
+                const items = (sd.items || []) || [];
+                let itemsHtml = '';
+                if (items.length > 0) {
+                    itemsHtml = '<div class="table-responsive mt-3"><table class="table table-bordered table-sm"><thead class="table-light"><tr><th>제품명</th><th>규격 W</th><th>규격 D</th><th>규격 H</th><th>내부</th><th>색상</th></tr></thead><tbody>';
+                    items.forEach(item => {
+                        let specW = item.spec_width || '';
+                        let specD = item.spec_depth || '';
+                        let specH = item.spec_height || '';
+                        if (!specW && !specD && !specH && item.spec) {
+                            const specStr = String(item.spec || '').trim();
+                            const parts = specStr.split(/[xX*×]/).map(s => s.trim());
+                            if (parts.length >= 3) {
+                                specW = parts[0];
+                                specD = parts[1];
+                                specH = parts[2];
+                            }
+                        }
+                        itemsHtml += `<tr>
+                            <td>${escapeHtml(item.product_name || item.name || '-')}</td>
+                            <td>${escapeHtml(specW || '-')}</td>
+                            <td>${escapeHtml(specD || '-')}</td>
+                            <td>${escapeHtml(specH || '-')}</td>
+                            <td>${escapeHtml(item.internal || '-')}</td>
+                            <td>${escapeHtml(item.color || '-')}</td>
+                        </tr>`;
+                    });
+                    itemsHtml += '</tbody></table></div>';
+                } else {
+                    itemsHtml = '<div class="text-muted mt-2">제품 항목 없음</div>';
+                }
+                
+                content.innerHTML = `
+                    <div class="detail-section">
+                        <div class="detail-section-title"><i class="fas fa-user"></i> 고객 정보</div>
+                        <div class="detail-row">
+                            <span class="detail-label">고객명</span>
+                            <span class="detail-value">${escapeHtml(customer)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">연락처</span>
+                            <span class="detail-value">${escapeHtml(phone)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">주소</span>
+                            <span class="detail-value">${escapeHtml(address)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">담당자</span>
+                            <span class="detail-value">${escapeHtml(manager)}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <div class="detail-section-title"><i class="fas fa-ruler-combined"></i> 실측 정보</div>
+                        <div class="detail-row">
+                            <span class="detail-label">실측일</span>
+                            <span class="detail-value">${escapeHtml(measure)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">시공일</span>
+                            <span class="detail-value">${escapeHtml(construct)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">실측 특이사항</span>
+                            <span class="detail-value">${escapeHtml(measureNote)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">주소 특이사항</span>
+                            <span class="detail-value">${escapeHtml(addressNote)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">연락처 특이사항</span>
+                            <span class="detail-value">${escapeHtml(phoneNote)}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <div class="detail-section-title"><i class="fas fa-box"></i> 제품 항목</div>
+                        ${itemsHtml}
+                    </div>
+                `;
+            } catch (err) {
+                console.error('주문 상세 로드 실패:', err);
+                content.innerHTML = '<div class="text-danger">로드 실패: ' + escapeHtml(err.message) + '</div>';
+            }
+        }
+        
+        function closeOrderDetail() {
+            document.getElementById('order-detail-panel').style.display = 'none';
+            selectedOrderId = null;
+            document.querySelectorAll('.order-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+        }
+        
+        function getStatusText(status) {
+            const statusMap = {
+                'RECEIVED': '접수',
+                'MEASURED': '실측',
+                'SCHEDULED': '설치 예정',
+                'SHIPPED_PENDING': '출고 예정',
+                'COMPLETED': '완료',
+                'AS_RECEIVED': 'AS 접수',
+                'AS_COMPLETED': 'AS 완료'
+            };
+            return statusMap[status] || status;
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = String(text);
+            return div.innerHTML;
+        }
+        
         // 키보드 단축키
         document.addEventListener('keydown', function(e) {
             if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
                 e.preventDefault();
                 loadMap();
             } else if (e.key === 'Escape') {
-                window.close();
+                closeOrderDetail();
             }
-        });
-        
-        // 창 크기 조정 시 지도 새로고침 (선택적)
-        window.addEventListener('resize', function() {
-            // 필요시 지도 크기 조정 로직 추가
         });
     </script>
 </body>

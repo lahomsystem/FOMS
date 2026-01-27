@@ -1,9 +1,12 @@
 /* General Styles */
-/* 전역: html, body 여백 완전 제거 */
+/* 전역: html, body 여백 완전 제거 및 전체 너비 강제 */
 html, body {
     margin: 0 !important;
     padding: 0 !important;
     height: 100%;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
 }
 
 body {
@@ -23,24 +26,81 @@ header .dropdown-menu {
     z-index: 1001 !important; /* 네비게이션 바보다 높게 */
 }
 
-/* 전역: container-fluid 상하 여백 완전 제거 (모든 페이지) */
-.container-fluid {
+/* 전역: container-fluid 상하 여백 완전 제거 및 전체 너비 강제 (모든 페이지) - Bootstrap 오버라이드 */
+.container-fluid,
+div.container-fluid {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    box-sizing: border-box;
 }
 
-/* 전역: 최상위 container-fluid 여백 제거 */
-body > .container-fluid {
+/* 전역: 최상위 container-fluid 여백 제거 및 전체 너비 강제 - Bootstrap 완전 오버라이드 */
+body > .container-fluid,
+body > div.container-fluid {
     margin: 0 !important;
     padding: 0 !important;
     min-height: 100vh;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+    overflow-x: auto;
 }
 
-/* 전역: container-fluid 내부 중첩 container-fluid 여백 제거 */
-.container-fluid .container-fluid {
+/* 전역: container-fluid 내부 중첩 container-fluid 여백 제거 및 전체 너비 강제 - Bootstrap 완전 오버라이드 */
+.container-fluid .container-fluid,
+div.container-fluid div.container-fluid,
+body > .container-fluid > .container-fluid,
+body > div.container-fluid > div.container-fluid {
     margin: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+/* ERP 대시보드 내부 섹션에 padding 적용 */
+.erp-dashboard > .d-flex,
+.erp-dashboard > .row,
+.erp-dashboard > .card {
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+/* erp-dashboard-layout은 전체 너비 사용, 내부 요소에 padding 적용 */
+.erp-dashboard-layout {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+}
+/* 모든 대시보드 내부 섹션에 동일한 좌우 여백 적용 (지방 주문 대시보드와 동일) */
+.regional-dashboard > .d-flex,
+.regional-dashboard > .row,
+.regional-dashboard > .card,
+.metropolitan-dashboard > .d-flex,
+.metropolitan-dashboard > .row,
+.metropolitan-dashboard > .card,
+.storage-dashboard > .d-flex,
+.storage-dashboard > .row,
+.storage-dashboard > .card,
+.self-measurement-dashboard > .d-flex,
+.self-measurement-dashboard > .row,
+.self-measurement-dashboard > .card,
+.wdcalculator-container > .d-flex,
+.wdcalculator-container > .row,
+.wdcalculator-container > .card {
+    padding-left: 1rem;
+    padding-right: 1rem;
 }
 
 .container {
@@ -853,21 +913,43 @@ td .btn:last-child {
     /* max-width: none; - index.html에서 제어 */
 }
 
+/* 지방 대시보드 전체 너비 강제 */
+.regional-dashboard {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+}
 /* 지방 대시보드 전용 가로 스크롤 테이블 */
 .regional-dashboard .table-responsive {
     overflow-x: auto !important;
     overflow-y: visible;
     -webkit-overflow-scrolling: touch;
     white-space: nowrap;
-    width: 100%;
-    max-width: 100%;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+}
+/* 지방 대시보드 카드 전체 너비 사용 */
+.regional-dashboard .card {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+}
+.regional-dashboard .card-body {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
 }
 
 /* 지방 대시보드 테이블 최소 너비 설정 */
 .regional-dashboard .table-responsive .table {
     min-width: 1800px; /* 테이블 최소 너비 설정 */
     margin-bottom: 0;
-    width: auto;
+    width: 100%;
 }
 
 /* 지방 대시보드 테이블 셀 줄바꿈 방지 */
@@ -1079,3 +1161,4 @@ td .btn:last-child {
     height: 14px !important;
 }
 */
+
