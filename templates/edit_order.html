@@ -1512,10 +1512,14 @@
         erpSetStatus(`불러오기 완료 (confidence: ${data.structured_confidence || sd.confidence || '-'})`);
         erpRecalcItemsTotal();
         
-        // 첨부파일도 함께 로드
-        if (typeof erpLoadAttachments === 'function') {
-            erpLoadAttachments();
-        }
+        // 첨부파일도 함께 로드 (약간의 지연을 두어 함수가 정의되도록 함)
+        setTimeout(() => {
+            if (typeof erpLoadAttachments === 'function') {
+                erpLoadAttachments();
+            } else {
+                console.warn('erpLoadAttachments 함수를 찾을 수 없습니다.');
+            }
+        }, 100);
     }
 
     function erpCollectStructured() {
