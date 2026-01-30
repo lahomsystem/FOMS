@@ -180,12 +180,12 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
                         <div class="col-md-4">
                             <label for="measurement_time_select" class="form-label">실측시간</label>
                             <select class="form-select" id="measurement_time_select" name="measurement_time_select">
-                                <option value="time_input" selected>시간 직접 입력</option>
+                                <option value="__direct__" selected>직접 입력</option>
                                 <option value="오전">오전</option>
                                 <option value="오후">오후</option>
                                 <option value="종일">종일</option>
                             </select>
-                            <input type="time" class="form-control mt-2" id="measurement_time" name="measurement_time" autocomplete="off">
+                            <input type="text" class="form-control mt-2" id="measurement_time" name="measurement_time" placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off">
                         </div>
                         <div class="col-md-4">
                             <label for="scheduled_date" class="form-label">설치 예정일</label>
@@ -325,6 +325,7 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // 자동 높이 조절 함수
@@ -419,13 +420,15 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
         }
         
         function updateMeasurementTime() {
-            const measurementTimeSelect = document.getElementById('measurement_time_select').value || '';
-            const measurementTime = document.getElementById('measurement_time').value || '';
+            const measurementTimeSelectEl = document.getElementById('measurement_time_select');
+            const measurementTimeInputEl = document.getElementById('measurement_time');
+            const measurementTimeSelect = measurementTimeSelectEl ? (measurementTimeSelectEl.value || '') : '';
+            const measurementTime = measurementTimeInputEl ? (measurementTimeInputEl.value || '') : '';
             let timeInfo = '';
             
-            if (measurementTimeSelect === 'time_input' && measurementTime) {
+            if (measurementTimeSelect === '__direct__' && measurementTime) {
                 timeInfo = measurementTime;
-            } else if (measurementTimeSelect !== 'time_input' && measurementTimeSelect) {
+            } else if (measurementTimeSelect && measurementTimeSelect !== '__direct__') {
                 timeInfo = measurementTimeSelect;
             }
             
@@ -593,14 +596,14 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
         const measurementTimeInput = document.getElementById('measurement_time');
 
         if (measurementTimeSelect && measurementTimeInput) {
-            measurementTimeInput.style.display = 'block'; 
+            measurementTimeInput.style.display = 'block';
 
             measurementTimeSelect.addEventListener('change', function() {
-                if (this.value === "종일" || this.value === "오전" || this.value === "오후") {
-                    measurementTimeInput.style.display = 'none';
-                    measurementTimeInput.value = ''; 
-                } else {
+                if (this.value === '__direct__') {
                     measurementTimeInput.style.display = 'block';
+                } else {
+                    measurementTimeInput.style.display = 'none';
+                    measurementTimeInput.value = '';
                 }
                 // 온라인 옵션의 시간 필드 업데이트
                 updateOnlineOptionsTime();
@@ -622,7 +625,13 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
             addForm.addEventListener('submit', function(event) {
                 // 실측시간 처리
                 if (measurementTimeSelect && measurementTimeInput) {
-                    if (measurementTimeSelect.value === '종일' || measurementTimeSelect.value === '오전' || measurementTimeSelect.value === '오후') {
+                    if (measurementTimeSelect.value === '__direct__') {
+                        measurementTimeInput.name = 'measurement_time';
+                        const hiddenInput = document.getElementById('measurement_time_hidden_for_submit');
+                        if (hiddenInput) {
+                            hiddenInput.remove();
+                        }
+                    } else {
                         let hiddenInput = document.getElementById('measurement_time_hidden_for_submit');
                         if (!hiddenInput) {
                             hiddenInput = document.createElement('input');
@@ -632,13 +641,7 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
                             addForm.appendChild(hiddenInput);
                         }
                         hiddenInput.value = measurementTimeSelect.value;
-                        measurementTimeInput.name = ''; 
-                    } else {
-                        measurementTimeInput.name = 'measurement_time';
-                        let hiddenInput = document.getElementById('measurement_time_hidden_for_submit');
-                        if (hiddenInput) {
-                            hiddenInput.remove();
-                        }
+                        measurementTimeInput.name = '';
                     }
                 }
 

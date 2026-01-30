@@ -23,7 +23,7 @@
         .header-bar {
             background: linear-gradient(135deg, #0d6efd, #0056b3);
             color: white;
-            padding: 12px 20px;
+            padding: 8px 14px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
             position: fixed;
             top: 0;
@@ -41,14 +41,33 @@
         }
         
         .header-title {
-            font-size: 1.3rem;
+            font-size: 1.05rem;
             font-weight: 700;
             margin: 0;
         }
         
         .header-controls {
+            display: grid;
+            gap: 6px;
+        }
+
+        .filters-row {
+            display: grid;
+            grid-template-columns: 110px 80px minmax(0, 1fr);
+            gap: 8px;
+            align-items: center;
+        }
+
+        .actions-row {
             display: flex;
-            gap: 12px;
+            gap: 6px;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .manager-actions {
+            display: flex;
+            gap: 6px;
             align-items: center;
         }
         
@@ -59,18 +78,39 @@
         }
         
         .filter-label {
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             margin: 0;
             font-weight: 500;
         }
         
         .form-select-sm {
-            padding: 6px 12px;
-            font-size: 0.875rem;
+            padding: 4px 10px;
+            font-size: 0.82rem;
             border: 1px solid rgba(255,255,255,0.3);
             background-color: rgba(255,255,255,0.15);
             color: white;
             border-radius: 6px;
+        }
+
+        #manager-filter {
+            color: #ffffff;
+        }
+
+        #manager-filter::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        #status-filter {
+            width: 80px;
+        }
+
+        #date-filter {
+            width: 110px;
+        }
+
+        .manager-actions #manager-filter {
+            flex: 1 1 auto;
+            min-width: 0;
         }
         
         .form-select-sm option {
@@ -79,14 +119,23 @@
         }
         
         .btn-header {
-            padding: 6px 16px;
-            font-size: 0.875rem;
+            padding: 5px 12px;
+            font-size: 0.82rem;
             border-radius: 6px;
             border: 1px solid rgba(255,255,255,0.3);
             background-color: rgba(255,255,255,0.15);
             color: white;
             transition: all 0.2s ease;
             font-weight: 500;
+        }
+
+        .btn-header-icon {
+            padding: 4px 8px;
+            min-width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         
         .btn-header:hover {
@@ -102,6 +151,8 @@
             width: 100%;
             position: relative;
             display: flex;
+            gap: 0;
+            align-items: stretch;
         }
         
         .map-left {
@@ -109,6 +160,25 @@
             position: relative;
             min-width: 0;
             background-color: #fff;
+            height: 100%;
+        }
+
+        #map-content {
+            height: 100%;
+            width: 100%;
+        }
+
+        #map-content > div,
+        #map-content > div > div {
+            height: 100% !important;
+            width: 100% !important;
+            padding-bottom: 0 !important;
+            position: relative !important;
+        }
+
+        #map-content iframe {
+            position: absolute;
+            inset: 0;
         }
         
         .map-right-panel {
@@ -299,11 +369,76 @@
                 flex-direction: column;
             }
             
+            .map-left {
+                flex: 0 0 60%;
+                height: 60%;
+            }
+
             .map-right-panel {
                 width: 100%;
-                height: 40vh;
+                flex: 0 0 40%;
+                height: 40%;
                 border-left: none;
                 border-top: 2px solid #dee2e6;
+            }
+        }
+        
+        @media (max-width: 890px) {
+            .header-bar {
+                height: auto;
+            }
+
+            .header-content {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+            }
+            
+            .header-controls {
+                display: grid;
+                grid-template-rows: auto auto;
+                gap: 6px;
+                width: 100%;
+            }
+
+            .filters-row {
+                grid-template-columns: 140px 110px minmax(0, 1fr);
+                gap: 6px;
+                width: 100%;
+            }
+            
+            .filter-group {
+                width: 100%;
+                flex-wrap: wrap;
+                gap: 4px;
+            }
+            
+            .filter-label {
+                width: 100%;
+            }
+            
+            .form-select-sm {
+                width: 100%;
+            }
+            
+            .btn-header {
+                width: 100%;
+                min-width: 0;
+            }
+        }
+
+        @media (max-width: 615px) {
+            .header-bar {
+                position: static;
+            }
+
+            .map-container {
+                margin-top: 0;
+                height: calc(100vh - 150px);
+            }
+
+            .filters-row {
+                grid-template-columns: 120px 100px minmax(0, 1fr);
             }
         }
         
@@ -344,6 +479,12 @@
             height: 100%;
             border: none;
         }
+
+        #map-content iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
         
         .empty-state {
             text-align: center;
@@ -366,32 +507,39 @@
             </h1>
             
             <div class="header-controls">
-                <div class="filter-group">
-                    <label class="filter-label">날짜:</label>
-                    <input type="date" id="date-filter" class="form-select-sm">
+                <div class="filters-row">
+                    <div class="filter-group">
+                        <label class="filter-label">날짜:</label>
+                        <input type="date" id="date-filter" class="form-select-sm">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label class="filter-label">상태:</label>
+                        <select id="status-filter" class="form-select-sm">
+                            <option value="ALL">모든 상태</option>
+                            <option value="RECEIVED">접수</option>
+                            <option value="MEASURED">실측</option>
+                            <option value="SCHEDULED">설치 예정</option>
+                            <option value="SHIPPED_PENDING">출고 예정</option>
+                            <option value="COMPLETED">완료</option>
+                            <option value="AS_RECEIVED">AS 접수</option>
+                            <option value="AS_COMPLETED">AS 완료</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label class="filter-label">담당자:</label>
+                        <div class="manager-actions">
+                            <input type="text" id="manager-filter" class="form-select-sm" placeholder="예: 정다슬">
+                            <button type="button" class="btn btn-header btn-header-icon" onclick="closeMap()" title="닫기" aria-label="닫기">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <button type="button" class="btn btn-header btn-header-icon" onclick="loadMap()" title="새로고침" aria-label="새로고침">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                
-                <div class="filter-group">
-                    <label class="filter-label">상태:</label>
-                    <select id="status-filter" class="form-select-sm">
-                        <option value="ALL">모든 상태</option>
-                        <option value="RECEIVED">접수</option>
-                        <option value="MEASURED">실측</option>
-                        <option value="SCHEDULED">설치 예정</option>
-                        <option value="SHIPPED_PENDING">출고 예정</option>
-                        <option value="COMPLETED">완료</option>
-                        <option value="AS_RECEIVED">AS 접수</option>
-                        <option value="AS_COMPLETED">AS 완료</option>
-                    </select>
-                </div>
-                
-                <button type="button" class="btn btn-header" onclick="loadMap()">
-                    <i class="fas fa-sync-alt"></i> 새로고침
-                </button>
-                
-                <button type="button" class="btn btn-header" onclick="window.close()">
-                    <i class="fas fa-times"></i> 닫기
-                </button>
             </div>
         </div>
     </div>
@@ -450,10 +598,12 @@
         const urlParams = new URLSearchParams(window.location.search);
         const initialDate = urlParams.get('date') || new Date().toISOString().split('T')[0];
         const initialStatus = urlParams.get('status') || 'ALL';
+        const initialManager = urlParams.get('manager') || '';
         
         // 초기값 설정
         document.getElementById('date-filter').value = initialDate;
         document.getElementById('status-filter').value = initialStatus;
+        document.getElementById('manager-filter').value = initialManager;
         
         // 페이지 로드 시 로그인 상태 확인 및 지도 로드
         document.addEventListener('DOMContentLoaded', function() {
@@ -466,6 +616,17 @@
             }
             
             loadMap();
+
+            const managerInput = document.getElementById('manager-filter');
+            managerInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    loadMap();
+                }
+            });
+            managerInput.addEventListener('change', function() {
+                loadMap();
+            });
         });
         
         // 필터 변경 시 자동 업데이트
@@ -493,18 +654,39 @@
                 </div>
             `;
         }
+
+        function cleanupMapOverlays() {
+            const iframe = document.querySelector('#map-content iframe');
+            if (!iframe || !iframe.contentDocument) {
+                return;
+            }
+            const doc = iframe.contentDocument;
+
+            // 상태 박스(legend) 제거
+            const legendCandidates = Array.from(doc.querySelectorAll('div'))
+                .filter(el => {
+                    const style = (el.getAttribute('style') || '').toLowerCase();
+                    return style.includes('position: fixed') && style.includes('bottom: 50px') && style.includes('left: 50px');
+                });
+            legendCandidates.forEach(el => el.remove());
+
+            // 전체 지도(미니맵) 박스 제거
+            doc.querySelectorAll('.leaflet-control-minimap').forEach(el => el.remove());
+        }
         
         function loadMap() {
             showLoading();
             
             const dateFilter = document.getElementById('date-filter').value;
             const statusFilter = document.getElementById('status-filter').value;
+            const managerFilter = (document.getElementById('manager-filter').value || '').trim();
             
-            updateHeaderTitle(dateFilter, statusFilter);
+            updateHeaderTitle(dateFilter, statusFilter, managerFilter);
             
             const params = new URLSearchParams({
                 date: dateFilter,
                 status: statusFilter,
+                manager: managerFilter,
                 title: `${dateFilter} 주문 지도`
             });
             
@@ -519,6 +701,8 @@
                     if (data.success) {
                         document.getElementById('map-content').innerHTML = data.map_html;
                         hideLoading();
+                        setTimeout(cleanupMapOverlays, 200);
+                        setTimeout(cleanupMapOverlays, 800);
                         
                         // 주문 목록 업데이트
                         currentOrders = data.orders || [];
@@ -542,7 +726,7 @@
                 });
         }
         
-        function updateHeaderTitle(date, status) {
+        function updateHeaderTitle(date, status, manager) {
             const statusNames = {
                 'ALL': '모든 상태',
                 'RECEIVED': '접수',
@@ -556,9 +740,10 @@
             
             const statusName = statusNames[status] || '모든 상태';
             const headerTitle = document.querySelector('.header-title');
+            const managerText = manager ? ` / 담당자: ${manager}` : '';
             headerTitle.innerHTML = `
                 <i class="fas fa-map-marked-alt"></i> 
-                ${date} - ${statusName} 주문 지도
+                ${date} - ${statusName} 주문 지도${managerText}
             `;
         }
         
@@ -757,6 +942,35 @@
             });
         }
         
+        function closeMap() {
+            // 새 창으로 열린 경우 닫기 시도
+            try {
+                if (window.opener) {
+                    window.close();
+                    return;
+                }
+            } catch (e) {
+                // window.close()가 실패한 경우 (같은 탭에서 열린 경우)
+            }
+            
+            // 같은 탭에서 열린 경우 이전 페이지로 이동 또는 실측 대시보드로 이동
+            const urlParams = new URLSearchParams(window.location.search);
+            const date = urlParams.get('date');
+            
+            if (date) {
+                // 실측 대시보드로 이동
+                window.location.href = `/erp/measurement?date=${date}`;
+            } else {
+                // 이전 페이지로 이동
+                if (window.history.length > 1) {
+                    window.history.back();
+                } else {
+                    // 이전 페이지가 없으면 메인 페이지로
+                    window.location.href = '/';
+                }
+            }
+        }
+        
         function getStatusText(status) {
             const statusMap = {
                 'RECEIVED': '접수',
@@ -783,7 +997,13 @@
                 e.preventDefault();
                 loadMap();
             } else if (e.key === 'Escape') {
-                closeOrderDetail();
+                // Escape 키로 주문 상세 닫기 또는 지도 닫기
+                const detailPanel = document.getElementById('order-detail-panel');
+                if (detailPanel && detailPanel.style.display !== 'none') {
+                    closeOrderDetail();
+                } else {
+                    closeMap();
+                }
             }
         });
     </script>

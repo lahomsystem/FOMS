@@ -190,7 +190,7 @@ select,
 textarea {
     width: 100%;
     padding: 10px;
-    margin-bottom: 15px;
+    margin-bottom: 0px;
     border: 1px solid #c6c6c8; /* Apple의 입력 필드 테두리 */
     border-radius: 6px;
     box-sizing: border-box;
