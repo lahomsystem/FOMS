@@ -6,7 +6,6 @@
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
       <h3 class="mb-1 fw-bold text-dark"><i class="fas fa-layer-group text-primary"></i> ERP 프로세스 대시보드</h3>
-      <div class="text-muted fw-normal">프로세스/경보/긴급발주를 한 화면에서 확인</div>
     </div>
     <div class="d-flex gap-2">
       <a class="btn btn-outline-secondary" href="{{ url_for('index') }}"><i class="fas fa-home"></i> 홈</a>
@@ -14,8 +13,8 @@
   </div>
 
   <!-- Top Alerts -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-3">
+  <div class="row g-3 mb-4 erp-alert-row">
+    <div class="col-md-3 erp-alert-col">
       {% set is_urgent_active = filters.get('alert_type') == 'urgent' %}
       {% set urgent_style = 'cursor: pointer; transition: all 0.2s;' %}
       {% if is_urgent_active %}
@@ -30,7 +29,7 @@
         </div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 erp-alert-col">
       {% set is_measurement_active = filters.get('alert_type') == 'measurement_d4' %}
       {% set measurement_style = 'cursor: pointer; transition: all 0.2s;' %}
       {% if is_measurement_active %}
@@ -45,7 +44,7 @@
         </div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 erp-alert-col">
       {% set is_construction_active = filters.get('alert_type') == 'construction_d3' %}
       {% set construction_style = 'cursor: pointer; transition: all 0.2s;' %}
       {% if is_construction_active %}
@@ -60,7 +59,7 @@
         </div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 erp-alert-col">
       {% set is_production_active = filters.get('alert_type') == 'production_d2' %}
       {% set production_style = 'cursor: pointer; transition: all 0.2s;' %}
       {% if is_production_active %}
@@ -81,9 +80,9 @@
   <div class="card mb-4 shadow-sm">
     <div class="card-body py-3">
       <div class="fw-bold mb-2 text-dark" style="font-size: 1.35rem;"><i class="fas fa-project-diagram text-primary"></i> 프로세스 맵</div>
-      <div class="row g-2">
+      <div class="d-flex gap-2 erp-process-row">
         {% for step in process_steps %}
-        <div class="col">
+        <div class="erp-process-col">
           {% set is_step_active = (filters.get('stage') or '') == step.label %}
           {% set step_bg = '#f0f7ff' if is_step_active else '#fff' %}
           <div
@@ -128,6 +127,15 @@
       padding-left: 1rem;
       padding-right: 1rem;
     }
+    /* 상단 알람 타일: 1줄 고정 레이아웃 */
+    .erp-alert-row {
+      flex-wrap: nowrap;
+      overflow: hidden;
+    }
+    .erp-alert-col {
+      flex: 0 0 25%;
+      max-width: 25%;
+    }
     /* erp-dashboard-layout은 전체 너비 사용, 내부 요소에 padding 적용 */
     .erp-dashboard-layout { 
       display: grid; 
@@ -156,6 +164,17 @@
       .erp-dashboard-layout { grid-template-columns: 220px minmax(0, 1fr); }
     }
     @media (max-width: 992px) {
+      .erp-alert-row {
+        --bs-gutter-x: 0.35rem;
+        --bs-gutter-y: 0.35rem;
+      }
+      .erp-alert-col {
+        flex: 0 0 25%;
+        max-width: 25%;
+      }
+      .erp-process-row {
+        overflow-x: auto;
+      }
       .erp-dashboard-layout { 
         grid-template-columns: 1fr; 
         width: 100%;
@@ -195,12 +214,12 @@
     .erp-product-items-label {
       font-weight: 700 !important;
       color: #0d6efd !important;
-      font-size: 1.2rem !important;
+      font-size: var(--erp-detail-font, 1.1rem) !important;
       white-space: nowrap !important;
     }
     .erp-product-items-value {
       color: #212529 !important;
-      font-size: 1.2rem !important;
+      font-size: var(--erp-detail-font, 1.1rem) !important;
       font-weight: 700 !important;
       white-space: normal !important;
       word-break: normal !important;
@@ -294,7 +313,7 @@
       font-size: 1rem;
     }
     /* 열기 버튼 잘림 방지 */
-    #erp-grid .erp-open-btn {
+    #erp-grid .erp-open-btn-icon {
       white-space: nowrap;
     }
     /* 경보 컬럼: 배지 겹침 방지 및 세로 정렬 */
@@ -431,8 +450,8 @@
       #erp-grid tbody td:nth-child(11) { width: 70px !important; min-width: 70px !important; max-width: 70px !important; } /* 상세 */
       #erp-grid thead th:nth-child(12),
       #erp-grid tbody td:nth-child(12) { width: 90px !important; min-width: 90px !important; max-width: 90px !important; } /* 열기 */
-      #erp-grid .erp-open-text {
-        display: inline;
+      #erp-grid .erp-open-btn-icon {
+        display: inline-flex;
       }
       #erp-grid .erp-quest-cell {
         white-space: normal !important;
@@ -444,14 +463,232 @@
         min-width: 1520px !important;
         width: 100% !important;
       }
-      #erp-grid .erp-open-text {
-        display: none;
+      #erp-grid .erp-open-btn-icon {
+        display: inline-flex;
       }
+    }
+    /* 프로세스 맵 1줄 고정 */
+    .erp-process-row {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      align-items: stretch;
+      padding-bottom: 2px;
+    }
+    .erp-process-col {
+      flex: 0 0 auto;
+      min-width: 100px;
+    }
+    .erp-process-step {
+      min-width: 100px;
+      padding: 0.4rem !important;
+      box-shadow: none !important;
+    }
+    .erp-process-step .fw-bold {
+      font-size: 1.05rem;
+    }
+    .erp-process-step .text-muted {
+      font-size: 0.9rem;
+    }
+    .erp-process-step .badge {
+      font-size: 0.75rem;
+      padding: 0.2em 0.45em;
+    }
+    /* 상단 알람 타일 미니멀 */
+    .erp-alert-card .card-body {
+      padding: 0.4rem 0.5rem !important;
+    }
+    .erp-alert-card .fw-bold {
+      font-size: 0.9rem !important;
+    }
+    .erp-alert-card .badge {
+      font-size: 0.85rem !important;
+      padding: 0.35em 0.6em !important;
+    }
+    /* 필터 1줄 레이아웃 */
+    #erp-filters-form.erp-filter-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    #erp-filters-form .erp-filter-main {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+    #erp-filters-form .erp-filter-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: nowrap;
+    }
+    #erp-filters-form .collapse {
+      width: 100%;
+    }
+    #erp-filters-form .erp-filter-advanced-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: nowrap;
+    }
+    #erp-filters-form .erp-filter-advanced-bottom {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      width: 100%;
+    }
+    #erp-filters-form .form-control,
+    #erp-filters-form .form-select,
+    #erp-filters-form .btn {
+      font-size: 0.85rem;
+      padding: 0.3rem 0.45rem;
+    }
+    #erp-filters-form .form-control {
+      max-width: 160px;
+      min-width: 120px;
+    }
+    .erp-dashboard-filters .card-body {
+      padding: 0.6rem 0.7rem;
+    }
+    .erp-dashboard-filters .fw-bold {
+      font-size: 0.95rem;
+    }
+    /* 주문 상세 텍스트 크기 통일 */
+    .erp-order-detail {
+      --erp-detail-font: 1.2rem;
+    }
+    .erp-order-detail .erp-detail-label,
+    .erp-order-detail .erp-detail-value,
+    .erp-order-detail .erp-detail-text {
+      font-size: var(--erp-detail-font) !important;
+    }
+    .order-detail-content {
+      font-size: 1.2rem !important;
+    }
+    .erp-schedule-card .erp-detail-text,
+    .erp-schedule-card .erp-detail-label,
+    .erp-schedule-card .erp-detail-value {
+      font-size: 0.9rem !important;
+    }
+    .erp-schedule-card .card-title {
+      font-size: 0.95rem !important;
+    }
+    /* 열기 버튼: 아이콘만 */
+    .erp-open-btn-icon {
+      background: transparent !important;
+      border: 0 !important;
+      padding: 0 !important;
+      color: #6c757d;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .erp-open-btn-icon i {
+      font-size: 0.95rem;
+    }
+    /* 미니멀 아이콘/텍스트 크기 통일 */
+    .erp-dashboard .fas,
+    .erp-dashboard .far {
+      font-size: 0.95rem;
     }
     @media (max-width: 992px) {
       .table-responsive {
         overflow-x: visible;
         width: 100%;
+      }
+      .erp-dashboard .row.g-3.mb-4 {
+        --bs-gutter-x: 0.35rem;
+        --bs-gutter-y: 0.35rem;
+      }
+      .erp-alert-card {
+        border-radius: 8px !important;
+      }
+      .erp-alert-card .card-body {
+        padding: 0.3rem 0.35rem !important;
+      }
+      .erp-alert-card .fw-bold {
+        font-size: 0.65rem !important;
+      }
+      .erp-alert-card .badge {
+        font-size: 0.6rem !important;
+        padding: 0.18rem 0.35rem !important;
+      }
+      .erp-process-step {
+        min-width: 64px !important;
+        padding: 0.25rem !important;
+        border-radius: 8px !important;
+        box-shadow: none !important;
+      }
+      .erp-process-step .fw-bold {
+        font-size: 0.75rem !important;
+      }
+      .erp-process-step .badge {
+        font-size: 0.55rem !important;
+        padding: 0.15em 0.3em !important;
+      }
+      .erp-process-step .text-muted {
+        font-size: 0.6rem !important;
+      }
+      .erp-dashboard-workqueue .card-body {
+        font-size: 0.8rem !important;
+      }
+      #erp-grid tbody tr.erp-main-row td {
+        font-size: 0.78rem !important;
+        grid-template-columns: 58px 1fr;
+      }
+      #erp-grid tbody tr.erp-main-row td .badge,
+      #erp-grid tbody tr.erp-main-row td .btn,
+      #erp-grid tbody tr.erp-main-row td a {
+        font-size: 0.72rem !important;
+      }
+      .erp-product-items-label,
+      .erp-product-items-value {
+        font-size: 0.8rem !important;
+      }
+      /* 모바일: 카카오/채널톡 느낌으로 폰트/아이콘 축소 */
+      .erp-dashboard .badge.fs-6 {
+        font-size: 0.6rem !important;
+        padding: 0.2rem 0.35rem !important;
+      }
+      .erp-process-step {
+        min-width: 64px !important;
+        padding: 0.25rem !important;
+      }
+      .erp-process-step .fw-bold {
+        font-size: 0.75rem !important;
+      }
+      .erp-process-step .badge {
+        font-size: 0.55rem !important;
+        padding: 0.15em 0.3em !important;
+      }
+      .erp-process-step .text-muted {
+        font-size: 0.6rem !important;
+      }
+      .erp-dashboard .btn,
+      .erp-dashboard .form-select,
+      .erp-dashboard .form-control {
+        font-size: 0.78rem !important;
+      }
+      .erp-dashboard .btn i,
+      .erp-dashboard .nav-link i {
+        font-size: 0.78rem !important;
+      }
+      #erp-grid tbody tr.erp-main-row {
+        padding: 0.5rem;
+      }
+      #erp-grid tbody tr.erp-main-row td {
+        font-size: 0.78rem;
+        grid-template-columns: 58px 1fr;
+      }
+      #erp-grid tbody tr.erp-main-row td .badge,
+      #erp-grid tbody tr.erp-main-row td .btn,
+      #erp-grid tbody tr.erp-main-row td a {
+        font-size: 0.72rem !important;
+      }
+      .erp-product-items-label,
+      .erp-product-items-value {
+        font-size: 0.8rem !important;
       }
       .erp-dashboard-workqueue {
         width: 100%;
@@ -492,13 +729,14 @@
         width: 100%;
         box-sizing: border-box;
       }
-      #erp-grid tbody tr.erp-main-row td {
+      /* 모바일 작업 큐: 라벨 80px 고정 + 값은 가상 세로선(2열)에 맞춤 (상위 CSS 무관) */
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td {
         padding: 0.5rem 0;
         border: none;
         border-bottom: 1px solid #f0f0f0;
         font-size: 1rem;
-        display: grid;
-        grid-template-columns: 80px 1fr;
+        display: grid !important;
+        grid-template-columns: 80px minmax(0, 1fr) !important;
         gap: 8px;
         white-space: normal;
         width: 100%;
@@ -506,25 +744,28 @@
         box-sizing: border-box;
         align-items: start;
       }
-      #erp-grid tbody tr.erp-main-row td:last-child {
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td:last-child {
         border-bottom: none;
       }
-      /* 모바일: 모든 값 요소를 grid-column: 2에 배치하여 빨간 라인에 정렬 */
-      #erp-grid tbody tr.erp-main-row td > *:not(::before) {
-        grid-column: 2;
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td > * {
+        grid-column: 2 !important;
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+        justify-self: start !important;
+        max-width: 100%;
       }
-      #erp-grid tbody tr.erp-main-row td .badge,
-      #erp-grid tbody tr.erp-main-row td .btn,
-      #erp-grid tbody tr.erp-main-row td a {
-        grid-column: 2;
-        justify-self: start;
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td .badge,
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td .btn,
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td a {
+        margin-left: 0 !important;
+        padding-left: 0 !important;
       }
-      /* 모바일: 첨부, 상세, 열기 버튼 - grid 유지, 값만 정렬 */
-      #erp-grid tbody tr.erp-main-row td[data-label="첨부"],
-      #erp-grid tbody tr.erp-main-row td[data-label="상세"],
-      #erp-grid tbody tr.erp-main-row td[data-label="열기"] {
+      /* 모바일: 첨부, 상세, 열기 - grid 유지, 값 2열 */
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td[data-label="첨부"],
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td[data-label="상세"],
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td[data-label="열기"] {
         display: grid !important;
-        grid-template-columns: 80px 1fr !important;
+        grid-template-columns: 80px minmax(0, 1fr) !important;
         gap: 8px !important;
         align-items: center;
       }
@@ -539,14 +780,14 @@
         grid-template-columns: none !important;
         border-bottom: none !important;
       }
-      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn {
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn-icon {
         margin: 0 auto;
         justify-self: center;
       }
-      /* 모바일: 경보 컬럼 - grid 유지, 배지들을 값 영역에 정렬 */
-      #erp-grid tbody tr.erp-main-row td:nth-child(1) {
+      /* 모바일: 경보 컬럼 - grid 유지, 배지들을 값 영역(2열)에 정렬 */
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td:nth-child(1) {
         display: grid !important;
-        grid-template-columns: 80px 1fr !important;
+        grid-template-columns: 80px minmax(0, 1fr) !important;
         gap: 8px !important;
       }
       #erp-grid tbody tr.erp-main-row td:nth-child(1) .badge {
@@ -561,9 +802,9 @@
         margin-right: 0 !important;
       }
       /* 모바일: 단계 컬럼 - 배지 정렬 */
-      #erp-grid tbody tr.erp-main-row td:nth-child(2) {
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td:nth-child(2) {
         display: grid !important;
-        grid-template-columns: 80px 1fr !important;
+        grid-template-columns: 80px minmax(0, 1fr) !important;
         gap: 8px !important;
       }
       #erp-grid tbody tr.erp-main-row td:nth-child(2) .badge {
@@ -572,24 +813,35 @@
         margin-bottom: 0;
         width: fit-content;
       }
-      /* 모바일: 퀘스트 컬럼 - grid 유지, 값 정렬 */
-      #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"] {
+      /* 모바일: 퀘스트 컬럼 - grid 유지, 값 2열 정렬 */
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"] {
         display: grid !important;
-        grid-template-columns: 80px 1fr !important;
+        grid-template-columns: 80px minmax(0, 1fr) !important;
         gap: 8px !important;
       }
-      #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"] .d-inline-flex {
-        grid-column: 2;
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"] .d-inline-flex {
+        grid-column: 2 !important;
         justify-self: start;
+        margin-left: 0 !important;
+        padding-left: 0 !important;
       }
-      #erp-grid tbody tr.erp-main-row td::before {
+      /* 모바일: 헤더(라벨) 1열 고정, 값은 2열 가상 세로선에 맞춤 */
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td::before {
         content: attr(data-label);
+        grid-column: 1 !important;
+        width: 80px !important;
+        max-width: 80px !important;
+        min-width: 80px !important;
+        box-sizing: border-box;
         color: #0d6efd;
         font-weight: 700;
         white-space: nowrap;
         font-size: 1rem;
         text-align: left;
         align-self: start;
+        padding-right: 8px;
+        min-height: 1.5em;
+        overflow: hidden;
       }
       /* 모바일: 모든 값 텍스트 볼드체 적용 */
       #erp-grid tbody tr.erp-main-row td {
@@ -617,8 +869,8 @@
       #erp-grid tbody tr:not(.erp-main-row) td::before {
         content: none;
       }
-      #erp-grid .erp-open-text {
-        display: inline;
+      #erp-grid .erp-open-btn-icon {
+        display: inline-flex;
       }
       #erp-grid .erp-cell-actions {
         justify-content: flex-end;
@@ -670,16 +922,15 @@
         align-items: center !important;
         justify-content: center !important;
       }
-      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn,
-      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn i,
-      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn .erp-open-text {
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn-icon,
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn-icon i {
         font-size: 1rem !important;
-        padding: 0.4em 0.7em !important;
+        padding: 0 !important;
         width: fit-content !important;
         min-width: auto !important;
         max-width: none !important;
         flex-shrink: 0 !important;
-        display: inline-block !important;
+        display: inline-flex !important;
       }
       /* 모바일: 필터 적용/초기화 버튼 사이즈 고정 - 992px 이하 */
       #erp-filters-form .btn-primary,
@@ -751,15 +1002,19 @@
         padding: 0.875rem;
         margin-bottom: 0.875rem;
       }
-      #erp-grid tbody tr.erp-main-row td {
-        grid-template-columns: 70px 1fr;
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td {
+        grid-template-columns: 70px minmax(0, 1fr) !important;
         gap: 10px;
         font-size: 0.95rem;
       }
-      #erp-grid tbody tr.erp-main-row td::before {
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td::before {
         font-size: 0.9rem;
         text-align: left;
         align-self: start;
+        padding-right: 8px;
+        width: 70px !important;
+        max-width: 70px !important;
+        min-width: 70px !important;
       }
       /* 모바일: 퀘스트 셀을 flex로 변경하여 헤더와 버튼을 같은 줄에 배치 - 576px 이하 */
       #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"] {
@@ -801,16 +1056,15 @@
       #erp-grid tbody tr.erp-main-row td[data-label="첨부"] .badge,
       #erp-grid tbody tr.erp-main-row td[data-label="상세"] .badge,
       #erp-grid tbody tr.erp-main-row td[data-label="상세"] .badge i,
-      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn,
-      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn i,
-      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn .erp-open-text {
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn-icon,
+      #erp-grid tbody tr.erp-main-row td[data-label="열기"] .erp-open-btn-icon i {
         font-size: 1rem !important;
-        padding: 0.4em 0.7em !important;
+        padding: 0 !important;
         width: fit-content !important;
         min-width: auto !important;
         max-width: none !important;
         flex-shrink: 0 !important;
-        display: inline-block !important;
+        display: inline-flex !important;
       }
       /* 모바일: 필터 적용/초기화 버튼 사이즈 고정 - 576px 이하 */
       #erp-filters-form .btn-primary,
@@ -829,16 +1083,16 @@
     }
     /* 전체 텍스트 크기 증가 */
     .card-body {
-      font-size: 1rem;
+      font-size: 0.95rem;
     }
     .card-body .small {
-      font-size: 0.95rem !important;
+      font-size: 0.9rem !important;
     }
     .card-body h5, .card-body h6 {
-      font-size: 1.25rem;
+      font-size: 1.1rem;
     }
     .card-body .fw-bold {
-      font-size: 1.1rem;
+      font-size: 1rem;
     }
     /* 프로세스 맵 호버 효과 */
     .erp-process-step {
@@ -856,49 +1110,60 @@
       <div class="card shadow-sm">
         <div class="card-body">
           <div class="fw-bold mb-3 text-dark" style="font-size: 1.15rem;"><i class="fas fa-filter text-primary"></i> 필터</div>
-          <form method="get" action="{{ url_for('erp_dashboard') }}" class="d-grid gap-2" id="erp-filters-form">
+          <form method="get" action="{{ url_for('erp_dashboard') }}" class="erp-filter-row" id="erp-filters-form">
             {% if filters.get('alert_type') %}
             <input type="hidden" name="alert_type" value="{{ filters.get('alert_type') }}">
             {% endif %}
-            <input class="form-control" name="q" placeholder="검색(고객/연락/주소/담당)" value="{{ (filters.get('q') or '') }}" style="font-size: 1rem; padding: 0.5rem;">
-
-            <select class="form-select" name="stage" style="font-size: 1rem; padding: 0.5rem;">
-              <option value="">단계: 전체</option>
-              <option value="주문접수" {% if filters.get('stage')=='주문접수' %}selected{% endif %}>주문접수</option>
-              <option value="해피콜" {% if filters.get('stage')=='해피콜' %}selected{% endif %}>해피콜</option>
-              <option value="실측" {% if filters.get('stage')=='실측' %}selected{% endif %}>실측</option>
-              <option value="도면" {% if filters.get('stage')=='도면' %}selected{% endif %}>도면</option>
-              <option value="고객컨펌" {% if filters.get('stage')=='고객컨펌' %}selected{% endif %}>고객컨펌</option>
-              <option value="생산" {% if filters.get('stage')=='생산' %}selected{% endif %}>생산</option>
-              <option value="시공" {% if filters.get('stage')=='시공' %}selected{% endif %}>시공</option>
-            </select>
-
-            <select class="form-select" name="team" style="font-size: 1rem; padding: 0.5rem;">
-              <option value="">팀: 전체</option>
-              <option value="CS" {% if filters.get('team')=='CS' %}selected{% endif %}>라홈팀</option>
-              <option value="SALES" {% if filters.get('team')=='SALES' %}selected{% endif %}>영업팀</option>
-              <option value="MEASURE" {% if filters.get('team')=='MEASURE' %}selected{% endif %}>실측팀</option>
-              <option value="DRAWING" {% if filters.get('team')=='DRAWING' %}selected{% endif %}>도면팀</option>
-              <option value="PRODUCTION" {% if filters.get('team')=='PRODUCTION' %}selected{% endif %}>생산팀</option>
-              <option value="CONSTRUCTION" {% if filters.get('team')=='CONSTRUCTION' %}selected{% endif %}>시공팀</option>
-            </select>
-            {% if is_admin %}
-            <div class="text-info" style="font-size: 1rem;"><i class="fas fa-info-circle"></i> 관리자는 모든 퀘스트에 접근 가능합니다.</div>
-            {% endif %}
-
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" value="1" id="f-urgent" name="urgent" {% if filters.get('urgent')=='1' %}checked{% endif %} style="width: 1.2em; height: 1.2em;">
-              <label class="form-check-label fw-semibold" for="f-urgent" style="font-size: 1rem;">긴급만</label>
+            <div class="erp-filter-main">
+              <input class="form-control form-control-sm" name="q" placeholder="검색(고객/연락/주소/담당)" value="{{ (filters.get('q') or '') }}">
+              <div class="erp-filter-actions">
+                <button class="btn btn-primary btn-sm fw-semibold" type="submit" aria-label="검색">
+                  <i class="fas fa-search"></i>
+                </button>
+              <button class="btn btn-outline-secondary btn-sm fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#erp-filter-advanced" aria-expanded="false" aria-label="필터 상세">
+                <i class="fas fa-chevron-down"></i>
+              </button>
+              </div>
             </div>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" value="1" id="f-has-alert" name="has_alert" {% if filters.get('has_alert')=='1' %}checked{% endif %} style="width: 1.2em; height: 1.2em;">
-              <label class="form-check-label fw-semibold" for="f-has-alert" style="font-size: 1rem;">경보만</label>
-            </div>
+            <div class="collapse" id="erp-filter-advanced">
+              <div class="erp-filter-advanced-row mt-2">
+                <select class="form-select form-select-sm" name="stage">
+                  <option value="">단계: 전체</option>
+                  <option value="주문접수" {% if filters.get('stage')=='주문접수' %}selected{% endif %}>주문접수</option>
+                  <option value="해피콜" {% if filters.get('stage')=='해피콜' %}selected{% endif %}>해피콜</option>
+                  <option value="실측" {% if filters.get('stage')=='실측' %}selected{% endif %}>실측</option>
+                  <option value="도면" {% if filters.get('stage')=='도면' %}selected{% endif %}>도면</option>
+                  <option value="고객컨펌" {% if filters.get('stage')=='고객컨펌' %}selected{% endif %}>고객컨펌</option>
+                  <option value="생산" {% if filters.get('stage')=='생산' %}selected{% endif %}>생산</option>
+                  <option value="시공" {% if filters.get('stage')=='시공' %}selected{% endif %}>시공</option>
+                </select>
 
-            <button class="btn btn-primary fw-semibold" type="submit" style="font-size: 1rem; padding: 0.6rem;"><i class="fas fa-search"></i> 적용</button>
-            <a class="btn btn-outline-secondary fw-semibold" href="{{ url_for('erp_dashboard') }}" style="font-size: 1rem; padding: 0.6rem;">초기화</a>
+                <select class="form-select form-select-sm" name="team">
+                  <option value="">팀: 전체</option>
+                  <option value="CS" {% if filters.get('team')=='CS' %}selected{% endif %}>라홈팀</option>
+                  <option value="SALES" {% if filters.get('team')=='SALES' %}selected{% endif %}>영업팀</option>
+                  <option value="MEASURE" {% if filters.get('team')=='MEASURE' %}selected{% endif %}>실측팀</option>
+                  <option value="DRAWING" {% if filters.get('team')=='DRAWING' %}selected{% endif %}>도면팀</option>
+                  <option value="PRODUCTION" {% if filters.get('team')=='PRODUCTION' %}selected{% endif %}>생산팀</option>
+                  <option value="CONSTRUCTION" {% if filters.get('team')=='CONSTRUCTION' %}selected{% endif %}>시공팀</option>
+                </select>
+                {% if is_admin %}
+                
+                {% endif %}
+              </div>
+              <div class="erp-filter-advanced-bottom mt-2">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="1" id="f-urgent" name="urgent" {% if filters.get('urgent')=='1' %}checked{% endif %} style="width: 1.2em; height: 1.2em;">
+                  <label class="form-check-label fw-semibold" for="f-urgent" style="font-size: 0.9rem;">긴급만</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="1" id="f-has-alert" name="has_alert" {% if filters.get('has_alert')=='1' %}checked{% endif %} style="width: 1.2em; height: 1.2em;">
+                  <label class="form-check-label fw-semibold" for="f-has-alert" style="font-size: 0.9rem;">경보만</label>
+                </div>
+                <a class="btn btn-outline-secondary btn-sm fw-semibold" href="{{ url_for('erp_dashboard') }}">초기화</a>
+              </div>
+            </div>
           </form>
-          <hr class="my-3">
         </div>
       </div>
     </div>
@@ -970,6 +1235,53 @@
                           <strong>{{ o.current_quest.title }}</strong>
                         </button>
                       </div>
+                      <div class="collapse mt-2" id="quest-collapse-{{ o.id }}">
+                        <div class="card card-body border-0 bg-light">
+                          <div class="fw-bold mb-3" style="font-size: 1.05rem;"><i class="fas fa-flag-checkered text-primary"></i> 현재 단계 퀘스트</div>
+                          <div class="text-muted mb-3" style="font-size: 0.9rem;">각 단계별 명확한 퀘스트 및 팀 승인</div>
+                          <div class="card mb-3 shadow-sm">
+                            <div class="card-body">
+                              <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                  <h5 class="card-title mb-2 fw-bold" style="font-size: 1.05rem;">{{ o.current_quest.title }}</h5>
+                                  <div class="text-muted" style="font-size: 0.9rem;">{{ o.current_quest.description }}</div>
+                                </div>
+                                <span class="badge {% if o.current_quest.all_approved %}bg-success{% else %}bg-warning{% endif %}" style="font-size: 0.9rem; padding: 0.4em 0.6em;">
+                                  {% if o.current_quest.all_approved %}완료{% else %}진행중{% endif %}
+                                </span>
+                              </div>
+                              <div class="mb-3">
+                                <div class="text-muted mb-2 fw-semibold" style="font-size: 0.9rem;">담당 팀</div>
+                                <div class="fw-bold" style="font-size: 1rem;">{{ team_labels.get(o.current_quest.owner_team, o.current_quest.owner_team) }}</div>
+                              </div>
+                              <div class="mb-3">
+                                <div class="text-muted mb-2 fw-semibold" style="font-size: 0.9rem;">팀별 승인</div>
+                                <div id="quest-approvals-{{ o.id }}">
+                                  {% for team in o.current_quest.required_approvals %}
+                                  {% set approved = o.current_quest.team_approvals.get(team, False) %}
+                                  <div class="mb-2">
+                                    <span class="fw-semibold" style="font-size: 0.9rem;">{{ team_labels.get(team, team) }}</span>
+                                    {% if approved %}
+                                      <span class="badge bg-success ms-2" style="font-size: 0.9rem; padding: 0.3em 0.6em;">승인완료</span>
+                                    {% else %}
+                                      {% set order_id_approve = o.id %}
+                                      {% set team_name = team %}
+                                      <button class="btn btn-primary fw-semibold ms-2" onclick="approveQuestTeam({{ order_id_approve }}, '{{ team_name }}')" style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">승인</button>
+                                    {% endif %}
+                                  </div>
+                                  {% endfor %}
+                                </div>
+                              </div>
+                              <div class="d-flex gap-2">
+                                {% set order_id_refresh = o.id %}
+                                <button class="btn btn-outline-primary fw-semibold" type="button" onclick="refreshQuestStatus({{ order_id_refresh }})" style="font-size: 0.9rem; padding: 0.4rem 0.8rem;">
+                                  <i class="fas fa-sync"></i> 상태 새로고침
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     {% else %}
                       <span class="text-muted" style="font-size: 1.1rem;">-</span>
                     {% endif %}
@@ -995,64 +1307,11 @@
                     </a>
                   </td>
                   <td data-label="열기" class="text-end erp-cell-actions">
-                    <button class="btn btn-outline-primary erp-open-btn" type="button" data-bs-toggle="collapse" data-bs-target="#order-detail-collapse-{{ o.id }}" aria-expanded="false" aria-controls="order-detail-collapse-{{ o.id }}" style="font-size: 1rem !important; padding: 0.4em 0.7em !important;">
-                      <i class="fas fa-chevron-down"></i><span class="erp-open-text"> 열기</span>
+                    <button class="erp-open-btn-icon" type="button" data-bs-toggle="collapse" data-bs-target="#order-detail-collapse-{{ o.id }}" aria-expanded="false" aria-controls="order-detail-collapse-{{ o.id }}" title="열기">
+                      <i class="fas fa-chevron-down"></i>
                     </button>
                   </td>
                 </tr>
-                {% if o.current_quest %}
-                <tr>
-                  <td colspan="12" class="p-0">
-                    <div class="collapse" id="quest-collapse-{{ o.id }}">
-                      <div class="card card-body border-0 bg-light">
-                        <div class="fw-bold mb-3" style="font-size: 1.2rem;"><i class="fas fa-flag-checkered text-primary"></i> 현재 단계 퀘스트</div>
-                        <div class="text-muted mb-3" style="font-size: 1rem;">각 단계별 명확한 퀘스트 및 팀 승인</div>
-                        <div class="card mb-3 shadow-sm">
-                          <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-3">
-                              <div>
-                                <h5 class="card-title mb-2 fw-bold" style="font-size: 1.25rem;">{{ o.current_quest.title }}</h5>
-                                <div class="text-muted" style="font-size: 1rem;">{{ o.current_quest.description }}</div>
-                              </div>
-                              <span class="badge {% if o.current_quest.all_approved %}bg-success{% else %}bg-warning{% endif %}" style="font-size: 1rem; padding: 0.5em 0.75em;">
-                                {% if o.current_quest.all_approved %}완료{% else %}진행중{% endif %}
-                              </span>
-                            </div>
-                            <div class="mb-3">
-                              <div class="text-muted mb-2 fw-semibold" style="font-size: 1.05rem;">담당 팀</div>
-                              <div class="fw-bold" style="font-size: 1.15rem;">{{ team_labels.get(o.current_quest.owner_team, o.current_quest.owner_team) }}</div>
-                            </div>
-                            <div class="mb-3">
-                              <div class="text-muted mb-2 fw-semibold" style="font-size: 1.05rem;">팀별 승인</div>
-                              <div id="quest-approvals-{{ o.id }}">
-                                {% for team in o.current_quest.required_approvals %}
-                                {% set approved = o.current_quest.team_approvals.get(team, False) %}
-                                <div class="mb-2">
-                                  <span class="fw-semibold" style="font-size: 1rem;">{{ team_labels.get(team, team) }}</span>
-                                  {% if approved %}
-                                    <span class="badge bg-success ms-2" style="font-size: 1rem; padding: 0.4em 0.7em;">승인완료</span>
-                                  {% else %}
-                                    {% set order_id_approve = o.id %}
-                                    {% set team_name = team %}
-                                    <button class="btn btn-primary fw-semibold ms-2" onclick="approveQuestTeam({{ order_id_approve }}, '{{ team_name }}')" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>
-                                  {% endif %}
-                                </div>
-                                {% endfor %}
-                              </div>
-                            </div>
-                            <div class="d-flex gap-2">
-                              {% set order_id_refresh = o.id %}
-                              <button class="btn btn-outline-primary fw-semibold" type="button" onclick="refreshQuestStatus({{ order_id_refresh }})" style="font-size: 1rem; padding: 0.5rem 1rem;">
-                                <i class="fas fa-sync"></i> 상태 새로고침
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                {% endif %}
                 <!-- Order Detail Slide -->
                 <tr>
                   <td colspan="12" class="p-0">
@@ -1705,9 +1964,9 @@
         const address = addressFull || (addressMain && addressDetail ? `${addressMain} ${addressDetail}`.trim() : addressMain) || addressDetail || '-';
         // 특이사항: notes 객체에서 읽기 (erpbeta 저장 경로와 일치)
         const notes = sd.notes || {};
-        const addressNote = notes.address_note || '-';
-        const phoneNote = notes.phone_note || '-';
-        const measureNote = notes.measurement_note || '-';
+        const addressNote = (notes.address_note || '').trim();
+        const phoneNote = (notes.phone_note || '').trim();
+        const measureNote = (notes.measurement_note || '').trim();
         const measure = (((sd.schedule||{}).measurement||{}).date) || '-';
         const construct = (((sd.schedule||{}).construction||{}).date) || '-';
         const manager = (((sd.parties||{}).manager||{}).name) || '-';
@@ -1872,42 +2131,52 @@
             <div class="col-md-6">
               <div class="card">
                 <div class="card-body">
-                  <h5 class="card-title fw-bold" style="font-size: 1.4rem;"><i class="fas fa-info-circle text-primary"></i> 기본 정보</h5>
-                  <div style="font-size: 1.15rem;">
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">고객명:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(customer)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">발주사:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(orderer)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">연락처:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(phone)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">주소:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(address)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">담당자:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(manager)}</span></div>
+                  <h5 class="card-title fw-bold"><i class="fas fa-info-circle text-primary"></i> 기본 정보</h5>
+                  <div class="erp-detail-text">
+                    <div class="mb-3"><strong class="erp-detail-label">고객명:</strong> <span class="erp-detail-value">${escapeHtml(customer)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">발주사:</strong> <span class="erp-detail-value">${escapeHtml(orderer)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">연락처:</strong> <span class="erp-detail-value">${escapeHtml(phone)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">주소:</strong> <span class="erp-detail-value">${escapeHtml(address)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">담당자:</strong> <span class="erp-detail-value">${escapeHtml(manager)}</span></div>
                   </div>
                 </div>
               </div>
             </div>`;
         
+        const noteRows = [];
+        if (addressNote) {
+          noteRows.push(`<div class="mb-2"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">${escapeHtml(addressNote)}</span></div>`);
+        }
+        if (phoneNote) {
+          noteRows.push(`<div class="mb-2"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">${escapeHtml(phoneNote)}</span></div>`);
+        }
+        if (measureNote) {
+          noteRows.push(`<div class="mb-2"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">${escapeHtml(measureNote)}</span></div>`);
+        }
+        const notesHtml = noteRows.join('');
+
         const scheduleHtml = `
             <div class="${isMobile ? 'col-12' : 'col-md-6'}">
-              <div class="card">
+              <div class="card erp-schedule-card">
                 <div class="card-body">
-                  <h5 class="card-title fw-bold" style="font-size: 1.4rem;"><i class="fas fa-calendar text-primary"></i> 일정 및 특이사항</h5>
-                  <div style="font-size: 1.15rem;">
-                    ${isMobile ? '' : `<div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">실측일:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(measure)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">시공일:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(construct)}</span></div>`}
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">주소특이:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(addressNote)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">연락특이:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(phoneNote)}</span></div>
-                    <div class="mb-3"><strong style="font-size: 1.2rem; color: #0d6efd;">실측특이:</strong> <span class="fw-bold" style="font-size: 1.2rem; color: #212529; margin-left: 0.5rem;">${escapeHtml(measureNote)}</span></div>
+                  <h5 class="card-title fw-bold" style="font-size: 0.95rem;"><i class="fas fa-calendar text-primary"></i> 일정 및 특이사항</h5>
+                  <div class="erp-detail-text" style="font-size: 0.9rem;">
+                    ${isMobile ? '' : `<div class="mb-2"><strong class="erp-detail-label">실측일:</strong> <span class="erp-detail-value">${escapeHtml(measure)}</span></div>
+                    <div class="mb-2"><strong class="erp-detail-label">시공일:</strong> <span class="erp-detail-value">${escapeHtml(construct)}</span></div>`}
+                    ${notesHtml}
                   </div>
                 </div>
               </div>
             </div>`;
         
         container.innerHTML = `
-          <div class="row g-3">
+          <div class="row g-3 erp-order-detail">
             ${basicInfoHtml}
             ${scheduleHtml}
             <div class="col-12">
               <div class="card">
                 <div class="card-body">
-                  <h5 class="card-title fw-bold mb-3" style="font-size: 1.4rem;"><i class="fas fa-box text-primary"></i> 제품 항목</h5>
+                  <h5 class="card-title fw-bold mb-3"><i class="fas fa-box text-primary"></i> 제품 항목</h5>
                   ${itemsHtml}
                 </div>
               </div>
@@ -1915,7 +2184,7 @@
             <div class="col-12">
               <div class="card">
                 <div class="card-body">
-                  <h5 class="card-title fw-bold mb-3" style="font-size: 1.25rem;"><i class="fas fa-paperclip text-primary"></i> 첨부 파일 <span class="badge bg-secondary" style="font-size: 1rem;">${aList.length}개</span></h5>
+                  <h5 class="card-title fw-bold mb-3"><i class="fas fa-paperclip text-primary"></i> 첨부 파일 <span class="badge bg-secondary" style="font-size: 1rem;">${aList.length}개</span></h5>
                   ${attachmentsHtml}
                 </div>
               </div>

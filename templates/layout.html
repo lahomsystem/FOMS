@@ -524,10 +524,20 @@
         </header>
         
         {% if current_user %}
-        <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom px-4" style="position: sticky; top: 0; z-index: 1000; background-color: white !important;">
+        <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom px-2 px-lg-4" style="position: sticky; top: 0; z-index: 1000; background-color: white !important;">
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
+            {% if request.endpoint == 'erp_measurement_dashboard' %}
+            <div class="d-flex align-items-center gap-2 ms-2 d-lg-none">
+                <span class="fw-bold fs-6" style="line-height: 1;">
+                    <i class="fas fa-ruler-combined"></i> ERP Beta - 실측 대시보드
+                </span>
+                <a class="btn btn-outline-secondary btn-sm" href="/calendar" aria-label="기존 캘린더">
+                    <i class="fas fa-calendar"></i>
+                </a>
+            </div>
+            {% endif %}
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav">
                     {% for item in menu.main_menu %}

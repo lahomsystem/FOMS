@@ -284,14 +284,19 @@ async function erpLoadStructured() {
     const measurementTime = sd?.schedule?.measurement?.time || '';
     const erpMeasurementTimeSelect = document.getElementById('erp-measurement-time-select');
     const erpMeasurementTimeInput = document.getElementById('erp-measurement-time');
-    if (measurementTime === '오전' || measurementTime === '오후' || measurementTime === '종일') {
-        if (erpMeasurementTimeSelect) erpMeasurementTimeSelect.value = measurementTime;
-        if (erpMeasurementTimeInput) erpMeasurementTimeInput.style.display = 'none';
-    } else {
-        if (erpMeasurementTimeSelect) erpMeasurementTimeSelect.value = 'time_input';
-        if (erpMeasurementTimeInput) {
-            erpMeasurementTimeInput.value = measurementTime;
-            erpMeasurementTimeInput.style.display = 'block';
+    if (erpMeasurementTimeSelect) {
+        if (measurementTime === '오전' || measurementTime === '오후' || measurementTime === '종일') {
+            erpMeasurementTimeSelect.value = measurementTime;
+            if (erpMeasurementTimeInput) {
+                erpMeasurementTimeInput.value = '';
+                erpMeasurementTimeInput.style.display = 'none';
+            }
+        } else {
+            erpMeasurementTimeSelect.value = '__direct__';
+            if (erpMeasurementTimeInput) {
+                erpMeasurementTimeInput.value = measurementTime || '';
+                erpMeasurementTimeInput.style.display = 'block';
+            }
         }
     }
     document.getElementById('erp-measurement-note').value = sd?.notes?.measurement_note || '';
@@ -370,10 +375,12 @@ function erpCollectStructured() {
                 const timeSelect = document.getElementById('erp-measurement-time-select');
                 const timeInput = document.getElementById('erp-measurement-time');
                 let timeValue = '';
-                if (timeSelect && timeSelect.value === 'time_input') {
-                    timeValue = timeInput ? timeInput.value : '';
-                } else if (timeSelect) {
-                    timeValue = timeSelect.value;
+                if (timeSelect) {
+                    if (timeSelect.value === '__direct__') {
+                        timeValue = timeInput ? timeInput.value : '';
+                    } else {
+                        timeValue = timeSelect.value;
+                    }
                 }
                 return { date: document.getElementById('erp-measurement-date').value, time: timeValue };
             })(),
@@ -483,14 +490,19 @@ function erpApplyParsedToForm() {
     const measurementTime = sd?.schedule?.measurement?.time || '';
     const erpMeasurementTimeSelect = document.getElementById('erp-measurement-time-select');
     const erpMeasurementTimeInput = document.getElementById('erp-measurement-time');
-    if (measurementTime === '오전' || measurementTime === '오후' || measurementTime === '종일') {
-        if (erpMeasurementTimeSelect) erpMeasurementTimeSelect.value = measurementTime;
-        if (erpMeasurementTimeInput) erpMeasurementTimeInput.style.display = 'none';
-    } else {
-        if (erpMeasurementTimeSelect) erpMeasurementTimeSelect.value = 'time_input';
-        if (erpMeasurementTimeInput) {
-            erpMeasurementTimeInput.value = measurementTime;
-            erpMeasurementTimeInput.style.display = 'block';
+    if (erpMeasurementTimeSelect) {
+        if (measurementTime === '오전' || measurementTime === '오후' || measurementTime === '종일') {
+            erpMeasurementTimeSelect.value = measurementTime;
+            if (erpMeasurementTimeInput) {
+                erpMeasurementTimeInput.value = '';
+                erpMeasurementTimeInput.style.display = 'none';
+            }
+        } else {
+            erpMeasurementTimeSelect.value = '__direct__';
+            if (erpMeasurementTimeInput) {
+                erpMeasurementTimeInput.value = measurementTime || '';
+                erpMeasurementTimeInput.style.display = 'block';
+            }
         }
     }
     document.getElementById('erp-construction-date').value = sd?.schedule?.construction?.date || '';
@@ -601,17 +613,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // ERP Beta: 실측시간 선택 처리 (오전/오후/종일)
+    // ERP Beta: 실측시간 직접 입력 처리
     const erpMeasurementTimeSelect = document.getElementById('erp-measurement-time-select');
     const erpMeasurementTimeInput = document.getElementById('erp-measurement-time');
     if (erpMeasurementTimeSelect && erpMeasurementTimeInput) {
-        erpMeasurementTimeInput.style.display = 'block';
         erpMeasurementTimeSelect.addEventListener('change', function() {
-            if (this.value === '오전' || this.value === '오후' || this.value === '종일') {
+            if (this.value === '__direct__') {
+                erpMeasurementTimeInput.style.display = 'block';
+            } else {
                 erpMeasurementTimeInput.style.display = 'none';
                 erpMeasurementTimeInput.value = '';
-            } else {
-                erpMeasurementTimeInput.style.display = 'block';
             }
         });
     }
