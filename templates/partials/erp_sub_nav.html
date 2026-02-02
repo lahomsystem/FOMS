@@ -1,0 +1,16 @@
+{# ERP 대시보드·실측·AS·출고 서브 내비. erp_sub_nav_active: 'dashboard' | 'measurement' | 'as' | 'shipment' #}
+{% set _active = erp_sub_nav_active | default('dashboard') %}
+<nav class="nav nav-pills nav-fill gap-1 mb-3 erp-sub-nav" aria-label="ERP 메뉴">
+  <a class="nav-link {% if _active == 'dashboard' %}active{% endif %}" href="{{ url_for('erp_dashboard') }}">
+    <i class="fas fa-layer-group me-1"></i> ERP 대시보드
+  </a>
+  <a class="nav-link {% if _active == 'measurement' %}active{% endif %}" href="{{ url_for('erp_measurement_dashboard') }}">
+    <i class="fas fa-ruler-combined me-1"></i> 실측
+  </a>
+  <a class="nav-link {% if _active == 'as' %}active{% endif %}" href="{{ url_for('erp_as_dashboard') }}">
+    <i class="fas fa-wrench me-1"></i> AS
+  </a>
+  <a class="nav-link {% if _active == 'shipment' %}active{% endif %}" href="{{ url_for('erp_shipment_dashboard') }}">
+    <i class="fas fa-truck-loading me-1"></i> 출고
+  </a>
+</nav>

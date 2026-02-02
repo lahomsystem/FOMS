@@ -1,7 +1,11 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3"></div>
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <span class="mb-0 fw-bold text-dark fs-6"><i class="fas fa-ruler-combined text-primary"></i> ERP 실측 대시보드</span>
+</div>
+{% set erp_sub_nav_active = 'measurement' %}
+{% include 'partials/erp_sub_nav.html' %}
 
 {% if not erp_beta_enabled %}
   <div class="alert alert-secondary">
@@ -34,45 +38,35 @@
     </div>
     <div class="card-body">
       <div class="row g-3">
-        <div class="col-12 col-lg-3">
+        <div class="col-12 col-xl-2 col-lg-2">
           <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-              <div class="fw-bold">
-                <i class="fas fa-calendar-day"></i> 날짜별 실측 건수
-              </div>
-              <div class="d-flex align-items-center gap-2">
-                <a href="/erp/measurement?date={{ today_date }}&manager={{ manager_filter | urlencode }}" class="btn btn-sm btn-outline-primary" title="오늘 날짜로 이동">오늘</a>
+            <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap">
+              <div class="fw-bold small"><i class="fas fa-calendar-day"></i> 날짜별 실측</div>
+              <div class="d-flex align-items-center gap-1">
+                <a href="{{ url_for('erp_measurement_dashboard', date=today_date, manager=manager_filter or '') }}" class="btn btn-sm btn-outline-primary py-0 px-1" title="오늘">오늘</a>
                 <span class="badge bg-primary">{{ selected_date }}</span>
               </div>
             </div>
-            <div class="card-body p-2">
+            <div class="card-body p-1">
               <div class="measurement-panel-list">
                 {% for item in measurement_panel_dates %}
                   {% set day_label = ['월','화','수','목','금','토','일'][item.weekday] %}
-                  <a id="date-{{ item.date }}" class="measurement-panel-item {% if item.is_selected %}is-selected{% endif %} {% if item.is_weekend %}is-weekend{% endif %} {% if item.is_holiday %}is-holiday{% endif %} {% if item.date == today_date %}is-today{% endif %}"
-                     href="/erp/measurement?date={{ item.date }}&manager={{ manager_filter | urlencode }}#date-{{ item.date }}">
-                    <div class="d-flex align-items-center justify-content-between w-100">
-                      <div class="d-flex flex-column">
-                        <div class="fw-semibold">{{ item.date }}</div>
-                        <div class="small text-muted">{{ day_label }}</div>
-                      </div>
-                      <div class="d-flex align-items-center gap-2">
-                        {% if item.is_holiday %}
-                          <span class="badge bg-danger">휴일</span>
-                        {% elif item.is_weekend %}
-                          <span class="badge bg-warning text-dark">주말</span>
-                        {% endif %}
-                        <span class="badge badge-count">{{ item.count }}</span>
-                      </div>
+                  <a id="date-{{ item.date }}" class="measurement-panel-item measurement-panel-item-oneline {% if item.is_selected %}is-selected{% endif %} {% if item.is_weekend %}is-weekend{% endif %} {% if item.is_holiday %}is-holiday{% endif %} {% if item.date == today_date %}is-today{% endif %}"
+                     href="{{ url_for('erp_measurement_dashboard', date=item.date, manager=manager_filter or '') }}#date-{{ item.date }}">
+                    <div class="d-flex align-items-center justify-content-between gap-1 w-100 flex-nowrap">
+                      <span class="measurement-panel-date">{{ item.date }}</span>
+                      <span class="measurement-panel-day">({{ day_label }})</span>
+                      {% if item.is_holiday %}<span class="badge bg-danger">휴일</span>{% elif item.is_weekend %}<span class="badge bg-warning text-dark">주말</span>{% endif %}
+                      <span class="badge badge-count ms-auto">{{ item.count }}</span>
                     </div>
                   </a>
                 {% endfor %}
               </div>
-              <div class="small text-muted mt-2 px-1">최근/예정 60일 기준</div>
+              <div class="small text-muted mt-1 px-1">60일 기준</div>
             </div>
           </div>
         </div>
-        <div class="col-12 col-lg-9">
+        <div class="col-12 col-xl-10 col-lg-10">
           <div class="table-responsive">
             <style>
           .measurement-row {
@@ -92,6 +86,13 @@
           .measurement-table .cell-wrap {
             white-space: normal;
             word-break: break-word;
+          }
+          .measurement-table .measurement-address-cell {
+            font-size: 1rem;
+            min-width: 280px;
+          }
+          .measurement-table .measurement-product-cell {
+            max-width: 140px;
           }
           .manager-cell {
             font-weight: 500;
@@ -136,6 +137,14 @@
             margin-bottom: 6px;
             transition: all 0.15s ease-in-out;
           }
+          .measurement-panel-item-oneline {
+            padding: 5px 8px;
+            margin-bottom: 4px;
+            border-radius: 6px;
+          }
+          .measurement-panel-item-oneline .measurement-panel-date { font-size: 0.85rem; white-space: nowrap; }
+          .measurement-panel-item-oneline .measurement-panel-day { font-size: 0.8rem; color: #6c757d; }
+          .measurement-panel-item-oneline .badge-count { font-size: 0.85rem; min-width: 28px; padding: 2px 6px; }
           .measurement-panel-item:hover {
             background: #f8f9fa;
             border-color: #dee2e6;
@@ -218,7 +227,7 @@
               <th style="border-right: 1px solid #e0e0e0;">주소</th>
               <th style="width: 120px; border-right: 1px solid #e0e0e0;">전화번호</th>
               <th style="width: 90px; border-right: 1px solid #e0e0e0;">시간</th>
-              <th style="border-right: 1px solid #e0e0e0;">제품</th>
+              <th class="measurement-product-cell" style="max-width: 140px; border-right: 1px solid #e0e0e0;">제품</th>
               <th style="width: 120px;">담당자</th>
             </tr>
           </thead>
@@ -334,10 +343,10 @@
                 </td>
                 <td style="border-right: 1px solid #e0e0e0;">{{ customer or '-' }}</td>
                 <td style="border-right: 1px solid #e0e0e0;">{{ orderer or '-' }}</td>
-                <td class="editable-cell cell-wrap" data-field="address" style="border-right: 1px solid #e0e0e0;">{{ address or '-' }}</td>
+                <td class="editable-cell cell-wrap measurement-address-cell" data-field="address" style="border-right: 1px solid #e0e0e0;">{{ address or '-' }}</td>
                 <td class="editable-cell" data-field="phone" style="border-right: 1px solid #e0e0e0;">{{ phone or '-' }}</td>
                 <td style="border-right: 1px solid #e0e0e0;">{{ meas_time or '-' }}</td>
-                <td class="cell-wrap" style="border-right: 1px solid #e0e0e0;">{{ product or '-' }}</td>
+                <td class="cell-wrap measurement-product-cell" style="border-right: 1px solid #e0e0e0;">{{ (product or '-')|strip_product_w or '-' }}</td>
                 <td class="editable-cell manager-cell" data-field="manager" style="background-color: {{ manager_bg_color }} !important; color: {{ text_color }} !important;">{{ manager or '-' }}</td>
               </tr>
             {% endfor %}

@@ -257,6 +257,10 @@ async function erpLoadStructured() {
     }
 
     const sd = data.structured_data || {};
+    const receivedDateEl = document.getElementById('erp-received-date');
+    const receivedTimeEl = document.getElementById('erp-received-time');
+    if (receivedDateEl) receivedDateEl.value = data.received_date || '';
+    if (receivedTimeEl) receivedTimeEl.value = data.received_time || '';
     document.getElementById('erp-customer-name').value = sd?.parties?.customer?.name || '';
     document.getElementById('erp-customer-phone').value = sd?.parties?.customer?.phone || '';
     try {
@@ -271,14 +275,11 @@ async function erpLoadStructured() {
     document.getElementById('erp-workflow-stage').value = sd?.workflow?.stage || '';
     document.getElementById('erp-urgent-flag').checked = !!sd?.flags?.urgent;
     document.getElementById('erp-urgent-reason').value = sd?.flags?.urgent_reason || '';
-    // 주소 로드: address_main과 address_detail이 있으면 각각 사용, 없으면 address_full 사용
+    // 주소 로드: 주소+상세주소는 한 필드(erp-address)에 함께 표기
     const site = sd?.site || {};
-    const addressMain = site.address_main || '';
+    const addressFull = site.address_full || site.address_main || '';
     const addressDetail = site.address_detail || '';
-    const addressFull = site.address_full || '';
-    // address_main이 있으면 사용, 없으면 address_full 사용
-    document.getElementById('erp-address').value = addressMain || addressFull || '';
-    document.getElementById('erp-address-detail').value = addressDetail || '';
+    document.getElementById('erp-address').value = addressDetail ? `${addressFull} ${addressDetail}`.trim() : addressFull;
     document.getElementById('erp-address-note').value = sd?.notes?.address_note || '';
     document.getElementById('erp-measurement-date').value = sd?.schedule?.measurement?.date || '';
     const measurementTime = sd?.schedule?.measurement?.time || '';
@@ -366,9 +367,8 @@ function erpCollectStructured() {
             manager: { name: document.getElementById('erp-manager').value }
         },
         site: (function() {
-            const main = (document.getElementById('erp-address').value || '').trim();
-            const detail = (document.getElementById('erp-address-detail').value || '').trim();
-            return { address_main: main, address_detail: detail, address_full: detail ? `${main} ${detail}`.trim() : main };
+            const full = (document.getElementById('erp-address').value || '').trim();
+            return { address_main: full, address_detail: '', address_full: full };
         })(),
         schedule: {
             measurement: (function() {
@@ -407,6 +407,10 @@ async function erpSaveStructured() {
     const structured_data = erpCollectStructured();
     const raw_order_text = document.getElementById('erp-raw-text')?.value || '';
     try {
+        const receivedDateEl = document.getElementById('erp-received-date');
+        const receivedTimeEl = document.getElementById('erp-received-time');
+        const received_date = receivedDateEl ? (receivedDateEl.value || '').trim() : '';
+        const received_time = receivedTimeEl ? (receivedTimeEl.value || '').trim() : '';
         const res = await fetch(`/api/orders/${ORDER_ID}/structured`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -414,7 +418,9 @@ async function erpSaveStructured() {
                 structured_data,
                 raw_order_text,
                 structured_schema_version: 1,
-                structured_confidence: structured_data.confidence
+                structured_confidence: structured_data.confidence,
+                received_date: received_date || undefined,
+                received_time: received_time || undefined
             })
         });
         const data = await res.json();
@@ -529,17 +535,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // ERP Beta: 주소 입력 (통합 - 찾기 버튼으로 주소 검색 또는 직접 입력 가능)
     const addrInput = document.getElementById('erp-address');
 
-    // ERP Beta: 주소 검색 모달
+    // ERP Beta: 주소 검색 모달 (선택 후 '입력' 버튼으로 한꺼번에 적용)
     const addrModalEl = document.getElementById('erpAddressSearchModal');
     const addrModal = addrModalEl ? new bootstrap.Modal(addrModalEl) : null;
     const addrModalQuery = document.getElementById('erp-address-modal-query');
     const addrModalSearchBtn = document.getElementById('erp-address-modal-search-btn');
     const addrModalStatus = document.getElementById('erp-address-modal-status');
     const addrModalResults = document.getElementById('erp-address-modal-results');
+    const addrModalApplyBtn = document.getElementById('erp-address-modal-apply-btn');
     const openSearchBtn = document.getElementById('erp-address-search-btn');
+
+    let selectedModalAddress = '';
 
     async function doAddressSearch(query) {
         if (!query || !query.trim()) return;
+        selectedModalAddress = '';
         if (addrModalStatus) addrModalStatus.textContent = '검색 중...';
         if (addrModalResults) addrModalResults.innerHTML = '';
         try {
@@ -551,18 +561,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             const results = data.results || [];
-            if (addrModalStatus) addrModalStatus.textContent = `${results.length}건 검색됨`;
+            if (addrModalStatus) addrModalStatus.textContent = `${results.length}건 검색됨. 주소를 선택한 뒤 상세주소 입력 후 '입력' 버튼을 누르세요.`;
             results.forEach(r => {
                 const item = document.createElement('button');
                 item.type = 'button';
                 item.className = 'list-group-item list-group-item-action';
-                const main = r.road_address_name || r.address_name || '-';
+                const base = r.road_address_name || r.address_name || '-';
+                const main = r.building_name ? `${base}, ${r.building_name}` : base;
                 const sub = [r.building_name, r.region_3depth_name].filter(Boolean).join(' · ');
-                item.innerHTML = `<div class="fw-semibold">${escapeHtml(main)}</div><div class="small text-muted">${escapeHtml(sub)}</div>`;
+                item.innerHTML = `<div class="fw-semibold">${escapeHtml(main)}</div>${sub ? `<div class="small text-muted">${escapeHtml(sub)}</div>` : ''}`;
                 item.addEventListener('click', () => {
-                    // 찾은 주소를 erp-address 필드에 직접 입력
-                    if (addrInput) addrInput.value = main;
-                    if (addrModal) addrModal.hide();
+                    selectedModalAddress = main;
+                    addrModalResults.querySelectorAll('.list-group-item').forEach(el => el.classList.remove('active'));
+                    item.classList.add('active');
                 });
                 addrModalResults.appendChild(item);
             });
@@ -571,15 +582,31 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    if (addrModalApplyBtn) {
+        addrModalApplyBtn.addEventListener('click', () => {
+            const detailEl = document.getElementById('erp-address-modal-detail');
+            const detail = detailEl ? (detailEl.value || '').trim() : '';
+            const full = selectedModalAddress ? (detail ? `${selectedModalAddress} ${detail}` : selectedModalAddress) : detail;
+            if (addrInput) addrInput.value = full;
+            if (addrModal) addrModal.hide();
+        });
+    }
+
     if (openSearchBtn && addrModal) {
         openSearchBtn.addEventListener('click', () => {
-            // 현재 입력된 주소를 모달 검색창에 표시
+            selectedModalAddress = '';
             if (addrModalQuery) addrModalQuery.value = addrInput?.value || '';
             if (addrModalStatus) addrModalStatus.textContent = '';
             if (addrModalResults) addrModalResults.innerHTML = '';
+            const detailEl = document.getElementById('erp-address-modal-detail');
+            if (detailEl) detailEl.value = '';
             addrModal.show();
             setTimeout(() => addrModalQuery?.focus(), 200);
         });
+    }
+
+    if (addrModalEl) {
+        addrModalEl.addEventListener('hidden.bs.modal', () => { selectedModalAddress = ''; });
     }
 
     if (addrModalSearchBtn) {
@@ -818,7 +845,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (fileInput) {
             fileInput.value = '';
         }
-        
+        // add_order(draft) 모드에서 아직 주문이 없을 때 접수일/접수시간을 로컬 기준으로 표기
+        if (window.__ERP_BETA_DRAFT_MODE && (!ORDER_ID || ORDER_ID <= 0)) {
+            const now = new Date();
+            const localDateStr = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
+            const localTimeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+            const rd = document.getElementById('erp-received-date');
+            const rt = document.getElementById('erp-received-time');
+            if (rd) rd.value = localDateStr;
+            if (rt) rt.value = localTimeStr;
+        }
         // ORDER_ID가 있을 때만 데이터 로드 (저장 버튼으로 생성된 주문이 있을 때만)
         if (ORDER_ID && ORDER_ID > 0) {
             erpLoadStructured();
