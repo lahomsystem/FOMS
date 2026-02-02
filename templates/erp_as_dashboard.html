@@ -1,12 +1,14 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-2">
   <div>
-    <h4 class="mb-1"><i class="fas fa-wrench"></i> ERP Beta - AS 대시보드</h4>
-    <div class="text-muted small">AS 상태 주문을 중심으로 처리/추적을 시작합니다. (향후 WorkTicket 정규화 예정)</div>
+    <span class="mb-1 fw-bold text-dark fs-6"><i class="fas fa-wrench text-primary"></i> ERP AS 대시보드</span>
+    <div class="text-muted small"></div>
   </div>
 </div>
+{% set erp_sub_nav_active = 'as' %}
+{% include 'partials/erp_sub_nav.html' %}
 
 {% if not erp_beta_enabled %}
   <div class="alert alert-secondary">

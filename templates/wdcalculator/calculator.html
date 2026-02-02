@@ -1643,27 +1643,29 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 옵션명과 가격이 모두 입력된 경우만 계산 (가격 * 수량)
             if (name && price > 0) {
-                additionalPrice += price * quantity;
-                // 옵션명과 수량을 배열에 추가
+                const amount = price * quantity;
+                additionalPrice += amount;
                 additionalOptionsList.push({
                     name: name,
-                    quantity: quantity
+                    quantity: quantity,
+                    amount: amount
                 });
             }
         });
         
-        // 추가 옵션 상세 정보 생성: 옵션명 + 수량 (같은 옵션이 여러 개면 합산)
+        // 추가 옵션 상세 정보 생성: 옵션명 + 수량 + 금액 (같은 옵션이 여러 개면 합산)
         const optionMap = new Map();
         additionalOptionsList.forEach(option => {
             if (optionMap.has(option.name)) {
-                optionMap.set(option.name, optionMap.get(option.name) + option.quantity);
+                const prev = optionMap.get(option.name);
+                optionMap.set(option.name, { quantity: prev.quantity + option.quantity, amount: prev.amount + option.amount });
             } else {
-                optionMap.set(option.name, option.quantity);
+                optionMap.set(option.name, { quantity: option.quantity, amount: option.amount });
             }
         });
         
         const additionalOptionsDetail = Array.from(optionMap.entries())
-            .map(([name, qty]) => `${name} × ${qty}`)
+            .map(([name, v]) => `${name} × ${v.quantity} (${formatNumber(v.amount)}원)`)
             .join(', ');
         document.getElementById('additionalOptionsDetail').textContent = additionalOptionsDetail || '';
         
@@ -2057,12 +2059,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         let html = '<div class="row g-3">';
         estimates.forEach((estimate, index) => {
-            // 추가 옵션을 줄바꿈으로 표시
+            // 추가 옵션을 줄바꿈으로 표시 (수량 + 금액)
             let optionsDetailHtml = '없음';
             if (estimate.options && estimate.options.length > 0) {
-                optionsDetailHtml = estimate.options.map(opt => 
-                    `<div style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 1.02rem !important; line-height: 1.6 !important;">${escapeHtml(opt.name)} × ${opt.quantity}</div>`
-                ).join('');
+                optionsDetailHtml = estimate.options.map(opt => {
+                    const amount = (opt.price || 0) * (opt.quantity || 1);
+                    return `<div style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 1.02rem !important; line-height: 1.6 !important;">${escapeHtml(opt.name)} × ${opt.quantity} (${formatNumber(amount)}원)</div>`;
+                }).join('');
             }
             
             // ID를 문자열로 통일하여 HTML 속성에 저장 (XSS 방지를 위해 이스케이프)
@@ -2330,20 +2333,22 @@ document.addEventListener('DOMContentLoaded', function() {
         const finalPrice = shippingIncluded ? totalEstimate + shippingCost : totalEstimate;
         const couponInfoText = couponValue > 0 ? `${formatNumber(couponValue)}원 할인` : '쿠폰가 미적용';
         
-        // 전체 견적 상세 정보
+        // 전체 견적 상세 정보 (추가 옵션: 수량 + 금액)
         const baseDetails = estimates.map(est => `${est.productName} ${formatNumber(est.widthMm)}mm`).join(', ');
         const optionMap = new Map();
         estimates.forEach(est => {
-            est.options.forEach(opt => {
+            (est.options || []).forEach(opt => {
+                const amount = (opt.price || 0) * (opt.quantity || 1);
                 if (optionMap.has(opt.name)) {
-                    optionMap.set(opt.name, optionMap.get(opt.name) + opt.quantity);
+                    const prev = optionMap.get(opt.name);
+                    optionMap.set(opt.name, { quantity: prev.quantity + (opt.quantity || 0), amount: prev.amount + amount });
                 } else {
-                    optionMap.set(opt.name, opt.quantity);
+                    optionMap.set(opt.name, { quantity: opt.quantity || 0, amount: amount });
                 }
             });
         });
         const additionalDetails = Array.from(optionMap.entries())
-            .map(([name, qty]) => `${name} × ${qty}`)
+            .map(([name, v]) => `${name} × ${v.quantity} (${formatNumber(v.amount)}원)`)
             .join(', ');
         
         // 견적 결과 섹션 표시 (수정 모드가 아닐 때만 업데이트)
