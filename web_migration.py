@@ -1,5 +1,5 @@
 import json
-from models import User, Order, ChatRoom, ChatMessage, OrderEvent, OrderTask
+from models import User, Order, ChatRoom, ChatMessage, OrderEvent, OrderTask, AccessLog, SecurityLog, ChatRoomMember, ChatAttachment, OrderAttachment
 
 def run_web_migration(sqlite_path, postgres_session, reset=False):
     """
@@ -17,12 +17,21 @@ def run_web_migration(sqlite_path, postgres_session, reset=False):
             logs.append("[RESET] Deleting existing data...")
             try:
                 # Delete in order of dependencies (child first)
+                postgres_session.query(ChatAttachment).delete()
+                postgres_session.query(ChatMessage).delete()
+                postgres_session.query(ChatRoomMember).delete()
+                postgres_session.query(ChatRoom).delete()
+                
                 postgres_session.query(OrderEvent).delete()
                 postgres_session.query(OrderTask).delete()
-                postgres_session.query(ChatMessage).delete()
-                postgres_session.query(ChatRoom).delete()
+                postgres_session.query(OrderAttachment).delete()
+                
+                postgres_session.query(SecurityLog).delete()
+                postgres_session.query(AccessLog).delete()
+                
                 postgres_session.query(Order).delete()
                 postgres_session.query(User).delete()
+                
                 postgres_session.commit()
                 logs.append("[RESET] All tables cleared.")
             except Exception as e:
