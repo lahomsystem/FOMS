@@ -51,31 +51,31 @@ from erp_order_text_parser import parse_order_text
 from map_config import KAKAO_REST_API_KEY
 from business_calendar import business_days_until
 
-# SocketIO 임포트 (Quest 5)
+# SocketIO Import (Quest 5)
 try:
     from flask_socketio import SocketIO, emit, join_room, leave_room
     SOCKETIO_AVAILABLE = True
 except ImportError:
     SOCKETIO_AVAILABLE = False
-    print("[WARN] Flask-SocketIO가 설치되지 않았습니다. pip install flask-socketio python-socketio eventlet")
+    print("[WARN] Flask-SocketIO not installed. pip install flask-socketio python-socketio eventlet")
 
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = 'furniture_order_management_secret_key'
 
-# SocketIO 초기화 (Quest 5)
-# Windows 환경에서 WebSocket 지원을 위해 threading 모드 사용
-# eventlet은 Windows에서 WebSocket 업그레이드 처리에 문제가 있을 수 있음
+# SocketIO Initialization (Quest 5)
+# Use threading mode for Windows WebSocket support
+# eventlet might have issues with WebSocket upgrade on Windows
 if SOCKETIO_AVAILABLE:
     try:
-        # threading 모드는 Windows에서 더 안정적
+        # threading mode is more stable on Windows
         socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
-        print("[INFO] Socket.IO가 threading 모드로 초기화되었습니다.")
+        print("[INFO] Socket.IO initialized in threading mode.")
     except Exception as e:
-        # threading 모드 실패 시 eventlet으로 폴백
-        print(f"[WARN] threading 모드 초기화 실패, eventlet으로 폴백: {e}")
+        # fallback to eventlet on failure
+        print(f"[WARN] threading mode init failed, falling back to eventlet: {e}")
         socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
-        print("[INFO] Socket.IO가 eventlet 모드로 초기화되었습니다.")
+        print("[INFO] Socket.IO initialized in eventlet mode.")
 else:
     socketio = None
 
