@@ -12,6 +12,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import or_, and_, text, func, String
 from sqlalchemy.orm.attributes import flag_modified
 import copy
+import json
 from datetime import date, timedelta
 
 # 데이터베이스 관련 임포트
@@ -327,6 +328,17 @@ def _erp_get_stage(order, structured_data):
     # ERP Beta 테스트 기준: 레거시(Order 컬럼)로 추정하지 않음
     return '주문접수'
 
+def _ensure_dict(data):
+    """Ensure data is a dict, properly parsing stringified JSON if needed (migration fix)"""
+    if isinstance(data, dict):
+        return data
+    if isinstance(data, str):
+        try:
+            return json.loads(data)
+        except:
+            return {}
+    return {}
+
 def _erp_has_media(order, attachments_count: int):
     # ERP Beta 테스트 기준: 레거시(Order 컬럼) 첨부(blueprint_image_url)로 판단하지 않음
     return attachments_count > 0
@@ -505,7 +517,7 @@ def erp_dashboard():
 
     enriched = []
     for o in orders:
-        sd = o.structured_data or {}
+        sd = _ensure_dict(o.structured_data)
         cnt = att_counts.get(o.id, 0)
         stage = _erp_get_stage(o, sd)
         alerts = _erp_alerts(o, sd, cnt)
@@ -2053,7 +2065,7 @@ def index():
             
             # ERP Beta 주문인 경우 structured_data에서 정보 추출하여 표시
             if order_db_item.is_erp_beta and order_db_item.structured_data:
-                sd = order_db_item.structured_data
+                sd = _ensure_dict(order_db_item.structured_data)
                 
                 # 고객명: structured_data.parties.customer.name
                 customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
