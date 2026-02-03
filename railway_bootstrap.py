@@ -12,6 +12,12 @@ Railway 배포 직후 1회 실행용 부트스트랩 스크립트.
 """
 
 import os
+import sys
+import io
+
+# Windows 환경에서 출력 인코딩 문제 방지
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 
 def main():
