@@ -1926,7 +1926,7 @@ def debug_db():
 
 @app.route('/admin/migration', methods=['GET', 'POST'])
 @login_required
-@role_required(['ADMIN'])
+@role_required(['ADMIN', 'MANAGER'])
 def admin_migration():
     """Web-based Data Migration (SQLite Upload -> Postgres)"""
     if request.method == 'POST':
