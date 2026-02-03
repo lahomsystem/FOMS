@@ -37,16 +37,16 @@ Base.query = db_session.query_property()
 def init_db():
     """데이터베이스 초기화 및 테이블 생성"""
     try:
-        # models는 함수 내부에서 임포트하여 순환 참조 방지
+        # models are imported inside function to prevent circular reference
         from models import (
             Order, User, AccessLog, SecurityLog,
             ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment,
             OrderAttachment, OrderEvent, OrderTask
         )
         Base.metadata.create_all(bind=engine)
-        print("데이터베이스 테이블 초기화 완료")
+        print("Database tables initialization completed")
     except Exception as e:
-        print(f"데이터베이스 초기화 중 오류 발생: {str(e)}")
+        print(f"Error during database initialization: {str(e)}")
         raise
 
 def get_db():
