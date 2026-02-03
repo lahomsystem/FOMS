@@ -61,84 +61,76 @@ def run_web_migration(sqlite_path, postgres_session, reset=False):
         # Used for JSON parsing
         JSON_COLUMNS = ['structured_data', 'meta', 'payload', 'file_info']
 
-        # 2. Users Migration
-        if 'users' in sqlite_meta.tables:
-            logs.append("[Step 1] Migrating Users...")
-            try:
-                users_table = sqlite_meta.tables['users']
-                with sqlite_engine.connect() as conn:
-                    result = conn.execute(select(users_table))
-                    rows = result.fetchall()
-                    
-                    count = 0
-                    for row in rows:
-                        row_dict = dict(row._mapping)
-                        
-                        if 'username' in row_dict:
-                            existing = postgres_session.query(User).filter_by(username=row_dict['username']).first()
-                            if existing:
-                                logs.append(f"  - Skip User: {row_dict['username']} (Exists)")
-                                continue
-                        
-                        valid_keys = [c.key for c in User.__table__.columns]
-                        filtered_data = {k: v for k, v in row_dict.items() if k in valid_keys}
-                        
-                        new_user = User(**filtered_data)
-                        postgres_session.add(new_user)
-                        count += 1
-                        
-                    postgres_session.commit()
-                    logs.append(f"  => {count} users migrated.")
-            except Exception as e:
-                postgres_session.rollback()
-                logs.append(f"  [ERROR] User migration failed: {str(e)}")
+        # Define migration order (Parent -> Child)
+        MODELS_TO_MIGRATE = [
+            User, 
+            Order, 
+            AccessLog, 
+            SecurityLog, 
+            OrderEvent, 
+            OrderTask, 
+            OrderAttachment, 
+            ChatRoom, 
+            ChatRoomMember, 
+            ChatMessage, 
+            ChatAttachment
+        ]
 
-        # 3. Orders Migration
-        if 'orders' in sqlite_meta.tables:
-            logs.append("[Step 2] Migrating Orders...")
-            try:
-                orders_table = sqlite_meta.tables['orders']
-                with sqlite_engine.connect() as conn:
-                    result = conn.execute(select(orders_table))
-                    rows = result.fetchall()
-                    
-                    count = 0
-                    target_columns = set(c.key for c in Order.__table__.columns)
-                    
-                    for row in rows:
-                        row_dict = dict(row._mapping)
-                        
-                        if 'id' in row_dict:
-                            existing = postgres_session.query(Order).get(row_dict['id'])
-                            if existing:
-                                logs.append(f"  - Skip Order ID: {row_dict['id']} (Exists)")
-                                continue
-                        
-                        filtered_data = {}
-                        for k, v in row_dict.items():
-                            if k in target_columns:
-                                # JSONB parsing
-                                if k in JSON_COLUMNS and isinstance(v, str):
-                                    try:
-                                        filtered_data[k] = json.loads(v)
-                                    except:
-                                        filtered_data[k] = {} # Fallback
-                                else:
-                                    filtered_data[k] = v
-                        
-                        new_order = Order(**filtered_data)
-                        postgres_session.add(new_order)
-                        count += 1
-                    
-                    postgres_session.commit()
-                    logs.append(f"  => {count} orders migrated.")
-            except Exception as e:
-                postgres_session.rollback()
-                logs.append(f"  [ERROR] Order migration failed: {str(e)}")
-        else:
-            logs.append("[WARN] 'orders' table not found in SQLite.")
+        total_migrated_count = 0
 
-        logs.append("Migration completed successfully.")
+        for model_cls in MODELS_TO_MIGRATE:
+             tablename = model_cls.__tablename__
+             
+             if tablename in sqlite_meta.tables:
+                logs.append(f"[Migrating] Table: {tablename} ...")
+                try:
+                    source_table = sqlite_meta.tables[tablename]
+                    with sqlite_engine.connect() as conn:
+                        result = conn.execute(select(source_table))
+                        rows = result.fetchall()
+                        
+                        count = 0
+                        target_columns = set(c.key for c in model_cls.__table__.columns)
+                        
+                        # Primary Key check (assume 'id' is PK for all these models)
+                        pk_name = 'id' 
+                        
+                        for row in rows:
+                            row_dict = dict(row._mapping)
+                            
+                            # Check existence if PK exists in row
+                            if pk_name in row_dict:
+                                existing = postgres_session.query(model_cls).get(row_dict[pk_name])
+                                if existing:
+                                    continue
+                            
+                            filtered_data = {}
+                            for k, v in row_dict.items():
+                                if k in target_columns:
+                                    # JSONB parsing
+                                    if k in JSON_COLUMNS and isinstance(v, str):
+                                        try:
+                                            filtered_data[k] = json.loads(v)
+                                        except:
+                                            filtered_data[k] = {} # Fallback
+                                    else:
+                                        filtered_data[k] = v
+                            
+                            new_obj = model_cls(**filtered_data)
+                            postgres_session.add(new_obj)
+                            count += 1
+                            
+                        postgres_session.commit()
+                        logs.append(f"  => {count} rows migrated.")
+                        total_migrated_count += count
+                        
+                except Exception as e:
+                    postgres_session.rollback()
+                    logs.append(f"  [ERROR] {tablename} migration failed: {str(e)}")
+             else:
+                logs.append(f"[SKIP] Table '{tablename}' not found in SQLite.")
+
+        logs.append(f"Migration completed. Total {total_migrated_count} rows.")
         return True, logs
 
     except Exception as e:
