@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Railway 배포 직후 1회 실행용 부트스트랩 스크립트.
+Railway Bootstrap Script (One-time run)
 
-- 메인(FOMS) 테이블 생성
-- WDCalculator 스키마(wdcalculator) 생성 + 테이블 생성
+- Create main tables (FOMS)
+- Create WDCalculator schema/tables
 
-사용 예:
-- (로컬)  python railway_bootstrap.py
+Usage:
+- (Local)  python railway_bootstrap.py
 - (Railway) railway run python railway_bootstrap.py
 """
 
@@ -15,7 +15,7 @@ import os
 import sys
 import io
 
-# Windows 환경에서 출력 인코딩 문제 방지
+# Prevent encoding issues on Windows
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
