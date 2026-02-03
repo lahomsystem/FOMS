@@ -1,19 +1,34 @@
-import os
-import sqlalchemy
-from sqlalchemy import create_engine, MetaData, Table, select
-from sqlalchemy.orm import sessionmaker
-from models import User, Order
+import json
+from models import User, Order, ChatRoom, ChatMessage, OrderEvent, OrderTask
 
-def run_web_migration(sqlite_path, postgres_session):
+def run_web_migration(sqlite_path, postgres_session, reset=False):
     """
     Reflected Web Migration:
-    Reads from SQLite using reflection (adapting to actual schema)
-    and writes to Postgres using the defined Models.
+    Reads from SQLite using reflection and writes to Postgres.
+    reset: If True, deletes all data from target tables before migrating.
     """
     logs = []
     
     try:
         logs.append(f"Starting migration from {sqlite_path}...")
+
+        # 0. Reset (if requested)
+        if reset:
+            logs.append("[RESET] Deleting existing data...")
+            try:
+                # Delete in order of dependencies (child first)
+                postgres_session.query(OrderEvent).delete()
+                postgres_session.query(OrderTask).delete()
+                postgres_session.query(ChatMessage).delete()
+                postgres_session.query(ChatRoom).delete()
+                postgres_session.query(Order).delete()
+                postgres_session.query(User).delete()
+                postgres_session.commit()
+                logs.append("[RESET] All tables cleared.")
+            except Exception as e:
+                postgres_session.rollback()
+                logs.append(f"[RESET ERROR] Failed to clear tables: {e}")
+                return False, logs
         
         # 1. SQLite Connection & Reflection
         if not os.path.exists(sqlite_path):
@@ -30,29 +45,28 @@ def run_web_migration(sqlite_path, postgres_session):
         except Exception as e:
             return False, [f"Failed to reflect SQLite tables: {e}"]
 
+        # Used for JSON parsing
+        JSON_COLUMNS = ['structured_data', 'meta', 'payload', 'file_info']
+
         # 2. Users Migration
         if 'users' in sqlite_meta.tables:
             logs.append("[Step 1] Migrating Users...")
             try:
                 users_table = sqlite_meta.tables['users']
                 with sqlite_engine.connect() as conn:
-                    # Select all columns
                     result = conn.execute(select(users_table))
                     rows = result.fetchall()
                     
                     count = 0
                     for row in rows:
-                        # Convert row to dict
                         row_dict = dict(row._mapping)
                         
-                        # Check existance
                         if 'username' in row_dict:
                             existing = postgres_session.query(User).filter_by(username=row_dict['username']).first()
                             if existing:
                                 logs.append(f"  - Skip User: {row_dict['username']} (Exists)")
                                 continue
                         
-                        # Filter keys to match User model columns
                         valid_keys = [c.key for c in User.__table__.columns]
                         filtered_data = {k: v for k, v in row_dict.items() if k in valid_keys}
                         
@@ -65,8 +79,6 @@ def run_web_migration(sqlite_path, postgres_session):
             except Exception as e:
                 postgres_session.rollback()
                 logs.append(f"  [ERROR] User migration failed: {str(e)}")
-        else:
-            logs.append("[WARN] 'users' table not found in SQLite.")
 
         # 3. Orders Migration
         if 'orders' in sqlite_meta.tables:
@@ -78,23 +90,28 @@ def run_web_migration(sqlite_path, postgres_session):
                     rows = result.fetchall()
                     
                     count = 0
-                    # Get target columns from Order model
                     target_columns = set(c.key for c in Order.__table__.columns)
                     
                     for row in rows:
                         row_dict = dict(row._mapping)
                         
-                        # Check existance by ID
                         if 'id' in row_dict:
                             existing = postgres_session.query(Order).get(row_dict['id'])
                             if existing:
                                 logs.append(f"  - Skip Order ID: {row_dict['id']} (Exists)")
                                 continue
                         
-                        # Map fields: Only pass fields that exist in BOTH source and target
-                        # This handles missing columns (like is_cabinet) in source by ignoring them here
-                        # validation against Order model happens on initialization (defaults used for missing args)
-                        filtered_data = {k: v for k, v in row_dict.items() if k in target_columns}
+                        filtered_data = {}
+                        for k, v in row_dict.items():
+                            if k in target_columns:
+                                # JSONB parsing
+                                if k in JSON_COLUMNS and isinstance(v, str):
+                                    try:
+                                        filtered_data[k] = json.loads(v)
+                                    except:
+                                        filtered_data[k] = {} # Fallback
+                                else:
+                                    filtered_data[k] = v
                         
                         new_order = Order(**filtered_data)
                         postgres_session.add(new_order)
