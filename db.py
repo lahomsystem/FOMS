@@ -24,7 +24,6 @@ DB_URL = _normalize_postgres_url(
 # SQLAlchemy 엔진 생성
 engine = create_engine(
     DB_URL,
-    connect_args={"client_encoding": "utf8"},
     pool_pre_ping=True,
     echo=False  # SQL 로그 비활성화
 )
