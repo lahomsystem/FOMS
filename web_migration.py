@@ -1,8 +1,10 @@
 import json
 import os
 import sqlalchemy
-from sqlalchemy import create_engine, MetaData, Table, select
+from sqlalchemy import create_engine, MetaData, Table, select, text
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import Boolean
+import glob
 from models import User, Order, ChatRoom, ChatMessage, OrderEvent, OrderTask, AccessLog, SecurityLog, ChatRoomMember, ChatAttachment, OrderAttachment
 from models import User, Order, ChatRoom, ChatMessage, OrderEvent, OrderTask, AccessLog, SecurityLog, ChatRoomMember, ChatAttachment, OrderAttachment
 from wdcalculator_models import Estimate, EstimateHistory, EstimateOrderMatch
@@ -114,12 +116,17 @@ def run_web_migration(sqlite_path, postgres_session, reset=False):
                         # Primary Key check (assume 'id' is PK for all these models)
                         pk_name = 'id' 
                         
+                        # Precheck for Booleans
+                        bool_columns = [c.key for c in model_cls.__table__.columns if isinstance(c.type, Boolean)]
+
                         for row in rows:
                             row_dict = dict(row._mapping)
                             
                             # Check existence if PK exists in row
                             if pk_name in row_dict:
-                                existing = postgres_session.query(model_cls).get(row_dict[pk_name])
+                                # Use correct session for query
+                                exist_session = get_session_for_model(model_cls)
+                                existing = exist_session.query(model_cls).get(row_dict[pk_name])
                                 if existing:
                                     continue
                             
@@ -132,6 +139,14 @@ def run_web_migration(sqlite_path, postgres_session, reset=False):
                                             filtered_data[k] = json.loads(v)
                                         except:
                                             filtered_data[k] = {} # Fallback
+                                    # Forced Boolean Conversion
+                                    elif k in bool_columns:
+                                        if str(v) in ['1', 't', 'true', 'True']:
+                                            filtered_data[k] = True
+                                        elif str(v) in ['0', 'f', 'false', 'False', 'None']:
+                                            filtered_data[k] = False
+                                        else:
+                                            filtered_data[k] = bool(v)
                                     else:
                                         filtered_data[k] = v
                             
