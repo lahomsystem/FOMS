@@ -173,7 +173,7 @@ STATUS = {
     'DELETED': '삭제됨'
 }
 
-# 수납장 상태 매핑
+# 수납장 상태 매핑 (Force redeploy)
 CABINET_STATUS = {
     'RECEIVED': '접수',
     'IN_PRODUCTION': '제작중',
