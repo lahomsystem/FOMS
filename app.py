@@ -174,6 +174,8 @@ STATUS = {
 }
 
 # 수납장 상태 매핑
+CABINET_STATUS = {
+    'RECEIVED': '접수',
     'IN_PRODUCTION': '제작중',
     'SHIPPED': '발송'
 }
