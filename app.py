@@ -63,6 +63,12 @@ except ImportError:
 app = Flask(__name__)
 app.secret_key = 'furniture_order_management_secret_key'
 
+# Temporary Debugging: Show errors in browser
+@app.errorhandler(500)
+def internal_error(error):
+    import traceback
+    return f"<pre>500 Error: {str(error)}\n\n{traceback.format_exc()}</pre>", 500
+
 # SocketIO Initialization (Quest 5)
 # Use threading mode for Windows WebSocket support
 # eventlet might have issues with WebSocket upgrade on Windows
