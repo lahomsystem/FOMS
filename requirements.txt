@@ -119,6 +119,6 @@ python-Levenshtein>=0.21.0
 # 채팅 시스템 (Quest 5)
 flask-socketio>=5.3.6
 python-socketio>=5.10.0
-eventlet>=0.33.3
+eventlet>=0.35.2
 boto3>=1.28.0  # 클라우드 스토리지 지원 (Quest 2)
 holidays==0.42  # 영업일(주말/공휴일 제외) 계산용
