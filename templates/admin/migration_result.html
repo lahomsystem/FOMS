@@ -1,0 +1,29 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>마이그레이션 결과</h2>
+
+    {% if success %}
+    <div class="alert alert-success">마이그레이션이 성공적으로 완료되었습니다.</div>
+    {% else %}
+    <div class="alert alert-danger">마이그레이션 중 오류가 발생했습니다.</div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header">실행 로그</div>
+        <div class="card-body bg-light">
+            <pre style="max-height: 500px; overflow-y: auto;">
+{% for log in logs %}
+{{ log }}
+{% endfor %}
+            </pre>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ url_for('index') }}" class="btn btn-primary">메인으로 이동</a>
+        <a href="{{ url_for('admin_migration') }}" class="btn btn-secondary">다시 시도</a>
+    </div>
+</div>
+{% endblock %}
