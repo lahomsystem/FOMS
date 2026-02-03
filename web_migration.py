@@ -4,7 +4,9 @@ import sqlalchemy
 from sqlalchemy import create_engine, MetaData, Table, select
 from sqlalchemy.orm import sessionmaker
 from models import User, Order, ChatRoom, ChatMessage, OrderEvent, OrderTask, AccessLog, SecurityLog, ChatRoomMember, ChatAttachment, OrderAttachment
+from models import User, Order, ChatRoom, ChatMessage, OrderEvent, OrderTask, AccessLog, SecurityLog, ChatRoomMember, ChatAttachment, OrderAttachment
 from wdcalculator_models import Estimate, EstimateHistory, EstimateOrderMatch
+from wdcalculator_db import wd_calculator_session
 
 def run_web_migration(sqlite_path, postgres_session, reset=False):
     """
@@ -16,17 +18,24 @@ def run_web_migration(sqlite_path, postgres_session, reset=False):
     
     try:
         logs.append(f"Starting migration from {sqlite_path}...")
+        
+        # Determine Session for each model
+        def get_session_for_model(model):
+            if model in [Estimate, EstimateHistory, EstimateOrderMatch]:
+                return wd_calculator_session
+            return postgres_session
 
         # 0. Reset (if requested)
         if reset:
             logs.append("[RESET] Deleting existing data...")
             try:
-                # Delete WDCalculator tables First
-                postgres_session.query(EstimateOrderMatch).delete()
-                postgres_session.query(EstimateHistory).delete()
-                postgres_session.query(Estimate).delete()
+                # Delete WDCalculator tables First (using WD session)
+                wd_calculator_session.query(EstimateOrderMatch).delete()
+                wd_calculator_session.query(EstimateHistory).delete()
+                wd_calculator_session.query(Estimate).delete()
+                wd_calculator_session.commit()
 
-                # Delete in order of dependencies (child first)
+                # Delete Main tables (in order of dependencies)
                 postgres_session.query(ChatAttachment).delete()
                 postgres_session.query(ChatMessage).delete()
                 postgres_session.query(ChatRoomMember).delete()
@@ -46,6 +55,7 @@ def run_web_migration(sqlite_path, postgres_session, reset=False):
                 logs.append("[RESET] All tables cleared.")
             except Exception as e:
                 postgres_session.rollback()
+                wd_calculator_session.rollback()
                 logs.append(f"[RESET ERROR] Failed to clear tables: {e}")
                 return False, logs
         
@@ -126,15 +136,22 @@ def run_web_migration(sqlite_path, postgres_session, reset=False):
                                         filtered_data[k] = v
                             
                             new_obj = model_cls(**filtered_data)
-                            postgres_session.add(new_obj)
+                            
+                            # Use correct session
+                            session = get_session_for_model(model_cls)
+                            session.add(new_obj)
                             count += 1
                             
+                        # Commit both sessions
                         postgres_session.commit()
+                        wd_calculator_session.commit()
+                        
                         logs.append(f"  => {count} rows migrated.")
                         total_migrated_count += count
                         
                 except Exception as e:
                     postgres_session.rollback()
+                    wd_calculator_session.rollback()
                     logs.append(f"  [ERROR] {tablename} migration failed: {str(e)}")
              else:
                 logs.append(f"[SKIP] Table '{tablename}' not found in SQLite.")
