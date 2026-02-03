@@ -222,11 +222,59 @@ ROLES = {
 
 # Authentication Helper Functions
 def log_access(action, user_id=None, additional_data=None):
-    db = get_db()
-    # action은 "주문 #번호 ..." 형태로 완전한 메시지
-    log = SecurityLog(user_id=user_id, message=action)
-    db.add(log)
-    db.commit()
+    try:
+        db = get_db()
+        # action은 "주문 #번호 ..." 형태로 완전한 메시지
+        log = SecurityLog(user_id=user_id, message=action)
+        db.add(log)
+        db.commit()
+    except Exception as e:
+        # DB Error (e.g. sequence out of sync) should not crash the app
+        print(f"[LOG ERROR] Failed to log access: {e}")
+        try:
+            db.rollback()
+        except:
+            pass
+
+@app.route('/fix-sequences')
+def fix_db_sequences():
+    """Emergency route to fix PK sequences for all tables"""
+    try:
+        db = get_db()
+        tables = [
+            'users', 'orders', 'access_logs', 'security_logs', 
+            'chat_rooms', 'chat_messages', 'chat_room_members', 'chat_attachments',
+            'order_events', 'order_tasks', 'order_attachments'
+        ]
+        results = []
+        for table in tables:
+            try:
+                sql = text(f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), coalesce(max(id), 1), true) FROM {table}")
+                db.execute(sql)
+                results.append(f"Fixed {table}")
+            except Exception as e:
+                results.append(f"Error {table}: {e}")
+        
+        # WDCalculator tables
+        try:
+            wd_tables = ['estimates', 'estimate_histories', 'estimate_order_matches']
+            from wdcalculator_db import get_wdcalculator_db
+            wd_db = get_wdcalculator_db()
+            for table in wd_tables:
+                try:
+                    sql = text(f"SELECT setval(pg_get_serial_sequence('wdcalculator.{table}', 'id'), coalesce(max(id), 1), true) FROM wdcalculator.{table}")
+                    wd_db.execute(sql)
+                    results.append(f"Fixed wdcalculator.{table}")
+                except Exception as e:
+                    results.append(f"Error wd.{table}: {e}")
+            wd_db.commit()
+        except Exception as e:
+             results.append(f"WD DB Error: {e}")
+
+        db.commit()
+        return f"Sequence Fix Results:<br>" + "<br>".join(results)
+    except Exception as e:
+        return f"Fatal Error: {e}"
 
 def is_password_strong(password):
     """Check if password meets security requirements"""
