@@ -4,6 +4,7 @@ import sqlalchemy
 from sqlalchemy import create_engine, MetaData, Table, select
 from sqlalchemy.orm import sessionmaker
 from models import User, Order, ChatRoom, ChatMessage, OrderEvent, OrderTask, AccessLog, SecurityLog, ChatRoomMember, ChatAttachment, OrderAttachment
+from wdcalculator_models import Estimate, EstimateHistory, EstimateOrderMatch
 
 def run_web_migration(sqlite_path, postgres_session, reset=False):
     """
@@ -20,6 +21,11 @@ def run_web_migration(sqlite_path, postgres_session, reset=False):
         if reset:
             logs.append("[RESET] Deleting existing data...")
             try:
+                # Delete WDCalculator tables First
+                postgres_session.query(EstimateOrderMatch).delete()
+                postgres_session.query(EstimateHistory).delete()
+                postgres_session.query(Estimate).delete()
+
                 # Delete in order of dependencies (child first)
                 postgres_session.query(ChatAttachment).delete()
                 postgres_session.query(ChatMessage).delete()
@@ -59,7 +65,7 @@ def run_web_migration(sqlite_path, postgres_session, reset=False):
             return False, [f"Failed to reflect SQLite tables: {e}"]
 
         # Used for JSON parsing
-        JSON_COLUMNS = ['structured_data', 'meta', 'payload', 'file_info']
+        JSON_COLUMNS = ['structured_data', 'meta', 'payload', 'file_info', 'estimate_data']
 
         # Define migration order (Parent -> Child)
         MODELS_TO_MIGRATE = [
@@ -73,7 +79,10 @@ def run_web_migration(sqlite_path, postgres_session, reset=False):
             ChatRoom, 
             ChatRoomMember, 
             ChatMessage, 
-            ChatAttachment
+            ChatAttachment,
+            Estimate,
+            EstimateHistory,
+            EstimateOrderMatch
         ]
 
         total_migrated_count = 0
