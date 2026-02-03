@@ -53,8 +53,8 @@ WDCalculatorBase.query = wd_calculator_session.query_property()
 
 def ensure_wdcalculator_schema():
     """
-    단일 DB 통합 모드에서 wdcalculator 스키마 존재를 보장.
-    (별도 DB 모드에서는 필요 없음)
+    Ensure 'wdcalculator' schema exists in single-DB mode.
+    (Not needed in separate-DB mode)
     """
     if WD_CALCULATOR_IS_SEPARATE_DB:
         return
@@ -63,16 +63,16 @@ def ensure_wdcalculator_schema():
         conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"'))
 
 def init_wdcalculator_db():
-    """견적 계산기 데이터베이스 초기화 및 테이블 생성"""
+    """Initialize WDCalculator database and create tables"""
     try:
-        # 단일 DB 통합 모드: 스키마 보장
+        # 1. Ensure schema in single-DB mode
         ensure_wdcalculator_schema()
-        # 순환 참조 방지를 위해 함수 내부에서 임포트
+        # Import models inside function to prevent circular reference
         from wdcalculator_models import Estimate, EstimateOrderMatch, EstimateHistory
         WDCalculatorBase.metadata.create_all(bind=wd_calculator_engine)
-        print("견적 계산기 데이터베이스 테이블 초기화 완료")
+        print("WDCalculator tables initialization completed")
     except Exception as e:
-        print(f"견적 계산기 데이터베이스 초기화 중 오류 발생: {str(e)}")
+        print(f"Error during WDCalculator initialization: {str(e)}")
         raise
 
 def get_wdcalculator_db():
