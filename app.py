@@ -1860,6 +1860,61 @@ def debug_db():
             "traceback": traceback.format_exc()
         }), 500
 
+@app.route('/initialize-db-tables')
+def initialize_db_tables_route():
+    """
+    Emergency Route to Initialize DB Tables from Browser.
+    Bypasses local CLI encoding issues.
+    """
+    output = []
+    try:
+        from db import init_db, engine, Base
+        from wdcalculator_db import init_wdcalculator_db
+        
+        # 1. Init Main DB
+        output.append("Starting init_db()...")
+        # Ensure models are imported
+        from models import Order, User
+        Base.metadata.create_all(bind=engine)
+        output.append("init_db() completed.")
+
+        # 2. Init WDCalculator DB
+        output.append("Starting init_wdcalculator_db()...")
+        init_wdcalculator_db()
+        output.append("init_wdcalculator_db() completed.")
+        
+        # 3. Create Admin User if missing
+        session = get_db()
+        admin = session.query(User).filter_by(username='admin').first()
+        if not admin:
+            output.append("Creating default admin user...")
+            from werkzeug.security import generate_password_hash
+            new_admin = User(
+                username='admin',
+                password=generate_password_hash('admin1234'),
+                name='관리자',
+                role='ADMIN',
+                is_active=True
+            )
+            session.add(new_admin)
+            session.commit()
+            output.append("Default admin (admin/admin1234) created.")
+        else:
+            output.append("Admin user already exists.")
+
+        return jsonify({
+            "status": "SUCCESS",
+            "logs": output
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "status": "ERROR",
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
 @app.route('/')
 @login_required
 def index():
