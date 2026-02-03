@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>데이터 마이그레이션 (로컬 -> 서버)</h2>
+    <div class="alert alert-warning">
+        <strong>주의:</strong> 로컬에서 사용하던 <code>furniture_orders.db</code> 파일을 업로드해주세요.<br>
+        기존에 서버에 저장된 데이터(ID가 같은 경우)는 덮어쓰지 않고 건너뜁니다.
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="db_file" class="form-label">SQLite 데이터베이스 파일 (.db)</label>
+                    <input class="form-control" type="file" id="db_file" name="db_file" accept=".db" required>
+                </div>
+                <button type="submit" class="btn btn-primary">데이터 업로드 및 마이그레이션 시작</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

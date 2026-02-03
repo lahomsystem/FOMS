@@ -1860,6 +1860,46 @@ def debug_db():
             "traceback": traceback.format_exc()
         }), 500
 
+@app.route('/admin/migration', methods=['GET', 'POST'])
+@login_required
+@role_required(['ADMIN'])
+def admin_migration():
+    """Web-based Data Migration (SQLite Upload -> Postgres)"""
+    if request.method == 'POST':
+        if 'db_file' not in request.files:
+            flash('파일이 없습니다.', 'error')
+            return redirect(request.url)
+        
+        file = request.files['db_file']
+        if file.filename == '':
+            flash('파일을 선택해주세요.', 'error')
+            return redirect(request.url)
+        
+        if file:
+            # 1. Save uploaded file temporarily
+            filename = secure_filename(file.filename)
+            temp_path = os.path.join(app.config['UPLOAD_FOLDER'], 'temp_migration.db')
+            file.save(temp_path)
+            
+            # 2. Run Migration
+            from web_migration import run_web_migration
+            db_session = get_db()
+            
+            success, logs = run_web_migration(temp_path, db_session)
+            
+            # 3. Cleanup
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+                
+            if success:
+                flash(f'마이그레이션 완료! ({len(logs)} logs)', 'success')
+            else:
+                flash('마이그레이션 중 오류가 발생했습니다.', 'error')
+                
+            return render_template('admin/migration_result.html', logs=logs, success=success)
+
+    return render_template('admin/migration_upload.html')
+
 @app.route('/initialize-db-tables')
 def initialize_db_tables_route():
     """
