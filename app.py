@@ -63,6 +63,10 @@ except ImportError:
 app = Flask(__name__)
 app.secret_key = 'furniture_order_management_secret_key'
 
+# Fix for Railway/Load Balancer (HTTPS redirect loop)
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 # Temporary Debugging: Show errors in browser
 @app.errorhandler(500)
 def internal_error(error):
