@@ -404,6 +404,21 @@ def spec_w300_filter(value):
         return ''
 
 
+def spec_w300_value(value):
+    """규격(W)/300 수치 계산 (숫자 반환). 복합규격이면 첫 숫자 사용"""
+    if value is None or value == '':
+        return 0.0
+    s = str(value).strip().replace(',', '')
+    try:
+        m = re.search(r'[\d.]+', s)
+        if not m:
+            return 0.0
+        n = float(m.group())
+        return round(n / 300, 1) if n else 0.0
+    except (ValueError, TypeError):
+        return 0.0
+
+
 ## NOTE: auto task 로직은 erp_automation.py 로 분리됨
 
 @app.route('/erp/dashboard')
@@ -3654,6 +3669,44 @@ def erp_shipment_dashboard():
         )
     ).order_by(Order.id.desc()).limit(1500).all()
 
+    settings = load_erp_shipment_settings()
+    worker_settings = normalize_erp_shipment_workers(settings.get('construction_workers', []))
+
+    def normalize_worker_name(name):
+        return str(name or '').strip().lower()
+
+    worker_name_map = {normalize_worker_name(w['name']): w for w in worker_settings if w.get('name')}
+
+    def get_order_construction_date(order):
+        date_value = None
+        if order.status in ('AS_RECEIVED', 'AS_COMPLETED'):
+            if order.as_received_date and str(order.as_received_date) != '':
+                date_value = str(order.as_received_date)
+            if not date_value and order.as_completed_date:
+                date_value = str(order.as_completed_date)
+        if not date_value and order.is_erp_beta and order.structured_data:
+            sd = order.structured_data
+            cons = (sd.get('schedule') or {}).get('construction') or {}
+            cons_date = cons.get('date')
+            if cons_date:
+                date_value = str(cons_date)
+        if not date_value and order.is_erp_beta and order.scheduled_date:
+            date_value = str(order.scheduled_date)
+        return date_value
+
+    def get_order_spec_units(order):
+        if not order.is_erp_beta or not order.structured_data:
+            return 0.0
+        sd = order.structured_data or {}
+        items = sd.get('items') or []
+        total = 0.0
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            w_raw = (it.get('spec_width') or it.get('spec') or '')
+            total += spec_w300_value(w_raw)
+        return total
+
     def load_holidays_for_year(year):
         try:
             file_path = os.path.join('data', f'holidays_kr_{year}.json')
@@ -3677,21 +3730,10 @@ def erp_shipment_dashboard():
         holiday_dates |= load_holidays_for_year(y)
 
     construction_counts = {}
+    assigned_workers_by_date = {}
+    spec_units_by_date = {}
     for order in panel_orders:
-        date_value = None
-        if order.status in ('AS_RECEIVED', 'AS_COMPLETED'):
-            if order.as_received_date and str(order.as_received_date) != '':
-                date_value = str(order.as_received_date)
-            if not date_value and order.as_completed_date:
-                date_value = str(order.as_completed_date)
-        if not date_value and order.is_erp_beta and order.structured_data:
-            sd = order.structured_data
-            cons = (sd.get('schedule') or {}).get('construction') or {}
-            cons_date = cons.get('date')
-            if cons_date:
-                date_value = str(cons_date)
-        if not date_value and order.is_erp_beta and order.scheduled_date:
-            date_value = str(order.scheduled_date)
+        date_value = get_order_construction_date(order)
         if not date_value:
             continue
         try:
@@ -3702,6 +3744,19 @@ def erp_shipment_dashboard():
             continue
         key = d.strftime('%Y-%m-%d')
         construction_counts[key] = construction_counts.get(key, 0) + 1
+
+        shipment = {}
+        if order.structured_data and isinstance(order.structured_data, dict):
+            shipment = (order.structured_data.get('shipment') or {})
+        workers = shipment.get('construction_workers') or []
+        for w in workers:
+            name_key = normalize_worker_name(w)
+            if not name_key:
+                continue
+            if name_key in worker_name_map:
+                assigned_workers_by_date.setdefault(key, set()).add(name_key)
+
+        spec_units_by_date[key] = spec_units_by_date.get(key, 0.0) + get_order_spec_units(order)
 
     construction_panel_dates = []
     current = range_start
@@ -3716,6 +3771,43 @@ def erp_shipment_dashboard():
             'is_weekend': is_weekend,
             'is_holiday': is_holiday,
             'is_selected': date_str == selected_date
+        })
+        current += datetime.timedelta(days=1)
+
+    remaining_panel_dates = []
+    current = range_start
+    while current <= range_end:
+        date_str = current.strftime('%Y-%m-%d')
+        is_weekend = current.weekday() >= 5
+        is_holiday = date_str in holiday_dates
+        available_workers = []
+        for w in worker_settings:
+            if date_str in (w.get('off_dates') or []):
+                continue
+            available_workers.append(w)
+        base_worker_count = len(available_workers)
+        base_capacity = sum((w.get('capacity') or 0) for w in available_workers)
+        assigned_names = assigned_workers_by_date.get(date_str, set())
+        assigned_count = 0
+        for w in available_workers:
+            if normalize_worker_name(w.get('name')) in assigned_names:
+                assigned_count += 1
+        remaining_workers = max(base_worker_count - assigned_count, 0)
+        used_capacity = spec_units_by_date.get(date_str, 0.0)
+        remaining_capacity = max(base_capacity - used_capacity, 0)
+        remaining_panel_dates.append({
+            'date': date_str,
+            'remaining_capacity': round(remaining_capacity, 1),
+            'remaining_workers': remaining_workers,
+            'total_capacity': round(base_capacity, 1),
+            'total_workers': base_worker_count,
+            'used_capacity': round(used_capacity, 1),
+            'assigned_workers': assigned_count,
+            'is_weekend': is_weekend,
+            'is_holiday': is_holiday,
+            'is_selected': date_str == selected_date,
+            'alert_capacity': remaining_capacity <= 40,
+            'alert_workers': remaining_workers <= 3
         })
         current += datetime.timedelta(days=1)
 
@@ -3762,6 +3854,7 @@ def erp_shipment_dashboard():
         manager_filter=manager_filter,
         rows=rows,
         construction_panel_dates=construction_panel_dates,
+        remaining_panel_dates=remaining_panel_dates,
         today_date=today_date
     )
 
@@ -3793,7 +3886,20 @@ def api_erp_shipment_settings_save():
         current = load_erp_shipment_settings()
         for key in ('construction_time', 'drawing_manager', 'construction_workers', 'site_extra'):
             if key in payload and isinstance(payload[key], list):
-                current[key] = [str(x).strip() for x in payload[key] if str(x).strip()]
+                if key == 'construction_workers':
+                    current[key] = normalize_erp_shipment_workers(payload[key])
+                elif key == 'site_extra':
+                    cleaned = []
+                    for x in payload[key]:
+                        if isinstance(x, dict):
+                            text = str(x.get('text', '')).strip()
+                        else:
+                            text = str(x).strip()
+                        if text:
+                            cleaned.append(text)
+                    current[key] = cleaned
+                else:
+                    current[key] = [str(x).strip() for x in payload[key] if str(x).strip()]
         if save_erp_shipment_settings(current):
             return jsonify({'success': True})
         return jsonify({'success': False, 'error': '저장 실패'}), 500
@@ -6154,6 +6260,7 @@ WD_CALCULATOR_DATA_PATH = os.path.join(os.path.dirname(__file__), 'data', 'produ
 ERP_SHIPMENT_SETTINGS_PATH = os.path.join(os.path.dirname(__file__), 'data', 'erp_shipment_settings.json')
 WD_ADDITIONAL_OPTIONS_PATH = os.path.join(os.path.dirname(__file__), 'data', 'additional_options.json')
 WD_NOTES_CATEGORIES_PATH = os.path.join(os.path.dirname(__file__), 'data', 'notes_categories.json')
+DEFAULT_ERP_WORKER_CAPACITY = 10
 
 def clean_categories_data(categories):
     """카테고리 데이터에서 JSON 직렬화 불가능한 값 제거 및 id 자동 생성"""
@@ -6346,7 +6453,7 @@ def load_erp_shipment_settings():
                 return {
                     'construction_time': data.get('construction_time', []),
                     'drawing_manager': data.get('drawing_manager', []),
-                    'construction_workers': data.get('construction_workers', []),
+                    'construction_workers': normalize_erp_shipment_workers(data.get('construction_workers', [])),
                     'site_extra': data.get('site_extra', []),
                 }
         return {'construction_time': [], 'drawing_manager': [], 'construction_workers': [], 'site_extra': []}
@@ -6365,6 +6472,40 @@ def save_erp_shipment_settings(settings):
     except Exception as e:
         print(f"Error saving ERP shipment settings: {e}")
         return False
+
+
+def normalize_erp_shipment_workers(workers):
+    """출고 설정 시공자 목록 정규화 (name, capacity, off_dates)"""
+    normalized = []
+    if not isinstance(workers, list):
+        return normalized
+    for w in workers:
+        if isinstance(w, dict):
+            name = str(w.get('name') or w.get('text') or '').strip()
+            cap_raw = w.get('capacity', w.get('daily_capacity', DEFAULT_ERP_WORKER_CAPACITY))
+            try:
+                capacity = int(cap_raw)
+            except (ValueError, TypeError):
+                capacity = DEFAULT_ERP_WORKER_CAPACITY
+            if capacity < 0:
+                capacity = DEFAULT_ERP_WORKER_CAPACITY
+            off_raw = w.get('off_dates') or w.get('offDays') or []
+            if not isinstance(off_raw, list):
+                off_raw = []
+            off_dates = []
+            seen = set()
+            for d in off_raw:
+                ds = str(d).strip()
+                if ds and ds not in seen:
+                    seen.add(ds)
+                    off_dates.append(ds)
+        else:
+            name = str(w).strip()
+            capacity = DEFAULT_ERP_WORKER_CAPACITY
+            off_dates = []
+        if name:
+            normalized.append({'name': name, 'capacity': capacity, 'off_dates': off_dates})
+    return normalized
 
 
 def calculate_estimate(product, width_mm, additional_options=None):

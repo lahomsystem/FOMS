@@ -9,9 +9,81 @@
     "최상용"
   ],
   "construction_workers": [
-    "민경덕",
-    "고동일",
-    "조성민"
+    {
+      "name": "민경덕",
+      "capacity": 10,
+      "off_dates": []
+    },
+    {
+      "name": "고동일",
+      "capacity": 20,
+      "off_dates": []
+    },
+    {
+      "name": "조성민",
+      "capacity": 10,
+      "off_dates": []
+    },
+    {
+      "name": "최장규",
+      "capacity": 10,
+      "off_dates": []
+    },
+    {
+      "name": "이기복",
+      "capacity": 10,
+      "off_dates": []
+    },
+    {
+      "name": "강민수",
+      "capacity": 10,
+      "off_dates": []
+    },
+    {
+      "name": "오주영",
+      "capacity": 20,
+      "off_dates": []
+    },
+    {
+      "name": "김원광",
+      "capacity": 10,
+      "off_dates": []
+    },
+    {
+      "name": "박상준",
+      "capacity": 10,
+      "off_dates": []
+    },
+    {
+      "name": "정영호",
+      "capacity": 10,
+      "off_dates": []
+    },
+    {
+      "name": "채수민",
+      "capacity": 10,
+      "off_dates": []
+    },
+    {
+      "name": "윤덕영",
+      "capacity": 10,
+      "off_dates": []
+    },
+    {
+      "name": "우정하",
+      "capacity": 10,
+      "off_dates": []
+    },
+    {
+      "name": "송민규",
+      "capacity": 10,
+      "off_dates": []
+    },
+    {
+      "name": "김영걸",
+      "capacity": 10,
+      "off_dates": []
+    }
   ],
   "site_extra": []
 }

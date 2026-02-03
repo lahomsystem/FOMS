@@ -13,69 +13,125 @@
     </div>
   </div>
   <p class="text-muted small mb-3">출고 대시보드에서 직접 입력하거나 저장된 값을 불러올 수 있도록 목록을 관리합니다. (계산기 제품 설정과 동일한 방식)</p>
+  <style>
+    .worker-settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+    .worker-settings-grid .list-group-item { border: 1px solid #e9ecef; border-radius: 6px; padding: 8px; }
+    .worker-row-compact { display: flex; flex-direction: column; gap: 6px; }
+    .worker-row-compact .worker-top { display: flex; gap: 6px; }
+    .worker-row-compact .worker-top input { height: 28px; }
+    .worker-calendar-panel { min-width: 0; }
+    .worker-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+    .worker-cal-cell { width: 22px; height: 20px; line-height: 20px; text-align: center; border-radius: 4px; font-size: 0.7rem; cursor: pointer; }
+    .worker-cal-cell.is-off { background: #dc3545; color: #fff; }
+    .worker-cal-cell.is-empty { background: transparent; cursor: default; }
+    .worker-cal-cell.is-header { font-weight: 600; color: #6c757d; cursor: default; }
+    .worker-cal-toolbar { display: flex; align-items: center; gap: 4px; }
+    .worker-cal-toolbar .btn { padding: 0 6px; height: 22px; }
+    .worker-off-count { font-size: 0.75rem; }
+  </style>
 
-  <div class="row">
-    <div class="col-12 col-lg-6 mb-4">
-      <div class="card shadow-sm">
-        <div class="card-header bg-white fw-bold"><i class="fas fa-clock me-2"></i>시공시간</div>
-        <div class="card-body">
-          <ul id="list-construction_time" class="list-group list-group-flush mb-2">
-            {% for v in (settings.construction_time or []) %}
-            <li class="list-group-item d-flex gap-2 align-items-center px-0">
-              <input type="text" class="form-control form-control-sm setting-input" data-key="construction_time" value="{{ v }}" placeholder="예: 10:00">
-              <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
-            </li>
-            {% endfor %}
-          </ul>
-          <button type="button" class="btn btn-sm btn-outline-success btn-add-setting" data-key="construction_time"><i class="fas fa-plus me-1"></i>추가</button>
+  <ul class="nav nav-tabs mb-3" id="shipmentSettingsTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="tab-basic" data-bs-toggle="tab" data-bs-target="#tab-settings-basic" type="button" role="tab" aria-controls="tab-settings-basic" aria-selected="true">기본 설정</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-workers" data-bs-toggle="tab" data-bs-target="#tab-settings-workers" type="button" role="tab" aria-controls="tab-settings-workers" aria-selected="false">시공자</button>
+    </li>
+  </ul>
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-settings-basic" role="tabpanel" aria-labelledby="tab-basic">
+      <div class="row">
+        <div class="col-12 col-lg-6 mb-4">
+          <div class="card shadow-sm">
+            <div class="card-header bg-white fw-bold"><i class="fas fa-clock me-2"></i>시공시간</div>
+            <div class="card-body">
+              <ul id="list-construction_time" class="list-group list-group-flush mb-2">
+                {% for v in (settings.construction_time or []) %}
+                <li class="list-group-item d-flex gap-2 align-items-center px-0">
+                  <input type="text" class="form-control form-control-sm setting-input" data-key="construction_time" value="{{ v }}" placeholder="예: 10:00">
+                  <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
+                </li>
+                {% endfor %}
+              </ul>
+              <button type="button" class="btn btn-sm btn-outline-success btn-add-setting" data-key="construction_time"><i class="fas fa-plus me-1"></i>추가</button>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-lg-6 mb-4">
+          <div class="card shadow-sm">
+            <div class="card-header bg-white fw-bold"><i class="fas fa-user-tie me-2"></i>도면담당자</div>
+            <div class="card-body">
+              <ul id="list-drawing_manager" class="list-group list-group-flush mb-2">
+                {% for v in (settings.drawing_manager or []) %}
+                <li class="list-group-item d-flex gap-2 align-items-center px-0">
+                  <input type="text" class="form-control form-control-sm setting-input" data-key="drawing_manager" value="{{ v }}" placeholder="도면담당자">
+                  <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
+                </li>
+                {% endfor %}
+              </ul>
+              <button type="button" class="btn btn-sm btn-outline-success btn-add-setting" data-key="drawing_manager"><i class="fas fa-plus me-1"></i>추가</button>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-lg-6 mb-4">
+          <div class="card shadow-sm">
+            <div class="card-header bg-white fw-bold"><i class="fas fa-map-marker-alt me-2"></i>현장주소 추가 (저장 목록)</div>
+            <div class="card-body">
+              <ul id="list-site_extra" class="list-group list-group-flush mb-2">
+                {% for v in (settings.site_extra or []) %}
+                <li class="list-group-item d-flex gap-2 align-items-center px-0">
+                  <input type="text" class="form-control form-control-sm setting-input" data-key="site_extra" value="{{ v.get('text', '') if v is mapping else (v|string) }}" placeholder="추가 주소">
+                  <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
+                </li>
+                {% endfor %}
+              </ul>
+              <button type="button" class="btn btn-sm btn-outline-success btn-add-setting" data-key="site_extra"><i class="fas fa-plus me-1"></i>추가</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-    <div class="col-12 col-lg-6 mb-4">
-      <div class="card shadow-sm">
-        <div class="card-header bg-white fw-bold"><i class="fas fa-user-tie me-2"></i>도면담당자</div>
-        <div class="card-body">
-          <ul id="list-drawing_manager" class="list-group list-group-flush mb-2">
-            {% for v in (settings.drawing_manager or []) %}
-            <li class="list-group-item d-flex gap-2 align-items-center px-0">
-              <input type="text" class="form-control form-control-sm setting-input" data-key="drawing_manager" value="{{ v }}" placeholder="도면담당자">
-              <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
-            </li>
-            {% endfor %}
-          </ul>
-          <button type="button" class="btn btn-sm btn-outline-success btn-add-setting" data-key="drawing_manager"><i class="fas fa-plus me-1"></i>추가</button>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-lg-6 mb-4">
-      <div class="card shadow-sm">
-        <div class="card-header bg-white fw-bold"><i class="fas fa-hard-hat me-2"></i>시공자</div>
-        <div class="card-body">
-          <ul id="list-construction_workers" class="list-group list-group-flush mb-2">
-            {% for v in (settings.construction_workers or []) %}
-            <li class="list-group-item d-flex gap-2 align-items-center px-0">
-              <input type="text" class="form-control form-control-sm setting-input" data-key="construction_workers" value="{{ v }}" placeholder="시공자">
-              <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
-            </li>
-            {% endfor %}
-          </ul>
-          <button type="button" class="btn btn-sm btn-outline-success btn-add-setting" data-key="construction_workers"><i class="fas fa-plus me-1"></i>추가</button>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-lg-6 mb-4">
-      <div class="card shadow-sm">
-        <div class="card-header bg-white fw-bold"><i class="fas fa-map-marker-alt me-2"></i>현장주소 추가 (저장 목록)</div>
-        <div class="card-body">
-          <ul id="list-site_extra" class="list-group list-group-flush mb-2">
-            {% for v in (settings.site_extra or []) %}
-            <li class="list-group-item d-flex gap-2 align-items-center px-0">
-              <input type="text" class="form-control form-control-sm setting-input" data-key="site_extra" value="{{ v.get('text', '') if v is mapping else (v|string) }}" placeholder="추가 주소">
-              <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
-            </li>
-            {% endfor %}
-          </ul>
-          <button type="button" class="btn btn-sm btn-outline-success btn-add-setting" data-key="site_extra"><i class="fas fa-plus me-1"></i>추가</button>
+    <div class="tab-pane fade" id="tab-settings-workers" role="tabpanel" aria-labelledby="tab-workers">
+      <div class="row">
+        <div class="col-12 mb-4">
+          <div class="card shadow-sm">
+            <div class="card-header bg-white fw-bold"><i class="fas fa-hard-hat me-2"></i>시공자</div>
+            <div class="card-body">
+              <ul id="list-construction_workers" class="list-group list-group-flush mb-2 worker-settings-grid">
+                {% for v in (settings.construction_workers or []) %}
+                {% if v is mapping %}
+                  {% set worker_name = v.get('name') or '' %}
+                  {% set worker_capacity = v.get('capacity') %}
+                  {% set worker_off_dates = v.get('off_dates') or [] %}
+                {% else %}
+                  {% set worker_name = v|string %}
+                  {% set worker_capacity = none %}
+                  {% set worker_off_dates = [] %}
+                {% endif %}
+                <li class="list-group-item">
+                  <div class="worker-row-compact">
+                    <div class="worker-top">
+                      <input type="text" class="form-control form-control-sm setting-input setting-worker-name" data-key="construction_workers" value="{{ worker_name }}" placeholder="시공자">
+                      <input type="number" class="form-control form-control-sm setting-worker-capacity" value="{% if worker_capacity is not none %}{{ worker_capacity }}{% endif %}" placeholder="자수" min="0" step="1" style="width: 70px;">
+                      <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
+                    </div>
+                    <input type="hidden" class="setting-worker-off-dates" value="{{ worker_off_dates|join(', ') }}">
+                    <div class="worker-calendar-panel d-flex flex-column gap-1">
+                      <div class="worker-cal-toolbar">
+                        <button type="button" class="btn btn-sm btn-outline-secondary btn-cal-prev" title="이전 달"><i class="fas fa-chevron-left"></i></button>
+                        <span class="worker-cal-label small text-muted"></span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary btn-cal-next" title="다음 달"><i class="fas fa-chevron-right"></i></button>
+                      </div>
+                      <div class="worker-cal-grid"></div>
+                      <div class="small text-muted worker-off-count">휴무 0일</div>
+                    </div>
+                  </div>
+                </li>
+                {% endfor %}
+              </ul>
+              <button type="button" class="btn btn-sm btn-outline-success btn-add-setting" data-key="construction_workers"><i class="fas fa-plus me-1"></i>추가</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -93,7 +149,7 @@
 (function() {
   function collectSettings() {
     var out = { construction_time: [], drawing_manager: [], construction_workers: [], site_extra: [] };
-    ['construction_time', 'drawing_manager', 'construction_workers', 'site_extra'].forEach(function(key) {
+    ['construction_time', 'drawing_manager', 'site_extra'].forEach(function(key) {
       var ul = document.getElementById('list-' + key);
       if (!ul) return;
       ul.querySelectorAll('input.setting-input').forEach(function(inp) {
@@ -101,6 +157,30 @@
         if (v) out[key].push(v);
       });
     });
+    var workerUl = document.getElementById('list-construction_workers');
+    if (workerUl) {
+      workerUl.querySelectorAll('li').forEach(function(li) {
+        var nameInp = li.querySelector('.setting-worker-name');
+        var capInp = li.querySelector('.setting-worker-capacity');
+        var offInp = li.querySelector('.setting-worker-off-dates');
+        var nameVal = nameInp ? nameInp.value.trim() : '';
+        var capRaw = capInp ? capInp.value.trim() : '';
+        if (!nameVal) return;
+        var capVal = null;
+        if (capRaw !== '') {
+          var parsed = parseInt(capRaw, 10);
+          capVal = isNaN(parsed) ? null : parsed;
+        }
+        var offDates = [];
+        if (offInp && offInp.value.trim()) {
+          offInp.value.split(',').forEach(function(s) {
+            var ds = s.trim();
+            if (ds) offDates.push(ds);
+          });
+        }
+        out.construction_workers.push({ name: nameVal, capacity: capVal, off_dates: offDates });
+      });
+    }
     return out;
   }
 
@@ -111,8 +191,28 @@
     btn.addEventListener('click', function() {
       var li = document.createElement('li');
       li.className = 'list-group-item d-flex gap-2 align-items-center px-0';
-      li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input" data-key="' + key + '" value="" placeholder="' + (key === 'construction_time' ? '예: 10:00' : (key === 'site_extra' ? '추가 주소' : key === 'drawing_manager' ? '도면담당자' : '시공자')) + '">' +
-        '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>';
+      if (key === 'construction_workers') {
+        li.innerHTML = '<div class="worker-row-compact">' +
+          '  <div class="worker-top">' +
+          '    <input type="text" class="form-control form-control-sm setting-input setting-worker-name" data-key="construction_workers" value="" placeholder="시공자">' +
+          '    <input type="number" class="form-control form-control-sm setting-worker-capacity" value="" placeholder="자수" min="0" step="1" style="width: 70px;">' +
+          '    <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>' +
+          '  </div>' +
+          '  <input type="hidden" class="setting-worker-off-dates" value="">' +
+          '  <div class="worker-calendar-panel d-flex flex-column gap-1">' +
+          '    <div class="worker-cal-toolbar">' +
+          '      <button type="button" class="btn btn-sm btn-outline-secondary btn-cal-prev" title="이전 달"><i class="fas fa-chevron-left"></i></button>' +
+          '      <span class="worker-cal-label small text-muted"></span>' +
+          '      <button type="button" class="btn btn-sm btn-outline-secondary btn-cal-next" title="다음 달"><i class="fas fa-chevron-right"></i></button>' +
+          '    </div>' +
+          '    <div class="worker-cal-grid"></div>' +
+          '    <div class="small text-muted worker-off-count">휴무 0일</div>' +
+          '  </div>' +
+          '</div>';
+      } else {
+        li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input" data-key="' + key + '" value="" placeholder="' + (key === 'construction_time' ? '예: 10:00' : (key === 'site_extra' ? '추가 주소' : key === 'drawing_manager' ? '도면담당자' : '시공자')) + '">' +
+          '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>';
+      }
       ul.appendChild(li);
       li.querySelector('.btn-remove-setting').addEventListener('click', function() { li.remove(); });
     });
@@ -120,6 +220,140 @@
 
   document.querySelectorAll('.btn-remove-setting').forEach(function(btn) {
     btn.addEventListener('click', function() { btn.closest('li').remove(); });
+  });
+
+  function parseOffDates(raw) {
+    var out = [];
+    if (!raw) return out;
+    raw.split(',').forEach(function(s) {
+      var ds = s.trim();
+      if (ds) out.push(ds);
+    });
+    return out;
+  }
+
+  function setOffDates(inp, list) {
+    var uniq = [];
+    var seen = {};
+    list.forEach(function(d) {
+      if (!seen[d]) { seen[d] = true; uniq.push(d); }
+    });
+    inp.value = uniq.join(', ');
+  }
+
+  function formatDate(y, m, d) {
+    var mm = String(m + 1).padStart(2, '0');
+    var dd = String(d).padStart(2, '0');
+    return y + '-' + mm + '-' + dd;
+  }
+
+  function renderWorkerCalendar(li, year, month) {
+    var grid = li.querySelector('.worker-cal-grid');
+    var label = li.querySelector('.worker-cal-label');
+    var offInp = li.querySelector('.setting-worker-off-dates');
+    var offCount = li.querySelector('.worker-off-count');
+    if (!grid || !label || !offInp || !offCount) return;
+
+    var offDates = parseOffDates(offInp.value);
+    var offSet = {};
+    offDates.forEach(function(d) { offSet[d] = true; });
+
+    var first = new Date(year, month, 1);
+    var last = new Date(year, month + 1, 0);
+    var startDay = first.getDay();
+    var daysInMonth = last.getDate();
+    var dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
+
+    grid.innerHTML = '';
+    dayLabels.forEach(function(d) {
+      var hd = document.createElement('div');
+      hd.className = 'worker-cal-cell is-header';
+      hd.textContent = d;
+      grid.appendChild(hd);
+    });
+
+    for (var i = 0; i < startDay; i++) {
+      var empty = document.createElement('div');
+      empty.className = 'worker-cal-cell is-empty';
+      grid.appendChild(empty);
+    }
+
+    for (var day = 1; day <= daysInMonth; day++) {
+      var cell = document.createElement('div');
+      var ds = formatDate(year, month, day);
+      cell.className = 'worker-cal-cell' + (offSet[ds] ? ' is-off' : '');
+      cell.textContent = day;
+      cell.dataset.date = ds;
+      cell.addEventListener('click', function() {
+        var dateStr = this.dataset.date;
+        var current = parseOffDates(offInp.value);
+        var idx = current.indexOf(dateStr);
+        if (idx >= 0) {
+          current.splice(idx, 1);
+        } else {
+          current.push(dateStr);
+        }
+        setOffDates(offInp, current);
+        renderWorkerCalendar(li, year, month);
+      });
+      grid.appendChild(cell);
+    }
+
+    label.textContent = year + '-' + String(month + 1).padStart(2, '0');
+    offCount.textContent = '휴무 ' + offDates.length + '일';
+  }
+
+  function initWorkerCalendars() {
+    document.querySelectorAll('#list-construction_workers li').forEach(function(li) {
+      var today = new Date();
+      if (!li.dataset.calInitialized) {
+        li.dataset.calYear = String(today.getFullYear());
+        li.dataset.calMonth = String(today.getMonth());
+        var prev = li.querySelector('.btn-cal-prev');
+        var next = li.querySelector('.btn-cal-next');
+        if (prev) {
+          prev.addEventListener('click', function() {
+            var y = parseInt(li.dataset.calYear, 10);
+            var m = parseInt(li.dataset.calMonth, 10);
+            m -= 1;
+            if (m < 0) { m = 11; y -= 1; }
+            li.dataset.calYear = String(y);
+            li.dataset.calMonth = String(m);
+            renderWorkerCalendar(li, y, m);
+          });
+        }
+        if (next) {
+          next.addEventListener('click', function() {
+            var y = parseInt(li.dataset.calYear, 10);
+            var m = parseInt(li.dataset.calMonth, 10);
+            m += 1;
+            if (m > 11) { m = 0; y += 1; }
+            li.dataset.calYear = String(y);
+            li.dataset.calMonth = String(m);
+            renderWorkerCalendar(li, y, m);
+          });
+        }
+        var offInp = li.querySelector('.setting-worker-off-dates');
+        if (offInp) {
+          offInp.addEventListener('change', function() {
+            var y = parseInt(li.dataset.calYear, 10);
+            var m = parseInt(li.dataset.calMonth, 10);
+            renderWorkerCalendar(li, y, m);
+          });
+        }
+        li.dataset.calInitialized = '1';
+      }
+      var y0 = parseInt(li.dataset.calYear || today.getFullYear(), 10);
+      var m0 = parseInt(li.dataset.calMonth || today.getMonth(), 10);
+      renderWorkerCalendar(li, y0, m0);
+    });
+  }
+
+  initWorkerCalendars();
+  document.addEventListener('shown.bs.tab', function(e) {
+    if (e.target && e.target.id === 'tab-workers') {
+      initWorkerCalendars();
+    }
   });
 
   document.getElementById('btn-save-settings').addEventListener('click', function() {
