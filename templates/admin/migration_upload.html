@@ -15,6 +15,13 @@
                     <label for="db_file" class="form-label">SQLite 데이터베이스 파일 (.db)</label>
                     <input class="form-control" type="file" id="db_file" name="db_file" accept=".db" required>
                 </div>
+
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="reset" name="reset">
+                    <label class="form-check-label text-danger fw-bold" for="reset">기존 데이터 모두 삭제 후 마이그레이션 (초기화)</label>
+                    <div class="form-text text-danger">주의: 체크하면 기존 서버의 주문/사용자 데이터가 모두 사라집니다!</div>
+                </div>
+
                 <button type="submit" class="btn btn-primary">데이터 업로드 및 마이그레이션 시작</button>
             </form>
         </div>

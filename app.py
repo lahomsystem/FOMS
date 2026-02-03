@@ -1897,11 +1897,14 @@ def admin_migration():
             temp_path = os.path.join(app.config['UPLOAD_FOLDER'], 'temp_migration.db')
             file.save(temp_path)
             
-            # 2. Run Migration
+            # 2. Check reset option
+            do_reset = (request.form.get('reset') == 'on')
+
+            # 3. Run Migration
             from web_migration import run_web_migration
             db_session = get_db()
             
-            success, logs = run_web_migration(temp_path, db_session)
+            success, logs = run_web_migration(temp_path, db_session, reset=do_reset)
             
             # 3. Cleanup
             if os.path.exists(temp_path):
