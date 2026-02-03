@@ -1,4 +1,8 @@
 import json
+import os
+import sqlalchemy
+from sqlalchemy import create_engine, MetaData, Table, select
+from sqlalchemy.orm import sessionmaker
 from models import User, Order, ChatRoom, ChatMessage, OrderEvent, OrderTask, AccessLog, SecurityLog, ChatRoomMember, ChatAttachment, OrderAttachment
 
 def run_web_migration(sqlite_path, postgres_session, reset=False):
