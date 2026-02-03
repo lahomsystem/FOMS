@@ -146,6 +146,16 @@ def run_web_migration(sqlite_path, postgres_session, reset=False):
                         postgres_session.commit()
                         wd_calculator_session.commit()
                         
+                        # Reset Sequence (Fix IntegrityError)
+                        try:
+                            schema = 'wdcalculator' if model_cls in [Estimate, EstimateHistory, EstimateOrderMatch] else 'public'
+                            seq_sql = text(f"SELECT setval(pg_get_serial_sequence('{schema}.{tablename}', 'id'), coalesce(max(id), 1), true) FROM {schema}.{tablename}")
+                            session.execute(seq_sql)
+                            session.commit()
+                            logs.append(f"  => Sequence reset for {tablename}.")
+                        except Exception as e:
+                            logs.append(f"  [WARN] Sequence reset failed for {tablename}: {e}")
+                        
                         logs.append(f"  => {count} rows migrated.")
                         total_migrated_count += count
                         
