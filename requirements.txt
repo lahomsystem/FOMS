@@ -67,7 +67,7 @@ pluggy==1.5.0
 poetry==2.1.2
 poetry-core==2.1.2
 proxy_tools==0.1.0
-psycopg2==2.9.10
+
 psycopg2-binary==2.9.9
 pyasn1==0.4.8
 pycparser==2.22
