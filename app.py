@@ -174,11 +174,30 @@ STATUS = {
 }
 
 # 수납장 상태 매핑
-CABINET_STATUS = {
-    'RECEIVED': '접수',
     'IN_PRODUCTION': '제작중',
     'SHIPPED': '발송'
 }
+
+# 일괄 작업용 상태 목록 (삭제 제외)
+BULK_ACTION_STATUS = {k: v for k, v in STATUS.items() if k != 'DELETED'}
+
+@app.template_filter('parse_json_string')
+def parse_json_string(value):
+    if not value:
+        return {}
+    if isinstance(value, dict):
+        return value
+    try:
+        return json.loads(value)
+    except (ValueError, TypeError):
+        return {}
+
+@app.context_processor
+def inject_statuses():
+    return dict(
+        ALL_STATUS=STATUS,
+        BULK_ACTION_STATUS=BULK_ACTION_STATUS
+    )
 
 # User roles 
 ROLES = {
