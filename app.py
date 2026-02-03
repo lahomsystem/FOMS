@@ -9405,9 +9405,9 @@ try:
         # Check/Create Admin User
         from models import User
         from werkzeug.security import generate_password_hash
-        session = get_db()
+        db_session = get_db()
         try:
-            admin = session.query(User).filter_by(username='admin').first()
+            admin = db_session.query(User).filter_by(username='admin').first()
             if not admin:
                 print("[AUTO-INIT] Creating default admin user (admin/admin1234)...")
                 new_admin = User(
@@ -9417,13 +9417,13 @@ try:
                     role='ADMIN',
                     is_active=True
                 )
-                session.add(new_admin)
-                session.commit()
+                db_session.add(new_admin)
+                db_session.commit()
             else:
                 print("[AUTO-INIT] Admin user exists.")
         except Exception as e:
             print(f"[AUTO-INIT] Failed to create admin user: {e}")
-            session.rollback()
+            db_session.rollback()
             
 except Exception as e:
     print(f"[AUTO-INIT] Database initialization failed: {e}")
