@@ -1820,6 +1820,40 @@ def favicon():
     """favicon 요청 처리 (404 방지)"""
     return '', 204  # No Content
 
+@app.route('/debug-db')
+def debug_db():
+    """Database Connection Check Route (Temporary)"""
+    try:
+        from sqlalchemy import text
+        db = get_db()
+        # 1. Simple Select
+        result = db.execute(text("SELECT 1")).fetchone()
+        
+        # 2. Check Tables
+        tables_query = text("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
+        tables = [row[0] for row in db.execute(tables_query).fetchall()]
+        
+        status = "SUCCESS"
+        message = f"Connected! Result: {result}, Tables: {tables}"
+        
+        # Check specific table
+        if 'users' in tables:
+            user_count = db.query(User).count()
+            message += f" | Users count: {user_count}"
+        else:
+            status = "WARNING"
+            message += " | 'users' table MISSING"
+            
+        return jsonify({"status": status, "message": message, "env_db_url_set": bool(os.environ.get('DATABASE_URL'))})
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "status": "ERROR", 
+            "error": str(e), 
+            "traceback": traceback.format_exc()
+        }), 500
+
 @app.route('/')
 @login_required
 def index():
