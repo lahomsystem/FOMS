@@ -31,7 +31,15 @@ class SafeSchemaMigration:
             ('regional_sales_order_upload', 'BOOLEAN DEFAULT FALSE'),
             ('regional_blueprint_sent', 'BOOLEAN DEFAULT FALSE'),
             ('regional_order_upload', 'BOOLEAN DEFAULT FALSE'),
-            ('shipping_scheduled_date', 'VARCHAR')
+            ('shipping_scheduled_date', 'VARCHAR'),
+            ('shipping_fee', 'INTEGER DEFAULT 0'),
+            ('blueprint_image_url', 'TEXT'),
+            ('is_erp_beta', 'BOOLEAN DEFAULT FALSE'),
+            ('raw_order_text', 'TEXT'),
+            ('structured_data', 'JSONB'),
+            ('structured_schema_version', 'INTEGER DEFAULT 1'),
+            ('structured_confidence', 'VARCHAR(20)'),
+            ('structured_updated_at', 'TIMESTAMP')
         ]
     
     def check_column_exists(self, db, column_name):
