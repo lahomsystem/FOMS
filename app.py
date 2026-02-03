@@ -9386,6 +9386,48 @@ if SOCKETIO_AVAILABLE and socketio:
             db.rollback()
             print(f"읽음 표시 오류: {e}")
 
+# Production: Auto-initialize Database Tables
+# This runs when Gunicorn imports 'app'
+try:
+    with app.app_context():
+        print("[AUTO-INIT] Checking database tables...")
+        from db import init_db
+        from wdcalculator_db import init_wdcalculator_db
+        
+        # Initialize Main DB
+        init_db()
+        
+        # Initialize WDCalculator DB
+        init_wdcalculator_db()
+        
+        print("[AUTO-INIT] Tables checked/created successfully.")
+        
+        # Check/Create Admin User
+        from models import User
+        from werkzeug.security import generate_password_hash
+        session = get_db()
+        try:
+            admin = session.query(User).filter_by(username='admin').first()
+            if not admin:
+                print("[AUTO-INIT] Creating default admin user (admin/admin1234)...")
+                new_admin = User(
+                    username='admin',
+                    password=generate_password_hash('admin1234'),
+                    name='관리자',
+                    role='ADMIN',
+                    is_active=True
+                )
+                session.add(new_admin)
+                session.commit()
+            else:
+                print("[AUTO-INIT] Admin user exists.")
+        except Exception as e:
+            print(f"[AUTO-INIT] Failed to create admin user: {e}")
+            session.rollback()
+            
+except Exception as e:
+    print(f"[AUTO-INIT] Database initialization failed: {e}")
+
 if __name__ == '__main__':
     # 안전한 시작 프로세스 실행 (SystemExit 방지)
     try:
