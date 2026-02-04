@@ -79,9 +79,15 @@ def internal_error(error):
 # eventlet might have issues with WebSocket upgrade on Windows
 if SOCKETIO_AVAILABLE:
     try:
-        # threading mode is more stable on Windows
-        socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
-        print("[INFO] Socket.IO initialized in threading mode.")
+        # Quest 14: Use eventlet on Railway/Linux for high concurrency
+        import platform
+        if os.getenv('RAILWAY_ENVIRONMENT') or platform.system() != 'Windows':
+             socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+             print("[INFO] Socket.IO initialized in eventlet mode (Railway/Linux).")
+        else:
+             # threading mode is more stable on Windows dev
+             socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+             print("[INFO] Socket.IO initialized in threading mode (Windows).")
     except Exception as e:
         # fallback to eventlet on failure
         print(f"[WARN] threading mode init failed, falling back to eventlet: {e}")
