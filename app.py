@@ -9532,6 +9532,60 @@ if SOCKETIO_AVAILABLE and socketio:
             db.rollback()
             print(f"읽음 표시 오류: {e}")
 
+
+@app.route('/admin/test-r2')
+@login_required
+@role_required(['ADMIN', 'MANAGER'])
+def admin_test_r2():
+    """R2 연결 테스트 및 디버깅"""
+    try:
+        storage = get_storage()
+        
+        # 1. 환경 변수 상태 확인 (마스킹)
+        env_status = {
+            'STORAGE_TYPE': storage.storage_type,
+            'HAS_ENDPOINT': bool(storage.endpoint_url),
+            'HAS_ACCESS_KEY': bool(storage.access_key_id),
+            'HAS_SECRET_KEY': bool(storage.secret_access_key),
+            'HAS_BUCKET': bool(storage.bucket_name),
+            'ENDPOINT_URL': storage.endpoint_url if storage.endpoint_url else 'None'
+        }
+        
+        if storage.storage_type != 'r2':
+            return jsonify({
+                'success': False,
+                'message': '현재 R2가 활성화되지 않았습니다.',
+                'debug_info': env_status
+            })
+
+        # 2. 실제 연결 테스트 (List Objects)
+        try:
+            # 버킷의 파일 목록 1개만 가져와봄
+            response = storage.client.list_objects_v2(Bucket=storage.bucket_name, MaxKeys=1)
+            
+            # 3. 썸네일/이미지 URL 테스트
+            test_url = storage.get_download_url('test_connection.txt')
+            
+            return jsonify({
+                'success': True,
+                'message': 'R2 연결 성공! (AWS S3 API 통신 확인됨)',
+                'bucket_name': storage.bucket_name,
+                'key_count': response.get('KeyCount', 0),
+                'debug_info': env_status,
+                'generated_test_url': test_url
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'message': f'R2 통신 실패: {str(e)}',
+                'error_type': type(e).__name__,
+                'debug_info': env_status
+            })
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'테스트 중 오류: {str(e)}'})
+
 # Production: Auto-initialize Database Tables
 # This runs when Gunicorn imports 'app'
 try:
@@ -9635,7 +9689,10 @@ if __name__ == '__main__':
             logger.warning("[WARN] 일부 시작 프로세스에서 오류가 발생했지만 앱은 정상적으로 시작됩니다.")
             print("[WARN] 일부 기능에 제한이 있을 수 있습니다. 로그를 확인해주세요.")
         
-        # 4. Flask 웹 서버 시작 (안전한 설정)
+
+
+
+# 4. Flask 웹 서버 시작 (안전한 설정)
         print("[START] 웹 서버를 시작합니다...")
         print(f"[INFO] SOCKETIO_AVAILABLE: {SOCKETIO_AVAILABLE}")
         print(f"[INFO] socketio 객체 존재: {socketio is not None}")
