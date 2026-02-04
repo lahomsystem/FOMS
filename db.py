@@ -25,6 +25,9 @@ DB_URL = _normalize_postgres_url(
 engine = create_engine(
     DB_URL,
     pool_pre_ping=True,
+    pool_size=20,       # Quest 14: Increase pool for 100 concurrent users
+    max_overflow=20,    # Allow bursts
+    pool_recycle=1800,  # Recycle connections every 30 mins
     echo=False  # SQL 로그 비활성화
 )
 
