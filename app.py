@@ -9642,11 +9642,11 @@ if __name__ == '__main__':
         if SOCKETIO_AVAILABLE and socketio:
             # SocketIO 사용 시 socketio.run() 사용
             print("[INFO] Socket.IO 모드로 서버를 시작합니다...")
-            socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=False, allow_unsafe_werkzeug=True)
+            socketio.run(app, host='0.0.0.0', port=5001, debug=True, use_reloader=False, allow_unsafe_werkzeug=True)
         else:
             # 일반 Flask 실행
             print("[WARN] Socket.IO가 비활성화되어 일반 Flask 모드로 시작합니다...")
-            app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+            app.run(host='0.0.0.0', port=5001, debug=True, use_reloader=False)
         
     except KeyboardInterrupt:
         print("\n[STOP] 사용자에 의해 서버가 중단되었습니다.")
