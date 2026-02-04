@@ -1973,6 +1973,37 @@ def admin_migration():
 
     return render_template('admin/migration_upload.html')
 
+@app.route('/admin/optimize-db')
+@login_required
+@role_required(['ADMIN', 'MANAGER'])
+def admin_optimize_db():
+    """ Quest 14: Manually create indexes for performance optimization """
+    try:
+        from sqlalchemy import text
+        db = get_db()
+        
+        # 1. Orders Indexes
+        indexes = [
+            # (Index Name, Table, Column)
+            ('ix_orders_customer_name', 'orders', 'customer_name'),
+            ('ix_orders_phone', 'orders', 'phone'),
+            ('ix_orders_status', 'orders', 'status'),
+            ('ix_order_attachments_order_id', 'order_attachments', 'order_id')
+        ]
+        
+        results = []
+        for idx_name, table, col in indexes:
+            # PostgreSQL specific syntax for safe index creation
+            sql = f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} ({col});"
+            db.execute(text(sql))
+            results.append(f"Checked/Created index: {idx_name}")
+            
+        db.commit()
+        return jsonify({'success': True, 'results': results})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/initialize-db-tables')
 def initialize_db_tables_route():
     """
