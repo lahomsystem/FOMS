@@ -36,12 +36,18 @@ def check_connection():
             
             if 'users' not in tables:
                 print("[WARNING] 'users' table NOT found. Database might be empty. Please run migration.")
+                with open("status.txt", "w", encoding="utf-8") as f:
+                    f.write("MISSING: Users table not found")
             else:
                 print("[INFO] 'users' table found.")
+                with open("status.txt", "w", encoding="utf-8") as f:
+                    f.write("OK: Users table found")
                 
     except Exception as e:
         print(f"[ERROR] SQLAlchemy Connection Failed: {e}")
-        # traceback.print_exc()
+        with open("status.txt", "w", encoding="utf-8") as f:
+            f.write(f"ERROR: {e}")
+
 
     print("="*60)
     print("CHECK COMPLETE")
