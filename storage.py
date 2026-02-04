@@ -50,10 +50,15 @@ class StorageAdapter:
                 self.secret_access_key = os.getenv('R2_SECRET_ACCESS_KEY')
                 self.bucket_name = os.getenv('R2_BUCKET_NAME')
                 
+                # Endpoint Logic: Prefer explicit R2_ENDPOINT, else construct from Account ID
+                self.endpoint_url = os.getenv('R2_ENDPOINT')
+                if not self.endpoint_url and self.account_id:
+                     self.endpoint_url = f"https://{self.account_id}.r2.cloudflarestorage.com"
+
                 # R2 설정 검증
-                if not all([self.account_id, self.access_key_id, self.secret_access_key, self.bucket_name]):
+                if not all([self.endpoint_url, self.access_key_id, self.secret_access_key, self.bucket_name]):
                     missing = []
-                    if not self.account_id: missing.append('R2_ACCOUNT_ID')
+                    if not self.endpoint_url: missing.append('R2_ENDPOINT (or R2_ACCOUNT_ID)')
                     if not self.access_key_id: missing.append('R2_ACCESS_KEY_ID')
                     if not self.secret_access_key: missing.append('R2_SECRET_ACCESS_KEY')
                     if not self.bucket_name: missing.append('R2_BUCKET_NAME')
@@ -64,8 +69,6 @@ class StorageAdapter:
                     self.upload_folder = os.getenv('UPLOAD_FOLDER', 'static/uploads')
                     os.makedirs(self.upload_folder, exist_ok=True)
                     return
-                
-                self.endpoint_url = f"https://{self.account_id}.r2.cloudflarestorage.com"
             else:
                 # AWS S3 설정
                 self.access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
@@ -134,11 +137,13 @@ class StorageAdapter:
         if is_railway:
             # Railway 환경에서 R2 환경 변수 확인
             r2_account_id = os.getenv('R2_ACCOUNT_ID')
+            r2_endpoint = os.getenv('R2_ENDPOINT')
             r2_access_key = os.getenv('R2_ACCESS_KEY_ID')
             r2_secret_key = os.getenv('R2_SECRET_ACCESS_KEY')
             r2_bucket = os.getenv('R2_BUCKET_NAME')
             
-            if all([r2_account_id, r2_access_key, r2_secret_key, r2_bucket]):
+            # Endpoint나 Account ID 중 하나만 있어도 OK
+            if (r2_endpoint or r2_account_id) and r2_access_key and r2_secret_key and r2_bucket:
                 print("[INFO] [RAILWAY] Railway 환경에서 R2 환경 변수가 감지되었습니다.")
                 print("[INFO] [OK] Cloudflare R2를 자동으로 사용합니다.")
                 return 'r2'
