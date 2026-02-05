@@ -1,7 +1,7 @@
 import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning, module="eventlet")
-import eventlet
-eventlet.monkey_patch()
+# warnings.filterwarnings("ignore", category=DeprecationWarning, module="eventlet")
+# import eventlet
+# eventlet.monkey_patch()
 import os
 import datetime
 import json
@@ -81,20 +81,15 @@ def internal_error(error):
 # eventlet might have issues with WebSocket upgrade on Windows
 if SOCKETIO_AVAILABLE:
     try:
-        # Quest 14: Use eventlet on Railway/Linux for high concurrency
+        # Quest 14: Use threading mode for Stability (Fixing upload blocking issues)
+        # Eventlet has issues with SSL/Boto3, so we switch to standard threading.
         import platform
-        if os.getenv('RAILWAY_ENVIRONMENT') or platform.system() != 'Windows':
-             socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
-             print("[INFO] Socket.IO initialized in eventlet mode (Railway/Linux).")
-        else:
-             # threading mode is more stable on Windows dev
-             socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
-             print("[INFO] Socket.IO initialized in threading mode (Windows).")
+        socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+        print("[INFO] Socket.IO initialized in threading mode (Universal Stable).")
     except Exception as e:
-        # fallback to eventlet on failure
-        print(f"[WARN] threading mode init failed, falling back to eventlet: {e}")
-        socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
-        print("[INFO] Socket.IO initialized in eventlet mode.")
+        # fallback
+        print(f"[WARN] threading mode init failed: {e}")
+        socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 else:
     socketio = None
 
