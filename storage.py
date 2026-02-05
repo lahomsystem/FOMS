@@ -247,14 +247,33 @@ class StorageAdapter:
             # Content-Type 설정
             content_type = self._get_content_type(filename)
             
-            # 파일 업로드
+
+            # 파일 업로드 (비동기 처리)
+            # Eventlet 환경에서 boto3 (SSL)가 블로킹되는 것을 방지하기 위해 tpool 사용
+            def _upload_boto3(fileobj, bucket, key, content_type):
+                self.client.upload_fileobj(
+                    fileobj,
+                    bucket,
+                    key,
+                    ExtraArgs={'ContentType': content_type}
+                )
+                return True
+
             file_obj.seek(0)  # 파일 포인터 리셋
-            self.client.upload_fileobj(
-                file_obj,
-                self.bucket_name,
-                key,
-                ExtraArgs={'ContentType': content_type}
-            )
+            
+            # Eventlet tpool 사용 시도
+            try:
+                import eventlet
+                # Boto3 업로드를 별도 스레드풀에서 실행 (메인 루프 차단 방지)
+                eventlet.tpool.execute(_upload_boto3, file_obj, self.bucket_name, key, content_type)
+            except ImportError:
+                # Eventlet이 없는 경우 (Windows 개발 환경 등) 동기 실행
+                _upload_boto3(file_obj, self.bucket_name, key, content_type)
+            except Exception as e:
+                # tpool 실패 시 폴백
+                print(f"[WARNING] Eventlet tpool upload failed, falling back to sync: {e}")
+                file_obj.seek(0)
+                _upload_boto3(file_obj, self.bucket_name, key, content_type)
             
             # URL 생성
             url = self._get_public_url(key) if self._is_public_bucket() else self.get_download_url(key)
