@@ -11,12 +11,14 @@
                 <!-- Tabs: 기존 주문 / ERP Beta -->
                 <ul class="nav nav-tabs mb-3" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="tab-legacy" data-bs-toggle="tab" data-bs-target="#pane-legacy" type="button" role="tab">
+                        <button class="nav-link active" id="tab-legacy" data-bs-toggle="tab"
+                            data-bs-target="#pane-legacy" type="button" role="tab">
                             <i class="fas fa-file-alt"></i> 기존 주문
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="erp-beta-tab" data-bs-toggle="tab" data-bs-target="#erp-beta" type="button" role="tab">
+                        <button class="nav-link" id="erp-beta-tab" data-bs-toggle="tab" data-bs-target="#erp-beta"
+                            type="button" role="tab">
                             <i class="fas fa-layer-group"></i> ERP Beta
                         </button>
                     </li>
@@ -27,68 +29,81 @@
                     <div class="tab-pane fade show active" id="pane-legacy" role="tabpanel">
                         <form method="post" action="{{ url_for('add_order') }}">
                             <input type="hidden" name="create_mode" value="LEGACY">
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <label for="received_date" class="form-label">접수일 <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" id="received_date" name="received_date" value="{{ today }}" required autocomplete="off">
-                        </div>
-                        <div class="col-md-4">
-                            <label for="received_time" class="form-label">접수시간</label>
-                            <input type="time" class="form-control" id="received_time" name="received_time" value="{{ current_time }}" autocomplete="off">
-                        </div>
-                        <div class="col-md-4">
-                            <label for="status" class="form-label">상태</label>
-                            <select class="form-select" id="status" name="status" autocomplete="off">
-                                {% for code, name_val in STATUS.items() %}
-                                    <option value="{{ code }}" {% if code == 'RECEIVED' %}selected{% endif %}>{{ name_val }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                        <label for="customer_name" class="form-label">고객명 <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="customer_name" name="customer_name" required autocomplete="name">
-                    </div>
-                        <div class="col-md-6">
-                            <div class="d-flex align-items-center justify-content-between mb-1">
-                                <label for="phone" class="form-label mb-0">전화번호 <span class="text-danger">*</span></label>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="manual_phone_input" autocomplete="off">
-                                    <label class="form-check-label" for="manual_phone_input">
-                                        수동입력
-                                    </label>
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label for="received_date" class="form-label">접수일 <span
+                                            class="text-danger">*</span></label>
+                                    <input type="date" class="form-control" id="received_date" name="received_date"
+                                        value="{{ today }}" required autocomplete="off">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="received_time" class="form-label">접수시간</label>
+                                    <input type="time" class="form-control" id="received_time" name="received_time"
+                                        value="{{ current_time }}" autocomplete="off">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="status" class="form-label">상태</label>
+                                    <select class="form-select" id="status" name="status" autocomplete="off">
+                                        {% for code, name_val in STATUS.items() %}
+                                        <option value="{{ code }}" {% if code=='RECEIVED' %}selected{% endif %}>{{
+                                            name_val }}</option>
+                                        {% endfor %}
+                                    </select>
                                 </div>
                             </div>
-                            <input type="tel" class="form-control" id="phone" name="phone" required autocomplete="tel">
-                        </div>
-                    </div>
-                    
-                    <div class="row mb-3">
-                    <div class="col-md-12">
-                        <label for="address" class="form-label">주소 <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="address" name="address" rows="10" required></textarea>
-                        <div id="address-info" class="mt-2"></div>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="product" class="form-label">제품 <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="product" name="product" required autocomplete="off">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="option_type" class="form-label">옵션 입력 방식</label>
-                        <select class="form-select" id="option_type" name="option_type" autocomplete="off">
-                            <option value="online" selected>온라인</option>
-                            <option value="direct">직접입력</option>
-                        </select>
-                    </div>
 
-                    <div id="options_online_group">
-                        <label for="options_online" class="form-label">온라인 옵션</label>
-                        <textarea class="form-control" id="options_online" name="options_online" rows="15" autocomplete="off">실측일 :
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="customer_name" class="form-label">고객명 <span
+                                            class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="customer_name" name="customer_name"
+                                        required autocomplete="name">
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <label for="phone" class="form-label mb-0">전화번호 <span
+                                                class="text-danger">*</span></label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="manual_phone_input"
+                                                autocomplete="off">
+                                            <label class="form-check-label" for="manual_phone_input">
+                                                수동입력
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <input type="tel" class="form-control" id="phone" name="phone" required
+                                        autocomplete="tel">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <label for="address" class="form-label">주소 <span
+                                            class="text-danger">*</span></label>
+                                    <textarea class="form-control" id="address" name="address" rows="10"
+                                        required></textarea>
+                                    <div id="address-info" class="mt-2"></div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="product" class="form-label">제품 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="product" name="product" required
+                                    autocomplete="off">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="option_type" class="form-label">옵션 입력 방식</label>
+                                <select class="form-select" id="option_type" name="option_type" autocomplete="off">
+                                    <option value="online" selected>온라인</option>
+                                    <option value="direct">직접입력</option>
+                                </select>
+                            </div>
+
+                            <div id="options_online_group">
+                                <label for="options_online" class="form-label">온라인 옵션</label>
+                                <textarea class="form-control" id="options_online" name="options_online" rows="15"
+                                    autocomplete="off">실측일 :
 시   간 :
 
 고객명 :
@@ -111,203 +126,233 @@
 
 추가결제링크
 https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
-                    </div>
+                            </div>
 
-                    <div id="options_direct_group" style="display: none;">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <p class="fw-bold mb-0">직접입력 옵션 상세</p>
-                            <div>
-                                <button type="button" class="btn btn-sm btn-outline-danger me-2" id="clear_direct_options_btn">모두 삭제</button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" id="restore_direct_options_btn" style="display: none;">복구</button>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label for="direct_product_name" class="form-label">제품명</label>
-                                <input type="text" class="form-control" id="direct_product_name" name="direct_product_name" autocomplete="off">
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label for="direct_standard" class="form-label">규격</label>
-                                <input type="text" class="form-control" id="direct_standard" name="direct_standard" autocomplete="off">
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label for="direct_internal" class="form-label">내부</label>
-                                <input type="text" class="form-control" id="direct_internal" name="direct_internal" autocomplete="off">
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label for="direct_color" class="form-label">색상</label>
-                                <input type="text" class="form-control" id="direct_color" name="direct_color" autocomplete="off">
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label for="direct_option_detail" class="form-label">상세옵션</label>
-                                <input type="text" class="form-control" id="direct_option_detail" name="direct_option_detail" autocomplete="off">
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label for="direct_handle" class="form-label">손잡이</label>
-                                <input type="text" class="form-control" id="direct_handle" name="direct_handle" autocomplete="off">
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="direct_misc" class="form-label">기타</label>
-                                <input type="text" class="form-control" id="direct_misc" name="direct_misc" autocomplete="off">
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="direct_quote" class="form-label">견적내용</label>
-                            <textarea class="form-control auto-resize" id="direct_quote" name="direct_quote" rows="1" autocomplete="off"></textarea>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="payment_amount" class="form-label">결제금액</label>
-                        <input type="text" class="form-control" id="payment_amount" name="payment_amount" placeholder="숫자만 입력하세요" inputmode="numeric" autocomplete="off">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="notes" class="form-label">비고</label>
-                        <textarea class="form-control auto-resize" id="notes" name="notes" rows="1" autocomplete="off"></textarea>
-                    </div>
-                    
-                    <h5 class="mt-4">추가 정보</h5>
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <label for="measurement_date" class="form-label">실측일</label>
-                            <input type="date" class="form-control" id="measurement_date" name="measurement_date" autocomplete="off">
-                        </div>
-                        <div class="col-md-4">
-                            <label for="measurement_time_select" class="form-label">실측시간</label>
-                            <select class="form-select" id="measurement_time_select" name="measurement_time_select">
-                                <option value="__direct__" selected>직접 입력</option>
-                                <option value="오전">오전</option>
-                                <option value="오후">오후</option>
-                                <option value="종일">종일</option>
-                            </select>
-                            <input type="text" class="form-control mt-2" id="measurement_time" name="measurement_time" placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off">
-                        </div>
-                        <div class="col-md-4">
-                            <label for="scheduled_date" class="form-label">설치 예정일</label>
-                            <input type="date" class="form-control" id="scheduled_date" name="scheduled_date" autocomplete="off">
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <label for="completion_date" class="form-label">설치완료일</label>
-                            <input type="date" class="form-control" id="completion_date" name="completion_date" autocomplete="off">
-                        </div>
-                        <div class="col-md-4">
-                            <label for="as_received_date" class="form-label">AS 접수일</label>
-                            <input type="date" class="form-control" id="as_received_date" name="as_received_date" autocomplete="off">
-                        </div>
-                        <div class="col-md-4">
-                            <label for="as_completed_date" class="form-label">AS 완료일</label>
-                            <input type="date" class="form-control" id="as_completed_date" name="as_completed_date" autocomplete="off">
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="manager_name" class="form-label">담당자</label>
-                        <input type="text" class="form-control" id="manager_name" name="manager_name" autocomplete="off">
-                    </div>
-                    
-                    <!-- 지방 주문 설정 -->
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="is_regional" name="is_regional" value="1">
-                            <label class="form-check-label" for="is_regional">
-                                <i class="fas fa-map-marker-alt text-warning"></i> 지방 주문으로 설정
-                            </label>
-                            <small class="form-text text-muted d-block">지방 주문으로 설정하면 추가 관리 절차가 적용됩니다.</small>
-                        </div>
-                        <div class="form-check mt-2">
-                            <input class="form-check-input" type="checkbox" id="is_self_measurement" name="is_self_measurement" value="1">
-                            <label class="form-check-label" for="is_self_measurement">
-                                <i class="fas fa-ruler-combined text-info"></i> 자가실측
-                            </label>
-                            <small class="form-text text-muted d-block">자가실측으로 설정하면 별도 대시보드에서 관리됩니다.</small>
-                        </div>
-                        <div class="form-check mt-2">
-                            <input class="form-check-input" type="checkbox" id="is_cabinet" name="is_cabinet" value="1">
-                            <label class="form-check-label" for="is_cabinet">
-                                <i class="fas fa-box-archive text-secondary"></i> 수납장
-                            </label>
-                            <small class="form-text text-muted d-block">수납장으로 설정하면 수납장 대시보드에서 관리됩니다.</small>
-                        </div>
-                    </div>
-
-                    <!-- 지방 주문 추가 필드들 (조건부 표시) -->
-                    <div id="regional_fields" class="mb-3" style="display: none;">
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0"><i class="fas fa-cogs text-warning"></i> 지방 주문 관리</h6>
-                            </div>
-                            <div class="card-body">
-                                <!-- 시공 구분 -->
-                                <div class="mb-3">
-                                    <label for="construction_type" class="form-label">시공 구분</label>
-                                    <select class="form-select" id="construction_type" name="construction_type">
-                                        <option value="">-- 선택 --</option>
-                                        <option value="하우드 시공">하우드 시공</option>
-                                        <option value="협력사 시공">협력사 시공</option>
-                                        <option value="기타">기타</option>
-                                    </select>
+                            <div id="options_direct_group" style="display: none;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <p class="fw-bold mb-0">직접입력 옵션 상세</p>
+                                    <div>
+                                        <button type="button" class="btn btn-sm btn-outline-danger me-2"
+                                            id="clear_direct_options_btn">모두 삭제</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            id="restore_direct_options_btn" style="display: none;">복구</button>
+                                    </div>
                                 </div>
-
-                                <!-- 기본 체크리스트 -->
                                 <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" 
-                                                   name="measurement_completed" id="measurement_completed" value="1">
-                                            <label class="form-check-label" for="measurement_completed">
-                                                실측완료
-                                            </label>
-                                        </div>
-                                        <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" 
-                                                   name="regional_sales_order_upload" id="regional_sales_order_upload" value="1">
-                                            <label class="form-check-label" for="regional_sales_order_upload">
-                                                영업발주 업로드
-                                            </label>
-                                        </div>
-                                        <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" 
-                                                   name="regional_blueprint_sent" id="regional_blueprint_sent" value="1">
-                                            <label class="form-check-label" for="regional_blueprint_sent">
-                                                도면 발송
-                                            </label>
-                                        </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="direct_product_name" class="form-label">제품명</label>
+                                        <input type="text" class="form-control" id="direct_product_name"
+                                            name="direct_product_name" autocomplete="off">
                                     </div>
-                                    <div class="col-md-6">
-                                        <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" 
-                                                   name="regional_order_upload" id="regional_order_upload" value="1">
-                                            <label class="form-check-label" for="regional_order_upload">
-                                                발주 업로드
-                                            </label>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="direct_standard" class="form-label">규격</label>
+                                        <input type="text" class="form-control" id="direct_standard"
+                                            name="direct_standard" autocomplete="off">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="direct_internal" class="form-label">내부</label>
+                                        <input type="text" class="form-control" id="direct_internal"
+                                            name="direct_internal" autocomplete="off">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label for="direct_color" class="form-label">색상</label>
+                                        <input type="text" class="form-control" id="direct_color" name="direct_color"
+                                            autocomplete="off">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="direct_option_detail" class="form-label">상세옵션</label>
+                                        <input type="text" class="form-control" id="direct_option_detail"
+                                            name="direct_option_detail" autocomplete="off">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="direct_handle" class="form-label">손잡이</label>
+                                        <input type="text" class="form-control" id="direct_handle" name="direct_handle"
+                                            autocomplete="off">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="direct_misc" class="form-label">기타</label>
+                                        <input type="text" class="form-control" id="direct_misc" name="direct_misc"
+                                            autocomplete="off">
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="direct_quote" class="form-label">견적내용</label>
+                                    <textarea class="form-control auto-resize" id="direct_quote" name="direct_quote"
+                                        rows="1" autocomplete="off"></textarea>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="payment_amount" class="form-label">결제금액</label>
+                                <input type="text" class="form-control" id="payment_amount" name="payment_amount"
+                                    placeholder="숫자만 입력하세요" inputmode="numeric" autocomplete="off">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="notes" class="form-label">비고</label>
+                                <textarea class="form-control auto-resize" id="notes" name="notes" rows="1"
+                                    autocomplete="off"></textarea>
+                            </div>
+
+                            <h5 class="mt-4">추가 정보</h5>
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label for="measurement_date" class="form-label">실측일</label>
+                                    <input type="date" class="form-control" id="measurement_date"
+                                        name="measurement_date" autocomplete="off">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="measurement_time_select" class="form-label">실측시간</label>
+                                    <select class="form-select" id="measurement_time_select"
+                                        name="measurement_time_select">
+                                        <option value="__direct__" selected>직접 입력</option>
+                                        <option value="오전">오전</option>
+                                        <option value="오후">오후</option>
+                                        <option value="종일">종일</option>
+                                    </select>
+                                    <input type="text" class="form-control mt-2" id="measurement_time"
+                                        name="measurement_time" placeholder="예: 10:30 / 오전 / 오후 / 종일"
+                                        autocomplete="off">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="scheduled_date" class="form-label">설치 예정일</label>
+                                    <input type="date" class="form-control" id="scheduled_date" name="scheduled_date"
+                                        autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label for="completion_date" class="form-label">설치완료일</label>
+                                    <input type="date" class="form-control" id="completion_date" name="completion_date"
+                                        autocomplete="off">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="as_received_date" class="form-label">AS 접수일</label>
+                                    <input type="date" class="form-control" id="as_received_date"
+                                        name="as_received_date" autocomplete="off">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="as_completed_date" class="form-label">AS 완료일</label>
+                                    <input type="date" class="form-control" id="as_completed_date"
+                                        name="as_completed_date" autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="manager_name" class="form-label">담당자</label>
+                                <input type="text" class="form-control" id="manager_name" name="manager_name"
+                                    autocomplete="off">
+                            </div>
+
+                            <!-- 지방 주문 설정 -->
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="is_regional" name="is_regional"
+                                        value="1">
+                                    <label class="form-check-label" for="is_regional">
+                                        <i class="fas fa-map-marker-alt text-warning"></i> 지방 주문으로 설정
+                                    </label>
+                                    <small class="form-text text-muted d-block">지방 주문으로 설정하면 추가 관리 절차가 적용됩니다.</small>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" id="is_self_measurement"
+                                        name="is_self_measurement" value="1">
+                                    <label class="form-check-label" for="is_self_measurement">
+                                        <i class="fas fa-ruler-combined text-info"></i> 자가실측
+                                    </label>
+                                    <small class="form-text text-muted d-block">자가실측으로 설정하면 별도 대시보드에서 관리됩니다.</small>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" id="is_cabinet" name="is_cabinet"
+                                        value="1">
+                                    <label class="form-check-label" for="is_cabinet">
+                                        <i class="fas fa-box-archive text-secondary"></i> 수납장
+                                    </label>
+                                    <small class="form-text text-muted d-block">수납장으로 설정하면 수납장 대시보드에서 관리됩니다.</small>
+                                </div>
+                            </div>
+
+                            <!-- 지방 주문 추가 필드들 (조건부 표시) -->
+                            <div id="regional_fields" class="mb-3" style="display: none;">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="fas fa-cogs text-warning"></i> 지방 주문 관리</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <!-- 시공 구분 -->
+                                        <div class="mb-3">
+                                            <label for="construction_type" class="form-label">시공 구분</label>
+                                            <select class="form-select" id="construction_type" name="construction_type">
+                                                <option value="">-- 선택 --</option>
+                                                <option value="하우드 시공">하우드 시공</option>
+                                                <option value="협력사 시공">협력사 시공</option>
+                                                <option value="기타">기타</option>
+                                            </select>
                                         </div>
-                                        <!-- 협력사 시공 시에만 표시되는 항목들 -->
-                                        <div class="form-check mb-2 d-none" id="cargo-sent-div">
-                                            <input class="form-check-input" type="checkbox" 
-                                                   name="regional_cargo_sent" id="regional_cargo_sent" value="1">
-                                            <label class="form-check-label" for="regional_cargo_sent">
-                                                화물 발송
-                                            </label>
-                                        </div>
-                                        <div class="form-check mb-2 d-none" id="construction-info-div">
-                                            <input class="form-check-input" type="checkbox" 
-                                                   name="regional_construction_info_sent" id="regional_construction_info_sent" value="1">
-                                            <label class="form-check-label" for="regional_construction_info_sent">
-                                                시공정보 발송
-                                            </label>
+
+                                        <!-- 기본 체크리스트 -->
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-check mb-2">
+                                                    <input class="form-check-input" type="checkbox"
+                                                        name="measurement_completed" id="measurement_completed"
+                                                        value="1">
+                                                    <label class="form-check-label" for="measurement_completed">
+                                                        실측완료
+                                                    </label>
+                                                </div>
+                                                <div class="form-check mb-2">
+                                                    <input class="form-check-input" type="checkbox"
+                                                        name="regional_sales_order_upload"
+                                                        id="regional_sales_order_upload" value="1">
+                                                    <label class="form-check-label" for="regional_sales_order_upload">
+                                                        영업발주 업로드
+                                                    </label>
+                                                </div>
+                                                <div class="form-check mb-2">
+                                                    <input class="form-check-input" type="checkbox"
+                                                        name="regional_blueprint_sent" id="regional_blueprint_sent"
+                                                        value="1">
+                                                    <label class="form-check-label" for="regional_blueprint_sent">
+                                                        도면 발송
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-check mb-2">
+                                                    <input class="form-check-input" type="checkbox"
+                                                        name="regional_order_upload" id="regional_order_upload"
+                                                        value="1">
+                                                    <label class="form-check-label" for="regional_order_upload">
+                                                        발주 업로드
+                                                    </label>
+                                                </div>
+                                                <!-- 협력사 시공 시에만 표시되는 항목들 -->
+                                                <div class="form-check mb-2 d-none" id="cargo-sent-div">
+                                                    <input class="form-check-input" type="checkbox"
+                                                        name="regional_cargo_sent" id="regional_cargo_sent" value="1">
+                                                    <label class="form-check-label" for="regional_cargo_sent">
+                                                        화물 발송
+                                                    </label>
+                                                </div>
+                                                <div class="form-check mb-2 d-none" id="construction-info-div">
+                                                    <input class="form-check-input" type="checkbox"
+                                                        name="regional_construction_info_sent"
+                                                        id="regional_construction_info_sent" value="1">
+                                                    <label class="form-check-label"
+                                                        for="regional_construction_info_sent">
+                                                        시공정보 발송
+                                                    </label>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                    
+
                             <div class="d-flex justify-content-between">
                                 <a href="{{ url_for('index') }}" class="btn btn-secondary">취소</a>
                                 <button type="submit" class="btn btn-primary">기존 주문 추가</button>
@@ -327,28 +372,28 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
 {% block scripts %}
 {{ super() }}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         // 자동 높이 조절 함수
         function adjustTextareaHeight(textarea) {
             textarea.style.height = 'auto';
             textarea.style.height = textarea.scrollHeight + 'px';
         }
-        
+
         // 날짜를 한국어 형태로 변환하는 함수
         function formatDateToKorean(dateString, timeString = '') {
             if (!dateString) return '';
-            
+
             const date = new Date(dateString);
             const month = date.getMonth() + 1;
             const day = date.getDate();
-            
+
             let result = `${month}월 ${day}일`;
-            
+
             if (timeString) {
                 const [hours, minutes] = timeString.split(':');
                 const hour = parseInt(hours);
                 const min = parseInt(minutes);
-                
+
                 if (hour === 0) {
                     result += ` 오전 12시`;
                 } else if (hour < 12) {
@@ -358,12 +403,12 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
                 } else {
                     result += ` 오후 ${hour - 12}시`;
                 }
-                
+
                 if (min > 0) {
                     result += ` ${min}분`;
                 }
             }
-            
+
             return result;
         }
 
@@ -371,10 +416,10 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
         function updateSpecificField(fieldPattern, newValue) {
             const optionsOnline = document.getElementById('options_online');
             if (!optionsOnline) return;
-            
+
             let content = optionsOnline.value;
             const lines = content.split('\n');
-            
+
             for (let i = 0; i < lines.length; i++) {
                 if (lines[i].match(fieldPattern)) {
                     // 콜론 위치를 찾아서 정확히 1스페이스로 통일
@@ -386,68 +431,68 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
                     }
                 }
             }
-            
+
             optionsOnline.value = lines.join('\n');
             adjustTextareaHeight(optionsOnline);
         }
-        
+
         // 개별 필드별 업데이트 함수들
         function updateCustomerName() {
             const customerName = document.getElementById('customer_name').value || '';
             updateSpecificField(/^고객명\s*:/, customerName);
         }
-        
+
         function updatePhone() {
             const phone = document.getElementById('phone').value || '';
             updateSpecificField(/^연락처\s*:/, phone);
         }
-        
+
         function updateAddress() {
             const address = document.getElementById('address').value || '';
             const firstLineAddress = address.split('\n')[0].trim();
             updateSpecificField(/^주\s*소\s*:/, firstLineAddress);
         }
-        
+
         function updateMeasurementDate() {
             const measurementDate = document.getElementById('measurement_date').value || '';
             let measurementInfo = '';
-            
+
             if (measurementDate) {
                 measurementInfo = formatDateToKorean(measurementDate);
             }
-            
+
             updateSpecificField(/^실측일\s*:/, measurementInfo);
         }
-        
+
         function updateMeasurementTime() {
             const measurementTimeSelectEl = document.getElementById('measurement_time_select');
             const measurementTimeInputEl = document.getElementById('measurement_time');
             const measurementTimeSelect = measurementTimeSelectEl ? (measurementTimeSelectEl.value || '') : '';
             const measurementTime = measurementTimeInputEl ? (measurementTimeInputEl.value || '') : '';
             let timeInfo = '';
-            
+
             if (measurementTimeSelect === '__direct__' && measurementTime) {
                 timeInfo = measurementTime;
             } else if (measurementTimeSelect && measurementTimeSelect !== '__direct__') {
                 timeInfo = measurementTimeSelect;
             }
-            
+
             updateSpecificField(/^시\s*간\s*:/, timeInfo);
         }
-        
+
         function updateScheduledDate() {
             const scheduledDate = document.getElementById('scheduled_date').value || '';
             let dateInfo = '';
-            
+
             if (scheduledDate) {
                 dateInfo = formatDateToKorean(scheduledDate);
             } else {
                 dateInfo = '상담';
             }
-            
+
             updateSpecificField(/^시공일\s*:/, dateInfo);
         }
-        
+
         // 개별 필드별 이벤트 리스너 등록
         const customerNameInput = document.getElementById('customer_name');
         const phoneInput = document.getElementById('phone');
@@ -456,32 +501,32 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
         const measurementTimeSelectInput = document.getElementById('measurement_time_select');
         const measurementTimeForFill = document.getElementById('measurement_time');
         const scheduledDateInput = document.getElementById('scheduled_date');
-        
+
         // 각 필드마다 개별 업데이트 함수 연결
         if (customerNameInput) {
             customerNameInput.addEventListener('input', updateCustomerName);
         }
-        
+
         if (phoneInput) {
             phoneInput.addEventListener('input', updatePhone);
         }
-        
+
         if (addressInput) {
             addressInput.addEventListener('input', updateAddress);
         }
-        
+
         if (measurementDateInput) {
             measurementDateInput.addEventListener('input', updateMeasurementDate);
         }
-        
+
         if (measurementTimeSelectInput) {
             measurementTimeSelectInput.addEventListener('change', updateMeasurementTime);
         }
-        
+
         if (measurementTimeForFill) {
             measurementTimeForFill.addEventListener('input', updateMeasurementTime);
         }
-        
+
         if (scheduledDateInput) {
             scheduledDateInput.addEventListener('input', updateScheduledDate);
         }
@@ -521,7 +566,7 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
         const directTextareaIds = ['direct_quote', 'notes'];
 
         if (optionTypeSelect) {
-            optionTypeSelect.addEventListener('change', function() {
+            optionTypeSelect.addEventListener('change', function () {
                 if (this.value === 'online') {
                     onlineOptionsGroup.classList.remove('hidden');
                     directOptionsGroup.classList.add('hidden');
@@ -535,15 +580,15 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
                     directOptionsGroup.classList.remove('hidden');
                     if (onlineOptionsInput) storedDirectOptions['options_online'] = onlineOptionsInput.value;
                     directTextareaIds.forEach(id => {
-                         const ta = document.getElementById(id);
-                         if (ta) adjustTextareaHeight(ta);
+                        const ta = document.getElementById(id);
+                        if (ta) adjustTextareaHeight(ta);
                     });
                 }
             });
             if (optionTypeSelect.value === 'online' && onlineOptionsInput) {
                 adjustTextareaHeight(onlineOptionsInput);
             } else if (optionTypeSelect.value === 'direct') {
-                 directTextareaIds.forEach(id => {
+                directTextareaIds.forEach(id => {
                     const ta = document.getElementById(id);
                     if (ta) adjustTextareaHeight(ta);
                 });
@@ -551,10 +596,10 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
         }
 
         if (clearDirectOptionsBtn) {
-            clearDirectOptionsBtn.addEventListener('click', function() {
+            clearDirectOptionsBtn.addEventListener('click', function () {
                 directOptionFieldIds.forEach(id => {
                     const element = document.getElementById(id);
-                    if (element) storedDirectOptions[id] = element.value; 
+                    if (element) storedDirectOptions[id] = element.value;
                 });
                 if (confirm('직접 입력된 모든 옵션 내용을 지우시겠습니까?')) {
                     directOptionFieldIds.forEach(id => {
@@ -564,29 +609,29 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
                             if (directTextareaIds.includes(id)) adjustTextareaHeight(element);
                         }
                     });
-                    if(restoreDirectOptionsBtn) restoreDirectOptionsBtn.style.display = 'inline-block';
+                    if (restoreDirectOptionsBtn) restoreDirectOptionsBtn.style.display = 'inline-block';
                 }
             });
         }
 
         if (restoreDirectOptionsBtn) {
-            restoreDirectOptionsBtn.addEventListener('click', function() {
+            restoreDirectOptionsBtn.addEventListener('click', function () {
                 directOptionFieldIds.forEach(id => {
                     const element = document.getElementById(id);
                     if (element && storedDirectOptions[id] !== undefined) {
                         element.value = storedDirectOptions[id];
-                         if (directTextareaIds.includes(id)) adjustTextareaHeight(element);
+                        if (directTextareaIds.includes(id)) adjustTextareaHeight(element);
                     }
                 });
                 this.style.display = 'none';
             });
         }
-        
+
         document.querySelectorAll('.auto-resize').forEach(adjustTextareaHeight);
-        
+
         const paymentAmountInput = document.getElementById('payment_amount');
         if (paymentAmountInput) {
-            paymentAmountInput.addEventListener('input', function(e) {
+            paymentAmountInput.addEventListener('input', function (e) {
                 let value = e.target.value.replace(/[^\d]/g, '');
                 if (value) {
                     value = parseInt(value, 10).toLocaleString('ko-KR');
@@ -601,7 +646,7 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
         if (measurementTimeSelect && measurementTimeInput) {
             measurementTimeInput.style.display = 'block';
 
-            measurementTimeSelect.addEventListener('change', function() {
+            measurementTimeSelect.addEventListener('change', function () {
                 if (this.value === '__direct__') {
                     measurementTimeInput.style.display = 'block';
                 } else {
@@ -613,7 +658,7 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
             });
 
             // 실측시간 직접 입력 시
-            measurementTimeInput.addEventListener('input', function() {
+            measurementTimeInput.addEventListener('input', function () {
                 updateOnlineOptionsTime();
             });
         }
@@ -622,10 +667,10 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
         function updateOnlineOptionsTime() {
             updateMeasurementTime();
         }
-        
+
         const addForm = document.querySelector('form[action*="add_order"]');
         if (addForm) {
-            addForm.addEventListener('submit', function(event) {
+            addForm.addEventListener('submit', function (event) {
                 // 실측시간 처리
                 if (measurementTimeSelect && measurementTimeInput) {
                     if (measurementTimeSelect.value === '__direct__') {
@@ -652,7 +697,7 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
                 if (paymentAmountInput) {
                     paymentAmountInput.value = paymentAmountInput.value.replace(/,/g, '');
                 }
-                });
+            });
         }
 
         // 지방 주문 관련 기능
@@ -664,7 +709,7 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
 
         // 지방 주문 체크박스 변경 시
         if (isRegionalCheckbox && regionalFields) {
-            isRegionalCheckbox.addEventListener('change', function() {
+            isRegionalCheckbox.addEventListener('change', function () {
                 if (this.checked) {
                     regionalFields.style.display = 'block';
                 } else {
@@ -680,7 +725,7 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
 
         // 시공 구분 변경 시 (협력사 시공일 때 추가 필드 표시)
         if (constructionTypeSelect && cargoSentDiv && constructionInfoDiv) {
-            constructionTypeSelect.addEventListener('change', function() {
+            constructionTypeSelect.addEventListener('change', function () {
                 if (this.value === '협력사 시공') {
                     cargoSentDiv.classList.remove('d-none');
                     constructionInfoDiv.classList.remove('d-none');
@@ -692,6 +737,17 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
                     document.getElementById('regional_construction_info_sent').checked = false;
                 }
             });
+        }
+
+        // URL 파라미터에 따라 탭 자동 전환 (?open=erp-beta)
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('open') === 'erp-beta') {
+            const erpTab = document.getElementById('erp-beta-tab');
+            if (erpTab) {
+                // 부트스트랩 탭 인스턴스 생성 및 전환
+                const tabInstance = new bootstrap.Tab(erpTab);
+                tabInstance.show();
+            }
         }
     });
 </script>
@@ -714,25 +770,27 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
         justify-content: center;
         align-items: center;
     }
-    
+
     .toggle-icon i {
         font-size: 1.5rem;
         color: #ffffff;
     }
-    
+
     .btn.toggle-options {
         padding: 0.25rem;
     }
-    
-    .btn.toggle-options:focus, 
+
+    .btn.toggle-options:focus,
     .btn.toggle-options:active {
         box-shadow: none;
         outline: none;
     }
 
     textarea.auto-resize {
-        overflow-y: hidden; /* 스크롤바 초기에는 숨김 */
-        resize: none; /* 사용자가 크기 조절 못하게 */
+        overflow-y: hidden;
+        /* 스크롤바 초기에는 숨김 */
+        resize: none;
+        /* 사용자가 크기 조절 못하게 */
     }
 </style>
-{% endblock %} 
+{% endblock %}
