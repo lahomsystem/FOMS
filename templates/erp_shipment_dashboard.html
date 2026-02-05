@@ -1,35 +1,46 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-2">
-  <span class="mb-0 fw-bold text-dark fs-6"><i class="fas fa-truck-loading text-primary"></i> ERP 출고 대시보드</span>
-</div>
-{% set erp_sub_nav_active = 'shipment' %}
-{% include 'partials/erp_sub_nav.html' %}
+<div class="erp-pro">
+  <!-- Modern Header -->
+  <header class="erp-pro-header">
+    <h1 class="erp-pro-header__title">
+      <i class="fas fa-truck-loading"></i>
+      <span>출고 대시보드</span>
+    </h1>
+    <div class="erp-pro-header__actions">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_shipment_settings') }}">
+        <i class="fas fa-cog"></i>
+        <span class="d-none d-md-inline">설정</span>
+      </a>
+    </div>
+  </header>
+  {% set erp_sub_nav_active = 'shipment' %}
+  {% include 'partials/erp_sub_nav.html' %}
 
 {% if not erp_beta_enabled %}
-<div class="alert alert-secondary">
-  ERP Beta 기능이 비활성입니다. (환경변수 <code>ERP_BETA_ENABLED=true</code> 필요)
+<div class="erp-pro-alert erp-pro-alert--warning">
+  <div class="erp-pro-alert__icon"><i class="fas fa-exclamation-triangle"></i></div>
+  <div class="erp-pro-alert__content">
+    <span>ERP Beta 기능이 비활성입니다. (환경변수 <code>ERP_BETA_ENABLED=true</code> 필요)</span>
+  </div>
 </div>
 {% else %}
-<div class="d-flex justify-content-end mb-2">
-  <a href="{{ url_for('erp_shipment_settings') }}" class="btn btn-sm btn-outline-secondary"><i
-      class="fas fa-cog me-1"></i>출고 설정</a>
-</div>
-<div class="card">
-  <div class="card-header bg-white">
-    <form class="row g-2 align-items-end measurement-filter-row" method="get">
-      <div class="col-6 col-md-3">
-        <label class="form-label mb-1">기준 날짜(시공일)</label>
-        <input type="date" class="form-control" name="date" value="{{ selected_date }}">
+<div class="erp-pro-card">
+  <div class="erp-pro-card__header erp-pro-card__header--filter">
+    <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
+      <div class="erp-pro-filter-group">
+        <label class="erp-pro-filter-label">기준 날짜</label>
+        <input type="date" class="erp-pro-input" name="date" value="{{ selected_date }}">
       </div>
-      <div class="col-6 col-md-3">
-        <label class="form-label mb-1">담당자(부분 일치)</label>
-        <input type="text" class="form-control" name="manager" value="{{ manager_filter }}" placeholder="예: 정다슬">
+      <div class="erp-pro-filter-group">
+        <label class="erp-pro-filter-label">담당자</label>
+        <input type="text" class="erp-pro-input" name="manager" value="{{ manager_filter }}" placeholder="예: 정다슬">
       </div>
-      <div class="col-12 col-md-6 d-flex gap-2 measurement-filter-actions">
-        <button class="btn btn-primary" type="submit">
-          <i class="fas fa-search"></i> 조회
+      <div class="erp-pro-filter-actions">
+        <button class="erp-pro-btn erp-pro-btn--primary" type="submit">
+          <i class="fas fa-search"></i>
+          <span>조회</span>
         </button>
       </div>
     </form>
@@ -207,12 +218,14 @@
 
             .shipment-table {
               min-width: 1100px;
+              font-size: 0.875rem;
             }
 
             .shipment-table th,
             .shipment-table td {
               white-space: nowrap;
               vertical-align: middle;
+              font-size: 0.875rem;
             }
 
             .shipment-table .shipment-address-cell {
@@ -220,13 +233,20 @@
             }
 
             .shipment-table .shipment-address-text {
-              font-size: 1rem;
+              font-size: 0.875rem;
               color: #212529;
             }
 
             .shipment-table .cell-wrap {
               white-space: normal;
               word-break: break-word;
+            }
+
+            /* 모바일: 제품 컬럼 가로 확장 → 행 높이 최소화, 가로 스크롤로 확인 */
+            @media (max-width: 768px) {
+              .shipment-table .shipment-product-cell {
+                min-width: 240px !important;
+              }
             }
 
             .shipment-site-extra-list {
@@ -507,18 +527,15 @@
                 display: none !important;
               }
 
-              .shipment-drawing-managers-list .actions-on-hover {
-                opacity: 1 !important;
-                max-height: 2.5em !important;
-                overflow: visible !important;
-                margin-top: 4px !important;
-              }
-
-              .shipment-workers-list .actions-on-hover {
-                opacity: 1 !important;
-                max-height: 2.5em !important;
-                overflow: visible !important;
-                margin-top: 4px !important;
+              /* 모바일이 아닌 터치 디바이스에서만 + 버튼 항상 표시 (모바일은 아래 미디어에서 빈곳 클릭 시 표시) */
+              @media (min-width: 769px) {
+                .shipment-drawing-managers-list .actions-on-hover,
+                .shipment-workers-list .actions-on-hover {
+                  opacity: 1 !important;
+                  max-height: 2.5em !important;
+                  overflow: visible !important;
+                  margin-top: 4px !important;
+                }
               }
             }
 
@@ -570,11 +587,14 @@
                 display: none !important;
               }
 
-              .shipment-address-block .address-row-actions {
-                opacity: 1;
-                max-height: 2.5em;
-                overflow: visible;
-                margin-bottom: 4px;
+              /* 모바일이 아닌 터치 디바이스에서만 현장주소 + 버튼 항상 표시 (모바일은 빈곳 클릭 시 표시) */
+              @media (min-width: 769px) {
+                .shipment-address-block .address-row-actions {
+                  opacity: 1;
+                  max-height: 2.5em;
+                  overflow: visible;
+                  margin-bottom: 4px;
+                }
               }
             }
 
@@ -585,6 +605,96 @@
             .shipment-spec-list .shipment-spec-line {
               white-space: nowrap;
             }
+
+            /* 모바일: 도면담당자/시공자 폰트·입력 크기 축소 → 주문 건 높이 최소화 */
+            @media (max-width: 768px) {
+              .shipment-drawing-managers-list .drawing-manager-view,
+              .shipment-drawing-managers-list .shipment-drawing-manager-input,
+              .shipment-drawing-managers-list .shipment-drawing-manager-wrap input,
+              .shipment-workers-list .worker-view,
+              .shipment-workers-list .shipment-worker-input,
+              .shipment-workers-list .shipment-worker-wrap input {
+                font-size: 0.75rem !important;
+              }
+              .shipment-drawing-managers-list .shipment-drawing-manager-wrap,
+              .shipment-workers-list .shipment-worker-wrap {
+                gap: 2px !important;
+                padding: 1px 2px !important;
+                min-height: 0 !important;
+              }
+              .shipment-drawing-managers-list .shipment-drawing-manager-input,
+              .shipment-drawing-managers-list .shipment-drawing-manager-wrap input,
+              .shipment-workers-list .shipment-worker-input,
+              .shipment-workers-list .shipment-worker-wrap input {
+                padding: 2px 6px !important;
+                min-height: 24px !important;
+                height: 24px !important;
+                min-width: 50px !important;
+                width: 60px !important;
+              }
+              .shipment-drawing-managers-list,
+              .shipment-workers-list {
+                gap: 2px !important;
+                min-height: 26px !important;
+              }
+              .shipment-drawing-managers-list .drawing-manager-view,
+              .shipment-workers-list .worker-view {
+                padding: 2px 4px;
+                line-height: 1.2;
+              }
+              .shipment-drawing-managers-list .btn-add-drawing-manager,
+              .shipment-workers-list .btn-add-worker,
+              .shipment-drawing-managers-list .btn-remove-drawing-manager,
+              .shipment-workers-list .btn-remove-worker {
+                padding: 2px 6px !important;
+                font-size: 0.7rem !important;
+                min-width: 22px !important;
+                height: 22px !important;
+              }
+            }
+
+            /* 모바일: + 버튼 기본 숨김, 빈곳 클릭 시에만 표시 (PC와 동일한 호버 동작) */
+            @media (max-width: 768px) {
+              .shipment-drawing-managers-list .actions-on-hover,
+              .shipment-workers-list .actions-on-hover {
+                opacity: 0 !important;
+                max-height: 0 !important;
+                overflow: hidden !important;
+                margin: 0 !important;
+                padding: 0 !important;
+              }
+              .shipment-drawing-managers-list.show-add-actions .actions-on-hover,
+              .shipment-workers-list.show-add-actions .actions-on-hover {
+                opacity: 1 !important;
+                max-height: 2em !important;
+                overflow: visible !important;
+                margin-top: 2px !important;
+              }
+              .shipment-drawing-managers-list,
+              .shipment-workers-list {
+                cursor: pointer;
+              }
+            }
+
+            /* 모바일: 현장주소 + 버튼 기본 숨김, 빈곳 클릭 시에만 표시 */
+            @media (max-width: 768px) {
+              .shipment-address-block .address-row-actions {
+                opacity: 0 !important;
+                max-height: 0 !important;
+                overflow: hidden !important;
+                margin: 0 !important;
+                padding: 0 !important;
+              }
+              .shipment-address-block.show-add-actions .address-row-actions {
+                opacity: 1 !important;
+                max-height: 2.5em !important;
+                overflow: visible !important;
+                margin-bottom: 4px !important;
+              }
+              .shipment-address-block {
+                cursor: pointer;
+              }
+            }
           </style>
           <table class="table table-sm table-hover align-middle shipment-table">
             <thead class="table-light">
@@ -592,7 +702,7 @@
                 <th style="width: 60px; border-right: 1px solid #e0e0e0;">상세</th>
                 <th style="width: 100px; border-right: 1px solid #e0e0e0;">고객</th>
                 <th style="width: 100px; border-right: 1px solid #e0e0e0;">대리점(발주사)</th>
-                <th style="min-width: 72px; border-right: 1px solid #e0e0e0;">제품</th>
+                <th class="shipment-product-cell" style="min-width: 72px; border-right: 1px solid #e0e0e0;">제품</th>
                 <th style="width: 100px; border-right: 1px solid #e0e0e0;">규격(W/300)</th>
                 <th style="min-width: 280px; border-right: 1px solid #e0e0e0;">현장주소</th>
                 <th style="min-width: 130px; border-right: 1px solid #e0e0e0;">시공시간</th>
@@ -658,7 +768,7 @@
                 </td>
                 <td style="border-right: 1px solid #e0e0e0;">{{ customer or '-' }}</td>
                 <td style="border-right: 1px solid #e0e0e0;">{{ orderer or '-' }}</td>
-                <td class="cell-wrap" style="border-right: 1px solid #e0e0e0;">
+                <td class="cell-wrap shipment-product-cell" style="border-right: 1px solid #e0e0e0;">
                   <div class="d-flex flex-column gap-1 shipment-product-list">
                     {% if r.is_erp_beta and erp_items %}
                     {% for it in erp_items %}
@@ -1303,6 +1413,23 @@
       });
     });
 
+    /* 모바일: 도면담당자/시공자/현장주소 컬럼 빈곳 클릭 시 + 버튼 표시/숨김 (PC 호버와 동일) */
+    function initMobileAddButtonToggle() {
+      if (!window.matchMedia('(max-width: 768px)').matches) return;
+      document.querySelectorAll('.shipment-drawing-managers-list, .shipment-workers-list, .shipment-address-block').forEach(function (el) {
+        if (el._mobileAddToggle) return;
+        el._mobileAddToggle = true;
+        el.addEventListener('click', function (e) {
+          if (e.target.closest('button') || e.target.closest('input')) return;
+          el.classList.toggle('show-add-actions');
+        });
+      });
+    }
+    initMobileAddButtonToggle();
+    window.addEventListener('resize', function () {
+      if (window.matchMedia('(max-width: 768px)').matches) initMobileAddButtonToggle();
+    });
+
     document.querySelectorAll('.shipment-btn-load-saved-workers').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.preventDefault();
@@ -1518,4 +1645,5 @@
   })();
 </script>
 {% endif %}
+</div><!-- end erp-pro -->
 {% endblock %}

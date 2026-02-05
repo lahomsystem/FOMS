@@ -7,31 +7,52 @@
     .table-fixed-header {
         max-height: 70vh;
         border-bottom: 1px solid #dee2e6;
-        position: relative; /* For resizing overlay */
+        position: relative;
+        isolation: isolate; /* 스크롤 시 겹침 방지 stacking context */
     }
     .table-fixed-header table {
-        width: 100%;
-        border-collapse: separate; /* Important for resize handles */
+        min-width: 100%;
+        table-layout: auto; /* 열마다 min-width 적용되어 가로 스크롤 가능 */
+        border-collapse: separate;
         border-spacing: 0;
     }
     .table-fixed-header thead th {
         position: sticky;
         top: 0;
         background-color: #f8f9fa;
-        z-index: 10;
-        box-shadow: inset 0 -1px 0 #dee2e6;
-        /* Resizable column styles */
+        z-index: 100 !important;
+        isolation: isolate;
+        box-shadow: 0 1px 0 #dee2e6;
         overflow: hidden;
         white-space: nowrap;
-        padding: 0.75rem; /* Adjust padding as needed */
-        text-align: center; /* 헤더 텍스트 가운데 정렬 */
+        padding: 0.75rem;
+        text-align: center;
+        vertical-align: middle;
+        line-height: 1.2;
+    }
+    /* 작업 헤더: 양옆 thead th와 동일 */
+    .table-fixed-header thead th.th-actions {
+        padding: 0.75rem !important;
+        overflow: hidden !important;
+        z-index: 101 !important;
+        background-color: #f8f9fa !important;
+        box-shadow: 0 1px 0 #dee2e6 !important;
+        isolation: isolate;
     }
     .table-fixed-header td {
         padding: 0.75rem;
-        vertical-align: top; /* Ensure content aligns well */
+        vertical-align: top;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+    /* 스크롤 다운 시 주문건이 헤더 위에 겹치지 않도록 본문 레이어 최하단 유지 */
+    .table-fixed-header tbody tr { position: relative; z-index: 0 !important; }
+    .table-fixed-header tbody td { position: relative; z-index: 0 !important; }
+    /* 작업 컬럼: 셀 경계 안에서만 표시(접수일 침범 방지) */
+    .table-fixed-header td.th-actions {
+        overflow: hidden !important;
+        white-space: nowrap;
     }
     
     /* 특정 컬럼은 줄바꿈 허용 (옵션, 메모 등) */
@@ -71,9 +92,9 @@
         font-size: 1rem !important;
     }
     
-    /* 옵션이 펼쳐진 셀은 다른 내용 위에 표시 */
+    /* 옵션/비고 펼침 시 같은 행 내에서만 위에 표시, 헤더에는 겹치지 않음 */
     .options-cell.expanded, .notes-cell.expanded {
-        z-index: 10;
+        z-index: 1;
         position: relative;
     }
     .options-summary-container, .notes-summary-container {
@@ -135,7 +156,7 @@
         font-size: 0.9rem;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         position: relative;
-        z-index: 100;
+        z-index: 1;
     }
     .notes-full-content {
         background-color: #fffbf0;
@@ -156,16 +177,17 @@
         font-size: 1rem !important;
         line-height: 1.5;
     }
+    /* 옵션 + / 비고 꺾쇠 버튼: 스크롤 시 헤더 위로 겹치지 않도록 z-index 0 */
     .toggle-options, .toggle-notes {
-        flex-shrink: 0; /* 버튼 크기 유지 */
-        padding: 6px 8px !important; /* 버튼 크기 조정 */
+        flex-shrink: 0;
+        padding: 6px 8px !important;
         line-height: 1.2 !important;
-        font-size: 0.85rem !important; /* 아이콘 크기 조정 */
+        font-size: 0.85rem !important;
         border-radius: 4px !important;
         position: relative;
-        z-index: 5; /* 버튼이 다른 요소 위에 표시되도록 */
-        cursor: pointer !important; /* 명시적 커서 설정 */
-        pointer-events: auto !important; /* 클릭 가능하도록 */
+        z-index: 0 !important;
+        cursor: pointer !important;
+        pointer-events: auto !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -224,25 +246,43 @@
       -ms-user-select: none;
     }
 
-    /* 컬럼 필터 관련 스타일 */
+    /* 컬럼 필터 행: 스크롤 다운 시 고정, 주문건 아래에 그리기 */
+    .table-fixed-header .column-filter-row th {
+        position: sticky !important;
+        top: 38px !important;
+        z-index: 99 !important;
+    }
+    /* 필터 셀 공통 스타일 - 모든 필터 th 동일 */
     .column-filter-row th {
-        padding: 5px 3px;
+        padding: 2px 3px;
+        min-height: 28px;
+        height: 30px;
+        vertical-align: middle;
+        box-sizing: border-box;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        isolation: isolate;
+        background: #ffffff !important;
+        border-bottom: 1px solid var(--erp-border, #dee2e6);
+    }
+    /* 작업 열 필터 셀: 양옆과 동일한 배경·언더라인·그림자 */
+    .column-filter-row th.filter-buttons-cell {
+        background: #ffffff !important;
+        border-bottom: 1px solid var(--erp-border, #dee2e6) !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
     }
     .column-filter-row input, 
     .column-filter-row select {
-        font-size: 0.8rem;
-        padding: 0.25rem;
+        font-size: 0.7rem;
+        padding: 2px 4px;
         width: 100%;
-    }
-    .filter-buttons-cell {
-        display: flex;
-        gap: 3px;
-        justify-content: center;
+        height: 22px;
+        min-height: 22px;
     }
     .filter-buttons-cell button,
     .filter-buttons-cell a {
-        font-size: 0.7rem;
-        padding: 0.2rem 0.4rem;
+        font-size: 0.65rem;
+        padding: 2px 4px;
+        height: 22px;
     }
     .customer-name-cell .badge {
         font-size: 0.7em; /* 배지 크기 살짝 줄이기 */
@@ -258,26 +298,68 @@
     .th-select { text-align: center; }
     .th-actions { text-align: center; }
     
-    /* 옵션과 비고 컬럼 너비 조정 */
-    .th-options, th.th-options {
-        width: 300px !important; /* 옵션 너비 */
-        min-width: 300px !important;
-        max-width: 400px !important;
+    /* === 컬럼 가로폭: 정보가 보이도록 min-width 지정, 가로 슬라이드로 확인 === */
+    .th-select, th.th-select, td.th-select { min-width: 44px !important; }
+    .th-id, th.th-id, td.th-id { min-width: 90px !important; }
+    .th-received-date, th.th-received-date, td.th-received-date { min-width: 100px !important; }
+    .th-received-time, th.th-received-time, td.th-received-time { min-width: 80px !important; }
+    .th-customer-name, th.th-customer-name, td.th-customer-name { min-width: 110px !important; }
+    .th-phone, th.th-phone, td.th-phone { min-width: 120px !important; }
+    .th-address, th.th-address, td.th-address, td.td-address { min-width: 280px !important; }
+    .th-product, th.th-product, td.th-product {
+        min-width: 220px !important;
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        word-break: break-word !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
     }
-    .th-notes, th.th-notes {
-        width: 250px !important; /* 비고 너비 증가 */
-        min-width: 250px !important;
+    .th-options, th.th-options, td.th-options, td.options-cell { min-width: 320px !important; }
+    .th-notes, th.th-notes, td.th-notes, td.notes-cell { min-width: 280px !important; }
+    .th-payment-amount, th.th-payment-amount, td.td-payment-amount { min-width: 100px !important; }
+    .th-measurement-date, th.th-measurement-date, td.td-measurement-date { min-width: 100px !important; }
+    .th-measurement-time, th.th-measurement-time, td.th-measurement-time { min-width: 90px !important; }
+    .th-scheduled-date, th.th-scheduled-date, td.th-scheduled-date { min-width: 105px !important; }
+    .th-manager-name, th.th-manager-name, td.th-manager-name { min-width: 85px !important; }
+    .th-status, th.th-status, td.th-status { min-width: 80px !important; }
+    /* 작업 컬럼: 수정·삭제 아이콘 두 개만 딱 들어가는 최소 폭 */
+    .th-actions, th.th-actions, td.th-actions {
+        width: 72px !important;
+        min-width: 72px !important;
+        max-width: 72px !important;
+        vertical-align: middle !important;
+        box-sizing: border-box !important;
     }
-    
-    /* TD 셀에도 적용 */
-    td.th-options, td.td-options, td.options-cell {
-        width: 300px !important;
-        max-width: 400px !important;
+    .table-fixed-header tbody td.th-actions {
+        padding: 4px !important;
+        overflow: hidden !important;
     }
-    td.th-notes, td.td-notes, td.notes-cell {
-        width: 250px !important; /* 비고 너비 증가 */
-        min-width: 250px !important;
+    .table-fixed-header thead th.th-actions {
+        vertical-align: middle !important;
+        line-height: 1.2 !important;
     }
+    .th-actions .btn-group {
+        display: inline-flex;
+        flex-wrap: nowrap;
+        gap: 6px;
+        max-width: 100%;
+        justify-content: center;
+    }
+    .th-actions .btn-group .btn {
+        padding: 4px 3px !important;
+        font-size: 0.8rem !important;
+        min-width: 0 !important;
+        width: auto !important;
+        min-height: 26px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
+        flex-shrink: 0 !important;
+    }
+    .th-actions .btn-group .btn i { margin: 0 !important; }
+    /* 고객명 셀 truncate 완화 (컬럼 폭으로 더 보이게) */
+    .customer-name-cell .text-truncate { max-width: none !important; }
     
     /* 보라색 뱃지 */
     .bg-purple {
@@ -300,62 +382,83 @@
 {% endblock %}
 
 {% block content %}
-<div class="order-list-container">
-    {# 검색 및 열 필터를 포함하는 메인 폼 #}
-    <form method="get" action="{{ url_for('index') }}" id="main-filter-form">
-    <div class="d-flex justify-content-between mb-3">
-        <div>
-            <a href="{{ url_for('add_order') }}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> 새 주문 추가하기
+<div class="erp-pro order-list-container">
+    {# === 페이지 헤더 === #}
+    <header class="order-list-page-header">
+        <h1 class="order-list-page-header__title">
+            <i class="fas fa-list-alt"></i>
+            <span>주문 관리</span>
+        </h1>
+        <div class="order-list-page-header__actions">
+            <a href="{{ url_for('add_order') }}" class="erp-pro-btn erp-pro-btn--primary">
+                <i class="fas fa-plus"></i>
+                <span>새 주문</span>
             </a>
-            <a href="{{ url_for('upload_excel') }}" class="btn btn-secondary">
-                <i class="fas fa-file-excel"></i> 엑셀 파일 업로드
+            <a href="{{ url_for('upload_excel') }}" class="erp-pro-btn erp-pro-btn--secondary">
+                <i class="fas fa-file-excel"></i>
+                <span class="d-none d-sm-inline">엑셀 업로드</span>
             </a>
-                {% set download_params_dict = request.args.to_dict() %}
-                <a href="{{ url_for('download_excel', **download_params_dict) }}" class="btn btn-success">
-                <i class="fas fa-download"></i> 엑셀 다운로드
+            {% set download_params_dict = request.args.to_dict() %}
+            <a href="{{ url_for('download_excel', **download_params_dict) }}" class="erp-pro-btn erp-pro-btn--success">
+                <i class="fas fa-download"></i>
+                <span class="d-none d-sm-inline">엑셀 다운로드</span>
             </a>
         </div>
-        
-            <div class="search-group">
-                {# 상단 탭 상태 필터는 URL에 직접 반영되므로, hidden input으로 유지할 필요는 없음 #}
-                {% if request.args.get('status') %}
-                <input type="hidden" name="status" value="{{ request.args.get('status') }}">
-            {% endif %}
-                <input type="text" name="search" class="form-control me-2" placeholder="전체 검색..." value="{{ request.args.get('search', '') }}">
-                <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i></button>
-            </div>
-    </div>
-    </form> {# 메인 필터 폼 종료 #}
+    </header>
     
-    {# 일괄 작업 폼은 별도로 정의 - 중첩 제거 #}
-    <form action="{{ url_for('bulk_action') }}" method="post" id="bulk-action-form">
-        <div class="mb-3 bulk-actions">
-            <div class="action-group">
-                <div class="me-2">선택 항목:</div>
-                <select class="form-select form-select-sm me-2" id="bulk-action" name="action" style="width: auto;">
-                    <option selected disabled>선택 항목 작업</option>
-                    <option value="delete">삭제</option>
-                    {# 복사 옵션 추가 #}
-                    <option value="copy">복사</option> 
-                    <optgroup label="상태 변경">
-                        {% for code, name_val in BULK_ACTION_STATUS.items() %}
-                        <option value="status_{{ code }}">{{ name_val }}</option>
-                        {% endfor %}
-                    </optgroup>
-                </select>
-                <select name="new_status" class="form-select me-2 d-none" id="status-select" style="width: auto;">
-                    <option value="">-- 상태 선택 --</option>
+    {# === 검색 폼 (hidden, 검색 input과 연결) === #}
+    <form method="get" action="{{ url_for('index') }}" id="main-filter-form" style="display: none;">
+        {% if request.args.get('status') %}
+        <input type="hidden" name="status" value="{{ request.args.get('status') }}">
+        {% endif %}
+    </form>
+    
+    {# === 통합 도구바: 일괄작업 + 검색 === #}
+    <div class="order-list-toolbar">
+        {# 일괄 작업 영역 #}
+        <div class="order-list-bulk-actions">
+            <span class="order-list-bulk-actions__label">선택 항목:</span>
+            <select id="bulk-action" name="action" form="bulk-action-form">
+                <option selected disabled>작업 선택</option>
+                <option value="delete">삭제</option>
+                <option value="copy">복사</option>
+                <optgroup label="상태 변경">
                     {% for code, name_val in BULK_ACTION_STATUS.items() %}
-                        <option value="{{ code }}">{{ name_val }}</option>
+                    <option value="status_{{ code }}">{{ name_val }}</option>
                     {% endfor %}
-                </select>
-                <input type="date" name="new_measurement_date" class="form-control me-2 d-none" id="measurement-date-input" style="width: auto;">
-                <input type="text" name="new_manager_name" class="form-control me-2 d-none" id="manager-name-input" placeholder="담당자 이름" style="width: auto;">
-                <button type="submit" class="btn btn-primary btn-sm" id="bulk-action-btn">적용</button>
-            </div>
+                </optgroup>
+            </select>
+            <select name="new_status" class="d-none" id="status-select" form="bulk-action-form">
+                <option value="">상태 선택</option>
+                {% for code, name_val in BULK_ACTION_STATUS.items() %}
+                    <option value="{{ code }}">{{ name_val }}</option>
+                {% endfor %}
+            </select>
+            <input type="date" name="new_measurement_date" class="d-none" id="measurement-date-input" form="bulk-action-form">
+            <input type="text" name="new_manager_name" class="d-none" id="manager-name-input" placeholder="담당자 이름" form="bulk-action-form">
+            <button type="submit" form="bulk-action-form" class="erp-pro-btn erp-pro-btn--primary erp-pro-btn--sm" id="bulk-action-btn">
+                <i class="fas fa-check"></i>
+                <span>적용</span>
+            </button>
         </div>
         
+        {# 검색 영역 #}
+        <div class="order-list-search">
+            <input type="text" name="search" form="main-filter-form" placeholder="전체 검색..." value="{{ request.args.get('search', '') }}">
+            <button type="submit" form="main-filter-form" class="erp-pro-btn erp-pro-btn--primary erp-pro-btn--sm">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+        {# 컬럼 필터 적용/초기화 (필터 라인 작업 셀에서 이동) #}
+        <div class="order-list-filter-actions">
+            <button type="button" id="apply-column-filters-btn" class="erp-pro-btn erp-pro-btn--secondary erp-pro-btn--sm" title="컬럼 필터 적용">필터 적용</button>
+            <a href="{{ url_for('index', status=request.args.get('status'), search=request.args.get('search')) }}" class="erp-pro-btn erp-pro-btn--outline erp-pro-btn--sm" title="컬럼 필터 초기화">초기화</a>
+        </div>
+    </div>
+    
+    {# === 테이블 영역 === #}
+    <form action="{{ url_for('bulk_action') }}" method="post" id="bulk-action-form">
+    <div class="order-list-table-container">
         <div class="table-responsive table-fixed-header">
             <table class="table table-bordered table-hover">
                 <thead class="table-light">
@@ -364,7 +467,7 @@
                             <input type="checkbox" id="select-all">
                             <span class="resize-handle"></span></th>
                         <th class="th-id"><div>번호</div><span class="resize-handle"></span></th>
-                        <th class="th-actions">작업<span class="resize-handle"></span></th>
+                        <th class="th-actions"><div>작업</div><span class="resize-handle"></span></th>
                         <th class="th-received-date"><div>접수일</div><span class="resize-handle"></span></th>
                         <th class="th-received-time"><div>접수시간</div><span class="resize-handle"></span></th>
                         <th class="th-customer-name"><div>고객명</div><span class="resize-handle"></span></th>
@@ -400,10 +503,7 @@
                     <tr class="column-filter-row">
                         <th></th>
                         <th><input type="text" name="filter_id" class="form-control form-control-sm column-filter" placeholder="번호" value="{{ active_column_filters.get('id', '') }}"></th>
-                        <th class="filter-buttons-cell">
-                            <button type="button" id="apply-column-filters-btn" class="btn btn-sm btn-secondary" title="컬럼 필터 적용"><i class="fas fa-check"></i></button>
-                            <a href="{{ url_for('index', status=request.args.get('status'), search=request.args.get('search')) }}" class="btn btn-sm btn-outline-secondary" title="컬럼 필터 초기화"><i class="fas fa-times"></i></a>
-                        </th>
+                        <th class="filter-buttons-cell">&nbsp;</th>
                         <th><input type="text" name="filter_received_date" class="form-control form-control-sm column-filter" placeholder="접수일" value="{{ active_column_filters.get('received_date', '') }}"></th>
                         <th><input type="text" name="filter_received_time" class="form-control form-control-sm column-filter" placeholder="접수시간" value="{{ active_column_filters.get('received_time', '') }}"></th>
                         <th><input type="text" name="filter_customer_name" class="form-control form-control-sm column-filter" placeholder="고객명" value="{{ active_column_filters.get('customer_name', '') }}"></th>
@@ -449,10 +549,10 @@
                         </td>
                         <td class="th-actions">
                             <div class="btn-group">
-                                <a href="{{ url_for('edit_order', order_id=order.id, **request.args) }}" class="btn btn-sm btn-outline-primary">
+                                <a href="{{ url_for('edit_order', order_id=order.id, **request.args) }}" class="btn btn-sm btn-outline-primary" title="수정">
                                     <i class="fas fa-edit"></i>
                                 </a>
-                                <a href="{{ url_for('delete_order', order_id=order.id) }}" class="btn btn-sm btn-outline-danger" 
+                                <a href="{{ url_for('delete_order', order_id=order.id) }}" class="btn btn-sm btn-outline-danger" title="휴지통으로 이동"
                                    onclick="return confirm('이 주문을 휴지통으로 이동하시겠습니까?');">
                                     <i class="fas fa-trash"></i>
                                 </a>
@@ -690,6 +790,7 @@
                 </tbody>
             </table>
         </div>
+    </div> {# order-list-table-container 종료 #}
     </form> {# 일괄 작업 폼 종료 #}
 </div>
 

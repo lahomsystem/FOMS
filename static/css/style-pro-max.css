@@ -1,0 +1,267 @@
+/* ==========================================================================
+   UI/UX PRO MAX - Design System
+   Version: 2.1.1 (Premium Edition)
+   Status: Active
+   ========================================================================== */
+
+/* 1. ROOT VARIABLES & THEME CONFIGURATION */
+:root {
+    /* Brand Colors (Premium Blue) */
+    --brand-primary: #007AFF;
+    /* Apple Blue */
+    --brand-primary-dark: #0062CC;
+    --brand-primary-light: #47A1FF;
+    --brand-secondary: #5E5CE6;
+    /* Indigo */
+
+    /* Semantic Colors */
+    --color-success: #34C759;
+    --color-warning: #FF9500;
+    --color-danger: #FF3B30;
+    --color-info: #5AC8FA;
+
+    /* Neural / Surface Colors */
+    --bg-app: #F5F5F7;
+    /* Light Grey Background */
+    --bg-surface: #FFFFFF;
+    /* Pure White */
+    --bg-glass: rgba(255, 255, 255, 0.72);
+
+    /* Text Colors */
+    --text-primary: #1D1D1F;
+    /* Almost Black */
+    --text-secondary: #86868B;
+    /* Cool Grey */
+    --text-tertiary: #C7C7CC;
+
+    /* Spacing System (8pt Grid) */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-8: 48px;
+
+    /* Radii */
+    --radius-s: 8px;
+    --radius-m: 12px;
+    --radius-l: 18px;
+    --radius-xl: 24px;
+
+    /* Shadows (Smooth Depth - v2.1.1 Enhanced) */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-s: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    --shadow-m: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+    --shadow-l: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    --shadow-float: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+
+    /* Transitions */
+    --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    --ease-elastic: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* 2. TYPOGRAPHY - Modern Stack */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text-primary);
+    background-color: var(--bg-app);
+    letter-spacing: -0.015em;
+    /* Tighter tracking for modern feel */
+    -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: var(--space-3);
+    letter-spacing: -0.025em;
+}
+
+/* 3. GLASSMORPHISM UTILITIES */
+.glass {
+    background: var(--bg-glass);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: var(--shadow-s);
+}
+
+.glass-panel {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    border-radius: var(--radius-l);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: var(--shadow-m);
+}
+
+/* 4. COMPONENT OVERRIDES (Ready to activate) */
+
+/* Modern Cards */
+.card {
+    border: none !important;
+    border-radius: var(--radius-l) !important;
+    background: var(--bg-surface);
+    box-shadow: var(--shadow-s);
+    transition: transform 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out);
+    overflow: hidden;
+}
+
+.card:hover {
+    box-shadow: var(--shadow-m);
+}
+
+.card-header {
+    background: transparent !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+    padding: var(--space-4) !important;
+    font-weight: 600;
+}
+
+/* Premium Buttons */
+.btn {
+    border-radius: var(--radius-s) !important;
+    padding: 10px 20px !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em;
+    transition: all 0.2s var(--ease-out) !important;
+    border: none !important;
+    box-shadow: var(--shadow-xs);
+}
+
+.btn-primary {
+    background: var(--brand-primary) !important;
+    color: white !important;
+}
+
+.btn-primary:hover {
+    background: var(--brand-primary-dark) !important;
+    box-shadow: var(--shadow-m);
+}
+
+.btn-outline-secondary {
+    background: white !important;
+    color: var(--text-primary) !important;
+    border: 1px solid #E5E5EA !important;
+}
+
+.btn-outline-secondary:hover {
+    background: #F2F2F7 !important;
+    border-color: #D1D1D6 !important;
+}
+
+/* Floating Navbar */
+.navbar {
+    background: rgba(255, 255, 255, 0.8) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+    position: sticky !important;
+    top: 0;
+    z-index: 1000;
+    padding: var(--space-3) var(--space-5) !important;
+}
+
+/* Inputs */
+.form-control,
+.form-select {
+    border-radius: var(--radius-m) !important;
+    border: 1px solid #E5E5EA !important;
+    background-color: #F2F2F7 !important;
+    /* Authentic Apple input bg */
+    padding: 12px 16px !important;
+    /* Larger touch target */
+    font-size: 1rem !important;
+    transition: all 0.2s var(--ease-out);
+}
+
+.form-control:focus,
+.form-select:focus {
+    background-color: white !important;
+    border-color: var(--brand-primary) !important;
+    box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.15) !important;
+}
+
+/* Badges */
+.badge {
+    border-radius: 6px !important;
+    padding: 6px 10px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.02em;
+}
+
+/* Table Enhancements */
+.table {
+    border-collapse: separate !important;
+    border-spacing: 0 var(--space-1) !important;
+    /* Gap between rows */
+}
+
+.table thead th {
+    background: transparent !important;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    border: none !important;
+    padding: var(--space-3) !important;
+}
+
+.table tbody tr {
+    background: white;
+    box-shadow: var(--shadow-xs);
+    border-radius: var(--radius-s);
+    transition: transform 0.1s;
+}
+
+.table tbody tr td:first-child {
+    border-top-left-radius: var(--radius-s);
+    border-bottom-left-radius: var(--radius-s);
+}
+
+.table tbody tr td:last-child {
+    border-top-right-radius: var(--radius-s);
+    border-bottom-right-radius: var(--radius-s);
+}
+
+.table tbody tr:hover {
+    box-shadow: var(--shadow-s);
+    z-index: 1;
+    position: relative;
+    background-color: #FAFAFC !important;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.4s var(--ease-out) forwards;
+}
+
+/* Layout Utilities */
+.container-premium {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: var(--space-5);
+}
+
+.grid-dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-4);
+}

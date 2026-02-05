@@ -1,37 +1,54 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-2">
-  <span class="mb-0 fw-bold text-dark fs-6"><i class="fas fa-ruler-combined text-primary"></i> ERP 실측 대시보드</span>
-</div>
-{% set erp_sub_nav_active = 'measurement' %}
-{% include 'partials/erp_sub_nav.html' %}
+<div class="erp-pro">
+  <!-- Modern Header -->
+  <header class="erp-pro-header">
+    <h1 class="erp-pro-header__title">
+      <i class="fas fa-ruler-combined"></i>
+      <span>실측 대시보드</span>
+    </h1>
+    <div class="erp-pro-header__actions">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_dashboard') }}">
+        <i class="fas fa-arrow-left"></i>
+        <span class="d-none d-md-inline">ERP</span>
+      </a>
+    </div>
+  </header>
+  {% set erp_sub_nav_active = 'measurement' %}
+  {% include 'partials/erp_sub_nav.html' %}
 
 {% if not erp_beta_enabled %}
-  <div class="alert alert-secondary">
-    ERP Beta 기능이 비활성입니다. (환경변수 <code>ERP_BETA_ENABLED=true</code> 필요)
+  <div class="erp-pro-alert erp-pro-alert--warning">
+    <div class="erp-pro-alert__icon"><i class="fas fa-exclamation-triangle"></i></div>
+    <div class="erp-pro-alert__content">
+      <span>ERP Beta 기능이 비활성입니다. (환경변수 <code>ERP_BETA_ENABLED=true</code> 필요)</span>
+    </div>
   </div>
 {% else %}
-  <div class="card">
-    <div class="card-header bg-white">
-      <form class="row g-2 align-items-end measurement-filter-row" method="get">
-        <div class="col-6 col-md-3">
-          <label class="form-label mb-1">기준 날짜(실측일)</label>
-          <input type="date" class="form-control" name="date" value="{{ selected_date }}">
+  <div class="erp-pro-card">
+    <div class="erp-pro-card__header erp-pro-card__header--filter">
+      <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
+        <div class="erp-pro-filter-group">
+          <label class="erp-pro-filter-label">기준 날짜</label>
+          <input type="date" class="erp-pro-input" name="date" value="{{ selected_date }}">
         </div>
-        <div class="col-6 col-md-3">
-          <label class="form-label mb-1">담당자(부분 일치)</label>
-          <input type="text" class="form-control" name="manager" value="{{ manager_filter }}" placeholder="예: 정다슬">
+        <div class="erp-pro-filter-group">
+          <label class="erp-pro-filter-label">담당자</label>
+          <input type="text" class="erp-pro-input" name="manager" value="{{ manager_filter }}" placeholder="예: 정다슬">
         </div>
-        <div class="col-12 col-md-6 d-flex gap-2 measurement-filter-actions">
-          <button class="btn btn-primary" type="submit">
-            <i class="fas fa-search"></i> 조회
+        <div class="erp-pro-filter-actions">
+          <button class="erp-pro-btn erp-pro-btn--primary" type="submit">
+            <i class="fas fa-search"></i>
+            <span>조회</span>
           </button>
-          <a class="btn btn-outline-secondary btn-measure-action" href="/erp/measurement?date={{ selected_date }}&manager={{ manager_filter | urlencode }}&open_map=1">
-            <i class="fas fa-map-marked-alt"></i> 지도 보기(실측)
+          <a class="erp-pro-btn erp-pro-btn--secondary" href="/erp/measurement?date={{ selected_date }}&manager={{ manager_filter | urlencode }}&open_map=1">
+            <i class="fas fa-map"></i>
+            <span class="d-none d-sm-inline">지도</span>
           </a>
-          <button class="btn btn-outline-primary btn-measure-action" type="button" id="btn-route-plan">
-            <i class="fas fa-route"></i> 동선 추천
+          <button class="erp-pro-btn erp-pro-btn--outline" type="button" id="btn-route-plan">
+            <i class="fas fa-route"></i>
+            <span class="d-none d-sm-inline">동선</span>
           </button>
         </div>
       </form>
@@ -78,21 +95,33 @@
           }
           .measurement-table {
             min-width: 980px;
+            font-size: 0.875rem;
           }
           .measurement-table th,
           .measurement-table td {
             white-space: nowrap;
+            font-size: 0.875rem;
           }
           .measurement-table .cell-wrap {
             white-space: normal;
             word-break: break-word;
           }
           .measurement-table .measurement-address-cell {
-            font-size: 1rem;
+            font-size: 0.875rem;
             min-width: 280px;
           }
           .measurement-table .measurement-product-cell {
             max-width: 140px;
+          }
+          /* 모바일: 제품 컬럼 가로 확장 → 행 높이 최소화, 가로 스크롤로 확인 */
+          @media (max-width: 768px) {
+            .measurement-table .measurement-product-cell {
+              min-width: 240px !important;
+              max-width: none !important;
+            }
+            .measurement-table {
+              min-width: 100%;
+            }
           }
           .manager-cell {
             font-weight: 500;
@@ -361,6 +390,7 @@
     </div>
   </div>
 {% endif %}
+</div><!-- end erp-pro -->
 
 <!-- 동선 추천 모달 -->
 <div class="modal fade" id="routePlanModal" tabindex="-1" aria-hidden="true">
