@@ -119,7 +119,7 @@ ERP_MEDIA_ALLOWED_EXTENSIONS = {
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 from flask import Response
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB (Reduce memory risk)
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB (Restore video support for Pro Plan)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # 데이터베이스 연결 설정
