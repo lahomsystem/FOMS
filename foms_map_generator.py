@@ -1,6 +1,11 @@
+import html
+import json
 import folium
 from folium import plugins
 from map_config import DEFAULT_CENTER
+
+# 지도 마커 이름 최대 표시 글자 수 (모바일 시인성 고려)
+MAP_MARKER_NAME_MAX_LEN = 8
 
 
 class FOMSMapGenerator:
@@ -137,11 +142,12 @@ class FOMSMapGenerator:
         minimap = plugins.MiniMap(toggle_display=True)
         m.add_child(minimap)
         
-        # 마커 추가
+        # 마커 추가 (지도에는 주문 ID로 표기, 클릭/경로 계산은 idx로 DOM 참조)
         for idx, order in enumerate(valid_data, 1):
             lat = order['latitude']
             lng = order['longitude']
-            
+            order_id = order.get('id', idx)  # 지도 마커에 표시할 주문 ID
+
             # 주문 정보
             customer_name = order.get('customer_name', '정보없음')
             address = order.get('address', '주소없음')
@@ -156,7 +162,7 @@ class FOMSMapGenerator:
             # 팝업 텍스트 구성
             popup_html = f"""
             <div style="width: 300px; font-family: 'Malgun Gothic', sans-serif;">
-                <h4 style="margin: 0 0 10px 0; color: {color};">주문 #{order.get('id', idx)}</h4>
+                <h4 style="margin: 0 0 10px 0; color: {color};">주문 #{order_id}</h4>
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr><td style="padding: 3px; font-weight: bold;">고객명:</td><td style="padding: 3px;">{customer_name}</td></tr>
                     <tr><td style="padding: 3px; font-weight: bold;">연락처:</td><td style="padding: 3px;">{phone}</td></tr>
@@ -169,61 +175,65 @@ class FOMSMapGenerator:
             </div>
             """
             
-            # 마커 아이콘 HTML (상태별 색상)
+            # 지도 마커: 고객명 표기 (Pro 스타일 · 모바일 시인성)
+            name_display = (customer_name[:MAP_MARKER_NAME_MAX_LEN] + "…") if len(customer_name) > MAP_MARKER_NAME_MAX_LEN else customer_name
+            name_display_escaped = html.escape(name_display)
+            customer_name_js = json.dumps(customer_name)  # JS 문자열 이스케이프
+            name_display_js = json.dumps(name_display)
+
+            # Pro 디자인: pill 배지, 넉넉한 패딩/폰트, 그림자로 시인성 확보 (모바일 시인성)
             icon_html = f"""
-            <div style="
-                background: {color}; 
-                color: white; 
-                border-radius: 50%; 
-                width: 30px; 
-                height: 30px; 
-                display: flex; 
-                align-items: center; 
-                justify-content: center; 
-                font-weight: bold; 
-                font-size: 12px;
-                border: 2px solid white;
-                box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-                font-family: 'Malgun Gothic', sans-serif;
-            ">
-                {idx}
-            </div>
+            <div class="foms-map-marker" style="
+                background: {color};
+                color: #fff;
+                border-radius: 9999px;
+                padding: 6px 12px;
+                font-weight: 600;
+                font-size: 14px;
+                line-height: 1.2;
+                white-space: nowrap;
+                max-width: 160px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                border: 2px solid #fff;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
+            ">{name_display_escaped}</div>
             """
-            
-            # 마커 클릭 시 경로 계산을 위한 JavaScript 코드
+            icon_w = max(80, min(160, len(name_display) * 14 + 24))
+            icon_h = 36
+
+            # 마커 클릭 시 경로 계산 (선택 시에도 이름 배지 유지)
             marker_click_js = f"""
             function(e) {{
                 var marker = e.target;
                 var lat = {lat};
                 var lng = {lng};
-                var orderId = {order.get('id', idx)};
-                var customerName = "{customer_name}";
+                var orderId = {order_id};
+                var customerName = {customer_name_js};
+                var nameDisplay = {name_display_js};
                 
                 if (window.selectedMarkers) {{
                     if (window.selectedMarkers.length === 0) {{
-                        // 첫 번째 마커 선택
                         window.selectedMarkers.push({{lat: lat, lng: lng, orderId: orderId, name: customerName}});
                         marker.setIcon(L.divIcon({{
-                            html: '<div style="background: #ff6b6b; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border: 3px solid #ff0000; box-shadow: 0 2px 6px rgba(0,0,0,0.3); font-family: \\'Malgun Gothic\\', sans-serif;">{idx}</div>',
-                            iconSize: [30, 30],
-                            iconAnchor: [15, 15]
+                            html: '<div style="background:#ef4444;color:#fff;border-radius:9999px;padding:6px 12px;font-weight:600;font-size:14px;line-height:1.2;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;border:2px solid #b91c1c;box-shadow:0 2px 8px rgba(0,0,0,0.25);font-family:-apple-system,BlinkMacSystemFont,\\'Segoe UI\\',Roboto,\\'Noto Sans KR\\',sans-serif;">' + nameDisplay + '</div>',
+                            iconSize: [{icon_w}, {icon_h}],
+                            iconAnchor: [{icon_w // 2}, {icon_h}]
                         }}));
                         window.routeStatus.innerHTML = '<div style="background: #e3f2fd; padding: 10px; border-radius: 5px; margin-bottom: 10px;"><strong>출발지 선택됨:</strong> ' + customerName + '<br><small>도착지를 선택해주세요.</small></div>';
                     }} else if (window.selectedMarkers.length === 1) {{
-                        // 두 번째 마커 선택 - 경로 계산
                         var start = window.selectedMarkers[0];
                         var end = {{lat: lat, lng: lng, orderId: orderId, name: customerName}};
-                        
                         if (start.orderId === end.orderId) {{
                             alert('같은 주문을 선택했습니다. 다른 주문을 선택해주세요.');
                             return;
                         }}
-                        
                         window.selectedMarkers.push(end);
                         marker.setIcon(L.divIcon({{
-                            html: '<div style="background: #4caf50; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border: 3px solid #2e7d32; box-shadow: 0 2px 6px rgba(0,0,0,0.3); font-family: \\'Malgun Gothic\\', sans-serif;">{idx}</div>',
-                            iconSize: [30, 30],
-                            iconAnchor: [15, 15]
+                            html: '<div style="background:#10b981;color:#fff;border-radius:9999px;padding:6px 12px;font-weight:600;font-size:14px;line-height:1.2;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;border:2px solid #059669;box-shadow:0 2px 8px rgba(0,0,0,0.25);font-family:-apple-system,BlinkMacSystemFont,\\'Segoe UI\\',Roboto,\\'Noto Sans KR\\',sans-serif;">' + nameDisplay + '</div>',
+                            iconSize: [{icon_w}, {icon_h}],
+                            iconAnchor: [{icon_w // 2}, {icon_h}]
                         }}));
                         
                         // 경로 계산 시작
@@ -256,15 +266,15 @@ class FOMSMapGenerator:
             }}
             """
             
-            # DivIcon을 사용한 커스텀 마커
+            # DivIcon: 고객명 pill 배지 (Pro · 모바일 시인성)
             marker = folium.Marker(
                 location=[lat, lng],
                 popup=folium.Popup(popup_html, max_width=350),
-                tooltip=f"#{idx}: {customer_name} - {status}",
+                tooltip=f"{customer_name} · {status}",
                 icon=folium.DivIcon(
                     html=icon_html,
-                    icon_size=(30, 30),
-                    icon_anchor=(15, 15)
+                    icon_size=(icon_w, icon_h),
+                    icon_anchor=(icon_w // 2, icon_h)
                 )
             )
             
@@ -279,7 +289,7 @@ class FOMSMapGenerator:
                     markers.forEach(function(markerEl, index) {{
                         if (index === {idx - 1}) {{ // 현재 마커 인덱스
                             markerEl.addEventListener('click', function() {{
-                                handleMarkerClick({lat}, {lng}, {order.get('id', idx)}, "{customer_name}", {idx});
+                                handleMarkerClick({lat}, {lng}, {order_id}, "{customer_name}", {idx});
                             }});
                         }}
                     }});
@@ -312,6 +322,26 @@ class FOMSMapGenerator:
         """
         
         m.get_root().html.add_child(folium.Element(legend_html))
+
+        # Pro 스타일: 지도 마커 모바일 시인성 (터치 영역·가독성)
+        marker_style = """
+        <style>
+        .foms-map-marker { -webkit-tap-highlight-color: transparent; }
+        @media (max-width: 768px) {
+            .leaflet-marker-icon .foms-map-marker,
+            .foms-map-marker {
+                font-size: 16px !important;
+                padding: 8px 14px !important;
+                min-height: 44px;
+                box-sizing: border-box;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+        }
+        </style>
+        """
+        m.get_root().html.add_child(folium.Element(marker_style))
         
         # 경로 계산을 위한 JavaScript 함수들 추가
         route_js = """

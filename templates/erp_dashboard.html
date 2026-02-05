@@ -2,131 +2,102 @@
 
 {% block content %}
 {% set filters = filters or {} %}
-<div class="container-fluid erp-dashboard">
-  <div class="d-flex justify-content-between align-items-center mb-2">
-    <div>
-      <span class="mb-1 fw-bold text-dark fs-6"><i class="fas fa-layer-group text-primary"></i> ERP 프로세스 대시보드</span>
+<div class="container-fluid erp-dashboard erp-pro">
+  <!-- Modern Header -->
+  <header class="erp-pro-header">
+    <h1 class="erp-pro-header__title">
+      <i class="fas fa-layer-group"></i>
+      <span>ERP 프로세스 대시보드</span>
+    </h1>
+    <div class="erp-pro-header__actions">
+      <a class="erp-pro-btn erp-pro-btn--primary" href="{{ url_for('add_order', open='erp-beta') }}">
+        <i class="fas fa-plus"></i>
+        <span>주문 생성</span>
+      </a>
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('index') }}">
+        <i class="fas fa-home"></i>
+        <span class="d-none d-md-inline">홈</span>
+      </a>
     </div>
-    <div class="d-flex gap-2">
-      <a class="btn btn-primary" href="{{ url_for('add_order', open='erp-beta') }}"><i class="fas fa-plus"></i> 주문
-        생성</a>
-      <a class="btn btn-outline-secondary" href="{{ url_for('index') }}"><i class="fas fa-home"></i> 홈</a>
-    </div>
-  </div>
+  </header>
   {% set erp_sub_nav_active = 'dashboard' %}
   {% include 'partials/erp_sub_nav.html' %}
 
-  <!-- Top Alerts -->
-  <div class="row g-3 mb-4 erp-alert-row">
-    <div class="col-md-3 erp-alert-col">
-      {% set is_urgent_active = filters.get('alert_type') == 'urgent' %}
-      {% set urgent_style = 'cursor: pointer; transition: all 0.2s;' %}
-      {% if is_urgent_active %}
-      {% set urgent_style = urgent_style + ' background-color: #f0f7ff;' %}
-      {% endif %}
-      <div
-        class="card border-danger shadow-sm erp-alert-card {% if is_urgent_active %}border-primary border-2{% endif %}"
-        data-alert-type="urgent" style="{{ urgent_style }}"
-        onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';"
-        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
-        <div class="card-body py-2">
-          <div class="d-flex justify-content-between align-items-center">
-            <div class="fw-bold text-danger fs-6"><i class="fas fa-bolt"></i> <strong>긴급 발주</strong></div>
-            <span class="badge bg-danger fs-6 px-3 py-2"><strong>{{ kpis.urgent_count }}</strong></span>
-          </div>
-        </div>
+  <!-- Top Alerts - Modern Design -->
+  <div class="erp-pro-alerts">
+    <div class="erp-pro-alert erp-pro-alert--danger {% if filters.get('alert_type') == 'urgent' %}erp-pro-alert--active{% endif %}" 
+         data-alert-type="urgent" role="button" tabindex="0">
+      <div class="erp-pro-alert__icon">
+        <i class="fas fa-bolt"></i>
+      </div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">긴급 발주</span>
+        <span class="erp-pro-alert__value">{{ kpis.urgent_count }}</span>
       </div>
     </div>
-    <div class="col-md-3 erp-alert-col">
-      {% set is_measurement_active = filters.get('alert_type') == 'measurement_d4' %}
-      {% set measurement_style = 'cursor: pointer; transition: all 0.2s;' %}
-      {% if is_measurement_active %}
-      {% set measurement_style = measurement_style + ' background-color: #f0f7ff;' %}
-      {% endif %}
-      <div
-        class="card border-warning shadow-sm erp-alert-card {% if is_measurement_active %}border-primary border-2{% endif %}"
-        data-alert-type="measurement_d4" style="{{ measurement_style }}"
-        onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';"
-        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
-        <div class="card-body py-2">
-          <div class="d-flex justify-content-between align-items-center">
-            <div class="fw-bold text-warning fs-6"><i class="fas fa-ruler-combined"></i> <strong>실측 D-4</strong></div>
-            <span class="badge bg-warning text-dark fs-6 px-3 py-2"><strong>{{ kpis.measurement_d4_count
-                }}</strong></span>
-          </div>
-        </div>
+    <div class="erp-pro-alert erp-pro-alert--warning {% if filters.get('alert_type') == 'measurement_d4' %}erp-pro-alert--active{% endif %}" 
+         data-alert-type="measurement_d4" role="button" tabindex="0">
+      <div class="erp-pro-alert__icon">
+        <i class="fas fa-ruler-combined"></i>
+      </div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">실측 D-4</span>
+        <span class="erp-pro-alert__value">{{ kpis.measurement_d4_count }}</span>
       </div>
     </div>
-    <div class="col-md-3 erp-alert-col">
-      {% set is_construction_active = filters.get('alert_type') == 'construction_d3' %}
-      {% set construction_style = 'cursor: pointer; transition: all 0.2s;' %}
-      {% if is_construction_active %}
-      {% set construction_style = construction_style + ' background-color: #f0f7ff;' %}
-      {% endif %}
-      <div
-        class="card border-warning shadow-sm erp-alert-card {% if is_construction_active %}border-primary border-2{% endif %}"
-        data-alert-type="construction_d3" style="{{ construction_style }}"
-        onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';"
-        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
-        <div class="card-body py-2">
-          <div class="d-flex justify-content-between align-items-center">
-            <div class="fw-bold text-warning fs-6"><i class="fas fa-tools"></i> <strong>시공 D-3</strong></div>
-            <span class="badge bg-warning text-dark fs-6 px-3 py-2"><strong>{{ kpis.construction_d3_count
-                }}</strong></span>
-          </div>
-        </div>
+    <div class="erp-pro-alert erp-pro-alert--warning {% if filters.get('alert_type') == 'construction_d3' %}erp-pro-alert--active{% endif %}" 
+         data-alert-type="construction_d3" role="button" tabindex="0">
+      <div class="erp-pro-alert__icon">
+        <i class="fas fa-tools"></i>
+      </div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">시공 D-3</span>
+        <span class="erp-pro-alert__value">{{ kpis.construction_d3_count }}</span>
       </div>
     </div>
-    <div class="col-md-3 erp-alert-col">
-      {% set is_production_active = filters.get('alert_type') == 'production_d2' %}
-      {% set production_style = 'cursor: pointer; transition: all 0.2s;' %}
-      {% if is_production_active %}
-      {% set production_style = production_style + ' background-color: #f0f7ff;' %}
-      {% endif %}
-      <div
-        class="card border-warning shadow-sm erp-alert-card {% if is_production_active %}border-primary border-2{% endif %}"
-        data-alert-type="production_d2" style="{{ production_style }}"
-        onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';"
-        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='';">
-        <div class="card-body py-2">
-          <div class="d-flex justify-content-between align-items-center">
-            <div class="fw-bold text-warning fs-6"><i class="fas fa-industry"></i> <strong>생산 D-2</strong></div>
-            <span class="badge bg-warning text-dark fs-6 px-3 py-2"><strong>{{ kpis.production_d2_count
-                }}</strong></span>
-          </div>
-        </div>
+    <div class="erp-pro-alert erp-pro-alert--info {% if filters.get('alert_type') == 'production_d2' %}erp-pro-alert--active{% endif %}" 
+         data-alert-type="production_d2" role="button" tabindex="0">
+      <div class="erp-pro-alert__icon">
+        <i class="fas fa-industry"></i>
+      </div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">생산 D-2</span>
+        <span class="erp-pro-alert__value">{{ kpis.production_d2_count }}</span>
       </div>
     </div>
   </div>
 
-  <!-- Process Map -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-body py-3">
-      <div class="fw-bold mb-2 text-dark" style="font-size: 1.35rem;"><i
-          class="fas fa-project-diagram text-primary"></i> 프로세스 맵</div>
-      <div class="d-flex gap-2 erp-process-row">
+  <!-- Process Map - Modern Pipeline Design -->
+  <div class="erp-pro-card">
+    <div class="erp-pro-card__header">
+      <h3 class="erp-pro-card__title">
+        <i class="fas fa-project-diagram"></i>
+        프로세스 맵
+      </h3>
+    </div>
+    <div class="erp-pro-card__body">
+      <div class="erp-pro-pipeline">
         {% for step in process_steps %}
-        <div class="erp-process-col">
-          {% set is_step_active = (filters.get('stage') or '') == step.label %}
-          {% set step_bg = '#f0f7ff' if is_step_active else '#fff' %}
-          <div
-            class="border rounded p-2 text-center erp-process-step shadow-sm {% if is_step_active %}border-primary border-2{% else %}border-1{% endif %}"
-            style="min-width: 120px; cursor: pointer; background: {{ step_bg }};" role="button" tabindex="0"
-            data-stage="{{ step.label }}" title="클릭하면 '{{ step.label }}' 단계만 표시">
-            <div class="d-flex align-items-center justify-content-center gap-2 mb-1">
-              <div class="fw-bold text-dark" style="font-size: 1.5rem;">{{ step.count }}</div>
-              {% if step.overdue > 0 %}
-              <span class="badge bg-danger fw-bold" title="지연" style="font-size: 0.9rem; padding: 0.3em 0.6em;">{{
-                step.overdue }}</span>
-              {% endif %}
-              {% if step.imminent > 0 %}
-              <span class="badge bg-warning text-dark fw-bold" title="임박"
-                style="font-size: 0.9rem; padding: 0.3em 0.6em;">{{ step.imminent }}</span>
-              {% endif %}
-            </div>
-            <div class="text-muted fw-normal" style="font-size: 1.1rem;">{{ step.label }}</div>
+        {% set is_step_active = (filters.get('stage') or '') == step.label %}
+        <div class="erp-pro-pipeline__stage {% if is_step_active %}erp-pro-pipeline__stage--active{% endif %}" 
+             data-stage="{{ step.label }}" role="button" tabindex="0"
+             title="클릭하면 '{{ step.label }}' 단계만 표시">
+          <div class="erp-pro-pipeline__count">
+            {{ step.count }}
+            {% if step.overdue > 0 %}
+            <span class="erp-pro-badge erp-pro-badge--danger erp-pro-badge--sm" title="지연">{{ step.overdue }}</span>
+            {% endif %}
+            {% if step.imminent > 0 %}
+            <span class="erp-pro-badge erp-pro-badge--warning erp-pro-badge--sm" title="임박">{{ step.imminent }}</span>
+            {% endif %}
           </div>
+          <div class="erp-pro-pipeline__label">{{ step.label }}</div>
         </div>
+        {% if not loop.last %}
+        <div class="erp-pro-pipeline__connector">
+          <i class="fas fa-chevron-right"></i>
+        </div>
+        {% endif %}
         {% endfor %}
       </div>
     </div>

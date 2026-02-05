@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,7 +11,9 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style-pro-max.css') }}">
+    <!-- ERP Pro Dashboard Styles (Modern SaaS Design System) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/erp-pro.css') }}">
     {% block head %}{% endblock %}
     {% block styles %}{% endblock %}
     <!-- 전역 채팅 알림 팝업 스타일 (모든 페이지에서 사용) -->
@@ -28,7 +31,7 @@
             max-width: 380px;
             pointer-events: none;
         }
-        
+
         .chat-notification {
             background: white;
             border-radius: 12px;
@@ -44,26 +47,26 @@
             position: relative;
             overflow: hidden;
         }
-        
+
         .chat-notification:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
         }
-        
+
         .chat-notification-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 12px;
         }
-        
+
         .chat-notification-room-name {
             font-size: 0.875rem;
             font-weight: 600;
             color: #1d1d1f;
             margin: 0;
         }
-        
+
         .chat-notification-close {
             background: none;
             border: none;
@@ -74,16 +77,16 @@
             line-height: 1;
             transition: color 0.2s;
         }
-        
+
         .chat-notification-close:hover {
             color: #1d1d1f;
         }
-        
+
         .chat-notification-content {
             display: flex;
             gap: 12px;
         }
-        
+
         .chat-notification-avatar {
             width: 40px;
             height: 40px;
@@ -97,19 +100,19 @@
             font-size: 0.875rem;
             flex-shrink: 0;
         }
-        
+
         .chat-notification-body {
             flex: 1;
             min-width: 0;
         }
-        
+
         .chat-notification-sender {
             font-size: 0.875rem;
             font-weight: 600;
             color: #1d1d1f;
             margin-bottom: 4px;
         }
-        
+
         .chat-notification-message {
             font-size: 0.875rem;
             color: #8e8e93 !important;
@@ -121,13 +124,13 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        
+
         .chat-notification-time {
             font-size: 0.75rem;
             color: #8e8e93 !important;
             margin-top: 4px;
         }
-        
+
         .chat-notification-image {
             width: 60px;
             height: 60px;
@@ -136,7 +139,7 @@
             flex-shrink: 0;
             margin-top: 8px;
         }
-        
+
         .chat-notification-file {
             display: flex;
             align-items: center;
@@ -146,12 +149,12 @@
             border-radius: 8px;
             margin-top: 4px;
         }
-        
+
         .chat-notification-file-icon {
             color: #007aff;
             font-size: 1.2rem;
         }
-        
+
         .chat-notification-file-name {
             font-size: 0.8rem;
             color: #1d1d1f;
@@ -159,23 +162,25 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        
+
         @keyframes slideInRight {
             from {
                 transform: translateX(100%);
                 opacity: 0;
             }
+
             to {
                 transform: translateX(0);
                 opacity: 1;
             }
         }
-        
+
         @keyframes slideOutRight {
             from {
                 transform: translateX(0);
                 opacity: 1;
             }
+
             to {
                 transform: translateX(100%);
                 opacity: 0;
@@ -187,206 +192,206 @@
     {% if current_user %}
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
-    // 전역 Socket.IO 초기화 (모든 페이지에서 알림 받을 수 있게)
-    (function() {
-        'use strict';
-        
-        console.log('[Global Socket.IO] 초기화 시작');
-        console.log('[Global Socket.IO] current_user 존재:', true);
-        console.log('[Global Socket.IO] io 객체 존재:', typeof io !== 'undefined');
-        
-        // Socket.IO 스크립트 로드 확인
-        if (typeof io === 'undefined') {
-            console.error('[Global Socket.IO] ❌ Socket.IO 스크립트가 로드되지 않았습니다.');
-            return;
-        }
-        
-        // 전역 Socket.IO 인스턴스 생성
-        console.log('[Global Socket.IO] Socket.IO 인스턴스 생성 중...');
-        const globalSocket = io({
-            transports: ['polling'],
-            upgrade: false,
-            reconnection: true,
-            reconnectionAttempts: Infinity,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            timeout: 20000
-        });
-        
-        globalSocket.on('connect', function() {
-            console.log('[Global Socket.IO] ✅ 연결 성공');
-            console.log('[Global Socket.IO] Socket ID:', globalSocket.id);
-            console.log('[Global Socket.IO] 연결 상태:', globalSocket.connected);
-        });
-        
-        globalSocket.on('connect_error', function(error) {
-            console.error('[Global Socket.IO] ❌ 연결 오류:', error);
-            console.error('[Global Socket.IO] 오류 상세:', JSON.stringify(error, null, 2));
-        });
-        
-        globalSocket.on('disconnect', function(reason) {
-            console.warn('[Global Socket.IO] ⚠️ 연결 해제:', reason);
-        });
-        
-        globalSocket.on('connected', function(data) {
-            console.log('[Global Socket.IO] 서버 연결 확인:', data);
-        });
-        
-        // 새 메시지 이벤트 (모든 페이지에서 수신)
-        globalSocket.on('new_message', function(data) {
-            console.log('[Global Socket.IO] 📨 새 메시지 수신:', data);
-            console.log('[Global Socket.IO] 메시지 상세:', JSON.stringify(data, null, 2));
-            
-            // 현재 페이지가 채팅 페이지인지 확인
-            const isChatPage = window.location.pathname === '/chat';
-            console.log('[Global Socket.IO] 현재 페이지:', window.location.pathname);
-            console.log('[Global Socket.IO] 채팅 페이지 여부:', isChatPage);
-            console.log('[Global Socket.IO] window.currentRoomId:', window.currentRoomId);
-            console.log('[Global Socket.IO] 메시지 room_id:', data.room_id);
-            
-            // 채팅 페이지에서는 로컬 Socket.IO가 처리하므로 전역 핸들러는 무시 (중복 방지)
-            if (isChatPage) {
-                console.log('[Global Socket.IO] ⏭️ 채팅 페이지에서는 로컬 핸들러가 처리합니다. 전역 핸들러 무시');
+        // 전역 Socket.IO 초기화 (모든 페이지에서 알림 받을 수 있게)
+        (function () {
+            'use strict';
+
+            console.log('[Global Socket.IO] 초기화 시작');
+            console.log('[Global Socket.IO] current_user 존재:', true);
+            console.log('[Global Socket.IO] io 객체 존재:', typeof io !== 'undefined');
+
+            // Socket.IO 스크립트 로드 확인
+            if (typeof io === 'undefined') {
+                console.error('[Global Socket.IO] ❌ Socket.IO 스크립트가 로드되지 않았습니다.');
                 return;
             }
-            
-            // 다른 페이지에서만 알림 표시
-            console.log('[Global Socket.IO] ✅ 알림 표시 조건 만족 (다른 페이지)');
-            console.log('[Global Socket.IO] showGlobalChatNotification 함수 존재:', typeof showGlobalChatNotification === 'function');
-            
-            // 전역 알림 표시 함수 호출
-            if (typeof showGlobalChatNotification === 'function') {
-                console.log('[Global Socket.IO] showGlobalChatNotification 호출');
-                showGlobalChatNotification(data);
-            } else {
-                console.log('[Global Socket.IO] showGlobalChatNotification 없음, 브라우저 알림 사용');
-                // 기본 브라우저 알림
-                showBrowserNotification(data);
-            }
-        });
-        
-        // 전역 알림 표시 함수 (chat.html의 showChatNotification 로직 재사용)
-        window.showGlobalChatNotification = function(messageData) {
-            console.log('[Global Socket.IO] 🔔 showGlobalChatNotification 호출됨:', messageData);
-            
-            // 채팅방 정보 조회
-            console.log('[Global Socket.IO] 채팅방 정보 조회 시작: room_id=', messageData.room_id);
-            fetch(`/api/chat/rooms/${messageData.room_id}`)
-                .then(response => {
-                    console.log('[Global Socket.IO] 채팅방 정보 응답 상태:', response.status);
-                    return response.json();
-                })
-                .then(result => {
-                    console.log('[Global Socket.IO] 채팅방 정보 조회 결과:', result);
-                    if (result.success && result.room) {
-                        console.log('[Global Socket.IO] ✅ 채팅방 정보 조회 성공:', result.room);
-                        // chat.html의 showChatNotification 함수가 있으면 사용
-                        if (typeof showChatNotification === 'function') {
-                            console.log('[Global Socket.IO] showChatNotification 함수 사용');
-                            showChatNotification(messageData, result.room);
-                        } else {
-                            console.log('[Global Socket.IO] showChatNotification 없음, 간단한 알림 사용');
-                            // 간단한 알림 표시
-                            showSimpleNotification(messageData, result.room);
-                        }
-                    } else {
-                        console.warn('[Global Socket.IO] ⚠️ 채팅방 정보 조회 실패');
-                        showSimpleNotification(messageData, { id: messageData.room_id, name: '알 수 없는 채팅방' });
-                    }
-                })
-                .catch(err => {
-                    console.error('[Global Socket.IO] ❌ 채팅방 정보 조회 오류:', err);
-                    showSimpleNotification(messageData, { id: messageData.room_id, name: '알 수 없는 채팅방' });
-                });
-        };
-        
-        // 간단한 알림 표시 (chat.html이 아닌 페이지용)
-        function showSimpleNotification(messageData, roomData) {
-            console.log('[Global Socket.IO] showSimpleNotification 호출:', messageData, roomData);
-            // 전역 알림 팝업 표시
-            showGlobalNotificationPopup(messageData, roomData);
-        }
-        
-        // 전역 알림 팝업 표시 함수 (모든 페이지에서 사용)
-        function showGlobalNotificationPopup(messageData, roomData) {
-            console.log('[Global Socket.IO] showGlobalNotificationPopup 호출:', messageData, roomData);
-            
-            // 알림 컨테이너 확인
-            let container = document.getElementById('chat-notification-container');
-            if (!container) {
-                console.error('[Global Socket.IO] 알림 컨테이너를 찾을 수 없습니다.');
-                // 브라우저 알림으로 폴백
-                showBrowserNotification(messageData);
-                return;
-            }
-            
-            // 중복 알림 방지
-            const messageId = messageData.id || (messageData.room_id + '_' + (messageData.created_at || Date.now()));
-            if (window.globalNotificationIds && window.globalNotificationIds.has(messageId)) {
-                console.log('[Global Socket.IO] 중복 알림 스킵:', messageId);
-                return;
-            }
-            
-            if (!window.globalNotificationIds) {
-                window.globalNotificationIds = new Set();
-            }
-            window.globalNotificationIds.add(messageId);
-            
-            // 알림 요소 생성
-            const notificationId = 'global-notification-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-            const notificationEl = document.createElement('div');
-            notificationEl.className = 'chat-notification';
-            notificationEl.id = notificationId;
-            
-            // 메시지 내용 추출
-            let messageContent = messageData.content || '(내용 없음)';
-            const senderName = messageData.user_name || '알 수 없음';
-            const roomName = roomData ? roomData.name : '알 수 없는 채팅방';
-            const senderInitial = senderName.charAt(0).toUpperCase();
-            
-            // 시간 포맷
-            let timeStr = '방금';
-            if (messageData.created_at) {
-                const msgDate = new Date(messageData.created_at);
-                const now = new Date();
-                const diff = now - msgDate;
-                if (diff < 60000) {
-                    timeStr = '방금';
-                } else if (diff < 3600000) {
-                    timeStr = Math.floor(diff / 60000) + '분 전';
-                } else if (diff < 86400000) {
-                    timeStr = Math.floor(diff / 3600000) + '시간 전';
-                } else {
-                    timeStr = msgDate.toLocaleDateString('ko-KR');
+
+            // 전역 Socket.IO 인스턴스 생성
+            console.log('[Global Socket.IO] Socket.IO 인스턴스 생성 중...');
+            const globalSocket = io({
+                transports: ['polling'],
+                upgrade: false,
+                reconnection: true,
+                reconnectionAttempts: Infinity,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                timeout: 20000
+            });
+
+            globalSocket.on('connect', function () {
+                console.log('[Global Socket.IO] ✅ 연결 성공');
+                console.log('[Global Socket.IO] Socket ID:', globalSocket.id);
+                console.log('[Global Socket.IO] 연결 상태:', globalSocket.connected);
+            });
+
+            globalSocket.on('connect_error', function (error) {
+                console.error('[Global Socket.IO] ❌ 연결 오류:', error);
+                console.error('[Global Socket.IO] 오류 상세:', JSON.stringify(error, null, 2));
+            });
+
+            globalSocket.on('disconnect', function (reason) {
+                console.warn('[Global Socket.IO] ⚠️ 연결 해제:', reason);
+            });
+
+            globalSocket.on('connected', function (data) {
+                console.log('[Global Socket.IO] 서버 연결 확인:', data);
+            });
+
+            // 새 메시지 이벤트 (모든 페이지에서 수신)
+            globalSocket.on('new_message', function (data) {
+                console.log('[Global Socket.IO] 📨 새 메시지 수신:', data);
+                console.log('[Global Socket.IO] 메시지 상세:', JSON.stringify(data, null, 2));
+
+                // 현재 페이지가 채팅 페이지인지 확인
+                const isChatPage = window.location.pathname === '/chat';
+                console.log('[Global Socket.IO] 현재 페이지:', window.location.pathname);
+                console.log('[Global Socket.IO] 채팅 페이지 여부:', isChatPage);
+                console.log('[Global Socket.IO] window.currentRoomId:', window.currentRoomId);
+                console.log('[Global Socket.IO] 메시지 room_id:', data.room_id);
+
+                // 채팅 페이지에서는 로컬 Socket.IO가 처리하므로 전역 핸들러는 무시 (중복 방지)
+                if (isChatPage) {
+                    console.log('[Global Socket.IO] ⏭️ 채팅 페이지에서는 로컬 핸들러가 처리합니다. 전역 핸들러 무시');
+                    return;
                 }
-            }
-            
-            // HTML 이스케이프 함수
-            function escapeHtml(text) {
-                if (!text) return '';
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            }
-            
-            // 첨부파일 처리
-            let attachmentHtml = '';
-            if (messageData.attachments && messageData.attachments[0]) {
-                const attachment = messageData.attachments[0];
-                if (attachment.file_type === 'image' && attachment.thumbnail_url) {
-                    attachmentHtml = `<img src="${attachment.thumbnail_url}" class="chat-notification-image" alt="이미지">`;
+
+                // 다른 페이지에서만 알림 표시
+                console.log('[Global Socket.IO] ✅ 알림 표시 조건 만족 (다른 페이지)');
+                console.log('[Global Socket.IO] showGlobalChatNotification 함수 존재:', typeof showGlobalChatNotification === 'function');
+
+                // 전역 알림 표시 함수 호출
+                if (typeof showGlobalChatNotification === 'function') {
+                    console.log('[Global Socket.IO] showGlobalChatNotification 호출');
+                    showGlobalChatNotification(data);
                 } else {
-                    const fileIcon = attachment.file_type === 'video' ? 'fa-video' : 'fa-file';
-                    attachmentHtml = `
+                    console.log('[Global Socket.IO] showGlobalChatNotification 없음, 브라우저 알림 사용');
+                    // 기본 브라우저 알림
+                    showBrowserNotification(data);
+                }
+            });
+
+            // 전역 알림 표시 함수 (chat.html의 showChatNotification 로직 재사용)
+            window.showGlobalChatNotification = function (messageData) {
+                console.log('[Global Socket.IO] 🔔 showGlobalChatNotification 호출됨:', messageData);
+
+                // 채팅방 정보 조회
+                console.log('[Global Socket.IO] 채팅방 정보 조회 시작: room_id=', messageData.room_id);
+                fetch(`/api/chat/rooms/${messageData.room_id}`)
+                    .then(response => {
+                        console.log('[Global Socket.IO] 채팅방 정보 응답 상태:', response.status);
+                        return response.json();
+                    })
+                    .then(result => {
+                        console.log('[Global Socket.IO] 채팅방 정보 조회 결과:', result);
+                        if (result.success && result.room) {
+                            console.log('[Global Socket.IO] ✅ 채팅방 정보 조회 성공:', result.room);
+                            // chat.html의 showChatNotification 함수가 있으면 사용
+                            if (typeof showChatNotification === 'function') {
+                                console.log('[Global Socket.IO] showChatNotification 함수 사용');
+                                showChatNotification(messageData, result.room);
+                            } else {
+                                console.log('[Global Socket.IO] showChatNotification 없음, 간단한 알림 사용');
+                                // 간단한 알림 표시
+                                showSimpleNotification(messageData, result.room);
+                            }
+                        } else {
+                            console.warn('[Global Socket.IO] ⚠️ 채팅방 정보 조회 실패');
+                            showSimpleNotification(messageData, { id: messageData.room_id, name: '알 수 없는 채팅방' });
+                        }
+                    })
+                    .catch(err => {
+                        console.error('[Global Socket.IO] ❌ 채팅방 정보 조회 오류:', err);
+                        showSimpleNotification(messageData, { id: messageData.room_id, name: '알 수 없는 채팅방' });
+                    });
+            };
+
+            // 간단한 알림 표시 (chat.html이 아닌 페이지용)
+            function showSimpleNotification(messageData, roomData) {
+                console.log('[Global Socket.IO] showSimpleNotification 호출:', messageData, roomData);
+                // 전역 알림 팝업 표시
+                showGlobalNotificationPopup(messageData, roomData);
+            }
+
+            // 전역 알림 팝업 표시 함수 (모든 페이지에서 사용)
+            function showGlobalNotificationPopup(messageData, roomData) {
+                console.log('[Global Socket.IO] showGlobalNotificationPopup 호출:', messageData, roomData);
+
+                // 알림 컨테이너 확인
+                let container = document.getElementById('chat-notification-container');
+                if (!container) {
+                    console.error('[Global Socket.IO] 알림 컨테이너를 찾을 수 없습니다.');
+                    // 브라우저 알림으로 폴백
+                    showBrowserNotification(messageData);
+                    return;
+                }
+
+                // 중복 알림 방지
+                const messageId = messageData.id || (messageData.room_id + '_' + (messageData.created_at || Date.now()));
+                if (window.globalNotificationIds && window.globalNotificationIds.has(messageId)) {
+                    console.log('[Global Socket.IO] 중복 알림 스킵:', messageId);
+                    return;
+                }
+
+                if (!window.globalNotificationIds) {
+                    window.globalNotificationIds = new Set();
+                }
+                window.globalNotificationIds.add(messageId);
+
+                // 알림 요소 생성
+                const notificationId = 'global-notification-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                const notificationEl = document.createElement('div');
+                notificationEl.className = 'chat-notification';
+                notificationEl.id = notificationId;
+
+                // 메시지 내용 추출
+                let messageContent = messageData.content || '(내용 없음)';
+                const senderName = messageData.user_name || '알 수 없음';
+                const roomName = roomData ? roomData.name : '알 수 없는 채팅방';
+                const senderInitial = senderName.charAt(0).toUpperCase();
+
+                // 시간 포맷
+                let timeStr = '방금';
+                if (messageData.created_at) {
+                    const msgDate = new Date(messageData.created_at);
+                    const now = new Date();
+                    const diff = now - msgDate;
+                    if (diff < 60000) {
+                        timeStr = '방금';
+                    } else if (diff < 3600000) {
+                        timeStr = Math.floor(diff / 60000) + '분 전';
+                    } else if (diff < 86400000) {
+                        timeStr = Math.floor(diff / 3600000) + '시간 전';
+                    } else {
+                        timeStr = msgDate.toLocaleDateString('ko-KR');
+                    }
+                }
+
+                // HTML 이스케이프 함수
+                function escapeHtml(text) {
+                    if (!text) return '';
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                }
+
+                // 첨부파일 처리
+                let attachmentHtml = '';
+                if (messageData.attachments && messageData.attachments[0]) {
+                    const attachment = messageData.attachments[0];
+                    if (attachment.file_type === 'image' && attachment.thumbnail_url) {
+                        attachmentHtml = `<img src="${attachment.thumbnail_url}" class="chat-notification-image" alt="이미지">`;
+                    } else {
+                        const fileIcon = attachment.file_type === 'video' ? 'fa-video' : 'fa-file';
+                        attachmentHtml = `
                         <div class="chat-notification-file">
                             <i class="fas ${fileIcon} chat-notification-file-icon"></i>
                             <span class="chat-notification-file-name">${escapeHtml(attachment.filename || '파일')}</span>
                         </div>
                     `;
+                    }
                 }
-            }
-            
-            notificationEl.innerHTML = `
+
+                notificationEl.innerHTML = `
                 <div class="chat-notification-header">
                     <h6 class="chat-notification-room-name">${escapeHtml(roomName)}</h6>
                     <button class="chat-notification-close" type="button" aria-label="닫기">
@@ -403,116 +408,126 @@
                     </div>
                 </div>
             `;
-            
-            // 닫기 버튼 이벤트
-            const closeBtn = notificationEl.querySelector('.chat-notification-close');
-            if (closeBtn) {
-                closeBtn.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    closeGlobalNotification(notificationId, messageId);
-                });
-            }
-            
-            // 클릭 이벤트: 채팅 페이지로 이동 (room_id 파라미터 포함)
-            notificationEl.addEventListener('click', function(e) {
-                if (!e.target.classList.contains('chat-notification-close') && 
-                    !e.target.closest('.chat-notification-close')) {
-                    closeGlobalNotification(notificationId, messageId);
-                    // 채팅 페이지로 이동 (room_id 파라미터 포함)
-                    const roomId = roomData ? roomData.id : messageData.room_id;
-                    if (roomId) {
-                        window.location.href = `/chat?room_id=${roomId}`;
-                    } else {
-                        window.location.href = '/chat';
-                    }
-                }
-            });
-            
-            // 컨테이너에 추가
-            container.appendChild(notificationEl);
-            
-            // 자동 닫기 (5초 후)
-            setTimeout(() => {
-                closeGlobalNotification(notificationId, messageId);
-            }, 5000);
-        }
-        
-        // 전역 알림 닫기 함수
-        function closeGlobalNotification(notificationId, messageId) {
-            const notificationEl = document.getElementById(notificationId);
-            if (notificationEl) {
-                notificationEl.style.animation = 'slideOutRight 0.3s ease-out';
-                setTimeout(() => {
-                    notificationEl.remove();
-                    if (messageId && window.globalNotificationIds) {
-                        window.globalNotificationIds.delete(messageId);
-                    }
-                }, 300);
-            }
-        }
-        
-        // 브라우저 알림
-        function showBrowserNotification(messageData) {
-            console.log('[Global Socket.IO] showBrowserNotification 호출:', messageData);
-            console.log('[Global Socket.IO] Notification API 지원:', 'Notification' in window);
-            console.log('[Global Socket.IO] Notification 권한:', Notification.permission);
-            
-            if ('Notification' in window) {
-                if (Notification.permission === 'granted') {
-                    console.log('[Global Socket.IO] ✅ 브라우저 알림 표시');
-                    const notification = new Notification(`${messageData.user_name || '알 수 없음'}님의 메시지`, {
-                        body: messageData.content || '새 메시지가 도착했습니다.',
-                        icon: '/static/favicon.ico',
-                        tag: `chat_${messageData.room_id}`,
-                        requireInteraction: false
+
+                // 닫기 버튼 이벤트
+                const closeBtn = notificationEl.querySelector('.chat-notification-close');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        closeGlobalNotification(notificationId, messageId);
                     });
-                    console.log('[Global Socket.IO] 브라우저 알림 생성됨:', notification);
-                } else if (Notification.permission === 'default') {
-                    console.log('[Global Socket.IO] 알림 권한 요청');
-                    Notification.requestPermission().then(permission => {
-                        console.log('[Global Socket.IO] 알림 권한 결과:', permission);
-                        if (permission === 'granted') {
-                            showBrowserNotification(messageData);
+                }
+
+                // 클릭 이벤트: 채팅 페이지로 이동 (room_id 파라미터 포함)
+                notificationEl.addEventListener('click', function (e) {
+                    if (!e.target.classList.contains('chat-notification-close') &&
+                        !e.target.closest('.chat-notification-close')) {
+                        closeGlobalNotification(notificationId, messageId);
+                        // 채팅 페이지로 이동 (room_id 파라미터 포함)
+                        const roomId = roomData ? roomData.id : messageData.room_id;
+                        if (roomId) {
+                            window.location.href = `/chat?room_id=${roomId}`;
+                        } else {
+                            window.location.href = '/chat';
                         }
-                    });
-                } else {
-                    console.warn('[Global Socket.IO] ⚠️ 알림 권한이 거부됨');
-                }
-            } else {
-                console.warn('[Global Socket.IO] ⚠️ 브라우저가 Notification API를 지원하지 않음');
+                    }
+                });
+
+                // 컨테이너에 추가
+                container.appendChild(notificationEl);
+
+                // 자동 닫기 (5초 후)
+                setTimeout(() => {
+                    closeGlobalNotification(notificationId, messageId);
+                }, 5000);
             }
-        }
-        
-        // 전역 변수로 노출 (chat.html에서 사용 가능)
-        window.globalSocket = globalSocket;
-        console.log('[Global Socket.IO] ✅ 전역 Socket.IO 초기화 완료');
-    })();
+
+            // 전역 알림 닫기 함수
+            function closeGlobalNotification(notificationId, messageId) {
+                const notificationEl = document.getElementById(notificationId);
+                if (notificationEl) {
+                    notificationEl.style.animation = 'slideOutRight 0.3s ease-out';
+                    setTimeout(() => {
+                        notificationEl.remove();
+                        if (messageId && window.globalNotificationIds) {
+                            window.globalNotificationIds.delete(messageId);
+                        }
+                    }, 300);
+                }
+            }
+
+            // 브라우저 알림
+            function showBrowserNotification(messageData) {
+                console.log('[Global Socket.IO] showBrowserNotification 호출:', messageData);
+                console.log('[Global Socket.IO] Notification API 지원:', 'Notification' in window);
+                console.log('[Global Socket.IO] Notification 권한:', Notification.permission);
+
+                if ('Notification' in window) {
+                    if (Notification.permission === 'granted') {
+                        console.log('[Global Socket.IO] ✅ 브라우저 알림 표시');
+                        const notification = new Notification(`${messageData.user_name || '알 수 없음'}님의 메시지`, {
+                            body: messageData.content || '새 메시지가 도착했습니다.',
+                            icon: '/static/favicon.ico',
+                            tag: `chat_${messageData.room_id}`,
+                            requireInteraction: false
+                        });
+                        console.log('[Global Socket.IO] 브라우저 알림 생성됨:', notification);
+                    } else if (Notification.permission === 'default') {
+                        console.log('[Global Socket.IO] 알림 권한 요청');
+                        Notification.requestPermission().then(permission => {
+                            console.log('[Global Socket.IO] 알림 권한 결과:', permission);
+                            if (permission === 'granted') {
+                                showBrowserNotification(messageData);
+                            }
+                        });
+                    } else {
+                        console.warn('[Global Socket.IO] ⚠️ 알림 권한이 거부됨');
+                    }
+                } else {
+                    console.warn('[Global Socket.IO] ⚠️ 브라우저가 Notification API를 지원하지 않음');
+                }
+            }
+
+            // 전역 변수로 노출 (chat.html에서 사용 가능)
+            window.globalSocket = globalSocket;
+            console.log('[Global Socket.IO] ✅ 전역 Socket.IO 초기화 완료');
+        })();
     </script>
     {% else %}
     <script>
-    console.log('[Global Socket.IO] ⚠️ current_user가 없어 Socket.IO를 초기화하지 않습니다.');
+        console.log('[Global Socket.IO] ⚠️ current_user가 없어 Socket.IO를 초기화하지 않습니다.');
     </script>
     {% endif %}
 </head>
-<body style="width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box; overflow-x: hidden;">
-    <div class="container-fluid p-0" style="width: 100vw !important; max-width: 100vw !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box;">
+
+<body
+    style="width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box; overflow-x: hidden;">
+    <div class="container-fluid p-0"
+        style="width: 100vw !important; max-width: 100vw !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box;">
         <header class="bg-light py-3 px-4 d-flex justify-content-between align-items-center">
             <h1 class="mb-0 h3">가구 주문 관리 시스템</h1>
-            
+
             {% if current_user %}
             <div class="dropdown">
-                <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="userDropdown"
+                    data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="fas fa-user-circle"></i> {{ current_user.name }} ({{ ROLES[current_user.role] }})
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                    <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-user-cog"></i> 내 정보</a></li>
+                    <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-user-cog"></i> 내
+                            정보</a></li>
                     {% if current_user.role == 'ADMIN' %}
-                    <li><a class="dropdown-item" href="{{ url_for('user_list') }}"><i class="fas fa-users"></i> 사용자 관리</a></li>
-                    <li><a class="dropdown-item" href="{{ url_for('security_logs') }}"><i class="fas fa-shield-alt"></i> 보안 로그</a></li>
+                    <li><a class="dropdown-item" href="{{ url_for('user_list') }}"><i class="fas fa-users"></i> 사용자
+                            관리</a></li>
+                    <li><a class="dropdown-item" href="{{ url_for('security_logs') }}"><i class="fas fa-shield-alt"></i>
+                            보안 로그</a></li>
                     {% endif %}
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> 로그아웃</a></li>
+                    <li>
+                        <hr class="dropdown-divider">
+                    </li>
+                    <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i>
+                            로그아웃</a></li>
                 </ul>
             </div>
             {% else %}
@@ -522,9 +537,10 @@
             </div>
             {% endif %}
         </header>
-        
+
         {% if current_user %}
-        <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom px-2 px-lg-4" style="position: sticky; top: 0; z-index: 1000; background-color: white !important;">
+        <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom px-2 px-lg-4"
+            style="position: sticky; top: 0; z-index: 1000; background-color: white !important;">
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -579,30 +595,32 @@
             </div>
         </nav>
         {% endif %}
-        
-        <div class="container-fluid py-0 px-0" style="width: 100% !important; max-width: 100% !important; margin: 0 !important; padding-left: 0 !important; padding-right: 0 !important; box-sizing: border-box;">
+
+        <div class="container-fluid py-0 px-0"
+            style="width: 100% !important; max-width: 100% !important; margin: 0 !important; padding-left: 0 !important; padding-right: 0 !important; box-sizing: border-box;">
             <!-- Flash messages -->
             {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                    {% endfor %}
-                {% endif %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show"
+                role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+            {% endif %}
             {% endwith %}
-            
+
             <!-- Content block -->
             {% block content %}{% endblock %}
         </div>
     </div>
-    
+
     <!-- 전역 채팅 알림 팝업 컨테이너 (모든 페이지에서 사용) -->
     {% if current_user %}
     <div id="chat-notification-container" class="chat-notification-container"></div>
     {% endif %}
-    
+
     <!-- 도면 뷰어 모달 (모든 페이지에서 사용) -->
     <div class="modal fade" id="blueprintViewerModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-fullscreen">
@@ -611,13 +629,17 @@
                     <h5 class="modal-title text-white">
                         <i class="fas fa-drafting-compass"></i> 도면 보기
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
                 </div>
-                <div class="modal-body p-3" id="blueprint-viewer-body" style="overflow: auto; display: flex; align-items: center; justify-content: center; min-height: 400px;">
-                    <img id="blueprint-viewer-img" src="" alt="도면" style="max-width: 100%; max-height: calc(100vh - 200px); width: auto; height: auto; object-fit: contain; display: block; cursor: grab; user-select: none; transition: transform 0.1s;">
+                <div class="modal-body p-3" id="blueprint-viewer-body"
+                    style="overflow: auto; display: flex; align-items: center; justify-content: center; min-height: 400px;">
+                    <img id="blueprint-viewer-img" src="" alt="도면"
+                        style="max-width: 100%; max-height: calc(100vh - 200px); width: auto; height: auto; object-fit: contain; display: block; cursor: grab; user-select: none; transition: transform 0.1s;">
                 </div>
                 <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-secondary" onclick="downloadBlueprint()" id="blueprint-download-btn" style="display: none;">
+                    <button type="button" class="btn btn-secondary" onclick="downloadBlueprint()"
+                        id="blueprint-download-btn" style="display: none;">
                         <i class="fas fa-download"></i> 다운로드
                     </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
@@ -627,14 +649,14 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
-    
+
     <!-- 도면 뷰어 전역 JavaScript -->
     <script>
         // 도면 뷰어 줌 관련 변수
@@ -645,7 +667,7 @@
             translateX: 0,
             translateY: 0
         };
-        
+
         function updateBlueprintTransform() {
             const img = document.getElementById('blueprint-viewer-img');
             if (img) {
@@ -653,28 +675,28 @@
                 img.style.transformOrigin = 'center center';
             }
         }
-        
+
         function resetBlueprintZoom() {
             blueprintZoom.scale = 1;
             blueprintZoom.translateX = 0;
             blueprintZoom.translateY = 0;
             updateBlueprintTransform();
         }
-        
+
         // 도면 다운로드 관련 변수
         let currentBlueprintUrl = null;
         let currentBlueprintOrderId = null;
-        
+
         // 도면 다운로드 함수
         function downloadBlueprint() {
             if (!currentBlueprintUrl) {
                 alert('다운로드할 도면이 없습니다.');
                 return;
             }
-            
+
             // 이미지 URL에서 파일명 추출 또는 orderId 기반 파일명 생성
             const filename = `blueprint_${currentBlueprintOrderId || 'image'}.jpg`;
-            
+
             // 다운로드 링크 생성
             const link = document.createElement('a');
             link.href = currentBlueprintUrl;
@@ -684,9 +706,9 @@
             link.click();
             document.body.removeChild(link);
         }
-        
+
         // 전역 함수로 노출
-        window.openBlueprintViewer = function(orderId) {
+        window.openBlueprintViewer = function (orderId) {
             fetch(`/api/orders/${orderId}/blueprint`)
                 .then(response => response.json())
                 .then(data => {
@@ -695,25 +717,25 @@
                         const img = document.getElementById('blueprint-viewer-img');
                         const modalBody = document.getElementById('blueprint-viewer-body');
                         const downloadBtn = document.getElementById('blueprint-download-btn');
-                        
+
                         // 다운로드 버튼 표시 및 URL 저장
                         currentBlueprintUrl = data.url;
                         currentBlueprintOrderId = orderId;
                         if (downloadBtn) {
                             downloadBtn.style.display = 'inline-block';
                         }
-                        
+
                         // 줌 리셋
                         resetBlueprintZoom();
-                        
+
                         // 이미지 로드 후 transform 적용
-                        img.onload = function() {
+                        img.onload = function () {
                             resetBlueprintZoom();
                         };
-                        
+
                         // 이미지 소스 설정
                         img.src = data.url;
-                        
+
                         // 모달 표시
                         modal.show();
                     } else {
@@ -725,49 +747,49 @@
                     alert('도면을 불러올 수 없습니다.');
                 });
         };
-        
+
         // 마우스 휠로 줌 인/아웃
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const modal = document.getElementById('blueprintViewerModal');
             const modalBody = document.getElementById('blueprint-viewer-body');
             const img = document.getElementById('blueprint-viewer-img');
-            
+
             if (modal && modalBody && img) {
                 // 마우스 휠 이벤트
-                modalBody.addEventListener('wheel', function(e) {
+                modalBody.addEventListener('wheel', function (e) {
                     // 모달이 활성화되어 있는지 확인
                     if (!modal.classList.contains('show')) {
                         return;
                     }
-                    
+
                     e.preventDefault();
                     e.stopPropagation();
-                    
+
                     const delta = e.deltaY > 0 ? -0.1 : 0.1;
-                    const newScale = Math.max(blueprintZoom.minScale, 
-                                             Math.min(blueprintZoom.maxScale, blueprintZoom.scale + delta));
-                    
+                    const newScale = Math.max(blueprintZoom.minScale,
+                        Math.min(blueprintZoom.maxScale, blueprintZoom.scale + delta));
+
                     // 마우스 위치를 중심으로 확대/축소
                     const rect = modalBody.getBoundingClientRect();
                     const mouseX = e.clientX - rect.left - rect.width / 2;
                     const mouseY = e.clientY - rect.top - rect.height / 2;
-                    
+
                     const scaleChange = newScale / blueprintZoom.scale;
                     blueprintZoom.translateX = blueprintZoom.translateX * scaleChange + mouseX * (1 - scaleChange);
                     blueprintZoom.translateY = blueprintZoom.translateY * scaleChange + mouseY * (1 - scaleChange);
-                    
+
                     blueprintZoom.scale = newScale;
                     updateBlueprintTransform();
                 }, { passive: false });
-                
+
                 // 드래그로 이미지 이동
                 let isDragging = false;
                 let dragStartX = 0;
                 let dragStartY = 0;
                 let startTranslateX = 0;
                 let startTranslateY = 0;
-                
-                img.addEventListener('mousedown', function(e) {
+
+                img.addEventListener('mousedown', function (e) {
                     if (e.button === 0 && modal.classList.contains('show')) { // 왼쪽 마우스 버튼만
                         isDragging = true;
                         dragStartX = e.clientX;
@@ -778,8 +800,8 @@
                         e.preventDefault();
                     }
                 });
-                
-                document.addEventListener('mousemove', function(e) {
+
+                document.addEventListener('mousemove', function (e) {
                     if (isDragging && modal.classList.contains('show')) {
                         const deltaX = e.clientX - dragStartX;
                         const deltaY = e.clientY - dragStartY;
@@ -788,16 +810,16 @@
                         updateBlueprintTransform();
                     }
                 });
-                
-                document.addEventListener('mouseup', function(e) {
+
+                document.addEventListener('mouseup', function (e) {
                     if (isDragging) {
                         isDragging = false;
                         img.style.cursor = 'grab';
                     }
                 });
-                
+
                 // 모달이 닫힐 때 줌 리셋
-                modal.addEventListener('hidden.bs.modal', function() {
+                modal.addEventListener('hidden.bs.modal', function () {
                     resetBlueprintZoom();
                     // 다운로드 관련 변수 초기화
                     currentBlueprintUrl = null;
@@ -810,7 +832,8 @@
             }
         });
     </script>
-    
+
     {% block scripts %}{% endblock %}
 </body>
-</html> 
+
+</html>

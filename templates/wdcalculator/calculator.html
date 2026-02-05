@@ -343,6 +343,25 @@
 #baseComponentsContainer .base-component-row .base-details-area {
   min-width: 0; /* select가 줄어들면서 overflow 나는 것 방지 */
 }
+/* 제품 선택·단가 방식: 내용이 잘 보이도록 대비·높이·줄간격 보정 */
+#baseComponentsContainer .base-product-select,
+#baseComponentsContainer .base-manual-pricing-type {
+  color: #212529 !important;
+  background-color: #fff !important;
+  font-size: 0.9375rem !important;
+  line-height: 1.45 !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0.4rem 0.5rem !important;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+#baseComponentsContainer .base-product-select option,
+#baseComponentsContainer .base-manual-pricing-type option {
+  color: #212529;
+  background-color: #fff;
+  padding: 0.25em 0;
+}
 @media (max-width: 576px) {
   #baseComponentsContainer .base-component-row .text-end {
     text-align: left !important;

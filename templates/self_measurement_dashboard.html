@@ -109,73 +109,67 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid self-measurement-dashboard">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0"><i class="fas fa-ruler-combined text-info"></i> 자가실측 대시보드</h1>
-        <a href="{{ url_for('add_order', is_self_measurement='true') }}" class="btn btn-info">
-            <i class="fas fa-plus"></i> 새 자가실측 주문 추가
-        </a>
-    </div>
+<div class="erp-pro self-measurement-dashboard">
+    <!-- Modern Header -->
+    <header class="erp-pro-header">
+        <h1 class="erp-pro-header__title">
+            <i class="fas fa-ruler-combined"></i>
+            <span>자가실측 대시보드</span>
+        </h1>
+        <div class="erp-pro-header__actions">
+            <a class="erp-pro-btn erp-pro-btn--info" href="{{ url_for('add_order', is_self_measurement='true') }}">
+                <i class="fas fa-plus"></i>
+                <span>새 자가실측</span>
+            </a>
+        </div>
+    </header>
 
     <!-- 검색 폼 -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <form method="get" action="{{ url_for('self_measurement_dashboard') }}" class="d-flex">
-                        <input type="text" name="search_query" class="form-control me-2" placeholder="주문번호, 고객명, 연락처, 주소, 제품 등 통합 검색" value="{{ search_query or '' }}">
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> 검색</button>
-                    </form>
+    <div class="erp-pro-card mb-3">
+        <div class="erp-pro-card__body" style="padding: var(--erp-space-md);">
+            <form method="get" action="{{ url_for('self_measurement_dashboard') }}" class="erp-pro-filter-form">
+                <div class="erp-pro-filter-group" style="flex: 1;">
+                    <input type="text" name="search_query" class="erp-pro-input" 
+                           placeholder="주문번호, 고객명, 연락처, 주소, 제품 등 검색" 
+                           value="{{ search_query or '' }}">
                 </div>
-            </div>
+                <div class="erp-pro-filter-actions">
+                    <button type="submit" class="erp-pro-btn erp-pro-btn--primary">
+                        <i class="fas fa-search"></i>
+                        <span>검색</span>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
-    <!-- 요약 통계 -->
-    <div class="row mb-4">
-        <div class="col-md-4">
-            <div class="card summary-card-completed shadow">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-uppercase mb-1 text-completed">완료된 자가실측</div>
-                            <div class="h5 mb-0 font-weight-bold text-completed">{{ completed_orders|length }}건</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-check-circle fa-2x text-completed-icon"></i>
-                        </div>
-                    </div>
-                </div>
+    <!-- 요약 통계 - Modern Alerts -->
+    <div class="erp-pro-alerts mb-4">
+        <div class="erp-pro-alert erp-pro-alert--success">
+            <div class="erp-pro-alert__icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="erp-pro-alert__content">
+                <span class="erp-pro-alert__label">완료</span>
+                <span class="erp-pro-alert__value">{{ completed_orders|length }}</span>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card summary-card-scheduled shadow">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-uppercase mb-1 text-scheduled">설치예정인 자가실측</div>
-                            <div class="h5 mb-0 font-weight-bold text-scheduled">{{ scheduled_orders|length }}건</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-calendar-check fa-2x text-scheduled-icon"></i>
-                        </div>
-                    </div>
-                </div>
+        <div class="erp-pro-alert erp-pro-alert--warning">
+            <div class="erp-pro-alert__icon">
+                <i class="fas fa-calendar-check"></i>
+            </div>
+            <div class="erp-pro-alert__content">
+                <span class="erp-pro-alert__label">설치예정</span>
+                <span class="erp-pro-alert__value">{{ scheduled_orders|length }}</span>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card summary-card-pending shadow">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-uppercase mb-1 text-pending">진행 중인 자가실측</div>
-                            <div class="h5 mb-0 font-weight-bold text-pending">{{ pending_orders|length }}건</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-clock fa-2x text-pending-icon"></i>
-                        </div>
-                    </div>
-                </div>
+        <div class="erp-pro-alert erp-pro-alert--info">
+            <div class="erp-pro-alert__icon">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="erp-pro-alert__content">
+                <span class="erp-pro-alert__label">진행 중</span>
+                <span class="erp-pro-alert__value">{{ pending_orders|length }}</span>
             </div>
         </div>
     </div>

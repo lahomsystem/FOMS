@@ -404,14 +404,21 @@ def _erp_alerts(order, structured_data, attachments_count: int):
     - 시공 D-3: construction_date 기준 오늘부터 영업일 계산
     - 생산 D-2: construction_date 기준 오늘부터 영업일 계산
     - 긴급 발주: structured_data.flags.urgent
+    - '오늘'은 한국(KST) 기준으로 계산 (서버가 UTC일 때 자정~오전9시에도 한국 오늘로 D- 표기)
     """
     urgent = _erp_get_urgent_flag(structured_data)
     meas_date = (((structured_data or {}).get('schedule') or {}).get('measurement') or {}).get('date')
     cons_date = (((structured_data or {}).get('schedule') or {}).get('construction') or {}).get('date')
 
-    # 오늘을 기준으로 영업일 계산 (business_days_until은 이미 오늘을 기준으로 계산함)
-    meas_d = business_days_until(meas_date) if meas_date else None
-    cons_d = business_days_until(cons_date) if cons_date else None
+    # 오늘 = 한국(KST) 기준 날짜 (서버 UTC 시 0~9시에도 한국 자정~오전9시는 같은 '오늘')
+    try:
+        import pytz
+        today_kst = datetime.datetime.now(pytz.timezone('Asia/Seoul')).date()
+    except Exception:
+        today_kst = datetime.date.today()
+    # 영업일 D- 계산: 한국 오늘 기준
+    meas_d = business_days_until(meas_date, today=today_kst) if meas_date else None
+    cons_d = business_days_until(cons_date, today=today_kst) if cons_date else None
 
     # 실측 D-4: 실측일 기준 오늘부터 영업일 0~4일 이내
     measurement_d4 = meas_d is not None and 0 <= meas_d <= 4
