@@ -1593,66 +1593,6 @@ def api_order_quest_update_status(order_id):
 # 지방 주문 자동 필터링 함수 제거 - 사용자가 직접 선택하도록 변경
 
 # Auth Routes
-@app.route('/debug-r2')
-def debug_r2():
-    """R2 연결/업로드 테스트 진단 도구"""
-    try:
-        import io
-        import boto3
-        
-        # 1. 환경 변수 확인
-        env_vars = {
-            'R2_ENDPOINT': os.getenv('R2_ENDPOINT'),
-            'R2_BUCKET_NAME': os.getenv('R2_BUCKET_NAME'),
-            'R2_ACCESS_KEY_ID': '***' if os.getenv('R2_ACCESS_KEY_ID') else None,
-            'R2_SECRET_ACCESS_KEY': '***' if os.getenv('R2_SECRET_ACCESS_KEY') else None
-        }
-        
-        # 2. 스토리지 객체 확인
-        storage = get_storage()
-        storage_type = storage.storage_type
-        
-        # 3. 테스트 업로드
-        logs = []
-        logs.append(f"Storage Type: {storage_type}")
-        logs.append(f"Env Vars: {json.dumps(env_vars, indent=2)}")
-        
-        if storage_type in ['r2', 's3']:
-            test_content = b"Hello R2! This is a connectivity test."
-            test_file = io.BytesIO(test_content)
-            test_filename = "debug_connectivity_test.txt"
-            
-            logs.append("Attempting upload_file...")
-            try:
-                # 직접 boto3 client 사용해서 테스트 (storage 추상화 우회 없음)
-                # storage.upload_file 사용
-                result = storage.upload_file(test_file, test_filename, "debug")
-                logs.append(f"Upload Result: {result}")
-                
-                if result['success']:
-                    logs.append("Upload SUCCESS.")
-                    # 다운로드 URL 확인
-                    logs.append(f"Download URL: {result.get('url')}")
-                    
-                    # 삭제 테스트
-                    logs.append("Attempting delete...")
-                    del_res = storage.delete_file(result['key'])
-                    logs.append(f"Delete Result: {del_res}")
-                else:
-                    logs.append("Upload FAILED.")
-            except Exception as e:
-                logs.append(f"Upload EXCEPTION: {str(e)}")
-                import traceback
-                logs.append(traceback.format_exc())
-        else:
-            logs.append("Skipping upload test because storage_type is local.")
-
-        return Response("\n".join(logs), mimetype='text/plain')
-        
-    except Exception as e:
-        import traceback
-        return f"Check Failed: {e}\n{traceback.format_exc()}", 500
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if 'user_id' in session:
