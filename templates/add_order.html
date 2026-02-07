@@ -755,13 +755,39 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
 <script>
     // add_order (ERP Beta): ORDER_ID는 탭 오픈 시 draft 생성으로 확보
     let ORDER_ID = 0;
-    const ERP_BETA_ENABLED = {{ 'true' if erp_beta_enabled else 'false' }};
+    var ERP_BETA_ENABLED = JSON.parse('{{ erp_beta_enabled | tojson | safe }}');
     window.__ERP_BETA_DRAFT_MODE = true;
     window.__ERP_BETA_DRAFT_ENDPOINT = '/api/orders/erp-beta/draft';
 </script>
 
+{% include "partials/erp_beta_js.html" %}
+
 <script>
-    {% include "partials/erp_beta_js.html" %}
+    document.addEventListener('DOMContentLoaded', function () {
+        // ERP Beta 탭 활성화 시 접수일/접수시간 자동 채우기 보완 (강제 실행)
+        const erpTabBtn = document.getElementById('erp-beta-tab');
+        if (erpTabBtn) {
+            erpTabBtn.addEventListener('click', function () {
+                setTimeout(function () {
+                    const rDate = document.getElementById('erp-received-date');
+                    const rTime = document.getElementById('erp-received-time');
+                    const now = new Date();
+
+                    if (rDate && !rDate.value) {
+                        const yyyy = now.getFullYear();
+                        const mm = String(now.getMonth() + 1).padStart(2, '0');
+                        const dd = String(now.getDate()).padStart(2, '0');
+                        rDate.value = `${yyyy}-${mm}-${dd}`;
+                    }
+                    if (rTime && !rTime.value) {
+                        const hh = String(now.getHours()).padStart(2, '0');
+                        const mi = String(now.getMinutes()).padStart(2, '0');
+                        rTime.value = `${hh}:${mi}`;
+                    }
+                }, 100); // 탭 전환 딜레이 고려
+            });
+        }
+    });
 </script>
 
 <style>

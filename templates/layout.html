@@ -514,7 +514,7 @@
                     data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="fas fa-user-circle"></i> {{ current_user.name }} ({{ ROLES[current_user.role] }})
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown" style="z-index: 1050;">
                     <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-user-cog"></i> 내
                             정보</a></li>
                     {% if current_user.role == 'ADMIN' %}
@@ -526,14 +526,14 @@
                     <li>
                         <hr class="dropdown-divider">
                     </li>
-                    <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i>
+                    <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i>
                             로그아웃</a></li>
                 </ul>
             </div>
             {% else %}
             <div>
-                <a href="{{ url_for('login') }}" class="btn btn-outline-primary me-2">로그인</a>
-                <a href="{{ url_for('register') }}" class="btn btn-primary">회원가입</a>
+                <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary me-2">로그인</a>
+                <a href="{{ url_for('auth.register') }}" class="btn btn-primary">회원가입</a>
             </div>
             {% endif %}
         </header>
@@ -572,7 +572,7 @@
                 <!-- 도구 섹션 (계산기, 채팅) -->
                 <ul class="navbar-nav ms-auto border-start ps-3">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('erp_dashboard') }}">
+                        <a class="nav-link" href="{{ url_for('erp_beta.erp_dashboard') }}">
                             <i class="fas fa-layer-group"></i> ERP 대시보드
                         </a>
                     </li>

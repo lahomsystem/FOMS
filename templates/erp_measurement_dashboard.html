@@ -1,7 +1,9 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<div class="erp-pro">
+<div class="erp-pro" data-erp-beta-active="{{ 'true' if erp_beta_enabled else 'false' }}"
+  data-today-date="{{ today_date }}" data-selected-date="{{ selected_date }}"
+  data-manager-filter="{{ manager_filter }}">
   <!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -9,7 +11,7 @@
       <span>실측 대시보드</span>
     </h1>
     <div class="erp-pro-header__actions">
-      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_dashboard') }}">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_beta.erp_dashboard') }}">
         <i class="fas fa-arrow-left"></i>
         <span class="d-none d-md-inline">ERP</span>
       </a>
@@ -18,14 +20,14 @@
   {% set erp_sub_nav_active = 'measurement' %}
   {% include 'partials/erp_sub_nav.html' %}
 
-{% if not erp_beta_enabled %}
+  {% if not erp_beta_enabled %}
   <div class="erp-pro-alert erp-pro-alert--warning">
     <div class="erp-pro-alert__icon"><i class="fas fa-exclamation-triangle"></i></div>
     <div class="erp-pro-alert__content">
       <span>ERP Beta 기능이 비활성입니다. (환경변수 <code>ERP_BETA_ENABLED=true</code> 필요)</span>
     </div>
   </div>
-{% else %}
+  {% else %}
   <div class="erp-pro-card">
     <div class="erp-pro-card__header erp-pro-card__header--filter">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
@@ -42,7 +44,8 @@
             <i class="fas fa-search"></i>
             <span>조회</span>
           </button>
-          <a class="erp-pro-btn erp-pro-btn--secondary" href="/erp/measurement?date={{ selected_date }}&manager={{ manager_filter | urlencode }}&open_map=1">
+          <a class="erp-pro-btn erp-pro-btn--secondary"
+            href="/erp/measurement?date={{ selected_date }}&manager={{ manager_filter | urlencode }}&open_map=1">
             <i class="fas fa-map"></i>
             <span class="d-none d-sm-inline">지도</span>
           </a>
@@ -60,23 +63,26 @@
             <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap">
               <div class="fw-bold small"><i class="fas fa-calendar-day"></i> 날짜별 실측</div>
               <div class="d-flex align-items-center gap-1">
-                <a href="{{ url_for('erp_measurement_dashboard', date=today_date, manager=manager_filter or '') }}" class="btn btn-sm btn-outline-primary py-0 px-1" title="오늘">오늘</a>
+                <a href="{{ url_for('erp_beta.erp_measurement_dashboard', date=today_date, manager=manager_filter or '') }}"
+                  class="btn btn-sm btn-outline-primary py-0 px-1" title="오늘">오늘</a>
                 <span class="badge bg-primary">{{ selected_date }}</span>
               </div>
             </div>
             <div class="card-body p-1">
               <div class="measurement-panel-list">
                 {% for item in measurement_panel_dates %}
-                  {% set day_label = ['월','화','수','목','금','토','일'][item.weekday] %}
-                  <a id="date-{{ item.date }}" class="measurement-panel-item measurement-panel-item-oneline {% if item.is_selected %}is-selected{% endif %} {% if item.is_weekend %}is-weekend{% endif %} {% if item.is_holiday %}is-holiday{% endif %} {% if item.date == today_date %}is-today{% endif %}"
-                     href="{{ url_for('erp_measurement_dashboard', date=item.date, manager=manager_filter or '') }}#date-{{ item.date }}">
-                    <div class="d-flex align-items-center justify-content-between gap-1 w-100 flex-nowrap">
-                      <span class="measurement-panel-date">{{ item.date }}</span>
-                      <span class="measurement-panel-day">({{ day_label }})</span>
-                      {% if item.is_holiday %}<span class="badge bg-danger">휴일</span>{% elif item.is_weekend %}<span class="badge bg-warning text-dark">주말</span>{% endif %}
-                      <span class="badge badge-count ms-auto">{{ item.count }}</span>
-                    </div>
-                  </a>
+                {% set day_label = ['월','화','수','목','금','토','일'][item.weekday] %}
+                <a id="date-{{ item.date }}"
+                  class="measurement-panel-item measurement-panel-item-oneline {% if item.is_selected %}is-selected{% endif %} {% if item.is_weekend %}is-weekend{% endif %} {% if item.is_holiday %}is-holiday{% endif %} {% if item.date == today_date %}is-today{% endif %}"
+                  href="{{ url_for('erp_beta.erp_measurement_dashboard', date=item.date, manager=manager_filter or '') }}#date-{{ item.date }}">
+                  <div class="d-flex align-items-center justify-content-between gap-1 w-100 flex-nowrap">
+                    <span class="measurement-panel-date">{{ item.date }}</span>
+                    <span class="measurement-panel-day">({{ day_label }})</span>
+                    {% if item.is_holiday %}<span class="badge bg-danger">휴일</span>{% elif item.is_weekend %}<span
+                      class="badge bg-warning text-dark">주말</span>{% endif %}
+                    <span class="badge badge-count ms-auto">{{ item.count }}</span>
+                  </div>
+                </a>
                 {% endfor %}
               </div>
               <div class="small text-muted mt-1 px-1">60일 기준</div>
@@ -86,310 +92,306 @@
         <div class="col-12 col-xl-10 col-lg-10">
           <div class="table-responsive">
             <style>
-          .measurement-row {
-            border-bottom: 1px solid #e9ecef;
-          }
-          .table-responsive {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-          }
-          .measurement-table {
-            min-width: 980px;
-            font-size: 0.875rem;
-          }
-          .measurement-table th,
-          .measurement-table td {
-            white-space: nowrap;
-            font-size: 0.875rem;
-          }
-          .measurement-table .cell-wrap {
-            white-space: normal;
-            word-break: break-word;
-          }
-          .measurement-table .measurement-address-cell {
-            font-size: 0.875rem;
-            min-width: 280px;
-          }
-          .measurement-table .measurement-product-cell {
-            max-width: 140px;
-          }
-          /* 모바일: 제품 컬럼 가로 확장 → 행 높이 최소화, 가로 스크롤로 확인 */
-          @media (max-width: 768px) {
-            .measurement-table .measurement-product-cell {
-              min-width: 240px !important;
-              max-width: none !important;
-            }
-            .measurement-table {
-              min-width: 100%;
-            }
-          }
-          .manager-cell {
-            font-weight: 500;
-            text-align: center;
-          }
-          /* 다른 CSS 오버라이드 방지 */
-          .manager-cell[style*="background-color"] {
-            color: #000000 !important;
-          }
-          /* hover 상태에서도 원래 배경색 유지 - Bootstrap table-hover 및 전역 CSS 오버라이드 */
-          .table-hover tbody tr:hover .manager-cell,
-          .table-hover tbody tr:hover .manager-cell[style*="background-color"],
-          .manager-cell[style*="background-color"]:hover,
-          tbody tr:hover td.manager-cell,
-          tbody tr:hover .manager-cell,
-          .table tbody tr:hover .manager-cell,
-          div.table-responsive table.table tbody tr:hover td.manager-cell,
-          div.table-responsive table.table.table-hover tbody tr:hover td.manager-cell {
-            background-color: inherit !important;
-            background: inherit !important;
-            color: #000000 !important;
-          }
-          /* 전역 tr:hover 스타일 오버라이드 */
-          div.table-responsive table tbody tr:hover td.manager-cell[data-manager-bg-color] {
-            background-color: var(--manager-bg-color, inherit) !important;
-            background: var(--manager-bg-color, inherit) !important;
-            color: #000000 !important;
-          }
-          .measurement-panel-list {
-            max-height: 520px;
-            overflow-y: auto;
-            padding: 4px;
-          }
-          .measurement-panel-item {
-            display: block;
-            padding: 10px 12px;
-            border-radius: 10px;
-            text-decoration: none;
-            color: #212529;
-            border: 1px solid #f1f3f5;
-            background: #ffffff;
-            margin-bottom: 6px;
-            transition: all 0.15s ease-in-out;
-          }
-          .measurement-panel-item-oneline {
-            padding: 5px 8px;
-            margin-bottom: 4px;
-            border-radius: 6px;
-          }
-          .measurement-panel-item-oneline .measurement-panel-date { font-size: 0.85rem; white-space: nowrap; }
-          .measurement-panel-item-oneline .measurement-panel-day { font-size: 0.8rem; color: #6c757d; }
-          .measurement-panel-item-oneline .badge-count { font-size: 0.85rem; min-width: 28px; padding: 2px 6px; }
-          .measurement-panel-item:hover {
-            background: #f8f9fa;
-            border-color: #dee2e6;
-          }
-          .measurement-panel-item.is-selected {
-            border-color: #0d6efd;
-            box-shadow: 0 0 0 1px rgba(13, 110, 253, 0.2);
-          }
-          .measurement-panel-item.is-weekend {
-            background: #fff7e6;
-          }
-          .measurement-panel-item.is-holiday {
-            background: #fff1f1;
-          }
-          .measurement-panel-item.is-today {
-            border-color: #198754;
-            box-shadow: 0 0 0 1px rgba(25, 135, 84, 0.25);
-          }
-          .measurement-panel-item {
-            scroll-margin-top: 16px;
-          }
-          .badge-count {
-            background-color: #0d6efd;
-            color: #ffffff;
-            font-size: 0.95rem;
-            min-width: 42px;
-            text-align: center;
-            padding: 6px 10px;
-          }
-          .btn-measure-action {
-            font-size: 0.95rem;
-            padding: 6px 12px;
-          }
-          .measurement-filter-row .btn {
-            height: 38px;
-          }
-          .measurement-filter-actions {
-            align-self: flex-end;
-            padding-top: 24px;
-          }
-          .measurement-filter-row .form-label {
-            min-height: 18px;
-            line-height: 1;
-            margin-bottom: 6px;
-          }
-          .measurement-filter-row .form-control,
-          .measurement-filter-row .btn {
-            height: 38px;
-          }
-          @media (max-width: 768px) {
-            .card-header .row.g-2:not(.measurement-filter-row) > [class^="col-"] {
-              width: 100%;
-              max-width: 100%;
-              flex: 0 0 100%;
-            }
-            .measurement-filter-row > .col-6 {
-              width: 50%;
-              max-width: 50%;
-              flex: 0 0 50%;
-            }
-            .card-header .row.g-2 .d-flex {
-              flex-wrap: wrap;
-              gap: 8px;
-            }
-            .card-header .row.g-2 .d-flex .btn {
-              flex: 1 1 auto;
-              min-width: 140px;
-            }
-            .measurement-panel-list {
-              max-height: 240px;
-            }
-          }
-        </style>
-        <table class="table table-sm table-hover align-middle measurement-table">
-          <thead class="table-light">
-            <tr>
-              <th style="width: 70px; border-right: 1px solid #e0e0e0;">상세</th>
-              <th style="width: 120px; border-right: 1px solid #e0e0e0;">고객</th>
-              <th style="width: 120px; border-right: 1px solid #e0e0e0;">발주사</th>
-              <th style="border-right: 1px solid #e0e0e0;">주소</th>
-              <th style="width: 120px; border-right: 1px solid #e0e0e0;">전화번호</th>
-              <th style="width: 90px; border-right: 1px solid #e0e0e0;">시간</th>
-              <th class="measurement-product-cell" style="max-width: 140px; border-right: 1px solid #e0e0e0;">제품</th>
-              <th style="width: 120px;">담당자</th>
-            </tr>
-          </thead>
-          <tbody>
-          {% if rows %}
-            {# 담당자 목록 수집 및 색상 할당 (검정 글자가 잘 보이는 밝은 원색) #}
-            {% set manager_list = [] %}
-            {% set color_list = ['#FF0000', '#0080FF', '#FFFF00', '#00FF00', '#FF00FF', '#00FFFF', '#FF8000', '#FF1493', '#00FF80', '#FF69B4'] %}
-            {% for r in rows %}
-              {% set temp_manager = r.manager_name %}
-              {% if r.is_erp_beta and r.structured_data and r.structured_data.parties and r.structured_data.parties.manager and r.structured_data.parties.manager.name %}
-                {% set temp_manager = r.structured_data.parties.manager.name %}
-              {% endif %}
-              {% set temp_manager = (temp_manager or '')|trim %}
-              {% if temp_manager and temp_manager not in manager_list %}
-                {% set _ = manager_list.append(temp_manager) %}
-              {% endif %}
-            {% endfor %}
-            
-            {% for r in rows %}
-              {% set customer = r.customer_name %}
-              {% set orderer = '-' %}
-              {% set address = r.address %}
-              {% set phone = r.phone %}
-              {% set meas_time = r.measurement_time %}
-              {% set product = r.product %}
-              {% set manager = r.manager_name %}
-              
-              {% if r.is_erp_beta and r.structured_data %}
-                {% set sd = r.structured_data %}
-                {% if sd and sd.parties %}
-                  {% if sd.parties.customer and sd.parties.customer.name %}
-                    {% set customer = sd.parties.customer.name %}
-                  {% endif %}
-                  {% if sd.parties.orderer and sd.parties.orderer.name %}
-                    {% set orderer = sd.parties.orderer.name %}
-                  {% endif %}
-                  {% if sd.parties.customer and sd.parties.customer.phone %}
-                    {% set phone = sd.parties.customer.phone %}
-                  {% endif %}
-                  {% if sd.parties.manager and sd.parties.manager.name %}
-                    {% set manager = sd.parties.manager.name %}
-                  {% endif %}
-                {% endif %}
-                {% if sd and sd.schedule and sd.schedule.measurement %}
-                  {% if sd.schedule.measurement.time %}
-                    {% set meas_time = sd.schedule.measurement.time %}
-                  {% endif %}
-                {% endif %}
-                {% if sd and sd.site %}
-                  {% if sd.site.address_full %}
-                    {% set address = sd.site.address_full %}
-                  {% elif sd.site.address_main %}
-                    {% if sd.site.address_detail %}
-                      {% set address = sd.site.address_main + ' ' + sd.site.address_detail %}
-                    {% else %}
-                      {% set address = sd.site.address_main %}
-                    {% endif %}
-                  {% endif %}
-                {% endif %}
-                {# 제품 정보 추출 - items 배열의 product_name만 사용 #}
-                {% if sd and 'items' in sd %}
-                  {% set erp_items = sd['items'] %}
-                  {% if erp_items and erp_items|length > 0 %}
-                    {% set ns = namespace(product_candidate='', product_found=false) %}
-                    {% for item in erp_items %}
-                      {% set pname = '' %}
-                      {% if item and item.get is defined %}
-                        {% set pname = item.get('product_name') %}
-                        {% if pname and pname|trim %}
-                          {% set pname = pname|trim %}
-                        {% else %}
-                          {% set pname = '' %}
-                        {% endif %}
-                      {% endif %}
-                      {% if pname %}
-                        {% set ns.product_found = true %}
-                        {% if loop.index > 1 and ns.product_candidate %}
-                          {% set ns.product_candidate = ns.product_candidate + ', ' %}
-                        {% endif %}
-                        {% set ns.product_candidate = ns.product_candidate + pname %}
-                      {% endif %}
-                    {% endfor %}
-                    {% if ns.product_found and ns.product_candidate|trim %}
-                      {% set product = ns.product_candidate|trim %}
-                    {% endif %}
-                  {% endif %}
-                {% endif %}
-              {% endif %}
+              .measurement-row {
+                border-bottom: 1px solid #e9ecef;
+              }
 
-              {# 담당자 색상 결정 (manager 변수가 최종 설정된 후) #}
-              {% set manager_key = (manager or '')|trim %}
-              {% set manager_index = -1 %}
-              {% for m in manager_list %}
-                {% if m == manager_key %}
-                  {% set manager_index = loop.index0 %}
+              .table-responsive {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+              }
+
+              .measurement-table {
+                min-width: 980px;
+                font-size: 0.875rem;
+              }
+
+              .measurement-table th,
+              .measurement-table td {
+                white-space: nowrap;
+                font-size: 0.875rem;
+              }
+
+              .measurement-table .cell-wrap {
+                white-space: normal;
+                word-break: break-word;
+              }
+
+              .measurement-table .measurement-address-cell {
+                font-size: 0.875rem;
+                min-width: 280px;
+              }
+
+              .measurement-table .measurement-product-cell {
+                max-width: 140px;
+              }
+
+              /* 모바일: 제품 컬럼 가로 확장 → 행 높이 최소화, 가로 스크롤로 확인 */
+              @media (max-width: 768px) {
+                .measurement-table .measurement-product-cell {
+                  min-width: 240px !important;
+                  max-width: none !important;
+                }
+
+                .measurement-table {
+                  min-width: 100%;
+                }
+              }
+
+              .manager-cell {
+                font-weight: 500;
+                text-align: center;
+              }
+
+              /* 다른 CSS 오버라이드 방지 */
+              .manager-cell[style*="background-color"] {
+                color: #000000 !important;
+              }
+
+              /* hover 상태에서도 원래 배경색 유지 - Bootstrap table-hover 및 전역 CSS 오버라이드 */
+              .table-hover tbody tr:hover .manager-cell,
+              .table-hover tbody tr:hover .manager-cell[style*="background-color"],
+              .manager-cell[style*="background-color"]:hover,
+              tbody tr:hover td.manager-cell,
+              tbody tr:hover .manager-cell,
+              .table tbody tr:hover .manager-cell,
+              div.table-responsive table.table tbody tr:hover td.manager-cell,
+              div.table-responsive table.table.table-hover tbody tr:hover td.manager-cell {
+                background-color: inherit !important;
+                background: inherit !important;
+                color: #000000 !important;
+              }
+
+              /* 전역 tr:hover 스타일 오버라이드 */
+              div.table-responsive table tbody tr:hover td.manager-cell[data-manager-bg-color] {
+                background-color: var(--manager-bg-color, inherit) !important;
+                background: var(--manager-bg-color, inherit) !important;
+                color: #000000 !important;
+              }
+
+              .measurement-panel-list {
+                max-height: 520px;
+                overflow-y: auto;
+                padding: 4px;
+              }
+
+              .measurement-panel-item {
+                display: block;
+                padding: 10px 12px;
+                border-radius: 10px;
+                text-decoration: none;
+                color: #212529;
+                border: 1px solid #f1f3f5;
+                background: #ffffff;
+                margin-bottom: 6px;
+                transition: all 0.15s ease-in-out;
+              }
+
+              .measurement-panel-item-oneline {
+                padding: 5px 8px;
+                margin-bottom: 4px;
+                border-radius: 6px;
+              }
+
+              .measurement-panel-item-oneline .measurement-panel-date {
+                font-size: 0.85rem;
+                white-space: nowrap;
+              }
+
+              .measurement-panel-item-oneline .measurement-panel-day {
+                font-size: 0.8rem;
+                color: #6c757d;
+              }
+
+              .measurement-panel-item-oneline .badge-count {
+                font-size: 0.85rem;
+                min-width: 28px;
+                padding: 2px 6px;
+              }
+
+              .measurement-panel-item:hover {
+                background: #f8f9fa;
+                border-color: #dee2e6;
+              }
+
+              .measurement-panel-item.is-selected {
+                border-color: #0d6efd;
+                box-shadow: 0 0 0 1px rgba(13, 110, 253, 0.2);
+              }
+
+              .measurement-panel-item.is-weekend {
+                background: #fff7e6;
+              }
+
+              .measurement-panel-item.is-holiday {
+                background: #fff1f1;
+              }
+
+              .measurement-panel-item.is-today {
+                border-color: #198754;
+                box-shadow: 0 0 0 1px rgba(25, 135, 84, 0.25);
+              }
+
+              .measurement-panel-item {
+                scroll-margin-top: 16px;
+              }
+
+              .badge-count {
+                background-color: #0d6efd;
+                color: #ffffff;
+                font-size: 0.95rem;
+                min-width: 42px;
+                text-align: center;
+                padding: 6px 10px;
+              }
+
+              .btn-measure-action {
+                font-size: 0.95rem;
+                padding: 6px 12px;
+              }
+
+              .measurement-filter-row .btn {
+                height: 38px;
+              }
+
+              .measurement-filter-actions {
+                align-self: flex-end;
+                padding-top: 24px;
+              }
+
+              .measurement-filter-row .form-label {
+                min-height: 18px;
+                line-height: 1;
+                margin-bottom: 6px;
+              }
+
+              .measurement-filter-row .form-control,
+              .measurement-filter-row .btn {
+                height: 38px;
+              }
+
+              @media (max-width: 768px) {
+                .card-header .row.g-2:not(.measurement-filter-row)>[class^="col-"] {
+                  width: 100%;
+                  max-width: 100%;
+                  flex: 0 0 100%;
+                }
+
+                .measurement-filter-row>.col-6 {
+                  width: 50%;
+                  max-width: 50%;
+                  flex: 0 0 50%;
+                }
+
+                .card-header .row.g-2 .d-flex {
+                  flex-wrap: wrap;
+                  gap: 8px;
+                }
+
+                .card-header .row.g-2 .d-flex .btn {
+                  flex: 1 1 auto;
+                  min-width: 140px;
+                }
+
+                .measurement-panel-list {
+                  max-height: 240px;
+                }
+              }
+            </style>
+            <table class="table table-sm table-hover align-middle measurement-table">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 70px; border-right: 1px solid #e0e0e0;">상세</th>
+                  <th style="width: 120px; border-right: 1px solid #e0e0e0;">고객</th>
+                  <th style="width: 120px; border-right: 1px solid #e0e0e0;">발주사</th>
+                  <th style="border-right: 1px solid #e0e0e0;">주소</th>
+                  <th style="width: 120px; border-right: 1px solid #e0e0e0;">전화번호</th>
+                  <th style="width: 90px; border-right: 1px solid #e0e0e0;">시간</th>
+                  <th class="measurement-product-cell" style="max-width: 140px; border-right: 1px solid #e0e0e0;">제품
+                  </th>
+                  <th style="width: 120px;">담당자</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% if rows %}
+                {# 담당자 목록 수집 및 색상 할당 (검정 글자가 잘 보이는 밝은 원색) #}
+                {% set manager_list = [] %}
+                {% set color_list = ['#FF0000', '#0080FF', '#FFFF00', '#00FF00', '#FF00FF', '#00FFFF', '#FF8000',
+                '#FF1493', '#00FF80', '#FF69B4'] %}
+                {% for r in rows %}
+                {% set temp_manager = r.manager_name %}
+                {% if r.is_erp_beta and r.structured_data and r.structured_data.parties and
+                r.structured_data.parties.manager and r.structured_data.parties.manager.name %}
+                {% set temp_manager = r.structured_data.parties.manager.name %}
                 {% endif %}
-              {% endfor %}
-              {% if manager_index >= 0 %}
+                {% set temp_manager = (temp_manager or '')|trim %}
+                {% if temp_manager and temp_manager not in manager_list %}
+                {% set _ = manager_list.append(temp_manager) %}
+                {% endif %}
+                {% endfor %}
+
+                {% for r in rows %}
+                {% set customer = r.customer_name %}
+                {% set orderer = r.orderer_name or '-' %}
+                {% set address = r.address %}
+                {% set phone = r.phone %}
+                {% set meas_time = r.measurement_time %}
+                {% set product = r.product %}
+                {% set manager = r.manager_name %}
+
+                {# 담당자 색상 결정 (manager 변수가 최종 설정된 후) #}
+                {% set manager_key = (manager or '')|trim %}
+                {% set manager_index = -1 %}
+                {% for m in manager_list %}
+                {% if m == manager_key %}
+                {% set manager_index = loop.index0 %}
+                {% endif %}
+                {% endfor %}
+                {% if manager_index >= 0 %}
                 {% set manager_bg_color = color_list[manager_index % color_list|length] %}
-              {% else %}
+                {% else %}
                 {% set manager_bg_color = '#CCCCCC' %}
-              {% endif %}
-              
-              {# 배경색에 따라 텍스트 색상 자동 결정 #}
-              {% set text_color = '#000000' %}
-              
-              <tr data-order-id="{{ r.id }}" data-is-erp-beta="{{ 'true' if r.is_erp_beta else 'false' }}" data-manager="{{ manager or '' }}" class="measurement-row">
-                <td class="text-center" style="border-right: 1px solid #e0e0e0;">
-                  <a href="{{ url_for('edit_order', order_id=r.id, return_to='erp_measurement_dashboard') }}?open=erp-beta" class="btn btn-sm btn-outline-primary" title="주문 상세">
-                    <i class="fas fa-edit"></i>
-                  </a>
-                </td>
-                <td style="border-right: 1px solid #e0e0e0;">{{ customer or '-' }}</td>
-                <td style="border-right: 1px solid #e0e0e0;">{{ orderer or '-' }}</td>
-                <td class="editable-cell cell-wrap measurement-address-cell" data-field="address" style="border-right: 1px solid #e0e0e0;">{{ address or '-' }}</td>
-                <td class="editable-cell" data-field="phone" style="border-right: 1px solid #e0e0e0;">{{ phone or '-' }}</td>
-                <td style="border-right: 1px solid #e0e0e0;">{{ meas_time or '-' }}</td>
-                <td class="cell-wrap measurement-product-cell" style="border-right: 1px solid #e0e0e0;">{{ (product or '-')|strip_product_w or '-' }}</td>
-                <td class="editable-cell manager-cell" data-field="manager" style="background-color: {{ manager_bg_color }} !important; color: {{ text_color }} !important;">{{ manager or '-' }}</td>
-              </tr>
-            {% endfor %}
-          {% else %}
-            <tr><td colspan="8" class="text-center text-muted py-4">데이터가 없습니다.</td></tr>
-          {% endif %}
-          </tbody>
-        </table>
+                {% endif %}
+
+                {# 배경색에 따라 텍스트 색상 자동 결정 #}
+                {% set text_color = '#000000' %}
+
+                <tr data-order-id="{{ r.id }}" data-is-erp-beta="{{ 'true' if r.is_erp_beta else 'false' }}"
+                  data-manager="{{ manager or '' }}" class="measurement-row">
+                  <td class="text-center" style="border-right: 1px solid #e0e0e0;">
+                    <a href="{{ url_for('edit_order', order_id=r.id, return_to='erp_measurement_dashboard') }}?open=erp-beta"
+                      class="btn btn-sm btn-outline-primary" title="주문 상세">
+                      <i class="fas fa-edit"></i>
+                    </a>
+                  </td>
+                  <td style="border-right: 1px solid #e0e0e0;">{{ customer or '-' }}</td>
+                  <td style="border-right: 1px solid #e0e0e0;">{{ orderer or '-' }}</td>
+                  <td class="editable-cell cell-wrap measurement-address-cell" data-field="address"
+                    style="border-right: 1px solid #e0e0e0;">{{ address or '-' }}</td>
+                  <td class="editable-cell" data-field="phone" style="border-right: 1px solid #e0e0e0;">{{
+                    phone|format_phone }}</td>
+                  <td style="border-right: 1px solid #e0e0e0;">{{ meas_time or '-' }}</td>
+                  <td class="cell-wrap measurement-product-cell" style="border-right: 1px solid #e0e0e0;">{{ (product or
+                    '-')|strip_product_w or '-' }}</td>
+                  <td class="editable-cell manager-cell" data-field="manager"
+                    style="background-color: {{ manager_bg_color }}; color: {{ text_color }};">
+                    {{ manager or '-' }}
+                  </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr>
+                  <td colspan="8" class="text-center text-muted py-4">데이터가 없습니다.</td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
     </div>
   </div>
-{% endif %}
+  {% endif %}
 </div><!-- end erp-pro -->
 
 <!-- 동선 추천 모달 -->
@@ -429,273 +431,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-  (function () {
-    // escapeHtml helper (이 페이지 단독으로도 안전하게 동작하도록)
-    function escapeHtml(text) {
-      if (!text) return '';
-      const div = document.createElement('div');
-      div.textContent = String(text);
-      return div.innerHTML;
-    }
-
-    if (!{{ 'true' if erp_beta_enabled else 'false' }}) return;
-
-    document.addEventListener('DOMContentLoaded', function() {
-      const todayId = "date-{{ today_date }}";
-      const todayEl = document.getElementById(todayId);
-      const panelList = document.querySelector('.measurement-panel-list');
-      if (todayEl && panelList) {
-        todayEl.scrollIntoView({ block: 'center' });
-      }
-    });
-
-    // 담당자 셀 색상 동적 적용 (검정 글자가 잘 보이는 밝은 원색)
-    document.addEventListener('DOMContentLoaded', function() {
-      const colorList = ['#FF0000', '#0080FF', '#FFFF00', '#00FF00', '#FF00FF', '#00FFFF', '#FF8000', '#FF1493', '#00FF80', '#FF69B4'];
-      const managerCells = document.querySelectorAll('td.manager-cell');
-      const managerColorMap = {};
-      let colorIndex = 0;
-      
-      // 담당자별 색상 매핑 생성
-      managerCells.forEach(cell => {
-        const managerName = (cell.textContent || '').trim();
-        if (managerName && managerName !== '-' && !managerColorMap[managerName]) {
-          managerColorMap[managerName] = colorList[colorIndex % colorList.length];
-          colorIndex++;
-        }
-      });
-      
-      // 각 셀에 색상 적용
-      managerCells.forEach(cell => {
-        const managerName = (cell.textContent || '').trim();
-        if (managerName && managerName !== '-') {
-          const bgColor = managerColorMap[managerName] || '#CCCCCC';
-          // data 속성에 색상 저장 및 CSS 변수 설정
-          cell.setAttribute('data-manager-bg-color', bgColor);
-          cell.style.setProperty('--manager-bg-color', bgColor);
-          cell.style.setProperty('background-color', bgColor, 'important');
-          cell.style.setProperty('background', bgColor, 'important');
-          cell.style.setProperty('color', '#000000', 'important');
-          
-          // tr에 이벤트 리스너 추가 (더 확실한 방법)
-          const tr = cell.closest('tr');
-          if (tr) {
-            const restoreColor = function() {
-              cell.style.setProperty('background-color', bgColor, 'important');
-              cell.style.setProperty('background', bgColor, 'important');
-              cell.style.setProperty('color', '#000000', 'important');
-            };
-            tr.addEventListener('mouseenter', restoreColor);
-            tr.addEventListener('mouseleave', restoreColor);
-            tr.addEventListener('mouseover', restoreColor);
-          }
-          
-          // 셀 자체에도 이벤트 리스너 추가
-          const restoreCellColor = function() {
-            const savedColor = this.getAttribute('data-manager-bg-color') || bgColor;
-            this.style.setProperty('background-color', savedColor, 'important');
-            this.style.setProperty('background', savedColor, 'important');
-            this.style.setProperty('color', '#000000', 'important');
-          };
-          cell.addEventListener('mouseenter', restoreCellColor);
-          cell.addEventListener('mouseleave', restoreCellColor);
-          cell.addEventListener('mouseover', restoreCellColor);
-          
-          // 주기적으로 색상 확인 및 복원 (최후의 수단)
-          setInterval(function() {
-            const computedBg = window.getComputedStyle(cell).backgroundColor;
-            const rgbBg = hexToRgb(bgColor);
-            if (computedBg && rgbBg && computedBg !== `rgb(${rgbBg.r}, ${rgbBg.g}, ${rgbBg.b})`) {
-              cell.style.setProperty('background-color', bgColor, 'important');
-              cell.style.setProperty('background', bgColor, 'important');
-              cell.style.setProperty('color', '#000000', 'important');
-            }
-          }, 100);
-        }
-      });
-      
-      // hex to rgb 변환 함수
-      function hexToRgb(hex) {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? {
-          r: parseInt(result[1], 16),
-          g: parseInt(result[2], 16),
-          b: parseInt(result[3], 16)
-        } : null;
-      }
-    });
-    
-    // 색상 적용 제거 (그룹 헤더로 구분)
-    // 같은 담당자 그룹 내에서는 구분선 제거, 그룹 마지막 행에만 구분선 추가
-
-    const btn = document.getElementById('btn-route-plan');
-    const modalEl = document.getElementById('routePlanModal');
-    const hasBootstrap = typeof bootstrap !== 'undefined' && bootstrap.Modal;
-    if (!btn || !modalEl || !hasBootstrap) return;
-    const modal = new bootstrap.Modal(modalEl);
-
-    function setVisible(id, visible) {
-      const el = document.getElementById(id);
-      if (el) el.style.display = visible ? '' : 'none';
-    }
-    function setText(id, text) {
-      const el = document.getElementById(id);
-      if (el) el.textContent = text || '';
-    }
-
-    async function loadRoutePlan() {
-      setVisible('route-plan-error', false);
-      setVisible('route-plan-result', false);
-      setVisible('route-plan-loading', true);
-
-      const date = {{ selected_date|tojson }};
-      const manager = {{ manager_filter|tojson }};
-
-      setText('route-plan-meta', `기준일: ${date} / 담당자: ${manager || '-'} / 방식: 근사(직선거리)`);
-
-      try {
-        // 기존 카카오 내비 API 기반으로 구간 거리/시간 계산 (호출 수 제한 포함)
-        const qs = new URLSearchParams({ date, manager, limit: '20', use_kakao: '1', kakao_max_legs: '12' });
-        const res = await fetch(`/api/erp/measurement/route?${qs.toString()}`);
-        const data = await res.json();
-        if (!data.success) throw new Error(data.message || '동선 계산 실패');
-
-        const list = document.getElementById('route-plan-list');
-        list.innerHTML = '';
-
-        (data.route || []).forEach((p, idx) => {
-          const li = document.createElement('li');
-          const time = p.measurement_time ? `(${p.measurement_time}) ` : '';
-          li.innerHTML = `${time}<a href="/edit/${p.id}">주문 #${p.id}</a> - ${escapeHtml(String(p.customer_name || '-'))} / ${escapeHtml(String(p.address || '-'))}`;
-          list.appendChild(li);
-        });
-
-        const dur = data.total_duration_min ? ` / 총 시간: ${data.total_duration_min}분` : '';
-        setText('route-plan-distance', `총 거리: ${data.total_distance_km || 0} km${dur} / 지점: ${data.total_points || 0}`);
-        setText('route-plan-note', data.note || '');
-
-        setVisible('route-plan-loading', false);
-        setVisible('route-plan-result', true);
-      } catch (e) {
-        setVisible('route-plan-loading', false);
-        setText('route-plan-error', String(e?.message || e));
-        setVisible('route-plan-error', true);
-      }
-    }
-
-    btn.addEventListener('click', function () {
-      modal.show();
-      loadRoutePlan();
-    });
-
-    // 인라인 편집 기능
-    document.addEventListener('DOMContentLoaded', function() {
-      const editableCells = document.querySelectorAll('.editable-cell');
-      
-      editableCells.forEach(cell => {
-        cell.addEventListener('click', function() {
-          const orderId = this.closest('tr').dataset.orderId;
-          const isErpBeta = this.closest('tr').dataset.isErpBeta === 'true';
-          const field = this.dataset.field;
-          const currentValue = this.textContent.trim();
-          
-          if (!isErpBeta) {
-            alert('ERP Beta 주문만 수정할 수 있습니다.');
-            return;
-          }
-          
-          // 편집 모드로 전환
-          const input = document.createElement('input');
-          input.type = 'text';
-          input.value = currentValue === '-' ? '' : currentValue;
-          input.className = 'form-control form-control-sm';
-          input.style.width = '100%';
-          
-          const originalContent = this.innerHTML;
-          this.innerHTML = '';
-          this.appendChild(input);
-          input.focus();
-          input.select();
-          
-          const saveEdit = async () => {
-            const newValue = input.value.trim();
-            const originalValue = currentValue === '-' ? '' : currentValue;
-            
-            if (newValue === originalValue) {
-              // 변경사항 없음
-              this.innerHTML = originalContent;
-              return;
-            }
-            
-            // 저장 중 표시
-            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장 중...';
-            
-            try {
-              const response = await fetch(`/api/erp/measurement/update/${orderId}`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  field: field,
-                  value: newValue
-                })
-              });
-              
-              const data = await response.json();
-              
-              if (data.success) {
-                // 성공: 새 값으로 업데이트
-                this.textContent = newValue || '-';
-                this.classList.add('text-success');
-                setTimeout(() => {
-                  this.classList.remove('text-success');
-                }, 2000);
-              } else {
-                // 실패: 원래 값으로 복원
-                this.innerHTML = originalContent;
-                alert('저장 실패: ' + (data.error || '알 수 없는 오류'));
-              }
-            } catch (error) {
-              // 오류: 원래 값으로 복원
-              this.innerHTML = originalContent;
-              alert('저장 중 오류가 발생했습니다: ' + error.message);
-            }
-          };
-          
-          const cancelEdit = () => {
-            this.innerHTML = originalContent;
-          };
-          
-          input.addEventListener('blur', saveEdit);
-          input.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              input.blur();
-            } else if (e.key === 'Escape') {
-              e.preventDefault();
-              cancelEdit();
-            }
-          });
-        });
-        
-        // 편집 가능 표시 (호버 효과)
-        cell.style.cursor = 'pointer';
-        cell.title = '클릭하여 수정';
-        cell.addEventListener('mouseenter', function() {
-          if (!this.querySelector('input')) {
-            this.style.backgroundColor = '#f0f0f0';
-          }
-        });
-        cell.addEventListener('mouseleave', function() {
-          if (!this.querySelector('input')) {
-            this.style.backgroundColor = '';
-          }
-        });
-      });
-    });
-  })();
-</script>
+<script src="{{ url_for('static', filename='js/erp/common_utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/erp/measurement.js') }}"></script>
 {% endblock %}
-
