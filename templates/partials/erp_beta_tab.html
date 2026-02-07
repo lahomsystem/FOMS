@@ -1,8 +1,8 @@
 {#
-  ERP Beta Tab Pane (shared between add_order and edit_order)
-  - Requires: erp_beta_enabled (from context_processor)
-  - Optional: order (for edit_order); add_order may pass none.
-  - JS expects a tab button with id="erp-beta-tab" to hook tab shown events.
+ERP Beta Tab Pane (shared between add_order and edit_order)
+- Requires: erp_beta_enabled (from context_processor)
+- Optional: order (for edit_order); add_order may pass none.
+- JS expects a tab button with id="erp-beta-tab" to hook tab shown events.
 #}
 {% set erp_beta_active = erp_beta_active or false %}
 <div class="tab-pane fade{% if erp_beta_active %} show active{% endif %}" id="erp-beta" role="tabpanel">
@@ -17,207 +17,214 @@
         </div>
         <div class="card-body">
             {% if not erp_beta_enabled %}
-                <div class="alert alert-secondary mb-0">
-                    ERP Beta 패널은 현재 비활성입니다.
-                </div>
+            <div class="alert alert-secondary mb-0">
+                ERP Beta 패널은 현재 비활성입니다.
+            </div>
             {% else %}
-                <div class="alert alert-info py-2" id="erp-draft-banner" style="display:none;">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <i class="fas fa-bolt"></i>
-                            새 ERP Beta 주문이 자동 생성되었습니다. (주문번호: <span class="fw-bold" id="erp-draft-order-id">-</span>)
-                        </div>
-                        <a class="btn btn-sm btn-outline-primary" id="erp-draft-edit-link" href="#" style="display:none;">
-                            <i class="fas fa-external-link-alt"></i> 편집 화면 열기
-                        </a>
+            <div class="alert alert-info py-2" id="erp-draft-banner" style="display:none;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-bolt"></i>
+                        새 ERP Beta 주문이 자동 생성되었습니다. (주문번호: <span class="fw-bold" id="erp-draft-order-id">-</span>)
                     </div>
+                    <a class="btn btn-sm btn-outline-primary" id="erp-draft-edit-link" href="#" style="display:none;">
+                        <i class="fas fa-external-link-alt"></i> 편집 화면 열기
+                    </a>
+                </div>
+            </div>
+
+            <ul class="nav nav-pills mb-3" id="erpBetaTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="erp-form-tab" data-bs-toggle="pill" data-bs-target="#erp-form"
+                        type="button" role="tab">
+                        <i class="fas fa-pen"></i> 구조화 입력
+                    </button>
+                </li>
+
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="erp-form" role="tabpanel">
+                    <div class="small text-muted mb-2">
+                        저장 대상: orders.structured_data(JSONB) / raw_order_text / confidence
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label mb-1">접수일</label>
+                            <input type="date" class="form-control form-control-sm" id="erp-received-date"
+                                autocomplete="off">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label mb-1">접수시간</label>
+                            <input type="time" class="form-control form-control-sm" id="erp-received-time"
+                                autocomplete="off">
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <label class="form-label mb-0">긴급 발주</label>
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="checkbox" id="erp-urgent-flag"
+                                        autocomplete="off">
+                                    <label class="form-check-label" for="erp-urgent-flag">긴급</label>
+                                </div>
+                            </div>
+                            <input type="text" class="form-control form-control-sm" id="erp-urgent-reason"
+                                placeholder="긴급 사유 (예: 시공일 임박/현장 변경/자재 이슈 등)" autocomplete="off">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label mb-1">고객명</label>
+                            <input type="text" class="form-control form-control-sm" id="erp-customer-name"
+                                autocomplete="off">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label mb-1">연락처</label>
+                            <input type="tel" class="form-control form-control-sm" id="erp-customer-phone"
+                                autocomplete="tel">
+                            <div class="form-check mt-1">
+                                <input class="form-check-input" type="checkbox" id="erp-manual-phone-input"
+                                    autocomplete="off">
+                                <label class="form-check-label" for="erp-manual-phone-input">수동입력</label>
+                            </div>
+                            <button class="btn btn-sm btn-link p-0 mt-1 text-secondary" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#erp-collapse-phone-note"
+                                aria-expanded="false" aria-controls="erp-collapse-phone-note">
+                                <i class="fas fa-chevron-down small"></i> 연락처 특이사항
+                            </button>
+                            <div class="collapse mt-1" id="erp-collapse-phone-note">
+                                <input type="text" class="form-control form-control-sm" id="erp-phone-note"
+                                    placeholder="예: 부재중/문자 요청/통화 가능 시간 등" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label mb-1">발주사(개인/회사명)</label>
+                            <input type="text" class="form-control form-control-sm" id="erp-orderer" autocomplete="off">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label mb-1">담당자</label>
+                            <input type="text" class="form-control form-control-sm" id="erp-manager" autocomplete="off">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label mb-1">단계(Workflow)</label>
+                            <select class="form-select form-select-sm" id="erp-workflow-stage">
+                                <option value="">-</option>
+                                <option value="RECEIVED">주문접수</option>
+                                <option value="HAPPYCALL">해피콜(CS)</option>
+                                <option value="MEASURE">실측</option>
+                                <option value="DRAWING">도면</option>
+                                <option value="CONFIRM">고객컨펌</option>
+                                <option value="PRODUCTION">생산</option>
+                                <option value="CONSTRUCTION">시공</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <label class="form-label mb-0">주소</label>
+                                <button class="btn btn-outline-primary btn-sm" type="button"
+                                    id="erp-address-search-btn">
+                                    <i class="fas fa-search"></i> 찾기
+                                </button>
+                            </div>
+                            <input type="text" class="form-control form-control-sm" id="erp-address"
+                                placeholder="주소를 입력하거나 찾기 버튼을 클릭하세요" autocomplete="off">
+                            <button class="btn btn-sm btn-link p-0 mt-1 text-secondary" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#erp-collapse-address-note"
+                                aria-expanded="false" aria-controls="erp-collapse-address-note">
+                                <i class="fas fa-chevron-down small"></i> 주소 특이사항
+                            </button>
+                            <div class="collapse mt-1" id="erp-collapse-address-note">
+                                <input type="text" class="form-control form-control-sm" id="erp-address-note"
+                                    placeholder="예: 주차/출입/엘리베이터/경비실 등" autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-3">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label mb-1">실측일</label>
+                            <input type="date" class="form-control form-control-sm" id="erp-measurement-date"
+                                autocomplete="off">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label mb-1">실측시간</label>
+                            <select class="form-select form-select-sm" id="erp-measurement-time-select"
+                                autocomplete="off">
+                                <option value="__direct__" selected>직접 입력</option>
+                                <option value="오전">오전</option>
+                                <option value="오후">오후</option>
+                                <option value="종일">종일</option>
+                            </select>
+                            <input type="text" class="form-control form-control-sm mt-2" id="erp-measurement-time"
+                                placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off">
+                        </div>
+                        <div class="col-12">
+                            <button
+                                class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center gap-1"
+                                type="button" data-bs-toggle="collapse" data-bs-target="#erp-collapse-measure-note"
+                                aria-expanded="false" aria-controls="erp-collapse-measure-note">
+                                <i class="fas fa-sticky-note"></i> 실측 특이사항
+                            </button>
+                            <div class="collapse mt-2" id="erp-collapse-measure-note">
+                                <div class="mt-1">
+                                    <label class="form-label mb-1">실측 특이사항</label>
+                                    <input type="text" class="form-control form-control-sm" id="erp-measurement-note"
+                                        placeholder="예: 시간 변경 가능/현장 특이사항/준비물 등" autocomplete="off">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label mb-1">시공일</label>
+                            <input type="date" class="form-control form-control-sm" id="erp-construction-date"
+                                autocomplete="off">
+                        </div>
+                    </div>
+
+                    <hr class="my-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="fw-bold"><i class="fas fa-box"></i> 제품 항목(1..n)</div>
+                    </div>
+                    <div id="erp-items"></div>
+                    <div class="d-flex justify-content-end mt-2">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" id="erp-add-item-btn">
+                            <i class="fas fa-plus"></i> 항목 추가
+                        </button>
+                    </div>
+
+                    <div class="d-flex justify-content-end align-items-center gap-2 mt-2">
+                        <div class="fw-bold">총 금액</div>
+                        <div class="badge bg-primary" id="erp-items-total" style="font-size: 1rem;">0원</div>
+                    </div>
+
+                    <hr class="my-3">
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-primary" type="button" id="erp-save-btn">
+                            <i class="fas fa-save"></i> 저장
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" id="erp-load-btn">
+                            <i class="fas fa-sync"></i> 불러오기
+                        </button>
+                    </div>
+                    <div class="small text-muted mt-2" id="erp-status-text"></div>
+
+                    <hr class="my-3">
+                    <div class="fw-bold mb-2"><i class="fas fa-paperclip"></i> 첨부(사진/동영상)</div>
+                    <div class="border rounded p-3" style="border-style: dashed !important; background-color: #f8f9fa;">
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                            <input type="file" id="erp-attachments-input" accept="image/*,video/*" multiple
+                                class="form-control form-control-sm" style="max-width: 420px;">
+                            <button class="btn btn-sm btn-outline-primary" type="button"
+                                id="erp-attachments-upload-btn">
+                                <i class="fas fa-upload"></i> 업로드
+                            </button>
+                            <small class="text-muted">여러 개 선택 가능</small>
+                        </div>
+                        <div class="small text-muted mt-2" id="erp-attachments-status"></div>
+                    </div>
+                    <div class="row g-2 mt-2" id="erp-attachments-gallery"></div>
                 </div>
 
-                <ul class="nav nav-pills mb-3" id="erpBetaTabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="erp-form-tab" data-bs-toggle="pill" data-bs-target="#erp-form" type="button" role="tab">
-                            <i class="fas fa-pen"></i> 구조화 입력
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="erp-text-tab" data-bs-toggle="pill" data-bs-target="#erp-text" type="button" role="tab">
-                            <i class="fas fa-paste"></i> 텍스트 붙여넣기
-                        </button>
-                    </li>
-                </ul>
-                <div class="tab-content">
-                    <div class="tab-pane fade show active" id="erp-form" role="tabpanel">
-                        <div class="small text-muted mb-2">
-                            저장 대상: orders.structured_data(JSONB) / raw_order_text / confidence
-                        </div>
 
-                        <div class="row g-2">
-                            <div class="col-md-4">
-                                <label class="form-label mb-1">접수일</label>
-                                <input type="date" class="form-control form-control-sm" id="erp-received-date" autocomplete="off">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label mb-1">접수시간</label>
-                                <input type="time" class="form-control form-control-sm" id="erp-received-time" autocomplete="off">
-                            </div>
-                            <div class="col-md-4">
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <label class="form-label mb-0">긴급 발주</label>
-                                    <div class="form-check mb-0">
-                                        <input class="form-check-input" type="checkbox" id="erp-urgent-flag" autocomplete="off">
-                                        <label class="form-check-label" for="erp-urgent-flag">긴급</label>
-                                    </div>
-                                </div>
-                                <input type="text" class="form-control form-control-sm" id="erp-urgent-reason" placeholder="긴급 사유 (예: 시공일 임박/현장 변경/자재 이슈 등)" autocomplete="off">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label mb-1">고객명</label>
-                                <input type="text" class="form-control form-control-sm" id="erp-customer-name" autocomplete="off">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label mb-1">연락처</label>
-                                <input type="tel" class="form-control form-control-sm" id="erp-customer-phone" autocomplete="tel">
-                                <div class="form-check mt-1">
-                                    <input class="form-check-input" type="checkbox" id="erp-manual-phone-input" autocomplete="off">
-                                    <label class="form-check-label" for="erp-manual-phone-input">수동입력</label>
-                                </div>
-                                <button class="btn btn-sm btn-link p-0 mt-1 text-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#erp-collapse-phone-note" aria-expanded="false" aria-controls="erp-collapse-phone-note">
-                                    <i class="fas fa-chevron-down small"></i> 연락처 특이사항
-                                </button>
-                                <div class="collapse mt-1" id="erp-collapse-phone-note">
-                                    <input type="text" class="form-control form-control-sm" id="erp-phone-note" placeholder="예: 부재중/문자 요청/통화 가능 시간 등" autocomplete="off">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label mb-1">발주사(개인/회사명)</label>
-                                <input type="text" class="form-control form-control-sm" id="erp-orderer" autocomplete="off">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label mb-1">담당자</label>
-                                <input type="text" class="form-control form-control-sm" id="erp-manager" autocomplete="off">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label mb-1">단계(Workflow)</label>
-                                <select class="form-select form-select-sm" id="erp-workflow-stage">
-                                    <option value="">-</option>
-                                    <option value="RECEIVED">주문접수</option>
-                                    <option value="HAPPYCALL">해피콜(CS)</option>
-                                    <option value="MEASURE">실측</option>
-                                    <option value="DRAWING">도면</option>
-                                    <option value="CONFIRM">고객컨펌</option>
-                                    <option value="PRODUCTION">생산</option>
-                                    <option value="CONSTRUCTION">시공</option>
-                                </select>
-                            </div>
-                            <div class="col-12">
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <label class="form-label mb-0">주소</label>
-                                    <button class="btn btn-outline-primary btn-sm" type="button" id="erp-address-search-btn">
-                                        <i class="fas fa-search"></i> 찾기
-                                    </button>
-                                </div>
-                                <input type="text" class="form-control form-control-sm" id="erp-address" placeholder="주소를 입력하거나 찾기 버튼을 클릭하세요" autocomplete="off">
-                                <button class="btn btn-sm btn-link p-0 mt-1 text-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#erp-collapse-address-note" aria-expanded="false" aria-controls="erp-collapse-address-note">
-                                    <i class="fas fa-chevron-down small"></i> 주소 특이사항
-                                </button>
-                                <div class="collapse mt-1" id="erp-collapse-address-note">
-                                    <input type="text" class="form-control form-control-sm" id="erp-address-note" placeholder="예: 주차/출입/엘리베이터/경비실 등" autocomplete="off">
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr class="my-3">
-                        <div class="row g-2">
-                            <div class="col-md-6">
-                                <label class="form-label mb-1">실측일</label>
-                                <input type="date" class="form-control form-control-sm" id="erp-measurement-date" autocomplete="off">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label mb-1">실측시간</label>
-                                <select class="form-select form-select-sm" id="erp-measurement-time-select" autocomplete="off">
-                                    <option value="__direct__" selected>직접 입력</option>
-                                    <option value="오전">오전</option>
-                                    <option value="오후">오후</option>
-                                    <option value="종일">종일</option>
-                                </select>
-                                <input type="text" class="form-control form-control-sm mt-2" id="erp-measurement-time" placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off">
-                            </div>
-                            <div class="col-12">
-                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center gap-1" type="button" data-bs-toggle="collapse" data-bs-target="#erp-collapse-measure-note" aria-expanded="false" aria-controls="erp-collapse-measure-note">
-                                    <i class="fas fa-sticky-note"></i> 실측 특이사항
-                                </button>
-                                <div class="collapse mt-2" id="erp-collapse-measure-note">
-                                    <div class="mt-1">
-                                        <label class="form-label mb-1">실측 특이사항</label>
-                                        <input type="text" class="form-control form-control-sm" id="erp-measurement-note" placeholder="예: 시간 변경 가능/현장 특이사항/준비물 등" autocomplete="off">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label mb-1">시공일</label>
-                                <input type="date" class="form-control form-control-sm" id="erp-construction-date" autocomplete="off">
-                            </div>
-                        </div>
-
-                        <hr class="my-3">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div class="fw-bold"><i class="fas fa-box"></i> 제품 항목(1..n)</div>
-                        </div>
-                        <div id="erp-items"></div>
-                        <div class="d-flex justify-content-end mt-2">
-                            <button class="btn btn-sm btn-outline-secondary" type="button" id="erp-add-item-btn">
-                                <i class="fas fa-plus"></i> 항목 추가
-                            </button>
-                        </div>
-
-                        <div class="d-flex justify-content-end align-items-center gap-2 mt-2">
-                            <div class="fw-bold">총 금액</div>
-                            <div class="badge bg-primary" id="erp-items-total" style="font-size: 1rem;">0원</div>
-                        </div>
-
-                        <hr class="my-3">
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-sm btn-primary" type="button" id="erp-save-btn">
-                                <i class="fas fa-save"></i> 저장
-                            </button>
-                            <button class="btn btn-sm btn-outline-secondary" type="button" id="erp-load-btn">
-                                <i class="fas fa-sync"></i> 불러오기
-                            </button>
-                        </div>
-                        <div class="small text-muted mt-2" id="erp-status-text"></div>
-
-                        <hr class="my-3">
-                        <div class="fw-bold mb-2"><i class="fas fa-paperclip"></i> 첨부(사진/동영상)</div>
-                        <div class="border rounded p-3" style="border-style: dashed !important; background-color: #f8f9fa;">
-                            <div class="d-flex flex-wrap gap-2 align-items-center">
-                                <input type="file" id="erp-attachments-input" accept="image/*,video/*" multiple class="form-control form-control-sm" style="max-width: 420px;">
-                                <button class="btn btn-sm btn-outline-primary" type="button" id="erp-attachments-upload-btn">
-                                    <i class="fas fa-upload"></i> 업로드
-                                </button>
-                                <small class="text-muted">여러 개 선택 가능</small>
-                            </div>
-                            <div class="small text-muted mt-2" id="erp-attachments-status"></div>
-                        </div>
-                        <div class="row g-2 mt-2" id="erp-attachments-gallery"></div>
-                    </div>
-
-                    <div class="tab-pane fade" id="erp-text" role="tabpanel">
-                        <label class="form-label mb-1">원문 텍스트</label>
-                        <textarea class="form-control form-control-sm" id="erp-raw-text" rows="8" placeholder="텍스트를 붙여넣고 '파싱'을 누르세요."></textarea>
-                        <div class="d-flex gap-2 mt-2">
-                            <button class="btn btn-sm btn-outline-primary" type="button" id="erp-parse-btn">
-                                <i class="fas fa-magic"></i> 파싱
-                            </button>
-                            <button class="btn btn-sm btn-primary" type="button" id="erp-apply-btn" disabled>
-                                <i class="fas fa-check"></i> 폼에 적용
-                            </button>
-                        </div>
-                        <div class="mt-3">
-                            <label class="form-label mb-1">파싱 결과(미리보기)</label>
-                            <pre class="p-2 border rounded bg-light small" id="erp-parsed-preview" style="max-height: 220px; overflow: auto;"></pre>
-                        </div>
-                    </div>
-                </div>
+            </div>
             {% endif %}
         </div>
     </div>
@@ -256,14 +263,16 @@
             </div>
             <div class="modal-body">
                 <div class="input-group mb-2">
-                    <input type="text" class="form-control" id="erp-address-modal-query" placeholder="예: 송파대로 345" autocomplete="off">
+                    <input type="text" class="form-control" id="erp-address-modal-query" placeholder="예: 송파대로 345"
+                        autocomplete="off">
                     <button class="btn btn-primary" type="button" id="erp-address-modal-search-btn">
                         <i class="fas fa-search"></i> 검색
                     </button>
                 </div>
                 <div class="mb-2">
                     <label class="form-label small mb-1">상세주소</label>
-                    <input type="text" class="form-control form-control-sm" id="erp-address-modal-detail" placeholder="동/호/현관/경비실 등" autocomplete="off">
+                    <input type="text" class="form-control form-control-sm" id="erp-address-modal-detail"
+                        placeholder="동/호/현관/경비실 등" autocomplete="off">
                 </div>
                 <div id="erp-address-modal-status" class="small text-muted mb-2"></div>
                 <div class="list-group" id="erp-address-modal-results"></div>

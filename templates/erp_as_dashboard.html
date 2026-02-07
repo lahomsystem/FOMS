@@ -9,7 +9,7 @@
       <span>AS 대시보드</span>
     </h1>
     <div class="erp-pro-header__actions">
-      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_dashboard') }}">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_beta.erp_dashboard') }}">
         <i class="fas fa-arrow-left"></i>
         <span class="d-none d-md-inline">ERP</span>
       </a>
@@ -33,8 +33,8 @@
           <label class="erp-pro-filter-label">AS 상태</label>
           <select class="erp-pro-select" name="status">
             <option value="">전체</option>
-            <option value="AS_RECEIVED" {% if status_filter == 'AS_RECEIVED' %}selected{% endif %}>AS 접수</option>
-            <option value="AS_COMPLETED" {% if status_filter == 'AS_COMPLETED' %}selected{% endif %}>AS 완료</option>
+            <option value="AS_RECEIVED" {% if status_filter=='AS_RECEIVED' %}selected{% endif %}>AS 접수</option>
+            <option value="AS_COMPLETED" {% if status_filter=='AS_COMPLETED' %}selected{% endif %}>AS 완료</option>
           </select>
         </div>
         <div class="erp-pro-filter-group">
@@ -47,7 +47,8 @@
             <span>조회</span>
           </button>
           {% if selected_date %}
-          <a class="erp-pro-btn erp-pro-btn--secondary" href="/erp/as?date={{ selected_date }}&status={{ status_filter }}&manager={{ manager_filter | urlencode }}&open_map=1">
+          <a class="erp-pro-btn erp-pro-btn--secondary"
+            href="/erp/as?date={{ selected_date }}&status={{ status_filter }}&manager={{ manager_filter | urlencode }}&open_map=1">
             <i class="fas fa-map"></i>
             <span class="d-none d-sm-inline">지도</span>
           </a>
@@ -63,82 +64,225 @@
             <tr>
               <th style="width: 90px;">주문</th>
               <th style="width: 120px;">AS 접수일</th>
+              <th style="width: 150px;">AS 방문일</th>
               <th style="width: 120px;">AS 완료일</th>
               <th style="width: 120px;">담당자</th>
               <th style="width: 120px;">고객</th>
-              <th>주소</th>
-              <th style="width: 120px;">상태</th>
+              <th style="width: 450px;">주소</th>
+              <th style="width: 450px;">AS 내용</th>
+              <th style="width: 100px;">상태</th>
             </tr>
           </thead>
           <tbody>
-          {% if rows %}
+            {% if rows %}
             {% for r in rows %}
             <tr>
-              <td><a href="{{ url_for('edit_order', order_id=r.id) }}" class="erp-pro-link">#{{ r.id }}</a></td>
+              <td><a href="{{ url_for('edit_order', order_id=r.id) }}?open=erp-beta" class="erp-pro-link">#{{ r.id
+                  }}</a></td>
               <td>{{ r.as_received_date or '-' }}</td>
+              <td>
+                <input type="date" class="erp-pro-input editable-date-as" value="{{ r.scheduled_date or '' }}"
+                  data-order-id="{{ r.id }}" data-field="as_visit_date" style="width: 100%;">
+              </td>
               <td>{{ r.as_completed_date or '-' }}</td>
               <td>{{ r.manager_name or '-' }}</td>
-              <td>{{ r.customer_name or '-' }}</td>
+              <td>{{ (r.customer_name or '-') }} / {{ r.phone|format_phone }}</td>
               <td class="erp-pro-table__cell--wrap">{{ r.address or '-' }}</td>
               <td>
-                <span class="erp-pro-badge {% if r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}">
+                <textarea class="erp-pro-input as-content-input" placeholder="내용 입력..." data-order-id="{{ r.id }}"
+                  style="width: 100%; min-height: 40px; height: auto; padding-top: 8px; padding-bottom: 8px; resize: vertical;">{{ (r.structured_data.get('shipment', {}).get('as_content', '')) if r.structured_data else '' }}</textarea>
+              </td>
+              <td>
+                <span
+                  class="erp-pro-badge {% if r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}">
                   {{ STATUS.get(r.status, r.status) }}
                 </span>
               </td>
             </tr>
             {% endfor %}
-          {% else %}
-            <tr><td colspan="7" class="text-center text-muted py-4">데이터가 없습니다.</td></tr>
-          {% endif %}
+            {% else %}
+            <tr>
+              <td colspan="7" class="text-center text-muted py-4">데이터가 없습니다.</td>
+            </tr>
+            {% endif %}
           </tbody>
         </table>
       </div>
-      
+
       <!-- Mobile Card View -->
       <div class="erp-pro-order-cards d-md-none">
         {% if rows %}
-          {% for r in rows %}
-          <div class="erp-pro-order-card">
-            <div class="erp-pro-order-card__header">
-              <a href="{{ url_for('edit_order', order_id=r.id) }}" class="erp-pro-order-card__id">#{{ r.id }}</a>
-              <span class="erp-pro-badge {% if r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}">
-                {{ STATUS.get(r.status, r.status) }}
-              </span>
+        {% for r in rows %}
+        <div class="erp-pro-order-card">
+          <div class="erp-pro-order-card__header">
+            <a href="{{ url_for('edit_order', order_id=r.id) }}?open=erp-beta" class="erp-pro-order-card__id">#{{ r.id
+              }}</a>
+            <span
+              class="erp-pro-badge {% if r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}">
+              {{ STATUS.get(r.status, r.status) }}
+            </span>
+          </div>
+          <div class="erp-pro-order-card__body">
+            <div class="erp-pro-order-card__row">
+              <span class="erp-pro-order-card__label">고객</span>
+              <span class="erp-pro-order-card__value">{{ (r.customer_name or '-') }} / {{ r.phone|format_phone }}</span>
             </div>
-            <div class="erp-pro-order-card__body">
-              <div class="erp-pro-order-card__row">
-                <span class="erp-pro-order-card__label">고객</span>
-                <span class="erp-pro-order-card__value">{{ r.customer_name or '-' }}</span>
-              </div>
-              <div class="erp-pro-order-card__row">
-                <span class="erp-pro-order-card__label">담당자</span>
-                <span class="erp-pro-order-card__value">{{ r.manager_name or '-' }}</span>
-              </div>
-              <div class="erp-pro-order-card__row">
-                <span class="erp-pro-order-card__label">AS 접수</span>
-                <span class="erp-pro-order-card__value">{{ r.as_received_date or '-' }}</span>
-              </div>
-              <div class="erp-pro-order-card__row">
-                <span class="erp-pro-order-card__label">AS 완료</span>
-                <span class="erp-pro-order-card__value">{{ r.as_completed_date or '-' }}</span>
-              </div>
-              <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
-                <span class="erp-pro-order-card__label">주소</span>
-                <span class="erp-pro-order-card__value">{{ r.address or '-' }}</span>
-              </div>
+            <div class="erp-pro-order-card__row">
+              <span class="erp-pro-order-card__label">담당자</span>
+              <span class="erp-pro-order-card__value">{{ r.manager_name or '-' }}</span>
+            </div>
+            <div class="erp-pro-order-card__row">
+              <span class="erp-pro-order-card__label">AS 접수</span>
+              <span class="erp-pro-order-card__value">{{ r.as_received_date or '-' }}</span>
+            </div>
+            <div class="erp-pro-order-card__row">
+              <span class="erp-pro-order-card__label">AS 방문일</span>
+              <input type="date" class="erp-pro-input editable-date-as" value="{{ r.scheduled_date or '' }}"
+                data-order-id="{{ r.id }}" data-field="as_visit_date">
+            </div>
+            <div class="erp-pro-order-card__row">
+              <span class="erp-pro-order-card__label">AS 완료</span>
+              <span class="erp-pro-order-card__value">{{ r.as_completed_date or '-' }}</span>
+            </div>
+            <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
+              <span class="erp-pro-order-card__label">주소</span>
+              <span class="erp-pro-order-card__value mb-1">{{ r.address or '-' }}</span>
+            </div>
+            <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
+              <span class="erp-pro-order-card__label">AS 내용</span>
+              <textarea class="erp-pro-input as-content-input mt-1" placeholder="내용 입력..." data-order-id="{{ r.id }}"
+                style="min-height: 80px; resize: vertical;">{{ (r.structured_data.get('shipment', {}).get('as_content', '')) if r.structured_data else '' }}</textarea>
             </div>
           </div>
-          {% endfor %}
+        </div>
+        {% endfor %}
         {% else %}
-          <div class="erp-pro-empty">
-            <i class="fas fa-inbox"></i>
-            <p>데이터가 없습니다.</p>
-          </div>
+        <div class="erp-pro-empty">
+          <i class="fas fa-inbox"></i>
+          <p>데이터가 없습니다.</p>
+        </div>
         {% endif %}
       </div>
     </div>
   </div>
   {% endif %}
 </div><!-- end erp-pro -->
-{% endblock %}
 
+<!-- Toast 알림 -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1060;">
+  <div id="saveToast" class="toast align-items-center text-white bg-success border-0 shadow-lg" role="alert"
+    aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body d-flex align-items-center">
+        <i class="fas fa-check-circle me-2"></i>
+        <span id="toastMessage">변경사항이 저장되었습니다.</span>
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
+        aria-label="Close"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const toastEl = document.getElementById('saveToast');
+    const toast = new bootstrap.Toast(toastEl, { delay: 2000 });
+    const toastMsg = document.getElementById('toastMessage');
+
+    function showFeedback(msg, isError = false) {
+      toastMsg.textContent = msg;
+      toastEl.classList.remove('bg-success', 'bg-danger');
+      toastEl.classList.add(isError ? 'bg-danger' : 'bg-success');
+      toast.show();
+    }
+
+    // AS 방문일 자동 저장
+    document.querySelectorAll('.editable-date-as').forEach(input => {
+      input.addEventListener('change', function () {
+        const orderId = this.dataset.orderId;
+        const field = this.dataset.field;
+        const value = this.value;
+
+        this.style.backgroundColor = '#fff3cd';
+
+        fetch('/api/update_order_field', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: orderId,
+            field_name: field,
+            new_value: value
+          })
+        })
+          .then(res => res.json())
+          .then(data => {
+            this.style.backgroundColor = '';
+            if (data.success) {
+              showFeedback('방문일이 저장되었습니다.');
+            } else {
+              showFeedback('저장 실패: ' + data.message, true);
+            }
+          })
+          .catch(err => {
+            this.style.backgroundColor = '';
+            showFeedback('네트워크 오류가 발생했습니다.', true);
+          });
+      });
+    });
+
+    // AS 내용 자동 저장 (Blur 시)
+    document.querySelectorAll('.as-content-input').forEach(input => {
+      let originalValue = input.value;
+
+      input.addEventListener('blur', function () {
+        if (this.value === originalValue) return;
+
+        const orderId = this.dataset.orderId;
+        const value = this.value.trim();
+
+        this.style.backgroundColor = '#fff3cd';
+
+        fetch('/api/update_order_field', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: orderId,
+            field_name: 'as_content',
+            new_value: value
+          })
+        })
+          .then(res => res.json())
+          .then(data => {
+            this.style.backgroundColor = '';
+            if (data.success) {
+              originalValue = value;
+              showFeedback('AS 내용이 저장되었습니다.');
+            } else {
+              showFeedback('저장 실패: ' + data.message, true);
+            }
+          })
+          .catch(err => {
+            this.style.backgroundColor = '';
+            showFeedback('네트워크 오류가 발생했습니다.', true);
+          });
+      });
+
+      input.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey && this.tagName !== 'TEXTAREA') this.blur();
+      });
+
+      // Textarea 자동 높이 조절 (선택 사항)
+      if (input.tagName === 'TEXTAREA') {
+        input.style.overflow = 'hidden';
+        input.addEventListener('input', function () {
+          this.style.height = 'auto';
+          this.style.height = (this.scrollHeight) + 'px';
+        });
+        // 초기 높이 설정
+        input.style.height = 'auto';
+        input.style.height = (input.scrollHeight) + 'px';
+      }
+    });
+  });
+</script>
+{% endblock %}

@@ -1,7 +1,10 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, func, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
+
+# JSON Type Compatibility Layer
+JSONColumn = JSON().with_variant(JSONB, 'postgresql')
 from db import Base
 
 class Order(Base):
@@ -63,7 +66,7 @@ class Order(Base):
     # ERP Beta로 생성된 주문인지 여부 (ERP 대시보드 노출/운영 분리용)
     is_erp_beta = Column(Boolean, nullable=False, default=False, server_default='false')
     raw_order_text = Column(Text, nullable=True)  # 원문 텍스트(붙여넣기) 보관
-    structured_data = Column(JSONB, nullable=True)  # 구조화 데이터(JSONB)
+    structured_data = Column(JSONColumn, nullable=True)  # 구조화 데이터(JSON / JSONB)
     structured_schema_version = Column(Integer, nullable=False, default=1)
     structured_confidence = Column(String(20), nullable=True)  # high/medium/low
     structured_updated_at = Column(DateTime, nullable=True)

@@ -1,19 +1,19 @@
 {# ERP 대시보드·실측·AS·출고 서브 내비. erp_sub_nav_active: 'dashboard' | 'measurement' | 'as' | 'shipment' #}
 {% set _active = erp_sub_nav_active | default('dashboard') %}
 <nav class="erp-pro-nav" aria-label="ERP 메뉴">
-  <a class="erp-pro-nav-item {% if _active == 'dashboard' %}active{% endif %}" href="{{ url_for('erp_dashboard') }}">
+  <a class="erp-pro-nav-item {% if _active == 'dashboard' %}active{% endif %}" href="{{ url_for('erp_beta.erp_dashboard') }}">
     <i class="fas fa-layer-group"></i>
     <span>대시보드</span>
   </a>
-  <a class="erp-pro-nav-item {% if _active == 'measurement' %}active{% endif %}" href="{{ url_for('erp_measurement_dashboard') }}">
+  <a class="erp-pro-nav-item {% if _active == 'measurement' %}active{% endif %}" href="{{ url_for('erp_beta.erp_measurement_dashboard') }}">
     <i class="fas fa-ruler-combined"></i>
     <span>실측</span>
   </a>
-  <a class="erp-pro-nav-item {% if _active == 'as' %}active{% endif %}" href="{{ url_for('erp_as_dashboard') }}">
+  <a class="erp-pro-nav-item {% if _active == 'as' %}active{% endif %}" href="{{ url_for('erp_beta.erp_as_dashboard') }}">
     <i class="fas fa-wrench"></i>
     <span>AS</span>
   </a>
-  <a class="erp-pro-nav-item {% if _active == 'shipment' %}active{% endif %}" href="{{ url_for('erp_shipment_dashboard') }}">
+  <a class="erp-pro-nav-item {% if _active == 'shipment' %}active{% endif %}" href="{{ url_for('erp_beta.erp_shipment_dashboard') }}">
     <i class="fas fa-truck-loading"></i>
     <span>출고</span>
   </a>

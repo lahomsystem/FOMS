@@ -25,8 +25,9 @@
 
   <!-- Top Alerts - Modern Design -->
   <div class="erp-pro-alerts">
-    <div class="erp-pro-alert erp-pro-alert--danger {% if filters.get('alert_type') == 'urgent' %}erp-pro-alert--active{% endif %}" 
-         data-alert-type="urgent" role="button" tabindex="0">
+    <div
+      class="erp-pro-alert erp-pro-alert--danger {% if filters.get('alert_type') == 'urgent' %}erp-pro-alert--active{% endif %}"
+      data-alert-type="urgent" role="button" tabindex="0">
       <div class="erp-pro-alert__icon">
         <i class="fas fa-bolt"></i>
       </div>
@@ -35,8 +36,9 @@
         <span class="erp-pro-alert__value">{{ kpis.urgent_count }}</span>
       </div>
     </div>
-    <div class="erp-pro-alert erp-pro-alert--warning {% if filters.get('alert_type') == 'measurement_d4' %}erp-pro-alert--active{% endif %}" 
-         data-alert-type="measurement_d4" role="button" tabindex="0">
+    <div
+      class="erp-pro-alert erp-pro-alert--warning {% if filters.get('alert_type') == 'measurement_d4' %}erp-pro-alert--active{% endif %}"
+      data-alert-type="measurement_d4" role="button" tabindex="0">
       <div class="erp-pro-alert__icon">
         <i class="fas fa-ruler-combined"></i>
       </div>
@@ -45,8 +47,9 @@
         <span class="erp-pro-alert__value">{{ kpis.measurement_d4_count }}</span>
       </div>
     </div>
-    <div class="erp-pro-alert erp-pro-alert--warning {% if filters.get('alert_type') == 'construction_d3' %}erp-pro-alert--active{% endif %}" 
-         data-alert-type="construction_d3" role="button" tabindex="0">
+    <div
+      class="erp-pro-alert erp-pro-alert--warning {% if filters.get('alert_type') == 'construction_d3' %}erp-pro-alert--active{% endif %}"
+      data-alert-type="construction_d3" role="button" tabindex="0">
       <div class="erp-pro-alert__icon">
         <i class="fas fa-tools"></i>
       </div>
@@ -55,8 +58,9 @@
         <span class="erp-pro-alert__value">{{ kpis.construction_d3_count }}</span>
       </div>
     </div>
-    <div class="erp-pro-alert erp-pro-alert--info {% if filters.get('alert_type') == 'production_d2' %}erp-pro-alert--active{% endif %}" 
-         data-alert-type="production_d2" role="button" tabindex="0">
+    <div
+      class="erp-pro-alert erp-pro-alert--info {% if filters.get('alert_type') == 'production_d2' %}erp-pro-alert--active{% endif %}"
+      data-alert-type="production_d2" role="button" tabindex="0">
       <div class="erp-pro-alert__icon">
         <i class="fas fa-industry"></i>
       </div>
@@ -79,9 +83,8 @@
       <div class="erp-pro-pipeline">
         {% for step in process_steps %}
         {% set is_step_active = (filters.get('stage') or '') == step.label %}
-        <div class="erp-pro-pipeline__stage {% if is_step_active %}erp-pro-pipeline__stage--active{% endif %}" 
-             data-stage="{{ step.label }}" role="button" tabindex="0"
-             title="클릭하면 '{{ step.label }}' 단계만 표시">
+        <div class="erp-pro-pipeline__stage {% if is_step_active %}erp-pro-pipeline__stage--active{% endif %}"
+          data-stage="{{ step.label }}" role="button" tabindex="0" title="클릭하면 '{{ step.label }}' 단계만 표시">
           <div class="erp-pro-pipeline__count">
             {{ step.count }}
             {% if step.overdue > 0 %}
@@ -425,7 +428,8 @@
       overflow-x: visible !important;
     }
 
-    /* PC 화면: 컬럼 너비 고정, 가로 스크롤 활성화 */
+
+    /* PC 화면: 미니멀 테이블 디자인 (UI/UX Pro Max) */
     @media (min-width: 993px) {
       .table-responsive {
         overflow-x: auto !important;
@@ -435,15 +439,18 @@
       }
 
       #erp-grid {
-        min-width: 1520px !important;
         width: 100% !important;
-        table-layout: fixed !important;
+        table-layout: auto !important;
         border-collapse: separate;
         border-spacing: 0;
       }
 
       #erp-grid thead th {
-        border-right: 1px solid #dee2e6;
+        border-right: 1px solid #e9ecef;
+        position: sticky;
+        top: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
       }
 
       #erp-grid thead th:last-child {
@@ -452,169 +459,163 @@
 
       #erp-grid thead th,
       #erp-grid tbody td {
-        padding: 0.8rem 0.75rem;
-        font-size: 0.95rem;
-        white-space: nowrap;
-        overflow: visible;
-        text-overflow: clip;
+        padding: 0.75rem 0.5rem;
+        font-size: 0.9rem;
+        white-space: normal;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
         vertical-align: top;
       }
 
       #erp-grid tbody td {
-        border-right: 1px solid #e9ecef;
+        border-right: 1px solid #f0f0f0;
       }
 
       #erp-grid tbody td:last-child {
         border-right: none;
       }
 
-      /* PC: 경보/단계 컬럼 내부 배지 세로 정렬 (td는 table-cell 유지) */
-      #erp-grid tbody td:nth-child(1) {
-        display: table-cell !important;
-        vertical-align: top;
-        white-space: normal;
-      }
-
-      #erp-grid tbody td:nth-child(2) {
-        display: table-cell !important;
-        vertical-align: middle;
-        white-space: normal;
-      }
-
-      /* 경보/단계 컬럼 내부 배지들 세로 정렬 */
-      #erp-grid tbody td:nth-child(1) .badge,
-      #erp-grid tbody td:nth-child(2) .badge {
-        display: block !important;
-        margin-bottom: 4px !important;
-        width: fit-content;
-      }
-
-      #erp-grid tbody td:nth-child(1) .badge:last-child,
-      #erp-grid tbody td:nth-child(2) .badge:last-child {
-        margin-bottom: 0 !important;
-      }
-
-      /* 다른 컬럼들은 기본 테이블 셀 동작 유지 */
-      #erp-grid tbody td:nth-child(n+3) {
-        display: table-cell !important;
-        vertical-align: middle;
-      }
-
-      /* 각 컬럼 고정 너비 설정 (PC 화면에서만) - 합계: 1520px */
+      /* 경보 컬럼 - 최소화 */
       #erp-grid thead th:nth-child(1),
       #erp-grid tbody td:nth-child(1) {
-        width: 140px !important;
-        min-width: 140px !important;
-        max-width: 140px !important;
+        width: 90px;
+        min-width: 90px;
       }
 
-      /* 경보 */
+      #erp-grid tbody td:nth-child(1) {
+        vertical-align: top;
+      }
+
+      #erp-grid tbody td:nth-child(1) .badge {
+        display: block;
+        margin-bottom: 3px;
+        font-size: 0.75rem;
+        padding: 0.25rem 0.4rem;
+      }
+
+      #erp-grid tbody td:nth-child(1) .badge:last-child {
+        margin-bottom: 0;
+      }
+
+      /* 단계 컬럼 - 최소화 */
       #erp-grid thead th:nth-child(2),
       #erp-grid tbody td:nth-child(2) {
-        width: 100px !important;
-        min-width: 100px !important;
-        max-width: 100px !important;
+        width: 80px;
+        min-width: 80px;
       }
 
-      /* 단계 */
+      #erp-grid tbody td:nth-child(2) .badge {
+        font-size: 0.8rem;
+        padding: 0.3rem 0.5rem;
+      }
+
+      /* 퀘스트 컬럼 - 중간 */
       #erp-grid thead th:nth-child(3),
       #erp-grid tbody td:nth-child(3) {
-        width: 200px !important;
-        min-width: 200px !important;
-        max-width: 200px !important;
-        white-space: normal !important;
-        overflow: visible !important;
+        width: 180px;
+        min-width: 180px;
       }
 
-      /* 퀘스트 */
+      /* 고객 컬럼 - 최소화 */
       #erp-grid thead th:nth-child(4),
       #erp-grid tbody td:nth-child(4) {
-        width: 120px !important;
-        min-width: 120px !important;
-        max-width: 120px !important;
+        width: 90px;
+        min-width: 90px;
       }
 
-      /* 고객 */
+      /* 연락처 컬럼 - 최소화 */
       #erp-grid thead th:nth-child(5),
       #erp-grid tbody td:nth-child(5) {
-        width: 120px !important;
-        min-width: 120px !important;
-        max-width: 120px !important;
+        width: 120px;
+        min-width: 120px;
       }
 
-      /* 연락처 */
+      /* 주소 컬럼 - 제일 넓게 */
       #erp-grid thead th:nth-child(6),
       #erp-grid tbody td:nth-child(6) {
-        width: 280px !important;
-        min-width: 280px !important;
-        max-width: 280px !important;
-        white-space: normal !important;
-        word-break: break-word !important;
-        overflow: visible !important;
+        width: 280px;
+        min-width: 280px;
+        max-width: 350px;
       }
 
-      /* 주소 */
+      /* 제품 컬럼 - 두 번째로 넓게 */
       #erp-grid thead th:nth-child(7),
       #erp-grid tbody td:nth-child(7) {
-        width: 110px !important;
-        min-width: 110px !important;
-        max-width: 110px !important;
+        width: 200px;
+        min-width: 200px;
+        max-width: 250px;
       }
 
-      /* 실측일 */
+      #erp-grid tbody td:nth-child(7) div {
+        line-height: 1.4;
+        margin-bottom: 2px;
+      }
+
+      #erp-grid tbody td:nth-child(7) div:last-child {
+        margin-bottom: 0;
+      }
+
+      /* 실측일 컬럼 - 최소화 */
       #erp-grid thead th:nth-child(8),
       #erp-grid tbody td:nth-child(8) {
-        width: 110px !important;
-        min-width: 110px !important;
-        max-width: 110px !important;
+        width: 100px;
+        min-width: 100px;
       }
 
-      /* 시공일 */
+      /* 시공일 컬럼 - 최소화 */
       #erp-grid thead th:nth-child(9),
       #erp-grid tbody td:nth-child(9) {
-        width: 100px !important;
-        min-width: 100px !important;
-        max-width: 100px !important;
+        width: 100px;
+        min-width: 100px;
       }
 
-      /* 담당 */
+      /* 담당 컬럼 - 최소화 */
       #erp-grid thead th:nth-child(10),
       #erp-grid tbody td:nth-child(10) {
-        width: 80px !important;
-        min-width: 80px !important;
-        max-width: 80px !important;
+        width: 70px;
+        min-width: 70px;
       }
 
-      /* 첨부 */
+      /* 첨부 컬럼 - 최소화 */
       #erp-grid thead th:nth-child(11),
       #erp-grid tbody td:nth-child(11) {
-        width: 70px !important;
-        min-width: 70px !important;
-        max-width: 70px !important;
+        width: 60px;
+        min-width: 60px;
+        text-align: center;
       }
 
-      /* 상세 */
+      /* 상세 컬럼 - 최소화 */
       #erp-grid thead th:nth-child(12),
       #erp-grid tbody td:nth-child(12) {
-        width: 90px !important;
-        min-width: 90px !important;
-        max-width: 90px !important;
+        width: 60px;
+        min-width: 60px;
+        text-align: center;
       }
 
-      /* 열기 */
+      /* 열기 컬럼 - 최소화 */
+      #erp-grid thead th:nth-child(13),
+      #erp-grid tbody td:nth-child(13) {
+        width: 50px;
+        min-width: 50px;
+        text-align: center;
+      }
+
       #erp-grid .erp-open-btn-icon {
         display: inline-flex;
       }
 
       #erp-grid .erp-quest-cell {
         white-space: normal !important;
-        overflow: visible !important;
+      }
+
+      /* 행 호버 효과 */
+      #erp-grid tbody tr:hover {
+        background-color: #f8f9fa;
       }
     }
 
     @media (min-width: 993px) and (max-width: 1600px) {
       #erp-grid {
-        min-width: 1520px !important;
         width: 100% !important;
       }
 
@@ -622,6 +623,7 @@
         display: inline-flex;
       }
     }
+
 
     /* 프로세스 맵 1줄 고정 */
     .erp-process-row {
@@ -636,21 +638,21 @@
       min-width: 100px;
     }
 
-    .erp-process-step {
+    .erp-pro-pipeline__stage {
       min-width: 100px;
       padding: 0.4rem !important;
       box-shadow: none !important;
     }
 
-    .erp-process-step .fw-bold {
+    .erp-pro-pipeline__stage .fw-bold {
       font-size: 1.05rem;
     }
 
-    .erp-process-step .text-muted {
+    .erp-pro-pipeline__stage .text-muted {
       font-size: 0.9rem;
     }
 
-    .erp-process-step .badge {
+    .erp-pro-pipeline__stage .badge {
       font-size: 0.75rem;
       padding: 0.2em 0.45em;
     }
@@ -1370,11 +1372,11 @@
     }
 
     /* 프로세스 맵 호버 효과 */
-    .erp-process-step {
+    .erp-pro-pipeline__stage {
       transition: all 0.2s ease;
     }
 
-    .erp-process-step:hover {
+    .erp-pro-pipeline__stage:hover {
       transform: translateY(-2px);
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
     }
@@ -1387,7 +1389,8 @@
         <div class="card-body">
           <div class="fw-bold mb-3 text-dark" style="font-size: 1.15rem;"><i class="fas fa-filter text-primary"></i> 필터
           </div>
-          <form method="get" action="{{ url_for('erp_dashboard') }}" class="erp-filter-row" id="erp-filters-form">
+          <form method="get" action="{{ url_for('erp_beta.erp_dashboard') }}" class="erp-filter-row"
+            id="erp-filters-form">
             {% if filters.get('alert_type') %}
             <input type="hidden" name="alert_type" value="{{ filters.get('alert_type') }}">
             {% endif %}
@@ -1442,7 +1445,8 @@
                     filters.get('has_alert')=='1' %}checked{% endif %} style="width: 1.2em; height: 1.2em;">
                   <label class="form-check-label fw-semibold" for="f-has-alert" style="font-size: 0.9rem;">경보만</label>
                 </div>
-                <a class="btn btn-outline-secondary btn-sm fw-semibold" href="{{ url_for('erp_dashboard') }}">초기화</a>
+                <a class="btn btn-outline-secondary btn-sm fw-semibold"
+                  href="{{ url_for('erp_beta.erp_dashboard') }}">초기화</a>
               </div>
             </div>
           </form>
@@ -1473,6 +1477,7 @@
                   <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">고객</th>
                   <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">연락처</th>
                   <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">주소</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">제품</th>
                   <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">실측일</th>
                   <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">시공일</th>
                   <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">담당</th>
@@ -1532,15 +1537,14 @@
                       <div class="card card-body border-0 bg-light">
                         <div class="fw-bold mb-3" style="font-size: 1.05rem;"><i
                             class="fas fa-flag-checkered text-primary"></i> 현재 단계 퀘스트</div>
-                        <div class="text-muted mb-3" style="font-size: 0.9rem;">각 단계별 명확한 퀘스트 및 팀 승인</div>
+
                         <div class="card mb-3 shadow-sm">
                           <div class="card-body">
                             <div class="d-flex justify-content-between align-items-start mb-3">
                               <div>
                                 <h5 class="card-title mb-2 fw-bold" style="font-size: 1.05rem;">{{ o.current_quest.title
                                   }}</h5>
-                                <div class="text-muted" style="font-size: 0.9rem;">{{ o.current_quest.description }}
-                                </div>
+
                               </div>
                               <span
                                 class="badge {% if o.current_quest.all_approved %}bg-success{% else %}bg-warning{% endif %}"
@@ -1567,8 +1571,8 @@
                                   {% else %}
                                   {% set order_id_approve = o.id %}
                                   {% set team_name = team %}
-                                  <button class="btn btn-primary fw-semibold ms-2"
-                                    onclick="approveQuestTeam({{ order_id_approve }}, '{{ team_name }}')"
+                                  <button class="btn btn-primary fw-semibold ms-2 erp-btn-approve-team"
+                                    data-order-id="{{ order_id_approve }}" data-team="{{ team_name }}"
                                     style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">승인</button>
                                   {% endif %}
                                 </div>
@@ -1577,8 +1581,8 @@
                             </div>
                             <div class="d-flex gap-2">
                               {% set order_id_refresh = o.id %}
-                              <button class="btn btn-outline-primary fw-semibold" type="button"
-                                onclick="refreshQuestStatus({{ order_id_refresh }})"
+                              <button class="btn btn-outline-primary fw-semibold erp-btn-refresh-status" type="button"
+                                data-order-id="{{ order_id_refresh }}"
                                 style="font-size: 0.9rem; padding: 0.4rem 0.8rem;">
                                 <i class="fas fa-sync"></i> 상태 새로고침
                               </button>
@@ -1596,6 +1600,17 @@
                   <td data-label="연락처" style="font-size: 1.1rem; color: #495057;">{{ o.phone }}</td>
                   <td data-label="주소" class="erp-wrap"
                     style="font-size: 1.1rem; color: #495057; word-break: break-word;">{{ o.address }}</td>
+                  <td data-label="제품" class="erp-wrap"
+                    style="font-size: 1.1rem; color: #495057; word-break: break-word;">
+                    {% if o.is_erp_beta and o.structured_data and o.structured_data.get('items') %}
+                    {% set items = o.structured_data.get('items', []) %}
+                    {% for item in items %}
+                    <div>{{ item.get('product_name', '-') }}</div>
+                    {% endfor %}
+                    {% else %}
+                    {{ o.product or '-' }}
+                    {% endif %}
+                  </td>
                   <td data-label="실측일" class="fw-semibold" style="font-size: 1.1rem; color: #495057;">{{
                     o.measurement_date or '-' }}</td>
                   <td data-label="시공일" class="fw-semibold" style="font-size: 1.1rem; color: #495057;">{{
@@ -1604,9 +1619,9 @@
                   <td data-label="첨부">
                     {% if o.has_media %}
                     {% set order_id_att = o.id %}
-                    <span class="badge bg-primary text-white fw-bold"
+                    <span class="badge bg-primary text-white fw-bold erp-btn-attachments-preview"
                       style="cursor: pointer; font-size: 1rem !important; padding: 0.4em 0.7em !important; text-align: center; display: inline-block;"
-                      onclick="openAttachmentsPreview({{ order_id_att }})" title="첨부 파일 미리보기">{{ o.attachments_count
+                      data-order-id="{{ order_id_att }}" title="첨부 파일 미리보기">{{ o.attachments_count
                       }}</span>
                     {% else %}
                     <span class="text-muted" style="font-size: 1.1rem;">-</span>
@@ -1694,32 +1709,10 @@
       return div.innerHTML;
     }
 
-    // 알람 바 클릭 이벤트 처리
-    document.addEventListener('DOMContentLoaded', function () {
-      const alertCards = document.querySelectorAll('.erp-alert-card');
-      alertCards.forEach(card => {
-        card.addEventListener('click', function () {
-          const alertType = this.getAttribute('data-alert-type');
-          if (alertType) {
-            // 현재 URL 파라미터 가져오기
-            const url = new URL(window.location.href);
-            const currentAlertType = url.searchParams.get('alert_type');
-            // 같은 알람 바를 다시 클릭하면 필터 해제
-            if (currentAlertType === alertType) {
-              url.searchParams.delete('alert_type');
-            } else {
-              url.searchParams.set('alert_type', alertType);
-            }
-            // 다른 필터는 유지하되 alert_type만 설정/해제
-            window.location.href = url.toString();
-          }
-        });
-      });
-    });
 
     // === 표시용 한글 라벨(저장은 영문 코드 유지) ===
-    const TEAM_LABELS = {{ team_labels| tojson | safe }};
-    const STAGE_LABELS = {{ stage_labels| tojson | safe }};
+    const TEAM_LABELS = JSON.parse('{{ team_labels| tojson | safe }}');
+    const STAGE_LABELS = JSON.parse('{{ stage_labels| tojson | safe }}');
 
     function label(map, code, fallback = '-') {
       if (!code) return fallback;
@@ -2467,24 +2460,24 @@
 
         const noteRows = [];
         if (addressNote) {
-          noteRows.push(`<div class="mb-2"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">${escapeHtml(addressNote)}</span></div>`);
+          noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">${escapeHtml(addressNote)}</span></div>`);
         }
         if (phoneNote) {
-          noteRows.push(`<div class="mb-2"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">${escapeHtml(phoneNote)}</span></div>`);
+          noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">${escapeHtml(phoneNote)}</span></div>`);
         }
         if (measureNote) {
-          noteRows.push(`<div class="mb-2"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">${escapeHtml(measureNote)}</span></div>`);
+          noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">${escapeHtml(measureNote)}</span></div>`);
         }
         const notesHtml = noteRows.join('');
 
         const scheduleHtml = `
             <div class="${isMobile ? 'col-12' : 'col-md-6'}">
-              <div class="card erp-schedule-card">
+              <div class="card">
                 <div class="card-body">
-                  <h5 class="card-title fw-bold" style="font-size: 0.95rem;"><i class="fas fa-calendar text-primary"></i> 일정 및 특이사항</h5>
-                  <div class="erp-detail-text" style="font-size: 0.9rem;">
-                    ${isMobile ? '' : `<div class="mb-2"><strong class="erp-detail-label">실측일:</strong> <span class="erp-detail-value">${escapeHtml(measure)}</span></div>
-                    <div class="mb-2"><strong class="erp-detail-label">시공일:</strong> <span class="erp-detail-value">${escapeHtml(construct)}</span></div>`}
+                  <h5 class="card-title fw-bold"><i class="fas fa-calendar text-primary"></i> 일정 및 특이사항</h5>
+                  <div class="erp-detail-text">
+                    ${isMobile ? '' : `<div class="mb-3"><strong class="erp-detail-label">실측일:</strong> <span class="erp-detail-value">${escapeHtml(measure)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">시공일:</strong> <span class="erp-detail-value">${escapeHtml(construct)}</span></div>`}
                     ${notesHtml}
                   </div>
                 </div>
@@ -2555,39 +2548,84 @@
         });
       });
 
-      // 프로세스 맵 클릭 → 좌측 필터(stage) 적용 후 리로드 (KPI/맵/그리드 모두 동기화)
-      const stageSel = form ? form.querySelector('select[name="stage"]') : null;
-      if (form && stageSel) {
-        const applyStage = (stageLabel) => {
-          const next = stageLabel || '';
-          // 같은 단계를 다시 클릭하면 해제(전체)
-          stageSel.value = ((stageSel.value || '') === next) ? '' : next;
-          // alert_type 등 다른 필터 파라미터 유지
-          const url = new URL(window.location.href);
-          const currentAlertType = url.searchParams.get('alert_type');
-          if (currentAlertType) {
-            // alert_type을 hidden input으로 추가
-            let alertTypeInput = form.querySelector('input[name="alert_type"]');
-            if (!alertTypeInput) {
-              alertTypeInput = document.createElement('input');
-              alertTypeInput.type = 'hidden';
-              alertTypeInput.name = 'alert_type';
-              form.appendChild(alertTypeInput);
-            }
-            alertTypeInput.value = currentAlertType;
+      // 프로세스 맵 & 알림 타일 클릭 → 필터 적용 후 리로드
+      const applyFilter = (name, value) => {
+        if (!form) return;
+        let input = form.querySelector(`[name="${name}"]`);
+
+        // input이 없으면 (특히 alert_type hidden input이 초기 상태에서 없을 수 있음) 생성
+        if (!input) {
+          input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = name;
+          form.appendChild(input);
+        }
+
+        const current = input.value || '';
+        const next = value || '';
+
+        // 같은 값을 다시 클릭하면 해제(전체보기)
+        input.value = (current === next) ? '' : next;
+
+        form.submit();
+      };
+
+      // 프로세스 맵 (Pipeline Stages)
+      document.querySelectorAll('.erp-pro-pipeline__stage[data-stage]').forEach(el => {
+        const handler = () => applyFilter('stage', el.dataset.stage || '');
+        el.addEventListener('click', handler);
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handler();
           }
-          form.submit();
-        };
-        document.querySelectorAll('.erp-process-step[data-stage]').forEach(el => {
-          el.addEventListener('click', () => applyStage(el.dataset.stage || ''));
-          el.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              applyStage(el.dataset.stage || '');
-            }
-          });
         });
-      }
+      });
+
+      // 알림 타일 (Alert Tiles)
+      document.querySelectorAll('.erp-pro-alert[data-alert-type]').forEach(el => {
+        const handler = () => applyFilter('alert_type', el.dataset.alertType || '');
+        el.addEventListener('click', handler);
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handler();
+          }
+        });
+      });
+
+      // 이벤트 위임: 퀘스트 승인 및 상태 새로고침
+      document.body.addEventListener('click', function (e) {
+        // 승인 버튼
+        const approveBtn = e.target.closest('.erp-btn-approve-team');
+        if (approveBtn) {
+          const orderId = approveBtn.dataset.orderId;
+          const team = approveBtn.dataset.team;
+          if (typeof approveQuestTeam === 'function') {
+            approveQuestTeam(Number(orderId), team);
+          } else {
+            console.warn('approveQuestTeam is not defined');
+          }
+        }
+
+        // 새로고침 버튼
+        const refreshBtn = e.target.closest('.erp-btn-refresh-status');
+        if (refreshBtn) {
+          const orderId = refreshBtn.dataset.orderId;
+          if (typeof refreshQuestStatus === 'function') {
+            refreshQuestStatus(Number(orderId));
+          }
+        }
+
+        // 첨부파일 미리보기 버튼
+        const attBtn = e.target.closest('.erp-btn-attachments-preview');
+        if (attBtn) {
+          const orderId = attBtn.dataset.orderId;
+          if (typeof openAttachmentsPreview === 'function') {
+            openAttachmentsPreview(Number(orderId));
+          }
+        }
+      });
     });
   </script>
 </div>
