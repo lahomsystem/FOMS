@@ -19,7 +19,8 @@ from datetime import date, timedelta
 
 # 데이터베이스 관련 임포트
 from db import get_db, close_db, init_db
-from models import Order, User, SecurityLog, ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment, OrderAttachment, OrderEvent, OrderTask
+from models import Order, User, SecurityLog, ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment, OrderAttachment, OrderEvent, OrderTask, Notification
+from apps.auth import is_password_strong, get_user_by_username
 from business_calendar import add_business_days
 from erp_automation import apply_auto_tasks
 from erp_policy import (
@@ -80,7 +81,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # Import Apps Blueprints
-from apps.auth import auth_bp, login_required, role_required, ROLES, log_access, get_user_by_id
+from apps.auth import auth_bp, login_required, role_required, ROLES, TEAMS, log_access, get_user_by_id
 app.register_blueprint(auth_bp)
 
 # ERP Beta Blueprint
@@ -98,6 +99,7 @@ app.register_blueprint(address_bp)
 # API Orders Blueprint
 from apps.api.orders import orders_bp
 app.register_blueprint(orders_bp)
+
 
 # Error handler with production safety
 @app.errorhandler(500)
@@ -582,8 +584,8 @@ def api_order_quest_get(order_id):
             quest_tpl = get_quest_template_for_stage(current_stage_code)
             if quest_tpl:
                 owner_person = session.get('username') or ''
-                # 한글 단계명으로 quest 생성 (일관성 유지)
-                current_quest = create_quest_from_template(current_stage_name, owner_person, sd)
+                # 영문 코드로 quest 생성 (일관성 유지)
+                current_quest = create_quest_from_template(current_stage_code, owner_person, sd)
                 if current_quest:
                     # DB에 저장
                     if not sd.get("quests"):
@@ -596,8 +598,8 @@ def api_order_quest_get(order_id):
         return jsonify({
             'success': True,
             'quest': current_quest,
-            'stage': current_stage,
-            'stage_label': STAGE_LABELS.get(current_stage, current_stage),
+            'stage': current_stage_code,
+            'stage_label': STAGE_LABELS.get(current_stage_code, current_stage_code),
         })
     except Exception as e:
         import traceback
@@ -3059,190 +3061,6 @@ def update_menu():
         flash(f'메뉴 업데이트 중 오류가 발생했습니다: {str(e)}', 'error')
     
     return redirect(url_for('admin'))
-
-# User Management Routes
-@app.route('/admin/users')
-@login_required
-@role_required(['ADMIN'])
-def user_list():
-    db = get_db()
-    
-    # Get all users
-    users = db.query(User).order_by(User.username).all()
-    
-    # Count admin users for template
-    count_admin = db.query(User).filter(User.role == 'ADMIN').count()
-    
-    return render_template('user_list.html', users=users, count_admin=count_admin)
-
-@app.route('/admin/users/add', methods=['GET', 'POST'])
-@login_required
-@role_required(['ADMIN'])
-def add_user():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        name = request.form.get('name', '사용자')
-        role = request.form.get('role')
-        
-        # Validate required fields
-        if not all([username, password, role]):
-            flash('모든 필수 입력 필드를 입력해주세요.', 'error')
-            return render_template('add_user.html')
-        
-        # Check password strength
-        if not is_password_strong(password):
-            flash('비밀번호는 4자리 이상이어야 합니다.', 'error') # 메시지 수정
-            return render_template('add_user.html')
-        
-        # Check if username already exists
-        if get_user_by_username(username):
-            flash('이미 사용 중인 아이디입니다.', 'error')
-            return render_template('add_user.html')
-        
-        # Validate role
-        if role not in ROLES:
-            flash('유효하지 않은 역할입니다.', 'error')
-            return render_template('add_user.html')
-        
-        try:
-            db = get_db()
-            
-            # Hash password
-            hashed_password = generate_password_hash(password)
-            
-            # Create new user
-            new_user = User(
-                username=username,
-                password=hashed_password,
-                name=name,
-                role=role,
-                is_active=True
-            )
-            
-            # Add and commit
-            db.add(new_user)
-            db.commit()
-            
-            # Log action
-            log_access(f"사용자 추가: {username}", session.get('user_id'))
-            
-            flash('사용자가 성공적으로 추가되었습니다.', 'success')
-            return redirect(url_for('user_list'))
-                
-        except Exception as e:
-            db.rollback()
-            flash(f'사용자 추가 중 오류가 발생했습니다: {str(e)}', 'error')
-            return render_template('add_user.html')
-    
-    return render_template('add_user.html', roles=ROLES)
-
-@app.route('/admin/users/edit/<int:user_id>', methods=['GET', 'POST'])
-@login_required
-@role_required(['ADMIN'])
-def edit_user(user_id):
-    db = get_db()
-    
-    # Get the user from database
-    user = db.query(User).filter(User.id == user_id).first()
-    
-    if not user:
-        flash('사용자를 찾을 수 없습니다.', 'error')
-        return redirect(url_for('user_list'))
-    
-    # Prevent editing admin user if it's the only admin
-    if user.role == 'ADMIN':
-        admin_count = db.query(User).filter(User.role == 'ADMIN').count()
-        
-        if admin_count == 1 and request.method == 'POST' and request.form.get('role') != 'ADMIN':
-            flash('마지막 관리자의 역할은 변경할 수 없습니다.', 'error')
-            return redirect(url_for('edit_user', user_id=user_id))
-    
-    if request.method == 'POST':
-        name = request.form.get('name', '사용자')
-        role = request.form.get('role')
-        is_active = request.form.get('is_active') == 'on'
-        
-        # Validate required fields
-        if not role:
-            flash('역할은 필수 입력 필드입니다.', 'error')
-            return render_template('edit_user.html', user=user)
-        
-        # Validate role
-        if role not in ROLES:
-            flash('유효하지 않은 역할입니다.', 'error')
-            return render_template('edit_user.html', user=user)
-        
-        try:
-            # Update user
-            user.name = name
-            user.role = role
-            user.is_active = is_active
-            db.commit()
-            
-            # Handle password change if provided
-            new_password = request.form.get('new_password')
-            if new_password:
-                if is_password_strong(new_password):
-                    user.password = generate_password_hash(new_password)
-                    db.commit()
-                    flash('비밀번호가 변경되었습니다.', 'success')
-                else:
-                    flash('비밀번호는 4자리 이상이어야 합니다.', 'error') # 메시지 수정
-            
-            # Log action
-            log_access(f"사용자 #{user_id} 정보 수정", session.get('user_id'))
-            
-            flash('사용자 정보가 성공적으로 업데이트되었습니다.', 'success')
-            return redirect(url_for('user_list'))
-                
-        except Exception as e:
-            db.rollback()
-            flash(f'사용자 정보 업데이트 중 오류가 발생했습니다: {str(e)}', 'error')
-            return render_template('edit_user.html', user=user)
-    
-    return render_template('edit_user.html', user=user, roles=ROLES)
-
-@app.route('/admin/users/delete/<int:user_id>')
-@login_required
-@role_required(['ADMIN'])
-def delete_user(user_id):
-    # Prevent deleting self
-    if user_id == session.get('user_id'):
-        flash('자신의 계정은 삭제할 수 없습니다.', 'error')
-        return redirect(url_for('user_list'))
-    
-    db = get_db()
-    
-    # Get the user from database
-    user = db.query(User).filter(User.id == user_id).first()
-    
-    if not user:
-        flash('사용자를 찾을 수 없습니다.', 'error')
-        return redirect(url_for('user_list'))
-    
-    # Prevent deleting last admin
-    if user.role == 'ADMIN':
-        admin_count = db.query(User).filter(User.role == 'ADMIN').count()
-        
-        if admin_count == 1:
-            flash('마지막 관리자는 삭제할 수 없습니다.', 'error')
-            return redirect(url_for('user_list'))
-    
-    try:
-        # Delete user
-        db.delete(user)
-        db.commit()
-        
-        # Log action
-        log_access(f"사용자 #{user_id} 삭제", session.get('user_id'))
-        
-        flash('사용자가 성공적으로 삭제되었습니다.', 'success')
-    except Exception as e:
-        db.rollback()
-        flash(f'사용자 삭제 중 오류가 발생했습니다: {str(e)}', 'error')
-    
-    return redirect(url_for('user_list'))
 
 def translate_dict_keys(d, key_map):
     if not isinstance(d, dict):

@@ -189,84 +189,13 @@ def save_erp_shipment_settings(settings):
         return False
 
 
-def _erp_get_urgent_flag(structured_data):
-    try:
-        return bool((structured_data or {}).get('flags', {}).get('urgent'))
-    except Exception:
-        return False
+# [중복 제거됨] _erp_get_urgent_flag 함수는 Line 350에 정의되어 있습니다.
 
-def _erp_get_stage(order, structured_data):
-    # Canonical: structured_data.workflow.stage 우선
-    try:
-        st = ((structured_data or {}).get('workflow') or {}).get('stage')
-        if st:
-            return STAGE_LABELS.get(st, '주문접수')
-    except Exception:
-        pass
-    # ERP Beta 테스트 기준: 레거시(Order 컬럼)로 추정하지 않음
-    return '주문접수'
+# [중복 제거됨] _erp_get_stage 함수는 Line 356에 정의되어 있습니다.
 
-def _erp_has_media(order, attachments_count: int):
-    # ERP Beta 테스트 기준: 레거시(Order 컬럼) 첨부(blueprint_image_url)로 판단하지 않음
-    return attachments_count > 0
+# [중복 제거됨] _erp_has_media 함수는 Line 367에 정의되어 있습니다.
 
-def _erp_alerts(order, structured_data, attachments_count: int):
-    """
-    경보 규칙(영업일 기준, 오늘 기준):
-    - 도면 48h: MVP에서는 도면 업로드 시각 정보가 없어 '도면있고 컨펌 미완' 등을 추후 고도화 필요.
-      여기서는 structured_updated_at이 있고 blueprint가 있으면 48h 체크용으로 사용(보수적).
-    - 실측 D-4: measurement_date 기준 오늘부터 영업일 계산
-    - 시공 D-3: construction_date 기준 오늘부터 영업일 계산
-    - 생산 D-2: construction_date 기준 오늘부터 영업일 계산
-    - 긴급 발주: structured_data.flags.urgent
-    - '오늘'은 한국(KST) 기준으로 계산 (서버가 UTC일 때 자정~오전9시에도 한국 오늘로 D- 표기)
-    """
-    urgent = _erp_get_urgent_flag(structured_data)
-    meas_date = (((structured_data or {}).get('schedule') or {}).get('measurement') or {}).get('date')
-    cons_date = (((structured_data or {}).get('schedule') or {}).get('construction') or {}).get('date')
-
-    # 오늘 = 한국(KST) 기준 날짜 (서버 UTC 시 0~9시에도 한국 자정~오전9시는 같은 '오늘')
-    try:
-        today_kst = datetime.datetime.now(pytz.timezone('Asia/Seoul')).date()
-    except Exception:
-        today_kst = datetime.date.today()
-    # 영업일 D- 계산: 한국 오늘 기준
-    meas_d = business_days_until(meas_date, today=today_kst) if meas_date else None
-    cons_d = business_days_until(cons_date, today=today_kst) if cons_date else None
-
-    # 실측 D-4: 실측일 기준 오늘부터 영업일 0~4일 이내
-    measurement_d4 = meas_d is not None and 0 <= meas_d <= 4
-    # 시공 D-3: 시공일 기준 오늘부터 영업일 0~3일 이내
-    construction_d3 = cons_d is not None and 0 <= cons_d <= 3
-    # 생산 D-2: 시공일 기준 오늘부터 영업일 0~2일 이내, 아직 시공 단계가 아니면 생산 준비 경보로 간주(MVP)
-    try:
-        stage = ((structured_data or {}).get('workflow') or {}).get('stage')
-    except Exception:
-        stage = None
-    production_d2 = cons_d is not None and 0 <= cons_d <= 2 and stage not in ('CONSTRUCTION',)
-
-    drawing_overdue = False
-    try:
-        wf = (structured_data or {}).get('workflow') or {}
-        stage = wf.get('stage')
-        stage_updated_at = wf.get('stage_updated_at')
-        if stage in ('DRAWING', 'CONFIRM') and stage_updated_at:
-            ts = datetime.datetime.fromisoformat(str(stage_updated_at))
-            delta = datetime.datetime.now() - ts
-            drawing_overdue = delta.total_seconds() >= (48 * 3600)
-    except Exception:
-        drawing_overdue = False
-
-    return {
-        'urgent': urgent,
-        'measurement_d4': measurement_d4,
-        'measurement_days': meas_d,  # 실제 D-값 표시용
-        'construction_d3': construction_d3,
-        'construction_days': cons_d,  # 실제 D-값 표시용
-        'production_d2': production_d2,
-        'production_days': cons_d,  # 생산도 시공일 기준
-        'drawing_overdue': drawing_overdue
-    }
+# [중복 제거됨] _erp_alerts 함수는 Line 371에 정의되어 있습니다.
 
 
 def apply_erp_beta_display_fields(order):
@@ -358,7 +287,19 @@ def _erp_get_stage(order, structured_data):
     try:
         st = ((structured_data or {}).get('workflow') or {}).get('stage')
         if st:
-            return STAGE_LABELS.get(st, '주문접수')
+            # 영문 코드인 경우 STAGE_LABELS에서 한글 레이블 반환
+            if st in STAGE_LABELS:
+                return STAGE_LABELS.get(st)
+            # 한글 레이블인 경우, 영문 코드로 변환 후 STAGE_LABELS에서 한글 레이블 반환
+            stage_code = STAGE_NAME_TO_CODE.get(st, None)
+            if stage_code and stage_code in STAGE_LABELS:
+                return STAGE_LABELS.get(stage_code)
+            # '해피콜(CS)' 같은 레거시 값 처리
+            for code, label in STAGE_LABELS.items():
+                if st.startswith(label) or label.startswith(st.replace('(CS)', '')):
+                    return label
+            # 그 외 경우 원본 값 반환
+            return st
     except Exception:
         pass
     # ERP Beta 테스트 기준: 레거시(Order 컬럼)로 추정하지 않음
@@ -502,12 +443,22 @@ def erp_dashboard():
         if stage:
             CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
             stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
+            stage_label_from_code = STAGE_LABELS.get(stage_code, stage)
+            
+            # 모든 가능한 stage 값을 체크
+            possible_stages = {stage, stage_code, stage_label_from_code}
+            # 한글 레이블의 영문 코드 역매핑 추가
+            if stage in STAGE_NAME_TO_CODE:
+                possible_stages.add(STAGE_NAME_TO_CODE[stage])
+            # 영문 코드의 한글 레이블 추가
+            if stage_code in STAGE_LABELS:
+                possible_stages.add(STAGE_LABELS[stage_code])
             
             matching_quests = []
             for q in quests:
                 if isinstance(q, dict):
                     quest_stage = q.get('stage')
-                    if quest_stage == stage or quest_stage == stage_code:
+                    if quest_stage in possible_stages:
                         matching_quests.append(q)
             
             if matching_quests:
@@ -700,6 +651,9 @@ def erp_dashboard():
         '고객컨펌': {'count': 0, 'overdue': 0, 'imminent': 0},
         '생산': {'count': 0, 'overdue': 0, 'imminent': 0},
         '시공': {'count': 0, 'overdue': 0, 'imminent': 0},
+        'CS': {'count': 0, 'overdue': 0, 'imminent': 0},
+        '완료': {'count': 0, 'overdue': 0, 'imminent': 0},
+        'AS처리': {'count': 0, 'overdue': 0, 'imminent': 0},
     }
 
     for r in filtered:
@@ -723,13 +677,16 @@ def erp_dashboard():
                 step_stats[stage]['imminent'] += 1
 
     process_steps = [
-        {'label': '주문접수', **step_stats['주문접수']},
-        {'label': '해피콜', **step_stats['해피콜']},
-        {'label': '실측', **step_stats['실측']},
-        {'label': '도면', **step_stats['도면']},
-        {'label': '고객컨펌', **step_stats['고객컨펌']},
-        {'label': '생산', **step_stats['생산']},
-        {'label': '시공', **step_stats['시공']},
+        {'label': 'A. 주문접수', **step_stats['주문접수']},
+        {'label': 'B. 해피콜', **step_stats['해피콜']},
+        {'label': 'C. 실측', **step_stats['실측']},
+        {'label': 'D. 도면', **step_stats['도면']},
+        {'label': 'E. 고객컨펌', **step_stats['고객컨펌']},
+        {'label': 'F. 생산', **step_stats['생산']},
+        {'label': 'G. 시공', **step_stats['시공']},
+        {'label': 'H. CS', **step_stats['CS']},
+        {'label': '완료', **step_stats['완료']},
+        {'label': 'AS처리', **step_stats['AS처리']},
     ]
 
     return render_template(
@@ -1872,3 +1829,1478 @@ def api_generate_map():
         print(f"ERROR: generate_map 에러 발생: {e}")
         print(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
+
+# -------------------------------------------------------------------------
+# Quick Status Change API (Fast Access)
+# -------------------------------------------------------------------------
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/quick-info', methods=['GET'])
+@login_required
+def api_order_quick_info(order_id):
+    """빠른 상태 변경용 주문 정보 조회"""
+    try:
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+            
+        return jsonify({
+            'success': True,
+            'order': {
+                'id': order.id,
+                'customer_name': order.customer_name,
+                'status': order.status,
+                'product': order.product,
+                'manager': order.manager,
+                'address': order.address
+            }
+        })
+    except Exception as e:
+        import traceback
+        print(f"Quick Info Error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/quick-status', methods=['POST'])
+@login_required
+def api_order_quick_status_update(order_id):
+    """빠른 상태 변경 처리"""
+    try:
+        data = request.get_json()
+        new_status = data.get('status')
+        note = data.get('note') # 선택 사항 (로그용)
+        
+        if not new_status:
+            return jsonify({'success': False, 'message': '변경할 상태가 필요합니다.'}), 400
+            
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+            
+        old_status = order.status
+        
+        if old_status == new_status:
+             return jsonify({'success': True, 'message': '변경된 내용이 없습니다.'})
+
+        order.status = new_status
+        
+        # [Quest 동기화] structured_data 업데이트
+        import datetime as dt_mod
+        from erp_policy import create_quest_from_template
+        
+        sd = _ensure_dict(order.structured_data)
+        user = get_user_by_id(session.get('user_id'))
+        user_name = user.name if user else 'Unknown'
+        
+        # workflow.stage 업데이트
+        wf = sd.get('workflow') or {}
+        wf['stage'] = new_status
+        wf['stage_updated_at'] = dt_mod.datetime.now().isoformat()
+        wf['stage_updated_by'] = user_name
+        
+        # history 추가
+        hist = wf.get('history') or []
+        hist.append({
+            'stage': new_status,
+            'updated_at': wf['stage_updated_at'],
+            'updated_by': user_name,
+            'note': note or f'빠른 상태 변경: {old_status} → {new_status}'
+        })
+        wf['history'] = hist
+        sd['workflow'] = wf
+        
+        # quests 동기화
+        quests = sd.get('quests') or []
+        
+        # 기존 Quest 중 old_status에 해당하는 것을 SKIPPED로 처리
+        for q in quests:
+            if isinstance(q, dict) and q.get('stage') == old_status and q.get('status') == 'OPEN':
+                q['status'] = 'SKIPPED'
+                q['updated_at'] = dt_mod.datetime.now().isoformat()
+                q['note'] = f'빠른 상태 변경으로 건너뜀'
+        
+        # 새 단계의 Quest 생성
+        new_quest = create_quest_from_template(new_status, user_name, sd)
+        if new_quest:
+            quests.append(new_quest)
+        
+        sd['quests'] = quests
+        order.structured_data = sd
+        
+        # 로그 기록
+        from models import SecurityLog
+        
+        log_msg = f"빠른 상태 변경: {old_status} → {new_status}"
+        if note:
+            log_msg += f" (메모: {note})"
+        
+        # 현재 사용자 ID 가져오기 (세션 등에서)
+        user_id = session.get('user_id')
+        
+        db.add(SecurityLog(
+            user_id=user_id,
+            message=f"주문 #{order_id} {log_msg}"
+        ))
+        
+        db.commit()
+        
+        return jsonify({'success': True, 'message': '상태가 변경되었습니다.'})
+        
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"Quick Status Update Error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/transfer-drawing', methods=['POST'])
+@login_required
+def api_order_transfer_drawing(order_id):
+    """도면 전달 처리 (단계 변경 없이 전달 정보만 기록)
+    
+    Blueprint V3 기준:
+    - 도면 전달은 도면팀에서 고객/영업팀에게 도면 완성을 알리는 역할
+    - 단계 이동은 퀘스트 시스템의 팀 승인을 통해서만 가능
+    - 도면 전달 시 영업팀/고객에게 알림 전송 (추후 구현)
+    """
+    try:
+        from datetime import datetime
+        data = request.get_json() or {}
+        note = data.get('note', '')
+        
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+            
+        # structured_data 안전하게 로드
+        s_data = {}
+        if order.structured_data:
+            if isinstance(order.structured_data, dict):
+                s_data = dict(order.structured_data)
+            elif isinstance(order.structured_data, str):
+                try:
+                    import json
+                    s_data = json.loads(order.structured_data)
+                except:
+                    s_data = {}
+        
+        # 전달 정보 생성
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        current_user = get_user_by_id(session.get('user_id'))
+        user_name = current_user.name if current_user else 'Unknown'
+        user_id = session.get('user_id')
+        
+        transfer_info = {
+            'transferred_at': now_str,
+            'by_user_id': user_id,
+            'by_user_name': user_name,
+            'note': note
+        }
+        
+        # 히스토리 배열에 추가
+        if 'drawing_transfer_history' not in s_data:
+            s_data['drawing_transfer_history'] = []
+            
+        # 리스트 복사 후 append (SQLAlchemy 감지 유도)
+        history = list(s_data['drawing_transfer_history'])
+        history.append(transfer_info)
+        s_data['drawing_transfer_history'] = history
+        
+        # 최신 상태 업데이트
+        s_data['drawing_transferred'] = True
+        s_data['last_drawing_transfer'] = transfer_info
+        
+        # DB에 반영 (새로운 dict 할당)
+        order.structured_data = s_data
+        
+        # === 알림 생성 ===
+        # 담당자 이름 가져오기
+        manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
+        print(f"[DEBUG] Drawing Transfer - Manager Name: '{manager_name}'")
+        
+        customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
+        
+        # 담당자에 따라 알림 대상 결정
+        from models import Notification
+        
+        target_team = None
+        target_manager_name = None
+        notification_message = f"주문 #{order_id}"
+        if customer_name:
+            notification_message += f" ({customer_name})"
+        notification_message += f" 도면이 준비되었습니다."
+        if note:
+            notification_message += f" 메모: {note}"
+        
+        if '라홈' in manager_name:
+            # 라홈팀(CS)에 알림
+            target_team = 'CS'
+        elif '하우드' in manager_name:
+            # 하우드팀에 알림
+            target_team = 'HAUDD'
+        else:
+            # 해당 영업사원에게 알림 (영업팀)
+            target_team = 'SALES'
+            target_manager_name = manager_name if manager_name else None
+        
+        notification = Notification(
+            order_id=order_id,
+            notification_type='DRAWING_TRANSFERRED',
+            target_team=target_team,
+            target_manager_name=target_manager_name,
+            title='도면 전달됨',
+            message=notification_message,
+            created_by_user_id=user_id,
+            created_by_name=user_name,
+            is_read=False
+        )
+        db.add(notification)
+            
+        # 로그 기록
+        from models import SecurityLog
+        db.add(SecurityLog(
+            user_id=user_id,
+            message=f"주문 #{order_id} 도면 전달 완료: {note}"
+        ))
+        
+        db.commit()
+        
+        # 알림 대상 정보 반환
+        target_info = f"라홈팀" if target_team == 'CS' else (
+            f"하우드팀" if target_team == 'HAUDD' else (
+                f"영업팀 - {target_manager_name}" if target_manager_name else "영업팀"
+            )
+        )
+        
+        return jsonify({
+            'success': True, 
+            'message': f'도면이 전달되었습니다. [{target_info}]에 알림이 전송되었습니다.',
+            'info': '단계 이동은 퀘스트 승인을 통해 진행해주세요.'
+        })
+        
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"Drawing Transfer Error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_beta_bp.route('/erp/production/dashboard')
+@login_required
+def erp_production_dashboard():
+    """생산 대시보드"""
+    db = get_db()
+    
+    # User / Admin check
+    user_id = session.get('user_id')
+    user = get_user_by_id(user_id) if user_id else None
+    is_admin = user and user.role == 'ADMIN'
+    # 생산팀 필터링? (필요시 추가)
+
+    # Filters
+    f_stage = (request.args.get('stage') or '').strip()
+    f_q = (request.args.get('q') or '').strip()
+    
+    # Orders Query
+    orders = (
+        db.query(Order)
+        .filter(Order.deleted_at.is_(None), Order.is_erp_beta.is_(True))
+        .order_by(Order.created_at.desc())
+        .limit(300)
+        .all()
+    )
+    
+    # Attachments Count
+    att_counts = {}
+    try:
+        rows = db.execute(text("SELECT order_id, COUNT(*) AS cnt FROM order_attachments GROUP BY order_id")).fetchall()
+        for r in rows:
+            att_counts[int(r.order_id)] = int(r.cnt)
+    except Exception:
+        att_counts = {}
+        
+    TEAM_LABELS = {
+        'CS': '라홈팀',
+        'SALES': '영업팀',
+        'MEASURE': '실측팀',
+        'DRAWING': '도면팀',
+        'PRODUCTION': '생산팀',
+        'CONSTRUCTION': '시공팀',
+    }
+
+    step_stats = {
+        '제작대기': {'count': 0, 'overdue': 0, 'imminent': 0}, # 고객컨펌
+        '제작중': {'count': 0, 'overdue': 0, 'imminent': 0},    # 생산
+        '제작완료': {'count': 0, 'overdue': 0, 'imminent': 0},  # 시공
+    }
+    
+    enriched = []
+    for o in orders:
+        sd = _ensure_dict(o.structured_data)
+        stage = _erp_get_stage(o, sd)
+        
+        # Filter logic: only relevant stages
+        if stage not in ['고객컨펌', '생산', '시공', 'CONFIRM', 'PRODUCTION', 'CONSTRUCTION']:
+            continue
+            
+        stage_label = stage
+        if stage == 'CONFIRM' or stage == '고객컨펌': stage_label = '제작대기'
+        if stage == 'PRODUCTION' or stage == '생산': stage_label = '제작중'
+        if stage == 'CONSTRUCTION' or stage == '시공': stage_label = '제작완료'
+        
+        # Search Filter
+        if f_stage and stage_label != f_stage:
+            continue
+            
+        if f_q:
+            hay = ' '.join([
+                str((((sd.get('parties') or {}).get('customer') or {}).get('name')) or ''),
+                str((((sd.get('parties') or {}).get('customer') or {}).get('phone')) or ''),
+                str((((sd.get('site') or {}).get('address_full')) or ((sd.get('site') or {}).get('address_main'))) or ''),
+            ]).lower()
+            if f_q.lower() not in hay:
+                continue
+        
+        # Enrich
+        alerts = _erp_alerts(o, sd, att_counts.get(o.id, 0))
+        
+        # Stats update
+        if stage_label in step_stats:
+            step_stats[stage_label]['count'] += 1
+            if alerts.get('production_d2'):
+                step_stats[stage_label]['imminent'] += 1
+
+        enriched.append({
+            'id': o.id,
+            'is_erp_beta': o.is_erp_beta,
+            'structured_data': sd,
+            'customer_name': (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-',
+            'address': (((sd.get('site') or {}).get('address_full')) or ((sd.get('site') or {}).get('address_main'))) or '-',
+            'stage': stage_label,
+            'alerts': alerts,
+            'has_media': _erp_has_media(o, att_counts.get(o.id, 0)),
+            'attachments_count': att_counts.get(o.id, 0),
+            'orderer_name': (((sd.get('parties') or {}).get('orderer') or {}).get('name') or '').strip() or None,
+            'current_quest': None, # Quest logic simplified for production dashboard
+            'owner_team': 'PRODUCTION',
+            'measurement_date': (((sd.get('schedule') or {}).get('measurement') or {}).get('date')),
+            'construction_date': (((sd.get('schedule') or {}).get('construction') or {}).get('date')),
+            'manager_name': (((sd.get('parties') or {}).get('manager') or {}).get('name')) or '-',
+            'phone': (((sd.get('parties') or {}).get('customer') or {}).get('phone')) or '-',
+        })
+
+    process_steps = [
+        {'label': '제작대기', 'display': '제작대기', **step_stats['제작대기']},
+        {'label': '제작중', 'display': '제작중', **step_stats['제작중']},
+        # {'label': '제작완료', 'display': '제작완료', **step_stats['제작완료']},
+    ]
+    
+    kpis = {
+        'urgent_count': sum(1 for r in enriched if (r.get('alerts') or {}).get('urgent')),
+        'production_d2_count': sum(1 for r in enriched if (r.get('alerts') or {}).get('production_d2')),
+        'measurement_d4_count': 0, # Not used here
+        'construction_d3_count': 0, # Not used here
+    }
+
+    return render_template(
+        'erp_production_dashboard.html',
+        orders=enriched,
+        kpis=kpis,
+        process_steps=process_steps,
+        filters={'stage': f_stage, 'q': f_q},
+        team_labels=TEAM_LABELS,
+        stage_labels=STAGE_LABELS,
+        is_admin=is_admin
+    )
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/production/start', methods=['POST'])
+@login_required
+def api_production_start(order_id):
+    db = get_db()
+    try:
+        order = db.query(Order).get(order_id)
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+            
+        user_id = session.get('user_id')
+        user = get_user_by_id(user_id)
+        
+        sd = _ensure_dict(order.structured_data)
+        wf = sd.get('workflow') or {}
+        
+        # Update Stage
+        import datetime as dt_mod
+        wf['stage'] = 'PRODUCTION'
+        wf['stage_updated_at'] = dt_mod.datetime.now().isoformat()
+        wf['stage_updated_by'] = user.name if user else 'Unknown'
+        
+        # Add History
+        hist = wf.get('history') or []
+        hist.append({
+            'stage': 'PRODUCTION',
+            'updated_at': wf['stage_updated_at'],
+            'updated_by': wf['stage_updated_by'],
+            'note': '제작 시작'
+        })
+        wf['history'] = hist
+        sd['workflow'] = wf
+        
+        # Update DB
+        import copy
+        from sqlalchemy.orm.attributes import flag_modified
+        order.structured_data = copy.deepcopy(sd) # Force update
+        flag_modified(order, "structured_data")
+        order.status = 'PRODUCTION' # Legacy Sync
+        
+        # Log
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 제작 시작 (PRODUCTION)"))
+        db.commit()
+        
+        return jsonify({'success': True, 'message': '제작이 시작되었습니다.', 'new_status': 'PRODUCTION'})
+        
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/production/complete', methods=['POST'])
+@login_required
+def api_production_complete(order_id):
+    db = get_db()
+    try:
+        order = db.query(Order).get(order_id)
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+            
+        user_id = session.get('user_id')
+        user = get_user_by_id(user_id)
+        
+        sd = _ensure_dict(order.structured_data)
+        wf = sd.get('workflow') or {}
+        
+        # Update Stage -> CONSTRUCTION (시공 대기 / 출고 대기)
+        import datetime as dt_mod
+        wf['stage'] = 'CONSTRUCTION'
+        wf['stage_updated_at'] = dt_mod.datetime.now().isoformat()
+        wf['stage_updated_by'] = user.name if user else 'Unknown'
+        
+        # Add History
+        hist = wf.get('history') or []
+        hist.append({
+            'stage': 'CONSTRUCTION',
+            'updated_at': wf['stage_updated_at'],
+            'updated_by': wf['stage_updated_by'],
+            'note': '제작 완료 (시공/출고 대기)'
+        })
+        wf['history'] = hist
+        sd['workflow'] = wf
+        
+        # Update DB
+        import copy
+        from sqlalchemy.orm.attributes import flag_modified
+        order.structured_data = copy.deepcopy(sd) # Force update
+        flag_modified(order, "structured_data")
+        order.status = 'CONSTRUCTION' # Legacy Sync
+        
+        # Log
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 제작 완료 (CONSTRUCTION)"))
+        db.commit()
+        
+        return jsonify({'success': True, 'message': '제작이 완료되었습니다. (시공 대기 상태로 변경)', 'new_status': 'CONSTRUCTION'})
+        
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_beta_bp.route('/erp/construction/dashboard')
+@login_required
+def erp_construction_dashboard():
+    """시공 대시보드"""
+    db = get_db()
+    user_id = session.get('user_id')
+    user = get_user_by_id(user_id) if user_id else None
+    is_admin = user and user.role == 'ADMIN'
+
+    # Filters
+    f_stage = (request.args.get('stage') or '').strip()
+    f_q = (request.args.get('q') or '').strip()
+    
+    orders = (
+        db.query(Order)
+        .filter(Order.deleted_at.is_(None), Order.is_erp_beta.is_(True))
+        .order_by(Order.created_at.desc())
+        .limit(300)
+        .all()
+    )
+    
+    # Attachments Count
+    att_counts = {}
+    try:
+        rows = db.execute(text("SELECT order_id, COUNT(*) AS cnt FROM order_attachments GROUP BY order_id")).fetchall()
+        for r in rows:
+            att_counts[int(r.order_id)] = int(r.cnt)
+    except Exception:
+        att_counts = {}
+
+    TEAM_LABELS = {
+        'CS': '라홈팀', 'SALES': '영업팀', 'MEASURE': '실측팀',
+        'DRAWING': '도면팀', 'PRODUCTION': '생산팀', 'CONSTRUCTION': '시공팀',
+    }
+
+    step_stats = {
+        '시공대기': {'count': 0, 'overdue': 0, 'imminent': 0},
+        '시공중': {'count': 0, 'overdue': 0, 'imminent': 0},
+        '시공완료': {'count': 0, 'overdue': 0, 'imminent': 0},
+    }
+    
+    enriched = []
+    for o in orders:
+        sd = _ensure_dict(o.structured_data)
+        stage = _erp_get_stage(o, sd)
+        
+        # Determine Display Stage
+        display_stage = None
+        
+        # Check logs for "Started"
+        hist = (sd.get('workflow') or {}).get('history') or []
+        is_started = any(str(h.get('note')).strip() == '시공 시작' for h in hist)
+        
+        if stage == 'CONSTRUCTION' or stage == '시공':
+            if is_started:
+                display_stage = '시공중'
+            else:
+                display_stage = '시공대기'
+        elif stage == 'COMPLETED' or stage == '완료' or stage == 'AS_WAIT':
+            display_stage = '시공완료'
+        elif stage == 'CONSTRUCTING': # Future proof
+            display_stage = '시공중'
+            
+        if not display_stage:
+            continue
+            
+        # Search Filter
+        if f_stage and display_stage != f_stage:
+            continue
+            
+        if f_q:
+            hay = ' '.join([
+                str((((sd.get('parties') or {}).get('customer') or {}).get('name')) or ''),
+                str((((sd.get('parties') or {}).get('customer') or {}).get('phone')) or ''),
+                str((((sd.get('site') or {}).get('address_full')) or ((sd.get('site') or {}).get('address_main'))) or ''),
+            ]).lower()
+            if f_q.lower() not in hay:
+                continue
+        
+        alerts = _erp_alerts(o, sd, att_counts.get(o.id, 0))
+        
+        if display_stage in step_stats:
+            step_stats[display_stage]['count'] += 1
+            if alerts.get('construction_d3'):
+                step_stats[display_stage]['imminent'] += 1
+
+        enriched.append({
+            'id': o.id,
+            'is_erp_beta': o.is_erp_beta,
+            'structured_data': sd,
+            'customer_name': (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-',
+            'address': (((sd.get('site') or {}).get('address_full')) or ((sd.get('site') or {}).get('address_main'))) or '-',
+            'stage': display_stage, 
+            'alerts': alerts,
+            'has_media': _erp_has_media(o, att_counts.get(o.id, 0)),
+            'attachments_count': att_counts.get(o.id, 0),
+            'orderer_name': (((sd.get('parties') or {}).get('orderer') or {}).get('name') or '').strip() or None,
+            'owner_team': 'CONSTRUCTION',
+            'measurement_date': (((sd.get('schedule') or {}).get('measurement') or {}).get('date')),
+            'construction_date': (((sd.get('schedule') or {}).get('construction') or {}).get('date')),
+             'manager_name': (((sd.get('parties') or {}).get('manager') or {}).get('name')) or '-',
+            'phone': (((sd.get('parties') or {}).get('customer') or {}).get('phone')) or '-',
+        })
+
+    process_steps = [
+        {'label': '시공대기', 'display': '시공대기', **step_stats['시공대기']},
+        {'label': '시공중', 'display': '시공중', **step_stats['시공중']},
+        {'label': '시공완료', 'display': '시공완료', **step_stats['시공완료']},
+    ]
+    
+    kpis = {
+        'urgent_count': sum(1 for r in enriched if (r.get('alerts') or {}).get('urgent')),
+        'construction_d3_count': sum(1 for r in enriched if (r.get('alerts') or {}).get('construction_d3')),
+        'measurement_d4_count': 0, 'production_d2_count': 0
+    }
+
+    return render_template(
+        'erp_construction_dashboard.html',
+        orders=enriched,
+        kpis=kpis,
+        process_steps=process_steps,
+        filters={'stage': f_stage, 'q': f_q},
+        team_labels=TEAM_LABELS,
+        stage_labels=STAGE_LABELS,
+        is_admin=is_admin
+    )
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/construction/start', methods=['POST'])
+@login_required
+def api_construction_start(order_id):
+    db = get_db()
+    try:
+        order = db.query(Order).get(order_id)
+        if not order: return jsonify({'success': False, 'message': 'Order not found'}), 404
+        
+        user_id = session.get('user_id')
+        user = get_user_by_id(user_id)
+        
+        import copy
+        import datetime as dt_mod
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        sd = _ensure_dict(order.structured_data)
+        wf = sd.get('workflow') or {}
+        
+        # Log only, stay in CONSTRUCTION (but marked as started via log)
+        hist = wf.get('history') or []
+        hist.append({
+            'stage': 'CONSTRUCTION',
+            'updated_at': dt_mod.datetime.now().isoformat(),
+            'updated_by': user.name if user else 'Unknown',
+            'note': '시공 시작'
+        })
+        wf['history'] = hist
+        sd['workflow'] = wf
+        
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, "structured_data")
+        db.commit()
+        
+        # Log
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 시공 시작"))
+        db.commit()
+        
+        return jsonify({'success': True, 'message': '시공이 시작되었습니다.'})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/construction/complete', methods=['POST'])
+@login_required
+def api_construction_complete(order_id):
+    """
+    시공 완료 처리
+    원본 요구사항: 시공(G) 완료 후 → CS(H) 단계로 이동
+    """
+    db = get_db()
+    try:
+        order = db.query(Order).get(order_id)
+        if not order: return jsonify({'success': False, 'message': 'Order not found'}), 404
+        
+        user_id = session.get('user_id')
+        user = get_user_by_id(user_id)
+        
+        import copy
+        import datetime as dt_mod
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        sd = _ensure_dict(order.structured_data)
+        wf = sd.get('workflow') or {}
+        
+        # Update Stage -> CS (원본 요구사항: 시공 후 CS 단계)
+        wf['stage'] = 'CS'
+        wf['stage_updated_at'] = dt_mod.datetime.now().isoformat()
+        wf['stage_updated_by'] = user.name if user else 'Unknown'
+        
+        hist = wf.get('history') or []
+        hist.append({
+            'stage': 'CS',
+            'updated_at': wf['stage_updated_at'],
+            'updated_by': wf['stage_updated_by'],
+            'note': '시공 완료 → CS 단계 진입'
+        })
+        wf['history'] = hist
+        sd['workflow'] = wf
+        
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, "structured_data")
+        order.status = 'CS'  # 원본 요구사항 기반: 시공 후 CS
+        
+        # Log
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 시공 완료 → CS 단계 진입"))
+        db.commit()
+        
+        return jsonify({'success': True, 'message': '시공이 완료되었습니다. CS 단계로 이동합니다.', 'new_status': 'CS'})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# =============================================================================
+# CS(H) 단계 관련 API - 원본 요구사항 기반 추가
+# =============================================================================
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/cs/complete', methods=['POST'])
+@login_required
+def api_cs_complete(order_id):
+    """
+    CS 단계 완료 처리
+    원본 요구사항: CS(H) 완료 후 → COMPLETED(최종 완료) 단계로 이동
+    """
+    db = get_db()
+    try:
+        order = db.query(Order).get(order_id)
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        user_id = session.get('user_id')
+        user = get_user_by_id(user_id)
+        
+        import copy
+        import datetime as dt_mod
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        sd = _ensure_dict(order.structured_data)
+        wf = sd.get('workflow') or {}
+        
+        wf['stage'] = 'COMPLETED'
+        wf['stage_updated_at'] = dt_mod.datetime.now().isoformat()
+        wf['stage_updated_by'] = user.name if user else 'Unknown'
+        
+        hist = wf.get('history') or []
+        hist.append({
+            'stage': 'COMPLETED',
+            'updated_at': wf['stage_updated_at'],
+            'updated_by': wf['stage_updated_by'],
+            'note': 'CS 완료 → 최종 완료'
+        })
+        wf['history'] = hist
+        sd['workflow'] = wf
+        
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, "structured_data")
+        order.status = 'COMPLETED'
+        
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} CS 완료 → 최종 완료"))
+        db.commit()
+        
+        return jsonify({'success': True, 'message': 'CS가 완료되었습니다.', 'new_status': 'COMPLETED'})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/as/start', methods=['POST'])
+@login_required
+def api_as_start(order_id):
+    """AS 시작 (CS 단계에서 AS가 필요한 경우)"""
+    db = get_db()
+    try:
+        order = db.query(Order).get(order_id)
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        data = request.get_json() or {}
+        as_reason = data.get('reason', '')
+        as_description = data.get('description', '')
+        
+        user_id = session.get('user_id')
+        user = get_user_by_id(user_id)
+        
+        import copy
+        import datetime as dt_mod
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        sd = _ensure_dict(order.structured_data)
+        wf = sd.get('workflow') or {}
+        
+        as_info = sd.get('as_info') or []
+        as_entry = {
+            'id': len(as_info) + 1,
+            'started_at': dt_mod.datetime.now().isoformat(),
+            'started_by': user.name if user else 'Unknown',
+            'reason': as_reason,
+            'description': as_description,
+            'status': 'OPEN',
+            'visit_date': None,
+            'completed_at': None
+        }
+        as_info.append(as_entry)
+        sd['as_info'] = as_info
+        
+        wf['stage'] = 'AS'
+        wf['stage_updated_at'] = dt_mod.datetime.now().isoformat()
+        wf['stage_updated_by'] = user.name if user else 'Unknown'
+        
+        hist = wf.get('history') or []
+        hist.append({
+            'stage': 'AS',
+            'updated_at': wf['stage_updated_at'],
+            'updated_by': wf['stage_updated_by'],
+            'note': f'AS 시작: {as_reason}'
+        })
+        wf['history'] = hist
+        sd['workflow'] = wf
+        
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, "structured_data")
+        order.status = 'AS'
+        
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 시작: {as_reason}"))
+        db.commit()
+        
+        return jsonify({'success': True, 'message': 'AS가 시작되었습니다.', 'new_status': 'AS', 'as_id': as_entry['id']})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/as/complete', methods=['POST'])
+@login_required
+def api_as_complete(order_id):
+    """AS 완료 → CS 복귀"""
+    db = get_db()
+    try:
+        order = db.query(Order).get(order_id)
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        data = request.get_json() or {}
+        as_id = data.get('as_id')
+        completion_note = data.get('note', '')
+        
+        user_id = session.get('user_id')
+        user = get_user_by_id(user_id)
+        
+        import copy
+        import datetime as dt_mod
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        sd = _ensure_dict(order.structured_data)
+        wf = sd.get('workflow') or {}
+        
+        as_info = sd.get('as_info') or []
+        for entry in as_info:
+            if isinstance(entry, dict) and (entry.get('id') == as_id or as_id is None):
+                if entry.get('status') == 'OPEN':
+                    entry['status'] = 'COMPLETED'
+                    entry['completed_at'] = dt_mod.datetime.now().isoformat()
+                    entry['completed_by'] = user.name if user else 'Unknown'
+                    entry['completion_note'] = completion_note
+                    break
+        sd['as_info'] = as_info
+        
+        wf['stage'] = 'CS'
+        wf['stage_updated_at'] = dt_mod.datetime.now().isoformat()
+        wf['stage_updated_by'] = user.name if user else 'Unknown'
+        
+        hist = wf.get('history') or []
+        hist.append({
+            'stage': 'CS',
+            'updated_at': wf['stage_updated_at'],
+            'updated_by': wf['stage_updated_by'],
+            'note': f'AS 완료 → CS 복귀'
+        })
+        wf['history'] = hist
+        sd['workflow'] = wf
+        
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, "structured_data")
+        order.status = 'CS'
+        
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 완료 → CS 복귀"))
+        db.commit()
+        
+        return jsonify({'success': True, 'message': 'AS가 완료되었습니다.', 'new_status': 'CS'})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/as/schedule', methods=['POST'])
+@login_required
+def api_as_schedule(order_id):
+    """AS 방문일 확정"""
+    db = get_db()
+    try:
+        order = db.query(Order).get(order_id)
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        data = request.get_json() or {}
+        as_id = data.get('as_id')
+        visit_date = data.get('visit_date')
+        visit_time = data.get('visit_time', '')
+        
+        if not visit_date:
+            return jsonify({'success': False, 'message': '방문일을 입력해주세요.'}), 400
+        
+        user_id = session.get('user_id')
+        user = get_user_by_id(user_id)
+        
+        import copy
+        import datetime as dt_mod
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        sd = _ensure_dict(order.structured_data)
+        
+        as_info = sd.get('as_info') or []
+        for entry in as_info:
+            if isinstance(entry, dict) and (entry.get('id') == as_id or as_id is None):
+                if entry.get('status') == 'OPEN':
+                    entry['visit_date'] = visit_date
+                    entry['visit_time'] = visit_time
+                    entry['scheduled_by'] = user.name if user else 'Unknown'
+                    entry['scheduled_at'] = dt_mod.datetime.now().isoformat()
+                    break
+        sd['as_info'] = as_info
+        
+        schedule = sd.get('schedule') or {}
+        construction = schedule.get('construction') or {}
+        construction['date'] = visit_date
+        construction['time'] = visit_time
+        construction['type'] = 'AS'
+        schedule['construction'] = construction
+        sd['schedule'] = schedule
+        
+        wf = sd.get('workflow') or {}
+        hist = wf.get('history') or []
+        hist.append({
+            'stage': 'AS',
+            'updated_at': dt_mod.datetime.now().isoformat(),
+            'updated_by': user.name if user else 'Unknown',
+            'note': f'AS 방문일 확정: {visit_date}'
+        })
+        wf['history'] = hist
+        sd['workflow'] = wf
+        
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, "structured_data")
+        
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 방문일 확정: {visit_date}"))
+        db.commit()
+        
+        return jsonify({'success': True, 'message': f'AS 방문일이 {visit_date}로 확정되었습니다.', 'visit_date': visit_date})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# =============================================================================
+# 시공 불가 / 도면 피드백 API - Blueprint V3 기준
+# =============================================================================
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/construction/fail', methods=['POST'])
+@login_required
+def api_construction_fail(order_id):
+    """
+    시공 불가 처리
+    Blueprint V3: 시공 불가 시 → 시공 철수 → 원인별 재작업 단계로 이동
+    """
+    db = get_db()
+    try:
+        order = db.query(Order).get(order_id)
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        data = request.get_json() or {}
+        reason = data.get('reason', 'site_issue')  # drawing_error, measurement_error, product_defect, site_issue
+        detail = data.get('detail', '')
+        reschedule_date = data.get('reschedule_date')
+        
+        user_id = session.get('user_id')
+        user = get_user_by_id(user_id)
+        
+        import copy
+        import datetime as dt_mod
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        sd = _ensure_dict(order.structured_data)
+        wf = sd.get('workflow') or {}
+        
+        # 시공 실패 이력 저장
+        fail_info = sd.get('construction_fail_history') or []
+        fail_entry = {
+            'id': len(fail_info) + 1,
+            'failed_at': dt_mod.datetime.now().isoformat(),
+            'failed_by': user.name if user else 'Unknown',
+            'reason': reason,
+            'detail': detail,
+            'reschedule_date': reschedule_date,
+            'previous_stage': 'CONSTRUCTION'
+        }
+        fail_info.append(fail_entry)
+        sd['construction_fail_history'] = fail_info
+        
+        # 원인별 재작업 단계 결정
+        reason_stage_map = {
+            'drawing_error': 'DRAWING',      # 도면 오류 → 도면 단계로
+            'measurement_error': 'MEASURE',  # 실측 오류 → 실측 단계로
+            'product_defect': 'PRODUCTION',  # 제품 불량 → 생산 단계로
+            'site_issue': 'CONSTRUCTION'     # 현장 문제 → 시공 단계 유지 (재일정)
+        }
+        new_stage = reason_stage_map.get(reason, 'CONSTRUCTION')
+        
+        wf['stage'] = new_stage
+        wf['stage_updated_at'] = dt_mod.datetime.now().isoformat()
+        wf['stage_updated_by'] = user.name if user else 'Unknown'
+        wf['rework_reason'] = reason
+        
+        hist = wf.get('history') or []
+        reason_labels = {
+            'drawing_error': '도면 오류',
+            'measurement_error': '실측 오류',
+            'product_defect': '제품 불량',
+            'site_issue': '현장 문제'
+        }
+        hist.append({
+            'stage': new_stage,
+            'updated_at': wf['stage_updated_at'],
+            'updated_by': wf['stage_updated_by'],
+            'note': f'시공 불가 → {reason_labels.get(reason, reason)}: {detail}'
+        })
+        wf['history'] = hist
+        sd['workflow'] = wf
+        
+        # 재시공 일정 설정
+        if reschedule_date:
+            schedule = sd.get('schedule') or {}
+            construction = schedule.get('construction') or {}
+            construction['date'] = reschedule_date
+            construction['rescheduled'] = True
+            construction['reschedule_reason'] = reason
+            schedule['construction'] = construction
+            sd['schedule'] = schedule
+        
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, "structured_data")
+        order.status = new_stage
+        
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 시공 불가: {reason_labels.get(reason, reason)}"))
+        db.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'시공 불가로 처리되었습니다. {reason_labels.get(reason, reason)}로 인해 {new_stage} 단계로 이동합니다.',
+            'new_status': new_stage,
+            'reason': reason
+        })
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/drawing/request-revision', methods=['POST'])
+@login_required
+def api_drawing_request_revision(order_id):
+    """
+    도면 수정 요청 (고객 컨펌 또는 생산 단계에서)
+    Blueprint V3: 수정 필요 시 → 도면팀 전달 → 수정 → 재전달
+    """
+    db = get_db()
+    try:
+        order = db.query(Order).get(order_id)
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        data = request.get_json() or {}
+        feedback = data.get('feedback', '')
+        requested_by = data.get('requested_by', 'customer')  # customer, production
+        
+        user_id = session.get('user_id')
+        user = get_user_by_id(user_id)
+        
+        import copy
+        import datetime as dt_mod
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        sd = _ensure_dict(order.structured_data)
+        
+        # 도면 수정 이력 저장
+        blueprint = sd.get('blueprint') or {}
+        revisions = blueprint.get('revisions') or []
+        
+        revision_entry = {
+            'id': len(revisions) + 1,
+            'requested_at': dt_mod.datetime.now().isoformat(),
+            'requested_by': requested_by,
+            'requester_name': user.name if user else 'Unknown',
+            'feedback': feedback,
+            'status': 'PENDING',  # PENDING, IN_PROGRESS, COMPLETED
+            'revised_at': None,
+            'revised_by': None
+        }
+        revisions.append(revision_entry)
+        blueprint['revisions'] = revisions
+        blueprint['revision_count'] = len(revisions)
+        blueprint['has_pending_revision'] = True
+        sd['blueprint'] = blueprint
+        
+        # workflow history 추가
+        wf = sd.get('workflow') or {}
+        hist = wf.get('history') or []
+        requester_labels = {'customer': '고객', 'production': '생산팀'}
+        hist.append({
+            'stage': wf.get('stage', 'CONFIRM'),
+            'updated_at': dt_mod.datetime.now().isoformat(),
+            'updated_by': user.name if user else 'Unknown',
+            'note': f'도면 수정 요청 ({requester_labels.get(requested_by, requested_by)}): {feedback}'
+        })
+        wf['history'] = hist
+        sd['workflow'] = wf
+        
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, "structured_data")
+        
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 도면 수정 요청: {feedback[:50]}..."))
+        db.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': '도면 수정 요청이 등록되었습니다. 도면팀에서 확인 후 수정됩니다.',
+            'revision_id': revision_entry['id']
+        })
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/drawing/complete-revision', methods=['POST'])
+@login_required
+def api_drawing_complete_revision(order_id):
+    """
+    도면 수정 완료 (도면팀에서 수정 후)
+    """
+    db = get_db()
+    try:
+        order = db.query(Order).get(order_id)
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        data = request.get_json() or {}
+        revision_id = data.get('revision_id')
+        revision_note = data.get('note', '')
+        
+        user_id = session.get('user_id')
+        user = get_user_by_id(user_id)
+        
+        import copy
+        import datetime as dt_mod
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        sd = _ensure_dict(order.structured_data)
+        blueprint = sd.get('blueprint') or {}
+        revisions = blueprint.get('revisions') or []
+        
+        # 해당 revision 찾아서 완료 처리
+        for rev in revisions:
+            if isinstance(rev, dict) and (rev.get('id') == revision_id or revision_id is None):
+                if rev.get('status') == 'PENDING':
+                    rev['status'] = 'COMPLETED'
+                    rev['revised_at'] = dt_mod.datetime.now().isoformat()
+                    rev['revised_by'] = user.name if user else 'Unknown'
+                    rev['revision_note'] = revision_note
+                    break
+        
+        # 대기중인 수정이 더 있는지 확인
+        pending_count = sum(1 for r in revisions if isinstance(r, dict) and r.get('status') == 'PENDING')
+        blueprint['has_pending_revision'] = pending_count > 0
+        blueprint['revisions'] = revisions
+        sd['blueprint'] = blueprint
+        
+        wf = sd.get('workflow') or {}
+        hist = wf.get('history') or []
+        hist.append({
+            'stage': wf.get('stage', 'DRAWING'),
+            'updated_at': dt_mod.datetime.now().isoformat(),
+            'updated_by': user.name if user else 'Unknown',
+            'note': f'도면 수정 완료: {revision_note}'
+        })
+        wf['history'] = hist
+        sd['workflow'] = wf
+        
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, "structured_data")
+        
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 도면 수정 완료"))
+        db.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': '도면 수정이 완료되었습니다.',
+            'pending_revisions': pending_count
+        })
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/confirm/customer', methods=['POST'])
+@login_required
+def api_customer_confirm(order_id):
+    """
+    고객 컨펌 완료 처리
+    Blueprint V3: 컨펌 완료 → FOMS 상태 업데이트 → 생산 단계로 이동
+    """
+    db = get_db()
+    try:
+        order = db.query(Order).get(order_id)
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        data = request.get_json() or {}
+        confirmation_note = data.get('note', '')
+        
+        user_id = session.get('user_id')
+        user = get_user_by_id(user_id)
+        
+        import copy
+        import datetime as dt_mod
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        sd = _ensure_dict(order.structured_data)
+        
+        # 고객 컨펌 정보 저장
+        blueprint = sd.get('blueprint') or {}
+        blueprint['customer_confirmed'] = True
+        blueprint['confirmed_at'] = dt_mod.datetime.now().isoformat()
+        blueprint['confirmed_by'] = user.name if user else 'Unknown'
+        blueprint['confirmation_note'] = confirmation_note
+        sd['blueprint'] = blueprint
+        
+        # PRODUCTION 단계로 이동
+        wf = sd.get('workflow') or {}
+        wf['stage'] = 'PRODUCTION'
+        wf['stage_updated_at'] = dt_mod.datetime.now().isoformat()
+        wf['stage_updated_by'] = user.name if user else 'Unknown'
+        
+        hist = wf.get('history') or []
+        hist.append({
+            'stage': 'PRODUCTION',
+            'updated_at': wf['stage_updated_at'],
+            'updated_by': wf['stage_updated_by'],
+            'note': f'고객 컨펌 완료 → 생산 단계로 이동: {confirmation_note}'
+        })
+        wf['history'] = hist
+        sd['workflow'] = wf
+        
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, "structured_data")
+        order.status = 'PRODUCTION'
+        
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 고객 컨펌 완료 → 생산 단계"))
+        db.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': '고객 컨펌이 완료되었습니다. 생산 단계로 이동합니다.',
+            'new_status': 'PRODUCTION'
+        })
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# =============================================
+# 알림 시스템 API
+# =============================================
+
+@erp_beta_bp.route('/erp/api/notifications', methods=['GET'])
+@login_required
+def api_notifications_list():
+    """현재 사용자의 알림 목록 조회
+    
+    Query params:
+    - unread_only: true면 읽지 않은 알림만
+    - limit: 최대 개수 (기본 20)
+    """
+    try:
+        from models import Notification, User
+        
+        db = get_db()
+        user_id = session.get('user_id')
+        user = db.query(User).filter(User.id == user_id).first()
+        
+        if not user:
+            return jsonify({'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}), 404
+        
+        unread_only = request.args.get('unread_only', 'false').lower() == 'true'
+        limit = int(request.args.get('limit', 20))
+        
+        # 사용자 팀/이름에 따라 알림 필터링
+        query = db.query(Notification)
+        
+        # 팀 기반 필터링 또는 영업사원명 기반 필터링
+        user_team = user.team.upper() if user.team else None
+        user_name = user.name.strip() if user.name else None
+        
+        print(f"[DEBUG] Notification Check - User: '{user_name}', Team: '{user_team}'")
+        
+        # 조건: (target_team이 사용자 팀과 일치) OR (target_manager_name이 사용자 이름과 일치) OR (ADMIN은 모든 알림)
+        if user.role == 'ADMIN':
+            # ADMIN은 모든 알림 조회 가능
+            pass
+        else:
+            from sqlalchemy import or_
+            conditions = []
+            if user_team:
+                conditions.append(Notification.target_team == user_team)
+            if user_name:
+                conditions.append(Notification.target_manager_name == user_name)
+            if conditions:
+                query = query.filter(or_(*conditions))
+            else:
+                # 매칭 조건 없으면 빈 결과
+                return jsonify({'success': True, 'notifications': [], 'unread_count': 0})
+        
+        if unread_only:
+            query = query.filter(Notification.is_read == False)
+        
+        query = query.order_by(Notification.created_at.desc()).limit(limit)
+        notifications = query.all()
+        
+        # 읽지 않은 알림 수
+        unread_query = db.query(Notification).filter(Notification.is_read == False)
+        if user.role != 'ADMIN':
+            from sqlalchemy import or_
+            conditions = []
+            if user_team:
+                conditions.append(Notification.target_team == user_team)
+            if user_name:
+                conditions.append(Notification.target_manager_name == user_name)
+            if conditions:
+                unread_query = unread_query.filter(or_(*conditions))
+        unread_count = unread_query.count()
+        
+        return jsonify({
+            'success': True,
+            'notifications': [n.to_dict() for n in notifications],
+            'unread_count': unread_count
+        })
+    except Exception as e:
+        import traceback
+        print(f"Notification List Error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_beta_bp.route('/erp/api/notifications/badge', methods=['GET'])
+@login_required
+def api_notifications_badge():
+    """알림 배지 카운트 조회 (읽지 않은 알림 수)"""
+    try:
+        from models import Notification, User
+        
+        db = get_db()
+        user_id = session.get('user_id')
+        user = db.query(User).filter(User.id == user_id).first()
+        
+        if not user:
+            return jsonify({'success': True, 'count': 0})
+        
+        user_team = user.team.upper() if user.team else None
+        user_name = user.name
+        
+        query = db.query(Notification).filter(Notification.is_read == False)
+        
+        if user.role != 'ADMIN':
+            from sqlalchemy import or_
+            conditions = []
+            if user_team:
+                conditions.append(Notification.target_team == user_team)
+            if user_name:
+                conditions.append(Notification.target_manager_name == user_name)
+            if conditions:
+                query = query.filter(or_(*conditions))
+            else:
+                return jsonify({'success': True, 'count': 0})
+        
+        count = query.count()
+        
+        return jsonify({'success': True, 'count': count})
+    except Exception as e:
+        return jsonify({'success': True, 'count': 0})
+
+
+@erp_beta_bp.route('/erp/api/notifications/<int:notification_id>/read', methods=['POST'])
+@login_required
+def api_notification_mark_read(notification_id):
+    """알림 읽음 처리"""
+    try:
+        from models import Notification
+        import datetime as dt_mod
+        
+        db = get_db()
+        user_id = session.get('user_id')
+        
+        notification = db.query(Notification).filter(Notification.id == notification_id).first()
+        if not notification:
+            return jsonify({'success': False, 'message': '알림을 찾을 수 없습니다.'}), 404
+        
+        notification.is_read = True
+        notification.read_at = dt_mod.datetime.now()
+        notification.read_by_user_id = user_id
+        
+        db.commit()
+        
+        return jsonify({'success': True, 'message': '알림을 읽음 처리했습니다.'})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_beta_bp.route('/erp/api/notifications/read-all', methods=['POST'])
+@login_required
+def api_notifications_mark_all_read():
+    """모든 알림 읽음 처리"""
+    try:
+        from models import Notification, User
+        import datetime as dt_mod
+        
+        db = get_db()
+        user_id = session.get('user_id')
+        user = db.query(User).filter(User.id == user_id).first()
+        
+        if not user:
+            return jsonify({'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}), 404
+        
+        user_team = user.team.upper() if user.team else None
+        user_name = user.name
+        
+        query = db.query(Notification).filter(Notification.is_read == False)
+        
+        if user.role != 'ADMIN':
+            from sqlalchemy import or_
+            conditions = []
+            if user_team:
+                conditions.append(Notification.target_team == user_team)
+            if user_name:
+                conditions.append(Notification.target_manager_name == user_name)
+            if conditions:
+                query = query.filter(or_(*conditions))
+        
+        now = dt_mod.datetime.now()
+        updated = query.update({
+            Notification.is_read: True,
+            Notification.read_at: now,
+            Notification.read_by_user_id: user_id
+        }, synchronize_session='fetch')
+        
+        db.commit()
+        
+        return jsonify({'success': True, 'message': f'{updated}개 알림을 읽음 처리했습니다.', 'count': updated})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500

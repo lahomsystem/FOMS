@@ -159,6 +159,7 @@ class User(Base):
     password = Column(String, nullable=False)
     name = Column(String, nullable=False, default='사용자')
     role = Column(String, nullable=False, default='VIEWER')
+    team = Column(String(50), nullable=True)  # cs/drawing/production/construction
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, default=datetime.datetime.now)
     last_login = Column(DateTime)
@@ -171,6 +172,7 @@ class User(Base):
             'username': self.username,
             'name': self.name,
             'role': self.role,
+            'team': self.team,
             'is_active': self.is_active,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
             'last_login': self.last_login.strftime('%Y-%m-%d %H:%M:%S') if self.last_login else None
@@ -321,3 +323,64 @@ class ChatAttachment(Base):
             'thumbnail_url': self.thumbnail_url,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
         } 
+
+
+class Notification(Base):
+    """알림 시스템 - 담당 팀/영업사원에게 알림 전달
+    
+    담당(manager_name) 값에 따라 알림 대상 결정:
+    - '라홈' → 라홈팀(CS)
+    - '하우드' → 하우드팀(HAUDD)
+    - 그 외 → 해당 영업사원(SALES)
+    """
+    __tablename__ = 'notifications'
+    
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    # 알림 유형
+    notification_type = Column(String(50), nullable=False, index=True)
+    # DRAWING_TRANSFERRED: 도면 전달됨
+    # STAGE_CHANGED: 단계 변경됨
+    # QUEST_ASSIGNED: 퀘스트 할당됨
+    # AS_REQUIRED: AS 필요
+    
+    # 알림 대상 (팀 또는 영업사원명)
+    target_team = Column(String(50), nullable=True, index=True)  # CS, HAUDD, SALES, etc.
+    target_manager_name = Column(String(100), nullable=True, index=True)  # 특정 영업사원명
+    
+    # 알림 내용
+    title = Column(String(200), nullable=False)
+    message = Column(Text, nullable=True)
+    
+    # 생성자
+    created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    created_by_name = Column(String(100), nullable=True)
+    
+    # 상태
+    is_read = Column(Boolean, default=False, nullable=False, index=True)
+    read_at = Column(DateTime, nullable=True)
+    read_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    
+    # 타임스탬프
+    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False, index=True)
+    
+    # 관계
+    order = relationship('Order', foreign_keys=[order_id])
+    created_by = relationship('User', foreign_keys=[created_by_user_id])
+    read_by = relationship('User', foreign_keys=[read_by_user_id])
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'notification_type': self.notification_type,
+            'target_team': self.target_team,
+            'target_manager_name': self.target_manager_name,
+            'title': self.title,
+            'message': self.message,
+            'created_by_name': self.created_by_name,
+            'is_read': self.is_read,
+            'read_at': self.read_at.strftime('%Y-%m-%d %H:%M:%S') if self.read_at else None,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
+        }

@@ -509,26 +509,63 @@
             <h1 class="mb-0 h3">가구 주문 관리 시스템</h1>
 
             {% if current_user %}
-            <div class="dropdown">
-                <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="userDropdown"
-                    data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fas fa-user-circle"></i> {{ current_user.name }} ({{ ROLES[current_user.role] }})
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown" style="z-index: 1050;">
-                    <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-user-cog"></i> 내
-                            정보</a></li>
-                    {% if current_user.role == 'ADMIN' %}
-                    <li><a class="dropdown-item" href="{{ url_for('user_list') }}"><i class="fas fa-users"></i> 사용자
-                            관리</a></li>
-                    <li><a class="dropdown-item" href="{{ url_for('security_logs') }}"><i class="fas fa-shield-alt"></i>
-                            보안 로그</a></li>
-                    {% endif %}
-                    <li>
-                        <hr class="dropdown-divider">
-                    </li>
-                    <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i>
-                            로그아웃</a></li>
-                </ul>
+            <div class="d-flex align-items-center gap-3">
+                <!-- Global Notification Button -->
+                <div class="position-relative">
+                    <button class="btn btn-link p-0 text-dark border-0 position-relative" id="global-notification-btn"
+                        title="알림" onclick="toggleGlobalNotificationPanel()">
+                        <i class="fas fa-bell fa-lg" id="global-notification-icon" style="color: #6c757d;"></i>
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                            id="global-notification-badge" style="display: none; font-size: 0.65rem;">
+                            0
+                            <span class="visually-hidden">unread messages</span>
+                        </span>
+                    </button>
+                    <!-- Notification Panel -->
+                    <div class="dropdown-menu dropdown-menu-end p-0 shadow-lg border-0" id="global-notification-panel"
+                        style="display: none; position: absolute; top: 140%; right: 0; width: 320px; max-height: 480px; overflow-y: auto; z-index: 9999; border-radius: 12px;">
+                        <div
+                            class="p-3 border-bottom d-flex justify-content-between align-items-center bg-white sticky-top">
+                            <h6 class="mb-0 fw-bold"><i class="fas fa-bell text-warning me-2"></i>알림</h6>
+                            <button class="btn btn-sm btn-light text-secondary"
+                                onclick="markAllGlobalNotificationsRead()" style="font-size: 0.8rem;">
+                                <i class="fas fa-check-double me-1"></i>모두 읽음
+                            </button>
+                        </div>
+                        <div id="global-notification-list" class="list-group list-group-flush">
+                            <!-- JS will populate this -->
+                            <div class="text-center p-5 text-muted">
+                                <i class="far fa-bell fa-3x mb-3 text-light"></i><br>
+                                로딩 중...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="userDropdown"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-user-circle"></i> {{ current_user.name }} ({{ ROLES[current_user.role] }})
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown" style="z-index: 1050;">
+                        <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-user-cog"></i> 내
+                                정보</a></li>
+                        {% if current_user.role == 'ADMIN' %}
+                        <li><a class="dropdown-item" href="{{ url_for('auth.user_list') }}"><i class="fas fa-users"></i>
+                                사용자
+                                관리</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('security_logs') }}"><i
+                                    class="fas fa-shield-alt"></i>
+                                보안 로그</a></li>
+                        {% endif %}
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i
+                                    class="fas fa-sign-out-alt"></i>
+                                로그아웃</a></li>
+                    </ul>
+                </div>
             </div>
             {% else %}
             <div>
@@ -616,6 +653,82 @@
         </div>
     </div>
 
+    <!-- 빠른 상태 변경 플로팅 버튼 -->
+    {% if current_user %}
+    <div class="quick-status-fab-container" style="position: fixed; bottom: 90px; right: 20px; z-index: 9990;">
+        <button id="btn-quick-status-fab" class="btn btn-warning rounded-circle shadow-lg text-white"
+            style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; font-size: 20px; border: none;"
+            title="빠른 상태 변경">
+            <i class="fas fa-bolt"></i>
+        </button>
+    </div>
+
+    <!-- 빠른 상태 변경 모달 -->
+    <div class="modal fade" id="quickStatusModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-warning text-white">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-bolt me-2"></i>빠른 상태 변경</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label for="quick-order-id" class="form-label fw-bold">주문 번호 (ID)</label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text bg-light"><i class="fas fa-hashtag"></i></span>
+                            <input type="number" class="form-control" id="quick-order-id" placeholder="123" autofocus>
+                            <button class="btn btn-primary" type="button" id="btn-quick-search">
+                                <i class="fas fa-search"></i> 조회
+                            </button>
+                        </div>
+                        <div class="form-text">주문 번호를 입력하고 엔터 또는 조회 버튼을 누르세요.</div>
+                    </div>
+
+                    <div id="quick-order-info" class="alert alert-light border d-none mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge bg-secondary" id="quick-order-id-badge">#</span>
+                            <span class="fw-bold fs-5" id="quick-customer-name"></span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">현재 상태:</span>
+                            <span class="badge bg-info text-dark" id="quick-current-status"></span>
+                        </div>
+                        <div class="mt-2 pt-2 border-top small text-muted" id="quick-order-details"></div>
+                    </div>
+
+                    <div id="quick-change-form" class="d-none">
+                        <div class="mb-3">
+                            <label for="quick-new-status" class="form-label fw-bold">변경할 상태</label>
+                            <select class="form-select form-select-lg" id="quick-new-status">
+                                <option value="">선택하세요...</option>
+                                {% if STATUS %}
+                                {% for code, label in STATUS.items() %}
+                                {% if code != 'DELETED' %}
+                                <option value="{{ code }}">{{ label }}</option>
+                                {% endif %}
+                                {% endfor %}
+                                {% endif %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="quick-status-note" class="form-label">작업 메모 (선택)</label>
+                            <textarea class="form-control" id="quick-status-note" rows="2"
+                                placeholder="특이사항이 있다면 입력하세요"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary px-4" id="btn-quick-save" disabled>
+                        <i class="fas fa-check"></i> 변경 저장
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- 전역 채팅 알림 팝업 컨테이너 (모든 페이지에서 사용) -->
     {% if current_user %}
     <div id="chat-notification-container" class="chat-notification-container"></div>
@@ -655,7 +768,9 @@
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Custom JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/quick-status-change.js') }}"></script>
 
     <!-- 도면 뷰어 전역 JavaScript -->
     <script>
@@ -834,6 +949,206 @@
     </script>
 
     {% block scripts %}{% endblock %}
+    <style>
+        /* Global Notification Styles */
+        @keyframes bell-shake {
+            0% {
+                transform: rotate(0);
+            }
+
+            15% {
+                transform: rotate(15deg);
+            }
+
+            30% {
+                transform: rotate(-15deg);
+            }
+
+            45% {
+                transform: rotate(10deg);
+            }
+
+            60% {
+                transform: rotate(-10deg);
+            }
+
+            75% {
+                transform: rotate(5deg);
+            }
+
+            85% {
+                transform: rotate(-5deg);
+            }
+
+            100% {
+                transform: rotate(0);
+            }
+        }
+
+        .bell-active {
+            animation: bell-shake 2.5s infinite;
+            color: #ffc107 !important;
+            /* Warning Yellow */
+            text-shadow: 0 0 10px rgba(255, 193, 7, 0.4);
+        }
+
+        .notification-item {
+            transition: background-color 0.2s;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+        }
+
+        .notification-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .notification-item.unread {
+            background-color: #f0f7ff;
+            border-left-color: #0d6efd;
+        }
+
+        .notification-time {
+            font-size: 0.75rem;
+            color: #adb5bd;
+        }
+    </style>
+
+    <script>
+        // Global Notification System
+        let globalNotificationOpen = false;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            {% if current_user %}
+            loadGlobalNotificationBadge();
+            // Poll every 30 seconds
+            setInterval(loadGlobalNotificationBadge, 30000);
+
+            // Close panel when clicking outside
+            document.addEventListener('click', function (e) {
+                const panel = document.getElementById('global-notification-panel');
+                const btn = document.getElementById('global-notification-btn');
+                if (globalNotificationOpen && panel && !panel.contains(e.target) && !btn.contains(e.target)) {
+                    panel.style.display = 'none';
+                    globalNotificationOpen = false;
+                }
+            });
+            {% endif %}
+        });
+
+        async function loadGlobalNotificationBadge() {
+            try {
+                const res = await fetch('/erp/api/notifications/badge');
+                if (!res.ok) return; // Silent fail
+                const data = await res.json();
+
+                const badge = document.getElementById('global-notification-badge');
+                const icon = document.getElementById('global-notification-icon');
+
+                if (badge && icon) {
+                    if (data.count > 0) {
+                        badge.textContent = data.count > 99 ? '99+' : data.count;
+                        badge.style.display = 'block';
+                        icon.classList.add('bell-active');
+                    } else {
+                        badge.style.display = 'none';
+                        icon.classList.remove('bell-active');
+                        // Reset color
+                        icon.style.color = '#6c757d';
+                    }
+                }
+            } catch (e) {
+                console.error('Notification badge error:', e);
+            }
+        }
+
+        async function toggleGlobalNotificationPanel() {
+            const panel = document.getElementById('global-notification-panel');
+            if (!panel) return;
+
+            globalNotificationOpen = !globalNotificationOpen;
+            panel.style.display = globalNotificationOpen ? 'block' : 'none';
+
+            if (globalNotificationOpen) {
+                await loadGlobalNotifications();
+            }
+        }
+
+        async function loadGlobalNotifications() {
+            const list = document.getElementById('global-notification-list');
+            try {
+                list.innerHTML = '<div class="text-center p-4 text-muted"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> 로딩 중...</div>';
+
+                const res = await fetch('/erp/api/notifications?limit=10'); // Get latest 10
+                if (!res.ok) throw new Error('API Error');
+
+                const data = await res.json();
+
+                if (data.notifications && data.notifications.length > 0) {
+                    let html = '';
+                    data.notifications.forEach(noti => {
+                        const isUnread = !noti.is_read;
+                        // Format time (simple)
+                        const time = noti.created_at.substring(5, 16).replace('T', ' '); // MM-DD HH:MM
+
+                        html += `
+                            <div class="list-group-item notification-item ${isUnread ? 'unread' : ''}" onclick="readGlobalNotification(${noti.id}, ${noti.order_id || 'null'})">
+                                <div class="d-flex w-100 justify-content-between align-items-center mb-1">
+                                    <strong class="mb-0 text-truncate" style="max-width: 200px;">${escapeHtml(noti.title)}</strong>
+                                    <small class="notification-time">${time}</small>
+                                </div>
+                                <p class="mb-1 text-secondary small text-truncate">${escapeHtml(noti.message)}</p>
+                            </div>
+                        `;
+                    });
+                    list.innerHTML = html;
+                } else {
+                    list.innerHTML = '<div class="text-center p-4 text-muted"><i class="far fa-bell-slash fa-2x mb-2"></i><br>알림이 없습니다.</div>';
+                }
+            } catch (e) {
+                console.error('List error:', e);
+                list.innerHTML = '<div class="text-center p-3 text-danger"><i class="fas fa-exclamation-circle"></i> 로드 실패</div>';
+            }
+        }
+
+        async function readGlobalNotification(id, orderId) {
+            try {
+                await fetch(`/erp/api/notifications/${id}/read`, { method: 'POST' });
+                // Refresh badge
+                loadGlobalNotificationBadge();
+
+                // If orderId exists, navigate to order detail or edit page
+                if (orderId) {
+                    // Check logic: ERP Beta order?
+                    window.location.href = `/edit/${orderId}`; // Default edit page
+                } else {
+                    // Just refresh list to remove unread style
+                    loadGlobalNotifications();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function markAllGlobalNotificationsRead() {
+            if (!confirm('모든 알림을 읽음 처리하시겠습니까?')) return;
+            try {
+                await fetch('/erp/api/notifications/read-all', { method: 'POST' });
+                loadGlobalNotificationBadge();
+                loadGlobalNotifications();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
 </body>
 
 </html>

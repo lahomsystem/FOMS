@@ -1,54 +1,250 @@
 {
-  "version": 1,
+  "version": 2,
+  "description": "원본 Furniture Process 요구사항 기반 Quest 템플릿 (A→B→C→D→E→F→G→H)",
   "stages": {
     "RECEIVED": {
+      "code": "A",
       "title": "주문 정보 확인",
-      "description": "",
+      "description": "온라인 플랫폼 또는 예약금 입금으로 접수된 주문을 확인하고 FOMS에 입력합니다.",
       "owner_team": "CS",
-      "required_approvals": ["CS"],
-      "next_stage": "HAPPYCALL"
+      "involved_teams": [
+        "LAHOME",
+        "HAUDD",
+        "SALES"
+      ],
+      "required_approvals": [
+        "CS"
+      ],
+      "next_stage": "HAPPYCALL",
+      "notes": "주문은 여러 경로로 접수됨. 접수(A)와 해피콜(B)은 같이 이루어질 수 있음."
     },
     "HAPPYCALL": {
+      "code": "B",
       "title": "해피콜 및 일정 확정",
-      "description": "",
+      "description": "고객에게 해피콜(전화/채팅)을 진행하여 일정 확정 및 주문 사항을 확인합니다.",
       "owner_team": "CS",
-      "required_approvals": ["CS"],
-      "next_stage": "MEASURE"
+      "involved_teams": [
+        "LAHOME",
+        "HAUDD",
+        "SALES"
+      ],
+      "required_approvals": [
+        "CS"
+      ],
+      "next_stage": "MEASURE",
+      "tasks": [
+        "실측일 또는 시공일 확정",
+        "주문 사항 확인",
+        "실측팀(영업)에 전달할 특이사항 입력"
+      ],
+      "notes": "접수(A)와 해피콜(B)은 같이 이루어질 수 있음."
     },
     "MEASURE": {
+      "code": "C",
       "title": "실측",
-      "description": "",
+      "description": "영업팀 직접 방문 또는 고객 셀프 실측을 통해 현장 데이터를 수집합니다.",
       "owner_team": "SALES",
-      "required_approvals": ["SALES"],
-      "next_stage": "DRAWING"
+      "involved_teams": [
+        "SALES",
+        "LAHOME",
+        "HAUDD"
+      ],
+      "required_approvals": [
+        "SALES"
+      ],
+      "next_stage": "DRAWING",
+      "process_types": [
+        {
+          "type": "on_site",
+          "description": "영업팀 직접 실측: 지정 실측일 방문 → FOMS 데이터 입력 (텍스트 & 사진)"
+        },
+        {
+          "type": "self_measure",
+          "description": "고객 셀프 실측: 채팅/전화 상담 → FOMS 데이터 입력 (텍스트 & 사진)"
+        }
+      ],
+      "dynamic_team_rule": "발주사에 '라홈' 포함 시 CS팀으로 변경"
     },
     "DRAWING": {
+      "code": "D",
       "title": "도면 작성",
-      "description": "",
+      "description": "실측 정보를 바탕으로 스케치업 프로그램으로 3D 도면을 작성하고 FOMS에 업로드합니다.",
       "owner_team": "DRAWING",
-      "required_approvals": ["DRAWING"],
-      "next_stage": "CONFIRM"
+      "involved_teams": [
+        "DRAWING"
+      ],
+      "required_approvals": [
+        "DRAWING"
+      ],
+      "next_stage": "CONFIRM",
+      "sla_hours": 48
     },
     "CONFIRM": {
+      "code": "E",
       "title": "고객 컨펌",
-      "description": "",
+      "description": "도면을 고객에게 전달하고 확인을 받습니다. 수정 필요 시 도면팀에 전달 후 재작업합니다.",
       "owner_team": "SALES",
-      "required_approvals": ["SALES"],
-      "next_stage": "PRODUCTION"
+      "involved_teams": [
+        "LAHOME",
+        "HAUDD",
+        "SALES",
+        "DRAWING"
+      ],
+      "required_approvals": [
+        "SALES"
+      ],
+      "next_stage": "PRODUCTION",
+      "process_flow": [
+        "도면 전달 (채널톡/카톡/SMS)",
+        "수정 필요 시 → 도면팀 전달 → 수정 → 재전달",
+        "컨펌 완료 → FOMS 상태 업데이트",
+        "도면팀 → 생산팀 전달"
+      ],
+      "dynamic_team_rule": "발주사에 '라홈' 포함 시 CS팀으로 변경"
     },
     "PRODUCTION": {
-      "title": "생산 준비",
-      "description": "",
+      "code": "F",
+      "title": "생산",
+      "description": "컨펌된 도면을 바탕으로 가구를 생산합니다.",
       "owner_team": "PRODUCTION",
-      "required_approvals": ["PRODUCTION"],
-      "next_stage": "CONSTRUCTION"
+      "involved_teams": [
+        "PRODUCTION",
+        "DRAWING"
+      ],
+      "required_approvals": [
+        "PRODUCTION"
+      ],
+      "next_stage": "CONSTRUCTION",
+      "feedback_loop": "도면 문제 발생 시 → 생산 ↔ 도면 협의 → 도면 수정 후 생산"
     },
     "CONSTRUCTION": {
+      "code": "G",
       "title": "시공",
-      "description": "",
+      "description": "출고팀 일정표에 따라 시공팀이 방문하여 가구를 설치합니다.",
       "owner_team": "CONSTRUCTION",
-      "required_approvals": ["CONSTRUCTION"],
-      "next_stage": null
+      "involved_teams": [
+        "CONSTRUCTION",
+        "SHIPMENT"
+      ],
+      "required_approvals": [
+        "CONSTRUCTION"
+      ],
+      "next_stage": "CS",
+      "fail_process": [
+        "시공 불가 시 → 시공 철수",
+        "출고팀에서 재시공 일시 수정 (FOMS 정보 수정)",
+        "도면 수정 등 조치 후 재생산",
+        "재시공 일시에 재방문 시공"
+      ],
+      "fail_reasons": [
+        "drawing_error",
+        "measurement_error",
+        "product_defect",
+        "site_issue"
+      ]
+    },
+    "CS": {
+      "code": "H",
+      "title": "CS/AS 접수 및 처리",
+      "description": "시공 완료 후 CS 접수 및 AS 처리를 진행합니다.",
+      "owner_team": "CS",
+      "involved_teams": [
+        "LAHOME",
+        "HAUDD",
+        "SALES",
+        "CS",
+        "SHIPMENT"
+      ],
+      "required_approvals": [
+        "CS"
+      ],
+      "next_stage": "COMPLETED",
+      "is_final_process_stage": true,
+      "process_flow": [
+        "여러 경로에서 접수 (시공 직후 ~ 수백일 이후)",
+        "각 관련 팀에서 CS 내용 파악 및 상태 업데이트",
+        "AS 필요 시 → AS 대시보드 이동",
+        "AS 내용 입력 → 방문일 확정",
+        "출고 대시보드 이동 → 시공팀 일정표 전달"
+      ],
+      "special_features": {
+        "fab_status_change": "모든 팀원이 상태 변경 가능한 플로팅 버튼",
+        "schedule_image_export": "일정표 고화질 이미지 저장 기능"
+      }
+    },
+    "COMPLETED": {
+      "title": "완료",
+      "description": "모든 프로세스가 완료된 최종 상태입니다.",
+      "owner_team": "CS",
+      "required_approvals": [
+        "CS"
+      ],
+      "next_stage": null,
+      "is_terminal": true
+    },
+    "AS": {
+      "title": "AS 작업",
+      "description": "CS 단계에서 AS가 필요한 경우 진행되는 서브 프로세스입니다.",
+      "owner_team": "CS",
+      "involved_teams": [
+        "CS",
+        "CONSTRUCTION",
+        "SHIPMENT"
+      ],
+      "required_approvals": [
+        "CS"
+      ],
+      "next_stage": "CS",
+      "entry_conditions": [
+        "from_CS"
+      ],
+      "process_flow": [
+        "AS 내용 입력",
+        "방문일 확정",
+        "출고 대시보드로 이동",
+        "시공팀 일정표 전달",
+        "AS 완료 후 CS 단계로 복귀"
+      ]
+    }
+  },
+  "team_definitions": {
+    "CS": {
+      "display_name": "CS팀",
+      "includes": [
+        "라홈팀",
+        "하우드팀"
+      ],
+      "description": "고객 서비스 및 주문 관리 담당"
+    },
+    "SALES": {
+      "display_name": "영업팀",
+      "description": "실측 및 고객 컨펌 담당"
+    },
+    "DRAWING": {
+      "display_name": "도면팀",
+      "description": "3D 도면 작성 담당"
+    },
+    "PRODUCTION": {
+      "display_name": "생산팀",
+      "description": "가구 생산 담당"
+    },
+    "CONSTRUCTION": {
+      "display_name": "시공팀",
+      "description": "현장 시공 담당"
+    },
+    "SHIPMENT": {
+      "display_name": "출고팀",
+      "description": "일정 관리 및 시공팀 조율 담당"
+    },
+    "LAHOME": {
+      "display_name": "라홈팀",
+      "parent_team": "CS",
+      "description": "라홈 브랜드 주문 관리"
+    },
+    "HAUDD": {
+      "display_name": "하우드팀",
+      "parent_team": "CS",
+      "description": "하우드 브랜드 주문 관리"
     }
   }
 }

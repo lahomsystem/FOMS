@@ -362,6 +362,17 @@
             items.push(obj);
         });
 
+        // 안전하게 값 가져오는 헬퍼 함수
+        const getVal = (id) => {
+            const el = document.getElementById(id);
+            return el ? (el.value || '') : '';
+        };
+
+        const getCheck = (id) => {
+            const el = document.getElementById(id);
+            return el ? !!el.checked : false;
+        };
+
         return {
             entity_type: 'order_structured',
             schema_version: 1,
@@ -369,14 +380,14 @@
             totals: { items_total: itemsTotal },
             parties: {
                 customer: {
-                    name: document.getElementById('erp-customer-name').value, phone:
-                        document.getElementById('erp-customer-phone').value
+                    name: getVal('erp-customer-name'),
+                    phone: getVal('erp-customer-phone')
                 },
-                orderer: { name: document.getElementById('erp-orderer').value },
-                manager: { name: document.getElementById('erp-manager').value }
+                orderer: { name: getVal('erp-orderer') },
+                manager: { name: getVal('erp-manager') }
             },
             site: (function () {
-                const full = (document.getElementById('erp-address').value || '').trim();
+                const full = getVal('erp-address').trim();
                 return { address_main: full, address_detail: '', address_full: full };
             })(),
             schedule: {
@@ -388,22 +399,22 @@
                         if (timeSelect.value === '__direct__') {
                             timeValue = timeInput ? timeInput.value : '';
                         } else {
-                            timeValue = timeSelect.value;
+                            timeValue = timeSelect ? timeSelect.value : '';
                         }
                     }
-                    return { date: document.getElementById('erp-measurement-date').value, time: timeValue };
+                    return { date: getVal('erp-measurement-date'), time: timeValue };
                 })(),
-                construction: { raw: '', date: document.getElementById('erp-construction-date').value }
+                construction: { raw: '', date: getVal('erp-construction-date') }
             },
             notes: {
-                phone_note: document.getElementById('erp-phone-note').value,
-                address_note: document.getElementById('erp-address-note').value,
-                measurement_note: document.getElementById('erp-measurement-note').value
+                phone_note: getVal('erp-phone-note'),
+                address_note: getVal('erp-address-note'),
+                measurement_note: getVal('erp-measurement-note')
             },
-            workflow: { stage: document.getElementById('erp-workflow-stage').value },
+            workflow: { stage: getVal('erp-workflow-stage') },
             flags: {
-                urgent: !!document.getElementById('erp-urgent-flag').checked, urgent_reason:
-                    document.getElementById('erp-urgent-reason').value
+                urgent: getCheck('erp-urgent-flag'),
+                urgent_reason: getVal('erp-urgent-reason')
             },
             items
         };
@@ -411,19 +422,41 @@
 
     async function erpSaveStructured() {
         if (!ERP_BETA_ENABLED) return;
-        if (!ORDER_ID) {
+
+        // ORDER_ID 안전하게 확보
+        let targetId = ORDER_ID;
+        if (!targetId) {
+            // 전역 변수가 없으면 DOM에서 다시 시도
+            const cardEl = document.querySelector('.card[data-order-id]');
+            if (cardEl && cardEl.dataset.orderId) {
+                targetId = parseInt(cardEl.dataset.orderId);
+            }
+        }
+
+        // 신규 모드가 아니면 ID 필수
+        if (!targetId && !window.__ERP_BETA_DRAFT_MODE) {
             const ok = await erpRequireOrderIdOrWarn('저장:');
             if (!ok) return;
         }
+
         erpSetStatus('저장 중...');
-        const structured_data = erpCollectStructured();
-        const raw_order_text = '';
+
         try {
+            const structured_data = erpCollectStructured();
+            const raw_order_text = '';
+
             const receivedDateEl = document.getElementById('erp-received-date');
             const receivedTimeEl = document.getElementById('erp-received-time');
             const received_date = receivedDateEl ? (receivedDateEl.value || '').trim() : '';
             const received_time = receivedTimeEl ? (receivedTimeEl.value || '').trim() : '';
-            const res = await fetch(`/api/orders/${ORDER_ID}/structured`, {
+
+            // ID가 없으면 경고 후 중단 (코드상 여기까지 오면 이상함)
+            if (!targetId && !window.__ERP_BETA_DRAFT_MODE) {
+                erpSetStatus('주문 ID를 찾을 수 없습니다.', true);
+                return;
+            }
+
+            const res = await fetch(`/api/orders/${targetId}/structured`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -440,7 +473,27 @@
                 erpSetStatus(data.message || '저장 실패', true);
                 return;
             }
-            erpSetStatus('저장 완료');
+            erpSetStatus('저장 완료! 이동합니다...');
+
+            // 저장 후 리다이렉트
+            setTimeout(() => {
+                if (window.__ERP_BETA_DRAFT_MODE) {
+                    // 신규 주문 저장: 전체 주문 목록으로 이동
+                    window.location.href = '/erp';
+                } else {
+                    // 기존 주문 저장: 작업 큐(목록)으로 복귀
+                    // edit_order.html에 있는 referrer 값을 우선 사용
+                    const referrerInput = document.querySelector('input[name="referrer"]');
+                    let targetUrl = referrerInput ? referrerInput.value : document.referrer;
+
+                    // 만약 referrer가 없거나, 현재 페이지(상세/추가)라면 기본 대시보드로 이동
+                    if (!targetUrl || targetUrl.includes(window.location.pathname)) {
+                        targetUrl = '/erp';
+                    }
+
+                    window.location.href = targetUrl;
+                }
+            }, 500);
         } catch (e) {
             console.error(e);
             erpSetStatus(`저장 실패: ${String(e?.message || e)}`, true);
@@ -830,12 +883,15 @@
     let __erpQuest = null;
 
     const ERP_TEAM_LABELS = {
-        CS: '라홈팀',
+        CS: 'CS팀',
+        LAHOME: '라홈팀',
+        HAUDD: '하우드팀',
         SALES: '영업팀',
         MEASURE: '실측팀',
         DRAWING: '도면팀',
         PRODUCTION: '생산팀',
         CONSTRUCTION: '시공팀',
+        SHIPMENT: '출고팀',
     };
 
     const ERP_QUEST_STATUS_LABELS = {
@@ -845,13 +901,16 @@
     };
 
     const ERP_STAGE_LABELS = {
-        RECEIVED: '주문접수',
-        HAPPYCALL: '해피콜',
-        MEASURE: '실측',
-        DRAWING: '도면',
-        CONFIRM: '고객컨펌',
-        PRODUCTION: '생산',
-        CONSTRUCTION: '시공',
+        RECEIVED: 'A. 주문접수',
+        HAPPYCALL: 'B. 해피콜',
+        MEASURE: 'C. 실측',
+        DRAWING: 'D. 도면',
+        CONFIRM: 'E. 고객컨펌',
+        PRODUCTION: 'F. 생산',
+        CONSTRUCTION: 'G. 시공',
+        CS: 'H. CS',
+        COMPLETED: '완료',
+        AS: 'AS처리',
     };
 
     function erpLabel(map, code, fallback = '-') {

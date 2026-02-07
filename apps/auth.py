@@ -8,13 +8,13 @@ from werkzeug.security import check_password_hash, generate_password_hash
 # Given the project structure, we might need to adjust paths if app.py is the main entry point
 try:
     from db import get_db
-    from models import User, SecurityLog
+    from models import User, SecurityLog, OrderEvent, OrderTask, Notification, ChatRoomMember
 except ImportError:
     import sys
     import os
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from db import get_db
-    from models import User, SecurityLog
+    from models import User, SecurityLog, OrderEvent, OrderTask, Notification, ChatRoomMember
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -24,6 +24,14 @@ ROLES = {
     'MANAGER': '매니저',       # Can manage orders but not users
     'STAFF': '직원',           # Can view and add orders, limited edit
     'VIEWER': '뷰어'           # Read-only access
+}
+
+TEAMS = {
+    'CS': 'CS(고객상담)',
+    'SALES': '영업/실측',
+    'DRAWING': '도면',
+    'PRODUCTION': '생산',
+    'CONSTRUCTION': '시공'
 }
 
 def log_access(action, user_id=None, additional_data=None):
@@ -207,3 +215,209 @@ def register():
             flash(f'등록 중 오류 발생: {e}', 'error')
             
     return render_template('register.html')
+
+# User Management Routes
+@auth_bp.route('/admin/users')
+@login_required
+@role_required(['ADMIN'])
+def user_list():
+    db = get_db()
+    
+    # Get all users
+    users = db.query(User).order_by(User.username).all()
+    
+    # Count admin users for template
+    count_admin = db.query(User).filter(User.role == 'ADMIN').count()
+    
+    return render_template('user_list.html', users=users, count_admin=count_admin, ROLES=ROLES, TEAMS=TEAMS)
+
+@auth_bp.route('/admin/users/add', methods=['GET', 'POST'])
+@login_required
+@role_required(['ADMIN'])
+def add_user():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        name = request.form.get('name', '사용자')
+        role = request.form.get('role')
+        team = request.form.get('team')
+        
+        # Validate required fields
+        if not all([username, password, role]):
+            flash('모든 필수 입력 필드를 입력해주세요.', 'error')
+            return render_template('add_user.html', roles=ROLES, teams=TEAMS)
+        
+        # Check password strength
+        if not is_password_strong(password):
+            flash('비밀번호는 4자리 이상이어야 합니다.', 'error')
+            return render_template('add_user.html', roles=ROLES, teams=TEAMS)
+        
+        # Check if username already exists
+        if get_user_by_username(username):
+            flash('이미 사용 중인 아이디입니다.', 'error')
+            return render_template('add_user.html', roles=ROLES, teams=TEAMS)
+        
+        # Validate role
+        if role not in ROLES:
+            flash('유효하지 않은 역할입니다.', 'error')
+            return render_template('add_user.html', roles=ROLES, teams=TEAMS)
+        
+        try:
+            db = get_db()
+            
+            # Hash password
+            hashed_password = generate_password_hash(password)
+            
+            # Create new user
+            new_user = User(
+                username=username,
+                password=hashed_password,
+                name=name,
+                role=role,
+                team=team,
+                is_active=True
+            )
+            
+            # Add and commit
+            db.add(new_user)
+            db.commit()
+            
+            # Log action
+            log_access(f"사용자 추가: {username}", session.get('user_id'))
+            
+            flash('사용자가 성공적으로 추가되었습니다.', 'success')
+            return redirect(url_for('auth.user_list'))
+                
+        except Exception as e:
+            db.rollback()
+            flash(f'사용자 추가 중 오류가 발생했습니다: {str(e)}', 'error')
+            return render_template('add_user.html', roles=ROLES, teams=TEAMS)
+    
+    return render_template('add_user.html', roles=ROLES, teams=TEAMS)
+
+@auth_bp.route('/admin/users/edit/<int:user_id>', methods=['GET', 'POST'])
+@login_required
+@role_required(['ADMIN'])
+def edit_user(user_id):
+    db = get_db()
+    
+    # Get the user from database
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        flash('사용자를 찾을 수 없습니다.', 'error')
+        return redirect(url_for('auth.user_list'))
+    
+    # Prevent editing admin user if it's the only admin
+    if user.role == 'ADMIN':
+        admin_count = db.query(User).filter(User.role == 'ADMIN').count()
+        
+        if admin_count == 1 and request.method == 'POST' and request.form.get('role') != 'ADMIN':
+            flash('마지막 관리자의 역할은 변경할 수 없습니다.', 'error')
+            return redirect(url_for('auth.edit_user', user_id=user_id))
+    
+    if request.method == 'POST':
+        name = request.form.get('name', '사용자')
+        role = request.form.get('role')
+        team = request.form.get('team')
+        is_active = request.form.get('is_active') == 'on'
+        
+        # Validate required fields
+        if not role:
+            flash('역할은 필수 입력 필드입니다.', 'error')
+            return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS)
+        
+        # Validate role
+        if role not in ROLES:
+            flash('유효하지 않은 역할입니다.', 'error')
+            return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS)
+        
+        try:
+            # Update user
+            user.name = name
+            user.role = role
+            user.team = team
+            user.is_active = is_active
+            
+            # Handle password change if provided
+            new_password = request.form.get('new_password')
+            if new_password:
+                if is_password_strong(new_password):
+                    user.password = generate_password_hash(new_password)
+                    flash('비밀번호가 변경되었습니다.', 'success')
+                else:
+                    flash('비밀번호는 4자리 이상이어야 합니다.', 'error') 
+            
+            db.commit()
+            
+            # Log action
+            log_access(f"사용자 #{user_id} 정보 수정", session.get('user_id'))
+            
+            flash('사용자 정보가 성공적으로 업데이트되었습니다.', 'success')
+            return redirect(url_for('auth.user_list'))
+                
+        except Exception as e:
+            db.rollback()
+            flash(f'사용자 정보 업데이트 중 오류가 발생했습니다: {str(e)}', 'error')
+            return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS)
+    
+    return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS)
+
+@auth_bp.route('/admin/users/delete/<int:user_id>')
+@login_required
+@role_required(['ADMIN'])
+def delete_user(user_id):
+    # Prevent deleting self
+    if user_id == session.get('user_id'):
+        flash('자신의 계정은 삭제할 수 없습니다.', 'error')
+        return redirect(url_for('auth.user_list'))
+    
+    db = get_db()
+    
+    # Get the user from database
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        flash('사용자를 찾을 수 없습니다.', 'error')
+        return redirect(url_for('auth.user_list'))
+    
+    # Prevent deleting last admin
+    if user.role == 'ADMIN':
+        admin_count = db.query(User).filter(User.role == 'ADMIN').count()
+        
+        if admin_count == 1:
+            flash('마지막 관리자는 삭제할 수 없습니다.', 'error')
+            return redirect(url_for('auth.user_list'))
+    
+    try:
+        # Resolve foreign key constraints before deleting user
+        
+        # 1. Update Security Logs (Set user_id to NULL)
+        db.query(SecurityLog).filter(SecurityLog.user_id == user_id).update({SecurityLog.user_id: None}, synchronize_session=False)
+        
+        # 2. Update Order Events (Set created_by_user_id to NULL)
+        db.query(OrderEvent).filter(OrderEvent.created_by_user_id == user_id).update({OrderEvent.created_by_user_id: None}, synchronize_session=False)
+        
+        # 3. Update Order Tasks (Set owner_user_id to NULL)
+        db.query(OrderTask).filter(OrderTask.owner_user_id == user_id).update({OrderTask.owner_user_id: None}, synchronize_session=False)
+        
+        # 4. Update Notifications (Set created_by/read_by to NULL)
+        db.query(Notification).filter(Notification.created_by_user_id == user_id).update({Notification.created_by_user_id: None}, synchronize_session=False)
+        db.query(Notification).filter(Notification.read_by_user_id == user_id).update({Notification.read_by_user_id: None}, synchronize_session=False)
+        
+        # 5. Remove from Chat Rooms
+        db.query(ChatRoomMember).filter(ChatRoomMember.user_id == user_id).delete(synchronize_session=False)
+        
+        # Delete user
+        db.delete(user)
+        db.commit()
+        
+        # Log action
+        log_access(f"사용자 #{user_id} 삭제", session.get('user_id'))
+        
+        flash('사용자가 성공적으로 삭제되었습니다.', 'success')
+    except Exception as e:
+        db.rollback()
+        flash(f'사용자 삭제 중 오류가 발생했습니다: {str(e)}', 'error')
+    
+    return redirect(url_for('auth.user_list'))
