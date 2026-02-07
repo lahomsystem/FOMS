@@ -6,12 +6,15 @@
     .user-actions {
         white-space: nowrap;
     }
+
     .status-active {
         color: #2ecc71;
     }
+
     .status-inactive {
         color: #e74c3c;
     }
+
     .role-badge {
         font-size: 0.85rem;
         padding: 0.25rem 0.5rem;
@@ -23,11 +26,11 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2>사용자 목록</h2>
-            <a href="{{ url_for('add_user') }}" class="btn btn-primary">
+        <a href="{{ url_for('auth.add_user') }}" class="btn btn-primary">
             <i class="fas fa-user-plus"></i> 새 사용자 추가
-            </a>
+        </a>
     </div>
-    
+
     <div class="card">
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -37,6 +40,7 @@
                             <th>사용자명</th>
                             <th>이름</th>
                             <th>역할</th>
+                            <th>팀</th>
                             <th>상태</th>
                             <th>최근 로그인</th>
                             <th>생성일</th>
@@ -49,6 +53,7 @@
                             <td>{{ user.username }}</td>
                             <td>{{ user.name }}</td>
                             <td>{{ ROLES.get(user.role, user.role) }}</td>
+                            <td>{{ TEAMS.get(user.team, user.team or '-') }}</td>
                             <td>
                                 {% if user.is_active %}
                                 <span class="badge bg-success">활성</span>
@@ -59,15 +64,16 @@
                             <td>{{ user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else '-' }}</td>
                             <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
                             <td>
-                                <a href="{{ url_for('edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">
+                                <a href="{{ url_for('auth.edit_user', user_id=user.id) }}"
+                                    class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-edit"></i> 수정
                                 </a>
                                 {% if user.id != current_user.id and not (user.role == 'ADMIN' and count_admin <= 1) %}
-                                <a href="{{ url_for('delete_user', user_id=user.id) }}" class="btn btn-sm btn-outline-danger"
-                                   onclick="return confirm('이 사용자를 삭제하시겠습니까?');">
+                                    <a href="{{ url_for('auth.delete_user', user_id=user.id) }}"
+                                    class="btn btn-sm btn-outline-danger" onclick="return confirm('이 사용자를 삭제하시겠습니까?');">
                                     <i class="fas fa-trash"></i> 삭제
-                                </a>
-                                {% endif %}
+                                    </a>
+                                    {% endif %}
                             </td>
                         </tr>
                         {% else %}
@@ -81,4 +87,4 @@
         </div>
     </div>
 </div>
-{% endblock %} 
+{% endblock %}

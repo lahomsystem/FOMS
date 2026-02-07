@@ -6,12 +6,16 @@
   <!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
-      <i class="fas fa-layer-group"></i>
-      <span>ERP 프로세스 대시보드</span>
+      <i class="fas fa-hammer"></i>
+      <span>시공 대시보드</span>
     </h1>
     <div class="erp-pro-header__actions">
       <!-- 알림 버튼 -->
-
+      <button class="erp-pro-btn erp-pro-btn--icon" id="notification-btn" title="알림"
+        onclick="toggleNotificationPanel()">
+        <i class="fas fa-bell"></i>
+        <span class="notification-badge" id="notification-badge" style="display: none;">0</span>
+      </button>
       <a class="erp-pro-btn erp-pro-btn--primary" href="{{ url_for('add_order', open='erp-beta') }}">
         <i class="fas fa-plus"></i>
         <span>주문 생성</span>
@@ -22,7 +26,7 @@
       </a>
     </div>
   </header>
-  {% set erp_sub_nav_active = 'dashboard' %}
+  {% set erp_sub_nav_active = 'construction' %}
   {% include 'partials/erp_sub_nav.html' %}
 
   <!-- Top Alerts - Modern Design -->
@@ -86,7 +90,8 @@
         {% for step in process_steps %}
         {% set is_step_active = (filters.get('stage') or '') == step.label %}
         <div class="erp-pro-pipeline__stage {% if is_step_active %}erp-pro-pipeline__stage--active{% endif %}"
-          data-stage="{{ step.label }}" role="button" tabindex="0" title="클릭하면 '{{ step.label }}' 단계만 표시">
+          data-stage="{{ step.label }}" role="button" tabindex="0"
+          title="클릭하면 '{{ step.display|default(step.label) }}' 단계만 표시">
           <div class="erp-pro-pipeline__count">
             {{ step.count }}
             {% if step.overdue > 0 %}
@@ -96,7 +101,7 @@
             <span class="erp-pro-badge erp-pro-badge--warning erp-pro-badge--sm" title="임박">{{ step.imminent }}</span>
             {% endif %}
           </div>
-          <div class="erp-pro-pipeline__label">{{ step.label }}</div>
+          <div class="erp-pro-pipeline__label">{{ step.display|default(step.label) }}</div>
         </div>
         {% if not loop.last %}
         <div class="erp-pro-pipeline__connector">
@@ -2066,17 +2071,13 @@
       }
     }
 
-    async function transferDrawing(orderId) {
-      if (!confirm('도면을 전달하시겠습니까? (상태가 확정대기로 변경됩니다)')) return;
-
-      const note = prompt('전달 사항(메모)을 입력하세요:', '');
-      if (note === null) return; // 취소
+    async function startConstruction(orderId) {
+      if (!confirm('시공을 시작하시겠습니까? (로그가 기록됩니다)')) return;
 
       try {
-        const res = await fetch(`/api/orders/${orderId}/transfer-drawing`, {
+        const res = await fetch(`/api/orders/${orderId}/construction/start`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ note: note })
+          headers: { 'Content-Type': 'application/json' }
         });
         const data = await res.json();
 
@@ -2087,8 +2088,30 @@
           alert('오류: ' + data.message);
         }
       } catch (err) {
-        console.error('Drawing transfer error:', err);
-        alert('도면 전달 중 오류가 발생했습니다.');
+        console.error('Construction start error:', err);
+        alert('처리 중 오류가 발생했습니다.');
+      }
+    }
+
+    async function completeConstruction(orderId) {
+      if (!confirm('시공을 완료하시겠습니까? (상태가 완료(AS대기)로 변경됩니다)')) return;
+
+      try {
+        const res = await fetch(`/api/orders/${orderId}/construction/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          alert(data.message);
+          window.location.reload();
+        } else {
+          alert('오류: ' + data.message);
+        }
+      } catch (err) {
+        console.error('Construction complete error:', err);
+        alert('처리 중 오류가 발생했습니다.');
       }
     }
 
@@ -2515,19 +2538,25 @@
             </div>`;
 
         // 도면 전달 버튼 (DRAWING 단계일 때만)
+        // 시공 관련 버튼
         let actionHtml = '';
-        if (stage === 'DRAWING') {
+        if (stage === 'CONSTRUCTION' || stage === '시공' || stage === '시공대기' || stage === '시공중') {
           actionHtml = `
             <div class="col-12">
               <div class="card bg-light border-primary">
                 <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
                   <div>
-                    <h5 class="card-title fw-bold text-primary mb-1"><i class="fas fa-drafting-compass"></i> 도면 작업 완료</h5>
-                    <p class="mb-0 text-muted small">도면 작성이 완료되었으면 다음 단계로 전달하세요.</p>
+                    <h5 class="card-title fw-bold text-primary mb-1"><i class="fas fa-hammer"></i> 시공 관리</h5>
+                    <p class="mb-0 text-muted small">시공 일정 및 완료 여부를 관리하세요.</p>
                   </div>
-                  <button class="btn btn-primary" onclick="transferDrawing(${orderId})">
-                    <i class="fas fa-paper-plane"></i> 도면 전달
-                  </button>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary" onclick="startConstruction(${orderId})">
+                      <i class="fas fa-play"></i> 시공 시작
+                    </button>
+                    <button class="btn btn-success" onclick="completeConstruction(${orderId})">
+                      <i class="fas fa-check"></i> 시공 완료
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>`;

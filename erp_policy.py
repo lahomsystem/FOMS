@@ -21,13 +21,16 @@ from business_calendar import business_days_until
 # -----------------------------
 
 STAGE_LABELS: Dict[str, str] = {
-    "RECEIVED": "주문접수",
-    "HAPPYCALL": "해피콜(CS)",
-    "MEASURE": "실측",
-    "DRAWING": "도면",
-    "CONFIRM": "고객컨펌",
-    "PRODUCTION": "생산",
-    "CONSTRUCTION": "시공",
+    "RECEIVED": "주문접수",      # A
+    "HAPPYCALL": "해피콜",        # B
+    "MEASURE": "실측",           # C
+    "DRAWING": "도면",           # D
+    "CONFIRM": "고객컨펌",       # E
+    "PRODUCTION": "생산",        # F
+    "CONSTRUCTION": "시공",      # G
+    "CS": "CS",                  # H - 원본 요구사항 기반 추가
+    "COMPLETED": "완료",         # 최종 완료
+    "AS": "AS처리",              # AS 서브프로세스
 }
 
 
@@ -39,6 +42,9 @@ DEFAULT_OWNER_TEAM_BY_STAGE: Dict[str, str] = {
     "CONFIRM": "SALES",
     "PRODUCTION": "PRODUCTION",
     "CONSTRUCTION": "CONSTRUCTION",
+    "CS": "CS",                  # H 단계 추가
+    "COMPLETED": "CS",
+    "AS": "CS",
 }
 
 # 한글 단계명을 영문 코드로 변환하는 매핑 (app.py의 _erp_get_stage() 매핑의 역매핑)
@@ -50,6 +56,9 @@ STAGE_NAME_TO_CODE: Dict[str, str] = {
     "고객컨펌": "CONFIRM",
     "생산": "PRODUCTION",
     "시공": "CONSTRUCTION",
+    "CS": "CS",
+    "완료": "COMPLETED",
+    "AS처리": "AS",
 }
 
 _DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
