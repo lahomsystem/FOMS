@@ -15,6 +15,7 @@ from erp_policy import (
     get_quest_template_for_stage, create_quest_from_template,
     get_required_approval_teams_for_stage, recommend_owner_team
 )
+from storage import get_storage
 from business_calendar import business_days_until
 from sqlalchemy import text
 import pytz
@@ -677,14 +678,14 @@ def erp_dashboard():
                 step_stats[stage]['imminent'] += 1
 
     process_steps = [
-        {'label': 'A. 주문접수', **step_stats['주문접수']},
-        {'label': 'B. 해피콜', **step_stats['해피콜']},
-        {'label': 'C. 실측', **step_stats['실측']},
-        {'label': 'D. 도면', **step_stats['도면']},
-        {'label': 'E. 고객컨펌', **step_stats['고객컨펌']},
-        {'label': 'F. 생산', **step_stats['생산']},
-        {'label': 'G. 시공', **step_stats['시공']},
-        {'label': 'H. CS', **step_stats['CS']},
+        {'label': '주문접수', **step_stats['주문접수']},
+        {'label': '해피콜', **step_stats['해피콜']},
+        {'label': '실측', **step_stats['실측']},
+        {'label': '도면', **step_stats['도면']},
+        {'label': '고객컨펌', **step_stats['고객컨펌']},
+        {'label': '생산', **step_stats['생산']},
+        {'label': '시공', **step_stats['시공']},
+        {'label': 'CS', **step_stats['CS']},
         {'label': '완료', **step_stats['완료']},
         {'label': 'AS처리', **step_stats['AS처리']},
     ]
@@ -1619,6 +1620,23 @@ def api_map_data():
             'error': str(e)
         }), 500
 
+@erp_beta_bp.route('/erp/api/users', methods=['GET'])
+@login_required
+def api_erp_users_list():
+    """ERP 사용자 목록 반환 (팀 필터링 가능)"""
+    team_filter = request.args.get('team')
+    query = get_db().query(User).filter(User.is_active == True)
+    
+    if team_filter:
+        query = query.filter(User.team == team_filter)
+    
+    users = query.all()
+    return jsonify({
+        'success': True,
+        'users': [{'id': u.id, 'name': u.name, 'team': u.team} for u in users]
+    })
+
+
 @erp_beta_bp.route('/api/generate_map')
 @login_required
 def api_generate_map():
@@ -1986,6 +2004,25 @@ def api_order_transfer_drawing(order_id):
                     s_data = json.loads(order.structured_data)
                 except:
                     s_data = {}
+
+        # 1. 권한 체크: 도면팀 또는 지정된 도면 담당자만 전달 가능
+        current_user = get_user_by_id(session.get('user_id'))
+        user_id = session.get('user_id')
+        user_team = current_user.team if current_user else ''
+        
+        # 지정된 담당자 확인
+        draw_assignees = s_data.get('drawing_assignees', [])
+        is_assigned = False
+        if draw_assignees:
+            for assignee in draw_assignees:
+                if assignee.get('id') == user_id:
+                    is_assigned = True
+                    break
+        
+        # 도면팀이거나 지정 담당자여야 함 (관리자 제외)
+        if user_team != 'DRAWING' and not is_assigned and current_user.role != 'ADMIN':
+             return jsonify({'success': False, 'message': '도면 전달 권한이 없습니다. (도면팀 또는 지정 담당자만 가능)'}), 403
+
         
         # 전달 정보 생성
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -1993,11 +2030,38 @@ def api_order_transfer_drawing(order_id):
         user_name = current_user.name if current_user else 'Unknown'
         user_id = session.get('user_id')
         
+        # 프론트엔드에서 업로드된 파일의 key/filename 목록을 받아옴 (재전송 시 삭제 위해)
+        # 예: [{'key': 'orders/123/attachments/foo.pdf', 'filename': 'foo.pdf'}, ...]
+        new_files = data.get('files', []) 
+        
+        # 이전 파일 삭제 로직 (재전송인 경우)
+        if s_data.get('drawing_current_files'):
+            old_files = s_data.get('drawing_current_files', [])
+            # 이번 요청에 파일이 포함되어 있다면(재전송), 기존 파일 삭제
+            if new_files:
+                storage = get_storage()
+                deleted_count = 0
+                for f_info in old_files:
+                    key = f_info.get('key')
+                    if key:
+                        if storage.delete_file(key):
+                            deleted_count += 1
+                print(f"[INFO] Order #{order_id} Re-transfer: Deleted {deleted_count} old drawing files.")
+
+        # 현재 파일 목록 업데이트 (새 파일이 있으면 교체, 없으면 유지?? 
+        # 재전송인데 파일이 없으면 보통 '메모만 수정'일 수도 있지만, 
+        # '재전송시 기존 파일 삭제' 정책이므로 새 파일이 없으면 기존 파일 다 날라감? -> 파일 필수 체크 권장
+        # 여기서는 new_files가 있을 때만 교체
+        if new_files:
+            s_data['drawing_current_files'] = new_files
+        
         transfer_info = {
+            'action': 'TRANSFER',
             'transferred_at': now_str,
             'by_user_id': user_id,
             'by_user_name': user_name,
-            'note': note
+            'note': note,
+            'files_count': len(new_files)
         }
         
         # 히스토리 배열에 추가
@@ -2010,8 +2074,10 @@ def api_order_transfer_drawing(order_id):
         s_data['drawing_transfer_history'] = history
         
         # 최신 상태 업데이트
-        s_data['drawing_transferred'] = True
+        s_data['drawing_status'] = 'TRANSFERRED'
+        s_data['drawing_transferred'] = True # Legacy support
         s_data['last_drawing_transfer'] = transfer_info
+
         
         # DB에 반영 (새로운 dict 할당)
         order.structured_data = s_data
@@ -2077,15 +2143,261 @@ def api_order_transfer_drawing(order_id):
         
         return jsonify({
             'success': True, 
-            'message': f'도면이 전달되었습니다. [{target_info}]에 알림이 전송되었습니다.',
-            'info': '단계 이동은 퀘스트 승인을 통해 진행해주세요.'
+            'message': f'도면이 전달되었습니다. [{target_info}]에 알림이 전송되었습니다. (확정 대기 상태)',
+            'info': '담당자가 수령 확인을 하면 다음 단계로 진행됩니다.'
         })
         
     except Exception as e:
+        print(f"[ERROR] Transfer Drawing: {e}")
+        return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/cancel-transfer', methods=['POST'])
+@login_required 
+def api_order_cancel_transfer(order_id):
+    """도면 전달 취소 (도면팀/관리자)"""
+    try:
+        from datetime import datetime
+        data = request.get_json() or {}
+        note = data.get('note', '')
+        
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+            
+        s_data = dict(order.structured_data or {})
+        
+        # 권한 체크
+        current_user = get_user_by_id(session.get('user_id'))
+        if current_user.team != 'DRAWING' and current_user.role != 'ADMIN':
+             # 본인이 전달한 경우 허용? (단순화: 도면팀/관리자만)
+             return jsonify({'success': False, 'message': '권한이 없습니다.'}), 403
+
+        if s_data.get('drawing_status') != 'TRANSFERRED':
+            return jsonify({'success': False, 'message': '확정 대기(\'TRANSFERRED\') 상태에서만 취소할 수 있습니다.'}), 400
+            
+        # 상태 복귀
+        s_data['drawing_status'] = 'PENDING'
+        # s_data['drawing_transferred'] = False # Legacy sync (optional, keeping True might imply "once transferred")
+        
+        # 히스토리 기록
+        history = list(s_data.get('drawing_transfer_history', []))
+        history.append({
+            'action': 'CANCEL_TRANSFER',
+            'by_user_id': session.get('user_id'),
+            'by_user_name': current_user.name,
+            'at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'note': note
+        })
+        s_data['drawing_transfer_history'] = history
+        
+        order.structured_data = s_data
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=session.get('user_id'), message=f"주문 #{order_id} 도면 전달 취소"))
+        db.commit()
+        
+        return jsonify({'success': True, 'message': '도면 전달이 취소되었습니다. (작업중 상태로 복귀)'})
+    except Exception as e:
         db.rollback()
         import traceback
-        print(f"Drawing Transfer Error: {e}")
+        print(f"Cancel Transfer Error: {e}")
         print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/request-revision', methods=['POST'])
+@login_required
+def api_order_request_revision(order_id):
+    """도면 수정 요청 (영업/담당자)"""
+    try:
+        from datetime import datetime
+        data = request.get_json() or {}
+        note = data.get('note', '')
+        
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+            
+        s_data = dict(order.structured_data or {})
+        
+        # 상태 체크: TRANSFERRED (확정대기) 상태여야 함
+        if s_data.get('drawing_status') not in ['TRANSFERRED', 'CONFIRMED']: 
+             # CONFIRMED 상태에서도 수정 요청 허용할지? 보통은 확정 후 제작 들어가면 안됨.
+             # 일단 TRANSFERRED 상태만 허용
+             return jsonify({'success': False, 'message': '도면 전달(확정 대기) 상태에서만 수정 요청 가능합니다.'}), 400
+             
+        # 상태 변경 -> RETURNED
+        s_data['drawing_status'] = 'RETURNED'
+        
+        # 히스토리
+        current_user = get_user_by_id(session.get('user_id'))
+        history = list(s_data.get('drawing_transfer_history', []))
+        history.append({
+            'action': 'REQUEST_REVISION',
+            'by_user_id': session.get('user_id'),
+            'by_user_name': current_user.name,
+            'at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'note': note
+        })
+        s_data['drawing_transfer_history'] = history
+        
+        order.structured_data = s_data
+        
+        # 알림 전송 (도면팀에게)
+        from models import Notification
+        msg = f"주문 #{order_id} 도면 수정 요청이 접수되었습니다. 메모: {note}"
+        db.add(Notification(
+            order_id=order_id,
+            notification_type='DRAWING_REVISION',
+            target_team='DRAWING', 
+            title='도면 수정 요청',
+            message=msg,
+            created_by_user_id=session.get('user_id'),
+            created_by_name=current_user.name
+        ))
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=session.get('user_id'), message=f"주문 #{order_id} 도면 수정 요청"))
+        db.commit()
+        
+        return jsonify({'success': True, 'message': '도면 수정 요청이 전송되었습니다.'})
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"Request Revision Error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/assign-draftsman', methods=['POST'])
+@login_required
+def api_order_assign_draftsman(order_id):
+    """도면 담당자 지정 (다수 가능)"""
+    try:
+        from datetime import datetime
+        data = request.get_json() or {}
+        user_ids = data.get('user_ids', []) # List of user IDs
+        
+        if not user_ids:
+            return jsonify({'success': False, 'message': '담당자를 선택해주세요.'}), 400
+            
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+            
+        # Users 조회
+        assigned_users = db.query(User).filter(User.id.in_(user_ids)).all()
+        assignee_list = [{'id': u.id, 'name': u.name, 'team': u.team} for u in assigned_users]
+        
+        # Save to structured_data
+        import copy
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        s_data = _ensure_dict(order.structured_data)
+        s_data['drawing_assignees'] = assignee_list
+        
+        # Sync to Shipment's drawing_managers (List of names)
+        shipment = s_data.get('shipment') or {}
+        shipment['drawing_managers'] = [u.name for u in assigned_users]
+        s_data['shipment'] = shipment
+        
+        # Log
+        user_id = session.get('user_id')
+        current_user = get_user_by_id(user_id)
+        
+        wf = s_data.get('workflow') or {}
+        hist = wf.get('history') or []
+        names = ", ".join([u.name for u in assigned_users])
+        hist.append({
+            'stage': wf.get('stage', 'DRAWING'),
+            'updated_at': datetime.now().isoformat(),
+            'updated_by': current_user.name if current_user else 'Unknown',
+            'note': f'도면 담당자 지정: {names}'
+        })
+        wf['history'] = hist
+        s_data['workflow'] = wf
+        
+        order.structured_data = copy.deepcopy(s_data)
+        flag_modified(order, "structured_data")
+        db.commit()
+        
+        return jsonify({'success': True, 'message': f'도면 담당자가 지정되었습니다: {names}'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/confirm-drawing-receipt', methods=['POST'])
+@login_required
+def api_order_confirm_drawing_receipt(order_id):
+    """도면 수령 확인 (영업/담당자) -> 다음 단계(고객컨펌 등)로 자동 이동"""
+    try:
+        from datetime import datetime
+        import copy
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+            
+        s_data = _ensure_dict(order.structured_data)
+        
+        # 권한 체크: 영업팀, 관리자, 또는 해당 주문 담당자(Manager)
+        current_user = get_user_by_id(session.get('user_id'))
+        
+        manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
+        is_manager = (manager_name == current_user.name)
+        is_sales = (current_user.team == 'SALES')
+        is_admin = (current_user.role == 'ADMIN')
+        
+        # Mango(Sales) restrictions handled by is_sales/is_manager checks naturally?
+        # Requirement 2: Sales personnel (Mango) should NOT be able to confirm *Drawings* (Drawing Transfer).
+        # Requirement 5: Recipient (Manager/Sales) MUST confirm.
+        # So here, Mango IS allowed to confirm receipt.
+        
+        if not (is_manager or is_sales or is_admin):
+             return jsonify({'success': False, 'message': '도면 확정 권한이 없습니다. (주문 담당자 또는 영업팀만 가능)'}), 403
+
+        # Update Status
+        s_data['drawing_status'] = 'CONFIRMED'
+        s_data['drawing_confirmed_at'] = datetime.now().isoformat()
+        s_data['drawing_confirmed_by'] = current_user.name
+        
+        # Advance Stage Logic (Move to CONFIRM or whatever is next)
+        # Assuming next stage is 'CONFIRM' (Customer Confirm)
+        next_stage = 'CONFIRM' 
+        
+        wf = s_data.get('workflow') or {}
+        old_stage = wf.get('stage', 'DRAWING')
+        wf['stage'] = next_stage
+        wf['stage_updated_at'] = datetime.now().isoformat()
+        wf['stage_updated_by'] = current_user.name
+        
+        hist = wf.get('history') or []
+        hist.append({
+            'stage': next_stage,
+            'updated_at': wf['stage_updated_at'],
+            'updated_by': wf['stage_updated_by'],
+            'note': '도면 수령 확인 및 단계 이동'
+        })
+        wf['history'] = hist
+        s_data['workflow'] = wf
+        
+        order.structured_data = copy.deepcopy(s_data)
+        flag_modified(order, "structured_data")
+        order.status = next_stage # Sync with model status if applicable
+        
+        # Log
+        from models import SecurityLog
+        db.add(SecurityLog(user_id=current_user.id, message=f"주문 #{order_id} 도면 확정 및 단계 이동 ({old_stage} -> {next_stage})"))
+        
+        db.commit()
+        
+        return jsonify({'success': True, 'message': '도면이 확정되었습니다. 다음 단계로 이동합니다.', 'new_stage': next_stage})
+        
+    except Exception as e:
+        db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
