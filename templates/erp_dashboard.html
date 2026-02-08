@@ -3,6 +3,12 @@
 {% block content %}
 {% set filters = filters or {} %}
 <div class="container-fluid erp-dashboard erp-pro">
+  <script>
+    const MY_ID = "{{ current_user.id }}";
+    const MY_TEAM = "{{ current_user.team }}";
+    const MY_NAME = "{{ current_user.name }}";
+    const MY_ROLE = "{{ current_user.role }}";
+  </script>
   <!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -1703,43 +1709,127 @@
     </div>
   </div>
 
-  <script>
-    function escapeHtml(text) {
-      if (!text) return '';
-      const div = document.createElement('div');
-      div.textContent = String(text);
-      return div.innerHTML;
-    }
+  <!-- Draftsman Assign Modal -->
+  <div class="modal fade" id="erpDraftsmanAssignModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-users-cog"></i> 도면 담당자 지정</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-3">도면 작업을 수행할 담당자를 선택해주세요. (다중 선택 가능)</p>
+          <div id="erp-draftsman-list" class="list-group">
+            <div class="text-center text-muted">로딩 중...</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+          <button type="button" class="btn btn-primary" onclick="saveDraftsmanAssignment()">저장</button>
+        </div>
+      </div>
+
+      <!-- Drawing Revision Request Modal -->
+      <div class="modal fade" id="erpDrawingRevisionModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title text-danger"><i class="fas fa-undo"></i> 도면 수정 요청</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <p class="text-muted small mb-3">
+                도면 수정 요청 사항을 입력해주세요.<br>
+                요청 시 상태가 <strong>'수정 요청됨(반려)'</strong>으로 변경되며 도면팀에 알림이 전송됩니다.
+              </p>
+              <div class="mb-3">
+                <label for="drawing-revision-note" class="form-label fw-bold">수정 요청 사유 (필수)</label>
+                <textarea class="form-control" id="drawing-revision-note" rows="4"
+                  placeholder="예: 거실장 높이 2400으로 변경 요망, 색상 변경 확인 필요 등"></textarea>
+              </div>
+              <!-- 추후 파일 첨부 기능 추가 가능 -->
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+              <button type="button" class="btn btn-danger" onclick="submitDrawingRevision()">
+                <i class="fas fa-paper-plane"></i> 수정 요청 보내기
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Drawing Transfer Modal -->
+      <div class="modal fade" id="erpDrawingTransferModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="fas fa-paper-plane"></i> 도면 전달 및 파일 업로드</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <p class="text-muted small mb-3">
+                작업 완료된 도면 파일을 업로드하고 전달 사항을 입력하세요.<br>
+                전달 후 상태가 <strong>'확정 대기'</strong>로 변경되며 담당자에게 알림이 전송됩니다.
+              </p>
+              <div class="mb-3">
+                <label for="drawing-transfer-files" class="form-label fw-bold">도면 파일 (다중 선택 가능)</label>
+                <input class="form-control" type="file" id="drawing-transfer-files" multiple
+                  accept="image/*,.pdf,.zip,.dwg">
+              </div>
+              <div class="mb-3">
+                <label for="drawing-transfer-note" class="form-label fw-bold">전달 사항 (메모)</label>
+                <textarea class="form-control" id="drawing-transfer-note" rows="3"
+                  placeholder="예: 1차 도면 완료, 확인 부탁드립니다."></textarea>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+              <button type="button" class="btn btn-primary" onclick="submitDrawingTransfer()">
+                <i class="fas fa-paper-plane"></i> 전달하기
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        function escapeHtml(text) {
+          if (!text) return '';
+          const div = document.createElement('div');
+          div.textContent = String(text);
+          return div.innerHTML;
+        }
 
 
-    // === 표시용 한글 라벨(저장은 영문 코드 유지) ===
-    const TEAM_LABELS = JSON.parse('{{ team_labels| tojson | safe }}');
-    const STAGE_LABELS = JSON.parse('{{ stage_labels| tojson | safe }}');
+        // === 표시용 한글 라벨(저장은 영문 코드 유지) ===
+        const TEAM_LABELS = JSON.parse('{{ team_labels| tojson | safe }}');
+        const STAGE_LABELS = JSON.parse('{{ stage_labels| tojson | safe }}');
 
-    function label(map, code, fallback = '-') {
-      if (!code) return fallback;
-      return map[code] || code;
-    }
+        function label(map, code, fallback = '-') {
+          if (!code) return fallback;
+          return map[code] || code;
+        }
 
-    let __selectedOrderId = null;
-    let __attachmentsCache = {};
-    let __currentAttachmentList = [];
-    let __currentAttachmentIndex = 0;
+        let __selectedOrderId = null;
+        let __attachmentsCache = {};
+        let __currentAttachmentList = [];
+        let __currentAttachmentIndex = 0;
 
-    // 첨부 파일 미리보기 모달 열기 (단일 파일)
-    function openAttachmentPreviewModal(attachmentId, viewUrl, downloadUrl, filename, fileType) {
-      const modalEl = document.getElementById('erpAttachmentPreviewModal');
-      const body = document.getElementById('erp-attachment-preview-body');
-      const dl = document.getElementById('erp-attachment-preview-download');
-      if (!modalEl || !body || !dl) return;
+        // 첨부 파일 미리보기 모달 열기 (단일 파일)
+        function openAttachmentPreviewModal(attachmentId, viewUrl, downloadUrl, filename, fileType) {
+          const modalEl = document.getElementById('erpAttachmentPreviewModal');
+          const body = document.getElementById('erp-attachment-preview-body');
+          const dl = document.getElementById('erp-attachment-preview-download');
+          if (!modalEl || !body || !dl) return;
 
-      dl.href = downloadUrl || viewUrl || '#';
+          dl.href = downloadUrl || viewUrl || '#';
 
-      if (fileType === 'video') {
-        body.innerHTML = `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;"><video src="${viewUrl}" controls autoplay style="width:100%;height:100%;"></video></div><div class="small text-muted mt-2">${escapeHtml(filename || '')}</div>`;
-      } else {
-        // 이미지 줌 기능을 위한 구조 (윤곽 없이 전체 확대/축소)
-        body.innerHTML = `
+          if (fileType === 'video') {
+            body.innerHTML = `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;"><video src="${viewUrl}" controls autoplay style="width:100%;height:100%;"></video></div><div class="small text-muted mt-2">${escapeHtml(filename || '')}</div>`;
+          } else {
+            // 이미지 줌 기능을 위한 구조 (윤곽 없이 전체 확대/축소)
+            body.innerHTML = `
           <div class="position-relative" style="overflow: hidden; cursor: grab; user-select: none; height: 100%; display: flex; align-items: center; justify-content: center;" id="image-zoom-container">
             <img src="${viewUrl}" alt="${escapeHtml(filename || '')}" 
                  id="preview-zoom-image" 
@@ -1752,631 +1842,888 @@
           <div class="small text-muted mt-2 text-center" style="flex-shrink: 0;">${escapeHtml(filename || '')} <span class="text-muted">(휠 스크롤로 줌 인/아웃)</span></div>
         `;
 
-        // 이미지 줌 기능 초기화
-        setupImageZoom();
-      }
+            // 이미지 줌 기능 초기화
+            setupImageZoom();
+          }
 
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+          const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
-      // 네비게이션 버튼 이벤트 리스너 등록
-      const prevBtn = document.getElementById('erp-attachment-preview-prev');
-      const nextBtn = document.getElementById('erp-attachment-preview-next');
-      if (prevBtn) {
-        prevBtn.onclick = showPreviousAttachment;
-      }
-      if (nextBtn) {
-        nextBtn.onclick = showNextAttachment;
-      }
+          // 네비게이션 버튼 이벤트 리스너 등록
+          const prevBtn = document.getElementById('erp-attachment-preview-prev');
+          const nextBtn = document.getElementById('erp-attachment-preview-next');
+          if (prevBtn) {
+            prevBtn.onclick = showPreviousAttachment;
+          }
+          if (nextBtn) {
+            nextBtn.onclick = showNextAttachment;
+          }
 
-      // 네비게이션 업데이트
-      updateAttachmentNavigation();
+          // 네비게이션 업데이트
+          updateAttachmentNavigation();
 
-      // 키보드 이벤트 리스너 (좌우 화살표 키)
-      const handleKeyDown = (e) => {
-        if (e.key === 'ArrowLeft') {
-          e.preventDefault();
-          showPreviousAttachment();
-        } else if (e.key === 'ArrowRight') {
-          e.preventDefault();
-          showNextAttachment();
-        }
-      };
+          // 키보드 이벤트 리스너 (좌우 화살표 키)
+          const handleKeyDown = (e) => {
+            if (e.key === 'ArrowLeft') {
+              e.preventDefault();
+              showPreviousAttachment();
+            } else if (e.key === 'ArrowRight') {
+              e.preventDefault();
+              showNextAttachment();
+            }
+          };
 
-      // 모달이 열릴 때 키보드 이벤트 리스너 추가
-      modalEl.addEventListener('keydown', handleKeyDown);
+          // 모달이 열릴 때 키보드 이벤트 리스너 추가
+          modalEl.addEventListener('keydown', handleKeyDown);
 
-      // 모달이 닫힐 때 키보드 이벤트 리스너 제거
-      modalEl.addEventListener('hidden.bs.modal', () => {
-        modalEl.removeEventListener('keydown', handleKeyDown);
-      }, { once: true });
+          // 모달이 닫힐 때 키보드 이벤트 리스너 제거
+          modalEl.addEventListener('hidden.bs.modal', () => {
+            modalEl.removeEventListener('keydown', handleKeyDown);
+          }, { once: true });
 
-      modal.show();
-    }
-
-    // 이미지 줌 기능 설정 (윤곽 없이 전체 확대/축소)
-    function setupImageZoom() {
-      const container = document.getElementById('image-zoom-container');
-      const img = document.getElementById('preview-zoom-image');
-      const badge = document.getElementById('zoom-level-badge');
-      if (!container || !img || !badge) return;
-
-      let scale = 1;
-      let panX = 0;
-      let panY = 0;
-      let isDragging = false;
-      let startX = 0;
-      let startY = 0;
-      let startPanX = 0;
-      let startPanY = 0;
-
-      // 초기 이미지 크기 저장
-      let initialWidth = img.naturalWidth || img.width;
-      let initialHeight = img.naturalHeight || img.height;
-
-      // 이미지 로드 후 초기 크기 설정
-      if (img.complete) {
-        initialWidth = img.naturalWidth || img.width;
-        initialHeight = img.naturalHeight || img.height;
-      } else {
-        img.addEventListener('load', () => {
-          initialWidth = img.naturalWidth || img.width;
-          initialHeight = img.naturalHeight || img.height;
-        });
-      }
-
-      // 줌 레벨 표시 업데이트
-      function updateZoomBadge() {
-        badge.textContent = Math.round(scale * 100) + '%';
-        badge.style.display = scale !== 1 ? 'block' : 'none';
-      }
-
-      // 이미지 변환 적용 (윤곽 없이 전체 확대)
-      function applyTransform() {
-        img.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
-        img.style.border = 'none';
-        img.style.boxShadow = 'none';
-        img.style.borderRadius = '0';
-        img.style.padding = '0';
-        img.style.background = 'transparent';
-        updateZoomBadge();
-      }
-
-      // 줌 인/아웃 (마우스 위치 중심)
-      function zoomAtPoint(delta, clientX, clientY) {
-        const rect = container.getBoundingClientRect();
-        const containerCenterX = rect.left + rect.width / 2;
-        const containerCenterY = rect.top + rect.height / 2;
-
-        // 마우스 위치를 컨테이너 중심 기준으로 변환
-        const x = clientX - containerCenterX;
-        const y = clientY - containerCenterY;
-
-        const oldScale = scale;
-        const zoomFactor = delta > 0 ? 0.9 : 1.1;
-        scale = Math.max(0.5, Math.min(10, scale * zoomFactor));
-
-        // 마우스 위치를 중심으로 줌
-        if (scale !== oldScale) {
-          const scaleChange = scale / oldScale;
-          panX = x - (x - panX) * scaleChange;
-          panY = y - (y - panY) * scaleChange;
+          modal.show();
         }
 
-        applyTransform();
-      }
+        // 이미지 줌 기능 설정 (윤곽 없이 전체 확대/축소)
+        function setupImageZoom() {
+          const container = document.getElementById('image-zoom-container');
+          const img = document.getElementById('preview-zoom-image');
+          const badge = document.getElementById('zoom-level-badge');
+          if (!container || !img || !badge) return;
 
-      // 휠 스크롤로 줌 (모든 경우)
-      container.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        zoomAtPoint(e.deltaY, e.clientX, e.clientY);
-      }, { passive: false });
+          let scale = 1;
+          let panX = 0;
+          let panY = 0;
+          let isDragging = false;
+          let startX = 0;
+          let startY = 0;
+          let startPanX = 0;
+          let startPanY = 0;
 
-      // 모달 body에도 휠 이벤트 추가 (이미지 영역 밖에서도 작동)
-      const modalBody = document.querySelector('#erpAttachmentPreviewModal .modal-body');
-      if (modalBody) {
-        modalBody.addEventListener('wheel', (e) => {
-          const target = e.target;
-          if (target !== container && !container.contains(target)) {
+          // 초기 이미지 크기 저장
+          let initialWidth = img.naturalWidth || img.width;
+          let initialHeight = img.naturalHeight || img.height;
+
+          // 이미지 로드 후 초기 크기 설정
+          if (img.complete) {
+            initialWidth = img.naturalWidth || img.width;
+            initialHeight = img.naturalHeight || img.height;
+          } else {
+            img.addEventListener('load', () => {
+              initialWidth = img.naturalWidth || img.width;
+              initialHeight = img.naturalHeight || img.height;
+            });
+          }
+
+          // 줌 레벨 표시 업데이트
+          function updateZoomBadge() {
+            badge.textContent = Math.round(scale * 100) + '%';
+            badge.style.display = scale !== 1 ? 'block' : 'none';
+          }
+
+          // 이미지 변환 적용 (윤곽 없이 전체 확대)
+          function applyTransform() {
+            img.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+            img.style.border = 'none';
+            img.style.boxShadow = 'none';
+            img.style.borderRadius = '0';
+            img.style.padding = '0';
+            img.style.background = 'transparent';
+            updateZoomBadge();
+          }
+
+          // 줌 인/아웃 (마우스 위치 중심)
+          function zoomAtPoint(delta, clientX, clientY) {
+            const rect = container.getBoundingClientRect();
+            const containerCenterX = rect.left + rect.width / 2;
+            const containerCenterY = rect.top + rect.height / 2;
+
+            // 마우스 위치를 컨테이너 중심 기준으로 변환
+            const x = clientX - containerCenterX;
+            const y = clientY - containerCenterY;
+
+            const oldScale = scale;
+            const zoomFactor = delta > 0 ? 0.9 : 1.1;
+            scale = Math.max(0.5, Math.min(10, scale * zoomFactor));
+
+            // 마우스 위치를 중심으로 줌
+            if (scale !== oldScale) {
+              const scaleChange = scale / oldScale;
+              panX = x - (x - panX) * scaleChange;
+              panY = y - (y - panY) * scaleChange;
+            }
+
+            applyTransform();
+          }
+
+          // 휠 스크롤로 줌 (모든 경우)
+          container.addEventListener('wheel', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            const rect = modalBody.getBoundingClientRect();
-            zoomAtPoint(e.deltaY, rect.left + rect.width / 2, rect.top + rect.height / 2);
+            zoomAtPoint(e.deltaY, e.clientX, e.clientY);
+          }, { passive: false });
+
+          // 모달 body에도 휠 이벤트 추가 (이미지 영역 밖에서도 작동)
+          const modalBody = document.querySelector('#erpAttachmentPreviewModal .modal-body');
+          if (modalBody) {
+            modalBody.addEventListener('wheel', (e) => {
+              const target = e.target;
+              if (target !== container && !container.contains(target)) {
+                e.preventDefault();
+                e.stopPropagation();
+                const rect = modalBody.getBoundingClientRect();
+                zoomAtPoint(e.deltaY, rect.left + rect.width / 2, rect.top + rect.height / 2);
+              }
+            }, { passive: false });
           }
-        }, { passive: false });
-      }
 
-      // 드래그로 패닝
-      container.addEventListener('mousedown', (e) => {
-        if (scale > 1) {
-          isDragging = true;
-          container.style.cursor = 'grabbing';
-          startX = e.clientX;
-          startY = e.clientY;
-          startPanX = panX;
-          startPanY = panY;
-          e.preventDefault();
-        }
-      });
-
-      document.addEventListener('mousemove', (e) => {
-        if (isDragging && scale > 1) {
-          panX = startPanX + (e.clientX - startX);
-          panY = startPanY + (e.clientY - startY);
-          applyTransform();
-          e.preventDefault();
-        }
-      });
-
-      document.addEventListener('mouseup', () => {
-        if (isDragging) {
-          isDragging = false;
-          container.style.cursor = scale > 1 ? 'grab' : 'default';
-        }
-      });
-
-      container.addEventListener('mouseleave', () => {
-        if (isDragging) {
-          isDragging = false;
-          container.style.cursor = scale > 1 ? 'grab' : 'default';
-        }
-      });
-
-      // 더블클릭으로 리셋
-      container.addEventListener('dblclick', () => {
-        scale = 1;
-        panX = 0;
-        panY = 0;
-        applyTransform();
-      });
-
-      // 터치 제스처 지원 (모바일)
-      let touchStartDistance = 0;
-      let touchStartScale = 1;
-      let touchStartPanX = 0;
-      let touchStartPanY = 0;
-
-      container.addEventListener('touchstart', (e) => {
-        if (e.touches.length === 1) {
-          const touch = e.touches[0];
-          startX = touch.clientX;
-          startY = touch.clientY;
-          startPanX = panX;
-          startPanY = panY;
-        } else if (e.touches.length === 2) {
-          const touch1 = e.touches[0];
-          const touch2 = e.touches[1];
-          touchStartDistance = Math.hypot(
-            touch2.clientX - touch1.clientX,
-            touch2.clientY - touch1.clientY
-          );
-          touchStartScale = scale;
-          touchStartPanX = panX;
-          touchStartPanY = panY;
-        }
-      }, { passive: true });
-
-      container.addEventListener('touchmove', (e) => {
-        if (e.touches.length === 1 && scale > 1) {
-          e.preventDefault();
-          const touch = e.touches[0];
-          panX = startPanX + (touch.clientX - startX);
-          panY = startPanY + (touch.clientY - startY);
-          applyTransform();
-        } else if (e.touches.length === 2) {
-          e.preventDefault();
-          const touch1 = e.touches[0];
-          const touch2 = e.touches[1];
-          const distance = Math.hypot(
-            touch2.clientX - touch1.clientX,
-            touch2.clientY - touch1.clientY
-          );
-          scale = Math.max(0.5, Math.min(10, touchStartScale * (distance / touchStartDistance)));
-          applyTransform();
-        }
-      }, { passive: false });
-
-      updateZoomBadge();
-    }
-
-    // 주문의 첨부 파일 미리보기 (첨부 배지 클릭 시) - 좌우 네비게이션 지원
-    async function openAttachmentsPreview(orderId) {
-      try {
-        // 캐시 확인
-        let aList = null;
-        if (__attachmentsCache[orderId]) {
-          aList = __attachmentsCache[orderId];
-        } else {
-          const res = await fetch(`/api/orders/${orderId}/attachments`);
-          const data = await res.json();
-          aList = (data && data.attachments) || [];
-          __attachmentsCache[orderId] = aList;
-        }
-
-        if (aList.length > 0) {
-          __currentAttachmentList = aList;
-          __currentAttachmentIndex = 0;
-          showAttachmentAtIndex(0);
-        } else {
-          alert('첨부 파일이 없습니다.');
-        }
-      } catch (err) {
-        console.error('첨부 파일 로드 실패:', err);
-        alert('첨부 파일을 불러올 수 없습니다.');
-      }
-    }
-
-    // 특정 인덱스의 첨부 파일 표시
-    function showAttachmentAtIndex(index) {
-      if (!__currentAttachmentList || index < 0 || index >= __currentAttachmentList.length) {
-        return;
-      }
-
-      __currentAttachmentIndex = index;
-      const attachment = __currentAttachmentList[index];
-
-      openAttachmentPreviewModal(
-        attachment.id,
-        attachment.view_url || '#',
-        attachment.download_url || attachment.view_url || '#',
-        attachment.filename || '',
-        attachment.file_type || 'image'
-      );
-
-      // 네비게이션 버튼 및 카운터 업데이트
-      updateAttachmentNavigation();
-    }
-
-    // 첨부 파일 네비게이션 업데이트
-    function updateAttachmentNavigation() {
-      const prevBtn = document.getElementById('erp-attachment-preview-prev');
-      const nextBtn = document.getElementById('erp-attachment-preview-next');
-      const counter = document.getElementById('erp-attachment-preview-counter');
-
-      if (!prevBtn || !nextBtn || !counter) return;
-
-      const total = __currentAttachmentList.length;
-      const current = __currentAttachmentIndex + 1;
-
-      // 카운터 표시
-      counter.textContent = `${current} / ${total}`;
-
-      // 이전/다음 버튼 표시
-      if (total > 1) {
-        prevBtn.style.display = 'inline-block';
-        nextBtn.style.display = 'inline-block';
-        prevBtn.disabled = (__currentAttachmentIndex === 0);
-        nextBtn.disabled = (__currentAttachmentIndex === total - 1);
-      } else {
-        prevBtn.style.display = 'none';
-        nextBtn.style.display = 'none';
-      }
-    }
-
-    // 이전 파일 보기
-    function showPreviousAttachment() {
-      if (__currentAttachmentIndex > 0) {
-        showAttachmentAtIndex(__currentAttachmentIndex - 1);
-      }
-    }
-
-    function showNextAttachment() {
-      if (__currentAttachmentIndex < __currentAttachmentList.length - 1) {
-        showAttachmentAtIndex(__currentAttachmentIndex + 1);
-      }
-    }
-
-    async function transferDrawing(orderId) {
-      if (!confirm('도면을 전달하시겠습니까? (상태가 확정대기로 변경됩니다)')) return;
-
-      const note = prompt('전달 사항(메모)을 입력하세요:', '');
-      if (note === null) return; // 취소
-
-      try {
-        const res = await fetch(`/api/orders/${orderId}/transfer-drawing`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ note: note })
-        });
-        const data = await res.json();
-
-        if (data.success) {
-          alert(data.message);
-          window.location.reload();
-        } else {
-          alert('오류: ' + data.message);
-        }
-      } catch (err) {
-        console.error('Drawing transfer error:', err);
-        alert('도면 전달 중 오류가 발생했습니다.');
-      }
-    }
-
-    function renderBadges(alerts) {
-      const a = alerts || {};
-      const out = [];
-      if (a.urgent) out.push('<span class="badge bg-danger me-1">긴급</span>');
-      if (a.drawing_overdue) out.push('<span class="badge bg-danger me-1">도면48h</span>');
-      if (a.measurement_d4) out.push('<span class="badge bg-warning text-dark me-1">실측D-4</span>');
-      if (a.construction_d3) out.push('<span class="badge bg-warning text-dark me-1">시공D-3</span>');
-      if (a.production_d2) out.push('<span class="badge bg-warning text-dark me-1">생산D-2</span>');
-      return out.join('') || '<span class="text-muted small">경보 없음</span>';
-    }
-
-    async function approveQuestTeam(orderId, team) {
-      try {
-        const res = await fetch(`/api/orders/${orderId}/quest/approve`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ team: team })
-        });
-        const data = await res.json();
-
-        // success 필드 확인 (API는 success 필드를 반환함)
-        if (!data.success) {
-          alert('승인 실패: ' + (data.message || data.error || '알 수 없는 오류'));
-          return;
-        }
-
-        // 자동 단계 전환 알림
-        if (data.auto_transitioned && data.next_stage) {
-          const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
-          alert('✅ 모든 팀 승인 완료! 다음 단계(' + nextStageLabel + ')로 자동 전환되었습니다.');
-        } else if (data.all_approved) {
-          alert('✅ 모든 팀 승인 완료!');
-        } else {
-          const missingTeams = data.missing_teams.map(t => label(TEAM_LABELS, t, t)).join(', ');
-          alert('승인 완료. 남은 팀: ' + missingTeams);
-        }
-
-        // 슬라이드 내 Quest 정보 업데이트
-        await loadQuestDetail(orderId);
-        // 페이지 새로고침 (주문 목록 업데이트)
-        window.location.reload();
-      } catch (err) {
-        console.error('승인 실패:', err);
-        alert('승인 중 오류가 발생했습니다.');
-      }
-    }
-
-    async function loadQuestDetail(orderId) {
-      try {
-        const res = await fetch(`/api/orders/${orderId}/quest`);
-        const data = await res.json();
-        if (data.error) {
-          console.error('Quest 로드 실패:', data.error);
-          return;
-        }
-        // 슬라이드 내 Quest 정보 업데이트
-        const questContainer = document.querySelector(`#quest-collapse-${orderId} #quest-approvals-${orderId}`);
-        if (questContainer) {
-          const quest = data.quest || {};
-          const requiredTeams = quest.required_approvals || [];
-          const teamApprovalsRaw = quest.team_approvals || {};
-
-          let html = '';
-          for (const team of requiredTeams) {
-            // team_approvals는 딕셔너리 형태일 수 있음: {team: {"approved": True, ...}} 또는 {team: True}
-            const approvalData = teamApprovalsRaw[team];
-            let approved = false;
-            if (typeof approvalData === 'object' && approvalData !== null) {
-              approved = approvalData.approved === true;
-            } else {
-              approved = Boolean(approvalData);
+          // 드래그로 패닝
+          container.addEventListener('mousedown', (e) => {
+            if (scale > 1) {
+              isDragging = true;
+              container.style.cursor = 'grabbing';
+              startX = e.clientX;
+              startY = e.clientY;
+              startPanX = panX;
+              startPanY = panY;
+              e.preventDefault();
             }
-            const teamLabel = label(TEAM_LABELS, team, team);
-            html += `<div class="mb-2">`;
-            html += `<span class="fw-semibold" style="font-size: 1rem;">${escapeHtml(teamLabel)}</span>`;
-            if (approved) {
-              html += `<span class="badge bg-success ms-2" style="font-size: 1rem; padding: 0.4em 0.7em;">승인완료</span>`;
-            } else {
-              html += `<button class="btn btn-primary fw-semibold ms-2" onclick="approveQuestTeam(${orderId}, '${escapeHtml(team)}')" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>`;
+          });
+
+          document.addEventListener('mousemove', (e) => {
+            if (isDragging && scale > 1) {
+              panX = startPanX + (e.clientX - startX);
+              panY = startPanY + (e.clientY - startY);
+              applyTransform();
+              e.preventDefault();
             }
-            html += `</div>`;
+          });
+
+          document.addEventListener('mouseup', () => {
+            if (isDragging) {
+              isDragging = false;
+              container.style.cursor = scale > 1 ? 'grab' : 'default';
+            }
+          });
+
+          container.addEventListener('mouseleave', () => {
+            if (isDragging) {
+              isDragging = false;
+              container.style.cursor = scale > 1 ? 'grab' : 'default';
+            }
+          });
+
+          // 더블클릭으로 리셋
+          container.addEventListener('dblclick', () => {
+            scale = 1;
+            panX = 0;
+            panY = 0;
+            applyTransform();
+          });
+
+          // 터치 제스처 지원 (모바일)
+          let touchStartDistance = 0;
+          let touchStartScale = 1;
+          let touchStartPanX = 0;
+          let touchStartPanY = 0;
+
+          container.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+              const touch = e.touches[0];
+              startX = touch.clientX;
+              startY = touch.clientY;
+              startPanX = panX;
+              startPanY = panY;
+            } else if (e.touches.length === 2) {
+              const touch1 = e.touches[0];
+              const touch2 = e.touches[1];
+              touchStartDistance = Math.hypot(
+                touch2.clientX - touch1.clientX,
+                touch2.clientY - touch1.clientY
+              );
+              touchStartScale = scale;
+              touchStartPanX = panX;
+              touchStartPanY = panY;
+            }
+          }, { passive: true });
+
+          container.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1 && scale > 1) {
+              e.preventDefault();
+              const touch = e.touches[0];
+              panX = startPanX + (touch.clientX - startX);
+              panY = startPanY + (touch.clientY - startY);
+              applyTransform();
+            } else if (e.touches.length === 2) {
+              e.preventDefault();
+              const touch1 = e.touches[0];
+              const touch2 = e.touches[1];
+              const distance = Math.hypot(
+                touch2.clientX - touch1.clientX,
+                touch2.clientY - touch1.clientY
+              );
+              scale = Math.max(0.5, Math.min(10, touchStartScale * (distance / touchStartDistance)));
+              applyTransform();
+            }
+          }, { passive: false });
+
+          updateZoomBadge();
+        }
+
+        // 주문의 첨부 파일 미리보기 (첨부 배지 클릭 시) - 좌우 네비게이션 지원
+        async function openAttachmentsPreview(orderId) {
+          try {
+            // 캐시 확인
+            let aList = null;
+            if (__attachmentsCache[orderId]) {
+              aList = __attachmentsCache[orderId];
+            } else {
+              const res = await fetch(`/api/orders/${orderId}/attachments`);
+              const data = await res.json();
+              aList = (data && data.attachments) || [];
+              __attachmentsCache[orderId] = aList;
+            }
+
+            if (aList.length > 0) {
+              __currentAttachmentList = aList;
+              __currentAttachmentIndex = 0;
+              showAttachmentAtIndex(0);
+            } else {
+              alert('첨부 파일이 없습니다.');
+            }
+          } catch (err) {
+            console.error('첨부 파일 로드 실패:', err);
+            alert('첨부 파일을 불러올 수 없습니다.');
           }
-          questContainer.innerHTML = html;
-        }
-      } catch (err) {
-        console.error('Quest 상세 로드 실패:', err);
-      }
-    }
-
-    // 퀘스트 상태 새로고침 (서버에서 최신 상태를 가져와서 슬라이드와 작업 큐 모두 업데이트)
-    async function refreshQuestStatus(orderId) {
-      try {
-        // Quest 정보를 서버에서 다시 가져와서 슬라이드 업데이트
-        await loadQuestDetail(orderId);
-
-        // 작업 큐의 퀘스트 버튼 상태도 업데이트하기 위해 해당 주문의 퀘스트 정보 다시 가져오기
-        const res = await fetch(`/api/orders/${orderId}/quest`);
-        const data = await res.json();
-        if (data.error) {
-          console.error('Quest 로드 실패:', data.error);
-          return;
         }
 
-        const quest = data.quest || {};
-        const questStatus = quest.status || 'OPEN';
-        const requiredTeams = quest.required_approvals || [];
-        const teamApprovalsRaw = quest.team_approvals || {};
+        // 특정 인덱스의 첨부 파일 표시
+        function showAttachmentAtIndex(index) {
+          if (!__currentAttachmentList || index < 0 || index >= __currentAttachmentList.length) {
+            return;
+          }
 
-        // 모든 팀이 승인했는지 확인
-        let allApproved = true;
-        for (const team of requiredTeams) {
-          const approvalData = teamApprovalsRaw[team];
-          let approved = false;
-          if (typeof approvalData === 'object' && approvalData !== null) {
-            approved = approvalData.approved === true;
+          __currentAttachmentIndex = index;
+          const attachment = __currentAttachmentList[index];
+
+          openAttachmentPreviewModal(
+            attachment.id,
+            attachment.view_url || '#',
+            attachment.download_url || attachment.view_url || '#',
+            attachment.filename || '',
+            attachment.file_type || 'image'
+          );
+
+          // 네비게이션 버튼 및 카운터 업데이트
+          updateAttachmentNavigation();
+        }
+
+        // 첨부 파일 네비게이션 업데이트
+        function updateAttachmentNavigation() {
+          const prevBtn = document.getElementById('erp-attachment-preview-prev');
+          const nextBtn = document.getElementById('erp-attachment-preview-next');
+          const counter = document.getElementById('erp-attachment-preview-counter');
+
+          if (!prevBtn || !nextBtn || !counter) return;
+
+          const total = __currentAttachmentList.length;
+          const current = __currentAttachmentIndex + 1;
+
+          // 카운터 표시
+          counter.textContent = `${current} / ${total}`;
+
+          // 이전/다음 버튼 표시
+          if (total > 1) {
+            prevBtn.style.display = 'inline-block';
+            nextBtn.style.display = 'inline-block';
+            prevBtn.disabled = (__currentAttachmentIndex === 0);
+            nextBtn.disabled = (__currentAttachmentIndex === total - 1);
           } else {
-            approved = Boolean(approvalData);
-          }
-          if (!approved) {
-            allApproved = false;
-            break;
+            prevBtn.style.display = 'none';
+            nextBtn.style.display = 'none';
           }
         }
 
-        // 작업 큐의 퀘스트 버튼과 배지 업데이트
-        const questRow = document.querySelector(`tr[data-order-id="${orderId}"]`);
-        if (questRow) {
-          const questCell = questRow.querySelector('td:nth-child(3)'); // 퀘스트 컬럼
-          if (questCell) {
-            const questButton = questCell.querySelector('button[data-bs-toggle="collapse"]');
-            const questBadge = questCell.querySelector('.badge');
+        // 이전 파일 보기
+        function showPreviousAttachment() {
+          if (__currentAttachmentIndex > 0) {
+            showAttachmentAtIndex(__currentAttachmentIndex - 1);
+          }
+        }
 
-            if (questButton) {
-              // 버튼 내부 아이콘 업데이트
-              const icon = questButton.querySelector('i.fa-check-circle, i.fa-circle-notch');
-              if (icon) {
-                if (questStatus === 'COMPLETED' || allApproved) {
-                  icon.className = 'fas fa-check-circle text-success';
+        function showNextAttachment() {
+          if (__currentAttachmentIndex < __currentAttachmentList.length - 1) {
+            showAttachmentAtIndex(__currentAttachmentIndex + 1);
+          }
+        }
+
+        let __currentTransferOrderId = null;
+
+        let __isRetransfer = false;
+        function openTransferDrawingModal(orderId, isRetransfer = false) {
+          __currentTransferOrderId = orderId;
+          __isRetransfer = isRetransfer;
+
+          // Reset Inputs
+          document.getElementById('drawing-transfer-files').value = '';
+          document.getElementById('drawing-transfer-note').value = '';
+
+          // Update Modal Title/Text based on mode
+          const titleEl = document.querySelector('#erpDrawingTransferModal .modal-title');
+          const descEl = document.querySelector('#erpDrawingTransferModal .modal-body p');
+          const submitBtn = document.querySelector('#erpDrawingTransferModal .modal-footer .btn-primary');
+
+          if (isRetransfer) {
+            titleEl.innerHTML = '<i class="fas fa-sync"></i> 도면 재전송 (수정본)';
+            descEl.innerHTML = `
+            <span class="text-danger fw-bold"><i class="fas fa-exclamation-triangle"></i> 주의: 재전송 시 기존에 전달된 도면 파일은 영구 삭제됩니다.</span><br>
+            새로운 도면 파일을 업로드하고 전달 사항을 입력하세요.
+          `;
+            submitBtn.innerHTML = '<i class="fas fa-sync"></i> 재전송하기';
+            submitBtn.classList.replace('btn-primary', 'btn-warning');
+          } else {
+            titleEl.innerHTML = '<i class="fas fa-paper-plane"></i> 도면 전달 및 파일 업로드';
+            descEl.innerHTML = `
+             작업 완료된 도면 파일을 업로드하고 전달 사항을 입력하세요.<br>
+             전달 후 상태가 <strong>'확정 대기'</strong>로 변경되며 담당자에게 알림이 전송됩니다.
+          `;
+            submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> 전달하기';
+            submitBtn.classList.replace('btn-warning', 'btn-primary');
+          }
+
+          const modal = new bootstrap.Modal(document.getElementById('erpDrawingTransferModal'));
+          modal.show();
+        }
+
+        async function submitDrawingTransfer() {
+          if (!__currentTransferOrderId) return;
+
+          const noteInput = document.getElementById('drawing-transfer-note');
+          const note = noteInput ? noteInput.value.trim() : '';
+          const filesInput = document.getElementById('drawing-transfer-files');
+          const files = filesInput ? filesInput.files : [];
+
+          const msg = __isRetransfer
+            ? '기존 도면 파일이 삭제되고 새 파일로 대체됩니다.\n정말 재전송 하시겠습니까?'
+            : '도면을 전달하시겠습니까?';
+
+          if (!confirm(msg)) return;
+
+          let createdFiles = []; // Track uploaded files to send to transfer API
+
+          // 1. File Upload First (if any)
+          if (files.length > 0) {
+            try {
+              // Upload files sequentially or in parallel
+              // Since app.py expects 'file' key per request, we loop.
+              const uploadPromises = Array.from(files).map(async (file) => {
+                const formData = new FormData();
+                formData.append('file', file); // Should match backend expectation
+                formData.append('note', '[도면 전달 첨부] ' + note); // Optional, backend might ignore for attachments
+
+                const upRes = await fetch(`/api/orders/${__currentTransferOrderId}/attachments`, {
+                  method: 'POST',
+                  body: formData
+                });
+                const upData = await upRes.json();
+                if (!upData.success) {
+                  throw new Error(file.name + ' 업로드 실패: ' + (upData.message || upData.error));
+                }
+                // Collect uploaded file info
+                // app.py upload endpoint returns {success, key, url, filename}
+                if (upData.key) {
+                  return { key: upData.key, filename: upData.filename || file.name };
+                }
+                return null;
+              });
+
+              const results = await Promise.all(uploadPromises);
+              createdFiles = results.filter(r => r !== null);
+            } catch (e) {
+              console.error(e);
+              alert(e.message || '파일 업로드 중 오류가 발생했습니다.');
+              return;
+            }
+          }
+
+          // 2. Transfer Call
+          try {
+            const bodyData = {
+              note: note,
+              files: createdFiles // Send list of uploaded files [ {key, filename}... ]
+            };
+            // If retransfer, we can add flag if backend needs it explicit (backend currently infers from files existence + status, but let's be safe if we accepted `is_retransfer` param? 
+            // Backend logic I wrote checks `new_files` presence.
+
+            const res = await fetch(`/api/orders/${__currentTransferOrderId}/transfer-drawing`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(bodyData)
+            });
+            const data = await res.json();
+
+            if (data.success) {
+              alert(data.message);
+              // Close modal
+              const modalEl = document.getElementById('erpDrawingTransferModal');
+              const modal = bootstrap.Modal.getInstance(modalEl);
+              if (modal) modal.hide();
+
+              window.location.reload();
+            } else {
+              alert('오류: ' + data.message);
+            }
+          } catch (err) {
+            console.error('Drawing transfer error:', err);
+            alert('도면 전달 중 오류가 발생했습니다.');
+          }
+        }
+
+        async function cancelDrawingTransfer(orderId) {
+          if (!confirm('정말 도면 전달을 취소하시겠습니까?\n상태가 [작업중]으로 되돌아갑니다.\n(이미 업로드된 파일은 유지됩니다)')) return;
+
+          try {
+            const res = await fetch(`/api/orders/${orderId}/cancel-transfer`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+              alert(data.message);
+              window.location.reload();
+            } else {
+              alert('취소 실패: ' + data.message);
+            }
+          } catch (e) {
+            console.error(e);
+            alert('오류가 발생했습니다.');
+          }
+        }
+
+        let __currentRevisionOrderId = null;
+        function openRevisionRequestModal(orderId) {
+          __currentRevisionOrderId = orderId;
+          document.getElementById('drawing-revision-note').value = '';
+          // document.getElementById('drawing-revision-files').value = ''; // If we add file upload for revision later
+          const modal = new bootstrap.Modal(document.getElementById('erpDrawingRevisionModal'));
+          modal.show();
+        }
+
+        async function submitDrawingRevision() {
+          if (!__currentRevisionOrderId) return;
+          const note = document.getElementById('drawing-revision-note').value.trim();
+          if (!note) {
+            alert('수정 요청 사항(메모)을 입력해주세요.');
+            return;
+          }
+
+          if (!confirm('수정 요청을 보내시겠습니까? (도면팀에게 알림이 전송됩니다)')) return;
+
+          try {
+            const res = await fetch(`/api/orders/${__currentRevisionOrderId}/request-revision`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ note: note })
+            });
+            const data = await res.json();
+            if (data.success) {
+              alert(data.message);
+              window.location.reload();
+            } else {
+              alert('요청 실패: ' + data.message);
+            }
+          } catch (e) {
+            console.error(e);
+            alert('오류가 발생했습니다.');
+          }
+        }
+
+        async function confirmDrawingReceipt(orderId) {
+          if (!confirm('도면 수령을 확정하고 다음 단계로 진행하시겠습니까?')) return;
+
+          try {
+            const res = await fetch(`/api/orders/${orderId}/confirm-drawing-receipt`, { method: 'POST' });
+            const data = await res.json();
+
+            if (data.success) {
+              alert(data.message);
+              window.location.reload();
+            } else {
+              alert('오류: ' + data.message);
+            }
+          } catch (err) {
+            console.error('Drawing confirm error:', err);
+            alert('도면 확정 중 오류가 발생했습니다.');
+          }
+        }
+
+        let __currentAssignOrderId = null;
+        let __drawingUsersCache = null;
+
+        async function openDraftsmanAssignModal(orderId) {
+          __currentAssignOrderId = orderId;
+          const modalEl = document.getElementById('erpDraftsmanAssignModal');
+          const listEl = document.getElementById('erp-draftsman-list');
+          const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+          modal.show();
+
+          if (!__drawingUsersCache) {
+            try {
+              const res = await fetch('/erp/api/users?team=DRAWING');
+              const data = await res.json();
+              if (data.success) {
+                __drawingUsersCache = data.users;
+              }
+            } catch (e) {
+              console.error(e);
+              listEl.innerHTML = '<div class="text-danger">사용자 목록 로드 실패</div>';
+              return;
+            }
+          }
+
+          // Render List
+          // Fetch current assignment to check boxes
+          let currentAssignees = [];
+          try {
+            // We need structured data, hopefully cached or fetch again. 
+            // Ideally passeed args, but simpler to fetch light structured data or use what we have in DOM if possible
+            // For now, let's just show list unchecke or checked if we store it globally.
+            // Actually loadOrderDetail stores in cache? No.
+            // Let's just list users.
+          } catch (e) { }
+
+          const users = __drawingUsersCache || [];
+          if (users.length === 0) {
+            listEl.innerHTML = '<div class="text-muted text-center">도면팀 사용자가 없습니다.</div>';
+          } else {
+            listEl.innerHTML = users.map(u => `
+                <label class="list-group-item d-flex gap-2">
+                    <input class="form-check-input flex-shrink-0" type="checkbox" value="${u.id}" name="draftsman_user">
+                    <span>
+                        <strong>${u.name}</strong>
+                        <small class="text-muted ms-1">(${u.team})</small>
+                    </span>
+                </label>
+            `).join('');
+          }
+        }
+
+        async function saveDraftsmanAssignment() {
+          if (!__currentAssignOrderId) return;
+
+          const checkboxes = document.querySelectorAll('input[name="draftsman_user"]:checked');
+          const userIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+          if (userIds.length === 0) {
+            alert('최소 한 명 이상의 담당자를 선택해주세요.');
+            return;
+          }
+
+          try {
+            const res = await fetch(`/api/orders/${__currentAssignOrderId}/assign-draftsman`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_ids: userIds })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+              alert(data.message);
+              bootstrap.Modal.getInstance(document.getElementById('erpDraftsmanAssignModal')).hide();
+              // Refresh detail
+              loadOrderDetail(__currentAssignOrderId);
+            } else {
+              alert('오류: ' + data.message);
+            }
+          } catch (e) {
+            console.error(e);
+            alert('저장 중 오류가 발생했습니다.');
+          }
+        }
+
+
+        function renderBadges(alerts) {
+          const a = alerts || {};
+          const out = [];
+          if (a.urgent) out.push('<span class="badge bg-danger me-1">긴급</span>');
+          if (a.drawing_overdue) out.push('<span class="badge bg-danger me-1">도면48h</span>');
+          if (a.measurement_d4) out.push('<span class="badge bg-warning text-dark me-1">실측D-4</span>');
+          if (a.construction_d3) out.push('<span class="badge bg-warning text-dark me-1">시공D-3</span>');
+          if (a.production_d2) out.push('<span class="badge bg-warning text-dark me-1">생산D-2</span>');
+          return out.join('') || '<span class="text-muted small">경보 없음</span>';
+        }
+
+        async function approveQuestTeam(orderId, team) {
+          try {
+            const res = await fetch(`/api/orders/${orderId}/quest/approve`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ team: team })
+            });
+            const data = await res.json();
+
+            // success 필드 확인 (API는 success 필드를 반환함)
+            if (!data.success) {
+              alert('승인 실패: ' + (data.message || data.error || '알 수 없는 오류'));
+              return;
+            }
+
+            // 자동 단계 전환 알림
+            if (data.auto_transitioned && data.next_stage) {
+              const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
+              alert('✅ 모든 팀 승인 완료! 다음 단계(' + nextStageLabel + ')로 자동 전환되었습니다.');
+            } else if (data.all_approved) {
+              alert('✅ 모든 팀 승인 완료!');
+            } else {
+              const missingTeams = data.missing_teams.map(t => label(TEAM_LABELS, t, t)).join(', ');
+              alert('승인 완료. 남은 팀: ' + missingTeams);
+            }
+
+            // 슬라이드 내 Quest 정보 업데이트
+            await loadQuestDetail(orderId);
+            // 페이지 새로고침 (주문 목록 업데이트)
+            window.location.reload();
+          } catch (err) {
+            console.error('승인 실패:', err);
+            alert('승인 중 오류가 발생했습니다.');
+          }
+        }
+
+        async function loadQuestDetail(orderId) {
+          try {
+            const res = await fetch(`/api/orders/${orderId}/quest`);
+            const data = await res.json();
+            if (data.error) {
+              console.error('Quest 로드 실패:', data.error);
+              return;
+            }
+            // 슬라이드 내 Quest 정보 업데이트
+            const questContainer = document.querySelector(`#quest-collapse-${orderId} #quest-approvals-${orderId}`);
+            if (questContainer) {
+              const quest = data.quest || {};
+              const requiredTeams = quest.required_approvals || [];
+              const teamApprovalsRaw = quest.team_approvals || {};
+
+              let html = '';
+              for (const team of requiredTeams) {
+                // team_approvals는 딕셔너리 형태일 수 있음: {team: {"approved": True, ...}} 또는 {team: True}
+                const approvalData = teamApprovalsRaw[team];
+                let approved = false;
+                if (typeof approvalData === 'object' && approvalData !== null) {
+                  approved = approvalData.approved === true;
                 } else {
-                  // 노란색 동그라미 아이콘 제거
-                  if (icon) icon.remove();
+                  approved = Boolean(approvalData);
+                }
+                const teamLabel = label(TEAM_LABELS, team, team);
+                html += `<div class="mb-2">`;
+                html += `<span class="fw-semibold" style="font-size: 1rem;">${escapeHtml(teamLabel)}</span>`;
+                if (approved) {
+                  html += `<span class="badge bg-success ms-2" style="font-size: 1rem; padding: 0.4em 0.7em;">승인완료</span>`;
+                } else {
+                  html += `<button class="btn btn-primary fw-semibold ms-2" onclick="approveQuestTeam(${orderId}, '${escapeHtml(team)}')" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>`;
+                }
+                html += `</div>`;
+              }
+              questContainer.innerHTML = html;
+            }
+          } catch (err) {
+            console.error('Quest 상세 로드 실패:', err);
+          }
+        }
+
+        // 퀘스트 상태 새로고침 (서버에서 최신 상태를 가져와서 슬라이드와 작업 큐 모두 업데이트)
+        async function refreshQuestStatus(orderId) {
+          try {
+            // Quest 정보를 서버에서 다시 가져와서 슬라이드 업데이트
+            await loadQuestDetail(orderId);
+
+            // 작업 큐의 퀘스트 버튼 상태도 업데이트하기 위해 해당 주문의 퀘스트 정보 다시 가져오기
+            const res = await fetch(`/api/orders/${orderId}/quest`);
+            const data = await res.json();
+            if (data.error) {
+              console.error('Quest 로드 실패:', data.error);
+              return;
+            }
+
+            const quest = data.quest || {};
+            const questStatus = quest.status || 'OPEN';
+            const requiredTeams = quest.required_approvals || [];
+            const teamApprovalsRaw = quest.team_approvals || {};
+
+            // 모든 팀이 승인했는지 확인
+            let allApproved = true;
+            for (const team of requiredTeams) {
+              const approvalData = teamApprovalsRaw[team];
+              let approved = false;
+              if (typeof approvalData === 'object' && approvalData !== null) {
+                approved = approvalData.approved === true;
+              } else {
+                approved = Boolean(approvalData);
+              }
+              if (!approved) {
+                allApproved = false;
+                break;
+              }
+            }
+
+            // 작업 큐의 퀘스트 버튼과 배지 업데이트
+            const questRow = document.querySelector(`tr[data-order-id="${orderId}"]`);
+            if (questRow) {
+              const questCell = questRow.querySelector('td:nth-child(3)'); // 퀘스트 컬럼
+              if (questCell) {
+                const questButton = questCell.querySelector('button[data-bs-toggle="collapse"]');
+                const questBadge = questCell.querySelector('.badge');
+
+                if (questButton) {
+                  // 버튼 내부 아이콘 업데이트
+                  const icon = questButton.querySelector('i.fa-check-circle, i.fa-circle-notch');
+                  if (icon) {
+                    if (questStatus === 'COMPLETED' || allApproved) {
+                      icon.className = 'fas fa-check-circle text-success';
+                    } else {
+                      // 노란색 동그라미 아이콘 제거
+                      if (icon) icon.remove();
+                    }
+                  }
+                }
+
+                // 배지 업데이트
+                if (questBadge) {
+                  if (questStatus === 'COMPLETED' || allApproved) {
+                    questBadge.className = 'badge bg-success ms-1';
+                    questBadge.style.fontSize = '1rem';
+                    questBadge.style.padding = '0.4em 0.7em';
+                    questBadge.textContent = '완료';
+                  } else {
+                    questBadge.className = 'badge bg-warning ms-1';
+                    questBadge.style.fontSize = '1rem';
+                    questBadge.style.padding = '0.4em 0.7em';
+                    questBadge.textContent = '진행중';
+                  }
                 }
               }
             }
 
-            // 배지 업데이트
-            if (questBadge) {
-              if (questStatus === 'COMPLETED' || allApproved) {
-                questBadge.className = 'badge bg-success ms-1';
-                questBadge.style.fontSize = '1rem';
-                questBadge.style.padding = '0.4em 0.7em';
-                questBadge.textContent = '완료';
-              } else {
-                questBadge.className = 'badge bg-warning ms-1';
-                questBadge.style.fontSize = '1rem';
-                questBadge.style.padding = '0.4em 0.7em';
-                questBadge.textContent = '진행중';
+            // 성공 메시지 표시
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success alert-dismissible fade show';
+            alertDiv.style.position = 'fixed';
+            alertDiv.style.top = '20px';
+            alertDiv.style.right = '20px';
+            alertDiv.style.zIndex = '9999';
+            alertDiv.innerHTML = '<i class="fas fa-check-circle"></i> 퀘스트 상태가 업데이트되었습니다. <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+            document.body.appendChild(alertDiv);
+
+            // 3초 후 자동으로 제거
+            setTimeout(() => {
+              if (alertDiv.parentNode) {
+                alertDiv.remove();
               }
-            }
+            }, 3000);
+          } catch (err) {
+            console.error('퀘스트 상태 새로고침 실패:', err);
+            alert('퀘스트 상태를 새로고침하는 중 오류가 발생했습니다: ' + err.message);
           }
         }
 
-        // 성공 메시지 표시
-        const alertDiv = document.createElement('div');
-        alertDiv.className = 'alert alert-success alert-dismissible fade show';
-        alertDiv.style.position = 'fixed';
-        alertDiv.style.top = '20px';
-        alertDiv.style.right = '20px';
-        alertDiv.style.zIndex = '9999';
-        alertDiv.innerHTML = '<i class="fas fa-check-circle"></i> 퀘스트 상태가 업데이트되었습니다. <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
-        document.body.appendChild(alertDiv);
+        async function loadOrderDetail(orderId) {
+          const container = document.getElementById(`order-detail-content-${orderId}`);
+          if (!container) return;
 
-        // 3초 후 자동으로 제거
-        setTimeout(() => {
-          if (alertDiv.parentNode) {
-            alertDiv.remove();
-          }
-        }, 3000);
-      } catch (err) {
-        console.error('퀘스트 상태 새로고침 실패:', err);
-        alert('퀘스트 상태를 새로고침하는 중 오류가 발생했습니다: ' + err.message);
-      }
-    }
+          try {
+            container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
 
-    async function loadOrderDetail(orderId) {
-      const container = document.getElementById(`order-detail-content-${orderId}`);
-      if (!container) return;
+            const [structured, attachments] = await Promise.all([
+              fetch(`/api/orders/${orderId}/structured`).then(r => r.json()).catch(err => {
+                console.error('Structured data fetch error:', err);
+                return { success: false, structured_data: {} };
+              }),
+              fetch(`/api/orders/${orderId}/attachments`).then(r => r.json()).catch(err => {
+                console.error('Attachments fetch error:', err);
+                return { success: false, attachments: [] };
+              }),
+            ]);
 
-      try {
-        container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
+            const sd = (structured && structured.structured_data) || {};
+            const customer = (((sd.parties || {}).customer || {}).name) || '-';
+            const orderer = (((sd.parties || {}).orderer || {}).name) || '-';
+            const phone = (((sd.parties || {}).customer || {}).phone) || '-';
+            // 주소: address_full 우선, 없으면 address_main + address_detail 조합, 없으면 address_main만
+            const site = sd.site || {};
+            const addressFull = site.address_full || '';
+            const addressMain = site.address_main || '';
+            const addressDetail = site.address_detail || '';
+            const address = addressFull || (addressMain && addressDetail ? `${addressMain} ${addressDetail}`.trim() : addressMain) || addressDetail || '-';
+            // 특이사항: notes 객체에서 읽기 (erpbeta 저장 경로와 일치)
+            const notes = sd.notes || {};
+            const addressNote = (notes.address_note || '').trim();
+            const phoneNote = (notes.phone_note || '').trim();
+            const measureNote = (notes.measurement_note || '').trim();
+            const measure = (((sd.schedule || {}).measurement || {}).date) || '-';
+            const construct = (((sd.schedule || {}).construction || {}).date) || '-';
+            const manager = (((sd.parties || {}).manager || {}).name) || '-';
+            const stage = (((sd.workflow || {}).stage)) || '-';
+            const urgent = ((sd.flags || {}).urgent) || false;
 
-        const [structured, attachments] = await Promise.all([
-          fetch(`/api/orders/${orderId}/structured`).then(r => r.json()).catch(err => {
-            console.error('Structured data fetch error:', err);
-            return { success: false, structured_data: {} };
-          }),
-          fetch(`/api/orders/${orderId}/attachments`).then(r => r.json()).catch(err => {
-            console.error('Attachments fetch error:', err);
-            return { success: false, attachments: [] };
-          }),
-        ]);
-
-        const sd = (structured && structured.structured_data) || {};
-        const customer = (((sd.parties || {}).customer || {}).name) || '-';
-        const orderer = (((sd.parties || {}).orderer || {}).name) || '-';
-        const phone = (((sd.parties || {}).customer || {}).phone) || '-';
-        // 주소: address_full 우선, 없으면 address_main + address_detail 조합, 없으면 address_main만
-        const site = sd.site || {};
-        const addressFull = site.address_full || '';
-        const addressMain = site.address_main || '';
-        const addressDetail = site.address_detail || '';
-        const address = addressFull || (addressMain && addressDetail ? `${addressMain} ${addressDetail}`.trim() : addressMain) || addressDetail || '-';
-        // 특이사항: notes 객체에서 읽기 (erpbeta 저장 경로와 일치)
-        const notes = sd.notes || {};
-        const addressNote = (notes.address_note || '').trim();
-        const phoneNote = (notes.phone_note || '').trim();
-        const measureNote = (notes.measurement_note || '').trim();
-        const measure = (((sd.schedule || {}).measurement || {}).date) || '-';
-        const construct = (((sd.schedule || {}).construction || {}).date) || '-';
-        const manager = (((sd.parties || {}).manager || {}).name) || '-';
-        const stage = (((sd.workflow || {}).stage)) || '-';
-        const urgent = ((sd.flags || {}).urgent) || false;
-
-        // 담당팀: 현재 단계의 담당팀으로 자동 계산
-        const STAGE_TO_TEAM = {
-          'RECEIVED': 'CS',
-          'HAPPYCALL': 'CS',
-          'MEASURE': 'SALES',
-          'DRAWING': 'DRAWING',
-          'CONFIRM': 'SALES',
-          'PRODUCTION': 'PRODUCTION',
-          'CONSTRUCTION': 'CONSTRUCTION',
-          'CS': 'CS',
-          'COMPLETED': 'CS',
-          'AS': 'CS'
-        };
-        let ownerTeam = STAGE_TO_TEAM[stage] || '-';
-        // 실측/고객컨펌에서 발주사에 '라홈' 포함 시 라홈팀(CS)으로 변경
-        if (stage === 'MEASURE' || stage === 'CONFIRM') {
-          const ordererName = (((sd.parties || {}).orderer || {}).name || '').trim();
-          if (ordererName && ordererName.includes('라홈')) {
-            ownerTeam = 'CS';
-          }
-        }
-
-        // 제품 항목 (모든 상세 정보 표시)
-        const items = (sd.items || []) || [];
-        let itemsHtml = '';
-        if (items.length > 0) {
-          let gridHtml = '<div class="erp-product-items-grid mt-3">';
-          items.forEach(item => {
-            // 규격을 W, D, H로 분리
-            let specW = item.spec_width || '';
-            let specD = item.spec_depth || '';
-            let specH = item.spec_height || '';
-            // 기존 spec 필드가 있고 W, D, H가 없으면 파싱
-            if (!specW && !specD && !specH && item.spec) {
-              const specStr = String(item.spec || '').trim();
-              const parts = specStr.split(/[xX*×]/).map(s => s.trim());
-              if (parts.length >= 3) {
-                specW = parts[0];
-                specD = parts[1];
-                specH = parts[2];
-              } else if (parts.length === 2) {
-                specW = parts[0];
-                specD = parts[1];
-              } else if (parts.length === 1) {
-                specW = parts[0];
-              }
-            }
-            // 규격을 한 줄로 통합 (모바일용)
-            const specParts = [];
-            if (specW && specW !== '-') specParts.push(`W:${specW}`);
-            if (specD && specD !== '-') specParts.push(`D:${specD}`);
-            if (specH && specH !== '-') specParts.push(`H:${specH}`);
-            const specCombined = specParts.length > 0 ? specParts.join(' × ') : '-';
-            const priceText = item.price ? item.price.toLocaleString('ko-KR') + '원' : '-';
-
-            // 값이 빈 문자열이거나 null/undefined일 때 '-'로 표시
-            const safeValue = (val) => {
-              if (val === null || val === undefined || val === '') return '-';
-              return String(val).trim() || '-';
+            // 담당팀: 현재 단계의 담당팀으로 자동 계산
+            const STAGE_TO_TEAM = {
+              'RECEIVED': 'CS',
+              'HAPPYCALL': 'CS',
+              'MEASURE': 'SALES',
+              'DRAWING': 'DRAWING',
+              'CONFIRM': 'SALES',
+              'PRODUCTION': 'PRODUCTION',
+              'CONSTRUCTION': 'CONSTRUCTION',
+              'CS': 'CS',
+              'COMPLETED': 'CS',
+              'AS': 'CS'
             };
+            let ownerTeam = STAGE_TO_TEAM[stage] || '-';
+            // 실측/고객컨펌에서 발주사에 '라홈' 포함 시 라홈팀(CS)으로 변경
+            if (stage === 'MEASURE' || stage === 'CONFIRM') {
+              const ordererName = (((sd.parties || {}).orderer || {}).name || '').trim();
+              if (ordererName && ordererName.includes('라홈')) {
+                ownerTeam = 'CS';
+              }
+            }
 
-            gridHtml += `<div class="erp-product-items-card">
+            // 제품 항목 (모든 상세 정보 표시)
+            const items = (sd.items || []) || [];
+            let itemsHtml = '';
+            if (items.length > 0) {
+              let gridHtml = '<div class="erp-product-items-grid mt-3">';
+              items.forEach(item => {
+                // 규격을 W, D, H로 분리
+                let specW = item.spec_width || '';
+                let specD = item.spec_depth || '';
+                let specH = item.spec_height || '';
+                // 기존 spec 필드가 있고 W, D, H가 없으면 파싱
+                if (!specW && !specD && !specH && item.spec) {
+                  const specStr = String(item.spec || '').trim();
+                  const parts = specStr.split(/[xX*×]/).map(s => s.trim());
+                  if (parts.length >= 3) {
+                    specW = parts[0];
+                    specD = parts[1];
+                    specH = parts[2];
+                  } else if (parts.length === 2) {
+                    specW = parts[0];
+                    specD = parts[1];
+                  } else if (parts.length === 1) {
+                    specW = parts[0];
+                  }
+                }
+                // 규격을 한 줄로 통합 (모바일용)
+                const specParts = [];
+                if (specW && specW !== '-') specParts.push(`W:${specW}`);
+                if (specD && specD !== '-') specParts.push(`D:${specD}`);
+                if (specH && specH !== '-') specParts.push(`H:${specH}`);
+                const specCombined = specParts.length > 0 ? specParts.join(' × ') : '-';
+                const priceText = item.price ? item.price.toLocaleString('ko-KR') + '원' : '-';
+
+                // 값이 빈 문자열이거나 null/undefined일 때 '-'로 표시
+                const safeValue = (val) => {
+                  if (val === null || val === undefined || val === '') return '-';
+                  return String(val).trim() || '-';
+                };
+
+                gridHtml += `<div class="erp-product-items-card">
               <div class="erp-product-items-row">
                 <span class="erp-product-items-label">제품명:</span>
                 <span class="erp-product-items-value">${escapeHtml(safeValue(item.product_name || item.name))}</span>
@@ -2410,69 +2757,69 @@
                 <span class="erp-product-items-value">${escapeHtml(priceText)}</span>
               </div>
             </div>`;
-          });
-          gridHtml += '</div>';
-          itemsHtml = gridHtml;
-        } else {
-          itemsHtml = '<div class="text-muted mt-3" style="font-size: 1rem;">제품 항목 없음</div>';
-        }
+              });
+              gridHtml += '</div>';
+              itemsHtml = gridHtml;
+            } else {
+              itemsHtml = '<div class="text-muted mt-3" style="font-size: 1rem;">제품 항목 없음</div>';
+            }
 
-        // 첨부 파일 (여백 최소화, 미리보기 기능)
-        // API 응답 구조 확인: attachments.attachments 또는 attachments (배열 직접 반환)
-        let aList = [];
-        if (attachments) {
-          if (Array.isArray(attachments)) {
-            aList = attachments;
-          } else if (attachments.attachments && Array.isArray(attachments.attachments)) {
-            aList = attachments.attachments;
-          } else if (attachments.success !== false && attachments.attachments) {
-            // success가 true이고 attachments가 있는 경우
-            aList = attachments.attachments;
-          } else if (attachments.success === false) {
-            console.warn('Attachments API returned error:', attachments.message || 'Unknown error');
-            aList = [];
-          } else {
-            // 디버깅: 응답 구조 확인
-            console.log('Attachments API response structure:', attachments);
-            aList = [];
-          }
-        } else {
-          console.warn('Attachments response is null or undefined');
-        }
-        // 첨부 파일 캐시 저장
-        __attachmentsCache[orderId] = aList;
+            // 첨부 파일 (여백 최소화, 미리보기 기능)
+            // API 응답 구조 확인: attachments.attachments 또는 attachments (배열 직접 반환)
+            let aList = [];
+            if (attachments) {
+              if (Array.isArray(attachments)) {
+                aList = attachments;
+              } else if (attachments.attachments && Array.isArray(attachments.attachments)) {
+                aList = attachments.attachments;
+              } else if (attachments.success !== false && attachments.attachments) {
+                // success가 true이고 attachments가 있는 경우
+                aList = attachments.attachments;
+              } else if (attachments.success === false) {
+                console.warn('Attachments API returned error:', attachments.message || 'Unknown error');
+                aList = [];
+              } else {
+                // 디버깅: 응답 구조 확인
+                console.log('Attachments API response structure:', attachments);
+                aList = [];
+              }
+            } else {
+              console.warn('Attachments response is null or undefined');
+            }
+            // 첨부 파일 캐시 저장
+            __attachmentsCache[orderId] = aList;
 
-        let attachmentsHtml = '';
-        if (aList.length > 0) {
-          attachmentsHtml = '<div class="d-flex flex-wrap gap-1 mt-2">';
-          aList.forEach(a => {
-            const name = escapeHtml(a.filename || '');
-            const viewUrl = a.view_url || '#';
-            const thumb = a.thumbnail_view_url || viewUrl;
-            const downloadUrl = a.download_url || viewUrl;
-            const fileType = a.file_type || 'image';
-            if (fileType === 'video') {
-              attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'video')">
+            let attachmentsHtml = '';
+            if (aList.length > 0) {
+              attachmentsHtml = '<div class="d-flex flex-wrap gap-1 mt-2">';
+              aList.forEach(a => {
+                const name = escapeHtml(a.filename || '');
+                const viewUrl = a.view_url || '#';
+                const thumb = a.thumbnail_view_url || viewUrl;
+                const downloadUrl = a.download_url || viewUrl;
+                const fileType = a.file_type || 'image';
+                if (fileType === 'video') {
+                  attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'video')">
                 <div style="width: 80px; height: 60px; background: #000; display: flex; align-items: center; justify-content: center;">
                   <video src="${viewUrl}" preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>
                 </div>
                 <div class="position-absolute top-0 start-0 bg-dark bg-opacity-75 text-white p-1" style="font-size: 10px;"><i class="fas fa-play"></i></div>
               </div>`;
-            } else {
-              attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'image')">
+                } else {
+                  attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'image')">
                 <img src="${thumb}" style="width: 80px; height: 60px; object-fit: cover; background:#fff; display: block;" alt="${name}">
               </div>`;
+                }
+              });
+              attachmentsHtml += '</div>';
+            } else {
+              attachmentsHtml = '<div class="text-muted small mt-2">첨부 없음</div>';
             }
-          });
-          attachmentsHtml += '</div>';
-        } else {
-          attachmentsHtml = '<div class="text-muted small mt-2">첨부 없음</div>';
-        }
 
-        // 모바일 여부 확인 (992px 이하)
-        const isMobile = window.innerWidth <= 992;
+            // 모바일 여부 확인 (992px 이하)
+            const isMobile = window.innerWidth <= 992;
 
-        const basicInfoHtml = isMobile ? '' : `
+            const basicInfoHtml = isMobile ? '' : `
             <div class="col-md-6">
               <div class="card">
                 <div class="card-body">
@@ -2488,19 +2835,19 @@
               </div>
             </div>`;
 
-        const noteRows = [];
-        if (addressNote) {
-          noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">${escapeHtml(addressNote)}</span></div>`);
-        }
-        if (phoneNote) {
-          noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">${escapeHtml(phoneNote)}</span></div>`);
-        }
-        if (measureNote) {
-          noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">${escapeHtml(measureNote)}</span></div>`);
-        }
-        const notesHtml = noteRows.join('');
+            const noteRows = [];
+            if (addressNote) {
+              noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">${escapeHtml(addressNote)}</span></div>`);
+            }
+            if (phoneNote) {
+              noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">${escapeHtml(phoneNote)}</span></div>`);
+            }
+            if (measureNote) {
+              noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">${escapeHtml(measureNote)}</span></div>`);
+            }
+            const notesHtml = noteRows.join('');
 
-        const scheduleHtml = `
+            const scheduleHtml = `
             <div class="${isMobile ? 'col-12' : 'col-md-6'}">
               <div class="card">
                 <div class="card-body">
@@ -2514,26 +2861,137 @@
               </div>
             </div>`;
 
-        // 도면 전달 버튼 (DRAWING 단계일 때만)
-        let actionHtml = '';
-        if (stage === 'DRAWING') {
-          actionHtml = `
+            // 도면 전달 버튼 (DRAWING 단계일 때만)
+            let actionHtml = '';
+            if (stage === 'DRAWING') {
+              const drawingStatus = sd.drawing_status || 'PENDING'; // PENDING, TRANSFERRED, CONFIRMED
+              const assignees = sd.drawing_assignees || [];
+              const isAssigned = assignees.some(u => u.id === MY_ID);
+              const isDrawingTeam = (MY_TEAM === 'DRAWING');
+              const isSalesTeam = (MY_TEAM === 'SALES');
+              // Manager matches current user name? or admin
+              const isManager = (manager === MY_NAME);
+              const isAdmin = (MY_ROLE === 'ADMIN');
+
+              const assigneeNames = assignees.map(u => u.name).join(', ');
+
+              // 1. 도면 담당자 지정 버튼 (영업/담당자/관리자 OR 도면팀도 가능하게 변경 - 요청사항 1번)
+              let assignBtn = '';
+
+              // "담당자 입력 할 수 있게 수정" 
+              if (isSalesTeam || isManager || isAdmin || isDrawingTeam) {
+                assignBtn = `
+                    <button class="btn btn-outline-primary btn-sm" onclick="openDraftsmanAssignModal(${orderId})">
+                        <i class="fas fa-user-plus"></i> 담당자 지정
+                    </button>
+                 `;
+              }
+
+              let statusBadge = '';
+              let mainBtn = '';
+
+
+              // --- [수정] 상태별 버튼 로직 강화 ---
+
+              if (drawingStatus === 'TRANSFERRED') {
+                statusBadge = '<span class="badge bg-warning text-dark ms-2">확정 대기중</span>';
+
+                // 1. 영업/담당자/관리자: [수령 확정] OR [수정 요청]
+                if (isSalesTeam || isManager || isAdmin) {
+                  mainBtn = `
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success flex-grow-1" onclick="confirmDrawingReceipt(${orderId})">
+                        <i class="fas fa-check-double"></i> 수령 확정
+                    </button>
+                    <button class="btn btn-warning" onclick="openRevisionRequestModal(${orderId})">
+                        <i class="fas fa-undo"></i> 수정 요청
+                    </button>
+                </div>
+              `;
+                } else {
+                  // 도면팀인 경우: [재전송] (기존 파일 삭제됨), [전달 취소]
+                  if (isDrawingTeam || isAssigned) {
+                    mainBtn = `
+                        <div class="d-flex gap-2">
+                             <button class="btn btn-primary flex-grow-1" onclick="openTransferDrawingModal(${orderId}, true)">
+                                <i class="fas fa-sync"></i> 재전송
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="cancelDrawingTransfer(${orderId})">
+                                <i class="fas fa-times"></i> 전달 취소
+                            </button>
+                        </div>
+                        <div class="text-muted small mt-1">
+                            <i class="fas fa-info-circle"></i> 재전송 시 <span class="text-danger fw-bold">기존 파일이 삭제</span>되고 새 파일로 대체됩니다.
+                        </div>
+                    `;
+                  } else {
+                    mainBtn = `<button class="btn btn-secondary" disabled>확정 대기중</button>`;
+                  }
+                }
+              } else if (drawingStatus === 'RETURNED') {
+                statusBadge = '<span class="badge bg-danger ms-2">수정 요청됨</span>';
+                // 수정 요청 상태에서는 도면팀이 다시 재전송(업로드) 해야 함
+                if (isDrawingTeam || isAssigned || isAdmin) {
+                  mainBtn = `
+                    <button class="btn btn-primary" onclick="openTransferDrawingModal(${orderId}, true)">
+                        <i class="fas fa-paper-plane"></i> 수정본 전달 (재전송)
+                    </button>
+                     <div class="text-danger small mt-1">
+                        <i class="fas fa-exclamation-triangle"></i> 수정 요청 사항을 확인 후 다시 전달해주세요.
+                    </div>
+                `;
+                } else {
+                  mainBtn = `<button class="btn btn-secondary" disabled>수정 작업 대기중</button>`;
+                }
+              } else {
+                // PENDING or WORKING
+                statusBadge = '<span class="badge bg-secondary ms-2">작업중</span>';
+                // Only Drawing Team or Assigned Draftsman can transfer
+                if (isDrawingTeam || isAssigned || isAdmin) {
+                  mainBtn = `
+                        <button class="btn btn-primary" onclick="openTransferDrawingModal(${orderId}, false)">
+                            <i class="fas fa-paper-plane"></i> 도면 전달
+                        </button>
+                    `;
+                } else {
+                  // If no assignees yet, show message?
+                  if (assignees.length === 0) {
+                    // If I have permission to assign, I should see the assign button (already above).
+                    if (isDrawingTeam) {
+                      mainBtn = `
+                                <button class="btn btn-primary" onclick="openTransferDrawingModal(${orderId}, false)">
+                                    <i class="fas fa-paper-plane"></i> 도면 전달
+                                </button>
+                            `;
+                    } else {
+                      mainBtn = `<small class="text-muted">도면 작업 대기중 (담당자 미지정)</small>`;
+                    }
+                  } else {
+                    mainBtn = `<button class="btn btn-secondary" disabled>작업 관리는 담당자만 가능</button>`;
+                  }
+                }
+              } actionHtml = `
             <div class="col-12">
               <div class="card bg-light border-primary">
                 <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
-                  <div>
-                    <h5 class="card-title fw-bold text-primary mb-1"><i class="fas fa-drafting-compass"></i> 도면 작업 완료</h5>
-                    <p class="mb-0 text-muted small">도면 작성이 완료되었으면 다음 단계로 전달하세요.</p>
+                    <h5 class="card-title fw-bold text-primary mb-1">
+                        <i class="fas fa-drafting-compass"></i> 도면 단계 
+                        ${statusBadge}
+                    </h5>
+                    <p class="mb-0 text-muted small">
+                        담당자: <strong>${assigneeNames || '미지정'}</strong>
+                        ${assignBtn}
+                    </p>
                   </div>
-                  <button class="btn btn-primary" onclick="transferDrawing(${orderId})">
-                    <i class="fas fa-paper-plane"></i> 도면 전달
-                  </button>
+                  <div>
+                    ${mainBtn}
+                  </div>
                 </div>
               </div>
             </div>`;
-        }
+            }
 
-        container.innerHTML = `
+            container.innerHTML = `
           <div class="row g-3 erp-order-detail">
             ${basicInfoHtml}
             ${scheduleHtml}
@@ -2557,320 +3015,320 @@
           </div>
         `;
 
-      } catch (err) {
-        console.error('주문 상세 로드 실패:', err);
-        container.innerHTML = '<div class="text-danger small">로드 실패: ' + escapeHtml(err.message) + '</div>';
-      }
-    }
+          } catch (err) {
+            console.error('주문 상세 로드 실패:', err);
+            container.innerHTML = '<div class="text-danger small">로드 실패: ' + escapeHtml(err.message) + '</div>';
+          }
+        }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      // 필터 폼 제출 시 alert_type 파라미터 유지
-      const form = document.getElementById('erp-filters-form');
-      if (form) {
-        form.addEventListener('submit', function (e) {
-          const url = new URL(window.location.href);
-          const currentAlertType = url.searchParams.get('alert_type');
-          if (currentAlertType) {
-            let alertTypeInput = this.querySelector('input[name="alert_type"]');
-            if (!alertTypeInput) {
-              alertTypeInput = document.createElement('input');
-              alertTypeInput.type = 'hidden';
-              alertTypeInput.name = 'alert_type';
-              this.appendChild(alertTypeInput);
+        document.addEventListener('DOMContentLoaded', () => {
+          // 필터 폼 제출 시 alert_type 파라미터 유지
+          const form = document.getElementById('erp-filters-form');
+          if (form) {
+            form.addEventListener('submit', function (e) {
+              const url = new URL(window.location.href);
+              const currentAlertType = url.searchParams.get('alert_type');
+              if (currentAlertType) {
+                let alertTypeInput = this.querySelector('input[name="alert_type"]');
+                if (!alertTypeInput) {
+                  alertTypeInput = document.createElement('input');
+                  alertTypeInput.type = 'hidden';
+                  alertTypeInput.name = 'alert_type';
+                  this.appendChild(alertTypeInput);
+                }
+                alertTypeInput.value = currentAlertType;
+              }
+            });
+          }
+
+          // 주문 상세 슬라이드 토글 이벤트
+          document.querySelectorAll('[data-bs-target^="#order-detail-collapse-"]').forEach(btn => {
+            btn.addEventListener('click', function () {
+              const targetId = this.getAttribute('data-bs-target');
+              const orderId = targetId.replace('#order-detail-collapse-', '');
+              const collapseEl = document.querySelector(targetId);
+
+              if (collapseEl) {
+                collapseEl.addEventListener('shown.bs.collapse', function () {
+                  loadOrderDetail(parseInt(orderId));
+                }, { once: true });
+              }
+            });
+          });
+
+          // 프로세스 맵 & 알림 타일 클릭 → 필터 적용 후 리로드
+          const applyFilter = (name, value) => {
+            if (!form) return;
+            let input = form.querySelector(`[name="${name}"]`);
+
+            // input이 없으면 (특히 alert_type hidden input이 초기 상태에서 없을 수 있음) 생성
+            if (!input) {
+              input = document.createElement('input');
+              input.type = 'hidden';
+              input.name = name;
+              form.appendChild(input);
             }
-            alertTypeInput.value = currentAlertType;
-          }
+
+            const current = input.value || '';
+            const next = value || '';
+
+            // 같은 값을 다시 클릭하면 해제(전체보기)
+            input.value = (current === next) ? '' : next;
+
+            form.submit();
+          };
+
+          // 프로세스 맵 (Pipeline Stages)
+          document.querySelectorAll('.erp-pro-pipeline__stage[data-stage]').forEach(el => {
+            const handler = () => applyFilter('stage', el.dataset.stage || '');
+            el.addEventListener('click', handler);
+            el.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handler();
+              }
+            });
+          });
+
+          // 알림 타일 (Alert Tiles)
+          document.querySelectorAll('.erp-pro-alert[data-alert-type]').forEach(el => {
+            const handler = () => applyFilter('alert_type', el.dataset.alertType || '');
+            el.addEventListener('click', handler);
+            el.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handler();
+              }
+            });
+          });
+
+          // 이벤트 위임: 퀘스트 승인 및 상태 새로고침
+          document.body.addEventListener('click', function (e) {
+            // 승인 버튼
+            const approveBtn = e.target.closest('.erp-btn-approve-team');
+            if (approveBtn) {
+              const orderId = approveBtn.dataset.orderId;
+              const team = approveBtn.dataset.team;
+              if (typeof approveQuestTeam === 'function') {
+                approveQuestTeam(Number(orderId), team);
+              } else {
+                console.warn('approveQuestTeam is not defined');
+              }
+            }
+
+            // 새로고침 버튼
+            const refreshBtn = e.target.closest('.erp-btn-refresh-status');
+            if (refreshBtn) {
+              const orderId = refreshBtn.dataset.orderId;
+              if (typeof refreshQuestStatus === 'function') {
+                refreshQuestStatus(Number(orderId));
+              }
+            }
+
+            // 첨부파일 미리보기 버튼
+            const attBtn = e.target.closest('.erp-btn-attachments-preview');
+            if (attBtn) {
+              const orderId = attBtn.dataset.orderId;
+              if (typeof openAttachmentsPreview === 'function') {
+                openAttachmentsPreview(Number(orderId));
+              }
+            }
+          });
         });
-      }
+      </script>
 
-      // 주문 상세 슬라이드 토글 이벤트
-      document.querySelectorAll('[data-bs-target^="#order-detail-collapse-"]').forEach(btn => {
-        btn.addEventListener('click', function () {
-          const targetId = this.getAttribute('data-bs-target');
-          const orderId = targetId.replace('#order-detail-collapse-', '');
-          const collapseEl = document.querySelector(targetId);
+      <!-- 알림 패널 -->
+      <div id="notification-panel" class="notification-panel" style="display: none;">
+        <div class="notification-panel__header">
+          <h4><i class="fas fa-bell"></i> 알림</h4>
+          <button class="notification-panel__close" onclick="toggleNotificationPanel()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="notification-panel__actions">
+          <button class="btn btn-sm btn-outline-secondary" onclick="markAllNotificationsRead()">
+            <i class="fas fa-check-double"></i> 모두 읽음
+          </button>
+        </div>
+        <div class="notification-panel__list" id="notification-list">
+          <div class="notification-empty">알림이 없습니다.</div>
+        </div>
+      </div>
 
-          if (collapseEl) {
-            collapseEl.addEventListener('shown.bs.collapse', function () {
-              loadOrderDetail(parseInt(orderId));
-            }, { once: true });
-          }
-        });
-      });
-
-      // 프로세스 맵 & 알림 타일 클릭 → 필터 적용 후 리로드
-      const applyFilter = (name, value) => {
-        if (!form) return;
-        let input = form.querySelector(`[name="${name}"]`);
-
-        // input이 없으면 (특히 alert_type hidden input이 초기 상태에서 없을 수 있음) 생성
-        if (!input) {
-          input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = name;
-          form.appendChild(input);
+      <style>
+        /* 알림 배지 */
+        .notification-badge {
+          position: absolute;
+          top: -5px;
+          right: -5px;
+          background: #ff4757;
+          color: white;
+          font-size: 10px;
+          font-weight: bold;
+          padding: 2px 6px;
+          border-radius: 10px;
+          min-width: 18px;
+          text-align: center;
         }
 
-        const current = input.value || '';
-        const next = value || '';
+        .erp-pro-btn--icon {
+          position: relative;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(255, 255, 255, 0.1);
+          border: none;
+          color: white;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
 
-        // 같은 값을 다시 클릭하면 해제(전체보기)
-        input.value = (current === next) ? '' : next;
+        .erp-pro-btn--icon:hover {
+          background: rgba(255, 255, 255, 0.2);
+        }
 
-        form.submit();
-      };
+        /* 알림 패널 */
+        .notification-panel {
+          position: fixed;
+          top: 70px;
+          right: 20px;
+          width: 380px;
+          max-height: 500px;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+          z-index: 9999;
+          overflow: hidden;
+        }
 
-      // 프로세스 맵 (Pipeline Stages)
-      document.querySelectorAll('.erp-pro-pipeline__stage[data-stage]').forEach(el => {
-        const handler = () => applyFilter('stage', el.dataset.stage || '');
-        el.addEventListener('click', handler);
-        el.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handler();
-          }
-        });
-      });
+        .notification-panel__header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 16px 20px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+        }
 
-      // 알림 타일 (Alert Tiles)
-      document.querySelectorAll('.erp-pro-alert[data-alert-type]').forEach(el => {
-        const handler = () => applyFilter('alert_type', el.dataset.alertType || '');
-        el.addEventListener('click', handler);
-        el.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handler();
-          }
-        });
-      });
+        .notification-panel__header h4 {
+          margin: 0;
+          font-size: 16px;
+        }
 
-      // 이벤트 위임: 퀘스트 승인 및 상태 새로고침
-      document.body.addEventListener('click', function (e) {
-        // 승인 버튼
-        const approveBtn = e.target.closest('.erp-btn-approve-team');
-        if (approveBtn) {
-          const orderId = approveBtn.dataset.orderId;
-          const team = approveBtn.dataset.team;
-          if (typeof approveQuestTeam === 'function') {
-            approveQuestTeam(Number(orderId), team);
-          } else {
-            console.warn('approveQuestTeam is not defined');
+        .notification-panel__close {
+          background: none;
+          border: none;
+          color: white;
+          font-size: 18px;
+          cursor: pointer;
+          opacity: 0.8;
+        }
+
+        .notification-panel__close:hover {
+          opacity: 1;
+        }
+
+        .notification-panel__actions {
+          padding: 10px 20px;
+          border-bottom: 1px solid #eee;
+          text-align: right;
+        }
+
+        .notification-panel__list {
+          max-height: 380px;
+          overflow-y: auto;
+        }
+
+        .notification-item {
+          padding: 14px 20px;
+          border-bottom: 1px solid #f0f0f0;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .notification-item:hover {
+          background: #f8f9fa;
+        }
+
+        .notification-item--unread {
+          background: #f0f5ff;
+          border-left: 3px solid #667eea;
+        }
+
+        .notification-item__header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 6px;
+        }
+
+        .notification-item__title {
+          font-weight: 600;
+          color: #333;
+          font-size: 14px;
+        }
+
+        .notification-item__time {
+          font-size: 11px;
+          color: #999;
+        }
+
+        .notification-item__message {
+          font-size: 13px;
+          color: #666;
+          line-height: 1.4;
+        }
+
+        .notification-item__target {
+          margin-top: 6px;
+          font-size: 11px;
+          color: #667eea;
+        }
+
+        .notification-empty {
+          padding: 40px 20px;
+          text-align: center;
+          color: #999;
+        }
+      </style>
+
+      <script>
+        // 알림 시스템 JavaScript
+        let notificationPanelOpen = false;
+
+        async function loadNotificationBadge() {
+          try {
+            const res = await fetch('/erp/api/notifications/badge');
+            const data = await res.json();
+            const badge = document.getElementById('notification-badge');
+            if (badge) {
+              if (data.count > 0) {
+                badge.textContent = data.count > 99 ? '99+' : data.count;
+                badge.style.display = 'block';
+              } else {
+                badge.style.display = 'none';
+              }
+            }
+          } catch (e) {
+            console.error('Notification badge error:', e);
           }
         }
 
-        // 새로고침 버튼
-        const refreshBtn = e.target.closest('.erp-btn-refresh-status');
-        if (refreshBtn) {
-          const orderId = refreshBtn.dataset.orderId;
-          if (typeof refreshQuestStatus === 'function') {
-            refreshQuestStatus(Number(orderId));
-          }
-        }
+        async function loadNotifications() {
+          try {
+            const res = await fetch('/erp/api/notifications?limit=20');
+            const data = await res.json();
+            const list = document.getElementById('notification-list');
 
-        // 첨부파일 미리보기 버튼
-        const attBtn = e.target.closest('.erp-btn-attachments-preview');
-        if (attBtn) {
-          const orderId = attBtn.dataset.orderId;
-          if (typeof openAttachmentsPreview === 'function') {
-            openAttachmentsPreview(Number(orderId));
-          }
-        }
-      });
-    });
-  </script>
+            if (!data.success || !data.notifications || data.notifications.length === 0) {
+              list.innerHTML = '<div class="notification-empty">알림이 없습니다.</div>';
+              return;
+            }
 
-  <!-- 알림 패널 -->
-  <div id="notification-panel" class="notification-panel" style="display: none;">
-    <div class="notification-panel__header">
-      <h4><i class="fas fa-bell"></i> 알림</h4>
-      <button class="notification-panel__close" onclick="toggleNotificationPanel()">
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-    <div class="notification-panel__actions">
-      <button class="btn btn-sm btn-outline-secondary" onclick="markAllNotificationsRead()">
-        <i class="fas fa-check-double"></i> 모두 읽음
-      </button>
-    </div>
-    <div class="notification-panel__list" id="notification-list">
-      <div class="notification-empty">알림이 없습니다.</div>
-    </div>
-  </div>
-
-  <style>
-    /* 알림 배지 */
-    .notification-badge {
-      position: absolute;
-      top: -5px;
-      right: -5px;
-      background: #ff4757;
-      color: white;
-      font-size: 10px;
-      font-weight: bold;
-      padding: 2px 6px;
-      border-radius: 10px;
-      min-width: 18px;
-      text-align: center;
-    }
-
-    .erp-pro-btn--icon {
-      position: relative;
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      color: white;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .erp-pro-btn--icon:hover {
-      background: rgba(255, 255, 255, 0.2);
-    }
-
-    /* 알림 패널 */
-    .notification-panel {
-      position: fixed;
-      top: 70px;
-      right: 20px;
-      width: 380px;
-      max-height: 500px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-      z-index: 9999;
-      overflow: hidden;
-    }
-
-    .notification-panel__header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 16px 20px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-    }
-
-    .notification-panel__header h4 {
-      margin: 0;
-      font-size: 16px;
-    }
-
-    .notification-panel__close {
-      background: none;
-      border: none;
-      color: white;
-      font-size: 18px;
-      cursor: pointer;
-      opacity: 0.8;
-    }
-
-    .notification-panel__close:hover {
-      opacity: 1;
-    }
-
-    .notification-panel__actions {
-      padding: 10px 20px;
-      border-bottom: 1px solid #eee;
-      text-align: right;
-    }
-
-    .notification-panel__list {
-      max-height: 380px;
-      overflow-y: auto;
-    }
-
-    .notification-item {
-      padding: 14px 20px;
-      border-bottom: 1px solid #f0f0f0;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .notification-item:hover {
-      background: #f8f9fa;
-    }
-
-    .notification-item--unread {
-      background: #f0f5ff;
-      border-left: 3px solid #667eea;
-    }
-
-    .notification-item__header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
-    }
-
-    .notification-item__title {
-      font-weight: 600;
-      color: #333;
-      font-size: 14px;
-    }
-
-    .notification-item__time {
-      font-size: 11px;
-      color: #999;
-    }
-
-    .notification-item__message {
-      font-size: 13px;
-      color: #666;
-      line-height: 1.4;
-    }
-
-    .notification-item__target {
-      margin-top: 6px;
-      font-size: 11px;
-      color: #667eea;
-    }
-
-    .notification-empty {
-      padding: 40px 20px;
-      text-align: center;
-      color: #999;
-    }
-  </style>
-
-  <script>
-    // 알림 시스템 JavaScript
-    let notificationPanelOpen = false;
-
-    async function loadNotificationBadge() {
-      try {
-        const res = await fetch('/erp/api/notifications/badge');
-        const data = await res.json();
-        const badge = document.getElementById('notification-badge');
-        if (badge) {
-          if (data.count > 0) {
-            badge.textContent = data.count > 99 ? '99+' : data.count;
-            badge.style.display = 'block';
-          } else {
-            badge.style.display = 'none';
-          }
-        }
-      } catch (e) {
-        console.error('Notification badge error:', e);
-      }
-    }
-
-    async function loadNotifications() {
-      try {
-        const res = await fetch('/erp/api/notifications?limit=20');
-        const data = await res.json();
-        const list = document.getElementById('notification-list');
-
-        if (!data.success || !data.notifications || data.notifications.length === 0) {
-          list.innerHTML = '<div class="notification-empty">알림이 없습니다.</div>';
-          return;
-        }
-
-        list.innerHTML = data.notifications.map(n => `
+            list.innerHTML = data.notifications.map(n => `
           <div class="notification-item ${n.is_read ? '' : 'notification-item--unread'}" 
                data-id="${n.id}" 
                data-order-id="${n.order_id}"
@@ -2885,86 +3343,86 @@
             </div>
           </div>
         `).join('');
-      } catch (e) {
-        console.error('Load notifications error:', e);
-      }
-    }
-
-    function toggleNotificationPanel() {
-      const panel = document.getElementById('notification-panel');
-      notificationPanelOpen = !notificationPanelOpen;
-      panel.style.display = notificationPanelOpen ? 'block' : 'none';
-
-      if (notificationPanelOpen) {
-        loadNotifications();
-      }
-    }
-
-    async function handleNotificationClick(notificationId, orderId) {
-      // 읽음 처리
-      try {
-        await fetch(`/erp/api/notifications/${notificationId}/read`, { method: 'POST' });
-        loadNotificationBadge();
-
-        // 해당 주문 상세로 이동
-        if (orderId) {
-          window.location.href = `/edit/${orderId}`;
+          } catch (e) {
+            console.error('Load notifications error:', e);
+          }
         }
-      } catch (e) {
-        console.error('Notification click error:', e);
-      }
-    }
 
-    async function markAllNotificationsRead() {
-      try {
-        const res = await fetch('/erp/api/notifications/read-all', { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
+        function toggleNotificationPanel() {
+          const panel = document.getElementById('notification-panel');
+          notificationPanelOpen = !notificationPanelOpen;
+          panel.style.display = notificationPanelOpen ? 'block' : 'none';
+
+          if (notificationPanelOpen) {
+            loadNotifications();
+          }
+        }
+
+        async function handleNotificationClick(notificationId, orderId) {
+          // 읽음 처리
+          try {
+            await fetch(`/erp/api/notifications/${notificationId}/read`, { method: 'POST' });
+            loadNotificationBadge();
+
+            // 해당 주문 상세로 이동
+            if (orderId) {
+              window.location.href = `/edit/${orderId}`;
+            }
+          } catch (e) {
+            console.error('Notification click error:', e);
+          }
+        }
+
+        async function markAllNotificationsRead() {
+          try {
+            const res = await fetch('/erp/api/notifications/read-all', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+              loadNotificationBadge();
+              loadNotifications();
+            }
+          } catch (e) {
+            console.error('Mark all read error:', e);
+          }
+        }
+
+        function formatNotificationTime(dateStr) {
+          if (!dateStr) return '';
+          const date = new Date(dateStr.replace(' ', 'T'));
+          const now = new Date();
+          const diff = (now - date) / 1000;
+
+          if (diff < 60) return '방금';
+          if (diff < 3600) return Math.floor(diff / 60) + '분 전';
+          if (diff < 86400) return Math.floor(diff / 3600) + '시간 전';
+          if (diff < 604800) return Math.floor(diff / 86400) + '일 전';
+
+          return dateStr.split(' ')[0];
+        }
+
+        function escapeHtml(text) {
+          if (!text) return '';
+          const div = document.createElement('div');
+          div.textContent = String(text);
+          return div.innerHTML;
+        }
+
+        // 페이지 로드 시 배지 업데이트
+        document.addEventListener('DOMContentLoaded', function () {
           loadNotificationBadge();
-          loadNotifications();
-        }
-      } catch (e) {
-        console.error('Mark all read error:', e);
-      }
-    }
 
-    function formatNotificationTime(dateStr) {
-      if (!dateStr) return '';
-      const date = new Date(dateStr.replace(' ', 'T'));
-      const now = new Date();
-      const diff = (now - date) / 1000;
+          // 30초마다 배지 업데이트
+          setInterval(loadNotificationBadge, 30000);
+        });
 
-      if (diff < 60) return '방금';
-      if (diff < 3600) return Math.floor(diff / 60) + '분 전';
-      if (diff < 86400) return Math.floor(diff / 3600) + '시간 전';
-      if (diff < 604800) return Math.floor(diff / 86400) + '일 전';
-
-      return dateStr.split(' ')[0];
-    }
-
-    function escapeHtml(text) {
-      if (!text) return '';
-      const div = document.createElement('div');
-      div.textContent = String(text);
-      return div.innerHTML;
-    }
-
-    // 페이지 로드 시 배지 업데이트
-    document.addEventListener('DOMContentLoaded', function () {
-      loadNotificationBadge();
-
-      // 30초마다 배지 업데이트
-      setInterval(loadNotificationBadge, 30000);
-    });
-
-    // 패널 외부 클릭 시 닫기
-    document.addEventListener('click', function (e) {
-      const panel = document.getElementById('notification-panel');
-      const btn = document.getElementById('notification-btn');
-      if (notificationPanelOpen && !panel.contains(e.target) && !btn.contains(e.target)) {
-        toggleNotificationPanel();
-      }
-    });
-  </script>
-</div>
-{% endblock %}
+        // 패널 외부 클릭 시 닫기
+        document.addEventListener('click', function (e) {
+          const panel = document.getElementById('notification-panel');
+          const btn = document.getElementById('notification-btn');
+          if (notificationPanelOpen && !panel.contains(e.target) && !btn.contains(e.target)) {
+            toggleNotificationPanel();
+          }
+        });
+      </script>
+    </div>
+    {% endblock %}

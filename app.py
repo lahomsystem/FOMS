@@ -76,6 +76,9 @@ if not app.secret_key:
     app.secret_key = 'dev-secret-key-CHANGE-IN-PRODUCTION'
     print("[WARN] Using development secret key. Set SECRET_KEY environment variable for production!")
 
+# Session cookie configuration (prevent conflicts with other Flask apps on same domain)
+app.config['SESSION_COOKIE_NAME'] = 'session_staging'  # Different from port 5000 (session_dev)
+
 # Fix for Railway/Load Balancer (HTTPS redirect loop)
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
