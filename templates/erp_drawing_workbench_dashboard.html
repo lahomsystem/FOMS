@@ -1,0 +1,167 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="erp-pro">
+  <header class="erp-pro-header">
+    <h1 class="erp-pro-header__title">
+      <i class="fas fa-drafting-compass"></i>
+      <span>도면 작업실 대시보드</span>
+    </h1>
+    <div class="erp-pro-header__actions">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_beta.erp_dashboard') }}">
+        <i class="fas fa-arrow-left"></i>
+        <span class="d-none d-md-inline">ERP</span>
+      </a>
+    </div>
+  </header>
+
+  {% set erp_sub_nav_active = 'drawing_workbench' %}
+  {% include 'partials/erp_sub_nav.html' %}
+
+  <div class="erp-pro-card">
+    <div class="erp-pro-card__header erp-pro-card__header--filter">
+      <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
+        <div class="erp-pro-filter-group">
+          <label class="erp-pro-filter-label">검색</label>
+          <input type="text" class="erp-pro-input" name="q" value="{{ filters.get('q') or '' }}"
+            placeholder="고객명/담당자/주문번호">
+        </div>
+        <div class="erp-pro-filter-group">
+          <label class="erp-pro-filter-label">상태</label>
+          <select class="erp-pro-input" name="status">
+            <option value="">전체</option>
+            <option value="PENDING" {% if filters.get('status') == 'PENDING' %}selected{% endif %}>작업중</option>
+            <option value="TRANSFERRED" {% if filters.get('status') == 'TRANSFERRED' %}selected{% endif %}>확정 대기</option>
+            <option value="RETURNED" {% if filters.get('status') == 'RETURNED' %}selected{% endif %}>수정 요청됨</option>
+            <option value="CONFIRMED" {% if filters.get('status') == 'CONFIRMED' %}selected{% endif %}>완료</option>
+          </select>
+        </div>
+        <div class="erp-pro-filter-group">
+          <label class="erp-pro-filter-label">도면 담당자</label>
+          <input type="text" class="erp-pro-input" name="assignee" value="{{ filters.get('assignee') or '' }}"
+            placeholder="담당자 이름 포함">
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <label class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" name="mine" value="1" {% if filters.get('mine') == '1' %}checked{% endif %}>
+            <span class="small ms-1">내 할 일</span>
+          </label>
+          <label class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" name="unread" value="1" {% if filters.get('unread') == '1' %}checked{% endif %}>
+            <span class="small ms-1">미확인만</span>
+          </label>
+          <label class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" name="due_today" value="1" {% if filters.get('due_today') == '1' %}checked{% endif %}>
+            <span class="small ms-1">오늘 마감</span>
+          </label>
+        </div>
+        <div class="erp-pro-filter-actions">
+          <button class="erp-pro-btn erp-pro-btn--primary" type="submit">
+            <i class="fas fa-search"></i><span>조회</span>
+          </button>
+          <a class="erp-pro-btn erp-pro-btn--outline" href="{{ url_for('erp_beta.erp_drawing_workbench_dashboard') }}">
+            <i class="fas fa-undo"></i><span>초기화</span>
+          </a>
+        </div>
+      </form>
+    </div>
+
+    <div class="card-body">
+      {% if rows %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>주문/고객</th>
+              <th>다음 액션</th>
+              <th>도면 담당</th>
+              <th>상태</th>
+              <th>대상 번호</th>
+              <th>최근 이벤트</th>
+              <th>SLA</th>
+              <th>미확인</th>
+              <th class="text-end">열기</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+            <tr class="erp-workbench-row" data-href="{{ url_for('erp_beta.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" style="cursor:pointer;">
+              <td>
+                <div class="fw-bold">{{ r.customer_name }}</div>
+                <div class="small text-muted">#{{ r.id }}</div>
+                <div class="small text-muted">주문 담당: {{ r.manager_name }}</div>
+                {% if r.my_todo %}
+                <span class="badge bg-primary mt-1">내 할 일</span>
+                {% endif %}
+              </td>
+              <td class="small">{{ r.next_action }}</td>
+              <td>{{ r.assignee_text }}</td>
+              <td>
+                {% set badge_cls = 'bg-secondary' %}
+                {% if r.drawing_status == 'PENDING' %}{% set badge_cls = 'bg-warning text-dark' %}{% endif %}
+                {% if r.drawing_status == 'TRANSFERRED' %}{% set badge_cls = 'bg-info text-dark' %}{% endif %}
+                {% if r.drawing_status == 'RETURNED' %}{% set badge_cls = 'bg-danger' %}{% endif %}
+                {% if r.drawing_status == 'CONFIRMED' %}{% set badge_cls = 'bg-success' %}{% endif %}
+                <span class="badge {{ badge_cls }}">{{ r.drawing_status_label }}</span>
+                <div class="small text-muted mt-1">파일 {{ r.file_count }}건</div>
+              </td>
+              <td>
+                {% if r.target_no %}
+                <span class="badge bg-light text-dark border">{{ r.target_no }}번</span>
+                {% else %}
+                <span class="text-muted small">-</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="small text-muted">{{ r.latest_event_at }} · {{ r.latest_event_label }}</div>
+                {% if r.latest_event_note %}
+                <div class="small">{{ r.latest_event_note }}</div>
+                {% else %}
+                <div class="small text-muted">-</div>
+                {% endif %}
+              </td>
+              <td>
+                {% if r.sla_level == '지연' %}
+                <span class="badge bg-danger">지연</span>
+                {% elif r.sla_level == '오늘 마감' %}
+                <span class="badge bg-warning text-dark">오늘 마감</span>
+                {% else %}
+                <span class="badge bg-success">정상</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if r.unread_count > 0 %}
+                <span class="badge bg-danger">{{ r.unread_count }}건</span>
+                {% else %}
+                <span class="badge bg-light text-dark border">0건</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-primary js-row-link" href="{{ url_for('erp_beta.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline">
+                  <i class="fas fa-door-open"></i> 창구 열기
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center text-muted py-5">
+        <i class="fas fa-inbox mb-2" style="font-size:1.6rem;"></i>
+        <div>조건에 맞는 도면 작업 건이 없습니다.</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<script>
+  document.addEventListener('click', function (e) {
+    const row = e.target.closest('.erp-workbench-row');
+    if (!row) return;
+    if (e.target.closest('a, button, input, select, label')) return;
+    const href = row.getAttribute('data-href');
+    if (href) window.location.href = href;
+  });
+</script>
+{% endblock %}

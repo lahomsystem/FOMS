@@ -1,0 +1,314 @@
+{% extends "layout.html" %}
+
+{% block title %}변경 로그{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-12">
+      <div class="card shadow">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <h4 class="mb-0"><i class="fas fa-history"></i> 변경 로그</h4>
+          <button class="btn btn-light btn-sm" onclick="loadMyEvents()">
+            <i class="fas fa-sync-alt"></i> 새로고침
+          </button>
+        </div>
+        <div class="card-body">
+          {% if current_user.role == 'ADMIN' %}
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> 관리자는 모든 변경 로그를 조회할 수 있습니다. 
+            <strong>각 주문 상세 페이지</strong>에서 해당 주문의 전체 변경 로그를 확인하세요.
+          </div>
+          {% endif %}
+
+          <div class="alert alert-secondary">
+            <i class="fas fa-user"></i> <strong>{{ current_user.name }}</strong>님이 수정한 내역을 확인할 수 있습니다.
+          </div>
+
+          <div id="loading" class="text-center py-5" style="display: none;">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">로딩 중...</span>
+            </div>
+            <div class="mt-2">로그를 불러오는 중...</div>
+          </div>
+
+          <div id="events-container">
+            <!-- 이벤트 목록이 여기에 표시됩니다 -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 되돌리기 확인 모달 -->
+<div class="modal fade" id="revertModal" tabindex="-1" aria-labelledby="revertModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title" id="revertModalLabel"><i class="fas fa-undo"></i> 변경 되돌리기</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle"></i> 이 변경을 되돌리시겠습니까?
+        </div>
+        <div id="revert-event-info" class="mb-3">
+          <!-- 이벤트 정보가 여기에 표시됩니다 -->
+        </div>
+        <div class="mb-3">
+          <label for="revert-reason" class="form-label"><strong>되돌리기 사유 <span class="text-danger">*</span></strong></label>
+          <textarea class="form-control" id="revert-reason" rows="3" placeholder="되돌리기 사유를 입력하세요..." required></textarea>
+          <small class="text-muted">예: 실수로 잘못 변경함, 고객 요청으로 원복 필요 등</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-warning" onclick="confirmRevert()">
+          <i class="fas fa-undo"></i> 되돌리기 실행
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.event-card {
+  border-left: 4px solid #007bff;
+  margin-bottom: 1rem;
+}
+
+.event-card.override {
+  border-left-color: #dc3545;
+}
+
+.event-card.reverted {
+  border-left-color: #6c757d;
+  opacity: 0.7;
+}
+
+.event-meta {
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+.event-change {
+  background-color: #f8f9fa;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.event-reason {
+  background-color: #fff3cd;
+  border-left: 4px solid #ffc107;
+  padding: 0.75rem;
+  margin: 0.5rem 0;
+  border-radius: 0.25rem;
+  font-size: 0.95rem;
+}
+
+.event-reason strong {
+  color: #856404;
+  margin-right: 0.5rem;
+}
+
+.badge-override {
+  background-color: #dc3545;
+}
+
+.badge-team {
+  background-color: #17a2b8;
+}
+</style>
+
+<script>
+let currentRevertEventId = null;
+let currentRevertOrderId = null;
+
+// 페이지 로드 시 자동 로드
+document.addEventListener('DOMContentLoaded', function() {
+  loadMyEvents();
+});
+
+function loadMyEvents() {
+  const container = document.getElementById('events-container');
+  const loading = document.getElementById('loading');
+  
+  loading.style.display = 'block';
+  container.innerHTML = '';
+  
+  fetch('/api/me/change-events?limit=200')
+    .then(response => response.json())
+    .then(data => {
+      loading.style.display = 'none';
+      
+      if (!data.success) {
+        container.innerHTML = `
+          <div class="alert alert-danger">
+            <i class="fas fa-exclamation-circle"></i> 로그를 불러오는데 실패했습니다: ${data.message}
+          </div>
+        `;
+        return;
+      }
+      
+      if (data.events.length === 0) {
+        container.innerHTML = `
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> 아직 변경 이력이 없습니다.
+          </div>
+        `;
+        return;
+      }
+      
+      // 이벤트 목록 렌더링
+      let html = `<div class="mb-3"><strong>총 ${data.total}건의 변경 이력</strong></div>`;
+      
+      data.events.forEach(event => {
+        const isReverted = event.event_type === 'CHANGE_REVERTED';
+        const isOverride = event.is_override;
+        
+        let cardClass = 'event-card card';
+        if (isReverted) cardClass += ' reverted';
+        if (isOverride) cardClass += ' override';
+        
+        html += `
+          <div class="${cardClass}">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                  <strong class="text-primary" style="font-size: 1.1rem;">
+                    <a href="/edit/${event.order_id}?open=erp-beta" target="_blank">
+                      ${event.customer_name}
+                    </a>
+                  </strong>
+                  ${isOverride ? '<span class="badge badge-override ms-2">긴급 권한 사용</span>' : ''}
+                  ${isReverted ? '<span class="badge bg-secondary ms-2">되돌림</span>' : ''}
+                </div>
+                <div class="event-meta">
+                  <i class="far fa-clock"></i> ${event.when}
+                </div>
+              </div>
+              
+              <div class="mb-2">
+                <span class="badge bg-info">${event.what_label}</span>
+              </div>
+              
+              <div class="event-change mb-2">
+                ${escapeHtml(event.how_text)}
+              </div>
+              
+              ${event.reason ? `
+                <div class="event-reason">
+                  <strong><i class="fas fa-info-circle"></i> 사유:</strong>
+                  <span>${escapeHtml(event.reason)}</span>
+                </div>
+              ` : ''}
+              
+              ${!isReverted && canRevert(event) ? `
+                <div class="text-end">
+                  <button class="btn btn-sm btn-outline-warning" onclick="showRevertModal(${event.id}, ${event.order_id}, '${escapeHtml(event.what_label)}', '${escapeHtml(event.how_text)}')">
+                    <i class="fas fa-undo"></i> 되돌리기
+                  </button>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      });
+      
+      container.innerHTML = html;
+    })
+    .catch(error => {
+      loading.style.display = 'none';
+      container.innerHTML = `
+        <div class="alert alert-danger">
+          <i class="fas fa-exclamation-circle"></i> 네트워크 오류: ${error.message}
+        </div>
+      `;
+      console.error('로그 로딩 오류:', error);
+    });
+}
+
+function canRevert(event) {
+  // CHANGE_REVERTED 타입은 되돌리기 불가
+  if (event.event_type === 'CHANGE_REVERTED') return false;
+  
+  // 다른 되돌리기 가능 조건들...
+  // 일단 모든 이벤트 되돌리기 가능하도록
+  return true;
+}
+
+function showRevertModal(eventId, orderId, whatLabel, howText) {
+  currentRevertEventId = eventId;
+  currentRevertOrderId = orderId;
+  
+  document.getElementById('revert-event-info').innerHTML = `
+    <div class="card">
+      <div class="card-body">
+        <div class="mb-2"><strong>변경 내용:</strong> ${whatLabel}</div>
+        <div class="event-change">${howText}</div>
+      </div>
+    </div>
+  `;
+  
+  document.getElementById('revert-reason').value = '';
+  
+  const modal = new bootstrap.Modal(document.getElementById('revertModal'));
+  modal.show();
+}
+
+function confirmRevert() {
+  const reason = document.getElementById('revert-reason').value.trim();
+  
+  if (!reason) {
+    alert('되돌리기 사유를 입력해주세요.');
+    return;
+  }
+  
+  if (!confirm('정말 이 변경을 되돌리시겠습니까?')) {
+    return;
+  }
+  
+  fetch(`/api/orders/${currentRevertOrderId}/change-events/${currentRevertEventId}/revert`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ reason: reason })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert('✓ 변경이 성공적으로 되돌려졌습니다.');
+      
+      // 모달 닫기
+      const modal = bootstrap.Modal.getInstance(document.getElementById('revertModal'));
+      modal.hide();
+      
+      // 목록 새로고침
+      loadMyEvents();
+    } else {
+      alert('되돌리기 실패: ' + data.message);
+    }
+  })
+  .catch(error => {
+    alert('네트워크 오류: ' + error.message);
+    console.error('되돌리기 오류:', error);
+  });
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
+}
+</script>
+{% endblock %}

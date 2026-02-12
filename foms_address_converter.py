@@ -126,6 +126,52 @@ class FOMSAddressConverter:
         except Exception as e:
             return None, None, f"키워드 API 오류: {str(e)}"
     
+    def _strip_detail_for_geocoding(self, address):
+        """지오코딩 전 상세주소(동/호수, 아파트명 등)를 분리하여 핵심 주소만 반환
+        
+        예시:
+          "경기 파주시 정석로 140 1008-2101"
+            → "경기 파주시 정석로 140"
+          "경기 평택시 현덕면 화양현화2로 45, e편한세상 평택 라씨엘로 102-2002"
+            → "경기 평택시 현덕면 화양현화2로 45"
+          "서울 송파구 올림픽로 300 롯데월드타워 35층"
+            → "서울 송파구 올림픽로 300"
+        """
+        if not address:
+            return address
+        
+        original = address.strip()
+        
+        # 1. 쉼표 뒤의 상세주소 분리 (아파트명, 동호수 등)
+        if ',' in original:
+            original = original.split(',')[0].strip()
+        
+        # 2. 도로명 주소: [도로명] [건물번호] 이후 부분 제거
+        #    도로명(대로/로/길) + 공백 + 건물번호 까지만 추출
+        road_match = re.match(
+            r'(.*?(?:대로|로|길)\s+\d+(?:-\d+)?)',
+            original
+        )
+        if road_match:
+            stripped = road_match.group(1).strip()
+            if stripped != original:
+                return stripped
+        
+        # 3. 아파트 동호수 패턴 직접 제거
+        #    "동패동 2287 1008동 2101호" → "동패동 2287"
+        cleaned = re.sub(r'\s+\d+동\s*\d+호?', '', original)
+        if cleaned != original:
+            return cleaned.strip()
+        
+        # 4. 지번 주소 뒤의 큰 숫자-숫자 패턴 제거 (동호수로 추정)
+        #    "동패동 2287 1008-2101" → "동패동 2287"
+        #    (양쪽 모두 3자리 이상이면 동호수일 가능성 높음)
+        cleaned = re.sub(r'\s+\d{3,}-\d{3,}$', '', original)
+        if cleaned != original:
+            return cleaned.strip()
+        
+        return original
+    
     def convert_address(self, address):
         """AI 기반 주소 변환"""
         if not address or str(address).strip() == '':
@@ -143,24 +189,40 @@ class FOMSAddressConverter:
         except Exception as e:
             pass
         
-        # 2단계: 고급 주소 처리
+        # 2단계: 상세주소 분리 (동/호수 등 제거 → 핵심 주소만)
+        stripped_address = self._strip_detail_for_geocoding(address)
+        
+        # 3단계: 고급 주소 처리
         try:
             processed_address = self.advanced_processor.process_address(address)
+            processed_stripped = self._strip_detail_for_geocoding(processed_address)
         except Exception as e:
             processed_address = address
+            processed_stripped = stripped_address
         
-        # 3단계: 정규화된 주소로 API 시도
+        # 4단계: 정규화된 주소로 API 시도
         normalized_address = self._normalize_address(processed_address)
+        normalized_stripped = self._strip_detail_for_geocoding(normalized_address)
         
-        # 4단계: 다중 전략 시도
-        strategies = [
+        # 5단계: 다중 전략 시도 (상세주소 제거 버전을 우선 시도)
+        strategies = []
+        seen = set()
+        
+        # 상세주소 제거 버전을 먼저 시도 (가장 정확)
+        for name, addr in [
+            ("stripped", stripped_address),
+            ("processed_stripped", processed_stripped),
+            ("normalized_stripped", normalized_stripped),
             ("processed", processed_address),
             ("normalized", normalized_address),
             ("original", address)
-        ]
+        ]:
+            if addr and addr.strip() and addr.strip() not in seen:
+                seen.add(addr.strip())
+                strategies.append((name, addr.strip()))
         
         for strategy_name, addr_to_try in strategies:
-            if addr_to_try and addr_to_try.strip():
+            if addr_to_try:
                 # 주소 API 시도
                 lat, lng, status = self._try_address_api(addr_to_try)
                 if lat is not None and lng is not None:
@@ -171,7 +233,7 @@ class FOMSAddressConverter:
                 if lat is not None and lng is not None:
                     return lat, lng, f"{status} ({strategy_name})"
         
-        # 5단계: 주소 구성 요소 분석 후 재시도
+        # 6단계: 주소 구성 요소 분석 후 재시도
         try:
             components = self.advanced_processor.extract_address_components(address)
             if components['city'] and components['district']:

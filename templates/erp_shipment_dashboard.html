@@ -769,8 +769,12 @@
 
                 <tr data-order-id="{{ r.id }}" class="shipment-row">
                   <td style="border-right: 1px solid #e0e0e0;">
+                    {% if can_edit_erp_beta|default(false) %}
                     <a href="{{ url_for('edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-beta"
                       class="btn btn-sm btn-outline-primary" title="주문 상세"><i class="fas fa-edit"></i></a>
+                    {% else %}
+                    <span class="text-muted small">(권한없음)</span>
+                    {% endif %}
                   </td>
                   <td style="border-right: 1px solid #e0e0e0;">
                     <div>{{ customer or '-' }}</div>

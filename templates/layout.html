@@ -550,13 +550,26 @@
                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown" style="z-index: 1050;">
                         <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-user-cog"></i> 내
                                 정보</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('change_logs') }}"><i class="fas fa-history"></i> 내 변경 로그</a></li>
+                        {% if impersonating_from_id %}
+                        <li><a class="dropdown-item" href="{{ url_for('auth.switch_back') }}"><i class="fas fa-undo"></i> 원래 관리자로 돌아가기</a></li>
+                        {% endif %}
                         {% if current_user.role == 'ADMIN' %}
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
                         <li><a class="dropdown-item" href="{{ url_for('auth.user_list') }}"><i class="fas fa-users"></i>
                                 사용자
                                 관리</a></li>
                         <li><a class="dropdown-item" href="{{ url_for('security_logs') }}"><i
                                     class="fas fa-shield-alt"></i>
                                 보안 로그</a></li>
+                        {% if not impersonating_from_id and admin_switch_users %}
+                        <li><h6 class="dropdown-header">다른 사용자로 전환</h6></li>
+                        {% for u in admin_switch_users %}
+                        <li><a class="dropdown-item" href="{{ url_for('auth.switch_user', target_user_id=u.id) }}">{{ u.name }} ({{ u.username }})</a></li>
+                        {% endfor %}
+                        {% endif %}
                         {% endif %}
                         <li>
                             <hr class="dropdown-divider">
@@ -674,16 +687,18 @@
                 </div>
                 <div class="modal-body p-4">
                     <div class="mb-3">
-                        <label for="quick-order-id" class="form-label fw-bold">주문 번호 (ID)</label>
+                        <label for="quick-order-id" class="form-label fw-bold">고객명 / 주문번호</label>
                         <div class="input-group input-group-lg">
-                            <span class="input-group-text bg-light"><i class="fas fa-hashtag"></i></span>
-                            <input type="number" class="form-control" id="quick-order-id" placeholder="123" autofocus>
+                            <span class="input-group-text bg-light"><i class="fas fa-search"></i></span>
+                            <input type="text" class="form-control" id="quick-order-id" placeholder="예: 망고 또는 1955" autofocus>
                             <button class="btn btn-primary" type="button" id="btn-quick-search">
                                 <i class="fas fa-search"></i> 조회
                             </button>
                         </div>
-                        <div class="form-text">주문 번호를 입력하고 엔터 또는 조회 버튼을 누르세요.</div>
+                        <div class="form-text">고객명 또는 주문번호를 입력하고 조회하세요.</div>
                     </div>
+
+                    <div id="quick-search-results" class="list-group mb-3 d-none"></div>
 
                     <div id="quick-order-info" class="alert alert-light border d-none mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-1">
@@ -760,6 +775,27 @@
                     </button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Global Immersive Image Viewer -->
+    <div id="global-image-viewer" aria-hidden="true" style="display:none;">
+        <div id="global-viewer-backdrop"></div>
+        <button type="button" id="global-viewer-close" title="닫기" aria-label="닫기">
+            <i class="fas fa-times"></i>
+        </button>
+        <button type="button" id="global-viewer-prev" class="global-viewer-nav" title="이전" aria-label="이전">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+        <button type="button" id="global-viewer-next" class="global-viewer-nav" title="다음" aria-label="다음">
+            <i class="fas fa-chevron-right"></i>
+        </button>
+        <div id="global-viewer-stage">
+            <img id="global-viewer-image" src="" alt="" draggable="false">
+        </div>
+        <div id="global-viewer-footer">
+            <div id="global-viewer-filename"></div>
+            <div id="global-viewer-counter"></div>
         </div>
     </div>
 
@@ -948,91 +984,450 @@
         });
     </script>
 
+    <script>
+        // Global Immersive Image Viewer Logic
+        window.GlobalImageViewer = (function() {
+            const state = {
+                files: [],
+                index: 0,
+                scale: 1,
+                tx: 0, ty: 0,
+                dragging: false,
+                dragStartX: 0, dragStartY: 0,
+                baseTx: 0, baseTy: 0,
+                touchStartX: 0,
+                touchStartY: 0,
+                touchLastX: 0,
+                touchLastY: 0,
+                touching: false
+            };
+            
+            let els = {};
+
+            function init() {
+                if (els.root) return; // Already init
+                
+                els = {
+                    root: document.getElementById('global-image-viewer'),
+                    backdrop: document.getElementById('global-viewer-backdrop'),
+                    closeBtn: document.getElementById('global-viewer-close'),
+                    prevBtn: document.getElementById('global-viewer-prev'),
+                    nextBtn: document.getElementById('global-viewer-next'),
+                    stage: document.getElementById('global-viewer-stage'),
+                    image: document.getElementById('global-viewer-image'),
+                    filename: document.getElementById('global-viewer-filename'),
+                    counter: document.getElementById('global-viewer-counter')
+                };
+                
+                if (!els.root) return;
+
+                // Events
+                els.closeBtn?.addEventListener('click', close);
+                els.backdrop?.addEventListener('click', close);
+                els.prevBtn?.addEventListener('click', prev);
+                els.nextBtn?.addEventListener('click', next);
+                
+                // Show nav on mouse move
+                els.root.addEventListener('mousemove', () => {
+                   els.root.classList.add('nav-visible');
+                });
+                els.root.addEventListener('mouseleave', () => {
+                   els.root.classList.remove('nav-visible');
+                });
+
+                // Zoom
+                els.image?.addEventListener('wheel', handleWheel, { passive: false });
+                
+                // Drag
+                els.image?.addEventListener('mousedown', startDrag);
+                window.addEventListener('mousemove', doDrag);
+                window.addEventListener('mouseup', endDrag);
+                
+                // Keys
+                document.addEventListener('keydown', handleKey);
+
+                // Keep desktop nav arrows pinned to screen edges
+                els.image?.addEventListener('load', positionNavButtons);
+                window.addEventListener('resize', () => {
+                    if (els.root && els.root.style.display !== 'none') {
+                        requestAnimationFrame(positionNavButtons);
+                    }
+                });
+
+                // Close when clicking empty area (outside image)
+                els.stage?.addEventListener('click', (e) => {
+                    if (e.target === els.stage) close();
+                });
+
+                // Mobile swipe navigation
+                els.stage?.addEventListener('touchstart', handleTouchStart, { passive: true });
+                els.stage?.addEventListener('touchmove', handleTouchMove, { passive: true });
+                els.stage?.addEventListener('touchend', handleTouchEnd, { passive: true });
+            }
+            
+            function open(files, startIndex = 0) {
+                init(); // Ensure init
+                if (!files || !files.length) return;
+                
+                // Normalize files structure
+                state.files = files.map(f => ({
+                    url: f.view_url || f.url || (f.key ? `/api/files/view/${f.key}` : ''),
+                    filename: f.filename || f.name || '이미지',
+                    download_url: f.download_url || (f.key ? `/api/files/download/${f.key}` : '')
+                })).filter(f => !!f.url);
+                
+                if (state.files.length === 0) {
+                    alert('표시할 이미지가 없습니다.');
+                    return;
+                }
+
+                state.index = Math.max(0, Math.min(state.files.length - 1, startIndex));
+                
+                els.root.style.display = 'flex';
+                els.root.classList.add('d-flex');
+                els.root.setAttribute('aria-hidden', 'false');
+                document.body.style.overflow = 'hidden'; // Lock scroll
+                
+                render();
+            }
+            
+            function close() {
+                if (!els.root) return;
+                els.root.style.display = 'none';
+                els.root.classList.remove('d-flex');
+                els.root.setAttribute('aria-hidden', 'true');
+                document.body.style.overflow = '';
+                state.files = [];
+            }
+            
+            function render() {
+                const file = state.files[state.index];
+                if (!file) return;
+                
+                // Reset transform
+                state.scale = 1;
+                state.tx = 0;
+                state.ty = 0;
+                updateTransform();
+                
+                els.image.src = file.url;
+                els.image.alt = file.filename;
+                els.filename.textContent = file.filename;
+                
+                if (state.files.length > 1) {
+                    els.counter.textContent = `${state.index + 1} / ${state.files.length}`;
+                    els.root.classList.remove('single-file');
+                } else {
+                    els.counter.textContent = '';
+                    els.root.classList.add('single-file');
+                }
+                requestAnimationFrame(positionNavButtons);
+            }
+            
+            function updateTransform() {
+                if(els.image) els.image.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
+            }
+            
+            function prev() {
+                if (state.index > 0) {
+                    state.index--;
+                    render();
+                }
+            }
+            
+            function next() {
+                if (state.index < state.files.length - 1) {
+                    state.index++;
+                    render();
+                }
+            }
+            
+            function handleWheel(e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                state.scale = Math.max(0.1, Math.min(5, state.scale + delta));
+                updateTransform();
+            }
+            
+            function startDrag(e) {
+                e.preventDefault();
+                state.dragging = true;
+                state.dragStartX = e.clientX;
+                state.dragStartY = e.clientY;
+                state.baseTx = state.tx;
+                state.baseTy = state.ty;
+                els.image.style.cursor = 'grabbing';
+            }
+            
+            function doDrag(e) {
+                if (!state.dragging) return;
+                e.preventDefault();
+                state.tx = state.baseTx + (e.clientX - state.dragStartX);
+                state.ty = state.baseTy + (e.clientY - state.dragStartY);
+                updateTransform();
+            }
+            
+            function endDrag() {
+                state.dragging = false;
+                if (els.image) els.image.style.cursor = 'grab';
+            }
+            
+            function handleKey(e) {
+                if (!els.root || els.root.style.display === 'none') return;
+                if (e.key === 'Escape') close();
+                if (e.key === 'ArrowLeft') prev();
+                if (e.key === 'ArrowRight') next();
+            }
+
+            function positionNavButtons() {
+                if (!els.root || !els.image || !els.prevBtn || !els.nextBtn) return;
+                if (els.root.classList.contains('single-file')) return;
+
+                els.prevBtn.style.left = '24px';
+                els.prevBtn.style.right = 'auto';
+                els.prevBtn.style.top = '50%';
+
+                els.nextBtn.style.left = 'auto';
+                els.nextBtn.style.right = '24px';
+                els.nextBtn.style.top = '50%';
+            }
+
+            function handleTouchStart(e) {
+                if (!e.touches || e.touches.length !== 1) {
+                    state.touching = false;
+                    return;
+                }
+                const t = e.touches[0];
+                state.touching = true;
+                state.touchStartX = t.clientX;
+                state.touchStartY = t.clientY;
+                state.touchLastX = t.clientX;
+                state.touchLastY = t.clientY;
+            }
+
+            function handleTouchMove(e) {
+                if (!state.touching || !e.touches || e.touches.length !== 1) return;
+                const t = e.touches[0];
+                state.touchLastX = t.clientX;
+                state.touchLastY = t.clientY;
+            }
+
+            function handleTouchEnd() {
+                if (!state.touching) return;
+                state.touching = false;
+
+                // While zoomed in, keep swipe navigation disabled.
+                if (state.scale > 1.05) return;
+
+                const dx = state.touchLastX - state.touchStartX;
+                const dy = state.touchLastY - state.touchStartY;
+                const horizontalSwipe = Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 1.2;
+                if (!horizontalSwipe) return;
+
+                if (dx < 0) next();
+                else prev();
+            }
+            
+            return {
+                init,
+                open,
+                close
+            };
+        })();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            window.GlobalImageViewer.init();
+        });
+    </script>
     {% block scripts %}{% endblock %}
     <style>
         /* Global Notification Styles */
         @keyframes bell-shake {
-            0% {
-                transform: rotate(0);
-            }
-
-            15% {
-                transform: rotate(15deg);
-            }
-
-            30% {
-                transform: rotate(-15deg);
-            }
-
-            45% {
-                transform: rotate(10deg);
-            }
-
-            60% {
-                transform: rotate(-10deg);
-            }
-
-            75% {
-                transform: rotate(5deg);
-            }
-
-            85% {
-                transform: rotate(-5deg);
-            }
-
-            100% {
-                transform: rotate(0);
-            }
+            0% { transform: rotate(0); }
+            15% { transform: rotate(15deg); }
+            30% { transform: rotate(-15deg); }
+            45% { transform: rotate(10deg); }
+            60% { transform: rotate(-10deg); }
+            75% { transform: rotate(5deg); }
+            85% { transform: rotate(-5deg); }
+            100% { transform: rotate(0); }
         }
-
         .bell-active {
             animation: bell-shake 2.5s infinite;
             color: #ffc107 !important;
-            /* Warning Yellow */
             text-shadow: 0 0 10px rgba(255, 193, 7, 0.4);
         }
-
         .notification-item {
             transition: background-color 0.2s;
             cursor: pointer;
             border-left: 3px solid transparent;
         }
-
         .notification-item:hover {
             background-color: #f8f9fa;
         }
-
         .notification-item.unread {
             background-color: #f0f7ff;
             border-left-color: #0d6efd;
         }
-
         .notification-time {
             font-size: 0.75rem;
             color: #adb5bd;
         }
+
+        /* Global Immersive Image Viewer Styles */
+        #global-image-viewer {
+            position: fixed;
+            inset: 0;
+            z-index: 10600; /* Higher than Bootstrap modal (1055) */
+            display: none;
+        }
+        #global-image-viewer.d-flex {
+            display: flex !important;
+        }
+        #global-viewer-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.22);
+            backdrop-filter: blur(14px) saturate(120%);
+            -webkit-backdrop-filter: blur(14px) saturate(120%);
+        }
+        #global-viewer-stage {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        #global-viewer-image {
+            max-width: 95vw;
+            max-height: 90vh;
+            transform-origin: center center;
+            cursor: grab;
+            user-select: none;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            transition: transform 0.1s linear;
+        }
+        .global-viewer-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 56px;
+            height: 56px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            cursor: pointer;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            font-size: 24px;
+        }
+        .global-viewer-nav:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-50%) scale(1.1);
+        }
+        #global-viewer-prev { left: 24px; }
+        #global-viewer-next { right: 24px; }
+        
+        #global-image-viewer:hover .global-viewer-nav,
+        #global-image-viewer.nav-visible .global-viewer-nav {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #global-image-viewer.single-file .global-viewer-nav {
+            display: none !important;
+        }
+
+        /* Mobile: swipe-first UX (hide arrow buttons) */
+        @media (max-width: 768px) {
+            .global-viewer-nav {
+                display: none !important;
+            }
+        }
+
+        #global-viewer-close {
+            position: absolute;
+            right: 24px;
+            top: 24px;
+            width: 48px;
+            height: 48px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            z-index: 3;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        #global-viewer-close:hover {
+            background: rgba(255, 59, 48, 0.8);
+            transform: rotate(90deg);
+        }
+
+        #global-viewer-footer {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 24px;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            border-radius: 999px;
+            padding: 10px 20px;
+            font-size: 14px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            z-index: 2;
+            max-width: 90vw;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        #global-viewer-filename {
+            font-weight: 600;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        #global-viewer-counter {
+            opacity: 0.7;
+            font-size: 0.9em;
+            padding-left: 12px;
+            border-left: 1px solid rgba(255,255,255,0.3);
+        }
     </style>
+
 
     <script>
         // Global Notification System
         let globalNotificationOpen = false;
 
         document.addEventListener('DOMContentLoaded', function () {
-            {% if current_user %}
-            loadGlobalNotificationBadge();
-            // Poll every 30 seconds
-            setInterval(loadGlobalNotificationBadge, 30000);
+            const hasCurrentUser = "{{ 'true' if current_user else 'false' }}";
+            if (hasCurrentUser === "true") {
+                loadGlobalNotificationBadge();
+                // Poll every 30 seconds
+                setInterval(loadGlobalNotificationBadge, 30000);
 
-            // Close panel when clicking outside
-            document.addEventListener('click', function (e) {
-                const panel = document.getElementById('global-notification-panel');
-                const btn = document.getElementById('global-notification-btn');
-                if (globalNotificationOpen && panel && !panel.contains(e.target) && !btn.contains(e.target)) {
-                    panel.style.display = 'none';
-                    globalNotificationOpen = false;
-                }
-            });
-            {% endif %}
+                // Close panel when clicking outside
+                document.addEventListener('click', function (e) {
+                    const panel = document.getElementById('global-notification-panel');
+                    const btn = document.getElementById('global-notification-btn');
+                    if (globalNotificationOpen && panel && !panel.contains(e.target) && !btn.contains(e.target)) {
+                        panel.style.display = 'none';
+                        globalNotificationOpen = false;
+                    }
+                });
+            }
         });
 
         async function loadGlobalNotificationBadge() {
@@ -1090,8 +1485,12 @@
                         // Format time (simple)
                         const time = noti.created_at.substring(5, 16).replace('T', ' '); // MM-DD HH:MM
 
+                        const safeType = String(noti.notification_type || '').replace(/'/g, "\\'");
+                        const safeTab = String(noti.deep_tab || '').replace(/'/g, "\\'");
+                        const safeEventId = String(noti.deep_event_id || '').replace(/'/g, "\\'");
+                        const safeTargetNo = String(noti.deep_target_no || '').replace(/'/g, "\\'");
                         html += `
-                            <div class="list-group-item notification-item ${isUnread ? 'unread' : ''}" onclick="readGlobalNotification(${noti.id}, ${noti.order_id || 'null'})">
+                            <div class="list-group-item notification-item ${isUnread ? 'unread' : ''}" onclick="readGlobalNotification(${noti.id}, ${noti.order_id || 'null'}, '${safeType}', '${safeTab}', '${safeEventId}', '${safeTargetNo}')">
                                 <div class="d-flex w-100 justify-content-between align-items-center mb-1">
                                     <strong class="mb-0 text-truncate" style="max-width: 200px;">${escapeHtml(noti.title)}</strong>
                                     <small class="notification-time">${time}</small>
@@ -1110,16 +1509,24 @@
             }
         }
 
-        async function readGlobalNotification(id, orderId) {
+        async function readGlobalNotification(id, orderId, notificationType, deepTab, deepEventId, deepTargetNo) {
             try {
                 await fetch(`/erp/api/notifications/${id}/read`, { method: 'POST' });
                 // Refresh badge
                 loadGlobalNotificationBadge();
 
-                // If orderId exists, navigate to order detail or edit page
+                // If orderId exists, navigate by notification type
                 if (orderId) {
-                    // Check logic: ERP Beta order?
-                    window.location.href = `/edit/${orderId}`; // Default edit page
+                    if (notificationType === 'DRAWING_TRANSFERRED' || notificationType === 'DRAWING_REVISION') {
+                        const tab = deepTab || (notificationType === 'DRAWING_REVISION' ? 'requests' : 'timeline');
+                        let url = `/erp/drawing-workbench/${orderId}?tab=${encodeURIComponent(tab)}`;
+                        if (deepEventId) url += `&event_id=${encodeURIComponent(deepEventId)}`;
+                        if (deepTargetNo) url += `&target_no=${encodeURIComponent(deepTargetNo)}`;
+                        window.location.href = url;
+                    } else {
+                        // 기본: ERP Beta 탭 오픈
+                        window.location.href = `/edit/${orderId}?open=erp-beta`;
+                    }
                 } else {
                     // Just refresh list to remove unread style
                     loadGlobalNotifications();

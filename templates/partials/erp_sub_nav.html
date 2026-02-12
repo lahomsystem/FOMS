@@ -1,4 +1,4 @@
-{# ERP 대시보드·실측·AS·출고 서브 내비. erp_sub_nav_active: 'dashboard' | 'measurement' | 'as' | 'shipment' #}
+{# ERP 서브 내비. erp_sub_nav_active: 'dashboard' | 'measurement' | 'production' | 'construction' | 'as' | 'shipment' | 'drawing_workbench' #}
 {% set _active = erp_sub_nav_active | default('dashboard') %}
 <nav class="erp-pro-nav" aria-label="ERP 메뉴">
   <a class="erp-pro-nav-item {% if _active == 'dashboard' %}active{% endif %}"
@@ -30,5 +30,10 @@
     href="{{ url_for('erp_beta.erp_shipment_dashboard') }}">
     <i class="fas fa-truck-loading"></i>
     <span>출고</span>
+  </a>
+  <a class="erp-pro-nav-item {% if _active == 'drawing_workbench' %}active{% endif %}"
+    href="{{ url_for('erp_beta.erp_drawing_workbench_dashboard') }}">
+    <i class="fas fa-drafting-compass"></i>
+    <span>도면작업실</span>
   </a>
 </nav>

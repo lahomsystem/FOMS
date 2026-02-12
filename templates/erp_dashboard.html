@@ -2,7 +2,7 @@
 
 {% block content %}
 {% set filters = filters or {} %}
-<div class="container-fluid erp-dashboard erp-pro">
+<div class="container-fluid erp-dashboard erp-pro" data-can-edit-erp-beta="{{ 'true' if can_edit_erp_beta|default(false) else 'false' }}">
   <script>
     const MY_ID = "{{ current_user.id }}";
     const MY_TEAM = "{{ current_user.team }}";
@@ -1139,6 +1139,313 @@
         flex-shrink: 0 !important;
       }
 
+      .erp-drawing-gateway-card {
+        width: 100%;
+        border: 1px solid #d7e7ff;
+        border-radius: 12px;
+        background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+        padding: 10px 10px 9px;
+        box-shadow: 0 3px 10px rgba(13, 110, 253, 0.08);
+      }
+
+      .erp-drawing-gateway-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .erp-drawing-gateway-title {
+        font-size: 0.94rem;
+        font-weight: 700;
+        color: #0d6efd;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .erp-drawing-gateway-meta {
+        font-size: 0.8rem;
+        color: #6c757d;
+        line-height: 1.45;
+        margin-bottom: 8px;
+      }
+
+      .erp-drawing-gateway-summary {
+        border: 1px solid #e8eef9;
+        background: #fff;
+        border-radius: 10px;
+        padding: 7px 8px;
+        margin-bottom: 8px;
+      }
+
+      .erp-drawing-gateway-summary-head {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.77rem;
+        color: #6c757d;
+        margin-bottom: 3px;
+      }
+
+      .erp-drawing-gateway-summary-main {
+        font-size: 0.82rem;
+        color: #334155;
+        line-height: 1.45;
+      }
+
+      .erp-drawing-gateway-summary-note {
+        margin-top: 3px;
+        font-size: 0.78rem;
+        color: #b45309;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        border-radius: 8px;
+        padding: 3px 6px;
+      }
+
+      .erp-drawing-gateway-timeline {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 6px;
+      }
+
+      .erp-drawing-gateway-timeline-item {
+        border: 1px solid #e6edf8;
+        background: #f8fbff;
+        border-radius: 9px;
+        padding: 6px 7px;
+      }
+
+      .erp-drawing-gateway-timeline-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 2px;
+        font-size: 0.76rem;
+        color: #64748b;
+      }
+
+      .erp-drawing-gateway-timeline-action {
+        font-size: 0.77rem;
+        font-weight: 700;
+        color: #1d4ed8;
+      }
+
+      .erp-drawing-gateway-timeline-note {
+        font-size: 0.78rem;
+        color: #374151;
+      }
+
+      .erp-drawing-gateway-thumbs {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+
+      .erp-drawing-gateway-thumb {
+        width: 44px;
+        height: 44px;
+        border-radius: 8px;
+        border: 1px solid #dbe5f5;
+        object-fit: cover;
+        cursor: zoom-in;
+        background: #fff;
+      }
+
+      /* 퀘스트 상황판에서는 어떤 이미지도 썸네일 크기로 강제 */
+      .erp-quest-cell .erp-drawing-gateway-card img,
+      .erp-quest-cell .erp-drawing-gateway-card .drawing-gateway-thumb img {
+        width: 44px !important;
+        height: 44px !important;
+        max-width: 44px !important;
+        max-height: 44px !important;
+        object-fit: cover !important;
+        border-radius: 8px;
+      }
+
+      .erp-quest-cell .erp-drawing-gateway-card .drawing-gateway-thumb,
+      .erp-quest-cell .erp-drawing-gateway-card .drawing-gateway-thumb-wrap {
+        width: 44px !important;
+        min-width: 44px !important;
+        max-width: 44px !important;
+        height: 44px !important;
+        overflow: hidden !important;
+      }
+
+      .erp-drawing-gateway-thumb-more {
+        min-width: 44px;
+        height: 44px;
+        border-radius: 8px;
+        border: 1px dashed #bfdbfe;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 0.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 8px;
+      }
+
+      .erp-drawing-gateway-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .erp-drawing-gateway-actions .btn {
+        font-size: 0.8rem;
+        padding: 0.26rem 0.52rem;
+      }
+
+      .erp-drawing-quest-todo {
+        font-size: 0.82rem;
+        color: #1f2937;
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 5px 7px;
+        margin-bottom: 8px;
+      }
+
+      .erp-drawing-quest-recent {
+        font-size: 0.78rem;
+        color: #475569;
+        margin-bottom: 8px;
+      }
+
+      .drawing-target-card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+        gap: 8px;
+      }
+
+      .drawing-target-card {
+        border: 1px solid #dbe5f5;
+        border-radius: 10px;
+        background: #fff;
+        padding: 6px;
+        cursor: pointer;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+      }
+
+      .drawing-target-card:hover {
+        border-color: #8cb8ff;
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.12);
+        transform: translateY(-1px);
+      }
+
+      .drawing-target-card.is-active {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.18);
+      }
+
+      .drawing-target-card-thumb {
+        width: 100%;
+        height: 74px;
+        border-radius: 7px;
+        border: 1px solid #e5e7eb;
+        background: #f8fafc;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        margin-bottom: 5px;
+      }
+
+      .drawing-target-card-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .drawing-target-card-meta {
+        font-size: 0.76rem;
+        color: #334155;
+        line-height: 1.3;
+      }
+
+      .drawing-target-card-meta .num {
+        font-weight: 700;
+        color: #0d6efd;
+      }
+
+      .drawing-target-selected-pill {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        background: rgba(13, 110, 253, 0.95);
+        color: #fff;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        box-shadow: 0 2px 8px rgba(13, 110, 253, 0.35);
+      }
+
+      .drawing-target-card.is-active .drawing-target-card-meta .num {
+        color: #084298;
+      }
+
+      @media (max-width: 768px) {
+        .drawing-target-card-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+      }
+
+      .erp-drawing-workbench {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
+        gap: 12px;
+      }
+
+      .erp-drawing-workbench-log {
+        background: #fff;
+        border: 1px solid #e5edf8;
+        border-radius: 10px;
+        padding: 10px;
+        min-height: 160px;
+      }
+
+      .erp-drawing-workbench-actions {
+        background: #f8fbff;
+        border: 1px solid #d8e7ff;
+        border-radius: 10px;
+        padding: 10px;
+      }
+
+      .erp-drawing-workbench-actions-sticky {
+        position: sticky;
+        top: 10px;
+      }
+
+      .erp-drawing-workbench-tabs .nav-link {
+        font-size: 0.82rem;
+        padding: 0.32rem 0.55rem;
+      }
+
+      .erp-drawing-workbench-pane {
+        border: 1px solid #e5edf8;
+        border-radius: 8px;
+        background: #fff;
+        padding: 8px;
+        min-height: 124px;
+      }
+
+      @media (max-width: 992px) {
+        .erp-drawing-workbench {
+          grid-template-columns: 1fr;
+        }
+      }
+
       #erp-grid .erp-quest-cell .badge {
         margin-top: 0 !important;
         flex-shrink: 0 !important;
@@ -1563,11 +1870,37 @@
                             <div class="mb-3">
                               <div class="text-muted mb-2 fw-semibold" style="font-size: 0.9rem;">담당 팀</div>
                               <div class="fw-bold" style="font-size: 1rem;">{{
-                                team_labels.get(o.current_quest.owner_team, o.current_quest.owner_team) }}</div>
+                                team_labels.get(o.current_quest.owner_team, o.current_quest.owner_team) or '-' }}</div>
                             </div>
                             <div class="mb-3">
-                              <div class="text-muted mb-2 fw-semibold" style="font-size: 0.9rem;">팀별 승인</div>
+                              <div class="text-muted mb-2 fw-semibold" style="font-size: 0.9rem;">승인</div>
                               <div id="quest-approvals-{{ o.id }}">
+                                {% if o.current_quest.approval_mode == 'assignee' %}
+                                <!-- 담당자 기반: 지정 담당자 이름 표시 + 승인 버튼 -->
+                                {% set assignee_approval = o.current_quest.assignee_approval or {} %}
+                                {% set assignee_names = o.current_quest.assignee_display_names or [] %}
+                                {% if assignee_approval.get('approved') %}
+                                <div class="mb-2">
+                                  <span class="fw-semibold" style="font-size: 0.9rem;">{{ assignee_names|join(', ') or '담당자' }}</span>
+                                  <span class="badge bg-success ms-2"
+                                    style="font-size: 0.9rem; padding: 0.3em 0.6em;">✓ {{ assignee_approval.get('approved_by_name', '') }} 승인완료</span>
+                                </div>
+                                {% else %}
+                                <div class="mb-2">
+                                  <span class="fw-semibold" style="font-size: 0.9rem;">{{ assignee_names|join(', ') or '담당자 지정 필요' }}</span>
+                                  {% if can_edit_erp_beta|default(false) or o.current_quest.can_assignee_approve|default(false) %}
+                                  <button class="btn btn-primary fw-semibold ms-2 erp-btn-approve-assignee"
+                                    data-order-id="{{ o.id }}"
+                                    style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">
+                                    <i class="fas fa-check"></i> 승인
+                                  </button>
+                                  {% else %}
+                                  <span class="text-muted small ms-2">(수정 권한 없음)</span>
+                                  {% endif %}
+                                </div>
+                                {% endif %}
+                                {% else %}
+                                <!-- 팀 기반 승인 (기존) -->
                                 {% for team in o.current_quest.required_approvals %}
                                 {% set approved = o.current_quest.team_approvals.get(team, False) %}
                                 <div class="mb-2">
@@ -1577,30 +1910,127 @@
                                   <span class="badge bg-success ms-2"
                                     style="font-size: 0.9rem; padding: 0.3em 0.6em;">승인완료</span>
                                   {% else %}
+                                  {% if can_edit_erp_beta|default(false) %}
                                   {% set order_id_approve = o.id %}
                                   {% set team_name = team %}
                                   <button class="btn btn-primary fw-semibold ms-2 erp-btn-approve-team"
                                     data-order-id="{{ order_id_approve }}" data-team="{{ team_name }}"
                                     style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">승인</button>
+                                  {% else %}
+                                  <span class="text-muted small ms-2">(수정 권한 없음)</span>
+                                  {% endif %}
                                   {% endif %}
                                 </div>
                                 {% endfor %}
+                                {% endif %}
                               </div>
-                            </div>
-                            <div class="d-flex gap-2">
-                              {% set order_id_refresh = o.id %}
-                              <button class="btn btn-outline-primary fw-semibold erp-btn-refresh-status" type="button"
-                                data-order-id="{{ order_id_refresh }}"
-                                style="font-size: 0.9rem; padding: 0.4rem 0.8rem;">
-                                <i class="fas fa-sync"></i> 상태 새로고침
-                              </button>
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
                     {% else %}
+                    {% if o.stage in ['도면', 'DRAWING'] %}
+                    {% set sd = o.structured_data or {} %}
+                    {% set drawing_obj = sd.get('drawing') or {} %}
+                    {% set drawing_status = (drawing_obj.get('status') or sd.get('drawing_status') or 'PENDING')|upper %}
+                    {% set drawing_transferred = sd.get('drawing_transferred') %}
+                    {% set drawing_files = sd.get('drawing_current_files') or [] %}
+                    {% set thumb_ns = namespace(images=[]) %}
+                    {% for f in drawing_files %}
+                    {% if f is mapping %}
+                    {% set fn = ((f.get('filename') or f.get('key') or '')|lower) %}
+                    {% if ('.jpg' in fn) or ('.jpeg' in fn) or ('.png' in fn) or ('.gif' in fn) or ('.webp' in fn) or ('.bmp' in fn) or ('.svg' in fn) %}
+                    {% if thumb_ns.images|length < 2 %}
+                    {% set thumb_ns.images = thumb_ns.images + [f] %}
+                    {% endif %}
+                    {% endif %}
+                    {% endif %}
+                    {% endfor %}
+                    {% set drawing_history = sd.get('drawing_transfer_history') or [] %}
+                    {% set latest_history = drawing_history|last if drawing_history else none %}
+                    {% set recent_history = drawing_history[-3:] if drawing_history else [] %}
+                    {% set assignments = sd.get('assignments') or {} %}
+                    {% set ns = namespace(draftsman_names=[]) %}
+                    {% for a in (sd.get('drawing_assignees') or []) %}
+                    {% if a is mapping and a.get('name') %}
+                    {% set ns.draftsman_names = ns.draftsman_names + [a.get('name')] %}
+                    {% elif a is string %}
+                    {% set ns.draftsman_names = ns.draftsman_names + [a] %}
+                    {% endif %}
+                    {% endfor %}
+                    {% set draftsman_text = ns.draftsman_names|join(', ') if ns.draftsman_names else '미지정' %}
+                    {% set has_assignee = (ns.draftsman_names|length > 0) or ((assignments.get('drawing_assignee_user_ids') or [])|length > 0) %}
+                    {% set drawing_status_label = '작업중' %}
+                    {% set drawing_status_badge = 'bg-secondary' %}
+                    {% if drawing_status == 'TRANSFERRED' %}
+                    {% set drawing_status_label = '확정 대기' %}
+                    {% set drawing_status_badge = 'bg-warning text-dark' %}
+                    {% elif drawing_status == 'RETURNED' %}
+                    {% set drawing_status_label = '수정 요청됨' %}
+                    {% set drawing_status_badge = 'bg-danger' %}
+                    {% elif drawing_status in ['CONFIRMED', 'DONE'] %}
+                    {% set drawing_status_label = '완료' %}
+                    {% set drawing_status_badge = 'bg-success' %}
+                    {% endif %}
+                    {% set todo_text = '지금: 도면 담당자가 도면 전달을 진행해 주세요.' %}
+                    {% if not has_assignee %}
+                    {% set todo_text = '지금: 도면 담당자 지정이 필요합니다.' %}
+                    {% elif drawing_status == 'TRANSFERRED' %}
+                    {% set todo_text = '지금: 주문 담당자가 수령 확정 또는 수정 요청을 선택해야 합니다.' %}
+                    {% elif drawing_status == 'RETURNED' %}
+                    {% set todo_text = '지금: 도면 담당자가 수정본을 재전달해야 합니다.' %}
+                    {% elif drawing_status in ['CONFIRMED', 'DONE'] %}
+                    {% set todo_text = '지금: 도면 확인 완료. 다음 단계 진행 상태를 확인해 주세요.' %}
+                    {% endif %}
+                    <div class="erp-drawing-gateway-card">
+                      <div class="erp-drawing-gateway-head">
+                        <span class="erp-drawing-gateway-title">
+                          <i class="fas fa-drafting-compass"></i> 도면 창구
+                        </span>
+                        <span class="badge {{ drawing_status_badge }}">{{ drawing_status_label }}</span>
+                      </div>
+                      <div class="erp-drawing-quest-todo">
+                        <i class="fas fa-bolt text-primary"></i> {{ todo_text }}
+                      </div>
+                      <div class="erp-drawing-gateway-meta">
+                        도면 담당: <strong>{{ draftsman_text }}</strong><br />
+                        주문 담당: <strong>{{ o.manager_name or '-' }}</strong>
+                        {% if drawing_transferred and drawing_files %}
+                        <br />전달 파일: <strong>{{ drawing_files|length }}개</strong>
+                        {% endif %}
+                      </div>
+                      {% if latest_history %}
+                      {% set h = latest_history %}
+                      {% set h_action = h.get('action') or '' %}
+                      {% set h_action_label = '기타' %}
+                      {% if h_action == 'TRANSFER' %}
+                      {% set h_action_label = '도면 전달' %}
+                      {% elif h_action == 'REQUEST_REVISION' %}
+                      {% set h_action_label = '수정 요청' %}
+                      {% elif h_action == 'CANCEL_TRANSFER' %}
+                      {% set h_action_label = '전달 취소' %}
+                      {% endif %}
+                      <div class="erp-drawing-quest-recent">
+                        <i class="fas fa-history"></i>
+                        최근: <strong>{{ h_action_label }}</strong>
+                        · {{ h.get('by_user_name') or '-' }}
+                        · {{ h.get('transferred_at') or h.get('at') or '-' }}
+                      </div>
+                      {% endif %}
+                      <div class="small text-muted mb-1">
+                        첨부 요약: 최신본 {{ drawing_files|length }}개
+                      </div>
+                      <div class="erp-drawing-gateway-actions">
+                        <a class="btn btn-primary"
+                          href="{{ url_for('erp_beta.erp_drawing_workbench_detail', order_id=o.id) }}?tab=timeline">
+                          <i class="fas fa-comments"></i> 별도 작업실 열기
+                        </a>
+                      </div>
+                    </div>
+                    {% else %}
                     <span class="text-muted" style="font-size: 1.1rem;">-</span>
+                    {% endif %}
                     {% endif %}
                   </td>
                   <td data-label="고객" class="fw-bold erp-wrap" style="font-size: 1.1rem; color: #212529;">{{
@@ -1637,11 +2067,15 @@
                   </td>
                   <td data-label="상세" class="text-center">
                     {% set order_id_detail = o.id %}
+                    {% if can_edit_erp_beta|default(false) %}
                     <a class="badge bg-info text-white fw-bold"
                       href="{{ url_for('edit_order', order_id=order_id_detail) }}?open=erp-beta" title="제품 상세정보"
                       style="cursor: pointer; font-size: 1rem !important; padding: 0.4em 0.7em !important; text-align: center; display: inline-block; text-decoration: none;">
                       <i class="fas fa-clipboard-list" style="font-size: 1rem !important;"></i>
                     </a>
+                    {% else %}
+                    <span class="text-muted small">(수정 권한 없음)</span>
+                    {% endif %}
                   </td>
                   <td data-label="열기" class="text-end erp-cell-actions">
                     <button class="erp-open-btn-icon" type="button" data-bs-toggle="collapse"
@@ -1656,7 +2090,7 @@
                   <td colspan="12" class="p-0">
                     <div class="collapse" id="order-detail-collapse-{{ o.id }}">
                       <div class="card card-body border-0 bg-light">
-                        <div class="fw-bold mb-3"><i class="fas fa-info-circle"></i> 주문 상세</div>
+                        <div class="fw-bold mb-3 erp-order-detail-title"><i class="fas fa-info-circle"></i> 주문 상세</div>
                         <div id="order-detail-content-{{ o.id }}" class="order-detail-content">
                           <div class="text-muted small">로딩 중...</div>
                         </div>
@@ -1674,33 +2108,19 @@
 
   </div>
 
-  <!-- 첨부 파일 미리보기 모달 -->
-  <div class="modal fade" id="erpAttachmentPreviewModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered"
-      style="max-width: 60vw; width: 60vw; height: 90vh; max-height: 90vh; margin: auto;">
-      <div class="modal-content" style="height: 100%; display: flex; flex-direction: column;">
-        <div class="modal-header" style="flex-shrink: 0; position: relative;">
-          <h5 class="modal-title"><i class="fas fa-paperclip"></i> 첨부 미리보기 <span id="erp-attachment-preview-counter"
-              class="badge bg-secondary ms-2"></span></h5>
-          <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="erp-attachment-preview-prev"
-            style="display: none;" title="이전 파일">
-            <i class="fas fa-chevron-left"></i>
-          </button>
-          <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="erp-attachment-preview-next"
-            style="display: none;" title="다음 파일">
-            <i class="fas fa-chevron-right"></i>
-          </button>
+  <!-- 첨부 파일 카테고리 모달 -->
+  <div class="modal fade" id="erpAttachmentsCategoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-paperclip"></i> 첨부 파일</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <div class="modal-body"
-          style="padding: 0; overflow: hidden; flex: 1; display: flex; flex-direction: column; min-height: 0;">
-          <div id="erp-attachment-preview-body"
-            style="padding: 1rem; flex: 1; overflow: auto; display: flex; flex-direction: column;"></div>
+        <div class="modal-body">
+          <div class="d-flex flex-wrap gap-2 mb-3" id="erp-attachments-category-tabs"></div>
+          <div class="row g-2" id="erp-attachments-category-gallery"></div>
         </div>
-        <div class="modal-footer" style="flex-shrink: 0;">
-          <a class="btn btn-primary" id="erp-attachment-preview-download" href="#" target="_blank" rel="noopener">
-            <i class="fas fa-download"></i> 다운로드
-          </a>
+        <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
             <i class="fas fa-times"></i> 닫기
           </button>
@@ -1708,6 +2128,8 @@
       </div>
     </div>
   </div>
+
+
 
   <!-- Draftsman Assign Modal -->
   <div class="modal fade" id="erpDraftsmanAssignModal" tabindex="-1" aria-hidden="true">
@@ -1718,7 +2140,7 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <p class="text-muted small mb-3">도면 작업을 수행할 담당자를 선택해주세요. (다중 선택 가능)</p>
+          <p class="text-muted small mb-3">도면 작업을 수행할 담당자를 선택해주세요. <strong>도면팀 소속 직원만</strong> 선택 가능합니다. (다중 선택 가능)</p>
           <div id="erp-draftsman-list" class="list-group">
             <div class="text-center text-muted">로딩 중...</div>
           </div>
@@ -1728,6 +2150,8 @@
           <button type="button" class="btn btn-primary" onclick="saveDraftsmanAssignment()">저장</button>
         </div>
       </div>
+    </div>
+  </div>
 
       <!-- Drawing Revision Request Modal -->
       <div class="modal fade" id="erpDrawingRevisionModal" tabindex="-1" aria-hidden="true">
@@ -1747,7 +2171,18 @@
                 <textarea class="form-control" id="drawing-revision-note" rows="4"
                   placeholder="예: 거실장 높이 2400으로 변경 요망, 색상 변경 확인 필요 등"></textarea>
               </div>
-              <!-- 추후 파일 첨부 기능 추가 가능 -->
+              <div class="mb-3">
+                <label for="drawing-revision-target-key" class="form-label fw-bold">수정 대상 도면 선택</label>
+                <div id="drawing-revision-target-cards" class="drawing-target-card-grid mb-2"></div>
+                <select class="form-select d-none" id="drawing-revision-target-key">
+                  <option value="">도면 선택</option>
+                </select>
+                <div class="form-text" id="drawing-revision-target-help">카드를 클릭해 수정 대상 번호를 선택하세요.</div>
+              </div>
+              <div class="mb-3">
+                <label for="drawing-revision-files" class="form-label fw-bold">요청 참고 사진 (선택, 다중 가능)</label>
+                <input class="form-control" type="file" id="drawing-revision-files" multiple accept="image/*">
+              </div>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
@@ -1782,6 +2217,14 @@
                 <textarea class="form-control" id="drawing-transfer-note" rows="3"
                   placeholder="예: 1차 도면 완료, 확인 부탁드립니다."></textarea>
               </div>
+              <div class="mb-3" id="drawing-transfer-replace-wrap" style="display:none;">
+                <label for="drawing-transfer-replace-key" class="form-label fw-bold">교체할 기존 도면 선택</label>
+                <div id="drawing-transfer-replace-cards" class="drawing-target-card-grid mb-2"></div>
+                <select class="form-select d-none" id="drawing-transfer-replace-key">
+                  <option value="">선택 안 함 (새 번호로 추가)</option>
+                </select>
+                <div class="form-text" id="drawing-transfer-replace-help">카드를 클릭해 교체할 번호를 선택하세요.</div>
+              </div>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
@@ -1801,10 +2244,49 @@
           return div.innerHTML;
         }
 
+        function showErpToast(message, type = 'info') {
+          const id = 'erp-toast-container';
+          let container = document.getElementById(id);
+          if (!container) {
+            container = document.createElement('div');
+            container.id = id;
+            container.style.position = 'fixed';
+            container.style.top = '84px';
+            container.style.right = '16px';
+            container.style.zIndex = '30000';
+            container.style.display = 'grid';
+            container.style.gap = '8px';
+            container.style.maxWidth = '320px';
+            document.body.appendChild(container);
+          }
+          const palette = {
+            success: { bg: '#ecfdf5', bd: '#10b981', fg: '#065f46' },
+            error: { bg: '#fef2f2', bd: '#ef4444', fg: '#991b1b' },
+            info: { bg: '#eff6ff', bd: '#3b82f6', fg: '#1e3a8a' },
+          };
+          const p = palette[type] || palette.info;
+          const toast = document.createElement('div');
+          toast.style.background = p.bg;
+          toast.style.border = `1px solid ${p.bd}`;
+          toast.style.color = p.fg;
+          toast.style.borderRadius = '10px';
+          toast.style.padding = '9px 11px';
+          toast.style.fontSize = '13px';
+          toast.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)';
+          toast.textContent = String(message || '');
+          container.appendChild(toast);
+          setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.22s ease';
+            setTimeout(() => toast.remove(), 240);
+          }, 2200);
+        }
+
 
         // === 표시용 한글 라벨(저장은 영문 코드 유지) ===
         const TEAM_LABELS = JSON.parse('{{ team_labels| tojson | safe }}');
         const STAGE_LABELS = JSON.parse('{{ stage_labels| tojson | safe }}');
+        const CAN_EDIT_ERP_BETA = (document.querySelector('.erp-dashboard')?.dataset?.canEditErpBeta || 'false') === 'true';
 
         function label(map, code, fallback = '-') {
           if (!code) return fallback;
@@ -1815,262 +2297,506 @@
         let __attachmentsCache = {};
         let __currentAttachmentList = [];
         let __currentAttachmentIndex = 0;
+        let __drawingCurrentFilesByOrder = {};
+        let __activeAttachmentCategory = 'measurement';
+        let __attachmentsByCategory = {
+          measurement: [],
+          drawing: [],
+          construction: []
+        };
 
-        // 첨부 파일 미리보기 모달 열기 (단일 파일)
-        function openAttachmentPreviewModal(attachmentId, viewUrl, downloadUrl, filename, fileType) {
-          const modalEl = document.getElementById('erpAttachmentPreviewModal');
-          const body = document.getElementById('erp-attachment-preview-body');
-          const dl = document.getElementById('erp-attachment-preview-download');
-          if (!modalEl || !body || !dl) return;
+        const ATTACHMENT_CATEGORY_META = {
+          measurement: { label: '실측', icon: 'fa-ruler-combined' },
+          drawing: { label: '도면', icon: 'fa-drafting-compass' },
+          construction: { label: '시공', icon: 'fa-hammer' }
+        };
 
-          dl.href = downloadUrl || viewUrl || '#';
-
-          if (fileType === 'video') {
-            body.innerHTML = `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;"><video src="${viewUrl}" controls autoplay style="width:100%;height:100%;"></video></div><div class="small text-muted mt-2">${escapeHtml(filename || '')}</div>`;
-          } else {
-            // 이미지 줌 기능을 위한 구조 (윤곽 없이 전체 확대/축소)
-            body.innerHTML = `
-          <div class="position-relative" style="overflow: hidden; cursor: grab; user-select: none; height: 100%; display: flex; align-items: center; justify-content: center;" id="image-zoom-container">
-            <img src="${viewUrl}" alt="${escapeHtml(filename || '')}" 
-                 id="preview-zoom-image" 
-                 style="display: block; max-width: 100%; max-height: 100%; transition: transform 0.1s ease-out; transform-origin: center center;"
-                 draggable="false">
-            <div class="position-absolute top-0 end-0 m-2">
-              <div class="badge bg-dark bg-opacity-75" id="zoom-level-badge" style="display: none;">100%</div>
-            </div>
-          </div>
-          <div class="small text-muted mt-2 text-center" style="flex-shrink: 0;">${escapeHtml(filename || '')} <span class="text-muted">(휠 스크롤로 줌 인/아웃)</span></div>
-        `;
-
-            // 이미지 줌 기능 초기화
-            setupImageZoom();
-          }
-
-          const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-
-          // 네비게이션 버튼 이벤트 리스너 등록
-          const prevBtn = document.getElementById('erp-attachment-preview-prev');
-          const nextBtn = document.getElementById('erp-attachment-preview-next');
-          if (prevBtn) {
-            prevBtn.onclick = showPreviousAttachment;
-          }
-          if (nextBtn) {
-            nextBtn.onclick = showNextAttachment;
-          }
-
-          // 네비게이션 업데이트
-          updateAttachmentNavigation();
-
-          // 키보드 이벤트 리스너 (좌우 화살표 키)
-          const handleKeyDown = (e) => {
-            if (e.key === 'ArrowLeft') {
-              e.preventDefault();
-              showPreviousAttachment();
-            } else if (e.key === 'ArrowRight') {
-              e.preventDefault();
-              showNextAttachment();
-            }
-          };
-
-          // 모달이 열릴 때 키보드 이벤트 리스너 추가
-          modalEl.addEventListener('keydown', handleKeyDown);
-
-          // 모달이 닫힐 때 키보드 이벤트 리스너 제거
-          modalEl.addEventListener('hidden.bs.modal', () => {
-            modalEl.removeEventListener('keydown', handleKeyDown);
-          }, { once: true });
-
-          modal.show();
+        function normalizeAttachmentCategory(category) {
+          const c = String(category || '').trim().toLowerCase();
+          if (c === 'drawing' || c === 'construction') return c;
+          return 'measurement';
         }
 
-        // 이미지 줌 기능 설정 (윤곽 없이 전체 확대/축소)
-        function setupImageZoom() {
-          const container = document.getElementById('image-zoom-container');
-          const img = document.getElementById('preview-zoom-image');
-          const badge = document.getElementById('zoom-level-badge');
-          if (!container || !img || !badge) return;
+        function getAttachmentCategoryLabel(category) {
+          const key = normalizeAttachmentCategory(category);
+          return (ATTACHMENT_CATEGORY_META[key] || ATTACHMENT_CATEGORY_META.measurement).label;
+        }
 
-          let scale = 1;
-          let panX = 0;
-          let panY = 0;
-          let isDragging = false;
-          let startX = 0;
-          let startY = 0;
-          let startPanX = 0;
-          let startPanY = 0;
+        function renderAttachmentCategoryTabs() {
+          const tabsEl = document.getElementById('erp-attachments-category-tabs');
+          if (!tabsEl) return;
+          const keys = ['measurement', 'drawing', 'construction'];
+          tabsEl.innerHTML = keys.map((key) => {
+            const meta = ATTACHMENT_CATEGORY_META[key];
+            const count = (__attachmentsByCategory[key] || []).length;
+            const isActive = key === __activeAttachmentCategory;
+            const activeCls = isActive ? 'btn-primary' : 'btn-outline-primary';
+            return `
+              <button type="button" class="btn btn-sm ${activeCls}" onclick="selectAttachmentCategory('${key}')">
+                <i class="fas ${meta.icon}"></i> ${meta.label}
+                <span class="badge ${isActive ? 'bg-light text-dark' : 'bg-primary text-white'} ms-1">${count}</span>
+              </button>
+            `;
+          }).join('');
+        }
 
-          // 초기 이미지 크기 저장
-          let initialWidth = img.naturalWidth || img.width;
-          let initialHeight = img.naturalHeight || img.height;
+        function renderAttachmentCategoryGallery() {
+          const galleryEl = document.getElementById('erp-attachments-category-gallery');
+          if (!galleryEl) return;
+          const list = __attachmentsByCategory[__activeAttachmentCategory] || [];
+          if (!list.length) {
+            galleryEl.innerHTML = `
+              <div class="col-12">
+                <div class="text-muted small p-3 border rounded bg-light">
+                  ${getAttachmentCategoryLabel(__activeAttachmentCategory)} 카테고리에 첨부 파일이 없습니다.
+                </div>
+              </div>
+            `;
+            return;
+          }
 
-          // 이미지 로드 후 초기 크기 설정
-          if (img.complete) {
-            initialWidth = img.naturalWidth || img.width;
-            initialHeight = img.naturalHeight || img.height;
+          galleryEl.innerHTML = list.map((a, index) => {
+            const name = escapeHtml(a.filename || '');
+            const type = a.file_type || 'file';
+            const thumb = a.thumbnail_view_url || a.view_url || '#';
+            const viewUrl = a.view_url || '#';
+            const downloadUrl = a.download_url || '#';
+
+            const mediaHtml = (type === 'video')
+              ? `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
+                  <video src="${viewUrl}" controls preload="metadata" style="width:100%;height:100%;"></video>
+                </div>`
+              : (type === 'image')
+                ? `<img src="${thumb}" alt="${name}" class="img-fluid rounded"
+                    style="max-height: 180px; object-fit: contain; width:100%; cursor: zoom-in; background:#fff; padding:4px;"
+                    onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ${index})">`
+                : `<div class="border rounded d-flex flex-column align-items-center justify-content-center bg-light"
+                    style="height: 180px;">
+                    <i class="fas fa-file-alt text-secondary mb-2" style="font-size: 2rem;"></i>
+                    <div class="small text-muted text-center px-2">문서 파일</div>
+                   </div>`;
+
+            return `
+              <div class="col-md-4 col-sm-6 col-12">
+                <div class="card h-100">
+                  <div class="card-body p-2">
+                    ${mediaHtml}
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                      <div class="small text-truncate" title="${name}" style="max-width: 70%;">${name}</div>
+                      <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" type="button" title="미리보기"
+                          onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ${index})">
+                          <i class="fas fa-eye"></i>
+                        </button>
+                        <a class="btn btn-outline-primary" href="${downloadUrl}" title="다운로드" target="_blank" rel="noopener">
+                          <i class="fas fa-download"></i>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        function selectAttachmentCategory(category) {
+          __activeAttachmentCategory = normalizeAttachmentCategory(category);
+          renderAttachmentCategoryTabs();
+          renderAttachmentCategoryGallery();
+        }
+
+        function openAttachmentFromCategory(category, index) {
+          const key = normalizeAttachmentCategory(category);
+          const list = __attachmentsByCategory[key] || [];
+          if (!list.length) return;
+          __activeAttachmentCategory = key;
+          __currentAttachmentList = list;
+          showAttachmentAtIndex(index);
+        }
+
+        function drawingActionLabel(action) {
+          const map = {
+            TRANSFER: '도면 전달',
+            REQUEST_REVISION: '수정 요청',
+            CANCEL_TRANSFER: '전달 취소'
+          };
+          return map[action] || (action || '기타');
+        }
+
+        function drawingTargetLabel(h) {
+          if (!h || typeof h !== 'object') return '';
+          const n = Number(h.target_drawing_number || h.replace_target_number || 0);
+          return n > 0 ? `${n}번 대상` : '';
+        }
+
+        let __drawingGatewayImageGroups = {};
+        let __drawingGatewayViewerFiles = [];
+        let __drawingGatewayViewerIndex = 0;
+        let __drawingGatewayViewerScale = 1;
+        let __drawingGatewayViewerPanX = 0;
+        let __drawingGatewayViewerPanY = 0;
+        let __drawingGatewayViewerDragging = false;
+        let __drawingGatewayViewerStartX = 0;
+        let __drawingGatewayViewerStartY = 0;
+        let __drawingGatewayViewerStartPanX = 0;
+        let __drawingGatewayViewerStartPanY = 0;
+        let __drawingGatewayViewerTouchDistance = 0;
+        let __drawingGatewayViewerTouchScale = 1;
+        let __drawingGatewayViewerBound = false;
+
+        function gatewayFileName(f) {
+          return String((f && f.filename) || '첨부파일');
+        }
+
+        function gatewayViewUrl(f) {
+          return String((f && f.view_url) || ((f && f.key) ? `/api/files/view/${f.key}` : '#'));
+        }
+
+        function gatewayDownloadUrl(f) {
+          return String((f && f.download_url) || ((f && f.key) ? `/api/files/download/${f.key}` : '#'));
+        }
+
+        function isGatewayImageFile(f) {
+          const probe = `${gatewayFileName(f)} ${gatewayViewUrl(f)} ${String((f && f.key) || '')}`.toLowerCase();
+          return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/.test(probe);
+        }
+
+        function getDrawingGatewayViewerElements() {
+          return {
+            root: document.getElementById('drawing-gateway-image-viewer'),
+            backdrop: document.getElementById('drawing-gateway-viewer-backdrop'),
+            closeBtn: document.getElementById('drawing-gateway-viewer-close'),
+            prevBtn: document.getElementById('drawing-gateway-viewer-prev'),
+            nextBtn: document.getElementById('drawing-gateway-viewer-next'),
+            stage: document.getElementById('drawing-gateway-viewer-stage'),
+            image: document.getElementById('drawing-gateway-viewer-image'),
+            zoomBadge: document.getElementById('drawing-gateway-viewer-zoom-badge'),
+            filename: document.getElementById('drawing-gateway-viewer-filename'),
+            counter: document.getElementById('drawing-gateway-viewer-counter')
+          };
+        }
+
+        function applyDrawingGatewayViewerTransform() {
+          const { image, zoomBadge } = getDrawingGatewayViewerElements();
+          if (!image || !zoomBadge) return;
+          image.style.transform = `translate(${__drawingGatewayViewerPanX}px, ${__drawingGatewayViewerPanY}px) scale(${__drawingGatewayViewerScale})`;
+          zoomBadge.textContent = `${Math.round(__drawingGatewayViewerScale * 100)}%`;
+          zoomBadge.style.display = __drawingGatewayViewerScale === 1 ? 'none' : 'block';
+          positionDrawingGatewayViewerNav();
+        }
+
+        function positionDrawingGatewayViewerNav() {
+          const { root, image, prevBtn, nextBtn } = getDrawingGatewayViewerElements();
+          if (!root || !image || !prevBtn || !nextBtn) return;
+          if (!root.classList.contains('gateway-has-multiple')) return;
+
+          const rootRect = root.getBoundingClientRect();
+          const imgRect = image.getBoundingClientRect();
+          if (!imgRect.width || !imgRect.height || !rootRect.width || !rootRect.height) return;
+
+          const navSize = 48;
+          const edgePad = 10;
+          const minX = 12;
+          const maxX = Math.max(minX, rootRect.width - navSize - 12);
+          const centerY = Math.max(28, Math.min(rootRect.height - 28, (imgRect.top - rootRect.top) + (imgRect.height / 2)));
+
+          let leftX = (imgRect.left - rootRect.left) + edgePad;
+          let rightX = (imgRect.right - rootRect.left) - navSize - edgePad;
+          leftX = Math.max(minX, Math.min(maxX, leftX));
+          rightX = Math.max(minX, Math.min(maxX, rightX));
+          if (rightX - leftX < navSize + 12) {
+            leftX = Math.max(minX, leftX - 24);
+            rightX = Math.min(maxX, rightX + 24);
+          }
+
+          prevBtn.style.left = `${leftX}px`;
+          prevBtn.style.right = 'auto';
+          prevBtn.style.top = `${centerY}px`;
+
+          nextBtn.style.left = `${rightX}px`;
+          nextBtn.style.right = 'auto';
+          nextBtn.style.top = `${centerY}px`;
+        }
+
+        function resetDrawingGatewayViewerTransform() {
+          __drawingGatewayViewerScale = 1;
+          __drawingGatewayViewerPanX = 0;
+          __drawingGatewayViewerPanY = 0;
+          applyDrawingGatewayViewerTransform();
+        }
+
+        function zoomDrawingGatewayViewerAt(deltaY, clientX, clientY) {
+          const { stage } = getDrawingGatewayViewerElements();
+          if (!stage) return;
+          const rect = stage.getBoundingClientRect();
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+          const x = clientX - centerX;
+          const y = clientY - centerY;
+
+          const oldScale = __drawingGatewayViewerScale;
+          const zoomFactor = deltaY > 0 ? 0.9 : 1.1;
+          __drawingGatewayViewerScale = Math.max(0.5, Math.min(10, __drawingGatewayViewerScale * zoomFactor));
+
+          if (__drawingGatewayViewerScale !== oldScale) {
+            const ratio = __drawingGatewayViewerScale / oldScale;
+            __drawingGatewayViewerPanX = x - (x - __drawingGatewayViewerPanX) * ratio;
+            __drawingGatewayViewerPanY = y - (y - __drawingGatewayViewerPanY) * ratio;
+          }
+          applyDrawingGatewayViewerTransform();
+        }
+
+        function updateDrawingGatewayViewerNav() {
+          const { prevBtn, nextBtn, counter, root } = getDrawingGatewayViewerElements();
+          const total = __drawingGatewayViewerFiles.length;
+          const current = __drawingGatewayViewerIndex + 1;
+          const hasMultiple = total > 1;
+          if (counter) counter.textContent = `${current} / ${total}`;
+          if (prevBtn) prevBtn.style.display = hasMultiple ? 'flex' : 'none';
+          if (nextBtn) nextBtn.style.display = hasMultiple ? 'flex' : 'none';
+          if (root) {
+            root.classList.toggle('gateway-has-multiple', hasMultiple);
+            if (!hasMultiple) root.classList.remove('gateway-nav-visible');
+          }
+          requestAnimationFrame(positionDrawingGatewayViewerNav);
+        }
+
+        function renderDrawingGatewayViewerImage() {
+          const { image, filename } = getDrawingGatewayViewerElements();
+          if (!image || !filename) return;
+          const current = __drawingGatewayViewerFiles[__drawingGatewayViewerIndex];
+          if (!current) return;
+          image.src = gatewayViewUrl(current);
+          image.alt = gatewayFileName(current);
+          filename.textContent = gatewayFileName(current);
+          resetDrawingGatewayViewerTransform();
+          updateDrawingGatewayViewerNav();
+        }
+
+        function showPrevDrawingGatewayImage() {
+          if (!__drawingGatewayViewerFiles.length) return;
+          __drawingGatewayViewerIndex = (__drawingGatewayViewerIndex - 1 + __drawingGatewayViewerFiles.length) % __drawingGatewayViewerFiles.length;
+          renderDrawingGatewayViewerImage();
+        }
+
+        function showNextDrawingGatewayImage() {
+          if (!__drawingGatewayViewerFiles.length) return;
+          __drawingGatewayViewerIndex = (__drawingGatewayViewerIndex + 1) % __drawingGatewayViewerFiles.length;
+          renderDrawingGatewayViewerImage();
+        }
+
+        function closeDrawingGatewayImageViewer() {
+          const { root } = getDrawingGatewayViewerElements();
+          if (!root) return;
+          root.classList.remove('gateway-nav-visible');
+          root.classList.add('d-none');
+          root.setAttribute('aria-hidden', 'true');
+          document.body.style.overflow = '';
+        }
+
+        function openDrawingGatewayImageViewer(groupKey, index) {
+          const files = __drawingGatewayImageGroups[groupKey] || [];
+          if (!files.length) return;
+          
+          if (window.GlobalImageViewer) {
+             const viewerFiles = files.map(f => ({
+                view_url: gatewayViewUrl(f),
+                download_url: gatewayDownloadUrl(f),
+                filename: gatewayFileName(f),
+                file_type: 'image'
+             }));
+             window.GlobalImageViewer.open(viewerFiles, index || 0);
           } else {
-            img.addEventListener('load', () => {
-              initialWidth = img.naturalWidth || img.width;
-              initialHeight = img.naturalHeight || img.height;
-            });
+             console.error('GlobalImageViewer not found');
+             alert('이미지 뷰어를 불러올 수 없습니다.');
           }
+        }
 
-          // 줌 레벨 표시 업데이트
-          function updateZoomBadge() {
-            badge.textContent = Math.round(scale * 100) + '%';
-            badge.style.display = scale !== 1 ? 'block' : 'none';
-          }
+        function initDrawingGatewayImageViewer() {
+          if (__drawingGatewayViewerBound) return;
+          const { backdrop, closeBtn, prevBtn, nextBtn, stage, root, image } = getDrawingGatewayViewerElements();
+          if (!stage || !root || !image) return;
+          __drawingGatewayViewerBound = true;
 
-          // 이미지 변환 적용 (윤곽 없이 전체 확대)
-          function applyTransform() {
-            img.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
-            img.style.border = 'none';
-            img.style.boxShadow = 'none';
-            img.style.borderRadius = '0';
-            img.style.padding = '0';
-            img.style.background = 'transparent';
-            updateZoomBadge();
-          }
+          if (backdrop) backdrop.addEventListener('click', closeDrawingGatewayImageViewer);
+          if (closeBtn) closeBtn.addEventListener('click', closeDrawingGatewayImageViewer);
+          if (prevBtn) prevBtn.addEventListener('click', showPrevDrawingGatewayImage);
+          if (nextBtn) nextBtn.addEventListener('click', showNextDrawingGatewayImage);
 
-          // 줌 인/아웃 (마우스 위치 중심)
-          function zoomAtPoint(delta, clientX, clientY) {
-            const rect = container.getBoundingClientRect();
-            const containerCenterX = rect.left + rect.width / 2;
-            const containerCenterY = rect.top + rect.height / 2;
-
-            // 마우스 위치를 컨테이너 중심 기준으로 변환
-            const x = clientX - containerCenterX;
-            const y = clientY - containerCenterY;
-
-            const oldScale = scale;
-            const zoomFactor = delta > 0 ? 0.9 : 1.1;
-            scale = Math.max(0.5, Math.min(10, scale * zoomFactor));
-
-            // 마우스 위치를 중심으로 줌
-            if (scale !== oldScale) {
-              const scaleChange = scale / oldScale;
-              panX = x - (x - panX) * scaleChange;
-              panY = y - (y - panY) * scaleChange;
+          root.addEventListener('mouseenter', () => {
+            if (root.classList.contains('gateway-has-multiple')) {
+              root.classList.add('gateway-nav-visible');
             }
+          });
+          root.addEventListener('mousemove', () => {
+            if (root.classList.contains('gateway-has-multiple')) {
+              root.classList.add('gateway-nav-visible');
+            }
+          });
+          root.addEventListener('mouseleave', () => {
+            root.classList.remove('gateway-nav-visible');
+          });
+          image.addEventListener('load', () => requestAnimationFrame(positionDrawingGatewayViewerNav));
+          window.addEventListener('resize', () => {
+            if (!root.classList.contains('d-none')) requestAnimationFrame(positionDrawingGatewayViewerNav);
+          });
 
-            applyTransform();
-          }
+          document.addEventListener('keydown', (e) => {
+            if (root.classList.contains('d-none')) return;
+            if (e.key === 'Escape') closeDrawingGatewayImageViewer();
+            else if (e.key === 'ArrowLeft') showPrevDrawingGatewayImage();
+            else if (e.key === 'ArrowRight') showNextDrawingGatewayImage();
+          });
 
-          // 휠 스크롤로 줌 (모든 경우)
-          container.addEventListener('wheel', (e) => {
+          stage.addEventListener('wheel', (e) => {
+            if (root.classList.contains('d-none')) return;
             e.preventDefault();
-            e.stopPropagation();
-            zoomAtPoint(e.deltaY, e.clientX, e.clientY);
+            zoomDrawingGatewayViewerAt(e.deltaY, e.clientX, e.clientY);
           }, { passive: false });
 
-          // 모달 body에도 휠 이벤트 추가 (이미지 영역 밖에서도 작동)
-          const modalBody = document.querySelector('#erpAttachmentPreviewModal .modal-body');
-          if (modalBody) {
-            modalBody.addEventListener('wheel', (e) => {
-              const target = e.target;
-              if (target !== container && !container.contains(target)) {
-                e.preventDefault();
-                e.stopPropagation();
-                const rect = modalBody.getBoundingClientRect();
-                zoomAtPoint(e.deltaY, rect.left + rect.width / 2, rect.top + rect.height / 2);
-              }
-            }, { passive: false });
-          }
-
-          // 드래그로 패닝
-          container.addEventListener('mousedown', (e) => {
-            if (scale > 1) {
-              isDragging = true;
-              container.style.cursor = 'grabbing';
-              startX = e.clientX;
-              startY = e.clientY;
-              startPanX = panX;
-              startPanY = panY;
-              e.preventDefault();
-            }
+          stage.addEventListener('mousedown', (e) => {
+            if (__drawingGatewayViewerScale <= 1) return;
+            __drawingGatewayViewerDragging = true;
+            stage.style.cursor = 'grabbing';
+            __drawingGatewayViewerStartX = e.clientX;
+            __drawingGatewayViewerStartY = e.clientY;
+            __drawingGatewayViewerStartPanX = __drawingGatewayViewerPanX;
+            __drawingGatewayViewerStartPanY = __drawingGatewayViewerPanY;
+            e.preventDefault();
           });
 
           document.addEventListener('mousemove', (e) => {
-            if (isDragging && scale > 1) {
-              panX = startPanX + (e.clientX - startX);
-              panY = startPanY + (e.clientY - startY);
-              applyTransform();
-              e.preventDefault();
-            }
+            if (!__drawingGatewayViewerDragging) return;
+            __drawingGatewayViewerPanX = __drawingGatewayViewerStartPanX + (e.clientX - __drawingGatewayViewerStartX);
+            __drawingGatewayViewerPanY = __drawingGatewayViewerStartPanY + (e.clientY - __drawingGatewayViewerStartY);
+            applyDrawingGatewayViewerTransform();
           });
 
           document.addEventListener('mouseup', () => {
-            if (isDragging) {
-              isDragging = false;
-              container.style.cursor = scale > 1 ? 'grab' : 'default';
-            }
+            if (!__drawingGatewayViewerDragging) return;
+            __drawingGatewayViewerDragging = false;
+            stage.style.cursor = __drawingGatewayViewerScale > 1 ? 'grab' : 'default';
           });
 
-          container.addEventListener('mouseleave', () => {
-            if (isDragging) {
-              isDragging = false;
-              container.style.cursor = scale > 1 ? 'grab' : 'default';
-            }
-          });
+          stage.addEventListener('dblclick', () => resetDrawingGatewayViewerTransform());
 
-          // 더블클릭으로 리셋
-          container.addEventListener('dblclick', () => {
-            scale = 1;
-            panX = 0;
-            panY = 0;
-            applyTransform();
-          });
-
-          // 터치 제스처 지원 (모바일)
-          let touchStartDistance = 0;
-          let touchStartScale = 1;
-          let touchStartPanX = 0;
-          let touchStartPanY = 0;
-
-          container.addEventListener('touchstart', (e) => {
+          stage.addEventListener('touchstart', (e) => {
             if (e.touches.length === 1) {
-              const touch = e.touches[0];
-              startX = touch.clientX;
-              startY = touch.clientY;
-              startPanX = panX;
-              startPanY = panY;
+              __drawingGatewayViewerStartX = e.touches[0].clientX;
+              __drawingGatewayViewerStartY = e.touches[0].clientY;
+              __drawingGatewayViewerStartPanX = __drawingGatewayViewerPanX;
+              __drawingGatewayViewerStartPanY = __drawingGatewayViewerPanY;
             } else if (e.touches.length === 2) {
-              const touch1 = e.touches[0];
-              const touch2 = e.touches[1];
-              touchStartDistance = Math.hypot(
-                touch2.clientX - touch1.clientX,
-                touch2.clientY - touch1.clientY
-              );
-              touchStartScale = scale;
-              touchStartPanX = panX;
-              touchStartPanY = panY;
+              const t1 = e.touches[0];
+              const t2 = e.touches[1];
+              __drawingGatewayViewerTouchDistance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+              __drawingGatewayViewerTouchScale = __drawingGatewayViewerScale;
             }
           }, { passive: true });
 
-          container.addEventListener('touchmove', (e) => {
-            if (e.touches.length === 1 && scale > 1) {
+          stage.addEventListener('touchmove', (e) => {
+            if (root.classList.contains('d-none')) return;
+            if (e.touches.length === 1 && __drawingGatewayViewerScale > 1) {
               e.preventDefault();
-              const touch = e.touches[0];
-              panX = startPanX + (touch.clientX - startX);
-              panY = startPanY + (touch.clientY - startY);
-              applyTransform();
+              const t = e.touches[0];
+              __drawingGatewayViewerPanX = __drawingGatewayViewerStartPanX + (t.clientX - __drawingGatewayViewerStartX);
+              __drawingGatewayViewerPanY = __drawingGatewayViewerStartPanY + (t.clientY - __drawingGatewayViewerStartY);
+              applyDrawingGatewayViewerTransform();
             } else if (e.touches.length === 2) {
               e.preventDefault();
-              const touch1 = e.touches[0];
-              const touch2 = e.touches[1];
-              const distance = Math.hypot(
-                touch2.clientX - touch1.clientX,
-                touch2.clientY - touch1.clientY
-              );
-              scale = Math.max(0.5, Math.min(10, touchStartScale * (distance / touchStartDistance)));
-              applyTransform();
+              const t1 = e.touches[0];
+              const t2 = e.touches[1];
+              const distance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+              __drawingGatewayViewerScale = Math.max(0.5, Math.min(10, __drawingGatewayViewerTouchScale * (distance / (__drawingGatewayViewerTouchDistance || distance))));
+              applyDrawingGatewayViewerTransform();
             }
           }, { passive: false });
-
-          updateZoomBadge();
         }
 
+        function renderGatewayFiles(files, groupKey) {
+          if (!Array.isArray(files) || files.length === 0) return '';
+
+          const imageFiles = files.filter(isGatewayImageFile);
+          __drawingGatewayImageGroups[groupKey] = imageFiles;
+
+          const imageItems = imageFiles.map((f, idx) => {
+            const name = escapeHtml(gatewayFileName(f));
+            const viewUrl = escapeHtml(gatewayViewUrl(f));
+            const downloadUrl = escapeHtml(gatewayDownloadUrl(f));
+            return `
+              <div class="drawing-gateway-thumb-wrap me-2 mb-2">
+                <div class="drawing-gateway-thumb" onclick="openDrawingGatewayImageViewer('${groupKey}', ${idx})">
+                  <img src="${viewUrl}" alt="${name}">
+                </div>
+                <div class="small text-truncate mt-1" title="${name}" style="max-width: 110px;">${name}</div>
+                <a href="${downloadUrl}" target="_blank" rel="noopener" class="small text-muted">
+                  <i class="fas fa-download"></i>
+                </a>
+              </div>
+            `;
+          }).join('');
+
+          const fileItems = files.filter(f => !isGatewayImageFile(f)).map((f) => {
+            const name = escapeHtml(gatewayFileName(f));
+            const viewUrl = escapeHtml(gatewayViewUrl(f));
+            const downloadUrl = escapeHtml(gatewayDownloadUrl(f));
+            return `
+              <div class="d-flex align-items-center gap-1 me-2 mb-1">
+                <i class="fas fa-paperclip text-secondary"></i>
+                <a href="${viewUrl}" target="_blank" rel="noopener" class="small">${name}</a>
+                <a href="${downloadUrl}" target="_blank" rel="noopener" class="small text-muted">
+                  <i class="fas fa-download"></i>
+                </a>
+              </div>
+            `;
+          }).join('');
+
+          return `
+            <div class="d-flex flex-wrap mt-1">
+              ${imageItems}
+              ${fileItems}
+            </div>
+          `;
+        }
+
+
+        function renderDrawingGatewayTimeline(history) {
+          if (!Array.isArray(history) || history.length === 0) {
+            return '<div class="text-muted small">아직 요청/전달 이력이 없습니다.</div>';
+          }
+          const sorted = [...history].reverse();
+          return sorted.map((h, idx) => {
+            const action = drawingActionLabel(h.action);
+            const byName = escapeHtml(h.by_user_name || '알 수 없음');
+            const when = escapeHtml(h.transferred_at || h.at || '');
+            const note = escapeHtml(h.note || '');
+            const targetLabel = escapeHtml(drawingTargetLabel(h));
+            const groupKey = `gateway_${idx}_${String(h.transferred_at || h.at || '').replace(/[^0-9A-Za-z]/g, '')}`;
+            const filesHtml = renderGatewayFiles(h.files || [], groupKey);
+            const badgeClass = h.action === 'REQUEST_REVISION'
+              ? 'bg-danger'
+              : (h.action === 'TRANSFER' ? 'bg-primary' : 'bg-secondary');
+            return `
+              <div class="border rounded p-2 mb-2 bg-white">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <div>
+                    <span class="badge ${badgeClass}">${action}</span>
+                    <span class="small text-muted ms-2">${byName}</span>
+                    ${targetLabel ? `<span class="badge bg-info text-dark ms-1">${targetLabel}</span>` : ''}
+                  </div>
+                  <span class="small text-muted">${when}</span>
+                </div>
+                ${note ? `<div class="small mt-1">${note}</div>` : ''}
+                ${filesHtml}
+              </div>
+            `;
+          }).join('');
+        }
+
+
         // 주문의 첨부 파일 미리보기 (첨부 배지 클릭 시) - 좌우 네비게이션 지원
-        async function openAttachmentsPreview(orderId) {
+        async function openAttachmentsPreview(orderId, initialCategory = 'measurement') {
           try {
             // 캐시 확인
             let aList = null;
@@ -2084,15 +2810,93 @@
             }
 
             if (aList.length > 0) {
-              __currentAttachmentList = aList;
-              __currentAttachmentIndex = 0;
-              showAttachmentAtIndex(0);
+              __attachmentsByCategory = { measurement: [], drawing: [], construction: [] };
+              aList.forEach((a) => {
+                const key = normalizeAttachmentCategory(a.category);
+                const normalized = Object.assign({}, a, { category: key });
+                if (!__attachmentsByCategory[key]) __attachmentsByCategory[key] = [];
+                __attachmentsByCategory[key].push(normalized);
+              });
+
+              let targetCategory = normalizeAttachmentCategory(initialCategory);
+              const targetList = __attachmentsByCategory[targetCategory] || [];
+              if (!targetList.length) {
+                if (__attachmentsByCategory.drawing.length) targetCategory = 'drawing';
+                else if (__attachmentsByCategory.measurement.length) targetCategory = 'measurement';
+                else if (__attachmentsByCategory.construction.length) targetCategory = 'construction';
+              }
+              __activeAttachmentCategory = targetCategory;
+
+              renderAttachmentCategoryTabs();
+              renderAttachmentCategoryGallery();
+              const modalEl = document.getElementById('erpAttachmentsCategoryModal');
+              if (modalEl) {
+                const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                modal.show();
+              }
             } else {
-              alert('첨부 파일이 없습니다.');
+              showErpToast('첨부 파일이 없습니다.', 'info');
             }
           } catch (err) {
             console.error('첨부 파일 로드 실패:', err);
-            alert('첨부 파일을 불러올 수 없습니다.');
+            showErpToast('첨부 파일을 불러올 수 없습니다.', 'error');
+          }
+        }
+
+        // GlobalImageViewer로 연결하는 레거시 호환 함수
+        function openAttachmentPreviewModal(attachmentId, viewUrl, downloadUrl, filename, fileType) {
+          if (window.GlobalImageViewer) {
+            const singleFile = {
+              view_url: viewUrl,
+              download_url: downloadUrl,
+              filename: filename,
+              file_type: fileType
+            };
+
+            // 같은 주문의 첨부 캐시가 있으면 이미지 묶음으로 열어 좌우 이동 가능하게 처리
+            const orderMatch = String(viewUrl || '').match(/\/orders\/(\d+)\//);
+            const orderId = orderMatch ? Number(orderMatch[1]) : 0;
+            const cached = orderId ? (__attachmentsCache[orderId] || []) : [];
+
+            const isImage = (a) => {
+              if (!a) return false;
+              const ft = String(a.file_type || '').toLowerCase();
+              if (ft === 'image') return true;
+              const probe = String(a.view_url || a.filename || '').toLowerCase();
+              return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/.test(probe);
+            };
+
+            if (String(fileType || '').toLowerCase() === 'image' && Array.isArray(cached) && cached.length > 1) {
+              const imageFiles = cached
+                .filter(isImage)
+                .map((a) => ({
+                  view_url: a.view_url || '',
+                  download_url: a.download_url || (a.view_url || ''),
+                  filename: a.filename || '이미지',
+                  file_type: 'image'
+                }))
+                .filter((a) => !!a.view_url);
+
+              if (imageFiles.length > 1) {
+                let startIndex = 0;
+                if (attachmentId) {
+                  const idxById = cached.filter(isImage).findIndex((a) => Number(a.id || 0) === Number(attachmentId));
+                  if (idxById >= 0) startIndex = idxById;
+                }
+                if (startIndex === 0) {
+                  const idxByUrl = imageFiles.findIndex((a) => String(a.view_url) === String(viewUrl));
+                  if (idxByUrl >= 0) startIndex = idxByUrl;
+                }
+                window.GlobalImageViewer.open(imageFiles, startIndex);
+                return;
+              }
+            }
+
+            // 기본: 단일 파일로 열기
+            window.GlobalImageViewer.open([singleFile], 0);
+          } else {
+            console.error('GlobalImageViewer not found');
+            alert('이미지 뷰어를 불러올 수 없습니다.');
           }
         }
 
@@ -2103,56 +2907,163 @@
           }
 
           __currentAttachmentIndex = index;
-          const attachment = __currentAttachmentList[index];
-
-          openAttachmentPreviewModal(
-            attachment.id,
-            attachment.view_url || '#',
-            attachment.download_url || attachment.view_url || '#',
-            attachment.filename || '',
-            attachment.file_type || 'image'
-          );
-
-          // 네비게이션 버튼 및 카운터 업데이트
-          updateAttachmentNavigation();
-        }
-
-        // 첨부 파일 네비게이션 업데이트
-        function updateAttachmentNavigation() {
-          const prevBtn = document.getElementById('erp-attachment-preview-prev');
-          const nextBtn = document.getElementById('erp-attachment-preview-next');
-          const counter = document.getElementById('erp-attachment-preview-counter');
-
-          if (!prevBtn || !nextBtn || !counter) return;
-
-          const total = __currentAttachmentList.length;
-          const current = __currentAttachmentIndex + 1;
-
-          // 카운터 표시
-          counter.textContent = `${current} / ${total}`;
-
-          // 이전/다음 버튼 표시
-          if (total > 1) {
-            prevBtn.style.display = 'inline-block';
-            nextBtn.style.display = 'inline-block';
-            prevBtn.disabled = (__currentAttachmentIndex === 0);
-            nextBtn.disabled = (__currentAttachmentIndex === total - 1);
+          
+          if (window.GlobalImageViewer) {
+             window.GlobalImageViewer.open(__currentAttachmentList, index);
           } else {
-            prevBtn.style.display = 'none';
-            nextBtn.style.display = 'none';
+              console.error('GlobalImageViewer not found');
+              showErpToast('이미지 뷰어를 불러올 수 없습니다.', 'error');
           }
         }
 
-        // 이전 파일 보기
-        function showPreviousAttachment() {
-          if (__currentAttachmentIndex > 0) {
-            showAttachmentAtIndex(__currentAttachmentIndex - 1);
+        function getDrawingCurrentFiles(orderId) {
+          const list = __drawingCurrentFilesByOrder[orderId];
+          return Array.isArray(list) ? list : [];
+        }
+
+        function getDrawingTargetNumber(orderId, key) {
+          if (!key) return null;
+          const list = getDrawingCurrentFiles(orderId);
+          const idx = list.findIndex(f => String((f && f.key) || '') === String(key));
+          return idx >= 0 ? (idx + 1) : null;
+        }
+
+        function isDrawingImageFile(f) {
+          const probe = String((f && f.filename) || (f && f.key) || '').toLowerCase();
+          return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/.test(probe);
+        }
+
+        function buildDrawingTargetCards(orderId, selectedKey, opts = {}) {
+          const files = getDrawingCurrentFiles(orderId);
+          const includeNone = !!opts.includeNone;
+          const role = opts.role || 'revision';
+          const selected = String(selectedKey || '');
+          const cards = [];
+
+          if (includeNone) {
+            cards.push(`
+              <button type="button"
+                class="drawing-target-card ${selected ? '' : 'is-active'}"
+                data-role="${escapeHtml(role)}"
+                data-key="">
+                <div class="drawing-target-card-thumb"><i class="fas fa-plus text-secondary"></i></div>
+                <div class="drawing-target-card-meta">
+                  <span class="num">새 번호 추가</span><br />
+                  기존 도면 유지
+                </div>
+              </button>
+            `);
+          }
+
+          files.forEach((f, idx) => {
+            const key = String((f && f.key) || '');
+            const filename = String((f && f.filename) || `도면 ${idx + 1}`);
+            const viewUrl = String((f && f.view_url) || (key ? `/api/files/view/${key}` : ''));
+            const activeCls = key === selected ? 'is-active' : '';
+            const selectedBadge = key === selected ? '<span class="drawing-target-selected-pill">선택됨</span>' : '';
+            const thumbHtml = isDrawingImageFile(f)
+              ? `<img src="${escapeHtml(viewUrl)}" alt="${escapeHtml(filename)}">`
+              : `<i class="fas fa-file-alt text-secondary"></i>`;
+            cards.push(`
+              <button type="button"
+                class="drawing-target-card ${activeCls}"
+                data-role="${escapeHtml(role)}"
+                data-key="${encodeURIComponent(key)}">
+                <div class="drawing-target-card-thumb">${selectedBadge}${thumbHtml}</div>
+                <div class="drawing-target-card-meta">
+                  <span class="num">${idx + 1}번</span><br />
+                  <span title="${escapeHtml(filename)}">${escapeHtml(filename)}</span>
+                </div>
+              </button>
+            `);
+          });
+
+          return cards.join('');
+        }
+
+        function syncDrawingTargetCardSelection(role, selectedKey) {
+          document.querySelectorAll(`.drawing-target-card[data-role="${role}"]`).forEach((el) => {
+            const raw = String(el.getAttribute('data-key') || '');
+            const key = raw ? decodeURIComponent(raw) : '';
+            if (String(selectedKey || '') === key) el.classList.add('is-active');
+            else el.classList.remove('is-active');
+          });
+        }
+
+        function selectDrawingTargetByCard(role, key) {
+          const selectedKey = String(key || '');
+          if (role === 'revision') {
+            const selectEl = document.getElementById('drawing-revision-target-key');
+            if (selectEl) selectEl.value = selectedKey;
+            syncDrawingTargetCardSelection('revision', selectedKey);
+          } else if (role === 'replace') {
+            const selectEl = document.getElementById('drawing-transfer-replace-key');
+            if (selectEl) selectEl.value = selectedKey;
+            syncDrawingTargetCardSelection('replace', selectedKey);
           }
         }
 
-        function showNextAttachment() {
-          if (__currentAttachmentIndex < __currentAttachmentList.length - 1) {
-            showAttachmentAtIndex(__currentAttachmentIndex + 1);
+        function renderRevisionTargetSelector(orderId) {
+          const cardsEl = document.getElementById('drawing-revision-target-cards');
+          const selectEl = document.getElementById('drawing-revision-target-key');
+          const helpEl = document.getElementById('drawing-revision-target-help');
+          if (!selectEl || !cardsEl) return;
+          const files = getDrawingCurrentFiles(orderId);
+          let html = '<option value="">도면 선택</option>';
+          files.forEach((f, idx) => {
+            const key = String((f && f.key) || '');
+            const filename = String((f && f.filename) || `도면 ${idx + 1}`);
+            html += `<option value="${escapeHtml(key)}">${idx + 1}번 · ${escapeHtml(filename)}</option>`;
+          });
+          selectEl.innerHTML = html;
+          if (files.length === 1) {
+            selectEl.value = String((files[0] && files[0].key) || '');
+          }
+          cardsEl.innerHTML = buildDrawingTargetCards(orderId, selectEl.value, { role: 'revision' });
+          syncDrawingTargetCardSelection('revision', selectEl.value);
+          selectEl.onchange = () => syncDrawingTargetCardSelection('revision', selectEl.value);
+          if (helpEl) {
+            helpEl.textContent = files.length > 1
+              ? '여러 장입니다. 수정 요청할 도면 번호를 선택해주세요.'
+              : (files.length === 1
+                ? '현재 1장입니다. 자동 선택되었습니다.'
+                : '현재 전달된 도면이 없습니다.');
+          }
+        }
+
+        function renderTransferReplaceSelector(orderId, isRetransfer) {
+          const wrapEl = document.getElementById('drawing-transfer-replace-wrap');
+          const cardsEl = document.getElementById('drawing-transfer-replace-cards');
+          const selectEl = document.getElementById('drawing-transfer-replace-key');
+          const helpEl = document.getElementById('drawing-transfer-replace-help');
+          if (!wrapEl || !selectEl || !cardsEl) return;
+          const files = getDrawingCurrentFiles(orderId);
+          wrapEl.style.display = files.length ? '' : 'none';
+          if (!files.length) {
+            selectEl.innerHTML = '<option value="">교체할 도면 없음</option>';
+            cardsEl.innerHTML = '';
+            return;
+          }
+
+          let html = `<option value="">${isRetransfer ? '교체할 도면을 선택하세요' : '선택 안 함 (새 번호로 추가)'}</option>`;
+          files.forEach((f, idx) => {
+            const key = String((f && f.key) || '');
+            const filename = String((f && f.filename) || `도면 ${idx + 1}`);
+            html += `<option value="${escapeHtml(key)}">${idx + 1}번 삭제 후 교체 · ${escapeHtml(filename)}</option>`;
+          });
+          selectEl.innerHTML = html;
+          if (isRetransfer && files.length === 1) {
+            selectEl.value = String((files[0] && files[0].key) || '');
+          } else {
+            selectEl.value = '';
+          }
+          cardsEl.innerHTML = buildDrawingTargetCards(orderId, selectEl.value, { role: 'replace', includeNone: !isRetransfer });
+          syncDrawingTargetCardSelection('replace', selectEl.value);
+          selectEl.onchange = () => syncDrawingTargetCardSelection('replace', selectEl.value);
+          if (helpEl) {
+            helpEl.textContent = isRetransfer
+              ? '재전송 시 교체할 번호를 선택하세요. (여러 장이면 필수)'
+              : '필요 시 기존 번호를 교체하거나, 선택 안 하면 새 번호로 추가됩니다.';
           }
         }
 
@@ -2166,6 +3077,8 @@
           // Reset Inputs
           document.getElementById('drawing-transfer-files').value = '';
           document.getElementById('drawing-transfer-note').value = '';
+          const replaceSelectEl = document.getElementById('drawing-transfer-replace-key');
+          if (replaceSelectEl) replaceSelectEl.value = '';
 
           // Update Modal Title/Text based on mode
           const titleEl = document.querySelector('#erpDrawingTransferModal .modal-title');
@@ -2175,8 +3088,8 @@
           if (isRetransfer) {
             titleEl.innerHTML = '<i class="fas fa-sync"></i> 도면 재전송 (수정본)';
             descEl.innerHTML = `
-            <span class="text-danger fw-bold"><i class="fas fa-exclamation-triangle"></i> 주의: 재전송 시 기존에 전달된 도면 파일은 영구 삭제됩니다.</span><br>
-            새로운 도면 파일을 업로드하고 전달 사항을 입력하세요.
+            <span class="text-danger fw-bold"><i class="fas fa-exclamation-triangle"></i> 주의: 선택한 번호의 기존 도면만 삭제 후 수정본으로 교체됩니다.</span><br>
+            수정본 파일을 업로드하고 교체할 번호를 선택하세요.
           `;
             submitBtn.innerHTML = '<i class="fas fa-sync"></i> 재전송하기';
             submitBtn.classList.replace('btn-primary', 'btn-warning');
@@ -2190,6 +3103,8 @@
             submitBtn.classList.replace('btn-warning', 'btn-primary');
           }
 
+          renderTransferReplaceSelector(orderId, isRetransfer);
+
           const modal = new bootstrap.Modal(document.getElementById('erpDrawingTransferModal'));
           modal.show();
         }
@@ -2201,9 +3116,16 @@
           const note = noteInput ? noteInput.value.trim() : '';
           const filesInput = document.getElementById('drawing-transfer-files');
           const files = filesInput ? filesInput.files : [];
+          const replaceSelectEl = document.getElementById('drawing-transfer-replace-key');
+          const replaceTargetKey = (replaceSelectEl && replaceSelectEl.value) ? String(replaceSelectEl.value).trim() : '';
+          const currentFiles = getDrawingCurrentFiles(__currentTransferOrderId);
+          if (__isRetransfer && currentFiles.length > 1 && !replaceTargetKey) {
+            showErpToast('수정본 재전송 시 교체할 도면 번호를 선택해주세요.', 'info');
+            return;
+          }
 
           const msg = __isRetransfer
-            ? '기존 도면 파일이 삭제되고 새 파일로 대체됩니다.\n정말 재전송 하시겠습니까?'
+            ? '선택한 기존 도면이 삭제되고 새 파일로 대체됩니다.\n정말 재전송 하시겠습니까?'
             : '도면을 전달하시겠습니까?';
 
           if (!confirm(msg)) return;
@@ -2218,6 +3140,7 @@
               const uploadPromises = Array.from(files).map(async (file) => {
                 const formData = new FormData();
                 formData.append('file', file); // Should match backend expectation
+                formData.append('category', 'drawing');
                 formData.append('note', '[도면 전달 첨부] ' + note); // Optional, backend might ignore for attachments
 
                 const upRes = await fetch(`/api/orders/${__currentTransferOrderId}/attachments`, {
@@ -2228,10 +3151,15 @@
                 if (!upData.success) {
                   throw new Error(file.name + ' 업로드 실패: ' + (upData.message || upData.error));
                 }
-                // Collect uploaded file info
-                // app.py upload endpoint returns {success, key, url, filename}
-                if (upData.key) {
-                  return { key: upData.key, filename: upData.filename || file.name };
+                // app.py upload endpoint returns { success, attachment: {...} }
+                const att = upData.attachment || {};
+                if (att.storage_key) {
+                  return {
+                    key: att.storage_key,
+                    filename: att.filename || file.name,
+                    view_url: att.view_url || `/api/files/view/${att.storage_key}`,
+                    download_url: att.download_url || `/api/files/download/${att.storage_key}`,
+                  };
                 }
                 return null;
               });
@@ -2240,7 +3168,7 @@
               createdFiles = results.filter(r => r !== null);
             } catch (e) {
               console.error(e);
-              alert(e.message || '파일 업로드 중 오류가 발생했습니다.');
+              showErpToast(e.message || '파일 업로드 중 오류가 발생했습니다.', 'error');
               return;
             }
           }
@@ -2249,7 +3177,10 @@
           try {
             const bodyData = {
               note: note,
-              files: createdFiles // Send list of uploaded files [ {key, filename}... ]
+              files: createdFiles, // Send list of uploaded files [ {key, filename}... ]
+              is_retransfer: __isRetransfer,
+              replace_target_key: replaceTargetKey || null,
+              replace_target_number: getDrawingTargetNumber(__currentTransferOrderId, replaceTargetKey),
             };
             // If retransfer, we can add flag if backend needs it explicit (backend currently infers from files existence + status, but let's be safe if we accepted `is_retransfer` param? 
             // Backend logic I wrote checks `new_files` presence.
@@ -2262,7 +3193,7 @@
             const data = await res.json();
 
             if (data.success) {
-              alert(data.message);
+              showErpToast(data.message || '도면이 전달되었습니다.', 'success');
               // Close modal
               const modalEl = document.getElementById('erpDrawingTransferModal');
               const modal = bootstrap.Modal.getInstance(modalEl);
@@ -2270,29 +3201,29 @@
 
               window.location.reload();
             } else {
-              alert('오류: ' + data.message);
+              showErpToast('오류: ' + data.message, 'error');
             }
           } catch (err) {
             console.error('Drawing transfer error:', err);
-            alert('도면 전달 중 오류가 발생했습니다.');
+            showErpToast('도면 전달 중 오류가 발생했습니다.', 'error');
           }
         }
 
         async function cancelDrawingTransfer(orderId) {
-          if (!confirm('정말 도면 전달을 취소하시겠습니까?\n상태가 [작업중]으로 되돌아갑니다.\n(이미 업로드된 파일은 유지됩니다)')) return;
+          if (!confirm('정말 도면 전달을 취소하시겠습니까?\n상태가 [작업중]으로 되돌아가며 최신 전달 파일/이력이 정리됩니다.')) return;
 
           try {
             const res = await fetch(`/api/orders/${orderId}/cancel-transfer`, { method: 'POST' });
             const data = await res.json();
             if (data.success) {
-              alert(data.message);
+              showErpToast(data.message || '전달이 취소되었습니다.', 'success');
               window.location.reload();
             } else {
-              alert('취소 실패: ' + data.message);
+              showErpToast('취소 실패: ' + data.message, 'error');
             }
           } catch (e) {
             console.error(e);
-            alert('오류가 발생했습니다.');
+            showErpToast('오류가 발생했습니다.', 'error');
           }
         }
 
@@ -2300,37 +3231,77 @@
         function openRevisionRequestModal(orderId) {
           __currentRevisionOrderId = orderId;
           document.getElementById('drawing-revision-note').value = '';
-          // document.getElementById('drawing-revision-files').value = ''; // If we add file upload for revision later
+          const revisionTargetSelect = document.getElementById('drawing-revision-target-key');
+          if (revisionTargetSelect) revisionTargetSelect.value = '';
+          const revisionFilesInput = document.getElementById('drawing-revision-files');
+          if (revisionFilesInput) revisionFilesInput.value = '';
+          renderRevisionTargetSelector(orderId);
           const modal = new bootstrap.Modal(document.getElementById('erpDrawingRevisionModal'));
           modal.show();
+        }
+
+        async function uploadRevisionGatewayFiles(orderId, files) {
+          const uploadPromises = Array.from(files).map(async (file) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch(`/api/orders/${orderId}/drawing-gateway-upload`, {
+              method: 'POST',
+              body: formData
+            });
+            const data = await res.json();
+            if (!data.success || !data.file) {
+              throw new Error(file.name + ' 업로드 실패: ' + (data.message || '알 수 없는 오류'));
+            }
+            return data.file;
+          });
+          return Promise.all(uploadPromises);
         }
 
         async function submitDrawingRevision() {
           if (!__currentRevisionOrderId) return;
           const note = document.getElementById('drawing-revision-note').value.trim();
+          const targetSelect = document.getElementById('drawing-revision-target-key');
+          const targetKey = targetSelect ? String(targetSelect.value || '').trim() : '';
+          const filesInput = document.getElementById('drawing-revision-files');
+          const files = filesInput ? Array.from(filesInput.files || []) : [];
+          const currentFiles = getDrawingCurrentFiles(__currentRevisionOrderId);
           if (!note) {
-            alert('수정 요청 사항(메모)을 입력해주세요.');
+            showErpToast('수정 요청 사항(메모)을 입력해주세요.', 'info');
+            return;
+          }
+          if (currentFiles.length > 1 && !targetKey) {
+            showErpToast('수정할 도면 번호를 선택해주세요.', 'info');
             return;
           }
 
           if (!confirm('수정 요청을 보내시겠습니까? (도면팀에게 알림이 전송됩니다)')) return;
 
           try {
+            let uploadedFiles = [];
+            if (files.length > 0) {
+              uploadedFiles = await uploadRevisionGatewayFiles(__currentRevisionOrderId, files);
+            }
+
             const res = await fetch(`/api/orders/${__currentRevisionOrderId}/request-revision`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ note: note })
+              body: JSON.stringify({
+                note: note,
+                files: uploadedFiles,
+                target_drawing_key: targetKey || null,
+                target_drawing_number: getDrawingTargetNumber(__currentRevisionOrderId, targetKey),
+              })
             });
             const data = await res.json();
             if (data.success) {
-              alert(data.message);
+              showErpToast(data.message || '수정 요청이 전송되었습니다.', 'success');
               window.location.reload();
             } else {
-              alert('요청 실패: ' + data.message);
+              showErpToast('요청 실패: ' + data.message, 'error');
             }
           } catch (e) {
             console.error(e);
-            alert('오류가 발생했습니다.');
+            showErpToast('오류가 발생했습니다.', 'error');
           }
         }
 
@@ -2338,18 +3309,59 @@
           if (!confirm('도면 수령을 확정하고 다음 단계로 진행하시겠습니까?')) return;
 
           try {
-            const res = await fetch(`/api/orders/${orderId}/confirm-drawing-receipt`, { method: 'POST' });
-            const data = await res.json();
+            const res = await fetch(`/api/orders/${orderId}/confirm-drawing-receipt`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({})
+            });
+
+            const contentType = (res.headers.get('content-type') || '').toLowerCase();
+            const data = contentType.includes('application/json')
+              ? await res.json()
+              : { success: false, message: await res.text() };
 
             if (data.success) {
-              alert(data.message);
+              showErpToast(data.message || '수령 확정되었습니다.', 'success');
               window.location.reload();
             } else {
-              alert('오류: ' + data.message);
+              showErpToast('오류: ' + (data.message || `HTTP ${res.status}`), 'error');
             }
           } catch (err) {
             console.error('Drawing confirm error:', err);
-            alert('도면 확정 중 오류가 발생했습니다.');
+            showErpToast('도면 확정 중 오류가 발생했습니다.', 'error');
+          }
+        }
+
+        async function toggleRevisionChecklist(orderId, requestAtEnc, byUserId, nextChecked) {
+          try {
+            const requestAt = decodeURIComponent(String(requestAtEnc || ''));
+            const payload = {
+              request_at: requestAt,
+              by_user_id: byUserId ? Number(byUserId) : null,
+              checked: !!nextChecked,
+            };
+            const res = await fetch(`/api/orders/${orderId}/request-revision-check`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (!data.success) {
+              showErpToast(data.message || '요청 반영 체크 저장 실패', 'error');
+              return;
+            }
+
+            showErpToast(data.message || '요청 반영 체크가 저장되었습니다.', 'success');
+            await loadOrderDetail(orderId);
+            setTimeout(() => {
+              const tabBtn = document.querySelector(`[data-bs-target="#wb-requests-${orderId}"]`);
+              if (tabBtn) {
+                try { bootstrap.Tab.getOrCreateInstance(tabBtn).show(); } catch (_) { }
+              }
+            }, 120);
+          } catch (e) {
+            console.error(e);
+            showErpToast('요청 반영 체크 저장 중 오류가 발생했습니다.', 'error');
           }
         }
 
@@ -2486,6 +3498,37 @@
           }
         }
 
+        async function approveQuestAssignee(orderId) {
+          try {
+            const res = await fetch(`/api/orders/${orderId}/quest/approve`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({}) // 담당자 승인은 team 파라미터 불필요
+            });
+            const data = await res.json();
+
+            // success 필드 확인
+            if (!data.success) {
+              alert('승인 실패: ' + (data.message || data.error || '알 수 없는 오류'));
+              return;
+            }
+
+            // 자동 단계 전환 알림
+            if (data.auto_transitioned && data.next_stage) {
+              const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
+              alert('✅ 담당자 승인 완료! 다음 단계(' + nextStageLabel + ')로 자동 전환되었습니다.');
+            } else if (data.all_approved) {
+              alert('✅ 담당자 승인 완료!');
+            }
+
+            // 페이지 새로고침
+            window.location.reload();
+          } catch (err) {
+            console.error('승인 실패:', err);
+            alert('승인 중 오류가 발생했습니다.');
+          }
+        }
+
         async function loadQuestDetail(orderId) {
           try {
             const res = await fetch(`/api/orders/${orderId}/quest`);
@@ -2528,101 +3571,6 @@
           }
         }
 
-        // 퀘스트 상태 새로고침 (서버에서 최신 상태를 가져와서 슬라이드와 작업 큐 모두 업데이트)
-        async function refreshQuestStatus(orderId) {
-          try {
-            // Quest 정보를 서버에서 다시 가져와서 슬라이드 업데이트
-            await loadQuestDetail(orderId);
-
-            // 작업 큐의 퀘스트 버튼 상태도 업데이트하기 위해 해당 주문의 퀘스트 정보 다시 가져오기
-            const res = await fetch(`/api/orders/${orderId}/quest`);
-            const data = await res.json();
-            if (data.error) {
-              console.error('Quest 로드 실패:', data.error);
-              return;
-            }
-
-            const quest = data.quest || {};
-            const questStatus = quest.status || 'OPEN';
-            const requiredTeams = quest.required_approvals || [];
-            const teamApprovalsRaw = quest.team_approvals || {};
-
-            // 모든 팀이 승인했는지 확인
-            let allApproved = true;
-            for (const team of requiredTeams) {
-              const approvalData = teamApprovalsRaw[team];
-              let approved = false;
-              if (typeof approvalData === 'object' && approvalData !== null) {
-                approved = approvalData.approved === true;
-              } else {
-                approved = Boolean(approvalData);
-              }
-              if (!approved) {
-                allApproved = false;
-                break;
-              }
-            }
-
-            // 작업 큐의 퀘스트 버튼과 배지 업데이트
-            const questRow = document.querySelector(`tr[data-order-id="${orderId}"]`);
-            if (questRow) {
-              const questCell = questRow.querySelector('td:nth-child(3)'); // 퀘스트 컬럼
-              if (questCell) {
-                const questButton = questCell.querySelector('button[data-bs-toggle="collapse"]');
-                const questBadge = questCell.querySelector('.badge');
-
-                if (questButton) {
-                  // 버튼 내부 아이콘 업데이트
-                  const icon = questButton.querySelector('i.fa-check-circle, i.fa-circle-notch');
-                  if (icon) {
-                    if (questStatus === 'COMPLETED' || allApproved) {
-                      icon.className = 'fas fa-check-circle text-success';
-                    } else {
-                      // 노란색 동그라미 아이콘 제거
-                      if (icon) icon.remove();
-                    }
-                  }
-                }
-
-                // 배지 업데이트
-                if (questBadge) {
-                  if (questStatus === 'COMPLETED' || allApproved) {
-                    questBadge.className = 'badge bg-success ms-1';
-                    questBadge.style.fontSize = '1rem';
-                    questBadge.style.padding = '0.4em 0.7em';
-                    questBadge.textContent = '완료';
-                  } else {
-                    questBadge.className = 'badge bg-warning ms-1';
-                    questBadge.style.fontSize = '1rem';
-                    questBadge.style.padding = '0.4em 0.7em';
-                    questBadge.textContent = '진행중';
-                  }
-                }
-              }
-            }
-
-            // 성공 메시지 표시
-            const alertDiv = document.createElement('div');
-            alertDiv.className = 'alert alert-success alert-dismissible fade show';
-            alertDiv.style.position = 'fixed';
-            alertDiv.style.top = '20px';
-            alertDiv.style.right = '20px';
-            alertDiv.style.zIndex = '9999';
-            alertDiv.innerHTML = '<i class="fas fa-check-circle"></i> 퀘스트 상태가 업데이트되었습니다. <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
-            document.body.appendChild(alertDiv);
-
-            // 3초 후 자동으로 제거
-            setTimeout(() => {
-              if (alertDiv.parentNode) {
-                alertDiv.remove();
-              }
-            }, 3000);
-          } catch (err) {
-            console.error('퀘스트 상태 새로고침 실패:', err);
-            alert('퀘스트 상태를 새로고침하는 중 오류가 발생했습니다: ' + err.message);
-          }
-        }
-
         async function loadOrderDetail(orderId) {
           const container = document.getElementById(`order-detail-content-${orderId}`);
           if (!container) return;
@@ -2661,6 +3609,7 @@
             const manager = (((sd.parties || {}).manager || {}).name) || '-';
             const stage = (((sd.workflow || {}).stage)) || '-';
             const urgent = ((sd.flags || {}).urgent) || false;
+            __drawingCurrentFilesByOrder[orderId] = Array.isArray(sd.drawing_current_files) ? sd.drawing_current_files : [];
 
             // 담당팀: 현재 단계의 담당팀으로 자동 계산
             const STAGE_TO_TEAM = {
@@ -2805,6 +3754,10 @@
                 </div>
                 <div class="position-absolute top-0 start-0 bg-dark bg-opacity-75 text-white p-1" style="font-size: 10px;"><i class="fas fa-play"></i></div>
               </div>`;
+                } else if (fileType === 'file') {
+                  attachmentsHtml += `<div class="position-relative d-flex align-items-center justify-content-center" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden; background:#f8f9fa;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'file')">
+                <i class="fas fa-file-alt text-secondary"></i>
+              </div>`;
                 } else {
                   attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'image')">
                 <img src="${thumb}" style="width: 80px; height: 60px; object-fit: cover; background:#fff; display: block;" alt="${name}">
@@ -2864,22 +3817,30 @@
             // 도면 전달 버튼 (DRAWING 단계일 때만)
             let actionHtml = '';
             if (stage === 'DRAWING') {
+              const canEdit = typeof CAN_EDIT_ERP_BETA !== 'undefined' && CAN_EDIT_ERP_BETA;
               const drawingStatus = sd.drawing_status || 'PENDING'; // PENDING, TRANSFERRED, CONFIRMED
-              const assignees = sd.drawing_assignees || [];
-              const isAssigned = assignees.some(u => u.id === MY_ID);
+              const assignees = Array.isArray(sd.drawing_assignees) ? sd.drawing_assignees : [];
+              const assignments = sd.assignments || {};
+              const assigneeIds = Array.isArray(assignments.drawing_assignee_user_ids)
+                ? assignments.drawing_assignee_user_ids.map(x => Number(x)).filter(x => Number.isFinite(x))
+                : [];
+              const hasAssignee = assignees.length > 0 || assigneeIds.length > 0;
+              const myIdNum = Number(MY_ID);
+              const isAssigned = assignees.some(u => Number(u.id) === myIdNum) || assigneeIds.includes(myIdNum);
               const isDrawingTeam = (MY_TEAM === 'DRAWING');
               const isSalesTeam = (MY_TEAM === 'SALES');
               // Manager matches current user name? or admin
               const isManager = (manager === MY_NAME);
               const isAdmin = (MY_ROLE === 'ADMIN');
+              const canDrawingAssign = canEdit || isDrawingTeam || isAdmin;
+              const canDrawingWork = (isDrawingTeam || isAssigned || isAdmin) && hasAssignee;
 
-              const assigneeNames = assignees.map(u => u.name).join(', ');
+              const assigneeNames = assignees.map(u => u.name).filter(Boolean).join(', ') || (assigneeIds.length ? `${assigneeIds.length}명 지정` : '');
 
-              // 1. 도면 담당자 지정 버튼 (영업/담당자/관리자 OR 도면팀도 가능하게 변경 - 요청사항 1번)
+              // 1. 도면 담당자 지정 버튼 (수정 권한 + 영업/담당자/관리자/도면팀)
               let assignBtn = '';
 
-              // "담당자 입력 할 수 있게 수정" 
-              if (isSalesTeam || isManager || isAdmin || isDrawingTeam) {
+              if (canDrawingAssign && (isSalesTeam || isManager || isAdmin || isDrawingTeam)) {
                 assignBtn = `
                     <button class="btn btn-outline-primary btn-sm" onclick="openDraftsmanAssignModal(${orderId})">
                         <i class="fas fa-user-plus"></i> 담당자 지정
@@ -2897,7 +3858,7 @@
                 statusBadge = '<span class="badge bg-warning text-dark ms-2">확정 대기중</span>';
 
                 // 1. 영업/담당자/관리자: [수령 확정] OR [수정 요청]
-                if (isSalesTeam || isManager || isAdmin) {
+                if (canEdit && (isSalesTeam || isManager || isAdmin)) {
                   mainBtn = `
                 <div class="d-flex gap-2">
                     <button class="btn btn-success flex-grow-1" onclick="confirmDrawingReceipt(${orderId})">
@@ -2910,7 +3871,7 @@
               `;
                 } else {
                   // 도면팀인 경우: [재전송] (기존 파일 삭제됨), [전달 취소]
-                  if (isDrawingTeam || isAssigned) {
+                  if (canDrawingWork) {
                     mainBtn = `
                         <div class="d-flex gap-2">
                              <button class="btn btn-primary flex-grow-1" onclick="openTransferDrawingModal(${orderId}, true)">
@@ -2931,7 +3892,7 @@
               } else if (drawingStatus === 'RETURNED') {
                 statusBadge = '<span class="badge bg-danger ms-2">수정 요청됨</span>';
                 // 수정 요청 상태에서는 도면팀이 다시 재전송(업로드) 해야 함
-                if (isDrawingTeam || isAssigned || isAdmin) {
+                if (canDrawingWork) {
                   mainBtn = `
                     <button class="btn btn-primary" onclick="openTransferDrawingModal(${orderId}, true)">
                         <i class="fas fa-paper-plane"></i> 수정본 전달 (재전송)
@@ -2946,45 +3907,165 @@
               } else {
                 // PENDING or WORKING
                 statusBadge = '<span class="badge bg-secondary ms-2">작업중</span>';
-                // Only Drawing Team or Assigned Draftsman can transfer
-                if (isDrawingTeam || isAssigned || isAdmin) {
+                // Only Drawing Team or Assigned Draftsman can transfer (and must have ERP edit permission)
+                if (canDrawingWork) {
                   mainBtn = `
                         <button class="btn btn-primary" onclick="openTransferDrawingModal(${orderId}, false)">
                             <i class="fas fa-paper-plane"></i> 도면 전달
                         </button>
                     `;
                 } else {
-                  // If no assignees yet, show message?
-                  if (assignees.length === 0) {
-                    // If I have permission to assign, I should see the assign button (already above).
-                    if (isDrawingTeam) {
-                      mainBtn = `
-                                <button class="btn btn-primary" onclick="openTransferDrawingModal(${orderId}, false)">
-                                    <i class="fas fa-paper-plane"></i> 도면 전달
-                                </button>
-                            `;
-                    } else {
-                      mainBtn = `<small class="text-muted">도면 작업 대기중 (담당자 미지정)</small>`;
-                    }
+                  // 담당자 미지정이면 도면 전달 불가
+                  if (!hasAssignee) {
+                    mainBtn = `<small class="text-muted">도면 작업 대기중 (담당자 미지정)</small>`;
                   } else {
                     mainBtn = `<button class="btn btn-secondary" disabled>작업 관리는 담당자만 가능</button>`;
                   }
                 }
-              } actionHtml = `
+              }
+              const drawHistory = Array.isArray(sd.drawing_transfer_history) ? sd.drawing_transfer_history : [];
+              const gatewayHistoryHtml = renderDrawingGatewayTimeline(drawHistory);
+              const revisionRequests = drawHistory
+                .filter(h => h && h.action === 'REQUEST_REVISION')
+                .slice()
+                .reverse();
+              const requestTabHtml = revisionRequests.length
+                ? revisionRequests.slice(0, 8).map((h, idx) => {
+                  const when = escapeHtml(h.transferred_at || h.at || '-');
+                  const requestAtRaw = String(h.at || h.transferred_at || '');
+                  const requestAtEnc = encodeURIComponent(requestAtRaw);
+                  const by = escapeHtml(h.by_user_name || '-');
+                  const byUserId = Number(h.by_user_id || 0) || '';
+                  const note = escapeHtml(h.note || '요청 메모 없음');
+                  const targetNo = Number(h.target_drawing_number || 0);
+                  const targetBadge = targetNo > 0 ? `<span class="badge bg-info text-dark ms-1">${targetNo}번 대상</span>` : '';
+                  const reviewCheck = (h.review_check && typeof h.review_check === 'object') ? h.review_check : {};
+                  const isChecked = !!reviewCheck.checked;
+                  const checkedBy = escapeHtml(reviewCheck.checked_by_name || '-');
+                  const checkedAt = escapeHtml(reviewCheck.checked_at || '-');
+                  const pinBadge = idx === 0 ? '<span class="badge bg-danger ms-1">최신 요청</span>' : '';
+                  const checkBadge = isChecked
+                    ? `<span class="badge bg-success ms-1">반영 완료</span>`
+                    : `<span class="badge bg-secondary ms-1">미완료</span>`;
+                  const toggleBtn = `
+                    <button class="btn btn-sm ${isChecked ? 'btn-outline-secondary' : 'btn-outline-success'} mt-2"
+                      onclick="toggleRevisionChecklist(${orderId}, '${requestAtEnc}', '${String(byUserId)}', ${isChecked ? 'false' : 'true'})">
+                      <i class="fas ${isChecked ? 'fa-rotate-left' : 'fa-check'}"></i>
+                      ${isChecked ? '완료 해제' : '반영 완료'}
+                    </button>
+                  `;
+                  const checkMeta = isChecked
+                    ? `<div class="small text-success mt-1"><i class="fas fa-user-check"></i> ${checkedBy} · ${checkedAt}</div>`
+                    : '';
+                  return `
+                    <div class="border rounded p-2 mb-2 bg-white">
+                      <div class="small text-muted mb-1">${when} · ${by} ${pinBadge} ${checkBadge} ${targetBadge}</div>
+                      <div class="small">${note}</div>
+                      ${checkMeta}
+                      ${toggleBtn}
+                    </div>
+                  `;
+                }).join('')
+                : '<div class="text-muted small">수정 요청 이력이 없습니다.</div>';
+
+              const transferEvents = drawHistory.filter(h => h && h.action === 'TRANSFER');
+              const latestTransfer = transferEvents.length ? transferEvents[transferEvents.length - 1] : null;
+              const prevTransfer = transferEvents.length > 1 ? transferEvents[transferEvents.length - 2] : null;
+              const latestFiles = Array.isArray((latestTransfer || {}).files) ? latestTransfer.files : [];
+              const prevFiles = Array.isArray((prevTransfer || {}).files) ? prevTransfer.files : [];
+              const compareFilesHtml = `
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <div class="border rounded p-2 h-100 bg-light">
+                      <div class="fw-semibold small mb-1">이전본 ${prevTransfer ? '' : '(없음)'}</div>
+                      <div class="small text-muted mb-2">${prevTransfer ? escapeHtml(prevTransfer.transferred_at || '-') : '-'}</div>
+                      ${prevTransfer ? renderGatewayFiles(prevFiles, `wb_prev_${orderId}`) : '<div class="text-muted small">비교할 이전 전달본이 없습니다.</div>'}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="border rounded p-2 h-100 bg-light">
+                      <div class="fw-semibold small mb-1">최신본 ${latestTransfer ? '' : '(없음)'}</div>
+                      <div class="small text-muted mb-2">${latestTransfer ? escapeHtml(latestTransfer.transferred_at || '-') : '-'}</div>
+                      ${latestTransfer ? renderGatewayFiles(latestFiles, `wb_latest_${orderId}`) : '<div class="text-muted small">최신 전달본이 없습니다.</div>'}
+                    </div>
+                  </div>
+                </div>
+              `;
+
+              let currentTaskText = '도면 담당자가 도면 전달을 진행해 주세요.';
+              if (!hasAssignee) currentTaskText = '도면 담당자를 먼저 지정해야 합니다.';
+              else if (drawingStatus === 'TRANSFERRED') currentTaskText = '주문 담당자가 수령 확정 또는 수정 요청을 선택해야 합니다.';
+              else if (drawingStatus === 'RETURNED') currentTaskText = '도면 담당자가 요청사항 반영 후 수정본을 전달해야 합니다.';
+              else if (drawingStatus === 'CONFIRMED') currentTaskText = '도면 수령 확정 완료. 다음 단계 진행을 확인해 주세요.';
+              const checklist = [
+                { label: '도면 담당자 지정', ok: hasAssignee },
+                { label: '최신 전달본 확인', ok: latestFiles.length > 0 || (Array.isArray(sd.drawing_current_files) && sd.drawing_current_files.length > 0) },
+                { label: '요청사항 검토', ok: drawingStatus !== 'RETURNED' || revisionRequests.length > 0 },
+              ];
+              const checklistHtml = `
+                <div class="bg-white border rounded p-2 mb-2">
+                  <div class="small fw-semibold mb-1"><i class="fas fa-list-check text-primary"></i> 작업 체크리스트</div>
+                  ${checklist.map(item => `
+                    <div class="small ${item.ok ? 'text-success' : 'text-secondary'}">
+                      <i class="fas ${item.ok ? 'fa-check-circle' : 'fa-circle'}"></i> ${escapeHtml(item.label)}
+                    </div>
+                  `).join('')}
+                </div>
+              `;
+
+              const workbenchTabsHtml = `
+                <ul class="nav nav-pills nav-sm mb-2 erp-drawing-workbench-tabs" role="tablist">
+                  <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#wb-timeline-${orderId}" type="button" role="tab">타임라인</button>
+                  </li>
+                  <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#wb-requests-${orderId}" type="button" role="tab">요청사항</button>
+                  </li>
+                  <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#wb-compare-${orderId}" type="button" role="tab">파일 비교</button>
+                  </li>
+                </ul>
+                <div class="tab-content">
+                  <div class="tab-pane fade show active erp-drawing-workbench-pane" id="wb-timeline-${orderId}" role="tabpanel">
+                    ${gatewayHistoryHtml}
+                  </div>
+                  <div class="tab-pane fade erp-drawing-workbench-pane" id="wb-requests-${orderId}" role="tabpanel">
+                    ${requestTabHtml}
+                  </div>
+                  <div class="tab-pane fade erp-drawing-workbench-pane" id="wb-compare-${orderId}" role="tabpanel">
+                    ${compareFilesHtml}
+                  </div>
+                </div>
+              `;
+
+              actionHtml = `
             <div class="col-12">
               <div class="card bg-light border-primary">
-                <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                     <h5 class="card-title fw-bold text-primary mb-1">
-                        <i class="fas fa-drafting-compass"></i> 도면 단계 
-                        ${statusBadge}
+                      <i class="fas fa-drafting-compass"></i> 도면 창구 상세 (작업실)
+                      ${statusBadge}
                     </h5>
                     <p class="mb-0 text-muted small">
-                        담당자: <strong>${assigneeNames || '미지정'}</strong>
-                        ${assignBtn}
+                      도면 담당: <strong>${assigneeNames || '미지정'}</strong>
+                      ${assignBtn}
+                      ${!canDrawingAssign ? '<span class="text-muted small ms-1">(수정 권한 없음)</span>' : ''}
                     </p>
                   </div>
-                  <div>
-                    ${mainBtn}
+                  <div class="erp-drawing-workbench">
+                    <div class="erp-drawing-workbench-log">
+                      <div class="fw-semibold mb-2"><i class="fas fa-exchange-alt text-primary"></i> 도면 창구 이력/요청</div>
+                      ${workbenchTabsHtml}
+                    </div>
+                    <div class="erp-drawing-workbench-actions">
+                      <div class="erp-drawing-workbench-actions-sticky">
+                        <div class="fw-semibold mb-2"><i class="fas fa-bolt text-primary"></i> 지금 필요한 작업</div>
+                        <div class="small text-dark bg-white border rounded p-2 mb-2">${escapeHtml(currentTaskText)}</div>
+                        ${checklistHtml}
+                        ${mainBtn}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3041,41 +4122,76 @@
             });
           }
 
-          // 주문 상세 슬라이드 토글 이벤트
-          document.querySelectorAll('[data-bs-target^="#order-detail-collapse-"]').forEach(btn => {
-            btn.addEventListener('click', function () {
-              const targetId = this.getAttribute('data-bs-target');
-              const orderId = targetId.replace('#order-detail-collapse-', '');
-              const collapseEl = document.querySelector(targetId);
+          // 주문 상세 collapse 오픈 시: 상세 로드 완료 후 navbar 바로 아래로 정렬
+          document.querySelectorAll('.collapse[id^="order-detail-collapse-"]').forEach(collapseEl => {
+            collapseEl.addEventListener('shown.bs.collapse', async function () {
+              const orderId = this.id.replace('order-detail-collapse-', '');
 
-              if (collapseEl) {
-                collapseEl.addEventListener('shown.bs.collapse', function () {
-                  loadOrderDetail(parseInt(orderId));
-                }, { once: true });
-              }
+              const alignDetailUnderNavbar = () => {
+                const nav = document.querySelector('nav.navbar');
+                const navHeight = nav ? nav.offsetHeight : 56;
+                const titleEl = this.querySelector('.erp-order-detail-title') || this;
+                const targetTop = window.scrollY + titleEl.getBoundingClientRect().top - navHeight - 8;
+                window.scrollTo({ top: Math.max(0, targetTop), behavior: 'auto' });
+              };
+
+              // 1차: collapse 오픈 직후 정렬
+              alignDetailUnderNavbar();
+
+              // 2차: 상세 내용 렌더 완료 후 다시 정렬 (높이 변동 보정)
+              await loadOrderDetail(parseInt(orderId, 10));
+              requestAnimationFrame(alignDetailUnderNavbar);
+              setTimeout(alignDetailUnderNavbar, 120);
             });
           });
 
-          // 프로세스 맵 & 알림 타일 클릭 → 필터 적용 후 리로드
-          const applyFilter = (name, value) => {
-            if (!form) return;
-            let input = form.querySelector(`[name="${name}"]`);
+          // 딥링크 포커스: ?focus=drawing-gateway&order_id=1955&tab=timeline|requests|compare
+          (() => {
+            try {
+              const url = new URL(window.location.href);
+              const focus = (url.searchParams.get('focus') || '').toLowerCase();
+              const orderId = String(url.searchParams.get('order_id') || '').trim();
+              const tabRaw = (url.searchParams.get('tab') || 'timeline').toLowerCase();
+              const tabKey = (tabRaw === 'request' || tabRaw === 'requests')
+                ? 'requests'
+                : (tabRaw === 'file' || tabRaw === 'files' || tabRaw === 'compare' ? 'compare' : 'timeline');
+              if (focus !== 'drawing-gateway' || !orderId) return;
 
-            // input이 없으면 (특히 alert_type hidden input이 초기 상태에서 없을 수 있음) 생성
-            if (!input) {
-              input = document.createElement('input');
-              input.type = 'hidden';
-              input.name = name;
-              form.appendChild(input);
+              const collapseEl = document.getElementById(`order-detail-collapse-${orderId}`);
+              if (!collapseEl) return;
+              const bs = bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false });
+              bs.show();
+
+              const activateTab = () => {
+                const tabBtn = document.querySelector(`[data-bs-target="#wb-${tabKey}-${orderId}"]`);
+                if (!tabBtn) return;
+                try {
+                  bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+                } catch (_) { }
+              };
+
+              // 상세 렌더링 완료 타이밍 보정
+              setTimeout(activateTab, 450);
+              setTimeout(activateTab, 900);
+            } catch (_) { }
+          })();
+
+          // 프로세스 맵 & 알림 타일 클릭 → "해당 필터만" URL 파라미터 적용 후 리로드
+          const applyFilter = (name, value) => {
+            const singleFilterNames = ['stage', 'alert_type', 'urgent', 'has_alert', 'team', 'q'];
+            const url = new URL(window.location.href);
+            const params = url.searchParams;
+
+            // 기존 단일 필터 전부 제거
+            singleFilterNames.forEach((fieldName) => params.delete(fieldName));
+
+            // 클릭한 필터만 설정
+            if (value) {
+              params.set(name, value);
             }
 
-            const current = input.value || '';
-            const next = value || '';
-
-            // 같은 값을 다시 클릭하면 해제(전체보기)
-            input.value = (current === next) ? '' : next;
-
-            form.submit();
+            // URL 이동 (GET)
+            window.location.href = `${url.pathname}?${params.toString()}`;
           };
 
           // 프로세스 맵 (Pipeline Stages)
@@ -3102,8 +4218,17 @@
             });
           });
 
-          // 이벤트 위임: 퀘스트 승인 및 상태 새로고침
+          // 이벤트 위임: 퀘스트 승인, 첨부 미리보기 등
           document.body.addEventListener('click', function (e) {
+            const targetCard = e.target.closest('.drawing-target-card');
+            if (targetCard) {
+              const role = String(targetCard.getAttribute('data-role') || '');
+              const rawKey = String(targetCard.getAttribute('data-key') || '');
+              const key = rawKey ? decodeURIComponent(rawKey) : '';
+              selectDrawingTargetByCard(role, key);
+              return;
+            }
+
             // 승인 버튼
             const approveBtn = e.target.closest('.erp-btn-approve-team');
             if (approveBtn) {
@@ -3116,12 +4241,63 @@
               }
             }
 
-            // 새로고침 버튼
-            const refreshBtn = e.target.closest('.erp-btn-refresh-status');
-            if (refreshBtn) {
-              const orderId = refreshBtn.dataset.orderId;
-              if (typeof refreshQuestStatus === 'function') {
-                refreshQuestStatus(Number(orderId));
+            const approveAssigneeBtn = e.target.closest('.erp-btn-approve-assignee');
+            if (approveAssigneeBtn) {
+              const orderId = Number(approveAssigneeBtn.dataset.orderId);
+              if (typeof approveQuestAssignee === 'function') {
+                approveQuestAssignee(orderId);
+              }
+            }
+
+            const drawingThumb = e.target.closest('.erp-drawing-gateway-thumb');
+            if (drawingThumb) {
+              const viewUrl = drawingThumb.dataset.viewUrl || '#';
+              const downloadUrl = drawingThumb.dataset.downloadUrl || viewUrl;
+              const filename = drawingThumb.dataset.filename || '';
+              const fileType = drawingThumb.dataset.fileType || 'image';
+              if (typeof openAttachmentPreviewModal === 'function') {
+                openAttachmentPreviewModal(0, viewUrl, downloadUrl, filename, fileType);
+              }
+            }
+
+            const openDrawingAttBtn = e.target.closest('.erp-btn-open-drawing-attachments');
+            if (openDrawingAttBtn) {
+              const orderId = Number(openDrawingAttBtn.dataset.orderId);
+              if (typeof openAttachmentsPreview === 'function') {
+                openAttachmentsPreview(orderId, 'drawing');
+              }
+            }
+
+            const confirmReceiptBtn = e.target.closest('.erp-btn-confirm-drawing-receipt');
+            if (confirmReceiptBtn) {
+              const orderId = Number(confirmReceiptBtn.dataset.orderId);
+              if (typeof confirmDrawingReceipt === 'function') {
+                confirmDrawingReceipt(orderId);
+              }
+            }
+
+            const revisionReqBtn = e.target.closest('.erp-btn-open-revision-request');
+            if (revisionReqBtn) {
+              const orderId = Number(revisionReqBtn.dataset.orderId);
+              if (typeof openRevisionRequestModal === 'function') {
+                openRevisionRequestModal(orderId);
+              }
+            }
+
+            const cancelTransferBtn = e.target.closest('.erp-btn-cancel-drawing-transfer');
+            if (cancelTransferBtn) {
+              const orderId = Number(cancelTransferBtn.dataset.orderId);
+              if (typeof cancelDrawingTransfer === 'function') {
+                cancelDrawingTransfer(orderId);
+              }
+            }
+
+            const openTransferBtn = e.target.closest('.erp-btn-open-transfer-drawing');
+            if (openTransferBtn) {
+              const orderId = Number(openTransferBtn.dataset.orderId);
+              const isRetransfer = String(openTransferBtn.dataset.retransfer || 'false') === 'true';
+              if (typeof openTransferDrawingModal === 'function') {
+                openTransferDrawingModal(orderId, isRetransfer);
               }
             }
 
@@ -3134,6 +4310,9 @@
               }
             }
           });
+
+          // 도면 수정 창구 이미지 뷰어 초기화
+          initDrawingGatewayImageViewer();
         });
       </script>
 
@@ -3156,6 +4335,161 @@
       </div>
 
       <style>
+        /* 도면 수정 창구 이미지 뷰어 (채널톡 스타일) */
+        #drawing-gateway-image-viewer {
+          position: fixed;
+          inset: 0;
+          z-index: 20000;
+        }
+
+        #drawing-gateway-viewer-backdrop {
+          position: absolute;
+          inset: 0;
+          background: rgba(10, 14, 22, 0.45);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+        }
+
+        #drawing-gateway-viewer-close {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          width: 42px;
+          height: 42px;
+          border-radius: 50%;
+          border: 0;
+          background: rgba(255, 255, 255, 0.12);
+          color: #fff;
+          z-index: 3;
+        }
+
+        .drawing-gateway-viewer-nav {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 48px;
+          height: 48px;
+          border-radius: 999px;
+          border: 0;
+          background: rgba(255, 255, 255, 0.15);
+          color: #fff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 3;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.16s ease, transform 0.16s ease;
+        }
+
+        #drawing-gateway-image-viewer.gateway-nav-visible .drawing-gateway-viewer-nav {
+          opacity: 1;
+          pointer-events: auto;
+          transform: translateY(-50%) scale(1);
+        }
+
+        #drawing-gateway-viewer-prev {
+          left: 18px;
+        }
+
+        #drawing-gateway-viewer-next {
+          right: 18px;
+        }
+
+        @media (hover: none) {
+          #drawing-gateway-image-viewer.gateway-has-multiple .drawing-gateway-viewer-nav {
+            opacity: 1;
+            pointer-events: auto;
+          }
+        }
+
+        #drawing-gateway-viewer-stage {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          cursor: default;
+          z-index: 2;
+          touch-action: none;
+        }
+
+        #drawing-gateway-viewer-image {
+          max-width: 90vw;
+          max-height: 82vh;
+          width: auto;
+          height: auto;
+          object-fit: contain;
+          user-select: none;
+          border: none;
+          box-shadow: none;
+          transform-origin: center center;
+          transition: transform 0.08s ease-out;
+        }
+
+        #drawing-gateway-viewer-zoom-badge {
+          position: absolute;
+          top: 18px;
+          left: 18px;
+          padding: 4px 8px;
+          font-size: 12px;
+          color: #fff;
+          border-radius: 6px;
+          background: rgba(0, 0, 0, 0.45);
+          display: none;
+          z-index: 3;
+        }
+
+        #drawing-gateway-viewer-footer {
+          position: absolute;
+          bottom: 16px;
+          left: 50%;
+          transform: translateX(-50%);
+          min-width: 280px;
+          max-width: 80vw;
+          padding: 8px 14px;
+          border-radius: 10px;
+          background: rgba(20, 24, 33, 0.55);
+          color: #fff;
+          text-align: center;
+          z-index: 3;
+        }
+
+        #drawing-gateway-viewer-filename {
+          font-size: 13px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        #drawing-gateway-viewer-counter {
+          font-size: 12px;
+          opacity: 0.85;
+          margin-top: 2px;
+        }
+
+        .drawing-gateway-thumb-wrap {
+          width: 112px;
+        }
+
+        .drawing-gateway-thumb {
+          width: 110px;
+          height: 84px;
+          border-radius: 8px;
+          overflow: hidden;
+          border: 1px solid #e6e9ef;
+          cursor: zoom-in;
+          background: #fff;
+        }
+
+        .drawing-gateway-thumb img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
         /* 알림 배지 */
         .notification-badge {
           position: absolute;
@@ -3332,7 +4666,7 @@
           <div class="notification-item ${n.is_read ? '' : 'notification-item--unread'}" 
                data-id="${n.id}" 
                data-order-id="${n.order_id}"
-               onclick="handleNotificationClick(${n.id}, ${n.order_id})">
+               onclick="handleNotificationClick(${n.id}, ${n.order_id}, '${String(n.notification_type || '').replace(/'/g, "\\'")}', '${String(n.deep_tab || '').replace(/'/g, "\\'")}', '${String(n.deep_event_id || '').replace(/'/g, "\\'")}', '${String(n.deep_target_no || '').replace(/'/g, "\\'")}')">
             <div class="notification-item__header">
               <span class="notification-item__title">${escapeHtml(n.title)}</span>
               <span class="notification-item__time">${formatNotificationTime(n.created_at)}</span>
@@ -3358,7 +4692,7 @@
           }
         }
 
-        async function handleNotificationClick(notificationId, orderId) {
+        async function handleNotificationClick(notificationId, orderId, notificationType, deepTab, deepEventId, deepTargetNo) {
           // 읽음 처리
           try {
             await fetch(`/erp/api/notifications/${notificationId}/read`, { method: 'POST' });
@@ -3366,7 +4700,15 @@
 
             // 해당 주문 상세로 이동
             if (orderId) {
-              window.location.href = `/edit/${orderId}`;
+              if (notificationType === 'DRAWING_TRANSFERRED' || notificationType === 'DRAWING_REVISION') {
+                const tab = deepTab || (notificationType === 'DRAWING_REVISION' ? 'requests' : 'timeline');
+                let url = `/erp/drawing-workbench/${orderId}?tab=${encodeURIComponent(tab)}`;
+                if (deepEventId) url += `&event_id=${encodeURIComponent(deepEventId)}`;
+                if (deepTargetNo) url += `&target_no=${encodeURIComponent(deepTargetNo)}`;
+                window.location.href = url;
+              } else {
+                window.location.href = `/edit/${orderId}`;
+              }
             }
           } catch (e) {
             console.error('Notification click error:', e);

@@ -27,11 +27,12 @@ ROLES = {
 }
 
 TEAMS = {
-    'CS': 'CS(고객상담)',
-    'SALES': '영업/실측',
-    'DRAWING': '도면',
-    'PRODUCTION': '생산',
-    'CONSTRUCTION': '시공'
+    'CS': 'CS(라홈팀/하우드팀)',
+    'SALES': '영업팀',
+    'DRAWING': '도면팀',
+    'PRODUCTION': '생산팀',
+    'CONSTRUCTION': '시공팀',
+    'SHIPMENT': '출고팀'
 }
 
 def log_access(action, user_id=None, additional_data=None):
@@ -162,6 +163,54 @@ def logout():
         flash('로그아웃되었습니다.', 'success')
     
     return redirect(url_for('auth.login'))
+
+
+@auth_bp.route('/switch-user/<int:target_user_id>')
+@login_required
+@role_required(['ADMIN'])
+def switch_user(target_user_id):
+    """관리자가 다른 사용자로 전환(드롭다운 아이디 이동)."""
+    target = get_user_by_id(target_user_id)
+    if not target:
+        flash('대상 사용자를 찾을 수 없습니다.', 'error')
+        return redirect(request.referrer or url_for('index'))
+    if not target.is_active:
+        flash('비활성화된 사용자로 전환할 수 없습니다.', 'error')
+        return redirect(request.referrer or url_for('index'))
+    admin_id = session['user_id']
+    if target_user_id == admin_id:
+        flash('이미 본인 계정입니다.', 'info')
+        return redirect(request.referrer or url_for('index'))
+    # 전환 전 관리자 저장 (원래 관리자로 돌아가기용)
+    session['impersonating_from'] = admin_id
+    session['user_id'] = target.id
+    session['username'] = target.username
+    session['role'] = target.role
+    log_access(f"관리자(ID:{admin_id})가 사용자로 전환: {target.username} (ID:{target.id})", admin_id)
+    flash(f'{target.name}({target.username})님으로 전환되었습니다.', 'success')
+    return redirect(request.referrer or url_for('index'))
+
+
+@auth_bp.route('/switch-back')
+@login_required
+def switch_back():
+    """전환된 관리자가 원래 관리자 계정으로 복귀."""
+    admin_id = session.get('impersonating_from')
+    if not admin_id:
+        flash('전환된 상태가 아닙니다.', 'info')
+        return redirect(url_for('index'))
+    admin = get_user_by_id(admin_id)
+    if not admin:
+        session.pop('impersonating_from', None)
+        flash('원래 관리자 정보를 찾을 수 없습니다. 로그인해 주세요.', 'error')
+        return redirect(url_for('auth.logout'))
+    session.pop('impersonating_from', None)
+    session['user_id'] = admin.id
+    session['username'] = admin.username
+    session['role'] = admin.role
+    log_access(f"관리자 복귀: {admin.username} (ID:{admin.id})", admin.id)
+    flash(f'관리자({admin.name}) 계정으로 복귀했습니다.', 'success')
+    return redirect(request.referrer or url_for('index'))
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
@@ -321,24 +370,37 @@ def edit_user(user_id):
         role = request.form.get('role')
         team = request.form.get('team')
         is_active = request.form.get('is_active') == 'on'
-        
+        new_username = (request.form.get('username') or '').strip()
+
         # Validate required fields
         if not role:
             flash('역할은 필수 입력 필드입니다.', 'error')
-            return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS)
-        
+            return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+
         # Validate role
         if role not in ROLES:
             flash('유효하지 않은 역할입니다.', 'error')
-            return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS)
-        
+            return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+
+        # 관리자만 사용자 아이디(username) 변경 가능
+        if new_username and new_username != user.username:
+            if len(new_username) < 2 or len(new_username) > 64:
+                flash('사용자 아이디는 2~64자여야 합니다.', 'error')
+                return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+            if get_user_by_username(new_username):
+                flash('이미 사용 중인 아이디입니다.', 'error')
+                return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+            user.username = new_username
+            if user.id == session.get('user_id'):
+                session['username'] = new_username
+
         try:
             # Update user
             user.name = name
             user.role = role
             user.team = team
             user.is_active = is_active
-            
+
             # Handle password change if provided
             new_password = request.form.get('new_password')
             if new_password:
@@ -346,22 +408,23 @@ def edit_user(user_id):
                     user.password = generate_password_hash(new_password)
                     flash('비밀번호가 변경되었습니다.', 'success')
                 else:
-                    flash('비밀번호는 4자리 이상이어야 합니다.', 'error') 
-            
+                    flash('비밀번호는 4자리 이상이어야 합니다.', 'error')
+
             db.commit()
-            
+
             # Log action
             log_access(f"사용자 #{user_id} 정보 수정", session.get('user_id'))
-            
+
             flash('사용자 정보가 성공적으로 업데이트되었습니다.', 'success')
             return redirect(url_for('auth.user_list'))
-                
+
         except Exception as e:
             db.rollback()
             flash(f'사용자 정보 업데이트 중 오류가 발생했습니다: {str(e)}', 'error')
-            return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS)
-    
-    return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS)
+            return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+
+    count_admin = db.query(User).filter(User.role == 'ADMIN').count()
+    return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=count_admin)
 
 @auth_bp.route('/admin/users/delete/<int:user_id>')
 @login_required
