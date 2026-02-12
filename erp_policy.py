@@ -605,6 +605,11 @@ def create_quest_from_template(stage: Optional[str], owner_person: Optional[str]
                 # required_approvals도 CS로 변경
                 required_teams = ["CS"]
     
+    # 담당 인원 기반 승인 모드 결정
+    # 실측(MEASURE), 도면(DRAWING), 고객컨펌(CONFIRM) 단계는 담당자 기반
+    assignee_based_stages = ["실측", "MEASURE", "도면", "DRAWING", "고객컨펌", "CONFIRM"]
+    is_assignee_based = stage in assignee_based_stages
+    
     quest = {
         "stage": stage,
         "title": quest_tpl.get("title") or "",
@@ -614,18 +619,169 @@ def create_quest_from_template(stage: Optional[str], owner_person: Optional[str]
         "status": "OPEN",  # OPEN, IN_PROGRESS, COMPLETED
         "required_approvals": required_teams,  # 필수 승인 팀 목록 저장 (발주사에 "라홈" 포함 시 변경된 값)
         "team_approvals": {},
+        "approval_mode": "assignee" if is_assignee_based else "team",  # 승인 모드
+        "assignee_approval": None if is_assignee_based else None,  # 담당자 승인 정보
         "created_at": now.isoformat(),
         "updated_at": now.isoformat(),
     }
     
-    # 필수 승인 팀 초기화
-    for team in required_teams:
-        if team:
-            quest["team_approvals"][str(team)] = {
-                "approved": False,
-                "approved_by": None,
-                "approved_at": None,
-            }
+    # 팀 기반 모드: 필수 승인 팀 초기화
+    if not is_assignee_based:
+        for team in required_teams:
+            if team:
+                quest["team_approvals"][str(team)] = {
+                    "approved": False,
+                    "approved_by": None,
+                    "approved_at": None,
+                }
+    else:
+        # 담당자 기반 모드: assignee_approval 초기화
+        quest["assignee_approval"] = {
+            "approved": False,
+            "approved_by": None,
+            "approved_by_name": None,
+            "approved_at": None,
+        }
     
     return quest
+
+
+# -----------------------------
+# 담당자 권한 (V2 설계 기반)
+# -----------------------------
+
+def get_assignee_ids(order, domain: str) -> List[int]:
+    """
+    주문의 특정 도메인에 대한 담당자 user_id 목록을 반환.
+    
+    Args:
+        order: Order 객체
+        domain: 'SALES_DOMAIN', 'DRAWING_DOMAIN' 등
+    
+    Returns:
+        담당자 user_id 목록 (없으면 빈 리스트)
+    """
+    if not order or not order.structured_data:
+        return []
+    
+    assignments = (order.structured_data.get('assignments') or {})
+
+    def _normalize_ids(values):
+        out = []
+        for v in (values or []):
+            try:
+                out.append(int(v))
+            except (TypeError, ValueError):
+                continue
+        return out
+    
+    if domain == 'SALES_DOMAIN':
+        return _normalize_ids(assignments.get('sales_assignee_user_ids') or [])
+    elif domain == 'DRAWING_DOMAIN':
+        # 표준 키 우선, 없으면 호환성 위해 drawing_assignees도 체크
+        ids = _normalize_ids(assignments.get('drawing_assignee_user_ids'))
+        if ids:
+            return ids
+        # 레거시 호환: drawing_assignees에서 user_id/id 추출 시도 (assignments/root 모두)
+        legacy = (assignments.get('drawing_assignees') or order.structured_data.get('drawing_assignees') or [])
+        legacy_ids = []
+        for a in legacy:
+            if not isinstance(a, dict):
+                continue
+            user_id = a.get('user_id', a.get('id'))
+            try:
+                legacy_ids.append(int(user_id))
+            except (TypeError, ValueError):
+                continue
+        return legacy_ids
+    
+    return []
+
+
+def can_modify_domain(user, order, domain: str, emergency_override: bool = False, override_reason: Optional[str] = None) -> bool:
+    """
+    사용자가 주문의 특정 도메인을 수정할 수 있는지 검사 (V2 설계 기반).
+    
+    Args:
+        user: User 객체
+        order: Order 객체
+        domain: 'SALES_DOMAIN', 'DRAWING_DOMAIN', 기타
+        emergency_override: MANAGER의 긴급 오버라이드 플래그
+        override_reason: 긴급 오버라이드 사유
+    
+    Returns:
+        수정 가능 여부 (True/False)
+    
+    정책:
+        - ADMIN: 항상 허용
+        - SALES_DOMAIN, DRAWING_DOMAIN: 지정 담당자만 허용
+          (MANAGER는 emergency_override=True + 사유 입력 시만 허용)
+        - 기타 도메인: 기존 팀 정책 (팀 멤버 또는 MANAGER)
+    """
+    if not user:
+        return False
+    
+    # ADMIN은 항상 허용
+    if user.role == 'ADMIN':
+        return True
+    
+    # 엄격 담당제 도메인 (영업/도면)
+    if domain in ('SALES_DOMAIN', 'DRAWING_DOMAIN'):
+        allowed_ids = get_assignee_ids(order, domain)
+        
+        # 담당자 본인이면 허용
+        if user.id in allowed_ids:
+            return True
+        
+        # MANAGER 긴급 오버라이드
+        if user.role == 'MANAGER' and emergency_override and override_reason:
+            return True
+        
+        return False
+    
+    # 일반 도메인은 기존 팀 정책 적용
+    # (팀 매칭 또는 MANAGER 역할)
+    return can_modify_by_team_policy(user, order, domain, emergency_override, override_reason)
+
+
+def can_modify_by_team_policy(user, order, domain: str, emergency_override: bool = False, override_reason: Optional[str] = None) -> bool:
+    """
+    팀 기반 권한 검사 (PRODUCTION, CONSTRUCTION, CS, AS 등).
+    
+    Args:
+        user: User 객체
+        order: Order 객체
+        domain: 도메인 문자열
+        emergency_override: MANAGER 긴급 오버라이드 플래그
+        override_reason: 긴급 오버라이드 사유
+    
+    Returns:
+        수정 가능 여부
+    
+    정책:
+        - 현재 단계의 담당 팀에 속한 사용자 허용
+        - MANAGER는 긴급 오버라이드 시 허용
+    """
+    if not user or not order:
+        return False
+    
+    # MANAGER 긴급 오버라이드
+    if user.role == 'MANAGER' and emergency_override and override_reason:
+        return True
+    
+    # 현재 단계의 담당 팀 확인
+    if not order.structured_data or not order.structured_data.get('workflow'):
+        return False
+    
+    current_stage = order.structured_data['workflow'].get('current_stage')
+    if not current_stage:
+        return False
+    
+    # 단계 -> 팀 매핑
+    owner_team = DEFAULT_OWNER_TEAM_BY_STAGE.get(current_stage)
+    if not owner_team:
+        return False
+    
+    # 사용자 팀이 담당 팀과 일치하면 허용
+    return user.team == owner_team
 

@@ -23,39 +23,84 @@
         .header-bar {
             background: linear-gradient(135deg, #0d6efd, #0056b3);
             color: white;
-            padding: 8px 14px;
+            padding: 10px 14px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             z-index: 1000;
-            height: 64px;
+            min-height: 64px;
         }
         
         .header-content {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            height: 100%;
+            gap: 16px;
+            min-height: 44px;
         }
         
         .header-title {
             font-size: 1.05rem;
             font-weight: 700;
             margin: 0;
+            flex-shrink: 0;
         }
         
         .header-controls {
-            display: grid;
+            display: flex;
+            flex-direction: column;
             gap: 6px;
+            align-items: flex-end;
+            min-width: 0;
+            flex: 1 1 auto;
+            max-width: 480px;
         }
 
         .filters-row {
-            display: grid;
-            grid-template-columns: 110px 80px minmax(0, 1fr);
-            gap: 8px;
+            display: flex;
+            flex-wrap: nowrap;
             align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .filters-row .filter-group {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .filters-row .filter-group.filter-group-manager {
+            flex: 1 1 auto;
+            min-width: 80px;
+        }
+
+        .filters-row .filter-label {
+            flex-shrink: 0;
+            min-width: 42px;
+            white-space: nowrap;
+        }
+
+        .filters-row-search {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            width: 100%;
+        }
+
+        .filters-row-search .filter-label {
+            flex-shrink: 0;
+            min-width: 42px;
+            white-space: nowrap;
+        }
+
+        #map-search-input {
+            flex: 1 1 auto;
+            min-width: 0;
+            max-width: 200px;
         }
 
         .actions-row {
@@ -69,6 +114,7 @@
             display: flex;
             gap: 6px;
             align-items: center;
+            min-width: 0;
         }
         
         .filter-group {
@@ -101,11 +147,11 @@
         }
 
         #status-filter {
-            width: 80px;
+            width: 72px;
         }
 
         #date-filter {
-            width: 110px;
+            width: 100px;
         }
 
         .manager-actions #manager-filter {
@@ -130,12 +176,13 @@
         }
 
         .btn-header-icon {
-            padding: 4px 8px;
-            min-width: 32px;
-            height: 32px;
+            padding: 2px 6px;
+            min-width: 28px;
+            height: 28px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            font-size: 0.75rem;
         }
         
         .btn-header:hover {
@@ -143,6 +190,19 @@
             color: white;
             transform: translateY(-1px);
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .btn-header-close {
+            background-color: rgba(220, 53, 69, 0.9) !important;
+            border-color: rgba(255,255,255,0.5) !important;
+            color: white !important;
+        }
+
+        .btn-header-close:hover {
+            background-color: #dc3545 !important;
+            color: white !important;
+            border-color: #fff !important;
+            box-shadow: 0 2px 6px rgba(220, 53, 69, 0.5);
         }
         
         .map-container {
@@ -364,6 +424,44 @@
         .status-AS_RECEIVED { background-color: #7b1fa2; }
         .status-AS_COMPLETED { background-color: #00695c; }
         
+        /* 주소 변환 실패 - 분홍색 스타일 */
+        .order-item.geocode-failed {
+            background-color: #fff0f3;
+            border-left: 4px solid #e91e7d;
+        }
+        
+        .order-item.geocode-failed:hover {
+            background-color: #ffe0e8;
+            border-color: #d6336c;
+        }
+        
+        .order-item.geocode-failed.selected {
+            background-color: #ffd4e0;
+            border-color: #e91e7d;
+        }
+        
+        .geocode-failed-badge {
+            background-color: #e91e7d;
+            color: white;
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+            margin-left: 4px;
+        }
+        
+        .geocode-failed-badge i {
+            font-size: 0.65rem;
+        }
+        
+        .btn-edit-address {
+            padding: 2px 8px;
+            font-size: 0.75rem;
+            line-height: 1;
+            border-radius: 4px;
+            margin-left: 6px;
+        }
+        
         @media (max-width: 992px) {
             .map-container {
                 flex-direction: column;
@@ -383,62 +481,120 @@
             }
         }
         
+        /* 모바일: 2줄 정리, 아이콘 박스 축소, 가독성·사용성 */
         @media (max-width: 890px) {
             .header-bar {
+                min-height: auto;
                 height: auto;
+                padding: 6px 10px;
             }
 
             .header-content {
                 flex-direction: column;
                 align-items: stretch;
-                gap: 6px;
-            }
-            
-            .header-controls {
-                display: grid;
-                grid-template-rows: auto auto;
-                gap: 6px;
-                width: 100%;
-            }
-
-            .filters-row {
-                grid-template-columns: 140px 110px minmax(0, 1fr);
-                gap: 6px;
-                width: 100%;
-            }
-            
-            .filter-group {
-                width: 100%;
-                flex-wrap: wrap;
                 gap: 4px;
             }
             
-            .filter-label {
-                width: 100%;
+            .header-controls {
+                max-width: 100%;
+                align-items: stretch;
+                gap: 4px;
+            }
+
+            .filters-row {
+                flex-wrap: nowrap;
+                gap: 4px;
+                align-items: center;
+            }
+
+            .filters-row .filter-group {
+                flex-shrink: 0;
+            }
+
+            .filters-row .filter-group.filter-group-manager {
+                flex: 1 1 auto;
+                min-width: 0;
+                max-width: 40%;
+            }
+            
+            .filters-row .filter-label,
+            .filters-row-search .filter-label {
+                min-width: 38px;
+                font-size: 0.75rem;
             }
             
             .form-select-sm {
-                width: 100%;
+                padding: 3px 6px;
+                font-size: 0.78rem;
+            }
+
+            #date-filter {
+                width: 88px;
+            }
+
+            #status-filter {
+                width: 64px;
+            }
+
+            #map-search-input {
+                max-width: none;
+                min-width: 0;
+            }
+
+            .filters-row-search {
+                gap: 4px;
             }
             
+            /* 아이콘 박스 최대한 축소 */
+            .btn-header-icon {
+                min-width: 24px;
+                height: 24px;
+                padding: 2px 4px;
+                font-size: 0.7rem;
+            }
+
             .btn-header {
-                width: 100%;
                 min-width: 0;
+                padding: 3px 6px;
+                font-size: 0.78rem;
             }
         }
 
         @media (max-width: 615px) {
             .header-bar {
                 position: static;
+                padding: 5px 8px;
+            }
+
+            .header-title {
+                font-size: 0.9rem;
             }
 
             .map-container {
                 margin-top: 0;
-                height: calc(100vh - 150px);
+                height: calc(100vh - 140px);
             }
 
-            .filters-row {
-                grid-template-columns: 120px 100px minmax(0, 1fr);
+            .filters-row .filter-group.filter-group-manager {
+                max-width: 35%;
+            }
+
+            #date-filter { width: 82px; }
+            #status-filter { width: 58px; }
+        }
+
+        /* 초소형 화면: 2줄 유지하며 입력창 더 축소 */
+        @media (max-width: 380px) {
+            .filters-row .filter-label,
+            .filters-row-search .filter-label {
+                min-width: 32px;
+                font-size: 0.7rem;
+            }
+            #date-filter { width: 76px; }
+            #status-filter { width: 54px; }
+            .btn-header-icon {
+                min-width: 22px;
+                height: 22px;
             }
         }
         
@@ -527,18 +683,26 @@
                         </select>
                     </div>
                     
-                    <div class="filter-group">
+                    <div class="filter-group filter-group-manager">
                         <label class="filter-label">담당자:</label>
                         <div class="manager-actions">
                             <input type="text" id="manager-filter" class="form-select-sm" placeholder="예: 정다슬">
-                            <button type="button" class="btn btn-header btn-header-icon" onclick="closeMap()" title="닫기" aria-label="닫기">
-                                <i class="fas fa-times"></i>
-                            </button>
                             <button type="button" class="btn btn-header btn-header-icon" onclick="loadMap()" title="새로고침" aria-label="새로고침">
                                 <i class="fas fa-sync-alt"></i>
                             </button>
+                            <button type="button" class="btn btn-header btn-header-icon btn-header-close" onclick="closeMap()" title="닫기" aria-label="닫기">
+                                <i class="fas fa-times"></i>
+                            </button>
                         </div>
                     </div>
+                </div>
+                <div class="filters-row-search">
+                    <label class="filter-label">검색:</label>
+                    <input type="text" id="map-search-input" class="form-select-sm" placeholder="아파트·동·건물명 검색"
+                        autocomplete="off" title="아파트명, 동네명, 건물명 등으로 주문 필터">
+                    <button type="button" class="btn btn-header btn-header-icon" onclick="loadMap()" title="검색" aria-label="검색">
+                        <i class="fas fa-search"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -587,6 +751,66 @@
         </div>
     </div>
 
+    <!-- 주소 검색 및 수정 모달 -->
+    <div class="modal fade" id="mapAddressSearchModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-map-marker-alt"></i> 주소 검색 및 수정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="map-address-edit-order-id">
+                    
+                    <!-- 현재 잘못된 주소 표시 (주소 변환 실패 시에만) -->
+                    <div class="alert alert-danger d-flex align-items-start mb-3" id="map-address-error-alert" style="display: none;">
+                        <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold mb-1">주소 검색에 실패한 주소:</div>
+                            <div id="map-address-current" class="font-monospace"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- 현재 주소 표시 (정상 주소) -->
+                    <div class="alert alert-secondary d-flex align-items-start mb-3" id="map-address-normal-alert" style="display: none;">
+                        <i class="fas fa-map-marker-alt me-2 mt-1"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold mb-1">현재 주소:</div>
+                            <div id="map-address-current-normal" class="font-monospace"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info small mb-3">
+                        <i class="fas fa-info-circle"></i> 주소를 검색하여 선택하거나 직접 입력한 뒤 '주소 수정 적용' 버튼을 클릭하세요.
+                    </div>
+                    
+                    <div class="input-group mb-2">
+                        <input type="text" class="form-control" id="map-address-query" 
+                            placeholder="예: 송파대로 345" autocomplete="off">
+                        <button class="btn btn-primary" type="button" id="map-address-search-btn">
+                            <i class="fas fa-search"></i> 검색
+                        </button>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1">상세주소 (선택사항)</label>
+                        <input type="text" class="form-control form-control-sm" id="map-address-detail"
+                            placeholder="동/호/현관/경비실 등" autocomplete="off">
+                    </div>
+                    <div id="map-address-status" class="small text-muted mb-2"></div>
+                    <div class="list-group" id="map-address-results"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" id="map-address-apply-btn">
+                        <i class="fas fa-check"></i> 주소 수정 적용
+                    </button>
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> 닫기
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     
@@ -599,11 +823,13 @@
         const initialDate = urlParams.get('date') || new Date().toISOString().split('T')[0];
         const initialStatus = urlParams.get('status') || 'ALL';
         const initialManager = urlParams.get('manager') || '';
+        const initialSearch = urlParams.get('q') || urlParams.get('search') || '';
         
         // 초기값 설정
         document.getElementById('date-filter').value = initialDate;
         document.getElementById('status-filter').value = initialStatus;
         document.getElementById('manager-filter').value = initialManager;
+        document.getElementById('map-search-input').value = initialSearch;
         
         // 페이지 로드 시 로그인 상태 확인 및 지도 로드
         document.addEventListener('DOMContentLoaded', function() {
@@ -626,6 +852,14 @@
             });
             managerInput.addEventListener('change', function() {
                 loadMap();
+            });
+
+            const searchInput = document.getElementById('map-search-input');
+            searchInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    loadMap();
+                }
             });
         });
         
@@ -680,8 +914,9 @@
             const dateFilter = document.getElementById('date-filter').value;
             const statusFilter = document.getElementById('status-filter').value;
             const managerFilter = (document.getElementById('manager-filter').value || '').trim();
+            const searchQuery = (document.getElementById('map-search-input').value || '').trim();
             
-            updateHeaderTitle(dateFilter, statusFilter, managerFilter);
+            updateHeaderTitle(dateFilter, statusFilter, managerFilter, searchQuery);
             
             const params = new URLSearchParams({
                 date: dateFilter,
@@ -689,6 +924,9 @@
                 manager: managerFilter,
                 title: `${dateFilter} 주문 지도`
             });
+            if (searchQuery) {
+                params.set('q', searchQuery);
+            }
             
             fetch(`/api/generate_map?${params}`)
                 .then(response => response.json())
@@ -726,7 +964,7 @@
                 });
         }
         
-        function updateHeaderTitle(date, status, manager) {
+        function updateHeaderTitle(date, status, manager, searchQuery) {
             const statusNames = {
                 'ALL': '모든 상태',
                 'RECEIVED': '접수',
@@ -741,9 +979,10 @@
             const statusName = statusNames[status] || '모든 상태';
             const headerTitle = document.querySelector('.header-title');
             const managerText = manager ? ` / 담당자: ${manager}` : '';
+            const searchText = (searchQuery && searchQuery.length > 0) ? ` / 검색: "${escapeHtml(searchQuery)}"` : '';
             headerTitle.innerHTML = `
                 <i class="fas fa-map-marked-alt"></i> 
-                ${date} - ${statusName} 주문 지도${managerText}
+                ${date} - ${statusName} 주문 지도${managerText}${searchText}
             `;
         }
         
@@ -772,13 +1011,19 @@
             orders.forEach(order => {
                 const statusClass = `status-${order.status}`;
                 const statusText = getStatusText(order.status);
+                const failedClass = order.geocode_failed ? 'geocode-failed' : '';
+                
+                // 수정 버튼 스타일: 실패한 경우 빨간색, 정상인 경우 회색
+                const editBtnClass = order.geocode_failed ? 'btn-outline-danger' : 'btn-outline-secondary';
+                const editBtnTitle = order.geocode_failed ? '주소 오류 - 수정 필요' : '주소 수정';
                 
                 html += `
-                    <div class="order-item ${selectedOrderId === order.id ? 'selected' : ''}" 
+                    <div class="order-item ${failedClass} ${selectedOrderId === order.id ? 'selected' : ''}" 
                          onclick="selectOrder(${order.id})" 
                          data-order-id="${order.id}">
                         <div class="order-item-header">
                             <span class="order-id">#${order.id}</span>
+                            ${order.geocode_failed ? '<span class="geocode-failed-badge"><i class="fas fa-exclamation-triangle"></i> 주소오류</span>' : ''}
                             <span class="order-status status-badge ${statusClass}">${statusText}</span>
                         </div>
                         <div class="order-info">
@@ -793,6 +1038,7 @@
                             <div class="order-info-row">
                                 <span class="order-info-label">주소:</span>
                                 <span class="order-info-value">${escapeHtml(order.address || '-')}</span>
+                                <button class="btn btn-sm ${editBtnClass} btn-edit-address" onclick="event.stopPropagation(); openAddressEdit(${order.id}, '${escapeHtml(order.address || '')}');" title="${editBtnTitle}"><i class="fas fa-edit"></i></button>
                             </div>
                             <div class="order-info-row">
                                 <span class="order-info-label">제품:</span>
@@ -1006,6 +1252,229 @@
                 }
             }
         });
+        
+        // =====================================================================
+        // 주소 검색 및 수정 기능
+        // =====================================================================
+        
+        let addressSearchModal = null;
+        let selectedModalAddress = '';
+        
+        // 모달 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            const modalEl = document.getElementById('mapAddressSearchModal');
+            if (modalEl) {
+                addressSearchModal = new bootstrap.Modal(modalEl);
+            }
+        });
+        
+        // 주소 수정 모달 열기
+        function openAddressEdit(orderId, currentAddress) {
+            if (!addressSearchModal) return;
+            
+            // 해당 주문 찾기
+            const order = currentOrders.find(o => o.id == orderId);
+            const isGeocodeFailure = order && order.geocode_failed;
+            
+            selectedModalAddress = '';
+            document.getElementById('map-address-edit-order-id').value = orderId;
+            
+            // 실패한 주소인지 정상 주소인지에 따라 다른 박스 표시
+            const errorAlert = document.getElementById('map-address-error-alert');
+            const normalAlert = document.getElementById('map-address-normal-alert');
+            
+            if (isGeocodeFailure) {
+                // 주소 변환 실패 - 빨간색 경고
+                if (errorAlert) {
+                    errorAlert.style.display = 'flex';
+                    document.getElementById('map-address-current').textContent = currentAddress || '(주소 없음)';
+                }
+                if (normalAlert) normalAlert.style.display = 'none';
+            } else {
+                // 정상 주소 - 회색 정보
+                if (normalAlert) {
+                    normalAlert.style.display = 'flex';
+                    document.getElementById('map-address-current-normal').textContent = currentAddress || '(주소 없음)';
+                }
+                if (errorAlert) errorAlert.style.display = 'none';
+            }
+            
+            document.getElementById('map-address-query').value = currentAddress || '';
+            document.getElementById('map-address-detail').value = '';
+            document.getElementById('map-address-status').textContent = '';
+            document.getElementById('map-address-results').innerHTML = '';
+            
+            addressSearchModal.show();
+            
+            // 모달이 열린 후 자동으로 검색 실행
+            setTimeout(() => {
+                if (currentAddress && currentAddress.trim()) {
+                    doMapAddressSearch(currentAddress.trim());
+                }
+                document.getElementById('map-address-query')?.focus();
+            }, 300);
+        }
+        
+        // 주소 검색 실행
+        async function doMapAddressSearch(query) {
+            if (!query || !query.trim()) {
+                document.getElementById('map-address-status').textContent = '검색어를 입력하세요.';
+                return;
+            }
+            
+            selectedModalAddress = '';
+            const statusEl = document.getElementById('map-address-status');
+            const resultsEl = document.getElementById('map-address-results');
+            
+            statusEl.textContent = '검색 중...';
+            resultsEl.innerHTML = '';
+            
+            try {
+                const params = new URLSearchParams({ q: query.trim(), size: '10' });
+                const res = await fetch(`/api/address/search?${params.toString()}`);
+                const data = await res.json();
+                
+                if (!data.success) {
+                    statusEl.textContent = data.message || '검색 실패';
+                    return;
+                }
+                
+                const results = data.results || [];
+                if (results.length === 0) {
+                    statusEl.textContent = '검색 결과가 없습니다. 다른 검색어로 시도하거나 직접 입력하세요.';
+                    return;
+                }
+                
+                statusEl.textContent = `${results.length}건 검색됨. 주소를 선택한 뒤 상세주소를 입력하고 '주소 수정 적용' 버튼을 누르세요.`;
+                
+                results.forEach(r => {
+                    const item = document.createElement('button');
+                    item.type = 'button';
+                    item.className = 'list-group-item list-group-item-action text-start';
+                    
+                    const base = r.road_address_name || r.address_name || '-';
+                    const main = r.building_name ? `${base}, ${r.building_name}` : base;
+                    const sub = [r.building_name, r.region_3depth_name].filter(Boolean).join(' · ');
+                    
+                    item.innerHTML = `
+                        <div class="fw-semibold">${escapeHtml(main)}</div>
+                        ${sub ? `<div class="small text-muted">${escapeHtml(sub)}</div>` : ''}
+                    `;
+                    
+                    item.addEventListener('click', () => {
+                        selectedModalAddress = main;
+                        document.getElementById('map-address-query').value = main;
+                        resultsEl.querySelectorAll('.list-group-item').forEach(el => el.classList.remove('active'));
+                        item.classList.add('active');
+                    });
+                    
+                    resultsEl.appendChild(item);
+                });
+            } catch (e) {
+                console.error('주소 검색 오류:', e);
+                statusEl.textContent = `검색 실패: ${String(e?.message || e)}`;
+            }
+        }
+        
+        // 주소 검색 버튼 이벤트
+        document.getElementById('map-address-search-btn')?.addEventListener('click', () => {
+            const query = document.getElementById('map-address-query')?.value || '';
+            doMapAddressSearch(query);
+        });
+        
+        // 주소 검색 엔터키 이벤트
+        document.getElementById('map-address-query')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const query = document.getElementById('map-address-query')?.value || '';
+                doMapAddressSearch(query);
+            }
+        });
+        
+        // 주소 수정 적용
+        document.getElementById('map-address-apply-btn')?.addEventListener('click', async () => {
+            await applyAddressEdit();
+        });
+        
+        async function applyAddressEdit() {
+            const orderId = document.getElementById('map-address-edit-order-id')?.value;
+            const queryEl = document.getElementById('map-address-query');
+            const detailEl = document.getElementById('map-address-detail');
+            const statusEl = document.getElementById('map-address-status');
+            
+            if (!orderId) {
+                alert('주문 ID가 없습니다.');
+                return;
+            }
+            
+            // 선택된 주소 또는 직접 입력된 주소
+            const mainAddress = (selectedModalAddress || queryEl?.value || '').trim();
+            const detailAddress = (detailEl?.value || '').trim();
+            const fullAddress = detailAddress ? `${mainAddress} ${detailAddress}` : mainAddress;
+            
+            if (!fullAddress) {
+                alert('주소를 입력하거나 검색 결과에서 선택해주세요.');
+                return;
+            }
+            
+            // 확인 메시지
+            if (!confirm(`주문 #${orderId}의 주소를 다음으로 수정하시겠습니까?\n\n${fullAddress}`)) {
+                return;
+            }
+            
+            statusEl.textContent = '주소를 저장하고 좌표를 변환하는 중...';
+            const applyBtn = document.getElementById('map-address-apply-btn');
+            if (applyBtn) applyBtn.disabled = true;
+            
+            try {
+                const res = await fetch(`/api/orders/${orderId}/update_address`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address: fullAddress })
+                });
+                
+                const data = await res.json();
+                
+                if (!data.success) {
+                    alert(`주소 수정 실패: ${data.message || '알 수 없는 오류'}`);
+                    statusEl.textContent = `오류: ${data.message || '알 수 없는 오류'}`;
+                    return;
+                }
+                
+                // 성공 - currentOrders 업데이트
+                const order = currentOrders.find(o => o.id == orderId);
+                if (order) {
+                    order.address = fullAddress;
+                    order.geocode_failed = data.geocode_failed;
+                    order.conversion_status = data.conversion_status;
+                }
+                
+                // 주문 목록 UI 갱신
+                updateOrderList(currentOrders);
+                
+                // 지도 새로고침 (새 좌표로 마커 추가)
+                loadMap();
+                
+                // 모달 닫기
+                if (addressSearchModal) {
+                    addressSearchModal.hide();
+                }
+                
+                // 성공 메시지
+                if (data.geocode_failed) {
+                    alert(`주소가 수정되었으나 좌표 변환에 실패했습니다.\n\n사유: ${data.conversion_status}\n\n다른 주소로 다시 시도해주세요.`);
+                } else {
+                    alert(`주소가 성공적으로 수정되었습니다.\n\n지도에 마커가 표시됩니다.`);
+                }
+                
+            } catch (e) {
+                console.error('주소 수정 오류:', e);
+                alert(`주소 수정 중 오류가 발생했습니다: ${e.message || e}`);
+                statusEl.textContent = `오류: ${e.message || e}`;
+            } finally {
+                if (applyBtn) applyBtn.disabled = false;
+            }
+        }
     </script>
 </body>
 </html>

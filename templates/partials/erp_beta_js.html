@@ -681,6 +681,17 @@
     // ERP Beta: Attachments (photo/video)
     // ============================================
     let __erpAttachments = [];
+    const ERP_ATTACHMENT_CATEGORY_LABELS = {
+        measurement: '실측',
+        drawing: '도면',
+        construction: '시공'
+    };
+
+    function erpNormalizeAttachmentCategory(category) {
+        const c = String(category || '').trim().toLowerCase();
+        if (c === 'drawing' || c === 'construction') return c;
+        return 'measurement';
+    }
 
     function erpAttachmentsSetStatus(text, isError = false) {
         const el = document.getElementById('erp-attachments-status');
@@ -701,7 +712,13 @@
             return;
         }
 
-        wrap.innerHTML = items.map(a => {
+        const grouped = { measurement: [], drawing: [], construction: [] };
+        items.forEach((a) => {
+            const key = erpNormalizeAttachmentCategory(a.category);
+            grouped[key].push(Object.assign({}, a, { category: key }));
+        });
+
+        const renderCard = (a) => {
             const name = escapeHtml(a.filename || '');
             const type = a.file_type || 'file';
             const thumb = a.thumbnail_view_url || a.view_url;
@@ -712,9 +729,15 @@
                 ? `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
     <video src="${viewUrl}" controls preload="metadata" style="width:100%;height:100%;"></video>
 </div>`
-                : `<img src="${thumb}" alt="${name}" class="img-fluid rounded"
+                : (type === 'image')
+                    ? `<img src="${thumb}" alt="${name}" class="img-fluid rounded"
     style="max-height: 220px; cursor: zoom-in; background:#fff; padding:4px;"
-    onclick="erpOpenAttachmentPreview('${a.id}')">`;
+    onclick="erpOpenAttachmentPreview('${a.id}')">`
+                    : `<div class="border rounded d-flex flex-column align-items-center justify-content-center bg-light"
+    style="height: 220px;">
+    <i class="fas fa-file-alt text-secondary mb-2" style="font-size: 2rem;"></i>
+    <div class="small text-muted text-center px-2">문서 파일</div>
+</div>`;
 
             return `
 <div class="col-md-4 col-sm-6 col-12">
@@ -742,6 +765,32 @@
     </div>
 </div>
 `;
+        };
+
+        const order = ['measurement', 'drawing', 'construction'];
+        wrap.innerHTML = order.map((key) => {
+            const list = grouped[key] || [];
+            const label = ERP_ATTACHMENT_CATEGORY_LABELS[key] || key;
+            if (!list.length) {
+                return `
+<div class="col-12">
+    <div class="d-flex justify-content-between align-items-center mb-1 mt-2">
+        <div class="fw-semibold">${label}</div>
+        <span class="badge bg-light text-dark">0</span>
+    </div>
+    <div class="small text-muted border rounded p-2 bg-light">첨부된 파일이 없습니다.</div>
+</div>
+`;
+            }
+            return `
+<div class="col-12">
+    <div class="d-flex justify-content-between align-items-center mb-1 mt-2">
+        <div class="fw-semibold">${label}</div>
+        <span class="badge bg-primary">${list.length}</span>
+    </div>
+</div>
+${list.map(renderCard).join('')}
+`;
         }).join('');
     }
 
@@ -767,7 +816,8 @@
     }
 
     function erpOpenAttachmentPreview(attachmentId) {
-        const a = (__erpAttachments || []).find(x => x.id === attachmentId);
+        const targetId = Number(attachmentId);
+        const a = (__erpAttachments || []).find(x => Number(x.id) === targetId);
         if (!a) return;
         const modalEl = document.getElementById('erpAttachmentPreviewModal');
         const body = document.getElementById('erp-attachment-preview-body');
@@ -784,6 +834,17 @@
     <video src="${viewUrl}" controls autoplay style="width:100%;height:100%;"></video>
 </div>
 <div class="small text-muted mt-2">${escapeHtml(a.filename || '')}</div>
+`;
+        } else if (a.file_type === 'file') {
+            body.innerHTML = `
+<div class="d-flex flex-column align-items-center justify-content-center text-center p-4" style="min-height: 280px;">
+    <i class="fas fa-file-alt text-secondary mb-3" style="font-size: 3rem;"></i>
+    <div class="fw-semibold mb-2">${escapeHtml(a.filename || '파일')}</div>
+    <div class="small text-muted mb-3">문서 파일은 미리보기를 지원하지 않습니다.</div>
+    <a class="btn btn-primary" href="${downloadUrl}" target="_blank" rel="noopener">
+        <i class="fas fa-download"></i> 다운로드
+    </a>
+</div>
 `;
         } else {
             body.innerHTML = `
@@ -810,12 +871,15 @@
         }
 
         const files = Array.from(input.files);
+        const categoryEl = document.getElementById('erp-attachments-category');
+        const category = erpNormalizeAttachmentCategory(categoryEl ? categoryEl.value : 'measurement');
         erpAttachmentsSetStatus(`업로드 중... (${files.length}개)`);
 
         let ok = 0;
         for (const f of files) {
             const fd = new FormData();
             fd.append('file', f);
+            fd.append('category', category);
             const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
             const data = await res.json();
             if (data.success) ok += 1;

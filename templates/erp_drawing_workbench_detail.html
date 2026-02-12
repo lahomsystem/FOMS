@@ -1,0 +1,710 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="erp-pro">
+  <header class="erp-pro-header">
+    <h1 class="erp-pro-header__title">
+      <i class="fas fa-drafting-compass"></i>
+      <span>도면 작업실 실행판</span>
+    </h1>
+    <div class="erp-pro-header__actions d-flex gap-2">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_beta.erp_drawing_workbench_dashboard') }}">
+        <i class="fas fa-list"></i><span>목록</span>
+      </a>
+      <a class="erp-pro-btn erp-pro-btn--outline" href="{{ url_for('erp_beta.erp_dashboard') }}">
+        <i class="fas fa-arrow-left"></i><span class="d-none d-md-inline">ERP</span>
+      </a>
+    </div>
+  </header>
+
+  {% set erp_sub_nav_active = 'drawing_workbench' %}
+  {% include 'partials/erp_sub_nav.html' %}
+
+  {% macro render_gateway_file_gallery(files, group_key) -%}
+    {% if files %}
+    <div class="d-flex flex-wrap mt-1">
+      {% for f in files %}
+      {% set fkey = (f.get('key') if f is mapping else '') or '' %}
+      {% set fname = (f.get('filename') if f is mapping else '') or '파일' %}
+      {% set view_url = (f.get('view_url') if f is mapping else '') or ('/api/files/view/' ~ fkey) %}
+      {% set download_url = (f.get('download_url') if f is mapping else '') or ('/api/files/download/' ~ fkey) %}
+      {% set lower = fname|lower %}
+      {% set is_image = lower.endswith('.jpg') or lower.endswith('.jpeg') or lower.endswith('.png') or lower.endswith('.gif') or lower.endswith('.webp') or lower.endswith('.bmp') or lower.endswith('.svg') or lower.endswith('.heic') or lower.endswith('.heif') %}
+      <div class="drawing-gateway-thumb-wrap me-2 mb-2">
+        {% if is_image %}
+        <div class="drawing-gateway-thumb"
+          data-group-key="{{ group_key }}"
+          data-index="{{ loop.index0 }}"
+          data-view-url="{{ view_url }}"
+          data-download-url="{{ download_url }}"
+          data-filename="{{ fname }}"
+          onclick="openDrawingGatewayImageViewer('{{ group_key }}', {{ loop.index0 }})">
+          <img src="{{ view_url }}" alt="{{ fname }}">
+        </div>
+        {% else %}
+        <div class="drawing-gateway-thumb d-flex align-items-center justify-content-center bg-light text-secondary border"
+          style="font-size:22px;">
+          <i class="fas fa-file"></i>
+        </div>
+        {% endif %}
+        <div class="small text-truncate mt-1" title="{{ fname }}" style="max-width: 110px;">{{ fname }}</div>
+        <a href="{{ download_url }}" target="_blank" rel="noopener" class="small text-muted">
+          <i class="fas fa-download"></i>
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-muted small">파일이 없습니다.</div>
+    {% endif %}
+  {%- endmacro %}
+
+  <style>
+    .dw-detail-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
+      gap: 14px;
+    }
+    .dw-sticky {
+      position: sticky;
+      top: 76px;
+    }
+    .dw-highlight {
+      border: 1px solid #8ab4ff !important;
+      box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.12);
+    }
+    .dw-highlight-focus {
+      animation: dwHighlightPulse 1.1s ease 2;
+    }
+    @keyframes dwHighlightPulse {
+      0% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.35); }
+      100% { box-shadow: 0 0 0 12px rgba(13, 110, 253, 0); }
+    }
+    .dw-file-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid #d8e2f0;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.82rem;
+      margin: 0 6px 6px 0;
+      background: #fff;
+    }
+    .drawing-gateway-thumb-wrap {
+      width: 112px;
+    }
+    .drawing-gateway-thumb {
+      width: 110px;
+      height: 84px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e1e7f0;
+      cursor: pointer;
+      background: #fff;
+    }
+    .drawing-gateway-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    @media (max-width: 992px) {
+      .dw-detail-grid {
+        grid-template-columns: 1fr;
+      }
+      .dw-sticky {
+        position: static;
+      }
+    }
+  </style>
+
+  <div class="erp-pro-card mb-3">
+    <div class="card-body py-3">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+          <div class="fw-bold" style="font-size:1.05rem;">{{ customer_name }} <span class="text-muted">#{{ order.id }}</span></div>
+          <div class="small text-muted mt-1">
+            단계: {{ stage }} · 주문 담당: {{ manager_name }} · 도면 담당: {{ assignee_text }}
+          </div>
+        </div>
+        <div class="text-end">
+          {% set status_badge = 'bg-secondary' %}
+          {% if drawing_status == 'PENDING' %}{% set status_badge = 'bg-warning text-dark' %}{% endif %}
+          {% if drawing_status == 'TRANSFERRED' %}{% set status_badge = 'bg-info text-dark' %}{% endif %}
+          {% if drawing_status == 'RETURNED' %}{% set status_badge = 'bg-danger' %}{% endif %}
+          {% if drawing_status == 'CONFIRMED' %}{% set status_badge = 'bg-success' %}{% endif %}
+          <span class="badge {{ status_badge }}">{{ drawing_status_label }}</span>
+          <div class="small text-muted mt-1">미확인 요청 {{ unread_count }}건</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dw-detail-grid">
+    <div class="erp-pro-card">
+      <div class="card-body">
+        <ul class="nav nav-pills mb-3" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link {% if active_tab == 'timeline' %}active{% endif %}" data-bs-toggle="tab"
+              data-bs-target="#dw-tab-timeline" type="button" role="tab">타임라인</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link {% if active_tab == 'requests' %}active{% endif %}" data-bs-toggle="tab"
+              data-bs-target="#dw-tab-requests" type="button" role="tab">요청사항</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link {% if active_tab == 'compare' %}active{% endif %}" data-bs-toggle="tab"
+              data-bs-target="#dw-tab-compare" type="button" role="tab">파일비교</button>
+          </li>
+        </ul>
+
+        <div class="tab-content">
+          <div class="tab-pane fade {% if active_tab == 'timeline' %}show active{% endif %}" id="dw-tab-timeline" role="tabpanel">
+            {% if history %}
+            {% for h in history|reverse %}
+            <div class="border rounded p-2 mb-2 bg-white {% if h.is_highlight %}dw-highlight{% endif %}" id="event-{{ h.event_key|replace(':','-') }}">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                  {% set action_badge = 'bg-secondary' %}
+                  {% if h.action == 'TRANSFER' %}{% set action_badge = 'bg-primary' %}{% endif %}
+                  {% if h.action == 'REQUEST_REVISION' %}{% set action_badge = 'bg-danger' %}{% endif %}
+                  {% if h.action == 'CONFIRM_RECEIPT' %}{% set action_badge = 'bg-success' %}{% endif %}
+                  <span class="badge {{ action_badge }}">{{ h.action_label }}</span>
+                  <span class="small text-muted ms-2">{{ h.by_text }}</span>
+                </div>
+                <span class="small text-muted">{{ h.at_text }}</span>
+              </div>
+              {% if h.target_no %}
+              <div class="small mt-1"><span class="badge bg-light text-dark border">{{ h.target_no }}번 대상</span></div>
+              {% endif %}
+              {% if h.note %}
+              <div class="small mt-1">{{ h.note }}</div>
+              {% endif %}
+              {% if h.files %}
+              {{ render_gateway_file_gallery(h.files, 'timeline_' ~ loop.index0 ~ '_' ~ (h.event_key|replace(':','_'))) }}
+              {% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="text-muted small">이력이 없습니다.</div>
+            {% endif %}
+          </div>
+
+          <div class="tab-pane fade {% if active_tab == 'requests' %}show active{% endif %}" id="dw-tab-requests" role="tabpanel">
+            {% if revision_requests %}
+            {% for r in revision_requests %}
+            {% set review = r.review_check if r.review_check is mapping else {} %}
+            {% set checked = review.get('checked') %}
+            <div class="border rounded p-2 mb-2 bg-white {% if r.is_highlight %}dw-highlight{% endif %}" id="request-{{ r.event_key|replace(':','-') }}">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="small text-muted">
+                  {{ r.at_text }} · {{ r.by_text }}
+                  {% if r.target_no %}<span class="badge bg-info text-dark ms-1">{{ r.target_no }}번 대상</span>{% endif %}
+                </div>
+                {% if checked %}
+                <span class="badge bg-success">반영 완료</span>
+                {% else %}
+                <span class="badge bg-secondary">미완료</span>
+                {% endif %}
+              </div>
+              <div class="small mt-1">{{ r.note or '요청 메모 없음' }}</div>
+              {% if checked %}
+              <div class="small text-success mt-1">
+                <i class="fas fa-user-check"></i> {{ review.get('checked_by_name') or '-' }} · {{ review.get('checked_at') or '-' }}
+              </div>
+              {% endif %}
+              <div class="mt-2">
+                <button class="btn btn-sm {% if checked %}btn-outline-secondary{% else %}btn-outline-success{% endif %} js-revision-check"
+                  data-request-at="{{ r.at or r.transferred_at or '' }}"
+                  data-by-user-id="{{ r.by_user_id or '' }}"
+                  data-next-checked="{% if checked %}false{% else %}true{% endif %}">
+                  <i class="fas {% if checked %}fa-rotate-left{% else %}fa-check{% endif %}"></i>
+                  {% if checked %}완료 해제{% else %}반영 완료{% endif %}
+                </button>
+              </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="text-muted small">수정 요청 이력이 없습니다.</div>
+            {% endif %}
+          </div>
+
+          <div class="tab-pane fade {% if active_tab == 'compare' %}show active{% endif %}" id="dw-tab-compare" role="tabpanel">
+            <div class="row g-2">
+              <div class="col-md-6">
+                <div class="border rounded p-2 h-100 bg-light">
+                  <div class="fw-semibold small mb-1">이전본 {% if not prev_transfer %}(없음){% endif %}</div>
+                  <div class="small text-muted mb-2">{{ prev_transfer.at_text if prev_transfer else '-' }}</div>
+                  {% if prev_transfer and prev_transfer.files %}
+                  {{ render_gateway_file_gallery(prev_transfer.files, 'compare_prev_' ~ order.id) }}
+                  {% else %}
+                  <div class="text-muted small">비교할 이전 전달본이 없습니다.</div>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="border rounded p-2 h-100 bg-light">
+                  <div class="fw-semibold small mb-1">최신본 {% if not latest_transfer %}(없음){% endif %}</div>
+                  <div class="small text-muted mb-2">{{ latest_transfer.at_text if latest_transfer else '-' }}</div>
+                  {% if latest_transfer and latest_transfer.files %}
+                  {{ render_gateway_file_gallery(latest_transfer.files, 'compare_latest_' ~ order.id) }}
+                  {% else %}
+                  <div class="text-muted small">최신 전달본이 없습니다.</div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="erp-pro-card dw-sticky">
+        <div class="card-body">
+          <div class="fw-semibold mb-2"><i class="fas fa-file-lines text-primary"></i> 현재 버전</div>
+          {% if drawing_files %}
+          <div class="small text-muted mb-1">최신 전달본(번호순)</div>
+          {{ render_gateway_file_gallery(drawing_files, 'current_' ~ order.id) }}
+          {% else %}
+          <div class="small text-muted mb-2">등록된 도면이 없습니다.</div>
+          {% endif %}
+
+          <hr />
+          <div class="fw-semibold mb-2"><i class="fas fa-bolt text-primary"></i> 결정 바</div>
+          <div class="small text-dark bg-light border rounded p-2 mb-2">{{ next_action }}</div>
+          <div class="d-grid gap-2 mb-2">
+            {% if can_transfer %}
+            <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#dwTransferModal">
+              <i class="fas fa-paper-plane"></i> {% if drawing_status == 'RETURNED' %}수정본 전달{% else %}도면 전달{% endif %}
+            </button>
+            {% endif %}
+            {% if can_request_revision and drawing_status in ['TRANSFERRED', 'CONFIRMED'] %}
+            <button class="btn btn-warning btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#dwRevisionModal">
+              <i class="fas fa-undo"></i> 수정 요청
+            </button>
+            {% endif %}
+            {% if can_confirm_receipt %}
+            <button class="btn btn-success btn-sm" type="button" id="btn-confirm-receipt">
+              <i class="fas fa-check-double"></i> 수령 확정
+            </button>
+            {% endif %}
+            {% if can_cancel_transfer %}
+            <button class="btn btn-outline-danger btn-sm" type="button" id="btn-cancel-transfer">
+              <i class="fas fa-times"></i> 전달 취소
+            </button>
+            {% endif %}
+          </div>
+
+          <div class="bg-white border rounded p-2 mb-2">
+            <div class="small fw-semibold mb-1"><i class="fas fa-list-check text-primary"></i> 체크리스트</div>
+            {% for c in checklist %}
+            <div class="small {% if c.ok %}text-success{% else %}text-secondary{% endif %}">
+              <i class="fas {% if c.ok %}fa-check-circle{% else %}fa-circle{% endif %}"></i> {{ c.label }}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="erp-pro-card mt-3">
+        <div class="card-body">
+          <div class="fw-semibold mb-2"><i class="fas fa-download text-primary"></i> 첨부/이력 다운로드</div>
+          <div class="d-grid gap-2">
+            <a class="btn btn-outline-primary btn-sm" href="{{ url_for('edit_order', order_id=order.id) }}?open=erp-beta&focus=attachments&category=drawing">
+              <i class="fas fa-paperclip"></i> 첨부 파일 열기
+            </a>
+            <button class="btn btn-outline-secondary btn-sm" type="button" id="btn-download-history-json">
+              <i class="fas fa-file-export"></i> 이력 JSON 다운로드
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal fade" id="dwTransferModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-paper-plane"></i> 도면 전달</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2 small text-muted">모드 선택 후 전달하세요. 교체 모드에서는 대상 번호 선택이 필요합니다.</div>
+        <div class="mb-2">
+          <label class="form-label">전달 모드</label>
+          <select class="form-select" id="dw-transfer-mode">
+            <option value="APPEND" {% if drawing_status != 'RETURNED' %}selected{% endif %}>추가(Append)</option>
+            <option value="REPLACE" {% if drawing_status == 'RETURNED' %}selected{% endif %}>교체(Replace)</option>
+          </select>
+        </div>
+        <div class="mb-2" id="dw-transfer-target-wrap">
+          <label class="form-label">교체 대상 도면 번호</label>
+          <select class="form-select" id="dw-transfer-target-key">
+            <option value="">선택 안 함</option>
+            {% for f in drawing_files %}
+            {% set fkey = (f.get('key') if f is mapping else '') or '' %}
+            {% set fname = (f.get('filename') if f is mapping else '') or '-' %}
+            <option value="{{ fkey }}">{{ loop.index }}번 · {{ fname }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">메모</label>
+          <textarea id="dw-transfer-note" class="form-control" rows="3" placeholder="전달 메모"></textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">도면 파일</label>
+          <input id="dw-transfer-files" type="file" class="form-control" multiple>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-primary" id="btn-submit-transfer">전달하기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="dwRevisionModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-undo"></i> 수정 요청</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">대상 도면 번호</label>
+          <select class="form-select" id="dw-revision-target-key">
+            <option value="">자동 선택</option>
+            {% for f in drawing_files %}
+            {% set fkey = (f.get('key') if f is mapping else '') or '' %}
+            {% set fname = (f.get('filename') if f is mapping else '') or '-' %}
+            <option value="{{ fkey }}">{{ loop.index }}번 · {{ fname }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">수정 요청 메모</label>
+          <textarea id="dw-revision-note" class="form-control" rows="4" placeholder="필수 입력"></textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">참고 이미지/파일</label>
+          <input id="dw-revision-files" type="file" class="form-control" multiple>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-danger" id="btn-submit-revision">수정 요청 보내기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const orderId = Number("{{ order.id }}");
+    const drawingStatus = String("{{ drawing_status }}");
+    const drawingFiles = {{ drawing_files|tojson }};
+    const historyJson = {{ history_json|tojson }};
+    const qs = new URLSearchParams(window.location.search);
+    const focusEventId = String(qs.get('event_id') || '').trim();
+
+    function openDrawingGatewayImageViewer(groupKey, index) {
+      if (!window.GlobalImageViewer) return;
+      
+      const thumbs = Array.from(document.querySelectorAll('.drawing-gateway-thumb[data-group-key]'))
+        .filter((el) => String(el.dataset.groupKey || '') === String(groupKey));
+        
+      const files = thumbs.map((el) => ({
+        view_url: el.dataset.viewUrl || '',
+        download_url: el.dataset.downloadUrl || '',
+        filename: el.dataset.filename || '이미지',
+      })).filter((f) => !!f.view_url);
+      
+      if (!files.length) return;
+      
+      window.GlobalImageViewer.open(files, index || 0);
+    }
+    window.openDrawingGatewayImageViewer = openDrawingGatewayImageViewer;
+
+    function showWorkbenchToast(message, type) {
+      const cls = type === 'error' ? 'danger' : (type === 'success' ? 'success' : 'secondary');
+      const box = document.createElement('div');
+      box.className = `alert alert-${cls} shadow-sm`;
+      box.style.position = 'fixed';
+      box.style.top = '82px';
+      box.style.right = '16px';
+      box.style.zIndex = 2000;
+      box.style.maxWidth = '420px';
+      box.textContent = message;
+      document.body.appendChild(box);
+      setTimeout(() => box.remove(), 2600);
+    }
+
+    function getDrawingTargetNumberByKey(key) {
+      if (!key) return null;
+      const idx = drawingFiles.findIndex(f => String((f || {}).key || '') === String(key));
+      return idx >= 0 ? (idx + 1) : null;
+    }
+
+    async function uploadToDrawingCategory(files, noteText) {
+      const uploadPromises = Array.from(files || []).map(async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('category', 'drawing');
+        formData.append('note', noteText || '');
+        const upRes = await fetch(`/api/orders/${orderId}/attachments`, { method: 'POST', body: formData });
+        const upData = await upRes.json();
+        if (!upData.success) {
+          throw new Error(file.name + ' 업로드 실패: ' + (upData.message || upData.error || '알 수 없는 오류'));
+        }
+        const att = upData.attachment || {};
+        if (!att.storage_key) return null;
+        return {
+          key: att.storage_key,
+          filename: att.filename || file.name,
+          view_url: att.view_url || `/api/files/view/${att.storage_key}`,
+          download_url: att.download_url || `/api/files/download/${att.storage_key}`
+        };
+      });
+      const results = await Promise.all(uploadPromises);
+      return results.filter(Boolean);
+    }
+
+    async function uploadRevisionGatewayFiles(files) {
+      const uploadPromises = Array.from(files || []).map(async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch(`/api/orders/${orderId}/drawing-gateway-upload`, { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!data.success || !data.file) {
+          throw new Error(file.name + ' 업로드 실패: ' + (data.message || '알 수 없는 오류'));
+        }
+        return data.file;
+      });
+      return Promise.all(uploadPromises);
+    }
+
+    async function submitTransfer() {
+      const mode = String(document.getElementById('dw-transfer-mode')?.value || 'APPEND').toUpperCase();
+      const replaceTargetKey = String(document.getElementById('dw-transfer-target-key')?.value || '').trim();
+      const note = String(document.getElementById('dw-transfer-note')?.value || '').trim();
+      const files = document.getElementById('dw-transfer-files')?.files || [];
+      if (!files.length) {
+        showWorkbenchToast('전달할 도면 파일을 선택해주세요.', 'error');
+        return;
+      }
+
+      const isRetransfer = (drawingStatus === 'RETURNED') || (mode === 'REPLACE');
+      if (mode === 'REPLACE' && drawingFiles.length > 0 && !replaceTargetKey) {
+        showWorkbenchToast('교체 모드에서는 대상 번호를 선택해야 합니다.', 'error');
+        return;
+      }
+      if (isRetransfer && drawingFiles.length > 1 && !replaceTargetKey) {
+        showWorkbenchToast('수정본 전달 시 교체할 도면 번호 선택이 필요합니다.', 'error');
+        return;
+      }
+
+      const targetNo = getDrawingTargetNumberByKey(replaceTargetKey);
+      const confirmMsg = (mode === 'REPLACE')
+        ? `${targetNo || '?'}번 도면을 새 파일로 교체합니다. 진행할까요?`
+        : '새 파일을 도면으로 전달합니다. 진행할까요?';
+      if (!confirm(confirmMsg)) return;
+
+      try {
+        const createdFiles = await uploadToDrawingCategory(files, '[도면 전달] ' + note);
+        const payload = {
+          note: note,
+          files: createdFiles,
+          is_retransfer: isRetransfer,
+          replace_target_key: replaceTargetKey || null,
+          replace_target_number: targetNo
+        };
+        const res = await fetch(`/api/orders/${orderId}/transfer-drawing`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.success) {
+          showWorkbenchToast(data.message || '도면 전달 실패', 'error');
+          return;
+        }
+        showWorkbenchToast(data.message || '도면 전달 완료', 'success');
+        window.location.href = `/erp/drawing-workbench/${orderId}?tab=timeline`;
+      } catch (e) {
+        console.error(e);
+        showWorkbenchToast(e.message || '도면 전달 중 오류가 발생했습니다.', 'error');
+      }
+    }
+
+    async function submitRevision() {
+      const note = String(document.getElementById('dw-revision-note')?.value || '').trim();
+      const targetKey = String(document.getElementById('dw-revision-target-key')?.value || '').trim();
+      const files = document.getElementById('dw-revision-files')?.files || [];
+      if (!note) {
+        showWorkbenchToast('수정 요청 메모를 입력해주세요.', 'error');
+        return;
+      }
+      if (drawingFiles.length > 1 && !targetKey) {
+        showWorkbenchToast('여러 장일 때는 대상 도면 번호를 선택해야 합니다.', 'error');
+        return;
+      }
+      if (!confirm('수정 요청을 전송하시겠습니까?')) return;
+      try {
+        let uploadedFiles = [];
+        if (files.length > 0) {
+          uploadedFiles = await uploadRevisionGatewayFiles(files);
+        }
+        const payload = {
+          note: note,
+          files: uploadedFiles,
+          target_drawing_key: targetKey || null,
+          target_drawing_number: getDrawingTargetNumberByKey(targetKey)
+        };
+        const res = await fetch(`/api/orders/${orderId}/request-revision`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.success) {
+          showWorkbenchToast(data.message || '수정 요청 실패', 'error');
+          return;
+        }
+        showWorkbenchToast(data.message || '수정 요청 전송 완료', 'success');
+        window.location.href = `/erp/drawing-workbench/${orderId}?tab=requests`;
+      } catch (e) {
+        console.error(e);
+        showWorkbenchToast(e.message || '수정 요청 중 오류가 발생했습니다.', 'error');
+      }
+    }
+
+    async function confirmReceipt() {
+      if (!confirm('도면 수령을 확정하고 다음 단계로 이동하시겠습니까?')) return;
+      try {
+        const res = await fetch(`/api/orders/${orderId}/confirm-drawing-receipt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const data = await res.json();
+        if (!data.success) {
+          showWorkbenchToast(data.message || '수령 확정 실패', 'error');
+          return;
+        }
+        showWorkbenchToast(data.message || '수령 확정 완료', 'success');
+        window.location.href = `/erp/drawing-workbench/${orderId}?tab=timeline`;
+      } catch (e) {
+        console.error(e);
+        showWorkbenchToast('수령 확정 중 오류가 발생했습니다.', 'error');
+      }
+    }
+
+    async function cancelTransfer() {
+      if (!confirm('전달 취소 시 최신 전달본 파일과 이력이 함께 정리됩니다. 진행할까요?')) return;
+      try {
+        const res = await fetch(`/api/orders/${orderId}/cancel-transfer`, { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) {
+          showWorkbenchToast(data.message || '전달 취소 실패', 'error');
+          return;
+        }
+        showWorkbenchToast(data.message || '전달 취소 완료', 'success');
+        window.location.href = `/erp/drawing-workbench/${orderId}?tab=timeline`;
+      } catch (e) {
+        console.error(e);
+        showWorkbenchToast('전달 취소 중 오류가 발생했습니다.', 'error');
+      }
+    }
+
+    async function toggleRevisionCheck(btn) {
+      const requestAt = String(btn.getAttribute('data-request-at') || '');
+      const byUserId = String(btn.getAttribute('data-by-user-id') || '');
+      const nextChecked = String(btn.getAttribute('data-next-checked') || 'false') === 'true';
+      try {
+        const payload = {
+          request_at: requestAt,
+          by_user_id: byUserId ? Number(byUserId) : null,
+          checked: nextChecked
+        };
+        const res = await fetch(`/api/orders/${orderId}/request-revision-check`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.success) {
+          showWorkbenchToast(data.message || '체크 저장 실패', 'error');
+          return;
+        }
+        showWorkbenchToast(data.message || '체크 저장 완료', 'success');
+        window.location.href = `/erp/drawing-workbench/${orderId}?tab=requests`;
+      } catch (e) {
+        console.error(e);
+        showWorkbenchToast('체크 저장 중 오류가 발생했습니다.', 'error');
+      }
+    }
+
+    document.getElementById('btn-submit-transfer')?.addEventListener('click', submitTransfer);
+    document.getElementById('btn-submit-revision')?.addEventListener('click', submitRevision);
+    document.getElementById('btn-confirm-receipt')?.addEventListener('click', confirmReceipt);
+    document.getElementById('btn-cancel-transfer')?.addEventListener('click', cancelTransfer);
+    document.querySelectorAll('.js-revision-check').forEach(btn => {
+      btn.addEventListener('click', function () { toggleRevisionCheck(btn); });
+    });
+
+    document.getElementById('btn-download-history-json')?.addEventListener('click', function () {
+      const blob = new Blob([JSON.stringify(historyJson || [], null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `drawing-history-order-${orderId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    document.querySelectorAll('[data-bs-toggle="tab"]').forEach((btn) => {
+      btn.addEventListener('shown.bs.tab', function (e) {
+        const target = String(e.target.getAttribute('data-bs-target') || '');
+        let tab = 'timeline';
+        if (target.includes('requests')) tab = 'requests';
+        if (target.includes('compare')) tab = 'compare';
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', tab);
+        history.replaceState({}, '', url.toString());
+      });
+    });
+
+
+    // 딥링크 하이라이트 카드 자동 포커스
+    setTimeout(function () {
+      let target = null;
+      if (focusEventId) {
+        const idSafe = focusEventId.replaceAll(':', '-');
+        target = document.getElementById(`event-${idSafe}`) || document.getElementById(`request-${idSafe}`);
+      }
+      if (!target) target = document.querySelector('.dw-highlight');
+      if (!target) return;
+      const pane = target.closest('.tab-pane');
+      if (pane && !pane.classList.contains('show')) {
+        const tabBtn = document.querySelector(`[data-bs-target="#${pane.id}"]`);
+        if (tabBtn) {
+          try { bootstrap.Tab.getOrCreateInstance(tabBtn).show(); } catch (_) { }
+        }
+      }
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('dw-highlight-focus');
+      setTimeout(() => target.classList.remove('dw-highlight-focus'), 2600);
+    }, 180);
+  })();
+</script>
+{% endblock %}

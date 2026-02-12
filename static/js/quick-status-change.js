@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const saveBtn = document.getElementById('btn-quick-save');
     const newStatusSelect = document.getElementById('quick-new-status');
     const noteInput = document.getElementById('quick-status-note');
+    const searchResults = document.getElementById('quick-search-results');
 
     // UI Elements
     const infoArea = document.getElementById('quick-order-info');
@@ -18,6 +19,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const currentStatus = document.getElementById('quick-current-status');
     const orderDetails = document.getElementById('quick-order-details');
     const orderIdBadge = document.getElementById('quick-order-id-badge');
+    let selectedOrderId = null;
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = String(text || '');
+        return div.innerHTML;
+    }
 
     // FAB Click: Open Modal
     fabBtn.addEventListener('click', function () {
@@ -32,28 +40,65 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // Search Logic
+    function renderSearchResults(items) {
+        if (!searchResults) return;
+        if (!Array.isArray(items) || items.length === 0) {
+            searchResults.classList.add('d-none');
+            searchResults.innerHTML = '';
+            return;
+        }
+        searchResults.classList.remove('d-none');
+        searchResults.innerHTML = items.map((o) => `
+            <button type="button" class="list-group-item list-group-item-action" data-order-id="${o.id}">
+                <div class="d-flex justify-content-between">
+                    <strong>${escapeHtml(o.customer_name || '-')}</strong>
+                    <span class="badge bg-secondary">#${o.id}</span>
+                </div>
+                <div class="small text-muted mt-1">${escapeHtml(o.phone || '-')} / ${escapeHtml(o.address || '-')}</div>
+            </button>
+        `).join('');
+
+        searchResults.querySelectorAll('[data-order-id]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const id = Number(btn.dataset.orderId);
+                const picked = items.find((x) => Number(x.id) === id);
+                if (picked) {
+                    searchResults.classList.add('d-none');
+                    searchResults.innerHTML = '';
+                    showOrderInfo(picked);
+                }
+            });
+        });
+    }
+
     function performSearch() {
-        const id = orderIdInput.value.trim();
-        if (!id) return;
+        const q = orderIdInput.value.trim();
+        if (!q) return;
 
         // UI Reset
         resetModal();
         searchBtn.disabled = true;
         searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
-        // erp_beta.py의 라우트가 /api/orders/... 로 정의되어 있음 (url_prefix 없음 가정)
-        fetch(`/api/orders/${id}/quick-info`)
+        fetch(`/api/orders/quick-search?q=${encodeURIComponent(q)}`)
             .then(res => {
                 if (!res.ok) {
-                    // 404 처리
-                    if (res.status === 404) throw new Error('주문을 찾을 수 없습니다.');
                     throw new Error('조회 중 오류가 발생했습니다.');
                 }
                 return res.json();
             })
             .then(data => {
                 if (data.success) {
-                    showOrderInfo(data.order);
+                    const orders = Array.isArray(data.orders) ? data.orders : [];
+                    if (orders.length === 0) {
+                        alert('검색 결과가 없습니다.');
+                        orderIdInput.focus();
+                    } else if (orders.length === 1) {
+                        showOrderInfo(orders[0]);
+                    } else {
+                        renderSearchResults(orders);
+                        alert(`검색 결과 ${orders.length}건입니다. 목록에서 선택해주세요.`);
+                    }
                 } else {
                     alert(data.message || '조회 실패');
                     orderIdInput.focus();
@@ -80,6 +125,7 @@ document.addEventListener('DOMContentLoaded', function () {
         infoArea.classList.remove('d-none');
         formArea.classList.remove('d-none');
         saveBtn.disabled = false;
+        selectedOrderId = Number(order.id);
 
         customerName.textContent = order.customer_name;
 
@@ -111,22 +157,27 @@ document.addEventListener('DOMContentLoaded', function () {
         infoArea.classList.add('d-none');
         formArea.classList.add('d-none');
         saveBtn.disabled = true;
+        selectedOrderId = null;
         customerName.textContent = '';
         currentStatus.textContent = '';
         orderDetails.innerHTML = '';
         orderIdBadge.textContent = '#';
         newStatusSelect.value = '';
         noteInput.value = '';
+        if (searchResults) {
+            searchResults.classList.add('d-none');
+            searchResults.innerHTML = '';
+        }
     }
 
     // Save Logic
     saveBtn.addEventListener('click', function () {
-        const id = orderIdInput.value.trim();
+        const id = selectedOrderId;
         const status = newStatusSelect.value;
         const note = noteInput.value.trim();
 
         if (!id || !status) {
-            alert('상태를 선택해주세요.');
+            alert('조회 후 주문을 선택하고 상태를 선택해주세요.');
             return;
         }
 

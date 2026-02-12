@@ -36,6 +36,8 @@ from erp_policy import (
     create_quest_from_template,
     get_stage,
     DEFAULT_OWNER_TEAM_BY_STAGE,
+    can_modify_domain,
+    get_assignee_ids,
 )
 
 # 견적 계산기 독립 데이터베이스 임포트
@@ -88,7 +90,7 @@ from apps.auth import auth_bp, login_required, role_required, ROLES, TEAMS, log_
 app.register_blueprint(auth_bp)
 
 # ERP Beta Blueprint
-from apps.erp_beta import erp_beta_bp, apply_erp_beta_display_fields_to_orders
+from apps.erp_beta import erp_beta_bp, apply_erp_beta_display_fields_to_orders, can_edit_erp_beta
 app.register_blueprint(erp_beta_bp)
 
 # API Files Blueprint
@@ -176,6 +178,21 @@ def allowed_erp_media_file(filename):
     """ERP Beta 첨부(사진/동영상) 확장자 검증"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ERP_MEDIA_ALLOWED_EXTENSIONS
 
+
+# 도면 카테고리는 이미지/동영상 외 문서 파일도 허용
+DRAWING_ATTACHMENT_EXTRA_EXTENSIONS = {'pdf', 'zip', 'dwg', 'dxf'}
+
+
+def allowed_erp_attachment_file(filename, category='measurement'):
+    """ERP Beta 첨부 확장자 검증 (카테고리별 정책)"""
+    if '.' not in filename:
+        return False
+    ext = filename.rsplit('.', 1)[1].lower()
+    allowed_exts = set(ERP_MEDIA_ALLOWED_EXTENSIONS)
+    if normalize_attachment_category(category) == 'drawing':
+        allowed_exts.update(DRAWING_ATTACHMENT_EXTRA_EXTENSIONS)
+    return ext in allowed_exts
+
 def get_erp_media_max_size(filename):
     """ERP Beta 첨부 파일 타입별 최대 크기 (바이트)"""
     if not '.' in filename:
@@ -236,6 +253,37 @@ def _ensure_dict(data):
             return {}
     return {}
 
+
+ATTACHMENT_CATEGORIES = ('measurement', 'drawing', 'construction')
+
+
+def normalize_attachment_category(raw_category):
+    category = (raw_category or 'measurement').strip().lower()
+    if category not in ATTACHMENT_CATEGORIES:
+        return None
+    return category
+
+
+def ensure_order_attachments_category_column():
+    """Ensure category column exists for legacy databases."""
+    db = None
+    try:
+        db = get_db()
+        db.execute(text(
+            "ALTER TABLE order_attachments "
+            "ADD COLUMN IF NOT EXISTS category VARCHAR(50) NOT NULL DEFAULT 'measurement'"
+        ))
+        db.commit()
+        return True
+    except Exception as e:
+        try:
+            if db is not None:
+                db.rollback()
+        except Exception:
+            pass
+        print(f"[AUTO-MIGRATION] Failed to ensure order_attachments.category: {e}")
+        return False
+
 @app.route('/api/orders/<int:order_id>/attachments', methods=['GET'])
 @login_required
 def api_order_attachments_list(order_id):
@@ -246,10 +294,20 @@ def api_order_attachments_list(order_id):
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
-        atts = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id).order_by(OrderAttachment.created_at.desc()).all()
+        raw_filter_category = request.args.get('category')
+        filter_category = normalize_attachment_category(raw_filter_category) if raw_filter_category else None
+        if raw_filter_category and not filter_category:
+            return jsonify({'success': False, 'message': '유효하지 않은 첨부 카테고리입니다.'}), 400
+
+        query = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id)
+        if filter_category:
+            query = query.filter(OrderAttachment.category == filter_category)
+
+        atts = query.order_by(OrderAttachment.created_at.desc()).all()
         items = []
         for a in atts:
             d = a.to_dict()
+            d['category'] = normalize_attachment_category(d.get('category')) or 'measurement'
             d['view_url'] = build_file_view_url(a.storage_key)
             d['download_url'] = build_file_download_url(a.storage_key)
             d['thumbnail_view_url'] = build_file_view_url(a.thumbnail_key) if a.thumbnail_key else None
@@ -273,8 +331,15 @@ def api_order_attachments_upload(order_id):
         if not file or file.filename == '':
             return jsonify({'success': False, 'message': '파일명이 없습니다.'}), 400
 
-        if not allowed_erp_media_file(file.filename):
-            allowed_exts = ', '.join(sorted(ERP_MEDIA_ALLOWED_EXTENSIONS))
+        category = normalize_attachment_category(request.form.get('category', 'measurement'))
+        if not category:
+            return jsonify({'success': False, 'message': '유효하지 않은 첨부 카테고리입니다.'}), 400
+
+        if not allowed_erp_attachment_file(file.filename, category):
+            allowed_exts = set(ERP_MEDIA_ALLOWED_EXTENSIONS)
+            if category == 'drawing':
+                allowed_exts.update(DRAWING_ATTACHMENT_EXTRA_EXTENSIONS)
+            allowed_exts = ', '.join(sorted(allowed_exts))
             return jsonify({'success': False, 'message': f'허용되지 않은 파일 형식입니다. 지원 형식: {allowed_exts}'}), 400
 
         # 파일 크기 검증
@@ -302,8 +367,12 @@ def api_order_attachments_upload(order_id):
         storage_key = result.get('key')
         filename = file.filename
         file_type = storage._get_file_type(filename)
-        if file_type not in ['image', 'video']:
-            return jsonify({'success': False, 'message': '이미지/동영상만 업로드 가능합니다.'}), 400
+        if category == 'drawing':
+            if file_type not in ['image', 'video', 'file']:
+                return jsonify({'success': False, 'message': '지원되지 않는 도면 파일 형식입니다.'}), 400
+        else:
+            if file_type not in ['image', 'video']:
+                return jsonify({'success': False, 'message': '이미지/동영상만 업로드 가능합니다.'}), 400
 
         # 이미지 썸네일 생성(가능할 때만)
         thumbnail_key = None
@@ -321,6 +390,7 @@ def api_order_attachments_upload(order_id):
             order_id=order_id,
             filename=filename,
             file_type=file_type,
+            category=category,
             file_size=file_size,
             storage_key=storage_key,
             thumbnail_key=thumbnail_key
@@ -410,6 +480,681 @@ def api_order_events(order_id):
     except Exception as e:
         import traceback
         print(f"주문 이벤트 조회 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/orders/<int:order_id>/change-events', methods=['GET'])
+@login_required
+def api_order_change_events(order_id):
+    """
+    변경 이벤트 로그 조회 (V2 설계)
+    - ADMIN: 전체 조회
+    - 일반: 본인이 생성한 로그만 조회
+    """
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
+        
+        # 기본 쿼리
+        query = db.query(OrderEvent).filter(OrderEvent.order_id == order_id)
+        
+        # 권한 필터링
+        if user.role != 'ADMIN':
+            query = query.filter(OrderEvent.created_by_user_id == user_id)
+        
+        # 최신순 정렬
+        limit = int(request.args.get('limit', 100))
+        limit = max(1, min(limit, 500))
+        rows = query.order_by(OrderEvent.created_at.desc()).limit(limit).all()
+        
+        # 사용자 정보 조인 (효율을 위해 일괄 조회)
+        user_ids = list(set([r.created_by_user_id for r in rows if r.created_by_user_id]))
+        users_map = {}
+        if user_ids:
+            users = db.query(User).filter(User.id.in_(user_ids)).all()
+            users_map = {u.id: {'name': u.name, 'team': u.team} for u in users}
+        
+        # 주문 정보 조회 (표시용 고객명)
+        order = db.query(Order).filter(Order.id == order_id).first()
+        customer_name = get_order_display_name(order) if order else f'주문 #{order_id}'
+        
+        # 응답 포맷 (누가/무엇을/어떻게/언제)
+        events = []
+        for r in rows:
+            payload = r.payload or {}
+            creator = users_map.get(r.created_by_user_id, {'name': 'Unknown', 'team': ''})
+            
+            # 이벤트 타입 한글화
+            event_label = translate_event_type_to_korean(r.event_type)
+            
+            # 타겟과 값 한글화
+            target = payload.get('target', '')
+            before = payload.get('before', '')
+            after = payload.get('after', '')
+            reason = translate_reason_to_korean(payload.get('reason', ''), r.event_type, payload)
+            is_override = payload.get('is_override', False)
+            
+            target_kr = translate_target_to_korean(target)
+            before_kr = translate_value_to_korean(target, before)
+            after_kr = translate_value_to_korean(target, after)
+            
+            # 간단하고 이해하기 쉬운 설명 생성
+            how_text = generate_change_description(r.event_type, target_kr, before_kr, after_kr, payload)
+            
+            events.append({
+                'id': r.id,
+                'when': r.created_at.strftime('%Y-%m-%d %H:%M:%S') if r.created_at else '',
+                'who_name': creator['name'],
+                'who_team': creator['team'],
+                'what_label': event_label,
+                'how_text': how_text,
+                'reason': reason,
+                'is_override': is_override,
+                'override_reason': payload.get('override_reason'),
+                'event_type': r.event_type,
+                'payload': payload,
+            })
+        
+        return jsonify({
+            'success': True, 
+            'events': events, 
+            'total': len(events),
+            'customer_name': customer_name,
+            'order_id': order_id
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"변경 이벤트 조회 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/me/change-events', methods=['GET'])
+@login_required
+def api_my_change_events():
+    """
+    본인의 전체 변경 이벤트 로그 조회 (여러 주문 통합)
+    """
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
+        
+        # 본인이 생성한 이벤트만 조회
+        limit = int(request.args.get('limit', 200))
+        limit = max(1, min(limit, 1000))
+        
+        rows = db.query(OrderEvent).filter(
+            OrderEvent.created_by_user_id == user_id
+        ).order_by(OrderEvent.created_at.desc()).limit(limit).all()
+        
+        # 주문 정보 조인 (표시용 고객명 포함)
+        order_ids = list(set([r.order_id for r in rows if r.order_id]))
+        orders_map = {}
+        if order_ids:
+            orders = db.query(Order).filter(Order.id.in_(order_ids)).all()
+            orders_map = {
+                o.id: {
+                    'customer_name': get_order_display_name(o),
+                    'order_id': o.id
+                } 
+                for o in orders
+            }
+        
+        # 응답 포맷
+        events = []
+        for r in rows:
+            payload = r.payload or {}
+            order_info = orders_map.get(r.order_id, {'customer_name': f'주문 #{r.order_id}', 'order_id': r.order_id})
+            
+            # 이벤트 타입을 한글로 변환
+            event_label = translate_event_type_to_korean(r.event_type)
+            
+            # payload에서 더 자세한 정보 추출
+            action_label = payload.get('action', event_label)
+            target = payload.get('target', '')
+            before = payload.get('before', '')
+            after = payload.get('after', '')
+            reason = translate_reason_to_korean(payload.get('reason', ''), r.event_type, payload)
+            is_override = payload.get('is_override', False)
+            
+            # 한글로 변환된 타겟과 값
+            target_kr = translate_target_to_korean(target)
+            before_kr = translate_value_to_korean(target, before)
+            after_kr = translate_value_to_korean(target, after)
+            
+            # 간단하고 이해하기 쉬운 설명 생성
+            how_text = generate_change_description(r.event_type, target_kr, before_kr, after_kr, payload)
+            
+            events.append({
+                'id': r.id,
+                'order_id': r.order_id,
+                'customer_name': order_info['customer_name'],
+                'when': r.created_at.strftime('%Y-%m-%d %H:%M:%S') if r.created_at else '',
+                'what_label': event_label,
+                'how_text': how_text,
+                'reason': reason,
+                'is_override': is_override,
+                'event_type': r.event_type,
+            })
+        
+        return jsonify({'success': True, 'events': events, 'total': len(events)})
+        
+    except Exception as e:
+        import traceback
+        print(f"내 변경 이벤트 조회 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+def translate_target_to_korean(target):
+    """영어 타겟을 한글로 변환"""
+    target_map = {
+        'workflow.stage': '진행 단계',
+        'workflow.current_quest': '현재 퀘스트',
+        'quests': '퀘스트',
+        'quest.team_approvals': '팀 승인',
+        'quest.assignee_approval': '담당자 승인',
+        'assignments.drawing_assignee_user_ids': '도면 담당자',
+        'drawings.status': '도면 상태',
+        'production.completed': '생산 완료',
+        'construction.completed': '시공 완료',
+        'cs.completed': 'CS 완료',
+        'as.status': 'AS 상태',
+    }
+    return target_map.get(target, target)
+
+
+def get_order_display_name(order):
+    """로그 카드에 표시할 주문명(고객명)을 최대한 정확히 추출."""
+    if not order:
+        return ''
+
+    generic_names = {'erp beta', 'erp_beta', 'beta'}
+
+    def _clean_text(value):
+        if value is None:
+            return ''
+        text = str(value).strip()
+        if not text:
+            return ''
+        if text.lower() in generic_names:
+            return ''
+        return text
+
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    customer = sd.get('customer') if isinstance(sd.get('customer'), dict) else {}
+    orderer = sd.get('orderer') if isinstance(sd.get('orderer'), dict) else {}
+    contact = sd.get('contact') if isinstance(sd.get('contact'), dict) else {}
+    order_node = sd.get('order') if isinstance(sd.get('order'), dict) else {}
+    parties = sd.get('parties') if isinstance(sd.get('parties'), dict) else {}
+    parties_customer = parties.get('customer') if isinstance(parties.get('customer'), dict) else {}
+    parties_orderer = parties.get('orderer') if isinstance(parties.get('orderer'), dict) else {}
+    parties_manager = parties.get('manager') if isinstance(parties.get('manager'), dict) else {}
+
+    candidates = [
+        parties_customer.get('name'),
+        parties_customer.get('customer_name'),
+        parties_orderer.get('name'),
+        parties_manager.get('name'),
+        customer.get('name'),
+        customer.get('customer_name'),
+        orderer.get('name'),
+        contact.get('name'),
+        sd.get('client_name'),
+        sd.get('client'),
+        sd.get('name'),
+        sd.get('customer'),
+        sd.get('customer_name'),
+        sd.get('orderer_name'),
+        order_node.get('customer_name'),
+        order.customer_name,
+    ]
+    for candidate in candidates:
+        name = _clean_text(candidate)
+        if name:
+            return name
+    return f'주문 #{order.id}'
+
+
+def translate_event_type_to_korean(event_type):
+    """이벤트 타입 영문 코드를 한글 라벨로 변환."""
+    labels = {
+        # Quest
+        'QUEST_APPROVAL_CHANGED': '퀘스트 승인',
+        'QUEST_ASSIGNEE_APPROVED': '담당자 승인',
+        'QUEST_CREATED': '퀘스트 생성',
+        'QUEST_UPDATED': '퀘스트 수정',
+        'QUEST_COMPLETED': '퀘스트 완료',
+        # Stage
+        'STAGE_CHANGED': '단계 변경',
+        'STAGE_AUTO_TRANSITIONED': '단계 자동 전환',
+        'STAGE_MANUAL_OVERRIDE': '단계 수동 변경',
+        # Drawing
+        'DRAWING_STATUS_CHANGED': '도면 상태 변경',
+        'DRAWING_ASSIGNEE_SET': '도면 담당자 지정',
+        'DRAWING_SENT': '도면 전달',
+        'DRAWING_CONFIRMED': '도면 확인',
+        'DRAWING_REVISION_REQUESTED': '도면 수정 요청',
+        # Production / Construction / CS / AS
+        'PRODUCTION_STARTED': '생산 시작',
+        'PRODUCTION_COMPLETED': '생산 완료',
+        'PRODUCTION_DELAYED': '생산 지연',
+        'CONSTRUCTION_STARTED': '시공 시작',
+        'CONSTRUCTION_COMPLETED': '시공 완료',
+        'CONSTRUCTION_SCHEDULED': '시공 예약',
+        'CS_STARTED': 'CS 시작',
+        'CS_COMPLETED': 'CS 완료',
+        'CS_ISSUE_REPORTED': 'CS 이슈 보고',
+        'AS_STARTED': 'AS 시작',
+        'AS_COMPLETED': 'AS 완료',
+        'AS_RECEIVED': 'AS 접수',
+        # Measurement / Shipment
+        'MEASUREMENT_SCHEDULED': '실측 예약',
+        'MEASUREMENT_COMPLETED': '실측 완료',
+        'SHIPMENT_SCHEDULED': '출고 예정',
+        'SHIPMENT_COMPLETED': '출고 완료',
+        # Etc
+        'CHANGE_REVERTED': '변경 되돌림',
+        'ORDER_CREATED': '주문 생성',
+        'ORDER_UPDATED': '주문 수정',
+        'ORDER_DELETED': '주문 삭제',
+        'ASSIGNMENT_CHANGED': '담당자 변경',
+        'STATUS_CHANGED': '상태 변경',
+        'FIELD_UPDATED': '필드 수정',
+        'COMMENT_ADDED': '메모 추가',
+        'ATTACHMENT_ADDED': '첨부파일 추가',
+        'ATTACHMENT_DELETED': '첨부파일 삭제',
+        'URGENT_CHANGED': '긴급 여부 변경',
+    }
+    return labels.get(event_type, '기타 변경')
+
+
+def translate_reason_to_korean(reason, event_type='', payload=None):
+    """시스템 reason 코드를 사람이 이해하기 쉬운 한글로 변환."""
+    payload = payload or {}
+    raw = str(reason or '').strip()
+    if not raw:
+        raw = str(payload.get('override_reason') or '').strip()
+    if not raw and event_type == 'STAGE_AUTO_TRANSITIONED':
+        raw = 'quest_approvals_complete'
+
+    if not raw:
+        return ''
+
+    reason_map = {
+        'quest_approvals_complete': '퀘스트 승인 조건이 충족되어 자동 전환되었습니다.',
+        'all_approvals_complete': '모든 승인 조건이 충족되었습니다.',
+        'auto_transition_rule_matched': '자동 단계 전환 규칙에 따라 처리되었습니다.',
+        'manager_override': '관리자 권한으로 예외 처리되었습니다.',
+        'emergency_override': '긴급 권한으로 예외 처리되었습니다.',
+        'manual_update': '담당자가 수동으로 변경했습니다.',
+    }
+    if raw in reason_map:
+        return reason_map[raw]
+
+    if '_' in raw and raw.islower():
+        return raw.replace('_', ' ')
+    return raw
+
+
+def translate_value_to_korean(target, value):
+    """값을 한글로 변환"""
+    if not value:
+        return '없음'
+    
+    # Boolean 값 변환
+    if isinstance(value, bool):
+        return '완료' if value else '미완료'
+    
+    # 단계(stage) 값 변환
+    if 'stage' in target.lower():
+        stage_map = {
+            'MEASURE': '실측',
+            'DRAWING': '도면',
+            'CONFIRM': '고객확인',
+            'PRODUCTION': '생산',
+            'CONSTRUCTION': '시공',
+            'CS': 'CS',
+            'AS': 'AS',
+            'SHIPMENT': '출고',
+        }
+        return stage_map.get(str(value), value)
+    
+    # 승인 상태 변환
+    if 'approval' in target.lower():
+        if isinstance(value, dict):
+            if value.get('approved'):
+                return f"승인됨 ({value.get('approved_by_name', '담당자')})"
+            return '미승인'
+        return '승인됨' if value else '미승인'
+    
+    # 도면 상태 변환
+    if 'drawing' in target.lower() and 'status' in target.lower():
+        status_map = {
+            'pending': '대기중',
+            'sent': '전달됨',
+            'confirmed': '확인완료',
+            'revision_requested': '수정요청',
+        }
+        return status_map.get(str(value), value)
+    
+    return str(value)
+
+
+def generate_change_description(event_type, target_kr, before_kr, after_kr, payload):
+    """이벤트 타입에 따라 이해하기 쉬운 설명 생성"""
+    
+    # 퀘스트 승인 관련
+    if event_type == 'QUEST_APPROVAL_CHANGED':
+        team = payload.get('team', '')
+        team_map = {'CS': 'CS팀', 'SALES': '영업팀', 'DRAWING': '도면팀', 
+                   'PRODUCTION': '생산팀', 'CONSTRUCTION': '시공팀', 'SHIPMENT': '출고팀'}
+        team_kr = team_map.get(team, team)
+        return f"{team_kr}이 퀘스트를 승인했습니다"
+    
+    if event_type == 'QUEST_ASSIGNEE_APPROVED':
+        approved_by = payload.get('approved_by_name', '담당자')
+        quest_title = payload.get('quest_title', '')
+        return f"{approved_by}님이 '{quest_title}' 퀘스트를 승인했습니다"
+    
+    # 단계 변경
+    if event_type == 'STAGE_CHANGED':
+        return f"진행 단계를 '{before_kr}'에서 '{after_kr}'로 변경했습니다"
+    
+    if event_type == 'STAGE_AUTO_TRANSITIONED':
+        return f"퀘스트 완료로 인해 단계가 '{before_kr}'에서 '{after_kr}'로 자동 전환되었습니다"
+    
+    # 도면 관련
+    if event_type == 'DRAWING_ASSIGNEE_SET':
+        assignees = payload.get('assignee_names', [])
+        if not assignees:
+            after_raw = payload.get('after')
+            if isinstance(after_raw, str):
+                assignees = [x.strip() for x in after_raw.split(',') if x.strip() and x.strip().lower() != 'none']
+        if assignees:
+            return f"도면 담당자를 {', '.join(assignees)}님으로 지정했습니다"
+        return "도면 담당자를 지정했습니다"
+    
+    if event_type == 'DRAWING_STATUS_CHANGED':
+        return f"도면 상태를 '{before_kr}'에서 '{after_kr}'로 변경했습니다"
+    
+    # 완료 이벤트
+    if event_type == 'PRODUCTION_COMPLETED':
+        return "생산을 완료 처리했습니다"
+    
+    if event_type == 'PRODUCTION_STARTED':
+        return "생산을 시작했습니다"
+    
+    if event_type == 'CONSTRUCTION_COMPLETED':
+        return "시공을 완료 처리했습니다"
+    
+    if event_type == 'CONSTRUCTION_STARTED':
+        return "시공을 시작했습니다"
+    
+    if event_type == 'CS_COMPLETED':
+        return "CS를 완료 처리했습니다"
+    
+    if event_type == 'CS_STARTED':
+        return "CS를 시작했습니다"
+    
+    if event_type == 'AS_STARTED':
+        return "AS를 시작했습니다"
+    
+    if event_type == 'AS_COMPLETED':
+        return "AS를 완료 처리했습니다"
+    
+    if event_type == 'AS_RECEIVED':
+        return "AS를 접수했습니다"
+    
+    # 측정 관련
+    if event_type == 'MEASUREMENT_SCHEDULED':
+        return "실측 일정을 등록했습니다"
+    
+    if event_type == 'MEASUREMENT_COMPLETED':
+        return "실측을 완료했습니다"
+    
+    # 출고 관련
+    if event_type == 'SHIPMENT_SCHEDULED':
+        return "출고 일정을 등록했습니다"
+    
+    if event_type == 'SHIPMENT_COMPLETED':
+        return "출고를 완료했습니다"
+    
+    # 되돌림
+    if event_type == 'CHANGE_REVERTED':
+        original_type = payload.get('original_event_type', '')
+        return f"이전 변경사항을 되돌렸습니다 ({translate_target_to_korean(payload.get('target', ''))})"
+    
+    # 주문 관련
+    if event_type == 'ORDER_CREATED':
+        return "주문을 생성했습니다"
+    
+    if event_type == 'ORDER_UPDATED':
+        return "주문 정보를 수정했습니다"
+    
+    if event_type == 'ORDER_DELETED':
+        return "주문을 삭제했습니다"
+    
+    # 담당자 변경
+    if event_type == 'ASSIGNMENT_CHANGED':
+        return f"담당자를 변경했습니다"
+
+    if event_type == 'URGENT_CHANGED':
+        return "긴급 여부를 변경했습니다"
+    
+    # 기본 포맷
+    if target_kr and before_kr and after_kr:
+        return f"{target_kr}를 '{before_kr}'에서 '{after_kr}'로 변경했습니다"
+    
+    if target_kr:
+        return f"{target_kr} 변경"
+    
+    return "변경 이력"
+
+
+@app.route('/api/orders/<int:order_id>/change-events/<int:event_id>/revert', methods=['POST'])
+@login_required
+def api_revert_change_event(order_id, event_id):
+    """
+    변경 이벤트 되돌리기 (Rollback)
+    
+    권한:
+    - 본인이 생성한 이벤트만 되돌리기 가능
+    - ADMIN은 모든 이벤트 되돌리기 가능
+    
+    제약:
+    - 일부 이벤트 타입만 지원 (STAGE_CHANGED, QUEST_APPROVAL, DRAWING_STATUS 등)
+    - 되돌리기 시 새로운 OrderEvent를 생성하여 기록
+    """
+    try:
+        data = request.get_json() or {}
+        revert_reason = data.get('reason', '').strip()
+        
+        if not revert_reason:
+            return jsonify({'success': False, 'message': '되돌리기 사유를 입력해주세요.'}), 400
+        
+        db = get_db()
+        user_id = session.get('user_id')
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
+        
+        # 이벤트 조회
+        event = db.query(OrderEvent).filter(
+            OrderEvent.id == event_id,
+            OrderEvent.order_id == order_id
+        ).first()
+        
+        if not event:
+            return jsonify({'success': False, 'message': '이벤트를 찾을 수 없습니다.'}), 404
+        
+        # 권한 확인
+        if user.role != 'ADMIN' and event.created_by_user_id != user_id:
+            return jsonify({'success': False, 'message': '본인이 생성한 이벤트만 되돌릴 수 있습니다.'}), 403
+        
+        # 주문 조회
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        payload = event.payload or {}
+        target = payload.get('target', '')
+        before_value = payload.get('before')
+        after_value = payload.get('after')
+        
+        if not target or before_value is None:
+            return jsonify({'success': False, 'message': '되돌리기 정보가 불완전합니다.'}), 400
+        
+        # structured_data 업데이트
+        import copy
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        sd = order.structured_data or {}
+        
+        # target 경로 파싱 (예: "workflow.stage" -> ["workflow", "stage"])
+        keys = target.split('.')
+        
+        # 현재 값 확인
+        current_obj = sd
+        for k in keys[:-1]:
+            if k not in current_obj or not isinstance(current_obj[k], dict):
+                current_obj[k] = {}
+            current_obj = current_obj[k]
+        
+        last_key = keys[-1]
+        current_value = current_obj.get(last_key)
+
+        is_drawing_assignee_target = (target == 'assignments.drawing_assignee_user_ids')
+
+        # 현재 값이 예상값(after)과 같은지 비교 (도메인별 호환 비교)
+        is_expected_state = False
+        current_display = current_value
+        expected_display = after_value
+
+        if is_drawing_assignee_target:
+            current_ids = current_value if isinstance(current_value, list) else []
+            expected_ids = payload.get('after_ids') if isinstance(payload.get('after_ids'), list) else None
+
+            if expected_ids is not None:
+                current_norm = sorted([int(x) for x in current_ids if str(x).isdigit()])
+                expected_norm = sorted([int(x) for x in expected_ids if str(x).isdigit()])
+                is_expected_state = (current_norm == expected_norm)
+                current_display = current_norm
+                expected_display = expected_norm
+            else:
+                # 과거 로그 호환: after가 이름 문자열("김도면")로 저장된 경우
+                expected_names = []
+                if isinstance(after_value, str):
+                    expected_names = [x.strip() for x in after_value.split(',') if x.strip() and x.strip().lower() != 'none']
+                if expected_names:
+                    users_now = db.query(User).filter(User.id.in_(current_ids)).all() if current_ids else []
+                    current_names = [u.name for u in users_now if u.name]
+                    is_expected_state = (sorted(current_names) == sorted(expected_names))
+                    current_display = ', '.join(current_names) if current_names else 'None'
+                    expected_display = ', '.join(expected_names) if expected_names else 'None'
+                else:
+                    is_expected_state = (str(current_value) == str(after_value))
+        else:
+            is_expected_state = (str(current_value) == str(after_value))
+
+        if not is_expected_state:
+            return jsonify({
+                'success': False,
+                'message': f'현재 값({current_display})이 예상 값({expected_display})과 다릅니다. 이미 다른 변경이 발생했을 수 있습니다.'
+            }), 409
+
+        # 되돌릴 값 계산 (도메인별)
+        revert_to_value = before_value
+        if is_drawing_assignee_target:
+            before_ids = payload.get('before_ids') if isinstance(payload.get('before_ids'), list) else None
+
+            if before_ids is None:
+                if isinstance(before_value, list):
+                    before_ids = before_value
+                elif isinstance(before_value, str):
+                    names = [x.strip() for x in before_value.split(',') if x.strip() and x.strip().lower() != 'none']
+                    if names:
+                        users_prev = db.query(User).filter(User.name.in_(names), User.is_active == True).all()
+                        before_ids = [u.id for u in users_prev]
+                    else:
+                        before_ids = []
+                elif before_value in (None, 'None', ''):
+                    before_ids = []
+
+            if before_ids is not None:
+                revert_to_value = before_ids
+
+        # 되돌리기 실행
+        current_obj[last_key] = revert_to_value
+
+        # 도면 담당자 필드는 연관 키를 함께 동기화
+        if is_drawing_assignee_target:
+            ids_for_sync = revert_to_value if isinstance(revert_to_value, list) else []
+            restored_users = db.query(User).filter(User.id.in_(ids_for_sync), User.is_active == True).all() if ids_for_sync else []
+
+            sd['drawing_assignees'] = [
+                {'id': u.id, 'name': u.name, 'team': u.team}
+                for u in restored_users
+            ]
+            shipment = sd.get('shipment') or {}
+            shipment['drawing_managers'] = [u.name for u in restored_users if u.name]
+            sd['shipment'] = shipment
+        
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, "structured_data")
+        
+        # Revert 이벤트 생성
+        revert_payload = {
+            'domain': payload.get('domain', 'UNKNOWN'),
+            'action': 'REVERTED',
+            'target': target,
+            'before': after_value,
+            'after': before_value,
+            'reverted_value': revert_to_value,
+            'change_method': 'API_REVERT',
+            'source_screen': 'change_log_viewer',
+            'reason': revert_reason,
+            'reverted_event_id': event_id,
+            'original_event_type': event.event_type,
+        }
+        
+        revert_event = OrderEvent(
+            order_id=order_id,
+            event_type='CHANGE_REVERTED',
+            payload=revert_payload,
+            created_by_user_id=user_id
+        )
+        db.add(revert_event)
+        
+        # 로그
+        from models import SecurityLog
+        db.add(SecurityLog(
+            user_id=user_id,
+            message=f"주문 #{order_id} 변경 되돌리기: {target} ({after_value} -> {before_value})"
+        ))
+        
+        db.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '변경이 성공적으로 되돌려졌습니다.',
+            'reverted_target': target,
+            'new_value': before_value
+        })
+        
+    except Exception as e:
+        db = get_db()
+        db.rollback()
+        import traceback
+        print(f"변경 되돌리기 오류: {e}")
         print(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -566,6 +1311,16 @@ def api_order_quest_get(order_id):
         
         if not current_stage_code:
             return jsonify({'success': True, 'quest': None, 'stage': None})
+
+        # 도면 단계는 퀘스트 승인 흐름을 사용하지 않음 (도면 전달/수령 확정 흐름으로 관리)
+        if current_stage_code == 'DRAWING':
+            return jsonify({
+                'success': True,
+                'quest': None,
+                'stage': current_stage_code,
+                'stage_label': STAGE_LABELS.get(current_stage_code, current_stage_code),
+                'message': '도면 단계 퀘스트는 비활성화되었습니다.'
+            })
         
         # 영문 코드를 한글 단계명으로 변환 (quest의 stage는 한글 단계명으로 저장될 수 있음)
         CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
@@ -627,6 +1382,11 @@ def api_order_quest_create(order_id):
         
         if not stage:
             return jsonify({'success': False, 'message': '단계가 지정되지 않았습니다.'}), 400
+
+        # 도면 단계는 퀘스트 생성 비활성화
+        stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
+        if stage_code == 'DRAWING':
+            return jsonify({'success': False, 'message': '도면 단계 퀘스트는 비활성화되었습니다.'}), 400
         
         # 이미 해당 단계의 quest가 있는지 확인
         sd = order.structured_data or {}
@@ -671,7 +1431,7 @@ def api_order_quest_create(order_id):
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def api_order_quest_approve(order_id):
-    """팀별 Quest 승인 및 자동 단계 전환"""
+    """팀별/담당자 Quest 승인 및 자동 단계 전환"""
     try:
         db = get_db()
         order = db.query(Order).filter(Order.id == order_id).first()
@@ -680,15 +1440,65 @@ def api_order_quest_approve(order_id):
         
         payload = request.get_json(silent=True) or {}
         team = (payload.get('team') or '').strip()
+        emergency_override = payload.get('emergency_override', False)
+        override_reason = payload.get('override_reason', '').strip()
         
-        if not team:
-            return jsonify({'success': False, 'message': '팀이 지정되지 않았습니다.'}), 400
+        user_id = session.get('user_id')
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
+        
+        # ERP Beta 주문 기본 승인 권한:
+        # - 기본: can_edit_erp_beta(user)
+        # - 예외: assignee 단계(실측/고객컨펌/도면)는 지정 담당자도 승인 가능
+        if getattr(order, 'is_erp_beta', False) and not can_edit_erp_beta(user):
+            sd_tmp = order.structured_data or {}
+            stage_tmp = get_stage(sd_tmp)
+            domain_tmp = None
+            if stage_tmp in ('MEASURE', 'CONFIRM'):
+                domain_tmp = 'SALES_DOMAIN'
+            elif stage_tmp == 'DRAWING':
+                domain_tmp = 'DRAWING_DOMAIN'
+
+            can_assignee_override = False
+            if domain_tmp:
+                can_assignee_override = can_modify_domain(user, order, domain_tmp, emergency_override, override_reason)
+
+                # SALES_DOMAIN 호환 fallback: assignee 미지정 + 주문 담당자명 일치 시 허용
+                if (not can_assignee_override) and domain_tmp == 'SALES_DOMAIN':
+                    allowed_ids = get_assignee_ids(order, domain_tmp)
+                    if not allowed_ids:
+                        manager_names = set()
+                        parties_tmp = (sd_tmp.get('parties') or {}) if isinstance(sd_tmp, dict) else {}
+                        manager_name_sd = ((parties_tmp.get('manager') or {}).get('name') or '').strip()
+                        if manager_name_sd:
+                            manager_names.add(manager_name_sd.lower())
+                        manager_name_col = (order.manager_name or '').strip()
+                        if manager_name_col:
+                            manager_names.add(manager_name_col.lower())
+                        user_name = (user.name or '').strip().lower()
+                        user_username = (user.username or '').strip().lower()
+                        if user_name in manager_names or user_username in manager_names:
+                            can_assignee_override = True
+
+            if not can_assignee_override:
+                return jsonify({
+                    'success': False,
+                    'message': 'ERP Beta 수정 권한이 없습니다. (관리자, 라홈팀, 하우드팀, 영업팀 또는 지정 담당자만 가능)'
+                }), 403
         
         sd = order.structured_data or {}
         current_stage_code = get_stage(sd)  # 영문 코드 (예: 'RECEIVED')
         
         if not current_stage_code:
             return jsonify({'success': False, 'message': '현재 단계가 없습니다.'}), 400
+
+        # 도면 단계는 퀘스트 승인 자체를 허용하지 않음
+        if current_stage_code == 'DRAWING':
+            return jsonify({
+                'success': False,
+                'message': '도면 단계 퀘스트 승인은 비활성화되었습니다. 도면 전달/수령 확정으로 진행해주세요.'
+            }), 400
         
         # 영문 코드를 한글 단계명으로 변환 (quest의 stage는 한글 단계명으로 저장됨)
         CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
@@ -718,30 +1528,141 @@ def api_order_quest_approve(order_id):
             sd["quests"].append(current_quest)
             quest_index = len(sd["quests"]) - 1
         
-        # 팀 승인 처리
-        if not current_quest.get("team_approvals"):
-            current_quest["team_approvals"] = {}
-        
-        user_id = session.get('user_id')
         username = session.get('username') or ''
         now = datetime.datetime.now()
         
-        current_quest["team_approvals"][team] = {
-            "approved": True,
-            "approved_by": user_id,
-            "approved_by_name": username,
-            "approved_at": now.isoformat(),
-        }
+        # 승인 모드 확인
+        approval_mode = current_quest.get("approval_mode", "team")
         
-        current_quest["updated_at"] = now.isoformat()
-        if current_quest.get("status") == "OPEN":
-            current_quest["status"] = "IN_PROGRESS"
+        if approval_mode == "assignee":
+            # 담당자 기반 승인 (실측/도면/고객컨펌)
+            
+            # 권한 검사 (영업/도면 단계는 엄격 담당제)
+            domain = None
+            if current_stage_code in ('MEASURE', 'CONFIRM'):
+                domain = 'SALES_DOMAIN'
+            elif current_stage_code == 'DRAWING':
+                domain = 'DRAWING_DOMAIN'
+            
+            if domain:
+                can_modify = can_modify_domain(user, order, domain, emergency_override, override_reason)
+
+                # 실측/고객컨펌(SALES_DOMAIN) 호환 fallback:
+                # assignments.sales_assignee_user_ids가 비어있고 주문 담당자명이 현재 사용자와 일치하면 승인 허용.
+                if (not can_modify) and domain == 'SALES_DOMAIN':
+                    allowed_ids = get_assignee_ids(order, domain)
+                    if not allowed_ids:
+                        manager_names = set()
+                        parties = (sd.get('parties') or {}) if isinstance(sd, dict) else {}
+                        manager_name_sd = ((parties.get('manager') or {}).get('name') or '').strip()
+                        if manager_name_sd:
+                            manager_names.add(manager_name_sd.lower())
+
+                        manager_name_col = (order.manager_name or '').strip()
+                        if manager_name_col:
+                            manager_names.add(manager_name_col.lower())
+
+                        owner_person = (current_quest.get('owner_person') or '').strip()
+                        if owner_person:
+                            manager_names.add(owner_person.lower())
+
+                        user_name = (user.name or '').strip().lower()
+                        user_username = (user.username or '').strip().lower()
+                        if user_name in manager_names or user_username in manager_names:
+                            can_modify = True
+
+                if not can_modify:
+                    msg = f'{current_stage_name} 단계는 지정 담당자만 승인할 수 있습니다.'
+                    if user.role == 'MANAGER':
+                        msg += ' (긴급 오버라이드가 필요합니다.)'
+                    return jsonify({'success': False, 'message': msg}), 403
+            
+            # 담당자 승인 처리
+            if "assignee_approval" not in current_quest:
+                current_quest["assignee_approval"] = {}
+            
+            current_quest["assignee_approval"] = {
+                "approved": True,
+                "approved_by": user_id,
+                "approved_by_name": username,
+                "approved_at": now.isoformat(),
+            }
+            
+            current_quest["updated_at"] = now.isoformat()
+            if current_quest.get("status") == "OPEN":
+                current_quest["status"] = "IN_PROGRESS"
+            
+            # 담당자 기반은 승인 즉시 완료
+            is_complete = True
+            missing_teams = []
+            
+            # OrderEvent: 담당자 승인
+            quest_event_payload = {
+                'domain': domain or f'{current_stage_code}_DOMAIN',
+                'action': 'QUEST_ASSIGNEE_APPROVED',
+                'target': f'quest.assignee_approval',
+                'before': 'not_approved',
+                'after': 'approved',
+                'change_method': 'API',
+                'source_screen': 'erp_dashboard',
+                'reason': f'{current_stage_name} 담당자 승인 완료',
+                'is_override': emergency_override,
+                'override_reason': override_reason if emergency_override else None,
+            }
+            quest_approval_event = OrderEvent(
+                order_id=order.id,
+                event_type='QUEST_APPROVAL_CHANGED',
+                payload=quest_event_payload,
+                created_by_user_id=user_id
+            )
+            db.add(quest_approval_event)
+            
+        else:
+            # 팀 기반 승인 (기존 로직)
+            if not team:
+                return jsonify({'success': False, 'message': '팀이 지정되지 않았습니다.'}), 400
+            
+            # 팀 승인 처리
+            if not current_quest.get("team_approvals"):
+                current_quest["team_approvals"] = {}
+            
+            current_quest["team_approvals"][team] = {
+                "approved": True,
+                "approved_by": user_id,
+                "approved_by_name": username,
+                "approved_at": now.isoformat(),
+            }
+            
+            current_quest["updated_at"] = now.isoformat()
+            if current_quest.get("status") == "OPEN":
+                current_quest["status"] = "IN_PROGRESS"
+            
+            # 모든 필수 팀 승인 완료 확인 (한글 단계명 사용)
+            is_complete, missing_teams = check_quest_approvals_complete(sd, current_stage_name)
+            
+            # OrderEvent: Quest 승인
+            quest_event_payload = {
+                'domain': f'{current_stage_code}_DOMAIN',
+                'action': 'QUEST_APPROVAL_CHANGED',
+                'target': f'quest.team_approvals.{team}',
+                'before': 'not_approved',
+                'after': 'approved',
+                'change_method': 'API',
+                'source_screen': 'erp_dashboard',
+                'reason': f'{team} 팀 승인 완료',
+                'is_override': emergency_override,
+                'override_reason': override_reason if emergency_override else None,
+            }
+            quest_approval_event = OrderEvent(
+                order_id=order.id,
+                event_type='QUEST_APPROVAL_CHANGED',
+                payload=quest_event_payload,
+                created_by_user_id=user_id
+            )
+            db.add(quest_approval_event)
         
         # quests 배열 업데이트
         sd["quests"][quest_index] = current_quest
-        
-        # 모든 필수 팀 승인 완료 확인 (한글 단계명 사용)
-        is_complete, missing_teams = check_quest_approvals_complete(sd, current_stage_name)
         
         auto_transitioned = False
         if is_complete:
@@ -955,6 +1876,16 @@ def inject_status_list():
     if 'user_id' in session:
         current_user = get_user_by_id(session['user_id'])
 
+    # 관리자 전용: 드롭다운 아이디 이동용 사용자 목록 / 전환 중인지 여부
+    admin_switch_users = []
+    impersonating_from_id = session.get('impersonating_from')
+    if current_user and current_user.role == 'ADMIN':
+        db = get_db()
+        admin_switch_users = db.query(User).filter(
+            User.is_active == True,
+            User.id != current_user.id
+        ).order_by(User.name).all()
+
     # ERP Beta 플래그 (기본: 활성) - 필요 시 환경변수로 OFF 가능
     erp_beta_enabled = str(os.getenv('ERP_BETA_ENABLED', 'true')).lower() in ['1', 'true', 'yes', 'y', 'on']
     
@@ -964,6 +1895,8 @@ def inject_status_list():
         ALL_STATUS=STATUS, 
         ROLES=ROLES,
         current_user=current_user,
+        admin_switch_users=admin_switch_users,
+        impersonating_from_id=impersonating_from_id,
         erp_beta_enabled=erp_beta_enabled
     )
 
@@ -1482,6 +2415,13 @@ def edit_order(order_id):
     if not order:
         flash('주문을 찾을 수 없거나 이미 삭제되었습니다.', 'error')
         return redirect(url_for('index'))
+    
+    # ERP Beta 주문의 경우 수정 권한 검사
+    if order.is_erp_beta:
+        user = get_user_by_id(session['user_id'])
+        if not can_edit_erp_beta(user):
+            flash('ERP Beta 주문 수정 권한이 없습니다. (관리자, CS, 영업팀만 가능)', 'error')
+            return redirect(url_for('index'))
     
     # 옵션 데이터 처리를 위한 변수 초기화
     option_type = 'online'  # 기본 옵션 타입
@@ -3034,6 +3974,12 @@ def api_orders():
     return jsonify(events)
 
 # Admin routes for menu management
+@app.route('/change-logs')
+@login_required
+def change_logs():
+    """변경 로그 페이지 - 모든 사용자가 본인의 변경 이력 확인 가능"""
+    return render_template('change_logs.html')
+
 @app.route('/admin')
 @login_required
 @role_required(['ADMIN'])
@@ -6794,6 +7740,7 @@ try:
         
         # Initialize Main DB
         init_db()
+        ensure_order_attachments_category_column()
         
         # Initialize WDCalculator DB
         init_wdcalculator_db()
@@ -6849,6 +7796,7 @@ if __name__ == '__main__':
         # 1. 데이터베이스 초기화 시도
         try:
             init_db()
+            ensure_order_attachments_category_column()
             logger.info("[OK] FOMS 데이터베이스 초기화 완료")
         except Exception as e:
             logger.error(f"[ERROR] FOMS 데이터베이스 초기화 실패: {str(e)}")

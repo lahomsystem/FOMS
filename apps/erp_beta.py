@@ -1,27 +1,73 @@
 from flask import Blueprint, render_template, request, jsonify, session, url_for, redirect, flash
 from db import get_db
-from models import Order, User
+from models import Order, User, OrderEvent, OrderAttachment
 from apps.auth import login_required, role_required, get_user_by_id
 import datetime
 import re
 import json
 import os
 import math
+from urllib.parse import quote
 from sqlalchemy import or_, and_, func, String
+from sqlalchemy.orm.attributes import flag_modified
 from foms_address_converter import FOMSAddressConverter
 from foms_map_generator import FOMSMapGenerator
 from erp_policy import (
     STAGE_NAME_TO_CODE, DEFAULT_OWNER_TEAM_BY_STAGE, STAGE_LABELS,
     get_quest_template_for_stage, create_quest_from_template,
-    get_required_approval_teams_for_stage, recommend_owner_team
+    get_required_approval_teams_for_stage, recommend_owner_team,
+    can_modify_domain, get_assignee_ids
 )
 from storage import get_storage
 from business_calendar import business_days_until
 from sqlalchemy import text
 import pytz
+import unicodedata
+
+
+def _normalize_for_search(s):
+    """검색 매칭용 문자열 정규화 (유니코드 NFC, 공백 정리)"""
+    if s is None:
+        return ''
+    s = str(s).strip()
+    if not s:
+        return ''
+    return unicodedata.normalize('NFC', s)
 
 
 erp_beta_bp = Blueprint('erp_beta', __name__)
+
+# -------------------------------------------------------------------------
+# ERP Beta 수정 권한: 관리자, 라홈팀(CS), 하우드팀(CS), 영업팀(SALES)만 수정 가능
+# -------------------------------------------------------------------------
+ERP_EDIT_ALLOWED_TEAMS = ('CS', 'SALES')
+
+
+def can_edit_erp_beta(user):
+    """ERP Beta 페이지/API 수정 권한: 관리자 또는 CS/영업팀 소속만 True"""
+    if not user:
+        return False
+    if user.role == 'ADMIN':
+        return True
+    return (user.team or '').strip() in ERP_EDIT_ALLOWED_TEAMS
+
+
+def erp_edit_required(f):
+    """ERP Beta 수정 API용 데코레이터: 수정 권한 없으면 403"""
+    from functools import wraps
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        user = get_user_by_id(session.get('user_id'))
+        if not user:
+            return jsonify({'success': False, 'message': '로그인이 필요합니다.'}), 401
+        if not can_edit_erp_beta(user):
+            return jsonify({
+                'success': False,
+                'message': 'ERP Beta 수정 권한이 없습니다. (관리자, 라홈팀, 하우드팀, 영업팀만 수정 가능)'
+            }), 403
+        return f(*args, **kwargs)
+    return wrapped
+
 
 # -------------------------------------------------------------------------
 # Constants
@@ -369,6 +415,70 @@ def _erp_alerts(order, structured_data, attachments_count: int):
     }
 
 
+def _sales_domain_fallback_match(user, order, structured_data) -> bool:
+    """SALES_DOMAIN 레거시 fallback: assignee 미지정 시 주문 담당자명 일치 허용."""
+    if not user:
+        return False
+    try:
+        sales_assignee_ids = get_assignee_ids(order, 'SALES_DOMAIN')
+    except Exception:
+        sales_assignee_ids = []
+    if sales_assignee_ids:
+        return False
+
+    manager_names = set()
+    parties = (structured_data.get('parties') or {}) if isinstance(structured_data, dict) else {}
+    manager_name_sd = ((parties.get('manager') or {}).get('name') or '').strip()
+    if manager_name_sd:
+        manager_names.add(manager_name_sd.lower())
+
+    manager_name_col = (order.manager_name or '').strip()
+    if manager_name_col:
+        manager_names.add(manager_name_col.lower())
+
+    wf_tmp = (structured_data.get('workflow') or {}) if isinstance(structured_data, dict) else {}
+    current_quest = (wf_tmp.get('current_quest') or {})
+    owner_person = (current_quest.get('owner_person') or '').strip()
+    if owner_person:
+        manager_names.add(owner_person.lower())
+
+    user_name = (user.name or '').strip().lower()
+    user_username = (user.username or '').strip().lower()
+    return (user_name in manager_names) or (user_username in manager_names)
+
+
+def _can_modify_sales_domain(user, order, structured_data, emergency_override=False, override_reason=None) -> bool:
+    if not user:
+        return False
+    if can_modify_domain(user, order, 'SALES_DOMAIN', emergency_override, override_reason):
+        return True
+    return _sales_domain_fallback_match(user, order, structured_data)
+
+
+def _drawing_status_label(status: str) -> str:
+    code = (status or '').upper()
+    return {
+        'PENDING': '작업중',
+        'TRANSFERRED': '확정 대기',
+        'RETURNED': '수정 요청됨',
+        'CONFIRMED': '완료',
+        'DONE': '완료',
+    }.get(code, code or '-')
+
+
+def _drawing_next_action_text(drawing_status: str, has_assignee: bool) -> str:
+    s = (drawing_status or 'PENDING').upper()
+    if not has_assignee:
+        return '도면 담당자 지정 필요'
+    if s == 'TRANSFERRED':
+        return '주문 담당 수령 확정 또는 수정 요청'
+    if s == 'RETURNED':
+        return '도면 담당 수정본 재전달 필요'
+    if s in ('CONFIRMED', 'DONE'):
+        return '도면 완료 · 다음 단계 확인'
+    return '도면 담당 전달 진행'
+
+
 def apply_erp_beta_display_fields_to_orders(orders, processed_ids=None):
     if not orders:
         return
@@ -388,12 +498,12 @@ def erp_dashboard():
     """ERP 프로세스 대시보드(MVP)"""
     db = get_db()
     
-    # 현재 사용자 확인 (관리자 여부 체크)
+    # 현재 사용자 확인 (관리자 여부, ERP 수정 권한)
     is_admin = False
-    if 'user_id' in session:
-        user = get_user_by_id(session['user_id'])
-        if user and user.role == 'ADMIN':
-            is_admin = True
+    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    if current_user and current_user.role == 'ADMIN':
+        is_admin = True
+    can_edit_erp_beta_flag = can_edit_erp_beta(current_user)
     
     # filters (query params)
     f_stage = (request.args.get('stage') or '').strip()
@@ -445,60 +555,61 @@ def erp_dashboard():
             CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
             stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
             stage_label_from_code = STAGE_LABELS.get(stage_code, stage)
-            
-            # 모든 가능한 stage 값을 체크
-            possible_stages = {stage, stage_code, stage_label_from_code}
-            # 한글 레이블의 영문 코드 역매핑 추가
-            if stage in STAGE_NAME_TO_CODE:
-                possible_stages.add(STAGE_NAME_TO_CODE[stage])
-            # 영문 코드의 한글 레이블 추가
-            if stage_code in STAGE_LABELS:
-                possible_stages.add(STAGE_LABELS[stage_code])
-            
-            matching_quests = []
-            for q in quests:
-                if isinstance(q, dict):
-                    quest_stage = q.get('stage')
-                    if quest_stage in possible_stages:
-                        matching_quests.append(q)
-            
-            if matching_quests:
-                open_quests = [q for q in matching_quests if str(q.get('status', 'OPEN')).upper() == 'OPEN']
-                if open_quests:
-                    open_quests.sort(key=lambda x: (
-                        x.get('created_at') or x.get('updated_at') or '1970-01-01T00:00:00',
-                    ), reverse=True)
-                    current_quest = open_quests[0]
-                else:
-                    matching_quests.sort(key=lambda x: (
-                        x.get('created_at') or x.get('updated_at') or '1970-01-01T00:00:00',
-                    ), reverse=True)
-                    current_quest = matching_quests[0]
-            
-            if not current_quest:
-                quest_tpl = get_quest_template_for_stage(stage)
-                if quest_tpl:
-                    # create_quest_from_template을 사용하여 동적 팀 할당 적용
-                    temp_quest = create_quest_from_template(stage, None, sd)
-                    if temp_quest:
-                        current_quest = temp_quest
+            # 도면 단계는 퀘스트 승인 흐름 비활성화
+            if stage_code != 'DRAWING':
+                # 모든 가능한 stage 값을 체크
+                possible_stages = {stage, stage_code, stage_label_from_code}
+                # 한글 레이블의 영문 코드 역매핑 추가
+                if stage in STAGE_NAME_TO_CODE:
+                    possible_stages.add(STAGE_NAME_TO_CODE[stage])
+                # 영문 코드의 한글 레이블 추가
+                if stage_code in STAGE_LABELS:
+                    possible_stages.add(STAGE_LABELS[stage_code])
+                
+                matching_quests = []
+                for q in quests:
+                    if isinstance(q, dict):
+                        quest_stage = q.get('stage')
+                        if quest_stage in possible_stages:
+                            matching_quests.append(q)
+                
+                if matching_quests:
+                    open_quests = [q for q in matching_quests if str(q.get('status', 'OPEN')).upper() == 'OPEN']
+                    if open_quests:
+                        open_quests.sort(key=lambda x: (
+                            x.get('created_at') or x.get('updated_at') or '1970-01-01T00:00:00',
+                        ), reverse=True)
+                        current_quest = open_quests[0]
                     else:
-                        team_approvals_template = {}
-                        for team in quest_tpl.get('required_approvals', []):
-                            if team:
-                                team_approvals_template[str(team)] = {
-                                    'approved': False,
-                                    'approved_by': None,
-                                    'approved_at': None,
-                                }
-                        current_quest = {
-                            'stage': stage,
-                            'title': quest_tpl.get('title', ''),
-                            'description': quest_tpl.get('description', ''),
-                            'owner_team': quest_tpl.get('owner_team', ''),
-                            'status': 'OPEN',
-                            'team_approvals': team_approvals_template
-                        }
+                        matching_quests.sort(key=lambda x: (
+                            x.get('created_at') or x.get('updated_at') or '1970-01-01T00:00:00',
+                        ), reverse=True)
+                        current_quest = matching_quests[0]
+                
+                if not current_quest:
+                    quest_tpl = get_quest_template_for_stage(stage)
+                    if quest_tpl:
+                        # create_quest_from_template을 사용하여 동적 팀 할당 적용
+                        temp_quest = create_quest_from_template(stage, None, sd)
+                        if temp_quest:
+                            current_quest = temp_quest
+                        else:
+                            team_approvals_template = {}
+                            for team in quest_tpl.get('required_approvals', []):
+                                if team:
+                                    team_approvals_template[str(team)] = {
+                                        'approved': False,
+                                        'approved_by': None,
+                                        'approved_at': None,
+                                    }
+                            current_quest = {
+                                'stage': stage,
+                                'title': quest_tpl.get('title', ''),
+                                'description': quest_tpl.get('description', ''),
+                                'owner_team': quest_tpl.get('owner_team', ''),
+                                'status': 'OPEN',
+                                'team_approvals': team_approvals_template
+                            }
 
         # Quest 승인 상태 확인
         all_approved = False
@@ -569,6 +680,86 @@ def erp_dashboard():
             if orderer_name_check and "라홈" in orderer_name_check:
                 responsible_team = 'CS'
         
+        # 담당자 기반 승인 시 지정 담당자 이름 목록 (승인 방식 영역에 표시)
+        assignee_display_names = []
+        can_assignee_approve = False
+        if current_quest:
+            approval_mode = current_quest.get('approval_mode') or ('assignee' if stage_code in ('MEASURE', 'DRAWING', 'CONFIRM') else 'team')
+            if approval_mode == 'assignee':
+                assignments = sd.get('assignments') or {}
+                user_ids = []
+                if stage_code in ('MEASURE', 'CONFIRM'):
+                    user_ids = assignments.get('sales_assignee_user_ids') or []
+                elif stage_code == 'DRAWING':
+                    user_ids = assignments.get('drawing_assignee_user_ids') or []
+                    if not user_ids:
+                        # 레거시 호환: assignments/root 모두 확인
+                        for a in ((assignments.get('drawing_assignees') or []) + (sd.get('drawing_assignees') or [])):
+                            if isinstance(a, dict) and a.get('id'):
+                                user_ids.append(a['id'])
+                # 타입 정규화
+                norm_user_ids = []
+                for uid in user_ids:
+                    try:
+                        norm_user_ids.append(int(uid))
+                    except (TypeError, ValueError):
+                        continue
+                user_ids = norm_user_ids
+
+                if user_ids:
+                    assignee_users = db.query(User).filter(User.id.in_(user_ids)).all()
+                    assignee_display_names = [u.name for u in assignee_users if u.name]
+                elif stage_code in ('MEASURE', 'CONFIRM'):
+                    # 호환 fallback: sales_assignee_user_ids 미지정 시 주문 담당자명을 표시
+                    manager_name_fallback = (
+                        (((sd.get('parties') or {}).get('manager') or {}).get('name'))
+                        or o.manager_name
+                        or current_quest.get('owner_person')
+                        or ''
+                    )
+                    manager_name_fallback = str(manager_name_fallback).strip()
+                    if manager_name_fallback:
+                        assignee_display_names = [manager_name_fallback]
+
+                # 담당자 승인 가능 여부 계산 (UI 버튼 표시용)
+                if current_user:
+                    domain = 'DRAWING_DOMAIN' if stage_code == 'DRAWING' else ('SALES_DOMAIN' if stage_code in ('MEASURE', 'CONFIRM') else None)
+                    if domain:
+                        can_assignee_approve = can_modify_domain(current_user, o, domain, False, None)
+                        # SALES_DOMAIN 호환 fallback: assignee ids 비어 있고 담당자명이 현재 사용자와 일치하면 허용
+                        if (not can_assignee_approve) and domain == 'SALES_DOMAIN' and not user_ids:
+                            manager_names = set()
+                            manager_name_sd = (((sd.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
+                            if manager_name_sd:
+                                manager_names.add(manager_name_sd.lower())
+                            manager_name_col = (o.manager_name or '').strip()
+                            if manager_name_col:
+                                manager_names.add(manager_name_col.lower())
+                            owner_person = (current_quest.get('owner_person') or '').strip()
+                            if owner_person:
+                                manager_names.add(owner_person.lower())
+                            user_name = (current_user.name or '').strip().lower()
+                            user_username = (current_user.username or '').strip().lower()
+                            if user_name in manager_names or user_username in manager_names:
+                                can_assignee_approve = True
+        
+        quest_payload = None
+        if current_quest:
+            quest_payload = {
+                'title': current_quest.get('title', ''),
+                'description': current_quest.get('description', ''),
+                'owner_team': current_quest.get('owner_team', ''),
+                'status': current_quest.get('status', 'OPEN'),
+                'all_approved': all_approved,
+                'missing_teams': missing_teams,
+                'required_approvals': required_teams,
+                'team_approvals': team_approvals,
+                'approval_mode': current_quest.get('approval_mode') or ('assignee' if stage_code in ('MEASURE', 'DRAWING', 'CONFIRM') else 'team'),
+                'assignee_approval': current_quest.get('assignee_approval'),
+                'assignee_display_names': assignee_display_names,
+                'can_assignee_approve': can_assignee_approve,
+            }
+        
         enriched.append({
             'id': o.id,
             'is_erp_beta': o.is_erp_beta,
@@ -586,23 +777,24 @@ def erp_dashboard():
             'has_media': has_media,
             'attachments_count': cnt,
             'recommended_owner_team': recommend_owner_team(sd) or None,
-            'current_quest': {
-                'title': current_quest.get('title', '') if current_quest else '',
-                'description': current_quest.get('description', '') if current_quest else '',
-                'owner_team': current_quest.get('owner_team', '') if current_quest else '',
-                'status': current_quest.get('status', 'OPEN') if current_quest else 'OPEN',
-                'all_approved': all_approved,
-                'missing_teams': missing_teams,
-                'required_approvals': required_teams,
-                'team_approvals': team_approvals,
-            } if current_quest else None,
+            'current_quest': quest_payload,
         })
 
     # apply filters
     filtered = []
     for r in enriched:
-        if f_stage and r.get('stage') != f_stage:
-            continue
+        if f_stage:
+            row_stage = (r.get('stage') or '').strip()
+            req_stage = f_stage.strip()
+
+            # 코드/라벨 혼용 입력 대응 (예: COMPLETED <-> 완료, AS <-> AS처리)
+            row_code = STAGE_NAME_TO_CODE.get(row_stage, row_stage)
+            req_code = STAGE_NAME_TO_CODE.get(req_stage, req_stage)
+            row_label = STAGE_LABELS.get(row_code, row_stage)
+            req_label = STAGE_LABELS.get(req_code, req_stage)
+
+            if req_stage not in {row_stage, row_code, row_label} and req_code not in {row_stage, row_code, row_label} and req_label not in {row_stage, row_code, row_label}:
+                continue
         if f_urgent == '1' and not (r.get('alerts') or {}).get('urgent'):
             continue
         if f_has_alert == '1':
@@ -657,7 +849,8 @@ def erp_dashboard():
         'AS처리': {'count': 0, 'overdue': 0, 'imminent': 0},
     }
 
-    for r in filtered:
+    # 상단 KPI 카드/프로세스 맵은 항상 전체 주문(enriched) 기준으로 집계
+    for r in enriched:
         alerts = r.get('alerts') or {}
         stage = r.get('stage')
 
@@ -706,6 +899,323 @@ def erp_dashboard():
         team_labels=TEAM_LABELS,
         stage_labels=STAGE_LABELS,
         is_admin=is_admin,
+        can_edit_erp_beta=can_edit_erp_beta_flag,
+    )
+
+
+@erp_beta_bp.route('/erp/drawing-workbench')
+@login_required
+def erp_drawing_workbench_dashboard():
+    """도면 작업실 대시보드: 도면 단계 협업 전용 화면(목록형)"""
+    db = get_db()
+    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+
+    q_raw = (request.args.get('q') or '').strip()
+    q = q_raw.lower()
+    status_filter = (request.args.get('status') or '').strip().upper()
+    mine_only = (request.args.get('mine') or '').strip() == '1'
+    unread_only = (request.args.get('unread') or '').strip() == '1'
+    due_today_only = (request.args.get('due_today') or '').strip() == '1'
+    assignee_filter_raw = (request.args.get('assignee') or '').strip()
+    assignee_filter = assignee_filter_raw.lower()
+
+    orders = (
+        db.query(Order)
+        .filter(Order.deleted_at.is_(None), Order.is_erp_beta.is_(True))
+        .order_by(Order.created_at.desc())
+        .limit(500)
+        .all()
+    )
+
+    rows = []
+    for o in orders:
+        sd = _ensure_dict(o.structured_data)
+        stage_raw = _erp_get_stage(o, sd)
+        # Convert label to code if necessary (e.g. '도면' -> 'DRAWING')
+        stage_code = STAGE_NAME_TO_CODE.get(stage_raw, stage_raw)
+        
+        drawing_obj = sd.get('drawing') or {}
+        drawing_status = (drawing_obj.get('status') or sd.get('drawing_status') or 'PENDING').upper()
+
+        # [Connection Logic Improved]
+        # Include order if:
+        # 1. Current Stage is 'DRAWING'
+        # 2. OR Drawing Status is 'RETURNED' (Revision Requested even in later stages like CONFIRM)
+        is_drawing_stage = (stage_code == 'DRAWING')
+        is_active_revision = (drawing_status == 'RETURNED')
+
+        if not (is_drawing_stage or is_active_revision):
+            continue
+
+        if status_filter and drawing_status != status_filter:
+            continue
+
+        customer_name = (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-'
+        manager_name = (((sd.get('parties') or {}).get('manager') or {}).get('name')) or '-'
+        drawing_files = list(sd.get('drawing_current_files', []) or [])
+        history = list(sd.get('drawing_transfer_history', []) or [])
+        last_event = history[-1] if history else {}
+
+        assignees = list(sd.get('drawing_assignees', []) or [])
+        assignee_names = []
+        for a in assignees:
+            if isinstance(a, dict):
+                n = (a.get('name') or '').strip()
+                if n:
+                    assignee_names.append(n)
+            elif isinstance(a, str) and a.strip():
+                assignee_names.append(a.strip())
+        assignee_text = ', '.join(assignee_names) if assignee_names else '미지정'
+
+        draw_assignee_ids = get_assignee_ids(o, 'DRAWING_DOMAIN')
+        has_assignee = bool(draw_assignee_ids)
+        user_id = current_user.id if current_user else None
+        is_drawing_assignee = bool(user_id and user_id in draw_assignee_ids)
+        can_sales = _can_modify_sales_domain(current_user, o, sd, False, None)
+        my_todo = (
+            (drawing_status in ('PENDING', 'RETURNED') and is_drawing_assignee)
+            or (drawing_status == 'TRANSFERRED' and can_sales)
+        )
+
+        if mine_only and not my_todo:
+            continue
+
+        unchecked_requests = 0
+        for h in history:
+            if not isinstance(h, dict) or h.get('action') != 'REQUEST_REVISION':
+                continue
+            review = h.get('review_check') if isinstance(h.get('review_check'), dict) else {}
+            if not bool(review.get('checked')):
+                unchecked_requests += 1
+        if unread_only and unchecked_requests <= 0:
+            continue
+
+        alerts = _erp_alerts(o, sd, 0)
+        due_today = (
+            alerts.get('measurement_days') == 0
+            or alerts.get('construction_days') == 0
+        )
+        if due_today_only and not due_today:
+            continue
+
+        if assignee_filter:
+            if assignee_filter not in (assignee_text or '').lower():
+                continue
+
+        if q:
+            hay = ' '.join([
+                str(o.id),
+                str(customer_name),
+                str(manager_name),
+                str(assignee_text),
+                str((last_event or {}).get('note') or ''),
+            ]).lower()
+            if q not in hay:
+                continue
+
+        latest_request_no = None
+        for h in reversed(history):
+            if isinstance(h, dict) and (h.get('action') == 'REQUEST_REVISION'):
+                try:
+                    latest_request_no = int(h.get('target_drawing_number'))
+                except Exception:
+                    latest_request_no = None
+                break
+
+        h_action = (last_event or {}).get('action') or ''
+        h_action_label = {
+            'TRANSFER': '도면 전달',
+            'REQUEST_REVISION': '수정 요청',
+            'CANCEL_TRANSFER': '전달 취소',
+            'CONFIRM_RECEIPT': '수령 확정',
+        }.get(h_action, h_action or '-')
+
+        sla_level = '지연' if alerts.get('drawing_overdue') else ('오늘 마감' if due_today else '정상')
+        rows.append({
+            'id': o.id,
+            'customer_name': customer_name,
+            'manager_name': manager_name,
+            'assignee_text': assignee_text,
+            'drawing_status': drawing_status,
+            'drawing_status_label': _drawing_status_label(drawing_status),
+            'file_count': len(drawing_files),
+            'target_no': latest_request_no,
+            'next_action': _drawing_next_action_text(drawing_status, has_assignee),
+            'latest_event_at': (last_event or {}).get('transferred_at') or (last_event or {}).get('at') or '-',
+            'latest_event_label': h_action_label,
+            'latest_event_note': (last_event or {}).get('note') or '',
+            'sla_level': sla_level,
+            'is_overdue': bool(alerts.get('drawing_overdue')),
+            'due_today': due_today,
+            'unread_count': unchecked_requests,
+            'my_todo': my_todo,
+        })
+
+    rows.sort(key=lambda r: (
+        0 if r.get('my_todo') else 1,
+        0 if r.get('is_overdue') else 1,
+        -int(r.get('id') or 0),
+    ))
+
+    return render_template(
+        'erp_drawing_workbench_dashboard.html',
+        rows=rows,
+        filters={
+            'q': q_raw,
+            'status': status_filter,
+            'mine': '1' if mine_only else '',
+            'unread': '1' if unread_only else '',
+            'due_today': '1' if due_today_only else '',
+            'assignee': assignee_filter_raw,
+        },
+        can_edit_erp_beta=can_edit_erp_beta(current_user),
+        erp_beta_enabled=True,
+    )
+
+
+@erp_beta_bp.route('/erp/drawing-workbench/<int:order_id>')
+@login_required
+def erp_drawing_workbench_detail(order_id):
+    """도면 작업실 상세: 도면팀↔주문담당 협업 실행판."""
+    db = get_db()
+    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.deleted_at.is_(None),
+        Order.is_erp_beta.is_(True)
+    ).first()
+    if not order:
+        flash('주문을 찾을 수 없습니다.', 'warning')
+        return redirect(url_for('erp_beta.erp_drawing_workbench_dashboard'))
+
+    s_data = _ensure_dict(order.structured_data)
+    stage = _erp_get_stage(order, s_data)
+    drawing_status = ((s_data.get('drawing') or {}).get('status') or s_data.get('drawing_status') or 'PENDING').upper()
+    drawing_files = list(s_data.get('drawing_current_files', []) or [])
+    history_raw = list(s_data.get('drawing_transfer_history', []) or [])
+
+    history = []
+    for idx, h in enumerate(history_raw):
+        if not isinstance(h, dict):
+            continue
+        h_action = (h.get('action') or '').strip()
+        event_key = f"{idx}:{h_action}:{h.get('at') or h.get('transferred_at') or ''}:{h.get('by_user_id') or ''}"
+        history.append({
+            **h,
+            'event_key': event_key,
+            'action_label': {
+                'TRANSFER': '도면 전달',
+                'REQUEST_REVISION': '수정 요청',
+                'CANCEL_TRANSFER': '전달 취소',
+                'CONFIRM_RECEIPT': '수령 확정',
+            }.get(h_action, h_action or '-'),
+            'at_text': h.get('transferred_at') or h.get('at') or '-',
+            'by_text': h.get('by_user_name') or '-',
+            'target_no': h.get('target_drawing_number') or h.get('replace_target_number'),
+            'files': list(h.get('files') or []) if isinstance(h.get('files'), list) else [],
+        })
+
+    revision_requests = [h for h in history if (h.get('action') == 'REQUEST_REVISION')]
+    revision_requests.reverse()
+    unread_count = 0
+    for h in revision_requests:
+        review = h.get('review_check') if isinstance(h.get('review_check'), dict) else {}
+        if not bool(review.get('checked')):
+            unread_count += 1
+
+    transfer_events = [h for h in history if (h.get('action') == 'TRANSFER')]
+    latest_transfer = transfer_events[-1] if transfer_events else None
+    prev_transfer = transfer_events[-2] if len(transfer_events) > 1 else None
+
+    active_tab = (request.args.get('tab') or 'timeline').strip().lower()
+    if active_tab not in ('timeline', 'requests', 'compare'):
+        active_tab = 'timeline'
+    highlight_event_id = (request.args.get('event_id') or '').strip()
+    highlight_target_no = request.args.get('target_no')
+    try:
+        highlight_target_no = int(highlight_target_no) if highlight_target_no not in (None, '') else None
+    except (TypeError, ValueError):
+        highlight_target_no = None
+
+    for h in history:
+        h['is_highlight'] = bool(highlight_event_id) and (h.get('event_key') == highlight_event_id)
+    for h in revision_requests:
+        h['is_highlight'] = bool(highlight_event_id) and (h.get('event_key') == highlight_event_id)
+        if highlight_target_no and int(h.get('target_no') or 0) == int(highlight_target_no):
+            h['is_highlight'] = True
+
+    draw_assignee_ids = get_assignee_ids(order, 'DRAWING_DOMAIN')
+    has_assignee = bool(draw_assignee_ids)
+    current_user_id = current_user.id if current_user else None
+    is_drawing_assignee = bool(current_user_id and current_user_id in draw_assignee_ids)
+    can_transfer = bool(has_assignee and (
+        (current_user and current_user.role == 'ADMIN') or is_drawing_assignee
+    ))
+
+    can_sales_domain = _can_modify_sales_domain(current_user, order, s_data, False, None)
+    can_request_revision = can_sales_domain
+    can_confirm_receipt = bool(can_sales_domain and drawing_status == 'TRANSFERRED')
+
+    can_cancel_transfer = False
+    if current_user and current_user.role == 'ADMIN':
+        can_cancel_transfer = True
+    elif can_transfer:
+        can_cancel_transfer = True
+    else:
+        last_transfer = next((h for h in reversed(history_raw) if isinstance(h, dict) and h.get('action') == 'TRANSFER'), None)
+        if last_transfer:
+            try:
+                can_cancel_transfer = int(last_transfer.get('by_user_id')) == int(current_user_id)
+            except Exception:
+                can_cancel_transfer = False
+
+    customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name')) or '-'
+    manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name')) or (order.manager_name or '-') or '-'
+    assignee_names = []
+    for uid in draw_assignee_ids:
+        u = db.query(User).filter(User.id == uid).first()
+        if u and u.name:
+            assignee_names.append(u.name)
+    assignee_text = ', '.join(assignee_names) if assignee_names else '미지정'
+    next_action = _drawing_next_action_text(drawing_status, has_assignee)
+    status_label = _drawing_status_label(drawing_status)
+
+    checklist = [
+        {'label': '도면 담당자 지정', 'ok': has_assignee},
+        {'label': '최신 전달본 확인', 'ok': bool(drawing_files)},
+        {'label': '요청사항 확인', 'ok': unread_count == 0},
+    ]
+
+    return render_template(
+        'erp_drawing_workbench_detail.html',
+        order=order,
+        stage=stage,
+        drawing_status=drawing_status,
+        drawing_status_label=status_label,
+        next_action=next_action,
+        customer_name=customer_name,
+        manager_name=manager_name,
+        assignee_text=assignee_text,
+        drawing_files=drawing_files,
+        history=history,
+        revision_requests=revision_requests,
+        latest_transfer=latest_transfer,
+        prev_transfer=prev_transfer,
+        active_tab=active_tab,
+        highlight_event_id=highlight_event_id,
+        highlight_target_no=highlight_target_no,
+        unread_count=unread_count,
+        checklist=checklist,
+        can_transfer=can_transfer,
+        can_request_revision=can_request_revision,
+        can_confirm_receipt=can_confirm_receipt,
+        can_cancel_transfer=can_cancel_transfer,
+        can_edit_erp_beta=can_edit_erp_beta(current_user),
+        my_id=(current_user.id if current_user else 0),
+        my_role=(current_user.role if current_user else ''),
+        my_team=(current_user.team if current_user else ''),
+        my_name=(current_user.name if current_user else ''),
+        history_json=history_raw,
     )
 
 
@@ -879,13 +1389,15 @@ def erp_measurement_dashboard():
     if open_map:
         return redirect(url_for('map_view', date=selected_date, status='MEASURED'))
 
+    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     return render_template(
         'erp_measurement_dashboard.html',
         selected_date=selected_date,
         manager_filter=manager_filter,
         rows=rows,
         measurement_panel_dates=measurement_panel_dates,
-        today_date=today_date
+        today_date=today_date,
+        can_edit_erp_beta=can_edit_erp_beta(current_user),
     )
 
 @erp_beta_bp.route('/erp/shipment')
@@ -898,15 +1410,10 @@ def erp_shipment_dashboard():
     manager_filter = (request.args.get('manager') or '').strip()
     
     req_date = request.args.get('date')
-    # Use erp_beta.erp_shipment_dashboard for self-redirect within blueprint? 
-    # Usually url_for('.erp_shipment_dashboard') is safer inside blueprint.
-    # But since we register blueprint as 'erp_beta', url_for('erp_beta.erp_shipment_dashboard') works.
     if not req_date:
         return redirect(url_for('erp_beta.erp_shipment_dashboard', date=today_date, manager=manager_filter or None))
     try:
-        req_dt = datetime.datetime.strptime(req_date, '%Y-%m-%d').date()
-        if req_dt < today_dt:
-            return redirect(url_for('erp_beta.erp_shipment_dashboard', date=today_date, manager=manager_filter or None))
+        datetime.datetime.strptime(req_date, '%Y-%m-%d').date()
     except (ValueError, TypeError):
         return redirect(url_for('erp_beta.erp_shipment_dashboard', date=today_date, manager=manager_filter or None))
     selected_date = req_date
@@ -1109,6 +1616,7 @@ def erp_shipment_dashboard():
 
     rows.sort(key=lambda o: (get_manager_name_for_sort(o) or 'ZZZ', o.id))
 
+    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     return render_template(
         'erp_shipment_dashboard.html',
         selected_date=selected_date,
@@ -1116,7 +1624,8 @@ def erp_shipment_dashboard():
         rows=rows,
         construction_panel_dates=construction_panel_dates,
         remaining_panel_dates=remaining_panel_dates,
-        today_date=today_date
+        today_date=today_date,
+        can_edit_erp_beta=can_edit_erp_beta(current_user),
     )
 
 @erp_beta_bp.route('/erp/shipment-settings')
@@ -1125,7 +1634,8 @@ def erp_shipment_dashboard():
 def erp_shipment_settings():
     """ERP 출고 설정 페이지 (시공시간/도면담당자/시공자/현장주소 추가 목록 - 제품설정처럼)"""
     settings = load_erp_shipment_settings()
-    return render_template('erp_shipment_settings.html', settings=settings)
+    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    return render_template('erp_shipment_settings.html', settings=settings, can_edit_erp_beta=can_edit_erp_beta(current_user))
 
 @erp_beta_bp.route('/api/erp/shipment-settings', methods=['GET'])
 @login_required
@@ -1136,6 +1646,7 @@ def api_erp_shipment_settings_get():
 
 @erp_beta_bp.route('/api/erp/shipment-settings', methods=['POST'])
 @login_required
+@erp_edit_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def api_erp_shipment_settings_save():
     """출고 설정 저장"""
@@ -1166,6 +1677,7 @@ def api_erp_shipment_settings_save():
 
 @erp_beta_bp.route('/api/erp/shipment/update/<int:order_id>', methods=['POST'])
 @login_required
+@erp_edit_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def api_erp_shipment_update(order_id):
     """출고 대시보드 업데이트"""
@@ -1235,6 +1747,7 @@ def api_erp_shipment_update(order_id):
 
 @erp_beta_bp.route('/api/erp/measurement/update/<int:order_id>', methods=['POST'])
 @login_required
+@erp_edit_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def api_erp_measurement_update(order_id):
     """실측 대시보드 업데이트"""
@@ -1471,12 +1984,14 @@ def erp_as_dashboard():
         r.structured_data = _ensure_dict(r.structured_data)
     apply_erp_beta_display_fields_to_orders(rows)
 
+    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     return render_template(
         'erp_as_dashboard.html',
         status_filter=status_filter,
         manager_filter=manager_filter,
         selected_date=selected_date,
-        rows=rows
+        rows=rows,
+        can_edit_erp_beta=can_edit_erp_beta(current_user),
     )
 
 @erp_beta_bp.route('/api/map_data')
@@ -1645,6 +2160,7 @@ def api_generate_map():
         date_filter = request.args.get('date')
         status_filter = request.args.get('status')
         manager_filter = (request.args.get('manager') or '').strip()
+        search_query = (request.args.get('q') or request.args.get('search') or '').strip()
         title = request.args.get('title', '주문 위치 지도')
         
         db = get_db()
@@ -1773,6 +2289,32 @@ def api_generate_map():
                 if manager_filter.lower() not in manager_name_str.lower():
                     continue
             
+            # 검색어 필터: 아파트명, 동명, 건물명, 주소, 고객명, 제품 등 포함 시만 표시
+            if search_query:
+                search_lower = _normalize_for_search(search_query).lower()
+                searchable_parts = [
+                    address_to_use,
+                    order.address,
+                    customer_name,
+                    product,
+                    order.notes,
+                    manager_name,
+                ]
+                if order.is_erp_beta and order.structured_data:
+                    sd = order.structured_data
+                    site = sd.get('site') or {}
+                    searchable_parts.extend([
+                        site.get('address_full'),
+                        site.get('address_main'),
+                        site.get('address_detail'),
+                        site.get('address_note'),
+                    ])
+                searchable = _normalize_for_search(' '.join(
+                    str(p).strip() for p in searchable_parts if p
+                )).lower()
+                if not searchable or search_lower not in searchable:
+                    continue
+            
             lat, lng, status = converter.convert_address(address_to_use)
             
             def format_date(date_value):
@@ -1796,7 +2338,9 @@ def api_generate_map():
                 'scheduled_date': format_date(scheduled_date),
                 'completion_date': format_date(order.completion_date),
                 'manager_name': manager_name,
-                'notes': order.notes or '-'
+                'notes': order.notes or '-',
+                'geocode_failed': lat is None or lng is None,
+                'conversion_status': status if (lat is None or lng is None) else 'success'
             }
             orders_list.append(order_list_item)
             
@@ -1849,8 +2393,157 @@ def api_generate_map():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # -------------------------------------------------------------------------
+# Update Order Address API (for Map View)
+# -------------------------------------------------------------------------
+
+@erp_beta_bp.route('/api/orders/<int:order_id>/update_address', methods=['POST'])
+@login_required
+@erp_edit_required
+def api_update_order_address(order_id):
+    """주문 주소를 수정하고 재-지오코딩"""
+    try:
+        data = request.get_json()
+        new_address = (data.get('address') or '').strip()
+        
+        if not new_address:
+            return jsonify({'success': False, 'message': '주소를 입력해주세요.'}), 400
+        
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        # Update address based on order type
+        if order.is_erp_beta and order.structured_data:
+            # ERP Beta order - update structured_data
+            sd = order.structured_data or {}
+            if 'site' not in sd:
+                sd['site'] = {}
+            sd['site']['address_full'] = new_address
+            sd['site']['address_main'] = new_address
+            order.structured_data = sd
+            flag_modified(order, 'structured_data')
+        else:
+            # Legacy order - update address field
+            order.address = new_address
+        
+        db.commit()
+        
+        # Try geocoding with new address
+        converter = FOMSAddressConverter()
+        lat, lng, status = converter.convert_address(new_address)
+        
+        return jsonify({
+            'success': True,
+            'latitude': lat,
+            'longitude': lng,
+            'address': new_address,
+            'conversion_status': status,
+            'geocode_failed': lat is None or lng is None
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"ERROR: update_address 에러 발생: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# -------------------------------------------------------------------------
 # Quick Status Change API (Fast Access)
 # -------------------------------------------------------------------------
+
+@erp_beta_bp.route('/api/orders/quick-search', methods=['GET'])
+@login_required
+def api_order_quick_search():
+    """빠른 상태 변경용 주문 검색 (고객명/주문번호)"""
+    try:
+        q = (request.args.get('q') or '').strip()
+        if not q:
+            return jsonify({'success': False, 'message': '검색어를 입력해주세요.'}), 400
+
+        db = get_db()
+        q_norm = _normalize_for_search(q).lower()
+
+        # ERP Beta 주문은 고객명이 structured_data에만 있는 케이스가 있어
+        # DB LIKE 한 번으로는 누락될 수 있으므로 최근 주문을 가져와 Python 필터링.
+        rows = (
+            db.query(Order)
+            .filter(Order.deleted_at.is_(None))
+            .order_by(Order.id.desc())
+            .limit(500)
+            .all()
+        )
+
+        def _customer_display(o):
+            sd = _ensure_dict(o.structured_data)
+            return (
+                (((sd.get('parties') or {}).get('customer') or {}).get('name'))
+                or o.customer_name
+                or ''
+            )
+
+        def _manager_display(o):
+            sd = _ensure_dict(o.structured_data)
+            return (((sd.get('parties') or {}).get('manager') or {}).get('name')) or o.manager_name or ''
+
+        def _phone_display(o):
+            sd = _ensure_dict(o.structured_data)
+            return (
+                (((sd.get('parties') or {}).get('customer') or {}).get('phone'))
+                or o.phone
+                or ''
+            )
+
+        def _address_display(o):
+            sd = _ensure_dict(o.structured_data)
+            site = (sd.get('site') or {})
+            return (
+                site.get('address_full')
+                or site.get('address_main')
+                or o.address
+                or ''
+            )
+
+        matched = []
+        for o in rows:
+            customer_display = _customer_display(o)
+            manager_display = _manager_display(o)
+            phone_display = _phone_display(o)
+            address_display = _address_display(o)
+            hay_fields = [
+                str(o.id),
+                customer_display,
+                o.customer_name or '',
+                phone_display,
+                manager_display,
+                o.manager_name or '',
+                address_display,
+                o.product or '',
+            ]
+            hay_norm = ' '.join([_normalize_for_search(x).lower() for x in hay_fields if x])
+            if q_norm in hay_norm:
+                matched.append((o, customer_display, manager_display, phone_display, address_display))
+                if len(matched) >= 20:
+                    break
+
+        items = [{
+            'id': o.id,
+            'customer_name': customer_display or o.customer_name,
+            'status': o.status,
+            'product': o.product,
+            'manager': manager_display,
+            'address': address_display or o.address,
+            'phone': phone_display or o.phone,
+        } for (o, customer_display, manager_display, phone_display, address_display) in matched]
+
+        return jsonify({'success': True, 'orders': items})
+    except Exception as e:
+        import traceback
+        print(f"Quick Search Error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/quick-info', methods=['GET'])
 @login_required
@@ -1861,6 +2554,9 @@ def api_order_quick_info(order_id):
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+        manager_display = (((sd.get('parties') or {}).get('manager') or {}).get('name')) or order.manager_name
             
         return jsonify({
             'success': True,
@@ -1869,7 +2565,7 @@ def api_order_quick_info(order_id):
                 'customer_name': order.customer_name,
                 'status': order.status,
                 'product': order.product,
-                'manager': order.manager,
+                'manager': manager_display,
                 'address': order.address
             }
         })
@@ -1882,15 +2578,28 @@ def api_order_quick_info(order_id):
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/quick-status', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_order_quick_status_update(order_id):
     """빠른 상태 변경 처리"""
+    db = None
     try:
-        data = request.get_json()
-        new_status = data.get('status')
+        data = request.get_json(silent=True) or {}
+        new_status = (data.get('status') or '').strip()
         note = data.get('note') # 선택 사항 (로그용)
         
         if not new_status:
             return jsonify({'success': False, 'message': '변경할 상태가 필요합니다.'}), 400
+
+        # 레거시 상태값은 ERP 단계 코드로 정규화
+        legacy_to_stage = {
+            'MEASURED': 'MEASURE',
+            'REGIONAL_MEASURED': 'MEASURE',
+            'AS_RECEIVED': 'AS',
+            'AS_COMPLETED': 'CS',
+            'SCHEDULED': 'CONSTRUCTION',
+            'SHIPPED_PENDING': 'PRODUCTION',
+        }
+        new_status = legacy_to_stage.get(new_status, new_status)
             
         db = get_db()
         order = db.query(Order).filter(Order.id == order_id).first()
@@ -1902,18 +2611,22 @@ def api_order_quick_status_update(order_id):
         if old_status == new_status:
              return jsonify({'success': True, 'message': '변경된 내용이 없습니다.'})
 
+        # order.status와 workflow.stage를 동일 코드로 동기화
         order.status = new_status
         
         # [Quest 동기화] structured_data 업데이트
         import datetime as dt_mod
+        import copy
+        from sqlalchemy.orm.attributes import flag_modified
         from erp_policy import create_quest_from_template
         
         sd = _ensure_dict(order.structured_data)
         user = get_user_by_id(session.get('user_id'))
         user_name = user.name if user else 'Unknown'
+        wf = sd.get('workflow') or {}
+        old_stage = wf.get('stage')
         
         # workflow.stage 업데이트
-        wf = sd.get('workflow') or {}
         wf['stage'] = new_status
         wf['stage_updated_at'] = dt_mod.datetime.now().isoformat()
         wf['stage_updated_by'] = user_name
@@ -1934,7 +2647,7 @@ def api_order_quick_status_update(order_id):
         
         # 기존 Quest 중 old_status에 해당하는 것을 SKIPPED로 처리
         for q in quests:
-            if isinstance(q, dict) and q.get('stage') == old_status and q.get('status') == 'OPEN':
+            if isinstance(q, dict) and q.get('stage') in (old_status, old_stage) and q.get('status') == 'OPEN':
                 q['status'] = 'SKIPPED'
                 q['updated_at'] = dt_mod.datetime.now().isoformat()
                 q['note'] = f'빠른 상태 변경으로 건너뜀'
@@ -1945,7 +2658,8 @@ def api_order_quick_status_update(order_id):
             quests.append(new_quest)
         
         sd['quests'] = quests
-        order.structured_data = sd
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, 'structured_data')
         
         # 로그 기록
         from models import SecurityLog
@@ -1967,7 +2681,8 @@ def api_order_quick_status_update(order_id):
         return jsonify({'success': True, 'message': '상태가 변경되었습니다.'})
         
     except Exception as e:
-        db.rollback()
+        if db is not None:
+            db.rollback()
         import traceback
         print(f"Quick Status Update Error: {e}")
         print(traceback.format_exc())
@@ -1987,6 +2702,10 @@ def api_order_transfer_drawing(order_id):
         from datetime import datetime
         data = request.get_json() or {}
         note = data.get('note', '')
+        is_retransfer = bool(data.get('is_retransfer'))
+        replace_target_key = (data.get('replace_target_key') or '').strip()
+        emergency_override = bool(data.get('emergency_override'))
+        override_reason = (data.get('override_reason') or '').strip()
         
         db = get_db()
         order = db.query(Order).filter(Order.id == order_id).first()
@@ -2005,23 +2724,21 @@ def api_order_transfer_drawing(order_id):
                 except:
                     s_data = {}
 
-        # 1. 권한 체크: 도면팀 또는 지정된 도면 담당자만 전달 가능
+        # 1. 권한 체크: 담당자 미지정이면 도면 전달 불가
         current_user = get_user_by_id(session.get('user_id'))
         user_id = session.get('user_id')
-        user_team = current_user.team if current_user else ''
-        
-        # 지정된 담당자 확인
-        draw_assignees = s_data.get('drawing_assignees', [])
-        is_assigned = False
-        if draw_assignees:
-            for assignee in draw_assignees:
-                if assignee.get('id') == user_id:
-                    is_assigned = True
-                    break
-        
-        # 도면팀이거나 지정 담당자여야 함 (관리자 제외)
-        if user_team != 'DRAWING' and not is_assigned and current_user.role != 'ADMIN':
-             return jsonify({'success': False, 'message': '도면 전달 권한이 없습니다. (도면팀 또는 지정 담당자만 가능)'}), 403
+        draw_assignee_ids = get_assignee_ids(order, 'DRAWING_DOMAIN')
+        if not draw_assignee_ids:
+            return jsonify({'success': False, 'message': '도면 담당자가 지정되지 않아 전달할 수 없습니다. 먼저 담당자를 지정해주세요.'}), 400
+
+        if not current_user:
+            return jsonify({'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}), 401
+        can_transfer = can_modify_domain(current_user, order, 'DRAWING_DOMAIN', emergency_override, override_reason)
+        if not can_transfer:
+            msg = '도면 전달 권한이 없습니다. (지정된 도면 담당자만 가능)'
+            if current_user.role == 'MANAGER':
+                msg += ' (긴급 오버라이드가 필요합니다.)'
+            return jsonify({'success': False, 'message': msg}), 403
 
         
         # 전달 정보 생성
@@ -2032,28 +2749,90 @@ def api_order_transfer_drawing(order_id):
         
         # 프론트엔드에서 업로드된 파일의 key/filename 목록을 받아옴 (재전송 시 삭제 위해)
         # 예: [{'key': 'orders/123/attachments/foo.pdf', 'filename': 'foo.pdf'}, ...]
-        new_files = data.get('files', []) 
+        raw_new_files = data.get('files', [])
+        new_files = []
+        if isinstance(raw_new_files, list):
+            for f in raw_new_files:
+                if not isinstance(f, dict):
+                    continue
+                key = (f.get('key') or '').strip()
+                if not key:
+                    continue
+                filename = (f.get('filename') or key.rsplit('/', 1)[-1]).strip()
+                new_files.append({
+                    'key': key,
+                    'filename': filename,
+                    'view_url': f"/api/files/view/{key}",
+                    'download_url': f"/api/files/download/{key}",
+                })
         
-        # 이전 파일 삭제 로직 (재전송인 경우)
-        if s_data.get('drawing_current_files'):
-            old_files = s_data.get('drawing_current_files', [])
-            # 이번 요청에 파일이 포함되어 있다면(재전송), 기존 파일 삭제
-            if new_files:
-                storage = get_storage()
-                deleted_count = 0
-                for f_info in old_files:
-                    key = f_info.get('key')
-                    if key:
-                        if storage.delete_file(key):
-                            deleted_count += 1
-                print(f"[INFO] Order #{order_id} Re-transfer: Deleted {deleted_count} old drawing files.")
+        old_files = list(s_data.get('drawing_current_files', []) or [])
+        updated_files = list(old_files)
+        replaced_target_number = None
 
-        # 현재 파일 목록 업데이트 (새 파일이 있으면 교체, 없으면 유지?? 
-        # 재전송인데 파일이 없으면 보통 '메모만 수정'일 수도 있지만, 
-        # '재전송시 기존 파일 삭제' 정책이므로 새 파일이 없으면 기존 파일 다 날라감? -> 파일 필수 체크 권장
-        # 여기서는 new_files가 있을 때만 교체
+        # 재전송(수정본 전달)에서는 새 파일이 필수
+        if is_retransfer and not new_files:
+            return jsonify({'success': False, 'message': '수정본 재전송 시 도면 파일 업로드가 필요합니다.'}), 400
+
         if new_files:
-            s_data['drawing_current_files'] = new_files
+            # replace_target_key가 있으면 해당 번호만 교체 (삭제 후 새 파일 삽입)
+            if replace_target_key:
+                target_index = -1
+                for i, f in enumerate(old_files):
+                    if ((f or {}).get('key') or '').strip() == replace_target_key:
+                        target_index = i
+                        break
+                if target_index < 0:
+                    return jsonify({'success': False, 'message': '교체 대상 도면을 찾을 수 없습니다. 목록을 새로고침 후 다시 시도해주세요.'}), 400
+
+                replaced_target_number = target_index + 1
+                target_item = old_files[target_index] if target_index < len(old_files) else {}
+                target_key = (target_item.get('key') or '').strip()
+                storage = get_storage()
+                if target_key:
+                    # 스토리지 파일 삭제
+                    try:
+                        storage.delete_file(target_key)
+                    except Exception:
+                        pass
+                    # DB 첨부 레코드/썸네일 정리
+                    rows = db.query(OrderAttachment).filter(
+                        OrderAttachment.order_id == order_id,
+                        OrderAttachment.storage_key == target_key
+                    ).all()
+                    for row in rows:
+                        try:
+                            if row.thumbnail_key:
+                                storage.delete_file(row.thumbnail_key)
+                        except Exception:
+                            pass
+                        db.delete(row)
+
+                updated_files = list(old_files)
+                updated_files.pop(target_index)
+                # 선택한 번호 위치에 새 파일 삽입 (다중 업로드 시 연속 삽입)
+                for offset, nf in enumerate(new_files):
+                    updated_files.insert(target_index + offset, nf)
+            else:
+                # 여러 장인데 재전송이면 대상 지정 필수
+                if is_retransfer and len(old_files) > 1:
+                    return jsonify({'success': False, 'message': '수정본 재전송 시 교체할 도면 번호를 선택해주세요.'}), 400
+                # 기본 정책: 선택 안 하면 새 번호로 추가
+                updated_files = list(old_files) + list(new_files)
+
+            s_data['drawing_current_files'] = updated_files
+            # 전달 성공 시점에 첨부 카테고리를 drawing으로 강제 정렬
+            # (업로드 단계에서 레거시/예외로 measurement 저장된 경우를 보정)
+            new_keys = [((f or {}).get('key') or '').strip() for f in new_files]
+            new_keys = [k for k in new_keys if k]
+            if new_keys:
+                db.query(OrderAttachment).filter(
+                    OrderAttachment.order_id == order_id,
+                    OrderAttachment.storage_key.in_(new_keys)
+                ).update(
+                    {OrderAttachment.category: 'drawing'},
+                    synchronize_session=False
+                )
         
         transfer_info = {
             'action': 'TRANSFER',
@@ -2061,7 +2840,11 @@ def api_order_transfer_drawing(order_id):
             'by_user_id': user_id,
             'by_user_name': user_name,
             'note': note,
-            'files_count': len(new_files)
+            'files_count': len(new_files),
+            'files': new_files,
+            'mode': 'REPLACE' if replace_target_key else 'APPEND',
+            'replace_target_key': replace_target_key or None,
+            'replace_target_number': replaced_target_number,
         }
         
         # 히스토리 배열에 추가
@@ -2148,16 +2931,21 @@ def api_order_transfer_drawing(order_id):
         })
         
     except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
         print(f"[ERROR] Transfer Drawing: {e}")
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/cancel-transfer', methods=['POST'])
-@login_required 
+@login_required
 def api_order_cancel_transfer(order_id):
     """도면 전달 취소 (도면팀/관리자)"""
+    db = None
     try:
         from datetime import datetime
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         note = data.get('note', '')
         
         db = get_db()
@@ -2167,51 +2955,196 @@ def api_order_cancel_transfer(order_id):
             
         s_data = dict(order.structured_data or {})
         
-        # 권한 체크
+        # 권한 체크: 관리자 / 지정 도면담당 / 마지막 전달 실행자(되돌리기)만 허용
         current_user = get_user_by_id(session.get('user_id'))
-        if current_user.team != 'DRAWING' and current_user.role != 'ADMIN':
-             # 본인이 전달한 경우 허용? (단순화: 도면팀/관리자만)
-             return jsonify({'success': False, 'message': '권한이 없습니다.'}), 403
+        if not current_user:
+            return jsonify({'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}), 401
+
+        can_cancel = False
+        if current_user.role == 'ADMIN':
+            can_cancel = True
+        elif can_modify_domain(current_user, order, 'DRAWING_DOMAIN', False, None):
+            can_cancel = True
+        else:
+            latest_transfer = None
+            for h in reversed(list(s_data.get('drawing_transfer_history', []) or [])):
+                if isinstance(h, dict) and h.get('action') == 'TRANSFER':
+                    latest_transfer = h
+                    break
+            if latest_transfer:
+                try:
+                    can_cancel = int(latest_transfer.get('by_user_id')) == int(current_user.id)
+                except Exception:
+                    can_cancel = False
+
+        if not can_cancel:
+            return jsonify({'success': False, 'message': '권한이 없습니다. (관리자/지정 도면담당/마지막 전달 실행자만 가능)'}), 403
 
         if s_data.get('drawing_status') != 'TRANSFERRED':
             return jsonify({'success': False, 'message': '확정 대기(\'TRANSFERRED\') 상태에서만 취소할 수 있습니다.'}), 400
+
+        # 전달 취소 시, 현재 전달본 파일과 첨부 레코드도 함께 삭제
+        current_files = list(s_data.get('drawing_current_files', []) or [])
+        current_keys = []
+        for f in current_files:
+            if isinstance(f, dict):
+                k = (f.get('key') or '').strip()
+                if k:
+                    current_keys.append(k)
+
+        deleted_files_count = 0
+        if current_keys:
+            storage = get_storage()
+
+            # DB 레코드 기준 삭제(썸네일까지 정리)
+            rows = db.query(OrderAttachment).filter(
+                OrderAttachment.order_id == order_id,
+                OrderAttachment.storage_key.in_(current_keys)
+            ).all()
+            deleted_row_keys = set()
+            for row in rows:
+                try:
+                    if row.storage_key:
+                        if storage.delete_file(row.storage_key):
+                            deleted_files_count += 1
+                        deleted_row_keys.add(row.storage_key)
+                    if row.thumbnail_key:
+                        storage.delete_file(row.thumbnail_key)
+                except Exception:
+                    pass
+                db.delete(row)
+
+            # DB에 없던 키도 스토리지에서 정리 시도
+            for key in current_keys:
+                if key in deleted_row_keys:
+                    continue
+                try:
+                    if storage.delete_file(key):
+                        deleted_files_count += 1
+                except Exception:
+                    pass
             
         # 상태 복귀
         s_data['drawing_status'] = 'PENDING'
-        # s_data['drawing_transferred'] = False # Legacy sync (optional, keeping True might imply "once transferred")
+        s_data['drawing_transferred'] = False
+        s_data['drawing_current_files'] = []
+        s_data['last_drawing_transfer'] = None
         
-        # 히스토리 기록
+        # 히스토리 정리:
+        # 취소 시 창구에 남는 "도면 전달" 찌꺼기를 제거하기 위해
+        # 최신 TRANSFER 항목을 찾아 삭제한다.
         history = list(s_data.get('drawing_transfer_history', []))
-        history.append({
-            'action': 'CANCEL_TRANSFER',
-            'by_user_id': session.get('user_id'),
-            'by_user_name': current_user.name,
-            'at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'note': note
-        })
+        removed_transfer = False
+        current_key_set = set(current_keys)
+        for idx in range(len(history) - 1, -1, -1):
+            h = history[idx]
+            if not isinstance(h, dict):
+                continue
+            if h.get('action') != 'TRANSFER':
+                continue
+
+            transfer_files = h.get('files') if isinstance(h.get('files'), list) else []
+            transfer_keys = set()
+            for tf in transfer_files:
+                if isinstance(tf, dict):
+                    k = (tf.get('key') or '').strip()
+                    if k:
+                        transfer_keys.add(k)
+
+            # current_keys가 있으면 키가 겹치는 항목 우선 삭제, 없으면 최신 TRANSFER 삭제
+            if (not current_key_set) or (transfer_keys & current_key_set):
+                history.pop(idx)
+                removed_transfer = True
+                break
+
+        # 키 매칭 실패 시에도 최신 TRANSFER 하나는 제거
+        if (not removed_transfer) and history:
+            for idx in range(len(history) - 1, -1, -1):
+                h = history[idx]
+                if isinstance(h, dict) and h.get('action') == 'TRANSFER':
+                    history.pop(idx)
+                    removed_transfer = True
+                    break
+
         s_data['drawing_transfer_history'] = history
         
         order.structured_data = s_data
         from models import SecurityLog
-        db.add(SecurityLog(user_id=session.get('user_id'), message=f"주문 #{order_id} 도면 전달 취소"))
+        db.add(SecurityLog(
+            user_id=session.get('user_id'),
+            message=f"주문 #{order_id} 도면 전달 취소 (파일 {deleted_files_count}개 삭제, 히스토리 정리: {'Y' if removed_transfer else 'N'})"
+        ))
         db.commit()
         
-        return jsonify({'success': True, 'message': '도면 전달이 취소되었습니다. (작업중 상태로 복귀)'})
+        return jsonify({
+            'success': True,
+            'message': f'도면 전달이 취소되었습니다. (작업중 상태로 복귀, 전달 파일 {deleted_files_count}개 삭제)'
+        })
     except Exception as e:
-        db.rollback()
+        if db is not None:
+            db.rollback()
         import traceback
         print(f"Cancel Transfer Error: {e}")
         print(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)}), 500
 
+@erp_beta_bp.route('/api/orders/<int:order_id>/drawing-gateway-upload', methods=['POST'])
+@login_required
+@erp_edit_required
+def api_drawing_gateway_upload(order_id):
+    """도면 창구(수정요청) 파일 업로드 - 히스토리 표시용 파일만 저장."""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': '파일이 없습니다.'}), 400
+        file = request.files['file']
+        if not file or not file.filename:
+            return jsonify({'success': False, 'message': '파일명이 없습니다.'}), 400
+
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        storage = get_storage()
+        folder = f"orders/{order_id}/drawing_gateway/revisions"
+        result = storage.upload_file(file, file.filename, folder)
+        if not result.get('success'):
+            return jsonify({'success': False, 'message': '파일 업로드 실패'}), 500
+
+        key = result.get('key')
+        filename = file.filename
+        file_type = storage._get_file_type(filename) if hasattr(storage, '_get_file_type') else 'file'
+        if file_type not in ('image', 'video'):
+            file_type = 'file'
+
+        return jsonify({
+            'success': True,
+            'file': {
+                'key': key,
+                'filename': filename,
+                'file_type': file_type,
+                'view_url': f"/api/files/view/{key}",
+                'download_url': f"/api/files/download/{key}",
+            }
+        })
+    except Exception as e:
+        import traceback
+        print(f"Drawing gateway upload error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @erp_beta_bp.route('/api/orders/<int:order_id>/request-revision', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_order_request_revision(order_id):
     """도면 수정 요청 (영업/담당자)"""
     try:
         from datetime import datetime
         data = request.get_json() or {}
         note = data.get('note', '')
+        files = data.get('files', []) if isinstance(data.get('files', []), list) else []
+        target_drawing_key = (data.get('target_drawing_key') or '').strip()
         
         db = get_db()
         order = db.query(Order).filter(Order.id == order_id).first()
@@ -2219,6 +3152,34 @@ def api_order_request_revision(order_id):
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
             
         s_data = dict(order.structured_data or {})
+        current_files = list(s_data.get('drawing_current_files', []) or [])
+
+        # 권한 체크: 주문 담당(영업 도메인 assignee) 또는 관리자만 가능
+        current_user = get_user_by_id(session.get('user_id'))
+        if not current_user:
+            return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
+        if not _can_modify_sales_domain(current_user, order, s_data, False, None):
+            msg = '도면 수정 요청 권한이 없습니다. (지정된 주문 담당자만 가능)'
+            if current_user.role == 'MANAGER':
+                msg += ' (긴급 오버라이드가 필요합니다.)'
+            return jsonify({'success': False, 'message': msg}), 403
+
+        target_drawing_number = None
+        if current_files:
+            if not target_drawing_key and len(current_files) > 1:
+                return jsonify({'success': False, 'message': '수정 요청할 도면 번호를 선택해주세요.'}), 400
+            if target_drawing_key:
+                for idx, f in enumerate(current_files):
+                    if ((f or {}).get('key') or '').strip() == target_drawing_key:
+                        target_drawing_number = idx + 1
+                        break
+                if target_drawing_number is None:
+                    return jsonify({'success': False, 'message': '선택한 수정 대상 도면을 찾을 수 없습니다.'}), 400
+            elif len(current_files) == 1:
+                only_key = ((current_files[0] or {}).get('key') or '').strip()
+                if only_key:
+                    target_drawing_key = only_key
+                    target_drawing_number = 1
         
         # 상태 체크: TRANSFERRED (확정대기) 상태여야 함
         if s_data.get('drawing_status') not in ['TRANSFERRED', 'CONFIRMED']: 
@@ -2230,14 +3191,17 @@ def api_order_request_revision(order_id):
         s_data['drawing_status'] = 'RETURNED'
         
         # 히스토리
-        current_user = get_user_by_id(session.get('user_id'))
         history = list(s_data.get('drawing_transfer_history', []))
         history.append({
             'action': 'REQUEST_REVISION',
             'by_user_id': session.get('user_id'),
             'by_user_name': current_user.name,
             'at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'note': note
+            'note': note,
+            'files': files,
+            'files_count': len(files),
+            'target_drawing_key': target_drawing_key or None,
+            'target_drawing_number': target_drawing_number,
         })
         s_data['drawing_transfer_history'] = history
         
@@ -2245,7 +3209,12 @@ def api_order_request_revision(order_id):
         
         # 알림 전송 (도면팀에게)
         from models import Notification
-        msg = f"주문 #{order_id} 도면 수정 요청이 접수되었습니다. 메모: {note}"
+        msg = f"주문 #{order_id} 도면 수정 요청이 접수되었습니다."
+        if target_drawing_number:
+            msg += f" 대상: {target_drawing_number}번 도면."
+        msg += f" 메모: {note}"
+        if files:
+            msg += f" (첨부 {len(files)}건)"
         db.add(Notification(
             order_id=order_id,
             notification_type='DRAWING_REVISION',
@@ -2268,6 +3237,108 @@ def api_order_request_revision(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@erp_beta_bp.route('/api/orders/<int:order_id>/request-revision-check', methods=['POST'])
+@login_required
+def api_order_request_revision_check(order_id):
+    """도면 수정요청 반영 체크 토글 (요청사항 탭 체크리스트 저장)"""
+    db = None
+    try:
+        data = request.get_json(silent=True) or {}
+        request_at = str(data.get('request_at') or '').strip()
+        by_user_id_raw = data.get('by_user_id')
+        checked = bool(data.get('checked'))
+
+        if not request_at:
+            return jsonify({'success': False, 'message': '요청 식별값(request_at)이 필요합니다.'}), 400
+
+        by_user_id = None
+        try:
+            if by_user_id_raw not in (None, ''):
+                by_user_id = int(by_user_id_raw)
+        except (TypeError, ValueError):
+            by_user_id = None
+
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        s_data = _ensure_dict(order.structured_data)
+        current_user = get_user_by_id(session.get('user_id'))
+        if not current_user:
+            return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
+
+        can_toggle = (
+            current_user.role == 'ADMIN'
+            or can_modify_domain(current_user, order, 'DRAWING_DOMAIN', False, None)
+            or _can_modify_sales_domain(current_user, order, s_data, False, None)
+        )
+        if not can_toggle:
+            return jsonify({'success': False, 'message': '권한이 없습니다. (지정 담당자 또는 관리자만 가능)'}), 403
+
+        history = list(s_data.get('drawing_transfer_history', []) or [])
+        if not history:
+            return jsonify({'success': False, 'message': '도면 창구 이력이 없습니다.'}), 404
+
+        matched_idx = -1
+        for i in range(len(history) - 1, -1, -1):
+            h = history[i]
+            if not isinstance(h, dict):
+                continue
+            if (h.get('action') or '') != 'REQUEST_REVISION':
+                continue
+            at_val = str(h.get('at') or h.get('transferred_at') or '').strip()
+            if at_val != request_at:
+                continue
+            if by_user_id is not None:
+                try:
+                    h_uid = int(h.get('by_user_id'))
+                except (TypeError, ValueError):
+                    h_uid = None
+                if h_uid != by_user_id:
+                    continue
+            matched_idx = i
+            break
+
+        if matched_idx < 0:
+            return jsonify({'success': False, 'message': '해당 수정 요청을 찾을 수 없습니다.'}), 404
+
+        now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        target = dict(history[matched_idx] or {})
+        target['review_check'] = {
+            'checked': checked,
+            'checked_at': now_str if checked else None,
+            'checked_by_user_id': session.get('user_id') if checked else None,
+            'checked_by_name': (current_user.name if current_user else '') if checked else None,
+        }
+        history[matched_idx] = target
+        s_data['drawing_transfer_history'] = history
+
+        import copy
+        order.structured_data = copy.deepcopy(s_data)
+        flag_modified(order, 'structured_data')
+
+        from models import SecurityLog
+        db.add(SecurityLog(
+            user_id=session.get('user_id'),
+            message=f"주문 #{order_id} 도면 수정요청 반영 체크 {'완료' if checked else '해제'}"
+        ))
+        db.commit()
+
+        return jsonify({
+            'success': True,
+            'message': '요청 반영 체크가 저장되었습니다.' if checked else '요청 반영 체크가 해제되었습니다.'
+        })
+    except Exception as e:
+        if db is not None:
+            db.rollback()
+        import traceback
+        print(f"Request Revision Check Error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @erp_beta_bp.route('/api/orders/<int:order_id>/assign-draftsman', methods=['POST'])
 @login_required
 def api_order_assign_draftsman(order_id):
@@ -2276,6 +3347,8 @@ def api_order_assign_draftsman(order_id):
         from datetime import datetime
         data = request.get_json() or {}
         user_ids = data.get('user_ids', []) # List of user IDs
+        emergency_override = data.get('emergency_override', False)
+        override_reason = data.get('override_reason', '').strip()
         
         if not user_ids:
             return jsonify({'success': False, 'message': '담당자를 선택해주세요.'}), 400
@@ -2284,9 +3357,41 @@ def api_order_assign_draftsman(order_id):
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+        
+        # 권한 검사 (도면 담당자 지정은 DRAWING_DOMAIN)
+        user_id = session.get('user_id')
+        current_user = get_user_by_id(user_id)
+        if not current_user:
+            return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
+        
+        # 권한 정책:
+        # - ADMIN: 허용
+        # - 도면팀(DRAWING): 허용 (실무에서 담당자 지정 필요)
+        # - 그 외: 기존 엄격 담당제(can_modify_domain) 따름
+        team_code = (current_user.team or '').strip()
+        can_assign_drawing_assignee = (
+            current_user.role == 'ADMIN'
+            or team_code == 'DRAWING'
+            or can_modify_domain(current_user, order, 'DRAWING_DOMAIN', emergency_override, override_reason)
+        )
+        if not can_assign_drawing_assignee:
+            msg = '도면 담당자 지정 권한이 없습니다. (관리자/도면팀/지정 도면담당자만 가능)'
+            if current_user.role == 'MANAGER':
+                msg += ' (긴급 오버라이드가 필요합니다.)'
+            return jsonify({'success': False, 'message': msg}), 403
             
-        # Users 조회
-        assigned_users = db.query(User).filter(User.id.in_(user_ids)).all()
+        # 도면 담당자는 도면팀(DRAWING) 소속만 지정 가능
+        assigned_users = db.query(User).filter(User.id.in_(user_ids), User.is_active == True).all()
+        non_drawing = [u for u in assigned_users if (u.team or '').strip() != 'DRAWING']
+        if non_drawing:
+            names = ', '.join([u.name for u in non_drawing])
+            return jsonify({
+                'success': False,
+                'message': f'도면 담당자는 도면팀 소속만 지정할 수 있습니다. (도면팀이 아닌 사용자: {names})'
+            }), 400
+        if len(assigned_users) != len(user_ids):
+            return jsonify({'success': False, 'message': '일부 사용자를 찾을 수 없거나 비활성 계정입니다.'}), 400
+        
         assignee_list = [{'id': u.id, 'name': u.name, 'team': u.team} for u in assigned_users]
         
         # Save to structured_data
@@ -2294,6 +3399,18 @@ def api_order_assign_draftsman(order_id):
         from sqlalchemy.orm.attributes import flag_modified
         
         s_data = _ensure_dict(order.structured_data)
+        
+        # 기존 담당자 저장 (before)
+        old_assignees = s_data.get('drawing_assignees', [])
+        old_names = [a.get('name', '') for a in old_assignees if isinstance(a, dict)]
+        old_ids = ((s_data.get('assignments') or {}).get('drawing_assignee_user_ids') or [])
+        
+        # 표준 키 업데이트
+        if 'assignments' not in s_data:
+            s_data['assignments'] = {}
+        s_data['assignments']['drawing_assignee_user_ids'] = user_ids
+        
+        # 레거시 호환
         s_data['drawing_assignees'] = assignee_list
         
         # Sync to Shipment's drawing_managers (List of names)
@@ -2302,9 +3419,6 @@ def api_order_assign_draftsman(order_id):
         s_data['shipment'] = shipment
         
         # Log
-        user_id = session.get('user_id')
-        current_user = get_user_by_id(user_id)
-        
         wf = s_data.get('workflow') or {}
         hist = wf.get('history') or []
         names = ", ".join([u.name for u in assigned_users])
@@ -2319,6 +3433,31 @@ def api_order_assign_draftsman(order_id):
         
         order.structured_data = copy.deepcopy(s_data)
         flag_modified(order, "structured_data")
+        
+        # OrderEvent: 도면 담당자 지정
+        event_payload = {
+            'domain': 'DRAWING_DOMAIN',
+            'action': 'DRAWING_ASSIGNEE_SET',
+            'target': 'assignments.drawing_assignee_user_ids',
+            'before': ', '.join(old_names) if old_names else 'None',
+            'after': names,
+            'before_ids': old_ids,
+            'after_ids': user_ids,
+            'assignee_names': [u.name for u in assigned_users],
+            'assignee_user_ids': user_ids,
+            'change_method': 'API',
+            'source_screen': 'erp_drawing_dashboard',
+            'reason': '도면 담당자 지정',
+            'is_override': emergency_override,
+            'override_reason': override_reason if emergency_override else None,
+        }
+        drawing_event = OrderEvent(
+            order_id=order_id,
+            event_type='DRAWING_ASSIGNEE_SET',
+            payload=event_payload,
+            created_by_user_id=user_id
+        )
+        db.add(drawing_event)
         db.commit()
         
         return jsonify({'success': True, 'message': f'도면 담당자가 지정되었습니다: {names}'})
@@ -2329,12 +3468,19 @@ def api_order_assign_draftsman(order_id):
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/confirm-drawing-receipt', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_order_confirm_drawing_receipt(order_id):
     """도면 수령 확인 (영업/담당자) -> 다음 단계(고객컨펌 등)로 자동 이동"""
+    db = None
     try:
         from datetime import datetime
         import copy
         from sqlalchemy.orm.attributes import flag_modified
+        
+        # 프론트에서 JSON body 없이 POST해도 예외 없이 처리
+        data = request.get_json(silent=True) or {}
+        emergency_override = data.get('emergency_override', False)
+        override_reason = data.get('override_reason', '').strip()
         
         db = get_db()
         order = db.query(Order).filter(Order.id == order_id).first()
@@ -2343,23 +3489,50 @@ def api_order_confirm_drawing_receipt(order_id):
             
         s_data = _ensure_dict(order.structured_data)
         
-        # 권한 체크: 영업팀, 관리자, 또는 해당 주문 담당자(Manager)
+        # 권한 체크: 영업 도메인 엄격 담당제
         current_user = get_user_by_id(session.get('user_id'))
+        if not current_user:
+            return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
         
-        manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
-        is_manager = (manager_name == current_user.name)
-        is_sales = (current_user.team == 'SALES')
-        is_admin = (current_user.role == 'ADMIN')
-        
-        # Mango(Sales) restrictions handled by is_sales/is_manager checks naturally?
-        # Requirement 2: Sales personnel (Mango) should NOT be able to confirm *Drawings* (Drawing Transfer).
-        # Requirement 5: Recipient (Manager/Sales) MUST confirm.
-        # So here, Mango IS allowed to confirm receipt.
-        
-        if not (is_manager or is_sales or is_admin):
-             return jsonify({'success': False, 'message': '도면 확정 권한이 없습니다. (주문 담당자 또는 영업팀만 가능)'}), 403
+        can_confirm_receipt = can_modify_domain(
+            current_user, order, 'SALES_DOMAIN', emergency_override, override_reason
+        )
+
+        # SALES_DOMAIN 호환 fallback:
+        # assignments.sales_assignee_user_ids가 비어있는 레거시 주문은
+        # 주문 담당자명(structured_data/order 컬럼/current_quest.owner_person) 일치 시 허용.
+        if not can_confirm_receipt:
+            sales_assignee_ids = get_assignee_ids(order, 'SALES_DOMAIN')
+            if not sales_assignee_ids:
+                manager_names = set()
+                parties = (s_data.get('parties') or {}) if isinstance(s_data, dict) else {}
+                manager_name_sd = ((parties.get('manager') or {}).get('name') or '').strip()
+                if manager_name_sd:
+                    manager_names.add(manager_name_sd.lower())
+
+                manager_name_col = (order.manager_name or '').strip()
+                if manager_name_col:
+                    manager_names.add(manager_name_col.lower())
+
+                wf_tmp = (s_data.get('workflow') or {}) if isinstance(s_data, dict) else {}
+                current_quest = (wf_tmp.get('current_quest') or {})
+                owner_person = (current_quest.get('owner_person') or '').strip()
+                if owner_person:
+                    manager_names.add(owner_person.lower())
+
+                user_name = (current_user.name or '').strip().lower()
+                user_username = (current_user.username or '').strip().lower()
+                if user_name in manager_names or user_username in manager_names:
+                    can_confirm_receipt = True
+
+        if not can_confirm_receipt:
+            msg = '도면 수령 확인은 지정된 영업 담당자만 가능합니다.'
+            if current_user.role == 'MANAGER':
+                msg += ' (긴급 오버라이드가 필요합니다.)'
+            return jsonify({'success': False, 'message': msg}), 403
 
         # Update Status
+        old_drawing_status = s_data.get('drawing_status', 'UNKNOWN')
         s_data['drawing_status'] = 'CONFIRMED'
         s_data['drawing_confirmed_at'] = datetime.now().isoformat()
         s_data['drawing_confirmed_by'] = current_user.name
@@ -2388,6 +3561,27 @@ def api_order_confirm_drawing_receipt(order_id):
         flag_modified(order, "structured_data")
         order.status = next_stage # Sync with model status if applicable
         
+        # OrderEvent: 도면 수령 확인
+        event_payload = {
+            'domain': 'SALES_DOMAIN',
+            'action': 'DRAWING_STATUS_CHANGED',
+            'target': 'drawing_status',
+            'before': old_drawing_status,
+            'after': 'CONFIRMED',
+            'change_method': 'API',
+            'source_screen': 'erp_drawing_dashboard',
+            'reason': '도면 수령 확인',
+            'is_override': emergency_override,
+            'override_reason': override_reason if emergency_override else None,
+        }
+        drawing_confirm_event = OrderEvent(
+            order_id=order_id,
+            event_type='DRAWING_STATUS_CHANGED',
+            payload=event_payload,
+            created_by_user_id=current_user.id
+        )
+        db.add(drawing_confirm_event)
+        
         # Log
         from models import SecurityLog
         db.add(SecurityLog(user_id=current_user.id, message=f"주문 #{order_id} 도면 확정 및 단계 이동 ({old_stage} -> {next_stage})"))
@@ -2397,7 +3591,8 @@ def api_order_confirm_drawing_receipt(order_id):
         return jsonify({'success': True, 'message': '도면이 확정되었습니다. 다음 단계로 이동합니다.', 'new_stage': next_stage})
         
     except Exception as e:
-        db.rollback()
+        if db is not None:
+            db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -2518,6 +3713,7 @@ def erp_production_dashboard():
         'construction_d3_count': 0, # Not used here
     }
 
+    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     return render_template(
         'erp_production_dashboard.html',
         orders=enriched,
@@ -2526,11 +3722,13 @@ def erp_production_dashboard():
         filters={'stage': f_stage, 'q': f_q},
         team_labels=TEAM_LABELS,
         stage_labels=STAGE_LABELS,
-        is_admin=is_admin
+        is_admin=is_admin,
+        can_edit_erp_beta=can_edit_erp_beta(current_user),
     )
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/production/start', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_production_start(order_id):
     db = get_db()
     try:
@@ -2581,6 +3779,7 @@ def api_production_start(order_id):
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/production/complete', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_production_complete(order_id):
     db = get_db()
     try:
@@ -2617,6 +3816,25 @@ def api_production_complete(order_id):
         order.structured_data = copy.deepcopy(sd) # Force update
         flag_modified(order, "structured_data")
         order.status = 'CONSTRUCTION' # Legacy Sync
+        
+        # OrderEvent: 생산 완료
+        event_payload = {
+            'domain': 'PRODUCTION_DOMAIN',
+            'action': 'PRODUCTION_COMPLETED',
+            'target': 'workflow.stage',
+            'before': 'PRODUCTION',
+            'after': 'CONSTRUCTION',
+            'change_method': 'API',
+            'source_screen': 'erp_production_dashboard',
+            'reason': '제작 완료 (시공 대기)'
+        }
+        order_event = OrderEvent(
+            order_id=order_id,
+            event_type='PRODUCTION_COMPLETED',
+            payload=event_payload,
+            created_by_user_id=user_id
+        )
+        db.add(order_event)
         
         # Log
         from models import SecurityLog
@@ -2746,6 +3964,7 @@ def erp_construction_dashboard():
         'measurement_d4_count': 0, 'production_d2_count': 0
     }
 
+    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     return render_template(
         'erp_construction_dashboard.html',
         orders=enriched,
@@ -2754,11 +3973,13 @@ def erp_construction_dashboard():
         filters={'stage': f_stage, 'q': f_q},
         team_labels=TEAM_LABELS,
         stage_labels=STAGE_LABELS,
-        is_admin=is_admin
+        is_admin=is_admin,
+        can_edit_erp_beta=can_edit_erp_beta(current_user),
     )
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/construction/start', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_construction_start(order_id):
     db = get_db()
     try:
@@ -2802,6 +4023,7 @@ def api_construction_start(order_id):
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/construction/complete', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_construction_complete(order_id):
     """
     시공 완료 처리
@@ -2841,6 +4063,25 @@ def api_construction_complete(order_id):
         flag_modified(order, "structured_data")
         order.status = 'CS'  # 원본 요구사항 기반: 시공 후 CS
         
+        # OrderEvent: 시공 완료
+        event_payload = {
+            'domain': 'CONSTRUCTION_DOMAIN',
+            'action': 'CONSTRUCTION_COMPLETED',
+            'target': 'workflow.stage',
+            'before': 'CONSTRUCTION',
+            'after': 'CS',
+            'change_method': 'API',
+            'source_screen': 'erp_construction_dashboard',
+            'reason': '시공 완료 → CS 단계 진입'
+        }
+        order_event = OrderEvent(
+            order_id=order_id,
+            event_type='CONSTRUCTION_COMPLETED',
+            payload=event_payload,
+            created_by_user_id=user_id
+        )
+        db.add(order_event)
+        
         # Log
         from models import SecurityLog
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 시공 완료 → CS 단계 진입"))
@@ -2858,6 +4099,7 @@ def api_construction_complete(order_id):
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/cs/complete', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_cs_complete(order_id):
     """
     CS 단계 완료 처리
@@ -2897,6 +4139,25 @@ def api_cs_complete(order_id):
         flag_modified(order, "structured_data")
         order.status = 'COMPLETED'
         
+        # OrderEvent: CS 완료
+        event_payload = {
+            'domain': 'CS_DOMAIN',
+            'action': 'CS_COMPLETED',
+            'target': 'workflow.stage',
+            'before': 'CS',
+            'after': 'COMPLETED',
+            'change_method': 'API',
+            'source_screen': 'erp_cs_dashboard',
+            'reason': 'CS 완료 → 최종 완료'
+        }
+        order_event = OrderEvent(
+            order_id=order_id,
+            event_type='CS_COMPLETED',
+            payload=event_payload,
+            created_by_user_id=user_id
+        )
+        db.add(order_event)
+        
         from models import SecurityLog
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} CS 완료 → 최종 완료"))
         db.commit()
@@ -2909,6 +4170,7 @@ def api_cs_complete(order_id):
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/as/start', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_as_start(order_id):
     """AS 시작 (CS 단계에서 AS가 필요한 경우)"""
     db = get_db()
@@ -2963,6 +4225,27 @@ def api_as_start(order_id):
         flag_modified(order, "structured_data")
         order.status = 'AS'
         
+        # OrderEvent: AS 시작
+        event_payload = {
+            'domain': 'AS_DOMAIN',
+            'action': 'AS_STARTED',
+            'target': 'workflow.stage',
+            'before': 'CS',
+            'after': 'AS',
+            'change_method': 'API',
+            'source_screen': 'erp_cs_dashboard',
+            'reason': f'AS 시작: {as_reason}',
+            'as_id': as_entry['id'],
+            'as_description': as_description
+        }
+        order_event = OrderEvent(
+            order_id=order_id,
+            event_type='AS_STARTED',
+            payload=event_payload,
+            created_by_user_id=user_id
+        )
+        db.add(order_event)
+        
         from models import SecurityLog
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 시작: {as_reason}"))
         db.commit()
@@ -2975,6 +4258,7 @@ def api_as_start(order_id):
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/as/complete', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_as_complete(order_id):
     """AS 완료 → CS 복귀"""
     db = get_db()
@@ -3026,6 +4310,27 @@ def api_as_complete(order_id):
         flag_modified(order, "structured_data")
         order.status = 'CS'
         
+        # OrderEvent: AS 완료
+        event_payload = {
+            'domain': 'AS_DOMAIN',
+            'action': 'AS_COMPLETED',
+            'target': 'workflow.stage',
+            'before': 'AS',
+            'after': 'CS',
+            'change_method': 'API',
+            'source_screen': 'erp_as_dashboard',
+            'reason': 'AS 완료 → CS 복귀',
+            'as_id': as_id,
+            'completion_note': completion_note
+        }
+        order_event = OrderEvent(
+            order_id=order_id,
+            event_type='AS_COMPLETED',
+            payload=event_payload,
+            created_by_user_id=user_id
+        )
+        db.add(order_event)
+        
         from models import SecurityLog
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 완료 → CS 복귀"))
         db.commit()
@@ -3038,6 +4343,7 @@ def api_as_complete(order_id):
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/as/schedule', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_as_schedule(order_id):
     """AS 방문일 확정"""
     db = get_db()
@@ -3112,6 +4418,7 @@ def api_as_schedule(order_id):
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/construction/fail', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_construction_fail(order_id):
     """
     시공 불가 처리
@@ -3213,6 +4520,7 @@ def api_construction_fail(order_id):
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/drawing/request-revision', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_drawing_request_revision(order_id):
     """
     도면 수정 요청 (고객 컨펌 또는 생산 단계에서)
@@ -3289,6 +4597,7 @@ def api_drawing_request_revision(order_id):
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/drawing/complete-revision', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_drawing_complete_revision(order_id):
     """
     도면 수정 완료 (도면팀에서 수정 후)
@@ -3360,6 +4669,7 @@ def api_drawing_complete_revision(order_id):
 
 @erp_beta_bp.route('/api/orders/<int:order_id>/confirm/customer', methods=['POST'])
 @login_required
+@erp_edit_required
 def api_customer_confirm(order_id):
     """
     고객 컨펌 완료 처리
@@ -3429,6 +4739,95 @@ def api_customer_confirm(order_id):
 # 알림 시스템 API
 # =============================================
 
+def _parse_history_time(value):
+    """도면 히스토리 문자열 시각을 datetime으로 파싱."""
+    if not value:
+        return None
+    try:
+        return datetime.datetime.strptime(str(value), '%Y-%m-%d %H:%M:%S')
+    except Exception:
+        return None
+
+
+def _build_drawing_event_key(idx, event):
+    action = str((event or {}).get('action') or '')
+    at = str((event or {}).get('at') or (event or {}).get('transferred_at') or '')
+    by_user_id = str((event or {}).get('by_user_id') or '')
+    return f"{idx}:{action}:{at}:{by_user_id}"
+
+
+def _resolve_notification_deep_link(notification, order_structured_data):
+    """알림 -> 도면 작업실 상세 딥링크 정보(event_id/target_no/tab) 계산."""
+    n_type = str(getattr(notification, 'notification_type', '') or '').upper()
+    if n_type not in ('DRAWING_TRANSFERRED', 'DRAWING_REVISION'):
+        return {
+            'deep_tab': None,
+            'deep_event_id': None,
+            'deep_target_no': None,
+            'deep_link_url': None,
+        }
+
+    target_action = 'TRANSFER' if n_type == 'DRAWING_TRANSFERRED' else 'REQUEST_REVISION'
+    target_tab = 'timeline' if n_type == 'DRAWING_TRANSFERRED' else 'requests'
+    history = list(((order_structured_data or {}).get('drawing_transfer_history', []) or []))
+    if not history:
+        return {
+            'deep_tab': target_tab,
+            'deep_event_id': None,
+            'deep_target_no': None,
+            'deep_link_url': f"/erp/drawing-workbench/{notification.order_id}?tab={target_tab}",
+        }
+
+    created_at = getattr(notification, 'created_at', None)
+    matched = None
+    matched_idx = -1
+    best_score = None
+
+    for idx, h in enumerate(history):
+        if not isinstance(h, dict):
+            continue
+        if str(h.get('action') or '') != target_action:
+            continue
+        h_dt = _parse_history_time(h.get('at') or h.get('transferred_at'))
+        if created_at and h_dt:
+            score = abs((created_at - h_dt).total_seconds())
+        else:
+            score = float('inf')
+        if best_score is None or score < best_score:
+            best_score = score
+            matched = h
+            matched_idx = idx
+
+    if matched is None:
+        for idx in range(len(history) - 1, -1, -1):
+            h = history[idx]
+            if isinstance(h, dict) and str(h.get('action') or '') == target_action:
+                matched = h
+                matched_idx = idx
+                break
+
+    deep_event_id = _build_drawing_event_key(matched_idx, matched) if matched is not None and matched_idx >= 0 else None
+    deep_target_no = None
+    if isinstance(matched, dict):
+        try:
+            deep_target_no = int(matched.get('target_drawing_number') or matched.get('replace_target_number') or 0) or None
+        except (TypeError, ValueError):
+            deep_target_no = None
+
+    query_parts = [f"tab={target_tab}"]
+    if deep_event_id:
+        query_parts.append(f"event_id={quote(str(deep_event_id), safe='')}")
+    if deep_target_no:
+        query_parts.append(f"target_no={deep_target_no}")
+    deep_link_url = f"/erp/drawing-workbench/{notification.order_id}?{'&'.join(query_parts)}"
+    return {
+        'deep_tab': target_tab,
+        'deep_event_id': deep_event_id,
+        'deep_target_no': deep_target_no,
+        'deep_link_url': deep_link_url,
+    }
+
+
 @erp_beta_bp.route('/erp/api/notifications', methods=['GET'])
 @login_required
 def api_notifications_list():
@@ -3496,9 +4895,23 @@ def api_notifications_list():
                 unread_query = unread_query.filter(or_(*conditions))
         unread_count = unread_query.count()
         
+        order_ids = list({int(n.order_id) for n in notifications if getattr(n, 'order_id', None)})
+        order_map = {}
+        if order_ids:
+            order_rows = db.query(Order.id, Order.structured_data).filter(Order.id.in_(order_ids)).all()
+            for oid, sd in order_rows:
+                order_map[int(oid)] = _ensure_dict(sd)
+
+        notif_payloads = []
+        for n in notifications:
+            row = n.to_dict()
+            deep = _resolve_notification_deep_link(n, order_map.get(int(n.order_id), {}))
+            row.update(deep)
+            notif_payloads.append(row)
+
         return jsonify({
             'success': True,
-            'notifications': [n.to_dict() for n in notifications],
+            'notifications': notif_payloads,
             'unread_count': unread_count
         })
     except Exception as e:

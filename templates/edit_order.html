@@ -25,12 +25,6 @@
                             <i class="fas fa-calculator"></i> 계산기
                         </button>
                     </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="blueprint-tab" data-bs-toggle="tab" data-bs-target="#blueprint"
-                            type="button" role="tab">
-                            <i class="fas fa-drafting-compass"></i> 도면
-                        </button>
-                    </li>
                     {% else %}
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active" id="order-info-tab" data-bs-toggle="tab"
@@ -460,6 +454,7 @@
                         </div>
                     </div>
 
+                    {% if not is_erp_beta_order %}
                     <!-- 도면 탭 -->
                     <div class="tab-pane fade" id="blueprint" role="tabpanel">
                         <div id="blueprintTabContent">
@@ -515,6 +510,7 @@
                             </div>
                         </div>
                     </div>
+                    {% endif %}
 
                     <!-- ERP Beta 탭 (shared partial) -->
                     {% if erp_beta_enabled and order.is_erp_beta %}
@@ -1419,13 +1415,44 @@
 {% include "partials/erp_beta_js.html" %}
 
 <script>
-    // ERP 대시보드 등에서 바로 ERP Beta 탭으로 오픈 (?open=erp-beta)
+    // ERP 대시보드/알림에서 바로 ERP Beta 탭으로 오픈 (?open=erp-beta)
+    // 첨부로 포커스: ?focus=attachments&category=drawing
     document.addEventListener('DOMContentLoaded', function () {
         try {
             const qs = new URLSearchParams(window.location.search || '');
             if (qs.get('open') === 'erp-beta') {
                 const btn = document.getElementById('erp-beta-tab');
                 if (btn && typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+                    const focusTarget = (qs.get('focus') || '').trim();
+                    const category = (qs.get('category') || '').trim().toLowerCase();
+                    if (focusTarget === 'attachments') {
+                        btn.addEventListener('shown.bs.tab', function () {
+                            setTimeout(() => {
+                                if (category) {
+                                    const categorySelect = document.getElementById('erp-attachments-category');
+                                    if (categorySelect && ['measurement', 'drawing', 'construction'].includes(category)) {
+                                        categorySelect.value = category;
+                                    }
+                                }
+                                const target =
+                                    document.getElementById('erp-attachments-gallery')
+                                    || document.getElementById('erp-attachments-category')
+                                    || document.getElementById('erp-attachments-input')
+                                    || document.getElementById('erp-attachments-status');
+                                if (target) {
+                                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    const prevOutline = target.style.outline;
+                                    const prevOffset = target.style.outlineOffset;
+                                    target.style.outline = '3px solid rgba(13,110,253,0.5)';
+                                    target.style.outlineOffset = '4px';
+                                    setTimeout(() => {
+                                        target.style.outline = prevOutline;
+                                        target.style.outlineOffset = prevOffset;
+                                    }, 1400);
+                                }
+                            }, 350);
+                        }, { once: true });
+                    }
                     bootstrap.Tab.getOrCreateInstance(btn).show();
                 }
             }
@@ -1438,6 +1465,7 @@
 
     // 페이지 로드 시 도면 조회
     document.addEventListener('DOMContentLoaded', function () {
+        if (!document.getElementById('blueprint-tab')) return;
         loadBlueprint({{ order.id }});
     });
 

@@ -129,7 +129,8 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                             </div>
                             <input type="text" class="form-control form-control-sm" id="erp-address"
                                 placeholder="주소를 입력하거나 찾기 버튼을 클릭하세요" autocomplete="off">
-                            <button class="btn btn-sm btn-link p-0 mt-1 text-secondary" type="button"
+                            <button class="btn btn-sm btn-link p-0 mt-1 text-secondary text-decoration-none collapsed"
+                                id="erp-collapse-address-note-btn" type="button"
                                 data-bs-toggle="collapse" data-bs-target="#erp-collapse-address-note"
                                 aria-expanded="false" aria-controls="erp-collapse-address-note">
                                 <i class="fas fa-chevron-down small"></i> 주소 특이사항
@@ -161,11 +162,10 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                                 placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off">
                         </div>
                         <div class="col-12">
-                            <button
-                                class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center gap-1"
-                                type="button" data-bs-toggle="collapse" data-bs-target="#erp-collapse-measure-note"
+                            <button class="btn btn-sm btn-link p-0 mt-1 text-secondary" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#erp-collapse-measure-note"
                                 aria-expanded="false" aria-controls="erp-collapse-measure-note">
-                                <i class="fas fa-sticky-note"></i> 실측 특이사항
+                                <i class="fas fa-chevron-down small"></i> 실측 특이사항
                             </button>
                             <div class="collapse mt-2" id="erp-collapse-measure-note">
                                 <div class="mt-1">
@@ -213,6 +213,11 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                     <div class="fw-bold mb-2"><i class="fas fa-paperclip"></i> 첨부(사진/동영상)</div>
                     <div class="border rounded p-3" style="border-style: dashed !important; background-color: #f8f9fa;">
                         <div class="d-flex flex-wrap gap-2 align-items-center">
+                            <select id="erp-attachments-category" class="form-select form-select-sm" style="max-width: 140px;">
+                                <option value="measurement">실측</option>
+                                <option value="drawing">도면</option>
+                                <option value="construction">시공</option>
+                            </select>
                             <input type="file" id="erp-attachments-input" accept="image/*,video/*" multiple
                                 class="form-control form-control-sm" style="max-width: 420px;">
                             <button class="btn btn-sm btn-outline-primary" type="button"

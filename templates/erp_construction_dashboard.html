@@ -1586,14 +1586,6 @@
                                 {% endfor %}
                               </div>
                             </div>
-                            <div class="d-flex gap-2">
-                              {% set order_id_refresh = o.id %}
-                              <button class="btn btn-outline-primary fw-semibold erp-btn-refresh-status" type="button"
-                                data-order-id="{{ order_id_refresh }}"
-                                style="font-size: 0.9rem; padding: 0.4rem 0.8rem;">
-                                <i class="fas fa-sync"></i> 상태 새로고침
-                              </button>
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -1636,11 +1628,15 @@
                   </td>
                   <td data-label="상세" class="text-center">
                     {% set order_id_detail = o.id %}
+                    {% if can_edit_erp_beta|default(false) %}
                     <a class="badge bg-info text-white fw-bold"
                       href="{{ url_for('edit_order', order_id=order_id_detail) }}?open=erp-beta" title="제품 상세정보"
                       style="cursor: pointer; font-size: 1rem !important; padding: 0.4em 0.7em !important; text-align: center; display: inline-block; text-decoration: none;">
                       <i class="fas fa-clipboard-list" style="font-size: 1rem !important;"></i>
                     </a>
+                    {% else %}
+                    <span class="text-muted small">(수정 권한 없음)</span>
+                    {% endif %}
                   </td>
                   <td data-label="열기" class="text-end erp-cell-actions">
                     <button class="erp-open-btn-icon" type="button" data-bs-toggle="collapse"
@@ -1655,7 +1651,7 @@
                   <td colspan="12" class="p-0">
                     <div class="collapse" id="order-detail-collapse-{{ o.id }}">
                       <div class="card card-body border-0 bg-light">
-                        <div class="fw-bold mb-3"><i class="fas fa-info-circle"></i> 주문 상세</div>
+                        <div class="fw-bold mb-3 erp-order-detail-title"><i class="fas fa-info-circle"></i> 주문 상세</div>
                         <div id="order-detail-content-{{ o.id }}" class="order-detail-content">
                           <div class="text-muted small">로딩 중...</div>
                         </div>
@@ -1673,7 +1669,28 @@
 
   </div>
 
-  <!-- 첨부 파일 미리보기 모달 -->
+  <!-- 첨부 파일 카테고리 모달 -->
+  <div class="modal fade" id="erpAttachmentsCategoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-paperclip"></i> 첨부 파일</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex flex-wrap gap-2 mb-3" id="erp-attachments-category-tabs"></div>
+          <div class="row g-2" id="erp-attachments-category-gallery"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> 닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 첨부 파일 단일 미리보기 모달 -->
   <div class="modal fade" id="erpAttachmentPreviewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered"
       style="max-width: 60vw; width: 60vw; height: 90vh; max-height: 90vh; margin: auto;">
@@ -1730,6 +1747,116 @@
     let __attachmentsCache = {};
     let __currentAttachmentList = [];
     let __currentAttachmentIndex = 0;
+    let __activeAttachmentCategory = 'measurement';
+    let __attachmentsByCategory = {
+      measurement: [],
+      drawing: [],
+      construction: []
+    };
+
+    const ATTACHMENT_CATEGORY_META = {
+      measurement: { label: '실측', icon: 'fa-ruler-combined' },
+      drawing: { label: '도면', icon: 'fa-drafting-compass' },
+      construction: { label: '시공', icon: 'fa-hammer' }
+    };
+
+    function normalizeAttachmentCategory(category) {
+      const c = String(category || '').trim().toLowerCase();
+      if (c === 'drawing' || c === 'construction') return c;
+      return 'measurement';
+    }
+
+    function getAttachmentCategoryLabel(category) {
+      const key = normalizeAttachmentCategory(category);
+      return (ATTACHMENT_CATEGORY_META[key] || ATTACHMENT_CATEGORY_META.measurement).label;
+    }
+
+    function renderAttachmentCategoryTabs() {
+      const tabsEl = document.getElementById('erp-attachments-category-tabs');
+      if (!tabsEl) return;
+      const keys = ['measurement', 'drawing', 'construction'];
+      tabsEl.innerHTML = keys.map((key) => {
+        const meta = ATTACHMENT_CATEGORY_META[key];
+        const count = (__attachmentsByCategory[key] || []).length;
+        const isActive = key === __activeAttachmentCategory;
+        const activeCls = isActive ? 'btn-primary' : 'btn-outline-primary';
+        return `
+          <button type="button" class="btn btn-sm ${activeCls}" onclick="selectAttachmentCategory('${key}')">
+            <i class="fas ${meta.icon}"></i> ${meta.label}
+            <span class="badge ${isActive ? 'bg-light text-dark' : 'bg-primary text-white'} ms-1">${count}</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function renderAttachmentCategoryGallery() {
+      const galleryEl = document.getElementById('erp-attachments-category-gallery');
+      if (!galleryEl) return;
+      const list = __attachmentsByCategory[__activeAttachmentCategory] || [];
+      if (!list.length) {
+        galleryEl.innerHTML = `
+          <div class="col-12">
+            <div class="text-muted small p-3 border rounded bg-light">
+              ${getAttachmentCategoryLabel(__activeAttachmentCategory)} 카테고리에 첨부 파일이 없습니다.
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      galleryEl.innerHTML = list.map((a, index) => {
+        const name = escapeHtml(a.filename || '');
+        const type = a.file_type || 'file';
+        const thumb = a.thumbnail_view_url || a.view_url || '#';
+        const viewUrl = a.view_url || '#';
+        const downloadUrl = a.download_url || '#';
+
+        const mediaHtml = (type === 'video')
+          ? `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
+              <video src="${viewUrl}" controls preload="metadata" style="width:100%;height:100%;"></video>
+            </div>`
+          : `<img src="${thumb}" alt="${name}" class="img-fluid rounded"
+              style="max-height: 180px; object-fit: contain; width:100%; cursor: zoom-in; background:#fff; padding:4px;"
+              onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ${index})">`;
+
+        return `
+          <div class="col-md-4 col-sm-6 col-12">
+            <div class="card h-100">
+              <div class="card-body p-2">
+                ${mediaHtml}
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                  <div class="small text-truncate" title="${name}" style="max-width: 70%;">${name}</div>
+                  <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" type="button" title="미리보기"
+                      onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ${index})">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                    <a class="btn btn-outline-primary" href="${downloadUrl}" title="다운로드" target="_blank" rel="noopener">
+                      <i class="fas fa-download"></i>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function selectAttachmentCategory(category) {
+      __activeAttachmentCategory = normalizeAttachmentCategory(category);
+      renderAttachmentCategoryTabs();
+      renderAttachmentCategoryGallery();
+    }
+
+    function openAttachmentFromCategory(category, index) {
+      const key = normalizeAttachmentCategory(category);
+      const list = __attachmentsByCategory[key] || [];
+      if (!list.length) return;
+      __activeAttachmentCategory = key;
+      __currentAttachmentList = list;
+      showAttachmentAtIndex(index);
+    }
 
     // 첨부 파일 미리보기 모달 열기 (단일 파일)
     function openAttachmentPreviewModal(attachmentId, viewUrl, downloadUrl, filename, fileType) {
@@ -1985,7 +2112,7 @@
     }
 
     // 주문의 첨부 파일 미리보기 (첨부 배지 클릭 시) - 좌우 네비게이션 지원
-    async function openAttachmentsPreview(orderId) {
+    async function openAttachmentsPreview(orderId, initialCategory = 'measurement') {
       try {
         // 캐시 확인
         let aList = null;
@@ -1999,9 +2126,30 @@
         }
 
         if (aList.length > 0) {
-          __currentAttachmentList = aList;
-          __currentAttachmentIndex = 0;
-          showAttachmentAtIndex(0);
+          __attachmentsByCategory = { measurement: [], drawing: [], construction: [] };
+          aList.forEach((a) => {
+            const key = normalizeAttachmentCategory(a.category);
+            const normalized = Object.assign({}, a, { category: key });
+            if (!__attachmentsByCategory[key]) __attachmentsByCategory[key] = [];
+            __attachmentsByCategory[key].push(normalized);
+          });
+
+          let targetCategory = normalizeAttachmentCategory(initialCategory);
+          const targetList = __attachmentsByCategory[targetCategory] || [];
+          if (!targetList.length) {
+            if (__attachmentsByCategory.drawing.length) targetCategory = 'drawing';
+            else if (__attachmentsByCategory.measurement.length) targetCategory = 'measurement';
+            else if (__attachmentsByCategory.construction.length) targetCategory = 'construction';
+          }
+          __activeAttachmentCategory = targetCategory;
+
+          renderAttachmentCategoryTabs();
+          renderAttachmentCategoryGallery();
+          const modalEl = document.getElementById('erpAttachmentsCategoryModal');
+          if (modalEl) {
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+          }
         } else {
           alert('첨부 파일이 없습니다.');
         }
@@ -2201,101 +2349,6 @@
         }
       } catch (err) {
         console.error('Quest 상세 로드 실패:', err);
-      }
-    }
-
-    // 퀘스트 상태 새로고침 (서버에서 최신 상태를 가져와서 슬라이드와 작업 큐 모두 업데이트)
-    async function refreshQuestStatus(orderId) {
-      try {
-        // Quest 정보를 서버에서 다시 가져와서 슬라이드 업데이트
-        await loadQuestDetail(orderId);
-
-        // 작업 큐의 퀘스트 버튼 상태도 업데이트하기 위해 해당 주문의 퀘스트 정보 다시 가져오기
-        const res = await fetch(`/api/orders/${orderId}/quest`);
-        const data = await res.json();
-        if (data.error) {
-          console.error('Quest 로드 실패:', data.error);
-          return;
-        }
-
-        const quest = data.quest || {};
-        const questStatus = quest.status || 'OPEN';
-        const requiredTeams = quest.required_approvals || [];
-        const teamApprovalsRaw = quest.team_approvals || {};
-
-        // 모든 팀이 승인했는지 확인
-        let allApproved = true;
-        for (const team of requiredTeams) {
-          const approvalData = teamApprovalsRaw[team];
-          let approved = false;
-          if (typeof approvalData === 'object' && approvalData !== null) {
-            approved = approvalData.approved === true;
-          } else {
-            approved = Boolean(approvalData);
-          }
-          if (!approved) {
-            allApproved = false;
-            break;
-          }
-        }
-
-        // 작업 큐의 퀘스트 버튼과 배지 업데이트
-        const questRow = document.querySelector(`tr[data-order-id="${orderId}"]`);
-        if (questRow) {
-          const questCell = questRow.querySelector('td:nth-child(3)'); // 퀘스트 컬럼
-          if (questCell) {
-            const questButton = questCell.querySelector('button[data-bs-toggle="collapse"]');
-            const questBadge = questCell.querySelector('.badge');
-
-            if (questButton) {
-              // 버튼 내부 아이콘 업데이트
-              const icon = questButton.querySelector('i.fa-check-circle, i.fa-circle-notch');
-              if (icon) {
-                if (questStatus === 'COMPLETED' || allApproved) {
-                  icon.className = 'fas fa-check-circle text-success';
-                } else {
-                  // 노란색 동그라미 아이콘 제거
-                  if (icon) icon.remove();
-                }
-              }
-            }
-
-            // 배지 업데이트
-            if (questBadge) {
-              if (questStatus === 'COMPLETED' || allApproved) {
-                questBadge.className = 'badge bg-success ms-1';
-                questBadge.style.fontSize = '1rem';
-                questBadge.style.padding = '0.4em 0.7em';
-                questBadge.textContent = '완료';
-              } else {
-                questBadge.className = 'badge bg-warning ms-1';
-                questBadge.style.fontSize = '1rem';
-                questBadge.style.padding = '0.4em 0.7em';
-                questBadge.textContent = '진행중';
-              }
-            }
-          }
-        }
-
-        // 성공 메시지 표시
-        const alertDiv = document.createElement('div');
-        alertDiv.className = 'alert alert-success alert-dismissible fade show';
-        alertDiv.style.position = 'fixed';
-        alertDiv.style.top = '20px';
-        alertDiv.style.right = '20px';
-        alertDiv.style.zIndex = '9999';
-        alertDiv.innerHTML = '<i class="fas fa-check-circle"></i> 퀘스트 상태가 업데이트되었습니다. <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
-        document.body.appendChild(alertDiv);
-
-        // 3초 후 자동으로 제거
-        setTimeout(() => {
-          if (alertDiv.parentNode) {
-            alertDiv.remove();
-          }
-        }, 3000);
-      } catch (err) {
-        console.error('퀘스트 상태 새로고침 실패:', err);
-        alert('퀘스트 상태를 새로고침하는 중 오류가 발생했습니다: ' + err.message);
       }
     }
 
@@ -2612,18 +2665,26 @@
         });
       }
 
-      // 주문 상세 슬라이드 토글 이벤트
-      document.querySelectorAll('[data-bs-target^="#order-detail-collapse-"]').forEach(btn => {
-        btn.addEventListener('click', function () {
-          const targetId = this.getAttribute('data-bs-target');
-          const orderId = targetId.replace('#order-detail-collapse-', '');
-          const collapseEl = document.querySelector(targetId);
+      // 주문 상세 collapse 오픈 시: 상세 로드 완료 후 navbar 바로 아래로 정렬
+      document.querySelectorAll('.collapse[id^="order-detail-collapse-"]').forEach(collapseEl => {
+        collapseEl.addEventListener('shown.bs.collapse', async function () {
+          const orderId = this.id.replace('order-detail-collapse-', '');
 
-          if (collapseEl) {
-            collapseEl.addEventListener('shown.bs.collapse', function () {
-              loadOrderDetail(parseInt(orderId));
-            }, { once: true });
-          }
+          const alignDetailUnderNavbar = () => {
+            const nav = document.querySelector('nav.navbar');
+            const navHeight = nav ? nav.offsetHeight : 56;
+            const titleEl = this.querySelector('.erp-order-detail-title') || this;
+            const targetTop = window.scrollY + titleEl.getBoundingClientRect().top - navHeight - 8;
+            window.scrollTo({ top: Math.max(0, targetTop), behavior: 'auto' });
+          };
+
+          // 1차: collapse 오픈 직후 정렬
+          alignDetailUnderNavbar();
+
+          // 2차: 상세 내용 렌더 완료 후 다시 정렬 (높이 변동 보정)
+          await loadOrderDetail(parseInt(orderId, 10));
+          requestAnimationFrame(alignDetailUnderNavbar);
+          setTimeout(alignDetailUnderNavbar, 120);
         });
       });
 
@@ -2673,7 +2734,7 @@
         });
       });
 
-      // 이벤트 위임: 퀘스트 승인 및 상태 새로고침
+      // 이벤트 위임: 퀘스트 승인, 첨부 미리보기 등
       document.body.addEventListener('click', function (e) {
         // 승인 버튼
         const approveBtn = e.target.closest('.erp-btn-approve-team');
@@ -2684,15 +2745,6 @@
             approveQuestTeam(Number(orderId), team);
           } else {
             console.warn('approveQuestTeam is not defined');
-          }
-        }
-
-        // 새로고침 버튼
-        const refreshBtn = e.target.closest('.erp-btn-refresh-status');
-        if (refreshBtn) {
-          const orderId = refreshBtn.dataset.orderId;
-          if (typeof refreshQuestStatus === 'function') {
-            refreshQuestStatus(Number(orderId));
           }
         }
 
@@ -2903,7 +2955,7 @@
           <div class="notification-item ${n.is_read ? '' : 'notification-item--unread'}" 
                data-id="${n.id}" 
                data-order-id="${n.order_id}"
-               onclick="handleNotificationClick(${n.id}, ${n.order_id})">
+               onclick="handleNotificationClick(${n.id}, ${n.order_id}, '${String(n.notification_type || '').replace(/'/g, "\\'")}', '${String(n.deep_tab || '').replace(/'/g, "\\'")}', '${String(n.deep_event_id || '').replace(/'/g, "\\'")}', '${String(n.deep_target_no || '').replace(/'/g, "\\'")}')">
             <div class="notification-item__header">
               <span class="notification-item__title">${escapeHtml(n.title)}</span>
               <span class="notification-item__time">${formatNotificationTime(n.created_at)}</span>
@@ -2929,7 +2981,7 @@
       }
     }
 
-    async function handleNotificationClick(notificationId, orderId) {
+    async function handleNotificationClick(notificationId, orderId, notificationType, deepTab, deepEventId, deepTargetNo) {
       // 읽음 처리
       try {
         await fetch(`/erp/api/notifications/${notificationId}/read`, { method: 'POST' });
@@ -2937,7 +2989,15 @@
 
         // 해당 주문 상세로 이동
         if (orderId) {
-          window.location.href = `/edit/${orderId}`;
+          if (notificationType === 'DRAWING_TRANSFERRED' || notificationType === 'DRAWING_REVISION') {
+            const tab = deepTab || (notificationType === 'DRAWING_REVISION' ? 'requests' : 'timeline');
+            let url = `/erp/drawing-workbench/${orderId}?tab=${encodeURIComponent(tab)}`;
+            if (deepEventId) url += `&event_id=${encodeURIComponent(deepEventId)}`;
+            if (deepTargetNo) url += `&target_no=${encodeURIComponent(deepTargetNo)}`;
+            window.location.href = url;
+          } else {
+            window.location.href = `/edit/${orderId}`;
+          }
         }
       } catch (e) {
         console.error('Notification click error:', e);
