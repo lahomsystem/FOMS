@@ -1396,7 +1396,7 @@
         <div class="card-body">
           <div class="fw-bold mb-3 text-dark" style="font-size: 1.15rem;"><i class="fas fa-filter text-primary"></i> 필터
           </div>
-          <form method="get" action="{{ url_for('erp_beta.erp_dashboard') }}" class="erp-filter-row"
+          <form method="get" action="{{ url_for('erp_beta.erp_production_dashboard') }}" class="erp-filter-row"
             id="erp-filters-form">
             {% if filters.get('alert_type') %}
             <input type="hidden" name="alert_type" value="{{ filters.get('alert_type') }}">
@@ -1523,75 +1523,21 @@
                   <td data-label="단계"><span class="badge bg-secondary"
                       style="font-size: 1.1rem; padding: 0.5em 0.7em;">{{ o.stage }}</span></td>
                   <td data-label="퀘스트" class="erp-quest-cell erp-wrap">
-                    {% if o.current_quest %}
-                    <div class="d-inline-flex align-items-center gap-2">
-                      {% if o.current_quest.all_approved %}
-                      <span class="badge bg-success" style="font-size: 1rem; padding: 0.4em 0.7em;">완료</span>
+                    {% if o.stage == '제작대기' %}
+                      {% if not o.is_sales_approved %}
+                        <!-- 담당자 승인 전: '고객 컨펌 전' 텍스트 표시 -->
+                        <span class="badge bg-secondary" style="font-size: 1rem; padding: 0.4em 0.7em;">고객 컨펌 전</span>
                       {% else %}
-                      <span class="badge bg-warning" style="font-size: 1rem; padding: 0.4em 0.7em;">진행중</span>
+                        <!-- 담당자 승인 후: '제작 시작' 버튼 표시 -->
+                        <button class="btn btn-primary fw-bold" onclick="startProduction({{ o.id }})" style="font-size: 1rem; padding: 0.5em 1em;">
+                          <i class="fas fa-play me-1"></i> 제작 시작
+                        </button>
                       {% endif %}
-                      <button class="btn btn-sm btn-outline-info fw-semibold" type="button" data-bs-toggle="collapse"
-                        data-bs-target="#quest-collapse-{{ o.id }}" aria-expanded="false"
-                        aria-controls="quest-collapse-{{ o.id }}" style="font-size: 1.1rem; padding: 0.5em 0.8em;">
-                        <i class="fas fa-chevron-down"></i>
-                        {% if o.current_quest.all_approved %}
-                        <i class="fas fa-check-circle text-success"></i>
-                        {% endif %}
-                        <strong>{{ o.current_quest.title }}</strong>
-                      </button>
-                    </div>
-                    <div class="collapse mt-2" id="quest-collapse-{{ o.id }}">
-                      <div class="card card-body border-0 bg-light">
-                        <div class="fw-bold mb-3" style="font-size: 1.05rem;"><i
-                            class="fas fa-flag-checkered text-primary"></i> 현재 단계 퀘스트</div>
-
-                        <div class="card mb-3 shadow-sm">
-                          <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-3">
-                              <div>
-                                <h5 class="card-title mb-2 fw-bold" style="font-size: 1.05rem;">{{ o.current_quest.title
-                                  }}</h5>
-
-                              </div>
-                              <span
-                                class="badge {% if o.current_quest.all_approved %}bg-success{% else %}bg-warning{% endif %}"
-                                style="font-size: 0.9rem; padding: 0.4em 0.6em;">
-                                {% if o.current_quest.all_approved %}완료{% else %}진행중{% endif %}
-                              </span>
-                            </div>
-                            <div class="mb-3">
-                              <div class="text-muted mb-2 fw-semibold" style="font-size: 0.9rem;">담당 팀</div>
-                              <div class="fw-bold" style="font-size: 1rem;">{{
-                                team_labels.get(o.current_quest.owner_team, o.current_quest.owner_team) }}</div>
-                            </div>
-                            <div class="mb-3">
-                              <div class="text-muted mb-2 fw-semibold" style="font-size: 0.9rem;">팀별 승인</div>
-                              <div id="quest-approvals-{{ o.id }}">
-                                {% for team in o.current_quest.required_approvals %}
-                                {% set approved = o.current_quest.team_approvals.get(team, False) %}
-                                <div class="mb-2">
-                                  <span class="fw-semibold" style="font-size: 0.9rem;">{{ team_labels.get(team, team)
-                                    }}</span>
-                                  {% if approved %}
-                                  <span class="badge bg-success ms-2"
-                                    style="font-size: 0.9rem; padding: 0.3em 0.6em;">승인완료</span>
-                                  {% else %}
-                                  {% set order_id_approve = o.id %}
-                                  {% set team_name = team %}
-                                  <button class="btn btn-primary fw-semibold ms-2 erp-btn-approve-team"
-                                    data-order-id="{{ order_id_approve }}" data-team="{{ team_name }}"
-                                    style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">승인</button>
-                                  {% endif %}
-                                </div>
-                                {% endfor %}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    {% elif o.stage == '제작중' %}
+                      <!-- 제작중 단계: '생산 중' 텍스트 표시 -->
+                      <span class="badge bg-info" style="font-size: 1rem; padding: 0.4em 0.7em;">생산 중</span>
                     {% else %}
-                    <span class="text-muted" style="font-size: 1.1rem;">-</span>
+                      <span class="text-muted" style="font-size: 1.1rem;">-</span>
                     {% endif %}
                   </td>
                   <td data-label="고객" class="fw-bold erp-wrap" style="font-size: 1.1rem; color: #212529;">{{
@@ -1815,9 +1761,15 @@
           ? `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
               <video src="${viewUrl}" controls preload="metadata" style="width:100%;height:100%;"></video>
             </div>`
-          : `<img src="${thumb}" alt="${name}" class="img-fluid rounded"
-              style="max-height: 180px; object-fit: contain; width:100%; cursor: zoom-in; background:#fff; padding:4px;"
-              onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ${index})">`;
+          : (type === 'image')
+            ? `<img src="${thumb}" alt="${name}" class="img-fluid rounded"
+                style="max-height: 180px; object-fit: contain; width:100%; cursor: zoom-in; background:#fff; padding:4px;"
+                onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ${index})">`
+            : `<div class="border rounded d-flex flex-column align-items-center justify-content-center bg-light"
+                style="height: 180px;">
+                <i class="fas fa-file-alt text-secondary mb-2" style="font-size: 2rem;"></i>
+                <div class="small text-muted text-center px-2">문서 파일</div>
+               </div>`;
 
         return `
           <div class="col-md-4 col-sm-6 col-12">
@@ -1860,69 +1812,59 @@
 
     // 첨부 파일 미리보기 모달 열기 (단일 파일)
     function openAttachmentPreviewModal(attachmentId, viewUrl, downloadUrl, filename, fileType) {
-      const modalEl = document.getElementById('erpAttachmentPreviewModal');
-      const body = document.getElementById('erp-attachment-preview-body');
-      const dl = document.getElementById('erp-attachment-preview-download');
-      if (!modalEl || !body || !dl) return;
+      if (window.GlobalImageViewer) {
+        const singleFile = {
+          view_url: viewUrl,
+          download_url: downloadUrl,
+          filename: filename,
+          file_type: fileType
+        };
 
-      dl.href = downloadUrl || viewUrl || '#';
+        // 같은 주문의 첨부 캐시가 있으면 이미지 묶음으로 열어 좌우 이동 가능하게 처리
+        const orderMatch = String(viewUrl || '').match(/\/orders\/(\d+)\//);
+        const orderId = orderMatch ? Number(orderMatch[1]) : 0;
+        const cached = orderId ? (__attachmentsCache[orderId] || []) : [];
 
-      if (fileType === 'video') {
-        body.innerHTML = `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;"><video src="${viewUrl}" controls autoplay style="width:100%;height:100%;"></video></div><div class="small text-muted mt-2">${escapeHtml(filename || '')}</div>`;
-      } else {
-        // 이미지 줌 기능을 위한 구조 (윤곽 없이 전체 확대/축소)
-        body.innerHTML = `
-          <div class="position-relative" style="overflow: hidden; cursor: grab; user-select: none; height: 100%; display: flex; align-items: center; justify-content: center;" id="image-zoom-container">
-            <img src="${viewUrl}" alt="${escapeHtml(filename || '')}" 
-                 id="preview-zoom-image" 
-                 style="display: block; max-width: 100%; max-height: 100%; transition: transform 0.1s ease-out; transform-origin: center center;"
-                 draggable="false">
-            <div class="position-absolute top-0 end-0 m-2">
-              <div class="badge bg-dark bg-opacity-75" id="zoom-level-badge" style="display: none;">100%</div>
-            </div>
-          </div>
-          <div class="small text-muted mt-2 text-center" style="flex-shrink: 0;">${escapeHtml(filename || '')} <span class="text-muted">(휠 스크롤로 줌 인/아웃)</span></div>
-        `;
+        const isImage = (a) => {
+          if (!a) return false;
+          const ft = String(a.file_type || '').toLowerCase();
+          if (ft === 'image') return true;
+          const probe = String(a.view_url || a.filename || '').toLowerCase();
+          return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/.test(probe);
+        };
 
-        // 이미지 줌 기능 초기화
-        setupImageZoom();
-      }
+        if (String(fileType || '').toLowerCase() === 'image' && Array.isArray(cached) && cached.length > 1) {
+          const imageFiles = cached
+            .filter(isImage)
+            .map((a) => ({
+              view_url: a.view_url || '',
+              download_url: a.download_url || (a.view_url || ''),
+              filename: a.filename || '이미지',
+              file_type: 'image'
+            }))
+            .filter((a) => !!a.view_url);
 
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-
-      // 네비게이션 버튼 이벤트 리스너 등록
-      const prevBtn = document.getElementById('erp-attachment-preview-prev');
-      const nextBtn = document.getElementById('erp-attachment-preview-next');
-      if (prevBtn) {
-        prevBtn.onclick = showPreviousAttachment;
-      }
-      if (nextBtn) {
-        nextBtn.onclick = showNextAttachment;
-      }
-
-      // 네비게이션 업데이트
-      updateAttachmentNavigation();
-
-      // 키보드 이벤트 리스너 (좌우 화살표 키)
-      const handleKeyDown = (e) => {
-        if (e.key === 'ArrowLeft') {
-          e.preventDefault();
-          showPreviousAttachment();
-        } else if (e.key === 'ArrowRight') {
-          e.preventDefault();
-          showNextAttachment();
+          if (imageFiles.length > 1) {
+            let startIndex = 0;
+            if (attachmentId) {
+              const idxById = cached.filter(isImage).findIndex((a) => Number(a.id || 0) === Number(attachmentId));
+              if (idxById >= 0) startIndex = idxById;
+            }
+            if (startIndex === 0) {
+              const idxByUrl = imageFiles.findIndex((a) => String(a.view_url) === String(viewUrl));
+              if (idxByUrl >= 0) startIndex = idxByUrl;
+            }
+            window.GlobalImageViewer.open(imageFiles, startIndex);
+            return;
+          }
         }
-      };
 
-      // 모달이 열릴 때 키보드 이벤트 리스너 추가
-      modalEl.addEventListener('keydown', handleKeyDown);
-
-      // 모달이 닫힐 때 키보드 이벤트 리스너 제거
-      modalEl.addEventListener('hidden.bs.modal', () => {
-        modalEl.removeEventListener('keydown', handleKeyDown);
-      }, { once: true });
-
-      modal.show();
+        // 기본: 단일 파일로 열기
+        window.GlobalImageViewer.open([singleFile], 0);
+      } else {
+        console.error('GlobalImageViewer not found');
+        alert('이미지 뷰어를 불러올 수 없습니다.');
+      }
     }
 
     // 이미지 줌 기능 설정 (윤곽 없이 전체 확대/축소)
@@ -2166,18 +2108,13 @@
       }
 
       __currentAttachmentIndex = index;
-      const attachment = __currentAttachmentList[index];
-
-      openAttachmentPreviewModal(
-        attachment.id,
-        attachment.view_url || '#',
-        attachment.download_url || attachment.view_url || '#',
-        attachment.filename || '',
-        attachment.file_type || 'image'
-      );
-
-      // 네비게이션 버튼 및 카운터 업데이트
-      updateAttachmentNavigation();
+      
+      if (window.GlobalImageViewer) {
+         window.GlobalImageViewer.open(__currentAttachmentList, index);
+      } else {
+          console.error('GlobalImageViewer not found');
+          alert('이미지 뷰어를 불러올 수 없습니다.');
+      }
     }
 
     // 첨부 파일 네비게이션 업데이트
@@ -2593,20 +2530,8 @@
         // 도면 전달 버튼 (DRAWING 단계일 때만)
         let actionHtml = '';
         if (stage === 'CONFIRM' || stage === '확정대기') {
-          actionHtml = `
-            <div class="col-12">
-              <div class="card bg-light border-primary">
-                <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
-                  <div>
-                    <h5 class="card-title fw-bold text-primary mb-1"><i class="fas fa-hammer"></i> 제작 대기</h5>
-                    <p class="mb-0 text-muted small">도면 및 주문 사항을 확인하고 제작을 시작하세요.</p>
-                  </div>
-                  <button class="btn btn-primary" onclick="startProduction(${orderId})">
-                    <i class="fas fa-play"></i> 제작 시작
-                  </button>
-                </div>
-              </div>
-            </div>`;
+          // [수정] 제작 대기 카드는 삭제하고, 버튼은 퀘스트 영역으로 이동
+          actionHtml = '';
         } else if (stage === 'PRODUCTION' || stage === '제작중') {
           actionHtml = `
             <div class="col-12">

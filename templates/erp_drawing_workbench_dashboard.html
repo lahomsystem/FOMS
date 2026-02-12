@@ -1,5 +1,115 @@
 {% extends "layout.html" %}
 
+{% macro build_sort_url(field) %}
+{%- set params = {} -%}
+{%- for key, value in request.args.items() -%}
+  {%- if key != 'page' -%}
+    {%- set _ = params.update({key: value}) -%}
+  {%- endif -%}
+{%- endfor -%}
+{%- set current_sort = request.args.get('sort', '') -%}
+{%- if current_sort == field -%}
+  {%- set _ = params.update({'sort': '-' + field}) -%}
+{%- elif current_sort == '-' + field -%}
+  {%- set _ = params.pop('sort', None) -%}
+{%- else -%}
+  {%- set _ = params.update({'sort': field}) -%}
+{%- endif -%}
+{{- params|urlencode -}}
+{%- endmacro %}
+
+{% macro build_page_url(page) %}
+{%- set params = {} -%}
+{%- for key, value in request.args.items() -%}
+  {%- if key != 'page' -%}
+    {%- set _ = params.update({key: value}) -%}
+  {%- endif -%}
+{%- endfor -%}
+{%- if page > 1 -%}
+  {%- set _ = params.update({'page': page|string}) -%}
+{%- endif -%}
+{{- params|urlencode -}}
+{%- endmacro %}
+
+{% block head_extra %}
+<style>
+  /* 테이블: 컬럼이 화면에 다 보이도록 가로 스크롤 보장 */
+  .erp-drawing-workbench-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-right: 30px; /* 스크롤바 공간 확보 */
+  }
+  .erp-drawing-workbench-table-wrap table {
+    min-width: 1000px;
+  }
+  
+  /* 대시보드 카드 바디 - 스크롤바 공간 */
+  .erp-pro-card .card-body {
+    overflow: visible;
+  }
+  
+  /* 마지막 컬럼에 충분한 공간 확보 */
+  .erp-drawing-workbench-table-wrap th:last-child,
+  .erp-drawing-workbench-table-wrap td:last-child {
+    padding-right: 50px !important;
+    white-space: nowrap;
+  }
+  
+  /* 대시보드 전체에 우측 공간 */
+  .erp-pro-card.mb-3 {
+    padding-right: 20px;
+  }
+
+  /* ERP 프로세스 맵 스타일(컴팩트) */
+  .dw-process-map .erp-pro-card__body {
+    padding: 10px 12px;
+  }
+  .dw-process-map .erp-pro-pipeline {
+    gap: 8px;
+  }
+  .dw-process-map .erp-pro-pipeline__stage {
+    min-width: 92px;
+    padding: 0.45rem 0.5rem !important;
+    cursor: pointer;
+  }
+  .dw-process-map .erp-pro-pipeline__count {
+    font-size: 1rem;
+    line-height: 1.05;
+  }
+  .dw-process-map .erp-pro-pipeline__label {
+    font-size: 0.76rem;
+    line-height: 1.1;
+    margin-top: 3px;
+  }
+  .dw-process-map .erp-pro-pipeline__connector {
+    opacity: 0.45;
+  }
+  
+  /* Phase 3: 모바일 카드 레이아웃 */
+  .mobile-order-card {
+    cursor: pointer;
+    transition: box-shadow 0.2s ease;
+  }
+  .mobile-order-card:active {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+  
+  @media (max-width: 768px) {
+    .erp-pro-filter-form--inline-mobile {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .erp-pro-filter-group {
+      width: 100%;
+    }
+    .erp-pro-input {
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="erp-pro">
   <header class="erp-pro-header">
@@ -18,7 +128,66 @@
   {% set erp_sub_nav_active = 'drawing_workbench' %}
   {% include 'partials/erp_sub_nav.html' %}
 
-  <div class="erp-pro-card">
+  <!-- ERP 프로세스 맵 스타일 요약 -->
+  <div class="erp-pro-card mb-2 dw-process-map">
+    <div class="erp-pro-card__header py-2">
+      <h3 class="erp-pro-card__title mb-0">
+        <i class="fas fa-project-diagram"></i>
+        프로세스 맵
+      </h3>
+    </div>
+    <div class="erp-pro-card__body">
+      {% set is_all_active = not (filters.get('status') or '') %}
+      <div class="erp-pro-pipeline">
+        <div class="erp-pro-pipeline__stage {% if is_all_active %}erp-pro-pipeline__stage--active{% endif %}" data-status="" role="button" tabindex="0" title="전체 보기">
+          <div class="erp-pro-pipeline__count">{{ stats.total }}</div>
+          <div class="erp-pro-pipeline__label">전체</div>
+        </div>
+        <div class="erp-pro-pipeline__connector"><i class="fas fa-chevron-right"></i></div>
+
+        <div class="erp-pro-pipeline__stage {% if (filters.get('status') or '') == 'WAITING' %}erp-pro-pipeline__stage--active{% endif %}" data-status="WAITING" role="button" tabindex="0" title="대기중만 보기">
+          <div class="erp-pro-pipeline__count">{{ stats.WAITING }}</div>
+          <div class="erp-pro-pipeline__label">대기중</div>
+        </div>
+        <div class="erp-pro-pipeline__connector"><i class="fas fa-chevron-right"></i></div>
+
+        <div class="erp-pro-pipeline__stage {% if (filters.get('status') or '') == 'IN_PROGRESS' %}erp-pro-pipeline__stage--active{% endif %}" data-status="IN_PROGRESS" role="button" tabindex="0" title="작업중만 보기">
+          <div class="erp-pro-pipeline__count">{{ stats.IN_PROGRESS }}</div>
+          <div class="erp-pro-pipeline__label">작업중</div>
+        </div>
+        <div class="erp-pro-pipeline__connector"><i class="fas fa-chevron-right"></i></div>
+
+        <div class="erp-pro-pipeline__stage {% if (filters.get('status') or '') == 'RETURNED' %}erp-pro-pipeline__stage--active{% endif %}" data-status="RETURNED" role="button" tabindex="0" title="수정요청만 보기">
+          <div class="erp-pro-pipeline__count">{{ stats.RETURNED }}</div>
+          <div class="erp-pro-pipeline__label">수정요청</div>
+        </div>
+        <div class="erp-pro-pipeline__connector"><i class="fas fa-chevron-right"></i></div>
+
+        <div class="erp-pro-pipeline__stage {% if (filters.get('status') or '') == 'TRANSFERRED' %}erp-pro-pipeline__stage--active{% endif %}" data-status="TRANSFERRED" role="button" tabindex="0" title="확정대기만 보기">
+          <div class="erp-pro-pipeline__count">{{ stats.TRANSFERRED }}</div>
+          <div class="erp-pro-pipeline__label">확정대기</div>
+        </div>
+        <div class="erp-pro-pipeline__connector"><i class="fas fa-chevron-right"></i></div>
+
+        <div class="erp-pro-pipeline__stage {% if (filters.get('status') or '') == 'CONFIRMED' %}erp-pro-pipeline__stage--active{% endif %}" data-status="CONFIRMED" role="button" tabindex="0" title="완료만 보기">
+          <div class="erp-pro-pipeline__count">{{ stats.CONFIRMED }}</div>
+          <div class="erp-pro-pipeline__label">완료</div>
+        </div>
+
+        <div class="erp-pro-pipeline__stage ms-2" data-filter="overdue" role="button" tabindex="0" title="오늘 마감만 보기">
+          <div class="erp-pro-pipeline__count text-danger">{{ stats.overdue }}</div>
+          <div class="erp-pro-pipeline__label"><i class="fas fa-exclamation-triangle me-1 text-danger"></i>지연</div>
+        </div>
+
+        <div class="erp-pro-pipeline__stage" data-filter="unread" role="button" tabindex="0" title="미확인 요청만 보기">
+          <div class="erp-pro-pipeline__count text-warning">{{ stats.unread }}</div>
+          <div class="erp-pro-pipeline__label"><i class="fas fa-bell me-1 text-warning"></i>미확인</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="erp-pro-card" style="margin-right: 20px;">
     <div class="erp-pro-card__header erp-pro-card__header--filter">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
         <div class="erp-pro-filter-group">
@@ -30,9 +199,10 @@
           <label class="erp-pro-filter-label">상태</label>
           <select class="erp-pro-input" name="status">
             <option value="">전체</option>
-            <option value="PENDING" {% if filters.get('status') == 'PENDING' %}selected{% endif %}>작업중</option>
-            <option value="TRANSFERRED" {% if filters.get('status') == 'TRANSFERRED' %}selected{% endif %}>확정 대기</option>
+            <option value="WAITING" {% if filters.get('status') == 'WAITING' %}selected{% endif %}>대기중</option>
+            <option value="IN_PROGRESS" {% if filters.get('status') == 'IN_PROGRESS' %}selected{% endif %}>작업중</option>
             <option value="RETURNED" {% if filters.get('status') == 'RETURNED' %}selected{% endif %}>수정 요청됨</option>
+            <option value="TRANSFERRED" {% if filters.get('status') == 'TRANSFERRED' %}selected{% endif %}>확정 대기</option>
             <option value="CONFIRMED" {% if filters.get('status') == 'CONFIRMED' %}selected{% endif %}>완료</option>
           </select>
         </div>
@@ -43,15 +213,15 @@
         </div>
         <div class="d-flex flex-wrap gap-2 align-items-center">
           <label class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" name="mine" value="1" {% if filters.get('mine') == '1' %}checked{% endif %}>
+            <input class="form-check-input auto-submit-checkbox" type="checkbox" name="mine" value="1" {% if filters.get('mine') == '1' %}checked{% endif %}>
             <span class="small ms-1">내 할 일</span>
           </label>
           <label class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" name="unread" value="1" {% if filters.get('unread') == '1' %}checked{% endif %}>
+            <input class="form-check-input auto-submit-checkbox" type="checkbox" name="unread" value="1" {% if filters.get('unread') == '1' %}checked{% endif %}>
             <span class="small ms-1">미확인만</span>
           </label>
           <label class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" name="due_today" value="1" {% if filters.get('due_today') == '1' %}checked{% endif %}>
+            <input class="form-check-input auto-submit-checkbox" type="checkbox" name="due_today" value="1" {% if filters.get('due_today') == '1' %}checked{% endif %}>
             <span class="small ms-1">오늘 마감</span>
           </label>
         </div>
@@ -68,24 +238,71 @@
 
     <div class="card-body">
       {% if rows %}
-      <div class="table-responsive">
+      <!-- 일괄 작업 플로팅 바 -->
+      <div id="batch-action-bar" class="alert alert-primary d-none align-items-center justify-content-between mb-3" style="position: sticky; top: 70px; z-index: 100;">
+        <div>
+          <i class="fas fa-check-square me-2"></i>
+          <strong><span id="selected-count">0</span>건 선택됨</strong>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-sm btn-primary" onclick="openBatchAssignModal()">
+            <i class="fas fa-user-cog"></i> 담당자 일괄 지정
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearAllSelections()">
+            <i class="fas fa-times"></i> 선택 해제
+          </button>
+        </div>
+      </div>
+
+      <div class="table-responsive d-none d-md-block erp-drawing-workbench-table-wrap">
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
-              <th>주문/고객</th>
+              <th style="width: 40px;">
+                <input type="checkbox" class="form-check-input" id="select-all" onclick="toggleSelectAll(this)">
+              </th>
+              <th>
+                <a href="?{{ build_sort_url('id') }}" class="text-decoration-none text-dark">
+                  주문/고객
+                  {% if sort_by == 'id' %}<i class="fas fa-sort-down"></i>{% elif sort_by == '-id' %}<i class="fas fa-sort-up"></i>{% else %}<i class="fas fa-sort text-muted"></i>{% endif %}
+                </a>
+              </th>
               <th>다음 액션</th>
               <th>도면 담당</th>
-              <th>상태</th>
+              <th>
+                <a href="?{{ build_sort_url('status') }}" class="text-decoration-none text-dark">
+                  상태
+                  {% if sort_by == 'status' %}<i class="fas fa-sort-down"></i>{% elif sort_by == '-status' %}<i class="fas fa-sort-up"></i>{% else %}<i class="fas fa-sort text-muted"></i>{% endif %}
+                </a>
+              </th>
               <th>대상 번호</th>
-              <th>최근 이벤트</th>
-              <th>SLA</th>
-              <th>미확인</th>
+              <th>
+                <a href="?{{ build_sort_url('updated_at') }}" class="text-decoration-none text-dark">
+                  최근 이벤트
+                  {% if sort_by == 'updated_at' %}<i class="fas fa-sort-down"></i>{% elif sort_by == '-updated_at' %}<i class="fas fa-sort-up"></i>{% else %}<i class="fas fa-sort text-muted"></i>{% endif %}
+                </a>
+              </th>
+              <th>
+                <a href="?{{ build_sort_url('sla') }}" class="text-decoration-none text-dark">
+                  SLA
+                  {% if sort_by == 'sla' %}<i class="fas fa-sort-down"></i>{% elif sort_by == '-sla' %}<i class="fas fa-sort-up"></i>{% else %}<i class="fas fa-sort text-muted"></i>{% endif %}
+                </a>
+              </th>
+              <th>
+                <a href="?{{ build_sort_url('unread') }}" class="text-decoration-none text-dark">
+                  미확인
+                  {% if sort_by == 'unread' %}<i class="fas fa-sort-down"></i>{% elif sort_by == '-unread' %}<i class="fas fa-sort-up"></i>{% else %}<i class="fas fa-sort text-muted"></i>{% endif %}
+                </a>
+              </th>
               <th class="text-end">열기</th>
             </tr>
           </thead>
           <tbody>
             {% for r in rows %}
             <tr class="erp-workbench-row" data-href="{{ url_for('erp_beta.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" style="cursor:pointer;">
+              <td onclick="event.stopPropagation();">
+                <input type="checkbox" class="form-check-input order-checkbox" value="{{ r.id }}" onchange="updateBatchBar()">
+              </td>
               <td>
                 <div class="fw-bold">{{ r.customer_name }}</div>
                 <div class="small text-muted">#{{ r.id }}</div>
@@ -95,7 +312,12 @@
                 {% endif %}
               </td>
               <td class="small">{{ r.next_action }}</td>
-              <td>{{ r.assignee_text }}</td>
+              <td>
+                <span>{{ r.assignee_text }}</span>
+                <button type="button" class="btn btn-sm btn-outline-primary ms-1" onclick="event.stopPropagation(); openSingleAssignModal({{ r.id }})" title="담당자 변경">
+                  <i class="fas fa-user-edit"></i>
+                </button>
+              </td>
               <td>
                 {% set badge_cls = 'bg-secondary' %}
                 {% if r.drawing_status == 'PENDING' %}{% set badge_cls = 'bg-warning text-dark' %}{% endif %}
@@ -146,6 +368,109 @@
           </tbody>
         </table>
       </div>
+      
+      <!-- Phase 3: 페이지네이션 -->
+      {% if pagination.total_pages > 1 %}
+      <nav aria-label="Page navigation" class="mt-3">
+        <ul class="pagination justify-content-center mb-0">
+          <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+            <a class="page-link" href="?{{ build_page_url(pagination.page - 1) }}" aria-label="이전">
+              <span aria-hidden="true">&laquo;</span>
+            </a>
+          </li>
+          
+          {% set start_page = [1, pagination.page - 2]|max %}
+          {% set end_page = [pagination.total_pages, pagination.page + 2]|min %}
+          
+          {% if start_page > 1 %}
+          <li class="page-item">
+            <a class="page-link" href="?{{ build_page_url(1) }}">1</a>
+          </li>
+          {% if start_page > 2 %}
+          <li class="page-item disabled"><span class="page-link">...</span></li>
+          {% endif %}
+          {% endif %}
+          
+          {% for p in range(start_page, end_page + 1) %}
+          <li class="page-item {% if p == pagination.page %}active{% endif %}">
+            <a class="page-link" href="?{{ build_page_url(p) }}">{{ p }}</a>
+          </li>
+          {% endfor %}
+          
+          {% if end_page < pagination.total_pages %}
+          {% if end_page < pagination.total_pages - 1 %}
+          <li class="page-item disabled"><span class="page-link">...</span></li>
+          {% endif %}
+          <li class="page-item">
+            <a class="page-link" href="?{{ build_page_url(pagination.total_pages) }}">{{ pagination.total_pages }}</a>
+          </li>
+          {% endif %}
+          
+          <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+            <a class="page-link" href="?{{ build_page_url(pagination.page + 1) }}" aria-label="다음">
+              <span aria-hidden="true">&raquo;</span>
+            </a>
+          </li>
+        </ul>
+        <div class="text-center text-muted small mt-2">
+          전체 {{ pagination.total_count }}건 중 {{ (pagination.page - 1) * pagination.per_page + 1 }}-{{ [pagination.page * pagination.per_page, pagination.total_count]|min }}건 표시
+        </div>
+      </nav>
+      {% endif %}
+      
+      <!-- Phase 3: 모바일 카드 레이아웃 -->
+      <div class="mobile-card-list d-md-none">
+        {% for r in rows %}
+        <div class="card mb-2 mobile-order-card" data-href="{{ url_for('erp_beta.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <div class="fw-bold">{{ r.customer_name }}</div>
+                <div class="small text-muted">#{{ r.id }} · {{ r.manager_name }}</div>
+              </div>
+              <div>
+                {% set badge_cls = 'bg-secondary' %}
+                {% if r.drawing_status == 'PENDING' %}{% set badge_cls = 'bg-warning text-dark' %}{% endif %}
+                {% if r.drawing_status == 'TRANSFERRED' %}{% set badge_cls = 'bg-info text-dark' %}{% endif %}
+                {% if r.drawing_status == 'RETURNED' %}{% set badge_cls = 'bg-danger' %}{% endif %}
+                {% if r.drawing_status == 'CONFIRMED' %}{% set badge_cls = 'bg-success' %}{% endif %}
+                <span class="badge {{ badge_cls }}">{{ r.drawing_status_label }}</span>
+              </div>
+            </div>
+            <div class="small mb-2">
+              <div><strong>담당:</strong> {{ r.assignee_text }}
+                <button type="button" class="btn btn-sm btn-outline-primary ms-1" onclick="event.preventDefault(); event.stopPropagation(); openSingleAssignModal({{ r.id }})" title="담당자 변경">
+                  <i class="fas fa-user-edit"></i>
+                </button>
+              </div>
+              <div><strong>다음 액션:</strong> {{ r.next_action }}</div>
+              {% if r.latest_event_label != '-' %}
+              <div><strong>최근 이벤트:</strong> {{ r.latest_event_label }}</div>
+              {% endif %}
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="small text-muted">
+                {% if r.unread_count > 0 %}
+                <span class="badge bg-warning text-dark">미확인 {{ r.unread_count }}</span>
+                {% endif %}
+                {% if r.is_overdue %}
+                <span class="badge bg-danger">지연</span>
+                {% elif r.due_today %}
+                <span class="badge bg-warning text-dark">오늘 마감</span>
+                {% endif %}
+                {% if r.my_todo %}
+                <span class="badge bg-primary">내 할 일</span>
+                {% endif %}
+              </div>
+              <a href="{{ url_for('erp_beta.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-external-link-alt"></i> 열기
+              </a>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      
       {% else %}
       <div class="text-center text-muted py-5">
         <i class="fas fa-inbox mb-2" style="font-size:1.6rem;"></i>
@@ -155,13 +480,357 @@
     </div>
   </div>
 </div>
+
+<!-- 담당자 일괄 지정 모달: 바깥 클릭 시 닫히지 않음 -->
+<div class="modal fade" id="batchAssignModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-users-cog"></i> 도면 담당자 일괄 지정</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">선택한 주문들에 도면 담당자를 일괄 지정합니다. <strong>도면팀 소속 직원만</strong> 선택 가능합니다. (다중 선택 가능)</p>
+        <div id="batch-draftsman-list" class="list-group">
+          <div class="text-center text-muted">로딩 중...</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-primary" id="btn-save-batch-assign">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 단일 주문 담당자 변경 모달 (대시보드에서 바로 변경) -->
+<div class="modal fade" id="singleAssignModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-user-edit"></i> 도면 담당자 변경</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">해당 주문의 도면 담당자를 변경합니다. <strong>도면팀 소속 직원만</strong> 선택 가능합니다. (다중 선택 가능)</p>
+        <div id="single-draftsman-list" class="list-group">
+          <div class="text-center text-muted">로딩 중...</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-primary" id="btn-save-single-assign">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
+  let drawingUsersCache = null;
+
+  function toggleSelectAll(checkbox) {
+    const checkboxes = document.querySelectorAll('.order-checkbox');
+    checkboxes.forEach(cb => {
+      cb.checked = checkbox.checked;
+    });
+    updateBatchBar();
+  }
+
+  function updateBatchBar() {
+    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+    const count = checkboxes.length;
+    const bar = document.getElementById('batch-action-bar');
+    const countSpan = document.getElementById('selected-count');
+    
+    if (count > 0) {
+      bar.classList.remove('d-none');
+      bar.classList.add('d-flex');
+      countSpan.textContent = count;
+    } else {
+      bar.classList.remove('d-flex');
+      bar.classList.add('d-none');
+      document.getElementById('select-all').checked = false;
+    }
+  }
+
+  function clearAllSelections() {
+    document.querySelectorAll('.order-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('select-all').checked = false;
+    updateBatchBar();
+  }
+
+  function getSelectedOrderIds() {
+    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+    return Array.from(checkboxes).map(cb => parseInt(cb.value));
+  }
+
+  async function openBatchAssignModal() {
+    const selectedIds = getSelectedOrderIds();
+    if (selectedIds.length === 0) {
+      alert('주문을 선택해주세요.');
+      return;
+    }
+
+    const modalEl = document.getElementById('batchAssignModal');
+    const listEl = document.getElementById('batch-draftsman-list');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    // 도면팀 사용자 목록 로드
+    if (!drawingUsersCache) {
+      try {
+        const res = await fetch('/erp/api/users?team=DRAWING');
+        const data = await res.json();
+        if (data.success) {
+          drawingUsersCache = data.users;
+        }
+      } catch (e) {
+        console.error(e);
+        listEl.innerHTML = '<div class="text-danger">사용자 목록 로드 실패</div>';
+        return;
+      }
+    }
+
+    const users = drawingUsersCache || [];
+    if (users.length === 0) {
+      listEl.innerHTML = '<div class="text-muted text-center">도면팀 사용자가 없습니다.</div>';
+    } else {
+      listEl.innerHTML = users.map(u => `
+        <label class="list-group-item d-flex gap-2">
+          <input class="form-check-input flex-shrink-0" type="checkbox" value="${u.id}" name="batch_draftsman_user">
+          <span>
+            <strong>${u.name}</strong>
+            <small class="text-muted ms-1">(${u.team})</small>
+          </span>
+        </label>
+      `).join('');
+    }
+  }
+
+  document.getElementById('btn-save-batch-assign')?.addEventListener('click', async function() {
+    const selectedOrders = getSelectedOrderIds();
+    const checkboxes = document.querySelectorAll('input[name="batch_draftsman_user"]:checked');
+    const userIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+    if (selectedOrders.length === 0) {
+      alert('주문을 선택해주세요.');
+      return;
+    }
+    if (userIds.length === 0) {
+      alert('최소 한 명 이상의 담당자를 선택해주세요.');
+      return;
+    }
+
+    if (!confirm(`선택한 ${selectedOrders.length}건의 주문에 담당자를 일괄 지정하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/orders/batch-assign-draftsman', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_ids: selectedOrders,
+          user_ids: userIds
+        })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        alert(data.message);
+        bootstrap.Modal.getInstance(document.getElementById('batchAssignModal')).hide();
+        window.location.reload();
+      } else {
+        alert('오류: ' + data.message);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('저장 중 오류가 발생했습니다.');
+    }
+  });
+
+  // 단일 주문 담당자 변경 (대시보드에서 바로 변경)
+  let singleAssignOrderId = 0;
+  async function openSingleAssignModal(orderId) {
+    singleAssignOrderId = orderId;
+    const modalEl = document.getElementById('singleAssignModal');
+    const listEl = document.getElementById('single-draftsman-list');
+    listEl.innerHTML = '<div class="text-center text-muted">로딩 중...</div>';
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    let currentAssigneeIds = [];
+    try {
+      const infoRes = await fetch('/api/orders/' + orderId + '/structured');
+      if (infoRes.ok) {
+        const infoData = await infoRes.json();
+        if (infoData.success && infoData.structured_data) {
+          const assignments = infoData.structured_data.assignments || {};
+          currentAssigneeIds = assignments.drawing_assignee_user_ids || [];
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    if (!drawingUsersCache) {
+      try {
+        const res = await fetch('/erp/api/users?team=DRAWING');
+        const data = await res.json();
+        if (data.success) drawingUsersCache = data.users;
+      } catch (e) {
+        console.error(e);
+        listEl.innerHTML = '<div class="text-danger">사용자 목록 로드 실패</div>';
+        return;
+      }
+    }
+    const users = drawingUsersCache || [];
+    if (users.length === 0) {
+      listEl.innerHTML = '<div class="text-muted text-center">도면팀 사용자가 없습니다.</div>';
+    } else {
+      listEl.innerHTML = users.map(u => {
+        const isChecked = currentAssigneeIds.includes(u.id) ? 'checked' : '';
+        return '<label class="list-group-item d-flex gap-2"><input class="form-check-input flex-shrink-0" type="checkbox" value="' + u.id + '" name="single_draftsman_user" ' + isChecked + '><span><strong>' + u.name + '</strong> <small class="text-muted ms-1">(' + u.team + ')</small></span></label>';
+      }).join('');
+    }
+  }
+  window.openSingleAssignModal = openSingleAssignModal;
+
+  document.getElementById('btn-save-single-assign')?.addEventListener('click', async function() {
+    if (!singleAssignOrderId) return;
+    const checkboxes = document.querySelectorAll('input[name="single_draftsman_user"]:checked');
+    const userIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    if (userIds.length === 0) {
+      alert('최소 한 명 이상의 담당자를 선택해주세요.');
+      return;
+    }
+    try {
+      const res = await fetch('/api/orders/' + singleAssignOrderId + '/assign-draftsman', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_ids: userIds })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        bootstrap.Modal.getInstance(document.getElementById('singleAssignModal')).hide();
+        window.location.reload();
+      } else {
+        alert('오류: ' + (data.message || '저장 실패'));
+      }
+    } catch (e) {
+      console.error(e);
+      alert('저장 중 오류가 발생했습니다.');
+    }
+  });
+
   document.addEventListener('click', function (e) {
     const row = e.target.closest('.erp-workbench-row');
     if (!row) return;
     if (e.target.closest('a, button, input, select, label')) return;
     const href = row.getAttribute('data-href');
     if (href) window.location.href = href;
+  });
+  
+  // Phase 3: URL 빌드 함수
+  function buildSortUrl(field) {
+    const params = new URLSearchParams(window.location.search);
+    const currentSort = params.get('sort') || '';
+    
+    // 토글 로직: field -> -field -> 제거
+    if (currentSort === field) {
+      params.set('sort', '-' + field);
+    } else if (currentSort === '-' + field) {
+      params.delete('sort');
+    } else {
+      params.set('sort', field);
+    }
+    
+    params.delete('page'); // 정렬 변경 시 1페이지로
+    return params.toString();
+  }
+  
+  function buildPageUrl(page) {
+    const params = new URLSearchParams(window.location.search);
+    if (page > 1) {
+      params.set('page', page);
+    } else {
+      params.delete('page');
+    }
+    return params.toString();
+  }
+  
+  // Jinja2에서 사용
+  window.build_sort_url = buildSortUrl;
+  window.build_page_url = buildPageUrl;
+  
+  // Phase 3: 필터 자동 제출 (debounce)
+  let filterSubmitTimeout = null;
+  
+  document.querySelectorAll('.auto-submit-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+      clearTimeout(filterSubmitTimeout);
+      filterSubmitTimeout = setTimeout(() => {
+        const form = this.closest('form');
+        if (form) {
+          form.submit();
+        }
+      }, 300); // 300ms debounce
+    });
+  });
+  
+  // 상태 셀렉트도 자동 제출
+  const statusSelect = document.querySelector('select[name="status"]');
+  if (statusSelect) {
+    statusSelect.addEventListener('change', function() {
+      const form = this.closest('form');
+      if (form) {
+        form.submit();
+      }
+    });
+  }
+
+  // 프로세스 맵 클릭 필터
+  document.querySelectorAll('.dw-process-map .erp-pro-pipeline__stage[data-status]').forEach(el => {
+    const applyStatus = () => {
+      const params = new URLSearchParams(window.location.search);
+      const status = (el.dataset.status || '').trim();
+      if (status) {
+        params.set('status', status);
+      } else {
+        params.delete('status');
+      }
+      params.delete('page');
+      window.location.href = `${window.location.pathname}?${params.toString()}`;
+    };
+    el.addEventListener('click', applyStatus);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        applyStatus();
+      }
+    });
+  });
+
+  document.querySelectorAll('.dw-process-map .erp-pro-pipeline__stage[data-filter]').forEach(el => {
+    const applyQuickFilter = () => {
+      const params = new URLSearchParams(window.location.search);
+      const filterType = el.dataset.filter || '';
+      if (filterType === 'unread') {
+        params.set('unread', '1');
+      } else if (filterType === 'overdue') {
+        params.set('due_today', '1');
+      }
+      params.delete('page');
+      window.location.href = `${window.location.pathname}?${params.toString()}`;
+    };
+    el.addEventListener('click', applyQuickFilter);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        applyQuickFilter();
+      }
+    });
   });
 </script>
 {% endblock %}

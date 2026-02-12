@@ -30,7 +30,11 @@
       {% set download_url = (f.get('download_url') if f is mapping else '') or ('/api/files/download/' ~ fkey) %}
       {% set lower = fname|lower %}
       {% set is_image = lower.endswith('.jpg') or lower.endswith('.jpeg') or lower.endswith('.png') or lower.endswith('.gif') or lower.endswith('.webp') or lower.endswith('.bmp') or lower.endswith('.svg') or lower.endswith('.heic') or lower.endswith('.heif') %}
-      <div class="drawing-gateway-thumb-wrap me-2 mb-2">
+      {% set is_rev = f.get('is_revision') if f is mapping else False %}
+      <div class="drawing-gateway-thumb-wrap me-2 mb-2 position-relative">
+        {% if is_rev %}
+        <span class="badge bg-danger position-absolute top-0 start-0 m-1 shadow-sm" style="font-size: 0.65rem; z-index: 5; opacity: 0.9;">수정완료</span>
+        {% endif %}
         {% if is_image %}
         <div class="drawing-gateway-thumb"
           data-group-key="{{ group_key }}"
@@ -109,6 +113,52 @@
       object-fit: cover;
       display: block;
     }
+    .drawing-target-card {
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .drawing-target-card:hover {
+      background-color: #f8f9fa;
+      border-color: #0d6efd !important;
+    }
+    .drawing-target-card.selected {
+      background-color: #cfe2ff;
+      border-color: #0d6efd !important;
+      border-width: 2px !important;
+    }
+    .drawing-target-card.selected .fw-bold {
+      color: #0d6efd;
+    }
+    
+    /* 실행판 상단 헤더: 오른쪽(상태·미확인) 잘림 방지 */
+    .dw-detail-header-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      min-width: 0;
+      padding-right: 20px; /* 브라우저 스크롤바 여유 공간 */
+    }
+    .dw-detail-header-row .dw-detail-header-left {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+    .dw-detail-header-row .dw-detail-header-right {
+      flex-shrink: 0;
+      text-align: right;
+      margin-right: 20px; /* 스크롤바 회피 */
+    }
+    
+    /* 전체 페이지 우측 패딩 */
+    .erp-pro-card {
+      padding-right: 8px;
+    }
+    .erp-pro-card .card-body {
+      padding-right: 1.5rem;
+    }
+    
+    /* Phase 3: 모바일 하단 fixed 바 */
     @media (max-width: 992px) {
       .dw-detail-grid {
         grid-template-columns: 1fr;
@@ -116,19 +166,265 @@
       .dw-sticky {
         position: static;
       }
+      .dw-sidebar-actions {
+        display: none; /* 사이드바 액션 버튼 숨김 */
+      }
+      .dw-mobile-action-bar {
+        display: flex !important; /* 모바일 액션 바 표시 */
+      }
+      .dw-current-files {
+        display: flex;
+        overflow-x: auto;
+        gap: 0.5rem;
+        padding-bottom: 0.5rem;
+      }
+      .dw-current-files .drawing-gateway-thumb {
+        flex-shrink: 0;
+      }
+    }
+    
+    /* 데스크톱에서는 모바일 액션 바 숨김 */
+    .dw-mobile-action-bar {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 2px solid #dee2e6;
+      padding: 0.75rem 1rem;
+      z-index: 1000;
+      box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+      gap: 0.5rem;
+    }
+    
+    .dw-mobile-action-bar .btn {
+      flex: 1;
+      min-height: 44px; /* 터치 친화적 */
+      font-size: 0.875rem;
+    }
+    .dw-main-reference-card {
+      border: 1px solid #dce6f5;
+      border-radius: 12px;
+      background: linear-gradient(180deg, #fbfdff 0%, #ffffff 100%);
+      padding: 14px;
+    }
+    .dw-main-reference-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .dw-main-reference-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #1f3f75;
+    }
+    .dw-product-main-card {
+      border: 1px solid #dfe7f3;
+      border-radius: 10px;
+      background: #ffffff;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .dw-product-main-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .dw-product-main-name {
+      font-size: 1.08rem;
+      font-weight: 700;
+      color: #0f2a52;
+    }
+    .dw-product-priority-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .dw-product-priority-item {
+      border: 1px solid #cfe0ff;
+      border-radius: 9px;
+      background: #eef4ff;
+      padding: 9px;
+    }
+    .dw-product-priority-item .dw-product-meta-label {
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: #315da8;
+    }
+    .dw-product-priority-item .dw-product-meta-value {
+      font-size: 1.02rem;
+      font-weight: 700;
+      color: #123a79;
+    }
+    .dw-product-split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+    }
+    .dw-product-info-form .form-control {
+      background: #f3f5fa;
+      border-color: #dbe3f0;
+      color: #394b63;
+    }
+    .dw-product-info-form .form-control[readonly] {
+      cursor: copy;
+    }
+    .dw-product-info-form .form-control[readonly]:hover {
+      border-color: #9fb6db;
+      background: #eef3fb;
+    }
+    .dw-attach-panel {
+      border: 1px solid #dbe4f3;
+      border-radius: 10px;
+      background: #f8fbff;
+      padding: 10px;
+      height: 100%;
+    }
+    .dw-attach-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+    }
+    .dw-attach-grid--single {
+      grid-template-columns: 1fr;
+    }
+    .dw-attach-thumb {
+      width: 100%;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #d4deee;
+      cursor: pointer;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+    }
+    .dw-attach-grid--single .dw-attach-thumb {
+      min-height: 180px;
+    }
+    .dw-attach-thumb img {
+      max-width: 100%;
+      max-height: 320px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+    }
+    .dw-attach-name {
+      font-size: 0.78rem;
+      color: #667a94;
+      margin-top: 4px;
+      word-break: break-all;
+    }
+    .dw-product-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .dw-product-meta-item {
+      border: 1px solid #edf2fa;
+      border-radius: 8px;
+      background: #f9fbff;
+      padding: 8px;
+    }
+    .dw-product-meta-item--full {
+      grid-column: 1 / -1;
+    }
+    .dw-product-meta-label {
+      font-size: 0.72rem;
+      color: #6c7f99;
+      margin-bottom: 3px;
+    }
+    .dw-product-meta-value {
+      font-size: 0.9rem;
+      color: #2d3f56;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+    .dw-main-photo-thumb {
+      width: 92px;
+      height: 92px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #dbe5f3;
+      cursor: pointer;
+      background: #fff;
+      flex-shrink: 0;
+    }
+    .dw-main-photo-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .dw-secondary-collapse {
+      border: 1px solid #d9e2f0;
+      border-radius: 10px;
+      background: #fff;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .dw-secondary-collapse > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 10px 12px;
+      background: #f7faff;
+      border-bottom: 1px solid #e8eef8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      color: #234579;
+    }
+    .dw-secondary-collapse > summary::-webkit-details-marker {
+      display: none;
+    }
+    .dw-secondary-collapse .dw-secondary-body {
+      padding: 10px;
+    }
+    
+    @media (max-width: 992px) {
+      .dw-detail-grid {
+        padding-bottom: 80px; /* 하단 바 공간 확보 */
+      }
+      .dw-product-meta-grid {
+        grid-template-columns: 1fr;
+      }
+      .dw-main-photo-thumb {
+        width: 78px;
+        height: 78px;
+      }
+      .dw-product-priority-grid {
+        grid-template-columns: 1fr;
+      }
+      .dw-product-split {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 
-  <div class="erp-pro-card mb-3">
-    <div class="card-body py-3">
-      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-        <div>
+  <div class="erp-pro-card mb-3" style="overflow: visible;">
+    <div class="card-body py-3" style="overflow: visible;">
+      <div class="dw-detail-header-row">
+        <div class="dw-detail-header-left">
           <div class="fw-bold" style="font-size:1.05rem;">{{ customer_name }} <span class="text-muted">#{{ order.id }}</span></div>
           <div class="small text-muted mt-1">
             단계: {{ stage }} · 주문 담당: {{ manager_name }} · 도면 담당: {{ assignee_text }}
+            <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="openDetailAssignModal()" title="담당자 변경">
+              <i class="fas fa-user-edit"></i>
+            </button>
           </div>
         </div>
-        <div class="text-end">
+        <div class="dw-detail-header-right">
           {% set status_badge = 'bg-secondary' %}
           {% if drawing_status == 'PENDING' %}{% set status_badge = 'bg-warning text-dark' %}{% endif %}
           {% if drawing_status == 'TRANSFERRED' %}{% set status_badge = 'bg-info text-dark' %}{% endif %}
@@ -141,26 +437,161 @@
     </div>
   </div>
 
+  <div class="erp-pro-card mb-3">
+    <div class="card-body">
+      <div class="dw-main-reference-card">
+        <div class="dw-main-reference-header">
+          <div class="dw-main-reference-title">
+            <i class="fas fa-bullseye text-primary"></i> 도면 제작 핵심 자료 (제품 정보 + 실측 이미지)
+          </div>
+          <a href="{{ url_for('edit_order', order_id=order.id) }}?open=erp-beta" class="btn btn-sm btn-outline-secondary" target="_blank">
+            <i class="fas fa-external-link-alt"></i> ERP Beta 편집
+          </a>
+        </div>
+
+        {% if product_items %}
+          {% for item in product_items %}
+          {% set item_idx = loop.index0 %}
+          {% set item_measurements = item.get('measurement_images') or [] %}
+          {% set spec_w = item.get('spec_width') or item.get('width') or '' %}
+          {% set spec_d = item.get('spec_depth') or item.get('depth') or '' %}
+          {% set spec_h = item.get('spec_height') or item.get('height') or '' %}
+          {% set price_raw = item.get('price') %}
+          {% set location_text = item.get('misc') or '' %}
+
+          <div class="dw-product-main-card">
+            <div class="dw-product-main-head">
+              <div class="dw-product-main-name">{{ item.get('product_name') or ('제품 항목 ' ~ loop.index) }}</div>
+              <div class="d-flex align-items-center gap-1">
+                {% if item.get('quantity') %}
+                <span class="badge bg-primary">수량 {{ item.get('quantity') }}</span>
+                {% endif %}
+                <span class="badge bg-light text-dark border">항목 {{ loop.index }}</span>
+              </div>
+            </div>
+
+            <div class="dw-product-split">
+              <div class="dw-product-info-form">
+                <div class="row g-2">
+                  <div class="col-12">
+                    <label class="form-label mb-1 small text-primary">제품명</label>
+                    <input class="form-control form-control-sm" value="{{ item.get('product_name') or '' }}" readonly>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label mb-1 small text-primary">규격 W(폭)</label>
+                    <input class="form-control form-control-sm" value="{{ spec_w }}" readonly>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label mb-1 small text-primary">규격 D(깊이)</label>
+                    <input class="form-control form-control-sm" value="{{ spec_d }}" readonly>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label mb-1 small text-primary">규격 H(높이)</label>
+                    <input class="form-control form-control-sm" value="{{ spec_h }}" readonly>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label mb-1 small text-primary">내부</label>
+                    <input class="form-control form-control-sm" value="{{ item.get('internal') or '' }}" readonly>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label mb-1 small text-primary">색상</label>
+                    <input class="form-control form-control-sm" value="{{ item.get('color') or '' }}" readonly>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label mb-1 small text-primary">옵션</label>
+                    <input class="form-control form-control-sm" value="{{ item.get('option_detail') or '' }}" readonly>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label mb-1 small text-primary">손잡이</label>
+                    <input class="form-control form-control-sm" value="{{ item.get('handle') or '' }}" readonly>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
+                    <input class="form-control form-control-sm" value="{{ location_text }}" readonly>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
+                    <input class="form-control form-control-sm" value="{% if price_raw not in [None, ''] %}{% if price_raw is number %}{{ '{:,}'.format(price_raw|int) }}{% else %}{{ price_raw }}{% endif %}{% endif %}" readonly>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label mb-1 small text-primary">추가 입력</label>
+                    <textarea class="form-control form-control-sm" rows="3" readonly>{{ item.get('extra_input') or '' }}</textarea>
+                  </div>
+                </div>
+              </div>
+
+              <div class="dw-attach-panel">
+                <div class="small fw-semibold text-muted mb-2">
+                  <i class="fas fa-image"></i> 실측 첨부 파일
+                </div>
+                {% if item_measurements %}
+                <div class="dw-attach-grid {% if item_measurements|length == 1 %}dw-attach-grid--single{% endif %}">
+                  {% for photo in item_measurements %}
+                  <div>
+                    <div class="dw-attach-thumb"
+                      data-group-key="main_measure_item_{{ item_idx }}"
+                      data-index="{{ loop.index0 }}"
+                      data-view-url="{{ photo.view_url }}"
+                      data-download-url="{{ photo.download_url }}"
+                      data-filename="{{ photo.filename }}"
+                      onclick="openDrawingGatewayImageViewer('main_measure_item_{{ item_idx }}', {{ loop.index0 }})">
+                      <img src="{{ photo.view_url }}" alt="{{ photo.filename }}">
+                    </div>
+                    <div class="dw-attach-name">{{ photo.filename }}</div>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <div class="small text-muted">연결된 실측 첨부 파일이 없습니다.</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+        <div class="small text-muted">등록된 제품 정보가 없습니다.</div>
+        {% endif %}
+
+        <div class="mt-2">
+          <div class="small fw-semibold text-muted mb-1"><i class="fas fa-images"></i> 공통 실측 이미지</div>
+          {% if common_measure_photos %}
+          <div class="dw-attach-grid {% if common_measure_photos|length == 1 %}dw-attach-grid--single{% endif %}">
+            {% for photo in common_measure_photos %}
+            <div>
+              <div class="dw-attach-thumb"
+                data-group-key="main_measure_common"
+                data-index="{{ loop.index0 }}"
+                data-view-url="{{ photo.view_url }}"
+                data-download-url="{{ photo.download_url }}"
+                data-filename="{{ photo.filename }}"
+                onclick="openDrawingGatewayImageViewer('main_measure_common', {{ loop.index0 }})">
+                <img src="{{ photo.view_url }}" alt="{{ photo.filename }}">
+              </div>
+              <div class="dw-attach-name">{{ photo.filename }}</div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="small text-muted">등록된 공통 실측 이미지가 없습니다.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="dw-detail-grid">
     <div class="erp-pro-card">
       <div class="card-body">
-        <ul class="nav nav-pills mb-3" role="tablist">
-          <li class="nav-item" role="presentation">
-            <button class="nav-link {% if active_tab == 'timeline' %}active{% endif %}" data-bs-toggle="tab"
-              data-bs-target="#dw-tab-timeline" type="button" role="tab">타임라인</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link {% if active_tab == 'requests' %}active{% endif %}" data-bs-toggle="tab"
-              data-bs-target="#dw-tab-requests" type="button" role="tab">요청사항</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link {% if active_tab == 'compare' %}active{% endif %}" data-bs-toggle="tab"
-              data-bs-target="#dw-tab-compare" type="button" role="tab">파일비교</button>
-          </li>
-        </ul>
+        <div class="small text-muted mb-2">
+          타임라인/요청/파일비교는 보조 정보로 접어두고 필요 시 열어 확인합니다.
+        </div>
 
-        <div class="tab-content">
-          <div class="tab-pane fade {% if active_tab == 'timeline' %}show active{% endif %}" id="dw-tab-timeline" role="tabpanel">
+        <details class="dw-secondary-collapse" {% if active_tab == 'timeline' %}open{% endif %}>
+          <summary>
+            <span><i class="fas fa-stream"></i> 타임라인</span>
+            <span class="badge bg-light text-dark border">{{ history|length if history else 0 }}</span>
+          </summary>
+          <div class="dw-secondary-body">
             {% if history %}
             {% for h in history|reverse %}
             <div class="border rounded p-2 mb-2 bg-white {% if h.is_highlight %}dw-highlight{% endif %}" id="event-{{ h.event_key|replace(':','-') }}">
@@ -190,8 +621,14 @@
             <div class="text-muted small">이력이 없습니다.</div>
             {% endif %}
           </div>
+        </details>
 
-          <div class="tab-pane fade {% if active_tab == 'requests' %}show active{% endif %}" id="dw-tab-requests" role="tabpanel">
+        <details class="dw-secondary-collapse" {% if active_tab == 'requests' %}open{% endif %}>
+          <summary>
+            <span><i class="fas fa-comments"></i> 요청사항</span>
+            <span class="badge bg-light text-dark border">{{ revision_requests|length if revision_requests else 0 }}</span>
+          </summary>
+          <div class="dw-secondary-body">
             {% if revision_requests %}
             {% for r in revision_requests %}
             {% set review = r.review_check if r.review_check is mapping else {} %}
@@ -229,8 +666,14 @@
             <div class="text-muted small">수정 요청 이력이 없습니다.</div>
             {% endif %}
           </div>
+        </details>
 
-          <div class="tab-pane fade {% if active_tab == 'compare' %}show active{% endif %}" id="dw-tab-compare" role="tabpanel">
+        <details class="dw-secondary-collapse" {% if active_tab == 'compare' %}open{% endif %}>
+          <summary>
+            <span><i class="fas fa-clone"></i> 파일 비교</span>
+            <span class="badge bg-light text-dark border">비교</span>
+          </summary>
+          <div class="dw-secondary-body">
             <div class="row g-2">
               <div class="col-md-6">
                 <div class="border rounded p-2 h-100 bg-light">
@@ -256,13 +699,17 @@
               </div>
             </div>
           </div>
-        </div>
+        </details>
       </div>
     </div>
 
     <div>
       <div class="erp-pro-card dw-sticky">
         <div class="card-body">
+          <div class="small text-muted border rounded p-2 bg-light mb-3">
+            제품 정보/실측 이미지는 상단 <strong>도면 제작 핵심 자료</strong>에서 크게 확인할 수 있습니다.
+          </div>
+
           <div class="fw-semibold mb-2"><i class="fas fa-file-lines text-primary"></i> 현재 버전</div>
           {% if drawing_files %}
           <div class="small text-muted mb-1">최신 전달본(번호순)</div>
@@ -274,7 +721,7 @@
           <hr />
           <div class="fw-semibold mb-2"><i class="fas fa-bolt text-primary"></i> 결정 바</div>
           <div class="small text-dark bg-light border rounded p-2 mb-2">{{ next_action }}</div>
-          <div class="d-grid gap-2 mb-2">
+          <div class="d-grid gap-2 mb-2 dw-sidebar-actions">
             {% if can_transfer %}
             <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#dwTransferModal">
               <i class="fas fa-paper-plane"></i> {% if drawing_status == 'RETURNED' %}수정본 전달{% else %}도면 전달{% endif %}
@@ -311,6 +758,9 @@
       <div class="erp-pro-card mt-3">
         <div class="card-body">
           <div class="fw-semibold mb-2"><i class="fas fa-download text-primary"></i> 첨부/이력 다운로드</div>
+          <div class="small text-muted mb-2">
+            실측 파일 등은 상단 <strong>도면 제작 핵심 자료</strong>에서 확인하세요.
+          </div>
           <div class="d-grid gap-2">
             <a class="btn btn-outline-primary btn-sm" href="{{ url_for('edit_order', order_id=order.id) }}?open=erp-beta&focus=attachments&category=drawing">
               <i class="fas fa-paperclip"></i> 첨부 파일 열기
@@ -325,6 +775,25 @@
   </div>
 </div>
 
+<!-- Phase 3: 모바일 하단 고정 액션 바 -->
+<div class="dw-mobile-action-bar">
+  {% if can_transfer %}
+  <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#dwTransferModal">
+    <i class="fas fa-paper-plane"></i> {% if drawing_status == 'RETURNED' %}수정본{% else %}전달{% endif %}
+  </button>
+  {% endif %}
+  {% if can_request_revision and drawing_status in ['TRANSFERRED', 'CONFIRMED'] %}
+  <button class="btn btn-warning" type="button" data-bs-toggle="modal" data-bs-target="#dwRevisionModal">
+    <i class="fas fa-undo"></i> 수정
+  </button>
+  {% endif %}
+  {% if can_confirm_receipt %}
+  <button class="btn btn-success" type="button" id="btn-confirm-receipt-mobile">
+    <i class="fas fa-check-double"></i> 확정
+  </button>
+  {% endif %}
+</div>
+
 
 <div class="modal fade" id="dwTransferModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -334,32 +803,69 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div class="mb-2 small text-muted">모드 선택 후 전달하세요. 교체 모드에서는 대상 번호 선택이 필요합니다.</div>
-        <div class="mb-2">
-          <label class="form-label">전달 모드</label>
-          <select class="form-select" id="dw-transfer-mode">
-            <option value="APPEND" {% if drawing_status != 'RETURNED' %}selected{% endif %}>추가(Append)</option>
-            <option value="REPLACE" {% if drawing_status == 'RETURNED' %}selected{% endif %}>교체(Replace)</option>
+        <div class="mb-3 small text-muted">
+          <strong>추가:</strong> 기존 도면 유지, 새 도면 추가<br>
+          <strong>교체:</strong> 선택한 도면만 새 파일로 교체 (다중 선택 가능)<br>
+          <strong>전체 교체:</strong> 기존 도면 전부 삭제 후 새 파일로 대체
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">전달 모드</label>
+          <select class="form-select" id="dw-transfer-mode" onchange="toggleTransferTargetCards()">
+            <option value="APPEND" {% if drawing_status != 'RETURNED' %}selected{% endif %}>추가 (Append)</option>
+            <option value="REPLACE" {% if drawing_status == 'RETURNED' %}selected{% endif %}>교체 (Replace)</option>
+            <option value="REPLACE_ALL">전체 교체 (Replace All)</option>
           </select>
         </div>
-        <div class="mb-2" id="dw-transfer-target-wrap">
-          <label class="form-label">교체 대상 도면 번호</label>
-          <select class="form-select" id="dw-transfer-target-key">
-            <option value="">선택 안 함</option>
+        
+        <!-- 카드형 다중 선택 UI -->
+        <div class="mb-3" id="dw-transfer-target-wrap" style="display: none;">
+          <label class="form-label fw-bold">교체 대상 도면 선택 (다중 선택 가능)</label>
+          <div id="dw-transfer-target-cards" class="row g-2 mb-2">
             {% for f in drawing_files %}
             {% set fkey = (f.get('key') if f is mapping else '') or '' %}
             {% set fname = (f.get('filename') if f is mapping else '') or '-' %}
-            <option value="{{ fkey }}">{{ loop.index }}번 · {{ fname }}</option>
+            {% set view_url = (f.get('view_url') if f is mapping else '') or ('/api/files/view/' ~ fkey) %}
+            {% set lower = fname|lower %}
+            {% set is_image = lower.endswith('.jpg') or lower.endswith('.jpeg') or lower.endswith('.png') or lower.endswith('.gif') or lower.endswith('.webp') %}
+            <div class="col-6 col-md-4">
+              <div class="drawing-target-card border rounded p-2 text-center" data-key="{{ fkey }}" onclick="toggleDrawingTargetCard(this)">
+                <input type="checkbox" class="drawing-target-checkbox d-none" value="{{ fkey }}">
+                <div class="drawing-target-preview mb-2" style="height: 80px; overflow: hidden; border-radius: 6px; background: #f8f9fa;">
+                  {% if is_image %}
+                  <img src="{{ view_url }}" alt="{{ fname }}" style="width: 100%; height: 100%; object-fit: cover;">
+                  {% else %}
+                  <div class="d-flex align-items-center justify-content-center h-100">
+                    <i class="fas fa-file fa-2x text-muted"></i>
+                  </div>
+                  {% endif %}
+                </div>
+                <div class="fw-bold small">{{ loop.index }}번</div>
+                <div class="small text-muted text-truncate" title="{{ fname }}">{{ fname }}</div>
+              </div>
+            </div>
             {% endfor %}
-          </select>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllTargetCards()">
+            <i class="fas fa-check-square"></i> 전체 선택
+          </button>
         </div>
-        <div class="mb-2">
-          <label class="form-label">메모</label>
+        <div class="mb-3">
+          <label class="form-label fw-bold">메모</label>
           <textarea id="dw-transfer-note" class="form-control" rows="3" placeholder="전달 메모"></textarea>
         </div>
-        <div class="mb-2">
-          <label class="form-label">도면 파일</label>
-          <input id="dw-transfer-files" type="file" class="form-control" multiple>
+        <div class="mb-3">
+          <label class="form-label fw-bold">도면 파일 (다중 선택 가능)</label>
+          <div id="dw-transfer-dropzone" class="border border-dashed rounded p-4 text-center mb-2" style="border-color: #adb5bd; cursor: pointer; transition: all 0.2s;">
+            <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-2"></i>
+            <div class="text-muted">파일을 드래그하거나 클릭하여 선택하세요</div>
+            <input id="dw-transfer-files" type="file" class="d-none" multiple onchange="handleTransferFilesChange(this)">
+          </div>
+          <div id="dw-transfer-preview" class="d-none"></div>
+          <div id="dw-transfer-progress" class="d-none">
+            <div class="progress" style="height: 20px;">
+              <div class="progress-bar progress-bar-striped progress-bar-animated" id="dw-transfer-progress-bar" role="progressbar" style="width: 0%">0%</div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -378,29 +884,82 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div class="mb-2">
-          <label class="form-label">대상 도면 번호</label>
-          <select class="form-select" id="dw-revision-target-key">
-            <option value="">자동 선택</option>
+        <div class="mb-3">
+          <label class="form-label fw-bold">대상 도면 선택 (다중 선택 가능)</label>
+          <div id="dw-revision-target-cards" class="row g-2 mb-2">
             {% for f in drawing_files %}
             {% set fkey = (f.get('key') if f is mapping else '') or '' %}
             {% set fname = (f.get('filename') if f is mapping else '') or '-' %}
-            <option value="{{ fkey }}">{{ loop.index }}번 · {{ fname }}</option>
+            {% set view_url = (f.get('view_url') if f is mapping else '') or ('/api/files/view/' ~ fkey) %}
+            {% set lower = fname|lower %}
+            {% set is_image = lower.endswith('.jpg') or lower.endswith('.jpeg') or lower.endswith('.png') or lower.endswith('.gif') or lower.endswith('.webp') %}
+            <div class="col-6 col-md-4">
+              <div class="drawing-target-card border rounded p-2 text-center" data-key="{{ fkey }}" onclick="toggleRevisionTargetCard(this)">
+                <input type="checkbox" class="revision-target-checkbox d-none" value="{{ fkey }}">
+                <div class="drawing-target-preview mb-2" style="height: 80px; overflow: hidden; border-radius: 6px; background: #f8f9fa;">
+                  {% if is_image %}
+                  <img src="{{ view_url }}" alt="{{ fname }}" style="width: 100%; height: 100%; object-fit: cover;">
+                  {% else %}
+                  <div class="d-flex align-items-center justify-content-center h-100">
+                    <i class="fas fa-file fa-2x text-muted"></i>
+                  </div>
+                  {% endif %}
+                </div>
+                <div class="fw-bold small">{{ loop.index }}번</div>
+                <div class="small text-muted text-truncate" title="{{ fname }}">{{ fname }}</div>
+              </div>
+            </div>
             {% endfor %}
-          </select>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllRevisionCards()">
+            <i class="fas fa-check-square"></i> 전체 선택
+          </button>
+          <div class="form-text">
+            여러 도면이 있는 경우 수정이 필요한 도면을 선택하세요. 선택하지 않으면 자동으로 최신본이 선택됩니다.
+          </div>
         </div>
-        <div class="mb-2">
-          <label class="form-label">수정 요청 메모</label>
-          <textarea id="dw-revision-note" class="form-control" rows="4" placeholder="필수 입력"></textarea>
+        <div class="mb-3">
+          <label class="form-label fw-bold">수정 요청 메모 (필수)</label>
+          <textarea id="dw-revision-note" class="form-control" rows="4" placeholder="예: 거실장 높이 2400으로 변경 필요"></textarea>
         </div>
-        <div class="mb-2">
-          <label class="form-label">참고 이미지/파일</label>
-          <input id="dw-revision-files" type="file" class="form-control" multiple>
+        <div class="mb-3">
+          <label class="form-label fw-bold">참고 이미지/파일 (선택)</label>
+          <div id="dw-revision-dropzone" class="border border-dashed rounded p-4 text-center mb-2" style="border-color: #adb5bd; cursor: pointer; transition: all 0.2s;">
+            <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-2"></i>
+            <div class="text-muted">파일을 드래그하거나 클릭하여 선택하세요</div>
+            <input id="dw-revision-files" type="file" class="d-none" multiple onchange="handleRevisionFilesChange(this)">
+          </div>
+          <div id="dw-revision-preview" class="d-none"></div>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
         <button type="button" class="btn btn-danger" id="btn-submit-revision">수정 요청 보내기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+  </div>
+</div>
+
+<!-- 담당자 할당 모달 (실행판용) -->
+<div class="modal fade" id="detailAssignModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-users-cog"></i> 도면 담당자 변경</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">도면 담당자를 변경합니다. <strong>도면팀 소속 직원만</strong> 선택 가능합니다. (다중 선택 가능)</p>
+        <div id="detail-draftsman-list" class="list-group">
+          <div class="text-center text-muted">로딩 중...</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-primary" id="btn-save-detail-assign">저장</button>
       </div>
     </div>
   </div>
@@ -418,7 +977,7 @@
     function openDrawingGatewayImageViewer(groupKey, index) {
       if (!window.GlobalImageViewer) return;
       
-      const thumbs = Array.from(document.querySelectorAll('.drawing-gateway-thumb[data-group-key]'))
+      const thumbs = Array.from(document.querySelectorAll('[data-group-key][data-view-url]'))
         .filter((el) => String(el.dataset.groupKey || '') === String(groupKey));
         
       const files = thumbs.map((el) => ({
@@ -432,6 +991,167 @@
       window.GlobalImageViewer.open(files, index || 0);
     }
     window.openDrawingGatewayImageViewer = openDrawingGatewayImageViewer;
+
+    // 카드형 선택 UI 함수들
+    window.toggleDrawingTargetCard = function(card) {
+      const checkbox = card.querySelector('.drawing-target-checkbox');
+      checkbox.checked = !checkbox.checked;
+      if (checkbox.checked) {
+        card.classList.add('selected');
+      } else {
+        card.classList.remove('selected');
+      }
+    };
+
+    window.selectAllTargetCards = function() {
+      const cards = document.querySelectorAll('#dw-transfer-target-cards .drawing-target-card');
+      const checkboxes = document.querySelectorAll('#dw-transfer-target-cards .drawing-target-checkbox');
+      const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+      
+      checkboxes.forEach((cb, idx) => {
+        cb.checked = !allChecked;
+        if (!allChecked) {
+          cards[idx]?.classList.add('selected');
+        } else {
+          cards[idx]?.classList.remove('selected');
+        }
+      });
+    };
+
+    window.toggleRevisionTargetCard = function(card) {
+      const checkbox = card.querySelector('.revision-target-checkbox');
+      checkbox.checked = !checkbox.checked;
+      if (checkbox.checked) {
+        card.classList.add('selected');
+      } else {
+        card.classList.remove('selected');
+      }
+    };
+
+    window.selectAllRevisionCards = function() {
+      const cards = document.querySelectorAll('#dw-revision-target-cards .drawing-target-card');
+      const checkboxes = document.querySelectorAll('#dw-revision-target-cards .revision-target-checkbox');
+      const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+      
+      checkboxes.forEach((cb, idx) => {
+        cb.checked = !allChecked;
+        if (!allChecked) {
+          cards[idx]?.classList.add('selected');
+        } else {
+          cards[idx]?.classList.remove('selected');
+        }
+      });
+    };
+
+    window.toggleTransferTargetCards = function() {
+      const mode = document.getElementById('dw-transfer-mode')?.value;
+      const wrap = document.getElementById('dw-transfer-target-wrap');
+      if (mode === 'REPLACE') {
+        wrap.style.display = 'block';
+      } else {
+        wrap.style.display = 'none';
+        // 선택 해제
+        document.querySelectorAll('#dw-transfer-target-cards .drawing-target-card').forEach(card => {
+          card.classList.remove('selected');
+          card.querySelector('.drawing-target-checkbox').checked = false;
+        });
+      }
+    };
+
+    // 파일 업로드 UX 개선 함수들
+    window.handleTransferFilesChange = function(input) {
+      const files = input.files;
+      renderFilePreview(files, 'dw-transfer-preview');
+    };
+
+    window.handleRevisionFilesChange = function(input) {
+      const files = input.files;
+      renderFilePreview(files, 'dw-revision-preview');
+    };
+
+    function renderFilePreview(files, previewId) {
+      const previewEl = document.getElementById(previewId);
+      if (!previewEl) return;
+      
+      if (files.length === 0) {
+        previewEl.classList.add('d-none');
+        previewEl.innerHTML = '';
+        return;
+      }
+
+      previewEl.classList.remove('d-none');
+      const items = Array.from(files).map((file, idx) => {
+        const isImage = file.type.startsWith('image/');
+        let preview = '';
+        if (isImage) {
+          const url = URL.createObjectURL(file);
+          preview = `<img src="${url}" alt="${file.name}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;">`;
+        } else {
+          preview = `<div class="d-flex align-items-center justify-content-center" style="width: 60px; height: 60px; background: #f8f9fa; border-radius: 4px;"><i class="fas fa-file fa-2x text-muted"></i></div>`;
+        }
+        return `
+          <div class="d-flex align-items-center gap-2 border rounded p-2 mb-1 bg-light">
+            ${preview}
+            <div class="flex-grow-1 text-truncate">
+              <div class="small fw-bold text-truncate">${file.name}</div>
+              <div class="small text-muted">${(file.size / 1024).toFixed(1)} KB</div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFileFromPreview(this, '${previewId}')">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        `;
+      }).join('');
+      previewEl.innerHTML = items;
+    }
+
+    window.removeFileFromPreview = function(btn, previewId) {
+      // 파일 input에서 직접 제거는 불가능하므로, 미리보기만 제거하고
+      // 실제 업로드 시 files 배열을 재구성하는 방식으로 처리
+      const card = btn.closest('.d-flex');
+      if (card) card.remove();
+      
+      const previewEl = document.getElementById(previewId);
+      if (previewEl && previewEl.children.length === 0) {
+        previewEl.classList.add('d-none');
+      }
+    };
+
+    // 드래그앤드롭 설정
+    function setupDropzone(dropzoneId, inputId) {
+      const dropzone = document.getElementById(dropzoneId);
+      const input = document.getElementById(inputId);
+      if (!dropzone || !input) return;
+
+      dropzone.addEventListener('click', () => input.click());
+      
+      dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = '#0d6efd';
+        dropzone.style.backgroundColor = '#e7f1ff';
+      });
+
+      dropzone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = '#adb5bd';
+        dropzone.style.backgroundColor = '';
+      });
+
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = '#adb5bd';
+        dropzone.style.backgroundColor = '';
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          input.files = files;
+          input.dispatchEvent(new Event('change'));
+        }
+      });
+    }
+
+    setupDropzone('dw-transfer-dropzone', 'dw-transfer-files');
+    setupDropzone('dw-revision-dropzone', 'dw-revision-files');
 
     function showWorkbenchToast(message, type) {
       const cls = type === 'error' ? 'danger' : (type === 'success' ? 'success' : 'secondary');
@@ -447,6 +1167,63 @@
       setTimeout(() => box.remove(), 2600);
     }
 
+    function copyTextWithFallback(text) {
+      const value = String(text ?? '');
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(value);
+      }
+      return new Promise((resolve, reject) => {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = value;
+          ta.setAttribute('readonly', 'readonly');
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          ta.setSelectionRange(0, ta.value.length);
+          const ok = document.execCommand('copy');
+          ta.remove();
+          if (!ok) throw new Error('복사 실패');
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
+
+    function setupReadonlyValueCopy() {
+      document.querySelectorAll('.dw-product-info-form .form-control[readonly]').forEach((el) => {
+        if (!el.getAttribute('title')) {
+          el.setAttribute('title', '클릭하면 값이 복사됩니다.');
+        }
+      });
+
+      document.addEventListener('click', async function (e) {
+        const target = e.target.closest('.dw-product-info-form .form-control[readonly]');
+        if (!target) return;
+        const raw = ('value' in target) ? target.value : target.textContent;
+        const value = String(raw ?? '').trim();
+        if (!value) {
+          showWorkbenchToast('복사할 값이 없습니다.', 'error');
+          return;
+        }
+        try {
+          await copyTextWithFallback(value);
+          if (typeof target.select === 'function') {
+            target.select();
+            if (typeof target.setSelectionRange === 'function') {
+              target.setSelectionRange(0, target.value.length);
+            }
+          }
+          showWorkbenchToast('값이 복사되었습니다.', 'success');
+        } catch (_) {
+          showWorkbenchToast('복사에 실패했습니다.', 'error');
+        }
+      });
+    }
+    setupReadonlyValueCopy();
+
     function getDrawingTargetNumberByKey(key) {
       if (!key) return null;
       const idx = drawingFiles.findIndex(f => String((f || {}).key || '') === String(key));
@@ -454,26 +1231,75 @@
     }
 
     async function uploadToDrawingCategory(files, noteText) {
-      const uploadPromises = Array.from(files || []).map(async (file) => {
+      const progressBar = document.getElementById('dw-transfer-progress-bar');
+      const progressWrap = document.getElementById('dw-transfer-progress');
+      
+      if (progressWrap) progressWrap.classList.remove('d-none');
+      
+      const uploadPromises = Array.from(files || []).map(async (file, index) => {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('category', 'drawing');
         formData.append('note', noteText || '');
-        const upRes = await fetch(`/api/orders/${orderId}/attachments`, { method: 'POST', body: formData });
-        const upData = await upRes.json();
-        if (!upData.success) {
-          throw new Error(file.name + ' 업로드 실패: ' + (upData.message || upData.error || '알 수 없는 오류'));
-        }
-        const att = upData.attachment || {};
-        if (!att.storage_key) return null;
-        return {
-          key: att.storage_key,
-          filename: att.filename || file.name,
-          view_url: att.view_url || `/api/files/view/${att.storage_key}`,
-          download_url: att.download_url || `/api/files/download/${att.storage_key}`
-        };
+        
+        const xhr = new XMLHttpRequest();
+        
+        return new Promise((resolve, reject) => {
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable && progressBar) {
+              const percentComplete = Math.round((e.loaded / e.total) * 100);
+              const totalPercent = Math.round(((index + percentComplete / 100) / files.length) * 100);
+              progressBar.style.width = totalPercent + '%';
+              progressBar.textContent = totalPercent + '%';
+            }
+          });
+          
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const upData = JSON.parse(xhr.responseText);
+                if (!upData.success) {
+                  reject(new Error(file.name + ' 업로드 실패: ' + (upData.message || upData.error || '알 수 없는 오류')));
+                } else {
+                  const att = upData.attachment || {};
+                  if (!att.storage_key) {
+                    resolve(null);
+                  } else {
+                    resolve({
+                      key: att.storage_key,
+                      filename: att.filename || file.name,
+                      view_url: att.view_url || `/api/files/view/${att.storage_key}`,
+                      download_url: att.download_url || `/api/files/download/${att.storage_key}`
+                    });
+                  }
+                }
+              } catch (e) {
+                reject(new Error(file.name + ' 응답 파싱 실패'));
+              }
+            } else {
+              reject(new Error(file.name + ' 업로드 실패: HTTP ' + xhr.status));
+            }
+          });
+          
+          xhr.addEventListener('error', () => {
+            reject(new Error(file.name + ' 업로드 중 네트워크 오류'));
+          });
+          
+          xhr.open('POST', `/api/orders/${orderId}/attachments`);
+          xhr.send(formData);
+        });
       });
+      
       const results = await Promise.all(uploadPromises);
+      
+      if (progressWrap) {
+        progressWrap.classList.add('d-none');
+        if (progressBar) {
+          progressBar.style.width = '0%';
+          progressBar.textContent = '0%';
+        }
+      }
+      
       return results.filter(Boolean);
     }
 
@@ -492,39 +1318,60 @@
     }
 
     async function submitTransfer() {
+      const submitBtn = document.getElementById('btn-submit-transfer');
       const mode = String(document.getElementById('dw-transfer-mode')?.value || 'APPEND').toUpperCase();
-      const replaceTargetKey = String(document.getElementById('dw-transfer-target-key')?.value || '').trim();
       const note = String(document.getElementById('dw-transfer-note')?.value || '').trim();
       const files = document.getElementById('dw-transfer-files')?.files || [];
+      
       if (!files.length) {
         showWorkbenchToast('전달할 도면 파일을 선택해주세요.', 'error');
         return;
       }
 
-      const isRetransfer = (drawingStatus === 'RETURNED') || (mode === 'REPLACE');
-      if (mode === 'REPLACE' && drawingFiles.length > 0 && !replaceTargetKey) {
-        showWorkbenchToast('교체 모드에서는 대상 번호를 선택해야 합니다.', 'error');
-        return;
+      const isRetransfer = (drawingStatus === 'RETURNED') || (mode === 'REPLACE') || (mode === 'REPLACE_ALL');
+      
+      // Phase 2: 다중 선택 처리
+      let replaceTargetKeys = [];
+      if (mode === 'REPLACE') {
+        const checkedBoxes = document.querySelectorAll('#dw-transfer-target-cards .drawing-target-checkbox:checked');
+        replaceTargetKeys = Array.from(checkedBoxes).map(cb => cb.value);
+        
+        if (drawingFiles.length > 0 && replaceTargetKeys.length === 0) {
+          showWorkbenchToast('교체 모드에서는 대상 도면을 선택해야 합니다.', 'error');
+          return;
+        }
       }
-      if (isRetransfer && drawingFiles.length > 1 && !replaceTargetKey) {
-        showWorkbenchToast('수정본 전달 시 교체할 도면 번호 선택이 필요합니다.', 'error');
-        return;
+      
+      let confirmMsg = '';
+      if (mode === 'REPLACE_ALL') {
+        confirmMsg = `기존 도면 ${drawingFiles.length}개를 전부 삭제하고 새 파일로 교체합니다. 진행할까요?`;
+      } else if (mode === 'REPLACE') {
+        if (replaceTargetKeys.length === 1) {
+          const targetNo = drawingFiles.findIndex(f => f.key === replaceTargetKeys[0]) + 1;
+          confirmMsg = `${targetNo}번 도면을 새 파일로 교체합니다. 진행할까요?`;
+        } else {
+          confirmMsg = `선택한 ${replaceTargetKeys.length}개 도면을 새 파일로 교체합니다. 진행할까요?`;
+        }
+      } else {
+        confirmMsg = '새 파일을 도면으로 전달합니다. 진행할까요?';
       }
-
-      const targetNo = getDrawingTargetNumberByKey(replaceTargetKey);
-      const confirmMsg = (mode === 'REPLACE')
-        ? `${targetNo || '?'}번 도면을 새 파일로 교체합니다. 진행할까요?`
-        : '새 파일을 도면으로 전달합니다. 진행할까요?';
+      
       if (!confirm(confirmMsg)) return;
 
       try {
+        // 버튼 비활성화 + 스피너
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>업로드 중...';
+        }
+        
         const createdFiles = await uploadToDrawingCategory(files, '[도면 전달] ' + note);
         const payload = {
           note: note,
           files: createdFiles,
+          mode: mode,
           is_retransfer: isRetransfer,
-          replace_target_key: replaceTargetKey || null,
-          replace_target_number: targetNo
+          replace_target_keys: replaceTargetKeys.length > 0 ? replaceTargetKeys : null,
         };
         const res = await fetch(`/api/orders/${orderId}/transfer-drawing`, {
           method: 'POST',
@@ -534,6 +1381,10 @@
         const data = await res.json();
         if (!data.success) {
           showWorkbenchToast(data.message || '도면 전달 실패', 'error');
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-check"></i> 전달 완료';
+          }
           return;
         }
         showWorkbenchToast(data.message || '도면 전달 완료', 'success');
@@ -541,22 +1392,33 @@
       } catch (e) {
         console.error(e);
         showWorkbenchToast(e.message || '도면 전달 중 오류가 발생했습니다.', 'error');
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i class="fas fa-check"></i> 전달 완료';
+        }
       }
     }
 
     async function submitRevision() {
       const note = String(document.getElementById('dw-revision-note')?.value || '').trim();
-      const targetKey = String(document.getElementById('dw-revision-target-key')?.value || '').trim();
       const files = document.getElementById('dw-revision-files')?.files || [];
+      
       if (!note) {
         showWorkbenchToast('수정 요청 메모를 입력해주세요.', 'error');
         return;
       }
-      if (drawingFiles.length > 1 && !targetKey) {
-        showWorkbenchToast('여러 장일 때는 대상 도면 번호를 선택해야 합니다.', 'error');
+      
+      // Phase 2: 다중 선택 처리
+      const checkedBoxes = document.querySelectorAll('#dw-revision-target-cards .revision-target-checkbox:checked');
+      const targetKeys = Array.from(checkedBoxes).map(cb => cb.value);
+      
+      if (drawingFiles.length > 1 && targetKeys.length === 0) {
+        showWorkbenchToast('여러 도면이 있을 때는 대상 도면을 선택해야 합니다.', 'error');
         return;
       }
+      
       if (!confirm('수정 요청을 전송하시겠습니까?')) return;
+      
       try {
         let uploadedFiles = [];
         if (files.length > 0) {
@@ -565,8 +1427,7 @@
         const payload = {
           note: note,
           files: uploadedFiles,
-          target_drawing_key: targetKey || null,
-          target_drawing_number: getDrawingTargetNumberByKey(targetKey)
+          target_drawing_keys: targetKeys.length > 0 ? targetKeys : null,
         };
         const res = await fetch(`/api/orders/${orderId}/request-revision`, {
           method: 'POST',
@@ -600,7 +1461,7 @@
           return;
         }
         showWorkbenchToast(data.message || '수령 확정 완료', 'success');
-        window.location.href = `/erp/drawing-workbench/${orderId}?tab=timeline`;
+        window.location.href = `/erp/dashboard?focus_order=${orderId}&open_quest=true`;
       } catch (e) {
         console.error(e);
         showWorkbenchToast('수령 확정 중 오류가 발생했습니다.', 'error');
@@ -655,7 +1516,14 @@
     document.getElementById('btn-submit-transfer')?.addEventListener('click', submitTransfer);
     document.getElementById('btn-submit-revision')?.addEventListener('click', submitRevision);
     document.getElementById('btn-confirm-receipt')?.addEventListener('click', confirmReceipt);
+    document.getElementById('btn-confirm-receipt-mobile')?.addEventListener('click', confirmReceipt); // Phase 3: 모바일
     document.getElementById('btn-cancel-transfer')?.addEventListener('click', cancelTransfer);
+    
+    // 모달 열릴 때 초기화
+    document.getElementById('dwTransferModal')?.addEventListener('show.bs.modal', function() {
+      toggleTransferTargetCards();
+    });
+    
     document.querySelectorAll('.js-revision-check').forEach(btn => {
       btn.addEventListener('click', function () { toggleRevisionCheck(btn); });
     });
@@ -672,19 +1540,6 @@
       URL.revokeObjectURL(url);
     });
 
-    document.querySelectorAll('[data-bs-toggle="tab"]').forEach((btn) => {
-      btn.addEventListener('shown.bs.tab', function (e) {
-        const target = String(e.target.getAttribute('data-bs-target') || '');
-        let tab = 'timeline';
-        if (target.includes('requests')) tab = 'requests';
-        if (target.includes('compare')) tab = 'compare';
-        const url = new URL(window.location.href);
-        url.searchParams.set('tab', tab);
-        history.replaceState({}, '', url.toString());
-      });
-    });
-
-
     // 딥링크 하이라이트 카드 자동 포커스
     setTimeout(function () {
       let target = null;
@@ -694,17 +1549,85 @@
       }
       if (!target) target = document.querySelector('.dw-highlight');
       if (!target) return;
-      const pane = target.closest('.tab-pane');
-      if (pane && !pane.classList.contains('show')) {
-        const tabBtn = document.querySelector(`[data-bs-target="#${pane.id}"]`);
-        if (tabBtn) {
-          try { bootstrap.Tab.getOrCreateInstance(tabBtn).show(); } catch (_) { }
-        }
-      }
+      const collapse = target.closest('details.dw-secondary-collapse');
+      if (collapse && !collapse.open) collapse.open = true;
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
       target.classList.add('dw-highlight-focus');
       setTimeout(() => target.classList.remove('dw-highlight-focus'), 2600);
     }, 180);
+
+    // 담당자 할당 모달 (실행판용)
+    let detailDrawingUsersCache = null;
+    const currentOrderAssigneeIds = {{ (order.structured_data.get('assignments') or {}).get('drawing_assignee_user_ids') or [] | tojson }};
+
+    window.openDetailAssignModal = async function() {
+      const modalEl = document.getElementById('detailAssignModal');
+      const listEl = document.getElementById('detail-draftsman-list');
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      modal.show();
+
+      if (!detailDrawingUsersCache) {
+        try {
+          const res = await fetch('/erp/api/users?team=DRAWING');
+          const data = await res.json();
+          if (data.success) {
+            detailDrawingUsersCache = data.users;
+          }
+        } catch (e) {
+          console.error(e);
+          listEl.innerHTML = '<div class="text-danger">사용자 목록 로드 실패</div>';
+          return;
+        }
+      }
+
+      const users = detailDrawingUsersCache || [];
+      if (users.length === 0) {
+        listEl.innerHTML = '<div class="text-muted text-center">도면팀 사용자가 없습니다.</div>';
+      } else {
+        listEl.innerHTML = users.map(u => {
+          const isChecked = currentOrderAssigneeIds.includes(u.id) ? 'checked' : '';
+          return `
+            <label class="list-group-item d-flex gap-2">
+              <input class="form-check-input flex-shrink-0" type="checkbox" value="${u.id}" name="detail_draftsman_user" ${isChecked}>
+              <span>
+                <strong>${u.name}</strong>
+                <small class="text-muted ms-1">(${u.team})</small>
+              </span>
+            </label>
+          `;
+        }).join('');
+      }
+    };
+
+    document.getElementById('btn-save-detail-assign')?.addEventListener('click', async function() {
+      const checkboxes = document.querySelectorAll('input[name="detail_draftsman_user"]:checked');
+      const userIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+      if (userIds.length === 0) {
+        showWorkbenchToast('최소 한 명 이상의 담당자를 선택해주세요.', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/orders/${orderId}/assign-draftsman`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_ids: userIds })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          showWorkbenchToast(data.message, 'success');
+          bootstrap.Modal.getInstance(document.getElementById('detailAssignModal')).hide();
+          setTimeout(() => window.location.reload(), 800);
+        } else {
+          showWorkbenchToast(data.message || '저장 실패', 'error');
+        }
+      } catch (e) {
+        console.error(e);
+        showWorkbenchToast('저장 중 오류가 발생했습니다.', 'error');
+      }
+    });
   })();
 </script>
 {% endblock %}

@@ -1860,69 +1860,59 @@
 
     // 첨부 파일 미리보기 모달 열기 (단일 파일)
     function openAttachmentPreviewModal(attachmentId, viewUrl, downloadUrl, filename, fileType) {
-      const modalEl = document.getElementById('erpAttachmentPreviewModal');
-      const body = document.getElementById('erp-attachment-preview-body');
-      const dl = document.getElementById('erp-attachment-preview-download');
-      if (!modalEl || !body || !dl) return;
+      if (window.GlobalImageViewer) {
+        const singleFile = {
+          view_url: viewUrl,
+          download_url: downloadUrl,
+          filename: filename,
+          file_type: fileType
+        };
 
-      dl.href = downloadUrl || viewUrl || '#';
+        // 같은 주문의 첨부 캐시가 있으면 이미지 묶음으로 열어 좌우 이동 가능하게 처리
+        const orderMatch = String(viewUrl || '').match(/\/orders\/(\d+)\//);
+        const orderId = orderMatch ? Number(orderMatch[1]) : 0;
+        const cached = orderId ? (__attachmentsCache[orderId] || []) : [];
 
-      if (fileType === 'video') {
-        body.innerHTML = `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;"><video src="${viewUrl}" controls autoplay style="width:100%;height:100%;"></video></div><div class="small text-muted mt-2">${escapeHtml(filename || '')}</div>`;
-      } else {
-        // 이미지 줌 기능을 위한 구조 (윤곽 없이 전체 확대/축소)
-        body.innerHTML = `
-          <div class="position-relative" style="overflow: hidden; cursor: grab; user-select: none; height: 100%; display: flex; align-items: center; justify-content: center;" id="image-zoom-container">
-            <img src="${viewUrl}" alt="${escapeHtml(filename || '')}" 
-                 id="preview-zoom-image" 
-                 style="display: block; max-width: 100%; max-height: 100%; transition: transform 0.1s ease-out; transform-origin: center center;"
-                 draggable="false">
-            <div class="position-absolute top-0 end-0 m-2">
-              <div class="badge bg-dark bg-opacity-75" id="zoom-level-badge" style="display: none;">100%</div>
-            </div>
-          </div>
-          <div class="small text-muted mt-2 text-center" style="flex-shrink: 0;">${escapeHtml(filename || '')} <span class="text-muted">(휠 스크롤로 줌 인/아웃)</span></div>
-        `;
+        const isImage = (a) => {
+          if (!a) return false;
+          const ft = String(a.file_type || '').toLowerCase();
+          if (ft === 'image') return true;
+          const probe = String(a.view_url || a.filename || '').toLowerCase();
+          return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/.test(probe);
+        };
 
-        // 이미지 줌 기능 초기화
-        setupImageZoom();
-      }
+        if (String(fileType || '').toLowerCase() === 'image' && Array.isArray(cached) && cached.length > 1) {
+          const imageFiles = cached
+            .filter(isImage)
+            .map((a) => ({
+              view_url: a.view_url || '',
+              download_url: a.download_url || (a.view_url || ''),
+              filename: a.filename || '이미지',
+              file_type: 'image'
+            }))
+            .filter((a) => !!a.view_url);
 
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-
-      // 네비게이션 버튼 이벤트 리스너 등록
-      const prevBtn = document.getElementById('erp-attachment-preview-prev');
-      const nextBtn = document.getElementById('erp-attachment-preview-next');
-      if (prevBtn) {
-        prevBtn.onclick = showPreviousAttachment;
-      }
-      if (nextBtn) {
-        nextBtn.onclick = showNextAttachment;
-      }
-
-      // 네비게이션 업데이트
-      updateAttachmentNavigation();
-
-      // 키보드 이벤트 리스너 (좌우 화살표 키)
-      const handleKeyDown = (e) => {
-        if (e.key === 'ArrowLeft') {
-          e.preventDefault();
-          showPreviousAttachment();
-        } else if (e.key === 'ArrowRight') {
-          e.preventDefault();
-          showNextAttachment();
+          if (imageFiles.length > 1) {
+            let startIndex = 0;
+            if (attachmentId) {
+              const idxById = cached.filter(isImage).findIndex((a) => Number(a.id || 0) === Number(attachmentId));
+              if (idxById >= 0) startIndex = idxById;
+            }
+            if (startIndex === 0) {
+              const idxByUrl = imageFiles.findIndex((a) => String(a.view_url) === String(viewUrl));
+              if (idxByUrl >= 0) startIndex = idxByUrl;
+            }
+            window.GlobalImageViewer.open(imageFiles, startIndex);
+            return;
+          }
         }
-      };
 
-      // 모달이 열릴 때 키보드 이벤트 리스너 추가
-      modalEl.addEventListener('keydown', handleKeyDown);
-
-      // 모달이 닫힐 때 키보드 이벤트 리스너 제거
-      modalEl.addEventListener('hidden.bs.modal', () => {
-        modalEl.removeEventListener('keydown', handleKeyDown);
-      }, { once: true });
-
-      modal.show();
+        // 기본: 단일 파일로 열기
+        window.GlobalImageViewer.open([singleFile], 0);
+      } else {
+        console.error('GlobalImageViewer not found');
+        alert('이미지 뷰어를 불러올 수 없습니다.');
+      }
     }
 
     // 이미지 줌 기능 설정 (윤곽 없이 전체 확대/축소)
@@ -2166,18 +2156,13 @@
       }
 
       __currentAttachmentIndex = index;
-      const attachment = __currentAttachmentList[index];
-
-      openAttachmentPreviewModal(
-        attachment.id,
-        attachment.view_url || '#',
-        attachment.download_url || attachment.view_url || '#',
-        attachment.filename || '',
-        attachment.file_type || 'image'
-      );
-
-      // 네비게이션 버튼 및 카운터 업데이트
-      updateAttachmentNavigation();
+      
+      if (window.GlobalImageViewer) {
+        window.GlobalImageViewer.open(__currentAttachmentList, index);
+      } else {
+        console.error('GlobalImageViewer not found');
+        alert('이미지 뷰어를 불러올 수 없습니다.');
+      }
     }
 
     // 첨부 파일 네비게이션 업데이트

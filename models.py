@@ -85,6 +85,7 @@ class OrderAttachment(Base):
     filename = Column(String(255), nullable=False)
     file_type = Column(String(50), nullable=False)  # image / video
     category = Column(String(50), nullable=False, default='measurement')  # measurement / drawing / construction
+    item_index = Column(Integer, nullable=True, default=None, index=True)  # 제품 항목 인덱스 (None=공통)
     file_size = Column(Integer, nullable=False, default=0)
 
     storage_key = Column(String(500), nullable=False)  # static/uploads 기준 key 또는 R2 key
@@ -101,6 +102,7 @@ class OrderAttachment(Base):
             'filename': self.filename,
             'file_type': self.file_type,
             'category': self.category or 'measurement',
+            'item_index': self.item_index,
             'file_size': self.file_size,
             'storage_key': self.storage_key,
             'thumbnail_key': self.thumbnail_key,
