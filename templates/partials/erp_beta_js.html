@@ -134,9 +134,46 @@
         totalEl.textContent = erpFormatMoneyKRW(sum);
     }
 
+    function erpGetItemRows() {
+        const wrap = document.getElementById('erp-items');
+        if (!wrap) return [];
+        return Array.from(wrap.querySelectorAll('.erp-item-row'));
+    }
+
+    function erpGetItemIndexFromRow(rowEl) {
+        if (!rowEl) return -1;
+        const n = Number(rowEl.dataset.itemIndex);
+        return Number.isInteger(n) && n >= 0 ? n : -1;
+    }
+
+    function erpGetItemNameByIndex(index) {
+        if (!Number.isInteger(index) || index < 0) return '';
+        const row = erpGetItemRows().find((r) => erpGetItemIndexFromRow(r) === index);
+        if (!row) return '';
+        const nameEl = row.querySelector('[data-erp="product_name"]');
+        return String(nameEl?.value || '').trim();
+    }
+
+    function erpRefreshItemRowIndices() {
+        const rows = erpGetItemRows();
+        rows.forEach((row, idx) => {
+            row.dataset.itemIndex = String(idx);
+            const titleEl = row.querySelector('.erp-item-title');
+            if (titleEl) {
+                titleEl.textContent = `항목 ${idx + 1}`;
+            }
+            const hintEl = row.querySelector('.erp-item-attachment-hint');
+            if (hintEl) {
+                const name = String(row.querySelector('[data-erp="product_name"]')?.value || '').trim();
+                hintEl.textContent = name ? `${name} 실측 이미지` : `항목 ${idx + 1} 실측 이미지`;
+            }
+        });
+    }
+
     function erpNewItemRow(item = {}) {
         const row = document.createElement('div');
-        row.className = 'border rounded p-2 mb-2';
+        row.className = 'border rounded p-2 mb-2 erp-item-row';
+        row.dataset.itemIndex = '-1';
 
         const defaultConsult = (v) => {
             const s = String(v ?? '').trim();
@@ -173,7 +210,7 @@
 
         row.innerHTML = `
 <div class="d-flex justify-content-between align-items-center mb-2">
-    <div class="fw-bold small">항목</div>
+    <div class="fw-bold small erp-item-title">항목</div>
     <button type="button" class="btn btn-sm btn-outline-danger erp-remove-item-btn">
         <i class="fas fa-times"></i>
     </button>
@@ -227,18 +264,69 @@
         <textarea class="form-control form-control-sm" data-erp="extra_input" rows="3"
             placeholder="추가 내용을 입력하세요 (여러 줄 가능)">${escapeHtml(extraInput)}</textarea>
     </div>
+    <div class="col-12">
+        <div class="border rounded p-2 bg-light">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div class="small fw-semibold text-muted erp-item-attachment-hint">항목 실측 이미지</div>
+                <div class="d-flex gap-1">
+                    <input type="file" class="d-none erp-item-attachments-input" accept="image/*" multiple>
+                    <button type="button" class="btn btn-sm btn-outline-primary erp-item-upload-btn">
+                        <i class="fas fa-image"></i> 이미지 추가
+                    </button>
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-1 mt-2 erp-item-attachments-gallery">
+                <div class="small text-muted">연결된 실측 이미지가 없습니다.</div>
+            </div>
+        </div>
+    </div>
 </div>
 `;
 
-        row.querySelector('.erp-remove-item-btn')?.addEventListener('click', () => {
+        row.querySelector('.erp-remove-item-btn')?.addEventListener('click', async () => {
+            const removedIndex = erpGetItemIndexFromRow(row);
+            if (removedIndex >= 0 && typeof erpReindexMeasurementAttachmentsAfterItemRemoval === 'function') {
+                await erpReindexMeasurementAttachmentsAfterItemRemoval(removedIndex);
+            }
             row.remove();
+            erpRefreshItemRowIndices();
             erpRecalcItemsTotal();
+            if (typeof erpRenderAttachments === 'function') {
+                erpRenderAttachments();
+            }
         });
         row.querySelectorAll('[data-erp]').forEach(inp => {
             inp.addEventListener('input', () => {
                 erpRecalcItemsTotal();
+                if (inp.dataset.erp === 'product_name') {
+                    erpRefreshItemRowIndices();
+                    if (typeof erpRenderAttachments === 'function') {
+                        erpRenderAttachments();
+                    }
+                }
             });
         });
+        const itemAttachmentInput = row.querySelector('.erp-item-attachments-input');
+        row.querySelector('.erp-item-upload-btn')?.addEventListener('click', () => {
+            itemAttachmentInput?.click();
+        });
+        itemAttachmentInput?.addEventListener('change', async () => {
+            const files = itemAttachmentInput.files ? Array.from(itemAttachmentInput.files) : [];
+            if (!files.length) return;
+            const itemIndex = erpGetItemIndexFromRow(row);
+            if (itemIndex < 0) return;
+            if (typeof erpUploadItemAttachments === 'function') {
+                await erpUploadItemAttachments(itemIndex, files);
+            }
+            itemAttachmentInput.value = '';
+        });
+
+        setTimeout(() => {
+            erpRefreshItemRowIndices();
+            if (typeof erpRenderItemAttachmentPanels === 'function') {
+                erpRenderItemAttachmentPanels();
+            }
+        }, 0);
         setTimeout(erpRecalcItemsTotal, 0);
         return row;
     }
@@ -318,13 +406,17 @@
         } else {
             items.forEach(it => itemsWrap.appendChild(erpNewItemRow(it)));
         }
+        erpRefreshItemRowIndices();
 
         erpSetStatus(`불러오기 완료 (confidence: ${data.structured_confidence || sd.confidence || '-'})`);
         erpRecalcItemsTotal();
 
         // 첨부파일도 함께 로드
         if (typeof erpLoadAttachments === 'function') {
-            erpLoadAttachments();
+            await erpLoadAttachments();
+        }
+        if (typeof erpRenderItemAttachmentPanels === 'function') {
+            erpRenderItemAttachmentPanels();
         }
     }
 
@@ -332,7 +424,7 @@
         const itemsWrap = document.getElementById('erp-items');
         const items = [];
         let itemsTotal = 0;
-        itemsWrap.querySelectorAll('.border.rounded.p-2').forEach(row => {
+        itemsWrap.querySelectorAll('.erp-item-row').forEach(row => {
             const obj = {};
             row.querySelectorAll('[data-erp]').forEach(inp => {
                 obj[inp.dataset.erp] = inp.value;
@@ -424,19 +516,27 @@
         if (!ERP_BETA_ENABLED) return;
 
         // ORDER_ID 안전하게 확보
-        let targetId = ORDER_ID;
+        let targetId = parseInt(String(ORDER_ID || '0'), 10) || 0;
         if (!targetId) {
             // 전역 변수가 없으면 DOM에서 다시 시도
-            const cardEl = document.querySelector('.card[data-order-id]');
-            if (cardEl && cardEl.dataset.orderId) {
-                targetId = parseInt(cardEl.dataset.orderId);
+            const cardEl = document.querySelector('.card[data-erp-order-id]') || document.querySelector('.card[data-order-id]');
+            if (cardEl) {
+                const idVal = cardEl.dataset.erpOrderId || cardEl.dataset.orderId || '0';
+                targetId = parseInt(String(idVal), 10) || 0;
             }
         }
 
-        // 신규 모드가 아니면 ID 필수
-        if (!targetId && !window.__ERP_BETA_DRAFT_MODE) {
-            const ok = await erpRequireOrderIdOrWarn('저장:');
-            if (!ok) return;
+        // 신규 주문(draft) 모드: ID가 0이면 반드시 draft 생성
+        if (window.__ERP_BETA_DRAFT_MODE && targetId <= 0) {
+            const id = await erpRequireOrderIdOrWarn('저장:');
+            if (!id) return;
+            targetId = parseInt(String(id), 10) || 0;
+        }
+
+        // 일반 모드/예외 상황: ID 없으면 저장 중단
+        if (targetId <= 0) {
+            erpSetStatus('주문 ID를 찾을 수 없습니다.', true);
+            return;
         }
 
         erpSetStatus('저장 중...');
@@ -449,12 +549,6 @@
             const receivedTimeEl = document.getElementById('erp-received-time');
             const received_date = receivedDateEl ? (receivedDateEl.value || '').trim() : '';
             const received_time = receivedTimeEl ? (receivedTimeEl.value || '').trim() : '';
-
-            // ID가 없으면 경고 후 중단 (코드상 여기까지 오면 이상함)
-            if (!targetId && !window.__ERP_BETA_DRAFT_MODE) {
-                erpSetStatus('주문 ID를 찾을 수 없습니다.', true);
-                return;
-            }
 
             const res = await fetch(`/api/orders/${targetId}/structured`, {
                 method: 'PUT',
@@ -479,7 +573,7 @@
             setTimeout(() => {
                 if (window.__ERP_BETA_DRAFT_MODE) {
                     // 신규 주문 저장: 전체 주문 목록으로 이동
-                    window.location.href = '/erp';
+                    window.location.href = '/erp/dashboard';
                 } else {
                     // 기존 주문 저장: 작업 큐(목록)으로 복귀
                     // edit_order.html에 있는 referrer 값을 우선 사용
@@ -488,7 +582,7 @@
 
                     // 만약 referrer가 없거나, 현재 페이지(상세/추가)라면 기본 대시보드로 이동
                     if (!targetUrl || targetUrl.includes(window.location.pathname)) {
-                        targetUrl = '/erp';
+                        targetUrl = '/erp/dashboard';
                     }
 
                     window.location.href = targetUrl;
@@ -632,12 +726,17 @@
         const itemsWrap = document.getElementById('erp-items');
         if (itemsWrap && itemsWrap.children.length === 0) {
             itemsWrap.appendChild(erpNewItemRow({}));
+            erpRefreshItemRowIndices();
             erpRecalcItemsTotal();
         }
 
         document.getElementById('erp-add-item-btn')?.addEventListener('click', function () {
             document.getElementById('erp-items')?.appendChild(erpNewItemRow({}));
+            erpRefreshItemRowIndices();
             erpRecalcItemsTotal();
+            if (typeof erpRenderAttachments === 'function') {
+                erpRenderAttachments();
+            }
         });
         document.getElementById('erp-save-btn')?.addEventListener('click', erpSaveStructured);
         document.getElementById('erp-load-btn')?.addEventListener('click', erpLoadStructured);
@@ -701,6 +800,137 @@
         el.classList.toggle('text-muted', !isError);
     }
 
+    function erpParseAttachmentItemIndex(rawValue) {
+        if (rawValue === null || rawValue === undefined || rawValue === '') return null;
+        const n = Number(rawValue);
+        if (!Number.isInteger(n) || n < 0) return null;
+        return n;
+    }
+
+    function erpBuildAttachmentItemOptions(selectedIndex) {
+        const rows = erpGetItemRows();
+        const selected = erpParseAttachmentItemIndex(selectedIndex);
+        const options = [`<option value="" ${selected === null ? 'selected' : ''}>공통(제품 미연결)</option>`];
+        rows.forEach((row, idx) => {
+            const name = String(row.querySelector('[data-erp="product_name"]')?.value || '').trim();
+            const label = name ? `항목 ${idx + 1} - ${name}` : `항목 ${idx + 1}`;
+            options.push(`<option value="${idx}" ${selected === idx ? 'selected' : ''}>${escapeHtml(label)}</option>`);
+        });
+        return options.join('');
+    }
+
+    function erpGetAttachmentById(attachmentId) {
+        const targetId = Number(attachmentId);
+        return (__erpAttachments || []).find(x => Number(x.id) === targetId) || null;
+    }
+
+    async function erpPatchAttachmentItemIndex(attachmentId, itemIndex) {
+        const body = { item_index: itemIndex === null ? null : Number(itemIndex) };
+        const res = await fetch(`/api/orders/${ORDER_ID}/attachments/${attachmentId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!data.success) {
+            throw new Error(data.message || '첨부 연결 변경 실패');
+        }
+        return data.attachment || null;
+    }
+
+    async function erpLinkAttachmentToItem(attachmentId, itemIndexValue) {
+        try {
+            const itemIndex = (itemIndexValue === '' || itemIndexValue === null || itemIndexValue === undefined)
+                ? null
+                : erpParseAttachmentItemIndex(itemIndexValue);
+            if (itemIndexValue !== '' && itemIndex === null) {
+                throw new Error('유효한 항목을 선택하세요.');
+            }
+            await erpPatchAttachmentItemIndex(attachmentId, itemIndex);
+            erpAttachmentsSetStatus('이미지 연결이 변경되었습니다.');
+            await erpLoadAttachments();
+        } catch (e) {
+            console.error(e);
+            erpAttachmentsSetStatus(String(e?.message || e), true);
+        }
+    }
+
+    async function erpReindexMeasurementAttachmentsAfterItemRemoval(removedIndex) {
+        if (!ORDER_ID || removedIndex < 0) return;
+        const list = (__erpAttachments || []).filter((a) => erpNormalizeAttachmentCategory(a.category) === 'measurement');
+        const updates = [];
+        list.forEach((a) => {
+            const idx = erpParseAttachmentItemIndex(a.item_index);
+            if (idx === null) return;
+            if (idx === removedIndex) updates.push({ id: a.id, itemIndex: null });
+            else if (idx > removedIndex) updates.push({ id: a.id, itemIndex: idx - 1 });
+        });
+        if (!updates.length) return;
+        erpAttachmentsSetStatus('항목 삭제로 이미지 연결을 조정 중입니다...');
+        for (const u of updates) {
+            await erpPatchAttachmentItemIndex(u.id, u.itemIndex);
+        }
+        await erpLoadAttachments();
+    }
+
+    async function erpUploadItemAttachments(itemIndex, files) {
+        if (!ERP_BETA_ENABLED) return;
+        if (!Number.isInteger(itemIndex) || itemIndex < 0) {
+            erpAttachmentsSetStatus('유효한 제품 항목을 찾지 못했습니다.', true);
+            return;
+        }
+        if (!ORDER_ID) {
+            const ok = await erpRequireOrderIdOrWarn('제품 이미지 업로드:');
+            if (!ok) return;
+        }
+        if (!Array.isArray(files) || !files.length) {
+            erpAttachmentsSetStatus('업로드할 이미지를 선택하세요.', true);
+            return;
+        }
+        erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 이미지 업로드 중... (${files.length}개)`);
+        let ok = 0;
+        for (const f of files) {
+            const fd = new FormData();
+            fd.append('file', f);
+            fd.append('category', 'measurement');
+            fd.append('item_index', String(itemIndex));
+            const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
+            const data = await res.json();
+            if (data.success) ok += 1;
+            else console.warn('item upload failed', data);
+        }
+        erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 업로드 완료: ${ok}/${files.length}`);
+        await erpLoadAttachments();
+    }
+
+    function erpRenderItemAttachmentPanels() {
+        const rows = erpGetItemRows();
+        const measurementItems = (__erpAttachments || []).filter((a) => erpNormalizeAttachmentCategory(a.category) === 'measurement');
+        rows.forEach((row, idx) => {
+            const wrap = row.querySelector('.erp-item-attachments-gallery');
+            if (!wrap) return;
+            const linked = measurementItems.filter((a) => erpParseAttachmentItemIndex(a.item_index) === idx);
+            if (!linked.length) {
+                wrap.innerHTML = '<div class="small text-muted">연결된 실측 이미지가 없습니다.</div>';
+                return;
+            }
+            wrap.innerHTML = linked.map((a) => {
+                const thumb = a.thumbnail_view_url || a.view_url || '';
+                const name = escapeHtml(a.filename || '');
+                return `
+<div class="border rounded bg-white p-1 d-flex align-items-center gap-1" style="max-width: 180px;">
+    <img src="${thumb}" alt="${name}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:zoom-in;"
+        onclick="erpOpenAttachmentPreview('${a.id}')">
+    <div class="small text-truncate" style="max-width: 90px;" title="${name}">${name}</div>
+    <button type="button" class="btn btn-sm btn-outline-secondary" title="공통으로 이동"
+        onclick="erpLinkAttachmentToItem('${a.id}', '')">
+        <i class="fas fa-unlink"></i>
+    </button>
+</div>`;
+            }).join('');
+        });
+    }
+
     function erpRenderAttachments() {
         const wrap = document.getElementById('erp-attachments-gallery');
         if (!wrap) return;
@@ -709,6 +939,7 @@
             wrap.innerHTML = `<div class="col-12">
     <div class="small text-muted">첨부된 파일이 없습니다.</div>
 </div>`;
+            erpRenderItemAttachmentPanels();
             return;
         }
 
@@ -724,6 +955,7 @@
             const thumb = a.thumbnail_view_url || a.view_url;
             const viewUrl = a.view_url || '#';
             const downloadUrl = a.download_url || '#';
+            const category = erpNormalizeAttachmentCategory(a.category);
 
             const mediaHtml = (type === 'video')
                 ? `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
@@ -744,6 +976,14 @@
     <div class="card h-100">
         <div class="card-body p-2">
             ${mediaHtml}
+            ${category === 'measurement' ? `
+            <div class="mt-2">
+                <label class="form-label mb-1 small text-muted">제품 연결</label>
+                <select class="form-select form-select-sm" onchange="erpLinkAttachmentToItem('${a.id}', this.value)">
+                    ${erpBuildAttachmentItemOptions(a.item_index)}
+                </select>
+            </div>
+            ` : ''}
             <div class="d-flex justify-content-between align-items-center mt-2">
                 <div class="small text-truncate" title="${name}" style="max-width: 70%;">${name}</div>
                 <div class="btn-group btn-group-sm">
@@ -792,6 +1032,7 @@
 ${list.map(renderCard).join('')}
 `;
         }).join('');
+        erpRenderItemAttachmentPanels();
     }
 
     async function erpLoadAttachments() {
@@ -917,7 +1158,7 @@ ${list.map(renderCard).join('')}
             if (fileInput) {
                 fileInput.value = '';
             }
-            // add_order(draft) 모드에서 아직 주문이 없을 때 접수일/접수시간을 로컬 기준으로 표기
+            // add_order(draft) 모드에서 아직 주문이 없을 때 접수일/접수시간·단계 기본값
             if (window.__ERP_BETA_DRAFT_MODE && (!ORDER_ID || ORDER_ID <= 0)) {
                 const now = new Date();
                 const localDateStr = [
@@ -931,11 +1172,13 @@ ${list.map(renderCard).join('')}
                 const rt = document.getElementById('erp-received-time');
                 if (rd) rd.value = localDateStr;
                 if (rt) rt.value = localTimeStr;
+                // 단계(Workflow) 기본값: 주문 접수
+                const stageEl = document.getElementById('erp-workflow-stage');
+                if (stageEl && !stageEl.value) stageEl.value = 'RECEIVED';
             }
             // ORDER_ID가 있을 때만 데이터 로드(저장 버튼으로 생성된 주문이 있을 때만)
             if (ORDER_ID && ORDER_ID > 0) {
-                erpLoadStructured();
-                erpLoadAttachments();
+                await erpLoadStructured();
                 erpLoadQuest();
             }
         });
@@ -1162,4 +1405,5 @@ ${list.map(renderCard).join('')}
         if (!ERP_BETA_ENABLED) return;
         document.getElementById('erp-quest-status-btn')?.addEventListener('click', erpUpdateQuestStatus);
     });
+</script>
 </script>

@@ -264,6 +264,22 @@ def normalize_attachment_category(raw_category):
     return category
 
 
+def parse_attachment_item_index(raw_item_index):
+    """Parse optional item index for product-level measurement attachments."""
+    if raw_item_index is None:
+        return True, None, None
+    s = str(raw_item_index).strip().lower()
+    if s in ('', 'null', 'none'):
+        return True, None, None
+    try:
+        value = int(s)
+    except (TypeError, ValueError):
+        return False, None, 'item_index는 0 이상의 정수 또는 null 이어야 합니다.'
+    if value < 0:
+        return False, None, 'item_index는 0 이상의 정수 또는 null 이어야 합니다.'
+    return True, value, None
+
+
 def ensure_order_attachments_category_column():
     """Ensure category column exists for legacy databases."""
     db = None
@@ -284,6 +300,27 @@ def ensure_order_attachments_category_column():
         print(f"[AUTO-MIGRATION] Failed to ensure order_attachments.category: {e}")
         return False
 
+
+def ensure_order_attachments_item_index_column():
+    """Ensure item_index column exists for product-linked measurement attachments."""
+    db = None
+    try:
+        db = get_db()
+        db.execute(text(
+            "ALTER TABLE order_attachments "
+            "ADD COLUMN IF NOT EXISTS item_index INTEGER NULL"
+        ))
+        db.commit()
+        return True
+    except Exception as e:
+        try:
+            if db is not None:
+                db.rollback()
+        except Exception:
+            pass
+        print(f"[AUTO-MIGRATION] Failed to ensure order_attachments.item_index: {e}")
+        return False
+
 @app.route('/api/orders/<int:order_id>/attachments', methods=['GET'])
 @login_required
 def api_order_attachments_list(order_id):
@@ -298,10 +335,22 @@ def api_order_attachments_list(order_id):
         filter_category = normalize_attachment_category(raw_filter_category) if raw_filter_category else None
         if raw_filter_category and not filter_category:
             return jsonify({'success': False, 'message': '유효하지 않은 첨부 카테고리입니다.'}), 400
+        raw_filter_item_index = request.args.get('item_index')
+        filter_item_index = None
+        has_item_filter = raw_filter_item_index is not None
+        if has_item_filter:
+            ok, filter_item_index, err = parse_attachment_item_index(raw_filter_item_index)
+            if not ok:
+                return jsonify({'success': False, 'message': err}), 400
 
         query = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id)
         if filter_category:
             query = query.filter(OrderAttachment.category == filter_category)
+        if has_item_filter:
+            if filter_item_index is None:
+                query = query.filter(OrderAttachment.item_index.is_(None))
+            else:
+                query = query.filter(OrderAttachment.item_index == filter_item_index)
 
         atts = query.order_by(OrderAttachment.created_at.desc()).all()
         items = []
@@ -334,6 +383,9 @@ def api_order_attachments_upload(order_id):
         category = normalize_attachment_category(request.form.get('category', 'measurement'))
         if not category:
             return jsonify({'success': False, 'message': '유효하지 않은 첨부 카테고리입니다.'}), 400
+        ok, item_index, err = parse_attachment_item_index(request.form.get('item_index'))
+        if not ok:
+            return jsonify({'success': False, 'message': err}), 400
 
         if not allowed_erp_attachment_file(file.filename, category):
             allowed_exts = set(ERP_MEDIA_ALLOWED_EXTENSIONS)
@@ -391,6 +443,7 @@ def api_order_attachments_upload(order_id):
             filename=filename,
             file_type=file_type,
             category=category,
+            item_index=item_index,
             file_size=file_size,
             storage_key=storage_key,
             thumbnail_key=thumbnail_key
@@ -413,6 +466,48 @@ def api_order_attachments_upload(order_id):
             pass
         import traceback
         print(f"주문 첨부 업로드 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/orders/<int:order_id>/attachments/<int:attachment_id>', methods=['PATCH'])
+@login_required
+def api_order_attachments_patch(order_id, attachment_id):
+    """주문 첨부 메타 수정(제품 항목 연결/해제)"""
+    try:
+        payload = request.get_json(silent=True) or {}
+        if 'item_index' not in payload:
+            return jsonify({'success': False, 'message': 'item_index 필드가 필요합니다.'}), 400
+        ok, item_index, err = parse_attachment_item_index(payload.get('item_index'))
+        if not ok:
+            return jsonify({'success': False, 'message': err}), 400
+
+        db = get_db()
+        att = db.query(OrderAttachment).filter(
+            OrderAttachment.id == attachment_id,
+            OrderAttachment.order_id == order_id
+        ).first()
+        if not att:
+            return jsonify({'success': False, 'message': '첨부파일을 찾을 수 없습니다.'}), 404
+
+        att.item_index = item_index
+        db.commit()
+        db.refresh(att)
+
+        d = att.to_dict()
+        d['category'] = normalize_attachment_category(d.get('category')) or 'measurement'
+        d['view_url'] = build_file_view_url(att.storage_key)
+        d['download_url'] = build_file_download_url(att.storage_key)
+        d['thumbnail_view_url'] = build_file_view_url(att.thumbnail_key) if att.thumbnail_key else None
+        return jsonify({'success': True, 'attachment': d})
+    except Exception as e:
+        db = get_db()
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        import traceback
+        print(f"주문 첨부 수정 오류: {e}")
         print(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -1671,41 +1766,44 @@ def api_order_quest_approve(order_id):
             current_quest["completed_at"] = now.isoformat()
             sd["quests"][quest_index] = current_quest
             
-            # 다음 단계로 자동 전환
-            # get_next_stage_for_completed_quest는 영문 코드를 반환함 (템플릿의 next_stage가 영문 코드)
-            next_stage_code = get_next_stage_for_completed_quest(current_stage_name)
-            if next_stage_code:
-                # 영문 코드를 한글 단계명으로 변환 (quest 생성 시 사용)
-                CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
-                next_stage_name = CODE_TO_STAGE_NAME.get(next_stage_code, next_stage_code)
-                
-                workflow = sd.get("workflow") or {}
-                old_stage = workflow.get("stage")
-                workflow["stage"] = next_stage_code  # 영문 코드로 저장
-                workflow["stage_updated_at"] = now.isoformat()
-                sd["workflow"] = workflow
-                
-                # 다음 단계의 Quest 자동 생성 (한글 단계명으로 생성)
-                next_quest = create_quest_from_template(next_stage_name, username, sd)
-                if next_quest:
-                    if not sd.get("quests"):
-                        sd["quests"] = []
-                    sd["quests"].append(next_quest)
-                
-                # 이벤트 기록
-                ev = OrderEvent(
-                    order_id=order.id,
-                    event_type='STAGE_AUTO_TRANSITIONED',
-                    payload={
-                        'from': old_stage,
-                        'to': next_stage_code,
-                        'reason': 'quest_approvals_complete',
-                        'approved_teams': get_required_approval_teams_for_stage(current_stage_name),
-                    },
-                    created_by_user_id=user_id
-                )
-                db.add(ev)
-                auto_transitioned = True
+            # [수정] 고객컨펌(CONFIRM) 단계는 자동 전환하지 않음
+            # 생산팀이 "제작 시작" 버튼을 클릭할 때만 PRODUCTION으로 이동
+            if current_stage_code != 'CONFIRM':
+                # 다음 단계로 자동 전환
+                # get_next_stage_for_completed_quest는 영문 코드를 반환함 (템플릿의 next_stage가 영문 코드)
+                next_stage_code = get_next_stage_for_completed_quest(current_stage_name)
+                if next_stage_code:
+                    # 영문 코드를 한글 단계명으로 변환 (quest 생성 시 사용)
+                    CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
+                    next_stage_name = CODE_TO_STAGE_NAME.get(next_stage_code, next_stage_code)
+                    
+                    workflow = sd.get("workflow") or {}
+                    old_stage = workflow.get("stage")
+                    workflow["stage"] = next_stage_code  # 영문 코드로 저장
+                    workflow["stage_updated_at"] = now.isoformat()
+                    sd["workflow"] = workflow
+                    
+                    # 다음 단계의 Quest 자동 생성 (한글 단계명으로 생성)
+                    next_quest = create_quest_from_template(next_stage_name, username, sd)
+                    if next_quest:
+                        if not sd.get("quests"):
+                            sd["quests"] = []
+                        sd["quests"].append(next_quest)
+                    
+                    # 이벤트 기록
+                    ev = OrderEvent(
+                        order_id=order.id,
+                        event_type='STAGE_AUTO_TRANSITIONED',
+                        payload={
+                            'from': old_stage,
+                            'to': next_stage_code,
+                            'reason': 'quest_approvals_complete',
+                            'approved_teams': get_required_approval_teams_for_stage(current_stage_name),
+                        },
+                        created_by_user_id=user_id
+                    )
+                    db.add(ev)
+                    auto_transitioned = True
         
         # 최종 structured_data 저장 및 변경 감지
         order.structured_data = sd
@@ -7741,6 +7839,7 @@ try:
         # Initialize Main DB
         init_db()
         ensure_order_attachments_category_column()
+        ensure_order_attachments_item_index_column()
         
         # Initialize WDCalculator DB
         init_wdcalculator_db()
@@ -7797,6 +7896,7 @@ if __name__ == '__main__':
         try:
             init_db()
             ensure_order_attachments_category_column()
+            ensure_order_attachments_item_index_column()
             logger.info("[OK] FOMS 데이터베이스 초기화 완료")
         except Exception as e:
             logger.error(f"[ERROR] FOMS 데이터베이스 초기화 실패: {str(e)}")

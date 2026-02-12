@@ -124,6 +124,10 @@
                 border-bottom: 1px solid #e9ecef;
               }
 
+              .shipment-customer-done {
+                background-color: #cfe2ff;
+              }
+
               .measurement-panel-list {
                 max-height: 260px;
                 overflow-y: auto;
@@ -736,7 +740,8 @@
                   <th style="min-width: 224px; border-right: 1px solid #e0e0e0;">현장주소</th>
                   <th style="min-width: 130px; border-right: 1px solid #e0e0e0;">시공시간</th>
                   <th style="min-width: 130px; border-right: 1px solid #e0e0e0;">도면담당자</th>
-                  <th style="min-width: 120px;">시공자</th>
+                  <th style="min-width: 120px; border-right: 1px solid #e0e0e0;">시공자</th>
+                  <th style="min-width: 100px;">담당자</th>
                 </tr>
               </thead>
               <tbody>
@@ -776,7 +781,7 @@
                     <span class="text-muted small">(권한없음)</span>
                     {% endif %}
                   </td>
-                  <td style="border-right: 1px solid #e0e0e0;">
+                  <td class="{% if r.is_production_approved %}shipment-customer-done{% endif %}" style="border-right: 1px solid #e0e0e0;">
                     <div>{{ customer or '-' }}</div>
                     {% if r.phone %}
                     <small class="text-muted">{{ r.phone|format_phone }}</small>
@@ -910,7 +915,7 @@
                       </span>
                     </div>
                   </td>
-                  <td class="shipment-field-cell">
+                  <td class="shipment-field-cell" style="border-right: 1px solid #e0e0e0;">
                     <div class="shipment-workers-list {% if not construction_workers %}no-workers{% endif %}"
                       data-order-id="{{ r.id }}" data-field="construction_workers"
                       data-n="{{ construction_workers|length }}">
@@ -935,11 +940,14 @@
                       </span>
                     </div>
                   </td>
+                  <td>
+                    {{ r.manager_name or '-' }}
+                  </td>
                 </tr>
                 {% endfor %}
                 {% else %}
                 <tr>
-                  <td colspan="9" class="text-center text-muted py-4">데이터가 없습니다.</td>
+                  <td colspan="10" class="text-center text-muted py-4">데이터가 없습니다.</td>
                 </tr>
                 {% endif %}
               </tbody>

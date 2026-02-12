@@ -2028,6 +2028,9 @@
                         </a>
                       </div>
                     </div>
+                    {% elif o.stage in ['생산', 'PRODUCTION'] %}
+                    <!-- 생산 단계: '생산 중' 텍스트 표시 -->
+                    <span class="badge bg-info" style="font-size: 1rem; padding: 0.4em 0.7em;">생산 중</span>
                     {% else %}
                     <span class="text-muted" style="font-size: 1.1rem;">-</span>
                     {% endif %}
@@ -3353,12 +3356,6 @@
 
             showErpToast(data.message || '요청 반영 체크가 저장되었습니다.', 'success');
             await loadOrderDetail(orderId);
-            setTimeout(() => {
-              const tabBtn = document.querySelector(`[data-bs-target="#wb-requests-${orderId}"]`);
-              if (tabBtn) {
-                try { bootstrap.Tab.getOrCreateInstance(tabBtn).show(); } catch (_) { }
-              }
-            }, 120);
           } catch (e) {
             console.error(e);
             showErpToast('요청 반영 체크 저장 중 오류가 발생했습니다.', 'error');
@@ -3390,30 +3387,38 @@
             }
           }
 
-          // Render List
-          // Fetch current assignment to check boxes
-          let currentAssignees = [];
+          // Render List - 현재 할당자 체크 표시
+          let currentAssigneeIds = [];
           try {
-            // We need structured data, hopefully cached or fetch again. 
-            // Ideally passeed args, but simpler to fetch light structured data or use what we have in DOM if possible
-            // For now, let's just show list unchecke or checked if we store it globally.
-            // Actually loadOrderDetail stores in cache? No.
-            // Let's just list users.
-          } catch (e) { }
+            // 현재 주문의 structured_data에서 담당자 ID 가져오기
+            const infoRes = await fetch(`/api/orders/${orderId}/structured`);
+            if (infoRes.ok) {
+              const infoData = await infoRes.json();
+              if (infoData.success && infoData.structured_data) {
+                const assignments = infoData.structured_data.assignments || {};
+                currentAssigneeIds = assignments.drawing_assignee_user_ids || [];
+              }
+            }
+          } catch (e) {
+            console.error('Failed to fetch current assignees:', e);
+          }
 
           const users = __drawingUsersCache || [];
           if (users.length === 0) {
             listEl.innerHTML = '<div class="text-muted text-center">도면팀 사용자가 없습니다.</div>';
           } else {
-            listEl.innerHTML = users.map(u => `
+            listEl.innerHTML = users.map(u => {
+              const isChecked = currentAssigneeIds.includes(u.id) ? 'checked' : '';
+              return `
                 <label class="list-group-item d-flex gap-2">
-                    <input class="form-check-input flex-shrink-0" type="checkbox" value="${u.id}" name="draftsman_user">
+                    <input class="form-check-input flex-shrink-0" type="checkbox" value="${u.id}" name="draftsman_user" ${isChecked}>
                     <span>
                         <strong>${u.name}</strong>
                         <small class="text-muted ms-1">(${u.team})</small>
                     </span>
                 </label>
-            `).join('');
+              `;
+            }).join('');
           }
         }
 
@@ -4013,30 +4018,24 @@
                 </div>
               `;
 
-              const workbenchTabsHtml = `
-                <ul class="nav nav-pills nav-sm mb-2 erp-drawing-workbench-tabs" role="tablist">
-                  <li class="nav-item" role="presentation">
-                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#wb-timeline-${orderId}" type="button" role="tab">타임라인</button>
-                  </li>
-                  <li class="nav-item" role="presentation">
-                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#wb-requests-${orderId}" type="button" role="tab">요청사항</button>
-                  </li>
-                  <li class="nav-item" role="presentation">
-                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#wb-compare-${orderId}" type="button" role="tab">파일 비교</button>
-                  </li>
-                </ul>
-                <div class="tab-content">
-                  <div class="tab-pane fade show active erp-drawing-workbench-pane" id="wb-timeline-${orderId}" role="tabpanel">
-                    ${gatewayHistoryHtml}
-                  </div>
-                  <div class="tab-pane fade erp-drawing-workbench-pane" id="wb-requests-${orderId}" role="tabpanel">
-                    ${requestTabHtml}
-                  </div>
-                  <div class="tab-pane fade erp-drawing-workbench-pane" id="wb-compare-${orderId}" role="tabpanel">
-                    ${compareFilesHtml}
-                  </div>
-                </div>
-              `;
+              const latestEvent = drawHistory.length ? drawHistory[drawHistory.length - 1] : null;
+              const latestAction = (latestEvent && latestEvent.action) || '';
+              const latestActionLabel = latestAction === 'TRANSFER'
+                ? '도면 전달'
+                : (latestAction === 'REQUEST_REVISION'
+                  ? '수정 요청'
+                  : (latestAction === 'CANCEL_TRANSFER' ? '전달 취소' : '이력 없음'));
+              const latestWho = latestEvent ? escapeHtml(latestEvent.by_user_name || '-') : '-';
+              const latestWhen = latestEvent ? escapeHtml(latestEvent.transferred_at || latestEvent.at || '-') : '-';
+              const uncheckedRequestCount = revisionRequests.filter((h) => {
+                const rc = (h && h.review_check && typeof h.review_check === 'object') ? h.review_check : {};
+                return !rc.checked;
+              }).length;
+              const requestSummary = uncheckedRequestCount > 0
+                ? `미완료 요청 ${uncheckedRequestCount}건`
+                : '미완료 요청 없음';
+              const workbenchTab = drawingStatus === 'RETURNED' ? 'requests' : 'timeline';
+              const workbenchUrl = `/erp/drawing-workbench/${orderId}?tab=${encodeURIComponent(workbenchTab)}`;
 
               actionHtml = `
             <div class="col-12">
@@ -4044,7 +4043,7 @@
                 <div class="card-body">
                   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                     <h5 class="card-title fw-bold text-primary mb-1">
-                      <i class="fas fa-drafting-compass"></i> 도면 창구 상세 (작업실)
+                      <i class="fas fa-drafting-compass"></i> 도면 창구 요약
                       ${statusBadge}
                     </h5>
                     <p class="mb-0 text-muted small">
@@ -4053,20 +4052,27 @@
                       ${!canDrawingAssign ? '<span class="text-muted small ms-1">(수정 권한 없음)</span>' : ''}
                     </p>
                   </div>
-                  <div class="erp-drawing-workbench">
-                    <div class="erp-drawing-workbench-log">
-                      <div class="fw-semibold mb-2"><i class="fas fa-exchange-alt text-primary"></i> 도면 창구 이력/요청</div>
-                      ${workbenchTabsHtml}
-                    </div>
-                    <div class="erp-drawing-workbench-actions">
-                      <div class="erp-drawing-workbench-actions-sticky">
-                        <div class="fw-semibold mb-2"><i class="fas fa-bolt text-primary"></i> 지금 필요한 작업</div>
-                        <div class="small text-dark bg-white border rounded p-2 mb-2">${escapeHtml(currentTaskText)}</div>
-                        ${checklistHtml}
-                        ${mainBtn}
-                      </div>
-                    </div>
+                  <div class="bg-white border rounded p-2 mb-2">
+                    <div class="small fw-semibold mb-1"><i class="fas fa-bolt text-primary"></i> 지금 필요한 작업</div>
+                    <div class="small text-dark">${escapeHtml(currentTaskText)}</div>
                   </div>
+                  <div class="bg-white border rounded p-2 mb-2">
+                    <div class="small text-muted mb-1">최근 이벤트</div>
+                    <div class="small fw-semibold">${latestActionLabel} · ${latestWho}</div>
+                    <div class="small text-muted">${latestWhen}</div>
+                    <div class="small mt-1"><span class="badge bg-light text-dark border">${requestSummary}</span></div>
+                  </div>
+                  <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-primary" href="${workbenchUrl}">
+                      <i class="fas fa-comments"></i> 별도 작업실 열기
+                    </a>
+                    ${drawingStatus === 'RETURNED'
+                      ? `<a class="btn btn-outline-danger" href="/erp/drawing-workbench/${orderId}?tab=requests">
+                          <i class="fas fa-list-check"></i> 요청사항 바로보기
+                        </a>`
+                      : ''}
+                  </div>
+                    </div>
                 </div>
               </div>
             </div>`;
@@ -4103,6 +4109,37 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+          // URL 파라미터로 특정 주문 하이라이트 및 퀘스트 확장 (도면 수령확정 후 이동 등)
+          (() => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const focusOrder = urlParams.get('focus_order');
+            const openQuest = urlParams.get('open_quest') === 'true';
+
+            if (focusOrder) {
+              setTimeout(() => {
+                const row = document.querySelector(`.erp-main-row[data-order-id="${focusOrder}"]`);
+                if (row) {
+                  row.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                  });
+                  row.classList.add('table-info'); // Bootstrap highlight
+                  setTimeout(() => row.classList.remove('table-info'), 2500);
+
+                  if (openQuest) {
+                    const questCollapse = document.getElementById(`quest-collapse-${focusOrder}`);
+                    if (questCollapse) {
+                      const bsCollapse = new bootstrap.Collapse(questCollapse, {
+                        toggle: false
+                      });
+                      bsCollapse.show();
+                    }
+                  }
+                }
+              }, 500); // 렌더링 지연 고려
+            }
+          })();
+
           // 필터 폼 제출 시 alert_type 파라미터 유지
           const form = document.getElementById('erp-filters-form');
           if (form) {
@@ -4145,7 +4182,7 @@
             });
           });
 
-          // 딥링크 포커스: ?focus=drawing-gateway&order_id=1955&tab=timeline|requests|compare
+          // 딥링크 포커스: 도면 창구는 별도 작업실로 단일 진입
           (() => {
             try {
               const url = new URL(window.location.href);
@@ -4156,23 +4193,8 @@
                 ? 'requests'
                 : (tabRaw === 'file' || tabRaw === 'files' || tabRaw === 'compare' ? 'compare' : 'timeline');
               if (focus !== 'drawing-gateway' || !orderId) return;
-
-              const collapseEl = document.getElementById(`order-detail-collapse-${orderId}`);
-              if (!collapseEl) return;
-              const bs = bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false });
-              bs.show();
-
-              const activateTab = () => {
-                const tabBtn = document.querySelector(`[data-bs-target="#wb-${tabKey}-${orderId}"]`);
-                if (!tabBtn) return;
-                try {
-                  bootstrap.Tab.getOrCreateInstance(tabBtn).show();
-                } catch (_) { }
-              };
-
-              // 상세 렌더링 완료 타이밍 보정
-              setTimeout(activateTab, 450);
-              setTimeout(activateTab, 900);
+              const targetUrl = `/erp/drawing-workbench/${orderId}?tab=${encodeURIComponent(tabKey)}`;
+              window.location.href = targetUrl;
             } catch (_) { }
           })();
 

@@ -107,7 +107,7 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                             <label class="form-label mb-1">단계(Workflow)</label>
                             <select class="form-select form-select-sm" id="erp-workflow-stage">
                                 <option value="">-</option>
-                                <option value="RECEIVED">A. 주문접수</option>
+                                <option value="RECEIVED"{% if erp_beta_default_stage_received %} selected{% endif %}>A. 주문접수</option>
                                 <option value="HAPPYCALL">B. 해피콜</option>
                                 <option value="MEASURE">C. 실측</option>
                                 <option value="DRAWING">D. 도면</option>
@@ -186,6 +186,9 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div class="fw-bold"><i class="fas fa-box"></i> 제품 항목(1..n)</div>
                     </div>
+                    <div class="small text-muted mb-2">
+                        각 제품 항목에서 <strong>실측 이미지</strong>를 개별 첨부할 수 있습니다.
+                    </div>
                     <div id="erp-items"></div>
                     <div class="d-flex justify-content-end mt-2">
                         <button class="btn btn-sm btn-outline-secondary" type="button" id="erp-add-item-btn">
@@ -210,7 +213,7 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                     <div class="small text-muted mt-2" id="erp-status-text"></div>
 
                     <hr class="my-3">
-                    <div class="fw-bold mb-2"><i class="fas fa-paperclip"></i> 첨부(사진/동영상)</div>
+                    <div class="fw-bold mb-2"><i class="fas fa-paperclip"></i> 공통 첨부(사진/동영상)</div>
                     <div class="border rounded p-3" style="border-style: dashed !important; background-color: #f8f9fa;">
                         <div class="d-flex flex-wrap gap-2 align-items-center">
                             <select id="erp-attachments-category" class="form-select form-select-sm" style="max-width: 140px;">
@@ -227,6 +230,9 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                             <small class="text-muted">여러 개 선택 가능</small>
                         </div>
                         <div class="small text-muted mt-2" id="erp-attachments-status"></div>
+                        <div class="small text-muted mt-1">
+                            공통 첨부는 아래 갤러리에서 제품 항목으로 연결/해제할 수 있습니다.
+                        </div>
                     </div>
                     <div class="row g-2 mt-2" id="erp-attachments-gallery"></div>
                 </div>

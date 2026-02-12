@@ -360,7 +360,8 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
                         </form>
                     </div>
 
-                    <!-- ERP Beta -->
+                    <!-- ERP Beta (새 주문 시 단계 기본값: 주문 접수) -->
+                    {% set erp_beta_default_stage_received = true %}
                     {% include "partials/erp_beta_tab.html" %}
                 </div>
             </div>

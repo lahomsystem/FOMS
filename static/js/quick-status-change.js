@@ -127,7 +127,10 @@ document.addEventListener('DOMContentLoaded', function () {
         saveBtn.disabled = false;
         selectedOrderId = Number(order.id);
 
-        customerName.textContent = order.customer_name;
+        var displayName = order.customer_name || ('주문 #' + order.id);
+        customerName.textContent = displayName;
+        // 선택한 이름을 검색창에도 표시
+        orderIdInput.value = displayName;
 
         // 상태 표시 (영문 코드 -> 한글 매핑은 서버에서 안 오면 그냥 코드 표시하거나, 
         // select option에서 텍스트 찾아서 표시)

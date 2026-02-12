@@ -877,9 +877,10 @@ def erp_dashboard():
         {'label': '도면', **step_stats['도면']},
         {'label': '고객컨펌', **step_stats['고객컨펌']},
         {'label': '생산', **step_stats['생산']},
+        # [순서 변경] 시공, 완료, CS, AS처리
         {'label': '시공', **step_stats['시공']},
-        {'label': 'CS', **step_stats['CS']},
         {'label': '완료', **step_stats['완료']},
+        {'label': 'CS', **step_stats['CS']},
         {'label': 'AS처리', **step_stats['AS처리']},
     ]
 
@@ -906,7 +907,10 @@ def erp_dashboard():
 @erp_beta_bp.route('/erp/drawing-workbench')
 @login_required
 def erp_drawing_workbench_dashboard():
-    """도면 작업실 대시보드: 도면 단계 협업 전용 화면(목록형)"""
+    """도면 작업실 대시보드: 도면 단계 협업 전용 화면(목록형)
+    
+    Phase 3: 정렬/페이지네이션 추가
+    """
     db = get_db()
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
 
@@ -918,6 +922,15 @@ def erp_drawing_workbench_dashboard():
     due_today_only = (request.args.get('due_today') or '').strip() == '1'
     assignee_filter_raw = (request.args.get('assignee') or '').strip()
     assignee_filter = assignee_filter_raw.lower()
+    
+    # Phase 3: 정렬/페이지네이션 파라미터
+    sort_by = (request.args.get('sort') or '').strip().lower()
+    page = 1
+    try:
+        page = max(1, int(request.args.get('page') or '1'))
+    except (TypeError, ValueError):
+        page = 1
+    per_page = 25
 
     orders = (
         db.query(Order)
@@ -945,9 +958,6 @@ def erp_drawing_workbench_dashboard():
         is_active_revision = (drawing_status == 'RETURNED')
 
         if not (is_drawing_stage or is_active_revision):
-            continue
-
-        if status_filter and drawing_status != status_filter:
             continue
 
         customer_name = (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-'
@@ -1051,15 +1061,97 @@ def erp_drawing_workbench_dashboard():
             'my_todo': my_todo,
         })
 
+    # 프로세스맵 타일 숫자: status 필터 없이 항상 전체 단계별 건수 표시 (ERP 프로세스 대시보드와 동일)
+    stats = {
+        'total': len(rows),
+        'WAITING': 0,
+        'IN_PROGRESS': 0,
+        'RETURNED': 0,
+        'TRANSFERRED': 0,
+        'CONFIRMED': 0,
+        'overdue': 0,
+        'unread': 0,
+    }
+    for r in rows:
+        status = (r.get('drawing_status') or 'WAITING').upper()
+        if status == 'PENDING':
+            status = 'WAITING'
+        if status in stats:
+            stats[status] += 1
+        if r.get('is_overdue'):
+            stats['overdue'] += 1
+        if r.get('unread_count', 0) > 0:
+            stats['unread'] += 1
+
+    # 타일 클릭 시: 해당 단계만 목록에 표시 (status_filter 적용)
+    if status_filter:
+        def _match_status(row_status: str) -> bool:
+            s = (row_status or '').upper()
+            if status_filter == 'WAITING':
+                return s in ('WAITING', 'PENDING')
+            return s == status_filter
+        rows = [r for r in rows if _match_status(r.get('drawing_status') or '')]
+
     rows.sort(key=lambda r: (
         0 if r.get('my_todo') else 1,
         0 if r.get('is_overdue') else 1,
         -int(r.get('id') or 0),
     ))
+    
+    # Phase 3: 정렬 적용
+    if sort_by:
+        reverse = False
+        if sort_by.startswith('-'):
+            reverse = True
+            sort_by = sort_by[1:]
+        
+        if sort_by == 'sla':
+            # SLA: 지연 > 오늘마감 > 정상
+            rows.sort(key=lambda r: (
+                0 if r.get('is_overdue') else (1 if r.get('due_today') else 2),
+                -int(r.get('id') or 0)
+            ), reverse=reverse)
+        elif sort_by == 'status':
+            # 상태순: RETURNED > TRANSFERRED > IN_PROGRESS > WAITING > CONFIRMED
+            status_order = {'RETURNED': 1, 'TRANSFERRED': 2, 'IN_PROGRESS': 3, 'WAITING': 4, 'CONFIRMED': 5}
+            rows.sort(key=lambda r: (
+                status_order.get(r.get('drawing_status'), 99),
+                -int(r.get('id') or 0)
+            ), reverse=reverse)
+        elif sort_by == 'updated_at':
+            # 최근 업데이트순
+            rows.sort(key=lambda r: r.get('latest_event_at') or '', reverse=not reverse)
+        elif sort_by == 'unread':
+            # 미확인 요청순
+            rows.sort(key=lambda r: (
+                -int(r.get('unread_count') or 0),
+                -int(r.get('id') or 0)
+            ), reverse=reverse)
+        elif sort_by == 'id':
+            # 주문번호순
+            rows.sort(key=lambda r: int(r.get('id') or 0), reverse=reverse)
+
+    total_count = len(rows)
+    # Phase 3: 페이지네이션
+    total_pages = (total_count + per_page - 1) // per_page if per_page > 0 else 1
+    page = min(page, total_pages) if total_pages > 0 else 1
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    rows = rows[start_idx:end_idx]
 
     return render_template(
         'erp_drawing_workbench_dashboard.html',
         rows=rows,
+        stats=stats,  # Phase 2: 통계 추가
+        pagination={  # Phase 3: 페이지네이션 추가
+            'page': page,
+            'per_page': per_page,
+            'total_count': total_count,
+            'total_pages': total_pages,
+            'has_prev': page > 1,
+            'has_next': page < total_pages,
+        },
+        sort_by=request.args.get('sort') or '',  # Phase 3: 현재 정렬 상태
         filters={
             'q': q_raw,
             'status': status_filter,
@@ -1127,6 +1219,25 @@ def erp_drawing_workbench_detail(order_id):
     latest_transfer = transfer_events[-1] if transfer_events else None
     prev_transfer = transfer_events[-2] if len(transfer_events) > 1 else None
 
+    # 수정본 파일 마킹 (최근 수정 요청 이후에 전달된 파일)
+    if latest_transfer and revision_requests:
+        latest_req = revision_requests[0]  # revision_requests는 이미 reverse() 되어 있음 -> 0번이 가장 최신
+        tf_at = latest_transfer.get('at') or latest_transfer.get('transferred_at') or ''
+        req_at = latest_req.get('at') or latest_req.get('transferred_at') or ''
+
+        if tf_at > req_at:
+            # 이 전달본은 수정 요청에 대한 응답임
+            latest_keys = set()
+            for f in (latest_transfer.get('files') or []):
+                if isinstance(f, dict):
+                    k = f.get('key')
+                    if k:
+                        latest_keys.add(k)
+
+            for df in drawing_files:
+                if isinstance(df, dict) and df.get('key') in latest_keys:
+                    df['is_revision'] = True
+
     active_tab = (request.args.get('tab') or 'timeline').strip().lower()
     if active_tab not in ('timeline', 'requests', 'compare'):
         active_tab = 'timeline'
@@ -1156,14 +1267,15 @@ def erp_drawing_workbench_detail(order_id):
     can_request_revision = can_sales_domain
     can_confirm_receipt = bool(can_sales_domain and drawing_status == 'TRANSFERRED')
 
+    # 전달 취소 버튼: 도면 전달(TRANSFER)이 한 번이라도 있을 때만 표시
     can_cancel_transfer = False
-    if current_user and current_user.role == 'ADMIN':
-        can_cancel_transfer = True
-    elif can_transfer:
-        can_cancel_transfer = True
-    else:
-        last_transfer = next((h for h in reversed(history_raw) if isinstance(h, dict) and h.get('action') == 'TRANSFER'), None)
-        if last_transfer:
+    if latest_transfer is not None:
+        if current_user and current_user.role == 'ADMIN':
+            can_cancel_transfer = True
+        elif can_transfer:
+            can_cancel_transfer = True
+        else:
+            last_transfer = latest_transfer
             try:
                 can_cancel_transfer = int(last_transfer.get('by_user_id')) == int(current_user_id)
             except Exception:
@@ -1185,6 +1297,55 @@ def erp_drawing_workbench_detail(order_id):
         {'label': '최신 전달본 확인', 'ok': bool(drawing_files)},
         {'label': '요청사항 확인', 'ok': unread_count == 0},
     ]
+
+    # 제품 정보: items를 기본으로, legacy/products 키도 fallback 허용
+    raw_product_items = (
+        s_data.get('items')
+        or s_data.get('products')
+        or s_data.get('product_items')
+        or []
+    )
+    if isinstance(raw_product_items, dict):
+        raw_product_items = [raw_product_items]
+    product_items = []
+    for it in list(raw_product_items):
+        if not isinstance(it, dict):
+            continue
+        item = dict(it)
+        item['width'] = item.get('width') or item.get('spec_width') or ''
+        item['depth'] = item.get('depth') or item.get('spec_depth') or ''
+        item['height'] = item.get('height') or item.get('spec_height') or ''
+        item['measurement_images'] = []
+        product_items.append(item)
+    
+    # 실측 사진 (ERP Beta 실측=measurement, legacy measure_photo/photo 포함)
+    measure_photos = []
+    common_measure_photos = []
+    attachments = db.query(OrderAttachment).filter(
+        OrderAttachment.order_id == order_id,
+        OrderAttachment.category.in_(['measurement', 'measure_photo', 'photo'])
+    ).order_by(OrderAttachment.created_at.desc()).all()
+    for att in attachments:
+        item_index_raw = getattr(att, 'item_index', None)
+        try:
+            item_index = int(item_index_raw) if item_index_raw is not None else None
+            if item_index is not None and item_index < 0:
+                item_index = None
+        except (TypeError, ValueError):
+            item_index = None
+
+        photo = {
+            'filename': att.filename,
+            'view_url': f'/api/files/view/{att.storage_key}',
+            'download_url': f'/api/files/download/{att.storage_key}',
+            'key': att.storage_key,
+            'item_index': item_index,
+        }
+        measure_photos.append(photo)
+        if item_index is not None and 0 <= item_index < len(product_items):
+            product_items[item_index].setdefault('measurement_images', []).append(photo)
+        else:
+            common_measure_photos.append(photo)
 
     return render_template(
         'erp_drawing_workbench_detail.html',
@@ -1216,6 +1377,9 @@ def erp_drawing_workbench_detail(order_id):
         my_team=(current_user.team if current_user else ''),
         my_name=(current_user.name if current_user else ''),
         history_json=history_raw,
+        product_items=product_items,
+        measure_photos=measure_photos,
+        common_measure_photos=common_measure_photos,
     )
 
 
@@ -1602,8 +1766,32 @@ def erp_shipment_dashboard():
 
     rows = rows[:300]
     
+    # [추가] 생산 단계 퀘스트 승인 여부 확인
     for r in rows:
         r.structured_data = _ensure_dict(r.structured_data)
+        sd = r.structured_data
+        
+        # 생산 단계(PRODUCTION, '생산') 퀘스트의 승인 여부 확인
+        r.is_production_approved = False
+        quests = sd.get('quests') or []
+        production_quest = next((q for q in quests if q.get('stage') in ('PRODUCTION', '생산')), None)
+        
+        if production_quest:
+            # 퀘스트 상태가 COMPLETED인지 확인
+            quest_status = production_quest.get('status', 'OPEN')
+            if quest_status == 'COMPLETED':
+                r.is_production_approved = True
+            else:
+                # 또는 모든 팀 승인이 완료되었는지 확인
+                team_approvals = production_quest.get('team_approvals') or {}
+                required_teams = production_quest.get('required_approvals') or []
+                if required_teams:
+                    all_approved = all(
+                        (team_approvals.get(team, {}).get('approved') if isinstance(team_approvals.get(team), dict) else team_approvals.get(team))
+                        for team in required_teams
+                    )
+                    r.is_production_approved = all_approved
+    
     apply_erp_beta_display_fields_to_orders(rows)
 
     def get_manager_name_for_sort(order):
@@ -2557,12 +2745,16 @@ def api_order_quick_info(order_id):
 
         sd = order.structured_data if isinstance(order.structured_data, dict) else {}
         manager_display = (((sd.get('parties') or {}).get('manager') or {}).get('name')) or order.manager_name
-            
+        customer_display = (
+            (((sd.get('parties') or {}).get('customer') or {}).get('name'))
+            or order.customer_name
+            or ''
+        )
         return jsonify({
             'success': True,
             'order': {
                 'id': order.id,
-                'customer_name': order.customer_name,
+                'customer_name': customer_display or order.customer_name,
                 'status': order.status,
                 'product': order.product,
                 'manager': manager_display,
@@ -2658,8 +2850,10 @@ def api_order_quick_status_update(order_id):
             quests.append(new_quest)
         
         sd['quests'] = quests
+        # 새 객체로 할당해 JSON 컬럼 변경이 반드시 반영되도록 함 (대시보드 workflow 반영)
         order.structured_data = copy.deepcopy(sd)
         flag_modified(order, 'structured_data')
+        db.flush()
         
         # 로그 기록
         from models import SecurityLog
@@ -2697,6 +2891,11 @@ def api_order_transfer_drawing(order_id):
     - 도면 전달은 도면팀에서 고객/영업팀에게 도면 완성을 알리는 역할
     - 단계 이동은 퀘스트 시스템의 팀 승인을 통해서만 가능
     - 도면 전달 시 영업팀/고객에게 알림 전송 (추후 구현)
+    
+    Phase 2 개선:
+    - replace_target_keys (배열): 다중 도면 교체 지원
+    - replace_target_key (단일): 호환성 유지
+    - mode='REPLACE_ALL': 기존 전체 삭제 후 새 파일로 대체
     """
     try:
         from datetime import datetime
@@ -2704,8 +2903,19 @@ def api_order_transfer_drawing(order_id):
         note = data.get('note', '')
         is_retransfer = bool(data.get('is_retransfer'))
         replace_target_key = (data.get('replace_target_key') or '').strip()
+        replace_target_keys = data.get('replace_target_keys') or []  # Phase 2: 다중 교체
+        mode = (data.get('mode') or '').upper()  # Phase 2: APPEND, REPLACE, REPLACE_ALL
         emergency_override = bool(data.get('emergency_override'))
         override_reason = (data.get('override_reason') or '').strip()
+        
+        # 호환성 처리
+        if mode == 'REPLACE_ALL':
+            # 전체 교체 모드
+            pass
+        elif replace_target_key and replace_target_key not in replace_target_keys:
+            replace_target_keys = [replace_target_key]
+        elif not replace_target_keys:
+            replace_target_keys = []
         
         db = get_db()
         order = db.query(Order).filter(Order.id == order_id).first()
@@ -2768,51 +2978,92 @@ def api_order_transfer_drawing(order_id):
         
         old_files = list(s_data.get('drawing_current_files', []) or [])
         updated_files = list(old_files)
-        replaced_target_number = None
+        replaced_target_numbers = []  # Phase 2: 다중 교체된 번호들
 
         # 재전송(수정본 전달)에서는 새 파일이 필수
         if is_retransfer and not new_files:
             return jsonify({'success': False, 'message': '수정본 재전송 시 도면 파일 업로드가 필요합니다.'}), 400
 
         if new_files:
-            # replace_target_key가 있으면 해당 번호만 교체 (삭제 후 새 파일 삽입)
-            if replace_target_key:
-                target_index = -1
-                for i, f in enumerate(old_files):
-                    if ((f or {}).get('key') or '').strip() == replace_target_key:
-                        target_index = i
-                        break
-                if target_index < 0:
-                    return jsonify({'success': False, 'message': '교체 대상 도면을 찾을 수 없습니다. 목록을 새로고침 후 다시 시도해주세요.'}), 400
-
-                replaced_target_number = target_index + 1
-                target_item = old_files[target_index] if target_index < len(old_files) else {}
-                target_key = (target_item.get('key') or '').strip()
+            # Phase 2: REPLACE_ALL 모드 - 기존 전체 삭제 후 새 파일로 대체
+            if mode == 'REPLACE_ALL':
                 storage = get_storage()
-                if target_key:
-                    # 스토리지 파일 삭제
-                    try:
-                        storage.delete_file(target_key)
-                    except Exception:
-                        pass
-                    # DB 첨부 레코드/썸네일 정리
-                    rows = db.query(OrderAttachment).filter(
-                        OrderAttachment.order_id == order_id,
-                        OrderAttachment.storage_key == target_key
-                    ).all()
-                    for row in rows:
+                # 기존 모든 도면 파일 삭제
+                for idx, old_file in enumerate(old_files):
+                    old_key = ((old_file or {}).get('key') or '').strip()
+                    if old_key:
+                        replaced_target_numbers.append(idx + 1)
+                        # 스토리지 파일 삭제
                         try:
-                            if row.thumbnail_key:
-                                storage.delete_file(row.thumbnail_key)
+                            storage.delete_file(old_key)
                         except Exception:
                             pass
-                        db.delete(row)
-
-                updated_files = list(old_files)
-                updated_files.pop(target_index)
-                # 선택한 번호 위치에 새 파일 삽입 (다중 업로드 시 연속 삽입)
+                        # DB 첨부 레코드/썸네일 정리
+                        rows = db.query(OrderAttachment).filter(
+                            OrderAttachment.order_id == order_id,
+                            OrderAttachment.storage_key == old_key
+                        ).all()
+                        for row in rows:
+                            try:
+                                if row.thumbnail_key:
+                                    storage.delete_file(row.thumbnail_key)
+                            except Exception:
+                                pass
+                            db.delete(row)
+                
+                # 새 파일로 전체 교체
+                updated_files = list(new_files)
+            
+            # Phase 2: 다중 교체 처리
+            elif replace_target_keys:
+                # 교체할 인덱스 찾기
+                indices_to_replace = []
+                for target_key in replace_target_keys:
+                    for i, f in enumerate(old_files):
+                        if ((f or {}).get('key') or '').strip() == target_key:
+                            indices_to_replace.append((i, target_key))
+                            break
+                
+                if len(indices_to_replace) != len(replace_target_keys):
+                    return jsonify({'success': False, 'message': '일부 교체 대상 도면을 찾을 수 없습니다. 목록을 새로고침 후 다시 시도해주세요.'}), 400
+                
+                # 인덱스 내림차순 정렬 (뒤부터 삭제해야 인덱스 꼬이지 않음)
+                indices_to_replace.sort(key=lambda x: x[0], reverse=True)
+                
+                storage = get_storage()
+                # 기존 파일 삭제
+                for idx, target_key in indices_to_replace:
+                    replaced_target_numbers.append(idx + 1)
+                    target_item = old_files[idx] if idx < len(old_files) else {}
+                    target_file_key = (target_item.get('key') or '').strip()
+                    
+                    if target_file_key:
+                        # 스토리지 파일 삭제
+                        try:
+                            storage.delete_file(target_file_key)
+                        except Exception:
+                            pass
+                        # DB 첨부 레코드/썸네일 정리
+                        rows = db.query(OrderAttachment).filter(
+                            OrderAttachment.order_id == order_id,
+                            OrderAttachment.storage_key == target_file_key
+                        ).all()
+                        for row in rows:
+                            try:
+                                if row.thumbnail_key:
+                                    storage.delete_file(row.thumbnail_key)
+                            except Exception:
+                                pass
+                            db.delete(row)
+                    
+                    updated_files.pop(idx)
+                
+                # 새 파일 삽입 (첫 번째 교체 위치에 모두 삽입)
+                first_index = min([x[0] for x in indices_to_replace])
                 for offset, nf in enumerate(new_files):
-                    updated_files.insert(target_index + offset, nf)
+                    updated_files.insert(first_index + offset, nf)
+                
+                replaced_target_numbers.sort()
             else:
                 # 여러 장인데 재전송이면 대상 지정 필수
                 if is_retransfer and len(old_files) > 1:
@@ -2842,9 +3093,12 @@ def api_order_transfer_drawing(order_id):
             'note': note,
             'files_count': len(new_files),
             'files': new_files,
-            'mode': 'REPLACE' if replace_target_key else 'APPEND',
-            'replace_target_key': replace_target_key or None,
-            'replace_target_number': replaced_target_number,
+            'mode': mode if mode else ('REPLACE' if replace_target_keys else 'APPEND'),  # Phase 2
+            'replace_target_keys': replace_target_keys if replace_target_keys else None,  # Phase 2
+            'replace_target_numbers': replaced_target_numbers if replaced_target_numbers else None,  # Phase 2
+            # 호환성 유지
+            'replace_target_key': replace_target_keys[0] if len(replace_target_keys) == 1 else None,
+            'replace_target_number': replaced_target_numbers[0] if len(replaced_target_numbers) == 1 else None,
         }
         
         # 히스토리 배열에 추가
@@ -3138,13 +3392,25 @@ def api_drawing_gateway_upload(order_id):
 @login_required
 @erp_edit_required
 def api_order_request_revision(order_id):
-    """도면 수정 요청 (영업/담당자)"""
+    """도면 수정 요청 (영업/담당자)
+    
+    Phase 2 개선:
+    - target_drawing_keys (배열): 다중 도면 수정 요청 지원
+    - target_drawing_key (단일): 호환성 유지
+    """
     try:
         from datetime import datetime
         data = request.get_json() or {}
         note = data.get('note', '')
         files = data.get('files', []) if isinstance(data.get('files', []), list) else []
         target_drawing_key = (data.get('target_drawing_key') or '').strip()
+        target_drawing_keys = data.get('target_drawing_keys') or []  # Phase 2: 다중 선택
+        
+        # 호환성: target_drawing_key가 있으면 배열에 추가
+        if target_drawing_key and target_drawing_key not in target_drawing_keys:
+            target_drawing_keys = [target_drawing_key]
+        elif not target_drawing_keys:
+            target_drawing_keys = []
         
         db = get_db()
         order = db.query(Order).filter(Order.id == order_id).first()
@@ -3164,22 +3430,27 @@ def api_order_request_revision(order_id):
                 msg += ' (긴급 오버라이드가 필요합니다.)'
             return jsonify({'success': False, 'message': msg}), 403
 
-        target_drawing_number = None
+        # Phase 2: 다중 선택 처리
+        target_drawing_numbers = []
         if current_files:
-            if not target_drawing_key and len(current_files) > 1:
+            if not target_drawing_keys and len(current_files) > 1:
                 return jsonify({'success': False, 'message': '수정 요청할 도면 번호를 선택해주세요.'}), 400
-            if target_drawing_key:
-                for idx, f in enumerate(current_files):
-                    if ((f or {}).get('key') or '').strip() == target_drawing_key:
-                        target_drawing_number = idx + 1
-                        break
-                if target_drawing_number is None:
-                    return jsonify({'success': False, 'message': '선택한 수정 대상 도면을 찾을 수 없습니다.'}), 400
+            
+            if target_drawing_keys:
+                for target_key in target_drawing_keys:
+                    found = False
+                    for idx, f in enumerate(current_files):
+                        if ((f or {}).get('key') or '').strip() == target_key:
+                            target_drawing_numbers.append(idx + 1)
+                            found = True
+                            break
+                    if not found:
+                        return jsonify({'success': False, 'message': f'선택한 수정 대상 도면을 찾을 수 없습니다: {target_key}'}), 400
             elif len(current_files) == 1:
                 only_key = ((current_files[0] or {}).get('key') or '').strip()
                 if only_key:
-                    target_drawing_key = only_key
-                    target_drawing_number = 1
+                    target_drawing_keys = [only_key]
+                    target_drawing_numbers = [1]
         
         # 상태 체크: TRANSFERRED (확정대기) 상태여야 함
         if s_data.get('drawing_status') not in ['TRANSFERRED', 'CONFIRMED']: 
@@ -3200,8 +3471,11 @@ def api_order_request_revision(order_id):
             'note': note,
             'files': files,
             'files_count': len(files),
-            'target_drawing_key': target_drawing_key or None,
-            'target_drawing_number': target_drawing_number,
+            'target_drawing_keys': target_drawing_keys if target_drawing_keys else None,  # Phase 2
+            'target_drawing_numbers': target_drawing_numbers if target_drawing_numbers else None,  # Phase 2
+            # 호환성 유지
+            'target_drawing_key': target_drawing_keys[0] if len(target_drawing_keys) == 1 else None,
+            'target_drawing_number': target_drawing_numbers[0] if len(target_drawing_numbers) == 1 else None,
         })
         s_data['drawing_transfer_history'] = history
         
@@ -3210,8 +3484,11 @@ def api_order_request_revision(order_id):
         # 알림 전송 (도면팀에게)
         from models import Notification
         msg = f"주문 #{order_id} 도면 수정 요청이 접수되었습니다."
-        if target_drawing_number:
-            msg += f" 대상: {target_drawing_number}번 도면."
+        if target_drawing_numbers:
+            if len(target_drawing_numbers) == 1:
+                msg += f" 대상: {target_drawing_numbers[0]}번 도면."
+            else:
+                msg += f" 대상: {', '.join(map(str, target_drawing_numbers))}번 도면 ({len(target_drawing_numbers)}건)."
         msg += f" 메모: {note}"
         if files:
             msg += f" (첨부 {len(files)}건)"
@@ -3466,6 +3743,143 @@ def api_order_assign_draftsman(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@erp_beta_bp.route('/api/orders/batch-assign-draftsman', methods=['POST'])
+@login_required
+def api_orders_batch_assign_draftsman():
+    """여러 주문에 도면 담당자 일괄 지정"""
+    try:
+        from datetime import datetime
+        data = request.get_json() or {}
+        order_ids = data.get('order_ids', [])
+        user_ids = data.get('user_ids', [])
+        emergency_override = data.get('emergency_override', False)
+        override_reason = data.get('override_reason', '').strip()
+        
+        if not order_ids:
+            return jsonify({'success': False, 'message': '주문을 선택해주세요.'}), 400
+        if not user_ids:
+            return jsonify({'success': False, 'message': '담당자를 선택해주세요.'}), 400
+            
+        db = get_db()
+        
+        # 권한 검사
+        user_id = session.get('user_id')
+        current_user = get_user_by_id(user_id)
+        if not current_user:
+            return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
+        
+        team_code = (current_user.team or '').strip()
+        if current_user.role != 'ADMIN' and team_code != 'DRAWING':
+            return jsonify({'success': False, 'message': '도면 담당자 지정 권한이 없습니다. (관리자/도면팀만 가능)'}), 403
+        
+        # 담당자 검증 (도면팀만 지정 가능)
+        assigned_users = db.query(User).filter(User.id.in_(user_ids), User.is_active == True).all()
+        non_drawing = [u for u in assigned_users if (u.team or '').strip() != 'DRAWING']
+        if non_drawing:
+            names = ', '.join([u.name for u in non_drawing])
+            return jsonify({
+                'success': False,
+                'message': f'도면 담당자는 도면팀 소속만 지정할 수 있습니다. (도면팀이 아닌 사용자: {names})'
+            }), 400
+        if len(assigned_users) != len(user_ids):
+            return jsonify({'success': False, 'message': '일부 사용자를 찾을 수 없거나 비활성 계정입니다.'}), 400
+        
+        assignee_list = [{'id': u.id, 'name': u.name, 'team': u.team} for u in assigned_users]
+        assignee_names = ", ".join([u.name for u in assigned_users])
+        
+        # 주문 조회 및 검증
+        orders = db.query(Order).filter(Order.id.in_(order_ids)).all()
+        if len(orders) != len(order_ids):
+            return jsonify({'success': False, 'message': '일부 주문을 찾을 수 없습니다.'}), 400
+        
+        # 일괄 할당 처리
+        import copy
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        success_count = 0
+        failed_orders = []
+        
+        for order in orders:
+            try:
+                s_data = _ensure_dict(order.structured_data)
+                
+                # 표준 키 업데이트
+                if 'assignments' not in s_data:
+                    s_data['assignments'] = {}
+                s_data['assignments']['drawing_assignee_user_ids'] = user_ids
+                
+                # 레거시 호환
+                s_data['drawing_assignees'] = assignee_list
+                
+                # Shipment 동기화
+                shipment = s_data.get('shipment') or {}
+                shipment['drawing_managers'] = [u.name for u in assigned_users]
+                s_data['shipment'] = shipment
+                
+                # Workflow history
+                wf = s_data.get('workflow') or {}
+                hist = wf.get('history') or []
+                hist.append({
+                    'stage': wf.get('stage', 'DRAWING'),
+                    'updated_at': datetime.now().isoformat(),
+                    'updated_by': current_user.name if current_user else 'Unknown',
+                    'note': f'도면 담당자 일괄 지정: {assignee_names}'
+                })
+                wf['history'] = hist
+                s_data['workflow'] = wf
+                
+                order.structured_data = copy.deepcopy(s_data)
+                flag_modified(order, "structured_data")
+                
+                # OrderEvent
+                event_payload = {
+                    'domain': 'DRAWING_DOMAIN',
+                    'action': 'DRAWING_ASSIGNEE_SET',
+                    'target': 'assignments.drawing_assignee_user_ids',
+                    'after': assignee_names,
+                    'after_ids': user_ids,
+                    'assignee_names': [u.name for u in assigned_users],
+                    'assignee_user_ids': user_ids,
+                    'change_method': 'BATCH_API',
+                    'source_screen': 'drawing_workbench_dashboard',
+                    'reason': '도면 담당자 일괄 지정',
+                }
+                drawing_event = OrderEvent(
+                    order_id=order.id,
+                    event_type='DRAWING_ASSIGNEE_SET',
+                    payload=event_payload,
+                    created_by_user_id=user_id
+                )
+                db.add(drawing_event)
+                success_count += 1
+                
+            except Exception as e:
+                failed_orders.append(f"#{order.id}: {str(e)}")
+                continue
+        
+        db.commit()
+        
+        message = f'{success_count}건의 주문에 담당자가 지정되었습니다: {assignee_names}'
+        if failed_orders:
+            message += f' (실패: {len(failed_orders)}건)'
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'success_count': success_count,
+            'failed_count': len(failed_orders),
+            'failed_orders': failed_orders
+        })
+        
+    except Exception as e:
+        if db:
+            db.rollback()
+        import traceback
+        print(f"Batch Assign Draftsman Error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @erp_beta_bp.route('/api/orders/<int:order_id>/confirm-drawing-receipt', methods=['POST'])
 @login_required
 @erp_edit_required
@@ -3659,6 +4073,32 @@ def erp_production_dashboard():
         if stage == 'PRODUCTION' or stage == '생산': stage_label = '제작중'
         if stage == 'CONSTRUCTION' or stage == '시공': stage_label = '제작완료'
         
+        # [수정] 제작대기(고객컨펌) 단계에서 담당자 승인 여부 체크 (필터링하지 않고 플래그만 설정)
+        is_sales_approved = False
+        active_quest = None
+        if stage_label == '제작대기':
+            quests = sd.get('quests') or []
+            # 현재 퀘스트 찾기 (OPEN, IN_PROGRESS, COMPLETED 모두 확인)
+            active_quest = next((q for q in quests if q.get('stage') in ('CONFIRM', '고객컨펌')), None)
+            
+            if active_quest:
+                # 담당자 기반 승인 확인 (assignee_approval)
+                assignee_approval = active_quest.get('assignee_approval') or {}
+                if isinstance(assignee_approval, dict):
+                    is_sales_approved = assignee_approval.get('approved') is True
+                else:
+                    is_sales_approved = bool(assignee_approval)
+                
+                # 팀 기반 승인 확인 (team_approvals) - fallback
+                if not is_sales_approved:
+                    team_approvals = active_quest.get('team_approvals') or {}
+                    # SALES 또는 영업팀 승인 확인
+                    sales_val = team_approvals.get('SALES') or team_approvals.get('영업팀')
+                    if isinstance(sales_val, dict):
+                        is_sales_approved = sales_val.get('approved') is True
+                    else:
+                        is_sales_approved = bool(sales_val)
+
         # Search Filter
         if f_stage and stage_label != f_stage:
             continue
@@ -3692,7 +4132,8 @@ def erp_production_dashboard():
             'has_media': _erp_has_media(o, att_counts.get(o.id, 0)),
             'attachments_count': att_counts.get(o.id, 0),
             'orderer_name': (((sd.get('parties') or {}).get('orderer') or {}).get('name') or '').strip() or None,
-            'current_quest': None, # Quest logic simplified for production dashboard
+            'current_quest': active_quest if stage_label == '제작대기' else None,
+            'is_sales_approved': is_sales_approved if stage_label == '제작대기' else True,
             'owner_team': 'PRODUCTION',
             'measurement_date': (((sd.get('schedule') or {}).get('measurement') or {}).get('date')),
             'construction_date': (((sd.get('schedule') or {}).get('construction') or {}).get('date')),
@@ -4701,34 +5142,34 @@ def api_customer_confirm(order_id):
         blueprint['confirmation_note'] = confirmation_note
         sd['blueprint'] = blueprint
         
-        # PRODUCTION 단계로 이동
+        # [수정] CONFIRM 단계 유지 (PRODUCTION 단계로 이동하지 않음)
+        # 생산팀이 "제작 시작" 버튼을 클릭할 때만 PRODUCTION으로 이동
         wf = sd.get('workflow') or {}
-        wf['stage'] = 'PRODUCTION'
-        wf['stage_updated_at'] = dt_mod.datetime.now().isoformat()
-        wf['stage_updated_by'] = user.name if user else 'Unknown'
+        # wf['stage']는 유지 (CONFIRM 상태 유지)
         
         hist = wf.get('history') or []
         hist.append({
-            'stage': 'PRODUCTION',
-            'updated_at': wf['stage_updated_at'],
-            'updated_by': wf['stage_updated_by'],
-            'note': f'고객 컨펌 완료 → 생산 단계로 이동: {confirmation_note}'
+            'stage': wf.get('stage', 'CONFIRM'),
+            'updated_at': dt_mod.datetime.now().isoformat(),
+            'updated_by': user.name if user else 'Unknown',
+            'note': f'고객 컨펌 완료 (담당자 승인): {confirmation_note}'
         })
         wf['history'] = hist
         sd['workflow'] = wf
         
         order.structured_data = copy.deepcopy(sd)
         flag_modified(order, "structured_data")
-        order.status = 'PRODUCTION'
+        # [수정] status는 CONFIRM 유지 (PRODUCTION으로 변경하지 않음)
+        # order.status = 'PRODUCTION'
         
         from models import SecurityLog
-        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 고객 컨펌 완료 → 생산 단계"))
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 고객 컨펌 완료 (담당자 승인)"))
         db.commit()
         
         return jsonify({
             'success': True, 
-            'message': '고객 컨펌이 완료되었습니다. 생산 단계로 이동합니다.',
-            'new_status': 'PRODUCTION'
+            'message': '고객 컨펌이 완료되었습니다.',
+            'new_status': 'CONFIRM'
         })
     except Exception as e:
         db.rollback()

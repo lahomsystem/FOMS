@@ -11,29 +11,29 @@
     <i class="fas fa-ruler-combined"></i>
     <span>실측</span>
   </a>
+  <a class="erp-pro-nav-item {% if _active == 'drawing_workbench' %}active{% endif %}"
+    href="{{ url_for('erp_beta.erp_drawing_workbench_dashboard') }}">
+    <i class="fas fa-drafting-compass"></i>
+    <span>도면작업실</span>
+  </a>
   <a class="erp-pro-nav-item {% if _active == 'production' %}active{% endif %}"
     href="{{ url_for('erp_beta.erp_production_dashboard') }}">
     <i class="fas fa-industry"></i>
     <span>생산</span>
-  </a>
-  <a class="erp-pro-nav-item {% if _active == 'construction' %}active{% endif %}"
-    href="{{ url_for('erp_beta.erp_construction_dashboard') }}">
-    <i class="fas fa-hammer"></i>
-    <span>시공</span>
-  </a>
-  <a class="erp-pro-nav-item {% if _active == 'as' %}active{% endif %}"
-    href="{{ url_for('erp_beta.erp_as_dashboard') }}">
-    <i class="fas fa-wrench"></i>
-    <span>AS</span>
   </a>
   <a class="erp-pro-nav-item {% if _active == 'shipment' %}active{% endif %}"
     href="{{ url_for('erp_beta.erp_shipment_dashboard') }}">
     <i class="fas fa-truck-loading"></i>
     <span>출고</span>
   </a>
-  <a class="erp-pro-nav-item {% if _active == 'drawing_workbench' %}active{% endif %}"
-    href="{{ url_for('erp_beta.erp_drawing_workbench_dashboard') }}">
-    <i class="fas fa-drafting-compass"></i>
-    <span>도면작업실</span>
+  <a class="erp-pro-nav-item {% if _active == 'as' %}active{% endif %}"
+    href="{{ url_for('erp_beta.erp_as_dashboard') }}">
+    <i class="fas fa-wrench"></i>
+    <span>AS</span>
+  </a>
+  <a class="erp-pro-nav-item {% if _active == 'construction' %}active{% endif %}"
+    href="{{ url_for('erp_beta.erp_construction_dashboard') }}">
+    <i class="fas fa-hammer"></i>
+    <span>시공</span>
   </a>
 </nav>
