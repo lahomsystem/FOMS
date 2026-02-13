@@ -42,6 +42,7 @@ static/uploads/*
 # IDE 파일
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 

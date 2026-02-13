@@ -8,6 +8,8 @@ import json
 import pandas as pd
 import re
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, g, session, send_file, send_from_directory, current_app
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from markupsafe import Markup
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -118,19 +120,51 @@ def internal_error(error):
         app.logger.error(f"Internal Server Error: {str(error)}\n{traceback.format_exc()}")
         return render_template('error_500.html'), 500
 
-# SocketIO Initialization (Quest 5)
-# Use threading mode for Windows WebSocket support
-# eventlet might have issues with WebSocket upgrade on Windows
+# ==========================================
+# Security & Scalability Configuration (Quest 14)
+# ==========================================
+
+# 1. Redis Configuration
+redis_url = os.environ.get('REDIS_URL')
+
+# 2. Rate Limiter (DDoS Protection)
+# Redis가 있으면 Redis를 저장소로, 없으면 메모리 사용
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    storage_uri=redis_url or "memory://",
+    default_limits=["1000 per day", "200 per hour"]
+)
+
+# 3. SocketIO Initialization with Redis & CORS Control
+# Use threading mode for Windows WebSocket support & Stability
 if SOCKETIO_AVAILABLE:
     try:
-        # Quest 14: Use threading mode for Stability (Fixing upload blocking issues)
-        # Eventlet has issues with SSL/Boto3, so we switch to standard threading.
-        import platform
-        socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
-        print("[INFO] Socket.IO initialized in threading mode (Universal Stable).")
+        # CORS 도메인 제한 (환경변수 없으면 모든 도메인 허용 - 개발 편의성)
+        allowed_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '*').split(',')
+        
+        # Redis가 설정되어 있으면 Message Queue로 사용 (Scale-out 지원)
+        if redis_url:
+            print(f"[INFO] Socket.IO connecting to Redis Message Queue: {redis_url}")
+            socketio = SocketIO(
+                app, 
+                cors_allowed_origins=allowed_origins, 
+                async_mode='threading',
+                message_queue=redis_url
+            )
+            print("[INFO] Socket.IO initialized in threading mode with Redis.")
+        else:
+            print("[WARN] REDIS_URL not found. Socket.IO running in single-worker mode (Memory).")
+            socketio = SocketIO(
+                app, 
+                cors_allowed_origins=allowed_origins, 
+                async_mode='threading'
+            )
+            print("[INFO] Socket.IO initialized in threading mode (Universal Stable).")
+            
     except Exception as e:
         # fallback
-        print(f"[WARN] threading mode init failed: {e}")
+        print(f"[WARN] Socket.IO init failed: {e}")
         socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 else:
     socketio = None
