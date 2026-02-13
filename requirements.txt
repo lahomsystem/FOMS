@@ -122,3 +122,7 @@ python-socketio>=5.10.0
 
 boto3>=1.28.0  # 클라우드 스토리지 지원 (Quest 2)
 holidays==0.42  # 영업일(주말/공휴일 제외) 계산용
+
+# 성능 및 보안 확장 (Quest 14)
+redis>=5.0.0
+Flask-Limiter>=3.5.0
