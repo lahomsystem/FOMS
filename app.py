@@ -8076,8 +8076,10 @@ if __name__ == '__main__':
         # 1. 데이터베이스 초기화 시도
         try:
             init_db()
-            ensure_order_attachments_category_column()
-            ensure_order_attachments_item_index_column()
+            # get_db()를 사용하는 자동 컬럼 보정은 Flask 앱 컨텍스트 내에서 실행해야 한다.
+            with app.app_context():
+                ensure_order_attachments_category_column()
+                ensure_order_attachments_item_index_column()
             logger.info("[OK] FOMS 데이터베이스 초기화 완료")
         except Exception as e:
             logger.error(f"[ERROR] FOMS 데이터베이스 초기화 실패: {str(e)}")

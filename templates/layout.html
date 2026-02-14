@@ -208,21 +208,29 @@
 
             // 전역 Socket.IO 싱글톤 생성/재사용
             // 페이지 내에서는 항상 하나의 소켓만 유지하여 중복 connect/disconnect를 방지한다.
-            const socketOptions = {
-                // WebSocket 우선, 불가 시 polling fallback
-                transports: ['websocket', 'polling'],
-                upgrade: true,
-                reconnection: true,
-                reconnectionAttempts: Infinity,
-                reconnectionDelay: 1000,
-                reconnectionDelayMax: 5000,
-                timeout: 20000
+            // Flask 개발서버(debug)에서는 websocket 업그레이드가 불안정할 수 있어 polling-only로 고정한다.
+            const forcePollingInDebug = {{ 'true' if config.DEBUG else 'false' }};
+            window.getAppSocketOptions = window.getAppSocketOptions || function () {
+                const options = {
+                    transports: ['websocket', 'polling'],
+                    upgrade: true,
+                    reconnection: true,
+                    reconnectionAttempts: Infinity,
+                    reconnectionDelay: 1000,
+                    reconnectionDelayMax: 5000,
+                    timeout: 20000
+                };
+                if (forcePollingInDebug) {
+                    options.transports = ['polling'];
+                    options.upgrade = false;
+                }
+                return options;
             };
 
             window.getAppSocket = window.getAppSocket || function () {
                 if (window.__appSocket) return window.__appSocket;
                 if (typeof io === 'undefined') return null;
-                window.__appSocket = io(socketOptions);
+                window.__appSocket = io(window.getAppSocketOptions());
                 return window.__appSocket;
             };
 
