@@ -228,6 +228,115 @@
   background: var(--erp-bg-sidebar);
 }
 
+.erp-pro-card__header--with-alerts {
+  align-items: center;
+  gap: var(--erp-space-sm);
+  padding: 8px 14px;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alerts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  flex: 1;
+  gap: 8px;
+  margin-bottom: 0;
+  margin-left: auto;
+  max-width: 860px;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-card__title {
+  font-size: 0.92rem;
+  white-space: nowrap;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert {
+  min-height: 38px;
+  padding: 6px 10px;
+  justify-content: flex-start;
+  gap: 8px;
+  border-radius: 10px;
+  border-left-width: 3px;
+  box-shadow: none;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert__icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  font-size: 0.72rem;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert__label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert__value {
+  font-size: 0.78rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--erp-text-primary);
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert--danger .erp-pro-alert__value {
+  background: rgba(220, 38, 38, 0.14);
+  color: #b91c1c;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert--warning .erp-pro-alert__value {
+  background: rgba(245, 158, 11, 0.18);
+  color: #92400e;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert--info .erp-pro-alert__value {
+  background: rgba(14, 165, 233, 0.16);
+  color: #0369a1;
+}
+
+@media (max-width: 1200px) {
+  .erp-pro-card__header--with-alerts {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px 12px;
+  }
+
+  .erp-pro-card__header--with-alerts .erp-pro-alerts {
+    grid-template-columns: repeat(4, minmax(110px, 1fr));
+    margin-left: 0;
+    max-width: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .erp-pro-card__header--with-alerts .erp-pro-alerts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .erp-pro-card__title {
   display: flex;
   align-items: center;

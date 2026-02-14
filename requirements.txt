@@ -126,3 +126,7 @@ holidays==0.42  # 영업일(주말/공휴일 제외) 계산용
 # 성능 및 보안 확장 (Quest 14)
 redis>=5.0.0
 Flask-Limiter>=3.5.0
+
+# 데이터 최적화 (압축 및 정적 파일)
+Flask-Compress>=1.14
+whitenoise>=6.6.0

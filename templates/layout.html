@@ -1415,8 +1415,8 @@
             const hasCurrentUser = "{{ 'true' if current_user else 'false' }}";
             if (hasCurrentUser === "true") {
                 loadGlobalNotificationBadge();
-                // Poll every 30 seconds
-                setInterval(loadGlobalNotificationBadge, 30000);
+                // Poll every 60 seconds (avoid hitting API rate-limit)
+                setInterval(loadGlobalNotificationBadge, 60000);
 
                 // Close panel when clicking outside
                 document.addEventListener('click', function (e) {
