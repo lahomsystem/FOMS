@@ -6,6 +6,7 @@ Railway: R2 환경 변수가 있으면 자동으로 R2 사용
 """
 import os
 import io
+import shutil
 from flask import current_app
 from werkzeug.utils import secure_filename
 from datetime import datetime
@@ -201,6 +202,66 @@ class StorageAdapter:
             'thumbnail_key': thumbnail_key,
             'file_type': file_type
         }
+
+    def generate_thumbnail_from_storage_key(self, storage_key):
+        """기존 업로드 파일(storage_key)에서 썸네일을 생성해 반환"""
+        if not PILLOW_AVAILABLE:
+            return {'success': False, 'message': 'Pillow unavailable'}
+
+        filename = storage_key.rsplit('/', 1)[-1] if '/' in storage_key else storage_key
+        file_type = self._get_file_type(filename)
+        if file_type != 'image':
+            return {'success': False, 'message': 'Thumbnail is only supported for images'}
+
+        folder = storage_key.rsplit('/', 1)[0] if '/' in storage_key else ''
+        thumbnail_key = f"{folder}/thumb_{filename}" if folder else f"thumb_{filename}"
+
+        # 이미 썸네일이 있으면 재사용
+        try:
+            if self.storage_type in ['r2', 's3']:
+                self.client.head_object(Bucket=self.bucket_name, Key=thumbnail_key)
+                return {
+                    'success': True,
+                    'thumbnail_key': thumbnail_key,
+                    'thumbnail_url': self._get_public_url(thumbnail_key) if self._is_public_bucket() else self.get_download_url(thumbnail_key)
+                }
+            else:
+                thumb_path = os.path.join(self.upload_folder, thumbnail_key)
+                if os.path.exists(thumb_path):
+                    return {
+                        'success': True,
+                        'thumbnail_key': thumbnail_key,
+                        'thumbnail_url': f"/static/uploads/{thumbnail_key}"
+                    }
+        except Exception:
+            pass
+
+        try:
+            if self.storage_type in ['r2', 's3']:
+                obj = self.client.get_object(Bucket=self.bucket_name, Key=storage_key)
+                file_obj = io.BytesIO(obj['Body'].read())
+            else:
+                source_path = os.path.join(self.upload_folder, storage_key)
+                if not os.path.exists(source_path):
+                    return {'success': False, 'message': 'Source file not found'}
+                with open(source_path, 'rb') as f:
+                    file_obj = io.BytesIO(f.read())
+
+            thumb_url = self._generate_thumbnail(file_obj, filename, folder, file_type, storage_key)
+            if not thumb_url:
+                return {'success': False, 'message': 'Thumbnail generation failed'}
+
+            return {
+                'success': True,
+                'thumbnail_key': thumbnail_key,
+                'thumbnail_url': thumb_url
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'message': f'기존 파일 썸네일 생성 실패: {str(e)}'
+            }
     
     def get_download_url(self, key, expires_in=3600):
         """다운로드 URL 생성 (서명된 URL)"""
@@ -292,7 +353,7 @@ class StorageAdapter:
             else:
                 # 일반 file 객체
                 with open(file_path, 'wb') as f:
-                    f.write(file_obj.read())
+                    shutil.copyfileobj(file_obj, f)
             
             return {
                 'success': True,
@@ -313,20 +374,36 @@ class StorageAdapter:
         try:
             if file_type == 'image' and PILLOW_AVAILABLE:
                 # 이미지 썸네일
+                # NOTE:
+                # - 일부 런타임/스토리지 스트림에서 PIL 처리 중 원본 stream 이 닫혀
+                #   "I/O operation on closed file"가 발생할 수 있다.
+                # - 원본을 bytes로 복제한 메모리 스트림으로 처리해 안정성을 높인다.
                 file_obj.seek(0)
-                img = Image.open(file_obj)
-                img.thumbnail((300, 300), Image.Resampling.LANCZOS)
-                
-                # 썸네일 저장
-                thumbnail_filename = f"thumb_{filename}"
-                thumbnail_bytes = io.BytesIO()
-                
-                if img.format == 'PNG':
-                    img.save(thumbnail_bytes, format='PNG')
-                else:
-                    img.save(thumbnail_bytes, format='JPEG', quality=85)
-                
+                source_bytes = file_obj.read()
+                source_stream = io.BytesIO(source_bytes)
+
+                with Image.open(source_stream) as img:
+                    # PIL의 lazy loading으로 인한 stream 의존성을 제거
+                    img.load()
+
+                    # RGBA/P 모드 이미지는 JPEG 저장 시 오류가 날 수 있어 RGB로 변환
+                    if img.mode not in ('RGB', 'L'):
+                        img = img.convert('RGB')
+
+                    img.thumbnail((300, 300), Image.Resampling.LANCZOS)
+
+                    # 썸네일 저장
+                    thumbnail_bytes = io.BytesIO()
+                    img_format = (img.format or '').upper()
+                    if img_format == 'PNG':
+                        img.save(thumbnail_bytes, format='PNG')
+                        thumb_content_type = 'image/png'
+                    else:
+                        img.save(thumbnail_bytes, format='JPEG', quality=85)
+                        thumb_content_type = 'image/jpeg'
+
                 thumbnail_bytes.seek(0)
+                thumbnail_filename = f"thumb_{filename}"
                 thumbnail_key = f"{folder}/thumb_{filename}"
                 
                 if self.storage_type in ['r2', 's3']:
@@ -335,7 +412,7 @@ class StorageAdapter:
                         thumbnail_bytes,
                         self.bucket_name,
                         thumbnail_key,
-                        ExtraArgs={'ContentType': 'image/jpeg'}
+                        ExtraArgs={'ContentType': thumb_content_type}
                     )
                     return self._get_public_url(thumbnail_key) if self._is_public_bucket() else self.get_download_url(thumbnail_key)
                 else:

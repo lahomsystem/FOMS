@@ -36,6 +36,7 @@ def _normalize_for_search(s):
 
 
 erp_beta_bp = Blueprint('erp_beta', __name__)
+ERP_BETA_DEBUG = os.environ.get('ERP_BETA_DEBUG', '').lower() in ('1', 'true', 'yes', 'on')
 
 # -------------------------------------------------------------------------
 # ERP Beta 수정 권한: 관리자, 라홈팀(CS), 하우드팀(CS), 영업팀(SALES)만 수정 가능
@@ -5298,7 +5299,8 @@ def api_notifications_list():
         user_team = user.team.upper() if user.team else None
         user_name = user.name.strip() if user.name else None
         
-        print(f"[DEBUG] Notification Check - User: '{user_name}', Team: '{user_team}'")
+        if ERP_BETA_DEBUG:
+            print(f"[DEBUG] Notification Check - User: '{user_name}', Team: '{user_team}'")
         
         # 조건: (target_team이 사용자 팀과 일치) OR (target_manager_name이 사용자 이름과 일치) OR (ADMIN은 모든 알림)
         if user.role == 'ADMIN':

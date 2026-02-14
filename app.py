@@ -3,8 +3,10 @@ import warnings
 # import eventlet
 # eventlet.monkey_patch()
 import os
+import hashlib
 import datetime
 import json
+from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import re
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, g, session, send_file, send_from_directory, current_app
@@ -22,7 +24,7 @@ import json
 from datetime import date, timedelta
 
 # 데이터베이스 관련 임포트
-from db import get_db, close_db, init_db
+from db import get_db, close_db, init_db, db_session
 from models import Order, User, SecurityLog, ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment, OrderAttachment, OrderEvent, OrderTask, Notification
 from apps.auth import is_password_strong, get_user_by_username
 from business_calendar import add_business_days
@@ -145,13 +147,24 @@ redis_url = os.environ.get('REDIS_URL')
 # NOTE:
 # - Railway/Reverse proxy 환경에서는 get_remote_address()가 내부 IP로 고정될 수 있어
 #   사용자들이 같은 rate-limit bucket을 공유하게 됩니다.
-# - 인증 사용자(user_id) -> X-Forwarded-For -> Remote Addr 순서로 key를 선택해
+# - 인증 사용자(user_id) -> 세션쿠키 해시 -> X-Forwarded-For -> Remote Addr 순서로 key를 선택해
 #   불필요한 429를 줄입니다.
 def rate_limit_key():
     try:
         uid = session.get('user_id')
         if uid:
             return f"user:{uid}"
+    except Exception:
+        pass
+
+    # 로그인 세션이 있으나 user_id를 복원하지 못한 경우(예: 세션 초기화 타이밍/리다이렉트 직후)
+    # 동일 IP 공유로 bucket 충돌이 발생하지 않도록 세션쿠키 해시를 key로 사용
+    try:
+        cookie_name = app.config.get('SESSION_COOKIE_NAME', 'session')
+        raw_cookie = request.cookies.get(cookie_name, '').strip()
+        if raw_cookie:
+            cookie_hash = hashlib.sha1(raw_cookie.encode('utf-8')).hexdigest()[:16]
+            return f"sess:{cookie_hash}"
     except Exception:
         pass
 
@@ -167,11 +180,16 @@ def rate_limit_key():
 
     return get_remote_address()
 
+_default_limits_raw = os.environ.get('FLASK_DEFAULT_RATE_LIMITS', '5000 per day,1200 per hour')
+default_limits = [x.strip() for x in _default_limits_raw.split(',') if x.strip()]
+if not default_limits:
+    default_limits = ["5000 per day", "1200 per hour"]
+
 limiter = Limiter(
     rate_limit_key,
     app=app,
     storage_uri=redis_url or "memory://",
-    default_limits=["5000 per day", "500 per hour"]
+    default_limits=default_limits
 )
 
 # 3. SocketIO Initialization with Redis & CORS Control
@@ -283,6 +301,51 @@ def build_file_view_url(storage_key: str) -> str:
 
 def build_file_download_url(storage_key: str) -> str:
     return f"/api/files/download/{storage_key}"
+
+
+# 채팅 이미지 썸네일 비동기 생성기 (요청 스레드 블로킹 방지)
+_thumb_workers = int(os.environ.get('CHAT_THUMBNAIL_WORKERS', '2') or 2)
+_thumb_workers = max(1, min(_thumb_workers, 4))
+chat_thumbnail_executor = ThreadPoolExecutor(max_workers=_thumb_workers)
+
+
+def _generate_chat_thumbnail_background(storage_key: str):
+    """storage_key 기준으로 썸네일 생성 후 ChatAttachment.thumbnail_url 업데이트"""
+    if not storage_key:
+        return
+    try:
+        storage = get_storage()
+        result = storage.generate_thumbnail_from_storage_key(storage_key)
+        if not result.get('success'):
+            return
+
+        thumbnail_key = result.get('thumbnail_key')
+        if not thumbnail_key:
+            return
+
+        attachment_db = db_session()
+        try:
+            attachment = attachment_db.query(ChatAttachment).filter(
+                ChatAttachment.storage_key == storage_key
+            ).order_by(ChatAttachment.id.desc()).first()
+            if attachment and not attachment.thumbnail_url:
+                attachment.thumbnail_url = build_file_view_url(thumbnail_key)
+                attachment_db.commit()
+        finally:
+            attachment_db.close()
+            db_session.remove()
+    except Exception as e:
+        print(f"[ChatThumbnail] background generation error: {e}")
+
+
+def schedule_chat_thumbnail_generation(storage_key: str):
+    """채팅 썸네일 비동기 작업 큐잉"""
+    if not storage_key:
+        return
+    try:
+        chat_thumbnail_executor.submit(_generate_chat_thumbnail_background, storage_key)
+    except Exception as e:
+        print(f"[ChatThumbnail] schedule error: {e}")
 
 # Status constants moved to constants.py
 
@@ -3956,6 +4019,7 @@ def api_orders():
     start_date = request.args.get('start')
     end_date = request.args.get('end')
     status_filter = request.args.get('status', None)
+    limit_raw = request.args.get('limit', '2000')
     
     db = get_db()
     
@@ -3994,7 +4058,14 @@ def api_orders():
                 )
             )
     
-    orders = query.all()
+    # 동시 사용자 증가 시 과도한 메모리/응답 지연 방지를 위한 상한
+    try:
+        limit = int(limit_raw)
+    except (TypeError, ValueError):
+        limit = 2000
+    limit = max(100, min(limit, 5000))
+
+    orders = query.order_by(Order.id.desc()).limit(limit).all()
     
     # Map status to colors
     status_colors = {
@@ -6085,7 +6156,10 @@ def api_chat_upload():
             temp_id = f"room_{room_id}_{temp_id}"
         
         # 파일 업로드
-        result = storage.upload_chat_file(file, file.filename, temp_id, generate_thumbnail=True)
+        # NOTE:
+        # - 요청 지연/스레드 점유를 줄이기 위해 업로드 요청에서는 썸네일을 동기 생성하지 않는다.
+        # - 이미지 썸네일은 메시지 저장 후 백그라운드에서 생성한다.
+        result = storage.upload_chat_file(file, file.filename, temp_id, generate_thumbnail=False)
         
         if not result.get('success'):
             return jsonify({
@@ -6244,42 +6318,82 @@ def api_chat_rooms_list():
     try:
         db = get_db()
         user_id = session.get('user_id')
-        
-        # 사용자가 멤버로 있는 채팅방만 조회
-        rooms = db.query(ChatRoom).join(
-            ChatRoomMember,
+
+        # 1) 사용자가 속한 채팅방 + 멤버 메타(마지막 읽은 시각)를 한 번에 조회
+        memberships = db.query(ChatRoomMember, ChatRoom).join(
+            ChatRoom,
             ChatRoom.id == ChatRoomMember.room_id
         ).filter(
             ChatRoomMember.user_id == user_id
-        ).order_by(ChatRoom.updated_at.desc() if ChatRoom.updated_at else ChatRoom.created_at.desc()).all()
-        
+        ).order_by(
+            func.coalesce(ChatRoom.updated_at, ChatRoom.created_at).desc()
+        ).all()
+
+        if not memberships:
+            return jsonify({'success': True, 'rooms': [], 'count': 0})
+
+        rooms = [room for _, room in memberships]
+        room_ids = [room.id for room in rooms]
+
+        # room_id -> member(last_read_at) 매핑
+        member_by_room = {member.room_id: member for member, _ in memberships}
+
+        # 2) 채팅방별 마지막 메시지 조회 (배치)
+        latest_ts_subq = db.query(
+            ChatMessage.room_id.label('room_id'),
+            func.max(ChatMessage.created_at).label('max_created_at')
+        ).filter(
+            ChatMessage.room_id.in_(room_ids)
+        ).group_by(
+            ChatMessage.room_id
+        ).subquery()
+
+        latest_rows = db.query(ChatMessage).join(
+            latest_ts_subq,
+            and_(
+                ChatMessage.room_id == latest_ts_subq.c.room_id,
+                ChatMessage.created_at == latest_ts_subq.c.max_created_at
+            )
+        ).all()
+
+        last_message_by_room = {}
+        for msg in latest_rows:
+            prev = last_message_by_room.get(msg.room_id)
+            if prev is None or (msg.created_at, msg.id) > (prev.created_at, prev.id):
+                last_message_by_room[msg.room_id] = msg
+
+        # 3) 채팅방별 읽지 않은 메시지 수 집계 (배치)
+        unread_rows = db.query(
+            ChatMessage.room_id.label('room_id'),
+            func.count(ChatMessage.id).label('unread_count')
+        ).join(
+            ChatRoomMember,
+            and_(
+                ChatRoomMember.room_id == ChatMessage.room_id,
+                ChatRoomMember.user_id == user_id
+            )
+        ).filter(
+            ChatMessage.room_id.in_(room_ids)
+        ).filter(
+            or_(
+                ChatRoomMember.last_read_at.is_(None),
+                ChatMessage.created_at > ChatRoomMember.last_read_at
+            )
+        ).group_by(
+            ChatMessage.room_id
+        ).all()
+
+        unread_count_by_room = {room_id: int(count or 0) for room_id, count in unread_rows}
+
         rooms_list = []
         for room in rooms:
-            # 마지막 메시지 조회
-            last_message = db.query(ChatMessage).filter(
-                ChatMessage.room_id == room.id
-            ).order_by(ChatMessage.created_at.desc()).first()
-            
-            # 읽지 않은 메시지 수
-            member = db.query(ChatRoomMember).filter(
-                ChatRoomMember.room_id == room.id,
-                ChatRoomMember.user_id == user_id
-            ).first()
-            
-            unread_count = 0
-            if member and member.last_read_at:
-                unread_count = db.query(ChatMessage).filter(
-                    ChatMessage.room_id == room.id,
-                    ChatMessage.created_at > member.last_read_at
-                ).count()
-            elif member:
-                unread_count = db.query(ChatMessage).filter(
-                    ChatMessage.room_id == room.id
-                ).count()
-            
             room_data = room.to_dict()
-            room_data['last_message'] = last_message.to_dict() if last_message else None
-            room_data['unread_count'] = unread_count
+            room_data['last_message'] = (
+                last_message_by_room[room.id].to_dict()
+                if room.id in last_message_by_room else None
+            )
+            # 멤버 정보가 없는 비정상 케이스는 0으로 처리
+            room_data['unread_count'] = unread_count_by_room.get(room.id, 0) if member_by_room.get(room.id) else 0
             rooms_list.append(room_data)
         
         return jsonify({
@@ -7133,6 +7247,10 @@ def api_chat_send_message():
             )
             db.add(attachment)
             db.commit()
+
+            # 이미지 첨부의 썸네일은 비동기로 생성해 요청 지연을 줄인다.
+            if attachment.file_type == 'image' and not attachment.thumbnail_url and attachment.storage_key:
+                schedule_chat_thumbnail_generation(attachment.storage_key)
         
         # 사용자 정보 포함하여 메시지 데이터 구성
         user = db.query(User).filter(User.id == user_id).first()
@@ -7619,24 +7737,11 @@ if SOCKETIO_AVAILABLE and socketio:
             # 사용자 전용 room에 join (모든 페이지에서 메시지 받을 수 있게)
             join_room(f'user_{user_id}')
             print(f"[SocketIO] 사용자 {user_id}가 자신의 전용 room에 입장: user_{user_id}")
-            
-            # 사용자가 속한 모든 채팅방에 자동으로 join
-            db = get_db()
-            try:
-                user_rooms = db.query(ChatRoomMember).filter(
-                    ChatRoomMember.user_id == user_id
-                ).all()
-                
-                print(f"[SocketIO] 사용자 {user_id}가 속한 채팅방 수: {len(user_rooms)}")
-                for member in user_rooms:
-                    room_id_str = str(member.room_id)
-                    join_room(room_id_str)
-                    print(f"[SocketIO] ✅ 사용자 {user_id}가 채팅방 {member.room_id}에 자동 입장 (room: {room_id_str})")
-            except Exception as e:
-                import traceback
-                print(f"[SocketIO] ❌ 채팅방 자동 입장 오류: {e}")
-                print(traceback.format_exc())
-            
+
+            # NOTE:
+            # - connect 시 모든 채팅방을 미리 join하면 (수백~수천 방) 연결 비용이 급증하고
+            #   재연결 로그가 폭증합니다.
+            # - 방 join은 사용자가 실제로 방을 열 때(join_room 이벤트) 수행하는 lazy join 전략을 사용합니다.
             emit('connected', {'user_id': user_id, 'message': '연결되었습니다.'})
         else:
             print("[SocketIO] 인증되지 않은 연결 시도")
@@ -7747,6 +7852,10 @@ if SOCKETIO_AVAILABLE and socketio:
                 )
                 db.add(attachment)
                 db.commit()
+
+                # 이미지 첨부의 썸네일은 비동기로 생성해 요청 지연을 줄인다.
+                if attachment.file_type == 'image' and not attachment.thumbnail_url and attachment.storage_key:
+                    schedule_chat_thumbnail_generation(attachment.storage_key)
             
             # 사용자 정보 포함하여 메시지 데이터 구성
             user = db.query(User).filter(User.id == user_id).first()
