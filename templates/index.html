@@ -597,10 +597,11 @@
         </div>
 
         {# 검색 영역 #}
-        <div class="order-list-search">
-            <input type="text" name="search" form="main-filter-form" placeholder="전체 검색..."
+        <div class="order-list-search" role="search">
+            <label for="order-search-input" class="visually-hidden">주문 전체 검색</label>
+            <input type="text" id="order-search-input" name="search" form="main-filter-form" placeholder="전체 검색..."
                 value="{{ request.args.get('search', '') }}">
-            <button type="submit" form="main-filter-form" class="erp-pro-btn erp-pro-btn--primary erp-pro-btn--sm">
+            <button type="submit" form="main-filter-form" class="erp-pro-btn erp-pro-btn--primary erp-pro-btn--sm" aria-label="전체 검색">
                 <i class="fas fa-search"></i>
             </button>
         </div>
@@ -621,7 +622,7 @@
                     <thead class="table-light">
                         <tr>
                             <th class="th-select">
-                                <input type="checkbox" id="select-all">
+                                <input type="checkbox" id="select-all" aria-label="전체 주문 선택">
                                 <span class="resize-handle"></span>
                             </th>
                             <th class="th-id">
@@ -661,7 +662,7 @@
                             <th class="th-notes" data-column-name="notes">
                                 비고
                                 <button type="button" id="toggle-all-notes" class="btn btn-sm btn-outline-primary ms-2"
-                                    style="padding: 2px 6px; font-size: 0.75rem;" title="모든 비고 펼치기/접기">
+                                    style="padding: 2px 6px; font-size: 0.75rem;" title="모든 비고 펼치기/접기" aria-expanded="false" aria-label="모든 비고 펼치기 또는 접기">
                                     <i class="fas fa-chevron-down"></i>
                                 </button>
                                 <span class="resize-handle"></span>
@@ -762,11 +763,12 @@
                             <td class="th-actions">
                                 <div class="btn-group">
                                     <a href="{{ url_for('edit_order', order_id=order.id, **request.args) }}"
-                                        class="btn btn-sm btn-outline-primary" title="수정">
+                                        class="btn btn-sm btn-outline-primary" title="수정" aria-label="주문 {{ order.id }} 수정">
                                         <i class="fas fa-edit"></i>
                                     </a>
                                     <a href="{{ url_for('delete_order', order_id=order.id) }}"
                                         class="btn btn-sm btn-outline-danger" title="휴지통으로 이동"
+                                        aria-label="주문 {{ order.id }} 휴지통으로 이동"
                                         onclick="return confirm('이 주문을 휴지통으로 이동하시겠습니까?');">
                                         <i class="fas fa-trash"></i>
                                     </a>
@@ -967,7 +969,8 @@
 
                                 <div class="notes-summary-container">
                                     <span class="notes-summary">{{ notes_content }}</span>
-                                    <button type="button" class="toggle-notes" title="펼치기/접기">
+                                    <button type="button" class="toggle-notes" title="펼치기/접기" aria-expanded="false"
+                                        aria-controls="notes-full-{{ order.id }}" aria-label="비고 상세 내용 보기">
                                         <i class="fas fa-chevron-down"></i>
                                     </button>
                                 </div>
@@ -1160,6 +1163,7 @@
 
             // 아이콘 토글 (chevron으로 변경)
             $button.find('i').toggleClass('fa-chevron-down fa-chevron-up');
+            $button.attr('aria-expanded', $fullContent.is(':visible'));
 
             updateToggleAllNotesButtonState();
         });
@@ -1224,11 +1228,13 @@
                     $fullContent.show();
                     $cell.addClass('expanded');
                     $individualButton.find('i').removeClass('fa-chevron-down').addClass('fa-chevron-up');
+                    $individualButton.attr('aria-expanded', true);
                 } else if (!expanding && isCurrentlyExpanded) { // 축소
                     $summaryText.show();
                     $fullContent.hide();
                     $cell.removeClass('expanded');
                     $individualButton.find('i').removeClass('fa-chevron-up').addClass('fa-chevron-down');
+                    $individualButton.attr('aria-expanded', false);
                 }
             });
         });
@@ -1271,8 +1277,10 @@
 
             if (allExpanded) {
                 $toggleAllIcon.removeClass('fa-chevron-down').addClass('fa-chevron-up');
+                $toggleAllButton.attr('aria-expanded', true);
             } else {
                 $toggleAllIcon.removeClass('fa-chevron-up').addClass('fa-chevron-down');
+                $toggleAllButton.attr('aria-expanded', false);
             }
         }
 
