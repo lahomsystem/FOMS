@@ -1,0 +1,15 @@
+FOMS Load Test Trace Summary
+profile=soak
+target_users=150
+spike_users=220
+duration=20m
+http_req_failed.rate=0
+status_429_rate.rate=0
+status_5xx_rate.rate=0
+status_auth_fail_rate.rate=0
+http_req_duration.p95=1130.10582
+endpoint_fail_count.total=n/a
+endpoint_429_count.total=n/a
+endpoint_5xx_count.total=n/a
+
+TIP: run with --out json=... for per-request deep trace if needed.

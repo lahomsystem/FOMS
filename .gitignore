@@ -53,3 +53,4 @@ Thumbs.db
 # Load test secrets / generated accounts
 tests/load/session_cookies.txt
 tests/load/loadtest_users.txt
+tests/load/results/
