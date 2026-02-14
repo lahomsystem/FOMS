@@ -231,74 +231,75 @@
 .erp-pro-card__header--with-alerts {
   align-items: center;
   gap: var(--erp-space-sm);
-  padding: 8px 14px;
+  padding: 4px 12px;
+  min-height: 48px;
 }
 
 .erp-pro-card__header--with-alerts .erp-pro-alerts {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   flex: 1;
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 0;
   margin-left: auto;
-  max-width: 860px;
+  max-width: none;
 }
 
 .erp-pro-card__header--with-alerts .erp-pro-card__title {
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   white-space: nowrap;
 }
 
 .erp-pro-card__header--with-alerts .erp-pro-alert {
-  min-height: 38px;
-  padding: 6px 10px;
-  justify-content: flex-start;
-  gap: 8px;
-  border-radius: 10px;
-  border-left-width: 3px;
+  min-height: 28px;
+  padding: 2px 8px;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 6px;
+  border-left-width: 2px;
   box-shadow: none;
+  background: var(--erp-bg-card);
+  border: 1px solid var(--erp-border-light);
 }
 
 .erp-pro-card__header--with-alerts .erp-pro-alert:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+  transform: translateY(0);
+  background: var(--erp-bg-hover);
+  box-shadow: none;
+  border-color: var(--erp-border);
 }
 
 .erp-pro-card__header--with-alerts .erp-pro-alert__icon {
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  font-size: 0.72rem;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 0.65rem;
 }
 
 .erp-pro-card__header--with-alerts .erp-pro-alert__content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 6px;
-  flex: 1;
-  min-width: 0;
 }
 
 .erp-pro-card__header--with-alerts .erp-pro-alert__label {
-  font-size: 0.76rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 500;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .erp-pro-card__header--with-alerts .erp-pro-alert__value {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.08);
+  background: transparent;
   color: var(--erp-text-primary);
 }
 

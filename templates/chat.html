@@ -1232,15 +1232,18 @@ function initializeSocketIO() {
             socket = window.globalSocket;
         } else {
             // fallback: layout 스크립트가 없는 예외 상황에서만 직접 생성
-            socket = io({
-                transports: ['websocket', 'polling'],
-                upgrade: true,
-                reconnection: true,
-                reconnectionAttempts: Infinity,
-                reconnectionDelay: 1000,
-                reconnectionDelayMax: 5000,
-                timeout: 20000
-            });
+            const fallbackOptions = (typeof window.getAppSocketOptions === 'function')
+                ? window.getAppSocketOptions()
+                : {
+                    transports: ['websocket', 'polling'],
+                    upgrade: true,
+                    reconnection: true,
+                    reconnectionAttempts: Infinity,
+                    reconnectionDelay: 1000,
+                    reconnectionDelayMax: 5000,
+                    timeout: 20000
+                };
+            socket = io(fallbackOptions);
             window.globalSocket = socket;
             window.__appSocket = socket;
         }
