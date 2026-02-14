@@ -19,9 +19,14 @@ const endpointDuration = new Trend('endpoint_req_duration', true);
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:5000').replace(/\/+$/, '');
 const COOKIE_NAME = __ENV.COOKIE_NAME || 'session_staging';
 const TARGET_USERS = Number(__ENV.TARGET_USERS || 150);
+const TEST_PROFILE = (__ENV.TEST_PROFILE || 'baseline').toLowerCase();
 const TEST_DURATION = __ENV.TEST_DURATION || '20m';
 const STRICT_COOKIE_POOL = (__ENV.STRICT_COOKIE_POOL || 'true').toLowerCase() === 'true';
 const DISCARD_RESPONSE_BODIES = (__ENV.DISCARD_RESPONSE_BODIES || 'true').toLowerCase() === 'true';
+const SPIKE_USERS = Number(__ENV.SPIKE_USERS || 220);
+const SPIKE_HOLD = __ENV.SPIKE_HOLD || '4m';
+const SOAK_RAMP_UP = __ENV.SOAK_RAMP_UP || '5m';
+const SOAK_RAMP_DOWN = __ENV.SOAK_RAMP_DOWN || '3m';
 
 const ERP_WEIGHT = Number(__ENV.ERP_WEIGHT || 0.5);
 const CHAT_WEIGHT = Number(__ENV.CHAT_WEIGHT || 0.25);
@@ -133,6 +138,40 @@ const flowWeights =
         idle: 0.2,
       };
 
+function buildStagesByProfile() {
+  const warmUsers = Math.max(20, Math.floor(TARGET_USERS * 0.6));
+  const coolUsers = Math.max(10, Math.floor(TARGET_USERS * 0.3));
+
+  if (TEST_PROFILE === 'soak') {
+    return [
+      { duration: SOAK_RAMP_UP, target: TARGET_USERS },
+      { duration: TEST_DURATION, target: TARGET_USERS },
+      { duration: SOAK_RAMP_DOWN, target: coolUsers },
+    ];
+  }
+
+  if (TEST_PROFILE === 'spike') {
+    const spikeUsers = Math.max(TARGET_USERS, SPIKE_USERS);
+    return [
+      { duration: '2m', target: warmUsers },
+      { duration: '2m', target: TARGET_USERS },
+      { duration: '1m', target: spikeUsers },
+      { duration: SPIKE_HOLD, target: spikeUsers },
+      { duration: '2m', target: TARGET_USERS },
+      { duration: '2m', target: coolUsers },
+    ];
+  }
+
+  // baseline (default)
+  return [
+    { duration: '3m', target: TARGET_USERS },
+    { duration: TEST_DURATION, target: TARGET_USERS },
+    { duration: '2m', target: coolUsers },
+  ];
+}
+
+const scenarioStages = buildStagesByProfile();
+
 export const options = {
   discardResponseBodies: DISCARD_RESPONSE_BODIES,
   // Redirect를 따라가면 (예: /login 302 -> 200) 인증 실패가 숨겨지므로 비활성화
@@ -141,11 +180,7 @@ export const options = {
     user_sessions: {
       executor: 'ramping-vus',
       startVUs: Math.max(10, Math.floor(TARGET_USERS * 0.2)),
-      stages: [
-        { duration: '3m', target: TARGET_USERS },
-        { duration: TEST_DURATION, target: TARGET_USERS },
-        { duration: '2m', target: Math.max(10, Math.floor(TARGET_USERS * 0.3)) },
-      ],
+      stages: scenarioStages,
       gracefulRampDown: '30s',
       exec: 'userJourney',
     },
@@ -368,7 +403,9 @@ function metricValue(data, metricName, field = 'value', fallback = null) {
 function buildTraceTextSummary(data) {
   const lines = [];
   lines.push('FOMS Load Test Trace Summary');
+  lines.push(`profile=${TEST_PROFILE}`);
   lines.push(`target_users=${TARGET_USERS}`);
+  lines.push(`spike_users=${Math.max(TARGET_USERS, SPIKE_USERS)}`);
   lines.push(`duration=${TEST_DURATION}`);
   lines.push(`http_req_failed.rate=${metricValue(data, 'http_req_failed', 'rate', 'n/a')}`);
   lines.push(`status_429_rate.rate=${metricValue(data, 'status_429_rate', 'rate', 'n/a')}`);
