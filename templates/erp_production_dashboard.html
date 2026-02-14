@@ -29,61 +29,59 @@
   {% set erp_sub_nav_active = 'production' %}
   {% include 'partials/erp_sub_nav.html' %}
 
-  <!-- Top Alerts - Modern Design -->
-  <div class="erp-pro-alerts">
-    <div
-      class="erp-pro-alert erp-pro-alert--danger {% if filters.get('alert_type') == 'urgent' %}erp-pro-alert--active{% endif %}"
-      data-alert-type="urgent" role="button" tabindex="0">
-      <div class="erp-pro-alert__icon">
-        <i class="fas fa-bolt"></i>
-      </div>
-      <div class="erp-pro-alert__content">
-        <span class="erp-pro-alert__label">긴급 발주</span>
-        <span class="erp-pro-alert__value">{{ kpis.urgent_count }}</span>
-      </div>
-    </div>
-    <div
-      class="erp-pro-alert erp-pro-alert--warning {% if filters.get('alert_type') == 'measurement_d4' %}erp-pro-alert--active{% endif %}"
-      data-alert-type="measurement_d4" role="button" tabindex="0">
-      <div class="erp-pro-alert__icon">
-        <i class="fas fa-ruler-combined"></i>
-      </div>
-      <div class="erp-pro-alert__content">
-        <span class="erp-pro-alert__label">실측 D-4</span>
-        <span class="erp-pro-alert__value">{{ kpis.measurement_d4_count }}</span>
-      </div>
-    </div>
-    <div
-      class="erp-pro-alert erp-pro-alert--warning {% if filters.get('alert_type') == 'construction_d3' %}erp-pro-alert--active{% endif %}"
-      data-alert-type="construction_d3" role="button" tabindex="0">
-      <div class="erp-pro-alert__icon">
-        <i class="fas fa-tools"></i>
-      </div>
-      <div class="erp-pro-alert__content">
-        <span class="erp-pro-alert__label">시공 D-3</span>
-        <span class="erp-pro-alert__value">{{ kpis.construction_d3_count }}</span>
-      </div>
-    </div>
-    <div
-      class="erp-pro-alert erp-pro-alert--info {% if filters.get('alert_type') == 'production_d2' %}erp-pro-alert--active{% endif %}"
-      data-alert-type="production_d2" role="button" tabindex="0">
-      <div class="erp-pro-alert__icon">
-        <i class="fas fa-industry"></i>
-      </div>
-      <div class="erp-pro-alert__content">
-        <span class="erp-pro-alert__label">생산 D-2</span>
-        <span class="erp-pro-alert__value">{{ kpis.production_d2_count }}</span>
-      </div>
-    </div>
-  </div>
-
   <!-- Process Map - Modern Pipeline Design -->
   <div class="erp-pro-card">
-    <div class="erp-pro-card__header">
+    <div class="erp-pro-card__header erp-pro-card__header--with-alerts">
       <h3 class="erp-pro-card__title">
         <i class="fas fa-project-diagram"></i>
         프로세스 맵
       </h3>
+      <div class="erp-pro-alerts">
+        <div
+          class="erp-pro-alert erp-pro-alert--danger {% if filters.get('alert_type') == 'urgent' %}erp-pro-alert--active{% endif %}"
+          data-alert-type="urgent" role="button" tabindex="0">
+          <div class="erp-pro-alert__icon">
+            <i class="fas fa-bolt"></i>
+          </div>
+          <div class="erp-pro-alert__content">
+            <span class="erp-pro-alert__label">긴급 발주</span>
+            <span class="erp-pro-alert__value">{{ kpis.urgent_count }}</span>
+          </div>
+        </div>
+        <div
+          class="erp-pro-alert erp-pro-alert--warning {% if filters.get('alert_type') == 'measurement_d4' %}erp-pro-alert--active{% endif %}"
+          data-alert-type="measurement_d4" role="button" tabindex="0">
+          <div class="erp-pro-alert__icon">
+            <i class="fas fa-ruler-combined"></i>
+          </div>
+          <div class="erp-pro-alert__content">
+            <span class="erp-pro-alert__label">실측 D-4</span>
+            <span class="erp-pro-alert__value">{{ kpis.measurement_d4_count }}</span>
+          </div>
+        </div>
+        <div
+          class="erp-pro-alert erp-pro-alert--warning {% if filters.get('alert_type') == 'construction_d3' %}erp-pro-alert--active{% endif %}"
+          data-alert-type="construction_d3" role="button" tabindex="0">
+          <div class="erp-pro-alert__icon">
+            <i class="fas fa-tools"></i>
+          </div>
+          <div class="erp-pro-alert__content">
+            <span class="erp-pro-alert__label">시공 D-3</span>
+            <span class="erp-pro-alert__value">{{ kpis.construction_d3_count }}</span>
+          </div>
+        </div>
+        <div
+          class="erp-pro-alert erp-pro-alert--info {% if filters.get('alert_type') == 'production_d2' %}erp-pro-alert--active{% endif %}"
+          data-alert-type="production_d2" role="button" tabindex="0">
+          <div class="erp-pro-alert__icon">
+            <i class="fas fa-industry"></i>
+          </div>
+          <div class="erp-pro-alert__content">
+            <span class="erp-pro-alert__label">생산 D-2</span>
+            <span class="erp-pro-alert__value">{{ kpis.production_d2_count }}</span>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="erp-pro-card__body">
       <div class="erp-pro-pipeline">
@@ -2859,6 +2857,9 @@
     async function loadNotificationBadge() {
       try {
         const res = await fetch('/erp/api/notifications/badge');
+        if (!res.ok) return;
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) return;
         const data = await res.json();
         const badge = document.getElementById('notification-badge');
         if (badge) {
@@ -2875,10 +2876,21 @@
     }
 
     async function loadNotifications() {
+      const list = document.getElementById('notification-list');
       try {
         const res = await fetch('/erp/api/notifications?limit=20');
+        if (!res.ok) {
+          if (res.status === 429 && list) {
+            list.innerHTML = '<div class="notification-empty">요청이 많아 잠시 후 다시 시도해 주세요.</div>';
+          }
+          return;
+        }
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          if (list) list.innerHTML = '<div class="notification-empty">알림을 불러올 수 없습니다.</div>';
+          return;
+        }
         const data = await res.json();
-        const list = document.getElementById('notification-list');
 
         if (!data.success || !data.notifications || data.notifications.length === 0) {
           list.innerHTML = '<div class="notification-empty">알림이 없습니다.</div>';
@@ -2976,8 +2988,8 @@
     document.addEventListener('DOMContentLoaded', function () {
       loadNotificationBadge();
 
-      // 30초마다 배지 업데이트
-      setInterval(loadNotificationBadge, 30000);
+      // 60초마다 배지 업데이트 (rate-limit 여유 확보)
+      setInterval(loadNotificationBadge, 60000);
     });
 
     // 패널 외부 클릭 시 닫기

@@ -10,6 +10,8 @@ import re
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, g, session, send_file, send_from_directory, current_app
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_compress import Compress
+from whitenoise import WhiteNoise
 from markupsafe import Markup
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -71,6 +73,17 @@ except ImportError:
 # Initialize Flask app
 app = Flask(__name__)
 
+# ==========================================
+# Data Optimization (Quest 14)
+# ==========================================
+
+# 1. Gzip Compression (Reduce JSON/HTML size by ~70%)
+Compress(app)
+
+# 2. WhiteNoise (Fast Static File Serving & Caching)
+# Railway/Heroku 배포 시 필수 최적화
+app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/', prefix='static/')
+
 # Secret Key from environment variable (CRITICAL: Never hardcode in production!)
 app.secret_key = os.environ.get('SECRET_KEY')
 if not app.secret_key:
@@ -129,11 +142,36 @@ redis_url = os.environ.get('REDIS_URL')
 
 # 2. Rate Limiter (DDoS Protection)
 # Redis가 있으면 Redis를 저장소로, 없으면 메모리 사용
+# NOTE:
+# - Railway/Reverse proxy 환경에서는 get_remote_address()가 내부 IP로 고정될 수 있어
+#   사용자들이 같은 rate-limit bucket을 공유하게 됩니다.
+# - 인증 사용자(user_id) -> X-Forwarded-For -> Remote Addr 순서로 key를 선택해
+#   불필요한 429를 줄입니다.
+def rate_limit_key():
+    try:
+        uid = session.get('user_id')
+        if uid:
+            return f"user:{uid}"
+    except Exception:
+        pass
+
+    xff = request.headers.get('X-Forwarded-For', '')
+    if xff:
+        client_ip = xff.split(',')[0].strip()
+        if client_ip:
+            return client_ip
+
+    x_real_ip = request.headers.get('X-Real-IP', '').strip()
+    if x_real_ip:
+        return x_real_ip
+
+    return get_remote_address()
+
 limiter = Limiter(
-    get_remote_address,
+    rate_limit_key,
     app=app,
     storage_uri=redis_url or "memory://",
-    default_limits=["1000 per day", "200 per hour"]
+    default_limits=["5000 per day", "500 per hour"]
 )
 
 # 3. SocketIO Initialization with Redis & CORS Control
