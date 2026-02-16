@@ -61,3 +61,23 @@
 | 2-4 | - | (대규모 파일 라우트는 이미 files_bp에 있어 추가 이전 없음) |
 | 3-1 | 완료 | erp_dashboard.html → partials (styles, filters, grid, modals, scripts). 메인 594줄 |
 | 3-2 | 완료 | chat.html → partials (chat_styles, chat_scripts). 메인 229줄 |
+| - | 완료 | erp_beta → ERP 이름 변경 (apps/erp.py, Blueprint erp). feature/erp-beta-rename-to-erp |
+
+---
+
+## 다음 계획 (GDM 더블체크 후, 2026-02-16)
+
+### 더블체크 결과
+- **앱 기동**: `from app import app` OK
+- **DB**: 연결·vacuum·제약 정상
+- **코드**: app.py가 `apps.erp`·`erp_bp` 정상 참조, apps/erp.py 라우트 45개
+
+### 우선순위
+
+| 순서 | 단계 | 작업 | 활용 자원 | 비고 |
+|------|------|------|-----------|------|
+| 0 | 배포 정리 | `feature/erp-beta-rename-to-erp` → deploy 머지 후 푸시 | Shell, Git | 한글 커밋 메시지 UTF-8 확인 |
+| 1 | Phase 4 준비 | apps/erp.py 구조 파악 (라우트·기능 경계) 및 1차 분리 후보 1개 선정 | Grep/Read, sequential-thinking, Rules 02/06 | 500줄 이하·한 번에 1개 모듈 |
+| 2 | Phase 4-1 | 선정된 블록 분리 (예: 출고 설정 API 또는 알림 API → 별도 Blueprint/모듈) | python-backend, context7(Flask), 기동 검증 | 브랜치 feature/erp-split-* |
+| 3 | 반복 | Phase 4-2, 4-3… (erp.py 5,000줄 → 여러 파일로 점진 분리) | 동일 | 목표: erp.py 500줄 이하 |
+| 4 | 선택 | app.py 잔여 라우트 정리·AI/카카오/불필요 파일 | - | 슬림다운 목표 300줄 달성 후 |
