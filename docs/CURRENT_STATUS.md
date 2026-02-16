@@ -101,6 +101,12 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 - templates/erp_dashboard.html: 594줄 (partial 분리 완료, 3-1)
 - templates/chat.html: 229줄 (partial 분리 완료, 3-2)
 
+## 다음 계획 (GDM 더블체크 2026-02-16)
+- **0.** feature/erp-beta-rename-to-erp → deploy 머지·푸시
+- **1.** Phase 4 준비: apps/erp.py 구조 파악 및 1차 분리 후보 선정
+- **2.** Phase 4-1: 선정 블록 분리 (한 번에 1개, 500줄 이하)
+- 상세: `docs/plans/2026-02-16-app-slim-down.md` § 다음 계획
+
 ## 고도화 예정
 - [x] app.py 채팅 분리 (Phase 2-1 완료)
 - [x] app.py 수납장 대시보드 분리 (Phase 2-2 완료)
