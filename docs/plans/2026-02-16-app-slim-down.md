@@ -59,7 +59,7 @@
 
 **1차 분리 후보: 알림 API** (~297줄, 의존성: Notification/User/Order, get_db, session, _ensure_dict 인라인 가능)
 
-| 4-1 | 진행 | 알림 API → apps/api/notifications.py (notifications_bp, url_prefix=/erp/api) |
+| 4-1 | 완료 | 알림 API → apps/api/notifications.py (notifications_bp, url_prefix=/erp/api). erp.py ~297줄 감소 |
 
 ---
 
