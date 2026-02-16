@@ -1394,7 +1394,7 @@
         <div class="card-body">
           <div class="fw-bold mb-3 text-dark" style="font-size: 1.15rem;"><i class="fas fa-filter text-primary"></i> 필터
           </div>
-          <form method="get" action="{{ url_for('erp_beta.erp_production_dashboard') }}" class="erp-filter-row"
+          <form method="get" action="{{ url_for('erp.erp_production_dashboard') }}" class="erp-filter-row"
             id="erp-filters-form">
             {% if filters.get('alert_type') %}
             <input type="hidden" name="alert_type" value="{{ filters.get('alert_type') }}">
@@ -1451,7 +1451,7 @@
                   <label class="form-check-label fw-semibold" for="f-has-alert" style="font-size: 0.9rem;">경보만</label>
                 </div>
                 <a class="btn btn-outline-secondary btn-sm fw-semibold"
-                  href="{{ url_for('erp_beta.erp_dashboard') }}">초기화</a>
+                  href="{{ url_for('erp.erp_dashboard') }}">초기화</a>
               </div>
             </div>
           </form>
@@ -1572,7 +1572,7 @@
                   </td>
                   <td data-label="상세" class="text-center">
                     {% set order_id_detail = o.id %}
-                    {% if can_edit_erp_beta|default(false) %}
+                    {% if can_edit_erp|default(false) %}
                     <a class="badge bg-info text-white fw-bold"
                       href="{{ url_for('edit_order', order_id=order_id_detail) }}?open=erp-beta" title="제품 상세정보"
                       style="cursor: pointer; font-size: 1rem !important; padding: 0.4em 0.7em !important; text-align: center; display: inline-block; text-decoration: none;">

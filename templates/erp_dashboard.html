@@ -2,7 +2,7 @@
 
 {% block content %}
 {% set filters = filters or {} %}
-<div class="container-fluid erp-dashboard erp-pro" data-can-edit-erp-beta="{{ 'true' if can_edit_erp_beta|default(false) else 'false' }}">
+<div class="container-fluid erp-dashboard erp-pro" data-can-edit-erp="{{ 'true' if can_edit_erp|default(false) else 'false' }}">
   <script>
     const MY_ID = "{{ current_user.id }}";
     const MY_TEAM = "{{ current_user.team }}";

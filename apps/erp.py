@@ -35,7 +35,7 @@ def _normalize_for_search(s):
     return unicodedata.normalize('NFC', s)
 
 
-erp_beta_bp = Blueprint('erp_beta', __name__)
+erp_bp = Blueprint('erp', __name__)
 ERP_BETA_DEBUG = os.environ.get('ERP_BETA_DEBUG', '').lower() in ('1', 'true', 'yes', 'on')
 
 # -------------------------------------------------------------------------
@@ -44,8 +44,8 @@ ERP_BETA_DEBUG = os.environ.get('ERP_BETA_DEBUG', '').lower() in ('1', 'true', '
 ERP_EDIT_ALLOWED_TEAMS = ('CS', 'SALES')
 
 
-def can_edit_erp_beta(user):
-    """ERP Beta 페이지/API 수정 권한: 관리자 또는 CS/영업팀 소속만 True"""
+def can_edit_erp(user):
+    """ERP 페이지/API 수정 권한: 관리자 또는 CS/영업팀 소속만 True"""
     if not user:
         return False
     if user.role == 'ADMIN':
@@ -61,7 +61,7 @@ def erp_edit_required(f):
         user = get_user_by_id(session.get('user_id'))
         if not user:
             return jsonify({'success': False, 'message': '로그인이 필요합니다.'}), 401
-        if not can_edit_erp_beta(user):
+        if not can_edit_erp(user):
             return jsonify({
                 'success': False,
                 'message': 'ERP Beta 수정 권한이 없습니다. (관리자, 라홈팀, 하우드팀, 영업팀만 수정 가능)'
@@ -79,21 +79,21 @@ DEFAULT_ERP_WORKER_CAPACITY = 10
 # -------------------------------------------------------------------------
 # Template Filters
 # -------------------------------------------------------------------------
-@erp_beta_bp.app_template_filter('split_count')
+@erp_bp.app_template_filter('split_count')
 def split_count_filter(s, sep=','):
     """문자열을 sep로 나눈 비어있지 않은 항목 개수 (출고 대시보드 제품 수 fallback용)"""
     if not s:
         return 0
     return max(1, len([x for x in str(s).split(sep) if str(x).strip()]))
 
-@erp_beta_bp.app_template_filter('split_list')
+@erp_bp.app_template_filter('split_list')
 def split_list_filter(s, sep=','):
     """문자열을 sep로 나눈 리스트 (공백 제거, 출고 대시보드 제품 가로 스태킹용)"""
     if not s:
         return []
     return [x.strip() for x in str(s).split(sep) if x.strip()]
 
-@erp_beta_bp.app_template_filter('strip_product_w')
+@erp_bp.app_template_filter('strip_product_w')
 def strip_product_w_filter(value):
     """제품 표시에서 뒤에 붙는 숫자(W) 및 넓이 추종 숫자 제거.
     예: '제품명 120W' -> '제품명', '몰딩여닫이 3600 3600' -> '몰딩여닫이 3600'
@@ -112,7 +112,7 @@ def strip_product_w_filter(value):
     result = ', '.join(p for p in parts if p)
     return result if result else s
 
-@erp_beta_bp.app_template_filter('spec_w300')
+@erp_bp.app_template_filter('spec_w300')
 def spec_w300_filter(value):
     """실제 길이(W)/300 숫자로 표시 (예: 3600 -> 12). 복합규격(3600x600)이면 첫 숫자 사용"""
     if value is None or value == '':
@@ -128,7 +128,7 @@ def spec_w300_filter(value):
     except (ValueError, TypeError):
         return ''
 
-@erp_beta_bp.app_template_filter('format_phone')
+@erp_bp.app_template_filter('format_phone')
 def format_phone_filter(value):
     """전화번호 포맷 (01012345678 -> 010-1234-5678)"""
     if not value:
@@ -246,7 +246,7 @@ def save_erp_shipment_settings(settings):
 # [중복 제거됨] _erp_alerts 함수는 Line 371에 정의되어 있습니다.
 
 
-def apply_erp_beta_display_fields(order):
+def apply_erp_display_fields(order):
     if not order or not order.structured_data:
         return
     sd = order.structured_data
@@ -480,20 +480,20 @@ def _drawing_next_action_text(drawing_status: str, has_assignee: bool) -> str:
     return '도면 담당 전달 진행'
 
 
-def apply_erp_beta_display_fields_to_orders(orders, processed_ids=None):
+def apply_erp_display_fields_to_orders(orders, processed_ids=None):
     if not orders:
         return
     if processed_ids is None:
         processed_ids = set()
     for order in orders:
         if order and order.id not in processed_ids:
-            apply_erp_beta_display_fields(order)
+            apply_erp_display_fields(order)
 
 # -------------------------------------------------------------------------
 # Routes
 # -------------------------------------------------------------------------
 
-@erp_beta_bp.route('/erp/dashboard')
+@erp_bp.route('/erp/dashboard')
 @login_required
 def erp_dashboard():
     """ERP 프로세스 대시보드(MVP)"""
@@ -504,7 +504,7 @@ def erp_dashboard():
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     if current_user and current_user.role == 'ADMIN':
         is_admin = True
-    can_edit_erp_beta_flag = can_edit_erp_beta(current_user)
+    can_edit_erp_flag = can_edit_erp(current_user)
     
     # filters (query params)
     f_stage = (request.args.get('stage') or '').strip()
@@ -901,11 +901,11 @@ def erp_dashboard():
         team_labels=TEAM_LABELS,
         stage_labels=STAGE_LABELS,
         is_admin=is_admin,
-        can_edit_erp_beta=can_edit_erp_beta_flag,
+        can_edit_erp=can_edit_erp_flag,
     )
 
 
-@erp_beta_bp.route('/erp/drawing-workbench')
+@erp_bp.route('/erp/drawing-workbench')
 @login_required
 def erp_drawing_workbench_dashboard():
     """도면 작업실 대시보드: 도면 단계 협업 전용 화면(목록형)
@@ -1161,12 +1161,12 @@ def erp_drawing_workbench_dashboard():
             'due_today': '1' if due_today_only else '',
             'assignee': assignee_filter_raw,
         },
-        can_edit_erp_beta=can_edit_erp_beta(current_user),
+        can_edit_erp=can_edit_erp(current_user),
         erp_beta_enabled=True,
     )
 
 
-@erp_beta_bp.route('/erp/drawing-workbench/<int:order_id>')
+@erp_bp.route('/erp/drawing-workbench/<int:order_id>')
 @login_required
 def erp_drawing_workbench_detail(order_id):
     """도면 작업실 상세: 도면팀↔주문담당 협업 실행판."""
@@ -1179,7 +1179,7 @@ def erp_drawing_workbench_detail(order_id):
     ).first()
     if not order:
         flash('주문을 찾을 수 없습니다.', 'warning')
-        return redirect(url_for('erp_beta.erp_drawing_workbench_dashboard'))
+        return redirect(url_for('erp.erp_drawing_workbench_dashboard'))
 
     s_data = _ensure_dict(order.structured_data)
     stage = _erp_get_stage(order, s_data)
@@ -1372,7 +1372,7 @@ def erp_drawing_workbench_detail(order_id):
         can_request_revision=can_request_revision,
         can_confirm_receipt=can_confirm_receipt,
         can_cancel_transfer=can_cancel_transfer,
-        can_edit_erp_beta=can_edit_erp_beta(current_user),
+        can_edit_erp=can_edit_erp(current_user),
         my_id=(current_user.id if current_user else 0),
         my_role=(current_user.role if current_user else ''),
         my_team=(current_user.team if current_user else ''),
@@ -1384,7 +1384,7 @@ def erp_drawing_workbench_detail(order_id):
     )
 
 
-@erp_beta_bp.route('/erp/measurement')
+@erp_bp.route('/erp/measurement')
 @login_required
 def erp_measurement_dashboard():
     """ERP Beta - 실측 대시보드 (structured_data 기반, MVP는 Order 컬럼 연동으로 운용)"""
@@ -1444,7 +1444,7 @@ def erp_measurement_dashboard():
     # 구조화된 데이터 보정 및 표시 정보 반영
     for r in all_rows:
         r.structured_data = _ensure_dict(r.structured_data)
-    apply_erp_beta_display_fields_to_orders(all_rows)
+    apply_erp_display_fields_to_orders(all_rows)
 
     # 패널 집계는 날짜 필터와 무관하게 계산
     panel_orders = base_query.order_by(Order.id.desc()).limit(1500).all()
@@ -1537,7 +1537,7 @@ def erp_measurement_dashboard():
     rows = rows[:300]
 
     # ERP Beta 주문의 제품 표시값을 structured_data 기준으로 보정
-    apply_erp_beta_display_fields_to_orders(rows)
+    apply_erp_display_fields_to_orders(rows)
     
     # 담당자 기준으로 정렬 (같은 담당자끼리 그룹화)
     def get_manager_name_for_sort(order):
@@ -1562,10 +1562,10 @@ def erp_measurement_dashboard():
         rows=rows,
         measurement_panel_dates=measurement_panel_dates,
         today_date=today_date,
-        can_edit_erp_beta=can_edit_erp_beta(current_user),
+        can_edit_erp=can_edit_erp(current_user),
     )
 
-@erp_beta_bp.route('/erp/shipment')
+@erp_bp.route('/erp/shipment')
 @login_required
 def erp_shipment_dashboard():
     """ERP Beta - 출고 대시보드 (날짜별 시공 건수, AS 포함, 출고일지 스타일)"""
@@ -1576,11 +1576,11 @@ def erp_shipment_dashboard():
     
     req_date = request.args.get('date')
     if not req_date:
-        return redirect(url_for('erp_beta.erp_shipment_dashboard', date=today_date, manager=manager_filter or None))
+        return redirect(url_for('erp.erp_shipment_dashboard', date=today_date, manager=manager_filter or None))
     try:
         datetime.datetime.strptime(req_date, '%Y-%m-%d').date()
     except (ValueError, TypeError):
-        return redirect(url_for('erp_beta.erp_shipment_dashboard', date=today_date, manager=manager_filter or None))
+        return redirect(url_for('erp.erp_shipment_dashboard', date=today_date, manager=manager_filter or None))
     selected_date = req_date
 
     base_query = db.query(Order).filter(Order.status != 'DELETED')
@@ -1793,7 +1793,7 @@ def erp_shipment_dashboard():
                     )
                     r.is_production_approved = all_approved
     
-    apply_erp_beta_display_fields_to_orders(rows)
+    apply_erp_display_fields_to_orders(rows)
 
     def get_manager_name_for_sort(order):
         if order.is_erp_beta and order.structured_data:
@@ -1814,26 +1814,26 @@ def erp_shipment_dashboard():
         construction_panel_dates=construction_panel_dates,
         remaining_panel_dates=remaining_panel_dates,
         today_date=today_date,
-        can_edit_erp_beta=can_edit_erp_beta(current_user),
+        can_edit_erp=can_edit_erp(current_user),
     )
 
-@erp_beta_bp.route('/erp/shipment-settings')
+@erp_bp.route('/erp/shipment-settings')
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def erp_shipment_settings():
     """ERP 출고 설정 페이지 (시공시간/도면담당자/시공자/현장주소 추가 목록 - 제품설정처럼)"""
     settings = load_erp_shipment_settings()
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
-    return render_template('erp_shipment_settings.html', settings=settings, can_edit_erp_beta=can_edit_erp_beta(current_user))
+    return render_template('erp_shipment_settings.html', settings=settings, can_edit_erp=can_edit_erp(current_user))
 
-@erp_beta_bp.route('/api/erp/shipment-settings', methods=['GET'])
+@erp_bp.route('/api/erp/shipment-settings', methods=['GET'])
 @login_required
 def api_erp_shipment_settings_get():
     """출고 설정 목록 조회"""
     settings = load_erp_shipment_settings()
     return jsonify({'success': True, 'settings': settings})
 
-@erp_beta_bp.route('/api/erp/shipment-settings', methods=['POST'])
+@erp_bp.route('/api/erp/shipment-settings', methods=['POST'])
 @login_required
 @erp_edit_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
@@ -1864,7 +1864,7 @@ def api_erp_shipment_settings_save():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@erp_beta_bp.route('/api/erp/shipment/update/<int:order_id>', methods=['POST'])
+@erp_bp.route('/api/erp/shipment/update/<int:order_id>', methods=['POST'])
 @login_required
 @erp_edit_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
@@ -1934,7 +1934,7 @@ def api_erp_shipment_update(order_id):
         print(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@erp_beta_bp.route('/api/erp/measurement/update/<int:order_id>', methods=['POST'])
+@erp_bp.route('/api/erp/measurement/update/<int:order_id>', methods=['POST'])
 @login_required
 @erp_edit_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
@@ -2005,7 +2005,7 @@ def api_erp_measurement_update(order_id):
         print(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@erp_beta_bp.route('/api/erp/measurement/route')
+@erp_bp.route('/api/erp/measurement/route')
 @login_required
 def api_erp_measurement_route():
     """ERP Beta - 실측 동선 추천 (MVP)"""
@@ -2142,7 +2142,7 @@ def api_erp_measurement_route():
         "total_distance_km": round(km_h, 2)
     })
 
-@erp_beta_bp.route('/erp/as')
+@erp_bp.route('/erp/as')
 @login_required
 def erp_as_dashboard():
     """ERP Beta - AS 대시보드 (MVP: AS 상태 주문 리스트)"""
@@ -2171,7 +2171,7 @@ def erp_as_dashboard():
     
     for r in rows:
         r.structured_data = _ensure_dict(r.structured_data)
-    apply_erp_beta_display_fields_to_orders(rows)
+    apply_erp_display_fields_to_orders(rows)
 
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     return render_template(
@@ -2180,10 +2180,10 @@ def erp_as_dashboard():
         manager_filter=manager_filter,
         selected_date=selected_date,
         rows=rows,
-        can_edit_erp_beta=can_edit_erp_beta(current_user),
+        can_edit_erp=can_edit_erp(current_user),
     )
 
-@erp_beta_bp.route('/api/map_data')
+@erp_bp.route('/api/map_data')
 @login_required
 def api_map_data():
     """지도 표시용 주문 데이터 API"""
@@ -2324,7 +2324,7 @@ def api_map_data():
             'error': str(e)
         }), 500
 
-@erp_beta_bp.route('/erp/api/users', methods=['GET'])
+@erp_bp.route('/erp/api/users', methods=['GET'])
 @login_required
 def api_erp_users_list():
     """ERP 사용자 목록 반환 (팀 필터링 가능)"""
@@ -2341,7 +2341,7 @@ def api_erp_users_list():
     })
 
 
-@erp_beta_bp.route('/api/generate_map')
+@erp_bp.route('/api/generate_map')
 @login_required
 def api_generate_map():
     """지도 HTML 생성 API"""
@@ -2585,7 +2585,7 @@ def api_generate_map():
 # Update Order Address API (for Map View)
 # -------------------------------------------------------------------------
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/update_address', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/update_address', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_update_order_address(order_id):
@@ -2642,7 +2642,7 @@ def api_update_order_address(order_id):
 # Quick Status Change API (Fast Access)
 # -------------------------------------------------------------------------
 
-@erp_beta_bp.route('/api/orders/quick-search', methods=['GET'])
+@erp_bp.route('/api/orders/quick-search', methods=['GET'])
 @login_required
 def api_order_quick_search():
     """빠른 상태 변경용 주문 검색 (고객명/주문번호)"""
@@ -2734,7 +2734,7 @@ def api_order_quick_search():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/quick-info', methods=['GET'])
+@erp_bp.route('/api/orders/<int:order_id>/quick-info', methods=['GET'])
 @login_required
 def api_order_quick_info(order_id):
     """빠른 상태 변경용 주문 정보 조회"""
@@ -2769,7 +2769,7 @@ def api_order_quick_info(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/quick-status', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/quick-status', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_order_quick_status_update(order_id):
@@ -2883,7 +2883,7 @@ def api_order_quick_status_update(order_id):
         print(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)}), 500
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/transfer-drawing', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/transfer-drawing', methods=['POST'])
 @login_required
 def api_order_transfer_drawing(order_id):
     """도면 전달 처리 (단계 변경 없이 전달 정보만 기록)
@@ -3193,7 +3193,7 @@ def api_order_transfer_drawing(order_id):
         print(f"[ERROR] Transfer Drawing: {e}")
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/cancel-transfer', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/cancel-transfer', methods=['POST'])
 @login_required
 def api_order_cancel_transfer(order_id):
     """도면 전달 취소 (도면팀/관리자)"""
@@ -3343,7 +3343,7 @@ def api_order_cancel_transfer(order_id):
         print(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)}), 500
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/drawing-gateway-upload', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/drawing-gateway-upload', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_drawing_gateway_upload(order_id):
@@ -3389,7 +3389,7 @@ def api_drawing_gateway_upload(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/request-revision', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/request-revision', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_order_request_revision(order_id):
@@ -3515,7 +3515,7 @@ def api_order_request_revision(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/request-revision-check', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/request-revision-check', methods=['POST'])
 @login_required
 def api_order_request_revision_check(order_id):
     """도면 수정요청 반영 체크 토글 (요청사항 탭 체크리스트 저장)"""
@@ -3617,7 +3617,7 @@ def api_order_request_revision_check(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/assign-draftsman', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/assign-draftsman', methods=['POST'])
 @login_required
 def api_order_assign_draftsman(order_id):
     """도면 담당자 지정 (다수 가능)"""
@@ -3744,7 +3744,7 @@ def api_order_assign_draftsman(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/api/orders/batch-assign-draftsman', methods=['POST'])
+@erp_bp.route('/api/orders/batch-assign-draftsman', methods=['POST'])
 @login_required
 def api_orders_batch_assign_draftsman():
     """여러 주문에 도면 담당자 일괄 지정"""
@@ -3881,7 +3881,7 @@ def api_orders_batch_assign_draftsman():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/confirm-drawing-receipt', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/confirm-drawing-receipt', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_order_confirm_drawing_receipt(order_id):
@@ -4011,7 +4011,7 @@ def api_order_confirm_drawing_receipt(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/erp/production/dashboard')
+@erp_bp.route('/erp/production/dashboard')
 @login_required
 def erp_production_dashboard():
     """생산 대시보드"""
@@ -4165,10 +4165,10 @@ def erp_production_dashboard():
         team_labels=TEAM_LABELS,
         stage_labels=STAGE_LABELS,
         is_admin=is_admin,
-        can_edit_erp_beta=can_edit_erp_beta(current_user),
+        can_edit_erp=can_edit_erp(current_user),
     )
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/production/start', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/production/start', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_production_start(order_id):
@@ -4219,7 +4219,7 @@ def api_production_start(order_id):
         db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/production/complete', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/production/complete', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_production_complete(order_id):
@@ -4290,7 +4290,7 @@ def api_production_complete(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/erp/construction/dashboard')
+@erp_bp.route('/erp/construction/dashboard')
 @login_required
 def erp_construction_dashboard():
     """시공 대시보드"""
@@ -4416,10 +4416,10 @@ def erp_construction_dashboard():
         team_labels=TEAM_LABELS,
         stage_labels=STAGE_LABELS,
         is_admin=is_admin,
-        can_edit_erp_beta=can_edit_erp_beta(current_user),
+        can_edit_erp=can_edit_erp(current_user),
     )
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/construction/start', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/construction/start', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_construction_start(order_id):
@@ -4463,7 +4463,7 @@ def api_construction_start(order_id):
         db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/construction/complete', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/construction/complete', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_construction_complete(order_id):
@@ -4539,7 +4539,7 @@ def api_construction_complete(order_id):
 # CS(H) 단계 관련 API - 원본 요구사항 기반 추가
 # =============================================================================
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/cs/complete', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/cs/complete', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_cs_complete(order_id):
@@ -4610,7 +4610,7 @@ def api_cs_complete(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/as/start', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/as/start', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_as_start(order_id):
@@ -4698,7 +4698,7 @@ def api_as_start(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/as/complete', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/as/complete', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_as_complete(order_id):
@@ -4783,7 +4783,7 @@ def api_as_complete(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/as/schedule', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/as/schedule', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_as_schedule(order_id):
@@ -4858,7 +4858,7 @@ def api_as_schedule(order_id):
 # 시공 불가 / 도면 피드백 API - Blueprint V3 기준
 # =============================================================================
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/construction/fail', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/construction/fail', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_construction_fail(order_id):
@@ -4960,7 +4960,7 @@ def api_construction_fail(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/drawing/request-revision', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/drawing/request-revision', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_drawing_request_revision(order_id):
@@ -5037,7 +5037,7 @@ def api_drawing_request_revision(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/drawing/complete-revision', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/drawing/complete-revision', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_drawing_complete_revision(order_id):
@@ -5109,7 +5109,7 @@ def api_drawing_complete_revision(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/api/orders/<int:order_id>/confirm/customer', methods=['POST'])
+@erp_bp.route('/api/orders/<int:order_id>/confirm/customer', methods=['POST'])
 @login_required
 @erp_edit_required
 def api_customer_confirm(order_id):
@@ -5270,7 +5270,7 @@ def _resolve_notification_deep_link(notification, order_structured_data):
     }
 
 
-@erp_beta_bp.route('/erp/api/notifications', methods=['GET'])
+@erp_bp.route('/erp/api/notifications', methods=['GET'])
 @login_required
 def api_notifications_list():
     """현재 사용자의 알림 목록 조회
@@ -5364,7 +5364,7 @@ def api_notifications_list():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/erp/api/notifications/badge', methods=['GET'])
+@erp_bp.route('/erp/api/notifications/badge', methods=['GET'])
 @login_required
 def api_notifications_badge():
     """알림 배지 카운트 조회 (읽지 않은 알림 수)"""
@@ -5402,7 +5402,7 @@ def api_notifications_badge():
         return jsonify({'success': True, 'count': 0})
 
 
-@erp_beta_bp.route('/erp/api/notifications/<int:notification_id>/read', methods=['POST'])
+@erp_bp.route('/erp/api/notifications/<int:notification_id>/read', methods=['POST'])
 @login_required
 def api_notification_mark_read(notification_id):
     """알림 읽음 처리"""
@@ -5429,7 +5429,7 @@ def api_notification_mark_read(notification_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@erp_beta_bp.route('/erp/api/notifications/read-all', methods=['POST'])
+@erp_bp.route('/erp/api/notifications/read-all', methods=['POST'])
 @login_required
 def api_notifications_mark_all_read():
     """모든 알림 읽음 처리"""

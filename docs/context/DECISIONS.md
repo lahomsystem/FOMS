@@ -35,4 +35,4 @@
 - **컨텍스트**: 규칙(02-architecture)에 정의된 services/ 구조 미적용 상태
 - **결정**: business_calendar, erp_policy, storage를 services/로 이전
 - **이유**: 비즈니스 로직을 한 곳에 두고, app.py는 Blueprint 등록만 담당하도록 구조 정렬
-- **영향**: services/ 신규, app.py·apps/erp_beta.py·apps/api/files.py·erp_automation.py·erp_build_step_runner.py import 경로 변경, 루트 business_calendar.py·erp_policy.py·storage.py 삭제
+- **영향**: services/ 신규, app.py·apps/erp.py·apps/api/files.py·erp_automation.py·erp_build_step_runner.py import 경로 변경, 루트 business_calendar.py·erp_policy.py·storage.py 삭제

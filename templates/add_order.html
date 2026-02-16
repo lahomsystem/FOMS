@@ -758,7 +758,7 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
     let ORDER_ID = 0;
     var ERP_BETA_ENABLED = JSON.parse('{{ erp_beta_enabled | tojson | safe }}');
     window.__ERP_BETA_DRAFT_MODE = true;
-    window.__ERP_BETA_DRAFT_ENDPOINT = '/api/orders/erp-beta/draft';
+    window.__ERP_DRAFT_ENDPOINT = '/api/orders/erp/draft';
 </script>
 
 {% include "partials/erp_beta_js.html" %}

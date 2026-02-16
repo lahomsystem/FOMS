@@ -13,7 +13,7 @@
         <i class="fas fa-file-image"></i>
         <span class="d-none d-md-inline">이미지 저장</span>
       </button>
-      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_beta.erp_shipment_settings') }}">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp.erp_shipment_settings') }}">
         <i class="fas fa-cog"></i>
         <span class="d-none d-md-inline">설정</span>
       </a>
@@ -56,7 +56,7 @@
             <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap">
               <div class="fw-bold small"><i class="fas fa-calendar-check"></i> 날짜별 시공</div>
               <div class="d-flex align-items-center gap-1">
-                <a href="{{ url_for('erp_beta.erp_shipment_dashboard', date=today_date, manager=manager_filter or '') }}"
+                <a href="{{ url_for('erp.erp_shipment_dashboard', date=today_date, manager=manager_filter or '') }}"
                   class="btn btn-sm btn-outline-primary py-0 px-1" title="오늘">오늘</a>
                 <span class="badge bg-primary">{{ selected_date }}</span>
               </div>
@@ -67,7 +67,7 @@
                 {% set day_label = ['월','화','수','목','금','토','일'][item.weekday] %}
                 <a id="date-{{ item.date }}"
                   class="measurement-panel-item measurement-panel-item-oneline {% if item.is_selected %}is-selected{% endif %} {% if item.is_weekend %}is-weekend{% endif %} {% if item.is_holiday %}is-holiday{% endif %} {% if item.date == today_date %}is-today{% endif %}"
-                  href="{{ url_for('erp_beta.erp_shipment_dashboard', date=item.date, manager=manager_filter or '') }}#date-{{ item.date }}">
+                  href="{{ url_for('erp.erp_shipment_dashboard', date=item.date, manager=manager_filter or '') }}#date-{{ item.date }}">
                   <div class="d-flex align-items-center justify-content-between gap-1 w-100 flex-nowrap">
                     <span class="measurement-panel-date">{{ item.date }}</span>
                     <span class="measurement-panel-day">({{ day_label }})</span>
@@ -774,7 +774,7 @@
 
                 <tr data-order-id="{{ r.id }}" class="shipment-row">
                   <td style="border-right: 1px solid #e0e0e0;">
-                    {% if can_edit_erp_beta|default(false) %}
+                    {% if can_edit_erp|default(false) %}
                     <a href="{{ url_for('edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-beta"
                       class="btn btn-sm btn-outline-primary" title="주문 상세"><i class="fas fa-edit"></i></a>
                     {% else %}
