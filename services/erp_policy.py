@@ -13,7 +13,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from business_calendar import business_days_until
+from services.business_calendar import business_days_until
 
 
 # -----------------------------
@@ -61,7 +61,9 @@ STAGE_NAME_TO_CODE: Dict[str, str] = {
     "AS처리": "AS",
 }
 
-_DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+# 프로젝트 루트의 data/ 폴더 (기존 data/erp_policy.json 등 유지)
+_DATA_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_DATA_DIR = os.path.join(_DATA_ROOT, "data")
 _POLICY_PATH = os.path.join(_DATA_DIR, "erp_policy.json")
 _TEMPLATES_PATH = os.path.join(_DATA_DIR, "erp_task_templates.json")
 _QUEST_TEMPLATES_PATH = os.path.join(_DATA_DIR, "erp_quest_templates.json")
@@ -309,7 +311,7 @@ def _resolve_due_date(due: Dict[str, Any], sd: Dict[str, Any], now_dt: datetime.
         if off_bd is None:
             return base.isoformat()
         try:
-            from business_calendar import add_business_days
+            from services.business_calendar import add_business_days
             return add_business_days(base, int(off_bd)).isoformat()
         except Exception:
             return base.isoformat()
@@ -321,7 +323,7 @@ def _resolve_due_date(due: Dict[str, Any], sd: Dict[str, Any], now_dt: datetime.
         if off_bd is None:
             return base.isoformat()
         try:
-            from business_calendar import add_business_days
+            from services.business_calendar import add_business_days
             return add_business_days(base, int(off_bd)).isoformat()
         except Exception:
             return base.isoformat()
@@ -342,7 +344,7 @@ def _resolve_due_date(due: Dict[str, Any], sd: Dict[str, Any], now_dt: datetime.
         if off_bd is None:
             return now_dt.date().isoformat()
         try:
-            from business_calendar import add_business_days
+            from services.business_calendar import add_business_days
             return add_business_days(now_dt.date(), int(off_bd)).isoformat()
         except Exception:
             return now_dt.date().isoformat()

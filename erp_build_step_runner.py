@@ -173,7 +173,7 @@ def step_3_holiday_calendar_2026(db):
     started_at = datetime.datetime.now()
     _upsert_step(db, STEP_HOLIDAY_CALENDAR, "RUNNING", message="Ensuring holiday calendar json exists", started_at=started_at)
     try:
-        from business_calendar import get_holidays_kr
+        from services.business_calendar import get_holidays_kr
         _ = get_holidays_kr(2026)
         completed_at = datetime.datetime.now()
         _upsert_step(
