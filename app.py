@@ -130,6 +130,10 @@ app.register_blueprint(address_bp)
 from apps.api.orders import orders_bp
 app.register_blueprint(orders_bp)
 
+# API Notifications Blueprint (ERP 알림, Phase 4-1)
+from apps.api.notifications import notifications_bp
+app.register_blueprint(notifications_bp)
+
 
 # Error handler with production safety
 @app.errorhandler(500)
