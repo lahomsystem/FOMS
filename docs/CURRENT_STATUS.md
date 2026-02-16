@@ -13,7 +13,7 @@
 
 ## AI 개발 시스템 현황
 
-### Rules (.cursor/rules/ - 12개)
+### Rules (.cursor/rules/ - 14개, GDM 기준)
 | # | 파일 | 용도 | alwaysApply |
 |---|------|------|-------------|
 | 00 | system.mdc | 프로젝트 컨텍스트 + 전체 도구 참조 | YES |
@@ -28,8 +28,10 @@
 | 09 | instruction-compliance.mdc | **지시 준수 강제** | YES |
 | 10 | self-upgrade.mdc | 자가 진화 프로토콜 | NO (필요시) |
 | 11 | grand-develop-master.mdc | **GDM 개발 총괄 감독 프로토콜** | NO (필요시) |
+| 12 | macro-micro-migration-execution.mdc | 매크로/마이크로 마이그레이션 실행 | NO (필요시) |
+| 13 | self-evolution-autoupgrade.mdc | 자가 진화 자동 업그레이드 | NO (필요시) |
 
-### Subagents (.cursor/agents/ - 8개)
+### Subagents (.cursor/agents/ - 10개, GDM 기준)
 | 에이전트 | 역할 | 모드 |
 |---------|------|------|
 | **grand-develop-master** | **개발 총괄 감독 (Virtual CTO) - 품질 감사, 기술 스택 검증, 방향 제시, 자가 진화** | **오케스트레이션** |
@@ -40,6 +42,9 @@
 | devops-deploy | Git, Railway 배포 | 읽기/쓰기 |
 | explore-codebase | 코드베이스 탐색 | 읽기 전용 |
 | context-manager | 세션 기억, 토큰 최적화 | 읽기/쓰기 |
+| coding-research-center | 주간 딥리서치, 적용 큐 | 읽기/쓰기 |
+| evolution-architect | 진화/업그레이드 설계 | 읽기/쓰기 |
+| migration-executor | 매크로/마이크로 마이그레이션 실행 | 읽기/쓰기 |
 
 ### Hooks (.cursor/hooks.json - 5개)
 | 훅 | 스크립트 | 역할 |
@@ -50,8 +55,8 @@
 | **preCompact** | **pre_compact.py** | **압축 전 체크포인트 (기억 상실 방지 핵심)** |
 | beforeShellExecution | guard_shell.py | 위험 명령 차단 |
 
-### MCP (활성 6개)
-sequential-thinking, mcp-reasoner, context7, postgres, memory, markitdown
+### MCP (활성 6개 + filesystem, GDM 기준)
+sequential-thinking, mcp-reasoner, context7, postgres, memory, markitdown, filesystem
 
 ### Skills
 - 기본: .cursor/skills/skills/ (624개+)
@@ -106,6 +111,17 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 - apps/erp.py: ~5,000줄 (구 ERP 모듈, 점진 분리)
 - templates/erp_dashboard.html: 594줄 (partial 분리 완료, 3-1)
 - templates/chat.html: 229줄 (partial 분리 완료, 3-2)
+
+## 가용 자원 더블체크 (GDM 기준, 2026-02-16)
+
+| 구분 | 계획 | 실제 | 비고 |
+|------|------|------|------|
+| Rules | 14 (00~13) | 14개 .mdc | 12 매크로/마이그레이션, 13 자가진화 |
+| Agents | GDM + 10 서브 | 11개 .md | coding-research-center, evolution-architect, migration-executor 포함 |
+| Hooks | 5 | 5개 .py | session_start/stop, track_edits, pre_compact, guard_shell |
+| MCP | 6+ | sequential-thinking, mcp-reasoner, context7, postgres, memory, markitdown, filesystem | GDM 문서 기준 |
+| Skills | GDM/tech-stack/self-evolution/architect/code-review/production-audit | .cursor/skills/skills/ | 624개+ 공통 스킬 |
+| 배포 노트 | DEPLOY_NOTES.md | docs/DEPLOY_NOTES.md | 쉬운 한글 배포 내용 |
 
 ## 다음 계획 (GDM 더블체크 2026-02-16)
 - **0.** feature/erp-beta-rename-to-erp → deploy 머지·푸시 ✅ 완료 (2026-02-16)

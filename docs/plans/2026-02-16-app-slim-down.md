@@ -60,6 +60,9 @@
 **1차 분리 후보: 알림 API** (~297줄, 의존성: Notification/User/Order, get_db, session, _ensure_dict 인라인 가능)
 
 | 4-1 | 완료 | 알림 API → apps/api/notifications.py (notifications_bp, url_prefix=/erp/api). erp.py ~297줄 감소 |
+| 4-2 | 완료 | 출고 설정: services/erp_shipment_settings.py + apps/api/erp_shipment_settings.py (erp_shipment_bp). erp.py ~190줄 감소 |
+
+**2차 분리 후보: 출고 설정** — 헬퍼 3개(load/save/normalize)는 shipment 대시보드에서도 사용 → services로 이전 후, API 4 routes만 새 Blueprint로 분리.
 
 ---
 

@@ -134,6 +134,10 @@ app.register_blueprint(orders_bp)
 from apps.api.notifications import notifications_bp
 app.register_blueprint(notifications_bp)
 
+# ERP 출고 설정 Blueprint (Phase 4-2)
+from apps.api.erp_shipment_settings import erp_shipment_bp
+app.register_blueprint(erp_shipment_bp)
+
 
 # Error handler with production safety
 @app.errorhandler(500)

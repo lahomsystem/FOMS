@@ -20,6 +20,11 @@ from services.erp_policy import (
 )
 from services.storage import get_storage
 from services.business_calendar import business_days_until
+from services.erp_shipment_settings import (
+    load_erp_shipment_settings,
+    save_erp_shipment_settings,
+    normalize_erp_shipment_workers,
+)
 from sqlalchemy import text
 import pytz
 import unicodedata
@@ -69,12 +74,6 @@ def erp_edit_required(f):
         return f(*args, **kwargs)
     return wrapped
 
-
-# -------------------------------------------------------------------------
-# Constants
-# -------------------------------------------------------------------------
-ERP_SHIPMENT_SETTINGS_PATH = os.path.join('data', 'erp_shipment_settings.json')
-DEFAULT_ERP_WORKER_CAPACITY = 10
 
 # -------------------------------------------------------------------------
 # Template Filters
@@ -169,73 +168,6 @@ def _ensure_dict(data):
         except:
             return {}
     return {}
-
-def normalize_erp_shipment_workers(workers):
-    """출고 설정 시공자 목록 정규화 (name, capacity, off_dates)"""
-    normalized = []
-    if not isinstance(workers, list):
-        return normalized
-    for w in workers:
-        if isinstance(w, dict):
-            name = str(w.get('name') or w.get('text') or '').strip()
-            cap_raw = w.get('capacity', w.get('daily_capacity', DEFAULT_ERP_WORKER_CAPACITY))
-            try:
-                capacity = int(cap_raw)
-            except (ValueError, TypeError):
-                capacity = DEFAULT_ERP_WORKER_CAPACITY
-            if capacity < 0:
-                capacity = DEFAULT_ERP_WORKER_CAPACITY
-            off_raw = w.get('off_dates') or w.get('offDays') or []
-            if not isinstance(off_raw, list):
-                off_raw = []
-            off_dates = []
-            seen = set()
-            for d in off_raw:
-                ds = str(d).strip()
-                if ds and ds not in seen:
-                    seen.add(ds)
-                    off_dates.append(ds)
-        else:
-            name = str(w).strip()
-            capacity = DEFAULT_ERP_WORKER_CAPACITY
-            off_dates = []
-        
-        if name:
-            normalized.append({
-                'name': name,
-                'capacity': capacity,
-                'off_dates': off_dates
-            })
-    return normalized
-
-def load_erp_shipment_settings():
-    """ERP 출고 설정(시공시간/도면담당자/시공자/현장주소 추가 목록) JSON 파일에서 로드"""
-    try:
-        if os.path.exists(ERP_SHIPMENT_SETTINGS_PATH):
-            with open(ERP_SHIPMENT_SETTINGS_PATH, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return {
-                    'construction_time': data.get('construction_time', []),
-                    'drawing_manager': data.get('drawing_manager', []),
-                    'construction_workers': normalize_erp_shipment_workers(data.get('construction_workers', [])),
-                    'site_extra': data.get('site_extra', []),
-                }
-        return {'construction_time': [], 'drawing_manager': [], 'construction_workers': [], 'site_extra': []}
-    except Exception as e:
-        print(f"Error loading ERP shipment settings: {e}")
-        return {'construction_time': [], 'drawing_manager': [], 'construction_workers': [], 'site_extra': []}
-
-def save_erp_shipment_settings(settings):
-    """ERP 출고 설정 저장"""
-    try:
-        os.makedirs(os.path.dirname(ERP_SHIPMENT_SETTINGS_PATH), exist_ok=True)
-        with open(ERP_SHIPMENT_SETTINGS_PATH, 'w', encoding='utf-8') as f:
-            json.dump(settings, f, ensure_ascii=False, indent=2)
-        return True
-    except Exception as e:
-        print(f"Error saving ERP shipment settings: {e}")
-        return False
-
 
 # [중복 제거됨] _erp_get_urgent_flag 함수는 Line 350에 정의되어 있습니다.
 
@@ -1816,123 +1748,6 @@ def erp_shipment_dashboard():
         today_date=today_date,
         can_edit_erp=can_edit_erp(current_user),
     )
-
-@erp_bp.route('/erp/shipment-settings')
-@login_required
-@role_required(['ADMIN', 'MANAGER', 'STAFF'])
-def erp_shipment_settings():
-    """ERP 출고 설정 페이지 (시공시간/도면담당자/시공자/현장주소 추가 목록 - 제품설정처럼)"""
-    settings = load_erp_shipment_settings()
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
-    return render_template('erp_shipment_settings.html', settings=settings, can_edit_erp=can_edit_erp(current_user))
-
-@erp_bp.route('/api/erp/shipment-settings', methods=['GET'])
-@login_required
-def api_erp_shipment_settings_get():
-    """출고 설정 목록 조회"""
-    settings = load_erp_shipment_settings()
-    return jsonify({'success': True, 'settings': settings})
-
-@erp_bp.route('/api/erp/shipment-settings', methods=['POST'])
-@login_required
-@erp_edit_required
-@role_required(['ADMIN', 'MANAGER', 'STAFF'])
-def api_erp_shipment_settings_save():
-    """출고 설정 저장"""
-    try:
-        payload = request.get_json(silent=True) or {}
-        current = load_erp_shipment_settings()
-        for key in ('construction_time', 'drawing_manager', 'construction_workers', 'site_extra'):
-            if key in payload and isinstance(payload[key], list):
-                if key == 'construction_workers':
-                    current[key] = normalize_erp_shipment_workers(payload[key])
-                elif key == 'site_extra':
-                    cleaned = []
-                    for x in payload[key]:
-                        if isinstance(x, dict):
-                            text = str(x.get('text', '')).strip()
-                        else:
-                            text = str(x).strip()
-                        if text:
-                            cleaned.append(text)
-                    current[key] = cleaned
-                else:
-                    current[key] = [str(x).strip() for x in payload[key] if str(x).strip()]
-        if save_erp_shipment_settings(current):
-            return jsonify({'success': True})
-        return jsonify({'success': False, 'error': '저장 실패'}), 500
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@erp_bp.route('/api/erp/shipment/update/<int:order_id>', methods=['POST'])
-@login_required
-@erp_edit_required
-@role_required(['ADMIN', 'MANAGER', 'STAFF'])
-def api_erp_shipment_update(order_id):
-    """출고 대시보드 업데이트"""
-    try:
-        db = get_db()
-        order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
-        if not order:
-            return jsonify({'success': False, 'error': '주문을 찾을 수 없습니다.'}), 404
-        if not order.is_erp_beta and order.status not in ('AS_RECEIVED', 'AS_COMPLETED'):
-            return jsonify({'success': False, 'error': 'ERP Beta 또는 AS 주문만 수정할 수 있습니다.'}), 400
-
-        payload = request.get_json(silent=True) or {}
-        structured_data = dict(order.structured_data or {})
-
-        if 'shipment' not in structured_data:
-            structured_data['shipment'] = {}
-
-        shipment = structured_data['shipment']
-
-        if 'site_extra' in payload:
-            site_extra = payload.get('site_extra')
-            if isinstance(site_extra, list):
-                normalized = []
-                for x in site_extra:
-                    if isinstance(x, dict):
-                        text = (x.get('text') or '').strip()
-                        color = (x.get('color') or 'black').strip() or 'black'
-                        if text:
-                            normalized.append({'text': text, 'color': color})
-                    else:
-                        t = str(x).strip()
-                        if t:
-                            normalized.append({'text': t, 'color': 'black'})
-                shipment['site_extra'] = normalized
-            else:
-                shipment['site_extra'] = []
-        if 'construction_time' in payload:
-            shipment['construction_time'] = str(payload.get('construction_time', '')).strip()
-        if 'drawing_manager' in payload:
-            shipment['drawing_manager'] = str(payload.get('drawing_manager', '')).strip()
-        if 'drawing_managers' in payload:
-            dms = payload.get('drawing_managers')
-            if isinstance(dms, list):
-                shipment['drawing_managers'] = [str(x).strip() for x in dms if str(x).strip()]
-            else:
-                shipment['drawing_managers'] = []
-        if 'construction_workers' in payload:
-            workers = payload.get('construction_workers')
-            if isinstance(workers, list):
-                shipment['construction_workers'] = [str(x).strip() for x in workers]
-            else:
-                shipment['construction_workers'] = []
-
-        structured_data['shipment'] = shipment
-        order.structured_data = structured_data
-        order.structured_updated_at = datetime.datetime.now()
-        from sqlalchemy.orm.attributes import flag_modified
-        flag_modified(order, 'structured_data')
-        db.commit()
-        return jsonify({'success': True})
-    except Exception as e:
-        db.rollback()
-        import traceback
-        print(f"[ERP_SHIPMENT] 업데이트 오류: {e}")
-        print(traceback.format_exc())
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 @erp_bp.route('/api/erp/measurement/update/<int:order_id>', methods=['POST'])
 @login_required
