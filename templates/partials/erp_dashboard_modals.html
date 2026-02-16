@@ -1,0 +1,127 @@
+  <!-- 첨부 파일 카테고리 모달 -->
+  <div class="modal fade" id="erpAttachmentsCategoryModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-paperclip"></i> 첨부 파일</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex flex-wrap gap-2 mb-3" id="erp-attachments-category-tabs"></div>
+          <div class="row g-2" id="erp-attachments-category-gallery"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> 닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- Draftsman Assign Modal -->
+  <div class="modal fade" id="erpDraftsmanAssignModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-users-cog"></i> 도면 담당자 지정</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-3">도면 작업을 수행할 담당자를 선택해주세요. <strong>도면팀 소속 직원만</strong> 선택 가능합니다. (다중 선택 가능)</p>
+          <div id="erp-draftsman-list" class="list-group">
+            <div class="text-center text-muted">로딩 중...</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+          <button type="button" class="btn btn-primary" onclick="saveDraftsmanAssignment()">저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+      <!-- Drawing Revision Request Modal -->
+      <div class="modal fade" id="erpDrawingRevisionModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title text-danger"><i class="fas fa-undo"></i> 도면 수정 요청</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <p class="text-muted small mb-3">
+                도면 수정 요청 사항을 입력해주세요.<br>
+                요청 시 상태가 <strong>'수정 요청됨(반려)'</strong>으로 변경되며 도면팀에 알림이 전송됩니다.
+              </p>
+              <div class="mb-3">
+                <label for="drawing-revision-note" class="form-label fw-bold">수정 요청 사유 (필수)</label>
+                <textarea class="form-control" id="drawing-revision-note" rows="4"
+                  placeholder="예: 거실장 높이 2400으로 변경 요망, 색상 변경 확인 필요 등"></textarea>
+              </div>
+              <div class="mb-3">
+                <label for="drawing-revision-target-key" class="form-label fw-bold">수정 대상 도면 선택</label>
+                <div id="drawing-revision-target-cards" class="drawing-target-card-grid mb-2"></div>
+                <select class="form-select d-none" id="drawing-revision-target-key">
+                  <option value="">도면 선택</option>
+                </select>
+                <div class="form-text" id="drawing-revision-target-help">카드를 클릭해 수정 대상 번호를 선택하세요.</div>
+              </div>
+              <div class="mb-3">
+                <label for="drawing-revision-files" class="form-label fw-bold">요청 참고 사진 (선택, 다중 가능)</label>
+                <input class="form-control" type="file" id="drawing-revision-files" multiple accept="image/*">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+              <button type="button" class="btn btn-danger" onclick="submitDrawingRevision()">
+                <i class="fas fa-paper-plane"></i> 수정 요청 보내기
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Drawing Transfer Modal -->
+      <div class="modal fade" id="erpDrawingTransferModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="fas fa-paper-plane"></i> 도면 전달 및 파일 업로드</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <p class="text-muted small mb-3">
+                작업 완료된 도면 파일을 업로드하고 전달 사항을 입력하세요.<br>
+                전달 후 상태가 <strong>'확정 대기'</strong>로 변경되며 담당자에게 알림이 전송됩니다.
+              </p>
+              <div class="mb-3">
+                <label for="drawing-transfer-files" class="form-label fw-bold">도면 파일 (다중 선택 가능)</label>
+                <input class="form-control" type="file" id="drawing-transfer-files" multiple
+                  accept="image/*,.pdf,.zip,.dwg">
+              </div>
+              <div class="mb-3">
+                <label for="drawing-transfer-note" class="form-label fw-bold">전달 사항 (메모)</label>
+                <textarea class="form-control" id="drawing-transfer-note" rows="3"
+                  placeholder="예: 1차 도면 완료, 확인 부탁드립니다."></textarea>
+              </div>
+              <div class="mb-3" id="drawing-transfer-replace-wrap" style="display:none;">
+                <label for="drawing-transfer-replace-key" class="form-label fw-bold">교체할 기존 도면 선택</label>
+                <div id="drawing-transfer-replace-cards" class="drawing-target-card-grid mb-2"></div>
+                <select class="form-select d-none" id="drawing-transfer-replace-key">
+                  <option value="">선택 안 함 (새 번호로 추가)</option>
+                </select>
+                <div class="form-text" id="drawing-transfer-replace-help">카드를 클릭해 교체할 번호를 선택하세요.</div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+              <button type="button" class="btn btn-primary" onclick="submitDrawingTransfer()">
+                <i class="fas fa-paper-plane"></i> 전달하기
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
