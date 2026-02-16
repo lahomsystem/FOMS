@@ -61,6 +61,24 @@ sequential-thinking, mcp-reasoner, context7, postgres, memory, markitdown
 SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.md
 
 ## 최근 변경
+- [2026-02-16] **Phase 3-2 완료: chat.html partial 분리** (GDM 지휘)
+  - `chat.html` 3,244줄 → 229줄 (800줄 이하 달성)
+  - partials: `partials/chat_styles.html` (935줄), `partials/chat_scripts.html` (2,172줄)
+  - 브랜치: `feature/chat-partials`. 기동 검증 완료, deploy 머지 예정
+- [2026-02-16] **Phase 3-1 완료: erp_dashboard.html partial 분리** (GDM 지휘)
+  - `erp_dashboard.html` 4,309줄 → 594줄 (800줄 이하 달성)
+  - partials: `erp_dashboard_styles.html`, `erp_dashboard_filters.html`, `erp_dashboard_grid.html`, `erp_dashboard_modals.html`, `erp_dashboard_scripts.html`
+  - 브랜치: `feature/erp-dashboard-partials`. 기동 검증 후 deploy 머지 예정
+- [2026-02-16] **Phase 2-3 완료: 파일 URL 헬퍼 이전** (GDM 지휘)
+  - `build_file_view_url`, `build_file_download_url` → `apps/api/files.py`로 이동, app.py는 import 사용
+  - 파일 뷰/다운로드 라우트는 기존에 이미 files_bp에 있어 추가 이전 없음
+- [2026-02-16] **Phase 2-2 완료: 수납장 대시보드 분리** (app.py 슬림다운)
+  - `apps/storage_dashboard.py`: storage_dashboard_bp (페이지 `/storage_dashboard`, API `/api/storage_dashboard/export_excel`)
+  - app.py에서 수납장 라우트 블록 제거 (~175줄), 템플릿 `url_for('storage_dashboard.storage_dashboard')` 반영
+- [2026-02-16] **Phase 2-1 완료: 채팅 API·SocketIO 분리** (app.py 슬림다운)
+  - `apps/api/chat/` 패키지: `routes.py` (HTTP API), `socketio_handlers.py` (실시간 이벤트), `__init__.py`
+  - app.py에서 채팅 헬퍼·라우트·SocketIO 핸들러 블록 제거 (~1,220줄 감소)
+  - `chat_bp` 등록 및 `register_chat_socketio_handlers(socketio)` 호출, `/chat` 페이지는 app.py 유지
 - [2026-02-16] **Phase 1 완료: services/ 도입** (GDM 지휘 하에)
   - business_calendar, erp_policy, storage → `services/` 이전
   - app.py·erp_beta·files·erp_automation·erp_build_step_runner import 경로 수정
@@ -78,13 +96,16 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 - [2026-02-15] Cursor Rules 초기 생성
 
 ## 핵심 파일 크기 현황 (분리 대상)
-- app.py: ~8,000줄 (목표: 300줄)
+- app.py: ~6,600줄 (Phase 2-2 후 감소, 목표: 300줄)
 - apps/erp_beta.py: ~5,000줄 (점진 분리)
 - templates/erp_dashboard.html: ~4,500줄 (partial 분리)
 - templates/chat.html: ~3,200줄 (partial 분리)
 
 ## 고도화 예정
-- [ ] app.py Blueprint 분리 (1순위)
+- [x] app.py 채팅 분리 (Phase 2-1 완료)
+- [x] app.py 수납장 대시보드 분리 (Phase 2-2 완료)
+- [x] app.py 파일 URL 헬퍼 이전 (Phase 2-3 완료)
+- [ ] app.py 추가 슬림다운 (Phase 3 템플릿 분리 또는 erp_beta 세분화)
 - [ ] AI 분석 툴 추가 (apps/api/ai.py)
 - [ ] 카카오 알림톡 발송 (apps/api/kakao.py)
 - [ ] 불필요 파일 정리
