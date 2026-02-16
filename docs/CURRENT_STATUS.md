@@ -61,6 +61,11 @@ sequential-thinking, mcp-reasoner, context7, postgres, memory, markitdown
 SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.md
 
 ## 최근 변경
+- [2026-02-16] **erp_beta → ERP 이름 변경** (GDM 관장)
+  - `apps/erp_beta.py` → `apps/erp.py`, Blueprint `erp_beta` → `erp`
+  - `can_edit_erp_beta` → `can_edit_erp`, `apply_erp_beta_display_fields*` → `apply_erp_display_fields*`
+  - 템플릿 `url_for('erp_beta.xxx')` → `url_for('erp.xxx')`, draft API `/api/orders/erp/draft`
+  - DB 컬럼 `is_erp_beta`·env `ERP_BETA_ENABLED`는 호환 유지
 - [2026-02-16] **Phase 3-2 완료: chat.html partial 분리** (GDM 지휘)
   - `chat.html` 3,244줄 → 229줄 (800줄 이하 달성)
   - partials: `partials/chat_styles.html` (935줄), `partials/chat_scripts.html` (2,172줄)
@@ -76,7 +81,7 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
   - `apps/api/chat/` 패키지: `routes.py`, `socketio_handlers.py` — app.py에서 라우트·SocketIO 블록 제거 (~1,220줄 감소)
 - [2026-02-16] **Phase 1 완료: services/ 도입** (GDM 지휘 하에)
   - business_calendar, erp_policy, storage → `services/` 이전
-  - app.py·erp_beta·files·erp_automation·erp_build_step_runner import 경로 수정
+  - app.py·erp·files·erp_automation·erp_build_step_runner import 경로 수정
   - 서버 기동·린트 검증 통과
 - [2026-02-16] **Grand Develop Master 시스템 구축** (Agent 1개 + Skills 3개 + Rule 1개)
   - `grand-develop-master` 에이전트: 개발 총괄 감독 (Virtual CTO)
@@ -92,7 +97,7 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 
 ## 핵심 파일 크기 현황 (분리 대상)
 - app.py: ~6,500줄 (목표: 300줄, Phase 4·추가 분리 대기)
-- apps/erp_beta.py: ~5,000줄 (점진 분리)
+- apps/erp.py: ~5,000줄 (구 ERP 모듈, 점진 분리)
 - templates/erp_dashboard.html: 594줄 (partial 분리 완료, 3-1)
 - templates/chat.html: 229줄 (partial 분리 완료, 3-2)
 
@@ -101,7 +106,7 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 - [x] app.py 수납장 대시보드 분리 (Phase 2-2 완료)
 - [x] app.py 파일 URL 헬퍼 이전 (Phase 2-3 완료)
 - [x] Phase 3 템플릿 분리 (erp_dashboard·chat partial 완료)
-- [ ] app.py 추가 슬림다운 (Phase 4 erp_beta 세분화 등)
+- [ ] app.py 추가 슬림다운 (Phase 4 ERP 모듈 세분화 등)
 - [ ] AI 분석 툴 추가 (apps/api/ai.py)
 - [ ] 카카오 알림톡 발송 (apps/api/kakao.py)
 - [ ] 불필요 파일 정리

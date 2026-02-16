@@ -121,7 +121,7 @@
                                 {% else %}
                                 <div class="mb-2">
                                   <span class="fw-semibold" style="font-size: 0.9rem;">{{ assignee_names|join(', ') or '담당자 지정 필요' }}</span>
-                                  {% if can_edit_erp_beta|default(false) or o.current_quest.can_assignee_approve|default(false) %}
+                                  {% if can_edit_erp|default(false) or o.current_quest.can_assignee_approve|default(false) %}
                                   <button class="btn btn-primary fw-semibold ms-2 erp-btn-approve-assignee"
                                     data-order-id="{{ o.id }}"
                                     style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">
@@ -143,7 +143,7 @@
                                   <span class="badge bg-success ms-2"
                                     style="font-size: 0.9rem; padding: 0.3em 0.6em;">승인완료</span>
                                   {% else %}
-                                  {% if can_edit_erp_beta|default(false) %}
+                                  {% if can_edit_erp|default(false) %}
                                   {% set order_id_approve = o.id %}
                                   {% set team_name = team %}
                                   <button class="btn btn-primary fw-semibold ms-2 erp-btn-approve-team"
@@ -256,7 +256,7 @@
                       </div>
                       <div class="erp-drawing-gateway-actions">
                         <a class="btn btn-primary"
-                          href="{{ url_for('erp_beta.erp_drawing_workbench_detail', order_id=o.id) }}?tab=timeline">
+                          href="{{ url_for('erp.erp_drawing_workbench_detail', order_id=o.id) }}?tab=timeline">
                           <i class="fas fa-comments"></i> 별도 작업실 열기
                         </a>
                       </div>
@@ -303,7 +303,7 @@
                   </td>
                   <td data-label="상세" class="text-center">
                     {% set order_id_detail = o.id %}
-                    {% if can_edit_erp_beta|default(false) %}
+                    {% if can_edit_erp|default(false) %}
                     <a class="badge bg-info text-white fw-bold"
                       href="{{ url_for('edit_order', order_id=order_id_detail) }}?open=erp-beta" title="제품 상세정보"
                       style="cursor: pointer; font-size: 1rem !important; padding: 0.4em 0.7em !important; text-align: center; display: inline-block; text-decoration: none;">

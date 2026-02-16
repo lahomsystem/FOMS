@@ -6,7 +6,7 @@
     // - ERP_BETA_ENABLED (boolean)
     // - ORDER_ID (number; in add_order should be "let", in edit_order can be const)
     // - window.__ERP_BETA_DRAFT_MODE (boolean): true on add_order, false on edit_order
-    // - window.__ERP_BETA_DRAFT_ENDPOINT (string): optional, default '/api/orders/erp-beta/draft'
+    // - window.__ERP_DRAFT_ENDPOINT (string): optional, default '/api/orders/erp/draft'
     // ============================================================
 
     // helpers (define only if missing to avoid collisions)
@@ -37,7 +37,7 @@
     }
 
     function erpGetDraftEndpoint() {
-        return window.__ERP_BETA_DRAFT_ENDPOINT || '/api/orders/erp-beta/draft';
+        return window.__ERP_DRAFT_ENDPOINT || '/api/orders/erp/draft';
     }
 
     function erpSetDraftBanner(orderId) {

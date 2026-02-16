@@ -118,7 +118,7 @@
       <span>도면 작업실 대시보드</span>
     </h1>
     <div class="erp-pro-header__actions">
-      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_beta.erp_dashboard') }}">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp.erp_dashboard') }}">
         <i class="fas fa-arrow-left"></i>
         <span class="d-none d-md-inline">ERP</span>
       </a>
@@ -229,7 +229,7 @@
           <button class="erp-pro-btn erp-pro-btn--primary" type="submit">
             <i class="fas fa-search"></i><span>조회</span>
           </button>
-          <a class="erp-pro-btn erp-pro-btn--outline" href="{{ url_for('erp_beta.erp_drawing_workbench_dashboard') }}">
+          <a class="erp-pro-btn erp-pro-btn--outline" href="{{ url_for('erp.erp_drawing_workbench_dashboard') }}">
             <i class="fas fa-undo"></i><span>초기화</span>
           </a>
         </div>
@@ -299,7 +299,7 @@
           </thead>
           <tbody>
             {% for r in rows %}
-            <tr class="erp-workbench-row" data-href="{{ url_for('erp_beta.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" style="cursor:pointer;">
+            <tr class="erp-workbench-row" data-href="{{ url_for('erp.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" style="cursor:pointer;">
               <td onclick="event.stopPropagation();">
                 <input type="checkbox" class="form-check-input order-checkbox" value="{{ r.id }}" onchange="updateBatchBar()">
               </td>
@@ -359,7 +359,7 @@
                 {% endif %}
               </td>
               <td class="text-end">
-                <a class="btn btn-sm btn-outline-primary js-row-link" href="{{ url_for('erp_beta.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline">
+                <a class="btn btn-sm btn-outline-primary js-row-link" href="{{ url_for('erp.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline">
                   <i class="fas fa-door-open"></i> 창구 열기
                 </a>
               </td>
@@ -421,7 +421,7 @@
       <!-- Phase 3: 모바일 카드 레이아웃 -->
       <div class="mobile-card-list d-md-none">
         {% for r in rows %}
-        <div class="card mb-2 mobile-order-card" data-href="{{ url_for('erp_beta.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline">
+        <div class="card mb-2 mobile-order-card" data-href="{{ url_for('erp.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-start mb-2">
               <div>
@@ -462,7 +462,7 @@
                 <span class="badge bg-primary">내 할 일</span>
                 {% endif %}
               </div>
-              <a href="{{ url_for('erp_beta.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" class="btn btn-sm btn-outline-primary">
+              <a href="{{ url_for('erp.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" class="btn btn-sm btn-outline-primary">
                 <i class="fas fa-external-link-alt"></i> 열기
               </a>
             </div>

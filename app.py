@@ -115,8 +115,8 @@ from apps.auth import auth_bp, login_required, role_required, ROLES, TEAMS, log_
 app.register_blueprint(auth_bp)
 
 # ERP Beta Blueprint
-from apps.erp_beta import erp_beta_bp, apply_erp_beta_display_fields_to_orders, can_edit_erp_beta
-app.register_blueprint(erp_beta_bp)
+from apps.erp import erp_bp, apply_erp_display_fields_to_orders, can_edit_erp
+app.register_blueprint(erp_bp)
 
 # API Files Blueprint
 from apps.api.files import files_bp
@@ -1696,9 +1696,9 @@ def api_order_quest_approve(order_id):
             return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
         
         # ERP Beta 주문 기본 승인 권한:
-        # - 기본: can_edit_erp_beta(user)
+        # - 기본: can_edit_erp(user)
         # - 예외: assignee 단계(실측/고객컨펌/도면)는 지정 담당자도 승인 가능
-        if getattr(order, 'is_erp_beta', False) and not can_edit_erp_beta(user):
+        if getattr(order, 'is_erp_beta', False) and not can_edit_erp(user):
             sd_tmp = order.structured_data or {}
             stage_tmp = get_stage(sd_tmp)
             domain_tmp = None
@@ -2669,7 +2669,7 @@ def edit_order(order_id):
     # ERP Beta 주문의 경우 수정 권한 검사
     if order.is_erp_beta:
         user = get_user_by_id(session['user_id'])
-        if not can_edit_erp_beta(user):
+        if not can_edit_erp(user):
             flash('ERP Beta 주문 수정 권한이 없습니다. (관리자, CS, 영업팀만 가능)', 'error')
             return redirect(url_for('index'))
     
@@ -4481,7 +4481,7 @@ def regional_dashboard():
     all_regional_orders = base_query.order_by(Order.id.desc()).all()
     
     # ERP Beta 주문 표시 정보 반영
-    apply_erp_beta_display_fields_to_orders(all_regional_orders)
+    apply_erp_display_fields_to_orders(all_regional_orders)
     
     # 오늘 날짜
     today = date.today()
@@ -4692,7 +4692,7 @@ def metropolitan_dashboard():
     all_metro_orders = urgent_alerts + measurement_alerts + pre_measurement_alerts + installation_alerts + as_orders + hold_orders + normal_orders + completed_orders
     
     # ERP Beta 주문 표시 정보 반영
-    apply_erp_beta_display_fields_to_orders(all_metro_orders)
+    apply_erp_display_fields_to_orders(all_metro_orders)
         
     return render_template('metropolitan_dashboard.html', 
                            urgent_alerts=urgent_alerts,
@@ -4826,7 +4826,7 @@ def self_measurement_dashboard():
     all_self_measurement_orders = base_query.order_by(Order.id.desc()).all()
     
     # ERP Beta 주문 표시 정보 반영
-    apply_erp_beta_display_fields_to_orders(all_self_measurement_orders)
+    apply_erp_display_fields_to_orders(all_self_measurement_orders)
     
     # AS 접수된 주문 분류
     as_orders = [
@@ -7612,9 +7612,9 @@ def api_put_order_structured(order_id):
 
         # ERP Beta draft 세션 제거 (다음 새 주문에서 재사용되지 않도록)
         try:
-            existing_id = session.get('erp_beta_draft_order_id')
+            existing_id = session.get('erp_draft_order_id')
             if existing_id and int(existing_id) == order.id:
-                session.pop('erp_beta_draft_order_id', None)
+                session.pop('erp_draft_order_id', None)
                 draft_cleared = True
         except Exception:
             pass
@@ -7664,10 +7664,10 @@ def api_parse_order_text():
 # ============================================
 # ERP Beta: Draft Order API (for Add Order screen)
 # ============================================
-@app.route('/api/orders/erp-beta/draft', methods=['POST'])
+@app.route('/api/orders/erp/draft', methods=['POST'])
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
-def api_erp_beta_create_draft():
+def api_erp_create_draft():
     """
     ERP Beta '새 주문' 화면에서 모든 기능(첨부/태스크/이벤트/구조화 저장)을 즉시 사용하기 위해
     order_id를 먼저 확보하는 draft 주문 생성 API.
@@ -7677,7 +7677,7 @@ def api_erp_beta_create_draft():
     """
     db = get_db()
     try:
-        existing_id = session.get('erp_beta_draft_order_id')
+        existing_id = session.get('erp_draft_order_id')
         if existing_id:
             order = db.query(Order).filter(Order.id == int(existing_id), Order.status != 'DELETED').first()
             if order:
@@ -7717,7 +7717,7 @@ def api_erp_beta_create_draft():
         db.commit()
         db.refresh(order)
 
-        session['erp_beta_draft_order_id'] = order.id
+        session['erp_draft_order_id'] = order.id
         return jsonify({'success': True, 'order_id': order.id, 'reused': False})
     except Exception as e:
         try:

@@ -12,9 +12,9 @@
 | 순서 | 작업 | 영향 파일 | 검증 |
 |------|------|-----------|------|
 | 1-1 | `services/` 폴더 + `__init__.py` 생성 | 신규 | - |
-| 1-2 | `business_calendar.py` → `services/business_calendar.py` | app, erp_beta, erp_policy, erp_build_step_runner | `python app.py` |
-| 1-3 | `erp_policy.py` → `services/erp_policy.py` | app, erp_beta, erp_automation | `python app.py` |
-| 1-4 | `storage.py` → `services/storage.py` | app, erp_beta, apps/api/files | `python app.py` |
+| 1-2 | `business_calendar.py` → `services/business_calendar.py` | app, erp, erp_policy, erp_build_step_runner | `python app.py` |
+| 1-3 | `erp_policy.py` → `services/erp_policy.py` | app, erp, erp_automation | `python app.py` |
+| 1-4 | `storage.py` → `services/storage.py` | app, erp, apps/api/files | `python app.py` |
 
 **의존성 순서**: business_calendar → erp_policy (erp_policy가 business_calendar 사용) → storage (독립)
 
@@ -41,9 +41,9 @@
 
 ---
 
-## Phase 4: erp_beta.py 세분화 (장기)
+## Phase 4: erp.py 세분화 (장기)
 
-- 대시보드별 또는 기능별로 Blueprint/모듈 분리 (5,000줄 → 여러 파일)
+- 대시보드별 또는 기능별로 Blueprint/모듈 분리 (apps/erp.py 5,000줄 → 여러 파일)
 
 ---
 

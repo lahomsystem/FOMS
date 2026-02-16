@@ -9,7 +9,7 @@
       <span>AS 대시보드</span>
     </h1>
     <div class="erp-pro-header__actions">
-      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_beta.erp_dashboard') }}">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp.erp_dashboard') }}">
         <i class="fas fa-arrow-left"></i>
         <span class="d-none d-md-inline">ERP</span>
       </a>
@@ -78,7 +78,7 @@
             {% for r in rows %}
             <tr>
               <td>
-                {% if can_edit_erp_beta|default(false) %}
+                {% if can_edit_erp|default(false) %}
                 <a href="{{ url_for('edit_order', order_id=r.id) }}?open=erp-beta" class="erp-pro-link">#{{ r.id }}</a>
                 {% else %}
                 #{{ r.id }} <span class="text-muted small">(권한없음)</span>
@@ -120,7 +120,7 @@
         {% for r in rows %}
         <div class="erp-pro-order-card">
           <div class="erp-pro-order-card__header">
-            {% if can_edit_erp_beta|default(false) %}
+            {% if can_edit_erp|default(false) %}
             <a href="{{ url_for('edit_order', order_id=r.id) }}?open=erp-beta" class="erp-pro-order-card__id">#{{ r.id }}</a>
             {% else %}
             <span class="erp-pro-order-card__id">#{{ r.id }} <span class="text-muted small">(권한없음)</span></span>
