@@ -1,0 +1,935 @@
+<style>
+    /* 채팅방 카드 스타일 (calculator.html 참고) */
+    .chat-sidebar-card {
+        display: flex;
+        flex-direction: column;
+        height: 100% !important; /* JavaScript 동적 스타일 오버라이드 */
+        max-height: 100% !important; /* JavaScript 동적 스타일 오버라이드 */
+        min-height: 0;
+        overflow: hidden;
+        position: relative !important; /* top 속성 작동을 위해 position 설정, 하지만 실제로는 필요없음 */
+        top: auto !important; /* JavaScript의 top 설정 무시 */
+    }
+    
+    .chat-sidebar-card .card-body {
+        overflow: hidden;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        padding: 0.5rem !important; /* p-2를 줄여서 여백 최소화 */
+    }
+    
+    .chat-rooms-list {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        min-height: 0;
+        max-height: 100%;
+        scroll-behavior: smooth;
+        padding: 0.25rem 0; /* 좌우 여백 제거, 상하만 최소 유지 */
+    }
+    
+    .chat-room-item {
+        padding: 12px;
+        margin-bottom: 8px;
+        background-color: white;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        border: 1px solid #e0e0e0;
+    }
+    
+    .chat-room-item:hover {
+        background-color: #f0f0f0;
+    }
+    
+    .chat-room-item.active {
+        background-color: #e3f2fd;
+        border-color: #2196f3;
+    }
+    
+    .chat-room-item .room-name {
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+    
+    .chat-room-item .room-last-message {
+        font-size: 0.9rem;
+        color: #666;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .chat-room-item .room-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 4px;
+        font-size: 0.85rem;
+        color: #999;
+    }
+    
+    .unread-badge {
+        background-color: #f44336;
+        color: white;
+        border-radius: 12px;
+        padding: 2px 8px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    /* 채팅 페이지 전용: container-fluid 패딩 제거 및 높이 제어 */
+    body:has(.chat-page-wrapper) .container-fluid {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        height: calc(100vh - 140px);
+        max-height: calc(100vh - 140px);
+        overflow: hidden !important;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    /* 채팅 페이지 래퍼 */
+    .chat-page-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        max-height: 100%;
+        overflow: hidden;
+        flex: 1;
+        min-height: 0;
+    }
+    
+    .chat-page-title {
+        flex-shrink: 0;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    .chat-page-content {
+        flex: 1;
+        display: flex;
+        min-height: 0;
+        overflow: hidden;
+        gap: 0 !important;
+        margin: 0;
+        padding: 0;
+    }
+    
+    /* 채팅방 컨테이너 & 채팅 컨테이너 여백 제거 */
+    .chat-page-content .col-lg-3,
+    .chat-page-content .col-lg-9 {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        margin: 0 !important;
+        height: 100% !important; /* 높이를 100%로 설정하여 공백 제거 */
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    
+    .chat-page-content .col-lg-3 {
+        padding-right: 8px !important; /* 좌우 간격을 위한 최소 여백 */
+    }
+    
+    .chat-page-content .col-lg-9 {
+        padding-left: 8px !important; /* 좌우 간격을 위한 최소 여백 */
+    }
+    
+    /* 카드 여백 제거 및 상하단 꽉 채우기 */
+    .chat-sidebar-card,
+    .chat-main-card {
+        margin: 0 !important;
+        border-radius: 0 !important;
+    }
+    
+    /* 채팅방 컨테이너와 채팅 컨테이너가 상하단을 꽉 채우도록 */
+    .chat-sidebar-card {
+        border-left: 1px solid #dee2e6;
+        border-right: 1px solid #dee2e6;
+    }
+    
+    .chat-main-card {
+        border-left: 1px solid #dee2e6;
+        border-right: 1px solid #dee2e6;
+    }
+    
+    /* 메인 채팅 카드 스타일 */
+    .chat-main-card {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+    
+    .chat-main-card .card-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        padding: 0;
+        min-height: 0;
+    }
+    
+    .chat-header {
+        padding: 15px 20px;
+        border-bottom: 1px solid #ddd;
+        background-color: #f8f9fa;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background-color: white;
+    }
+    
+    .chat-order-widget-container {
+        position: sticky;
+        top: 0;
+        z-index: 99;
+        background-color: white;
+        border-bottom: 1px solid #ddd;
+        padding: 0;
+    }
+    
+    .chat-order-widget-table {
+        margin: 0;
+        font-size: 0.875rem;
+    }
+    
+    .chat-order-widget-table table {
+        margin: 0;
+        border: 1px solid #ddd;
+    }
+    
+    .chat-order-widget-table .table th {
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+        padding: 8px 12px;
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+    
+    .chat-order-widget-table .table td {
+        padding: 8px 12px;
+        vertical-align: middle;
+    }
+    
+    /* 고객명, 주소, 제품 컬럼 반응형 설정 - 줄바꿈 허용 */
+    .chat-order-widget-table .table td:nth-child(2),
+    .chat-order-widget-table .table td:nth-child(3),
+    .chat-order-widget-table .table td:nth-child(4) {
+        white-space: normal;
+        word-wrap: break-word;
+        word-break: break-word;
+        max-width: 0;  /* 반응형 테이블을 위한 설정 */
+    }
+    
+    .chat-order-widget-table .table th:nth-child(2),
+    .chat-order-widget-table .table th:nth-child(3),
+    .chat-order-widget-table .table th:nth-child(4) {
+        white-space: normal;
+    }
+    
+    .chat-order-widget-table .unprocessed-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+    
+    .chat-order-widget-table .badge {
+        font-size: 0.7rem;
+        padding: 2px 6px;
+    }
+    
+    .chat-order-widget-table .status-dropdown {
+        font-size: 0.75rem;
+        padding: 4px 8px;
+        min-width: 100px;
+        color: #212529 !important;  /* 기본 텍스트 색상 (검은색) */
+        background-color: white !important;  /* 기본 배경색 */
+        border: 1px solid #ced4da !important;
+    }
+    
+    /* 상태별 배경색 클래스 - 글자색은 흰색 */
+    .chat-order-widget-table .status-dropdown.status-received {
+        background-color: #1976d2 !important;
+        color: white !important;
+        border-color: #1565c0 !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-measured {
+        background-color: #f57c00 !important;
+        color: white !important;
+        border-color: #ef6c00 !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-regional_measured {
+        background-color: #8e24aa !important;
+        color: white !important;
+        border-color: #7b1fa2 !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-scheduled {
+        background-color: #d32f2f !important;
+        color: white !important;
+        border-color: #c62828 !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-shipped_pending {
+        background-color: #17a2b8 !important;
+        color: white !important;
+        border-color: #138496 !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-completed {
+        background-color: #2e7d32 !important;
+        color: white !important;
+        border-color: #1b5e20 !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-as_received {
+        background-color: #7b1fa2 !important;
+        color: white !important;
+        border-color: #6a1b9a !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-as_completed {
+        background-color: #00695c !important;
+        color: white !important;
+        border-color: #004d40 !important;
+    }
+    
+    .chat-order-widget-table .status-dropdown.status-on_hold {
+        background-color: #616161 !important;
+        color: white !important;
+        border-color: #424242 !important;
+    }
+    
+    /* option 요소는 항상 검은색 텍스트 */
+    .chat-order-widget-table .status-dropdown option {
+        color: #212529 !important;
+        background-color: white !important;
+    }
+    
+    .chat-order-widget-table .form-control-sm,
+    .chat-order-widget-table .form-select-sm {
+        font-size: 0.75rem;
+        padding: 4px 8px;
+        height: 28px;
+    }
+    
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 20px;
+        background-color: #f5f5f5;
+        min-height: 0;
+        scroll-behavior: smooth;
+    }
+    
+    .message-item {
+        margin-bottom: 15px;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .message-item.own {
+        align-items: flex-end;
+    }
+    
+    .message-item.other {
+        align-items: flex-start;
+    }
+    
+    .message-bubble {
+        max-width: 70%;
+        padding: 10px 15px;
+        border-radius: 18px;
+        word-wrap: break-word;
+    }
+    
+    .message-item.own .message-bubble {
+        background-color: #2196f3;
+        color: white;
+    }
+    
+    /* 자신의 메시지 버블 내 파일 링크 버튼 스타일 */
+    .message-item.own .message-bubble .btn-outline-primary {
+        background-color: white !important;
+        color: #2196f3 !important;
+        border-color: white !important;
+    }
+    
+    .message-item.own .message-bubble .btn-outline-primary:hover {
+        background-color: #f5f5f5 !important;
+        color: #1976d2 !important;
+        border-color: #f5f5f5 !important;
+    }
+    
+    .message-item.other .message-bubble {
+        background-color: white;
+        color: #333;
+        border: 1px solid #e0e0e0;
+    }
+    
+    .message-meta {
+        font-size: 0.75rem;
+        color: #999;
+        margin-top: 4px;
+        padding: 0 5px;
+    }
+    
+    .message-file {
+        margin-top: 8px;
+        padding: 10px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+    }
+    
+    .message-file img {
+        max-width: 100%;
+        border-radius: 8px;
+        background-color: white;
+        padding: 4px;
+    }
+    
+    /* 채팅 이미지 다운로드 버튼 */
+    .message-file-image-wrapper {
+        position: relative;
+        display: inline-block;
+        margin: 4px;
+    }
+    
+    .chat-image-download-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-color: rgba(0, 0, 0, 0.6);
+        color: white;
+        border: 2px solid white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        z-index: 10;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        transition: all 0.2s;
+    }
+    
+    .chat-image-download-btn:hover {
+        background-color: rgba(0, 0, 0, 0.8);
+        transform: scale(1.1);
+    }
+    
+    .chat-image-download-btn:active {
+        transform: scale(0.95);
+    }
+    
+    .message-file-image-wrapper:hover .chat-image-download-btn {
+        opacity: 1;
+    }
+    
+    .chat-input-area {
+        padding: 15px 20px;
+        border-top: 1px solid #ddd;
+        background-color: white;
+        flex-shrink: 0;
+        position: relative;
+        z-index: 10;
+    }
+    
+    /* textarea 자동 높이 조절 (채널톡 스타일) */
+    #message-input {
+        resize: none !important;
+        min-height: 38px;
+        max-height: 120px;
+        overflow-y: auto;
+        line-height: 1.5;
+        transition: height 0.2s ease;
+    }
+    
+    .chat-input-wrapper {
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+    }
+    
+    .chat-input-wrapper textarea {
+        flex: 1;
+        resize: none;
+        border: 1px solid #ddd;
+        border-radius: 20px;
+        padding: 10px 15px;
+        min-height: 40px;
+        max-height: 120px;
+    }
+    
+    .file-preview {
+        margin-bottom: 10px;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        display: none;
+    }
+    
+    .file-preview.active {
+        display: block;
+    }
+    
+    .file-preview img,
+    .file-preview video {
+        max-width: 200px;
+        max-height: 200px;
+        border-radius: 8px;
+        background-color: white;
+    }
+    
+    /* 파일 미리보기 컨테이너를 relative로 설정 */
+    #preview-content {
+        position: relative;
+        display: inline-block;
+    }
+    
+    /* 파일 삭제 버튼 (X 버튼) */
+    .file-remove-btn {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background-color: #dc3545;
+        color: white;
+        border: 2px solid white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: bold;
+        z-index: 10;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s;
+    }
+    
+    .file-remove-btn:hover {
+        background-color: #c82333;
+        transform: scale(1.1);
+    }
+    
+    .file-remove-btn:active {
+        transform: scale(0.95);
+    }
+    
+    .btn-new-room {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    
+    .typing-indicator {
+        font-size: 0.9rem;
+        color: #999;
+        font-style: italic;
+        padding: 5px 15px;
+    }
+    
+    /* 채널톡 스타일 추가 기능 */
+    .read-receipt {
+        font-size: 0.7rem;
+        color: #999;
+        margin-top: 2px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .read-receipt .read-icon {
+        color: #2196f3;
+    }
+    
+    .message-search {
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+        background-color: #f8f9fa;
+    }
+    
+    .message-search input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 20px;
+    }
+    
+    .online-indicator {
+        width: 8px;
+        height: 8px;
+        background-color: #4caf50;
+        border-radius: 50%;
+        display: inline-block;
+        margin-left: 5px;
+    }
+    
+    .message-reaction {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 6px;
+        background-color: #f0f0f0;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        margin-left: 5px;
+        cursor: pointer;
+    }
+    
+    .message-reaction:hover {
+        background-color: #e0e0e0;
+    }
+    
+    .order-widget {
+        margin: 15px;
+        padding: 15px;
+        background-color: #fff3cd;
+        border: 1px solid #ffc107;
+        border-radius: 8px;
+    }
+    
+    .order-widget h6 {
+        margin-bottom: 10px;
+        color: #856404;
+    }
+    
+    .order-widget .order-info {
+        font-size: 0.9rem;
+        margin-bottom: 5px;
+    }
+    
+    .order-widget .order-info strong {
+        color: #856404;
+    }
+    
+    .estimates-list {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #ffc107;
+    }
+    
+    .estimate-item {
+        padding: 8px;
+        margin-bottom: 5px;
+        background-color: white;
+        border-radius: 4px;
+        font-size: 0.85rem;
+    }
+    
+    /* 이미지 확대 모달 (Lightbox) */
+    .image-lightbox {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.95);
+        z-index: 10000;
+        cursor: zoom-out;
+        overflow: hidden;
+    }
+    
+    .image-lightbox.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .image-lightbox-content {
+        position: relative;
+        max-width: 90%;
+        max-height: 90%;
+        transition: transform 0.3s ease;
+        cursor: grab;
+    }
+    
+    .image-lightbox-content:active {
+        cursor: grabbing;
+    }
+    
+    .image-lightbox-content img {
+        max-width: 100%;
+        max-height: 90vh;
+        object-fit: contain;
+        user-select: none;
+        -webkit-user-drag: none;
+    }
+    
+    .image-lightbox-close {
+        position: absolute;
+        top: 20px;
+        right: 30px;
+        color: white;
+        font-size: 40px;
+        font-weight: bold;
+        cursor: pointer;
+        z-index: 10001;
+        background: rgba(0, 0, 0, 0.5);
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+    }
+    
+    .image-lightbox-close:hover {
+        background: rgba(0, 0, 0, 0.8);
+    }
+    
+    .image-lightbox-controls {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+        z-index: 10001;
+    }
+    
+    .image-lightbox-controls button {
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    
+    .image-lightbox-controls button:hover {
+        background: rgba(0, 0, 0, 0.8);
+    }
+    
+    /* 드래그 앤 드롭 스타일 */
+    .chat-input-area.drag-over {
+        background-color: #e3f2fd;
+        border: 2px dashed #2196f3;
+        border-radius: 8px;
+    }
+    
+    .drag-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(33, 150, 243, 0.1);
+        border: 3px dashed #2196f3;
+        z-index: 9999;
+        pointer-events: none;
+    }
+    
+    .drag-overlay.active {
+        display: block;
+    }
+    
+    .drag-overlay-content {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        color: #2196f3;
+        font-size: 24px;
+        font-weight: bold;
+    }
+    
+    .drag-overlay-content i {
+        font-size: 64px;
+        margin-bottom: 20px;
+        display: block;
+    }
+    
+    /* 채팅 알림 팝업 스타일 (채널톡 스타일) */
+    .chat-notification-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-width: 380px;
+        pointer-events: none;
+    }
+    
+    .chat-notification {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        padding: 16px;
+        min-width: 320px;
+        max-width: 380px;
+        pointer-events: auto;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-left: 4px solid #007aff;
+        animation: slideInRight 0.3s ease-out;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .chat-notification:hover {
+        transform: translateX(-4px);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+    }
+    
+    .chat-notification.closing {
+        animation: slideOutRight 0.3s ease-in forwards;
+    }
+    
+    .chat-notification-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 8px;
+    }
+    
+    .chat-notification-room-name {
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: #1d1d1f !important;
+        margin: 0;
+    }
+    
+    .chat-notification-close {
+        background: none;
+        border: none;
+        color: #8e8e93;
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+    
+    .chat-notification-close:hover {
+        background-color: #f2f2f7;
+        color: #1d1d1f;
+    }
+    
+    .chat-notification-content {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+    }
+    
+    .chat-notification-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #007aff 0%, #0051d5 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 0.9rem;
+        flex-shrink: 0;
+    }
+    
+    .chat-notification-body {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .chat-notification-sender {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #1d1d1f !important;
+        margin-bottom: 4px;
+    }
+    
+    .chat-notification-message {
+        font-size: 0.875rem;
+        color: #8e8e93 !important;
+        line-height: 1.4;
+        word-wrap: break-word;
+        display: block;
+        max-height: 2.8em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .chat-notification-time {
+        font-size: 0.75rem;
+        color: #8e8e93 !important;
+        margin-top: 4px;
+    }
+    
+    .chat-notification-image {
+        width: 60px;
+        height: 60px;
+        border-radius: 8px;
+        object-fit: cover;
+        flex-shrink: 0;
+        margin-top: 8px;
+    }
+    
+    .chat-notification-file {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        background-color: #f2f2f7;
+        border-radius: 8px;
+        margin-top: 4px;
+    }
+    
+    .chat-notification-file-icon {
+        color: #007aff;
+        font-size: 1.2rem;
+    }
+    
+    .chat-notification-file-name {
+        font-size: 0.8rem;
+        color: #1d1d1f;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOutRight {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+</style>
