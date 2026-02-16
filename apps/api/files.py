@@ -1,7 +1,7 @@
 
 from flask import Blueprint, jsonify, redirect, send_file, request
 from apps.auth import login_required
-from storage import get_storage
+from services.storage import get_storage
 import os
 import traceback
 
