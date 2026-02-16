@@ -6,8 +6,9 @@
 
 | ID | 상태 | 설명 | 시작일 | 최종 업데이트 |
 |----|------|------|--------|-------------|
-| SLIM-002 | 대기 | feature/erp-beta-rename-to-erp → deploy 머지·푸시 | 2026-02-16 | 2026-02-16 |
-| SLIM-003 | 대기 | Phase 4 준비: apps/erp.py 구조 파악 및 1차 분리 후보 선정 | 2026-02-16 | 2026-02-16 |
+| SLIM-002 | 완료 | feature/erp-beta-rename-to-erp → deploy 머지·푸시 | 2026-02-16 | 2026-02-16 |
+| SLIM-003 | 완료 | Phase 4 준비: apps/erp.py 구조 파악 및 1차 분리 후보 선정 | 2026-02-16 | 2026-02-16 |
+| SLIM-004 | 완료 | Phase 4-1: 알림 API → apps/api/notifications.py 분리 (feature/erp-split-notifications) | 2026-02-16 | 2026-02-16 |
 | SLIM-001 | 완료 | app 슬림다운 Phase 1: services/ 도입 (1-1~1-4 완료) | 2026-02-16 | 2026-02-16 |
 
 ## 완료된 작업
