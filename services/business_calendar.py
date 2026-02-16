@@ -3,8 +3,9 @@ import os
 import datetime
 from typing import Iterable, Set, Optional
 
-
-DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+# 프로젝트 루트의 data/ 폴더 (기존 data/holidays_kr_*.json 유지)
+_DATA_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(_DATA_ROOT, "data")
 
 
 def _load_holidays_json(year: int) -> Optional[Set[str]]:
@@ -100,4 +101,3 @@ def add_business_days(start: datetime.date, delta_days: int) -> datetime.date:
         if is_business_day(cur):
             remaining -= 1
     return cur
-
