@@ -60,7 +60,13 @@ sequential-thinking, mcp-reasoner, context7, postgres, memory, markitdown
 ### 컨텍스트 파일 (docs/context/)
 SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.md
 
+### 배포 내용 (쉬운 한글)
+**docs/DEPLOY_NOTES.md** — deploy에 올릴 때마다 "뭘 했는지" 누구나 알 수 있게 쉬운 말로 정리
+
 ## 최근 변경
+- [2026-02-16] **Phase 4-1 완료: 알림 API 분리** (GDM 관장) → deploy 푸시 완료
+  - `apps/api/notifications.py` 신규 (목록/배지/읽음 처리). `apps/erp.py`에서 해당 블록 제거 (~297줄 감소)
+  - 배포 내용 쉬운 한글: `docs/DEPLOY_NOTES.md` 추가
 - [2026-02-16] **erp_beta → ERP 이름 변경** (GDM 관장)
   - `apps/erp_beta.py` → `apps/erp.py`, Blueprint `erp_beta` → `erp`
   - `can_edit_erp_beta` → `can_edit_erp`, `apply_erp_beta_display_fields*` → `apply_erp_display_fields*`
@@ -104,7 +110,7 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 ## 다음 계획 (GDM 더블체크 2026-02-16)
 - **0.** feature/erp-beta-rename-to-erp → deploy 머지·푸시 ✅ 완료 (2026-02-16)
 - **1.** Phase 4 준비: apps/erp.py 구조 파악 및 1차 분리 후보 선정 ✅ 완료
-- **2.** Phase 4-1: 알림 API → apps/api/notifications.py 분리 ✅ 완료 (feature/erp-split-notifications)
+- **2.** Phase 4-1: 알림 API → apps/api/notifications.py 분리 ✅ 완료 → deploy 머지·푸시 완료
 - **3.** Phase 4-2: 다음 분리 후보 선정 및 분리 (한 번에 1개, 500줄 이하)
 - 상세: `docs/plans/2026-02-16-app-slim-down.md` § 다음 계획
 
