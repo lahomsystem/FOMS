@@ -12,14 +12,14 @@ from sqlalchemy import or_, and_, func, String
 from sqlalchemy.orm.attributes import flag_modified
 from foms_address_converter import FOMSAddressConverter
 from foms_map_generator import FOMSMapGenerator
-from erp_policy import (
+from services.erp_policy import (
     STAGE_NAME_TO_CODE, DEFAULT_OWNER_TEAM_BY_STAGE, STAGE_LABELS,
     get_quest_template_for_stage, create_quest_from_template,
     get_required_approval_teams_for_stage, recommend_owner_team,
     can_modify_domain, get_assignee_ids
 )
-from storage import get_storage
-from business_calendar import business_days_until
+from services.storage import get_storage
+from services.business_calendar import business_days_until
 from sqlalchemy import text
 import pytz
 import unicodedata
@@ -2811,7 +2811,7 @@ def api_order_quick_status_update(order_id):
         import datetime as dt_mod
         import copy
         from sqlalchemy.orm.attributes import flag_modified
-        from erp_policy import create_quest_from_template
+        from services.erp_policy import create_quest_from_template
         
         sd = _ensure_dict(order.structured_data)
         user = get_user_by_id(session.get('user_id'))

@@ -27,9 +27,9 @@ from datetime import date, timedelta
 from db import get_db, close_db, init_db, db_session
 from models import Order, User, SecurityLog, ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment, OrderAttachment, OrderEvent, OrderTask, Notification
 from apps.auth import is_password_strong, get_user_by_username
-from business_calendar import add_business_days
+from services.business_calendar import add_business_days
 from erp_automation import apply_auto_tasks
-from erp_policy import (
+from services.erp_policy import (
     recommend_owner_team, 
     get_required_task_keys_for_stage, 
     STAGE_LABELS,
@@ -58,10 +58,10 @@ from foms_address_converter import FOMSAddressConverter
 from foms_map_generator import FOMSMapGenerator
 
 # 스토리지 시스템 임포트 (Quest 2)
-from storage import get_storage
+from services.storage import get_storage
 from erp_order_text_parser import parse_order_text
 from map_config import KAKAO_REST_API_KEY
-from business_calendar import business_days_until
+from services.business_calendar import business_days_until
 from constants import STATUS, BULK_ACTION_STATUS, CABINET_STATUS, UPLOAD_FOLDER, ALLOWED_EXTENSIONS, CHAT_ALLOWED_EXTENSIONS, ERP_MEDIA_ALLOWED_EXTENSIONS
 
 # SocketIO Import (Quest 5)
@@ -84,7 +84,15 @@ Compress(app)
 
 # 2. WhiteNoise (Fast Static File Serving & Caching)
 # Railway/Heroku 배포 시 필수 최적화
-app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/', prefix='static/')
+_is_production = (os.environ.get('FLASK_ENV') == 'production')
+app.wsgi_app = WhiteNoise(
+    app.wsgi_app,
+    root='static/',
+    prefix='static/',
+    # 개발 모드에서 정적 파일 변경 시 Content-Length 캐시 불일치 방지
+    autorefresh=not _is_production,
+    max_age=31536000 if _is_production else 0,
+)
 
 # Secret Key from environment variable (CRITICAL: Never hardcode in production!)
 app.secret_key = os.environ.get('SECRET_KEY')
@@ -134,6 +142,15 @@ def internal_error(error):
         # Production: Log error but show generic message
         app.logger.error(f"Internal Server Error: {str(error)}\n{traceback.format_exc()}")
         return render_template('error_500.html'), 500
+
+
+@app.get('/__build')
+def build_info():
+    return jsonify({
+        'build': '20260215-uxfix-03',
+        'cwd': os.getcwd(),
+        'template': 'templates/layout.html',
+    })
 
 # ==========================================
 # Security & Scalability Configuration (Quest 14)
@@ -8010,50 +8027,57 @@ def admin_test_r2():
         return jsonify({'success': False, 'message': f'테스트 중 오류: {str(e)}'})
 
 # Production: Auto-initialize Database Tables
-# This runs when Gunicorn imports 'app'
-try:
-    with app.app_context():
-        print("[AUTO-INIT] Checking database tables...")
-        from db import init_db
-        from wdcalculator_db import init_wdcalculator_db
-        
-        # Initialize Main DB
-        init_db()
-        ensure_order_attachments_category_column()
-        ensure_order_attachments_item_index_column()
-        
-        # Initialize WDCalculator DB
-        init_wdcalculator_db()
-        
-        print("[AUTO-INIT] Tables checked/created successfully.")
-        
-        # Check/Create Admin User
-        from models import User
-        from werkzeug.security import generate_password_hash
-        db_session = get_db()
-        try:
-            admin = db_session.query(User).filter_by(username='admin').first()
-            if not admin:
-                print("[AUTO-INIT] Creating default admin user (admin/admin1234)...")
-                new_admin = User(
-                    username='admin',
-                    password=generate_password_hash('admin1234'),
-                    name='관리자',
-                    role='ADMIN',
-                    is_active=True
-                )
-                db_session.add(new_admin)
-                db_session.commit()
-            else:
-                print("[AUTO-INIT] Admin user exists.")
-        except Exception as e:
-            print(f"[AUTO-INIT] Failed to create admin user: {e}")
-            db_session.rollback()
+# This runs when a WSGI server imports 'app' (e.g. gunicorn/uwsgi),
+# and should not run for `python app.py` because __main__ has its own startup flow.
+_should_run_auto_init = (__name__ != '__main__')
+if _should_run_auto_init:
+    try:
+        with app.app_context():
+            print("[AUTO-INIT] Checking database tables...")
+            from db import init_db
+            from wdcalculator_db import init_wdcalculator_db
             
-except Exception as e:
-    print(f"[AUTO-INIT] Database initialization failed: {e}")
+            # Initialize Main DB
+            init_db()
+            ensure_order_attachments_category_column()
+            ensure_order_attachments_item_index_column()
+            
+            # Initialize WDCalculator DB
+            init_wdcalculator_db()
+            
+            print("[AUTO-INIT] Tables checked/created successfully.")
+            
+            # Check/Create Admin User
+            from models import User
+            from werkzeug.security import generate_password_hash
+            db_session = get_db()
+            try:
+                admin = db_session.query(User).filter_by(username='admin').first()
+                if not admin:
+                    print("[AUTO-INIT] Creating default admin user (admin/admin1234)...")
+                    new_admin = User(
+                        username='admin',
+                        password=generate_password_hash('admin1234'),
+                        name='관리자',
+                        role='ADMIN',
+                        is_active=True
+                    )
+                    db_session.add(new_admin)
+                    db_session.commit()
+                else:
+                    print("[AUTO-INIT] Admin user exists.")
+            except Exception as e:
+                print(f"[AUTO-INIT] Failed to create admin user: {e}")
+                db_session.rollback()
+                
+    except Exception as e:
+        print(f"[AUTO-INIT] Database initialization failed: {e}")
 
 if __name__ == '__main__':
+    _use_reloader = (os.environ.get('FLASK_USE_RELOADER', '1') == '1')
+    _is_reloader_child = (os.environ.get('WERKZEUG_RUN_MAIN') == 'true')
+    _should_run_startup_tasks = (not _use_reloader) or _is_reloader_child
+
     # 안전한 시작 프로세스 실행 (SystemExit 방지)
     try:
         import logging
@@ -8069,70 +8093,86 @@ if __name__ == '__main__':
             ]
         )
         logger = logging.getLogger('FOMS_Startup')
-        
-        logger.info("[START] FOMS 애플리케이션 시작 중...")
-        startup_success = True
-        
-        # 1. 데이터베이스 초기화 시도
-        try:
-            init_db()
-            # get_db()를 사용하는 자동 컬럼 보정은 Flask 앱 컨텍스트 내에서 실행해야 한다.
-            with app.app_context():
-                ensure_order_attachments_category_column()
-                ensure_order_attachments_item_index_column()
-            logger.info("[OK] FOMS 데이터베이스 초기화 완료")
-        except Exception as e:
-            logger.error(f"[ERROR] FOMS 데이터베이스 초기화 실패: {str(e)}")
-            startup_success = False
-        
-        # 1-1. 견적 계산기 독립 데이터베이스 초기화 시도
-        try:
-            with app.app_context():
-                init_wdcalculator_db()
-            logger.info("[OK] 견적 계산기 데이터베이스 초기화 완료")
-        except Exception as e:
-            logger.warning(f"[WARN] 견적 계산기 데이터베이스 초기화 실패 (견적 기능 제한): {str(e)}")
-            # 견적 계산기 DB 실패는 전체 시스템에 영향 없음
-        
-        # 2. 안전한 스키마 마이그레이션 시도
-        try:
-            from safe_schema_migration import run_safe_migration
-            
-            # Flask 앱 컨텍스트 내에서 마이그레이션 실행
-            with app.app_context():
-                migration_success = run_safe_migration(app.app_context())
-                if migration_success:
-                    logger.info("[OK] 스키마 마이그레이션 완료")
-                else:
-                    logger.warning("[WARN] 스키마 마이그레이션 실패 - 기존 스키마로 계속 진행")
-                    startup_success = False
-        except Exception as e:
-            logger.error(f"[ERROR] 스키마 마이그레이션 중 예외: {str(e)}")
-            startup_success = False
-        
-        # 3. 시작 결과 요약
-        if startup_success:
-            logger.info("[SUCCESS] 모든 시작 프로세스가 성공적으로 완료되었습니다!")
-            print("[OK] FOMS 시스템이 준비되었습니다!")
+
+        if _should_run_startup_tasks:
+            logger.info("[START] FOMS 애플리케이션 시작 중...")
+            startup_success = True
+
+            # 1. 데이터베이스 초기화 시도
+            try:
+                init_db()
+                # get_db()를 사용하는 자동 컬럼 보정은 Flask 앱 컨텍스트 내에서 실행해야 한다.
+                with app.app_context():
+                    ensure_order_attachments_category_column()
+                    ensure_order_attachments_item_index_column()
+                logger.info("[OK] FOMS 데이터베이스 초기화 완료")
+            except Exception as e:
+                logger.error(f"[ERROR] FOMS 데이터베이스 초기화 실패: {str(e)}")
+                startup_success = False
+
+            # 1-1. 견적 계산기 독립 데이터베이스 초기화 시도
+            try:
+                with app.app_context():
+                    init_wdcalculator_db()
+                logger.info("[OK] 견적 계산기 데이터베이스 초기화 완료")
+            except Exception as e:
+                logger.warning(f"[WARN] 견적 계산기 데이터베이스 초기화 실패 (견적 기능 제한): {str(e)}")
+                # 견적 계산기 DB 실패는 전체 시스템에 영향 없음
+
+            # 2. 안전한 스키마 마이그레이션 시도
+            try:
+                from safe_schema_migration import run_safe_migration
+
+                # Flask 앱 컨텍스트 내에서 마이그레이션 실행
+                with app.app_context():
+                    migration_success = run_safe_migration(app.app_context())
+                    if migration_success:
+                        logger.info("[OK] 스키마 마이그레이션 완료")
+                    else:
+                        logger.warning("[WARN] 스키마 마이그레이션 실패 - 기존 스키마로 계속 진행")
+                        startup_success = False
+            except Exception as e:
+                logger.error(f"[ERROR] 스키마 마이그레이션 중 예외: {str(e)}")
+                startup_success = False
+
+            # 3. 시작 결과 요약
+            if startup_success:
+                logger.info("[SUCCESS] 모든 시작 프로세스가 성공적으로 완료되었습니다!")
+                print("[OK] FOMS 시스템이 준비되었습니다!")
+            else:
+                logger.warning("[WARN] 일부 시작 프로세스에서 오류가 발생했지만 앱은 정상적으로 시작됩니다.")
+                print("[WARN] 일부 기능에 제한이 있을 수 있습니다. 로그를 확인해주세요.")
         else:
-            logger.warning("[WARN] 일부 시작 프로세스에서 오류가 발생했지만 앱은 정상적으로 시작됩니다.")
-            print("[WARN] 일부 기능에 제한이 있을 수 있습니다. 로그를 확인해주세요.")
-        
+            logger.info("[SKIP] 리로더 부모 프로세스에서는 시작 초기화를 건너뜁니다.")
 
+        # 4. Flask 웹 서버 시작 (안전한 설정)
+        if _should_run_startup_tasks:
+            print("[START] 웹 서버를 시작합니다...")
+            print(f"[INFO] SOCKETIO_AVAILABLE: {SOCKETIO_AVAILABLE}")
+            print(f"[INFO] socketio 객체 존재: {socketio is not None}")
 
-
-# 4. Flask 웹 서버 시작 (안전한 설정)
-        print("[START] 웹 서버를 시작합니다...")
-        print(f"[INFO] SOCKETIO_AVAILABLE: {SOCKETIO_AVAILABLE}")
-        print(f"[INFO] socketio 객체 존재: {socketio is not None}")
         if SOCKETIO_AVAILABLE and socketio:
             # SocketIO 사용 시 socketio.run() 사용
-            print("[INFO] Socket.IO 모드로 서버를 시작합니다...")
-            socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=False, allow_unsafe_werkzeug=True)
+            if _should_run_startup_tasks:
+                print("[INFO] Socket.IO 모드로 서버를 시작합니다...")
+            socketio.run(
+                app,
+                host='0.0.0.0',
+                port=5000,
+                debug=True,
+                use_reloader=_use_reloader,
+                allow_unsafe_werkzeug=True,
+            )
         else:
             # 일반 Flask 실행
-            print("[WARN] Socket.IO가 비활성화되어 일반 Flask 모드로 시작합니다...")
-            app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+            if _should_run_startup_tasks:
+                print("[WARN] Socket.IO가 비활성화되어 일반 Flask 모드로 시작합니다...")
+            app.run(
+                host='0.0.0.0',
+                port=5000,
+                debug=True,
+                use_reloader=_use_reloader,
+            )
         
     except KeyboardInterrupt:
         print("\n[STOP] 사용자에 의해 서버가 중단되었습니다.")
@@ -8141,4 +8181,5 @@ if __name__ == '__main__':
         print("[INFO] 로그 파일(app_startup.log)을 확인해주세요.")
         # SystemExit 대신 정상 종료
     finally:
-        print("[END] FOMS 시스템을 종료합니다.")
+        if _should_run_startup_tasks:
+            print("[END] FOMS 시스템을 종료합니다.")
