@@ -43,7 +43,23 @@
 
 ## Phase 4: erp.py 세분화 (장기)
 
-- 대시보드별 또는 기능별로 Blueprint/모듈 분리 (apps/erp.py 5,000줄 → 여러 파일)
+- 대시보드별 또는 기능별로 Blueprint/모듈 분리 (apps/erp.py ~5,476줄 → 여러 파일)
+
+### Phase 4 구조 분석 (2026-02-16, GDM)
+
+| 블록 | 라우트 수 | 대략 줄 범위 | 비고 |
+|------|-----------|--------------|------|
+| 헬퍼/필터/권한 | - | 1~495 | can_edit_erp, apply_erp_display_fields*, 템플릿 필터, shipment 설정 load/save |
+| 대시보드(페이지) | 9 | 496~4420 | erp_dashboard, drawing_workbench, measurement, shipment, as, production, construction 등 |
+| 출고 설정 API | 4 | 1820~1936 | 페이지 + GET/POST settings + shipment/update |
+| 실측 API | 2 | 1937~2145 | measurement/update, measurement/route |
+| 지도/주소/유저 | 5 | 2146~2344 | api_map_data, api_generate_map, api_update_order_address, api_erp_users_list |
+| 주문 API (다수) | 20+ | 2588~5180 | quick-search, quick-info, transfer-drawing, production/construction/as, 도면/수정 요청 등 |
+| **알림 API** | **4** | **5180~5476** | **list, badge, mark read, read-all + 헬퍼 3개** ← **1차 분리 후보** |
+
+**1차 분리 후보: 알림 API** (~297줄, 의존성: Notification/User/Order, get_db, session, _ensure_dict 인라인 가능)
+
+| 4-1 | 진행 | 알림 API → apps/api/notifications.py (notifications_bp, url_prefix=/erp/api) |
 
 ---
 
