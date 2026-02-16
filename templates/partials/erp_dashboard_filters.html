@@ -1,0 +1,70 @@
+    <!-- Left: Filters -->
+    <div class="erp-dashboard-filters">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="fw-bold mb-3 text-dark" style="font-size: 1.15rem;"><i class="fas fa-filter text-primary"></i> 필터
+          </div>
+          <form method="get" action="{{ url_for('erp_beta.erp_dashboard') }}" class="erp-filter-row"
+            id="erp-filters-form">
+            {% if filters.get('alert_type') %}
+            <input type="hidden" name="alert_type" value="{{ filters.get('alert_type') }}">
+            {% endif %}
+            <div class="erp-filter-main">
+              <input class="form-control form-control-sm" name="q" placeholder="검색(고객/연락/주소/담당)"
+                value="{{ (filters.get('q') or '') }}">
+              <div class="erp-filter-actions">
+                <button class="btn btn-primary btn-sm fw-semibold" type="submit" aria-label="검색">
+                  <i class="fas fa-search"></i>
+                </button>
+                <button class="btn btn-outline-secondary btn-sm fw-semibold" type="button" data-bs-toggle="collapse"
+                  data-bs-target="#erp-filter-advanced" aria-expanded="false" aria-label="필터 상세">
+                  <i class="fas fa-chevron-down"></i>
+                </button>
+              </div>
+            </div>
+            <div class="collapse" id="erp-filter-advanced">
+              <div class="erp-filter-advanced-row mt-2">
+                <select class="form-select form-select-sm" name="stage">
+                  <option value="">단계: 전체</option>
+                  <option value="주문접수" {% if filters.get('stage')=='주문접수' %}selected{% endif %}>주문접수</option>
+                  <option value="해피콜" {% if filters.get('stage')=='해피콜' %}selected{% endif %}>해피콜</option>
+                  <option value="실측" {% if filters.get('stage')=='실측' %}selected{% endif %}>실측</option>
+                  <option value="도면" {% if filters.get('stage')=='도면' %}selected{% endif %}>도면</option>
+                  <option value="고객컨펌" {% if filters.get('stage')=='고객컨펌' %}selected{% endif %}>고객컨펌</option>
+                  <option value="생산" {% if filters.get('stage')=='생산' %}selected{% endif %}>생산</option>
+                  <option value="시공" {% if filters.get('stage')=='시공' %}selected{% endif %}>시공</option>
+                </select>
+
+                <select class="form-select form-select-sm" name="team">
+                  <option value="">팀: 전체</option>
+                  <option value="CS" {% if filters.get('team')=='CS' %}selected{% endif %}>라홈팀</option>
+                  <option value="SALES" {% if filters.get('team')=='SALES' %}selected{% endif %}>영업팀</option>
+                  <option value="MEASURE" {% if filters.get('team')=='MEASURE' %}selected{% endif %}>실측팀</option>
+                  <option value="DRAWING" {% if filters.get('team')=='DRAWING' %}selected{% endif %}>도면팀</option>
+                  <option value="PRODUCTION" {% if filters.get('team')=='PRODUCTION' %}selected{% endif %}>생산팀</option>
+                  <option value="CONSTRUCTION" {% if filters.get('team')=='CONSTRUCTION' %}selected{% endif %}>시공팀
+                  </option>
+                </select>
+                {% if is_admin %}
+
+                {% endif %}
+              </div>
+              <div class="erp-filter-advanced-bottom mt-2">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="1" id="f-urgent" name="urgent" {% if
+                    filters.get('urgent')=='1' %}checked{% endif %} style="width: 1.2em; height: 1.2em;">
+                  <label class="form-check-label fw-semibold" for="f-urgent" style="font-size: 0.9rem;">긴급만</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="1" id="f-has-alert" name="has_alert" {% if
+                    filters.get('has_alert')=='1' %}checked{% endif %} style="width: 1.2em; height: 1.2em;">
+                  <label class="form-check-label fw-semibold" for="f-has-alert" style="font-size: 0.9rem;">경보만</label>
+                </div>
+                <a class="btn btn-outline-secondary btn-sm fw-semibold"
+                  href="{{ url_for('erp_beta.erp_dashboard') }}">초기화</a>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
