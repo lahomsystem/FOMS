@@ -1,8 +1,32 @@
 # FOMS 현재 상태
 
-## 마지막 업데이트: 2026-02-16
+## 마지막 업데이트: 2026-02-17
+
+## 세션 재개 시 이어서 작업 가용자원 (컨텍스트 풀 시)
+
+- **Rules**: 08-context-engineering(점진 로딩), 02-architecture(Blueprint), 06-safe-changes(대형 변경), 11-grand-develop-master(GDM)
+- **Skills**: grand-develop-master, architect-review, code-reviewer, python-pro, flask-pro
+- **Agents**: grand-develop-master(총괄), python-backend(API), code-reviewer(검증), context-manager(기억)
+- **복원 순서**: COMPACT_CHECKPOINT → CURRENT_STATUS → TASK_REGISTRY → (이어지는 작업) phase4-next-steps / DECISIONS
+- **Memory MCP**: `memory read_graph` → GDM_DoubleCheck_2026-02-16 최신 관찰로 다음 스텝 확인
+
+## 저장 메모리·컨텍스트 요약 (전체 확인용)
+
+| 구분 | 위치 | 요약 |
+|------|------|------|
+| **Memory (MCP)** | memory read_graph | 엔티티 `GDM_DoubleCheck_2026-02-16` — 4-3·4-4 완료, 다음: deploy 머지·4-5 주문 API 분할 |
+| **COMPACT_CHECKPOINT** | docs/context/COMPACT_CHECKPOINT.md | 압축 시 복원: CURRENT_STATUS → TASK_REGISTRY → DECISIONS → EDIT_LOG 순 참조 |
+| **DECISIONS** | docs/context/DECISIONS.md | Flask 유지, MCP 6개, 컨텍스트 엔지니어링, services/ 도입 |
+| **TASK_REGISTRY** | docs/context/TASK_REGISTRY.md | SLIM-001~006 완료 (4-1~4-4). 신규 작업 시 여기 등록 |
+| **EDIT_LOG** | docs/context/EDIT_LOG.md | 최근 편집 파일 자동 추적 (Hook) |
+| **DEPLOY_NOTES** | docs/DEPLOY_NOTES.md | 배포 시 쉬운 한글 요약 (Phase 4-2·4-1·ERP 이름 변경 반영) |
 
 ## 프로젝트 상태: 운영 중 + 고도화 진행
+
+### 백업/복원
+- 관리자 > 시스템 백업: **백그라운드 실행** (타임아웃/연결 끊김 방지). DB 설정은 `DATABASE_URL` 또는 `DB_*` 환경변수 사용.
+- 백업 내용: **DB 전체**(주문·상태·실측·체크리스트·워크플로우 등 `structured_data` 포함) + 시스템 파일. 복원 시 동일 상태로 복원됨.
+- **2026-02-17 GDM 분석**: 백업 시 콘솔에 보이던 Socket.IO 오류(ERR_CONNECTION_RESET, 400)는 채팅/실시간 연결 실패로, 백업 API와 무관. 관리자 페이지에서 Socket.IO 미로드하도록 `layout.html` 조건 추가 → 백업 화면에서 해당 콘솔 오류 제거. 상세: `docs/evolution/GDM_BACKUP_ISSUE_ANALYSIS_2026-02-17.md`.
 
 ## 기술 스택
 - Flask 2.3 + SQLAlchemy 2.0 + PostgreSQL
@@ -69,6 +93,23 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 **docs/DEPLOY_NOTES.md** — deploy에 올릴 때마다 "뭘 했는지" 누구나 알 수 있게 쉬운 말로 정리
 
 ## 최근 변경
+- [2026-02-17] **Phase 4-5c 완료: 도면 창구 업로드 분리** (GDM 더블체크 후 진행)
+  - `erp_orders_drawing_bp`에 `/<id>/drawing-gateway-upload` POST 추가. `apps/erp.py`에서 1라우트 제거 (~45줄). erp.py **3,350줄·25라우트**.
+- [2026-02-17] **Phase 4-5b 완료: 도면 전달/취소 API 분리**
+  - `apps/api/erp_orders_drawing.py`: transfer-drawing, cancel-transfer. erp.py 2라우트 제거 (~460줄).
+- [2026-02-17] **Phase 4-5a 완료: 주문 Quick API 분리** (GDM 지휘·전 자원 동원)
+  - `apps/api/erp_orders_quick.py` 신규: `erp_orders_quick_bp`. 라우트 quick-search, quick-info, quick-status. erp.py 3라우트 제거 (~206줄).
+- [2026-02-17] **Phase 4-4 완료: 지도/주소/유저 API 분리** (GDM 더블체크 후 가용자원 총동원)
+  - `apps/api/erp_map.py` 신규: `erp_map_bp`. 라우트 `/api/map_data`, `/erp/api/users`, `/api/generate_map`, `/api/orders/<id>/update_address`. `apps/erp.py`에서 4라우트 제거 (~460줄 감소). 기동·린트 검증 통과.
+- [2026-02-17] **Phase 4-3 완료: 실측 API 분리** (GDM 자원 동원)
+  - `apps/api/erp_measurement.py` 신규: `erp_measurement_bp` (url_prefix=`/api/erp/measurement`). 라우트 `/update/<order_id>` POST, `/route` GET.
+  - `apps/erp.py`에서 해당 2라우트 제거 (~206줄 감소). app.py에 `erp_measurement_bp` 등록. 기동·린트 검증 통과.
+- [2026-02-17] **DEPLOY_NOTES.md**: Phase 4-2(출고 설정) 배포 내용 추가 (쉬운 한글).
+- [2026-02-16] **채팅창 가로폭/입력창 잘림 수정**
+  - `templates/partials/chat_styles.html`: `.chat-page-content`에 `flex-direction: row`, `width: 100%` 추가
+  - `.col-lg-3` / `.col-lg-9`에 비율 고정(25%/75%), `.col-lg-9`에 `min-width: 0` 적용
+  - `.chat-main-card`, `.chat-input-area`, `.chat-input-wrapper`에 `width: 100%`, `min-width: 0` 적용
+  - 메시지 입력창이 전체 컨테이너 가로폭을 활용하도록 수정
 - [2026-02-16] **Phase 4-1 완료: 알림 API 분리** (GDM 관장) → deploy 푸시 완료
   - `apps/api/notifications.py` 신규 (목록/배지/읽음 처리). `apps/erp.py`에서 해당 블록 제거 (~297줄 감소)
   - 배포 내용 쉬운 한글: `docs/DEPLOY_NOTES.md` 추가
@@ -108,7 +149,7 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 
 ## 핵심 파일 크기 현황 (분리 대상)
 - app.py: ~6,500줄 (목표: 300줄, Phase 4·추가 분리 대기)
-- apps/erp.py: ~5,000줄 (구 ERP 모듈, 점진 분리)
+- apps/erp.py: ~3,350줄·25 라우트 (Phase 4-1~4-5c 분리 반영, 목표: 500줄 이하)
 - templates/erp_dashboard.html: 594줄 (partial 분리 완료, 3-1)
 - templates/chat.html: 229줄 (partial 분리 완료, 3-2)
 
@@ -123,12 +164,15 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 | Skills | GDM/tech-stack/self-evolution/architect/code-review/production-audit | .cursor/skills/skills/ | 624개+ 공통 스킬 |
 | 배포 노트 | DEPLOY_NOTES.md | docs/DEPLOY_NOTES.md | 쉬운 한글 배포 내용 |
 
-## 다음 계획 (GDM 더블체크 2026-02-16)
-- **0.** feature/erp-beta-rename-to-erp → deploy 머지·푸시 ✅ 완료 (2026-02-16)
-- **1.** Phase 4 준비: apps/erp.py 구조 파악 및 1차 분리 후보 선정 ✅ 완료
-- **2.** Phase 4-1: 알림 API → apps/api/notifications.py 분리 ✅ 완료 → deploy 머지·푸시 완료
-- **3.** Phase 4-2: 다음 분리 후보 선정 및 분리 (한 번에 1개, 500줄 이하)
-- 상세: `docs/plans/2026-02-16-app-slim-down.md` § 다음 계획
+## 다음 계획 (GDM 더블체크 2026-02-17)
+- **0.** feature/erp-split-shipment-settings → deploy 머지·푸시 (Phase 4-2 반영, DEPLOY_NOTES 갱신 완료)
+- **1.** Phase 4-3: 실측 API 분리 ✅ 완료 (erp_measurement_bp)
+- **2.** Phase 4-4: 지도·주소·유저 API 분리 ✅ 완료 (erp_map_bp)
+- **3.** Phase 4-5a: 주문 Quick API 분리 ✅ 완료 (erp_orders_quick_bp)
+- **4.** Phase 4-5b: 도면 전달/취소 API 분리 ✅ 완료 (erp_orders_drawing_bp)
+- **5.** Phase 4-5c: 도면 창구 업로드 분리 ✅ 완료 (drawing-gateway-upload → erp_orders_drawing_bp)
+- **6.** Phase 4-5d~: 주문 API 잔여 블록 (request-revision, 도면/생산/시공/AS 등, erp.py 500줄 이하 목표)
+- **계획서**: `docs/plans/2026-02-16-phase4-next-steps.md`
 
 ## 고도화 예정
 - [x] app.py 채팅 분리 (Phase 2-1 완료)

@@ -1,0 +1,318 @@
+{
+  "generated_at_utc": "2026-02-16T16:03:47.581604+00:00",
+  "landscape": {
+    "top_tracks": [
+      "ai_coding",
+      "tech_stack",
+      "backend",
+      "integration"
+    ],
+    "track_counts": {
+      "ai_coding": 60,
+      "tech_stack": 19,
+      "data_layer": 8,
+      "backend": 15,
+      "integration": 12,
+      "security": 1,
+      "devops_platform": 5
+    },
+    "provider_counts": {
+      "arxiv": 37,
+      "other": 11,
+      "github": 42,
+      "openai": 9,
+      "google": 9,
+      "anthropic": 4,
+      "meta": 3,
+      "microsoft": 5
+    },
+    "focus_aligned_signals": 63
+  },
+  "recommended_stack_combinations": [
+    {
+      "id": "enterprise_ai_engineering_os",
+      "name": "Enterprise AI Engineering OS",
+      "fit_tracks": [
+        "ai_coding",
+        "tech_stack",
+        "integration"
+      ],
+      "stack": [
+        "Organization-wide coding agent governance",
+        "Prompt/version/eval/policy lifecycle management",
+        "Rule/Skill/Hook/Agent continuous refinement",
+        "Risk-aware rollout and rollback automation",
+        "Cross-team engineering knowledge graph"
+      ],
+      "macro_short": "표준 운영 모델과 평가 지표를 수립",
+      "macro_mid": "팀 단위 파일럿을 조직 표준으로 확장",
+      "macro_long": "지속적 자가 진화형 개발 운영체계 확립"
+    },
+    {
+      "id": "agent_native_modular",
+      "name": "Agent-Native Modular Platform",
+      "fit_tracks": [
+        "ai_coding",
+        "integration",
+        "backend"
+      ],
+      "stack": [
+        "Model routing layer (OpenAI/Claude/Gemini)",
+        "MCP tool bus + policy guard",
+        "FastAPI service slices + existing Flask bridge",
+        "PostgreSQL + Redis + async workers",
+        "Eval/benchmark pipeline + experiment registry"
+      ],
+      "macro_short": "멀티 모델 실험과 안전한 도입 기준을 먼저 정립",
+      "macro_mid": "핵심 도메인 서비스 모듈화를 병행하며 AI coding workflow 내재화",
+      "macro_long": "자가 업그레이드 가능한 agentic delivery platform으로 고도화"
+    },
+    {
+      "id": "frontend_systemic_ux_stack",
+      "name": "Systemic Frontend + UX Intelligence",
+      "fit_tracks": [
+        "frontend",
+        "uiux",
+        "ai_coding"
+      ],
+      "stack": [
+        "TypeScript-first UI module architecture",
+        "Design token + component governance",
+        "Visual regression + interaction testing",
+        "AI-assisted UX telemetry analysis",
+        "Accessibility baseline enforcement"
+      ],
+      "macro_short": "템플릿 대형화/중복을 빠르게 줄이고 UI 일관성 확보",
+      "macro_mid": "컴포넌트 단위 개발/검증 파이프라인 전환",
+      "macro_long": "사용자 행동 기반 UX 최적화 자동 루프"
+    }
+  ],
+  "recommended_stack_names": [
+    "Enterprise AI Engineering OS",
+    "Agent-Native Modular Platform",
+    "Systemic Frontend + UX Intelligence"
+  ],
+  "macro_plan": [
+    {
+      "horizon": "short_term_0_4_weeks",
+      "goal": "멀티 AI 코딩 생태계 실험 기반 수용",
+      "initiatives": [
+        "모델/에이전트 비교 실험 트랙 수립 (OpenAI/Claude/Gemini/Copilot)",
+        "현재 코드베이스 영향도 분석 및 호환성 매트릭스 작성",
+        "P1 액션 2~3개 스파이크 실행 + 회귀 테스트 자동화"
+      ]
+    },
+    {
+      "horizon": "mid_term_1_3_months",
+      "goal": "스택 전환 기반 구축 및 운영 표준화",
+      "initiatives": [
+        "상위 후보 스택 1개 선택 후 파일럿 마이그레이션",
+        "서비스 경계/인터페이스 계약/배포 롤백 표준 수립",
+        "AI 코딩 툴링 평가 기준(속도/품질/비용) 운영"
+      ]
+    },
+    {
+      "horizon": "long_term_3_12_months",
+      "goal": "자가 업그레이드 가능한 AI-통합 개발 플랫폼 완성",
+      "initiatives": [
+        "Rules/Skills/Hooks/Agents 자동 개선 루프 고도화",
+        "MCP 도구 체계의 안전 정책/감사 추적 자동화",
+        "아키텍처 진화 의사결정을 KPI 기반으로 상시 운영"
+      ]
+    }
+  ],
+  "micro_plan": [
+    {
+      "task_id": "M-001",
+      "title": "From Biased Chatbots to Biased Agents: Examining Role Assignment Effects on LLM Agent Robustness",
+      "priority": "P1",
+      "track": "ai_coding",
+      "owner": "coding-research-center",
+      "design_whole": "전체 설계: 영향 시스템/데이터/배포 경계 정의",
+      "design_part": "부분 설계: 도메인 모듈, API 계약, 테스트 범위 정의",
+      "design_detail": "Run controlled pilot for 'From Biased Chatbots to Biased Agents: Examining Role Assignment Effects on LLM Agent Robustness' in one workflow, compare dev-time and defect metrics.",
+      "dod": "기능/테스트/롤백 경로 검증 완료",
+      "abort": "회귀 또는 성능/보안 기준 미달 시 즉시 중단",
+      "rollback": "릴리즈 단위 revert + 데이터 영향 복구 절차 실행",
+      "source_links": [
+        "https://arxiv.org/abs/2602.12285"
+      ]
+    },
+    {
+      "task_id": "M-002",
+      "title": "pgdsat version 1.2 has been released",
+      "priority": "P0",
+      "track": "tech_stack",
+      "owner": "evolution-architect",
+      "design_whole": "전체 설계: 영향 시스템/데이터/배포 경계 정의",
+      "design_part": "부분 설계: 도메인 모듈, API 계약, 테스트 범위 정의",
+      "design_detail": "Build compatibility matrix for 'pgdsat version 1.2 has been released' and execute dependency upgrade rehearsal.",
+      "dod": "기능/테스트/롤백 경로 검증 완료",
+      "abort": "회귀 또는 성능/보안 기준 미달 시 즉시 중단",
+      "rollback": "릴리즈 단위 revert + 데이터 영향 복구 절차 실행",
+      "source_links": [
+        "https://www.postgresql.org/about/news/pgdsat-version-12-has-been-released-3239/"
+      ]
+    },
+    {
+      "task_id": "M-003",
+      "title": "postgres_dba 7.0 — 34 diagnostic reports for psql",
+      "priority": "P1",
+      "track": "data_layer",
+      "owner": "database-specialist",
+      "design_whole": "전체 설계: 영향 시스템/데이터/배포 경계 정의",
+      "design_part": "부분 설계: 도메인 모듈, API 계약, 테스트 범위 정의",
+      "design_detail": "Assess schema/query/index impact of 'postgres_dba 7.0 — 34 diagnostic reports for psql' and verify migration safety with backup/restore test.",
+      "dod": "기능/테스트/롤백 경로 검증 완료",
+      "abort": "회귀 또는 성능/보안 기준 미달 시 즉시 중단",
+      "rollback": "릴리즈 단위 revert + 데이터 영향 복구 절차 실행",
+      "source_links": [
+        "https://www.postgresql.org/about/news/postgres_dba-70-34-diagnostic-reports-for-psql-3237/"
+      ]
+    },
+    {
+      "task_id": "M-004",
+      "title": "Out-of-cycle release scheduled for February 26, 2026",
+      "priority": "P0",
+      "track": "backend",
+      "owner": "python-backend",
+      "design_whole": "전체 설계: 영향 시스템/데이터/배포 경계 정의",
+      "design_part": "부분 설계: 도메인 모듈, API 계약, 테스트 범위 정의",
+      "design_detail": "Create spike branch to validate backend impact of 'Out-of-cycle release scheduled for February 26, 2026', then run API smoke tests.",
+      "dod": "기능/테스트/롤백 경로 검증 완료",
+      "abort": "회귀 또는 성능/보안 기준 미달 시 즉시 중단",
+      "rollback": "릴리즈 단위 revert + 데이터 영향 복구 절차 실행",
+      "source_links": [
+        "https://www.postgresql.org/about/news/out-of-cycle-release-scheduled-for-february-26-2026-3241/"
+      ]
+    },
+    {
+      "task_id": "M-005",
+      "title": "v0.16.0",
+      "priority": "P0",
+      "track": "tech_stack",
+      "owner": "evolution-architect",
+      "design_whole": "전체 설계: 영향 시스템/데이터/배포 경계 정의",
+      "design_part": "부분 설계: 도메인 모듈, API 계약, 테스트 범위 정의",
+      "design_detail": "Build compatibility matrix for 'v0.16.0' and execute dependency upgrade rehearsal.",
+      "dod": "기능/테스트/롤백 경로 검증 완료",
+      "abort": "회귀 또는 성능/보안 기준 미달 시 즉시 중단",
+      "rollback": "릴리즈 단위 revert + 데이터 영향 복구 절차 실행",
+      "source_links": [
+        "https://github.com/vllm-project/vllm/releases/tag/v0.16.0"
+      ]
+    },
+    {
+      "task_id": "M-006",
+      "title": "0.100.0",
+      "priority": "P1",
+      "track": "ai_coding",
+      "owner": "coding-research-center",
+      "design_whole": "전체 설계: 영향 시스템/데이터/배포 경계 정의",
+      "design_part": "부분 설계: 도메인 모듈, API 계약, 테스트 범위 정의",
+      "design_detail": "Run controlled pilot for '0.100.0' in one workflow, compare dev-time and defect metrics.",
+      "dod": "기능/테스트/롤백 경로 검증 완료",
+      "abort": "회귀 또는 성능/보안 기준 미달 시 즉시 중단",
+      "rollback": "릴리즈 단위 revert + 데이터 영향 복구 절차 실행",
+      "source_links": [
+        "https://github.com/openai/codex/releases/tag/rust-v0.100.0"
+      ]
+    },
+    {
+      "task_id": "M-007",
+      "title": "Release v0.30.0-nightly.20260212.099aa9621",
+      "priority": "P0",
+      "track": "ai_coding",
+      "owner": "coding-research-center",
+      "design_whole": "전체 설계: 영향 시스템/데이터/배포 경계 정의",
+      "design_part": "부분 설계: 도메인 모듈, API 계약, 테스트 범위 정의",
+      "design_detail": "Run controlled pilot for 'Release v0.30.0-nightly.20260212.099aa9621' in one workflow, compare dev-time and defect metrics.",
+      "dod": "기능/테스트/롤백 경로 검증 완료",
+      "abort": "회귀 또는 성능/보안 기준 미달 시 즉시 중단",
+      "rollback": "릴리즈 단위 revert + 데이터 영향 복구 절차 실행",
+      "source_links": [
+        "https://github.com/google-gemini/gemini-cli/releases/tag/v0.30.0-nightly.20260212.099aa9621"
+      ]
+    },
+    {
+      "task_id": "M-008",
+      "title": "PostgreSQL 18.2, 17.8, 16.12, 15.16, and 14.21 Released!",
+      "priority": "P0",
+      "track": "data_layer",
+      "owner": "database-specialist",
+      "design_whole": "전체 설계: 영향 시스템/데이터/배포 경계 정의",
+      "design_part": "부분 설계: 도메인 모듈, API 계약, 테스트 범위 정의",
+      "design_detail": "Assess schema/query/index impact of 'PostgreSQL 18.2, 17.8, 16.12, 15.16, and 14.21 Released!' and verify migration safety with backup/restore test.",
+      "dod": "기능/테스트/롤백 경로 검증 완료",
+      "abort": "회귀 또는 성능/보안 기준 미달 시 즉시 중단",
+      "rollback": "릴리즈 단위 revert + 데이터 영향 복구 절차 실행",
+      "source_links": [
+        "https://www.postgresql.org/about/news/postgresql-182-178-1612-1516-and-1421-released-3235/"
+      ]
+    },
+    {
+      "task_id": "M-009",
+      "title": "8.4.0",
+      "priority": "P1",
+      "track": "data_layer",
+      "owner": "database-specialist",
+      "design_whole": "전체 설계: 영향 시스템/데이터/배포 경계 정의",
+      "design_part": "부분 설계: 도메인 모듈, API 계약, 테스트 범위 정의",
+      "design_detail": "Assess schema/query/index impact of '8.4.0' and verify migration safety with backup/restore test.",
+      "dod": "기능/테스트/롤백 경로 검증 완료",
+      "abort": "회귀 또는 성능/보안 기준 미달 시 즉시 중단",
+      "rollback": "릴리즈 단위 revert + 데이터 영향 복구 절차 실행",
+      "source_links": [
+        "https://github.com/redis/redis/releases/tag/8.4.0"
+      ]
+    },
+    {
+      "task_id": "M-010",
+      "title": "8.6.0",
+      "priority": "P1",
+      "track": "backend",
+      "owner": "python-backend",
+      "design_whole": "전체 설계: 영향 시스템/데이터/배포 경계 정의",
+      "design_part": "부분 설계: 도메인 모듈, API 계약, 테스트 범위 정의",
+      "design_detail": "Create spike branch to validate backend impact of '8.6.0', then run API smoke tests.",
+      "dod": "기능/테스트/롤백 경로 검증 완료",
+      "abort": "회귀 또는 성능/보안 기준 미달 시 즉시 중단",
+      "rollback": "릴리즈 단위 revert + 데이터 영향 복구 절차 실행",
+      "source_links": [
+        "https://github.com/redis/redis/releases/tag/8.6.0"
+      ]
+    },
+    {
+      "task_id": "M-011",
+      "title": "Release v0.30.0-nightly.20260210.8257ec447",
+      "priority": "P0",
+      "track": "ai_coding",
+      "owner": "coding-research-center",
+      "design_whole": "전체 설계: 영향 시스템/데이터/배포 경계 정의",
+      "design_part": "부분 설계: 도메인 모듈, API 계약, 테스트 범위 정의",
+      "design_detail": "Run controlled pilot for 'Release v0.30.0-nightly.20260210.8257ec447' in one workflow, compare dev-time and defect metrics.",
+      "dod": "기능/테스트/롤백 경로 검증 완료",
+      "abort": "회귀 또는 성능/보안 기준 미달 시 즉시 중단",
+      "rollback": "릴리즈 단위 revert + 데이터 영향 복구 절차 실행",
+      "source_links": [
+        "https://github.com/google-gemini/gemini-cli/releases/tag/v0.30.0-nightly.20260210.8257ec447"
+      ]
+    },
+    {
+      "task_id": "M-012",
+      "title": "PGDay Bangkok 2026 at FOSSASIA Summit – Schedule Now Published",
+      "priority": "P0",
+      "track": "data_layer",
+      "owner": "database-specialist",
+      "design_whole": "전체 설계: 영향 시스템/데이터/배포 경계 정의",
+      "design_part": "부분 설계: 도메인 모듈, API 계약, 테스트 범위 정의",
+      "design_detail": "Assess schema/query/index impact of 'PGDay Bangkok 2026 at FOSSASIA Summit – Schedule Now Published' and verify migration safety with backup/restore test.",
+      "dod": "기능/테스트/롤백 경로 검증 완료",
+      "abort": "회귀 또는 성능/보안 기준 미달 시 즉시 중단",
+      "rollback": "릴리즈 단위 revert + 데이터 영향 복구 절차 실행",
+      "source_links": [
+        "https://www.postgresql.org/about/news/pgday-bangkok-2026-at-fossasia-summit-schedule-now-published-3231/"
+      ]
+    }
+  ]
+}

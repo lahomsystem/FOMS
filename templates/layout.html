@@ -209,8 +209,8 @@
         }
     </style>
     {% endif %}
-    <!-- 전역 Socket.IO 초기화 (모든 페이지에서 알림 받을 수 있게) -->
-    {% if current_user %}
+    <!-- 전역 Socket.IO 초기화 (채팅/알림 페이지에서만 로드. 관리자·백업 페이지에서는 미로드로 콘솔 오류 및 400 방지) -->
+    {% if current_user and (not request.endpoint or (request.endpoint != 'admin' and not request.endpoint.startswith('admin_'))) %}
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
         // 전역 Socket.IO 초기화 (모든 페이지에서 알림 받을 수 있게)
