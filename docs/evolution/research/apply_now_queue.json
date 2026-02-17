@@ -1,0 +1,146 @@
+[
+  {
+    "action_id": "A-2026-02-16-718a3d33",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "From Biased Chatbots to Biased Agents: Examining Role Assignment Effects on LLM Agent Robustness",
+    "rationale": "arXiv cs.AI RSS source, score=100, confidence=High, track=ai_coding, focus=4, focus_hits=performance",
+    "proposed_change": "Run controlled pilot for 'From Biased Chatbots to Biased Agents: Examining Role Assignment Effects on LLM Agent Robustness' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://arxiv.org/abs/2602.12285"
+    ]
+  },
+  {
+    "action_id": "A-2026-02-16-04144062",
+    "priority": "P0",
+    "track": "tech_stack",
+    "title": "pgdsat version 1.2 has been released",
+    "rationale": "PostgreSQL News source, score=100, confidence=High, track=tech_stack, focus=8, focus_hits=security,postgresql,postgres",
+    "proposed_change": "Build compatibility matrix for 'pgdsat version 1.2 has been released' and execute dependency upgrade rehearsal.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://www.postgresql.org/about/news/pgdsat-version-12-has-been-released-3239/"
+    ]
+  },
+  {
+    "action_id": "A-2026-02-16-fee521e6",
+    "priority": "P1",
+    "track": "data_layer",
+    "title": "postgres_dba 7.0 — 34 diagnostic reports for psql",
+    "rationale": "PostgreSQL News source, score=100, confidence=High, track=data_layer, focus=2, focus_hits=postgres",
+    "proposed_change": "Assess schema/query/index impact of 'postgres_dba 7.0 — 34 diagnostic reports for psql' and verify migration safety with backup/restore test.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://www.postgresql.org/about/news/postgres_dba-70-34-diagnostic-reports-for-psql-3237/"
+    ]
+  },
+  {
+    "action_id": "A-2026-02-16-b984c9f4",
+    "priority": "P0",
+    "track": "backend",
+    "title": "Out-of-cycle release scheduled for February 26, 2026",
+    "rationale": "PostgreSQL News source, score=100, confidence=High, track=backend, focus=8, focus_hits=cve,postgresql,postgres",
+    "proposed_change": "Create spike branch to validate backend impact of 'Out-of-cycle release scheduled for February 26, 2026', then run API smoke tests.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://www.postgresql.org/about/news/out-of-cycle-release-scheduled-for-february-26-2026-3241/"
+    ]
+  },
+  {
+    "action_id": "A-2026-02-16-e6d6b3ec",
+    "priority": "P0",
+    "track": "tech_stack",
+    "title": "v0.16.0",
+    "rationale": "vllm-project/vllm Releases source, score=100, confidence=High, track=tech_stack, focus=22, focus_hits=security,cve,breaking",
+    "proposed_change": "Build compatibility matrix for 'v0.16.0' and execute dependency upgrade rehearsal.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/vllm-project/vllm/releases/tag/v0.16.0"
+    ]
+  },
+  {
+    "action_id": "A-2026-02-16-8f1cda72",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "0.100.0",
+    "rationale": "openai/codex Releases source, score=100, confidence=High, track=ai_coding, focus=6, focus_hits=rollback,javascript",
+    "proposed_change": "Run controlled pilot for '0.100.0' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/openai/codex/releases/tag/rust-v0.100.0"
+    ]
+  },
+  {
+    "action_id": "A-2026-02-16-11a83d82",
+    "priority": "P0",
+    "track": "ai_coding",
+    "title": "Release v0.30.0-nightly.20260212.099aa9621",
+    "rationale": "google-gemini/gemini-cli Releases source, score=100, confidence=High, track=ai_coding, focus=4, focus_hits=deprecate",
+    "proposed_change": "Run controlled pilot for 'Release v0.30.0-nightly.20260212.099aa9621' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/google-gemini/gemini-cli/releases/tag/v0.30.0-nightly.20260212.099aa9621"
+    ]
+  },
+  {
+    "action_id": "A-2026-02-16-bbf09264",
+    "priority": "P0",
+    "track": "data_layer",
+    "title": "PostgreSQL 18.2, 17.8, 16.12, 15.16, and 14.21 Released!",
+    "rationale": "PostgreSQL News source, score=100, confidence=High, track=data_layer, focus=12, focus_hits=security,cve,postgresql",
+    "proposed_change": "Assess schema/query/index impact of 'PostgreSQL 18.2, 17.8, 16.12, 15.16, and 14.21 Released!' and verify migration safety with backup/restore test.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://www.postgresql.org/about/news/postgresql-182-178-1612-1516-and-1421-released-3235/"
+    ]
+  },
+  {
+    "action_id": "A-2026-02-16-519446c5",
+    "priority": "P1",
+    "track": "data_layer",
+    "title": "8.4.0",
+    "rationale": "redis/redis Releases source, score=100, confidence=High, track=data_layer, focus=12, focus_hits=migration,performance,redis",
+    "proposed_change": "Assess schema/query/index impact of '8.4.0' and verify migration safety with backup/restore test.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/redis/redis/releases/tag/8.4.0"
+    ]
+  },
+  {
+    "action_id": "A-2026-02-16-9263c991",
+    "priority": "P1",
+    "track": "backend",
+    "title": "8.6.0",
+    "rationale": "redis/redis Releases source, score=100, confidence=High, track=backend, focus=8, focus_hits=performance,redis,docker",
+    "proposed_change": "Create spike branch to validate backend impact of '8.6.0', then run API smoke tests.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/redis/redis/releases/tag/8.6.0"
+    ]
+  },
+  {
+    "action_id": "A-2026-02-16-6e2140c2",
+    "priority": "P0",
+    "track": "ai_coding",
+    "title": "Release v0.30.0-nightly.20260210.8257ec447",
+    "rationale": "google-gemini/gemini-cli Releases source, score=100, confidence=High, track=ai_coding, focus=14, focus_hits=security,breaking,migration",
+    "proposed_change": "Run controlled pilot for 'Release v0.30.0-nightly.20260210.8257ec447' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/google-gemini/gemini-cli/releases/tag/v0.30.0-nightly.20260210.8257ec447"
+    ]
+  },
+  {
+    "action_id": "A-2026-02-16-2b99dbc9",
+    "priority": "P0",
+    "track": "data_layer",
+    "title": "PGDay Bangkok 2026 at FOSSASIA Summit – Schedule Now Published",
+    "rationale": "PostgreSQL News source, score=100, confidence=High, track=data_layer, focus=12, focus_hits=security,performance,postgresql",
+    "proposed_change": "Assess schema/query/index impact of 'PGDay Bangkok 2026 at FOSSASIA Summit – Schedule Now Published' and verify migration safety with backup/restore test.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://www.postgresql.org/about/news/pgday-bangkok-2026-at-fossasia-summit-schedule-now-published-3231/"
+    ]
+  }
+]

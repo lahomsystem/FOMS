@@ -86,17 +86,19 @@
 
 ## 다음 계획 (GDM 더블체크 후, 2026-02-16)
 
-### 더블체크 결과
+### 더블체크 결과 (최신)
 - **앱 기동**: `from app import app` OK
-- **DB**: 연결·vacuum·제약 정상
-- **코드**: app.py가 `apps.erp`·`erp_bp` 정상 참조, apps/erp.py 라우트 45개
+- **apps/erp.py**: ~4,993줄, **37개 라우트** (4-1·4-2 분리 반영)
+- **분리 완료**: notifications_bp, erp_shipment_bp 등록됨
+- **deploy**: Phase 4-1까지 반영. Phase 4-2는 feature/erp-split-shipment-settings에 있음
 
-### 우선순위
+### 다음 단계 계획서
+**상세 문서**: `docs/plans/2026-02-16-phase4-next-steps.md`
 
-| 순서 | 단계 | 작업 | 활용 자원 | 비고 |
-|------|------|------|-----------|------|
-| 0 | 배포 정리 | `feature/erp-beta-rename-to-erp` → deploy 머지 후 푸시 | Shell, Git | 한글 커밋 메시지 UTF-8 확인 |
-| 1 | Phase 4 준비 | apps/erp.py 구조 파악 (라우트·기능 경계) 및 1차 분리 후보 1개 선정 | Grep/Read, sequential-thinking, Rules 02/06 | 500줄 이하·한 번에 1개 모듈 |
-| 2 | Phase 4-1 | 선정된 블록 분리 (예: 출고 설정 API 또는 알림 API → 별도 Blueprint/모듈) | python-backend, context7(Flask), 기동 검증 | 브랜치 feature/erp-split-* |
-| 3 | 반복 | Phase 4-2, 4-3… (erp.py 5,000줄 → 여러 파일로 점진 분리) | 동일 | 목표: erp.py 500줄 이하 |
-| 4 | 선택 | app.py 잔여 라우트 정리·AI/카카오/불필요 파일 | - | 슬림다운 목표 300줄 달성 후 |
+| 순서 | 단계 | 작업 | 비고 |
+|------|------|------|------|
+| 0 | 배포 정리 | feature/erp-split-shipment-settings → deploy 머지·푸시, DEPLOY_NOTES 갱신 | Phase 4-2 반영 |
+| 1 | Phase 4-3 | 실측 API 분리 (measurement/update, measurement/route) | ~200줄, 1개 Blueprint |
+| 2 | Phase 4-4 | 지도/주소/유저 API 분리 후보 검토 | 500줄 이하 블록 여부 결정 |
+| 3 | Phase 4-5~ | 주문 API 기능별 그룹 분할 | erp.py 500줄 이하 목표 |
+| 4 | 선택 | app.py 300줄, AI/카카오/불필요 파일 | 슬림다운 최종 |

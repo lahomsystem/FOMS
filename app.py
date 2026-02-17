@@ -16,11 +16,29 @@ from flask_compress import Compress
 from whitenoise import WhiteNoise
 from markupsafe import Markup
 from werkzeug.utils import secure_filename
+from werkzeug import security as _werkzeug_security
+import sys
+# Python 3.12+: hmac.new() requires digestmod=; older Werkzeug passes method as 3rd pos arg.
+# pbkdf2/scrypt는 원래 구현(pbkdf2_hmac 등)을 사용해야 하므로 위임하고, 나머지만 HMAC 패치 적용.
+if sys.version_info >= (3, 12) and hasattr(_werkzeug_security, '_hash_internal'):
+    import hmac as _hmac
+    _original_hash_internal = _werkzeug_security._hash_internal
+    def _hash_internal_py312(method, salt, password):
+        if isinstance(method, str) and (method.startswith('pbkdf2') or method.startswith('scrypt')):
+            return _original_hash_internal(method, salt, password)
+        digestmod = getattr(hashlib, method, None) if isinstance(method, str) else method
+        if digestmod is None:
+            digestmod = hashlib.sha256
+        key = salt.encode('utf-8') if isinstance(salt, str) else salt
+        msg = password.encode('utf-8') if isinstance(password, str) else password
+        return _hmac.new(key, msg, digestmod=digestmod).hexdigest(), method
+    _werkzeug_security._hash_internal = _hash_internal_py312
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import or_, and_, text, func, String
 from sqlalchemy.orm.attributes import flag_modified
 import copy
 import json
+import threading
 from datetime import date, timedelta
 
 # 데이터베이스 관련 임포트
@@ -137,6 +155,14 @@ app.register_blueprint(notifications_bp)
 # ERP 출고 설정 Blueprint (Phase 4-2)
 from apps.api.erp_shipment_settings import erp_shipment_bp
 app.register_blueprint(erp_shipment_bp)
+from apps.api.erp_measurement import erp_measurement_bp
+app.register_blueprint(erp_measurement_bp)
+from apps.api.erp_map import erp_map_bp
+app.register_blueprint(erp_map_bp)
+from apps.api.erp_orders_quick import erp_orders_quick_bp
+app.register_blueprint(erp_orders_quick_bp)
+from apps.api.erp_orders_drawing import erp_orders_drawing_bp
+app.register_blueprint(erp_orders_drawing_bp)
 
 
 # Error handler with production safety
@@ -4714,49 +4740,77 @@ def metropolitan_dashboard():
                            STATUS=STATUS,
                            search_query=search_query)
 
-# 백업 시스템 라우트들
+# 백업 백그라운드 실행 상태 (타임아웃/연결 끊김 방지)
+_backup_state = {"running": False, "result": None, "error": None}
+_backup_state_lock = threading.Lock()
+
+
+def _run_backup_job():
+    """백그라운드에서 백업 실행 후 상태 갱신."""
+    global _backup_state
+    try:
+        backup_system = SimpleBackupSystem()
+        results = backup_system.execute_backup()
+        success_count = sum(1 for r in results.values() if r["success"])
+        with _backup_state_lock:
+            _backup_state["running"] = False
+            _backup_state["result"] = {
+                "success_count": success_count,
+                "total_tiers": 2,
+                "results": results,
+            }
+            _backup_state["error"] = None
+    except Exception as e:
+        with _backup_state_lock:
+            _backup_state["running"] = False
+            _backup_state["result"] = None
+            _backup_state["error"] = str(e)
+
+
 @app.route('/api/simple_backup', methods=['POST'])
 @login_required
 @role_required(['ADMIN'])
 def execute_simple_backup():
-    """간단한 2단계 백업 실행"""
+    """간단한 2단계 백업을 백그라운드에서 시작하고 즉시 응답 (타임아웃/ERR_CONNECTION_RESET 방지)."""
+    global _backup_state
     try:
-        backup_system = SimpleBackupSystem()
-        results = backup_system.execute_backup()
-        
-        # 결과 요약
-        success_count = sum(1 for r in results.values() if r["success"])
-        success_rate = success_count * 50  # 2단계이므로 50%씩
-        
-        # 로그 기록
-        log_access(f"백업 실행 - 성공률: {success_rate}%", session.get('user_id'), {
-            "tier1_success": results["tier1"]["success"],
-            "tier2_success": results["tier2"]["success"]
-        })
-        
+        with _backup_state_lock:
+            if _backup_state["running"]:
+                return jsonify({
+                    "success": True,
+                    "message": "이미 백업이 실행 중입니다. 1~2분 후 '백업 상태'를 새로고침하세요.",
+                    "backup_started": False,
+                    "backup_in_progress": True,
+                })
+            _backup_state["running"] = True
+            _backup_state["result"] = None
+            _backup_state["error"] = None
+        thread = threading.Thread(target=_run_backup_job, daemon=True)
+        thread.start()
+        log_access("백업 백그라운드 시작", session.get("user_id"))
         return jsonify({
             "success": True,
-            "message": f"백업 완료! 성공률: {success_rate}%",
-            "results": results,
-            "success_count": success_count,
-            "total_tiers": 2
+            "message": "백업이 백그라운드에서 시작되었습니다. 1~2분 후 아래 '백업 상태'를 새로고침하세요.",
+            "backup_started": True,
+            "backup_in_progress": True,
         })
-        
     except Exception as e:
-        log_access(f"백업 실행 실패: {str(e)}", session.get('user_id'))
+        with _backup_state_lock:
+            _backup_state["running"] = False
+        log_access(f"백업 시작 실패: {str(e)}", session.get("user_id"))
         return jsonify({
             "success": False,
-            "message": f"백업 실행 중 오류가 발생했습니다: {str(e)}"
+            "message": str(e),
         }), 500
 
 @app.route('/api/backup_status')
 @login_required
 @role_required(['ADMIN'])
 def check_backup_status():
-    """백업 상태 확인"""
+    """백업 상태 확인 (백업 진행 중 여부 및 마지막 백업 결과 포함)."""
+    global _backup_state
     try:
         backup_system = SimpleBackupSystem()
-        
         status = {
             "tier1": {
                 "path": backup_system.tier1_path,
@@ -4769,28 +4823,30 @@ def check_backup_status():
                 "latest_backup": None
             }
         }
-        
-        # 각 티어의 최신 백업 정보 조회
         for tier_name, tier_info in status.items():
             if tier_info["exists"]:
                 try:
                     info_file = os.path.join(tier_info["path"], "backup_info.json")
                     if os.path.exists(info_file):
-                        with open(info_file, 'r', encoding='utf-8') as f:
-                            backup_info = json.load(f)
-                            tier_info["latest_backup"] = backup_info
+                        with open(info_file, "r", encoding="utf-8") as f:
+                            tier_info["latest_backup"] = json.load(f)
                 except Exception as e:
                     tier_info["error"] = str(e)
-        
+        with _backup_state_lock:
+            backup_in_progress = _backup_state["running"]
+            last_result = _backup_state["result"]
+            last_error = _backup_state["error"]
         return jsonify({
             "success": True,
-            "status": status
+            "status": status,
+            "backup_in_progress": backup_in_progress,
+            "last_backup_result": last_result,
+            "last_backup_error": last_error,
         })
-        
     except Exception as e:
         return jsonify({
             "success": False,
-            "message": f"백업 상태 확인 중 오류: {str(e)}"
+            "message": str(e),
         }), 500
 
 @app.route('/self_measurement_dashboard')

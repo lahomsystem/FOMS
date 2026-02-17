@@ -1,0 +1,264 @@
+{
+  "agents": [
+    {
+      "kind": "agents",
+      "name": "grand-develop-master",
+      "path": ".cursor\\agents\\grand-develop-master.md",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "agents",
+      "name": "coding-research-center",
+      "path": ".cursor\\agents\\coding-research-center.md",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "agents",
+      "name": "evolution-architect",
+      "path": ".cursor\\agents\\evolution-architect.md",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "agents",
+      "name": "migration-executor",
+      "path": ".cursor\\agents\\migration-executor.md",
+      "exists": true,
+      "auto_create_stub": true,
+      "install": null
+    }
+  ],
+  "rules": [
+    {
+      "kind": "rules",
+      "name": "12-macro-micro-migration-execution",
+      "path": ".cursor\\rules\\12-macro-micro-migration-execution.mdc",
+      "exists": true,
+      "auto_create_stub": true,
+      "install": null
+    },
+    {
+      "kind": "rules",
+      "name": "13-self-evolution-autoupgrade",
+      "path": ".cursor\\rules\\13-self-evolution-autoupgrade.mdc",
+      "exists": true,
+      "auto_create_stub": true,
+      "install": null
+    }
+  ],
+  "skills": [
+    {
+      "kind": "skills",
+      "name": "tech-stack-evaluator",
+      "path": ".cursor\\skills\\skills\\tech-stack-evaluator\\SKILL.md",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "skills",
+      "name": "self-evolution-factory",
+      "path": ".cursor\\skills\\skills\\self-evolution-factory\\SKILL.md",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "skills",
+      "name": "context7-auto-research",
+      "path": ".cursor\\skills\\skills\\context7-auto-research\\SKILL.md",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "skills",
+      "name": "agent-orchestration-multi-agent-optimize",
+      "path": ".cursor\\skills\\skills\\agent-orchestration-multi-agent-optimize\\SKILL.md",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    }
+  ],
+  "hooks": [
+    {
+      "kind": "hooks",
+      "name": "guard_shell",
+      "path": ".cursor\\hooks\\guard_shell.py",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "hooks",
+      "name": "session_start",
+      "path": ".cursor\\hooks\\session_start.py",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "hooks",
+      "name": "pre_compact",
+      "path": ".cursor\\hooks\\pre_compact.py",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "hooks",
+      "name": "track_edits",
+      "path": ".cursor\\hooks\\track_edits.py",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "hooks",
+      "name": "session_stop",
+      "path": ".cursor\\hooks\\session_stop.py",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    }
+  ],
+  "docs": [
+    {
+      "kind": "docs",
+      "name": "evolution_radar",
+      "path": "docs\\evolution\\RADAR.md",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "docs",
+      "name": "evolution_backlog",
+      "path": "docs\\evolution\\HYPOTHESIS_BACKLOG.md",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "docs",
+      "name": "evolution_decisions",
+      "path": "docs\\evolution\\EVOLUTION_DECISIONS.md",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "docs",
+      "name": "research_latest",
+      "path": "docs\\evolution\\research\\LATEST.md",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "docs",
+      "name": "migration_plan",
+      "path": "docs\\evolution\\research\\MACRO_MICRO_MIGRATION_PLAN.md",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    },
+    {
+      "kind": "docs",
+      "name": "self_upgrade_plan",
+      "path": "docs\\evolution\\research\\SELF_UPGRADE_PLAN.md",
+      "exists": true,
+      "auto_create_stub": false,
+      "install": null
+    }
+  ],
+  "mcps": [
+    {
+      "kind": "mcps",
+      "name": "sequential-thinking",
+      "exists": true,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-sequential-thinking"
+        ]
+      }
+    },
+    {
+      "kind": "mcps",
+      "name": "mcp-reasoner",
+      "exists": true,
+      "config": {
+        "command": "node",
+        "args": [
+          "C:\\\\Users\\\\USER\\\\mcp-reasoner\\\\dist\\\\index.js"
+        ]
+      }
+    },
+    {
+      "kind": "mcps",
+      "name": "context7",
+      "exists": true,
+      "config": {
+        "command": "cmd",
+        "args": [
+          "/c",
+          "npx",
+          "-y",
+          "@upstash/context7-mcp@latest"
+        ]
+      }
+    },
+    {
+      "kind": "mcps",
+      "name": "postgres",
+      "exists": true,
+      "config": null
+    },
+    {
+      "kind": "mcps",
+      "name": "memory",
+      "exists": true,
+      "config": {
+        "command": "cmd",
+        "args": [
+          "/c",
+          "npx",
+          "-y",
+          "@modelcontextprotocol/server-memory"
+        ]
+      }
+    },
+    {
+      "kind": "mcps",
+      "name": "markitdown",
+      "exists": true,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "markitdown-mcp-npx"
+        ]
+      }
+    },
+    {
+      "kind": "mcps",
+      "name": "filesystem",
+      "exists": true,
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          "c:\\\\Users\\\\USER\\\\OneDrive\\\\Desktop\\\\SY\\\\program\\\\lahomproject\\\\FOMS"
+        ]
+      }
+    }
+  ]
+}

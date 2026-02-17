@@ -14,6 +14,12 @@
                     <button id="backupBtn" class="btn btn-warning">🚨 시스템 백업 실행</button>
                 </div>
 
+                <div id="backupStatusCard" class="alert alert-secondary mb-4" role="status" aria-live="polite">
+                    <h6 class="alert-heading mb-2">백업 상태</h6>
+                    <p id="backupStatusText" class="mb-0">불러오는 중...</p>
+                    <button id="backupStatusRefresh" type="button" class="btn btn-sm btn-outline-secondary mt-2" style="display:none;">새로고침</button>
+                </div>
+
                 <ul class="nav nav-tabs" id="adminTabs" role="tablist">
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active" id="menu-tab" data-bs-toggle="tab" data-bs-target="#menu" type="button" role="tab" aria-controls="menu" aria-selected="true">메뉴 관리</button>
@@ -63,6 +69,63 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        var backupStatusCard = document.getElementById('backupStatusCard');
+        var backupStatusText = document.getElementById('backupStatusText');
+        var backupStatusRefresh = document.getElementById('backupStatusRefresh');
+
+        function renderBackupStatus(st) {
+            if (!st || !st.success) {
+                backupStatusText.textContent = '상태를 불러올 수 없습니다.';
+                backupStatusCard.className = 'alert alert-secondary mb-4';
+                return;
+            }
+            if (st.backup_in_progress) {
+                backupStatusText.innerHTML = '🔄 백업 실행 중... (1~2분 소요)';
+                backupStatusCard.className = 'alert alert-info mb-4';
+                backupStatusRefresh.style.display = 'none';
+                return;
+            }
+            if (st.last_backup_error) {
+                backupStatusText.innerHTML = '❌ 백업 실패: ' + st.last_backup_error;
+                backupStatusCard.className = 'alert alert-danger mb-4';
+                backupStatusRefresh.style.display = 'inline-block';
+                return;
+            }
+            if (st.last_backup_result) {
+                var r = st.last_backup_result;
+                backupStatusText.innerHTML = '✅ <strong>백업이 완료되었습니다.</strong><br>성공: ' + (r.success_count || 0) + '/' + (r.total_tiers || 2) + ' (1차·2차)';
+                backupStatusCard.className = 'alert alert-success mb-4';
+                backupStatusRefresh.style.display = 'inline-block';
+                return;
+            }
+            var t1 = st.status && st.status.tier1 && st.status.tier1.latest_backup;
+            var t2 = st.status && st.status.tier2 && st.status.tier2.latest_backup;
+            var backupTime = (t1 && t1.backup_time) || (t2 && t2.backup_time);
+            if (backupTime) {
+                backupStatusText.innerHTML = '✅ 마지막 백업: ' + backupTime.replace('T', ' ').substring(0, 19) + '<br>(주문·상태·실측·체크리스트·워크플로우 포함)';
+                backupStatusCard.className = 'alert alert-success mb-4';
+            } else {
+                backupStatusText.textContent = '마지막 백업 이력 없음. 위 버튼으로 백업을 실행하세요.';
+                backupStatusCard.className = 'alert alert-secondary mb-4';
+            }
+            backupStatusRefresh.style.display = 'inline-block';
+        }
+
+        function loadBackupStatus() {
+            backupStatusText.textContent = '불러오는 중...';
+            fetch('/api/backup_status').then(function(res) { return res.json(); }).then(function(st) {
+                renderBackupStatus(st);
+            }).catch(function() {
+                backupStatusText.textContent = '상태를 불러올 수 없습니다.';
+                backupStatusCard.className = 'alert alert-secondary mb-4';
+            });
+        }
+
+        backupStatusRefresh.addEventListener('click', function() {
+            loadBackupStatus();
+        });
+        loadBackupStatus();
+
         // Add basic JSON validation
         document.querySelector('form').addEventListener('submit', function(event) {
             const menuConfig = document.getElementById('menu_config').value;
@@ -79,58 +142,77 @@
             }
         });
         
-        // 백업 버튼 기능
+        // 백업 버튼 기능 (백그라운드 실행 → 타임아웃/연결 끊김 방지)
         document.getElementById('backupBtn').addEventListener('click', function() {
-                         if (!confirm('시스템 백업을 실행하시겠습니까?\n\n백업 내용:\n- 데이터베이스 전체\n- 시스템 파일들\n\n백업 위치:\n1차: 로컬 (backups/tier1_primary)\n2차: 다른 폴더 (backups/tier2_secondary)')) {
+            if (!confirm('시스템 백업을 실행하시겠습니까?\n\n백업 내용:\n- 데이터베이스 전체(주문·상태·실측·체크리스트·워크플로우 포함)\n- 시스템 파일들\n\n백업 위치:\n1차: 로컬 (backups/tier1_primary)\n2차: 다른 폴더 (backups/tier2_secondary)')) {
                 return;
             }
-            
             const btn = this;
             btn.disabled = true;
-            btn.innerHTML = '🔄 백업 실행 중...';
-            
-            fetch('/api/simple_backup', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert(`✅ ${data.message}\n\n성공한 백업: ${data.success_count}/${data.total_tiers}`);
-                    
-                    // 백업 상태 확인
-                    fetch('/api/backup_status')
-                    .then(response => response.json())
-                    .then(statusData => {
-                        if (statusData.success) {
-                            let statusMsg = '\n📊 백업 상태:\n';
-                            for (const [tier, info] of Object.entries(statusData.status)) {
-                                const status = info.exists ? '✅ 존재' : '❌ 없음';
-                                statusMsg += `${tier.toUpperCase()}: ${status} (${info.path})\n`;
-                                
-                                if (info.latest_backup) {
-                                    const date = new Date(info.latest_backup.backup_time).toLocaleString('ko-KR');
-                                    const sizeMB = (info.latest_backup.database_size / (1024*1024)).toFixed(2);
-                                    statusMsg += `  └ 최신 백업: ${date} (${sizeMB}MB)\n`;
-                                }
-                            }
-                            console.log(statusMsg);
+            btn.innerHTML = '🔄 백업 시작 중...';
+            backupStatusText.innerHTML = '🔄 백업 실행 중... (1~2분 소요)';
+            backupStatusCard.className = 'alert alert-info mb-4';
+            fetch('/api/simple_backup', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        if (data.backup_started || data.backup_in_progress) {
+                            alert('✅ ' + data.message);
+                            window._backupPolling = true;
+                            var pollCount = 0, maxPoll = 30;
+                            var poll = function() {
+                                pollCount++;
+                                fetch('/api/backup_status').then(function(res) { return res.json(); }).then(function(st) {
+                                    if (!st.success) return;
+                                    if (st.backup_in_progress && pollCount < maxPoll) {
+                                        btn.innerHTML = '🔄 백업 실행 중... (' + (pollCount * 4) + '초)';
+                                        backupStatusText.innerHTML = '🔄 백업 실행 중... (' + (pollCount * 4) + '초)';
+                                        setTimeout(poll, 4000);
+                                        return;
+                                    }
+                                    window._backupPolling = false;
+                                    btn.disabled = false;
+                                    btn.innerHTML = '🚨 시스템 백업 실행';
+                                    renderBackupStatus(st);
+                                    if (st.last_backup_error) {
+                                        alert('❌ 백업 실패: ' + st.last_backup_error);
+                                        return;
+                                    }
+                                    if (st.last_backup_result) {
+                                        alert('✅ 백업이 완료되었습니다.\n성공: ' + st.last_backup_result.success_count + '/' + st.last_backup_result.total_tiers);
+                                    }
+                                }).catch(function() {
+                                    window._backupPolling = false;
+                                    btn.disabled = false;
+                                    btn.innerHTML = '🚨 시스템 백업 실행';
+                                    loadBackupStatus();
+                                });
+                            };
+                            setTimeout(poll, 4000);
+                            return;
                         }
-                    });
-                } else {
-                    alert(`❌ 백업 실패: ${data.message}`);
-                }
-            })
-            .catch(error => {
-                console.error('백업 오류:', error);
-                alert('❌ 백업 실행 중 오류가 발생했습니다.');
-            })
-            .finally(() => {
-                btn.disabled = false;
-                btn.innerHTML = '🚨 시스템 백업 실행';
-            });
+                        if (data.success_count != null) {
+                            alert('✅ ' + data.message + '\n\n성공한 백업: ' + data.success_count + '/' + data.total_tiers);
+                        } else {
+                            alert('✅ ' + data.message);
+                        }
+                        loadBackupStatus();
+                    } else {
+                        alert('❌ 백업 실패: ' + (data.message || '알 수 없는 오류'));
+                        loadBackupStatus();
+                    }
+                })
+                .catch(function(err) {
+                    console.error('백업 오류:', err);
+                    alert('❌ 백업 요청 중 오류가 발생했습니다. 네트워크를 확인한 뒤 다시 시도하세요.');
+                    loadBackupStatus();
+                })
+                .finally(function() {
+                    if (!window._backupPolling) {
+                        btn.disabled = false;
+                        btn.innerHTML = '🚨 시스템 백업 실행';
+                    }
+                });
         });
     });
 </script>

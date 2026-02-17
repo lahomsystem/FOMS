@@ -6,6 +6,11 @@
 
 | ID | 상태 | 설명 | 시작일 | 최종 업데이트 |
 |----|------|------|--------|-------------|
+| SLIM-009 | 완료 | Phase 4-5c: 도면 창구 업로드 → erp_orders_drawing_bp (drawing-gateway-upload) | 2026-02-17 | 2026-02-17 |
+| SLIM-008 | 완료 | Phase 4-5b: 도면 전달/취소 API → apps/api/erp_orders_drawing.py (transfer-drawing, cancel-transfer) | 2026-02-17 | 2026-02-17 |
+| SLIM-007 | 완료 | Phase 4-5a: 주문 Quick API → apps/api/erp_orders_quick.py (quick-search, quick-info, quick-status) | 2026-02-17 | 2026-02-17 |
+| SLIM-006 | 완료 | Phase 4-4: 지도/주소/유저 API → apps/api/erp_map.py 분리 (map_data, users, generate_map, update_address) | 2026-02-17 | 2026-02-17 |
+| SLIM-005 | 완료 | Phase 4-3: 실측 API → apps/api/erp_measurement.py 분리 (measurement/update, measurement/route) | 2026-02-17 | 2026-02-17 |
 | SLIM-002 | 완료 | feature/erp-beta-rename-to-erp → deploy 머지·푸시 | 2026-02-16 | 2026-02-16 |
 | SLIM-003 | 완료 | Phase 4 준비: apps/erp.py 구조 파악 및 1차 분리 후보 선정 | 2026-02-16 | 2026-02-16 |
 | SLIM-004 | 완료 | Phase 4-1: 알림 API → apps/api/notifications.py 분리 (feature/erp-split-notifications) | 2026-02-16 | 2026-02-16 |
