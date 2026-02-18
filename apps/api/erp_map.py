@@ -4,7 +4,7 @@ erp.py에서 분리: map_data, erp users 목록, generate_map, update_address.
 """
 import datetime
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, render_template
 from sqlalchemy import or_, and_, func, String
 
 from db import get_db
@@ -16,6 +16,13 @@ from foms_map_generator import FOMSMapGenerator
 from sqlalchemy.orm.attributes import flag_modified
 
 erp_map_bp = Blueprint('erp_map', __name__)
+
+
+@erp_map_bp.route('/map_view')
+@login_required
+def map_view():
+    """지도 보기 페이지"""
+    return render_template('map_view.html')
 
 
 @erp_map_bp.route('/api/map_data')

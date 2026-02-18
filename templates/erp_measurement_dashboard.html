@@ -360,7 +360,7 @@
                   data-manager="{{ manager or '' }}" class="measurement-row">
                   <td class="text-center" style="border-right: 1px solid #e0e0e0;">
                     {% if can_edit_erp|default(false) %}
-                    <a href="{{ url_for('edit_order', order_id=r.id, return_to='erp_measurement_dashboard') }}?open=erp-beta"
+                    <a href="{{ url_for('order_pages.edit_order', order_id=r.id, return_to='erp_measurement_dashboard') }}?open=erp-beta"
                       class="btn btn-sm btn-outline-primary" title="주문 상세">
                       <i class="fas fa-edit"></i>
                     </a>

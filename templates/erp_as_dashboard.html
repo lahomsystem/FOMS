@@ -79,7 +79,7 @@
             <tr>
               <td>
                 {% if can_edit_erp|default(false) %}
-                <a href="{{ url_for('edit_order', order_id=r.id) }}?open=erp-beta" class="erp-pro-link">#{{ r.id }}</a>
+                <a href="{{ url_for('order_pages.edit_order', order_id=r.id) }}?open=erp-beta" class="erp-pro-link">#{{ r.id }}</a>
                 {% else %}
                 #{{ r.id }} <span class="text-muted small">(권한없음)</span>
                 {% endif %}
@@ -121,7 +121,7 @@
         <div class="erp-pro-order-card">
           <div class="erp-pro-order-card__header">
             {% if can_edit_erp|default(false) %}
-            <a href="{{ url_for('edit_order', order_id=r.id) }}?open=erp-beta" class="erp-pro-order-card__id">#{{ r.id }}</a>
+            <a href="{{ url_for('order_pages.edit_order', order_id=r.id) }}?open=erp-beta" class="erp-pro-order-card__id">#{{ r.id }}</a>
             {% else %}
             <span class="erp-pro-order-card__id">#{{ r.id }} <span class="text-muted small">(권한없음)</span></span>
             {% endif %}
