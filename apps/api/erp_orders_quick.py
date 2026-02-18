@@ -11,8 +11,8 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order, SecurityLog
 from apps.auth import login_required, get_user_by_id
+from services.erp_permissions import erp_edit_required
 from apps.erp import (
-    erp_edit_required,
     _normalize_for_search,
     _ensure_dict,
     apply_erp_display_fields_to_orders,

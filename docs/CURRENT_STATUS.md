@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 
-## 마지막 업데이트: 2026-02-17 (SLIM-025 bulk_action → order_pages_bp 완료)
+## 마지막 업데이트: 2026-02-18 (ERP-SLIM-7~10 + erp.py 전체 분리 완료, 40줄)
 
 ## 세션 재개 시 이어서 작업 가용자원 (컨텍스트 풀 시)
 
@@ -93,6 +93,15 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 **docs/DEPLOY_NOTES.md** — deploy에 올릴 때마다 "뭘 했는지" 누구나 알 수 있게 쉬운 말로 정리
 
 ## 최근 변경
+- [2026-02-18] **ERP-SLIM-7~10 + erp.py 전체 분리 완료 (40줄)**
+  - `apps/erp_shipment_page.py` 신규: `erp_shipment_page_bp` (/erp/shipment, ~250줄)
+  - `apps/erp_as_page.py` 신규: `erp_as_page_bp` (/erp/as, ~60줄)
+  - `apps/erp_production_page.py` 신규: `erp_production_page_bp` (/erp/production/dashboard, ~170줄)
+  - `apps/erp_construction_page.py` 신규: `erp_construction_page_bp` (/erp/construction/dashboard, ~160줄)
+  - erp.py → 허브 역할만 (필터 등록 + display re-export + _normalize_for_search). 656줄 → **40줄**
+  - url_for 전수 수정: erp_sub_nav, erp_shipment_dashboard, erp_shipment_settings, erp_production_dashboard
+- [2026-02-18] **ERP-SLIM-6: 실측 대시보드 분리**
+  - `apps/erp_measurement_dashboard.py` 신규: `erp_measurement_dashboard_bp` (/erp/measurement). erp.py에서 해당 블록 제거 (~190줄 감소). url_for → erp_measurement_dashboard.erp_measurement_dashboard, layout endpoint 체크 수정.
 - [2026-02-17] **SLIM-025: bulk_action → order_pages_bp**
   - order_pages_bp에 bulk_action 라우트 추가 (삭제/복사/상태변경). app.py ~146줄 감소 (~1,568줄).
 - [2026-02-17] **SLIM-024: delete/trash/restore → order_trash_bp**
@@ -186,8 +195,8 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 - [2026-02-15] Cursor Rules 초기 생성
 
 ## 핵심 파일 크기 현황 (분리 대상)
-- app.py: ~1,850줄 (목표: 300줄, SLIM-023 완료 2026-02-17)
-- apps/erp.py: ~1,900줄·0 주문 API 라우트 (Phase 4-1~4-5h 주문 API 전부 분리 완료, 목표: 500줄 이하)
+- app.py: **~319줄** (목표: 300줄 근접, SLIM-026~034 완료)
+- apps/erp.py: **40줄** (허브 역할만 - 모든 대시보드 페이지 분리 완료, 목표 500줄 이하 달성)
 - templates/erp_dashboard.html: 594줄 (partial 분리 완료, 3-1)
 - templates/chat.html: 229줄 (partial 분리 완료, 3-2)
 
@@ -202,25 +211,19 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 | Skills | GDM/tech-stack/self-evolution/architect/code-review/production-audit | .cursor/skills/skills/ | 624개+ 공통 스킬 |
 | 배포 노트 | DEPLOY_NOTES.md | docs/DEPLOY_NOTES.md | 쉬운 한글 배포 내용 |
 
-## 다음 계획 (GDM 더블체크 2026-02-17)
-- **0.** feature/erp-split-shipment-settings → deploy 머지·푸시 ✅ 완료
-- **1~5.** Phase 4-3~4-5c ✅ 완료
-- **6.** Phase 4-5d: request-revision 블록 ✅ 완료 (erp_orders_revision_bp)
-- **7.** Phase 4-5e: assign-draftsman 블록 ✅ 완료 (erp_orders_draftsman_bp)
-- **8.** Phase 4-5f: production API ✅ 완료 (erp_orders_production_bp)
-- **9.** Phase 4-5g: construction API ✅ 완료 (erp_orders_construction_bp)
-- **10.** Phase 4-5h(1): cs/complete ✅ 완료 (erp_orders_cs_bp)
-- **11.** Phase 4-5h(2): AS 3개 ✅ 완료 (erp_orders_as_bp)
-- **12.** Phase 4-5h(3)(4): drawing 2개·confirm/customer ✅ 완료 (erp_orders_revision_bp 확장, erp_orders_confirm_bp 신규)
-- **13.** erp.py 주문 API 라우트 **전부 분리 완료**. 다음: erp.py 추가 슬림다운 (페이지 라우트·필터 등)
-- **계획서**: `docs/plans/2026-02-16-phase4-next-steps.md`
+## 다음에 시작할 작업 (GDM 더블체크 2026-02-18)
+- **우선**: **SLIM-035** — app.py 319줄 → 300줄 이하 마무리 (불필요 import/주석 제거, 구조 정리). 선택 사항(이미 근접).
+- **배포**: erp.py 분리(ERP-SLIM-1~10) 내용을 **DEPLOY_NOTES.md**에 반영 후 deploy 브랜치 푸시.
+- **이후 선택**: AI 분석 툴(ai.py), 카카오 알림톡(kakao.py), 불필요 파일 정리, 또는 **개발 품질 감사**(GDM 역할 1번) 실행.
+- **계획서**: `docs/plans/2026-02-17-erp-split-plan.md`, `docs/plans/2026-02-18-app-slim-task-plan.md`
 
 ## 고도화 예정
 - [x] app.py 채팅 분리 (Phase 2-1 완료)
 - [x] app.py 수납장 대시보드 분리 (Phase 2-2 완료)
 - [x] app.py 파일 URL 헬퍼 이전 (Phase 2-3 완료)
 - [x] Phase 3 템플릿 분리 (erp_dashboard·chat partial 완료)
-- [ ] app.py 추가 슬림다운 (Phase 4 ERP 모듈 세분화 등)
+- [x] app.py·erp.py 슬림다운 (app ~319줄, erp 40줄 — 목표 달성)
+- [ ] app.py 300줄 이하 최종 정리 (SLIM-035, 선택)
 - [ ] AI 분석 툴 추가 (apps/api/ai.py)
 - [ ] 카카오 알림톡 발송 (apps/api/kakao.py)
 - [ ] 불필요 파일 정리

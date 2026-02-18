@@ -7,8 +7,6 @@ import hashlib
 import datetime
 import json
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, g, session, send_from_directory, current_app
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from flask_compress import Compress
 from whitenoise import WhiteNoise
 from werkzeug import security as _werkzeug_security
@@ -108,17 +106,36 @@ if not app.secret_key:
 # Session cookie configuration (prevent conflicts with other Flask apps on same domain)
 app.config['SESSION_COOKIE_NAME'] = 'session_staging'  # Different from port 5000 (session_dev)
 
-# Fix for Railway/Load Balancer (HTTPS redirect loop)
-from werkzeug.middleware.proxy_fix import ProxyFix
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+# ProxyFix: Railway/Reverse Proxy 뒤에서만 적용 (직접 접속 시 ERR_TOO_MANY_REDIRECTS 방지)
+# - LAN IP(172.30.x.x) 또는 localhost 직접 접속 시 X-Forwarded-* 헤더 오염으로 리다이렉트 루프 발생
+# - TRUST_PROXY=1 또는 FLASK_ENV=production 일 때만 활성화
+_trust_proxy = os.environ.get('TRUST_PROXY', '').lower() in ('1', 'true', 'yes')
+if _trust_proxy or _is_production:
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # Import Apps Blueprints
 from apps.auth import auth_bp, login_required, role_required, ROLES, TEAMS, log_access, get_user_by_id
 app.register_blueprint(auth_bp)
 
 # ERP Beta Blueprint
-from apps.erp import erp_bp, apply_erp_display_fields_to_orders, can_edit_erp
+from apps.erp import erp_bp, apply_erp_display_fields_to_orders
+from services.erp_permissions import can_edit_erp
 app.register_blueprint(erp_bp)
+from apps.erp_dashboard import erp_dashboard_bp
+app.register_blueprint(erp_dashboard_bp)
+from apps.erp_drawing_workbench import erp_drawing_workbench_bp
+app.register_blueprint(erp_drawing_workbench_bp)
+from apps.erp_measurement_dashboard import erp_measurement_dashboard_bp
+app.register_blueprint(erp_measurement_dashboard_bp)
+from apps.erp_shipment_page import erp_shipment_page_bp
+app.register_blueprint(erp_shipment_page_bp)
+from apps.erp_as_page import erp_as_page_bp
+app.register_blueprint(erp_as_page_bp)
+from apps.erp_production_page import erp_production_page_bp
+app.register_blueprint(erp_production_page_bp)
+from apps.erp_construction_page import erp_construction_page_bp
+app.register_blueprint(erp_construction_page_bp)
 
 # API Files Blueprint
 from apps.api.files import files_bp, build_file_view_url, build_file_download_url
@@ -197,7 +214,8 @@ from apps.calendar_page import calendar_bp
 app.register_blueprint(calendar_bp)
 from apps.wdplanner_page import wdplanner_bp
 app.register_blueprint(wdplanner_bp)
-from services.request_utils import get_preserved_filter_args
+from apps.api.debug import debug_bp
+app.register_blueprint(debug_bp)
 
 # Error handler with production safety
 @app.errorhandler(500)
@@ -220,64 +238,12 @@ def build_info():
         'template': 'templates/layout.html',
     })
 
-# ==========================================
-# Security & Scalability Configuration (Quest 14)
-# ==========================================
-
-# 1. Redis Configuration
+# Security & Scalability (Quest 14): Rate Limiter → config/rate_limit.py
 redis_url = os.environ.get('REDIS_URL')
+from config.rate_limit import init_limiter
+limiter = init_limiter(app)
 
-# 2. Rate Limiter (DDoS Protection)
-# Redis가 있으면 Redis를 저장소로, 없으면 메모리 사용
-# NOTE:
-# - Railway/Reverse proxy 환경에서는 get_remote_address()가 내부 IP로 고정될 수 있어
-#   사용자들이 같은 rate-limit bucket을 공유하게 됩니다.
-# - 인증 사용자(user_id) -> 세션쿠키 해시 -> X-Forwarded-For -> Remote Addr 순서로 key를 선택해
-#   불필요한 429를 줄입니다.
-def rate_limit_key():
-    try:
-        uid = session.get('user_id')
-        if uid:
-            return f"user:{uid}"
-    except Exception:
-        pass
-
-    # 로그인 세션이 있으나 user_id를 복원하지 못한 경우(예: 세션 초기화 타이밍/리다이렉트 직후)
-    # 동일 IP 공유로 bucket 충돌이 발생하지 않도록 세션쿠키 해시를 key로 사용
-    try:
-        cookie_name = app.config.get('SESSION_COOKIE_NAME', 'session')
-        raw_cookie = request.cookies.get(cookie_name, '').strip()
-        if raw_cookie:
-            cookie_hash = hashlib.sha1(raw_cookie.encode('utf-8')).hexdigest()[:16]
-            return f"sess:{cookie_hash}"
-    except Exception:
-        pass
-
-    xff = request.headers.get('X-Forwarded-For', '')
-    if xff:
-        client_ip = xff.split(',')[0].strip()
-        if client_ip:
-            return client_ip
-
-    x_real_ip = request.headers.get('X-Real-IP', '').strip()
-    if x_real_ip:
-        return x_real_ip
-
-    return get_remote_address()
-
-_default_limits_raw = os.environ.get('FLASK_DEFAULT_RATE_LIMITS', '5000 per day,1200 per hour')
-default_limits = [x.strip() for x in _default_limits_raw.split(',') if x.strip()]
-if not default_limits:
-    default_limits = ["5000 per day", "1200 per hour"]
-
-limiter = Limiter(
-    rate_limit_key,
-    app=app,
-    storage_uri=redis_url or "memory://",
-    default_limits=default_limits
-)
-
-# 3. SocketIO Initialization with Redis & CORS Control
+# SocketIO Initialization with Redis & CORS Control
 # Use threading mode for Windows WebSocket support & Stability
 if SOCKETIO_AVAILABLE:
     try:
@@ -331,98 +297,11 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # 데이터베이스 연결 설정
 app.teardown_appcontext(close_db)
 app.teardown_appcontext(close_wdcalculator_db)  # 견적 계산기 독립 DB
+# allowed_file, allowed_erp_media_file → services/file_utils.py
 
-# Function to check if file has allowed extension
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def allowed_erp_media_file(filename):
-    """ERP Beta 첨부(사진/동영상) 확장자 검증"""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ERP_MEDIA_ALLOWED_EXTENSIONS
-
-
-# Status constants moved to constants.py
-
-@app.template_filter('parse_json_string')
-def parse_json_string(value):
-    if not value:
-        return {}
-    if isinstance(value, dict):
-        return value
-    try:
-        return json.loads(value)
-    except (ValueError, TypeError):
-        return {}
-
-@app.context_processor
-def inject_statuses():
-    return dict(
-        ALL_STATUS=STATUS,
-        BULK_ACTION_STATUS=BULK_ACTION_STATUS
-    )
-
-# Auth logic moved to apps/auth.py
-
-# Auth helper functions moved to apps/auth.py
-
-# role_required moved to apps/auth.py
-
-# ============================================
-# ERP Process Dashboard (Palantir-style)
-# _ensure_dict, format_options_for_display → services.order_display_utils
-
-# Context Processors
-@app.context_processor
-def inject_status_list():
-    """상태 목록과 현재 사용자 정보를 템플릿에 주입"""
-    # 삭제됨(DELETED) 상태를 제외한 상태 목록
-    display_status = {k: v for k, v in STATUS.items() if k != 'DELETED'}
-    
-    # 일괄 작업용 상태 목록 (삭제됨 제외)
-    bulk_action_status = {k: v for k, v in STATUS.items() if k != 'DELETED'}
-    
-    # 현재 로그인한 사용자 추가
-    current_user = None
-    if 'user_id' in session:
-        current_user = get_user_by_id(session['user_id'])
-
-    # 관리자 전용: 드롭다운 아이디 이동용 사용자 목록 / 전환 중인지 여부
-    admin_switch_users = []
-    impersonating_from_id = session.get('impersonating_from')
-    if current_user and current_user.role == 'ADMIN':
-        db = get_db()
-        admin_switch_users = db.query(User).filter(
-            User.is_active == True,
-            User.id != current_user.id
-        ).order_by(User.name).all()
-
-    # ERP Beta 플래그 (기본: 활성) - 필요 시 환경변수로 OFF 가능
-    erp_beta_enabled = str(os.getenv('ERP_BETA_ENABLED', 'true')).lower() in ['1', 'true', 'yes', 'y', 'on']
-    
-    return dict(
-        STATUS=display_status, 
-        BULK_ACTION_STATUS=bulk_action_status,
-        ALL_STATUS=STATUS, 
-        ROLES=ROLES,
-        current_user=current_user,
-        admin_switch_users=admin_switch_users,
-        impersonating_from_id=impersonating_from_id,
-        erp_beta_enabled=erp_beta_enabled
-    )
-
-def parse_json_string(json_string):
-    if not json_string:
-        return None
-    try:
-        return json.loads(json_string)
-    except json.JSONDecodeError:
-        return None
-
-@app.context_processor
-def utility_processor():
-    return dict(parse_json_string=parse_json_string)
-
-
+# Context processors → services/context_processors.py
+from services.context_processors import register_context_processors
+register_context_processors(app)
 
 # Routes
 @app.route('/favicon.ico')
@@ -430,218 +309,11 @@ def favicon():
     """favicon 요청 처리 (404 방지)"""
     return '', 204  # No Content
 
-@app.route('/debug-db')
-def debug_db():
-    """Database Connection Check Route (Temporary)"""
-    try:
-        from sqlalchemy import text
-        db = get_db()
-        # 1. Simple Select
-        result = db.execute(text("SELECT 1")).fetchone()
-        
-        # 2. Check Tables
-        tables_query = text("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
-        tables = [row[0] for row in db.execute(tables_query).fetchall()]
-        
-        status = "SUCCESS"
-        message = f"Connected! Result: {result}, Tables: {tables}"
-        
-        # Check specific table
-        if 'users' in tables:
-            user_count = db.query(User).count()
-            message += f" | Users count: {user_count}"
-        else:
-            status = "WARNING"
-            message += " | 'users' table MISSING"
-            
-        return jsonify({"status": status, "message": message, "env_db_url_set": bool(os.environ.get('DATABASE_URL'))})
-        
-    except Exception as e:
-        import traceback
-        return jsonify({
-            "status": "ERROR", 
-            "error": str(e), 
-            "traceback": traceback.format_exc()
-        }), 500
-
-# index, add_order, edit_order -> order_pages_bp
-# upload, download_excel -> excel_bp
-# calendar -> calendar_bp
-# map_view -> erp_map_bp
-# wdplanner 3 routes -> wdplanner_bp
-
-# calculate_route, address_suggestions, add_address_learning, validate_address, map_view -> erp_map_bp
-# /api/orders (캘린더) -> orders_bp
-# translate_dict_keys, format_value_for_log -> 미사용 제거
-# load_menu_config -> services.menu_config
-# order_link_filter -> order_pages_bp.app_template_filter
-
-from services.menu_config import load_menu_config
-
-
-@app.context_processor
-def inject_menu():
-    return dict(menu=load_menu_config())
-
-# 도면 관리 API -> apps.api.erp_orders_blueprint
-# ERP Structured/Draft API -> apps.api.erp_orders_structured
-
-# /chat 페이지 및 SocketIO 핸들러는 apps.api.chat으로 이동됨
-
-# Production: Auto-initialize Database Tables
-# This runs when a WSGI server imports 'app' (e.g. gunicorn/uwsgi),
-# and should not run for `python app.py` because __main__ has its own startup flow.
-_should_run_auto_init = (__name__ != '__main__')
-if _should_run_auto_init:
-    try:
-        with app.app_context():
-            print("[AUTO-INIT] Checking database tables...")
-            from db import init_db
-            from wdcalculator_db import init_wdcalculator_db
-            
-            # Initialize Main DB
-            init_db()
-            ensure_order_attachments_category_column()
-            ensure_order_attachments_item_index_column()
-            
-            # Initialize WDCalculator DB
-            init_wdcalculator_db()
-            
-            print("[AUTO-INIT] Tables checked/created successfully.")
-            
-            # Check/Create Admin User
-            from models import User
-            from werkzeug.security import generate_password_hash
-            db_session = get_db()
-            try:
-                admin = db_session.query(User).filter_by(username='admin').first()
-                if not admin:
-                    print("[AUTO-INIT] Creating default admin user (admin/admin1234)...")
-                    new_admin = User(
-                        username='admin',
-                        password=generate_password_hash('admin1234'),
-                        name='관리자',
-                        role='ADMIN',
-                        is_active=True
-                    )
-                    db_session.add(new_admin)
-                    db_session.commit()
-                else:
-                    print("[AUTO-INIT] Admin user exists.")
-            except Exception as e:
-                print(f"[AUTO-INIT] Failed to create admin user: {e}")
-                db_session.rollback()
-                
-    except Exception as e:
-        print(f"[AUTO-INIT] Database initialization failed: {e}")
+# WSGI 기동 시 DB 자동 초기화 (gunicorn 등). python app.py 시에는 run.py에서 처리
+if __name__ != '__main__':
+    from services.app_init import run_auto_init
+    run_auto_init(app)
 
 if __name__ == '__main__':
-    _use_reloader = (os.environ.get('FLASK_USE_RELOADER', '1') == '1')
-    _is_reloader_child = (os.environ.get('WERKZEUG_RUN_MAIN') == 'true')
-    _should_run_startup_tasks = (not _use_reloader) or _is_reloader_child
-
-    # 안전한 시작 프로세스 실행 (SystemExit 방지)
-    try:
-        import logging
-        import sys
-        
-        # 로깅 설정
-        logging.basicConfig(
-            level=logging.INFO, 
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler('app_startup.log', encoding='utf-8'),
-                logging.StreamHandler(sys.stdout)
-            ]
-        )
-        logger = logging.getLogger('FOMS_Startup')
-
-        if _should_run_startup_tasks:
-            logger.info("[START] FOMS 애플리케이션 시작 중...")
-            startup_success = True
-
-            # 1. 데이터베이스 초기화 시도
-            try:
-                init_db()
-                # get_db()를 사용하는 자동 컬럼 보정은 Flask 앱 컨텍스트 내에서 실행해야 한다.
-                with app.app_context():
-                    ensure_order_attachments_category_column()
-                    ensure_order_attachments_item_index_column()
-                logger.info("[OK] FOMS 데이터베이스 초기화 완료")
-            except Exception as e:
-                logger.error(f"[ERROR] FOMS 데이터베이스 초기화 실패: {str(e)}")
-                startup_success = False
-
-            # 1-1. 견적 계산기 독립 데이터베이스 초기화 시도
-            try:
-                with app.app_context():
-                    init_wdcalculator_db()
-                logger.info("[OK] 견적 계산기 데이터베이스 초기화 완료")
-            except Exception as e:
-                logger.warning(f"[WARN] 견적 계산기 데이터베이스 초기화 실패 (견적 기능 제한): {str(e)}")
-                # 견적 계산기 DB 실패는 전체 시스템에 영향 없음
-
-            # 2. 안전한 스키마 마이그레이션 시도
-            try:
-                from safe_schema_migration import run_safe_migration
-
-                # Flask 앱 컨텍스트 내에서 마이그레이션 실행
-                with app.app_context():
-                    migration_success = run_safe_migration(app.app_context())
-                    if migration_success:
-                        logger.info("[OK] 스키마 마이그레이션 완료")
-                    else:
-                        logger.warning("[WARN] 스키마 마이그레이션 실패 - 기존 스키마로 계속 진행")
-                        startup_success = False
-            except Exception as e:
-                logger.error(f"[ERROR] 스키마 마이그레이션 중 예외: {str(e)}")
-                startup_success = False
-
-            # 3. 시작 결과 요약
-            if startup_success:
-                logger.info("[SUCCESS] 모든 시작 프로세스가 성공적으로 완료되었습니다!")
-                print("[OK] FOMS 시스템이 준비되었습니다!")
-            else:
-                logger.warning("[WARN] 일부 시작 프로세스에서 오류가 발생했지만 앱은 정상적으로 시작됩니다.")
-                print("[WARN] 일부 기능에 제한이 있을 수 있습니다. 로그를 확인해주세요.")
-        else:
-            logger.info("[SKIP] 리로더 부모 프로세스에서는 시작 초기화를 건너뜁니다.")
-
-        # 4. Flask 웹 서버 시작 (안전한 설정)
-        if _should_run_startup_tasks:
-            print("[START] 웹 서버를 시작합니다...")
-            print(f"[INFO] SOCKETIO_AVAILABLE: {SOCKETIO_AVAILABLE}")
-            print(f"[INFO] socketio 객체 존재: {socketio is not None}")
-
-        if SOCKETIO_AVAILABLE and socketio:
-            # SocketIO 사용 시 socketio.run() 사용
-            if _should_run_startup_tasks:
-                print("[INFO] Socket.IO 모드로 서버를 시작합니다...")
-            socketio.run(
-                app,
-                host='0.0.0.0',
-                port=5000,
-                debug=True,
-                use_reloader=_use_reloader,
-                allow_unsafe_werkzeug=True,
-            )
-        else:
-            # 일반 Flask 실행
-            if _should_run_startup_tasks:
-                print("[WARN] Socket.IO가 비활성화되어 일반 Flask 모드로 시작합니다...")
-            app.run(
-                host='0.0.0.0',
-                port=5000,
-                debug=True,
-                use_reloader=_use_reloader,
-            )
-        
-    except KeyboardInterrupt:
-        print("\n[STOP] 사용자에 의해 서버가 중단되었습니다.")
-    except Exception as e:
-        print(f"[ERROR] 서버 시작 중 오류: {str(e)}")
-        print("[INFO] 로그 파일(app_startup.log)을 확인해주세요.")
-        # SystemExit 대신 정상 종료
-    finally:
-        if _should_run_startup_tasks:
-            print("[END] FOMS 시스템을 종료합니다.")
+    from run import main
+    main()

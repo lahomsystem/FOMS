@@ -10,7 +10,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order
 from apps.auth import login_required, role_required, get_user_by_id
-from apps.erp import can_edit_erp, erp_edit_required
+from services.erp_permissions import can_edit_erp, erp_edit_required
 from services.erp_shipment_settings import (
     load_erp_shipment_settings,
     save_erp_shipment_settings,

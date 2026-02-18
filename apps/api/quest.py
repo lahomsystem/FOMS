@@ -10,7 +10,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order, User, OrderEvent
 from apps.auth import login_required, role_required
-from apps.erp import can_edit_erp
+from services.erp_permissions import can_edit_erp
 from services.erp_policy import (
     get_stage,
     STAGE_LABELS,

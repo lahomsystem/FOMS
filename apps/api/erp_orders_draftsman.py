@@ -12,7 +12,8 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order, User, OrderEvent, SecurityLog
 from apps.auth import login_required, get_user_by_id
-from apps.erp import erp_edit_required, _ensure_dict
+from services.erp_permissions import erp_edit_required
+from apps.erp import _ensure_dict
 from services.erp_policy import can_modify_domain, get_assignee_ids
 
 erp_orders_draftsman_bp = Blueprint(

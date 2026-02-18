@@ -73,13 +73,50 @@ def update_last_login(user_id):
     except Exception as e:
         db.rollback()
 
+def _build_next_param():
+    """로그인 후 돌아갈 상대 경로를 생성한다(절대 URL 사용 금지)."""
+    path = request.path or url_for('order_pages.index')
+    try:
+        query_string = request.query_string.decode('utf-8', errors='ignore')
+    except Exception:
+        query_string = ''
+    return f"{path}?{query_string}" if query_string else path
+
+def _normalize_next_url(raw_next):
+    """next 파라미터를 안전한 내부 경로로 정규화."""
+    fallback = url_for('order_pages.index')
+    if not raw_next:
+        return fallback
+    next_url = str(raw_next).strip()
+    if not next_url:
+        return fallback
+    if next_url.startswith('//'):
+        return fallback
+    if next_url.startswith('/'):
+        return next_url
+    return fallback
+
 def login_required(f):
     """Decorator to require login for routes"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
+        user_id = session.get('user_id')
+        if not user_id:
             flash('로그인이 필요합니다.', 'error')
-            return redirect(url_for('auth.login', next=request.url))
+            return redirect(url_for('auth.login', next=_build_next_param()))
+
+        try:
+            user = get_user_by_id(user_id)
+        except Exception:
+            session.clear()
+            flash('세션 확인 중 오류가 발생했습니다. 다시 로그인해주세요.', 'error')
+            return redirect(url_for('auth.login', next=_build_next_param()))
+
+        if not user or not user.is_active:
+            session.clear()
+            flash('로그인 세션이 유효하지 않습니다. 다시 로그인해주세요.', 'error')
+            return redirect(url_for('auth.login', next=_build_next_param()))
+
         return f(*args, **kwargs)
     return decorated_function
 
@@ -109,10 +146,20 @@ def role_required(roles):
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    if 'user_id' in session:
-        return redirect(url_for('order_pages.index'))
-    
-    next_url = request.args.get('next', url_for('order_pages.index'))
+    session_user_id = session.get('user_id')
+    if session_user_id:
+        try:
+            existing_user = get_user_by_id(session_user_id)
+        except Exception:
+            existing_user = None
+
+        if existing_user and existing_user.is_active:
+            return redirect(url_for('order_pages.index'))
+
+        session.clear()
+        flash('기존 로그인 세션이 만료되어 다시 로그인해주세요.', 'warning')
+
+    next_url = _normalize_next_url(request.values.get('next'))
     
     if request.method == 'POST':
         username = request.form.get('username')
@@ -120,24 +167,24 @@ def login():
         
         if not username or not password:
             flash('아이디와 비밀번호를 모두 입력해주세요.', 'error')
-            return render_template('login.html')
+            return render_template('login.html', next_url=next_url)
         
         user = get_user_by_username(username)
         
         if not user:
             log_access(f"로그인 실패: 사용자 {username} (계정 없음)")
             flash('아이디 또는 비밀번호가 일치하지 않습니다.', 'error')
-            return render_template('login.html')
+            return render_template('login.html', next_url=next_url)
         
         if not user.is_active:
             log_access(f"로그인 실패: 비활성화된 계정 {username} (ID: {user.id})", user.id)
             flash('비활성화된 계정입니다. 관리자에게 문의하세요.', 'error')
-            return render_template('login.html')
+            return render_template('login.html', next_url=next_url)
         
         if not check_password_hash(user.password, password):
             log_access(f"로그인 실패: 사용자 {username} (ID: {user.id}) (비밀번호 오류)", user.id)
             flash('아이디 또는 비밀번호가 일치하지 않습니다.', 'error')
-            return render_template('login.html')
+            return render_template('login.html', next_url=next_url)
         
         session['user_id'] = user.id
         session['username'] = user.username
@@ -149,7 +196,7 @@ def login():
         flash(f'{user.name}님, 환영합니다!', 'success')
         return redirect(next_url)
     
-    return render_template('login.html')
+    return render_template('login.html', next_url=next_url)
 
 @auth_bp.route('/logout')
 def logout():

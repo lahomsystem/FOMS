@@ -11,7 +11,7 @@
       <span>실측 대시보드</span>
     </h1>
     <div class="erp-pro-header__actions">
-      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp.erp_dashboard') }}">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_dashboard.erp_dashboard') }}">
         <i class="fas fa-arrow-left"></i>
         <span class="d-none d-md-inline">ERP</span>
       </a>
@@ -63,7 +63,7 @@
             <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap">
               <div class="fw-bold small"><i class="fas fa-calendar-day"></i> 날짜별 실측</div>
               <div class="d-flex align-items-center gap-1">
-                <a href="{{ url_for('erp.erp_measurement_dashboard', date=today_date, manager=manager_filter or '') }}"
+                <a href="{{ url_for('erp_measurement_dashboard.erp_measurement_dashboard', date=today_date, manager=manager_filter or '') }}"
                   class="btn btn-sm btn-outline-primary py-0 px-1" title="오늘">오늘</a>
                 <span class="badge bg-primary">{{ selected_date }}</span>
               </div>
@@ -74,7 +74,7 @@
                 {% set day_label = ['월','화','수','목','금','토','일'][item.weekday] %}
                 <a id="date-{{ item.date }}"
                   class="measurement-panel-item measurement-panel-item-oneline {% if item.is_selected %}is-selected{% endif %} {% if item.is_weekend %}is-weekend{% endif %} {% if item.is_holiday %}is-holiday{% endif %} {% if item.date == today_date %}is-today{% endif %}"
-                  href="{{ url_for('erp.erp_measurement_dashboard', date=item.date, manager=manager_filter or '') }}#date-{{ item.date }}">
+                  href="{{ url_for('erp_measurement_dashboard.erp_measurement_dashboard', date=item.date, manager=manager_filter or '') }}#date-{{ item.date }}">
                   <div class="d-flex align-items-center justify-content-between gap-1 w-100 flex-nowrap">
                     <span class="measurement-panel-date">{{ item.date }}</span>
                     <span class="measurement-panel-day">({{ day_label }})</span>

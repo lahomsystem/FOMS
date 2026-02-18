@@ -10,7 +10,8 @@ from sqlalchemy import or_, and_, func, String
 from db import get_db
 from models import Order, User
 from apps.auth import login_required
-from apps.erp import erp_edit_required, _normalize_for_search
+from services.erp_permissions import erp_edit_required
+from apps.erp import _normalize_for_search
 from foms_address_converter import FOMSAddressConverter
 from foms_map_generator import FOMSMapGenerator
 from sqlalchemy.orm.attributes import flag_modified
