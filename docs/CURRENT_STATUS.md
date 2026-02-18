@@ -93,6 +93,10 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 **docs/DEPLOY_NOTES.md** — deploy에 올릴 때마다 "뭘 했는지" 누구나 알 수 있게 쉬운 말로 정리
 
 ## 최근 변경
+- [2026-02-18] **배포·정리·품질 감사**
+  - DEPLOY_NOTES.md에 2026-02-18 배포 내용(ERP 화면 분리) 한글로 추가. deploy 브랜치 푸시 완료. (커밋 메시지는 한글 깨짐 방지로 영문 사용: `deploy: ERP split and 2026-02-18 deploy notes`)
+  - 불필요 파일 정리: `docs/plans/SLIM_DOWN_PROGRESS_2026-02-17.md` 삭제(계획서로 대체), .gitignore에 `config/local*` 추가.
+  - GDM 개발 품질 감사 실행: `docs/evolution/GDM_AUDIT_2026-02-18.md` 작성 (점수 72/100, 긴급 0건, 개선 권장 6건, 양호 8건).
 - [2026-02-18] **ERP-SLIM-7~10 + erp.py 전체 분리 완료 (40줄)**
   - `apps/erp_shipment_page.py` 신규: `erp_shipment_page_bp` (/erp/shipment, ~250줄)
   - `apps/erp_as_page.py` 신규: `erp_as_page_bp` (/erp/as, ~60줄)
@@ -211,11 +215,12 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 | Skills | GDM/tech-stack/self-evolution/architect/code-review/production-audit | .cursor/skills/skills/ | 624개+ 공통 스킬 |
 | 배포 노트 | DEPLOY_NOTES.md | docs/DEPLOY_NOTES.md | 쉬운 한글 배포 내용 |
 
-## 다음에 시작할 작업 (GDM 더블체크 2026-02-18)
-- **우선**: **SLIM-035** — app.py 319줄 → 300줄 이하 마무리 (불필요 import/주석 제거, 구조 정리). 선택 사항(이미 근접).
-- **배포**: erp.py 분리(ERP-SLIM-1~10) 내용을 **DEPLOY_NOTES.md**에 반영 후 deploy 브랜치 푸시.
-- **이후 선택**: AI 분석 툴(ai.py), 카카오 알림톡(kakao.py), 불필요 파일 정리, 또는 **개발 품질 감사**(GDM 역할 1번) 실행.
-- **계획서**: `docs/plans/2026-02-17-erp-split-plan.md`, `docs/plans/2026-02-18-app-slim-task-plan.md`
+## 다음에 시작할 작업 (2026-02-18 갱신)
+- **우선 착수**: **파일 정리** (CLEAN-001~005) — 계획표 `docs/plans/2026-02-18-file-cleanup-and-next-plan.md` 참조.
+- **보류**: app.py SLIM-035 (319줄→300줄) — 일단 중단, 필요 시 app-slim 계획서에서 재개.
+- **배포**: erp.py 분리 내용은 DEPLOY_NOTES 반영·deploy 푸시 완료.
+- **이후 순서**: 파일 정리 완료 후 NEXT-001(order_pages 분리)·NEXT-002(대형 템플릿 partial)·NEXT-003(pytest)·NEXT-004(db_admin 비밀번호) 등. 동일 계획표 §3 참조.
+- **계획서**: `docs/plans/2026-02-18-file-cleanup-and-next-plan.md` (파일 정리·다음 착수), `docs/plans/2026-02-17-erp-split-plan.md`, `docs/plans/2026-02-18-app-slim-task-plan.md`
 
 ## 고도화 예정
 - [x] app.py 채팅 분리 (Phase 2-1 완료)
@@ -223,10 +228,11 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 - [x] app.py 파일 URL 헬퍼 이전 (Phase 2-3 완료)
 - [x] Phase 3 템플릿 분리 (erp_dashboard·chat partial 완료)
 - [x] app.py·erp.py 슬림다운 (app ~319줄, erp 40줄 — 목표 달성)
-- [ ] app.py 300줄 이하 최종 정리 (SLIM-035, 선택)
-- [ ] AI 분석 툴 추가 (apps/api/ai.py)
-- [ ] 카카오 알림톡 발송 (apps/api/kakao.py)
-- [ ] 불필요 파일 정리
+- [ ] **파일 정리** (CLEAN-001~005) — **다음 착수** (`2026-02-18-file-cleanup-and-next-plan.md`)
+- [~] app.py 300줄 이하 (SLIM-035) — **보류**
+- [ ] order_pages.py 500줄 이하 분리 (NEXT-001)
+- [ ] 대형 템플릿 partial (NEXT-002)
+- [ ] AI 분석 툴 (apps/api/ai.py), 카카오 알림톡 (kakao.py) — 선택
 
 ## 환경 정보
 - 로컬 DB: postgresql://postgres:lahom@localhost:5432/furniture_orders

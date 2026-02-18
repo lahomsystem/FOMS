@@ -6,6 +6,12 @@
 
 | ID | 상태 | 설명 | 시작일 | 최종 업데이트 |
 |----|------|------|--------|-------------|
+| CLEAN-001 | 대기 | docs 중복·폐기 문서 점검 (파일 정리 계획표) | 2026-02-18 | 2026-02-18 |
+| CLEAN-002 | 대기 | .cursor/artifacts 미사용/중복 아티팩트 점검 | 2026-02-18 | 2026-02-18 |
+| CLEAN-003 | 대기 | .gitignore 정리 | 2026-02-18 | 2026-02-18 |
+| CLEAN-004 | 대기 | scripts/ 사용처 확인 | 2026-02-18 | 2026-02-18 |
+| CLEAN-005 | 대기 | 루트·임시 파일 점검 | 2026-02-18 | 2026-02-18 |
+| SLIM-035 | 보류 | app.py 300줄 이하 (일단 중단) | - | 2026-02-18 |
 | ERP-SLIM-10 | 완료 | 시공 대시보드 → apps/erp_construction_page.py (erp_construction_page_bp) | 2026-02-18 | 2026-02-18 |
 | ERP-SLIM-9 | 완료 | 생산 대시보드 → apps/erp_production_page.py (erp_production_page_bp) | 2026-02-18 | 2026-02-18 |
 | ERP-SLIM-8 | 완료 | AS 대시보드 → apps/erp_as_page.py (erp_as_page_bp) | 2026-02-18 | 2026-02-18 |

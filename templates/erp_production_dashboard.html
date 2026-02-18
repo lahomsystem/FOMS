@@ -2287,6 +2287,21 @@
       }
     }
 
+    async function safeJsonFetch(url, fallback) {
+      const r = await fetch(url);
+      const ct = r.headers.get('content-type') || '';
+      if (!r.ok || !ct.includes('application/json')) {
+        if (!r.ok) console.warn('Order detail API non-OK:', url, r.status);
+        return fallback;
+      }
+      try {
+        return await r.json();
+      } catch (e) {
+        console.error('JSON parse error for', url, e);
+        return fallback;
+      }
+    }
+
     async function loadOrderDetail(orderId) {
       const container = document.getElementById(`order-detail-content-${orderId}`);
       if (!container) return;
@@ -2295,14 +2310,8 @@
         container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
 
         const [structured, attachments] = await Promise.all([
-          fetch(`/api/orders/${orderId}/structured`).then(r => r.json()).catch(err => {
-            console.error('Structured data fetch error:', err);
-            return { success: false, structured_data: {} };
-          }),
-          fetch(`/api/orders/${orderId}/attachments`).then(r => r.json()).catch(err => {
-            console.error('Attachments fetch error:', err);
-            return { success: false, attachments: [] };
-          }),
+          safeJsonFetch(`/api/orders/${orderId}/structured`, { success: false, structured_data: {} }),
+          safeJsonFetch(`/api/orders/${orderId}/attachments`, { success: false, attachments: [] }),
         ]);
 
         const sd = (structured && structured.structured_data) || {};
