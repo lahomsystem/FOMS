@@ -541,7 +541,7 @@
             <span>주문 관리</span>
         </h1>
         <div class="order-list-page-header__actions">
-            <a href="{{ url_for('add_order') }}" class="erp-pro-btn erp-pro-btn--primary">
+            <a href="{{ url_for('order_pages.add_order') }}" class="erp-pro-btn erp-pro-btn--primary">
                 <i class="fas fa-plus"></i>
                 <span>새 주문</span>
             </a>
@@ -558,7 +558,7 @@
     </header>
 
     {# === 검색 폼 (hidden, 검색 input과 연결) === #}
-    <form method="get" action="{{ url_for('index') }}" id="main-filter-form" style="display: none;">
+    <form method="get" action="{{ url_for('order_pages.index') }}" id="main-filter-form" style="display: none;">
         {% if request.args.get('status') %}
         <input type="hidden" name="status" value="{{ request.args.get('status') }}">
         {% endif %}
@@ -609,13 +609,13 @@
         <div class="order-list-filter-actions">
             <button type="button" id="apply-column-filters-btn"
                 class="erp-pro-btn erp-pro-btn--secondary erp-pro-btn--sm" title="컬럼 필터 적용">필터 적용</button>
-            <a href="{{ url_for('index', status=request.args.get('status'), search=request.args.get('search')) }}"
+            <a href="{{ url_for('order_pages.index', status=request.args.get('status'), search=request.args.get('search')) }}"
                 class="erp-pro-btn erp-pro-btn--outline erp-pro-btn--sm" title="컬럼 필터 초기화">초기화</a>
         </div>
     </div>
 
     {# === 테이블 영역 === #}
-    <form action="{{ url_for('bulk_action') }}" method="post" id="bulk-action-form">
+    <form action="{{ url_for('order_pages.bulk_action') }}" method="post" id="bulk-action-form">
         <div class="order-list-table-container">
             <div class="table-responsive table-fixed-header">
                 <table class="table table-bordered table-hover">
@@ -766,7 +766,7 @@
                                         class="btn btn-sm btn-outline-primary" title="수정" aria-label="주문 {{ order.id }} 수정">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <a href="{{ url_for('delete_order', order_id=order.id) }}"
+                                    <a href="{{ url_for('order_trash.delete_order', order_id=order.id) }}"
                                         class="btn btn-sm btn-outline-danger" title="휴지통으로 이동"
                                         aria-label="주문 {{ order.id }} 휴지통으로 이동"
                                         onclick="return confirm('이 주문을 휴지통으로 이동하시겠습니까?');">

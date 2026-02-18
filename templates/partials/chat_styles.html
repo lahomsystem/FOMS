@@ -80,15 +80,45 @@
         font-weight: 600;
     }
     
-    /* 채팅 페이지 전용: container-fluid 패딩 제거 및 높이 제어 */
-    body:has(.chat-page-wrapper) .container-fluid {
+    /* 채팅 페이지: body·html 높이 고정으로 100vh 기반 계산이 안정적으로 동작 */
+    body:has(.chat-page-wrapper) {
+        height: 100%;
+        min-height: 100vh;
+        overflow: hidden;
+    }
+    html:has(body:has(.chat-page-wrapper)) {
+        height: 100%;
+    }
+    /* 채팅 페이지 전용: 바깥 container-fluid(header 포함)만 높이 제한 */
+    body:has(.chat-page-wrapper) .container-fluid:has(header) {
         padding-top: 0 !important;
         padding-bottom: 0 !important;
-        height: calc(100vh - 140px);
-        max-height: calc(100vh - 140px);
+        height: calc(100vh - 140px) !important;
+        max-height: calc(100vh - 140px) !important;
         overflow: hidden !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    
+    /* 채팅 페이지: 본문 감싼 container-fluid(안쪽만, header 없는 것)만 flex로 채움.
+       바깥 .container-fluid:has(header)에는 적용하지 않아 높이 제한이 유지되도록 함. */
+    body:has(.chat-page-wrapper) .container-fluid:has(main):not(:has(header)) {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
         display: flex;
         flex-direction: column;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+    
+    /* 채팅 페이지: main이 남은 높이 전부 사용 */
+    body:has(.chat-page-wrapper) main#main-content {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
     }
     
     /* 채팅 페이지 래퍼 */
@@ -109,7 +139,7 @@
     }
     
     .chat-page-content {
-        flex: 1;
+        flex: 1 1 0;
         display: flex;
         min-height: 0;
         overflow: hidden;
@@ -118,23 +148,26 @@
         padding: 0;
     }
     
-    /* 채팅방 컨테이너 & 채팅 컨테이너 여백 제거 */
+    /* 채팅방 컨테이너 & 채팅 컨테이너: 높이 제한, 스크롤 새어나감 방지 */
     .chat-page-content .col-lg-3,
     .chat-page-content .col-lg-9 {
         padding-left: 0 !important;
         padding-right: 0 !important;
         margin: 0 !important;
-        height: 100% !important; /* 높이를 100%로 설정하여 공백 제거 */
+        height: 100% !important;
+        max-height: 100% !important;
         display: flex !important;
         flex-direction: column !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
     }
     
     .chat-page-content .col-lg-3 {
-        padding-right: 8px !important; /* 좌우 간격을 위한 최소 여백 */
+        padding-right: 8px !important;
     }
     
     .chat-page-content .col-lg-9 {
-        padding-left: 8px !important; /* 좌우 간격을 위한 최소 여백 */
+        padding-left: 8px !important;
     }
     
     /* 카드 여백 제거 및 상하단 꽉 채우기 */
@@ -155,7 +188,7 @@
         border-right: 1px solid #dee2e6;
     }
     
-    /* 메인 채팅 카드 스타일 */
+    /* 메인 채팅 카드: 높이 고정, 입력창 하단 고정, 메시지만 스크롤 */
     .chat-main-card {
         display: flex;
         flex-direction: column;
@@ -165,8 +198,9 @@
         overflow: hidden;
     }
     
+    /* card-body: 헤더/입력창 제외한 나머지 공간만 차지, 스크롤은 내부 .chat-messages만 */
     .chat-main-card .card-body {
-        flex: 1;
+        flex: 1 1 0;
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -320,14 +354,16 @@
         height: 28px;
     }
     
+    /* 메시지 영역만 스크롤, 입력창은 항상 하단 고정되도록 flex로 공간 분배 */
     .chat-messages {
-        flex: 1;
+        flex: 1 1 0;
         overflow-y: auto;
         overflow-x: hidden;
-        padding: 20px;
+        padding: 12px 16px;
         background-color: #f5f5f5;
         min-height: 0;
         scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
     }
     
     .message-item {
@@ -436,8 +472,9 @@
         opacity: 1;
     }
     
+    /* 입력 영역: 카드 하단에 고정, 스크롤에 따라 밀리지 않음 */
     .chat-input-area {
-        padding: 15px 20px;
+        padding: 12px 20px 8px 20px;
         border-top: 1px solid #ddd;
         background-color: white;
         flex-shrink: 0;

@@ -11,7 +11,7 @@
             <h5>필터링</h5>
         </div>
         <div class="card-body">
-            <form method="get" action="{{ url_for('security_logs') }}" class="row g-3">
+            <form method="get" action="{{ url_for('user_pages.security_logs') }}" class="row g-3">
                 <div class="col-md-4">
                     <label for="user_id" class="form-label">사용자</label>
                     <select name="user_id" id="user_id" class="form-select">
@@ -34,7 +34,7 @@
                 </div>
                 <div class="col-12">
                     <button type="submit" class="btn btn-primary">필터 적용</button>
-                    <a href="{{ url_for('security_logs') }}" class="btn btn-secondary">초기화</a>
+                    <a href="{{ url_for('user_pages.security_logs') }}" class="btn btn-secondary">초기화</a>
                 </div>
             </form>
         </div>

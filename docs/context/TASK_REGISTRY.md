@@ -6,6 +6,20 @@
 
 | ID | 상태 | 설명 | 시작일 | 최종 업데이트 |
 |----|------|------|--------|-------------|
+| SLIM-023 | 완료 | index+add_order → order_pages_bp, order_display_utils | 2026-02-17 | 2026-02-17 |
+| SLIM-022 | 완료 | /api/orders 캘린더 API → orders_bp (FullCalendar 이벤트) | 2026-02-17 | 2026-02-17 |
+| SLIM-021 | 완료 | 주소/경로 API 4개 → erp_map_bp 통합 (calculate_route, address_suggestions, add_address_learning, validate_address) | 2026-02-17 | 2026-02-17 |
+| SLIM-020 | 완료 | structured API → apps/api/erp_orders_structured.py (structured GET/PUT, parse-text, erp/draft) | 2026-02-17 | 2026-02-17 |
+| SLIM-019 | 완료 | blueprint API → apps/api/erp_orders_blueprint.py (upload/get/delete) | 2026-02-17 | 2026-02-17 |
+| SLIM-018 | 완료 | Quest API → apps/api/quest.py (quest GET/POST/approve/status) | 2026-02-17 | 2026-02-17 |
+| SLIM-017 | 완료 | Phase 4-5h(4): confirm/customer → erp_orders_confirm_bp | 2026-02-17 | 2026-02-17 |
+| SLIM-016 | 완료 | Phase 4-5h(3): drawing/request-revision, drawing/complete-revision → erp_orders_revision_bp 확장 | 2026-02-17 | 2026-02-17 |
+| SLIM-015 | 완료 | Phase 4-5h(2): AS API 3개 → erp_orders_as_bp (as/start, as/complete, as/schedule) | 2026-02-17 | 2026-02-17 |
+| SLIM-014 | 완료 | Phase 4-5h(1): CS 완료 API → erp_orders_cs_bp (cs/complete) | 2026-02-17 | 2026-02-17 |
+| SLIM-013 | 완료 | Phase 4-5g: 시공 API → erp_orders_construction_bp (construction/start, construction/complete, construction/fail) | 2026-02-17 | 2026-02-17 |
+| SLIM-012 | 완료 | Phase 4-5f: 생산 API → erp_orders_production_bp (production/start, production/complete) | 2026-02-17 | 2026-02-17 |
+| SLIM-011 | 완료 | Phase 4-5e: 도면 담당자 지정/확정 API → erp_orders_draftsman_bp (assign-draftsman, batch-assign-draftsman, confirm-drawing-receipt) | 2026-02-17 | 2026-02-17 |
+| SLIM-010 | 완료 | Phase 4-5d: 도면 수정 요청/체크 API → erp_orders_revision_bp (request-revision, request-revision-check) | 2026-02-17 | 2026-02-17 |
 | SLIM-009 | 완료 | Phase 4-5c: 도면 창구 업로드 → erp_orders_drawing_bp (drawing-gateway-upload) | 2026-02-17 | 2026-02-17 |
 | SLIM-008 | 완료 | Phase 4-5b: 도면 전달/취소 API → apps/api/erp_orders_drawing.py (transfer-drawing, cancel-transfer) | 2026-02-17 | 2026-02-17 |
 | SLIM-007 | 완료 | Phase 4-5a: 주문 Quick API → apps/api/erp_orders_quick.py (quick-search, quick-info, quick-status) | 2026-02-17 | 2026-02-17 |

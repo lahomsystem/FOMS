@@ -1,17 +1,49 @@
+"""
+FOMS 2단계 백업: DB 전체 + 시스템 파일.
+- DB 백업(pg_dump)은 테이블 제외 없이 전체 덤프 → 주문(orders) 및 상태(status, original_status,
+  cabinet_status, structured_data 등) 전부 포함. 복원 시 psql -f 로 동일하게 복원됨.
+- 검증: docs/evolution/BACKUP_RESTORE_VERIFICATION.md
+"""
 import os
 import datetime
 import subprocess
 import shutil
 import json
 import glob
+from urllib.parse import urlparse
+
+def _get_db_config_from_env():
+    """DATABASE_URL 또는 DB_* 환경변수에서 DB 연결 정보 추출 (로컬/배포 공통)."""
+    url = os.getenv("DATABASE_URL") or ""
+    if url:
+        if url.startswith("postgres://"):
+            url = "postgresql://" + url[11:]
+        parsed = urlparse(url)
+        return {
+            "db_host": (parsed.hostname or "localhost"),
+            "db_port": parsed.port or 5432,
+            "db_user": parsed.username or "postgres",
+            "db_pass": parsed.password or os.getenv("DB_PASS", "lahom"),
+            "db_name": (parsed.path or "/furniture_orders").strip("/") or "furniture_orders",
+        }
+    return {
+        "db_host": os.getenv("DB_HOST", "localhost"),
+        "db_port": int(os.getenv("DB_PORT", "5432")),
+        "db_user": os.getenv("DB_USER", "postgres"),
+        "db_pass": os.getenv("DB_PASS", "lahom"),
+        "db_name": os.getenv("DB_NAME", "furniture_orders"),
+    }
+
 
 class SimpleBackupSystem:
     def __init__(self):
-        # 백업 설정
-        self.db_name = "furniture_orders"
-        self.db_user = "postgres"
-        self.db_pass = "lahom"  # 실제 비밀번호로 수정
-        self.db_host = "localhost"
+        # 백업 설정 (환경변수 우선: DATABASE_URL 또는 DB_*)
+        cfg = _get_db_config_from_env()
+        self.db_name = cfg["db_name"]
+        self.db_user = cfg["db_user"]
+        self.db_pass = cfg["db_pass"]
+        self.db_host = cfg["db_host"]
+        self.db_port = cfg["db_port"]
         # PostgreSQL 설치 경로 확인 (더 정확한 검색)
         possible_paths = [
             r"C:\Program Files\PostgreSQL\16\bin\pg_dump.exe",
@@ -76,15 +108,16 @@ class SimpleBackupSystem:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_file = os.path.join(backup_dir, f"database_backup_{timestamp}.sql")
         
-        # pg_dump 명령어 구성
+        # pg_dump 명령어 구성 (포트 포함)
         command = [
             self.pg_dump_path,
             "-U", self.db_user,
-            "-d", self.db_name, 
+            "-d", self.db_name,
             "-h", self.db_host,
+            "-p", str(getattr(self, "db_port", 5432)),
             "-f", backup_file,
             "--encoding=UTF8",
-            "--verbose"  # 상세 로그 추가
+            "--verbose"
         ]
         
         # 비밀번호 환경변수 설정
@@ -209,13 +242,14 @@ pause
         return script_file
     
     def create_backup_info(self, backup_dir, db_file, system_files):
-        """백업 정보 파일 생성"""
+        """백업 정보 파일 생성. 복원 시 주문의 현재 상태(실측 단계, 체크리스트, 워크플로우 등) 전체가 복원됩니다."""
         info = {
             "backup_time": datetime.datetime.now().isoformat(),
             "database_file": os.path.basename(db_file) if db_file else None,
             "system_files": system_files,
             "backup_location": backup_dir,
-            "database_size": os.path.getsize(db_file) if db_file and os.path.exists(db_file) else 0
+            "database_size": os.path.getsize(db_file) if db_file and os.path.exists(db_file) else 0,
+            "note": "복원 시 DB 전체(주문·상태·실측·체크리스트·워크플로우 등)가 동일하게 복원됩니다."
         }
         
         info_file = os.path.join(backup_dir, "backup_info.json")

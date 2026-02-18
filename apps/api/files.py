@@ -5,6 +5,17 @@ from services.storage import get_storage
 import os
 import traceback
 
+
+def build_file_view_url(storage_key: str) -> str:
+    """파일 미리보기 URL 생성 (files_bp /api/files/view 경로)"""
+    return f"/api/files/view/{storage_key}"
+
+
+def build_file_download_url(storage_key: str) -> str:
+    """파일 다운로드 URL 생성 (files_bp /api/files/download 경로)"""
+    return f"/api/files/download/{storage_key}"
+
+
 files_bp = Blueprint('files', __name__, url_prefix='/api/files')
 
 @files_bp.route('/view/<path:storage_key>', methods=['GET'])

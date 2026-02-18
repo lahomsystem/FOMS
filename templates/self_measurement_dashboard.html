@@ -117,7 +117,7 @@
             <span>자가실측 대시보드</span>
         </h1>
         <div class="erp-pro-header__actions">
-            <a class="erp-pro-btn erp-pro-btn--info" href="{{ url_for('add_order', is_self_measurement='true') }}">
+            <a class="erp-pro-btn erp-pro-btn--info" href="{{ url_for('order_pages.add_order', is_self_measurement='true') }}">
                 <i class="fas fa-plus"></i>
                 <span>새 자가실측</span>
             </a>
@@ -127,7 +127,7 @@
     <!-- 검색 폼 -->
     <div class="erp-pro-card mb-3">
         <div class="erp-pro-card__body" style="padding: var(--erp-space-md);">
-            <form method="get" action="{{ url_for('self_measurement_dashboard') }}" class="erp-pro-filter-form">
+            <form method="get" action="{{ url_for('dashboards.self_measurement_dashboard') }}" class="erp-pro-filter-form">
                 <div class="erp-pro-filter-group" style="flex: 1;">
                     <input type="text" name="search_query" class="erp-pro-input" 
                            placeholder="주문번호, 고객명, 연락처, 주소, 제품 등 검색" 

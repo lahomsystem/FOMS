@@ -259,7 +259,7 @@
             },
             events: function(info, successCallback, failureCallback) {
                 // Construct API URL with date range and status filter
-                let url = "{{ url_for('api_orders') }}?start=" + info.startStr + "&end=" + info.endStr;
+                let url = "{{ url_for('orders.api_orders') }}?start=" + info.startStr + "&end=" + info.endStr;
                 
                 if (statusFilter.value) {
                     url += "&status=" + statusFilter.value;

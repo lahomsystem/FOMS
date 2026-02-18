@@ -11,7 +11,7 @@
 |------|------|------|
 | **현재 브랜치** | feature/erp-split-shipment-settings | Phase 4-3 미커밋(erp_measurement.py 등) |
 | **앱 기동** | `from app import app` → APP_OK | DB 초기화·Admin 확인 정상 |
-| **apps/erp.py** | **3,350줄, 25개 라우트** | 4-1~4-5c 분리 반영 (GDM 더블체크 2026-02-17) |
+| **apps/erp.py** | **~3,350줄, 23개 라우트** | 4-1~4-5d 분리 반영 (GDM 더블체크 2026-02-17) |
 | **분리된 Blueprint** | + erp_orders_quick_bp, **erp_orders_drawing_bp** | app.py 등록 완료 |
 | **DB 인덱스** | 무효 인덱스 없음 | 중복/미사용 인덱스 있음(wdcalculator 등), Phase 4와 무관 |
 | **deploy 상태** | Phase 4-1까지 반영 | 4-2·4-3·4-4는 feature 브랜치 |
@@ -35,7 +35,8 @@
 | **3** | **Phase 4-5a** | 주문 Quick API (quick-search, quick-info, quick-status) | ✅ 완료 (2026-02-17) | apps/api/erp_orders_quick.py (erp_orders_quick_bp) |
 | **4** | **Phase 4-5b** | 도면 전달/취소 (transfer-drawing, cancel-transfer) | ✅ 완료 (2026-02-17) | apps/api/erp_orders_drawing.py |
 | **5** | **Phase 4-5c** | 도면 창구 업로드 (drawing-gateway-upload) | ✅ 완료 (2026-02-17) | erp_orders_drawing_bp에 추가 |
-| **6** | **Phase 4-5d~** | 주문 API 잔여 (request-revision, 도면·생산·시공·AS 등) | 점진 분리 | erp.py 500줄 이하 |
+| **6** | **Phase 4-5d** | request-revision, request-revision-check | ✅ 완료 (2026-02-17) | apps/api/erp_orders_revision.py |
+| **7** | **Phase 4-5e~** | 주문 API 잔여 (assign-draftsman, production, construction, as 등) | 점진 분리 | erp.py 500줄 이하 |
 | **7** | **선택** | app.py 300줄 이하, AI/카카오 정리 | - | 슬림다운 최종 목표 |
 
 ---

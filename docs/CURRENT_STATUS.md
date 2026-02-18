@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 
-## 마지막 업데이트: 2026-02-17
+## 마지막 업데이트: 2026-02-17 (SLIM-025 bulk_action → order_pages_bp 완료)
 
 ## 세션 재개 시 이어서 작업 가용자원 (컨텍스트 풀 시)
 
@@ -93,6 +93,44 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 **docs/DEPLOY_NOTES.md** — deploy에 올릴 때마다 "뭘 했는지" 누구나 알 수 있게 쉬운 말로 정리
 
 ## 최근 변경
+- [2026-02-17] **SLIM-025: bulk_action → order_pages_bp**
+  - order_pages_bp에 bulk_action 라우트 추가 (삭제/복사/상태변경). app.py ~146줄 감소 (~1,568줄).
+- [2026-02-17] **SLIM-024: delete/trash/restore → order_trash_bp**
+  - `apps/order_trash.py` 신규: delete_order, trash, restore_orders, permanent_delete_orders, permanent_delete_all_orders, reset_order_ids. `services/request_utils.py`: get_preserved_filter_args. app.py ~254줄 감소 (~1,714줄).
+- [2026-02-17] **SLIM-023: index+add_order → order_pages_bp**
+  - `apps/order_pages.py` 신규: index, add_order. `services/order_display_utils.py`: format_options_for_display, _ensure_dict. app.py ~576줄 감소.
+- [2026-02-17] **SLIM-022: /api/orders 캘린더 API → orders_bp**
+  - FullCalendar용 주문 이벤트 API `api_orders` → `apps/api/orders.py` (orders_bp). app.py ~200줄 감소.
+- [2026-02-17] **주소/경로 API 4개 → erp_map_bp 통합**
+  - calculate_route, address_suggestions, add_address_learning, validate_address. app.py ~130줄 감소.
+- [2026-02-17] **structured API Blueprint 분리**
+  - `apps/api/erp_orders_structured.py` 신규: structured GET/PUT, parse-text, erp/draft. app.py ~380줄 감소.
+- [2026-02-17] **blueprint API Blueprint 분리**
+  - `apps/api/erp_orders_blueprint.py` 신규: api_upload_blueprint, api_get_blueprint, api_delete_blueprint. app.py ~95줄 감소.
+- [2026-02-17] **Quest Blueprint 분리**
+  - `apps/api/quest.py` 신규: api_order_quest_get/create/approve/update_status. app.py ~700줄 감소.
+- [2026-02-17] **events Blueprint 분리**
+  - `apps/api/events.py` 신규: api_order_events, api_order_change_events, api_my_change_events, api_revert_change_event. app.py ~700줄 감소.
+- [2026-02-17] **dashboards Blueprint 분리**
+  - `apps/dashboards.py` 신규: regional_dashboard, metropolitan_dashboard, self_measurement_dashboard. app.py ~350줄 감소.
+- [2026-02-17] **attachments Blueprint 분리**
+  - `apps/api/attachments.py` 신규: api_order_attachments_list/upload/patch/delete. ensure_order_attachments_* 헬퍼 이전. app.py ~320줄 감소.
+- [2026-02-17] **wdcalculator Blueprint 분리**
+  - `apps/api/wdcalculator.py` 신규: wdcalculator_bp. 페이지 /wdcalculator, /wdcalculator/product-settings, API /api/wdcalculator/*. app.py ~992줄 감소 (~5,576줄).
+- [2026-02-17] **Phase 4-5h(3)(4) 완료: drawing 2개·confirm/customer 분리**
+  - erp_orders_revision_bp에 drawing/request-revision, drawing/complete-revision 추가. erp_orders_confirm.py 신규: confirm/customer. erp.py 주문 API 라우트 **전부 분리 완료** (~350줄 추가 감소).
+- [2026-02-17] **Phase 4-5h(2) 완료: AS API 분리**
+  - `apps/api/erp_orders_as.py` 신규: erp_orders_as_bp. 라우트 as/start, as/complete, as/schedule. erp.py 3라우트 제거 (~260줄).
+- [2026-02-17] **Phase 4-5h(1) 완료: CS 완료 API 분리**
+  - `apps/api/erp_orders_cs.py` 신규: erp_orders_cs_bp. 라우트 cs/complete. erp.py 1라우트 제거 (~70줄).
+- [2026-02-17] **Phase 4-5g 완료: 시공 API 분리**
+  - `apps/api/erp_orders_construction.py` 신규: erp_orders_construction_bp. 라우트 construction/start, construction/complete, construction/fail. erp.py 3라우트 제거 (~220줄).
+- [2026-02-17] **Phase 4-5f 완료: 생산 API 분리**
+  - `apps/api/erp_orders_production.py` 신규: erp_orders_production_bp. 라우트 production/start, production/complete. erp.py 2라우트 제거 (~125줄).
+- [2026-02-17] **Phase 4-5e 완료: 도면 담당자 지정/확정 API 분리**
+  - `apps/api/erp_orders_draftsman.py` 신규: erp_orders_draftsman_bp. 라우트 assign-draftsman, batch-assign-draftsman, confirm-drawing-receipt. erp.py 3라우트 제거 (~400줄).
+- [2026-02-17] **Phase 4-5d 완료: 도면 수정 요청/체크 API 분리**
+  - `apps/api/erp_orders_revision.py` 신규: erp_orders_revision_bp. 라우트 request-revision, request-revision-check. erp.py 2라우트 제거 (~250줄).
 - [2026-02-17] **Phase 4-5c 완료: 도면 창구 업로드 분리** (GDM 더블체크 후 진행)
   - `erp_orders_drawing_bp`에 `/<id>/drawing-gateway-upload` POST 추가. `apps/erp.py`에서 1라우트 제거 (~45줄). erp.py **3,350줄·25라우트**.
 - [2026-02-17] **Phase 4-5b 완료: 도면 전달/취소 API 분리**
@@ -148,8 +186,8 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 - [2026-02-15] Cursor Rules 초기 생성
 
 ## 핵심 파일 크기 현황 (분리 대상)
-- app.py: ~6,500줄 (목표: 300줄, Phase 4·추가 분리 대기)
-- apps/erp.py: ~3,350줄·25 라우트 (Phase 4-1~4-5c 분리 반영, 목표: 500줄 이하)
+- app.py: ~1,850줄 (목표: 300줄, SLIM-023 완료 2026-02-17)
+- apps/erp.py: ~1,900줄·0 주문 API 라우트 (Phase 4-1~4-5h 주문 API 전부 분리 완료, 목표: 500줄 이하)
 - templates/erp_dashboard.html: 594줄 (partial 분리 완료, 3-1)
 - templates/chat.html: 229줄 (partial 분리 완료, 3-2)
 
@@ -165,13 +203,16 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 | 배포 노트 | DEPLOY_NOTES.md | docs/DEPLOY_NOTES.md | 쉬운 한글 배포 내용 |
 
 ## 다음 계획 (GDM 더블체크 2026-02-17)
-- **0.** feature/erp-split-shipment-settings → deploy 머지·푸시 (Phase 4-2 반영, DEPLOY_NOTES 갱신 완료)
-- **1.** Phase 4-3: 실측 API 분리 ✅ 완료 (erp_measurement_bp)
-- **2.** Phase 4-4: 지도·주소·유저 API 분리 ✅ 완료 (erp_map_bp)
-- **3.** Phase 4-5a: 주문 Quick API 분리 ✅ 완료 (erp_orders_quick_bp)
-- **4.** Phase 4-5b: 도면 전달/취소 API 분리 ✅ 완료 (erp_orders_drawing_bp)
-- **5.** Phase 4-5c: 도면 창구 업로드 분리 ✅ 완료 (drawing-gateway-upload → erp_orders_drawing_bp)
-- **6.** Phase 4-5d~: 주문 API 잔여 블록 (request-revision, 도면/생산/시공/AS 등, erp.py 500줄 이하 목표)
+- **0.** feature/erp-split-shipment-settings → deploy 머지·푸시 ✅ 완료
+- **1~5.** Phase 4-3~4-5c ✅ 완료
+- **6.** Phase 4-5d: request-revision 블록 ✅ 완료 (erp_orders_revision_bp)
+- **7.** Phase 4-5e: assign-draftsman 블록 ✅ 완료 (erp_orders_draftsman_bp)
+- **8.** Phase 4-5f: production API ✅ 완료 (erp_orders_production_bp)
+- **9.** Phase 4-5g: construction API ✅ 완료 (erp_orders_construction_bp)
+- **10.** Phase 4-5h(1): cs/complete ✅ 완료 (erp_orders_cs_bp)
+- **11.** Phase 4-5h(2): AS 3개 ✅ 완료 (erp_orders_as_bp)
+- **12.** Phase 4-5h(3)(4): drawing 2개·confirm/customer ✅ 완료 (erp_orders_revision_bp 확장, erp_orders_confirm_bp 신규)
+- **13.** erp.py 주문 API 라우트 **전부 분리 완료**. 다음: erp.py 추가 슬림다운 (페이지 라우트·필터 등)
 - **계획서**: `docs/plans/2026-02-16-phase4-next-steps.md`
 
 ## 고도화 예정

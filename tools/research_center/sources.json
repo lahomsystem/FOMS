@@ -1,0 +1,780 @@
+{
+  "track_keywords": {
+    "tech_stack": [
+      "release",
+      "deprecate",
+      "deprecated",
+      "breaking",
+      "migration",
+      "compatibility",
+      "runtime",
+      "security",
+      "cve",
+      "lts",
+      "roadmap"
+    ],
+    "frontend": [
+      "react",
+      "typescript",
+      "javascript",
+      "css",
+      "html",
+      "render",
+      "vite",
+      "webpack",
+      "ui component",
+      "design system",
+      "frontend"
+    ],
+    "backend": [
+      "flask",
+      "fastapi",
+      "sqlalchemy",
+      "postgres",
+      "api",
+      "orm",
+      "server",
+      "auth",
+      "transaction",
+      "redis",
+      "queue"
+    ],
+    "uiux": [
+      "ux",
+      "accessibility",
+      "a11y",
+      "design system",
+      "usability",
+      "interaction",
+      "user flow",
+      "visual regression"
+    ],
+    "ai_coding": [
+      "ai coding",
+      "agent",
+      "agentic",
+      "copilot",
+      "assistant",
+      "llm",
+      "codegen",
+      "eval",
+      "prompt",
+      "benchmark",
+      "claude",
+      "gemini",
+      "codex",
+      "chatgpt",
+      "tool use",
+      "mcp",
+      "function calling",
+      "vibe coding"
+    ],
+    "integration": [
+      "ci",
+      "cd",
+      "deployment",
+      "observability",
+      "incident",
+      "workflow",
+      "automation",
+      "telemetry",
+      "slo",
+      "rollback"
+    ],
+    "security": [
+      "security",
+      "vulnerability",
+      "cve",
+      "owasp",
+      "xss",
+      "csrf",
+      "sql injection",
+      "sast",
+      "dast",
+      "supply chain",
+      "dependency",
+      "secret scanning"
+    ],
+    "qa_testing": [
+      "test",
+      "testing",
+      "pytest",
+      "playwright",
+      "unit test",
+      "integration test",
+      "e2e",
+      "regression",
+      "coverage",
+      "benchmark"
+    ],
+    "observability": [
+      "opentelemetry",
+      "tracing",
+      "metrics",
+      "logging",
+      "apm",
+      "prometheus",
+      "grafana",
+      "alerting",
+      "sli",
+      "slo"
+    ],
+    "devops_platform": [
+      "kubernetes",
+      "docker",
+      "container",
+      "terraform",
+      "helm",
+      "github actions",
+      "rollback",
+      "canary",
+      "deploy",
+      "infrastructure as code"
+    ],
+    "data_layer": [
+      "postgresql",
+      "postgres",
+      "redis",
+      "schema",
+      "migration",
+      "index",
+      "query",
+      "transaction",
+      "replication",
+      "backup"
+    ]
+  },
+  "program_focus": {
+    "name": "foms_upgrade_focus",
+    "keywords": [
+      "flask",
+      "flask-socketio",
+      "sqlalchemy",
+      "alembic",
+      "postgresql",
+      "postgres",
+      "redis",
+      "jinja",
+      "bootstrap",
+      "javascript",
+      "python",
+      "docker",
+      "pytest",
+      "playwright",
+      "opentelemetry",
+      "sentry",
+      "celery",
+      "rq",
+      "fastapi",
+      "pydantic"
+    ],
+    "critical_keywords": [
+      "security",
+      "cve",
+      "breaking",
+      "deprecate",
+      "migration",
+      "performance",
+      "observability",
+      "rollback"
+    ],
+    "per_hit": 2,
+    "per_critical_hit": 4,
+    "max_bonus": 22
+  },
+  "future_stack_options": [
+    {
+      "id": "agent_native_modular",
+      "name": "Agent-Native Modular Platform",
+      "fit_tracks": ["ai_coding", "integration", "backend"],
+      "stack": [
+        "Model routing layer (OpenAI/Claude/Gemini)",
+        "MCP tool bus + policy guard",
+        "FastAPI service slices + existing Flask bridge",
+        "PostgreSQL + Redis + async workers",
+        "Eval/benchmark pipeline + experiment registry"
+      ],
+      "macro_short": "멀티 모델 실험과 안전한 도입 기준을 먼저 정립",
+      "macro_mid": "핵심 도메인 서비스 모듈화를 병행하며 AI coding workflow 내재화",
+      "macro_long": "자가 업그레이드 가능한 agentic delivery platform으로 고도화"
+    },
+    {
+      "id": "adaptive_flask_fastapi_hybrid",
+      "name": "Adaptive Flask + FastAPI Hybrid",
+      "fit_tracks": ["backend", "tech_stack", "integration"],
+      "stack": [
+        "Current Flask core hardening",
+        "Hot-path APIs extracted to FastAPI",
+        "SQLAlchemy + Alembic governance",
+        "Redis caching + queue",
+        "OpenTelemetry + release automation"
+      ],
+      "macro_short": "현재 안정성을 유지하며 병목 API만 선택 분리",
+      "macro_mid": "백엔드 경계를 재정의하고 성능/관측 체계를 표준화",
+      "macro_long": "서비스 경계 기반 확장과 배포 복구 자동화"
+    },
+    {
+      "id": "frontend_systemic_ux_stack",
+      "name": "Systemic Frontend + UX Intelligence",
+      "fit_tracks": ["frontend", "uiux", "ai_coding"],
+      "stack": [
+        "TypeScript-first UI module architecture",
+        "Design token + component governance",
+        "Visual regression + interaction testing",
+        "AI-assisted UX telemetry analysis",
+        "Accessibility baseline enforcement"
+      ],
+      "macro_short": "템플릿 대형화/중복을 빠르게 줄이고 UI 일관성 확보",
+      "macro_mid": "컴포넌트 단위 개발/검증 파이프라인 전환",
+      "macro_long": "사용자 행동 기반 UX 최적화 자동 루프"
+    },
+    {
+      "id": "enterprise_ai_engineering_os",
+      "name": "Enterprise AI Engineering OS",
+      "fit_tracks": ["ai_coding", "tech_stack", "integration"],
+      "stack": [
+        "Organization-wide coding agent governance",
+        "Prompt/version/eval/policy lifecycle management",
+        "Rule/Skill/Hook/Agent continuous refinement",
+        "Risk-aware rollout and rollback automation",
+        "Cross-team engineering knowledge graph"
+      ],
+      "macro_short": "표준 운영 모델과 평가 지표를 수립",
+      "macro_mid": "팀 단위 파일럿을 조직 표준으로 확장",
+      "macro_long": "지속적 자가 진화형 개발 운영체계 확립"
+    }
+  ],
+  "sources": [
+    {
+      "id": "github_changelog",
+      "name": "GitHub Changelog",
+      "type": "rss",
+      "feed_url": "https://github.blog/changelog/feed/",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "integration", "tech_stack"]
+    },
+    {
+      "id": "mcp_servers_releases",
+      "name": "modelcontextprotocol/servers Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/modelcontextprotocol/servers/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "integration", "tech_stack"]
+    },
+    {
+      "id": "mcp_spec_releases",
+      "name": "modelcontextprotocol/modelcontextprotocol Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/modelcontextprotocol/modelcontextprotocol/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "integration", "tech_stack"]
+    },
+    {
+      "id": "mcp_python_sdk_releases",
+      "name": "modelcontextprotocol/python-sdk Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/modelcontextprotocol/python-sdk/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "backend", "integration"]
+    },
+    {
+      "id": "mcp_typescript_sdk_releases",
+      "name": "modelcontextprotocol/typescript-sdk Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/modelcontextprotocol/typescript-sdk/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "frontend", "integration"]
+    },
+    {
+      "id": "openai_node_releases",
+      "name": "openai/openai-node Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/openai/openai-node/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "integration", "frontend"]
+    },
+    {
+      "id": "openai_codex_releases",
+      "name": "openai/codex Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/openai/codex/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "integration"]
+    },
+    {
+      "id": "openai_cookbook_releases",
+      "name": "openai/openai-cookbook Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/openai/openai-cookbook/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "integration", "backend"]
+    },
+    {
+      "id": "anthropic_claude_code_releases",
+      "name": "anthropics/claude-code Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/anthropics/claude-code/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "integration"]
+    },
+    {
+      "id": "anthropic_python_sdk_releases",
+      "name": "anthropics/anthropic-sdk-python Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/anthropics/anthropic-sdk-python/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "backend"]
+    },
+    {
+      "id": "anthropic_typescript_sdk_releases",
+      "name": "anthropics/anthropic-sdk-typescript Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/anthropics/anthropic-sdk-typescript/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "frontend", "integration"]
+    },
+    {
+      "id": "gemini_cli_releases",
+      "name": "google-gemini/gemini-cli Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/google-gemini/gemini-cli/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "integration"]
+    },
+    {
+      "id": "gemini_python_releases",
+      "name": "google-gemini/generative-ai-python Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/google-gemini/generative-ai-python/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "backend"]
+    },
+    {
+      "id": "gemini_js_releases",
+      "name": "google-gemini/generative-ai-js Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/google-gemini/generative-ai-js/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "frontend", "integration"]
+    },
+    {
+      "id": "google_genai_sdk_releases",
+      "name": "googleapis/python-genai Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/googleapis/python-genai/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "backend"]
+    },
+    {
+      "id": "vscode_copilot_release",
+      "name": "microsoft/vscode-copilot-release",
+      "type": "atom",
+      "feed_url": "https://github.com/microsoft/vscode-copilot-release/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "integration", "frontend"]
+    },
+    {
+      "id": "python_insider",
+      "name": "Python Insider",
+      "type": "rss",
+      "feed_url": "https://blog.python.org/feeds/posts/default?alt=rss",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["backend", "tech_stack"]
+    },
+    {
+      "id": "node_blog",
+      "name": "Node.js Blog",
+      "type": "rss",
+      "feed_url": "https://nodejs.org/en/feed/blog.xml",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["tech_stack", "backend", "frontend"]
+    },
+    {
+      "id": "openai_python_releases",
+      "name": "openai/openai-python Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/openai/openai-python/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "backend"]
+    },
+    {
+      "id": "flask_releases",
+      "name": "pallets/flask Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/pallets/flask/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["backend", "tech_stack"]
+    },
+    {
+      "id": "sqlalchemy_releases",
+      "name": "sqlalchemy/sqlalchemy Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/sqlalchemy/sqlalchemy/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["backend", "tech_stack"]
+    },
+    {
+      "id": "pydantic_releases",
+      "name": "pydantic/pydantic Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/pydantic/pydantic/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["backend", "tech_stack"]
+    },
+    {
+      "id": "requests_releases",
+      "name": "psf/requests Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/psf/requests/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["backend", "tech_stack"]
+    },
+    {
+      "id": "redis_py_releases",
+      "name": "redis/redis-py Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/redis/redis-py/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["backend", "integration", "tech_stack"]
+    },
+    {
+      "id": "vscode_releases",
+      "name": "microsoft/vscode Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/microsoft/vscode/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "frontend", "integration"]
+    },
+    {
+      "id": "typescript_releases",
+      "name": "microsoft/TypeScript Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/microsoft/TypeScript/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["frontend", "backend", "tech_stack"]
+    },
+    {
+      "id": "fastapi_releases",
+      "name": "tiangolo/fastapi Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/tiangolo/fastapi/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["backend", "tech_stack"]
+    },
+    {
+      "id": "starlette_releases",
+      "name": "encode/starlette Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/encode/starlette/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["backend", "tech_stack"]
+    },
+    {
+      "id": "uvicorn_releases",
+      "name": "encode/uvicorn Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/encode/uvicorn/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["backend", "tech_stack", "observability"]
+    },
+    {
+      "id": "alembic_releases",
+      "name": "sqlalchemy/alembic Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/sqlalchemy/alembic/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["backend", "data_layer", "tech_stack"]
+    },
+    {
+      "id": "celery_releases",
+      "name": "celery/celery Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/celery/celery/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["backend", "integration", "devops_platform"]
+    },
+    {
+      "id": "rq_releases",
+      "name": "rq/rq Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/rq/rq/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["backend", "integration", "tech_stack"]
+    },
+    {
+      "id": "postgresql_news",
+      "name": "PostgreSQL News",
+      "type": "rss",
+      "feed_url": "https://www.postgresql.org/news.rss",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["data_layer", "backend", "security", "tech_stack"]
+    },
+    {
+      "id": "redis_server_releases",
+      "name": "redis/redis Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/redis/redis/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["data_layer", "backend", "security", "tech_stack"]
+    },
+    {
+      "id": "pytest_releases",
+      "name": "pytest-dev/pytest Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/pytest-dev/pytest/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["qa_testing", "backend", "tech_stack"]
+    },
+    {
+      "id": "playwright_python_releases",
+      "name": "microsoft/playwright-python Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/microsoft/playwright-python/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["qa_testing", "frontend", "integration"]
+    },
+    {
+      "id": "cryptography_releases",
+      "name": "pyca/cryptography Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/pyca/cryptography/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["security", "backend", "tech_stack"]
+    },
+    {
+      "id": "werkzeug_releases",
+      "name": "pallets/werkzeug Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/pallets/werkzeug/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["backend", "security", "tech_stack"]
+    },
+    {
+      "id": "jinja_releases",
+      "name": "pallets/jinja Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/pallets/jinja/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["backend", "frontend", "security"]
+    },
+    {
+      "id": "otel_python_releases",
+      "name": "open-telemetry/opentelemetry-python Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/open-telemetry/opentelemetry-python/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["observability", "backend", "integration"]
+    },
+    {
+      "id": "otel_collector_releases",
+      "name": "open-telemetry/opentelemetry-collector-releases",
+      "type": "atom",
+      "feed_url": "https://github.com/open-telemetry/opentelemetry-collector-releases/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["observability", "devops_platform", "integration"]
+    },
+    {
+      "id": "prometheus_releases",
+      "name": "prometheus/prometheus Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/prometheus/prometheus/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["observability", "devops_platform", "tech_stack"]
+    },
+    {
+      "id": "grafana_releases",
+      "name": "grafana/grafana Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/grafana/grafana/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["observability", "devops_platform", "tech_stack"]
+    },
+    {
+      "id": "sentry_python_releases",
+      "name": "getsentry/sentry-python Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/getsentry/sentry-python/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["observability", "backend", "security"]
+    },
+    {
+      "id": "kubernetes_releases",
+      "name": "kubernetes/kubernetes Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/kubernetes/kubernetes/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["devops_platform", "integration", "security"]
+    },
+    {
+      "id": "terraform_releases",
+      "name": "hashicorp/terraform Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/hashicorp/terraform/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["devops_platform", "integration", "tech_stack"]
+    },
+    {
+      "id": "docker_compose_releases",
+      "name": "docker/compose Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/docker/compose/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["devops_platform", "integration", "tech_stack"]
+    },
+    {
+      "id": "aider_releases",
+      "name": "Aider-AI/aider Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/Aider-AI/aider/releases.atom",
+      "credibility": "medium",
+      "official": true,
+      "tracks": ["ai_coding", "integration"]
+    },
+    {
+      "id": "continue_releases",
+      "name": "continuedev/continue Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/continuedev/continue/releases.atom",
+      "credibility": "medium",
+      "official": true,
+      "tracks": ["ai_coding", "integration"]
+    },
+    {
+      "id": "langgraph_releases",
+      "name": "langchain-ai/langgraph Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/langchain-ai/langgraph/releases.atom",
+      "credibility": "medium",
+      "official": true,
+      "tracks": ["ai_coding", "backend", "integration"]
+    },
+    {
+      "id": "langchain_releases",
+      "name": "langchain-ai/langchain Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/langchain-ai/langchain/releases.atom",
+      "credibility": "medium",
+      "official": true,
+      "tracks": ["ai_coding", "backend", "integration"]
+    },
+    {
+      "id": "crewai_releases",
+      "name": "crewAIInc/crewAI Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/crewAIInc/crewAI/releases.atom",
+      "credibility": "medium",
+      "official": true,
+      "tracks": ["ai_coding", "integration"]
+    },
+    {
+      "id": "ollama_releases",
+      "name": "ollama/ollama Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/ollama/ollama/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "tech_stack", "integration"]
+    },
+    {
+      "id": "vllm_releases",
+      "name": "vllm-project/vllm Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/vllm-project/vllm/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "backend", "tech_stack"]
+    },
+    {
+      "id": "transformers_releases",
+      "name": "huggingface/transformers Releases",
+      "type": "atom",
+      "feed_url": "https://github.com/huggingface/transformers/releases.atom",
+      "credibility": "high",
+      "official": true,
+      "tracks": ["ai_coding", "backend", "tech_stack"]
+    },
+    {
+      "id": "arxiv_cs_ai",
+      "name": "arXiv cs.AI RSS",
+      "type": "rss",
+      "feed_url": "https://rss.arxiv.org/rss/cs.AI",
+      "credibility": "medium",
+      "official": true,
+      "tracks": ["ai_coding", "tech_stack"]
+    },
+    {
+      "id": "arxiv_cs_cl",
+      "name": "arXiv cs.CL RSS",
+      "type": "rss",
+      "feed_url": "https://rss.arxiv.org/rss/cs.CL",
+      "credibility": "medium",
+      "official": true,
+      "tracks": ["ai_coding", "tech_stack"]
+    },
+    {
+      "id": "arxiv_cs_se",
+      "name": "arXiv cs.SE RSS",
+      "type": "rss",
+      "feed_url": "https://rss.arxiv.org/rss/cs.SE",
+      "credibility": "medium",
+      "official": true,
+      "tracks": ["ai_coding", "integration"]
+    },
+    {
+      "id": "arxiv_cs_pl",
+      "name": "arXiv cs.PL RSS",
+      "type": "rss",
+      "feed_url": "https://rss.arxiv.org/rss/cs.PL",
+      "credibility": "medium",
+      "official": true,
+      "tracks": ["backend", "tech_stack"]
+    }
+  ]
+}

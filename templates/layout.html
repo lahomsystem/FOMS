@@ -605,9 +605,9 @@
                         <i class="fas fa-user-circle"></i> {{ current_user.name }} ({{ ROLES[current_user.role] }})
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown" style="z-index: 1050;">
-                        <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-user-cog"></i> 내
+                        <li><a class="dropdown-item" href="{{ url_for('user_pages.profile') }}"><i class="fas fa-user-cog"></i> 내
                                 정보</a></li>
-                        <li><a class="dropdown-item" href="{{ url_for('change_logs') }}"><i class="fas fa-history"></i> 내 변경 로그</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('user_pages.change_logs') }}"><i class="fas fa-history"></i> 내 변경 로그</a></li>
                         {% if impersonating_from_id %}
                         <li><a class="dropdown-item" href="{{ url_for('auth.switch_back') }}"><i class="fas fa-undo"></i> 원래 관리자로 돌아가기</a></li>
                         {% endif %}
@@ -618,7 +618,7 @@
                         <li><a class="dropdown-item" href="{{ url_for('auth.user_list') }}"><i class="fas fa-users"></i>
                                 사용자
                                 관리</a></li>
-                        <li><a class="dropdown-item" href="{{ url_for('security_logs') }}"><i
+                        <li><a class="dropdown-item" href="{{ url_for('user_pages.security_logs') }}"><i
                                     class="fas fa-shield-alt"></i>
                                 보안 로그</a></li>
                         {% if not impersonating_from_id and admin_switch_users %}
@@ -671,7 +671,7 @@
                     {% endfor %}
                     {% if current_user.role == 'ADMIN' %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin') }}">
+                        <a class="nav-link" href="{{ url_for('admin.admin') }}">
                             <i class="fas fa-cog"></i> 관리자
                         </a>
                     </li>
@@ -690,12 +690,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('wdcalculator') }}">
+                        <a class="nav-link" href="{{ url_for('wdcalculator.wdcalculator') }}">
                             <i class="fas fa-calculator"></i> WDCalculator
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('chat') }}">
+                        <a class="nav-link" href="{{ url_for('chat.chat') }}">
                             <i class="fas fa-comments"></i> 채팅
                         </a>
                     </li>
