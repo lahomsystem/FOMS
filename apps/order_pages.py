@@ -1,8 +1,10 @@
-"""주문 페이지 Blueprint: index, add_order, bulk_action, edit_order."""
+"""주문 페이지 Blueprint: index, add_order, bulk_action, edit_order, order_link filter."""
 import copy
 import json
+import re
 import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, jsonify
+from markupsafe import Markup
 from sqlalchemy import or_, String
 
 from apps.auth import login_required, role_required, log_access
@@ -15,6 +17,16 @@ from services.order_display_utils import format_options_for_display, _ensure_dic
 from services.request_utils import get_preserved_filter_args
 
 order_pages_bp = Blueprint('order_pages', __name__, url_prefix='')
+
+
+@order_pages_bp.app_template_filter('order_link')
+def order_link_filter(s):
+    """메시지 내 '주문 #<번호>'를 클릭 가능한 링크로 변환."""
+    def repl(m):
+        oid = m.group(1)
+        link = url_for('order_pages.edit_order', order_id=oid)
+        return Markup(f'<a href="{link}">주문 #{oid}</a>')
+    return Markup(re.sub(r'주문 #(\d+)', repl, s))
 
 
 @order_pages_bp.route('/')

@@ -6,15 +6,11 @@ import os
 import hashlib
 import datetime
 import json
-import pandas as pd
-import re
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, g, session, send_file, send_from_directory, current_app
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, g, session, send_from_directory, current_app
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_compress import Compress
 from whitenoise import WhiteNoise
-from markupsafe import Markup
-from werkzeug.utils import secure_filename
 from werkzeug import security as _werkzeug_security
 import sys
 # Python 3.12+: hmac.new() requires digestmod=; older Werkzeug passes method as 3rd pos arg.
@@ -68,7 +64,6 @@ from wdcalculator_db import close_wdcalculator_db, init_wdcalculator_db
 from services.storage import get_storage
 from map_config import KAKAO_REST_API_KEY
 from services.business_calendar import business_days_until
-from services.order_display_utils import format_options_for_display, _ensure_dict
 from constants import STATUS, BULK_ACTION_STATUS, CABINET_STATUS, UPLOAD_FOLDER, ALLOWED_EXTENSIONS, CHAT_ALLOWED_EXTENSIONS, ERP_MEDIA_ALLOWED_EXTENSIONS
 
 # SocketIO Import (Quest 5)
@@ -200,6 +195,8 @@ from apps.excel_import import excel_bp
 app.register_blueprint(excel_bp)
 from apps.calendar_page import calendar_bp
 app.register_blueprint(calendar_bp)
+from apps.wdplanner_page import wdplanner_bp
+app.register_blueprint(wdplanner_bp)
 from services.request_utils import get_preserved_filter_args
 
 # Error handler with production safety
@@ -471,106 +468,20 @@ def debug_db():
 # upload, download_excel -> excel_bp
 # calendar -> calendar_bp
 # map_view -> erp_map_bp
-
-@app.route('/wdplanner')
-@login_required
-def wdplanner():
-    """WDPlanner - 붙박이장 3D 설계 프로그램 (FOMS 레이아웃 포함)"""
-    # FOMS 레이아웃을 유지하면서 iframe으로 WDPlanner를 표시
-    return render_template('wdplanner.html')
-
-# WDPlanner 정적 파일 서빙 - Flask의 기본 static 폴더 활용
-@app.route('/wdplanner/app/<path:filename>')
-@login_required
-def wdplanner_static(filename):
-    """WDPlanner 정적 파일 서빙 (JS, CSS, assets 등)"""
-    # static/wdplanner/ 경로에서 파일 서빙
-    return send_from_directory('static/wdplanner', filename)
-
-@app.route('/wdplanner/app')
-@login_required
-def wdplanner_app():
-    """WDPlanner 앱 자체 (iframe 내부에서 로드)"""
-    wdplanner_index = os.path.join('static', 'wdplanner', 'index.html')
-    if os.path.exists(wdplanner_index):
-        # index.html 파일을 직접 반환 (Content-Type 자동 설정)
-        return send_from_directory('static/wdplanner', 'index.html')
-    else:
-        return render_template('wdplanner_setup.html')
+# wdplanner 3 routes -> wdplanner_bp
 
 # calculate_route, address_suggestions, add_address_learning, validate_address, map_view -> erp_map_bp
 # /api/orders (캘린더) -> orders_bp
+# translate_dict_keys, format_value_for_log -> 미사용 제거
+# load_menu_config -> services.menu_config
+# order_link_filter -> order_pages_bp.app_template_filter
 
+from services.menu_config import load_menu_config
 
-def translate_dict_keys(d, key_map):
-    if not isinstance(d, dict):
-        return d
-    new_dict = {}
-    for k, v in d.items():
-        translated_key = key_map.get(k, k)
-        if isinstance(v, dict):
-            new_dict[translated_key] = translate_dict_keys(v, key_map)
-        elif isinstance(v, list):
-            new_dict[translated_key] = [translate_dict_keys(item, key_map) for item in v]
-        else:
-            new_dict[translated_key] = v
-    return new_dict
-
-def format_value_for_log(value):
-    if value is None:
-        return "없음"
-    if isinstance(value, str) and not value.strip(): # 빈 문자열
-        return "없음"
-    return str(value)
-
-def load_menu_config():
-    try:
-        if os.path.exists('menu_config.json'):
-            with open('menu_config.json', 'r', encoding='utf-8') as f:
-                return json.load(f)
-    except:
-        pass
-    
-    # Default menu configuration
-    return {
-        'main_menu': [
-            {'id': 'calendar', 'name': '캘린더', 'url': '/calendar'},
-            {'id': 'order_list', 'name': '전체 주문', 'url': '/'},
-            {'id': 'received', 'name': '접수', 'url': '/?status=RECEIVED'},
-            {'id': 'measured', 'name': '실측', 'url': '/?status=MEASURED'},
-            {'id': 'metro_orders', 'name': '수도권 주문', 'url': '/?region=metro'},
-            {'id': 'regional_orders', 'name': '지방 주문', 'url': '/?region=regional'},
-            {'id': 'storage_dashboard', 'name': '수납장 대시보드', 'url': '/storage_dashboard'},
-            {'id': 'regional_dashboard', 'name': '지방 주문 대시보드', 'url': '/regional_dashboard'},
-            {'id': 'self_measurement_dashboard', 'name': '자가실측 대시보드', 'url': '/self_measurement_dashboard'},
-            {'id': 'metropolitan_dashboard', 'name': '수도권 주문 대시보드', 'url': '/metropolitan_dashboard'},
-            {'id': 'trash', 'name': '휴지통', 'url': '/trash'},
-            {'id': 'chat', 'name': '채팅', 'url': '/chat'}
-        ],
-        'admin_menu': [
-            {'id': 'user_management', 'name': '사용자 관리', 'url': '/admin/users'},
-            {'id': 'security_logs', 'name': '보안 로그', 'url': '/admin/security-logs'}
-        ]
-    }
 
 @app.context_processor
 def inject_menu():
-    menu_config = load_menu_config()
-
-    # ERP Beta: 실측/AS/출고는 ERP 대시보드 서브 내비로 이동 (메인 메뉴에는 추가하지 않음)
-
-    return dict(menu=menu_config)
-
-# Jinja 필터: 메시지 내 "주문 #<번호>"를 클릭 가능한 링크로 변환
-@app.template_filter('order_link')
-def order_link_filter(s):
-    import re
-    from flask import url_for
-    def repl(m):
-        oid = m.group(1)
-        link = url_for('order_pages.edit_order', order_id=oid)
-        return Markup(f'<a href="{link}">주문 #{oid}</a>')
-    return Markup(re.sub(r'주문 #(\d+)', repl, s))
+    return dict(menu=load_menu_config())
 
 # 도면 관리 API -> apps.api.erp_orders_blueprint
 # ERP Structured/Draft API -> apps.api.erp_orders_structured
