@@ -238,9 +238,9 @@ def build_info():
         'template': 'templates/layout.html',
     })
 
-# Security & Scalability (Quest 14): Rate Limiter → config/rate_limit.py
+# Security & Scalability (Quest 14): Rate Limiter → services/rate_limit.py (Railway 배포 시 config 미포함 대비)
 redis_url = os.environ.get('REDIS_URL')
-from config.rate_limit import init_limiter
+from services.rate_limit import init_limiter
 limiter = init_limiter(app)
 
 # SocketIO Initialization with Redis & CORS Control

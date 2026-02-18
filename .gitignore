@@ -54,3 +54,6 @@ Thumbs.db
 tests/load/session_cookies.txt
 tests/load/loadtest_users.txt
 tests/load/results/
+
+# 로컬 전용 (배포 제외)
+config/local*
