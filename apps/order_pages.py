@@ -9,7 +9,7 @@ from sqlalchemy import or_, String
 
 from apps.auth import login_required, role_required, log_access
 from apps.auth import get_user_by_id
-from apps.erp import can_edit_erp
+from services.erp_permissions import can_edit_erp
 from db import get_db
 from models import Order
 from constants import STATUS
@@ -158,7 +158,10 @@ def index():
         )
     except Exception as e:
         print(f"Index 페이지 로딩 중 오류: {str(e)}")
-        flash('페이지 로딩 중 오류가 발생했습니다.', 'error')
+        if 'user_id' in session:
+            # 인증/세션 불일치 상태에서 / <-> /login 루프를 방지한다.
+            session.clear()
+        flash('페이지 로딩 중 오류가 발생했습니다. 다시 로그인해주세요.', 'error')
         return redirect(url_for('auth.login'))
 
 

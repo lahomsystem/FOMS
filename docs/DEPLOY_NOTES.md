@@ -4,7 +4,37 @@
 
 ---
 
-## 2026-02-17 (이번 배포)
+## 2026-02-18 (이번 배포)
+
+### 뭘 했나요?
+- **ERP 화면 전부 역할별로 나눔 (erp.py 슬림)**  
+  예전에 ERP 한 파일에 몰려 있던 **대시보드 화면 6개**를 각각 따로 파일로 빼 두었습니다.
+
+  | 화면 | 새 파일 | 설명 |
+  |------|---------|------|
+  | 메인 대시보드 | erp_dashboard.py | ERP 프로세스 대기·진행 현황 |
+  | 도면 작업실 | erp_drawing_workbench.py | 도면 목록·상세 |
+  | 실측 대시보드 | erp_measurement_dashboard.py | 실측 일정·담당자 |
+  | 출고 대시보드 | erp_shipment_page.py | 시공 일정·출고일지 |
+  | AS 대시보드 | erp_as_page.py | AS 접수·완료 목록 |
+  | 생산 대시보드 | erp_production_page.py | 제작대기·제작중 |
+  | 시공 대시보드 | erp_construction_page.py | 시공대기·시공중·완료 |
+
+  공통으로 쓰는 **필터·권한·표시 로직**도 `services/` 폴더로 빼 두었습니다.  
+  → **화면·기능은 그대로**고, 코드만 나눠서 관리하기 쉬워졌습니다.
+
+### 사용자 입장에서는?
+- **바뀐 거 없음.**  
+  ERP 메뉴에서 들어가는 모든 대시보드가 이전이랑 똑같이 동작합니다.
+
+### 개발자 입장에서는?
+- `apps/erp.py`가 **40줄**로 줄었습니다 (예전 2천 줄 넘던 것에서 분리 완료).
+- 새 Blueprint: `erp_dashboard_bp`, `erp_drawing_workbench_bp`, `erp_measurement_dashboard_bp`, `erp_shipment_page_bp`, `erp_as_page_bp`, `erp_production_page_bp`, `erp_construction_page_bp`
+- 공통: `services/erp_display.py`, `services/erp_permissions.py`, `services/erp_template_filters.py`
+
+---
+
+## 2026-02-17 (이전 배포)
 
 ### 뭘 했나요?
 - **Phase 4 ERP 모듈 분리 (4-2 ~ 4-5c)**  

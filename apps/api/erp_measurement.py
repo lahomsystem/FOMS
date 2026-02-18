@@ -12,7 +12,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order
 from apps.auth import login_required, role_required
-from apps.erp import erp_edit_required
+from services.erp_permissions import erp_edit_required
 from foms_address_converter import FOMSAddressConverter
 
 erp_measurement_bp = Blueprint(

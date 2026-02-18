@@ -6,6 +6,18 @@
 
 | ID | 상태 | 설명 | 시작일 | 최종 업데이트 |
 |----|------|------|--------|-------------|
+| ERP-SLIM-10 | 완료 | 시공 대시보드 → apps/erp_construction_page.py (erp_construction_page_bp) | 2026-02-18 | 2026-02-18 |
+| ERP-SLIM-9 | 완료 | 생산 대시보드 → apps/erp_production_page.py (erp_production_page_bp) | 2026-02-18 | 2026-02-18 |
+| ERP-SLIM-8 | 완료 | AS 대시보드 → apps/erp_as_page.py (erp_as_page_bp) | 2026-02-18 | 2026-02-18 |
+| ERP-SLIM-7 | 완료 | 출고 대시보드 → apps/erp_shipment_page.py (erp_shipment_page_bp) | 2026-02-18 | 2026-02-18 |
+| ERP-SLIM-6 | 완료 | 실측 대시보드 → apps/erp_measurement_dashboard.py (erp_measurement_dashboard_bp) | 2026-02-18 | 2026-02-18 |
+| ERP-SLIM-5 | 완료 | erp_drawing_workbench → apps/erp_drawing_workbench.py (erp_drawing_workbench_bp) | 2026-02-18 | 2026-02-18 |
+| ERP-SLIM-4 | 완료 | erp_dashboard → apps/erp_dashboard.py (erp_dashboard_bp) | 2026-02-18 | 2026-02-18 |
+| ERP-SLIM-3 | 완료 | can_edit_erp, erp_edit_required → services/erp_permissions.py | 2026-02-18 | 2026-02-18 |
+| ERP-SLIM-1 | 완료 | 템플릿 필터 6개 → services/erp_template_filters.py | 2026-02-18 | 2026-02-18 |
+| ERP-SLIM-2 | 완료 | display 헬퍼 → services/erp_display.py | 2026-02-18 | 2026-02-18 |
+| SLIM-025 | 완료 | app.py 슬림다운 테스크 계획표 작성 (2026-02-18-app-slim-task-plan.md) | 2026-02-18 | 2026-02-18 |
+| SLIM-024 | 완료 | erp.py 분리 상세 계획 작성 (2026-02-17-erp-split-plan.md) | 2026-02-17 | 2026-02-17 |
 | SLIM-023 | 완료 | index+add_order → order_pages_bp, order_display_utils | 2026-02-17 | 2026-02-17 |
 | SLIM-022 | 완료 | /api/orders 캘린더 API → orders_bp (FullCalendar 이벤트) | 2026-02-17 | 2026-02-17 |
 | SLIM-021 | 완료 | 주소/경로 API 4개 → erp_map_bp 통합 (calculate_route, address_suggestions, add_address_learning, validate_address) | 2026-02-17 | 2026-02-17 |

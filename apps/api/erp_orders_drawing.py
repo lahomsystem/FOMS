@@ -10,7 +10,7 @@ from flask import Blueprint, request, jsonify, session
 from db import get_db
 from models import Order, OrderAttachment, Notification, SecurityLog
 from apps.auth import login_required, get_user_by_id
-from apps.erp import erp_edit_required
+from services.erp_permissions import erp_edit_required
 from services.erp_policy import can_modify_domain, get_assignee_ids
 from services.storage import get_storage
 
