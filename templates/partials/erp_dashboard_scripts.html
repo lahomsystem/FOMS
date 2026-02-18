@@ -1,5 +1,4 @@
       <script>
-      <script>
         function escapeHtml(text) {
           if (!text) return '';
           const div = document.createElement('div');
@@ -1336,6 +1335,22 @@
           }
         }
 
+        /** API가 HTML(401/404/500)을 돌려주면 r.json()이 SyntaxError를 던짐. JSON일 때만 파싱 */
+        async function safeJsonFetch(url, fallback) {
+          const r = await fetch(url);
+          const ct = r.headers.get('content-type') || '';
+          if (!r.ok || !ct.includes('application/json')) {
+            if (!r.ok) console.warn('Order detail API non-OK:', url, r.status);
+            return fallback;
+          }
+          try {
+            return await r.json();
+          } catch (e) {
+            console.error('JSON parse error for', url, e);
+            return fallback;
+          }
+        }
+
         async function loadOrderDetail(orderId) {
           const container = document.getElementById(`order-detail-content-${orderId}`);
           if (!container) return;
@@ -1344,15 +1359,14 @@
             container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
 
             const [structured, attachments] = await Promise.all([
-              fetch(`/api/orders/${orderId}/structured`).then(r => r.json()).catch(err => {
-                console.error('Structured data fetch error:', err);
-                return { success: false, structured_data: {} };
-              }),
-              fetch(`/api/orders/${orderId}/attachments`).then(r => r.json()).catch(err => {
-                console.error('Attachments fetch error:', err);
-                return { success: false, attachments: [] };
-              }),
+              safeJsonFetch(`/api/orders/${orderId}/structured`, { success: false, structured_data: {} }),
+              safeJsonFetch(`/api/orders/${orderId}/attachments`, { success: false, attachments: [] }),
             ]);
+
+            if (!structured || !structured.success) {
+              container.innerHTML = '<div class="text-warning small">상세 정보를 불러올 수 없습니다. 새로고침 후 다시 시도하세요.</div>';
+              return;
+            }
 
             const sd = (structured && structured.structured_data) || {};
             const customer = (((sd.parties || {}).customer || {}).name) || '-';
