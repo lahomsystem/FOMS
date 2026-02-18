@@ -452,7 +452,7 @@
                                                data-field="shipping_scheduled_date">
                                     </td>
                                     <td>
-                                        <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
+                                        <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
                                            class="btn btn-sm btn-outline-primary" title="수정">
                                             <i class="fas fa-edit"></i>
                                         </a>
@@ -668,7 +668,7 @@
                                                data-field="shipping_scheduled_date">
                                     </td>
                                             <td>
-                                                <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
+                                                <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-primary" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
@@ -838,7 +838,7 @@
                                                        value="{{ order.shipping_scheduled_date or '' }}">
                                             </td>
                                             <td>
-                                                <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
+                                                <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-warning" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
@@ -1035,7 +1035,7 @@
                                                        value="{{ order.shipping_scheduled_date or '' }}">
                                             </td>
                                             <td>
-                                                <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
+                                                <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-primary" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
@@ -1210,7 +1210,7 @@
                                                           data-order-id="{{ order.id }}" data-field="manager_name">{{ order.manager_name or '' }}</textarea>
                                             </td>
                                             <td>
-                                                <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" class="btn btn-sm btn-outline-primary" title="수정">
+                                                <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='regional_dashboard') }}" class="btn btn-sm btn-outline-primary" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
                                             </td>
@@ -1365,7 +1365,7 @@
                                                data-field="shipping_scheduled_date">
                                     </td>
                                             <td>
-                                                <a href="{{ url_for('edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
+                                                <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='regional_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-success" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>

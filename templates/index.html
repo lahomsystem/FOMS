@@ -545,12 +545,12 @@
                 <i class="fas fa-plus"></i>
                 <span>새 주문</span>
             </a>
-            <a href="{{ url_for('upload_excel') }}" class="erp-pro-btn erp-pro-btn--secondary">
+            <a href="{{ url_for('excel.upload_excel') }}" class="erp-pro-btn erp-pro-btn--secondary">
                 <i class="fas fa-file-excel"></i>
                 <span class="d-none d-sm-inline">엑셀 업로드</span>
             </a>
             {% set download_params_dict = request.args.to_dict() %}
-            <a href="{{ url_for('download_excel', **download_params_dict) }}" class="erp-pro-btn erp-pro-btn--success">
+            <a href="{{ url_for('excel.download_excel', **download_params_dict) }}" class="erp-pro-btn erp-pro-btn--success">
                 <i class="fas fa-download"></i>
                 <span class="d-none d-sm-inline">엑셀 다운로드</span>
             </a>
@@ -762,7 +762,7 @@
                             </td>
                             <td class="th-actions">
                                 <div class="btn-group">
-                                    <a href="{{ url_for('edit_order', order_id=order.id, **request.args) }}"
+                                    <a href="{{ url_for('order_pages.edit_order', order_id=order.id, **request.args) }}"
                                         class="btn btn-sm btn-outline-primary" title="수정" aria-label="주문 {{ order.id }} 수정">
                                         <i class="fas fa-edit"></i>
                                     </a>

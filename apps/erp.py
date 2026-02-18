@@ -1484,7 +1484,7 @@ def erp_measurement_dashboard():
 
     # 지도 보기 요청이면 기존 map_view를 date/status 파라미터로 오픈하도록 리다이렉트
     if open_map:
-        return redirect(url_for('map_view', date=selected_date, status='MEASURED'))
+        return redirect(url_for('erp_map.map_view', date=selected_date, status='MEASURED'))
 
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     return render_template(
@@ -1762,7 +1762,7 @@ def erp_as_dashboard():
     if open_map:
         date_val = selected_date or datetime.datetime.now().strftime('%Y-%m-%d')
         status_val = status_filter or 'ALL'
-        return redirect(url_for('map_view', date=date_val, status=status_val))
+        return redirect(url_for('erp_map.map_view', date=date_val, status=status_val))
 
     query = db.query(Order).filter(Order.status != 'DELETED')
 
