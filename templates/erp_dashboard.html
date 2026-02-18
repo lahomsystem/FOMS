@@ -18,11 +18,11 @@
     <div class="erp-pro-header__actions">
       <!-- 알림 버튼 -->
 
-      <a class="erp-pro-btn erp-pro-btn--primary" href="{{ url_for('add_order', open='erp-beta') }}">
+      <a class="erp-pro-btn erp-pro-btn--primary" href="{{ url_for('order_pages.add_order', open='erp-beta') }}">
         <i class="fas fa-plus"></i>
         <span>주문 생성</span>
       </a>
-      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('index') }}">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('order_pages.index') }}">
         <i class="fas fa-home"></i>
         <span class="d-none d-md-inline">홈</span>
       </a>

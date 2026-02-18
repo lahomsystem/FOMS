@@ -167,7 +167,7 @@
 <div class="container-fluid regional-dashboard">
             <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0"><i class="fas fa-map-marked-alt text-success"></i> 지방 주문 관리 대시보드</h1>
-        <a href="{{ url_for('add_order', is_regional='true') }}" class="btn btn-success">
+        <a href="{{ url_for('order_pages.add_order', is_regional='true') }}" class="btn btn-success">
             <i class="fas fa-plus"></i> 새 지방 주문 추가
                 </a>
             </div>
@@ -177,7 +177,7 @@
         <div class="col-12">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <form method="get" action="{{ url_for('regional_dashboard') }}" class="d-flex">
+                    <form method="get" action="{{ url_for('dashboards.regional_dashboard') }}" class="d-flex">
                         <input type="text" name="search_query" class="form-control me-2" placeholder="주문번호, 고객명, 연락처, 주소, 제품, 메모 등 통합 검색" value="{{ search_query or '' }}">
                         <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> 검색</button>
                     </form>

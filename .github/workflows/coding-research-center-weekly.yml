@@ -1,0 +1,48 @@
+name: Coding Research Center Weekly
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 1 * * 1" # Every Monday 01:15 UTC
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  weekly-research:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Run research center
+        run: |
+          python tools/research_center/coding_research_center.py \
+            --days 9 \
+            --apply-limit 12 \
+            --sync-radar \
+            --sync-backlog
+
+      - name: Create pull request with weekly report
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore(research): weekly coding research report"
+          title: "chore(research): weekly coding research center update"
+          body: |
+            ## Weekly Coding Research Center Update
+            - Generated weekly coding/AI-coding research report
+            - Updated radar and hypothesis backlog
+            - Produced apply-now queue for immediate execution
+          branch: automation/weekly-coding-research-center
+          delete-branch: true

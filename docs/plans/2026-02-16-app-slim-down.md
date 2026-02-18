@@ -68,15 +68,17 @@
 
 ## 진행 상태
 
+> **2026-02-17 코드 검증**: Phase 2-1·2-2·2-3은 복원으로 미적용된 것으로 확인. 실제 상태는 `docs/plans/SLIM_DOWN_PROGRESS_2026-02-17.md` 참조.
+
 | Phase | 상태 | 비고 |
 |-------|------|------|
 | 1-1 | 완료 | services/ + __init__.py 생성 |
 | 1-2 | 완료 | business_calendar → services/business_calendar.py, import 경로 수정, 서버 기동 검증 |
 | 1-3 | 완료 | erp_policy → services/erp_policy.py, import 경로 수정, 서버 기동 검증 |
 | 1-4 | 완료 | storage → services/storage.py, import 경로 수정, 서버 기동 검증 |
-| 2-1 | 완료 | 채팅 → apps/api/chat/ (chat_bp, register_chat_socketio_handlers), app.py에서 라우트·헬퍼·SocketIO 블록 제거 |
-| 2-2 | 완료 | 수납장 → apps/storage_dashboard.py (storage_dashboard_bp), app.py에서 라우트 제거 |
-| 2-3 | 완료 | build_file_view_url, build_file_download_url → apps/api/files.py, app.py는 import로 사용 |
+| 2-1 | **미완료** | 채팅 → apps/api/chat/ (chat_bp, socketio). 현재 app.py에 라우트·SocketIO 존재 (복원됨) |
+| 2-2 | 완료 | 수납장 → apps/storage_dashboard.py (2026-02-17 진행) |
+| 2-3 | 완료 | build_file_view_url, build_file_download_url → apps/api/files.py (2026-02-17 진행) |
 | 2-4 | - | (대규모 파일 라우트는 이미 files_bp에 있어 추가 이전 없음) |
 | 3-1 | 완료 | erp_dashboard.html → partials (styles, filters, grid, modals, scripts). 메인 594줄 |
 | 3-2 | 완료 | chat.html → partials (chat_styles, chat_scripts). 메인 229줄 |

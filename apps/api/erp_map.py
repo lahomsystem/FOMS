@@ -417,6 +417,75 @@ def api_generate_map():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@erp_map_bp.route('/api/calculate_route')
+@login_required
+def api_calculate_route():
+    """두 지점 간 경로 계산 API"""
+    try:
+        start_lat = request.args.get('start_lat', type=float)
+        start_lng = request.args.get('start_lng', type=float)
+        end_lat = request.args.get('end_lat', type=float)
+        end_lng = request.args.get('end_lng', type=float)
+        if not all([start_lat, start_lng, end_lat, end_lng]):
+            return jsonify({'success': False, 'error': '출발지와 도착지 좌표가 모두 필요합니다.'}), 400
+        converter = FOMSAddressConverter()
+        route_result = converter.calculate_route(start_lat, start_lng, end_lat, end_lng)
+        if route_result['status'] == 'success':
+            return jsonify({'success': True, 'data': route_result})
+        return jsonify({'success': False, 'error': route_result['message']}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'경로 계산 중 오류: {str(e)}'}), 500
+
+
+@erp_map_bp.route('/api/address_suggestions')
+@login_required
+def api_address_suggestions():
+    """주소 교정 제안 API"""
+    try:
+        address = request.args.get('address')
+        if not address:
+            return jsonify({'success': False, 'error': '주소가 필요합니다.'}), 400
+        converter = FOMSAddressConverter()
+        suggestions = converter.get_address_suggestions(address)
+        return jsonify({'success': True, 'suggestions': suggestions})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@erp_map_bp.route('/api/add_address_learning', methods=['POST'])
+@login_required
+def api_add_address_learning():
+    """주소 학습 데이터 추가 API"""
+    try:
+        data = request.get_json()
+        original_address = data.get('original_address')
+        corrected_address = data.get('corrected_address')
+        latitude = data.get('latitude')
+        longitude = data.get('longitude')
+        if not all([original_address, corrected_address, latitude, longitude]):
+            return jsonify({'success': False, 'error': '모든 필드가 필요합니다.'}), 400
+        converter = FOMSAddressConverter()
+        converter.add_learning_data(original_address, corrected_address, latitude, longitude)
+        return jsonify({'success': True, 'message': '학습 데이터가 추가되었습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@erp_map_bp.route('/api/validate_address')
+@login_required
+def api_validate_address():
+    """주소 유효성 검증 API"""
+    try:
+        address = request.args.get('address')
+        if not address:
+            return jsonify({'success': False, 'error': '주소가 필요합니다.'}), 400
+        converter = FOMSAddressConverter()
+        validation = converter.validate_address(address)
+        return jsonify({'success': True, 'validation': validation})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @erp_map_bp.route('/api/orders/<int:order_id>/update_address', methods=['POST'])
 @login_required
 @erp_edit_required

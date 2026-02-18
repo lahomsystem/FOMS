@@ -1,0 +1,171 @@
+{
+  "agents": [
+    {
+      "name": "grand-develop-master",
+      "path": ".cursor/agents/grand-develop-master.md",
+      "auto_create_stub": false
+    },
+    {
+      "name": "coding-research-center",
+      "path": ".cursor/agents/coding-research-center.md",
+      "auto_create_stub": false
+    },
+    {
+      "name": "evolution-architect",
+      "path": ".cursor/agents/evolution-architect.md",
+      "auto_create_stub": false
+    },
+    {
+      "name": "migration-executor",
+      "path": ".cursor/agents/migration-executor.md",
+      "auto_create_stub": true
+    }
+  ],
+  "rules": [
+    {
+      "name": "12-macro-micro-migration-execution",
+      "path": ".cursor/rules/12-macro-micro-migration-execution.mdc",
+      "auto_create_stub": true
+    },
+    {
+      "name": "13-self-evolution-autoupgrade",
+      "path": ".cursor/rules/13-self-evolution-autoupgrade.mdc",
+      "auto_create_stub": true
+    }
+  ],
+  "skills": [
+    {
+      "name": "tech-stack-evaluator",
+      "path": ".cursor/skills/skills/tech-stack-evaluator/SKILL.md"
+    },
+    {
+      "name": "self-evolution-factory",
+      "path": ".cursor/skills/skills/self-evolution-factory/SKILL.md"
+    },
+    {
+      "name": "context7-auto-research",
+      "path": ".cursor/skills/skills/context7-auto-research/SKILL.md"
+    },
+    {
+      "name": "agent-orchestration-multi-agent-optimize",
+      "path": ".cursor/skills/skills/agent-orchestration-multi-agent-optimize/SKILL.md"
+    }
+  ],
+  "hooks": [
+    {
+      "name": "guard_shell",
+      "path": ".cursor/hooks/guard_shell.py"
+    },
+    {
+      "name": "session_start",
+      "path": ".cursor/hooks/session_start.py"
+    },
+    {
+      "name": "pre_compact",
+      "path": ".cursor/hooks/pre_compact.py"
+    },
+    {
+      "name": "track_edits",
+      "path": ".cursor/hooks/track_edits.py"
+    },
+    {
+      "name": "session_stop",
+      "path": ".cursor/hooks/session_stop.py"
+    }
+  ],
+  "docs": [
+    {
+      "name": "evolution_radar",
+      "path": "docs/evolution/RADAR.md"
+    },
+    {
+      "name": "evolution_backlog",
+      "path": "docs/evolution/HYPOTHESIS_BACKLOG.md"
+    },
+    {
+      "name": "evolution_decisions",
+      "path": "docs/evolution/EVOLUTION_DECISIONS.md"
+    },
+    {
+      "name": "research_latest",
+      "path": "docs/evolution/research/LATEST.md"
+    },
+    {
+      "name": "migration_plan",
+      "path": "docs/evolution/research/MACRO_MICRO_MIGRATION_PLAN.md"
+    },
+    {
+      "name": "self_upgrade_plan",
+      "path": "docs/evolution/research/SELF_UPGRADE_PLAN.md"
+    }
+  ],
+  "mcps": [
+    {
+      "name": "sequential-thinking",
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-sequential-thinking"
+        ]
+      }
+    },
+    {
+      "name": "mcp-reasoner",
+      "config": {
+        "command": "node",
+        "args": [
+          "C:\\\\Users\\\\USER\\\\mcp-reasoner\\\\dist\\\\index.js"
+        ]
+      }
+    },
+    {
+      "name": "context7",
+      "config": {
+        "command": "cmd",
+        "args": [
+          "/c",
+          "npx",
+          "-y",
+          "@upstash/context7-mcp@latest"
+        ]
+      }
+    },
+    {
+      "name": "postgres"
+    },
+    {
+      "name": "memory",
+      "config": {
+        "command": "cmd",
+        "args": [
+          "/c",
+          "npx",
+          "-y",
+          "@modelcontextprotocol/server-memory"
+        ]
+      }
+    },
+    {
+      "name": "markitdown",
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "markitdown-mcp-npx"
+        ]
+      }
+    },
+    {
+      "name": "filesystem",
+      "config": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          "c:\\\\Users\\\\USER\\\\OneDrive\\\\Desktop\\\\SY\\\\program\\\\lahomproject\\\\FOMS"
+        ]
+      }
+    }
+  ]
+}

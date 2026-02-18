@@ -130,9 +130,43 @@ def init_tables():
     except Exception as e:
         print(f"Initialization Error: {e}")
 
+
+def reset_admin_password(password='admin1234'):
+    """
+    admin 계정 비밀번호를 Werkzeug pbkdf2 해시로 갱신.
+    DB에 bcrypt($2b$) 등 다른 형식으로 저장된 경우 로그인이 되지 않을 수 있어 이 스크립트로 복구.
+    """
+    from models import User
+    from werkzeug.security import generate_password_hash
+    session = db_session()
+    try:
+        admin = session.query(User).filter_by(username='admin').first()
+        if not admin:
+            print("Admin user not found. Creating admin (admin/{})...".format(password))
+            admin = User(
+                username='admin',
+                password=generate_password_hash(password),
+                name='관리자',
+                role='ADMIN',
+                is_active=True
+            )
+            session.add(admin)
+        else:
+            admin.password = generate_password_hash(password)
+            print("Admin password updated (username=admin, password={}).".format(password))
+        session.commit()
+        print("Done. You can log in with admin / {}.".format(password))
+    except Exception as e:
+        print(f"Error: {e}")
+        session.rollback()
+    finally:
+        session.close()
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="FOMS Database Administration Tool")
-    parser.add_argument('action', choices=['fix-sequences', 'optimize', 'init'], help="Action to perform")
+    parser.add_argument('action', choices=['fix-sequences', 'optimize', 'init', 'reset-admin'], help="Action to perform")
+    parser.add_argument('--password', default='admin1234', help="New password for reset-admin (default: admin1234)")
     args = parser.parse_args()
     
     if args.action == 'fix-sequences':
@@ -141,3 +175,5 @@ if __name__ == '__main__':
         optimize_db()
     elif args.action == 'init':
         init_tables()
+    elif args.action == 'reset-admin':
+        reset_admin_password(password=args.password)

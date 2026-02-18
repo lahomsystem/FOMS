@@ -101,7 +101,7 @@ def role_required(roles):
             if user.role not in roles:
                 flash('이 페이지에 접근할 권한이 없습니다.', 'error')
                 log_access(f"권한 없는 접근 시도: {request.path}", user.id)
-                return redirect(url_for('index'))
+                return redirect(url_for('order_pages.index'))
                 
             return f(*args, **kwargs)
         return decorated_function
@@ -110,9 +110,9 @@ def role_required(roles):
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if 'user_id' in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('order_pages.index'))
     
-    next_url = request.args.get('next', url_for('index'))
+    next_url = request.args.get('next', url_for('order_pages.index'))
     
     if request.method == 'POST':
         username = request.form.get('username')
@@ -173,14 +173,14 @@ def switch_user(target_user_id):
     target = get_user_by_id(target_user_id)
     if not target:
         flash('대상 사용자를 찾을 수 없습니다.', 'error')
-        return redirect(request.referrer or url_for('index'))
+        return redirect(request.referrer or url_for('order_pages.index'))
     if not target.is_active:
         flash('비활성화된 사용자로 전환할 수 없습니다.', 'error')
-        return redirect(request.referrer or url_for('index'))
+        return redirect(request.referrer or url_for('order_pages.index'))
     admin_id = session['user_id']
     if target_user_id == admin_id:
         flash('이미 본인 계정입니다.', 'info')
-        return redirect(request.referrer or url_for('index'))
+        return redirect(request.referrer or url_for('order_pages.index'))
     # 전환 전 관리자 저장 (원래 관리자로 돌아가기용)
     session['impersonating_from'] = admin_id
     session['user_id'] = target.id
@@ -188,7 +188,7 @@ def switch_user(target_user_id):
     session['role'] = target.role
     log_access(f"관리자(ID:{admin_id})가 사용자로 전환: {target.username} (ID:{target.id})", admin_id)
     flash(f'{target.name}({target.username})님으로 전환되었습니다.', 'success')
-    return redirect(request.referrer or url_for('index'))
+    return redirect(request.referrer or url_for('order_pages.index'))
 
 
 @auth_bp.route('/switch-back')
@@ -198,7 +198,7 @@ def switch_back():
     admin_id = session.get('impersonating_from')
     if not admin_id:
         flash('전환된 상태가 아닙니다.', 'info')
-        return redirect(url_for('index'))
+        return redirect(url_for('order_pages.index'))
     admin = get_user_by_id(admin_id)
     if not admin:
         session.pop('impersonating_from', None)
@@ -210,12 +210,12 @@ def switch_back():
     session['role'] = admin.role
     log_access(f"관리자 복귀: {admin.username} (ID:{admin.id})", admin.id)
     flash(f'관리자({admin.name}) 계정으로 복귀했습니다.', 'success')
-    return redirect(request.referrer or url_for('index'))
+    return redirect(request.referrer or url_for('order_pages.index'))
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if 'user_id' in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('order_pages.index'))
     
     db = get_db()
     user_count = db.query(User).count()

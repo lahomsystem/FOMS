@@ -1,6 +1,6 @@
 {
-  "backup_time": "2026-02-03T16:08:33.698543",
-  "database_file": "database_backup_20260203_160833.sql",
+  "backup_time": "2026-02-17T21:52:40.641659",
+  "database_file": "database_backup_20260217_215240.sql",
   "system_files": [
     "app.py",
     "models.py",
@@ -9,5 +9,6 @@
     "menu_config.json"
   ],
   "backup_location": "backups/tier1_primary",
-  "database_size": 8023385
+  "database_size": 8593972,
+  "note": "복원 시 DB 전체(주문·상태·실측·체크리스트·워크플로우 등)가 동일하게 복원됩니다."
 }

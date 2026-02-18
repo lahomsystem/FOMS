@@ -1,7 +1,10 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, func, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
+
+# JSON Type Compatibility Layer
+JSONColumn = JSON().with_variant(JSONB, 'postgresql')
 from db import Base
 
 class Order(Base):
@@ -10,13 +13,13 @@ class Order(Base):
     id = Column(Integer, primary_key=True)
     received_date = Column(String, nullable=False)
     received_time = Column(String)
-    customer_name = Column(String, nullable=False)
-    phone = Column(String, nullable=False)
+    customer_name = Column(String, nullable=False, index=True)
+    phone = Column(String, nullable=False, index=True)
     address = Column(Text, nullable=False)
     product = Column(String, nullable=False)
     options = Column(Text)
     notes = Column(Text)
-    status = Column(String, default='RECEIVED')
+    status = Column(String, default='RECEIVED', index=True)
     original_status = Column(String)
     deleted_at = Column(String)
     created_at = Column(DateTime, default=datetime.datetime.now)
@@ -63,7 +66,7 @@ class Order(Base):
     # ERP Beta로 생성된 주문인지 여부 (ERP 대시보드 노출/운영 분리용)
     is_erp_beta = Column(Boolean, nullable=False, default=False, server_default='false')
     raw_order_text = Column(Text, nullable=True)  # 원문 텍스트(붙여넣기) 보관
-    structured_data = Column(JSONB, nullable=True)  # 구조화 데이터(JSONB)
+    structured_data = Column(JSONColumn, nullable=True)  # 구조화 데이터(JSON / JSONB)
     structured_schema_version = Column(Integer, nullable=False, default=1)
     structured_confidence = Column(String(20), nullable=True)  # high/medium/low
     structured_updated_at = Column(DateTime, nullable=True)
@@ -81,6 +84,8 @@ class OrderAttachment(Base):
 
     filename = Column(String(255), nullable=False)
     file_type = Column(String(50), nullable=False)  # image / video
+    category = Column(String(50), nullable=False, default='measurement')  # measurement / drawing / construction
+    item_index = Column(Integer, nullable=True, default=None, index=True)  # 제품 항목 인덱스 (None=공통)
     file_size = Column(Integer, nullable=False, default=0)
 
     storage_key = Column(String(500), nullable=False)  # static/uploads 기준 key 또는 R2 key
@@ -96,6 +101,8 @@ class OrderAttachment(Base):
             'order_id': self.order_id,
             'filename': self.filename,
             'file_type': self.file_type,
+            'category': self.category or 'measurement',
+            'item_index': self.item_index,
             'file_size': self.file_size,
             'storage_key': self.storage_key,
             'thumbnail_key': self.thumbnail_key,
@@ -156,6 +163,7 @@ class User(Base):
     password = Column(String, nullable=False)
     name = Column(String, nullable=False, default='사용자')
     role = Column(String, nullable=False, default='VIEWER')
+    team = Column(String(50), nullable=True)  # cs/drawing/production/construction
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, default=datetime.datetime.now)
     last_login = Column(DateTime)
@@ -168,6 +176,7 @@ class User(Base):
             'username': self.username,
             'name': self.name,
             'role': self.role,
+            'team': self.team,
             'is_active': self.is_active,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
             'last_login': self.last_login.strftime('%Y-%m-%d %H:%M:%S') if self.last_login else None
@@ -318,3 +327,64 @@ class ChatAttachment(Base):
             'thumbnail_url': self.thumbnail_url,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
         } 
+
+
+class Notification(Base):
+    """알림 시스템 - 담당 팀/영업사원에게 알림 전달
+    
+    담당(manager_name) 값에 따라 알림 대상 결정:
+    - '라홈' → 라홈팀(CS)
+    - '하우드' → 하우드팀(HAUDD)
+    - 그 외 → 해당 영업사원(SALES)
+    """
+    __tablename__ = 'notifications'
+    
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    # 알림 유형
+    notification_type = Column(String(50), nullable=False, index=True)
+    # DRAWING_TRANSFERRED: 도면 전달됨
+    # STAGE_CHANGED: 단계 변경됨
+    # QUEST_ASSIGNED: 퀘스트 할당됨
+    # AS_REQUIRED: AS 필요
+    
+    # 알림 대상 (팀 또는 영업사원명)
+    target_team = Column(String(50), nullable=True, index=True)  # CS, HAUDD, SALES, etc.
+    target_manager_name = Column(String(100), nullable=True, index=True)  # 특정 영업사원명
+    
+    # 알림 내용
+    title = Column(String(200), nullable=False)
+    message = Column(Text, nullable=True)
+    
+    # 생성자
+    created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    created_by_name = Column(String(100), nullable=True)
+    
+    # 상태
+    is_read = Column(Boolean, default=False, nullable=False, index=True)
+    read_at = Column(DateTime, nullable=True)
+    read_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    
+    # 타임스탬프
+    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False, index=True)
+    
+    # 관계
+    order = relationship('Order', foreign_keys=[order_id])
+    created_by = relationship('User', foreign_keys=[created_by_user_id])
+    read_by = relationship('User', foreign_keys=[read_by_user_id])
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'notification_type': self.notification_type,
+            'target_team': self.target_team,
+            'target_manager_name': self.target_manager_name,
+            'title': self.title,
+            'message': self.message,
+            'created_by_name': self.created_by_name,
+            'is_read': self.is_read,
+            'read_at': self.read_at.strftime('%Y-%m-%d %H:%M:%S') if self.read_at else None,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
+        }

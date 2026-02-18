@@ -40,7 +40,7 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2>휴지통</h2>
-        <a href="{{ url_for('index') }}" class="btn btn-secondary">돌아가기</a>
+        <a href="{{ url_for('order_pages.index') }}" class="btn btn-secondary">돌아가기</a>
     </div>
     
     <form method="get" class="mb-3">
@@ -53,10 +53,10 @@
     {% if orders %}
     <form action="" method="post" id="trash-action-form">
         <div class="mb-3">
-            <button type="submit" name="action" value="restore" formaction="{{ url_for('restore_orders') }}" class="btn btn-success me-2" onclick="return confirm('선택한 주문을 복원하시겠습니까?');">선택 복원</button>
-            <button type="submit" name="action" value="delete_permanently" formaction="{{ url_for('permanent_delete_orders') }}" class="btn btn-danger me-2" onclick="return confirm('선택한 주문을 영구 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.');">선택 영구 삭제</button>
+            <button type="submit" name="action" value="restore" formaction="{{ url_for('order_trash.restore_orders') }}" class="btn btn-success me-2" onclick="return confirm('선택한 주문을 복원하시겠습니까?');">선택 복원</button>
+            <button type="submit" name="action" value="delete_permanently" formaction="{{ url_for('order_trash.permanent_delete_orders') }}" class="btn btn-danger me-2" onclick="return confirm('선택한 주문을 영구 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.');">선택 영구 삭제</button>
             {% if current_user and current_user.role == 'ADMIN' %}
-            <button type="submit" name="action" value="delete_all_permanently" formaction="{{ url_for('permanent_delete_all_orders') }}" class="btn btn-danger" onclick="return confirm('정말 모든 주문을 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없으며, ID 번호가 모두 초기화됩니다.');">모든 주문 영구 삭제</button>
+            <button type="submit" name="action" value="delete_all_permanently" formaction="{{ url_for('order_trash.permanent_delete_all_orders') }}" class="btn btn-danger" onclick="return confirm('정말 모든 주문을 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없으며, ID 번호가 모두 초기화됩니다.');">모든 주문 영구 삭제</button>
             {% endif %}
         </div>
         

@@ -470,12 +470,14 @@ function adjustChatPageHeight() {
         const navHeight = nav.offsetHeight || 0;
         const totalHeight = headerHeight + navHeight;
         
-        // container-fluid 높이 조절
-        const container = document.querySelector('.container-fluid');
-        if (container && container.querySelector('.chat-page-wrapper')) {
-            container.style.height = `calc(100vh - ${totalHeight}px)`;
-            container.style.maxHeight = `calc(100vh - ${totalHeight}px)`;
-            container.style.overflow = 'hidden';
+        // 바깥 container-fluid(header 포함)만 높이 제한 — 채팅 입력창 하단 고정을 위한 루트
+        const outerContainer = document.querySelector('body .container-fluid:has(header)');
+        if (outerContainer && document.querySelector('.chat-page-wrapper')) {
+            outerContainer.style.height = `calc(100vh - ${totalHeight}px)`;
+            outerContainer.style.maxHeight = `calc(100vh - ${totalHeight}px)`;
+            outerContainer.style.overflow = 'hidden';
+            outerContainer.style.display = 'flex';
+            outerContainer.style.flexDirection = 'column';
         }
     }
 }
@@ -1601,7 +1603,17 @@ function formatDateTime(dateString) {
 
 function scrollToBottom() {
     const container = document.getElementById('messages-container');
-    container.scrollTop = container.scrollHeight;
+    if (container) container.scrollTop = container.scrollHeight;
+}
+
+/** 메시지 영역(#messages-container) 안에서만 스크롤하여 요소가 보이게 함. 페이지 스크롤 방지 */
+function scrollMessageIntoView(element) {
+    const container = document.getElementById('messages-container');
+    if (!container || !element) return;
+    const elTop = element.offsetTop;
+    const elH = element.offsetHeight;
+    const cH = container.clientHeight;
+    container.scrollTop = Math.max(0, elTop - Math.floor(cH / 2) + Math.floor(elH / 2));
 }
 
 // 주문 상세 보기 (Quest 12)
@@ -2081,7 +2093,7 @@ function searchMessages(query) {
         const text = msg.textContent.toLowerCase();
         if (text.includes(query.toLowerCase())) {
             msg.style.backgroundColor = '#fff3cd';
-            msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            scrollMessageIntoView(msg);
         } else {
             msg.style.backgroundColor = '';
         }
@@ -2151,7 +2163,7 @@ function selectRoomAndHighlight(roomId, messageId) {
     setTimeout(() => {
         const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
         if (messageElement) {
-            messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            scrollMessageIntoView(messageElement);
             messageElement.style.backgroundColor = '#fff3cd';
             setTimeout(() => {
                 messageElement.style.backgroundColor = '';
