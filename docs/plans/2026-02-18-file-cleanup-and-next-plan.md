@@ -79,11 +79,11 @@ GDM 감사 2026-02-18 권장 순서 및 기타 항목.
 | ID | 상태 | 완료일 | 비고 |
 |----|------|--------|------|
 | SLIM-035 | 보류 | - | app.py 300줄 이하, 필요 시 재개 |
-| CLEAN-001 | 대기 | - | docs 중복·폐기 문서 |
-| CLEAN-002 | 대기 | - | .cursor/artifacts |
-| CLEAN-003 | 대기 | - | .gitignore |
-| CLEAN-004 | 대기 | - | scripts/ 사용처 |
-| CLEAN-005 | 대기 | - | 루트·임시 파일 |
+| CLEAN-001 | 완료 | 2026-02-18 | docs 중복·폐기 문서 삭제 반영 (SLIM_DOWN_PROGRESS 등) |
+| CLEAN-002 | 완료 | 2026-02-18 | .cursor/artifacts 폐기 아티팩트 13건 삭제 후 push |
+| CLEAN-003 | 완료 | 2026-02-18 | .gitignore에 *.tmp, *.bak 추가 |
+| CLEAN-004 | 완료 | 2026-02-18 | scripts/: db_admin.py(관리용), incident_smoke.ps1(스모크) 사용 중 |
+| CLEAN-005 | 완료 | 2026-02-18 | 루트·임시 파일 없음 확인 |
 | NEXT-001~006 | 대기 | - | Phase 2 (파일 정리 후) |
 
 ---

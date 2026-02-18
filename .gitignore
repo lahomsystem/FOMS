@@ -48,7 +48,11 @@ static/uploads/*
 
 # OS 파일
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# 임시·백업 파일 (파일 정리 Phase 1)
+*.tmp
+*.bak 
 
 # Load test secrets / generated accounts
 tests/load/session_cookies.txt
