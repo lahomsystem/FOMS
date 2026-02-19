@@ -22,14 +22,20 @@ DB_URL = _normalize_postgres_url(
 )
 
 # SQLAlchemy 엔진 생성
-engine = create_engine(
-    DB_URL,
-    pool_pre_ping=True,
-    pool_size=20,       # Quest 14: Increase pool for 100 concurrent users
-    max_overflow=20,    # Allow bursts
-    pool_recycle=1800,  # Recycle connections every 30 mins
-    echo=False  # SQL 로그 비활성화
-)
+engine_args = {
+    "pool_pre_ping": True,
+    "echo": False  # SQL 로그 비활성화
+}
+
+# SQLite는 pool 설정을 지원하지 않음 (SingletonThreadPool 사용)
+if "sqlite" not in DB_URL:
+    engine_args.update({
+        "pool_size": 20,       # Quest 14: Increase pool for 100 concurrent users
+        "max_overflow": 20,    # Allow bursts
+        "pool_recycle": 1800,  # Recycle connections every 30 mins
+    })
+
+engine = create_engine(DB_URL, **engine_args)
 
 db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
 
