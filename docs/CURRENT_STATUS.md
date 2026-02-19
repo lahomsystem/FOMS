@@ -93,10 +93,10 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 **docs/DEPLOY_NOTES.md** — deploy에 올릴 때마다 "뭘 했는지" 누구나 알 수 있게 쉬운 말로 정리
 
 ## 최근 변경
+- [2026-02-19] **NEXT-004 완료: db_admin 비밀번호 환경변수화**
+  - scripts/db_admin.py: FOMS_ADMIN_DEFAULT_PASSWORD 사용. init·reset-admin 기본값 제거. DEPLOY_NOTES 반영.
 - [2026-02-19] **완료 더블체크 + 다음 단계 정리 + NEXT-003 pytest 도입**
-  - NEXT-002 PART-003·004·005 완료 확인 (TASK_REGISTRY·wdcalculator/partials 존재). `python -c "import app"` OK.
-  - CURRENT_STATUS "다음에 시작할 작업" 갱신: PART-005 완료 반영, 우선 착수 → NEXT-003(pytest) 또는 GDM 감사.
-  - **NEXT-003 완료**: tests/ 추가 (conftest.py, test_app_smoke.py). `pytest tests/ -v` 3 passed. 고도화 예정 PART-005 [x], NEXT-003 [x].
+  - NEXT-002 PART-003·004·005 완료 확인. **NEXT-003 완료**: tests/, pytest 3 passed. **NEXT-004 완료**: db_admin 환경변수화.
 - [2026-02-18] **NEXT-002 PART-005 완료: calculator.html partial 분리**
   - calculator.html 3,925줄 → 15줄 (메인: extends + include 3개).
   - wdcalculator/partials/wdcalculator_styles.html (~380줄), wdcalculator_body.html (266줄), wdcalculator_scripts.html (~3,454줄).
@@ -234,7 +234,7 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 
 ## 다음에 시작할 작업 (2026-02-19 갱신)
 - **완료 더블체크**: NEXT-002 PART-003·004·005 완료 (TASK_REGISTRY 기준). calculator.html → wdcalculator/partials 분리 완료. `python -c "import app"` OK.
-- **우선 착수**: **NEXT-004** (db_admin 비밀번호) 또는 **GDM 감사** 1회 실행. NEXT-003(pytest) 완료.
+- **우선 착수**: **GDM 감사** 1회 실행 또는 Phase 3 고도화(테스트 확대·CI). NEXT-003·NEXT-004 완료.
 - **보류**: app.py SLIM-035 (319줄→300줄) — 일단 중단, 필요 시 app-slim 계획서에서 재개.
 - **배포**: erp.py 분리·대형 템플릿 partial 반영 후 deploy 푸시 진행.
 - **이후 순서**: NEXT-003(pytest)·NEXT-004(db_admin 비밀번호)·Phase 3 고도화(테스트/CI/CD). 계획표 §3 참조.
@@ -251,6 +251,7 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 - [x] order_pages.py 500줄 이하 분리 (NEXT-001) — edit_order → apps/order_edit.py
 - [x] 대형 템플릿 partial PART-001~005 (NEXT-002) — chat_scripts, erp_dashboard_scripts, erp_construction, erp_production, calculator (wdcalculator/partials)
 - [x] NEXT-003: pytest 도입 (tests/, 스모크 3건 통과)
+- [x] NEXT-004: db_admin 비밀번호 환경변수화 (FOMS_ADMIN_DEFAULT_PASSWORD)
 - [ ] AI 분석 툴 (apps/api/ai.py), 카카오 알림톡 (kakao.py) — 선택
 
 ## 환경 정보
