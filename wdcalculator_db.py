@@ -37,18 +37,24 @@ else:
     _wd_connect_args = {"options": f"-c search_path={WD_CALCULATOR_SCHEMA},public"}
 
 # SQLAlchemy 엔진 생성
-# JSONB 사용을 위해 json_serializer 설정 (선택사항이지만 명시적으로 지정)
-wd_calculator_engine = create_engine(
-    WD_CALCULATOR_DB_URL,
-    # 동시 사용자 증가(ERP + 견적 동시 사용) 대비 커넥션 풀 확장
-    pool_size=10,
-    max_overflow=10,
-    pool_recycle=1800,
-    pool_pre_ping=True,
-    echo=False,
-    connect_args=_wd_connect_args,
-    json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
-)
+engine_args = {
+    "pool_pre_ping": True,
+    "echo": False,
+    "json_serializer": lambda obj: json.dumps(obj, ensure_ascii=False)
+}
+
+if "sqlite" not in WD_CALCULATOR_DB_URL:
+    engine_args.update({
+        "pool_size": 10,
+        "max_overflow": 10,
+        "pool_recycle": 1800,
+        "connect_args": _wd_connect_args
+    })
+else:
+    # SQLite는 connect_args의 search_path 옵션을 지원하지 않음
+    engine_args["connect_args"] = {}
+
+wd_calculator_engine = create_engine(WD_CALCULATOR_DB_URL, **engine_args)
 
 wd_calculator_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=wd_calculator_engine))
 
