@@ -1,0 +1,278 @@
+  <div class="erp-dashboard-layout">
+    <!-- Left: Filters -->
+    <div class="erp-dashboard-filters">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="fw-bold mb-3 text-dark" style="font-size: 1.15rem;"><i class="fas fa-filter text-primary"></i> 필터
+          </div>
+          <form method="get" action="{{ url_for('erp_dashboard.erp_dashboard') }}" class="erp-filter-row"
+            id="erp-filters-form">
+            {% if filters.get('alert_type') %}
+            <input type="hidden" name="alert_type" value="{{ filters.get('alert_type') }}">
+            {% endif %}
+            <div class="erp-filter-main">
+              <input class="form-control form-control-sm" name="q" placeholder="검색(고객/연락/주소/담당)"
+                value="{{ (filters.get('q') or '') }}">
+              <div class="erp-filter-actions">
+                <button class="btn btn-primary btn-sm fw-semibold" type="submit" aria-label="검색">
+                  <i class="fas fa-search"></i>
+                </button>
+                <button class="btn btn-outline-secondary btn-sm fw-semibold" type="button" data-bs-toggle="collapse"
+                  data-bs-target="#erp-filter-advanced" aria-expanded="false" aria-label="필터 상세">
+                  <i class="fas fa-chevron-down"></i>
+                </button>
+              </div>
+            </div>
+            <div class="collapse" id="erp-filter-advanced">
+              <div class="erp-filter-advanced-row mt-2">
+                <select class="form-select form-select-sm" name="stage">
+                  <option value="">단계: 전체</option>
+                  <option value="주문접수" {% if filters.get('stage')=='주문접수' %}selected{% endif %}>주문접수</option>
+                  <option value="해피콜" {% if filters.get('stage')=='해피콜' %}selected{% endif %}>해피콜</option>
+                  <option value="실측" {% if filters.get('stage')=='실측' %}selected{% endif %}>실측</option>
+                  <option value="도면" {% if filters.get('stage')=='도면' %}selected{% endif %}>도면</option>
+                  <option value="고객컨펌" {% if filters.get('stage')=='고객컨펌' %}selected{% endif %}>고객컨펌</option>
+                  <option value="생산" {% if filters.get('stage')=='생산' %}selected{% endif %}>생산</option>
+                  <option value="시공" {% if filters.get('stage')=='시공' %}selected{% endif %}>시공</option>
+                </select>
+
+                <select class="form-select form-select-sm" name="team">
+                  <option value="">팀: 전체</option>
+                  <option value="CS" {% if filters.get('team')=='CS' %}selected{% endif %}>라홈팀</option>
+                  <option value="SALES" {% if filters.get('team')=='SALES' %}selected{% endif %}>영업팀</option>
+                  <option value="MEASURE" {% if filters.get('team')=='MEASURE' %}selected{% endif %}>실측팀</option>
+                  <option value="DRAWING" {% if filters.get('team')=='DRAWING' %}selected{% endif %}>도면팀</option>
+                  <option value="PRODUCTION" {% if filters.get('team')=='PRODUCTION' %}selected{% endif %}>생산팀</option>
+                  <option value="CONSTRUCTION" {% if filters.get('team')=='CONSTRUCTION' %}selected{% endif %}>시공팀
+                  </option>
+                </select>
+                {% if is_admin %}
+
+                {% endif %}
+              </div>
+              <div class="erp-filter-advanced-bottom mt-2">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="1" id="f-urgent" name="urgent" {% if
+                    filters.get('urgent')=='1' %}checked{% endif %} style="width: 1.2em; height: 1.2em;">
+                  <label class="form-check-label fw-semibold" for="f-urgent" style="font-size: 0.9rem;">긴급만</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="1" id="f-has-alert" name="has_alert" {% if
+                    filters.get('has_alert')=='1' %}checked{% endif %} style="width: 1.2em; height: 1.2em;">
+                  <label class="form-check-label fw-semibold" for="f-has-alert" style="font-size: 0.9rem;">경보만</label>
+                </div>
+                <a class="btn btn-outline-secondary btn-sm fw-semibold"
+                  href="{{ url_for('erp_dashboard.erp_dashboard') }}">초기화</a>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Middle: Grid -->
+    <div class="erp-dashboard-workqueue">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-table text-primary"></i> 작업 큐</h5>
+              <small class="text-muted">주문 처리 및 퀘스트 관리</small>
+            </div>
+            <div>
+              <span class="badge bg-primary fs-6 px-3 py-2">표시: <strong>{{ orders|length }}</strong>건</span>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle" id="erp-grid">
+              <thead>
+                <tr>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">경보</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">단계</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">퀘스트</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">고객</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">연락처</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">주소</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">제품</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">실측일</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">시공일</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">담당</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">첨부</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">상세</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for o in orders %}
+                <tr class="erp-main-row" data-order-id="{{ o.id }}">
+                  <td data-label="경보">
+                    {% if o.alerts.urgent %}<span class="badge bg-danger fw-bold"
+                      style="font-size: 1.1rem; padding: 0.5em 0.8em;">긴급</span>{% endif %}
+                    {% if o.alerts.drawing_overdue %}<span class="badge bg-danger fw-bold"
+                      style="font-size: 1.1rem; padding: 0.5em 0.8em;">도면48h</span>{% endif %}
+                    {% if o.alerts.measurement_d4 %}
+                    {% set meas_d = o.alerts['measurement_days'] if 'measurement_days' in o.alerts else none %}
+                    <span class="badge bg-warning text-dark fw-bold"
+                      style="font-size: 1.1rem; padding: 0.5em 0.8em;">실측D-{{ meas_d if meas_d is not none else '4'
+                      }}</span>
+                    {% endif %}
+                    {% if o.alerts.construction_d3 %}
+                    {% set cons_d = o.alerts['construction_days'] if 'construction_days' in o.alerts else none %}
+                    <span class="badge bg-warning text-dark fw-bold"
+                      style="font-size: 1.1rem; padding: 0.5em 0.8em;">시공D-{{ cons_d if cons_d is not none else '3'
+                      }}</span>
+                    {% endif %}
+                    {% if o.alerts.production_d2 %}
+                    {% set prod_d = o.alerts['production_days'] if 'production_days' in o.alerts else none %}
+                    <span class="badge bg-warning text-dark fw-bold"
+                      style="font-size: 1.1rem; padding: 0.5em 0.8em;">생산D-{{ prod_d if prod_d is not none else '2'
+                      }}</span>
+                    {% endif %}
+                  </td>
+                  <td data-label="단계"><span class="badge bg-secondary"
+                      style="font-size: 1.1rem; padding: 0.5em 0.7em;">{{ o.stage }}</span></td>
+                  <td data-label="퀘스트" class="erp-quest-cell erp-wrap">
+                    {% if o.current_quest %}
+                    <div class="d-inline-flex align-items-center gap-2">
+                      {% if o.current_quest.all_approved %}
+                      <span class="badge bg-success" style="font-size: 1rem; padding: 0.4em 0.7em;">완료</span>
+                      {% else %}
+                      <span class="badge bg-warning" style="font-size: 1rem; padding: 0.4em 0.7em;">진행중</span>
+                      {% endif %}
+                      <button class="btn btn-sm btn-outline-info fw-semibold" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#quest-collapse-{{ o.id }}" aria-expanded="false"
+                        aria-controls="quest-collapse-{{ o.id }}" style="font-size: 1.1rem; padding: 0.5em 0.8em;">
+                        <i class="fas fa-chevron-down"></i>
+                        {% if o.current_quest.all_approved %}
+                        <i class="fas fa-check-circle text-success"></i>
+                        {% endif %}
+                        <strong>{{ o.current_quest.title }}</strong>
+                      </button>
+                    </div>
+                    <div class="collapse mt-2" id="quest-collapse-{{ o.id }}">
+                      <div class="card card-body border-0 bg-light">
+                        <div class="fw-bold mb-3" style="font-size: 1.05rem;"><i
+                            class="fas fa-flag-checkered text-primary"></i> 현재 단계 퀘스트</div>
+
+                        <div class="card mb-3 shadow-sm">
+                          <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                              <div>
+                                <h5 class="card-title mb-2 fw-bold" style="font-size: 1.05rem;">{{ o.current_quest.title
+                                  }}</h5>
+
+                              </div>
+                              <span
+                                class="badge {% if o.current_quest.all_approved %}bg-success{% else %}bg-warning{% endif %}"
+                                style="font-size: 0.9rem; padding: 0.4em 0.6em;">
+                                {% if o.current_quest.all_approved %}완료{% else %}진행중{% endif %}
+                              </span>
+                            </div>
+                            <div class="mb-3">
+                              <div class="text-muted mb-2 fw-semibold" style="font-size: 0.9rem;">담당 팀</div>
+                              <div class="fw-bold" style="font-size: 1rem;">{{
+                                team_labels.get(o.current_quest.owner_team, o.current_quest.owner_team) }}</div>
+                            </div>
+                            <div class="mb-3">
+                              <div class="text-muted mb-2 fw-semibold" style="font-size: 0.9rem;">팀별 승인</div>
+                              <div id="quest-approvals-{{ o.id }}">
+                                {% for team in o.current_quest.required_approvals %}
+                                {% set approved = o.current_quest.team_approvals.get(team, False) %}
+                                <div class="mb-2">
+                                  <span class="fw-semibold" style="font-size: 0.9rem;">{{ team_labels.get(team, team)
+                                    }}</span>
+                                  {% if approved %}
+                                  <span class="badge bg-success ms-2"
+                                    style="font-size: 0.9rem; padding: 0.3em 0.6em;">승인완료</span>
+                                  {% else %}
+                                  {% set order_id_approve = o.id %}
+                                  {% set team_name = team %}
+                                  <button class="btn btn-primary fw-semibold ms-2 erp-btn-approve-team"
+                                    data-order-id="{{ order_id_approve }}" data-team="{{ team_name }}"
+                                    style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">승인</button>
+                                  {% endif %}
+                                </div>
+                                {% endfor %}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {% else %}
+                    <span class="text-muted" style="font-size: 1.1rem;">-</span>
+                    {% endif %}
+                  </td>
+                  <td data-label="고객" class="fw-bold erp-wrap" style="font-size: 1.1rem; color: #212529;">{{
+                    o.customer_name }}</td>
+                  <td data-label="연락처" style="font-size: 1.1rem; color: #495057;">{{ o.phone }}</td>
+                  <td data-label="주소" class="erp-wrap"
+                    style="font-size: 1.1rem; color: #495057; word-break: break-word;">{{ o.address }}</td>
+                  <td data-label="제품" class="erp-wrap"
+                    style="font-size: 1.1rem; color: #495057; word-break: break-word;">
+                    {% if o.is_erp_beta and o.structured_data and o.structured_data.get('items') %}
+                    {% set items = o.structured_data.get('items', []) %}
+                    {% for item in items %}
+                    <div>{{ item.get('product_name', '-') }}</div>
+                    {% endfor %}
+                    {% else %}
+                    {{ o.product or '-' }}
+                    {% endif %}
+                  </td>
+                  <td data-label="실측일" class="fw-semibold" style="font-size: 1.1rem; color: #495057;">{{
+                    o.measurement_date or '-' }}</td>
+                  <td data-label="시공일" class="fw-semibold" style="font-size: 1.1rem; color: #495057;">{{
+                    o.construction_date or '-' }}</td>
+                  <td data-label="담당" style="font-size: 1.1rem; color: #495057;">{{ o.manager_name or '-' }}</td>
+                  <td data-label="첨부">
+                    {% if o.has_media %}
+                    {% set order_id_att = o.id %}
+                    <span class="badge bg-primary text-white fw-bold erp-btn-attachments-preview"
+                      style="cursor: pointer; font-size: 1rem !important; padding: 0.4em 0.7em !important; text-align: center; display: inline-block;"
+                      data-order-id="{{ order_id_att }}" title="첨부 파일 미리보기">{{ o.attachments_count
+                      }}</span>
+                    {% else %}
+                    <span class="text-muted" style="font-size: 1.1rem;">-</span>
+                    {% endif %}
+                  </td>
+                  <td data-label="상세" class="text-center">
+                    {% set order_id_detail = o.id %}
+                    {% if can_edit_erp|default(false) %}
+                    <a class="badge bg-info text-white fw-bold"
+                      href="{{ url_for('order_edit.edit_order', order_id=order_id_detail) }}?open=erp-beta" title="제품 상세정보"
+                      style="cursor: pointer; font-size: 1rem !important; padding: 0.4em 0.7em !important; text-align: center; display: inline-block; text-decoration: none;">
+                      <i class="fas fa-clipboard-list" style="font-size: 1rem !important;"></i>
+                    </a>
+                    {% else %}
+                    <span class="text-muted small">(수정 권한 없음)</span>
+                    {% endif %}
+                  </td>
+                  <td data-label="열기" class="text-end erp-cell-actions">
+                    <button class="erp-open-btn-icon" type="button" data-bs-toggle="collapse"
+                      data-bs-target="#order-detail-collapse-{{ o.id }}" aria-expanded="false"
+                      aria-controls="order-detail-collapse-{{ o.id }}" title="열기">
+                      <i class="fas fa-chevron-down"></i>
+                    </button>
+                  </td>
+                </tr>
+                <!-- Order Detail Slide -->
+                <tr>
+                  <td colspan="12" class="p-0">
+                    <div class="collapse" id="order-detail-collapse-{{ o.id }}">
+                      <div class="card card-body border-0 bg-light">
+                        <div class="fw-bold mb-3 erp-order-detail-title"><i class="fas fa-info-circle"></i> 주문 상세</div>
+                        <div id="order-detail-content-{{ o.id }}" class="order-detail-content">
+                          <div class="text-muted small">로딩 중...</div>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+

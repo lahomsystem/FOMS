@@ -1,0 +1,378 @@
+        function drawingActionLabel(action) {
+          const map = {
+            TRANSFER: '도면 전달',
+            REQUEST_REVISION: '수정 요청',
+            CANCEL_TRANSFER: '전달 취소'
+          };
+          return map[action] || (action || '기타');
+        }
+
+        function drawingTargetLabel(h) {
+          if (!h || typeof h !== 'object') return '';
+          const n = Number(h.target_drawing_number || h.replace_target_number || 0);
+          return n > 0 ? `${n}번 대상` : '';
+        }
+
+        let __drawingGatewayImageGroups = {};
+        let __drawingGatewayViewerFiles = [];
+        let __drawingGatewayViewerIndex = 0;
+        let __drawingGatewayViewerScale = 1;
+        let __drawingGatewayViewerPanX = 0;
+        let __drawingGatewayViewerPanY = 0;
+        let __drawingGatewayViewerDragging = false;
+        let __drawingGatewayViewerStartX = 0;
+        let __drawingGatewayViewerStartY = 0;
+        let __drawingGatewayViewerStartPanX = 0;
+        let __drawingGatewayViewerStartPanY = 0;
+        let __drawingGatewayViewerTouchDistance = 0;
+        let __drawingGatewayViewerTouchScale = 1;
+        let __drawingGatewayViewerBound = false;
+
+        function gatewayFileName(f) {
+          return String((f && f.filename) || '첨부파일');
+        }
+
+        function gatewayViewUrl(f) {
+          return String((f && f.view_url) || ((f && f.key) ? `/api/files/view/${f.key}` : '#'));
+        }
+
+        function gatewayDownloadUrl(f) {
+          return String((f && f.download_url) || ((f && f.key) ? `/api/files/download/${f.key}` : '#'));
+        }
+
+        function isGatewayImageFile(f) {
+          const probe = `${gatewayFileName(f)} ${gatewayViewUrl(f)} ${String((f && f.key) || '')}`.toLowerCase();
+          return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/.test(probe);
+        }
+
+        function getDrawingGatewayViewerElements() {
+          return {
+            root: document.getElementById('drawing-gateway-image-viewer'),
+            backdrop: document.getElementById('drawing-gateway-viewer-backdrop'),
+            closeBtn: document.getElementById('drawing-gateway-viewer-close'),
+            prevBtn: document.getElementById('drawing-gateway-viewer-prev'),
+            nextBtn: document.getElementById('drawing-gateway-viewer-next'),
+            stage: document.getElementById('drawing-gateway-viewer-stage'),
+            image: document.getElementById('drawing-gateway-viewer-image'),
+            zoomBadge: document.getElementById('drawing-gateway-viewer-zoom-badge'),
+            filename: document.getElementById('drawing-gateway-viewer-filename'),
+            counter: document.getElementById('drawing-gateway-viewer-counter')
+          };
+        }
+
+        function applyDrawingGatewayViewerTransform() {
+          const { image, zoomBadge } = getDrawingGatewayViewerElements();
+          if (!image || !zoomBadge) return;
+          image.style.transform = `translate(${__drawingGatewayViewerPanX}px, ${__drawingGatewayViewerPanY}px) scale(${__drawingGatewayViewerScale})`;
+          zoomBadge.textContent = `${Math.round(__drawingGatewayViewerScale * 100)}%`;
+          zoomBadge.style.display = __drawingGatewayViewerScale === 1 ? 'none' : 'block';
+          positionDrawingGatewayViewerNav();
+        }
+
+        function positionDrawingGatewayViewerNav() {
+          const { root, image, prevBtn, nextBtn } = getDrawingGatewayViewerElements();
+          if (!root || !image || !prevBtn || !nextBtn) return;
+          if (!root.classList.contains('gateway-has-multiple')) return;
+
+          const rootRect = root.getBoundingClientRect();
+          const imgRect = image.getBoundingClientRect();
+          if (!imgRect.width || !imgRect.height || !rootRect.width || !rootRect.height) return;
+
+          const navSize = 48;
+          const edgePad = 10;
+          const minX = 12;
+          const maxX = Math.max(minX, rootRect.width - navSize - 12);
+          const centerY = Math.max(28, Math.min(rootRect.height - 28, (imgRect.top - rootRect.top) + (imgRect.height / 2)));
+
+          let leftX = (imgRect.left - rootRect.left) + edgePad;
+          let rightX = (imgRect.right - rootRect.left) - navSize - edgePad;
+          leftX = Math.max(minX, Math.min(maxX, leftX));
+          rightX = Math.max(minX, Math.min(maxX, rightX));
+          if (rightX - leftX < navSize + 12) {
+            leftX = Math.max(minX, leftX - 24);
+            rightX = Math.min(maxX, rightX + 24);
+          }
+
+          prevBtn.style.left = `${leftX}px`;
+          prevBtn.style.right = 'auto';
+          prevBtn.style.top = `${centerY}px`;
+
+          nextBtn.style.left = `${rightX}px`;
+          nextBtn.style.right = 'auto';
+          nextBtn.style.top = `${centerY}px`;
+        }
+
+        function resetDrawingGatewayViewerTransform() {
+          __drawingGatewayViewerScale = 1;
+          __drawingGatewayViewerPanX = 0;
+          __drawingGatewayViewerPanY = 0;
+          applyDrawingGatewayViewerTransform();
+        }
+
+        function zoomDrawingGatewayViewerAt(deltaY, clientX, clientY) {
+          const { stage } = getDrawingGatewayViewerElements();
+          if (!stage) return;
+          const rect = stage.getBoundingClientRect();
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+          const x = clientX - centerX;
+          const y = clientY - centerY;
+
+          const oldScale = __drawingGatewayViewerScale;
+          const zoomFactor = deltaY > 0 ? 0.9 : 1.1;
+          __drawingGatewayViewerScale = Math.max(0.5, Math.min(10, __drawingGatewayViewerScale * zoomFactor));
+
+          if (__drawingGatewayViewerScale !== oldScale) {
+            const ratio = __drawingGatewayViewerScale / oldScale;
+            __drawingGatewayViewerPanX = x - (x - __drawingGatewayViewerPanX) * ratio;
+            __drawingGatewayViewerPanY = y - (y - __drawingGatewayViewerPanY) * ratio;
+          }
+          applyDrawingGatewayViewerTransform();
+        }
+
+        function updateDrawingGatewayViewerNav() {
+          const { prevBtn, nextBtn, counter, root } = getDrawingGatewayViewerElements();
+          const total = __drawingGatewayViewerFiles.length;
+          const current = __drawingGatewayViewerIndex + 1;
+          const hasMultiple = total > 1;
+          if (counter) counter.textContent = `${current} / ${total}`;
+          if (prevBtn) prevBtn.style.display = hasMultiple ? 'flex' : 'none';
+          if (nextBtn) nextBtn.style.display = hasMultiple ? 'flex' : 'none';
+          if (root) {
+            root.classList.toggle('gateway-has-multiple', hasMultiple);
+            if (!hasMultiple) root.classList.remove('gateway-nav-visible');
+          }
+          requestAnimationFrame(positionDrawingGatewayViewerNav);
+        }
+
+        function renderDrawingGatewayViewerImage() {
+          const { image, filename } = getDrawingGatewayViewerElements();
+          if (!image || !filename) return;
+          const current = __drawingGatewayViewerFiles[__drawingGatewayViewerIndex];
+          if (!current) return;
+          image.src = gatewayViewUrl(current);
+          image.alt = gatewayFileName(current);
+          filename.textContent = gatewayFileName(current);
+          resetDrawingGatewayViewerTransform();
+          updateDrawingGatewayViewerNav();
+        }
+
+        function showPrevDrawingGatewayImage() {
+          if (!__drawingGatewayViewerFiles.length) return;
+          __drawingGatewayViewerIndex = (__drawingGatewayViewerIndex - 1 + __drawingGatewayViewerFiles.length) % __drawingGatewayViewerFiles.length;
+          renderDrawingGatewayViewerImage();
+        }
+
+        function showNextDrawingGatewayImage() {
+          if (!__drawingGatewayViewerFiles.length) return;
+          __drawingGatewayViewerIndex = (__drawingGatewayViewerIndex + 1) % __drawingGatewayViewerFiles.length;
+          renderDrawingGatewayViewerImage();
+        }
+
+        function closeDrawingGatewayImageViewer() {
+          const { root } = getDrawingGatewayViewerElements();
+          if (!root) return;
+          root.classList.remove('gateway-nav-visible');
+          root.classList.add('d-none');
+          root.setAttribute('aria-hidden', 'true');
+          document.body.style.overflow = '';
+        }
+
+        function openDrawingGatewayImageViewer(groupKey, index) {
+          const files = __drawingGatewayImageGroups[groupKey] || [];
+          if (!files.length) return;
+          
+          if (window.GlobalImageViewer) {
+             const viewerFiles = files.map(f => ({
+                view_url: gatewayViewUrl(f),
+                download_url: gatewayDownloadUrl(f),
+                filename: gatewayFileName(f),
+                file_type: 'image'
+             }));
+             window.GlobalImageViewer.open(viewerFiles, index || 0);
+          } else {
+             console.error('GlobalImageViewer not found');
+             alert('이미지 뷰어를 불러올 수 없습니다.');
+          }
+        }
+
+        function initDrawingGatewayImageViewer() {
+          if (__drawingGatewayViewerBound) return;
+          const { backdrop, closeBtn, prevBtn, nextBtn, stage, root, image } = getDrawingGatewayViewerElements();
+          if (!stage || !root || !image) return;
+          __drawingGatewayViewerBound = true;
+
+          if (backdrop) backdrop.addEventListener('click', closeDrawingGatewayImageViewer);
+          if (closeBtn) closeBtn.addEventListener('click', closeDrawingGatewayImageViewer);
+          if (prevBtn) prevBtn.addEventListener('click', showPrevDrawingGatewayImage);
+          if (nextBtn) nextBtn.addEventListener('click', showNextDrawingGatewayImage);
+
+          root.addEventListener('mouseenter', () => {
+            if (root.classList.contains('gateway-has-multiple')) {
+              root.classList.add('gateway-nav-visible');
+            }
+          });
+          root.addEventListener('mousemove', () => {
+            if (root.classList.contains('gateway-has-multiple')) {
+              root.classList.add('gateway-nav-visible');
+            }
+          });
+          root.addEventListener('mouseleave', () => {
+            root.classList.remove('gateway-nav-visible');
+          });
+          image.addEventListener('load', () => requestAnimationFrame(positionDrawingGatewayViewerNav));
+          window.addEventListener('resize', () => {
+            if (!root.classList.contains('d-none')) requestAnimationFrame(positionDrawingGatewayViewerNav);
+          });
+
+          document.addEventListener('keydown', (e) => {
+            if (root.classList.contains('d-none')) return;
+            if (e.key === 'Escape') closeDrawingGatewayImageViewer();
+            else if (e.key === 'ArrowLeft') showPrevDrawingGatewayImage();
+            else if (e.key === 'ArrowRight') showNextDrawingGatewayImage();
+          });
+
+          stage.addEventListener('wheel', (e) => {
+            if (root.classList.contains('d-none')) return;
+            e.preventDefault();
+            zoomDrawingGatewayViewerAt(e.deltaY, e.clientX, e.clientY);
+          }, { passive: false });
+
+          stage.addEventListener('mousedown', (e) => {
+            if (__drawingGatewayViewerScale <= 1) return;
+            __drawingGatewayViewerDragging = true;
+            stage.style.cursor = 'grabbing';
+            __drawingGatewayViewerStartX = e.clientX;
+            __drawingGatewayViewerStartY = e.clientY;
+            __drawingGatewayViewerStartPanX = __drawingGatewayViewerPanX;
+            __drawingGatewayViewerStartPanY = __drawingGatewayViewerPanY;
+            e.preventDefault();
+          });
+
+          document.addEventListener('mousemove', (e) => {
+            if (!__drawingGatewayViewerDragging) return;
+            __drawingGatewayViewerPanX = __drawingGatewayViewerStartPanX + (e.clientX - __drawingGatewayViewerStartX);
+            __drawingGatewayViewerPanY = __drawingGatewayViewerStartPanY + (e.clientY - __drawingGatewayViewerStartY);
+            applyDrawingGatewayViewerTransform();
+          });
+
+          document.addEventListener('mouseup', () => {
+            if (!__drawingGatewayViewerDragging) return;
+            __drawingGatewayViewerDragging = false;
+            stage.style.cursor = __drawingGatewayViewerScale > 1 ? 'grab' : 'default';
+          });
+
+          stage.addEventListener('dblclick', () => resetDrawingGatewayViewerTransform());
+
+          stage.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+              __drawingGatewayViewerStartX = e.touches[0].clientX;
+              __drawingGatewayViewerStartY = e.touches[0].clientY;
+              __drawingGatewayViewerStartPanX = __drawingGatewayViewerPanX;
+              __drawingGatewayViewerStartPanY = __drawingGatewayViewerPanY;
+            } else if (e.touches.length === 2) {
+              const t1 = e.touches[0];
+              const t2 = e.touches[1];
+              __drawingGatewayViewerTouchDistance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+              __drawingGatewayViewerTouchScale = __drawingGatewayViewerScale;
+            }
+          }, { passive: true });
+
+          stage.addEventListener('touchmove', (e) => {
+            if (root.classList.contains('d-none')) return;
+            if (e.touches.length === 1 && __drawingGatewayViewerScale > 1) {
+              e.preventDefault();
+              const t = e.touches[0];
+              __drawingGatewayViewerPanX = __drawingGatewayViewerStartPanX + (t.clientX - __drawingGatewayViewerStartX);
+              __drawingGatewayViewerPanY = __drawingGatewayViewerStartPanY + (t.clientY - __drawingGatewayViewerStartY);
+              applyDrawingGatewayViewerTransform();
+            } else if (e.touches.length === 2) {
+              e.preventDefault();
+              const t1 = e.touches[0];
+              const t2 = e.touches[1];
+              const distance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+              __drawingGatewayViewerScale = Math.max(0.5, Math.min(10, __drawingGatewayViewerTouchScale * (distance / (__drawingGatewayViewerTouchDistance || distance))));
+              applyDrawingGatewayViewerTransform();
+            }
+          }, { passive: false });
+        }
+
+        function renderGatewayFiles(files, groupKey) {
+          if (!Array.isArray(files) || files.length === 0) return '';
+
+          const imageFiles = files.filter(isGatewayImageFile);
+          __drawingGatewayImageGroups[groupKey] = imageFiles;
+
+          const imageItems = imageFiles.map((f, idx) => {
+            const name = escapeHtml(gatewayFileName(f));
+            const viewUrl = escapeHtml(gatewayViewUrl(f));
+            const downloadUrl = escapeHtml(gatewayDownloadUrl(f));
+            return `
+              <div class="drawing-gateway-thumb-wrap me-2 mb-2">
+                <div class="drawing-gateway-thumb" onclick="openDrawingGatewayImageViewer('${groupKey}', ${idx})">
+                  <img src="${viewUrl}" alt="${name}">
+                </div>
+                <div class="small text-truncate mt-1" title="${name}" style="max-width: 110px;">${name}</div>
+                <a href="${downloadUrl}" target="_blank" rel="noopener" class="small text-muted">
+                  <i class="fas fa-download"></i>
+                </a>
+              </div>
+            `;
+          }).join('');
+
+          const fileItems = files.filter(f => !isGatewayImageFile(f)).map((f) => {
+            const name = escapeHtml(gatewayFileName(f));
+            const viewUrl = escapeHtml(gatewayViewUrl(f));
+            const downloadUrl = escapeHtml(gatewayDownloadUrl(f));
+            return `
+              <div class="d-flex align-items-center gap-1 me-2 mb-1">
+                <i class="fas fa-paperclip text-secondary"></i>
+                <a href="${viewUrl}" target="_blank" rel="noopener" class="small">${name}</a>
+                <a href="${downloadUrl}" target="_blank" rel="noopener" class="small text-muted">
+                  <i class="fas fa-download"></i>
+                </a>
+              </div>
+            `;
+          }).join('');
+
+          return `
+            <div class="d-flex flex-wrap mt-1">
+              ${imageItems}
+              ${fileItems}
+            </div>
+          `;
+        }
+
+
+        function renderDrawingGatewayTimeline(history) {
+          if (!Array.isArray(history) || history.length === 0) {
+            return '<div class="text-muted small">아직 요청/전달 이력이 없습니다.</div>';
+          }
+          const sorted = [...history].reverse();
+          return sorted.map((h, idx) => {
+            const action = drawingActionLabel(h.action);
+            const byName = escapeHtml(h.by_user_name || '알 수 없음');
+            const when = escapeHtml(h.transferred_at || h.at || '');
+            const note = escapeHtml(h.note || '');
+            const targetLabel = escapeHtml(drawingTargetLabel(h));
+            const groupKey = `gateway_${idx}_${String(h.transferred_at || h.at || '').replace(/[^0-9A-Za-z]/g, '')}`;
+            const filesHtml = renderGatewayFiles(h.files || [], groupKey);
+            const badgeClass = h.action === 'REQUEST_REVISION'
+              ? 'bg-danger'
+              : (h.action === 'TRANSFER' ? 'bg-primary' : 'bg-secondary');
+            return `
+              <div class="border rounded p-2 mb-2 bg-white">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <div>
+                    <span class="badge ${badgeClass}">${action}</span>
+                    <span class="small text-muted ms-2">${byName}</span>
+                    ${targetLabel ? `<span class="badge bg-info text-dark ms-1">${targetLabel}</span>` : ''}
+                  </div>
+                  <span class="small text-muted">${when}</span>
+                </div>
+                ${note ? `<div class="small mt-1">${note}</div>` : ''}
+                ${filesHtml}
+              </div>
+            `;
+          }).join('');
+        }

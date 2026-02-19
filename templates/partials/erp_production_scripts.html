@@ -1,0 +1,1342 @@
+  <script>
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = String(text);
+      return div.innerHTML;
+    }
+
+    // === 표시용 한글 라벨(저장은 영문 코드 유지) ===
+    function safeJsonParse(val, fb) { try { var s = String(val || '').trim(); if (!s) return fb || {}; var o = JSON.parse(s); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : (fb || {}); } catch (_) { return fb || {}; } }
+    var _cfg = document.getElementById('erp-dashboard-config');
+    const TEAM_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-team-labels'), {}) : {};
+    const STAGE_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-stage-labels'), {}) : {};
+
+    function label(map, code, fallback = '-') {
+      if (!code) return fallback;
+      return map[code] || code;
+    }
+
+    let __selectedOrderId = null;
+    let __attachmentsCache = {};
+    let __currentAttachmentList = [];
+    let __currentAttachmentIndex = 0;
+    let __activeAttachmentCategory = 'measurement';
+    let __attachmentsByCategory = {
+      measurement: [],
+      drawing: [],
+      construction: []
+    };
+
+    const ATTACHMENT_CATEGORY_META = {
+      measurement: { label: '실측', icon: 'fa-ruler-combined' },
+      drawing: { label: '도면', icon: 'fa-drafting-compass' },
+      construction: { label: '시공', icon: 'fa-hammer' }
+    };
+
+    function normalizeAttachmentCategory(category) {
+      const c = String(category || '').trim().toLowerCase();
+      if (c === 'drawing' || c === 'construction') return c;
+      return 'measurement';
+    }
+
+    function getAttachmentCategoryLabel(category) {
+      const key = normalizeAttachmentCategory(category);
+      return (ATTACHMENT_CATEGORY_META[key] || ATTACHMENT_CATEGORY_META.measurement).label;
+    }
+
+    function renderAttachmentCategoryTabs() {
+      const tabsEl = document.getElementById('erp-attachments-category-tabs');
+      if (!tabsEl) return;
+      const keys = ['measurement', 'drawing', 'construction'];
+      tabsEl.innerHTML = keys.map((key) => {
+        const meta = ATTACHMENT_CATEGORY_META[key];
+        const count = (__attachmentsByCategory[key] || []).length;
+        const isActive = key === __activeAttachmentCategory;
+        const activeCls = isActive ? 'btn-primary' : 'btn-outline-primary';
+        return `
+          <button type="button" class="btn btn-sm ${activeCls}" onclick="selectAttachmentCategory('${key}')">
+            <i class="fas ${meta.icon}"></i> ${meta.label}
+            <span class="badge ${isActive ? 'bg-light text-dark' : 'bg-primary text-white'} ms-1">${count}</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function renderAttachmentCategoryGallery() {
+      const galleryEl = document.getElementById('erp-attachments-category-gallery');
+      if (!galleryEl) return;
+      const list = __attachmentsByCategory[__activeAttachmentCategory] || [];
+      if (!list.length) {
+        galleryEl.innerHTML = `
+          <div class="col-12">
+            <div class="text-muted small p-3 border rounded bg-light">
+              ${getAttachmentCategoryLabel(__activeAttachmentCategory)} 카테고리에 첨부 파일이 없습니다.
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      galleryEl.innerHTML = list.map((a, index) => {
+        const name = escapeHtml(a.filename || '');
+        const type = a.file_type || 'file';
+        const thumb = a.thumbnail_view_url || a.view_url || '#';
+        const viewUrl = a.view_url || '#';
+        const downloadUrl = a.download_url || '#';
+
+        const mediaHtml = (type === 'video')
+          ? `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
+              <video src="${viewUrl}" controls preload="metadata" style="width:100%;height:100%;"></video>
+            </div>`
+          : (type === 'image')
+            ? `<img src="${thumb}" alt="${name}" class="img-fluid rounded"
+                style="max-height: 180px; object-fit: contain; width:100%; cursor: zoom-in; background:#fff; padding:4px;"
+                onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ${index})">`
+            : `<div class="border rounded d-flex flex-column align-items-center justify-content-center bg-light"
+                style="height: 180px;">
+                <i class="fas fa-file-alt text-secondary mb-2" style="font-size: 2rem;"></i>
+                <div class="small text-muted text-center px-2">문서 파일</div>
+               </div>`;
+
+        return `
+          <div class="col-md-4 col-sm-6 col-12">
+            <div class="card h-100">
+              <div class="card-body p-2">
+                ${mediaHtml}
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                  <div class="small text-truncate" title="${name}" style="max-width: 70%;">${name}</div>
+                  <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" type="button" title="미리보기"
+                      onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ${index})">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                    <a class="btn btn-outline-primary" href="${downloadUrl}" title="다운로드" target="_blank" rel="noopener">
+                      <i class="fas fa-download"></i>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function selectAttachmentCategory(category) {
+      __activeAttachmentCategory = normalizeAttachmentCategory(category);
+      renderAttachmentCategoryTabs();
+      renderAttachmentCategoryGallery();
+    }
+
+    function openAttachmentFromCategory(category, index) {
+      const key = normalizeAttachmentCategory(category);
+      const list = __attachmentsByCategory[key] || [];
+      if (!list.length) return;
+      __activeAttachmentCategory = key;
+      __currentAttachmentList = list;
+      showAttachmentAtIndex(index);
+    }
+
+    // 첨부 파일 미리보기 모달 열기 (단일 파일)
+    function openAttachmentPreviewModal(attachmentId, viewUrl, downloadUrl, filename, fileType) {
+      if (window.GlobalImageViewer) {
+        const singleFile = {
+          view_url: viewUrl,
+          download_url: downloadUrl,
+          filename: filename,
+          file_type: fileType
+        };
+
+        // 같은 주문의 첨부 캐시가 있으면 이미지 묶음으로 열어 좌우 이동 가능하게 처리
+        const orderMatch = String(viewUrl || '').match(/\/orders\/(\d+)\//);
+        const orderId = orderMatch ? Number(orderMatch[1]) : 0;
+        const cached = orderId ? (__attachmentsCache[orderId] || []) : [];
+
+        const isImage = (a) => {
+          if (!a) return false;
+          const ft = String(a.file_type || '').toLowerCase();
+          if (ft === 'image') return true;
+          const probe = String(a.view_url || a.filename || '').toLowerCase();
+          return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/.test(probe);
+        };
+
+        if (String(fileType || '').toLowerCase() === 'image' && Array.isArray(cached) && cached.length > 1) {
+          const imageFiles = cached
+            .filter(isImage)
+            .map((a) => ({
+              view_url: a.view_url || '',
+              download_url: a.download_url || (a.view_url || ''),
+              filename: a.filename || '이미지',
+              file_type: 'image'
+            }))
+            .filter((a) => !!a.view_url);
+
+          if (imageFiles.length > 1) {
+            let startIndex = 0;
+            if (attachmentId) {
+              const idxById = cached.filter(isImage).findIndex((a) => Number(a.id || 0) === Number(attachmentId));
+              if (idxById >= 0) startIndex = idxById;
+            }
+            if (startIndex === 0) {
+              const idxByUrl = imageFiles.findIndex((a) => String(a.view_url) === String(viewUrl));
+              if (idxByUrl >= 0) startIndex = idxByUrl;
+            }
+            window.GlobalImageViewer.open(imageFiles, startIndex);
+            return;
+          }
+        }
+
+        // 기본: 단일 파일로 열기
+        window.GlobalImageViewer.open([singleFile], 0);
+      } else {
+        console.error('GlobalImageViewer not found');
+        alert('이미지 뷰어를 불러올 수 없습니다.');
+      }
+    }
+
+    // 이미지 줌 기능 설정 (윤곽 없이 전체 확대/축소)
+    function setupImageZoom() {
+      const container = document.getElementById('image-zoom-container');
+      const img = document.getElementById('preview-zoom-image');
+      const badge = document.getElementById('zoom-level-badge');
+      if (!container || !img || !badge) return;
+
+      let scale = 1;
+      let panX = 0;
+      let panY = 0;
+      let isDragging = false;
+      let startX = 0;
+      let startY = 0;
+      let startPanX = 0;
+      let startPanY = 0;
+
+      // 초기 이미지 크기 저장
+      let initialWidth = img.naturalWidth || img.width;
+      let initialHeight = img.naturalHeight || img.height;
+
+      // 이미지 로드 후 초기 크기 설정
+      if (img.complete) {
+        initialWidth = img.naturalWidth || img.width;
+        initialHeight = img.naturalHeight || img.height;
+      } else {
+        img.addEventListener('load', () => {
+          initialWidth = img.naturalWidth || img.width;
+          initialHeight = img.naturalHeight || img.height;
+        });
+      }
+
+      // 줌 레벨 표시 업데이트
+      function updateZoomBadge() {
+        badge.textContent = Math.round(scale * 100) + '%';
+        badge.style.display = scale !== 1 ? 'block' : 'none';
+      }
+
+      // 이미지 변환 적용 (윤곽 없이 전체 확대)
+      function applyTransform() {
+        img.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+        img.style.border = 'none';
+        img.style.boxShadow = 'none';
+        img.style.borderRadius = '0';
+        img.style.padding = '0';
+        img.style.background = 'transparent';
+        updateZoomBadge();
+      }
+
+      // 줌 인/아웃 (마우스 위치 중심)
+      function zoomAtPoint(delta, clientX, clientY) {
+        const rect = container.getBoundingClientRect();
+        const containerCenterX = rect.left + rect.width / 2;
+        const containerCenterY = rect.top + rect.height / 2;
+
+        // 마우스 위치를 컨테이너 중심 기준으로 변환
+        const x = clientX - containerCenterX;
+        const y = clientY - containerCenterY;
+
+        const oldScale = scale;
+        const zoomFactor = delta > 0 ? 0.9 : 1.1;
+        scale = Math.max(0.5, Math.min(10, scale * zoomFactor));
+
+        // 마우스 위치를 중심으로 줌
+        if (scale !== oldScale) {
+          const scaleChange = scale / oldScale;
+          panX = x - (x - panX) * scaleChange;
+          panY = y - (y - panY) * scaleChange;
+        }
+
+        applyTransform();
+      }
+
+      // 휠 스크롤로 줌 (모든 경우)
+      container.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zoomAtPoint(e.deltaY, e.clientX, e.clientY);
+      }, { passive: false });
+
+      // 모달 body에도 휠 이벤트 추가 (이미지 영역 밖에서도 작동)
+      const modalBody = document.querySelector('#erpAttachmentPreviewModal .modal-body');
+      if (modalBody) {
+        modalBody.addEventListener('wheel', (e) => {
+          const target = e.target;
+          if (target !== container && !container.contains(target)) {
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = modalBody.getBoundingClientRect();
+            zoomAtPoint(e.deltaY, rect.left + rect.width / 2, rect.top + rect.height / 2);
+          }
+        }, { passive: false });
+      }
+
+      // 드래그로 패닝
+      container.addEventListener('mousedown', (e) => {
+        if (scale > 1) {
+          isDragging = true;
+          container.style.cursor = 'grabbing';
+          startX = e.clientX;
+          startY = e.clientY;
+          startPanX = panX;
+          startPanY = panY;
+          e.preventDefault();
+        }
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (isDragging && scale > 1) {
+          panX = startPanX + (e.clientX - startX);
+          panY = startPanY + (e.clientY - startY);
+          applyTransform();
+          e.preventDefault();
+        }
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          container.style.cursor = scale > 1 ? 'grab' : 'default';
+        }
+      });
+
+      container.addEventListener('mouseleave', () => {
+        if (isDragging) {
+          isDragging = false;
+          container.style.cursor = scale > 1 ? 'grab' : 'default';
+        }
+      });
+
+      // 더블클릭으로 리셋
+      container.addEventListener('dblclick', () => {
+        scale = 1;
+        panX = 0;
+        panY = 0;
+        applyTransform();
+      });
+
+      // 터치 제스처 지원 (모바일)
+      let touchStartDistance = 0;
+      let touchStartScale = 1;
+      let touchStartPanX = 0;
+      let touchStartPanY = 0;
+
+      container.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          const touch = e.touches[0];
+          startX = touch.clientX;
+          startY = touch.clientY;
+          startPanX = panX;
+          startPanY = panY;
+        } else if (e.touches.length === 2) {
+          const touch1 = e.touches[0];
+          const touch2 = e.touches[1];
+          touchStartDistance = Math.hypot(
+            touch2.clientX - touch1.clientX,
+            touch2.clientY - touch1.clientY
+          );
+          touchStartScale = scale;
+          touchStartPanX = panX;
+          touchStartPanY = panY;
+        }
+      }, { passive: true });
+
+      container.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && scale > 1) {
+          e.preventDefault();
+          const touch = e.touches[0];
+          panX = startPanX + (touch.clientX - startX);
+          panY = startPanY + (touch.clientY - startY);
+          applyTransform();
+        } else if (e.touches.length === 2) {
+          e.preventDefault();
+          const touch1 = e.touches[0];
+          const touch2 = e.touches[1];
+          const distance = Math.hypot(
+            touch2.clientX - touch1.clientX,
+            touch2.clientY - touch1.clientY
+          );
+          scale = Math.max(0.5, Math.min(10, touchStartScale * (distance / touchStartDistance)));
+          applyTransform();
+        }
+      }, { passive: false });
+
+      updateZoomBadge();
+    }
+
+    // 주문의 첨부 파일 미리보기 (첨부 배지 클릭 시) - 좌우 네비게이션 지원
+    async function openAttachmentsPreview(orderId, initialCategory = 'measurement') {
+      try {
+        // 캐시 확인
+        let aList = null;
+        if (__attachmentsCache[orderId]) {
+          aList = __attachmentsCache[orderId];
+        } else {
+          const res = await fetch(`/api/orders/${orderId}/attachments`);
+          const data = await res.json();
+          aList = (data && data.attachments) || [];
+          __attachmentsCache[orderId] = aList;
+        }
+
+        if (aList.length > 0) {
+          __attachmentsByCategory = { measurement: [], drawing: [], construction: [] };
+          aList.forEach((a) => {
+            const key = normalizeAttachmentCategory(a.category);
+            const normalized = Object.assign({}, a, { category: key });
+            if (!__attachmentsByCategory[key]) __attachmentsByCategory[key] = [];
+            __attachmentsByCategory[key].push(normalized);
+          });
+
+          let targetCategory = normalizeAttachmentCategory(initialCategory);
+          const targetList = __attachmentsByCategory[targetCategory] || [];
+          if (!targetList.length) {
+            if (__attachmentsByCategory.drawing.length) targetCategory = 'drawing';
+            else if (__attachmentsByCategory.measurement.length) targetCategory = 'measurement';
+            else if (__attachmentsByCategory.construction.length) targetCategory = 'construction';
+          }
+          __activeAttachmentCategory = targetCategory;
+
+          renderAttachmentCategoryTabs();
+          renderAttachmentCategoryGallery();
+          const modalEl = document.getElementById('erpAttachmentsCategoryModal');
+          if (modalEl) {
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+          }
+        } else {
+          alert('첨부 파일이 없습니다.');
+        }
+      } catch (err) {
+        console.error('첨부 파일 로드 실패:', err);
+        alert('첨부 파일을 불러올 수 없습니다.');
+      }
+    }
+
+    // 특정 인덱스의 첨부 파일 표시
+    function showAttachmentAtIndex(index) {
+      if (!__currentAttachmentList || index < 0 || index >= __currentAttachmentList.length) {
+        return;
+      }
+
+      __currentAttachmentIndex = index;
+      
+      if (window.GlobalImageViewer) {
+         window.GlobalImageViewer.open(__currentAttachmentList, index);
+      } else {
+          console.error('GlobalImageViewer not found');
+          alert('이미지 뷰어를 불러올 수 없습니다.');
+      }
+    }
+
+    // 첨부 파일 네비게이션 업데이트
+    function updateAttachmentNavigation() {
+      const prevBtn = document.getElementById('erp-attachment-preview-prev');
+      const nextBtn = document.getElementById('erp-attachment-preview-next');
+      const counter = document.getElementById('erp-attachment-preview-counter');
+
+      if (!prevBtn || !nextBtn || !counter) return;
+
+      const total = __currentAttachmentList.length;
+      const current = __currentAttachmentIndex + 1;
+
+      // 카운터 표시
+      counter.textContent = `${current} / ${total}`;
+
+      // 이전/다음 버튼 표시
+      if (total > 1) {
+        prevBtn.style.display = 'inline-block';
+        nextBtn.style.display = 'inline-block';
+        prevBtn.disabled = (__currentAttachmentIndex === 0);
+        nextBtn.disabled = (__currentAttachmentIndex === total - 1);
+      } else {
+        prevBtn.style.display = 'none';
+        nextBtn.style.display = 'none';
+      }
+    }
+
+    // 이전 파일 보기
+    function showPreviousAttachment() {
+      if (__currentAttachmentIndex > 0) {
+        showAttachmentAtIndex(__currentAttachmentIndex - 1);
+      }
+    }
+
+    function showNextAttachment() {
+      if (__currentAttachmentIndex < __currentAttachmentList.length - 1) {
+        showAttachmentAtIndex(__currentAttachmentIndex + 1);
+      }
+    }
+
+    async function startProduction(orderId) {
+      if (!confirm('제작을 시작하시겠습니까? (상태가 제작중으로 변경됩니다)')) return;
+
+      try {
+        const res = await fetch(`/api/orders/${orderId}/production/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          alert(data.message);
+          window.location.reload();
+        } else {
+          alert('오류: ' + data.message);
+        }
+      } catch (err) {
+        console.error('Production start error:', err);
+        alert('처리 중 오류가 발생했습니다.');
+      }
+    }
+
+    async function completeProduction(orderId) {
+      if (!confirm('제작을 완료하시겠습니까? (상태가 출고대기로 변경됩니다)')) return;
+
+      try {
+        const res = await fetch(`/api/orders/${orderId}/production/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          alert(data.message);
+          window.location.reload();
+        } else {
+          alert('오류: ' + data.message);
+        }
+      } catch (err) {
+        console.error('Production complete error:', err);
+        alert('처리 중 오류가 발생했습니다.');
+      }
+    }
+
+    function renderBadges(alerts) {
+      const a = alerts || {};
+      const out = [];
+      if (a.urgent) out.push('<span class="badge bg-danger me-1">긴급</span>');
+      if (a.drawing_overdue) out.push('<span class="badge bg-danger me-1">도면48h</span>');
+      if (a.measurement_d4) out.push('<span class="badge bg-warning text-dark me-1">실측D-4</span>');
+      if (a.construction_d3) out.push('<span class="badge bg-warning text-dark me-1">시공D-3</span>');
+      if (a.production_d2) out.push('<span class="badge bg-warning text-dark me-1">생산D-2</span>');
+      return out.join('') || '<span class="text-muted small">경보 없음</span>';
+    }
+
+    async function approveQuestTeam(orderId, team) {
+      try {
+        const res = await fetch(`/api/orders/${orderId}/quest/approve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ team: team })
+        });
+        const data = await res.json();
+
+        // success 필드 확인 (API는 success 필드를 반환함)
+        if (!data.success) {
+          alert('승인 실패: ' + (data.message || data.error || '알 수 없는 오류'));
+          return;
+        }
+
+        // 자동 단계 전환 알림
+        if (data.auto_transitioned && data.next_stage) {
+          const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
+          alert('✅ 모든 팀 승인 완료! 다음 단계(' + nextStageLabel + ')로 자동 전환되었습니다.');
+        } else if (data.all_approved) {
+          alert('✅ 모든 팀 승인 완료!');
+        } else {
+          const missingTeams = data.missing_teams.map(t => label(TEAM_LABELS, t, t)).join(', ');
+          alert('승인 완료. 남은 팀: ' + missingTeams);
+        }
+
+        // 슬라이드 내 Quest 정보 업데이트
+        await loadQuestDetail(orderId);
+        // 페이지 새로고침 (주문 목록 업데이트)
+        window.location.reload();
+      } catch (err) {
+        console.error('승인 실패:', err);
+        alert('승인 중 오류가 발생했습니다.');
+      }
+    }
+
+    async function loadQuestDetail(orderId) {
+      try {
+        const res = await fetch(`/api/orders/${orderId}/quest`);
+        const data = await res.json();
+        if (data.error) {
+          console.error('Quest 로드 실패:', data.error);
+          return;
+        }
+        // 슬라이드 내 Quest 정보 업데이트
+        const questContainer = document.querySelector(`#quest-collapse-${orderId} #quest-approvals-${orderId}`);
+        if (questContainer) {
+          const quest = data.quest || {};
+          const requiredTeams = quest.required_approvals || [];
+          const teamApprovalsRaw = quest.team_approvals || {};
+
+          let html = '';
+          for (const team of requiredTeams) {
+            // team_approvals는 딕셔너리 형태일 수 있음: {team: {"approved": True, ...}} 또는 {team: True}
+            const approvalData = teamApprovalsRaw[team];
+            let approved = false;
+            if (typeof approvalData === 'object' && approvalData !== null) {
+              approved = approvalData.approved === true;
+            } else {
+              approved = Boolean(approvalData);
+            }
+            const teamLabel = label(TEAM_LABELS, team, team);
+            html += `<div class="mb-2">`;
+            html += `<span class="fw-semibold" style="font-size: 1rem;">${escapeHtml(teamLabel)}</span>`;
+            if (approved) {
+              html += `<span class="badge bg-success ms-2" style="font-size: 1rem; padding: 0.4em 0.7em;">승인완료</span>`;
+            } else {
+              html += `<button class="btn btn-primary fw-semibold ms-2" onclick="approveQuestTeam(${orderId}, '${escapeHtml(team)}')" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>`;
+            }
+            html += `</div>`;
+          }
+          questContainer.innerHTML = html;
+        }
+      } catch (err) {
+        console.error('Quest 상세 로드 실패:', err);
+      }
+    }
+
+    async function safeJsonFetch(url, fallback) {
+      const r = await fetch(url);
+      const ct = r.headers.get('content-type') || '';
+      if (!r.ok || !ct.includes('application/json')) {
+        if (!r.ok) console.warn('Order detail API non-OK:', url, r.status);
+        return fallback;
+      }
+      try {
+        return await r.json();
+      } catch (e) {
+        console.error('JSON parse error for', url, e);
+        return fallback;
+      }
+    }
+
+    async function loadOrderDetail(orderId) {
+      const container = document.getElementById(`order-detail-content-${orderId}`);
+      if (!container) return;
+
+      try {
+        container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
+
+        const [structured, attachments] = await Promise.all([
+          safeJsonFetch(`/api/orders/${orderId}/structured`, { success: false, structured_data: {} }),
+          safeJsonFetch(`/api/orders/${orderId}/attachments`, { success: false, attachments: [] }),
+        ]);
+
+        const sd = (structured && structured.structured_data) || {};
+        const customer = (((sd.parties || {}).customer || {}).name) || '-';
+        const orderer = (((sd.parties || {}).orderer || {}).name) || '-';
+        const phone = (((sd.parties || {}).customer || {}).phone) || '-';
+        // 주소: address_full 우선, 없으면 address_main + address_detail 조합, 없으면 address_main만
+        const site = sd.site || {};
+        const addressFull = site.address_full || '';
+        const addressMain = site.address_main || '';
+        const addressDetail = site.address_detail || '';
+        const address = addressFull || (addressMain && addressDetail ? `${addressMain} ${addressDetail}`.trim() : addressMain) || addressDetail || '-';
+        // 특이사항: notes 객체에서 읽기 (erpbeta 저장 경로와 일치)
+        const notes = sd.notes || {};
+        const addressNote = (notes.address_note || '').trim();
+        const phoneNote = (notes.phone_note || '').trim();
+        const measureNote = (notes.measurement_note || '').trim();
+        const measure = (((sd.schedule || {}).measurement || {}).date) || '-';
+        const construct = (((sd.schedule || {}).construction || {}).date) || '-';
+        const manager = (((sd.parties || {}).manager || {}).name) || '-';
+        const stage = (((sd.workflow || {}).stage)) || '-';
+        const urgent = ((sd.flags || {}).urgent) || false;
+
+        // 담당팀: 현재 단계의 담당팀으로 자동 계산
+        const STAGE_TO_TEAM = {
+          'RECEIVED': 'CS',
+          'HAPPYCALL': 'CS',
+          'MEASURE': 'SALES',
+          'DRAWING': 'DRAWING',
+          'CONFIRM': 'SALES',
+          'PRODUCTION': 'PRODUCTION',
+          'CONSTRUCTION': 'CONSTRUCTION',
+          'CS': 'CS',
+          'COMPLETED': 'CS',
+          'AS': 'CS'
+        };
+        let ownerTeam = STAGE_TO_TEAM[stage] || '-';
+        // 실측/고객컨펌에서 발주사에 '라홈' 포함 시 라홈팀(CS)으로 변경
+        if (stage === 'MEASURE' || stage === 'CONFIRM') {
+          const ordererName = (((sd.parties || {}).orderer || {}).name || '').trim();
+          if (ordererName && ordererName.includes('라홈')) {
+            ownerTeam = 'CS';
+          }
+        }
+
+        // 제품 항목 (모든 상세 정보 표시)
+        const items = (sd.items || []) || [];
+        let itemsHtml = '';
+        if (items.length > 0) {
+          let gridHtml = '<div class="erp-product-items-grid mt-3">';
+          items.forEach(item => {
+            // 규격을 W, D, H로 분리
+            let specW = item.spec_width || '';
+            let specD = item.spec_depth || '';
+            let specH = item.spec_height || '';
+            // 기존 spec 필드가 있고 W, D, H가 없으면 파싱
+            if (!specW && !specD && !specH && item.spec) {
+              const specStr = String(item.spec || '').trim();
+              const parts = specStr.split(/[xX*×]/).map(s => s.trim());
+              if (parts.length >= 3) {
+                specW = parts[0];
+                specD = parts[1];
+                specH = parts[2];
+              } else if (parts.length === 2) {
+                specW = parts[0];
+                specD = parts[1];
+              } else if (parts.length === 1) {
+                specW = parts[0];
+              }
+            }
+            // 규격을 한 줄로 통합 (모바일용)
+            const specParts = [];
+            if (specW && specW !== '-') specParts.push(`W:${specW}`);
+            if (specD && specD !== '-') specParts.push(`D:${specD}`);
+            if (specH && specH !== '-') specParts.push(`H:${specH}`);
+            const specCombined = specParts.length > 0 ? specParts.join(' × ') : '-';
+            const priceText = item.price ? item.price.toLocaleString('ko-KR') + '원' : '-';
+
+            // 값이 빈 문자열이거나 null/undefined일 때 '-'로 표시
+            const safeValue = (val) => {
+              if (val === null || val === undefined || val === '') return '-';
+              return String(val).trim() || '-';
+            };
+
+            gridHtml += `<div class="erp-product-items-card">
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">제품명:</span>
+                <span class="erp-product-items-value">${escapeHtml(safeValue(item.product_name || item.name))}</span>
+              </div>
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">규격:</span>
+                <span class="erp-product-items-value">${escapeHtml(specCombined)}</span>
+              </div>
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">내부:</span>
+                <span class="erp-product-items-value">${escapeHtml(safeValue(item.internal))}</span>
+              </div>
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">색상:</span>
+                <span class="erp-product-items-value">${escapeHtml(safeValue(item.color))}</span>
+              </div>
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">옵션:</span>
+                <span class="erp-product-items-value">${escapeHtml(safeValue(item.option_detail || item.options))}</span>
+              </div>
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">손잡이:</span>
+                <span class="erp-product-items-value">${escapeHtml(safeValue(item.handle))}</span>
+              </div>
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">기타:</span>
+                <span class="erp-product-items-value">${escapeHtml(safeValue(item.misc))}</span>
+              </div>
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">금액:</span>
+                <span class="erp-product-items-value">${escapeHtml(priceText)}</span>
+              </div>
+            </div>`;
+          });
+          gridHtml += '</div>';
+          itemsHtml = gridHtml;
+        } else {
+          itemsHtml = '<div class="text-muted mt-3" style="font-size: 1rem;">제품 항목 없음</div>';
+        }
+
+        // 첨부 파일 (여백 최소화, 미리보기 기능)
+        // API 응답 구조 확인: attachments.attachments 또는 attachments (배열 직접 반환)
+        let aList = [];
+        if (attachments) {
+          if (Array.isArray(attachments)) {
+            aList = attachments;
+          } else if (attachments.attachments && Array.isArray(attachments.attachments)) {
+            aList = attachments.attachments;
+          } else if (attachments.success !== false && attachments.attachments) {
+            // success가 true이고 attachments가 있는 경우
+            aList = attachments.attachments;
+          } else if (attachments.success === false) {
+            console.warn('Attachments API returned error:', attachments.message || 'Unknown error');
+            aList = [];
+          } else {
+            // 디버깅: 응답 구조 확인
+            console.log('Attachments API response structure:', attachments);
+            aList = [];
+          }
+        } else {
+          console.warn('Attachments response is null or undefined');
+        }
+        // 첨부 파일 캐시 저장
+        __attachmentsCache[orderId] = aList;
+
+        let attachmentsHtml = '';
+        if (aList.length > 0) {
+          attachmentsHtml = '<div class="d-flex flex-wrap gap-1 mt-2">';
+          aList.forEach(a => {
+            const name = escapeHtml(a.filename || '');
+            const viewUrl = a.view_url || '#';
+            const thumb = a.thumbnail_view_url || viewUrl;
+            const downloadUrl = a.download_url || viewUrl;
+            const fileType = a.file_type || 'image';
+            if (fileType === 'video') {
+              attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'video')">
+                <div style="width: 80px; height: 60px; background: #000; display: flex; align-items: center; justify-content: center;">
+                  <video src="${viewUrl}" preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>
+                </div>
+                <div class="position-absolute top-0 start-0 bg-dark bg-opacity-75 text-white p-1" style="font-size: 10px;"><i class="fas fa-play"></i></div>
+              </div>`;
+            } else {
+              attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'image')">
+                <img src="${thumb}" style="width: 80px; height: 60px; object-fit: cover; background:#fff; display: block;" alt="${name}">
+              </div>`;
+            }
+          });
+          attachmentsHtml += '</div>';
+        } else {
+          attachmentsHtml = '<div class="text-muted small mt-2">첨부 없음</div>';
+        }
+
+        // 모바일 여부 확인 (992px 이하)
+        const isMobile = window.innerWidth <= 992;
+
+        const basicInfoHtml = isMobile ? '' : `
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title fw-bold"><i class="fas fa-info-circle text-primary"></i> 기본 정보</h5>
+                  <div class="erp-detail-text">
+                    <div class="mb-3"><strong class="erp-detail-label">고객명:</strong> <span class="erp-detail-value">${escapeHtml(customer)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">발주사:</strong> <span class="erp-detail-value">${escapeHtml(orderer)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">연락처:</strong> <span class="erp-detail-value">${escapeHtml(phone)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">주소:</strong> <span class="erp-detail-value">${escapeHtml(address)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">담당자:</strong> <span class="erp-detail-value">${escapeHtml(manager)}</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>`;
+
+        const noteRows = [];
+        if (addressNote) {
+          noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">${escapeHtml(addressNote)}</span></div>`);
+        }
+        if (phoneNote) {
+          noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">${escapeHtml(phoneNote)}</span></div>`);
+        }
+        if (measureNote) {
+          noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">${escapeHtml(measureNote)}</span></div>`);
+        }
+        const notesHtml = noteRows.join('');
+
+        const scheduleHtml = `
+            <div class="${isMobile ? 'col-12' : 'col-md-6'}">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title fw-bold"><i class="fas fa-calendar text-primary"></i> 일정 및 특이사항</h5>
+                  <div class="erp-detail-text">
+                    ${isMobile ? '' : `<div class="mb-3"><strong class="erp-detail-label">실측일:</strong> <span class="erp-detail-value">${escapeHtml(measure)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">시공일:</strong> <span class="erp-detail-value">${escapeHtml(construct)}</span></div>`}
+                    ${notesHtml}
+                  </div>
+                </div>
+              </div>
+            </div>`;
+
+        // 도면 전달 버튼 (DRAWING 단계일 때만)
+        let actionHtml = '';
+        if (stage === 'CONFIRM' || stage === '확정대기') {
+          // [수정] 제작 대기 카드는 삭제하고, 버튼은 퀘스트 영역으로 이동
+          actionHtml = '';
+        } else if (stage === 'PRODUCTION' || stage === '제작중') {
+          actionHtml = `
+            <div class="col-12">
+              <div class="card bg-light border-success">
+                <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <div>
+                    <h5 class="card-title fw-bold text-success mb-1"><i class="fas fa-tasks"></i> 제작 진행 중</h5>
+                    <p class="mb-0 text-muted small">제작이 완료되면 출고 대기 상태로 변경하세요.</p>
+                  </div>
+                  <button class="btn btn-success" onclick="completeProduction(${orderId})">
+                    <i class="fas fa-check"></i> 제작 완료
+                  </button>
+                </div>
+              </div>
+            </div>`;
+        }
+
+        container.innerHTML = `
+          <div class="row g-3 erp-order-detail">
+            ${basicInfoHtml}
+            ${scheduleHtml}
+            ${actionHtml}
+            <div class="col-12">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title fw-bold mb-3"><i class="fas fa-box text-primary"></i> 제품 항목</h5>
+                  ${itemsHtml}
+                </div>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title fw-bold mb-3"><i class="fas fa-paperclip text-primary"></i> 첨부 파일 <span class="badge bg-secondary" style="font-size: 1rem;">${aList.length}개</span></h5>
+                  ${attachmentsHtml}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+      } catch (err) {
+        console.error('주문 상세 로드 실패:', err);
+        container.innerHTML = '<div class="text-danger small">로드 실패: ' + escapeHtml(err.message) + '</div>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // 필터 폼 제출 시 alert_type 파라미터 유지
+      const form = document.getElementById('erp-filters-form');
+      if (form) {
+        form.addEventListener('submit', function (e) {
+          const url = new URL(window.location.href);
+          const currentAlertType = url.searchParams.get('alert_type');
+          if (currentAlertType) {
+            let alertTypeInput = this.querySelector('input[name="alert_type"]');
+            if (!alertTypeInput) {
+              alertTypeInput = document.createElement('input');
+              alertTypeInput.type = 'hidden';
+              alertTypeInput.name = 'alert_type';
+              this.appendChild(alertTypeInput);
+            }
+            alertTypeInput.value = currentAlertType;
+          }
+        });
+      }
+
+      // 주문 상세 collapse 오픈 시: 상세 로드 완료 후 navbar 바로 아래로 정렬
+      document.querySelectorAll('.collapse[id^="order-detail-collapse-"]').forEach(collapseEl => {
+        collapseEl.addEventListener('shown.bs.collapse', async function () {
+          const orderId = this.id.replace('order-detail-collapse-', '');
+
+          const alignDetailUnderNavbar = () => {
+            const nav = document.querySelector('nav.navbar');
+            const navHeight = nav ? nav.offsetHeight : 56;
+            const titleEl = this.querySelector('.erp-order-detail-title') || this;
+            const targetTop = window.scrollY + titleEl.getBoundingClientRect().top - navHeight - 8;
+            window.scrollTo({ top: Math.max(0, targetTop), behavior: 'auto' });
+          };
+
+          // 1차: collapse 오픈 직후 정렬
+          alignDetailUnderNavbar();
+
+          // 2차: 상세 내용 렌더 완료 후 다시 정렬 (높이 변동 보정)
+          await loadOrderDetail(parseInt(orderId, 10));
+          requestAnimationFrame(alignDetailUnderNavbar);
+          setTimeout(alignDetailUnderNavbar, 120);
+        });
+      });
+
+      // 프로세스 맵 & 알림 타일 클릭 → 필터 적용 후 리로드
+      const applyFilter = (name, value) => {
+        if (!form) return;
+        let input = form.querySelector(`[name="${name}"]`);
+
+        // input이 없으면 (특히 alert_type hidden input이 초기 상태에서 없을 수 있음) 생성
+        if (!input) {
+          input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = name;
+          form.appendChild(input);
+        }
+
+        const current = input.value || '';
+        const next = value || '';
+
+        // 같은 값을 다시 클릭하면 해제(전체보기)
+        input.value = (current === next) ? '' : next;
+
+        form.submit();
+      };
+
+      // 프로세스 맵 (Pipeline Stages)
+      document.querySelectorAll('.erp-pro-pipeline__stage[data-stage]').forEach(el => {
+        const handler = () => applyFilter('stage', el.dataset.stage || '');
+        el.addEventListener('click', handler);
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handler();
+          }
+        });
+      });
+
+      // 알림 타일 (Alert Tiles)
+      document.querySelectorAll('.erp-pro-alert[data-alert-type]').forEach(el => {
+        const handler = () => applyFilter('alert_type', el.dataset.alertType || '');
+        el.addEventListener('click', handler);
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handler();
+          }
+        });
+      });
+
+      // 이벤트 위임: 퀘스트 승인, 첨부 미리보기 등
+      document.body.addEventListener('click', function (e) {
+        // 승인 버튼
+        const approveBtn = e.target.closest('.erp-btn-approve-team');
+        if (approveBtn) {
+          const orderId = approveBtn.dataset.orderId;
+          const team = approveBtn.dataset.team;
+          if (typeof approveQuestTeam === 'function') {
+            approveQuestTeam(Number(orderId), team);
+          } else {
+            console.warn('approveQuestTeam is not defined');
+          }
+        }
+
+        // 첨부파일 미리보기 버튼
+        const attBtn = e.target.closest('.erp-btn-attachments-preview');
+        if (attBtn) {
+          const orderId = attBtn.dataset.orderId;
+          if (typeof openAttachmentsPreview === 'function') {
+            openAttachmentsPreview(Number(orderId));
+          }
+        }
+      });
+    });
+  </script>
+
+  <!-- 알림 패널 -->
+  <div id="notification-panel" class="notification-panel" style="display: none;">
+    <div class="notification-panel__header">
+      <h4><i class="fas fa-bell"></i> 알림</h4>
+      <button class="notification-panel__close" onclick="toggleNotificationPanel()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="notification-panel__actions">
+      <button class="btn btn-sm btn-outline-secondary" onclick="markAllNotificationsRead()">
+        <i class="fas fa-check-double"></i> 모두 읽음
+      </button>
+    </div>
+    <div class="notification-panel__list" id="notification-list">
+      <div class="notification-empty">알림이 없습니다.</div>
+    </div>
+  </div>
+
+  <style>
+    /* 알림 배지 */
+    .notification-badge {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      background: #ff4757;
+      color: white;
+      font-size: 10px;
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 10px;
+      min-width: 18px;
+      text-align: center;
+    }
+
+    .erp-pro-btn--icon {
+      position: relative;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: white;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .erp-pro-btn--icon:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* 알림 패널 */
+    .notification-panel {
+      position: fixed;
+      top: 70px;
+      right: 20px;
+      width: 380px;
+      max-height: 500px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      z-index: 9999;
+      overflow: hidden;
+    }
+
+    .notification-panel__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .notification-panel__header h4 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .notification-panel__close {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      opacity: 0.8;
+    }
+
+    .notification-panel__close:hover {
+      opacity: 1;
+    }
+
+    .notification-panel__actions {
+      padding: 10px 20px;
+      border-bottom: 1px solid #eee;
+      text-align: right;
+    }
+
+    .notification-panel__list {
+      max-height: 380px;
+      overflow-y: auto;
+    }
+
+    .notification-item {
+      padding: 14px 20px;
+      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .notification-item:hover {
+      background: #f8f9fa;
+    }
+
+    .notification-item--unread {
+      background: #f0f5ff;
+      border-left: 3px solid #667eea;
+    }
+
+    .notification-item__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .notification-item__title {
+      font-weight: 600;
+      color: #333;
+      font-size: 14px;
+    }
+
+    .notification-item__time {
+      font-size: 11px;
+      color: #999;
+    }
+
+    .notification-item__message {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.4;
+    }
+
+    .notification-item__target {
+      margin-top: 6px;
+      font-size: 11px;
+      color: #667eea;
+    }
+
+    .notification-empty {
+      padding: 40px 20px;
+      text-align: center;
+      color: #999;
+    }
+  </style>
+
+  <script>
+    // 알림 시스템 JavaScript
+    let notificationPanelOpen = false;
+
+    async function loadNotificationBadge() {
+      try {
+        const res = await fetch('/erp/api/notifications/badge');
+        if (!res.ok) return;
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) return;
+        const data = await res.json();
+        const badge = document.getElementById('notification-badge');
+        if (badge) {
+          if (data.count > 0) {
+            badge.textContent = data.count > 99 ? '99+' : data.count;
+            badge.style.display = 'block';
+          } else {
+            badge.style.display = 'none';
+          }
+        }
+      } catch (e) {
+        console.error('Notification badge error:', e);
+      }
+    }
+
+    async function loadNotifications() {
+      const list = document.getElementById('notification-list');
+      try {
+        const res = await fetch('/erp/api/notifications?limit=20');
+        if (!res.ok) {
+          if (res.status === 429 && list) {
+            list.innerHTML = '<div class="notification-empty">요청이 많아 잠시 후 다시 시도해 주세요.</div>';
+          }
+          return;
+        }
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          if (list) list.innerHTML = '<div class="notification-empty">알림을 불러올 수 없습니다.</div>';
+          return;
+        }
+        const data = await res.json();
+
+        if (!data.success || !data.notifications || data.notifications.length === 0) {
+          list.innerHTML = '<div class="notification-empty">알림이 없습니다.</div>';
+          return;
+        }
+
+        list.innerHTML = data.notifications.map(n => `
+          <div class="notification-item ${n.is_read ? '' : 'notification-item--unread'}" 
+               data-id="${n.id}" 
+               data-order-id="${n.order_id}"
+               onclick="handleNotificationClick(${n.id}, ${n.order_id}, '${String(n.notification_type || '').replace(/'/g, "\\'")}', '${String(n.deep_tab || '').replace(/'/g, "\\'")}', '${String(n.deep_event_id || '').replace(/'/g, "\\'")}', '${String(n.deep_target_no || '').replace(/'/g, "\\'")}')">
+            <div class="notification-item__header">
+              <span class="notification-item__title">${escapeHtml(n.title)}</span>
+              <span class="notification-item__time">${formatNotificationTime(n.created_at)}</span>
+            </div>
+            <div class="notification-item__message">${escapeHtml(n.message)}</div>
+            <div class="notification-item__target">
+              ${n.target_manager_name ? '담당: ' + escapeHtml(n.target_manager_name) : (n.target_team ? '팀: ' + escapeHtml(n.target_team) : '')}
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        console.error('Load notifications error:', e);
+      }
+    }
+
+    function toggleNotificationPanel() {
+      const panel = document.getElementById('notification-panel');
+      notificationPanelOpen = !notificationPanelOpen;
+      panel.style.display = notificationPanelOpen ? 'block' : 'none';
+
+      if (notificationPanelOpen) {
+        loadNotifications();
+      }
+    }
+
+    async function handleNotificationClick(notificationId, orderId, notificationType, deepTab, deepEventId, deepTargetNo) {
+      // 읽음 처리
+      try {
+        await fetch(`/erp/api/notifications/${notificationId}/read`, { method: 'POST' });
+        loadNotificationBadge();
+
+        // 해당 주문 상세로 이동
+        if (orderId) {
+          if (notificationType === 'DRAWING_TRANSFERRED' || notificationType === 'DRAWING_REVISION') {
+            const tab = deepTab || (notificationType === 'DRAWING_REVISION' ? 'requests' : 'timeline');
+            let url = `/erp/drawing-workbench/${orderId}?tab=${encodeURIComponent(tab)}`;
+            if (deepEventId) url += `&event_id=${encodeURIComponent(deepEventId)}`;
+            if (deepTargetNo) url += `&target_no=${encodeURIComponent(deepTargetNo)}`;
+            window.location.href = url;
+          } else {
+            window.location.href = `/edit/${orderId}`;
+          }
+        }
+      } catch (e) {
+        console.error('Notification click error:', e);
+      }
+    }
+
+    async function markAllNotificationsRead() {
+      try {
+        const res = await fetch('/erp/api/notifications/read-all', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          loadNotificationBadge();
+          loadNotifications();
+        }
+      } catch (e) {
+        console.error('Mark all read error:', e);
+      }
+    }
+
+    function formatNotificationTime(dateStr) {
+      if (!dateStr) return '';
+      const date = new Date(dateStr.replace(' ', 'T'));
+      const now = new Date();
+      const diff = (now - date) / 1000;
+
+      if (diff < 60) return '방금';
+      if (diff < 3600) return Math.floor(diff / 60) + '분 전';
+      if (diff < 86400) return Math.floor(diff / 3600) + '시간 전';
+      if (diff < 604800) return Math.floor(diff / 86400) + '일 전';
+
+      return dateStr.split(' ')[0];
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = String(text);
+      return div.innerHTML;
+    }
+
+    // 페이지 로드 시 배지 업데이트
+    document.addEventListener('DOMContentLoaded', function () {
+      loadNotificationBadge();
+
+      // 60초마다 배지 업데이트 (rate-limit 여유 확보)
+      setInterval(loadNotificationBadge, 60000);
+    });
+
+    // 패널 외부 클릭 시 닫기
+    document.addEventListener('click', function (e) {
+      const panel = document.getElementById('notification-panel');
+      const btn = document.getElementById('notification-btn');
+      if (notificationPanelOpen && !panel.contains(e.target) && !btn.contains(e.target)) {
+        toggleNotificationPanel();
+      }
+    });
+  </script>

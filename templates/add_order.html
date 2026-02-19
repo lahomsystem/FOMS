@@ -753,10 +753,14 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
     });
 </script>
 
+<div id="add-order-config" class="d-none"
+     data-erp-beta-enabled="{{ erp_beta_enabled|tojson|e }}"></div>
 <script>
-    // add_order (ERP Beta): ORDER_ID는 탭 오픈 시 draft 생성으로 확보
+    // add_order (ERP Beta): ORDER_ID는 탭 오픈 시 draft 생성으로 확보 (data-* + safeJsonParse 패턴)
+    function safeJsonParse(val, fb) { try { var s = String(val||'').trim(); if(!s) return fb; var o = JSON.parse(s); return o != null ? o : fb; } catch(_) { return fb; } }
     let ORDER_ID = 0;
-    var ERP_BETA_ENABLED = JSON.parse('{{ erp_beta_enabled | tojson | safe }}');
+    var _aoCfg = document.getElementById('add-order-config');
+    var ERP_BETA_ENABLED = _aoCfg ? safeJsonParse(_aoCfg.getAttribute('data-erp-beta-enabled'), false) : false;
     window.__ERP_BETA_DRAFT_MODE = true;
     window.__ERP_DRAFT_ENDPOINT = '/api/orders/erp/draft';
 </script>

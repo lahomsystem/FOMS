@@ -46,7 +46,7 @@
 | Phase | ID | 대상 | 예상 분할 | 담당 | 비고 |
 |-------|-----|------|-----------|------|------|
 | **1** | PART-001 | `partials/chat_scripts.html` (2,105줄) | chat_scripts_*.html 2~3개 | frontend-ui | 이미 partial, include 구조로 재분할 용이 |
-| 2 | PART-002 | `partials/erp_dashboard_scripts.html` (1,928줄) | erp_dashboard_scripts_*.html 2~3개 | frontend-ui | ERP 공통 스크립트 |
+| 2 | PART-002 | `partials/erp_dashboard_scripts.html` (1,928줄) | erp_dashboard_scripts_*.html 7개 | frontend-ui | ERP 공통 스크립트 |
 | 3 | PART-003 | `erp_construction_dashboard.html` (2,702줄) | partials/erp_construction_*.html | frontend-ui | 시공 전용 블록 추출 |
 | 4 | PART-004 | `erp_production_dashboard.html` (2,653줄) | partials/erp_production_*.html | frontend-ui | 생산 전용 블록 추출 |
 | 5 | PART-005 | `calculator.html` (3,925줄) | wdcalculator/partials/*.html | frontend-ui | WD 계산기 모듈 단위 분할 |
@@ -61,6 +61,56 @@
 - `{% include %}` 패턴 사용, 기존 경로 유지.
 - 분할 후 **서버 기동·채팅 동작** 검증 필수.
 - `docs/plans/2026-02-18-file-cleanup-and-next-plan.md` 진행 상태 갱신.
+
+---
+
+## 4.3 PART-003 완료 (2026-02-19)
+
+| 파일 | 줄 수 | 비고 |
+|------|-------|------|
+| `erp_construction_dashboard.html` | 120 | 메인 (header + process map + include 4개) |
+| `partials/erp_construction_styles.html` | ~1,275 | 시공 전용 스타일 |
+| `partials/erp_construction_filters_grid.html` | 278 | 필터 + 작업 큐 그리드 |
+| `partials/erp_construction_modals.html` | 58 | 첨부 카테고리·미리보기 모달 + config div |
+| `partials/erp_construction_scripts.html` | 1,338 | 메인 스크립트 + 알림 패널 + 알림 스타일/스크립트 |
+
+---
+
+## 4.4 PART-004 완료 (2026-02-19)
+
+| 파일 | 줄 수 | 비고 |
+|------|-------|------|
+| `erp_production_dashboard.html` | 121 | 메인 (header + process map + include 4개) |
+| `partials/erp_production_styles.html` | 1,274 | 생산 전용 스타일 |
+| `partials/erp_production_filters_grid.html` | 225 | 필터 + 작업 큐 그리드 |
+| `partials/erp_production_modals.html` | 55 | 첨부 카테고리·미리보기 모달 + config div |
+| `partials/erp_production_scripts.html` | 1,342 | 메인 스크립트 + 알림 패널/스타일/스크립트 |
+
+---
+
+## 4.5 PART-005 완료 (2026-02-18)
+
+| 파일 | 줄 수 | 비고 |
+|------|-------|------|
+| `calculator.html` | 15 | 메인 (extends + block title + include 3개) |
+| `wdcalculator/partials/wdcalculator_styles.html` | ~380 | 스타일 2블록 (견적·추가옵션·info/warning) |
+| `wdcalculator/partials/wdcalculator_body.html` | 266 | container-fluid + config div |
+| `wdcalculator/partials/wdcalculator_scripts.html` | ~3,454 | config init + 메인 DOMContentLoaded 스크립트 |
+
+---
+
+## 4.2 PART-002 완료 (2026-02-19)
+
+| 파일 | 줄 수 | 비고 |
+|------|-------|------|
+| `erp_dashboard_scripts.html` | 9 | 메인 (include만) |
+| `erp_dashboard_scripts_core.html` | 177 | escapeHtml, showErpToast, labels, attachment tabs |
+| `erp_dashboard_scripts_gateway.html` | 378 | 도면 창구 뷰어, renderGatewayFiles, renderDrawingGatewayTimeline |
+| `erp_dashboard_scripts_attachments.html` | 271 | 첨부 미리보기, drawing target cards |
+| `erp_dashboard_scripts_drawing.html` | 373 | 도면 전달/수정/담당자 모달 |
+| `erp_dashboard_scripts_quest.html` | 110 | badges, approveQuest, loadQuestDetail |
+| `erp_dashboard_scripts_detail.html` | 570 | safeJsonFetch, loadOrderDetail |
+| `erp_dashboard_scripts_dom.html` | 218 | initErpDashboardBoundaryResize, DOMContentLoaded |
 
 ---
 

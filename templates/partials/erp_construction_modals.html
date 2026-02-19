@@ -1,0 +1,58 @@
+  <!-- 첨부 파일 카테고리 모달 -->
+  <div class="modal fade" id="erpAttachmentsCategoryModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-paperclip"></i> 첨부 파일</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex flex-wrap gap-2 mb-3" id="erp-attachments-category-tabs"></div>
+          <div class="row g-2" id="erp-attachments-category-gallery"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> 닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 첨부 파일 단일 미리보기 모달 -->
+  <div class="modal fade" id="erpAttachmentPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"
+      style="max-width: 60vw; width: 60vw; height: 90vh; max-height: 90vh; margin: auto;">
+      <div class="modal-content" style="height: 100%; display: flex; flex-direction: column;">
+        <div class="modal-header" style="flex-shrink: 0; position: relative;">
+          <h5 class="modal-title"><i class="fas fa-paperclip"></i> 첨부 미리보기 <span id="erp-attachment-preview-counter"
+              class="badge bg-secondary ms-2"></span></h5>
+          <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="erp-attachment-preview-prev"
+            style="display: none;" title="이전 파일">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="erp-attachment-preview-next"
+            style="display: none;" title="다음 파일">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body"
+          style="padding: 0; overflow: hidden; flex: 1; display: flex; flex-direction: column; min-height: 0;">
+          <div id="erp-attachment-preview-body"
+            style="padding: 1rem; flex: 1; overflow: auto; display: flex; flex-direction: column;"></div>
+        </div>
+        <div class="modal-footer" style="flex-shrink: 0;">
+          <a class="btn btn-primary" id="erp-attachment-preview-download" href="#" target="_blank" rel="noopener">
+            <i class="fas fa-download"></i> 다운로드
+          </a>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> 닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="erp-dashboard-config" data-team-labels="{{ team_labels|tojson|e }}" data-stage-labels="{{ stage_labels|tojson|e }}" style="display:none" aria-hidden="true"></div>
+  <script>

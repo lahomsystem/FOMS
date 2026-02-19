@@ -12,6 +12,10 @@
 | CLEAN-004 | 완료 | scripts/ 사용처 확인 (db_admin, incident_smoke 사용 중) | 2026-02-18 | 2026-02-18 |
 | CLEAN-005 | 완료 | 루트·임시 파일 점검 (해당 없음) | 2026-02-18 | 2026-02-18 |
 | NEXT-001 | 완료 | order_pages.py에서 edit_order 분리 → apps/order_edit.py, order_edit_bp 등록·템플릿 url_for 일괄 변경 | 2026-02-18 | 2026-02-18 |
+| NEXT-002 PART-003 | 완료 | erp_construction_dashboard.html partial 분리 (styles, filters_grid, modals, scripts) | 2026-02-19 | 2026-02-19 |
+| NEXT-002 PART-004 | 완료 | erp_production_dashboard.html partial 분리 (styles, filters_grid, modals, scripts) | 2026-02-19 | 2026-02-19 |
+| NEXT-002 PART-005 | 완료 | calculator.html partial 분리 (wdcalculator/partials/wdcalculator_*.html) | 2026-02-18 | 2026-02-18 |
+| NEXT-003 | 대기 | pytest 도입 (Phase 3 고도화 — 테스트 인프라) | - | 2026-02-19 |
 | SLIM-035 | 보류 | app.py 300줄 이하 (일단 중단) | - | 2026-02-18 |
 | ERP-SLIM-10 | 완료 | 시공 대시보드 → apps/erp_construction_page.py (erp_construction_page_bp) | 2026-02-18 | 2026-02-18 |
 | ERP-SLIM-9 | 완료 | 생산 대시보드 → apps/erp_production_page.py (erp_production_page_bp) | 2026-02-18 | 2026-02-18 |

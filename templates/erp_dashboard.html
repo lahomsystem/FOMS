@@ -123,6 +123,7 @@
 
   {% include 'partials/erp_dashboard_modals.html' %}
 
+  <div id="erp-dashboard-config" data-team-labels="{{ team_labels|tojson|e }}" data-stage-labels="{{ stage_labels|tojson|e }}" style="display:none" aria-hidden="true"></div>
   {% include 'partials/erp_dashboard_scripts.html' %}
 
 

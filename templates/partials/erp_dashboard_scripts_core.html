@@ -1,0 +1,179 @@
+        function escapeHtml(text) {
+          if (!text) return '';
+          const div = document.createElement('div');
+          div.textContent = String(text);
+          return div.innerHTML;
+        }
+
+        function showErpToast(message, type = 'info') {
+          const id = 'erp-toast-container';
+          let container = document.getElementById(id);
+          if (!container) {
+            container = document.createElement('div');
+            container.id = id;
+            container.style.position = 'fixed';
+            container.style.top = '84px';
+            container.style.right = '16px';
+            container.style.zIndex = '30000';
+            container.style.display = 'grid';
+            container.style.gap = '8px';
+            container.style.maxWidth = '320px';
+            document.body.appendChild(container);
+          }
+          const palette = {
+            success: { bg: '#ecfdf5', bd: '#10b981', fg: '#065f46' },
+            error: { bg: '#fef2f2', bd: '#ef4444', fg: '#991b1b' },
+            info: { bg: '#eff6ff', bd: '#3b82f6', fg: '#1e3a8a' },
+          };
+          const p = palette[type] || palette.info;
+          const toast = document.createElement('div');
+          toast.style.background = p.bg;
+          toast.style.border = `1px solid ${p.bd}`;
+          toast.style.color = p.fg;
+          toast.style.borderRadius = '10px';
+          toast.style.padding = '9px 11px';
+          toast.style.fontSize = '13px';
+          toast.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)';
+          toast.textContent = String(message || '');
+          container.appendChild(toast);
+          setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.22s ease';
+            setTimeout(() => toast.remove(), 240);
+          }, 2200);
+        }
+
+
+        // === 표시용 한글 라벨(저장은 영문 코드 유지) ===
+        function safeJsonParse(val, fb) { try { var s = String(val || '').trim(); if (!s) return fb || {}; var o = JSON.parse(s); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : (fb || {}); } catch (_) { return fb || {}; } }
+        var _cfg = document.getElementById('erp-dashboard-config');
+        const TEAM_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-team-labels'), {}) : {};
+        const STAGE_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-stage-labels'), {}) : {};
+        const CAN_EDIT_ERP_BETA = (document.querySelector('.erp-dashboard')?.dataset?.canEditErpBeta || 'false') === 'true';
+
+        function label(map, code, fallback = '-') {
+          if (!code) return fallback;
+          return map[code] || code;
+        }
+
+        let __selectedOrderId = null;
+        let __attachmentsCache = {};
+        let __currentAttachmentList = [];
+        let __currentAttachmentIndex = 0;
+        let __drawingCurrentFilesByOrder = {};
+        let __activeAttachmentCategory = 'measurement';
+        let __attachmentsByCategory = {
+          measurement: [],
+          drawing: [],
+          construction: []
+        };
+
+        const ATTACHMENT_CATEGORY_META = {
+          measurement: { label: '실측', icon: 'fa-ruler-combined' },
+          drawing: { label: '도면', icon: 'fa-drafting-compass' },
+          construction: { label: '시공', icon: 'fa-hammer' }
+        };
+
+        function normalizeAttachmentCategory(category) {
+          const c = String(category || '').trim().toLowerCase();
+          if (c === 'drawing' || c === 'construction') return c;
+          return 'measurement';
+        }
+
+        function getAttachmentCategoryLabel(category) {
+          const key = normalizeAttachmentCategory(category);
+          return (ATTACHMENT_CATEGORY_META[key] || ATTACHMENT_CATEGORY_META.measurement).label;
+        }
+
+        function renderAttachmentCategoryTabs() {
+          const tabsEl = document.getElementById('erp-attachments-category-tabs');
+          if (!tabsEl) return;
+          const keys = ['measurement', 'drawing', 'construction'];
+          tabsEl.innerHTML = keys.map((key) => {
+            const meta = ATTACHMENT_CATEGORY_META[key];
+            const count = (__attachmentsByCategory[key] || []).length;
+            const isActive = key === __activeAttachmentCategory;
+            const activeCls = isActive ? 'btn-primary' : 'btn-outline-primary';
+            return `
+              <button type="button" class="btn btn-sm ${activeCls}" onclick="selectAttachmentCategory('${key}')">
+                <i class="fas ${meta.icon}"></i> ${meta.label}
+                <span class="badge ${isActive ? 'bg-light text-dark' : 'bg-primary text-white'} ms-1">${count}</span>
+              </button>
+            `;
+          }).join('');
+        }
+
+        function renderAttachmentCategoryGallery() {
+          const galleryEl = document.getElementById('erp-attachments-category-gallery');
+          if (!galleryEl) return;
+          const list = __attachmentsByCategory[__activeAttachmentCategory] || [];
+          if (!list.length) {
+            galleryEl.innerHTML = `
+              <div class="col-12">
+                <div class="text-muted small p-3 border rounded bg-light">
+                  ${getAttachmentCategoryLabel(__activeAttachmentCategory)} 카테고리에 첨부 파일이 없습니다.
+                </div>
+              </div>
+            `;
+            return;
+          }
+
+          galleryEl.innerHTML = list.map((a, index) => {
+            const name = escapeHtml(a.filename || '');
+            const type = a.file_type || 'file';
+            const thumb = a.thumbnail_view_url || a.view_url || '#';
+            const viewUrl = a.view_url || '#';
+            const downloadUrl = a.download_url || '#';
+
+            const mediaHtml = (type === 'video')
+              ? `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
+                  <video src="${viewUrl}" controls preload="metadata" style="width:100%;height:100%;"></video>
+                </div>`
+              : (type === 'image')
+                ? `<img src="${thumb}" alt="${name}" class="img-fluid rounded"
+                    style="max-height: 180px; object-fit: contain; width:100%; cursor: zoom-in; background:#fff; padding:4px;"
+                    onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ${index})">`
+                : `<div class="border rounded d-flex flex-column align-items-center justify-content-center bg-light"
+                    style="height: 180px;">
+                    <i class="fas fa-file-alt text-secondary mb-2" style="font-size: 2rem;"></i>
+                    <div class="small text-muted text-center px-2">문서 파일</div>
+                   </div>`;
+
+            return `
+              <div class="col-md-4 col-sm-6 col-12">
+                <div class="card h-100">
+                  <div class="card-body p-2">
+                    ${mediaHtml}
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                      <div class="small text-truncate" title="${name}" style="max-width: 70%;">${name}</div>
+                      <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" type="button" title="미리보기"
+                          onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ${index})">
+                          <i class="fas fa-eye"></i>
+                        </button>
+                        <a class="btn btn-outline-primary" href="${downloadUrl}" title="다운로드" target="_blank" rel="noopener">
+                          <i class="fas fa-download"></i>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        function selectAttachmentCategory(category) {
+          __activeAttachmentCategory = normalizeAttachmentCategory(category);
+          renderAttachmentCategoryTabs();
+          renderAttachmentCategoryGallery();
+        }
+
+        function openAttachmentFromCategory(category, index) {
+          const key = normalizeAttachmentCategory(category);
+          const list = __attachmentsByCategory[key] || [];
+          if (!list.length) return;
+          __activeAttachmentCategory = key;
+          __currentAttachmentList = list;
+          showAttachmentAtIndex(index);
+        }

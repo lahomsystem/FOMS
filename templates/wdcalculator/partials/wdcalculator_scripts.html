@@ -1,0 +1,3452 @@
+<script>
+    // Jinja2 템플릿 변수에서 직접 JavaScript 변수로 주입
+    var wdCalculatorCategories = {{ categories|default([])|tojson|safe }} || [];
+    var wdNotesCategories = {{ notes_categories|default([])|tojson|safe }} || [];
+    var notesCategories = wdNotesCategories || [];
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let products = [];
+    let additionalOptions = [];
+    let estimates = []; // 견적 목록 저장
+    let editingEstimateId = null; // 수정 중인 견적 ID (내부 목록용)
+    let currentDatabaseEstimateId = null; // DB에 저장된 견적 ID (수정 시 사용)
+    const DEFAULT_COUPON_VALUE = 11000; // 기본 쿠폰 금액
+
+    // ==================== 복합 기본견적(Base Components) ====================
+    // 10원 단위 올림
+    function ceilToTens(value) {
+        const v = Number(value) || 0;
+        return Math.ceil(v / 10) * 10;
+    }
+
+    function computeAutoPrice1cmFrom30cm(price30) {
+        return ceilToTens((Number(price30) || 0) / 30);
+    }
+
+    function getProductsOptionsHtml() {
+        let html = '<option value="">제품을 선택하세요</option>';
+        (products || []).forEach(p => {
+            if (!p) return;
+            html += `<option value="${p.id}">${escapeHtml(p.name || '')}</option>`;
+        });
+        return html;
+    }
+
+    function renderBaseComponentRow(component = {}) {
+        const mode = component.mode || 'select'; // select | manual
+        const manualPricingType = component.manualPricing?.pricing_type || '30cm';
+        const widthMm = component.widthMm ?? '';
+        const productId = component.productId ?? '';
+        const price30 = component.manualPricing?.price_30cm ?? '';
+        const price1 = component.manualPricing?.price_1cm ?? (price30 ? computeAutoPrice1cmFrom30cm(price30) : 0);
+        const price1m = component.manualPricing?.price_1m ?? '';
+        // 추가금을 배열로 처리 (기존 단일 값과 호환)
+        const additionalFees = component.additionalFees || (component.additionalFee ? [{ name: '', amount: component.additionalFee }] : []);
+
+        return `
+            <div class="card mb-2 border-light base-component-row" data-mode="${mode}">
+                <div class="card-body py-2">
+                    <!-- 첫 번째 행: 방식, 제품/직접입력, 가로, 삭제 -->
+                    <div class="row g-2 align-items-end">
+                        <!-- 방식 -->
+                        <div class="col-6 col-md-2">
+                            <label class="form-label small mb-1">방식</label>
+                            <div class="btn-group w-100" role="group">
+                                <button type="button" class="btn btn-sm ${mode === 'select' ? 'btn-info' : 'btn-outline-info'} base-mode-btn" data-mode="select">선택</button>
+                                <button type="button" class="btn btn-sm ${mode === 'manual' ? 'btn-warning' : 'btn-outline-warning'} base-mode-btn" data-mode="manual">직접</button>
+                            </div>
+                        </div>
+
+                        <!-- 선택/직접 상세 영역 (항상 같은 컬럼을 차지해서 남는 공간 제거) -->
+                        <div class="col-12 col-md-6 base-details-area">
+                            <!-- 제품(선택 모드) -->
+                            <div class="base-select-area" style="${mode === 'manual' ? 'display:none;' : ''}">
+                                <label class="form-label small mb-1">제품</label>
+                                <select class="form-select form-select-sm base-product-select">
+                                    ${getProductsOptionsHtml()}
+                                </select>
+                            </div>
+
+                            <!-- 직접입력(직접 모드) -->
+                            <div class="base-manual-area" style="${mode === 'manual' ? '' : 'display:none;'}">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-4">
+                                        <label class="form-label small mb-1">단가 방식</label>
+                                        <select class="form-select form-select-sm base-manual-pricing-type">
+                                            <option value="30cm" ${manualPricingType === '30cm' ? 'selected' : ''}>30cm/1cm</option>
+                                            <option value="1m" ${manualPricingType === '1m' ? 'selected' : ''}>1m</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-5 base-manual-30cm-col" style="${manualPricingType === '1m' ? 'display:none;' : ''}">
+                                        <label class="form-label small mb-1">30cm(원)</label>
+                                        <input type="number" class="form-control form-control-sm base-manual-price30" min="0" step="1" placeholder="예: 187000" value="${escapeHtml(String(price30))}">
+                                    </div>
+                                    <div class="col-3 base-manual-1cm-col" style="${manualPricingType === '1m' ? 'display:none;' : ''}">
+                                        <label class="form-label small mb-1">1cm(자동)</label>
+                                        <input type="number" class="form-control form-control-sm base-manual-price1" min="0" step="10" readonly value="${escapeHtml(String(price1))}">
+                                    </div>
+                                    <div class="col-8 base-manual-1m-col" style="${manualPricingType === '1m' ? '' : 'display:none;'}">
+                                        <label class="form-label small mb-1">1m(원)</label>
+                                        <input type="number" class="form-control form-control-sm base-manual-price1m" min="0" step="1" placeholder="예: 330000" value="${escapeHtml(String(price1m))}">
+                                    </div>
+                                </div>
+                                
+                            </div>
+                        </div>
+
+                        <!-- 가로 (직접: 마지막 / 선택: 제품 다음) -->
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small mb-1">가로(mm)</label>
+                            <input type="number" class="form-control form-control-sm base-width-input" min="0" step="1" placeholder="예: 4470" value="${escapeHtml(String(widthMm))}">
+                        </div>
+
+                        <!-- 삭제 -->
+                        <div class="col-6 col-md-1 text-end">
+                            <button type="button" class="btn btn-sm btn-outline-danger base-remove-btn" title="삭제">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 두 번째 행: 추가금 입력 (리스트 형태) -->
+                    <div class="mt-2">
+                        <label class="form-label small mb-2">추가금</label>
+                        <div class="base-additional-fees-list">
+                            ${additionalFees.map((fee, idx) => `
+                                <div class="row g-2 align-items-end mb-2 base-additional-fee-item">
+                                    <div class="col-12 col-md-5">
+                                        <input type="text" class="form-control form-control-sm base-additional-fee-name" placeholder="제품명 입력" value="${escapeHtml(fee.name || '')}">
+                                    </div>
+                        <div class="col-12 col-md-4">
+                                        <input type="number" class="form-control form-control-sm base-additional-fee-amount" min="0" step="1" placeholder="금액 (원)" value="${escapeHtml(String(fee.amount || ''))}">
+                        </div>
+                                    <div class="col-12 col-md-3 text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-danger base-remove-fee-btn" title="삭제">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary base-add-fee-btn">
+                                <i class="fas fa-plus"></i> 추가금 추가
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function ensureBaseComponentsUI(components = null) {
+        const container = document.getElementById('baseComponentsContainer');
+        if (!container) return;
+        container.innerHTML = '';
+        const list = (components && Array.isArray(components) && components.length)
+            ? components
+            : [{ mode: 'select' }];
+            container.innerHTML = list.map(c => renderBaseComponentRow(c)).join('');
+        // 선택값 세팅 (렌더 뒤)
+            container.querySelectorAll('.base-component-row').forEach((rowEl, idx) => {
+                const comp = list[idx] || {};
+                const sel = rowEl.querySelector('.base-product-select');
+                if (sel && comp.productId) {
+                    sel.value = String(comp.productId);
+                }
+            });
+        
+        // 추가금 추가/삭제 버튼 이벤트 바인딩
+        bindAdditionalFeeEvents();
+    }
+
+    function readBaseComponentsFromUI() {
+        const container = document.getElementById('baseComponentsContainer');
+        if (!container) return [];
+        const rows = Array.from(container.querySelectorAll('.base-component-row'));
+        return rows.map(rowEl => {
+            const mode = rowEl.dataset.mode || 'select';
+            const widthMm = Number(rowEl.querySelector('.base-width-input')?.value) || 0;
+            
+            // 추가금 배열 읽기
+            const additionalFees = [];
+            rowEl.querySelectorAll('.base-additional-fee-item').forEach(itemEl => {
+                const name = itemEl.querySelector('.base-additional-fee-name')?.value?.trim() || '';
+                const amount = Number(itemEl.querySelector('.base-additional-fee-amount')?.value) || 0;
+                if (name || amount > 0) {
+                    additionalFees.push({ name, amount });
+                }
+            });
+            
+            if (mode === 'manual') {
+                const pricingType = rowEl.querySelector('.base-manual-pricing-type')?.value || '30cm';
+                if (pricingType === '1m') {
+                    const price1m = Number(rowEl.querySelector('.base-manual-price1m')?.value) || 0;
+                    return { mode, widthMm, additionalFees, manualPricing: { pricing_type: '1m', price_1m: price1m } };
+                }
+                const price30 = Number(rowEl.querySelector('.base-manual-price30')?.value) || 0;
+                const auto1 = computeAutoPrice1cmFrom30cm(price30);
+                // 항상 자동값으로 맞춤
+                const price1El = rowEl.querySelector('.base-manual-price1');
+                if (price1El) price1El.value = String(auto1);
+                return { mode, widthMm, additionalFees, manualPricing: { pricing_type: '30cm', price_30cm: price30, price_1cm: auto1 } };
+            }
+            const productId = Number(rowEl.querySelector('.base-product-select')?.value) || null;
+            return { mode, widthMm, additionalFees, productId };
+        });
+    }
+    
+    // 추가금 추가/삭제 버튼 이벤트 바인딩 함수
+    // 주의: 추가금 추가 버튼은 이벤트 위임 방식으로 처리되므로 여기서는 바인딩하지 않음
+    function bindAdditionalFeeEvents() {
+        const container = document.getElementById('baseComponentsContainer');
+        if (!container) return;
+        
+        // 추가금 삭제 버튼 (기존 항목에 대한 이벤트만 바인딩)
+        // 새로 추가되는 항목은 이벤트 위임으로 처리됨
+        container.querySelectorAll('.base-remove-fee-btn').forEach(btn => {
+            // 이미 이벤트가 바인딩되어 있는지 확인
+            if (!btn.hasAttribute('data-bound')) {
+                btn.addEventListener('click', function() {
+                    this.closest('.base-additional-fee-item').remove();
+                    calculateEstimate();
+                });
+                btn.setAttribute('data-bound', 'true');
+            }
+        });
+        
+        // 추가금 입력 시 자동 계산 (기존 항목에 대한 이벤트만 바인딩)
+        container.querySelectorAll('.base-additional-fee-name, .base-additional-fee-amount').forEach(input => {
+            // 이미 이벤트가 바인딩되어 있는지 확인
+            if (!input.hasAttribute('data-bound')) {
+                input.addEventListener('input', calculateEstimate);
+                input.setAttribute('data-bound', 'true');
+            }
+        });
+    }
+    
+    // 쿠폰 값을 가져오는 함수 (매번 DOM에서 직접 읽기 - 가장 확실한 방법)
+    function getCouponValue() {
+        const couponInput = document.getElementById('globalCouponValue');
+        if (!couponInput) {
+            console.warn('쿠폰 입력 필드를 찾을 수 없습니다. 기본값 사용:', DEFAULT_COUPON_VALUE);
+            return DEFAULT_COUPON_VALUE;
+        }
+        const value = couponInput.value;
+        if (!value || value === '') {
+            return DEFAULT_COUPON_VALUE;
+        }
+        const numValue = parseInt(value, 10);
+        if (isNaN(numValue) || numValue < 0) {
+            console.warn('잘못된 쿠폰 값:', value, '기본값 사용:', DEFAULT_COUPON_VALUE);
+            return DEFAULT_COUPON_VALUE;
+        }
+        return numValue;
+    }
+    
+    // 최종 견적 금액 스타일 적용 함수 (인라인 스타일 직접 적용)
+    function applyFinalPriceStyle(element) {
+        if (!element) return;
+        element.style.fontSize = '2.4rem';
+        element.style.fontWeight = '900';
+        element.style.color = '#0d6efd';
+        element.style.lineHeight = '1.1';
+        element.className = 'final-price-display mb-2';
+    }
+    
+    // 쿠폰 할인 정보 스타일 적용 함수
+    function applyCouponDiscountStyle(element, hasDiscount) {
+        if (!element) return;
+        if (hasDiscount) {
+            element.style.color = '#dc3545';
+            element.style.fontWeight = '700';
+            element.className = 'coupon-discount';
+        } else {
+            element.style.color = '#6c757d';
+            element.style.fontWeight = '400';
+            element.className = 'text-muted';
+        }
+    }
+
+    // 견적 ID 생성 함수 (통일된 형식)
+    function generateEstimateId() {
+        return 'est_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+    
+    // ID 비교를 위한 헬퍼 함수
+    function isSameId(id1, id2) {
+        return String(id1) === String(id2);
+    }
+    
+    // ID를 문자열로 정규화
+    function normalizeId(id) {
+        if (!id) return null;
+        return String(id);
+    }
+    
+    // 가격 포맷팅 함수 (콤마 추가)
+    function formatPrice(value) {
+        if (!value) return '';
+        // 숫자만 추출
+        const numValue = value.toString().replace(/[^\d]/g, '');
+        if (!numValue) return '';
+        // 콤마 포맷팅
+        return parseInt(numValue, 10).toLocaleString('ko-KR');
+    }
+    
+    // 가격에서 콤마 제거 후 숫자로 변환
+    function parsePrice(value) {
+        if (!value) return 0;
+        // 콤마 제거 후 숫자로 변환
+        const numValue = value.toString().replace(/[^\d]/g, '');
+        return parseFloat(numValue) || 0;
+    }
+    
+    // XSS 방지를 위한 HTML 이스케이프 함수
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+    
+    // 카테고리 데이터 확인
+    if (!wdCalculatorCategories || wdCalculatorCategories.length === 0) {
+        console.warn('카테고리 데이터가 없습니다. 제품 설정에서 추가 옵션을 등록해주세요.');
+    }
+    
+    // 비고 카테고리 로드
+    function loadNotesCategories() {
+        // 템플릿에서 전달된 비고 카테고리 사용
+        notesCategories = wdNotesCategories || [];
+    }
+    
+    // 비고 항목 표시 모드 헬퍼 함수 (추가 옵션과 일관성 유지)
+    function setNoteMode(selectEl, textareaEl, mode) {
+        if (mode === 'select') {
+            // select 표시
+            selectEl.style.setProperty('display', 'block', 'important');
+            selectEl.classList.remove('d-none');
+            // textarea 숨김
+            textareaEl.style.setProperty('display', 'none', 'important');
+            textareaEl.classList.add('d-none');
+        } else {
+            // select 숨김
+            selectEl.style.setProperty('display', 'none', 'important');
+            selectEl.classList.add('d-none');
+            // textarea 표시
+            textareaEl.style.setProperty('display', 'block', 'important');
+            textareaEl.classList.remove('d-none');
+        }
+    }
+    
+    // 비고 드롭다운 옵션 생성 (재사용 가능한 함수)
+    function createNotesSelectOptions() {
+        let optionsHtml = '<option value="">저장된 비고 선택</option>';
+        if (notesCategories && Array.isArray(notesCategories)) {
+            notesCategories.forEach(category => {
+                if (category && category.options && Array.isArray(category.options)) {
+                    category.options.forEach(option => {
+                        if (option && option.name) {
+                            const value = `${category.name} > ${option.name}`;
+                            // value 속성에는 원본 값 사용 (HTML 특수문자도 문제없음)
+                            // 표시 텍스트만 이스케이프 처리
+                            optionsHtml += `<option value="${value}">${escapeHtml(value)}</option>`;
+                        }
+                    });
+                }
+            });
+        }
+        return optionsHtml;
+    }
+    
+    // 비고 항목 추가
+    function addNoteItem(type = 'select') {
+        const index = notesList.length;
+        notesList.push({type: type, value: ''});
+        renderNoteItem(index);
+    }
+    
+    // 비고 항목 삭제
+    function removeNoteItem(index) {
+        if (notesList.length <= 1) {
+            // 최소 1개는 유지
+            return;
+        }
+        notesList.splice(index, 1);
+        renderAllNotes();
+    }
+    
+    // 비고 항목 타입 전환 (select <-> input)
+    function toggleNoteType(index) {
+        if (index >= 0 && index < notesList.length) {
+            const currentType = notesList[index].type;
+            const currentValue = notesList[index].value;
+            notesList[index].type = currentType === 'select' ? 'input' : 'select';
+            // 타입 전환 시 값 유지
+            notesList[index].value = currentValue;
+        renderNoteItem(index);
+        }
+    }
+    
+    // 비고 항목 렌더링 (간소화 및 최적화)
+    function renderNoteItem(index) {
+        const container = document.getElementById('notesContainer');
+        if (!container) return;
+        
+        const note = notesList[index];
+        if (!note) return;
+        
+        const noteId = `note-item-${index}`;
+        
+        // 기존 항목이 있으면 제거 후 재생성 (이벤트 리스너 정리)
+        let noteItem = document.getElementById(noteId);
+        if (noteItem) {
+            noteItem.remove();
+        }
+        
+        // 옵션 목록에 값이 있는지 사전 확인 (렌더링 전)
+        let optionValue = '';
+        if (note.value && note.type === 'select') {
+            // 옵션 목록에서 정확히 일치하는 값 찾기
+            if (wdNotesCategories && Array.isArray(wdNotesCategories)) {
+                for (const category of wdNotesCategories) {
+                    if (category && category.options && Array.isArray(category.options)) {
+                        for (const option of category.options) {
+                            if (option && option.name) {
+                                const fullValue = `${category.name} > ${option.name}`;
+                                if (fullValue === note.value) {
+                                    optionValue = fullValue;
+                                    break;
+                                }
+                            }
+                        }
+                        if (optionValue) break;
+                    }
+                }
+            }
+        }
+        
+        // 실제로 옵션이 아니면 타입을 input으로 변경
+        let finalIsSelect = note.type === 'select';
+        if (finalIsSelect && note.value && !optionValue) {
+            const isActuallyOption = checkIfOptionExists(note.value);
+            if (!isActuallyOption) {
+                notesList[index].type = 'input';
+                finalIsSelect = false;
+            }
+        }
+        
+        // 새 항목 생성
+            noteItem = document.createElement('div');
+            noteItem.className = 'note-item mb-2';
+            noteItem.id = noteId;
+            noteItem.setAttribute('data-note-index', index);
+        
+        noteItem.innerHTML = `
+            <div class="d-flex gap-2 align-items-start">
+                <button type="button" class="btn btn-sm btn-outline-secondary toggle-note-type" data-note-index="${index}" title="${finalIsSelect ? '직접입력' : '옵션 선택'}">
+                    <i class="fas ${finalIsSelect ? 'fa-keyboard' : 'fa-list'}"></i>
+                </button>
+                <select class="form-select flex-grow-1 note-select" data-note-index="${index}">
+                    ${createNotesSelectOptions()}
+                </select>
+                <textarea class="form-control note-input" rows="2" placeholder="비고를 직접 입력하세요" data-note-index="${index}"></textarea>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-note" data-note-index="${index}" title="삭제" ${notesList.length <= 1 ? 'disabled' : ''}>
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        container.appendChild(noteItem);
+        
+        // 요소 참조 가져오기
+        const select = noteItem.querySelector('.note-select');
+        const textarea = noteItem.querySelector('.note-input');
+        
+        // 표시 모드 설정
+        setNoteMode(select, textarea, finalIsSelect ? 'select' : 'input');
+        
+        // 값 설정
+        if (finalIsSelect && select) {
+            // 옵션 값이 있으면 설정, 없으면 빈 값
+            select.value = optionValue || '';
+        } else if (textarea) {
+            textarea.value = note.value || '';
+        }
+        
+        // 이벤트 리스너 등록 (효율적인 방식)
+        attachNoteItemEvents(noteItem, index);
+    }
+    
+    // 비고 항목 이벤트 리스너 등록 (개선된 버전 - cloneNode 제거)
+    function attachNoteItemEvents(noteItem, index) {
+        // 타입 전환 버튼
+        const toggleBtn = noteItem.querySelector('.toggle-note-type');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleNoteType(index);
+            });
+        }
+        
+        // 삭제 버튼
+        const removeBtn = noteItem.querySelector('.remove-note');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                removeNoteItem(index);
+            });
+        }
+        
+        // Select 변경
+        const select = noteItem.querySelector('.note-select');
+        if (select) {
+            select.addEventListener('change', function() {
+                if (index >= 0 && index < notesList.length) {
+                    notesList[index].value = this.value;
+                    notesList[index].type = 'select';
+                }
+            });
+        }
+        
+        // Textarea 변경 및 blur (숫자 포맷팅)
+        const textarea = noteItem.querySelector('.note-input');
+        if (textarea) {
+            textarea.addEventListener('input', function() {
+                if (index >= 0 && index < notesList.length) {
+                    notesList[index].value = this.value;
+                    notesList[index].type = 'input';
+                }
+            });
+            
+            textarea.addEventListener('blur', function() {
+                const formatted = formatNumbersInText(this.value);
+                if (formatted !== this.value) {
+                    this.value = formatted;
+                    if (index >= 0 && index < notesList.length) {
+                        notesList[index].value = formatted;
+                    }
+                }
+            });
+        }
+    }
+    
+    // 모든 비고 항목 렌더링
+    function renderAllNotes() {
+        const container = document.getElementById('notesContainer');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        if (notesList.length === 0) {
+            // 비고가 없으면 기본 1개 추가
+            addNoteItem('select');
+            return;
+        }
+        
+        notesList.forEach((note, index) => {
+            renderNoteItem(index);
+        });
+    }
+    
+    // 비고 수집 (문자열로 변환)
+    function collectNotes() {
+        return notesList
+            .map(item => item.value)
+            .filter(v => v && v.trim())
+            .join('\n');
+    }
+    
+    // 비고 로드 (문자열에서 파싱)
+    function loadNotes(notesString) {
+        if (!notesString || !notesString.trim()) {
+            notesList = [{type: 'select', value: ''}];
+            renderAllNotes();
+            return;
+        }
+        
+        // notesCategories가 로드되지 않았으면 재시도
+        if (!notesCategories || notesCategories.length === 0) {
+            loadNotesCategories();
+            // 그래도 없으면 잠시 후 재시도
+            if (!notesCategories || notesCategories.length === 0) {
+                setTimeout(() => {
+                    loadNotesCategories();
+                    if (notesCategories && notesCategories.length > 0) {
+                        loadNotes(notesString); // 재귀 호출
+                    }
+                }, 100);
+                return;
+            }
+        }
+        
+        // 줄바꿈으로 분리
+        const lines = notesString.split('\n').filter(v => v.trim());
+        
+        if (lines.length === 0) {
+            notesList = [{type: 'select', value: ''}];
+            renderAllNotes();
+            return;
+        }
+        
+        // 각 라인을 비고 항목으로 변환
+        notesList = lines.map(value => {
+            value = value.trim();
+            // 옵션 목록에 있는지 확인
+            const isOption = checkIfOptionExists(value);
+            return {
+                type: isOption ? 'select' : 'input',
+                value: value
+            };
+        });
+        
+        renderAllNotes();
+    }
+    
+    // 옵션 목록에 존재하는지 확인
+    function checkIfOptionExists(value) {
+        if (!value || !notesCategories) {
+            return false;
+        }
+        
+        for (const category of notesCategories) {
+            if (category && category.options && Array.isArray(category.options)) {
+                for (const option of category.options) {
+                    if (option && option.name) {
+                        const optionValue = `${category.name} > ${option.name}`;
+                        if (optionValue === value) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+    
+    // 비고 숫자 콤마 포맷터
+    function formatNumbersInText(text) {
+        return text.replace(/\d{4,}/g, (match) => {
+            const num = Number(match);
+            return Number.isFinite(num) ? num.toLocaleString('ko-KR') : match;
+        });
+    }
+    
+    // 비고 텍스트 줄 정렬 정리 함수 (각 줄의 앞뒤 공백 제거)
+    function formatNotesText(notes) {
+        if (!notes || !notes.trim()) {
+            return '';
+        }
+        // 각 줄을 분리하고 앞뒤 공백 제거, 빈 줄은 유지
+        return notes
+            .split('\n')
+            .map(line => line.trim())
+            .join('\n');
+    }
+    
+    // 비고 추가 버튼 이벤트
+    const btnAddNote = document.getElementById('btnAddNote');
+    if (btnAddNote) {
+        btnAddNote.addEventListener('click', function() {
+            addNoteItem('select');
+        });
+    }
+    
+    // 비고 카테고리 로드 및 초기화
+    loadNotesCategories();
+    
+    // 초기 비고 항목 1개 추가
+    notesList = [{type: 'select', value: ''}];
+    renderAllNotes();
+    
+    // 제품 목록 로드
+    function loadProducts() {
+        fetch('/api/wdcalculator/products')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    products = data.products;
+                    updateProductSelect();
+                    // 제품 로드 후 기본 구성 UI를 최신 옵션으로 갱신
+                    if (document.getElementById('baseComponentsContainer')) {
+                        // 기존 행의 선택값 보존하며 옵션만 업데이트
+                        updateBaseProductSelectOptions();
+                        // 초기 로드 시 행이 없으면 1개 생성
+                        if (document.querySelectorAll('.base-component-row').length === 0) {
+                            ensureBaseComponentsUI();
+                        }
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error loading products:', error);
+            });
+    }
+    
+    // 제품 선택 드롭다운 업데이트 (레거시 - 호환성 유지)
+    function updateProductSelect() {
+        const select = document.getElementById('productSelect');
+        if (!select) return;
+        select.innerHTML = '<option value="">제품을 선택하세요</option>';
+        products.forEach(product => {
+            const option = document.createElement('option');
+            option.value = product.id;
+            option.textContent = product.name;
+            select.appendChild(option);
+        });
+    }
+
+    // 복합 기본견적 행들의 제품 드랍다운 옵션 업데이트
+    function updateBaseProductSelectOptions() {
+        const optionHtml = getProductsOptionsHtml();
+        document.querySelectorAll('.base-component-row .base-product-select').forEach(sel => {
+            const prev = sel.value;
+            sel.innerHTML = optionHtml;
+            if (prev) sel.value = prev;
+        });
+    }
+    
+    // 제품 선택 이벤트 (레거시 - 호환성 유지)
+    const productSelect = document.getElementById('productSelect');
+    if (productSelect) {
+        productSelect.addEventListener('change', function() {
+        const productId = parseInt(this.value);
+        const product = products.find(p => p.id === productId);
+        
+        // 기존 추가 옵션 목록 초기화
+        document.getElementById('additionalOptionsContainer').innerHTML = '';
+        
+        if (product) {
+            showProductInfo(product);
+            // 쿠폰가는 고정값(11,000원)으로 유지 - 제품 설정 무시
+        } else {
+            document.getElementById('productInfo').style.display = 'none';
+            document.getElementById('baseEstimateSection').style.display = 'none';
+        }
+        
+        calculateEstimate();
+    });
+    }
+    
+    // 제품 정보 표시
+    function showProductInfo(product) {
+        const infoDiv = document.getElementById('productInfo');
+        const contentDiv = document.getElementById('productInfoContent');
+        
+        if (!infoDiv || !contentDiv) {
+            console.warn('제품 정보 표시 요소를 찾을 수 없습니다.');
+            return;
+        }
+        
+        if (!product) {
+            console.warn('제품 정보가 없습니다.');
+            infoDiv.style.display = 'none';
+            return;
+        }
+        
+        let infoHtml = `<div><strong>${escapeHtml(product.name || '')}</strong></div>`;
+        infoHtml += `<div>가격 옵션: ${product.pricing_type === '1m' ? '1m' : '30cm'}</div>`;
+        
+        if (product.pricing_type === '1m') {
+            infoHtml += `<div>1m 비용: ${formatNumber(product.price_1m || 0)}원</div>`;
+        } else {
+            infoHtml += `<div>30cm 비용: ${formatNumber(product.price_30cm || 0)}원</div>`;
+            infoHtml += `<div>1cm 비용: ${formatNumber(product.price_1cm || 0)}원</div>`;
+        }
+        
+        if (product.additional_options && product.additional_options.length > 0) {
+            infoHtml += `<div class="mt-2"><strong>사용 가능한 추가 옵션:</strong></div>`;
+            product.additional_options.forEach(option => {
+                infoHtml += `<div>- ${escapeHtml(option.name || '')}: ${formatNumber(option.price || 0)}원</div>`;
+            });
+            infoHtml += `<div class="mt-1"><small class="text-muted">※ 견적 계산 시 드롭다운에서 선택하거나 직접 입력할 수 있습니다.</small></div>`;
+        }
+        
+        contentDiv.innerHTML = infoHtml;
+        infoDiv.style.display = 'block';
+    }
+    
+    // (구버전) 단일 가로넓이 입력(widthInput)은 복합 기본구성 도입으로 제거됨
+    
+    // 추가 옵션 표시 모드 헬퍼 함수
+    function setOptionMode(selectEl, nameInputEl, mode) {
+        if (mode === 'select') {
+            // select 표시
+            selectEl.style.setProperty('display', 'block', 'important');
+            selectEl.classList.remove('d-none');
+            // nameInput 숨김
+            nameInputEl.style.setProperty('display', 'none', 'important');
+            nameInputEl.classList.add('d-none');
+        } else {
+            // select 숨김
+            selectEl.style.setProperty('display', 'none', 'important');
+            selectEl.classList.add('d-none');
+            // nameInput 표시
+            nameInputEl.style.setProperty('display', 'block', 'important');
+            nameInputEl.classList.remove('d-none');
+        }
+    }
+    
+    // 추가 옵션 추가 버튼 (심플한 재구현)
+    const addOptionBtn = document.getElementById('addOptionBtn');
+    if (addOptionBtn) {
+        addOptionBtn.addEventListener('click', function() {
+            const container = document.getElementById('additionalOptionsContainer');
+            const optionId = Date.now();
+
+            let allOptionsHtml = '<option value="">카테고리 > 옵션을 선택하세요</option>';
+            if (wdCalculatorCategories && Array.isArray(wdCalculatorCategories)) {
+                wdCalculatorCategories.forEach(category => {
+                    if (category?.options?.length) {
+                        category.options.forEach(option => {
+                            if (option && option.name && option.price !== undefined) {
+                                allOptionsHtml += `<option value="${category.name}|${option.name}|${option.price}">${category.name} > ${option.name} (${formatNumber(option.price)}원)</option>`;
+                            }
+                        });
+                    }
+                });
+            }
+
+            const optionHtml = `
+                <div class="additional-option-item" data-option-id="${optionId}">
+                    <div class="row gx-2 align-items-center">
+                        <div class="col-md-5">
+                            <label class="form-label small">카테고리 > 옵션 선택</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle-direct-input title="직접입력">
+                                    <i class="fas fa-keyboard"></i>
+                                </button>
+                                <select class="form-select form-select-sm category-option-select flex-grow-1" data-category-option-select>
+                                    ${allOptionsHtml}
+                                </select>
+                                <input type="text" class="form-control form-control-sm option-name-input flex-grow-1" placeholder="또는 옵션명 직접 입력 (예: 화장대 > 화장대A)" data-option-name>
+                            </div>
+                        </div>
+                        <div class="col-md-3 price-col">
+                            <label class="form-label small">가격 (원)</label>
+                            <input type="text" class="form-control form-control-sm option-price-input" placeholder="가격을 입력하세요" data-option-price inputmode="numeric">
+                        </div>
+                        <div class="col-md-2 quantity-col">
+                            <label class="form-label small">수량</label>
+                            <input type="number" class="form-control form-control-sm option-quantity-input" placeholder="수량" min="1" step="1" value="1" data-option-quantity>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small" style="visibility: hidden;">작업</label>
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-option-btn w-100" style="white-space: nowrap;">
+                                <i class="fas fa-times"></i> 삭제
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', optionHtml);
+
+            const item = container.querySelector(`[data-option-id="${optionId}"]`);
+            const select = item.querySelector('[data-category-option-select]');
+            const nameInput = item.querySelector('[data-option-name]');
+            const priceInput = item.querySelector('[data-option-price]');
+            const qtyInput = item.querySelector('[data-option-quantity]');
+            const toggleBtn = item.querySelector('[data-toggle-direct-input]');
+            const removeBtn = item.querySelector('.remove-option-btn');
+
+            // 초기: 드롭다운 모드
+            setOptionMode(select, nameInput, 'select');
+            // 강제로 다시 적용 (브라우저 렌더링 타이밍 이슈 방지)
+            setTimeout(() => {
+                setOptionMode(select, nameInput, 'select');
+            }, 0);
+            toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>';
+
+            // 토글
+            toggleBtn.addEventListener('click', () => {
+                const selectVisible = select.style.display !== 'none';
+                if (selectVisible) {
+                    setOptionMode(select, nameInput, 'input');
+                    select.value = '';
+                    nameInput.value = '';
+                    priceInput.value = '';
+                    toggleBtn.innerHTML = '<i class="fas fa-list"></i>';
+                } else {
+                    setOptionMode(select, nameInput, 'select');
+                    nameInput.value = '';
+                    priceInput.value = '';
+                    toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>';
+                }
+                calculateEstimate();
+            });
+
+            // 선택 시 자동 반영
+            select.addEventListener('change', function() {
+                if (this.value) {
+                    const [cat, opt, price] = this.value.split('|');
+                    nameInput.value = `${cat} > ${opt}`;
+                    priceInput.value = formatPrice(price);
+                    if (!qtyInput.value || qtyInput.value < 1) qtyInput.value = 1;
+                    setOptionMode(select, nameInput, 'select');
+                    toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>';
+                    calculateEstimate();
+                } else {
+                    nameInput.value = '';
+                    priceInput.value = '';
+                }
+            });
+
+            // 입력/수량 변경 시 계산
+            [priceInput, nameInput, qtyInput].forEach(el => el.addEventListener('input', calculateEstimate));
+
+            // 삭제
+            removeBtn.addEventListener('click', () => {
+                item.remove();
+                calculateEstimate();
+            });
+        });
+    }
+    
+    // 추가 옵션 삭제
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.remove-option-btn')) {
+            e.target.closest('.additional-option-item').remove();
+            calculateEstimate();
+        }
+    });
+    
+    
+    // 견적 계산 함수
+    function calculateEstimate() {
+        const baseComponents = readBaseComponentsFromUI();
+        // 모든 구성의 유효성 체크
+        if (!baseComponents.length) {
+            document.getElementById('baseEstimateSection').style.display = 'none';
+            document.getElementById('totalBasePrice').textContent = '0원';
+            document.getElementById('totalAdditionalPrice').textContent = '0원';
+            document.getElementById('totalPrice').textContent = '0원';
+            document.getElementById('finalPrice').textContent = '0원';
+            document.getElementById('baseEstimateDetail').textContent = '';
+            document.getElementById('additionalOptionsDetail').textContent = '';
+            return;
+        }
+
+        // 기본 견적 계산
+        let basePrice = 0;
+        let baseEstimateDetail = '';
+        const detailLines = [];
+        for (const comp of baseComponents) {
+            const widthMm = Number(comp.widthMm) || 0;
+            const additionalFees = comp.additionalFees || []; // 추가금 배열 읽기
+            let compPrice = 0; // 이 구성의 가격
+            
+            if (widthMm > 0) {
+                if (comp.mode === 'manual') {
+                    const pricingType = comp.manualPricing?.pricing_type || '30cm';
+                    if (pricingType === '1m') {
+                        const price1m = Number(comp.manualPricing?.price_1m) || 0;
+                        if (price1m > 0) {
+                            const meters = widthMm / 1000;
+                            compPrice = meters * price1m;
+                            detailLines.push(`직접입력(1m) ${formatNumber(widthMm)}mm`);
+                        }
+                    } else {
+                        const price30 = Number(comp.manualPricing?.price_30cm) || 0;
+                        const price1 = Number(comp.manualPricing?.price_1cm) || 0;
+                        if (price30 > 0 && price1 > 0) {
+                            const units30cm = Math.floor(widthMm / 300);
+                            const remainderMm = widthMm % 300;
+                            const units1cm = Math.floor(remainderMm / 10);
+                            compPrice = (units30cm * price30) + (units1cm * price1);
+                            detailLines.push(`직접입력(30cm) ${formatNumber(widthMm)}mm`);
+                        }
+                    }
+                } else {
+                    const productId = Number(comp.productId) || 0;
+                    if (productId) {
+                        const product = products.find(p => p.id === productId);
+                        if (product) {
+                            if (product.pricing_type === '1m') {
+                                compPrice = (widthMm / 1000) * (product.price_1m || 0);
+                            } else if (product.pricing_type === '30cm') {
+                                const units30cm = Math.floor(widthMm / 300);
+                                const remainderMm = widthMm % 300;
+                                const units1cm = Math.floor(remainderMm / 10);
+                                compPrice = (units30cm * (product.price_30cm || 0)) + (units1cm * (product.price_1cm || 0));
+                            }
+                            detailLines.push(`${product.name} ${formatNumber(widthMm)}mm`);
+                        }
+                    }
+                }
+            }
+            
+            // 추가금 합산 (배열 처리)
+            additionalFees.forEach(fee => {
+                const amount = Number(fee.amount) || 0;
+                if (amount > 0) {
+                    compPrice += amount;
+                    const feeName = fee.name ? `${fee.name} ` : '';
+                    detailLines.push(`+ ${feeName}추가금 ${formatNumber(amount)}원`);
+            }
+            });
+            
+            basePrice += compPrice;
+        }
+        baseEstimateDetail = detailLines.join(' / ');
+        if (!baseEstimateDetail) {
+            document.getElementById('baseEstimateSection').style.display = 'none';
+            return;
+        }
+
+        document.getElementById('baseEstimateDetail').textContent = baseEstimateDetail;
+        
+        // 추가 옵션 가격 합산
+        let additionalPrice = 0;
+        const additionalOptionsList = []; // 옵션명과 수량을 저장할 배열
+        
+        // 사용자가 선택/입력한 옵션만 계산 (수량 반영)
+        document.querySelectorAll('.additional-option-item').forEach(item => {
+            const priceInput = item.querySelector('[data-option-price]');
+            const nameInput = item.querySelector('[data-option-name]');
+            const quantityInput = item.querySelector('[data-option-quantity]');
+            const categoryOptionSelect = item.querySelector('[data-category-option-select]');
+            const price = parsePrice(priceInput.value);
+            const quantity = parseInt(quantityInput.value) || 1;
+            
+            // 카테고리 > 옵션 선택 또는 직접 입력한 경우
+            let name = '';
+            if (categoryOptionSelect && categoryOptionSelect.style.display !== 'none' && categoryOptionSelect.value && categoryOptionSelect.value !== '') {
+                // 드롭다운에서 선택한 경우
+                const parts = categoryOptionSelect.value.split('|');
+                if (parts.length >= 2) {
+                    name = `${parts[0]} > ${parts[1]}`;
+                }
+            } else if (nameInput && nameInput.style.display !== 'none' && nameInput.value) {
+                // 직접 입력한 경우
+                name = nameInput.value;
+            }
+            
+            // 옵션명과 가격이 모두 입력된 경우만 계산 (가격 * 수량)
+            if (name && price > 0) {
+                const amount = price * quantity;
+                additionalPrice += amount;
+                additionalOptionsList.push({
+                    name: name,
+                    quantity: quantity,
+                    amount: amount
+                });
+            }
+        });
+        
+        // 추가 옵션 상세 정보 생성: 옵션명 + 수량 + 금액 (같은 옵션이 여러 개면 합산)
+        const optionMap = new Map();
+        additionalOptionsList.forEach(option => {
+            if (optionMap.has(option.name)) {
+                const prev = optionMap.get(option.name);
+                optionMap.set(option.name, { quantity: prev.quantity + option.quantity, amount: prev.amount + option.amount });
+            } else {
+                optionMap.set(option.name, { quantity: option.quantity, amount: option.amount });
+            }
+        });
+        
+        const additionalOptionsDetail = Array.from(optionMap.entries())
+            .map(([name, v]) => `${name} × ${v.quantity} (${formatNumber(v.amount)}원)`)
+            .join(', ');
+        document.getElementById('additionalOptionsDetail').textContent = additionalOptionsDetail || '';
+        
+        const totalPrice = basePrice + additionalPrice;
+        // 쿠폰 값은 매번 최신 값으로 읽기 (중요!)
+        const couponValue = getCouponValue();
+        const finalPrice = Math.max(0, totalPrice - couponValue);
+        const couponInfoText = couponValue > 0 ? `${formatNumber(couponValue)}원 할인` : '쿠폰가 미적용';
+        
+        // 결과 표시
+        document.getElementById('baseEstimateSection').style.display = 'block';
+        document.getElementById('basePriceDisplay').textContent = formatNumber(basePrice) + '원';
+        document.getElementById('totalBasePrice').textContent = formatNumber(basePrice) + '원';
+        document.getElementById('totalAdditionalPrice').textContent = formatNumber(additionalPrice) + '원';
+        document.getElementById('totalPrice').textContent = formatNumber(totalPrice) + '원';
+        // 최종 견적 표시 (인라인 스타일 직접 적용 - CSS 우선순위 완전 우회)
+        const finalPriceEl = document.getElementById('finalPrice');
+        if (finalPriceEl) {
+            finalPriceEl.textContent = formatNumber(finalPrice) + '원';
+            applyFinalPriceStyle(finalPriceEl);
+        }
+        
+        // 쿠폰 정보 표시 (인라인 스타일 직접 적용)
+        const couponInfoEl = document.getElementById('couponInfo');
+        if (couponInfoEl) {
+            couponInfoEl.textContent = couponInfoText;
+            applyCouponDiscountStyle(couponInfoEl, couponValue > 0);
+        }
+        
+        // 견적 추가 버튼 표시
+        // editingEstimateId가 설정되어 있으면 수정 모드이므로 버튼을 표시
+        if (editingEstimateId) {
+            // 수정 모드: 버튼 텍스트는 loadEstimateToInputForm에서 설정됨
+            document.getElementById('addEstimateBtn').style.display = 'block';
+        } else if (basePrice > 0 || additionalPrice > 0) {
+            // 새 견적 추가 모드
+            document.getElementById('addEstimateBtn').innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
+            document.getElementById('addEstimateBtn').style.display = 'block';
+            // 견적 계산이 완료되면 저장 버튼도 표시 (진행 중인 견적이 있거나 현재 계산된 견적이 있으면)
+            if (estimates.length > 0 || basePrice > 0 || additionalPrice > 0) {
+                document.getElementById('saveEstimateBtn').style.display = 'block';
+            }
+        } else {
+            document.getElementById('addEstimateBtn').style.display = 'none';
+            // 진행 중인 견적이 있으면 저장 버튼은 유지
+            if (estimates.length === 0) {
+                document.getElementById('saveEstimateBtn').style.display = 'none';
+            }
+        }
+    }
+    
+    // 현재 입력 폼의 견적 데이터 수집
+    function collectCurrentEstimate() {
+        const baseComponents = readBaseComponentsFromUI();
+        if (!baseComponents.length) {
+            return null;
+        }
+
+        // 기본 견적 계산
+        let basePrice = 0;
+        const normalizedComponents = [];
+        const displayParts = [];
+        for (const comp of baseComponents) {
+            const widthMm = Number(comp.widthMm) || 0;
+            const additionalFees = comp.additionalFees || []; // 추가금 배열 읽기
+            let compPrice = 0; // 이 구성의 가격
+            let compData = {};
+            
+            if (widthMm > 0) {
+                if (comp.mode === 'manual') {
+                    const pricingType = comp.manualPricing?.pricing_type || '30cm';
+                    if (pricingType === '1m') {
+                        const price1m = Number(comp.manualPricing?.price_1m) || 0;
+                        if (price1m > 0) {
+                            compPrice = (widthMm / 1000) * price1m;
+                            compData = {
+                                mode: 'manual',
+                                widthMm,
+                                additionalFees, // 추가금 배열 저장
+                                manualPricing: { pricing_type: '1m', price_1m: price1m }
+                            };
+                            displayParts.push(`직접입력(1m) ${formatNumber(widthMm)}mm`);
+                        }
+                    } else {
+                        const price30 = Number(comp.manualPricing?.price_30cm) || 0;
+                        const price1 = Number(comp.manualPricing?.price_1cm) || 0;
+                        if (price30 > 0 && price1 > 0) {
+                            const units30cm = Math.floor(widthMm / 300);
+                            const remainderMm = widthMm % 300;
+                            const units1cm = Math.floor(remainderMm / 10);
+                            compPrice = (units30cm * price30) + (units1cm * price1);
+                            compData = {
+                                mode: 'manual',
+                                widthMm,
+                                additionalFees, // 추가금 배열 저장
+                                manualPricing: { pricing_type: '30cm', price_30cm: price30, price_1cm: price1 }
+                            };
+                            displayParts.push(`직접입력(30cm) ${formatNumber(widthMm)}mm`);
+                        }
+                    }
+                } else {
+                    const productId = Number(comp.productId) || 0;
+                    if (productId) {
+                        const product = products.find(p => p.id === productId);
+                        if (product) {
+                            if (product.pricing_type === '1m') {
+                                compPrice = (widthMm / 1000) * (product.price_1m || 0);
+                            } else if (product.pricing_type === '30cm') {
+                                const units30cm = Math.floor(widthMm / 300);
+                                const remainderMm = widthMm % 300;
+                                const units1cm = Math.floor(remainderMm / 10);
+                                compPrice = (units30cm * (product.price_30cm || 0)) + (units1cm * (product.price_1cm || 0));
+                            }
+                            compData = {
+                                mode: 'select',
+                                productId,
+                                widthMm,
+                                additionalFees // 추가금 배열 저장
+                            };
+                            displayParts.push(`${product.name} ${formatNumber(widthMm)}mm`);
+                        }
+                    }
+                }
+            }
+            
+            // 추가금만 있는 경우도 처리
+            const totalAdditionalFee = additionalFees.reduce((sum, fee) => sum + (Number(fee.amount) || 0), 0);
+            if (widthMm <= 0 && totalAdditionalFee > 0) {
+                compData = {
+                    mode: comp.mode || 'select',
+                    widthMm: 0,
+                    additionalFees,
+                    productId: comp.productId || null
+                };
+                additionalFees.forEach(fee => {
+                    const amount = Number(fee.amount) || 0;
+                    if (amount > 0) {
+                        const feeName = fee.name ? `${fee.name} ` : '';
+                        displayParts.push(`${feeName}추가금 ${formatNumber(amount)}원`);
+                    }
+                });
+            }
+            
+            // 추가금 합산 (배열 처리)
+            additionalFees.forEach(fee => {
+                const amount = Number(fee.amount) || 0;
+                if (amount > 0) {
+                    compPrice += amount;
+                    const feeName = fee.name ? `${fee.name} ` : '';
+                    if (widthMm > 0) {
+                        displayParts.push(`+ ${feeName}추가금 ${formatNumber(amount)}원`);
+            }
+                }
+            });
+            
+            if (Object.keys(compData).length > 0) {
+                basePrice += compPrice;
+                normalizedComponents.push(compData);
+            }
+        }
+
+        if (!normalizedComponents.length) return null;
+        
+        // 추가 옵션 수집
+        const options = [];
+        document.querySelectorAll('.additional-option-item').forEach(item => {
+            const priceInput = item.querySelector('[data-option-price]');
+            const nameInput = item.querySelector('[data-option-name]');
+            const quantityInput = item.querySelector('[data-option-quantity]');
+            const categoryOptionSelect = item.querySelector('[data-category-option-select]');
+            const price = parsePrice(priceInput.value);
+            const quantity = parseInt(quantityInput.value) || 1;
+            
+            let name = '';
+            if (categoryOptionSelect && categoryOptionSelect.style.display !== 'none' && categoryOptionSelect.value && categoryOptionSelect.value !== '') {
+                const parts = categoryOptionSelect.value.split('|');
+                if (parts.length >= 2) {
+                    name = `${parts[0]} > ${parts[1]}`;
+                }
+            } else if (nameInput && nameInput.style.display !== 'none' && nameInput.value) {
+                name = nameInput.value;
+            }
+            
+            if (name && price > 0) {
+                options.push({
+                    name: name,
+                    price: price,
+                    quantity: quantity
+                });
+            }
+        });
+        
+        const additionalPrice = options.reduce((sum, opt) => sum + (opt.price * opt.quantity), 0);
+        const totalPrice = basePrice + additionalPrice;
+        
+        // 비고 정보 수집
+        const notes = collectNotes();
+        
+        const defaultDisplayName = normalizedComponents.length >= 2
+            ? `복합 기본 (${normalizedComponents.length}건)`
+            : (displayParts[0] || '기본 구성');
+        return {
+            productId: null,
+            productName: normalizedComponents.length >= 2 ? '복합 기본' : (displayParts[0] || '기본 구성'),
+            displayName: defaultDisplayName, // 사용자 편집 가능한 표시 이름
+            widthMm: 0,
+            basePrice: basePrice,
+            options: options,
+            additionalPrice: additionalPrice,
+            totalPrice: totalPrice,
+            baseComponents: normalizedComponents,
+            notes: notes // 비고 정보 추가
+        };
+    }
+    
+    // 입력 폼 초기화 함수 (고객명 제외) - 재설계된 버전
+    function resetInputFormKeepCustomerName() {
+        try {
+            // 고객명 저장 (가장 먼저)
+            const customerNameEl = document.getElementById('customerName');
+            const customerName = customerNameEl ? customerNameEl.value.trim() : '';
+            
+            // 1. 변수 초기화
+            editingEstimateId = null;
+            // currentDatabaseEstimateId는 유지 (연속 수정 가능하게)
+            
+            // 2. 기본 구성 초기화 (기본 1개 행으로)
+            try {
+                ensureBaseComponentsUI(null);
+            } catch (error) {
+                console.error('Error resetting base components:', error);
+            }
+            
+            // 3. 추가 옵션 초기화
+            try {
+                const additionalOptionsContainer = document.getElementById('additionalOptionsContainer');
+                if (additionalOptionsContainer) {
+                    additionalOptionsContainer.innerHTML = '';
+                }
+            } catch (error) {
+                console.error('Error resetting additional options:', error);
+            }
+            
+            // 4. 비고 초기화
+            try {
+                notesList = [{type: 'select', value: ''}];
+                renderAllNotes();
+            } catch (error) {
+                console.error('Error resetting notes:', error);
+                // 비고 초기화 실패해도 계속 진행
+                notesList = [{type: 'select', value: ''}];
+            }
+            
+            // 5. 견적 결과 표시 영역 초기화
+            try {
+                const productInfo = document.getElementById('productInfo');
+                if (productInfo) {
+                    productInfo.style.display = 'none';
+                }
+                const baseEstimateSection = document.getElementById('baseEstimateSection');
+                if (baseEstimateSection) {
+                    baseEstimateSection.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error hiding estimate sections:', error);
+            }
+            
+            // 6. 금액 표시 초기화
+            try {
+                const elementsToReset = [
+                    'totalBasePrice', 'totalAdditionalPrice', 'totalPrice', 'finalPrice',
+                    'baseEstimateDetail', 'additionalOptionsDetail'
+                ];
+                elementsToReset.forEach(id => {
+                    try {
+                        const el = document.getElementById(id);
+                        if (el) {
+                            if (id.includes('Detail')) {
+                                el.textContent = '';
+                            } else {
+                                el.textContent = '0원';
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`Error resetting ${id}:`, error);
+                    }
+                });
+            } catch (error) {
+                console.error('Error resetting price elements:', error);
+            }
+            
+            // 7. 버튼 상태 초기화
+            try {
+                const addEstimateBtn = document.getElementById('addEstimateBtn');
+                if (addEstimateBtn) {
+                    addEstimateBtn.innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
+                    addEstimateBtn.style.display = 'none';
+                }
+                
+                // 저장 버튼은 진행 중인 견적이 있으면 유지
+                // estimates 배열은 refreshAfterSave()에서 비워지므로 여기서는 직접 체크
+                const saveEstimateBtn = document.getElementById('saveEstimateBtn');
+                if (saveEstimateBtn && estimates.length === 0) {
+                    saveEstimateBtn.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error resetting buttons:', error);
+            }
+            
+            // 8. 고객명 복원 (마지막에)
+            try {
+                const customerNameInput = document.getElementById('customerName');
+                if (customerNameInput && customerName) {
+                    customerNameInput.value = customerName;
+                }
+            } catch (error) {
+                console.error('Error restoring customer name:', error);
+            }
+            
+            // 9. 계산 실행 (초기화 상태로)
+            try {
+                calculateEstimate();
+                calculateTotalEstimates();
+            } catch (error) {
+                console.error('Error in calculateEstimate/calculateTotalEstimates:', error);
+                // 계산 에러는 치명적이지 않으므로 계속 진행
+            }
+        } catch (error) {
+            console.error('Critical error in resetInputFormKeepCustomerName:', error);
+            // 치명적 에러가 발생해도 고객명은 복원 시도
+            try {
+                const customerNameEl = document.getElementById('customerName');
+                const customerName = customerNameEl ? customerNameEl.value.trim() : '';
+                const customerNameInput = document.getElementById('customerName');
+                if (customerNameInput && customerName) {
+                    customerNameInput.value = customerName;
+                }
+            } catch (restoreError) {
+                console.error('Error restoring customer name in error handler:', restoreError);
+            }
+        }
+    }
+    
+    // 견적 저장 후 refresh 함수 (통합 관리)
+    function refreshAfterSave() {
+        try {
+            // 0. 저장된 견적을 estimates 배열에서 제거 (저장된 견적은 DB에 저장되었으므로 로컬 배열에서 제거)
+            estimates = [];
+            
+            // 1. 입력 폼 초기화 (고객명 제외) - 먼저 실행하여 폼을 깨끗하게
+            resetInputFormKeepCustomerName();
+            
+            // 2. 진행 중인 견적 목록 갱신 - 약간의 지연을 두어 DOM 업데이트 완료 보장
+            setTimeout(() => {
+                try {
+                    renderEstimatesList(); // 이제 estimates가 비어있으므로 빈 목록 표시
+                } catch (error) {
+                    console.error('Error in renderEstimatesList during refresh:', error);
+                }
+                
+                // 3. 사이드바 목록 새로고침 - 견적 목록 갱신 후 실행
+                setTimeout(() => {
+                    try {
+                        loadSidebarEstimates();
+                    } catch (error) {
+                        console.error('Error in loadSidebarEstimates during refresh:', error);
+                    }
+                }, 200);
+            }, 50);
+        } catch (error) {
+            console.error('Error in refreshAfterSave:', error);
+            // 에러가 발생해도 기본 동작은 수행
+            try {
+                estimates = []; // 에러 발생 시에도 배열 비우기
+                renderEstimatesList();
+                setTimeout(() => loadSidebarEstimates(), 300);
+            } catch (fallbackError) {
+                console.error('Error in fallback refresh:', fallbackError);
+            }
+        }
+    }
+    
+    // 견적 목록 렌더링
+    function renderEstimatesList() {
+        const container = document.getElementById('estimatesListContainer');
+        
+        if (estimates.length === 0) {
+            container.innerHTML = '<p class="text-muted text-center mb-0">추가된 견적이 없습니다.</p>';
+            return;
+        }
+        
+        let html = '<div class="row g-3">';
+        estimates.forEach((estimate, index) => {
+            // 추가 옵션을 줄바꿈으로 표시 (수량 + 금액)
+            let optionsDetailHtml = '없음';
+            if (estimate.options && estimate.options.length > 0) {
+                optionsDetailHtml = estimate.options.map(opt => {
+                    const amount = (opt.price || 0) * (opt.quantity || 1);
+                    return `<div style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 1.02rem !important; line-height: 1.6 !important;">${escapeHtml(opt.name)} × ${opt.quantity} (${formatNumber(amount)}원)</div>`;
+                }).join('');
+            }
+            
+            // ID를 문자열로 통일하여 HTML 속성에 저장 (XSS 방지를 위해 이스케이프)
+            const estimateIdStr = escapeHtml(String(estimate.id));
+            const productNameEscaped = escapeHtml(estimate.productName || '');
+            const displayNameEscaped = escapeHtml(estimate.displayName || `${estimate.productName || ''} ${formatNumber(estimate.widthMm)}mm`);
+            
+            html += `
+                <div class="col-md-6 col-lg-3">
+                    <div class="card h-100" data-estimate-id="${estimateIdStr}">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center gap-2" style="min-width: 0;">
+                                <strong style="white-space: nowrap;">견적 ${index + 1}</strong>
+                                <span class="text-muted" style="white-space: nowrap;">·</span>
+                                <span class="estimate-display-name fw-bold text-truncate" style="max-width: 180px;" title="${displayNameEscaped}">${displayNameEscaped}</span>
+                                <button class="btn btn-sm btn-link p-0 text-primary edit-estimate-name-btn" data-estimate-id="${estimateIdStr}" title="이름 수정">
+                                    <i class="fas fa-pen"></i>
+                                </button>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary edit-estimate-btn" data-estimate-id="${estimateIdStr}" title="수정">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger delete-estimate-btn" data-estimate-id="${estimateIdStr}" title="삭제">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3 estimate-card-item">
+                                <span class="estimate-header-base" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 1.08rem !important; display: block !important; margin-bottom: 0.25rem !important;">기본 견적:</span>
+                                <div class="estimate-price mb-1" style="font-size: 1.32rem !important; font-weight: 700 !important; color: #212529 !important;">${formatNumber(estimate.basePrice)}원</div>
+                                <div class="estimate-detail-base" style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 1.02rem !important; line-height: 1.5 !important; margin-top: 0.25rem !important;">${displayNameEscaped}</div>
+                            </div>
+                            <div class="mb-3 estimate-card-item">
+                                <span class="estimate-header-options" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 1.08rem !important; display: block !important; margin-bottom: 0.25rem !important;">추가 옵션 합계:</span>
+                                <div class="estimate-price mb-1" style="font-size: 1.32rem !important; font-weight: 700 !important; color: #212529 !important;">${formatNumber(estimate.additionalPrice)}원</div>
+                                <div class="estimate-detail-options" style="margin-top: 0.25rem !important;">${optionsDetailHtml}</div>
+                            </div>
+                            ${estimate.notes ? `
+                            <div class="mb-3 estimate-card-item">
+                                <span class="estimate-header-notes" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 1.08rem !important; display: block !important; margin-bottom: 0.25rem !important;">비고:</span>
+                                <div class="estimate-detail-notes" style="margin-top: 0.25rem !important;">
+                                    ${formatNotesText(estimate.notes).split('\n').filter(line => line.trim()).map(line => 
+                                        `<div style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 1.02rem !important; line-height: 1.6 !important;">${escapeHtml(line.trim())}</div>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                            ` : ''}
+                            <hr class="my-3">
+                            <div class="mt-3">
+                                <small class="text-muted d-block mb-1" style="font-size: 1.05rem !important;">총견적:</small>
+                                <div class="estimate-total-price" style="font-size: 1.56rem !important; font-weight: 800 !important; color: #0d6efd !important; margin-top: 0.5rem !important;">${formatNumber(estimate.totalPrice)}원</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        // 전체 견적 총 합계를 견적 카드들과 같은 row에 추가
+        if (estimates.length > 0) {
+            // 견적 2개일 때 줄바꿈 강제 (lg 화면에서만) - 카드 2개(50%) 다음 줄바꿈하여 아래에 배치되도록
+            if (estimates.length === 2) {
+                html += '<div class="w-100 d-none d-lg-block"></div>';
+            }
+
+            // 견적 개수에 따라 col 클래스 결정 (가로 모니터에서 반응형)
+            let colClass = 'col-md-12';
+            if (estimates.length === 1) {
+                colClass = 'col-md-6 col-lg-3'; // 견적 1건과 동일한 넓이 (25%)
+            } else if (estimates.length === 2) {
+                colClass = 'col-md-12 col-lg-6'; // 견적 2건의 넓이 (50%)
+            } else if (estimates.length === 3) {
+                colClass = 'col-md-12 col-lg-9'; // 견적 3건의 넓이 (75%)
+            } else {
+                colClass = 'col-md-12 col-lg-12'; // 견적 4건 이상의 넓이 (100%)
+            }
+            
+            // 견적 1개일 경우와 2개 이상일 경우 다른 레이아웃 사용
+            if (estimates.length === 1) {
+                // 견적 1개: 최종 견적을 그 자리에 배치
+                html += `
+                    <div class="${colClass} mt-3" id="totalEstimatesSummary">
+                        <div class="card border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0"><i class="fas fa-calculator"></i> 전체 견적 총 합계</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span>기본 견적 총합:</span>
+                                    <strong id="totalAllBasePrice">0원</strong>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <span>추가 옵션 총합:</span>
+                                    <strong id="totalAllAdditionalPrice">0원</strong>
+                                </div>
+                                <hr>
+                                <div class="card bg-light final-summary-card text-center mt-3">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-3">최종 견적</h6>
+                                        <div class="final-price-display mb-2" id="totalAllFinalPrice">0원</div>
+                                        <small class="text-muted" id="totalAllCouponInfo">쿠폰가 미적용</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // 견적 2개 이상: 기존 레이아웃 유지 (2열 구조)
+                html += `
+                    <div class="${colClass} mt-3" id="totalEstimatesSummary">
+                        <div class="card border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0"><i class="fas fa-calculator"></i> 전체 견적 총 합계</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span>기본 견적 총합:</span>
+                                            <strong id="totalAllBasePrice">0원</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span>추가 옵션 총합:</span>
+                                            <strong id="totalAllAdditionalPrice">0원</strong>
+                                        </div>
+                                        <hr>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="h5 mb-0">총 견적 합계:</span>
+                                            <strong class="h4 text-primary mb-0" id="totalAllPrice">0원</strong>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card bg-light final-summary-card text-center">
+                                            <div class="card-body">
+                                                <h6 class="card-title mb-3">최종 견적</h6>
+                                                <div class="final-price-display mb-2" id="totalAllFinalPrice">0원</div>
+                                                <small class="text-muted" id="totalAllCouponInfo">쿠폰가 미적용</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        html += '</div>';
+        container.innerHTML = html;
+        
+        // 동적으로 생성된 요소에 스타일 강제 적용 (CSS 우선순위 문제 해결)
+        setTimeout(() => {
+            container.querySelectorAll('.estimate-header-base').forEach(el => {
+                el.style.setProperty('color', '#0d6efd', 'important');
+                el.style.setProperty('font-weight', '800', 'important');
+                el.style.setProperty('font-size', '1.08rem', 'important');
+                el.style.setProperty('display', 'block', 'important');
+                el.style.setProperty('margin-bottom', '0.25rem', 'important');
+            });
+            
+            container.querySelectorAll('.estimate-header-options').forEach(el => {
+                el.style.setProperty('color', '#0d6efd', 'important');
+                el.style.setProperty('font-weight', '800', 'important');
+                el.style.setProperty('font-size', '1.08rem', 'important');
+                el.style.setProperty('display', 'block', 'important');
+                el.style.setProperty('margin-bottom', '0.25rem', 'important');
+            });
+            
+            container.querySelectorAll('.estimate-header-notes').forEach(el => {
+                el.style.setProperty('color', '#0d6efd', 'important');
+                el.style.setProperty('font-weight', '800', 'important');
+                el.style.setProperty('font-size', '1.08rem', 'important');
+                el.style.setProperty('display', 'block', 'important');
+                el.style.setProperty('margin-bottom', '0.25rem', 'important');
+            });
+            
+            container.querySelectorAll('.estimate-detail-base').forEach(el => {
+                el.style.setProperty('color', '#0d7a3d', 'important');
+                el.style.setProperty('font-weight', '700', 'important');
+                el.style.setProperty('font-size', '1.02rem', 'important');
+                el.style.setProperty('line-height', '1.5', 'important');
+                el.style.setProperty('margin-top', '0.25rem', 'important');
+            });
+            
+            // 추가 옵션 세부내역은 이미 HTML에 인라인 스타일이 포함되어 있으므로 별도 처리 불필요
+            // 하지만 혹시 모를 경우를 대비해 스타일 확인
+            container.querySelectorAll('.estimate-detail-options').forEach(el => {
+                // 내부 div 요소들에 스타일 적용
+                el.querySelectorAll('div').forEach(divEl => {
+                    divEl.style.setProperty('color', '#0d7a3d', 'important');
+                    divEl.style.setProperty('font-weight', '700', 'important');
+                    divEl.style.setProperty('font-size', '1.02rem', 'important');
+                    divEl.style.setProperty('line-height', '1.6', 'important');
+                });
+            });
+            
+            container.querySelectorAll('.estimate-detail-notes').forEach(el => {
+                el.style.setProperty('margin-top', '0.25rem', 'important');
+                // 내부 div 요소들에 스타일 적용 (각 줄이 개별 div로 렌더링됨)
+                el.querySelectorAll('div').forEach(divEl => {
+                    divEl.style.setProperty('color', '#0d7a3d', 'important');
+                    divEl.style.setProperty('font-weight', '700', 'important');
+                    divEl.style.setProperty('font-size', '1.02rem', 'important');
+                    divEl.style.setProperty('line-height', '1.6', 'important');
+                });
+            });
+            
+            container.querySelectorAll('.estimate-price').forEach(el => {
+                el.style.setProperty('font-size', '1.32rem', 'important');
+                el.style.setProperty('font-weight', '700', 'important');
+                el.style.setProperty('color', '#212529', 'important');
+            });
+            
+            container.querySelectorAll('.estimate-total-price').forEach(el => {
+                el.style.setProperty('font-size', '1.56rem', 'important');
+                el.style.setProperty('font-weight', '800', 'important');
+                el.style.setProperty('color', '#0d6efd', 'important');
+            });
+        }, 10);
+        
+        // 견적이 존재하면 저장 버튼을 노출 (수정/저장 가능)
+        const saveBtnInList = document.getElementById('saveEstimateBtn');
+        if (saveBtnInList) {
+            saveBtnInList.style.display = estimates.length > 0 ? 'block' : saveBtnInList.style.display;
+        }
+        
+        // 전체 견적 합계 계산 및 표시
+        calculateTotalEstimates();
+    }
+    
+    // 전체 견적 합계 계산 (쿠폰은 1번만 적용)
+    function calculateTotalEstimates() {
+        if (estimates.length === 0) {
+            document.getElementById('totalBasePrice').textContent = '0원';
+            document.getElementById('totalAdditionalPrice').textContent = '0원';
+            document.getElementById('totalPrice').textContent = '0원';
+            document.getElementById('finalPrice').textContent = '0원';
+            document.getElementById('baseEstimateDetail').textContent = '';
+            document.getElementById('additionalOptionsDetail').textContent = '';
+            // 전체 견적 총 합계는 renderEstimatesList()에서 제거되므로 여기서는 처리 불필요
+            return;
+        }
+        
+        const totalBasePrice = estimates.reduce((sum, est) => sum + est.basePrice, 0);
+        const totalAdditionalPrice = estimates.reduce((sum, est) => sum + est.additionalPrice, 0);
+        const totalPrice = totalBasePrice + totalAdditionalPrice;
+        
+        // 쿠폰 적용 (매번 최신 값으로 읽기 - 중요!)
+        const couponValue = getCouponValue();
+        const totalEstimate = Math.max(0, totalPrice - couponValue);
+        
+        // 배송비 가져오기
+        const shippingCostInput = document.getElementById('shippingCost');
+        const shippingCost = shippingCostInput ? parseFloat(shippingCostInput.value) || 0 : 0;
+        
+        // 배송비 포함 여부 가져오기
+        const shippingIncludedCheckbox = document.getElementById('shippingIncluded');
+        const shippingIncluded = shippingIncludedCheckbox ? shippingIncludedCheckbox.checked : true;
+        
+        // 최종 금액 계산 (배송비 포함 여부에 따라)
+        const finalPrice = shippingIncluded ? totalEstimate + shippingCost : totalEstimate;
+        const couponInfoText = couponValue > 0 ? `${formatNumber(couponValue)}원 할인` : '쿠폰가 미적용';
+        
+        // 전체 견적 상세 정보 (추가 옵션: 수량 + 금액)
+        const baseDetails = estimates.map(est => `${est.productName} ${formatNumber(est.widthMm)}mm`).join(', ');
+        const optionMap = new Map();
+        estimates.forEach(est => {
+            (est.options || []).forEach(opt => {
+                const amount = (opt.price || 0) * (opt.quantity || 1);
+                if (optionMap.has(opt.name)) {
+                    const prev = optionMap.get(opt.name);
+                    optionMap.set(opt.name, { quantity: prev.quantity + (opt.quantity || 0), amount: prev.amount + amount });
+                } else {
+                    optionMap.set(opt.name, { quantity: opt.quantity || 0, amount: amount });
+                }
+            });
+        });
+        const additionalDetails = Array.from(optionMap.entries())
+            .map(([name, v]) => `${name} × ${v.quantity} (${formatNumber(v.amount)}원)`)
+            .join(', ');
+        
+        // 견적 결과 섹션 표시 (수정 모드가 아닐 때만 업데이트)
+        // editingEstimateId가 설정되어 있으면 입력 폼의 calculateEstimate() 결과를 보존
+        if (!editingEstimateId) {
+            document.getElementById('totalBasePrice').textContent = formatNumber(totalBasePrice) + '원';
+            document.getElementById('totalAdditionalPrice').textContent = formatNumber(totalAdditionalPrice) + '원';
+            document.getElementById('totalPrice').textContent = formatNumber(totalPrice) + '원';
+            
+            // 최종 견적 표시 (인라인 스타일 직접 적용)
+            const finalPriceEl = document.getElementById('finalPrice');
+            if (finalPriceEl) {
+                finalPriceEl.textContent = formatNumber(finalPrice) + '원';
+                applyFinalPriceStyle(finalPriceEl);
+            }
+            
+            // 쿠폰 정보 표시 (인라인 스타일 직접 적용)
+            const couponInfoEl = document.getElementById('couponInfo');
+            if (couponInfoEl) {
+                couponInfoEl.textContent = couponInfoText;
+                applyCouponDiscountStyle(couponInfoEl, couponValue > 0);
+            }
+            
+            document.getElementById('baseEstimateDetail').textContent = baseDetails;
+            document.getElementById('additionalOptionsDetail').textContent = additionalDetails || '';
+            
+            // 비고 표시
+            const notesDisplaySection = document.getElementById('notesDisplaySection');
+            const notesDisplay = document.getElementById('notesDisplay');
+            const notes = collectNotes();
+            if (notes && notesDisplaySection && notesDisplay) {
+                notesDisplay.textContent = notes;
+                notesDisplaySection.style.display = 'block';
+            } else if (notesDisplaySection) {
+                notesDisplaySection.style.display = 'none';
+            }
+    }
+        
+        // 전체 견적 총 합계 섹션 표시
+        // (넓이는 renderEstimatesList()에서 이미 설정되므로 여기서는 표시만 처리)
+        const totalEstimatesSummaryEl = document.getElementById('totalEstimatesSummary');
+        if (totalEstimatesSummaryEl) {
+            totalEstimatesSummaryEl.style.display = 'block';
+        }
+        
+        document.getElementById('totalAllBasePrice').textContent = formatNumber(totalBasePrice) + '원';
+        document.getElementById('totalAllAdditionalPrice').textContent = formatNumber(totalAdditionalPrice) + '원';
+        // 견적 1개일 경우 totalAllPrice 요소가 없을 수 있으므로 체크
+        const totalAllPriceEl = document.getElementById('totalAllPrice');
+        if (totalAllPriceEl) {
+            totalAllPriceEl.textContent = formatNumber(totalPrice) + '원';
+        }
+        // 전체 최종 견적 표시 (인라인 스타일 직접 적용)
+        const totalAllFinalPriceEl = document.getElementById('totalAllFinalPrice');
+        if (totalAllFinalPriceEl) {
+            totalAllFinalPriceEl.textContent = formatNumber(finalPrice) + '원';
+            applyFinalPriceStyle(totalAllFinalPriceEl);
+        }
+        
+        // 전체 쿠폰 정보 표시 (인라인 스타일 직접 적용)
+        const totalAllCouponInfoEl = document.getElementById('totalAllCouponInfo');
+        if (totalAllCouponInfoEl) {
+            totalAllCouponInfoEl.textContent = couponValue > 0 ? `${formatNumber(couponValue)}할인(쿠폰적용)` : '쿠폰가 미적용';
+            applyCouponDiscountStyle(totalAllCouponInfoEl, couponValue > 0);
+        }
+    }
+    
+    // 견적 추가 (null 체크 추가)
+    const addEstimateBtnMain = document.getElementById('addEstimateBtn');
+    if (addEstimateBtnMain) {
+        addEstimateBtnMain.addEventListener('click', function() {
+            const estimate = collectCurrentEstimate();
+            if (!estimate) {
+                alert('견적 정보를 입력해주세요.');
+                return;
+            }
+            
+            // 고객명 저장 (가장 먼저)
+            const customerNameEl = document.getElementById('customerName');
+            const customerName = customerNameEl ? customerNameEl.value.trim() : '';
+            
+            // editingEstimateId 확인
+            const normalizedEditingId = normalizeId(editingEstimateId);
+            
+            if (normalizedEditingId) {
+                // 수정 모드: 기존 견적 업데이트
+                const index = estimates.findIndex(est => isSameId(est.id, normalizedEditingId));
+                
+                if (index !== -1) {
+                    // 원본 ID 유지 (절대 변경하지 않음!)
+                    const originalId = estimates[index].id;
+                    const existingEstimate = estimates[index];
+                    
+                    // 제품 변경 감지: baseComponents의 productId, mode, widthMm 비교
+                    let productChanged = false;
+                    let widthChanged = false;
+                    const oldBaseComponents = existingEstimate.baseComponents || [];
+                    const newBaseComponents = estimate.baseComponents || [];
+                    
+                    // baseComponents 길이가 다르면 변경된 것으로 간주
+                    if (oldBaseComponents.length !== newBaseComponents.length) {
+                        productChanged = true;
+                    } else {
+                        // 각 baseComponent의 productId, mode, widthMm 비교
+                        for (let i = 0; i < oldBaseComponents.length; i++) {
+                            const oldComp = oldBaseComponents[i];
+                            const newComp = newBaseComponents[i];
+                            
+                            // productId 비교
+                            const oldProductId = oldComp?.productId || null;
+                            const newProductId = newComp?.productId || null;
+                            
+                            if (oldProductId !== newProductId) {
+                                productChanged = true;
+                                break;
+                            }
+                            
+                            // mode가 다르면 변경된 것으로 간주 (select -> manual 또는 반대)
+                            if (oldComp?.mode !== newComp?.mode) {
+                                productChanged = true;
+                                break;
+                            }
+                            
+                            // widthMm 비교 (가로 길이 변경 감지)
+                            const oldWidthMm = Number(oldComp?.widthMm) || 0;
+                            const newWidthMm = Number(newComp?.widthMm) || 0;
+                            
+                            if (oldWidthMm !== newWidthMm) {
+                                widthChanged = true;
+                                // 가로 길이 변경은 displayName 업데이트 필요
+                            }
+                        }
+                    }
+                    
+                    // 제품이 변경되었거나 가로 길이가 변경되었으면 최신 제품 이름으로 업데이트
+                    if (productChanged || widthChanged) {
+                        console.log('제품 또는 가로 길이 변경 감지 - 최신 제품 이름으로 업데이트');
+                        estimates[index] = { 
+                            ...estimate, 
+                            id: originalId,
+                            productName: estimate.productName,  // 최신 제품 이름
+                            displayName: estimate.displayName   // 최신 표시 이름 (가로 길이 포함)
+                        };
+                    } else {
+                        // 제품과 가로 길이가 모두 변경되지 않았으면 기존 displayName 유지 (사용자가 수동으로 편집한 경우)
+                        estimates[index] = { 
+                            ...estimate, 
+                            id: originalId, 
+                            displayName: existingEstimate.displayName || estimate.displayName 
+                        };
+                    }
+                    
+                    editingEstimateId = null;
+                    this.innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
+                } else {
+                    console.error('견적을 찾을 수 없습니다.');
+                    console.error('editingEstimateId:', normalizedEditingId);
+                    console.error('Available IDs:', estimates.map(e => e.id));
+                    alert('수정할 견적을 찾을 수 없습니다.');
+                    return;
+                }
+            } else {
+                // 추가 모드: 새 견적 추가
+                estimate.id = generateEstimateId();
+                estimates.push(estimate);
+            }
+        
+        renderEstimatesList();
+        
+        // ========== 입력 폼 초기화 (고객명 제외) ==========
+        // 1. 변수 초기화
+        editingEstimateId = null;
+        
+        // 2. 기본 구성 초기화 (기본 1개 행으로)
+        try {
+        ensureBaseComponentsUI(null);
+        } catch (error) {
+            console.error('Error resetting base components:', error);
+        }
+        
+        // 3. 추가 옵션 초기화
+        try {
+        const additionalOptionsContainer = document.getElementById('additionalOptionsContainer');
+        if (additionalOptionsContainer) {
+            additionalOptionsContainer.innerHTML = '';
+            }
+        } catch (error) {
+            console.error('Error resetting additional options:', error);
+        }
+        
+        // 4. 비고 초기화
+        try {
+        notesList = [{type: 'select', value: ''}];
+        renderAllNotes();
+        } catch (error) {
+            console.error('Error resetting notes:', error);
+            notesList = [{type: 'select', value: ''}];
+        }
+        
+        // 5. 견적 결과 표시 영역 초기화
+        try {
+        const productInfo = document.getElementById('productInfo');
+        if (productInfo) {
+            productInfo.style.display = 'none';
+        }
+        const baseEstimateSection = document.getElementById('baseEstimateSection');
+        if (baseEstimateSection) {
+            baseEstimateSection.style.display = 'none';
+        }
+        } catch (error) {
+            console.error('Error hiding estimate sections:', error);
+        }
+        
+        // 6. 금액 표시 초기화
+        try {
+            const elementsToReset = [
+                'totalBasePrice', 'totalAdditionalPrice', 'totalPrice', 'finalPrice',
+                'baseEstimateDetail', 'additionalOptionsDetail'
+            ];
+            elementsToReset.forEach(id => {
+                try {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        if (id.includes('Detail')) {
+                            el.textContent = '';
+                        } else {
+                            el.textContent = '0원';
+        }
+                    }
+                } catch (error) {
+                    console.error(`Error resetting ${id}:`, error);
+                }
+            });
+        } catch (error) {
+            console.error('Error resetting price elements:', error);
+        }
+        
+        // 7. 버튼 상태 초기화
+        try {
+            const addEstimateBtn = document.getElementById('addEstimateBtn');
+            if (addEstimateBtn) {
+                addEstimateBtn.innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
+                addEstimateBtn.style.display = 'none';
+        }
+        } catch (error) {
+            console.error('Error resetting buttons:', error);
+        }
+        
+        // 8. 고객명 복원 (마지막에)
+        try {
+            const customerNameInput = document.getElementById('customerName');
+            if (customerNameInput && customerName) {
+                customerNameInput.value = customerName;
+            }
+        } catch (error) {
+            console.error('Error restoring customer name:', error);
+        }
+        
+        // 9. 견적이 있으면 저장 버튼 표시
+        if (estimates.length > 0) {
+        const saveEstimateBtn = document.getElementById('saveEstimateBtn');
+            if (saveEstimateBtn) {
+            saveEstimateBtn.style.display = 'block';
+            }
+        }
+        
+        // 10. 계산 실행 (초기화 상태로)
+        try {
+        calculateEstimate();
+        calculateTotalEstimates();
+        } catch (error) {
+            console.error('Error in calculateEstimate/calculateTotalEstimates:', error);
+        }
+        });
+    }
+    
+    // 견적 수정/삭제 이벤트 위임 (document에 등록하여 동적 요소에도 작동)
+    // 로딩 중 플래그로 중복 실행 방지
+    let isLoadingEstimate = false;
+    
+    // document에 이벤트 위임 등록 (동적으로 생성되는 요소에도 작동)
+    document.addEventListener('click', function(e) {
+        // estimatesListContainer 내부의 요소인지 확인
+        const container = document.getElementById('estimatesListContainer');
+        if (!container || !container.contains(e.target)) {
+            return;
+        }
+        
+        // 로딩 중이면 무시
+        if (isLoadingEstimate) {
+            return;
+        }
+        
+        // 수정 버튼 클릭
+        const editBtn = e.target.closest('.edit-estimate-btn');
+        if (editBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+            isLoadingEstimate = true;
+            const estimateId = normalizeId(editBtn.dataset.estimateId);
+            if (estimateId) {
+                loadEstimateToInputForm(estimateId);
+            } else {
+                isLoadingEstimate = false;
+            }
+            return;
+        }
+
+        // 표시 이름(타이틀) 수정 버튼 클릭
+        const editNameBtn = e.target.closest('.edit-estimate-name-btn');
+        if (editNameBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            const estimateId = normalizeId(editNameBtn.dataset.estimateId);
+            if (!estimateId) return;
+
+            const idx = estimates.findIndex(est => isSameId(est.id, estimateId));
+            if (idx === -1) return;
+
+            const cardEl = editNameBtn.closest('.card');
+            const nameSpan = cardEl?.querySelector('.estimate-display-name');
+            if (!cardEl || !nameSpan) return;
+
+            // 이미 편집 중이면 무시
+            if (cardEl.querySelector('.estimate-display-name-input')) return;
+
+            const currentName = estimates[idx].displayName || `${estimates[idx].productName || ''} ${formatNumber(estimates[idx].widthMm)}mm`;
+
+            // 인라인 편집 UI 구성
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentName;
+            input.className = 'form-control form-control-sm estimate-display-name-input';
+            input.style.maxWidth = '220px';
+            input.style.display = 'inline-block';
+
+            const saveBtn = document.createElement('button');
+            saveBtn.type = 'button';
+            saveBtn.className = 'btn btn-sm btn-link p-0 text-success ms-1 estimate-display-name-save-btn';
+            saveBtn.innerHTML = '<i class="fas fa-check"></i>';
+            saveBtn.title = '저장';
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button';
+            cancelBtn.className = 'btn btn-sm btn-link p-0 text-danger ms-1 estimate-display-name-cancel-btn';
+            cancelBtn.innerHTML = '<i class="fas fa-times"></i>';
+            cancelBtn.title = '취소';
+
+            // 기존 요소 숨김
+            nameSpan.style.display = 'none';
+            editNameBtn.style.display = 'none';
+
+            // 삽입
+            nameSpan.insertAdjacentElement('afterend', cancelBtn);
+            nameSpan.insertAdjacentElement('afterend', saveBtn);
+            nameSpan.insertAdjacentElement('afterend', input);
+
+            // 편집 상태 플래그 (렌더링 중 편집 상태 확인용)
+            let isEditing = true;
+            let isCommitting = false;
+
+            const cleanup = () => {
+                if (!isEditing) return; // 이미 정리됨
+                isEditing = false;
+                
+                try {
+                    if (input && input.parentNode) {
+                        input.remove();
+                    }
+                    if (saveBtn && saveBtn.parentNode) {
+                        saveBtn.remove();
+                    }
+                    if (cancelBtn && cancelBtn.parentNode) {
+                        cancelBtn.remove();
+                    }
+                    if (nameSpan) nameSpan.style.display = '';
+                    if (editNameBtn) editNameBtn.style.display = '';
+                } catch (error) {
+                    console.error('Error in cleanup:', error);
+                }
+            };
+
+            const commit = () => {
+                // 이미 커밋 중이거나 편집이 종료되었으면 무시
+                if (isCommitting || !isEditing) {
+                    cleanup();
+                    return;
+                }
+
+                isCommitting = true;
+                
+                try {
+                    // input이 이미 제거되었는지 확인
+                    if (!input || !input.parentNode) {
+                        cleanup();
+                    return;
+                }
+
+                    const newName = (input.value || '').trim();
+                if (!newName) {
+                    cleanup();
+                    return;
+                }
+
+                estimates[idx].displayName = newName;
+                
+                    // cleanup 먼저 호출하여 편집 UI 제거
+                    cleanup();
+                    
+                    // 렌더링 갱신 (title/ellipsis 반영) - 약간의 지연을 두어 cleanup 완료 보장
+                    setTimeout(() => {
+                        try {
+                renderEstimatesList();
+                        } catch (error) {
+                            console.error('Error in renderEstimatesList after commit:', error);
+                        }
+                        isCommitting = false;
+                    }, 10);
+                } catch (error) {
+                    console.error('Error in commit:', error);
+                cleanup();
+                    isCommitting = false;
+                }
+            };
+
+            // 이벤트 리스너 등록 (한 번만 실행되도록)
+            saveBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                commit();
+            });
+            
+            cancelBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                cleanup();
+            });
+            
+            input.addEventListener('keydown', (ev) => {
+                if (!isEditing) return;
+                if (ev.key === 'Enter') {
+                    ev.preventDefault();
+                    commit();
+                } else if (ev.key === 'Escape') {
+                    ev.preventDefault();
+                    cleanup();
+                }
+            });
+            
+            input.addEventListener('blur', () => {
+                // blur 시 자동 저장 (약간의 지연을 두어 다른 이벤트 처리 후 실행)
+                if (isEditing && !isCommitting) {
+                    setTimeout(() => {
+                        if (isEditing && !isCommitting) {
+                            commit();
+                        }
+                    }, 200);
+                }
+            });
+
+            // 포커스
+            setTimeout(() => {
+                if (input && input.parentNode) {
+                input.focus();
+                input.select();
+                }
+            }, 0);
+
+            return;
+        }
+        
+        // 삭제 버튼 클릭
+        const deleteBtn = e.target.closest('.delete-estimate-btn');
+        if (deleteBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+            if (!confirm('이 견적을 삭제하시겠습니까?')) return;
+            
+            const estimateId = normalizeId(deleteBtn.dataset.estimateId);
+            
+            if (estimateId) {
+                estimates = estimates.filter(est => !isSameId(est.id, estimateId));
+                
+                if (isSameId(editingEstimateId, estimateId)) {
+                    editingEstimateId = null;
+                    const addBtn = document.getElementById('addEstimateBtn');
+                    if (addBtn) {
+                        addBtn.innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
+                    }
+                }
+                
+                renderEstimatesList();
+            }
+            return;
+        }
+        
+        // 카드 전체 클릭 시 수정 모드 진입 (버튼 클릭은 제외)
+        const card = e.target.closest('.card[data-estimate-id]');
+        if (card && !e.target.closest('button')) {
+            isLoadingEstimate = true;
+            const estimateId = normalizeId(card.dataset.estimateId);
+            if (estimateId) {
+                loadEstimateToInputForm(estimateId);
+            } else {
+                isLoadingEstimate = false;
+            }
+        }
+    });
+    
+    // 견적 데이터를 입력 폼에 로드하는 함수 (완전 재작성)
+    function loadEstimateToInputForm(estimateId) {
+        
+        // 로딩 플래그 설정 (에러 발생 시에도 해제되도록 try-finally 사용)
+        isLoadingEstimate = true;
+        
+        try {
+            // 다른 견적 수정 중인지 확인
+            if (editingEstimateId) {
+                const currentEstimate = estimates.find(est => isSameId(est.id, editingEstimateId));
+                if (currentEstimate) {
+                    const hasChanges = confirm('현재 수정 중인 견적이 있습니다. 다른 견적을 불러오시겠습니까?\n(현재 수정 내용은 저장되지 않습니다)');
+                    if (!hasChanges) {
+                        return; // finally 블록에서 플래그 해제됨
+                    }
+                }
+            }
+            
+            // ID 정규화
+            const normalizedId = normalizeId(estimateId);
+            if (!normalizedId) {
+                console.error('Invalid estimate ID');
+                alert('잘못된 견적 ID입니다.');
+                return; // finally 블록에서 플래그 해제됨
+            }
+            
+            // 견적 찾기
+            const estimate = estimates.find(est => isSameId(est.id, normalizedId));
+            
+            if (!estimate) {
+                console.error('견적을 찾을 수 없습니다.');
+                console.error('Requested ID:', normalizedId);
+                console.error('Available IDs:', estimates.map(e => e.id));
+                alert(`견적을 찾을 수 없습니다. (ID: ${normalizedId})`);
+                return; // finally 블록에서 플래그 해제됨
+            }
+
+            
+            // 1. 폼 초기화
+            document.getElementById('additionalOptionsContainer').innerHTML = '';
+            // 비고 초기화
+            notesList = [{type: 'select', value: ''}];
+            renderAllNotes();
+            
+            // 2. 기본 구성 UI 로드 (복합/단일 모두 처리)
+            if (estimate.baseComponents && Array.isArray(estimate.baseComponents) && estimate.baseComponents.length > 0) {
+                ensureBaseComponentsUI(estimate.baseComponents);
+            } else {
+                // 구버전 데이터 호환: 단일 productId/manualPricing 기반이면 1개 행으로 변환
+                const legacy = [];
+                if (estimate.manualPricing) {
+                    legacy.push({ mode: 'manual', widthMm: estimate.widthMm || 0, manualPricing: estimate.manualPricing });
+                } else if (estimate.productId) {
+                    legacy.push({ mode: 'select', widthMm: estimate.widthMm || 0, productId: estimate.productId });
+                } else {
+                    legacy.push({ mode: 'select' });
+                }
+                ensureBaseComponentsUI(legacy);
+            }
+            
+            
+            // 4. 추가 옵션 로드 (동기적으로 처리)
+            const container = document.getElementById('additionalOptionsContainer');
+        
+        // 카테고리 옵션 목록 HTML 생성
+        let allOptionsHtml = '<option value="">카테고리 > 옵션을 선택하세요</option>';
+        if (wdCalculatorCategories && Array.isArray(wdCalculatorCategories)) {
+            wdCalculatorCategories.forEach(category => {
+                if (category && category.options && Array.isArray(category.options)) {
+                    category.options.forEach(option => {
+                        if (option && option.name && option.price !== undefined) {
+                            allOptionsHtml += `<option value="${category.name}|${option.name}|${option.price}">${category.name} > ${option.name} (${formatNumber(option.price)}원)</option>`;
+                        }
+                    });
+                }
+            });
+        }
+        
+            // 각 옵션을 순회하며 DOM에 추가
+            if (estimate.options && Array.isArray(estimate.options) && estimate.options.length > 0) {
+            estimate.options.forEach((opt, optIdx) => {
+                if (!opt || !opt.name) return;
+                
+                const optionId = 'opt_' + Date.now() + '_' + optIdx;
+                const escapedName = escapeHtml(opt.name || '');
+                const optPrice = Math.max(0, parseFloat(opt.price) || 0);
+                const optQuantity = Math.max(1, parseInt(opt.quantity) || 1);
+                
+                // 사전에 등록된 옵션과 매칭 여부 확인
+                let matchedValue = '';
+                if (wdCalculatorCategories && Array.isArray(wdCalculatorCategories)) {
+                    wdCalculatorCategories.some(category => {
+                        if (!category || !category.options) return false;
+                        const found = category.options.find(o => o && o.name === opt.name && o.price !== undefined);
+                        if (found) {
+                            matchedValue = `${category.name}|${found.name}|${found.price}`;
+                            return true;
+                        }
+                        return false;
+                    });
+                }
+
+                const optionHtml = `
+                    <div class="additional-option-item" data-option-id="${optionId}">
+                        <div class="row gx-2 align-items-center">
+                            <div class="col-md-5">
+                                <label class="form-label small">카테고리 > 옵션 선택</label>
+                                <div class="d-flex gap-2 align-items-center">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle-direct-input title="직접입력">
+                                        <i class="fas fa-keyboard"></i>
+                                    </button>
+                                    <select class="form-select form-select-sm category-option-select flex-grow-1" data-category-option-select>
+                                        ${allOptionsHtml}
+                                    </select>
+                                    <input type="text" class="form-control form-control-sm option-name-input flex-grow-1" placeholder="또는 옵션명 직접 입력 (예: 화장대 > 화장대A)" data-option-name value="${escapedName}">
+                                </div>
+                            </div>
+                            <div class="col-md-3 price-col">
+                                <label class="form-label small">가격 (원)</label>
+                                <input type="text" class="form-control form-control-sm option-price-input" placeholder="가격을 입력하세요" data-option-price value="${formatPrice(optPrice)}" inputmode="numeric">
+                            </div>
+                            <div class="col-md-2 quantity-col">
+                                <label class="form-label small">수량</label>
+                                <input type="number" class="form-control form-control-sm option-quantity-input" placeholder="수량" min="1" step="1" value="${optQuantity}" data-option-quantity>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small" style="visibility: hidden;">작업</label>
+                                <button type="button" class="btn btn-sm btn-outline-danger remove-option-btn w-100" style="white-space: nowrap;">
+                                    <i class="fas fa-times"></i> 삭제
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', optionHtml);
+                
+                // 즉시 이벤트 리스너 등록 (동기적으로)
+                const item = container.lastElementChild;
+                const select = item.querySelector('.category-option-select');
+                const nameInput = item.querySelector('.option-name-input');
+                const priceInput = item.querySelector('[data-option-price]');
+                const quantityInput = item.querySelector('[data-option-quantity]');
+                const toggleBtn = item.querySelector('[data-toggle-direct-input]');
+
+                // 초기 모드 설정 (setOptionMode 사용)
+                if (matchedValue) {
+                    select.value = matchedValue;
+                    setOptionMode(select, nameInput, 'select');
+                    // 강제로 다시 적용 (브라우저 렌더링 타이밍 이슈 방지)
+                    setTimeout(() => {
+                        setOptionMode(select, nameInput, 'select');
+                    }, 0);
+                    toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>'; // 직접입력 전환 아이콘
+                } else {
+                    select.value = '';
+                    setOptionMode(select, nameInput, 'input');
+                    // 강제로 다시 적용 (브라우저 렌더링 타이밍 이슈 방지)
+                    setTimeout(() => {
+                        setOptionMode(select, nameInput, 'input');
+                    }, 0);
+                    toggleBtn.innerHTML = '<i class="fas fa-list"></i>'; // 목록 전환 아이콘
+                }
+                
+                // 카테고리 선택 이벤트
+                select.addEventListener('change', function() {
+                    if (this.value && this.value !== '') {
+                        const [categoryName, optionName, price] = this.value.split('|');
+                        nameInput.value = `${categoryName} > ${optionName}`;
+                        priceInput.value = formatPrice(price);
+                        setOptionMode(select, nameInput, 'select');
+                        calculateEstimate();
+                    }
+                });
+                
+                // 직접입력 토글 이벤트
+                toggleBtn.addEventListener('click', function() {
+                    const selectVisible = select.style.display !== 'none';
+                    if (selectVisible) {
+                        setOptionMode(select, nameInput, 'input');
+                        select.value = '';
+                        nameInput.value = '';
+                        priceInput.value = '';
+                        this.innerHTML = '<i class="fas fa-list"></i>';
+                    } else {
+                        setOptionMode(select, nameInput, 'select');
+                        nameInput.value = '';
+                        priceInput.value = '';
+                        this.innerHTML = '<i class="fas fa-keyboard"></i>';
+                    }
+                    calculateEstimate();
+                });
+                
+                // 가격 입력 필드에 콤마 포맷팅 적용
+                priceInput.addEventListener('input', function() {
+                    const cursorPosition = this.selectionStart;
+                    const oldValue = this.value;
+                    const formattedValue = formatPrice(this.value);
+                    
+                    this.value = formattedValue;
+                    
+                    // 커서 위치 조정 (콤마 추가로 인한 위치 변화 보정)
+                    const diff = formattedValue.length - oldValue.length;
+                    const newPosition = Math.max(0, cursorPosition + diff);
+                    this.setSelectionRange(newPosition, newPosition);
+                    
+                    calculateEstimate();
+                });
+                
+                // 가격 입력 필드 포커스 아웃 시 포맷팅 확정
+                priceInput.addEventListener('blur', function() {
+                    if (this.value) {
+                        this.value = formatPrice(this.value);
+                    }
+                });
+                
+                // 입력 이벤트
+                nameInput.addEventListener('input', calculateEstimate);
+                quantityInput.addEventListener('input', calculateEstimate);
+                
+                // 옵션 이름이 카테고리 목록에 있는지 확인
+                let found = false;
+                Array.from(select.options).forEach(option => {
+                    const parts = option.value.split('|');
+                    if (parts.length >= 2) {
+                        const fullName = `${parts[0]} > ${parts[1]}`;
+                        if (fullName === opt.name) {
+                            select.value = option.value;
+                            found = true;
+                        }
+                    }
+                });
+                
+                // UI 업데이트 (setOptionMode 사용)
+                if (found) {
+                    setOptionMode(select, nameInput, 'select');
+                    toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>';
+                } else {
+                    setOptionMode(select, nameInput, 'input');
+                    toggleBtn.innerHTML = '<i class="fas fa-list"></i>';
+                }
+                });
+            }
+            
+            // 4.5. 비고 정보 로드 (개별 견적의 비고)
+            loadNotes(estimate.notes || '');
+            
+            // 5. editingEstimateId 설정 (원본 ID 유지)
+            editingEstimateId = estimate.id;
+
+            // 6. UI 업데이트
+            document.getElementById('addEstimateBtn').innerHTML = '<i class="fas fa-save"></i> 견적 수정 적용'; 
+            document.getElementById('addEstimateBtn').style.display = 'block';
+            
+            // 7. 스크롤 이동 (안전한 요소로 이동)
+            const scrollTarget = document.getElementById('baseComponentsContainer') || 
+                                 document.getElementById('customerName') || 
+                                 document.querySelector('.header-primary');
+            if (scrollTarget) {
+                scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            
+            // 8. 계산 수행
+            calculateEstimate();
+            
+        } catch (error) {
+            console.error('Error in loadEstimateToInputForm:', error);
+            alert('견적을 불러오는 중 오류가 발생했습니다: ' + (error.message || error));
+        } finally {
+            // 로딩 플래그 해제 (에러 발생 시에도 반드시 해제)
+            isLoadingEstimate = false;
+        }
+    }
+    
+    // 견적 삭제는 이벤트 위임 패턴으로 estimatesListContainer에서 처리됨
+    
+    // 숫자 포맷팅 (천 단위 구분)
+    function formatNumber(num) {
+        return Math.round(num).toLocaleString('ko-KR');
+    }
+    
+    // 계산 버튼 (null 체크 추가)
+    const calculateBtn = document.getElementById('calculateBtn');
+    if (calculateBtn) {
+        calculateBtn.addEventListener('click', function() {
+        calculateEstimate();
+    });
+    }
+    
+    // 초기 제품 목록 로드
+    loadProducts();
+
+    // 기본 구성 추가 버튼
+    document.getElementById('addBaseComponentBtn')?.addEventListener('click', function() {
+        const container = document.getElementById('baseComponentsContainer');
+        if (!container) return;
+        container.insertAdjacentHTML('beforeend', renderBaseComponentRow({ mode: 'select' }));
+        calculateEstimate();
+    });
+
+    // 기본 구성 이벤트 위임
+    document.getElementById('baseComponentsContainer')?.addEventListener('click', function(e) {
+        const rowEl = e.target.closest('.base-component-row');
+        
+        // 추가금 추가 버튼 클릭 처리 (이벤트 위임)
+        if (e.target.closest('.base-add-fee-btn')) {
+            if (!rowEl) return;
+            const feesList = rowEl.querySelector('.base-additional-fees-list');
+            if (feesList) {
+                const newItem = document.createElement('div');
+                newItem.className = 'row g-2 align-items-end mb-2 base-additional-fee-item';
+                newItem.innerHTML = `
+                    <div class="col-12 col-md-5">
+                        <input type="text" class="form-control form-control-sm base-additional-fee-name" placeholder="제품명 입력" value="">
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <input type="number" class="form-control form-control-sm base-additional-fee-amount" min="0" step="1" placeholder="금액 (원)" value="">
+                    </div>
+                    <div class="col-12 col-md-3 text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger base-remove-fee-btn" title="삭제">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `;
+                feesList.appendChild(newItem);
+                
+                // 입력 시 자동 계산
+                newItem.querySelectorAll('input').forEach(input => {
+                    input.addEventListener('input', calculateEstimate);
+                });
+                
+                calculateEstimate();
+            }
+            return;
+        }
+        
+        // 추가금 삭제 버튼 클릭 처리 (이벤트 위임)
+        if (e.target.closest('.base-remove-fee-btn')) {
+            const feeItem = e.target.closest('.base-additional-fee-item');
+            if (feeItem) {
+                feeItem.remove();
+                calculateEstimate();
+            }
+            return;
+        }
+        
+        if (!rowEl) return;
+
+        const modeBtn = e.target.closest('.base-mode-btn');
+        if (modeBtn) {
+            const newMode = modeBtn.dataset.mode;
+            rowEl.dataset.mode = newMode;
+            // 토글 UI
+            const selectArea = rowEl.querySelector('.base-select-area');
+            const manualArea = rowEl.querySelector('.base-manual-area');
+            if (selectArea) selectArea.style.display = newMode === 'manual' ? 'none' : '';
+            if (manualArea) manualArea.style.display = newMode === 'manual' ? '' : 'none';
+            // 버튼 스타일
+            rowEl.querySelectorAll('.base-mode-btn').forEach(btn => {
+                const m = btn.dataset.mode;
+                btn.classList.remove('btn-info','btn-outline-info','btn-warning','btn-outline-warning');
+                if (m === 'select') btn.classList.add(m === newMode ? 'btn-info' : 'btn-outline-info');
+                if (m === 'manual') btn.classList.add(m === newMode ? 'btn-warning' : 'btn-outline-warning');
+            });
+            calculateEstimate();
+            return;
+        }
+
+        const removeBtn = e.target.closest('.base-remove-btn');
+        if (removeBtn) {
+            const container = document.getElementById('baseComponentsContainer');
+            const rows = container ? container.querySelectorAll('.base-component-row') : [];
+            if (rows.length <= 1) {
+                // 최소 1개 유지
+                return;
+            }
+            rowEl.remove();
+            calculateEstimate();
+            return;
+        }
+    });
+
+    document.getElementById('baseComponentsContainer')?.addEventListener('input', function(e) {
+        // 직접입력 30cm 변경 시 1cm 자동 업데이트
+        const rowEl = e.target.closest('.base-component-row');
+        if (!rowEl) return;
+        if (e.target.classList.contains('base-manual-price30')) {
+            const price30 = Number(e.target.value) || 0;
+            const auto1 = computeAutoPrice1cmFrom30cm(price30);
+            const price1El = rowEl.querySelector('.base-manual-price1');
+            if (price1El) price1El.value = String(auto1);
+        }
+        // 모든 입력 시 계산 (추가금 입력 포함, 이벤트 위임으로 자동 처리)
+        calculateEstimate();
+    });
+
+    document.getElementById('baseComponentsContainer')?.addEventListener('change', function(e) {
+        const rowEl = e.target.closest('.base-component-row');
+        if (!rowEl) return;
+        if (e.target.classList.contains('base-manual-pricing-type')) {
+            const pricingType = e.target.value || '30cm';
+            const col30 = rowEl.querySelector('.base-manual-30cm-col');
+            const col1 = rowEl.querySelector('.base-manual-1cm-col');
+            const col1m = rowEl.querySelector('.base-manual-1m-col');
+            if (pricingType === '1m') {
+                if (col30) col30.style.display = 'none';
+                if (col1) col1.style.display = 'none';
+                if (col1m) col1m.style.display = '';
+            } else {
+                if (col30) col30.style.display = '';
+                if (col1) col1.style.display = '';
+                if (col1m) col1m.style.display = 'none';
+                const price30El = rowEl.querySelector('.base-manual-price30');
+                const auto1 = computeAutoPrice1cmFrom30cm(Number(price30El?.value) || 0);
+                const price1El = rowEl.querySelector('.base-manual-price1');
+                if (price1El) price1El.value = String(auto1);
+            }
+        }
+        calculateEstimate();
+    });
+    
+    // 견적 검색 기능 (null 체크 추가)
+    const searchEstimateBtn = document.getElementById('searchEstimateBtn');
+    if (searchEstimateBtn) {
+        searchEstimateBtn.addEventListener('click', function() {
+            const searchCustomerNameInput = document.getElementById('searchCustomerName');
+            if (!searchCustomerNameInput) {
+                console.error('searchCustomerName element not found');
+                return;
+            }
+            
+            const customerName = searchCustomerNameInput.value.trim();
+            if (!customerName) {
+                alert('고객명을 입력해주세요.');
+                return;
+            }
+            
+            fetch(`/api/wdcalculator/search-estimates?customer_name=${encodeURIComponent(customerName)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displaySearchResults(data.estimates);
+                    } else {
+                        alert(data.message || '검색 중 오류가 발생했습니다.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('검색 중 오류가 발생했습니다.');
+                });
+        });
+    }
+    // searchEstimateBtn은 사이드바 검색 기능이므로 없어도 정상 작동함 (경고 무시)
+    
+    // 검색 결과 표시
+    function displaySearchResults(estimates) {
+        const container = document.getElementById('searchResultsList');
+        const resultsDiv = document.getElementById('searchResults');
+        
+        if (estimates.length === 0) {
+            container.innerHTML = '<p class="text-muted">검색 결과가 없습니다.</p>';
+            resultsDiv.style.display = 'block';
+            return;
+        }
+        
+        let html = '<div class="list-group">';
+        estimates.forEach(estimate => {
+            const estimateData = estimate.estimate_data;
+            const totalPrice = estimateData.totalPrice || 0;
+            const basePrice = estimateData.basePrice || 0;
+            const additionalPrice = estimateData.additionalPrice || 0;
+            
+            html += `
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">${estimate.customer_name}</h6>
+                            <small class="text-muted">생성일: ${estimate.created_at}</small>
+                            <div class="mt-2">
+                                <small>기본 견적: ${formatNumber(basePrice)}원</small><br>
+                                <small>추가 옵션: ${formatNumber(additionalPrice)}원</small><br>
+                                <strong>총 견적: ${formatNumber(totalPrice)}원</strong>
+                            </div>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-primary load-estimate-btn" data-estimate-id="${estimate.id}">
+                                <i class="fas fa-download"></i> 불러오기
+                            </button>
+                            <button class="btn btn-sm btn-success match-order-btn mt-1" data-estimate-id="${estimate.id}" data-customer-name="${estimate.customer_name}">
+                                <i class="fas fa-link"></i> 주문 매칭
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        
+        container.innerHTML = html;
+        resultsDiv.style.display = 'block';
+    }
+    
+    // 견적 불러오기
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.load-estimate-btn')) {
+            const estimateId = parseInt(e.target.closest('.load-estimate-btn').dataset.estimateId);
+            const customerName = document.getElementById('searchCustomerName').value.trim();
+            
+            // 고객명으로 다시 검색하여 해당 견적 찾기
+            fetch(`/api/wdcalculator/search-estimates?customer_name=${encodeURIComponent(customerName)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const estimate = data.estimates.find(est => est.id === estimateId);
+                        if (estimate) {
+                            loadEstimateToForm(estimate);
+                        } else {
+                            alert('견적을 찾을 수 없습니다.');
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('견적을 불러오는 중 오류가 발생했습니다.');
+                });
+        }
+    });
+    
+    // 견적을 폼에 로드
+    function loadEstimateToForm(estimate) {
+        currentDatabaseEstimateId = estimate.id; // DB ID 저장
+        
+        // 편집 모드 알림 표시
+        const headerTitle = document.querySelector('.header-primary h6');
+        if (headerTitle) {
+            headerTitle.innerHTML = `<i class="fas fa-edit me-2"></i>견적 수정: ${estimate.customer_name} <span class="badge bg-warning text-dark ms-2">수정모드</span>`;
+        }
+        
+        // 취소(새 견적 작성) 버튼 표시
+        let resetBtn = document.getElementById('resetEstimateBtn');
+        if (!resetBtn) {
+            const btnContainer = document.querySelector('.header-primary');
+            resetBtn = document.createElement('button');
+            resetBtn.id = 'resetEstimateBtn';
+            resetBtn.className = 'btn btn-sm btn-light float-end';
+            resetBtn.innerHTML = '<i class="fas fa-undo"></i> 새 견적 작성';
+            resetBtn.onclick = function() {
+                if(confirm('현재 작성/수정 중인 내용을 초기화하고 새 견적을 작성하시겠습니까?')) {
+                    location.reload();
+                }
+            };
+            btnContainer.appendChild(resetBtn);
+        }
+
+        const estimateData = estimate.estimate_data;
+        
+        // 고객명 설정
+        const customerNameEl = document.getElementById('customerName');
+        if (customerNameEl) {
+            customerNameEl.value = estimate.customer_name;
+        }
+        
+        // 쿠폰 값 로드
+        const couponDiscount = estimateData.coupon_discount || 0;
+        const couponInput = document.getElementById('globalCouponValue');
+        if (couponInput) {
+            couponInput.value = couponDiscount;
+        }
+        
+        // 배송비 값 로드
+        const shippingCost = estimateData.shipping_cost || 0;
+        const shippingCostInput = document.getElementById('shippingCost');
+        if (shippingCostInput) {
+            shippingCostInput.value = shippingCost;
+        }
+        
+        // 배송비 포함 여부 로드
+        const shippingIncluded = estimateData.shipping_included !== undefined ? estimateData.shipping_included : true;
+        const shippingIncludedCheckbox = document.getElementById('shippingIncluded');
+        if (shippingIncludedCheckbox) {
+            shippingIncludedCheckbox.checked = shippingIncluded;
+        }
+        
+        // 비고 초기화 (저장된 견적 로드 시 비고는 로드하지 않음)
+        notesList = [{type: 'select', value: ''}];
+        renderAllNotes();
+        
+        // 견적 목록 초기화
+        estimates = [];
+        
+        // 저장된 견적 데이터의 estimates 배열을 현재 견적 목록에 로드
+        if (estimateData.estimates && estimateData.estimates.length > 0) {
+            // 전체 견적의 비고 정보 (각 견적에 공통으로 적용)
+            const globalNotes = estimateData.notes || '';
+            
+            estimates = estimateData.estimates.map((est, idx) => {
+                // ID를 문자열로 통일 (저장된 ID가 있으면 사용, 없으면 새로 생성)
+                const newId = est.id ? String(est.id) : generateEstimateId();
+                return {
+                    id: newId,
+                    productId: est.productId,
+                    productName: est.productName,
+                    displayName: est.displayName || `${est.productName || ''} ${formatNumber(est.widthMm)}mm`,
+                    widthMm: est.widthMm,
+                    basePrice: est.basePrice,
+                    options: est.options || [],
+                    additionalPrice: est.additionalPrice || 0,
+                    totalPrice: est.totalPrice || 0,
+                    baseComponents: est.baseComponents || null,
+                    notes: est.notes || globalNotes // 개별 비고가 있으면 사용, 없으면 전체 비고 사용
+                };
+            });
+            
+            // 견적 목록 렌더링
+            renderEstimatesList();
+
+            // 저장 버튼 표시 (불러온 직후에도 수정/저장 가능하게)
+            const saveBtnAfterLoad = document.getElementById('saveEstimateBtn');
+            if (saveBtnAfterLoad) {
+                saveBtnAfterLoad.style.display = 'block';
+            }
+            
+            // 입력 폼 초기화
+            ensureBaseComponentsUI();
+            document.getElementById('additionalOptionsContainer').innerHTML = '';
+            document.getElementById('productInfo').style.display = 'none';
+            document.getElementById('baseEstimateSection').style.display = 'none';
+            document.getElementById('addEstimateBtn').innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
+            document.getElementById('addEstimateBtn').style.display = 'none';
+            
+            // 계산 실행 (초기화 상태로)
+            calculateEstimate();
+            
+            // 저장 버튼은 이미 표시되어 있음 (위에서 설정)
+            // 수정 적용 버튼은 견적을 선택했을 때 표시됨
+        }
+    }
+    
+    // 주문 매칭 기능
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.match-order-btn')) {
+            const estimateId = parseInt(e.target.closest('.match-order-btn').dataset.estimateId);
+            const customerName = e.target.closest('.match-order-btn').dataset.customerName;
+            
+            // FOMS 주문 검색
+            fetch(`/api/wdcalculator/search-orders?customer_name=${encodeURIComponent(customerName)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        if (data.orders.length === 0) {
+                            alert('해당 고객명의 주문이 없습니다.');
+                            return;
+                        }
+                        
+                        if (data.orders.length === 1) {
+                            // 주문이 1개면 바로 매칭
+                            matchEstimateToOrder(estimateId, data.orders[0].id);
+                        } else {
+                            // 주문이 여러 개면 선택
+                            showOrderSelectionModal(estimateId, data.orders);
+                        }
+                    } else {
+                        alert(data.message || '주문 검색 중 오류가 발생했습니다.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('주문 검색 중 오류가 발생했습니다.');
+                });
+        }
+    });
+    
+    // 주문 선택 모달 표시
+    function showOrderSelectionModal(estimateId, orders) {
+        let html = '<div class="modal fade" id="orderSelectionModal" tabindex="-1">';
+        html += '<div class="modal-dialog modal-lg"><div class="modal-content">';
+        html += '<div class="modal-header"><h5 class="modal-title">주문 선택</h5>';
+        html += '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>';
+        html += '<div class="modal-body"><div class="list-group">';
+        
+        orders.forEach(order => {
+            html += `
+                <button type="button" class="list-group-item list-group-item-action select-order-btn" 
+                        data-estimate-id="${estimateId}" data-order-id="${order.id}">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <strong>주문 #${order.id}</strong><br>
+                            <small>고객명: ${order.customer_name}</small><br>
+                            <small>전화번호: ${order.phone}</small><br>
+                            <small>제품: ${order.product}</small><br>
+                            <small>상태: ${order.status}</small>
+                        </div>
+                    </div>
+                </button>
+            `;
+        });
+        
+        html += '</div></div></div></div></div>';
+        
+        // 기존 모달 제거
+        const existingModal = document.getElementById('orderSelectionModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        document.body.insertAdjacentHTML('beforeend', html);
+        const modal = new bootstrap.Modal(document.getElementById('orderSelectionModal'));
+        modal.show();
+        
+        // 주문 선택 이벤트
+        document.querySelectorAll('.select-order-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const estId = parseInt(this.dataset.estimateId);
+                const ordId = parseInt(this.dataset.orderId);
+                matchEstimateToOrder(estId, ordId);
+                modal.hide();
+            });
+        });
+    }
+    
+    // 견적과 주문 매칭
+    function matchEstimateToOrder(estimateId, orderId) {
+        fetch('/api/wdcalculator/match-order', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                estimate_id: estimateId,
+                order_id: orderId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('견적과 주문이 매칭되었습니다.');
+            } else {
+                alert(data.message || '매칭 중 오류가 발생했습니다.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('매칭 중 오류가 발생했습니다.');
+        });
+    }
+    
+    // 견적 저장 기능
+    const saveEstimateBtn = document.getElementById('saveEstimateBtn');
+    if (saveEstimateBtn) {
+        const newSaveBtn = saveEstimateBtn.cloneNode(true);
+        saveEstimateBtn.parentNode.replaceChild(newSaveBtn, saveEstimateBtn);
+        
+        newSaveBtn.addEventListener('click', function() {
+        const customerName = document.getElementById('customerName').value.trim();
+        if (!customerName) {
+            alert('고객명을 입력해주세요.');
+            return;
+        }
+        
+        // 현재 진행 중인 견적이 없으면 현재 계산된 견적을 추가
+        let estimatesToSave = estimates;
+        if (estimatesToSave.length === 0) {
+            const currentEstimate = collectCurrentEstimate();
+            if (!currentEstimate) {
+                alert('저장할 견적이 없습니다. 먼저 견적을 계산해주세요.');
+                return;
+            }
+            currentEstimate.id = generateEstimateId();
+            estimatesToSave = [currentEstimate];
+        }
+        
+        // 비고 정보 수집
+        const notes = collectNotes();
+        
+        // 쿠폰 할인 금액 계산
+        const couponValue = getCouponValue();
+        const totalBasePrice = estimatesToSave.reduce((sum, est) => sum + est.basePrice, 0);
+        const totalAdditionalPrice = estimatesToSave.reduce((sum, est) => sum + est.additionalPrice, 0);
+        const totalPrice = estimatesToSave.reduce((sum, est) => sum + est.totalPrice, 0);
+        const couponDiscount = couponValue > 0 ? couponValue : 0;
+        
+        // 배송비 값 가져오기
+        const shippingCostInput = document.getElementById('shippingCost');
+        const shippingCost = shippingCostInput ? parseFloat(shippingCostInput.value) || 0 : 0;
+        
+        // 배송비 포함 여부 가져오기
+        const shippingIncludedCheckbox = document.getElementById('shippingIncluded');
+        const shippingIncluded = shippingIncludedCheckbox ? shippingIncludedCheckbox.checked : true;
+        
+        // 현재 견적 목록을 저장
+        const estimateData = {
+            estimates: estimatesToSave,
+            totalBasePrice: totalBasePrice,
+            totalAdditionalPrice: totalAdditionalPrice,
+            totalPrice: totalPrice,
+                coupon_discount: couponDiscount,
+                shipping_cost: shippingCost,
+                shipping_included: shippingIncluded,
+                notes: notes
+            };
+            
+            // 저장 버튼 비활성화 (중복 클릭 방지)
+            newSaveBtn.disabled = true;
+            const originalText = newSaveBtn.innerHTML;
+            newSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장 중...';
+        
+        fetch('/api/wdcalculator/save-estimate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                estimate_id: currentDatabaseEstimateId,
+                customer_name: customerName,
+                estimate_data: estimateData
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+                // 버튼 복원
+                newSaveBtn.disabled = false;
+                newSaveBtn.innerHTML = originalText;
+                
+            if (data.success) {
+                    alert(data.message);
+                    
+                    // 신규 저장이면 ID 업데이트
+                    if (data.estimate_id) {
+                        currentDatabaseEstimateId = data.estimate_id;
+                        const headerTitle = document.querySelector('.header-primary h6');
+                        if (headerTitle) {
+                            headerTitle.innerHTML = `<i class="fas fa-edit me-2"></i>견적 수정: ${customerName} <span class="badge bg-warning text-dark ms-2">수정모드</span>`;
+                        }
+                    }
+                    
+                    // 견적 저장 후 refresh (순서 중요)
+                    refreshAfterSave();
+            } else {
+                alert(data.message || '견적 저장 중 오류가 발생했습니다.');
+            }
+        })
+        .catch(error => {
+                // 에러 시 버튼 복원
+                newSaveBtn.disabled = false;
+                newSaveBtn.innerHTML = originalText;
+                
+            console.error('Error:', error);
+            alert('견적 저장 중 오류가 발생했습니다.');
+        });
+        });
+    } else {
+        console.warn('saveEstimateBtn element not found');
+    }
+    
+    // 견적 추가 시 저장 버튼 표시 (null 체크 추가)
+    const addEstimateBtn = document.getElementById('addEstimateBtn');
+    if (addEstimateBtn) {
+        const originalAddEstimate = addEstimateBtn.onclick;
+        addEstimateBtn.addEventListener('click', function() {
+            if (originalAddEstimate) originalAddEstimate.call(this);
+            if (estimates.length > 0) {
+                const saveBtn = document.getElementById('saveEstimateBtn');
+                if (saveBtn) {
+                    saveBtn.style.display = 'block';
+                }
+            }
+        });
+    }
+    
+    // === 사이드바 견적 목록 기능 ===
+    
+    const sidebarSearchInput = document.getElementById('sidebarSearchInput');
+    const sidebarSearchBtn = document.getElementById('sidebarSearchBtn');
+    const refreshEstimatesBtn = document.getElementById('refreshEstimatesBtn');
+    const savedEstimatesList = document.getElementById('savedEstimatesList');
+    const savedEstimatesLoading = document.getElementById('savedEstimatesLoading');
+    const noSavedEstimates = document.getElementById('noSavedEstimates');
+    
+    // 목록 불러오기 함수
+    function loadSidebarEstimates(searchQuery = '') {
+        if (!savedEstimatesList) return;
+        
+        savedEstimatesLoading.style.display = 'block';
+        savedEstimatesList.innerHTML = '';
+        noSavedEstimates.style.display = 'none';
+        
+        // 캐시 방지용 타임스탬프 추가
+        let url = `/api/wdcalculator/search-estimates?_t=${Date.now()}`;
+        if (searchQuery) {
+            url += `&customer_name=${encodeURIComponent(searchQuery)}`;
+        }
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                savedEstimatesLoading.style.display = 'none';
+                
+                if (data.success && data.estimates.length > 0) {
+                    data.estimates.forEach(est => {
+                        const item = document.createElement('div');
+                        item.className = 'list-group-item list-group-item-action p-3 border-bottom';
+                        
+                        // 날짜 포맷팅
+                        const dateStr = est.created_at ? new Date(est.created_at).toLocaleDateString() : '';
+                        
+                        // 총 금액 계산 (데이터 구조에 따라 다름)
+                        let totalPrice = 0;
+                        let productNames = [];
+                        
+                        if (est.estimate_data) {
+                            if (est.estimate_data.totalPrice) {
+                                totalPrice = est.estimate_data.totalPrice;
+                            }
+                            
+                            // 포함된 제품명 요약
+                            if (est.estimate_data.estimates && Array.isArray(est.estimate_data.estimates)) {
+                                productNames = est.estimate_data.estimates.map(e => e.displayName || e.productName || (e.product ? e.product.name : '알 수 없음'));
+                            }
+                        }
+                        
+                        const productNameStr = productNames.length > 0 
+                            ? (productNames.length > 1 ? `${productNames[0]} 외 ${productNames.length - 1}건` : productNames[0])
+                            : '제품 정보 없음';
+                        
+                        item.innerHTML = `
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <h6 class="mb-0 fw-bold text-truncate" style="max-width: 140px;">${est.customer_name}</h6>
+                                <small class="text-muted">${dateStr}</small>
+                            </div>
+                            <p class="mb-1 small text-dark">${productNameStr}</p>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <span class="fw-bold text-primary">${formatNumber(totalPrice)}원</span>
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-xs btn-outline-primary load-estimate-btn" data-id="${est.id}" title="불러오기">
+                                        <i class="fas fa-folder-open"></i>
+                                    </button>
+                                    <button class="btn btn-xs btn-outline-success match-order-btn" data-estimate-id="${est.id}" data-customer-name="${est.customer_name}" title="주문 매칭">
+                                        <i class="fas fa-link"></i>
+                                    </button>
+                                    <button class="btn btn-xs btn-outline-danger delete-estimate-btn" data-id="${est.id}" title="삭제">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // 불러오기 버튼 이벤트
+                        const loadBtn = item.querySelector('.load-estimate-btn');
+                        loadBtn.addEventListener('click', (e) => {
+                            e.stopPropagation(); // 부모 클릭 방지
+                            if (confirm(`'${est.customer_name}' 님의 견적을 불러오시겠습니까?\n현재 작성 중인 내용은 사라질 수 있습니다.`)) {
+                                loadEstimateToForm(est);
+                            }
+                        });
+                        
+                        // 삭제 버튼 이벤트
+                        const deleteBtn = item.querySelector('.delete-estimate-btn');
+                        deleteBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            if (confirm(`정말로 '${est.customer_name}' 님의 견적을 삭제하시겠습니까?`)) {
+                                deleteEstimate(est.id);
+                            }
+                        });
+                        
+                        savedEstimatesList.appendChild(item);
+                    });
+                } else {
+                    noSavedEstimates.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading estimates:', error);
+                savedEstimatesLoading.style.display = 'none';
+                savedEstimatesList.innerHTML = '<div class="text-center text-danger py-3">목록을 불러오는 중 오류가 발생했습니다.</div>';
+            });
+    }
+    
+    // 견적 삭제 함수
+    function deleteEstimate(id) {
+        fetch(`/api/wdcalculator/estimate/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // alert('삭제되었습니다.'); // 너무 잦은 알림 방지
+                loadSidebarEstimates(sidebarSearchInput.value); // 목록 새로고침
+            } else {
+                alert(data.message || '삭제 실패');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting estimate:', error);
+            alert('삭제 중 오류가 발생했습니다.');
+        });
+    }
+    
+    // 검색 이벤트
+    if (sidebarSearchBtn) {
+        sidebarSearchBtn.addEventListener('click', () => {
+            loadSidebarEstimates(sidebarSearchInput.value);
+        });
+    }
+    
+    if (sidebarSearchInput) {
+        sidebarSearchInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                loadSidebarEstimates(sidebarSearchInput.value);
+            }
+        });
+    }
+    
+    if (refreshEstimatesBtn) {
+        refreshEstimatesBtn.addEventListener('click', () => {
+            sidebarSearchInput.value = '';
+            loadSidebarEstimates();
+        });
+    }
+    
+    // 초기 목록 로드
+    loadSidebarEstimates();
+    
+    // URL 파라미터에서 estimate_id 읽기 및 자동 로드
+    const urlParams = new URLSearchParams(window.location.search);
+    const estimateIdFromUrl = urlParams.get('estimate_id');
+    const orderIdFromUrl = urlParams.get('order_id');
+    
+    // order_id가 있으면 주문으로 돌아가기 버튼 표시
+    if (orderIdFromUrl) {
+        // 저장 버튼 옆에 "주문으로 돌아가기" 버튼 추가
+        const saveBtnContainer = document.getElementById('saveEstimateBtn')?.parentElement;
+        if (saveBtnContainer) {
+            let backToOrderBtn = document.getElementById('backToOrderBtn');
+            if (!backToOrderBtn) {
+                backToOrderBtn = document.createElement('a');
+                backToOrderBtn.id = 'backToOrderBtn';
+                backToOrderBtn.className = 'btn btn-secondary ms-2';
+                backToOrderBtn.href = `/edit/${orderIdFromUrl}`;
+                backToOrderBtn.innerHTML = '<i class="fas fa-arrow-left"></i> 주문으로 돌아가기';
+                saveBtnContainer.appendChild(backToOrderBtn);
+            }
+        }
+    }
+    
+    // estimate_id가 있으면 해당 견적을 자동으로 로드
+    if (estimateIdFromUrl) {
+        console.log('URL에서 견적 ID 발견:', estimateIdFromUrl);
+        
+        // 제품 목록이 로드된 후 견적 로드
+        const loadEstimateFromUrl = () => {
+            console.log('견적 로드 시작, ID:', estimateIdFromUrl);
+            fetch(`/api/wdcalculator/estimate/${estimateIdFromUrl}`)
+                .then(response => {
+                    console.log('API 응답 상태:', response.status, response.statusText);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('API 응답 데이터:', data);
+                    if (data.success && data.estimate) {
+                        console.log('견적 로드 성공:', data.estimate);
+                        // 제품 목록이 로드되었는지 확인
+                        if (products.length === 0) {
+                            console.warn('제품 목록이 아직 로드되지 않았습니다. 잠시 대기 후 재시도합니다.');
+                            setTimeout(() => {
+                                if (products.length > 0) {
+                                    loadEstimateToForm(data.estimate);
+                                    setTimeout(() => loadSidebarEstimates(), 500);
+                                } else {
+                                    alert('제품 목록을 불러올 수 없어 견적을 로드할 수 없습니다. 페이지를 새로고침해주세요.');
+                                }
+                            }, 1000);
+                        } else {
+                            loadEstimateToForm(data.estimate);
+                            // 사이드바도 새로고침
+                            setTimeout(() => loadSidebarEstimates(), 500);
+                        }
+                    } else {
+                        console.error('견적 로드 실패:', data);
+                        alert('견적을 불러오는 중 오류가 발생했습니다: ' + (data.message || '알 수 없는 오류'));
+                    }
+                })
+                .catch(error => {
+                    console.error('견적 로드 중 오류:', error);
+                    alert('견적을 불러오는 중 오류가 발생했습니다: ' + error.message);
+                });
+        };
+        
+        // 제품 목록이 이미 로드되었는지 확인
+        if (products.length > 0) {
+            // 이미 로드되었으면 바로 실행
+            loadEstimateFromUrl();
+        } else {
+            // 아직 로드 중이면 제품 로드 완료를 기다림
+            const checkProductsLoaded = setInterval(() => {
+                if (products.length > 0) {
+                    clearInterval(checkProductsLoaded);
+                    loadEstimateFromUrl();
+                }
+            }, 100);
+            
+            // 최대 5초 대기
+            setTimeout(() => {
+                clearInterval(checkProductsLoaded);
+                if (products.length === 0) {
+                    console.warn('제품 목록 로드를 기다리는 중 시간 초과. 견적 로드를 시도합니다.');
+                    loadEstimateFromUrl();
+                }
+            }, 5000);
+        }
+    }
+    
+    // 초기 기본 구성 UI (제품 목록 로드 전이라도 기본 1행은 렌더)
+    ensureBaseComponentsUI();
+
+    // 배송비 입력 필드 변경 시 자동 재계산
+    const shippingCostInputField = document.getElementById('shippingCost');
+    if (shippingCostInputField) {
+        shippingCostInputField.addEventListener('input', function() {
+            if (estimates.length > 0) {
+                calculateTotalEstimates(); // 전체 견적 재계산
+            }
+        });
+        shippingCostInputField.addEventListener('change', function() {
+            if (estimates.length > 0) {
+                calculateTotalEstimates(); // 전체 견적 재계산
+            }
+        });
+        console.log('배송비 입력 필드 이벤트 리스너 등록 완료');
+    }
+    
+    // 배송비 포함 여부 체크박스 변경 시 자동 재계산
+    const shippingIncludedCheckbox = document.getElementById('shippingIncluded');
+    if (shippingIncludedCheckbox) {
+        shippingIncludedCheckbox.addEventListener('change', function() {
+            if (estimates.length > 0) {
+                calculateTotalEstimates(); // 전체 견적 재계산
+            }
+        });
+        console.log('배송비 포함 여부 체크박스 이벤트 리스너 등록 완료');
+    }
+    
+    // 쿠폰 입력 필드 변경 시 자동 재계산 (강력한 이벤트 처리)
+    const couponInputField = document.getElementById('globalCouponValue');
+    if (couponInputField) {
+        // 초기값 확인 및 설정
+        if (!couponInputField.value || couponInputField.value === '0') {
+            couponInputField.value = DEFAULT_COUPON_VALUE;
+            console.log('쿠폰 입력 필드 초기값 설정:', DEFAULT_COUPON_VALUE);
+        }
+        
+        // input 이벤트: 타이핑 중에도 실시간 반영
+        couponInputField.addEventListener('input', function() {
+            const newValue = this.value;
+            console.log('쿠폰 값 변경됨 (input):', newValue);
+            // 약간의 지연을 두어 연속 입력 처리
+            setTimeout(() => {
+                const currentValue = getCouponValue();
+                console.log('재계산 실행 - 쿠폰 값:', currentValue);
+                calculateEstimate();
+                if (estimates.length > 0) {
+                    calculateTotalEstimates();
+                }
+            }, 100);
+        });
+        
+        // change 이벤트: 포커스 아웃 시 확정
+        couponInputField.addEventListener('change', function() {
+            const newValue = this.value;
+            console.log('쿠폰 값 확정됨 (change):', newValue);
+            const currentValue = getCouponValue();
+            console.log('재계산 실행 - 쿠폰 값:', currentValue);
+            calculateEstimate();
+            if (estimates.length > 0) {
+                calculateTotalEstimates();
+            }
+        });
+        
+        // blur 이벤트: 포커스를 잃을 때도 재계산
+        couponInputField.addEventListener('blur', function() {
+            const newValue = this.value;
+            console.log('쿠폰 입력 필드 포커스 아웃 (blur):', newValue);
+            const currentValue = getCouponValue();
+            console.log('재계산 실행 - 쿠폰 값:', currentValue);
+            calculateEstimate();
+            if (estimates.length > 0) {
+                calculateTotalEstimates();
+            }
+        });
+        
+        console.log('쿠폰 입력 필드 이벤트 리스너 등록 완료, 현재 값:', couponInputField.value);
+        
+        // 초기 로드 시 한 번 계산 실행 (스타일 적용 확인)
+        setTimeout(() => {
+            console.log('초기 로드 후 계산 실행');
+            calculateEstimate();
+            if (estimates.length > 0) {
+                calculateTotalEstimates();
+            }
+        }, 500);
+    } else {
+        console.error('쿠폰 입력 필드를 찾을 수 없습니다!');
+    }
+
+});
+</script>
