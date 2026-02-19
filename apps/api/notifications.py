@@ -4,6 +4,7 @@ erp.py에서 분리 (Phase 4-1).
 """
 import json
 import os
+import time
 import datetime as dt_mod
 from urllib.parse import quote
 
@@ -21,6 +22,16 @@ notifications_bp = Blueprint(
 )
 
 _NOTIFICATION_DEBUG = os.environ.get('ERP_BETA_DEBUG', '').lower() in ('1', 'true', 'yes', 'on')
+
+# 배지 카운트 캐시: user_id -> (count, expiry_unix_ts). DB 부하 감소용.
+_badge_cache = {}
+BADGE_CACHE_TTL_SECONDS = 30
+
+
+def _invalidate_badge_cache(user_id):
+    """사용자별 배지 캐시 무효화 (읽음 처리 시 호출)."""
+    if user_id is not None:
+        _badge_cache.pop(user_id, None)
 
 
 def _ensure_dict(data):
@@ -206,12 +217,19 @@ def api_notifications_list():
 @notifications_bp.route('/notifications/badge', methods=['GET'])
 @login_required
 def api_notifications_badge():
-    """알림 배지 카운트 조회 (읽지 않은 알림 수)."""
+    """알림 배지 카운트 조회 (읽지 않은 알림 수). 사용자별 30초 캐시로 DB 부하 완화."""
     try:
-        db = get_db()
         user_id = session.get('user_id')
-        user = db.query(User).filter(User.id == user_id).first()
+        if user_id is None:
+            return jsonify({'success': True, 'count': 0})
 
+        now_ts = time.time()
+        cached = _badge_cache.get(user_id)
+        if cached is not None and cached[1] > now_ts:
+            return jsonify({'success': True, 'count': cached[0]})
+
+        db = get_db()
+        user = db.query(User).filter(User.id == user_id).first()
         if not user:
             return jsonify({'success': True, 'count': 0})
 
@@ -229,9 +247,12 @@ def api_notifications_badge():
             if conditions:
                 query = query.filter(or_(*conditions))
             else:
-                return jsonify({'success': True, 'count': 0})
+                count = 0
+                _badge_cache[user_id] = (count, now_ts + BADGE_CACHE_TTL_SECONDS)
+                return jsonify({'success': True, 'count': count})
 
         count = query.count()
+        _badge_cache[user_id] = (count, now_ts + BADGE_CACHE_TTL_SECONDS)
         return jsonify({'success': True, 'count': count})
     except Exception:
         return jsonify({'success': True, 'count': 0})
@@ -254,6 +275,7 @@ def api_notification_mark_read(notification_id):
         notification.read_by_user_id = user_id
 
         db.commit()
+        _invalidate_badge_cache(user_id)
         return jsonify({'success': True, 'message': '알림을 읽음 처리했습니다.'})
     except Exception as e:
         db.rollback()
@@ -294,6 +316,7 @@ def api_notifications_mark_all_read():
         }, synchronize_session='fetch')
 
         db.commit()
+        _invalidate_badge_cache(user_id)
         return jsonify({'success': True, 'message': f'{updated}개 알림을 읽음 처리했습니다.', 'count': updated})
     except Exception as e:
         db.rollback()
