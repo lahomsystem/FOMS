@@ -1,4 +1,4 @@
-
+"""FOMS DB 관리 스크립트. 비밀번호는 환경변수 FOMS_ADMIN_DEFAULT_PASSWORD 사용 (미설정 시 기본값)."""
 import sys
 import os
 import argparse
@@ -6,6 +6,10 @@ from sqlalchemy import text
 
 # Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# 프로덕션에서는 반드시 FOMS_ADMIN_DEFAULT_PASSWORD 설정 권장 (NEXT-004)
+def _default_admin_password():
+    return os.environ.get('FOMS_ADMIN_DEFAULT_PASSWORD', 'admin1234')
 
 from db import db_session, engine, init_db
 try:
@@ -107,10 +111,11 @@ def init_tables():
         try:
             admin = session.query(User).filter_by(username='admin').first()
             if not admin:
-                print("Creating default admin user (admin/admin1234)...")
+                pwd = _default_admin_password()
+                print("Creating default admin user (admin/***)...")
                 new_admin = User(
                     username='admin',
-                    password=generate_password_hash('admin1234'),
+                    password=generate_password_hash(pwd),
                     name='관리자',
                     role='ADMIN',
                     is_active=True
@@ -131,11 +136,14 @@ def init_tables():
         print(f"Initialization Error: {e}")
 
 
-def reset_admin_password(password='admin1234'):
+def reset_admin_password(password=None):
     """
     admin 계정 비밀번호를 Werkzeug pbkdf2 해시로 갱신.
     DB에 bcrypt($2b$) 등 다른 형식으로 저장된 경우 로그인이 되지 않을 수 있어 이 스크립트로 복구.
+    password 미지정 시 FOMS_ADMIN_DEFAULT_PASSWORD 환경변수 또는 기본값 사용.
     """
+    if password is None:
+        password = _default_admin_password()
     from models import User
     from werkzeug.security import generate_password_hash
     session = db_session()
@@ -166,7 +174,7 @@ def reset_admin_password(password='admin1234'):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="FOMS Database Administration Tool")
     parser.add_argument('action', choices=['fix-sequences', 'optimize', 'init', 'reset-admin'], help="Action to perform")
-    parser.add_argument('--password', default='admin1234', help="New password for reset-admin (default: admin1234)")
+    parser.add_argument('--password', default=None, help="New password for reset-admin (default: FOMS_ADMIN_DEFAULT_PASSWORD env or fallback)")
     args = parser.parse_args()
     
     if args.action == 'fix-sequences':
