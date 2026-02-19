@@ -5,8 +5,9 @@
         if (!container) return;
 
         // Config from data attributes
+        const erpActiveRaw = container.dataset.erpBetaActive ?? container.dataset.erpActive;
         const config = {
-            erpBetaActive: container.dataset.erpBetaActive === 'true',
+            erpBetaActive: erpActiveRaw === 'true',
             todayDate: container.dataset.todayDate,
             selectedDate: container.dataset.selectedDate,
             managerFilter: container.dataset.managerFilter || ''

@@ -1,0 +1,213 @@
+// ============================================
+// 채팅 알림 팝업 관리 (채널톡 스타일)
+// ============================================
+let notificationStack = [];
+const MAX_NOTIFICATIONS = 5;
+const NOTIFICATION_DURATION = 5000; // 5초
+let notificationIds = new Set(); // 중복 방지용
+
+function showChatNotification(messageData, roomData) {
+    // 현재 채팅방이면 알림 표시 안 함
+    if (messageData.room_id == currentRoomId) {
+        return;
+    }
+    
+    // 자신이 보낸 메시지는 알림 표시 안 함
+    if (messageData.user_id == currentUserId) {
+        return;
+    }
+    
+    // 중복 알림 방지: 같은 메시지 ID는 한 번만 표시
+    const messageId = messageData.id || (messageData.room_id + '_' + messageData.created_at);
+    if (notificationIds.has(messageId)) {
+        return;
+    }
+    notificationIds.add(messageId);
+    
+    // 알림 스택에 추가
+    const notificationId = 'notification-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    const notification = {
+        id: notificationId,
+        message: messageData,
+        room: roomData,
+        timestamp: new Date(),
+        messageId: messageId
+    };
+    
+    notificationStack.push(notification);
+    
+    // 최대 개수 초과 시 오래된 알림 제거
+    if (notificationStack.length > MAX_NOTIFICATIONS) {
+        const oldest = notificationStack.shift();
+        closeNotification(oldest.id);
+        if (oldest.messageId) {
+            notificationIds.delete(oldest.messageId);
+        }
+    }
+    
+    // 알림 DOM 생성
+    const container = document.getElementById('chat-notification-container');
+    if (!container) {
+        console.error('알림 컨테이너를 찾을 수 없습니다.');
+        return;
+    }
+    
+    const notificationEl = createNotificationElement(notification);
+    container.appendChild(notificationEl);
+    
+    // 자동 닫기 타이머
+    const autoCloseTimer = setTimeout(() => {
+        closeNotification(notificationId);
+        if (messageId) {
+            notificationIds.delete(messageId);
+        }
+    }, NOTIFICATION_DURATION);
+    
+    // 알림 요소에 타이머 ID 저장
+    notificationEl.dataset.timerId = autoCloseTimer;
+    
+    // 클릭 이벤트: 해당 채팅방으로 이동
+    notificationEl.addEventListener('click', function(e) {
+        if (!e.target.classList.contains('chat-notification-close') && 
+            !e.target.closest('.chat-notification-close')) {
+            closeNotification(notificationId);
+            if (messageId) {
+                notificationIds.delete(messageId);
+            }
+            if (roomData && roomData.id) {
+                selectRoom(roomData.id);
+                window.focus();
+            }
+        }
+    });
+}
+
+// showChatNotification 함수를 전역으로 노출 (layout.html에서 사용 가능)
+window.showChatNotification = showChatNotification;
+
+function createNotificationElement(notification) {
+    const { message, room } = notification;
+    const senderName = message.user_name || '알 수 없음';
+    const roomName = room ? room.name : '알 수 없는 채팅방';
+    const senderInitial = senderName.charAt(0).toUpperCase();
+    
+    // 메시지 내용 추출
+    let messageContent = '';
+    let hasAttachment = false;
+    
+    if (message.message_type === 'text') {
+        messageContent = escapeHtml(message.content || '(메시지 없음)');
+    } else if (message.attachments && message.attachments.length > 0) {
+        const attachment = message.attachments[0];
+        hasAttachment = true;
+        if (attachment.file_type === 'image') {
+            messageContent = '📷 이미지';
+        } else if (attachment.file_type === 'video') {
+            messageContent = '📥 동영상';
+        } else {
+            messageContent = '📎 ' + escapeHtml(attachment.filename || '파일');
+        }
+    } else {
+        messageContent = '(내용 없음)';
+    }
+    
+    // 시간 포맷
+    const timeStr = formatNotificationTime(message.created_at);
+    
+    const notificationEl = document.createElement('div');
+    notificationEl.className = 'chat-notification';
+    notificationEl.id = notification.id;
+    notificationEl.dataset.roomId = message.room_id;
+    
+    let attachmentHtml = '';
+    if (hasAttachment && message.attachments && message.attachments[0]) {
+        const attachment = message.attachments[0];
+        if (attachment.file_type === 'image' && attachment.thumbnail_url) {
+            attachmentHtml = `<img src="${attachment.thumbnail_url}" class="chat-notification-image" alt="이미지">`;
+        } else {
+            const fileIcon = attachment.file_type === 'video' ? 'fa-video' : 'fa-file';
+            attachmentHtml = `
+                <div class="chat-notification-file">
+                    <i class="fas ${fileIcon} chat-notification-file-icon"></i>
+                    <span class="chat-notification-file-name">${escapeHtml(attachment.filename || '파일')}</span>
+                </div>
+            `;
+        }
+    }
+    
+    notificationEl.innerHTML = `
+        <div class="chat-notification-header">
+            <h6 class="chat-notification-room-name">${escapeHtml(roomName)}</h6>
+            <button class="chat-notification-close" type="button" aria-label="닫기">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="chat-notification-content">
+            <div class="chat-notification-avatar">${senderInitial}</div>
+            <div class="chat-notification-body">
+                <div class="chat-notification-sender">${escapeHtml(senderName)}</div>
+                <div class="chat-notification-message">${messageContent}</div>
+                ${attachmentHtml}
+                <div class="chat-notification-time">${timeStr}</div>
+            </div>
+        </div>
+    `;
+    
+    // 닫기 버튼 이벤트 핸들러 추가 (인라인 onclick 대신)
+    const closeBtn = notificationEl.querySelector('.chat-notification-close');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            closeNotification(notification.id);
+            if (notification.messageId) {
+                notificationIds.delete(notification.messageId);
+            }
+        });
+    }
+    
+    return notificationEl;
+}
+
+function closeNotification(notificationId) {
+    const notificationEl = document.getElementById(notificationId);
+    if (!notificationEl) {
+        return;
+    }
+    
+    // 타이머 취소
+    const timerId = notificationEl.dataset.timerId;
+    if (timerId) {
+        clearTimeout(parseInt(timerId));
+    }
+    
+    // messageId 제거
+    const notification = notificationStack.find(n => n.id === notificationId);
+    if (notification && notification.messageId) {
+        notificationIds.delete(notification.messageId);
+    }
+    
+    // 닫기 애니메이션
+    notificationEl.classList.add('closing');
+    
+    setTimeout(() => {
+        notificationEl.remove();
+        // 스택에서도 제거
+        notificationStack = notificationStack.filter(n => n.id !== notificationId);
+    }, 300);
+}
+
+function formatNotificationTime(dateString) {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now - date;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    
+    if (minutes < 1) return '방금 전';
+    if (minutes < 60) return `${minutes}분 전`;
+    if (hours < 24) return `${hours}시간 전`;
+    
+    return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+}

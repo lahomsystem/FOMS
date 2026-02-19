@@ -1,0 +1,324 @@
+// Socket.IO 연결
+document.addEventListener('DOMContentLoaded', function() {
+    // 채팅 페이지 높이 조절
+    adjustChatPageHeight();
+    
+    // 리사이즈 이벤트 리스너
+    let resizeTimer;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function() {
+            adjustChatPageHeight();
+        }, 100);
+    });
+    
+    // textarea 자동 높이 조절
+    const messageInput = document.getElementById('message-input');
+    if (messageInput) {
+        // 입력 시 자동 높이 조절
+        messageInput.addEventListener('input', function() {
+            autoResizeTextarea(this);
+        });
+        
+        // 포커스 시 초기 높이 설정
+        messageInput.addEventListener('focus', function() {
+            autoResizeTextarea(this);
+        });
+        
+        // 초기 높이 설정
+        autoResizeTextarea(messageInput);
+    }
+    
+    // 네비게이션 바 높이 계산 및 sticky-top 요소 위치 조정
+    function adjustStickyPositions() {
+        // 채팅 페이지에서는 sticky positioning을 사용하지 않으므로 이 함수 비활성화
+        // 채팅 페이지인지 확인
+        const isChatPage = document.querySelector('.chat-page-wrapper') !== null;
+        if (isChatPage) {
+            // 채팅 페이지에서는 이 함수를 실행하지 않음
+            return;
+        }
+        
+        const header = document.querySelector('header');
+        const nav = document.querySelector('nav.navbar');
+        
+        if (header && nav) {
+            const headerHeight = header.offsetHeight;
+            const navHeight = nav.offsetHeight;
+            const totalHeight = headerHeight + navHeight + 20; // 여유 공간 20px
+            
+            // sticky-top 요소들 위치 조정
+            const stickyCards = document.querySelectorAll('[data-sticky-top="true"]');
+            stickyCards.forEach(card => {
+                card.style.top = totalHeight + 'px';
+                card.style.maxHeight = `calc(100vh - ${totalHeight + 40}px)`;
+            });
+            
+            // min-height가 필요한 요소들 조정
+            const minHeightCards = document.querySelectorAll('[data-min-height="true"]');
+            minHeightCards.forEach(card => {
+                card.style.minHeight = `calc(100vh - ${totalHeight + 40}px)`;
+            });
+        } else {
+            // 네비게이션 바가 없는 경우 기본값 사용
+            const stickyCards = document.querySelectorAll('[data-sticky-top="true"]');
+            stickyCards.forEach(card => {
+                card.style.top = '20px';
+                card.style.maxHeight = 'calc(100vh - 40px)';
+            });
+            
+            const minHeightCards = document.querySelectorAll('[data-min-height="true"]');
+            minHeightCards.forEach(card => {
+                card.style.minHeight = 'calc(100vh - 40px)';
+            });
+        }
+    }
+    
+    // 초기 위치 조정
+    adjustStickyPositions();
+    
+    // 윈도우 리사이즈 시 다시 조정
+    window.addEventListener('resize', adjustStickyPositions);
+    
+    // Socket.IO 초기화
+    if (socketioAvailable) {
+        // Socket.IO 스크립트가 로드될 때까지 대기
+        if (typeof io !== 'undefined') {
+            initializeSocketIO();
+        } else {
+            // 스크립트 로드를 기다림
+            let attempts = 0;
+            const checkIO = setInterval(function() {
+                attempts++;
+                if (typeof io !== 'undefined') {
+                    clearInterval(checkIO);
+                    initializeSocketIO();
+                } else if (attempts >= 50) {
+                    clearInterval(checkIO);
+                    console.error('Socket.IO 스크립트를 로드할 수 없습니다.');
+                    loadRooms();
+                }
+            }, 100);
+        }
+    } else {
+        loadRooms();
+    }
+    
+    
+    // Enter 키로 메시지 전송
+    const msgInput = document.getElementById('message-input');
+    if (msgInput) {
+        msgInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    }
+    
+    // 파일 선택 이벤트
+    const fileInput = document.getElementById('file-input');
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            handleFileSelect(e.target.files);
+        });
+    }
+    
+    // 마우스 휠로 확대/축소 (라이트박스가 활성화된 경우에만)
+    const lightbox = document.getElementById('image-lightbox');
+    if (lightbox) {
+        lightbox.addEventListener('wheel', function(e) {
+            // 라이트박스가 활성화되어 있는지 확인
+            if (!lightbox.classList.contains('active')) {
+                return;
+            }
+            
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            const newScale = Math.max(imageZoom.minScale, 
+                                     Math.min(imageZoom.maxScale, imageZoom.scale + delta));
+            
+            // 마우스 위치를 중심으로 확대/축소
+            const rect = lightbox.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left - rect.width / 2;
+            const mouseY = e.clientY - rect.top - rect.height / 2;
+            
+            const scaleChange = newScale / imageZoom.scale;
+            imageZoom.translateX = imageZoom.translateX * scaleChange + mouseX * (1 - scaleChange);
+            imageZoom.translateY = imageZoom.translateY * scaleChange + mouseY * (1 - scaleChange);
+            
+            imageZoom.scale = newScale;
+            updateImageTransform();
+        }, { passive: false });
+    }
+    
+    // 이미지 드래그로 이동
+    const lightboxContent = document.getElementById('image-lightbox-content');
+    if (lightboxContent && lightbox) {
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let startTranslateX = 0;
+        let startTranslateY = 0;
+        
+        lightboxContent.addEventListener('mousedown', function(e) {
+            if (e.button === 0 && lightbox.classList.contains('active')) { // 왼쪽 마우스 버튼만
+                isDragging = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                startTranslateX = imageZoom.translateX;
+                startTranslateY = imageZoom.translateY;
+                lightboxContent.style.cursor = 'grabbing';
+                e.preventDefault();
+            }
+        });
+        
+        document.addEventListener('mousemove', function(e) {
+            if (isDragging && lightbox.classList.contains('active')) {
+                const deltaX = e.clientX - dragStartX;
+                const deltaY = e.clientY - dragStartY;
+                imageZoom.translateX = startTranslateX + deltaX;
+                imageZoom.translateY = startTranslateY + deltaY;
+                updateImageTransform();
+            }
+        });
+        
+        document.addEventListener('mouseup', function(e) {
+            if (isDragging) {
+                isDragging = false;
+                lightboxContent.style.cursor = 'grab';
+            }
+        });
+        
+        // 터치 제스처 지원 (모바일)
+        let touchStartDistance = 0;
+        let touchStartScale = 1;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        
+        lightboxContent.addEventListener('touchstart', function(e) {
+            if (!lightbox.classList.contains('active')) return;
+            
+            if (e.touches.length === 1) {
+                // 단일 터치: 이동
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+                startTranslateX = imageZoom.translateX;
+                startTranslateY = imageZoom.translateY;
+            } else if (e.touches.length === 2) {
+                // 핀치 줌
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                touchStartDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                touchStartScale = imageZoom.scale;
+            }
+        });
+        
+        lightboxContent.addEventListener('touchmove', function(e) {
+            if (!lightbox.classList.contains('active')) return;
+            
+            e.preventDefault();
+            
+            if (e.touches.length === 1) {
+                // 단일 터치: 이동
+                const deltaX = e.touches[0].clientX - touchStartX;
+                const deltaY = e.touches[0].clientY - touchStartY;
+                imageZoom.translateX = startTranslateX + deltaX;
+                imageZoom.translateY = startTranslateY + deltaY;
+                updateImageTransform();
+            } else if (e.touches.length === 2) {
+                // 핀치 줌
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                const currentDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                const scaleChange = currentDistance / touchStartDistance;
+                imageZoom.scale = Math.max(imageZoom.minScale, 
+                                         Math.min(imageZoom.maxScale, touchStartScale * scaleChange));
+                updateImageTransform();
+            }
+        });
+    }
+    
+    // ============================================
+    // 드래그 앤 드롭 기능
+    // ============================================
+    const chatInputArea = document.getElementById('chat-input-area');
+    const dragOverlay = document.getElementById('drag-overlay');
+    
+    // 요소 존재 확인
+    if (!chatInputArea) {
+        console.error('chat-input-area 요소를 찾을 수 없습니다.');
+    } else if (!dragOverlay) {
+        console.error('drag-overlay 요소를 찾을 수 없습니다.');
+    } else {
+        // 드래그 오버 이벤트
+        chatInputArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            chatInputArea.classList.add('drag-over');
+            dragOverlay.classList.add('active');
+        });
+        
+        chatInputArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            // 드래그가 자식 요소로 이동한 경우는 제외
+            if (!chatInputArea.contains(e.relatedTarget)) {
+                chatInputArea.classList.remove('drag-over');
+                dragOverlay.classList.remove('active');
+            }
+        });
+        
+        // 드롭 이벤트
+        chatInputArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            chatInputArea.classList.remove('drag-over');
+            dragOverlay.classList.remove('active');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files);
+            }
+        });
+    }
+    
+    // 전체 화면 드래그 오버 (채팅 영역 밖에서도)
+    // chatInputArea와 dragOverlay가 존재할 때만 처리
+    if (chatInputArea && dragOverlay) {
+        document.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            // 채팅 입력 영역이 보이는 경우에만 오버레이 표시
+            if (chatInputArea.style.display !== 'none') {
+                dragOverlay.classList.add('active');
+            }
+        });
+        
+        document.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            // 드래그가 완전히 벗어난 경우
+            if (!e.relatedTarget || e.relatedTarget === document.body) {
+                dragOverlay.classList.remove('active');
+            }
+        });
+        
+        document.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dragOverlay.classList.remove('active');
+            
+            // 채팅 입력 영역이 보이는 경우에만 파일 처리
+            if (chatInputArea.style.display !== 'none' && e.dataTransfer.files.length > 0) {
+                const files = e.dataTransfer.files;
+                handleFileSelect(files);
+            }
+        });
+    }
+});

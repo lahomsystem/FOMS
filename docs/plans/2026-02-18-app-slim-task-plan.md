@@ -70,7 +70,7 @@
 - **위치**: `apps/order_pages.py`에 `edit_order` 함수 추가
 - **route**: `/edit/<int:order_id>` (GET, POST)
 - **의존성**: get_db, Order, User, can_edit_erp, format_options_for_display, build_file_view_url 등
-- **템플릿 url_for**: `url_for('order_pages.edit_order', order_id=...)` 로 전면 수정 필요
+- **템플릿 url_for**: `url_for('order_edit.edit_order', order_id=...)` 로 전면 수정 필요
 
 ### SLIM-027: excel_bp 신규
 

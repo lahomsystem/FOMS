@@ -325,7 +325,7 @@
                                                   data-field="manager_name">{{ order.manager_name or '' }}</textarea>
                                     </td>
                                     <td>
-                                        <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='self_measurement_dashboard') }}" 
+                                        <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='self_measurement_dashboard') }}" 
                                            class="btn btn-sm btn-outline-primary" title="수정">
                                             <i class="fas fa-edit"></i>
                                         </a>
@@ -498,7 +498,7 @@
                                                   data-field="manager_name">{{ order.manager_name or '' }}</textarea>
                                     </td>
                                     <td>
-                                        <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='self_measurement_dashboard') }}" 
+                                        <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='self_measurement_dashboard') }}" 
                                            class="btn btn-sm btn-outline-warning" title="수정">
                                             <i class="fas fa-edit"></i>
                                         </a>
@@ -626,7 +626,7 @@
                                                data-field="as_completed_date">
                                     </td>
                                     <td>
-                                        <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='self_measurement_dashboard') }}" 
+                                        <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='self_measurement_dashboard') }}" 
                                            class="btn btn-sm btn-outline-primary" title="수정">
                                             <i class="fas fa-edit"></i>
                                         </a>
@@ -774,7 +774,7 @@
                                                   data-field="manager_name">{{ order.manager_name or '' }}</textarea>
                                     </td>
                                     <td>
-                                        <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='self_measurement_dashboard') }}" 
+                                        <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='self_measurement_dashboard') }}" 
                                            class="btn btn-sm btn-outline-success" title="수정">
                                             <i class="fas fa-edit"></i>
                                         </a>

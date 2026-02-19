@@ -206,6 +206,8 @@ from apps.api.erp_orders_structured import erp_orders_structured_bp
 app.register_blueprint(erp_orders_structured_bp)
 from apps.order_pages import order_pages_bp
 app.register_blueprint(order_pages_bp)
+from apps.order_edit import order_edit_bp
+app.register_blueprint(order_edit_bp)
 from apps.order_trash import order_trash_bp
 app.register_blueprint(order_trash_bp)
 from apps.excel_import import excel_bp

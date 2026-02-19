@@ -1,0 +1,487 @@
+// 사용자 목록 로드 함수
+function loadUsers() {
+    fetch('/api/chat/users')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderUserList(data.users);
+            } else {
+                document.getElementById('user-select-container').innerHTML = 
+                    '<div class="text-center text-muted py-2">사용자 목록을 불러올 수 없습니다.</div>';
+            }
+        })
+        .catch(error => {
+            console.error('사용자 목록 로드 오류:', error);
+            document.getElementById('user-select-container').innerHTML = 
+                '<div class="text-center text-danger py-2">사용자 목록 로드 중 오류가 발생했습니다.</div>';
+        });
+}
+
+function renderUserList(users) {
+    const container = document.getElementById('user-select-container');
+    if (users.length === 0) {
+        container.innerHTML = '<div class="text-center text-muted py-2">초대할 사용자가 없습니다.</div>';
+        return;
+    }
+    container.innerHTML = users.map(user => `
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" value="${user.id}" id="user-${user.id}">
+            <label class="form-check-label" for="user-${user.id}">
+                ${escapeHtml(user.name)} (${escapeHtml(user.username)})
+            </label>
+        </div>
+    `).join('');
+}
+
+// 새 채팅방 생성
+function showCreateRoomModal() {
+    loadUsers();  // 사용자 목록 로드
+    clearOrderSelection();  // 주문 선택 초기화
+    const modal = new bootstrap.Modal(document.getElementById('createRoomModal'));
+    modal.show();
+}
+
+function createRoom() {
+    const name = document.getElementById('room-name').value.trim();
+    const description = document.getElementById('room-description').value.trim();
+    
+    if (!name) {
+        alert('채팅방 이름을 입력하세요');
+        return;
+    }
+    
+    // 선택된 멤버 ID 수집
+    const selectedUsers = Array.from(document.querySelectorAll('#user-select-container input[type="checkbox"]:checked'))
+        .map(checkbox => parseInt(checkbox.value));
+    
+    fetch('/api/chat/rooms', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            name: name,
+            description: description,
+            member_ids: selectedUsers,  // 멤버 ID 배열 추가
+            order_id: selectedOrderId || null  // 주문 ID 추가
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('createRoomModal')).hide();
+            document.getElementById('room-name').value = '';
+            document.getElementById('room-description').value = '';
+            // 체크박스 초기화
+            document.querySelectorAll('#user-select-container input[type="checkbox"]').forEach(cb => cb.checked = false);
+            clearOrderSelection();  // 주문 선택 초기화
+            loadRooms();
+            selectRoom(data.room.id);
+        } else {
+            alert('채팅방 생성 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('채팅방 생성 오류:', error);
+        alert('채팅방 생성 중 오류가 발생했습니다.');
+    });
+}
+
+// 주문 상세 보기 (Quest 12)
+function viewOrderDetail(orderId) {
+    window.open(`/edit/${orderId}`, '_blank');
+}
+
+// 주문 상태 업데이트
+function updateOrderStatus(orderId, newStatus) {
+    fetch('/api/update_order_status', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            order_id: orderId,
+            status: newStatus
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('주문 상태가 업데이트되었습니다.');
+            // 상태 드롭다운 색상 업데이트
+            const selectElement = document.querySelector(`select[data-order-id="${orderId}"]`);
+            if (selectElement) {
+                // 기존 상태 클래스 제거
+                selectElement.classList.remove('status-received', 'status-measured', 'status-regional_measured', 
+                                              'status-scheduled', 'status-shipped_pending', 'status-completed', 
+                                              'status-as_received', 'status-as_completed', 'status-on_hold');
+                // 새로운 상태 클래스 추가
+                if (newStatus) {
+                    selectElement.classList.add('status-' + newStatus.toLowerCase());
+                }
+                // applyStatusColor 함수가 있으면 호출
+                if (typeof applyStatusColor === 'function') {
+                    applyStatusColor(selectElement);
+                }
+            }
+            // 주문이 연결된 경우 헤더를 다시 렌더링
+            if (currentRoomId) {
+                loadRoomDetail(currentRoomId);
+            }
+        } else {
+            alert('주문 상태 업데이트 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('주문 상태 업데이트 오류:', error);
+        alert('주문 상태 업데이트 중 오류가 발생했습니다.');
+    });
+}
+
+// 주문 필드 업데이트 (담당자, 설치 예정일 등)
+function updateOrderField(orderId, field, value) {
+    fetch('/api/update_order_field', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            order_id: orderId,
+            field: field,
+            value: value || null
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log(`주문 ${field}가 업데이트되었습니다.`);
+            // 주문이 연결된 경우 헤더를 다시 렌더링
+            if (currentRoomId) {
+                loadRoomDetail(currentRoomId);
+            }
+        } else {
+            alert(`주문 ${field} 업데이트 실패: ` + data.message);
+        }
+    })
+    .catch(error => {
+        console.error(`주문 ${field} 업데이트 오류:`, error);
+        alert(`주문 ${field} 업데이트 중 오류가 발생했습니다.`);
+    });
+}
+
+// 주문 연결 관련 함수들
+let selectedOrderId = null;
+let connectRoomId = null;
+
+function searchOrdersForRoom(query) {
+    if (!query || query.length < 2) {
+        document.getElementById('order-search-results').style.display = 'none';
+        return;
+    }
+    
+    fetch(`/api/chat/search-orders?q=${encodeURIComponent(query)}`)
+        .then(response => response.json())
+        .then(data => {
+            const resultsDiv = document.getElementById('order-search-results');
+            if (data.success && data.orders.length > 0) {
+                resultsDiv.innerHTML = data.orders.map(order => `
+                    <div class="p-2 border-bottom" style="cursor: pointer; background-color: white;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'" onclick="selectOrderForRoom(${order.id}, '${escapeHtml(order.customer_name)}', '${escapeHtml(order.product || '-')}')">
+                        <strong>주문 #${order.id}</strong> - ${escapeHtml(order.customer_name)}<br>
+                        <small class="text-muted">${escapeHtml(order.product || '-')} | ${escapeHtml(order.status || '-')}</small>
+                    </div>
+                `).join('');
+                resultsDiv.style.display = 'block';
+            } else {
+                resultsDiv.innerHTML = '<div class="text-center text-muted py-2">검색 결과가 없습니다</div>';
+                resultsDiv.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('주문 검색 오류:', error);
+        });
+}
+
+function selectOrderForRoom(orderId, customerName, product) {
+    selectedOrderId = orderId;
+    document.getElementById('selected-order').style.display = 'block';
+    document.getElementById('selected-order-name').textContent = `주문 #${orderId} - ${customerName} (${product})`;
+    document.getElementById('order-search-results').style.display = 'none';
+    document.getElementById('order-search').value = '';
+}
+
+function clearOrderSelection() {
+    selectedOrderId = null;
+    document.getElementById('selected-order').style.display = 'none';
+    document.getElementById('order-search').value = '';
+    document.getElementById('order-search-results').style.display = 'none';
+}
+
+function showConnectOrderModal(roomId) {
+    connectRoomId = roomId;
+    selectedOrderId = null;
+    document.getElementById('connect-order-search').value = '';
+    document.getElementById('connect-order-results').innerHTML = '<div class="text-center text-muted py-2">검색어를 입력하세요</div>';
+    const modal = new bootstrap.Modal(document.getElementById('connectOrderModal'));
+    modal.show();
+}
+
+function searchOrdersForConnect(query) {
+    if (!query || query.length < 2) {
+        document.getElementById('connect-order-results').innerHTML = '<div class="text-center text-muted py-2">검색어를 입력하세요</div>';
+        return;
+    }
+    
+    fetch(`/api/chat/search-orders?q=${encodeURIComponent(query)}`)
+        .then(response => response.json())
+        .then(data => {
+            const resultsDiv = document.getElementById('connect-order-results');
+            if (data.success && data.orders.length > 0) {
+                resultsDiv.innerHTML = data.orders.map(order => `
+                    <div class="p-2 border-bottom" style="cursor: pointer; background-color: white;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'" onclick="connectOrderToRoom(${order.id}, '${escapeHtml(order.customer_name)}')">
+                        <strong>주문 #${order.id}</strong> - ${escapeHtml(order.customer_name)}<br>
+                        <small class="text-muted">${escapeHtml(order.product || '-')} | ${escapeHtml(order.status || '-')}</small>
+                    </div>
+                `).join('');
+            } else {
+                resultsDiv.innerHTML = '<div class="text-center text-muted py-2">검색 결과가 없습니다</div>';
+            }
+        })
+        .catch(error => {
+            console.error('주문 검색 오류:', error);
+        });
+}
+
+function connectOrderToRoom(orderId, customerName) {
+    if (!connectRoomId) return;
+    
+    fetch(`/api/chat/rooms/${connectRoomId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            order_id: orderId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('connectOrderModal')).hide();
+            loadRoomDetail(connectRoomId);
+        } else {
+            alert('주문 연결 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('주문 연결 오류:', error);
+        alert('주문 연결 중 오류가 발생했습니다.');
+    });
+}
+
+function disconnectOrder(roomId) {
+    if (!confirm('주문 연결을 해제하시겠습니까?')) {
+        return;
+    }
+    
+    fetch(`/api/chat/rooms/${roomId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            order_id: null
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadRoomDetail(roomId);
+        } else {
+            alert('주문 연결 해제 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('주문 연결 해제 오류:', error);
+        alert('주문 연결 해제 중 오류가 발생했습니다.');
+    });
+}
+
+// 채팅방 이름 수정
+function showEditRoomNameModal(roomId, currentName) {
+    const newName = prompt('채팅방 이름을 입력하세요:', currentName);
+    if (!newName || newName.trim() === '' || newName.trim() === currentName) {
+        return;
+    }
+    
+    fetch(`/api/chat/rooms/${roomId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            name: newName.trim()
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadRoomDetail(roomId);
+            loadRooms(); // 채팅방 목록도 업데이트
+        } else {
+            alert('이름 수정 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('이름 수정 오류:', error);
+        alert('이름 수정 중 오류가 발생했습니다.');
+    });
+}
+
+// 멤버 초대 관련 함수들
+let inviteRoomId = null;
+
+function showInviteMemberModal(roomId) {
+    inviteRoomId = roomId;
+    loadUsersForInvite(roomId);
+    const modal = new bootstrap.Modal(document.getElementById('inviteMemberModal'));
+    modal.show();
+}
+
+function loadUsersForInvite(roomId) {
+    // 현재 멤버 목록 가져오기
+    fetch(`/api/chat/rooms/${roomId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const currentMemberIds = data.room.members.map(m => m.user_id);
+                loadUsersForInviteList(currentMemberIds);
+            } else {
+                document.getElementById('invite-user-select-container').innerHTML = 
+                    '<div class="text-center text-danger py-2">채팅방 정보를 불러올 수 없습니다.</div>';
+            }
+        })
+        .catch(error => {
+            console.error('채팅방 정보 로드 오류:', error);
+            document.getElementById('invite-user-select-container').innerHTML = 
+                '<div class="text-center text-danger py-2">채팅방 정보 로드 중 오류가 발생했습니다.</div>';
+        });
+}
+
+function loadUsersForInviteList(excludeIds) {
+    fetch('/api/chat/users')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 이미 멤버인 사용자 제외
+                const availableUsers = data.users.filter(u => !excludeIds.includes(u.id));
+                renderInviteUserList(availableUsers);
+            } else {
+                document.getElementById('invite-user-select-container').innerHTML = 
+                    '<div class="text-center text-danger py-2">사용자 목록을 불러올 수 없습니다.</div>';
+            }
+        })
+        .catch(error => {
+            console.error('사용자 목록 로드 오류:', error);
+            document.getElementById('invite-user-select-container').innerHTML = 
+                '<div class="text-center text-danger py-2">사용자 목록 로드 중 오류가 발생했습니다.</div>';
+        });
+}
+
+function renderInviteUserList(users) {
+    const container = document.getElementById('invite-user-select-container');
+    if (users.length === 0) {
+        container.innerHTML = '<div class="text-center text-muted py-2">초대할 사용자가 없습니다.</div>';
+        return;
+    }
+    container.innerHTML = users.map(user => `
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" value="${user.id}" id="invite-user-${user.id}">
+            <label class="form-check-label" for="invite-user-${user.id}">
+                ${escapeHtml(user.name)} (${escapeHtml(user.username)})
+            </label>
+        </div>
+    `).join('');
+}
+
+function inviteMembers() {
+    if (!inviteRoomId) {
+        alert('채팅방 정보가 없습니다.');
+        return;
+    }
+    
+    const selectedUsers = Array.from(document.querySelectorAll('#invite-user-select-container input[type="checkbox"]:checked'))
+        .map(checkbox => parseInt(checkbox.value));
+    
+    if (selectedUsers.length === 0) {
+        alert('초대할 사용자를 선택하세요');
+        return;
+    }
+    
+    // 여러 사용자를 한 번에 초대
+    Promise.all(selectedUsers.map(userId => 
+        fetch(`/api/chat/rooms/${inviteRoomId}/members`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ user_id: userId })
+        })
+    ))
+    .then(responses => Promise.all(responses.map(r => r.json())))
+    .then(results => {
+        const failed = results.filter(r => !r.success);
+        const successCount = results.length - failed.length;
+        
+        if (failed.length > 0) {
+            alert(`${successCount}명 초대 완료. ${failed.length}명 실패: ${failed.map(f => f.message).join(', ')}`);
+        } else {
+            alert(`${successCount}명이 초대되었습니다.`);
+        }
+        
+        bootstrap.Modal.getInstance(document.getElementById('inviteMemberModal')).hide();
+        // 체크박스 초기화
+        document.querySelectorAll('#invite-user-select-container input[type="checkbox"]').forEach(cb => cb.checked = false);
+        
+        // 채팅방 정보 새로고침
+        if (currentRoomId === inviteRoomId) {
+            loadRoomDetail(inviteRoomId);
+        }
+        loadRooms();
+    })
+    .catch(error => {
+        console.error('멤버 초대 오류:', error);
+        alert('멤버 초대 중 오류가 발생했습니다.');
+    });
+}
+
+// 채팅방 삭제 함수
+function deleteRoom(roomId) {
+    if (!confirm('정말 이 채팅방을 삭제하시겠습니까?\n모든 메시지와 파일이 삭제되며 복구할 수 없습니다.')) {
+        return;
+    }
+    
+    fetch(`/api/chat/rooms/${roomId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('채팅방이 삭제되었습니다.');
+            currentRoomId = null;
+            document.getElementById('chat-header').innerHTML = '<div class="text-center text-muted py-4" style="flex: 1;">채팅방을 선택하세요</div><button class="btn btn-sm btn-outline-secondary" onclick="toggleSearch()" title="메시지 검색" style="display: none;" id="search-btn"><i class="fas fa-search"></i></button>';
+            document.getElementById('chat-order-widget-container').innerHTML = '';
+            document.getElementById('chat-order-widget-container').style.display = 'none';
+            document.getElementById('messages-container').innerHTML = '';
+            document.getElementById('chat-input-area').style.display = 'none';
+            loadRooms();
+        } else {
+            alert('채팅방 삭제 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('채팅방 삭제 오류:', error);
+        alert('채팅방 삭제 중 오류가 발생했습니다.');
+    });
+}
+
+// 채널톡 스타일 추가 기능

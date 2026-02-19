@@ -197,7 +197,7 @@
                                                        value="{{ order.scheduled_date or '' }}">
                                             </td>
                                             <td>
-                                                <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-danger" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
@@ -293,7 +293,7 @@
                                                        value="{{ order.scheduled_date or '' }}">
                                             </td>
                                             <td>
-                                                <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-danger" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
@@ -389,7 +389,7 @@
                                                        value="{{ order.scheduled_date or '' }}">
                                             </td>
                                             <td>
-                                                <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-info" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
@@ -472,7 +472,7 @@
                                             <td>{{ order.measurement_date or '-' }}</td>
                                             <td class="text-danger">{{ order.scheduled_date or '-' }}</td>
                                             <td>
-                                                <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-warning" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
@@ -567,7 +567,7 @@
                                                        value="{{ order.as_completed_date or '' }}">
                                             </td>
                                             <td>
-                                                <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-info" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
@@ -660,7 +660,7 @@
                                             <td>{{ order.measurement_date or '-' }}</td>
                                             <td>{{ order.scheduled_date or '-' }}</td>
                                             <td>
-                                                <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-warning" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
@@ -748,7 +748,7 @@
                                             <td>{{ order.measurement_date or '-' }}</td>
                                             <td>{{ order.scheduled_date or '-' }}</td>
                                             <td>
-                                                <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-primary" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
@@ -840,7 +840,7 @@
                                             <td>{{ order.as_received_date or '-' }}</td>
                                             <td>{{ order.as_completed_date or '-' }}</td>
                                             <td>
-                                                <a href="{{ url_for('order_pages.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
                                                    class="btn btn-sm btn-outline-success" title="수정">
                                                     <i class="fas fa-edit"></i>
                                                 </a>

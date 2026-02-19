@@ -60,7 +60,7 @@
                     <!-- 주문 정보 탭 -->
                     {% if not is_erp_beta_order %}
                     <div class="tab-pane fade show active" id="order-info" role="tabpanel">
-                        <form method="post" action="{{ url_for('order_pages.edit_order', order_id=order.id, **preserved_args) }}"
+                        <form method="post" action="{{ url_for('order_edit.edit_order', order_id=order.id, **preserved_args) }}"
                             id="editOrderForm">
                             <input type="hidden" name="referrer" value="{{ request.referrer or url_for('order_pages.index') }}">
                             <div class="row mb-3">

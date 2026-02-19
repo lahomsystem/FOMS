@@ -1,0 +1,80 @@
+// ============================================
+// 이미지 확대/축소 기능 (Lightbox) - 전역 스코프
+// ============================================
+let imageZoom = {
+    scale: 1,
+    minScale: 0.5,
+    maxScale: 5,
+    translateX: 0,
+    translateY: 0,
+    lastTranslateX: 0,
+    lastTranslateY: 0
+};
+
+function openImageLightbox(imageUrl) {
+    const lightbox = document.getElementById('image-lightbox');
+    const img = document.getElementById('image-lightbox-img');
+    
+    if (!lightbox || !img) {
+        console.error('라이트박스 요소를 찾을 수 없습니다.');
+        return;
+    }
+    
+    // 이미지 로드 후 transform 적용
+    img.onload = function() {
+        imageZoom.scale = 1;
+        imageZoom.translateX = 0;
+        imageZoom.translateY = 0;
+        imageZoom.lastTranslateX = 0;
+        imageZoom.lastTranslateY = 0;
+        updateImageTransform();
+    };
+    
+    // 이미지가 이미 로드되어 있는 경우
+    if (img.complete) {
+        img.onload();
+    }
+    
+    img.src = imageUrl;
+    lightbox.classList.add('active');
+    
+    // ESC 키로 닫기
+    document.addEventListener('keydown', handleLightboxKeydown);
+}
+
+function closeImageLightbox(event) {
+    // 이벤트가 없거나 배경/닫기 버튼을 클릭한 경우
+    if (!event || 
+        event.target.id === 'image-lightbox' || 
+        event.target.id === 'image-lightbox-close' || 
+        event.target.closest('.image-lightbox-controls')) {
+        
+        const lightbox = document.getElementById('image-lightbox');
+        if (lightbox) {
+            lightbox.classList.remove('active');
+        }
+        document.removeEventListener('keydown', handleLightboxKeydown);
+    }
+}
+
+function handleLightboxKeydown(e) {
+    if (e.key === 'Escape') {
+        closeImageLightbox(e);
+    }
+}
+
+function resetImageZoom() {
+    imageZoom.scale = 1;
+    imageZoom.translateX = 0;
+    imageZoom.translateY = 0;
+    imageZoom.lastTranslateX = 0;
+    imageZoom.lastTranslateY = 0;
+    updateImageTransform();
+}
+
+function updateImageTransform() {
+    const content = document.getElementById('image-lightbox-content');
+    if (content) {
+        content.style.transform = `translate(${imageZoom.translateX}px, ${imageZoom.translateY}px) scale(${imageZoom.scale})`;
+    }
+}

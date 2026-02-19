@@ -486,7 +486,7 @@
             const props = currentEvent.extendedProps;
             
             // Send AJAX request to update status
-            fetch("{{ url_for('order_pages.edit_order', order_id=0) }}".replace('0', currentOrderId), {
+            fetch("{{ url_for('order_edit.edit_order', order_id=0) }}".replace('0', currentOrderId), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
