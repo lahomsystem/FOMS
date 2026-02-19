@@ -1,0 +1,168 @@
+
+// 타이핑 인디케이터
+let typingTimeout = null;
+let typingUsers = {};
+
+function handleTyping() {
+    if (!currentRoomId || !socket || !socket.connected) return;
+    
+    // 타이핑 중 이벤트 전송
+    socket.emit('typing', {
+        room_id: currentRoomId,
+        is_typing: true
+    });
+    
+    // 3초 후 타이핑 중지
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+        if (socket && socket.connected) {
+            socket.emit('typing', {
+                room_id: currentRoomId,
+                is_typing: false
+            });
+        }
+    }, 3000);
+}
+
+function showTypingIndicator(userId, isTyping) {
+    const container = document.getElementById('messages-container');
+    let indicator = document.getElementById('typing-indicator');
+    
+    if (isTyping) {
+        typingUsers[userId] = true;
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'typing-indicator';
+            indicator.className = 'typing-indicator';
+            container.appendChild(indicator);
+        }
+        // 사용자 이름 가져오기 (간단히 처리)
+        indicator.textContent = '입력 중...';
+    } else {
+        delete typingUsers[userId];
+        if (Object.keys(typingUsers).length === 0 && indicator) {
+            indicator.remove();
+        }
+    }
+}
+
+// 메시지 검색 기능
+function toggleSearch() {
+    const searchDiv = document.getElementById('message-search');
+    if (searchDiv.style.display === 'none') {
+        searchDiv.style.display = 'block';
+        document.getElementById('search-input').focus();
+    } else {
+        closeSearch();
+    }
+}
+
+function closeSearch() {
+    document.getElementById('message-search').style.display = 'none';
+    document.getElementById('search-input').value = '';
+    // 검색 결과 초기화
+    if (currentRoomId) {
+        loadRoomDetail(currentRoomId);
+    }
+}
+
+function searchMessages(query) {
+    if (!currentRoomId || !query.trim()) {
+        return;
+    }
+    
+    // 간단한 클라이언트 사이드 검색
+    const messages = document.querySelectorAll('.message-item');
+    messages.forEach(msg => {
+        const text = msg.textContent.toLowerCase();
+        if (text.includes(query.toLowerCase())) {
+            msg.style.backgroundColor = '#fff3cd';
+            scrollMessageIntoView(msg);
+        } else {
+            msg.style.backgroundColor = '';
+        }
+    });
+}
+
+// 전역 검색 기능
+function performGlobalSearch(query) {
+    const resultsDiv = document.getElementById('global-search-results');
+    const roomsList = document.getElementById('rooms-list');
+    
+    if (!query || query.length < 2) {
+        resultsDiv.style.display = 'none';
+        roomsList.style.display = 'block';
+        return;
+    }
+    
+    fetch(`/api/chat/search?q=${encodeURIComponent(query)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.results.length > 0) {
+                resultsDiv.innerHTML = data.results.map(result => {
+                    let html = '';
+                    if (result.type === 'message') {
+                        const contentPreview = result.content ? escapeHtml(result.content.substring(0, 50)) + (result.content.length > 50 ? '...' : '') : '메시지';
+                        html = `
+                            <div class="p-2 border-bottom" style="cursor: pointer; background-color: white;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'" onclick="selectRoomAndHighlight(${result.room_id}, ${result.message_id})">
+                                <strong>${escapeHtml(result.room_name || '알 수 없음')}</strong><br>
+                                <small>메시지: ${contentPreview}</small><br>
+                                <small class="text-muted">${escapeHtml(result.user_name || '알 수 없음')} | ${result.created_at || ''}</small>
+                            </div>
+                        `;
+                    } else if (result.type === 'room') {
+                        html = `
+                            <div class="p-2 border-bottom" style="cursor: pointer; background-color: white;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'" onclick="selectRoom(${result.room_id})">
+                                <strong>채팅방: ${escapeHtml(result.room_name)}</strong>
+                                ${result.description ? `<br><small class="text-muted">${escapeHtml(result.description)}</small>` : ''}
+                            </div>
+                        `;
+                    } else if (result.type === 'order') {
+                        html = `
+                            <div class="p-2 border-bottom" style="cursor: pointer; background-color: white;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'" onclick="selectRoom(${result.room_id})">
+                                <strong>${escapeHtml(result.room_name || '알 수 없음')}</strong><br>
+                                <small>주문 #${result.order_id}: ${escapeHtml(result.customer_name || '-')} | ${escapeHtml(result.phone || '-')} | ${escapeHtml(result.address || '-')}</small>
+                            </div>
+                        `;
+                    }
+                    return html;
+                }).join('');
+                resultsDiv.style.display = 'block';
+                roomsList.style.display = 'none';
+            } else {
+                resultsDiv.innerHTML = '<div class="text-center text-muted py-2">검색 결과가 없습니다</div>';
+                resultsDiv.style.display = 'block';
+                roomsList.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('전체 검색 오류:', error);
+            resultsDiv.innerHTML = '<div class="text-center text-danger py-2">검색 중 오류가 발생했습니다</div>';
+            resultsDiv.style.display = 'block';
+        });
+}
+
+function selectRoomAndHighlight(roomId, messageId) {
+    selectRoom(roomId);
+    setTimeout(() => {
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            scrollMessageIntoView(messageElement);
+            messageElement.style.backgroundColor = '#fff3cd';
+            setTimeout(() => {
+                messageElement.style.backgroundColor = '';
+            }, 3000);
+        }
+    }, 500);
+}
+
+// 채팅방 헤더에 검색 버튼 표시
+function updateChatHeader() {
+    const searchBtn = document.getElementById('search-btn');
+    if (currentRoomId && searchBtn) {
+        searchBtn.style.display = 'block';
+    } else if (searchBtn) {
+        searchBtn.style.display = 'none';
+    }
+}
+</script>

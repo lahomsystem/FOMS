@@ -216,10 +216,10 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 | 배포 노트 | DEPLOY_NOTES.md | docs/DEPLOY_NOTES.md | 쉬운 한글 배포 내용 |
 
 ## 다음에 시작할 작업 (2026-02-18 갱신)
-- **우선 착수**: **파일 정리** (CLEAN-001~005) — 계획표 `docs/plans/2026-02-18-file-cleanup-and-next-plan.md` 참조.
+- **우선 착수**: **NEXT-002** (대형 템플릿 partial) — 파일 정리·NEXT-001 완료 후 순서. 계획표 `docs/plans/2026-02-18-file-cleanup-and-next-plan.md` §3 참조.
 - **보류**: app.py SLIM-035 (319줄→300줄) — 일단 중단, 필요 시 app-slim 계획서에서 재개.
 - **배포**: erp.py 분리 내용은 DEPLOY_NOTES 반영·deploy 푸시 완료.
-- **이후 순서**: 파일 정리 완료 후 NEXT-001(order_pages 분리)·NEXT-002(대형 템플릿 partial)·NEXT-003(pytest)·NEXT-004(db_admin 비밀번호) 등. 동일 계획표 §3 참조.
+- **이후 순서**: NEXT-001 완료. 다음 NEXT-002(대형 템플릿 partial)·NEXT-003(pytest)·NEXT-004(db_admin 비밀번호) 등. 동일 계획표 §3 참조.
 - **계획서**: `docs/plans/2026-02-18-file-cleanup-and-next-plan.md` (파일 정리·다음 착수), `docs/plans/2026-02-17-erp-split-plan.md`, `docs/plans/2026-02-18-app-slim-task-plan.md`
 
 ## 고도화 예정
@@ -228,9 +228,9 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 - [x] app.py 파일 URL 헬퍼 이전 (Phase 2-3 완료)
 - [x] Phase 3 템플릿 분리 (erp_dashboard·chat partial 완료)
 - [x] app.py·erp.py 슬림다운 (app ~319줄, erp 40줄 — 목표 달성)
-- [ ] **파일 정리** (CLEAN-001~005) — **다음 착수** (`2026-02-18-file-cleanup-and-next-plan.md`)
+- [x] **파일 정리** (CLEAN-001~005) — 완료
 - [~] app.py 300줄 이하 (SLIM-035) — **보류**
-- [ ] order_pages.py 500줄 이하 분리 (NEXT-001)
+- [x] order_pages.py 500줄 이하 분리 (NEXT-001) — edit_order → apps/order_edit.py
 - [ ] 대형 템플릿 partial (NEXT-002)
 - [ ] AI 분석 툴 (apps/api/ai.py), 카카오 알림톡 (kakao.py) — 선택
 

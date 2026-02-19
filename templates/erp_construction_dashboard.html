@@ -1628,7 +1628,7 @@
                     {% set order_id_detail = o.id %}
                     {% if can_edit_erp|default(false) %}
                     <a class="badge bg-info text-white fw-bold"
-                      href="{{ url_for('order_pages.edit_order', order_id=order_id_detail) }}?open=erp-beta" title="제품 상세정보"
+                      href="{{ url_for('order_edit.edit_order', order_id=order_id_detail) }}?open=erp-beta" title="제품 상세정보"
                       style="cursor: pointer; font-size: 1rem !important; padding: 0.4em 0.7em !important; text-align: center; display: inline-block; text-decoration: none;">
                       <i class="fas fa-clipboard-list" style="font-size: 1rem !important;"></i>
                     </a>

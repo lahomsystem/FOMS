@@ -1,0 +1,303 @@
+// 채팅방 목록 로드
+function loadRooms() {
+    fetch('/api/chat/rooms')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderRooms(data.rooms);
+                
+                // URL 파라미터에서 room_id 확인 및 자동 선택
+                const urlParams = new URLSearchParams(window.location.search);
+                const roomIdFromUrl = urlParams.get('room_id');
+                
+                if (roomIdFromUrl) {
+                    const roomId = parseInt(roomIdFromUrl, 10);
+                    if (roomId && !isNaN(roomId)) {
+                        // 채팅방이 목록에 있는지 확인
+                        const roomExists = data.rooms.some(room => room.id === roomId);
+                        if (roomExists) {
+                            // 약간의 지연 후 선택 (DOM 렌더링 완료 대기)
+                            setTimeout(() => {
+                                selectRoom(roomId);
+                            }, 100);
+                        } else {
+                            console.warn(`채팅방 ID ${roomId}를 찾을 수 없습니다.`);
+                        }
+                    }
+                }
+            }
+        })
+        .catch(error => {
+            console.error('채팅방 목록 로드 오류:', error);
+        });
+}
+
+// 채팅방 목록 렌더링
+function renderRooms(rooms) {
+    const container = document.getElementById('rooms-list');
+    
+    if (rooms.length === 0) {
+        container.innerHTML = '<div class="text-center text-muted py-4">채팅방이 없습니다</div>';
+        return;
+    }
+    
+    container.innerHTML = rooms.map(room => {
+        const lastMessage = room.last_message ? 
+            (room.last_message.content || '파일') : '메시지가 없습니다';
+        const unreadBadge = room.unread_count > 0 ? 
+            `<span class="unread-badge">${room.unread_count}</span>` : '';
+        
+        return `
+            <div class="chat-room-item" onclick="selectRoom(${room.id})" data-room-id="${room.id}">
+                <div class="room-name">${escapeHtml(room.name)}</div>
+                <div class="room-last-message">${escapeHtml(lastMessage)}</div>
+                <div class="room-meta">
+                    <span>${formatDate(room.updated_at || room.created_at)}</span>
+                    ${unreadBadge}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// 채팅방 선택
+function selectRoom(roomId) {
+    currentRoomId = roomId;
+    
+    // URL 업데이트 (브라우저 히스토리 관리)
+    const url = new URL(window.location);
+    url.searchParams.set('room_id', roomId);
+    window.history.pushState({ room_id: roomId }, '', url);
+    
+    // UI 업데이트
+    document.querySelectorAll('.chat-room-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // null 체크 추가
+    const roomElement = document.querySelector(`[data-room-id="${roomId}"]`);
+    if (roomElement) {
+        roomElement.classList.add('active');
+    }
+    
+    // Socket.IO 방 입장 (socket이 존재할 때만)
+    if (socket && socket.connected) {
+        socket.emit('join_room', { room_id: roomId });
+    }
+    
+    // 채팅방 상세 정보 로드
+    loadRoomDetail(roomId);
+}
+
+// 채팅방 상세 정보 로드
+function loadRoomDetail(roomId) {
+    fetch(`/api/chat/rooms/${roomId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderRoomHeader(data.room);
+                renderMessages(data.room.messages);
+                document.getElementById('chat-input-area').style.display = 'block';
+                updateChatHeader();  // 검색 버튼 표시
+                scrollToBottom();
+                
+                // 채팅방 입장 시 읽음 상태 업데이트
+                if (socket && socket.connected) {
+                    socket.emit('mark_read', { room_id: roomId });
+                } else {
+                    // REST API로 읽음 상태 업데이트
+                    fetch(`/api/chat/rooms/${roomId}/mark-read`, {
+                        method: 'POST'
+                    }).catch(err => console.error('읽음 상태 업데이트 오류:', err));
+                }
+            }
+        })
+        .catch(error => {
+            console.error('채팅방 상세 로드 오류:', error);
+        });
+}
+
+// 채팅방 헤더 렌더링
+function renderRoomHeader(room) {
+    const header = document.getElementById('chat-header');
+    const orderWidgetContainer = document.getElementById('chat-order-widget-container');
+    let orderWidget = '';
+    
+    // 주문 정보 위젯 (Quest 12) - 테이블 형식으로 표시
+    if (room.order) {
+        const order = room.order;
+        
+        // 미처리 항목 확인
+        let unprocessedBadges = '';
+        const unprocessedItems = [];
+        if (!order.manager_name) {
+            unprocessedItems.push('<span class="badge bg-danger">담당자 미지정</span>');
+        }
+        if (!order.scheduled_date) {
+            unprocessedItems.push('<span class="badge bg-danger">설치일 미지정</span>');
+        }
+        unprocessedBadges = unprocessedItems.length > 0 
+            ? `<div class="unprocessed-badges">${unprocessedItems.join('')}</div>` 
+            : '-';
+        
+        // 상태 옵션 생성
+        const statusList = {
+            'RECEIVED': '접수',
+            'MEASURED': '실측',
+            'REGIONAL_MEASURED': '지방실측',
+            'SCHEDULED': '설치 예정',
+            'SHIPPED_PENDING': '상차 예정',
+            'COMPLETED': '완료',
+            'AS_RECEIVED': 'AS 접수',
+            'AS_COMPLETED': 'AS 완료',
+            'ON_HOLD': '보류'
+        };
+        
+        // order.status 값 정규화 및 디버깅
+        const currentStatus = (order.status || 'RECEIVED').toString().trim().toUpperCase();
+        console.log('Order ID:', order.id, 'Current Status:', currentStatus, 'Raw Status:', order.status);
+        
+        let statusOptions = '';
+        for (const [code, name] of Object.entries(statusList)) {
+            const codeUpper = code.toUpperCase();
+            const selected = (currentStatus === codeUpper) ? 'selected' : '';
+            statusOptions += `<option value="${code}" ${selected}>${name}</option>`;
+        }
+        
+        // statusOptions가 비어있는 경우 기본값 설정
+        if (!statusOptions) {
+            console.warn('Status options is empty, using default');
+            statusOptions = '<option value="RECEIVED" selected>접수</option>';
+        }
+        
+        console.log('Generated status options:', statusOptions.substring(0, 200));
+        
+        orderWidget = `
+            <div class="chat-order-widget-table">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm mb-0" style="table-layout: auto; width: 100%;">
+                        <thead>
+                            <tr>
+                                <th style="width: 60px;">번호</th>
+                                <th>고객명</th>
+                                <th>주소</th>
+                                <th>제품</th>
+                                <th style="width: 100px;">상태</th>
+                                <th style="width: 100px;">실측일</th>
+                                <th style="width: 150px;">미처리 항목</th>
+                                <th style="width: 120px;">담당자</th>
+                                <th style="width: 140px;">설치 예정일</th>
+                                <th style="width: 80px;">작업</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>#${order.id}</td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div>
+                                            <div>${escapeHtml(order.customer_name || '-')}</div>
+                                            <small class="text-muted">${escapeHtml(order.phone || '-')}</small>
+                                        </div>
+                                        ${order.blueprint_image_url ? `
+                                            <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer(${order.id})" title="도면 보기">
+                                                <i class="fas fa-drafting-compass"></i> 도면
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                </td>
+                                <td title="${escapeHtml(order.address || '-')}">
+                                    ${escapeHtml(order.address || '-')}
+                                </td>
+                                <td title="${escapeHtml(order.product || '-')}">
+                                    ${escapeHtml(order.product || '-')}
+                                </td>
+                                <td>
+                                    <select class="form-select form-select-sm status-dropdown status-${(currentStatus || 'RECEIVED').toLowerCase().replace(/_/g, '_')}" 
+                                            data-order-id="${order.id}" 
+                                            data-current-status="${currentStatus || 'RECEIVED'}"
+                                            onchange="updateOrderStatus(${order.id}, this.value); if(typeof applyStatusColor === 'function') applyStatusColor(this);">
+                                        ${statusOptions || '<option value="RECEIVED" selected>접수</option>'}
+                                    </select>
+                                </td>
+                                <td>${order.measurement_date || '-'}</td>
+                                <td>${unprocessedBadges}</td>
+                                <td>
+                                    <input type="text" 
+                                           class="form-control form-control-sm" 
+                                           value="${escapeHtml(order.manager_name || '')}"
+                                           placeholder="담당자 입력"
+                                           data-order-id="${order.id}"
+                                           data-field="manager_name"
+                                           onblur="updateOrderField(${order.id}, 'manager_name', this.value)">
+                                </td>
+                                <td>
+                                    <input type="date" 
+                                           class="form-control form-control-sm" 
+                                           value="${order.scheduled_date || ''}"
+                                           data-order-id="${order.id}"
+                                           data-field="scheduled_date"
+                                           onchange="updateOrderField(${order.id}, 'scheduled_date', this.value)">
+                                </td>
+                                <td>
+                                    <a href="/edit/${order.id}" 
+                                       class="btn btn-sm btn-outline-secondary" 
+                                       title="수정"
+                                       target="_blank">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        orderWidgetContainer.innerHTML = orderWidget;
+        orderWidgetContainer.style.display = 'block';
+        // order-widget-container의 top을 chat-header 높이로 설정
+        const headerHeight = header.offsetHeight;
+        orderWidgetContainer.style.top = headerHeight + 'px';
+    } else {
+        orderWidgetContainer.innerHTML = '';
+        orderWidgetContainer.style.display = 'none';
+    }
+    
+    // 멤버 목록 표시
+    const membersHtml = room.members ? room.members.map(m => {
+        const userName = m.user_name || (m.user ? m.user.name : '알 수 없음');
+        return `<span class="badge bg-secondary me-1">${escapeHtml(userName)}</span>`;
+    }).join('') : '';
+    
+    // 헤더에는 채팅방 정보와 버튼만 표시
+    header.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div>
+                <h5 class="mb-0">${escapeHtml(room.name)}</h5>
+                ${room.description ? `<small class="text-muted">${escapeHtml(room.description)}</small>` : ''}
+            </div>
+            <div>
+                <button class="btn btn-sm btn-outline-secondary me-1" onclick="toggleSearch()" title="메시지 검색">
+                    <i class="fas fa-search"></i>
+                </button>
+                ${room.created_by == currentUserId ? `<button class="btn btn-sm btn-outline-secondary me-1" onclick="showEditRoomNameModal(${room.id}, '${escapeHtml(room.name)}')" title="이름 수정">
+                    <i class="fas fa-edit"></i>
+                </button>` : ''}
+                ${!room.order ? `<button class="btn btn-sm btn-outline-info me-1" onclick="showConnectOrderModal(${room.id})" title="주문 연결">
+                    <i class="fas fa-link"></i> 주문 연결
+                </button>` : `<button class="btn btn-sm btn-outline-warning me-1" onclick="disconnectOrder(${room.id})" title="주문 연결 해제">
+                    <i class="fas fa-unlink"></i> 연결 해제
+                </button>`}
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="showInviteMemberModal(${room.id})" title="멤버 초대">
+                    <i class="fas fa-user-plus"></i> 초대
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteRoom(${room.id})" title="채팅방 삭제">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+        ${membersHtml ? `<div class="mb-0"><small class="text-muted">멤버: </small>${membersHtml}</div>` : ''}
+    `;
+}
+
+// 메시지 목록 렌더링

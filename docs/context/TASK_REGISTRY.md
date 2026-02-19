@@ -11,6 +11,7 @@
 | CLEAN-003 | 완료 | .gitignore 정리 (*.tmp, *.bak 추가) | 2026-02-18 | 2026-02-18 |
 | CLEAN-004 | 완료 | scripts/ 사용처 확인 (db_admin, incident_smoke 사용 중) | 2026-02-18 | 2026-02-18 |
 | CLEAN-005 | 완료 | 루트·임시 파일 점검 (해당 없음) | 2026-02-18 | 2026-02-18 |
+| NEXT-001 | 완료 | order_pages.py에서 edit_order 분리 → apps/order_edit.py, order_edit_bp 등록·템플릿 url_for 일괄 변경 | 2026-02-18 | 2026-02-18 |
 | SLIM-035 | 보류 | app.py 300줄 이하 (일단 중단) | - | 2026-02-18 |
 | ERP-SLIM-10 | 완료 | 시공 대시보드 → apps/erp_construction_page.py (erp_construction_page_bp) | 2026-02-18 | 2026-02-18 |
 | ERP-SLIM-9 | 완료 | 생산 대시보드 → apps/erp_production_page.py (erp_production_page_bp) | 2026-02-18 | 2026-02-18 |
