@@ -85,7 +85,7 @@ GDM 감사 2026-02-18 권장 순서 및 기타 항목.
 | CLEAN-004 | 완료 | 2026-02-18 | scripts/: db_admin.py(관리용), incident_smoke.ps1(스모크) 사용 중 |
 | CLEAN-005 | 완료 | 2026-02-18 | 루트·임시 파일 없음 확인 |
 | NEXT-001 | 완료 | 2026-02-18 | order_pages.py에서 edit_order 분리 → apps/order_edit.py, order_edit_bp 등록·템플릿 url_for 일괄 변경 |
-| NEXT-002 | 진행 중 | 2026-02-19 | PART-001 (chat_scripts.html 분할) 완료 |
+| NEXT-002 | 진행 중 | 2026-02-19 | PART-001, PART-002 (erp_dashboard_scripts.html 분할) 완료 |
 | NEXT-003~006 | 대기 | - | Phase 2 (NEXT-002 완료 후 순차) |
 
 ---

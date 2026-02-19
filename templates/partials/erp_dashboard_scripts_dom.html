@@ -1,0 +1,219 @@
+                const row = document.querySelector(`.erp-main-row[data-order-id="${focusOrder}"]`);
+                if (row) {
+                  row.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                  });
+                  row.classList.add('table-info'); // Bootstrap highlight
+                  setTimeout(() => row.classList.remove('table-info'), 2500);
+
+                  if (openQuest) {
+                    const questCollapse = document.getElementById(`quest-collapse-${focusOrder}`);
+                    if (questCollapse) {
+                      const bsCollapse = new bootstrap.Collapse(questCollapse, {
+                        toggle: false
+                      });
+                      bsCollapse.show();
+                    }
+                  }
+                }
+              }, 500); // 렌더링 지연 고려
+            }
+          })();
+
+          // 필터 폼 제출 시 alert_type 파라미터 유지
+          const form = document.getElementById('erp-filters-form');
+          if (form) {
+            form.addEventListener('submit', function (e) {
+              const url = new URL(window.location.href);
+              const currentAlertType = url.searchParams.get('alert_type');
+              if (currentAlertType) {
+                let alertTypeInput = this.querySelector('input[name="alert_type"]');
+                if (!alertTypeInput) {
+                  alertTypeInput = document.createElement('input');
+                  alertTypeInput.type = 'hidden';
+                  alertTypeInput.name = 'alert_type';
+                  this.appendChild(alertTypeInput);
+                }
+                alertTypeInput.value = currentAlertType;
+              }
+            });
+          }
+
+          // 주문 상세 collapse 오픈 시: 상세 로드 완료 후 navbar 바로 아래로 정렬
+          document.querySelectorAll('.collapse[id^="order-detail-collapse-"]').forEach(collapseEl => {
+            collapseEl.addEventListener('shown.bs.collapse', async function () {
+              const orderId = this.id.replace('order-detail-collapse-', '');
+
+              const alignDetailUnderNavbar = () => {
+                const nav = document.querySelector('nav.navbar');
+                const navHeight = nav ? nav.offsetHeight : 56;
+                const titleEl = this.querySelector('.erp-order-detail-title') || this;
+                const targetTop = window.scrollY + titleEl.getBoundingClientRect().top - navHeight - 8;
+                window.scrollTo({ top: Math.max(0, targetTop), behavior: 'auto' });
+              };
+
+              // 1차: collapse 오픈 직후 정렬
+              alignDetailUnderNavbar();
+
+              // 2차: 상세 내용 렌더 완료 후 다시 정렬 (높이 변동 보정)
+              await loadOrderDetail(parseInt(orderId, 10));
+              requestAnimationFrame(alignDetailUnderNavbar);
+              setTimeout(alignDetailUnderNavbar, 120);
+            });
+          });
+
+          // 딥링크 포커스: 도면 창구는 별도 작업실로 단일 진입
+          (() => {
+            try {
+              const url = new URL(window.location.href);
+              const focus = (url.searchParams.get('focus') || '').toLowerCase();
+              const orderId = String(url.searchParams.get('order_id') || '').trim();
+              const tabRaw = (url.searchParams.get('tab') || 'timeline').toLowerCase();
+              const tabKey = (tabRaw === 'request' || tabRaw === 'requests')
+                ? 'requests'
+                : (tabRaw === 'file' || tabRaw === 'files' || tabRaw === 'compare' ? 'compare' : 'timeline');
+              if (focus !== 'drawing-gateway' || !orderId) return;
+              const targetUrl = `/erp/drawing-workbench/${orderId}?tab=${encodeURIComponent(tabKey)}`;
+              window.location.href = targetUrl;
+            } catch (_) { }
+          })();
+
+          // 프로세스 맵 & 알림 타일 클릭 → "해당 필터만" URL 파라미터 적용 후 리로드
+          const applyFilter = (name, value) => {
+            const singleFilterNames = ['stage', 'alert_type', 'urgent', 'has_alert', 'team', 'q'];
+            const url = new URL(window.location.href);
+            const params = url.searchParams;
+
+            // 기존 단일 필터 전부 제거
+            singleFilterNames.forEach((fieldName) => params.delete(fieldName));
+
+            // 클릭한 필터만 설정
+            if (value) {
+              params.set(name, value);
+            }
+
+            // URL 이동 (GET)
+            window.location.href = `${url.pathname}?${params.toString()}`;
+          };
+
+          // 프로세스 맵 (Pipeline Stages)
+          document.querySelectorAll('.erp-pro-pipeline__stage[data-stage]').forEach(el => {
+            const handler = () => applyFilter('stage', el.dataset.stage || '');
+            el.addEventListener('click', handler);
+            el.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handler();
+              }
+            });
+          });
+
+          // 알림 타일 (Alert Tiles)
+          document.querySelectorAll('.erp-pro-alert[data-alert-type]').forEach(el => {
+            const handler = () => applyFilter('alert_type', el.dataset.alertType || '');
+            el.addEventListener('click', handler);
+            el.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handler();
+              }
+            });
+          });
+
+          // 이벤트 위임: 퀘스트 승인, 첨부 미리보기 등
+          document.body.addEventListener('click', function (e) {
+            const targetCard = e.target.closest('.drawing-target-card');
+            if (targetCard) {
+              const role = String(targetCard.getAttribute('data-role') || '');
+              const rawKey = String(targetCard.getAttribute('data-key') || '');
+              const key = rawKey ? decodeURIComponent(rawKey) : '';
+              selectDrawingTargetByCard(role, key);
+              return;
+            }
+
+            // 승인 버튼
+            const approveBtn = e.target.closest('.erp-btn-approve-team');
+            if (approveBtn) {
+              const orderId = approveBtn.dataset.orderId;
+              const team = approveBtn.dataset.team;
+              if (typeof approveQuestTeam === 'function') {
+                approveQuestTeam(Number(orderId), team);
+              } else {
+                console.warn('approveQuestTeam is not defined');
+              }
+            }
+
+            const approveAssigneeBtn = e.target.closest('.erp-btn-approve-assignee');
+            if (approveAssigneeBtn) {
+              const orderId = Number(approveAssigneeBtn.dataset.orderId);
+              if (typeof approveQuestAssignee === 'function') {
+                approveQuestAssignee(orderId);
+              }
+            }
+
+            const drawingThumb = e.target.closest('.erp-drawing-gateway-thumb');
+            if (drawingThumb) {
+              const viewUrl = drawingThumb.dataset.viewUrl || '#';
+              const downloadUrl = drawingThumb.dataset.downloadUrl || viewUrl;
+              const filename = drawingThumb.dataset.filename || '';
+              const fileType = drawingThumb.dataset.fileType || 'image';
+              if (typeof openAttachmentPreviewModal === 'function') {
+                openAttachmentPreviewModal(0, viewUrl, downloadUrl, filename, fileType);
+              }
+            }
+
+            const openDrawingAttBtn = e.target.closest('.erp-btn-open-drawing-attachments');
+            if (openDrawingAttBtn) {
+              const orderId = Number(openDrawingAttBtn.dataset.orderId);
+              if (typeof openAttachmentsPreview === 'function') {
+                openAttachmentsPreview(orderId, 'drawing');
+              }
+            }
+
+            const confirmReceiptBtn = e.target.closest('.erp-btn-confirm-drawing-receipt');
+            if (confirmReceiptBtn) {
+              const orderId = Number(confirmReceiptBtn.dataset.orderId);
+              if (typeof confirmDrawingReceipt === 'function') {
+                confirmDrawingReceipt(orderId);
+              }
+            }
+
+            const revisionReqBtn = e.target.closest('.erp-btn-open-revision-request');
+            if (revisionReqBtn) {
+              const orderId = Number(revisionReqBtn.dataset.orderId);
+              if (typeof openRevisionRequestModal === 'function') {
+                openRevisionRequestModal(orderId);
+              }
+            }
+
+            const cancelTransferBtn = e.target.closest('.erp-btn-cancel-drawing-transfer');
+            if (cancelTransferBtn) {
+              const orderId = Number(cancelTransferBtn.dataset.orderId);
+              if (typeof cancelDrawingTransfer === 'function') {
+                cancelDrawingTransfer(orderId);
+              }
+            }
+
+            const openTransferBtn = e.target.closest('.erp-btn-open-transfer-drawing');
+            if (openTransferBtn) {
+              const orderId = Number(openTransferBtn.dataset.orderId);
+              const isRetransfer = String(openTransferBtn.dataset.retransfer || 'false') === 'true';
+              if (typeof openTransferDrawingModal === 'function') {
+                openTransferDrawingModal(orderId, isRetransfer);
+              }
+            }
+
+            // 첨부파일 미리보기 버튼
+            const attBtn = e.target.closest('.erp-btn-attachments-preview');
+            if (attBtn) {
+              const orderId = attBtn.dataset.orderId;
+              if (typeof openAttachmentsPreview === 'function') {
+                openAttachmentsPreview(Number(orderId));
+              }
+            }
+          });
+
+          // 도면 수정 창구 이미지 뷰어 초기화
+          initDrawingGatewayImageViewer();
+        });

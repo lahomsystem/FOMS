@@ -1,0 +1,271 @@
+        // 주문의 첨부 파일 미리보기 (첨부 배지 클릭 시) - 좌우 네비게이션 지원
+        async function openAttachmentsPreview(orderId, initialCategory = 'measurement') {
+          try {
+            // 캐시 확인
+            let aList = null;
+            if (__attachmentsCache[orderId]) {
+              aList = __attachmentsCache[orderId];
+            } else {
+              const res = await fetch(`/api/orders/${orderId}/attachments`);
+              const data = await res.json();
+              aList = (data && data.attachments) || [];
+              __attachmentsCache[orderId] = aList;
+            }
+
+            if (aList.length > 0) {
+              __attachmentsByCategory = { measurement: [], drawing: [], construction: [] };
+              aList.forEach((a) => {
+                const key = normalizeAttachmentCategory(a.category);
+                const normalized = Object.assign({}, a, { category: key });
+                if (!__attachmentsByCategory[key]) __attachmentsByCategory[key] = [];
+                __attachmentsByCategory[key].push(normalized);
+              });
+
+              let targetCategory = normalizeAttachmentCategory(initialCategory);
+              const targetList = __attachmentsByCategory[targetCategory] || [];
+              if (!targetList.length) {
+                if (__attachmentsByCategory.drawing.length) targetCategory = 'drawing';
+                else if (__attachmentsByCategory.measurement.length) targetCategory = 'measurement';
+                else if (__attachmentsByCategory.construction.length) targetCategory = 'construction';
+              }
+              __activeAttachmentCategory = targetCategory;
+
+              renderAttachmentCategoryTabs();
+              renderAttachmentCategoryGallery();
+              const modalEl = document.getElementById('erpAttachmentsCategoryModal');
+              if (modalEl) {
+                const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                modal.show();
+              }
+            } else {
+              showErpToast('첨부 파일이 없습니다.', 'info');
+            }
+          } catch (err) {
+            console.error('첨부 파일 로드 실패:', err);
+            showErpToast('첨부 파일을 불러올 수 없습니다.', 'error');
+          }
+        }
+
+        // GlobalImageViewer로 연결하는 레거시 호환 함수
+        function openAttachmentPreviewModal(attachmentId, viewUrl, downloadUrl, filename, fileType) {
+          if (window.GlobalImageViewer) {
+            const singleFile = {
+              view_url: viewUrl,
+              download_url: downloadUrl,
+              filename: filename,
+              file_type: fileType
+            };
+
+            // 같은 주문의 첨부 캐시가 있으면 이미지 묶음으로 열어 좌우 이동 가능하게 처리
+            const orderMatch = String(viewUrl || '').match(/\/orders\/(\d+)\//);
+            const orderId = orderMatch ? Number(orderMatch[1]) : 0;
+            const cached = orderId ? (__attachmentsCache[orderId] || []) : [];
+
+            const isImage = (a) => {
+              if (!a) return false;
+              const ft = String(a.file_type || '').toLowerCase();
+              if (ft === 'image') return true;
+              const probe = String(a.view_url || a.filename || '').toLowerCase();
+              return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/.test(probe);
+            };
+
+            if (String(fileType || '').toLowerCase() === 'image' && Array.isArray(cached) && cached.length > 1) {
+              const imageFiles = cached
+                .filter(isImage)
+                .map((a) => ({
+                  view_url: a.view_url || '',
+                  download_url: a.download_url || (a.view_url || ''),
+                  filename: a.filename || '이미지',
+                  file_type: 'image'
+                }))
+                .filter((a) => !!a.view_url);
+
+              if (imageFiles.length > 1) {
+                let startIndex = 0;
+                if (attachmentId) {
+                  const idxById = cached.filter(isImage).findIndex((a) => Number(a.id || 0) === Number(attachmentId));
+                  if (idxById >= 0) startIndex = idxById;
+                }
+                if (startIndex === 0) {
+                  const idxByUrl = imageFiles.findIndex((a) => String(a.view_url) === String(viewUrl));
+                  if (idxByUrl >= 0) startIndex = idxByUrl;
+                }
+                window.GlobalImageViewer.open(imageFiles, startIndex);
+                return;
+              }
+            }
+
+            // 기본: 단일 파일로 열기
+            window.GlobalImageViewer.open([singleFile], 0);
+          } else {
+            console.error('GlobalImageViewer not found');
+            alert('이미지 뷰어를 불러올 수 없습니다.');
+          }
+        }
+
+        // 특정 인덱스의 첨부 파일 표시
+        function showAttachmentAtIndex(index) {
+          if (!__currentAttachmentList || index < 0 || index >= __currentAttachmentList.length) {
+            return;
+          }
+
+          __currentAttachmentIndex = index;
+          
+          if (window.GlobalImageViewer) {
+             window.GlobalImageViewer.open(__currentAttachmentList, index);
+          } else {
+              console.error('GlobalImageViewer not found');
+              showErpToast('이미지 뷰어를 불러올 수 없습니다.', 'error');
+          }
+        }
+
+        function getDrawingCurrentFiles(orderId) {
+          const list = __drawingCurrentFilesByOrder[orderId];
+          return Array.isArray(list) ? list : [];
+        }
+
+        function getDrawingTargetNumber(orderId, key) {
+          if (!key) return null;
+          const list = getDrawingCurrentFiles(orderId);
+          const idx = list.findIndex(f => String((f && f.key) || '') === String(key));
+          return idx >= 0 ? (idx + 1) : null;
+        }
+
+        function isDrawingImageFile(f) {
+          const probe = String((f && f.filename) || (f && f.key) || '').toLowerCase();
+          return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/.test(probe);
+        }
+
+        function buildDrawingTargetCards(orderId, selectedKey, opts = {}) {
+          const files = getDrawingCurrentFiles(orderId);
+          const includeNone = !!opts.includeNone;
+          const role = opts.role || 'revision';
+          const selected = String(selectedKey || '');
+          const cards = [];
+
+          if (includeNone) {
+            cards.push(`
+              <button type="button"
+                class="drawing-target-card ${selected ? '' : 'is-active'}"
+                data-role="${escapeHtml(role)}"
+                data-key="">
+                <div class="drawing-target-card-thumb"><i class="fas fa-plus text-secondary"></i></div>
+                <div class="drawing-target-card-meta">
+                  <span class="num">새 번호 추가</span><br />
+                  기존 도면 유지
+                </div>
+              </button>
+            `);
+          }
+
+          files.forEach((f, idx) => {
+            const key = String((f && f.key) || '');
+            const filename = String((f && f.filename) || `도면 ${idx + 1}`);
+            const viewUrl = String((f && f.view_url) || (key ? `/api/files/view/${key}` : ''));
+            const activeCls = key === selected ? 'is-active' : '';
+            const selectedBadge = key === selected ? '<span class="drawing-target-selected-pill">선택됨</span>' : '';
+            const thumbHtml = isDrawingImageFile(f)
+              ? `<img src="${escapeHtml(viewUrl)}" alt="${escapeHtml(filename)}">`
+              : `<i class="fas fa-file-alt text-secondary"></i>`;
+            cards.push(`
+              <button type="button"
+                class="drawing-target-card ${activeCls}"
+                data-role="${escapeHtml(role)}"
+                data-key="${encodeURIComponent(key)}">
+                <div class="drawing-target-card-thumb">${selectedBadge}${thumbHtml}</div>
+                <div class="drawing-target-card-meta">
+                  <span class="num">${idx + 1}번</span><br />
+                  <span title="${escapeHtml(filename)}">${escapeHtml(filename)}</span>
+                </div>
+              </button>
+            `);
+          });
+
+          return cards.join('');
+        }
+
+        function syncDrawingTargetCardSelection(role, selectedKey) {
+          document.querySelectorAll(`.drawing-target-card[data-role="${role}"]`).forEach((el) => {
+            const raw = String(el.getAttribute('data-key') || '');
+            const key = raw ? decodeURIComponent(raw) : '';
+            if (String(selectedKey || '') === key) el.classList.add('is-active');
+            else el.classList.remove('is-active');
+          });
+        }
+
+        function selectDrawingTargetByCard(role, key) {
+          const selectedKey = String(key || '');
+          if (role === 'revision') {
+            const selectEl = document.getElementById('drawing-revision-target-key');
+            if (selectEl) selectEl.value = selectedKey;
+            syncDrawingTargetCardSelection('revision', selectedKey);
+          } else if (role === 'replace') {
+            const selectEl = document.getElementById('drawing-transfer-replace-key');
+            if (selectEl) selectEl.value = selectedKey;
+            syncDrawingTargetCardSelection('replace', selectedKey);
+          }
+        }
+
+        function renderRevisionTargetSelector(orderId) {
+          const cardsEl = document.getElementById('drawing-revision-target-cards');
+          const selectEl = document.getElementById('drawing-revision-target-key');
+          const helpEl = document.getElementById('drawing-revision-target-help');
+          if (!selectEl || !cardsEl) return;
+          const files = getDrawingCurrentFiles(orderId);
+          let html = '<option value="">도면 선택</option>';
+          files.forEach((f, idx) => {
+            const key = String((f && f.key) || '');
+            const filename = String((f && f.filename) || `도면 ${idx + 1}`);
+            html += `<option value="${escapeHtml(key)}">${idx + 1}번 · ${escapeHtml(filename)}</option>`;
+          });
+          selectEl.innerHTML = html;
+          if (files.length === 1) {
+            selectEl.value = String((files[0] && files[0].key) || '');
+          }
+          cardsEl.innerHTML = buildDrawingTargetCards(orderId, selectEl.value, { role: 'revision' });
+          syncDrawingTargetCardSelection('revision', selectEl.value);
+          selectEl.onchange = () => syncDrawingTargetCardSelection('revision', selectEl.value);
+          if (helpEl) {
+            helpEl.textContent = files.length > 1
+              ? '여러 장입니다. 수정 요청할 도면 번호를 선택해주세요.'
+              : (files.length === 1
+                ? '현재 1장입니다. 자동 선택되었습니다.'
+                : '현재 전달된 도면이 없습니다.');
+          }
+        }
+
+        function renderTransferReplaceSelector(orderId, isRetransfer) {
+          const wrapEl = document.getElementById('drawing-transfer-replace-wrap');
+          const cardsEl = document.getElementById('drawing-transfer-replace-cards');
+          const selectEl = document.getElementById('drawing-transfer-replace-key');
+          const helpEl = document.getElementById('drawing-transfer-replace-help');
+          if (!wrapEl || !selectEl || !cardsEl) return;
+          const files = getDrawingCurrentFiles(orderId);
+          wrapEl.style.display = files.length ? '' : 'none';
+          if (!files.length) {
+            selectEl.innerHTML = '<option value="">교체할 도면 없음</option>';
+            cardsEl.innerHTML = '';
+            return;
+          }
+
+          let html = `<option value="">${isRetransfer ? '교체할 도면을 선택하세요' : '선택 안 함 (새 번호로 추가)'}</option>`;
+          files.forEach((f, idx) => {
+            const key = String((f && f.key) || '');
+            const filename = String((f && f.filename) || `도면 ${idx + 1}`);
+            html += `<option value="${escapeHtml(key)}">${idx + 1}번 삭제 후 교체 · ${escapeHtml(filename)}</option>`;
+          });
+          selectEl.innerHTML = html;
+          if (isRetransfer && files.length === 1) {
+            selectEl.value = String((files[0] && files[0].key) || '');
+          } else {
+            selectEl.value = '';
+          }
+          cardsEl.innerHTML = buildDrawingTargetCards(orderId, selectEl.value, { role: 'replace', includeNone: !isRetransfer });
+          syncDrawingTargetCardSelection('replace', selectEl.value);
+          selectEl.onchange = () => syncDrawingTargetCardSelection('replace', selectEl.value);
+          if (helpEl) {
+            helpEl.textContent = isRetransfer
+              ? '재전송 시 교체할 번호를 선택하세요. (여러 장이면 필수)'
+              : '필요 시 기존 번호를 교체하거나, 선택 안 하면 새 번호로 추가됩니다.';
+          }
+        }

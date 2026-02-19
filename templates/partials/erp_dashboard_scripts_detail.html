@@ -1,0 +1,570 @@
+
+        /** API가 HTML(401/404/500)을 돌려주면 r.json()이 SyntaxError를 던짐. JSON일 때만 파싱 */
+        async function safeJsonFetch(url, fallback) {
+          const r = await fetch(url);
+          const ct = r.headers.get('content-type') || '';
+          if (!r.ok || !ct.includes('application/json')) {
+            if (!r.ok) console.warn('Order detail API non-OK:', url, r.status);
+            return fallback;
+          }
+          try {
+            return await r.json();
+          } catch (e) {
+            console.error('JSON parse error for', url, e);
+            return fallback;
+          }
+        }
+
+        async function loadOrderDetail(orderId) {
+          const container = document.getElementById(`order-detail-content-${orderId}`);
+          if (!container) return;
+
+          try {
+            container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
+
+            const [structured, attachments] = await Promise.all([
+              safeJsonFetch(`/api/orders/${orderId}/structured`, { success: false, structured_data: {} }),
+              safeJsonFetch(`/api/orders/${orderId}/attachments`, { success: false, attachments: [] }),
+            ]);
+
+            if (!structured || !structured.success) {
+              container.innerHTML = '<div class="text-warning small">상세 정보를 불러올 수 없습니다. 새로고침 후 다시 시도하세요.</div>';
+              return;
+            }
+
+            const sd = (structured && structured.structured_data) || {};
+            const customer = (((sd.parties || {}).customer || {}).name) || '-';
+            const orderer = (((sd.parties || {}).orderer || {}).name) || '-';
+            const phone = (((sd.parties || {}).customer || {}).phone) || '-';
+            // 주소: address_full 우선, 없으면 address_main + address_detail 조합, 없으면 address_main만
+            const site = sd.site || {};
+            const addressFull = site.address_full || '';
+            const addressMain = site.address_main || '';
+            const addressDetail = site.address_detail || '';
+            const address = addressFull || (addressMain && addressDetail ? `${addressMain} ${addressDetail}`.trim() : addressMain) || addressDetail || '-';
+            // 특이사항: notes 객체에서 읽기 (erpbeta 저장 경로와 일치)
+            const notes = sd.notes || {};
+            const addressNote = (notes.address_note || '').trim();
+            const phoneNote = (notes.phone_note || '').trim();
+            const measureNote = (notes.measurement_note || '').trim();
+            const measure = (((sd.schedule || {}).measurement || {}).date) || '-';
+            const construct = (((sd.schedule || {}).construction || {}).date) || '-';
+            const manager = (((sd.parties || {}).manager || {}).name) || '-';
+            const stage = (((sd.workflow || {}).stage)) || '-';
+            const urgent = ((sd.flags || {}).urgent) || false;
+            __drawingCurrentFilesByOrder[orderId] = Array.isArray(sd.drawing_current_files) ? sd.drawing_current_files : [];
+
+            // 담당팀: 현재 단계의 담당팀으로 자동 계산
+            const STAGE_TO_TEAM = {
+              'RECEIVED': 'CS',
+              'HAPPYCALL': 'CS',
+              'MEASURE': 'SALES',
+              'DRAWING': 'DRAWING',
+              'CONFIRM': 'SALES',
+              'PRODUCTION': 'PRODUCTION',
+              'CONSTRUCTION': 'CONSTRUCTION',
+              'CS': 'CS',
+              'COMPLETED': 'CS',
+              'AS': 'CS'
+            };
+            let ownerTeam = STAGE_TO_TEAM[stage] || '-';
+            // 실측/고객컨펌에서 발주사에 '라홈' 포함 시 라홈팀(CS)으로 변경
+            if (stage === 'MEASURE' || stage === 'CONFIRM') {
+              const ordererName = (((sd.parties || {}).orderer || {}).name || '').trim();
+              if (ordererName && ordererName.includes('라홈')) {
+                ownerTeam = 'CS';
+              }
+            }
+
+            // 제품 항목 (모든 상세 정보 표시)
+            const items = (sd.items || []) || [];
+            let itemsHtml = '';
+            if (items.length > 0) {
+              let gridHtml = '<div class="erp-product-items-grid mt-3">';
+              items.forEach(item => {
+                // 규격을 W, D, H로 분리
+                let specW = item.spec_width || '';
+                let specD = item.spec_depth || '';
+                let specH = item.spec_height || '';
+                // 기존 spec 필드가 있고 W, D, H가 없으면 파싱
+                if (!specW && !specD && !specH && item.spec) {
+                  const specStr = String(item.spec || '').trim();
+                  const parts = specStr.split(/[xX*×]/).map(s => s.trim());
+                  if (parts.length >= 3) {
+                    specW = parts[0];
+                    specD = parts[1];
+                    specH = parts[2];
+                  } else if (parts.length === 2) {
+                    specW = parts[0];
+                    specD = parts[1];
+                  } else if (parts.length === 1) {
+                    specW = parts[0];
+                  }
+                }
+                // 규격을 한 줄로 통합 (모바일용)
+                const specParts = [];
+                if (specW && specW !== '-') specParts.push(`W:${specW}`);
+                if (specD && specD !== '-') specParts.push(`D:${specD}`);
+                if (specH && specH !== '-') specParts.push(`H:${specH}`);
+                const specCombined = specParts.length > 0 ? specParts.join(' × ') : '-';
+                const priceText = item.price ? item.price.toLocaleString('ko-KR') + '원' : '-';
+
+                // 값이 빈 문자열이거나 null/undefined일 때 '-'로 표시
+                const safeValue = (val) => {
+                  if (val === null || val === undefined || val === '') return '-';
+                  return String(val).trim() || '-';
+                };
+
+                gridHtml += `<div class="erp-product-items-card">
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">제품명:</span>
+                <span class="erp-product-items-value">${escapeHtml(safeValue(item.product_name || item.name))}</span>
+              </div>
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">규격:</span>
+                <span class="erp-product-items-value">${escapeHtml(specCombined)}</span>
+              </div>
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">내부:</span>
+                <span class="erp-product-items-value">${escapeHtml(safeValue(item.internal))}</span>
+              </div>
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">색상:</span>
+                <span class="erp-product-items-value">${escapeHtml(safeValue(item.color))}</span>
+              </div>
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">옵션:</span>
+                <span class="erp-product-items-value">${escapeHtml(safeValue(item.option_detail || item.options))}</span>
+              </div>
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">손잡이:</span>
+                <span class="erp-product-items-value">${escapeHtml(safeValue(item.handle))}</span>
+              </div>
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">기타:</span>
+                <span class="erp-product-items-value">${escapeHtml(safeValue(item.misc))}</span>
+              </div>
+              <div class="erp-product-items-row">
+                <span class="erp-product-items-label">금액:</span>
+                <span class="erp-product-items-value">${escapeHtml(priceText)}</span>
+              </div>
+            </div>`;
+              });
+              gridHtml += '</div>';
+              itemsHtml = gridHtml;
+            } else {
+              itemsHtml = '<div class="text-muted mt-3" style="font-size: 1rem;">제품 항목 없음</div>';
+            }
+
+            // 첨부 파일 (여백 최소화, 미리보기 기능)
+            // API 응답 구조 확인: attachments.attachments 또는 attachments (배열 직접 반환)
+            let aList = [];
+            if (attachments) {
+              if (Array.isArray(attachments)) {
+                aList = attachments;
+              } else if (attachments.attachments && Array.isArray(attachments.attachments)) {
+                aList = attachments.attachments;
+              } else if (attachments.success !== false && attachments.attachments) {
+                // success가 true이고 attachments가 있는 경우
+                aList = attachments.attachments;
+              } else if (attachments.success === false) {
+                console.warn('Attachments API returned error:', attachments.message || 'Unknown error');
+                aList = [];
+              } else {
+                // 디버깅: 응답 구조 확인
+                console.log('Attachments API response structure:', attachments);
+                aList = [];
+              }
+            } else {
+              console.warn('Attachments response is null or undefined');
+            }
+            // 첨부 파일 캐시 저장
+            __attachmentsCache[orderId] = aList;
+
+            let attachmentsHtml = '';
+            if (aList.length > 0) {
+              attachmentsHtml = '<div class="d-flex flex-wrap gap-1 mt-2">';
+              aList.forEach(a => {
+                const name = escapeHtml(a.filename || '');
+                const viewUrl = a.view_url || '#';
+                const thumb = a.thumbnail_view_url || viewUrl;
+                const downloadUrl = a.download_url || viewUrl;
+                const fileType = a.file_type || 'image';
+                if (fileType === 'video') {
+                  attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'video')">
+                <div style="width: 80px; height: 60px; background: #000; display: flex; align-items: center; justify-content: center;">
+                  <video src="${viewUrl}" preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>
+                </div>
+                <div class="position-absolute top-0 start-0 bg-dark bg-opacity-75 text-white p-1" style="font-size: 10px;"><i class="fas fa-play"></i></div>
+              </div>`;
+                } else if (fileType === 'file') {
+                  attachmentsHtml += `<div class="position-relative d-flex align-items-center justify-content-center" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden; background:#f8f9fa;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'file')">
+                <i class="fas fa-file-alt text-secondary"></i>
+              </div>`;
+                } else {
+                  attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'image')">
+                <img src="${thumb}" style="width: 80px; height: 60px; object-fit: cover; background:#fff; display: block;" alt="${name}">
+              </div>`;
+                }
+              });
+              attachmentsHtml += '</div>';
+            } else {
+              attachmentsHtml = '<div class="text-muted small mt-2">첨부 없음</div>';
+            }
+
+            // 모바일 여부 확인 (992px 이하)
+            const isMobile = window.innerWidth <= 992;
+
+            const basicInfoHtml = isMobile ? '' : `
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title fw-bold"><i class="fas fa-info-circle text-primary"></i> 기본 정보</h5>
+                  <div class="erp-detail-text">
+                    <div class="mb-3"><strong class="erp-detail-label">고객명:</strong> <span class="erp-detail-value">${escapeHtml(customer)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">발주사:</strong> <span class="erp-detail-value">${escapeHtml(orderer)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">연락처:</strong> <span class="erp-detail-value">${escapeHtml(phone)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">주소:</strong> <span class="erp-detail-value">${escapeHtml(address)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">담당자:</strong> <span class="erp-detail-value">${escapeHtml(manager)}</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>`;
+
+            const noteRows = [];
+            if (addressNote) {
+              noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">${escapeHtml(addressNote)}</span></div>`);
+            }
+            if (phoneNote) {
+              noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">${escapeHtml(phoneNote)}</span></div>`);
+            }
+            if (measureNote) {
+              noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">${escapeHtml(measureNote)}</span></div>`);
+            }
+            const notesHtml = noteRows.join('');
+
+            const scheduleHtml = `
+            <div class="${isMobile ? 'col-12' : 'col-md-6'}">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title fw-bold"><i class="fas fa-calendar text-primary"></i> 일정 및 특이사항</h5>
+                  <div class="erp-detail-text">
+                    ${isMobile ? '' : `<div class="mb-3"><strong class="erp-detail-label">실측일:</strong> <span class="erp-detail-value">${escapeHtml(measure)}</span></div>
+                    <div class="mb-3"><strong class="erp-detail-label">시공일:</strong> <span class="erp-detail-value">${escapeHtml(construct)}</span></div>`}
+                    ${notesHtml}
+                  </div>
+                </div>
+              </div>
+            </div>`;
+
+            // 도면 전달 버튼 (DRAWING 단계일 때만)
+            let actionHtml = '';
+            if (stage === 'DRAWING') {
+              const canEdit = typeof CAN_EDIT_ERP_BETA !== 'undefined' && CAN_EDIT_ERP_BETA;
+              const drawingStatus = sd.drawing_status || 'PENDING'; // PENDING, TRANSFERRED, CONFIRMED
+              const assignees = Array.isArray(sd.drawing_assignees) ? sd.drawing_assignees : [];
+              const assignments = sd.assignments || {};
+              const assigneeIds = Array.isArray(assignments.drawing_assignee_user_ids)
+                ? assignments.drawing_assignee_user_ids.map(x => Number(x)).filter(x => Number.isFinite(x))
+                : [];
+              const hasAssignee = assignees.length > 0 || assigneeIds.length > 0;
+              const myIdNum = Number(MY_ID);
+              const isAssigned = assignees.some(u => Number(u.id) === myIdNum) || assigneeIds.includes(myIdNum);
+              const isDrawingTeam = (MY_TEAM === 'DRAWING');
+              const isSalesTeam = (MY_TEAM === 'SALES');
+              // Manager matches current user name? or admin
+              const isManager = (manager === MY_NAME);
+              const isAdmin = (MY_ROLE === 'ADMIN');
+              const canDrawingAssign = canEdit || isDrawingTeam || isAdmin;
+              const canDrawingWork = (isDrawingTeam || isAssigned || isAdmin) && hasAssignee;
+
+              const assigneeNames = assignees.map(u => u.name).filter(Boolean).join(', ') || (assigneeIds.length ? `${assigneeIds.length}명 지정` : '');
+
+              // 1. 도면 담당자 지정 버튼 (수정 권한 + 영업/담당자/관리자/도면팀)
+              let assignBtn = '';
+
+              if (canDrawingAssign && (isSalesTeam || isManager || isAdmin || isDrawingTeam)) {
+                assignBtn = `
+                    <button class="btn btn-outline-primary btn-sm" onclick="openDraftsmanAssignModal(${orderId})">
+                        <i class="fas fa-user-plus"></i> 담당자 지정
+                    </button>
+                 `;
+              }
+
+              let statusBadge = '';
+              let mainBtn = '';
+
+
+              // --- [수정] 상태별 버튼 로직 강화 ---
+
+              if (drawingStatus === 'TRANSFERRED') {
+                statusBadge = '<span class="badge bg-warning text-dark ms-2">확정 대기중</span>';
+
+                // 1. 영업/담당자/관리자: [수령 확정] OR [수정 요청]
+                if (canEdit && (isSalesTeam || isManager || isAdmin)) {
+                  mainBtn = `
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success flex-grow-1" onclick="confirmDrawingReceipt(${orderId})">
+                        <i class="fas fa-check-double"></i> 수령 확정
+                    </button>
+                    <button class="btn btn-warning" onclick="openRevisionRequestModal(${orderId})">
+                        <i class="fas fa-undo"></i> 수정 요청
+                    </button>
+                </div>
+              `;
+                } else {
+                  // 도면팀인 경우: [재전송] (기존 파일 삭제됨), [전달 취소]
+                  if (canDrawingWork) {
+                    mainBtn = `
+                        <div class="d-flex gap-2">
+                             <button class="btn btn-primary flex-grow-1" onclick="openTransferDrawingModal(${orderId}, true)">
+                                <i class="fas fa-sync"></i> 재전송
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="cancelDrawingTransfer(${orderId})">
+                                <i class="fas fa-times"></i> 전달 취소
+                            </button>
+                        </div>
+                        <div class="text-muted small mt-1">
+                            <i class="fas fa-info-circle"></i> 재전송 시 <span class="text-danger fw-bold">기존 파일이 삭제</span>되고 새 파일로 대체됩니다.
+                        </div>
+                    `;
+                  } else {
+                    mainBtn = `<button class="btn btn-secondary" disabled>확정 대기중</button>`;
+                  }
+                }
+              } else if (drawingStatus === 'RETURNED') {
+                statusBadge = '<span class="badge bg-danger ms-2">수정 요청됨</span>';
+                // 수정 요청 상태에서는 도면팀이 다시 재전송(업로드) 해야 함
+                if (canDrawingWork) {
+                  mainBtn = `
+                    <button class="btn btn-primary" onclick="openTransferDrawingModal(${orderId}, true)">
+                        <i class="fas fa-paper-plane"></i> 수정본 전달 (재전송)
+                    </button>
+                     <div class="text-danger small mt-1">
+                        <i class="fas fa-exclamation-triangle"></i> 수정 요청 사항을 확인 후 다시 전달해주세요.
+                    </div>
+                `;
+                } else {
+                  mainBtn = `<button class="btn btn-secondary" disabled>수정 작업 대기중</button>`;
+                }
+              } else {
+                // PENDING or WORKING
+                statusBadge = '<span class="badge bg-secondary ms-2">작업중</span>';
+                // Only Drawing Team or Assigned Draftsman can transfer (and must have ERP edit permission)
+                if (canDrawingWork) {
+                  mainBtn = `
+                        <button class="btn btn-primary" onclick="openTransferDrawingModal(${orderId}, false)">
+                            <i class="fas fa-paper-plane"></i> 도면 전달
+                        </button>
+                    `;
+                } else {
+                  // 담당자 미지정이면 도면 전달 불가
+                  if (!hasAssignee) {
+                    mainBtn = `<small class="text-muted">도면 작업 대기중 (담당자 미지정)</small>`;
+                  } else {
+                    mainBtn = `<button class="btn btn-secondary" disabled>작업 관리는 담당자만 가능</button>`;
+                  }
+                }
+              }
+              const drawHistory = Array.isArray(sd.drawing_transfer_history) ? sd.drawing_transfer_history : [];
+              const gatewayHistoryHtml = renderDrawingGatewayTimeline(drawHistory);
+              const revisionRequests = drawHistory
+                .filter(h => h && h.action === 'REQUEST_REVISION')
+                .slice()
+                .reverse();
+              const requestTabHtml = revisionRequests.length
+                ? revisionRequests.slice(0, 8).map((h, idx) => {
+                  const when = escapeHtml(h.transferred_at || h.at || '-');
+                  const requestAtRaw = String(h.at || h.transferred_at || '');
+                  const requestAtEnc = encodeURIComponent(requestAtRaw);
+                  const by = escapeHtml(h.by_user_name || '-');
+                  const byUserId = Number(h.by_user_id || 0) || '';
+                  const note = escapeHtml(h.note || '요청 메모 없음');
+                  const targetNo = Number(h.target_drawing_number || 0);
+                  const targetBadge = targetNo > 0 ? `<span class="badge bg-info text-dark ms-1">${targetNo}번 대상</span>` : '';
+                  const reviewCheck = (h.review_check && typeof h.review_check === 'object') ? h.review_check : {};
+                  const isChecked = !!reviewCheck.checked;
+                  const checkedBy = escapeHtml(reviewCheck.checked_by_name || '-');
+                  const checkedAt = escapeHtml(reviewCheck.checked_at || '-');
+                  const pinBadge = idx === 0 ? '<span class="badge bg-danger ms-1">최신 요청</span>' : '';
+                  const checkBadge = isChecked
+                    ? `<span class="badge bg-success ms-1">반영 완료</span>`
+                    : `<span class="badge bg-secondary ms-1">미완료</span>`;
+                  const toggleBtn = `
+                    <button class="btn btn-sm ${isChecked ? 'btn-outline-secondary' : 'btn-outline-success'} mt-2"
+                      onclick="toggleRevisionChecklist(${orderId}, '${requestAtEnc}', '${String(byUserId)}', ${isChecked ? 'false' : 'true'})">
+                      <i class="fas ${isChecked ? 'fa-rotate-left' : 'fa-check'}"></i>
+                      ${isChecked ? '완료 해제' : '반영 완료'}
+                    </button>
+                  `;
+                  const checkMeta = isChecked
+                    ? `<div class="small text-success mt-1"><i class="fas fa-user-check"></i> ${checkedBy} · ${checkedAt}</div>`
+                    : '';
+                  return `
+                    <div class="border rounded p-2 mb-2 bg-white">
+                      <div class="small text-muted mb-1">${when} · ${by} ${pinBadge} ${checkBadge} ${targetBadge}</div>
+                      <div class="small">${note}</div>
+                      ${checkMeta}
+                      ${toggleBtn}
+                    </div>
+                  `;
+                }).join('')
+                : '<div class="text-muted small">수정 요청 이력이 없습니다.</div>';
+
+              const transferEvents = drawHistory.filter(h => h && h.action === 'TRANSFER');
+              const latestTransfer = transferEvents.length ? transferEvents[transferEvents.length - 1] : null;
+              const prevTransfer = transferEvents.length > 1 ? transferEvents[transferEvents.length - 2] : null;
+              const latestFiles = Array.isArray((latestTransfer || {}).files) ? latestTransfer.files : [];
+              const prevFiles = Array.isArray((prevTransfer || {}).files) ? prevTransfer.files : [];
+              const compareFilesHtml = `
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <div class="border rounded p-2 h-100 bg-light">
+                      <div class="fw-semibold small mb-1">이전본 ${prevTransfer ? '' : '(없음)'}</div>
+                      <div class="small text-muted mb-2">${prevTransfer ? escapeHtml(prevTransfer.transferred_at || '-') : '-'}</div>
+                      ${prevTransfer ? renderGatewayFiles(prevFiles, `wb_prev_${orderId}`) : '<div class="text-muted small">비교할 이전 전달본이 없습니다.</div>'}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="border rounded p-2 h-100 bg-light">
+                      <div class="fw-semibold small mb-1">최신본 ${latestTransfer ? '' : '(없음)'}</div>
+                      <div class="small text-muted mb-2">${latestTransfer ? escapeHtml(latestTransfer.transferred_at || '-') : '-'}</div>
+                      ${latestTransfer ? renderGatewayFiles(latestFiles, `wb_latest_${orderId}`) : '<div class="text-muted small">최신 전달본이 없습니다.</div>'}
+                    </div>
+                  </div>
+                </div>
+              `;
+
+              let currentTaskText = '도면 담당자가 도면 전달을 진행해 주세요.';
+              if (!hasAssignee) currentTaskText = '도면 담당자를 먼저 지정해야 합니다.';
+              else if (drawingStatus === 'TRANSFERRED') currentTaskText = '주문 담당자가 수령 확정 또는 수정 요청을 선택해야 합니다.';
+              else if (drawingStatus === 'RETURNED') currentTaskText = '도면 담당자가 요청사항 반영 후 수정본을 전달해야 합니다.';
+              else if (drawingStatus === 'CONFIRMED') currentTaskText = '도면 수령 확정 완료. 다음 단계 진행을 확인해 주세요.';
+              const checklist = [
+                { label: '도면 담당자 지정', ok: hasAssignee },
+                { label: '최신 전달본 확인', ok: latestFiles.length > 0 || (Array.isArray(sd.drawing_current_files) && sd.drawing_current_files.length > 0) },
+                { label: '요청사항 검토', ok: drawingStatus !== 'RETURNED' || revisionRequests.length > 0 },
+              ];
+              const checklistHtml = `
+                <div class="bg-white border rounded p-2 mb-2">
+                  <div class="small fw-semibold mb-1"><i class="fas fa-list-check text-primary"></i> 작업 체크리스트</div>
+                  ${checklist.map(item => `
+                    <div class="small ${item.ok ? 'text-success' : 'text-secondary'}">
+                      <i class="fas ${item.ok ? 'fa-check-circle' : 'fa-circle'}"></i> ${escapeHtml(item.label)}
+                    </div>
+                  `).join('')}
+                </div>
+              `;
+
+              const latestEvent = drawHistory.length ? drawHistory[drawHistory.length - 1] : null;
+              const latestAction = (latestEvent && latestEvent.action) || '';
+              const latestActionLabel = latestAction === 'TRANSFER'
+                ? '도면 전달'
+                : (latestAction === 'REQUEST_REVISION'
+                  ? '수정 요청'
+                  : (latestAction === 'CANCEL_TRANSFER' ? '전달 취소' : '이력 없음'));
+              const latestWho = latestEvent ? escapeHtml(latestEvent.by_user_name || '-') : '-';
+              const latestWhen = latestEvent ? escapeHtml(latestEvent.transferred_at || latestEvent.at || '-') : '-';
+              const uncheckedRequestCount = revisionRequests.filter((h) => {
+                const rc = (h && h.review_check && typeof h.review_check === 'object') ? h.review_check : {};
+                return !rc.checked;
+              }).length;
+              const requestSummary = uncheckedRequestCount > 0
+                ? `미완료 요청 ${uncheckedRequestCount}건`
+                : '미완료 요청 없음';
+              const workbenchTab = drawingStatus === 'RETURNED' ? 'requests' : 'timeline';
+              const workbenchUrl = `/erp/drawing-workbench/${orderId}?tab=${encodeURIComponent(workbenchTab)}`;
+
+              actionHtml = `
+            <div class="col-12">
+              <div class="card bg-light border-primary">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                    <h5 class="card-title fw-bold text-primary mb-1">
+                      <i class="fas fa-drafting-compass"></i> 도면 창구 요약
+                      ${statusBadge}
+                    </h5>
+                    <p class="mb-0 text-muted small">
+                      도면 담당: <strong>${assigneeNames || '미지정'}</strong>
+                      ${assignBtn}
+                      ${!canDrawingAssign ? '<span class="text-muted small ms-1">(수정 권한 없음)</span>' : ''}
+                    </p>
+                  </div>
+                  <div class="bg-white border rounded p-2 mb-2">
+                    <div class="small fw-semibold mb-1"><i class="fas fa-bolt text-primary"></i> 지금 필요한 작업</div>
+                    <div class="small text-dark">${escapeHtml(currentTaskText)}</div>
+                  </div>
+                  <div class="bg-white border rounded p-2 mb-2">
+                    <div class="small text-muted mb-1">최근 이벤트</div>
+                    <div class="small fw-semibold">${latestActionLabel} · ${latestWho}</div>
+                    <div class="small text-muted">${latestWhen}</div>
+                    <div class="small mt-1"><span class="badge bg-light text-dark border">${requestSummary}</span></div>
+                  </div>
+                  <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-primary" href="${workbenchUrl}">
+                      <i class="fas fa-comments"></i> 별도 작업실 열기
+                    </a>
+                    ${drawingStatus === 'RETURNED'
+                      ? `<a class="btn btn-outline-danger" href="/erp/drawing-workbench/${orderId}?tab=requests">
+                          <i class="fas fa-list-check"></i> 요청사항 바로보기
+                        </a>`
+                      : ''}
+                  </div>
+                    </div>
+                </div>
+              </div>
+            </div>`;
+            }
+
+            container.innerHTML = `
+          <div class="row g-3 erp-order-detail">
+            ${basicInfoHtml}
+            ${scheduleHtml}
+            ${actionHtml}
+            <div class="col-12">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title fw-bold mb-3"><i class="fas fa-box text-primary"></i> 제품 항목</h5>
+                  ${itemsHtml}
+                </div>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title fw-bold mb-3"><i class="fas fa-paperclip text-primary"></i> 첨부 파일 <span class="badge bg-secondary" style="font-size: 1rem;">${aList.length}개</span></h5>
+                  ${attachmentsHtml}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+          } catch (err) {
+            console.error('주문 상세 로드 실패:', err);
+            container.innerHTML = '<div class="text-danger small">로드 실패: ' + escapeHtml(err.message) + '</div>';
+          }
+        }
+
+        function initErpDashboardBoundaryResize() {
+          const table = document.querySelector('#erp-grid.erp-dashboard-grid-resizable');
+          if (!table) return;
+          if (!window.ERPGridBoundaryResize || typeof window.ERPGridBoundaryResize.init !== 'function') return;
+
+          window.ERPGridBoundaryResize.init({
+            tableSelector: table,
+            resetButtonSelector: '#erp-grid-reset-column-widths',
+            storageKey: 'foms:erp-dashboard:boundary-widths:v2'
+          });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+          initErpDashboardBoundaryResize();
+          // URL 파라미터로 특정 주문 하이라이트 및 퀘스트 확장 (도면 수령확정 후 이동 등)
+          (() => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const focusOrder = urlParams.get('focus_order');
+            const openQuest = urlParams.get('open_quest') === 'true';
+
+            if (focusOrder) {
+              setTimeout(() => {

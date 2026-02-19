@@ -1,0 +1,382 @@
+<style>
+    /* 참조 파일 스타일 반영 */
+    .card-header button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .card-header button.active {
+        font-weight: bold;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    
+    .header-primary {
+        background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%);
+        color: white;
+    }
+    
+    .header-success {
+        background: linear-gradient(135deg, #198754 0%, #157347 100%);
+        color: white;
+    }
+    
+    .border-left-primary {
+        border-left: 4px solid #0dcaf0;
+    }
+    
+    .border-left-success {
+        border-left: 4px solid #198754;
+    }
+    
+    .header-info {
+        background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%);
+        color: white;
+    }
+    
+    .header-warning {
+        background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+        color: #212529;
+    }
+    
+    .border-left-info {
+        border-left: 4px solid #0dcaf0;
+    }
+    
+    .border-left-warning {
+        border-left: 4px solid #ffc107;
+    }
+    
+    .estimate-card {
+        background-color: rgba(13, 202, 240, 0.03) !important;
+        border-left: 3px solid #0dcaf0;
+    }
+    
+    .additional-option-item {
+        background-color: #f8f9fa;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        border-radius: 4px;
+        border: 1px solid #dee2e6;
+    }
+    
+    /* 추가 옵션 행: 모든 컨트롤 높이를 동일하게 강제하여 하단 정렬 맞춤 */
+    .additional-option-item select.form-select-sm,
+    .additional-option-item input.form-control-sm,
+    .additional-option-item button.btn-sm {
+        height: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
+        padding: 0.375rem 0.5rem !important;
+        font-size: 0.95rem !important;
+        line-height: 1.25 !important;
+        box-sizing: border-box !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        vertical-align: middle !important;
+    }
+    
+    /* 버튼 정렬 보조 */
+    .additional-option-item [data-toggle-direct-input] {
+        margin: 0 !important;
+    }
+    .additional-option-item .remove-option-btn {
+        justify-content: center !important;
+        white-space: nowrap !important;
+    }
+    
+    /* 행과 내부 컨테이너를 모두 가운데 정렬 */
+    .additional-option-item .row {
+        align-items: center !important;
+        margin-left: 0;
+        margin-right: 0;
+    }
+    .additional-option-item .d-flex.gap-2 {
+        align-items: center !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+    }
+    
+    /* 직접 입력 텍스트 박스를 드롭다운과 같은 위치에 배치하여 가격 입력 필드와 하단 라인 맞춤 */
+    .additional-option-item .option-name-input {
+        height: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
+        padding: 0.375rem 0.5rem !important;
+        font-size: 0.95rem !important;
+        line-height: 1.25 !important;
+        box-sizing: border-box !important;
+        vertical-align: middle !important;
+    }
+    
+    /* label 높이 통일 */
+    .additional-option-item .form-label.small {
+        height: 20px;
+        line-height: 20px;
+        margin-bottom: 0.25rem;
+        display: block;
+    }
+    
+    /* 가격 박스 너비 20% 증가 (col-md-2에서 col-md-3로 변경하여 16.67% → 25%) */
+    .additional-option-item .price-col {
+        flex: 0 0 20% !important;
+        max-width: 20% !important;
+    }
+    
+    /* 수량 박스 너비 30% 증가 (col-md-1에서 col-md-2로 변경하여 8.33% → 16.67%) */
+    .additional-option-item .quantity-col {
+        flex: 0 0 13% !important;
+        max-width: 13% !important;
+    }
+    
+    
+    .price-display {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #198754;
+    }
+    
+    .final-price-display {
+        font-size: 2.4rem !important;
+        font-weight: 900 !important; /* 더 강한 볼드 */
+        color: #0d6efd !important; /* 더 진한 파란색, 우선순위 상승 */
+        line-height: 1.1 !important;
+        letter-spacing: -0.5px !important; /* 가독성 향상 */
+    }
+    
+    .coupon-discount {
+        color: #dc3545 !important; /* 빨간색 강조 */
+        font-weight: 700 !important;
+        font-size: 0.95rem !important;
+    }
+
+    /* 최종 견적 카드 내 텍스트 강화 */
+    .final-summary-card h6 {
+        font-weight: 800 !important;
+        font-size: 1.1rem !important;
+    }
+    .final-summary-card .final-price-display {
+        font-size: 2.6rem !important;
+        font-weight: 900 !important;
+        color: #0d6efd !important;
+    }
+    .final-summary-card small {
+        display: block;
+        margin-top: 6px;
+        font-size: 0.9rem !important;
+    }
+    
+    /* 인라인 스타일 우선순위 보장 */
+    #finalPrice,
+    #totalAllFinalPrice {
+        font-size: 2.4rem !important;
+        font-weight: 900 !important;
+        color: #0d6efd !important;
+    }
+    
+    #couponInfo,
+    #totalAllCouponInfo {
+        font-size: 0.95rem !important;
+    }
+    
+    /* 견적 건 스타일 개선 - Bootstrap 스타일 우선순위 높이기 */
+    .card-body .estimate-card-item {
+        margin-bottom: 0.75rem !important;
+        padding-left: 0 !important; /* 왼쪽 패딩 제거 */
+    }
+    
+    /* 헤더 스타일 (기본 견적, 추가 옵션 합계, 비고) - 모두 파란색, 볼드체 */
+    .card-body .estimate-header-base,
+    .card-body span.estimate-header-base {
+        color: #0d6efd !important; /* 파란색 */
+        font-weight: 800 !important; /* 더 강한 볼드체 */
+        font-size: 1.08rem !important; /* 0.9rem * 1.2 = 1.08rem */
+        display: block !important;
+        margin-bottom: 0.25rem !important;
+        line-height: 1.4 !important;
+    }
+    
+    .card-body .estimate-header-options,
+    .card-body span.estimate-header-options {
+        color: #0d6efd !important; /* 파란색 */
+        font-weight: 800 !important; /* 더 강한 볼드체 */
+        font-size: 1.08rem !important; /* 0.9rem * 1.2 = 1.08rem */
+        display: block !important;
+        margin-bottom: 0.25rem !important;
+        line-height: 1.4 !important;
+    }
+    
+    .card-body .estimate-header-notes,
+    .card-body span.estimate-header-notes {
+        color: #0d6efd !important; /* 파란색 */
+        font-weight: 800 !important; /* 더 강한 볼드체 */
+        font-size: 1.08rem !important; /* 0.9rem * 1.2 = 1.08rem */
+        display: block !important;
+        margin-bottom: 0.25rem !important;
+        line-height: 1.4 !important;
+    }
+    
+    /* 세부내역 스타일 - 모두 더 진한 초록색, 볼드체 */
+    .card-body .estimate-detail-base,
+    .card-body div.estimate-detail-base {
+        color: #0d7a3d !important; /* 더 진한 초록색 */
+        font-weight: 700 !important; /* 볼드체 */
+        font-size: 1.02rem !important; /* 0.85rem * 1.2 = 1.02rem */
+        line-height: 1.5 !important;
+        margin-top: 0.25rem !important;
+    }
+    
+    .card-body .estimate-detail-options,
+    .card-body div.estimate-detail-options {
+        color: #0d7a3d !important; /* 더 진한 초록색 */
+        font-weight: 700 !important; /* 볼드체 */
+        font-size: 1.02rem !important; /* 0.85rem * 1.2 = 1.02rem */
+        line-height: 1.6 !important;
+        margin-top: 0.25rem !important;
+    }
+    
+    .card-body .estimate-detail-notes,
+    .card-body div.estimate-detail-notes {
+        margin-top: 0.25rem !important;
+    }
+    
+    /* 비고 내부 각 줄 div 스타일 */
+    .card-body .estimate-detail-notes > div {
+        color: #0d7a3d !important; /* 더 진한 초록색 */
+        font-weight: 700 !important; /* 볼드체 */
+        font-size: 1.02rem !important; /* 0.85rem * 1.2 = 1.02rem */
+        line-height: 1.6 !important;
+    }
+    
+    /* 금액 표시 스타일 - 더 구체적인 선택자 사용 */
+    .card-body .estimate-price,
+    .card-body div.estimate-price {
+        font-size: 1.32rem !important; /* 1.1rem * 1.2 = 1.32rem */
+        font-weight: 700 !important;
+        color: #212529 !important;
+        margin-bottom: 0.25rem !important;
+    }
+    
+    .card-body .estimate-total-price,
+    .card-body div.estimate-total-price {
+        font-size: 1.56rem !important; /* 1.3rem * 1.2 = 1.56rem */
+        font-weight: 800 !important;
+        color: #0d6efd !important;
+        margin-top: 0.5rem !important;
+    }
+    
+    /* 세로 모니터(md 이하) 보호 - 기존 비율 유지 */
+    @media (max-width: 991px) {
+        #estimatesListContainer .row .col-md-6 {
+            width: 50% !important;
+            max-width: 50% !important;
+            flex: 0 0 50% !important;
+            flex-basis: 50% !important;
+        }
+    }
+    
+    /* 가로 모니터(lg 이상)에서 견적 카드 4개 배치 (25%씩) */
+    @media (min-width: 992px) {
+        #estimatesListContainer .row .col-lg-3 {
+            width: 25% !important; /* 4개가 한 줄에 배치 */
+            max-width: 25% !important;
+            flex: 0 0 25% !important;
+            flex-basis: 25% !important;
+        }
+    }
+
+    /* 세로 모니터(orientation: portrait)에서는 기존 비율로 복원 (대략 col-lg-4에 해당하는 33.333%) */
+    @media (orientation: portrait) and (min-width: 992px) {
+        #estimatesListContainer .row .col-lg-3 {
+            width: 33.333333% !important;
+            max-width: 33.333333% !important;
+            flex: 0 0 33.333333% !important;
+            flex-basis: 33.333333% !important;
+        }
+        /* 합계 카드 너비도 카드 개수에 맞춰 복원 */
+        #estimatesListContainer .row .col-lg-6 {
+            width: 66.666667% !important;
+            max-width: 66.666667% !important;
+            flex: 0 0 66.666667% !important;
+            flex-basis: 66.666667% !important;
+        }
+        #estimatesListContainer .row .col-lg-9 {
+            width: 99.999999% !important;
+            max-width: 99.999999% !important;
+            flex: 0 0 99.999999% !important;
+            flex-basis: 99.999999% !important;
+        }
+    }
+</style>
+
+<style>
+/* 복합 기본견적 입력 행: 카드 폭에 맞춘 반응형 정렬/간격 */
+#baseComponentsContainer .base-component-row .card-body {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+#baseComponentsContainer .base-component-row {
+  --base-row-control-h: 36px;
+}
+#baseComponentsContainer .base-component-row .form-label.small {
+  font-weight: 700;
+  color: #495057;
+}
+#baseComponentsContainer .base-component-row .form-control-sm,
+#baseComponentsContainer .base-component-row .form-select-sm {
+  height: var(--base-row-control-h);
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+  line-height: 1.2;
+}
+#baseComponentsContainer .base-component-row .form-control-sm,
+#baseComponentsContainer .base-component-row .form-select-sm,
+#baseComponentsContainer .base-component-row .btn,
+#baseComponentsContainer .base-component-row .btn-group,
+#baseComponentsContainer .base-component-row .input-group,
+#baseComponentsContainer .base-component-row .input-group > * {
+  margin-bottom: 0 !important;
+}
+#baseComponentsContainer .base-component-row .btn-group {
+  height: var(--base-row-control-h);
+}
+#baseComponentsContainer .base-component-row .btn-group .btn {
+  height: 100%;
+  padding: 0.25rem 0.5rem;
+  line-height: 1.2;
+}
+#baseComponentsContainer .base-component-row .base-remove-btn {
+  min-width: 38px;
+  height: var(--base-row-control-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#baseComponentsContainer .base-component-row .base-details-area {
+  min-width: 0; /* select가 줄어들면서 overflow 나는 것 방지 */
+}
+/* 제품 선택·단가 방식: 내용이 잘 보이도록 대비·높이·줄간격 보정 */
+#baseComponentsContainer .base-product-select,
+#baseComponentsContainer .base-manual-pricing-type {
+  color: #212529 !important;
+  background-color: #fff !important;
+  font-size: 0.9375rem !important;
+  line-height: 1.45 !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0.4rem 0.5rem !important;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+#baseComponentsContainer .base-product-select option,
+#baseComponentsContainer .base-manual-pricing-type option {
+  color: #212529;
+  background-color: #fff;
+  padding: 0.25em 0;
+}
+@media (max-width: 576px) {
+  #baseComponentsContainer .base-component-row .text-end {
+    text-align: left !important;
+  }
+}
+</style>

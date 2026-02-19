@@ -93,6 +93,21 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 **docs/DEPLOY_NOTES.md** — deploy에 올릴 때마다 "뭘 했는지" 누구나 알 수 있게 쉬운 말로 정리
 
 ## 최근 변경
+- [2026-02-19] **완료 더블체크 + 다음 단계 정리**
+  - NEXT-002 PART-003·004·005 완료 확인 (TASK_REGISTRY·wdcalculator/partials 존재). `python -c "import app"` OK.
+  - CURRENT_STATUS "다음에 시작할 작업" 갱신: PART-005 완료 반영, 우선 착수 → NEXT-003(pytest) 또는 GDM 감사.
+  - 고도화 예정: PART-005 [x], NEXT-003 pytest [ ] 등록. TASK_REGISTRY에 NEXT-003 대기 등록.
+- [2026-02-18] **NEXT-002 PART-005 완료: calculator.html partial 분리**
+  - calculator.html 3,925줄 → 15줄 (메인: extends + include 3개).
+  - wdcalculator/partials/wdcalculator_styles.html (~380줄), wdcalculator_body.html (266줄), wdcalculator_scripts.html (~3,454줄).
+  - header-info, header-warning, border-left-info, border-left-warning 스타일 추가.
+  - `python -c "import app"` OK. NEXT002 §4.5, TASK_REGISTRY 갱신 완료.
+- [2026-02-19] **GDM 더블체크 + NEXT-002 PART-003·004 완료**
+  - GDM 검증 체크리스트: `python -c "import app"` OK, ReadLints OK, 페이지 스모크(시공·생산 대시보드 302) OK.
+  - Jinja2+JSON: `JSON.parse('{{ x|tojson }}')` 패턴 없음 — construction/production partials는 data-* + safeJsonParse 사용.
+  - PART-003: erp_construction_dashboard.html 1,794줄 → 120줄 (styles, filters_grid, modals, scripts 분리).
+  - PART-004: erp_production_dashboard.html 3,016줄 → 120줄 (동일 패턴).
+  - NEXT002 지시서 §4.3·§4.4, TASK_REGISTRY 갱신 완료.
 - [2026-02-18] **배포·정리·품질 감사**
   - DEPLOY_NOTES.md에 2026-02-18 배포 내용(ERP 화면 분리) 한글로 추가. deploy 브랜치 푸시 완료. (커밋 메시지는 한글 깨짐 방지로 영문 사용: `deploy: ERP split and 2026-02-18 deploy notes`)
   - 불필요 파일 정리: `docs/plans/SLIM_DOWN_PROGRESS_2026-02-17.md` 삭제(계획서로 대체), .gitignore에 `config/local*` 추가.
@@ -203,6 +218,8 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 - apps/erp.py: **40줄** (허브 역할만 - 모든 대시보드 페이지 분리 완료, 목표 500줄 이하 달성)
 - templates/erp_dashboard.html: 594줄 (partial 분리 완료, 3-1)
 - templates/chat.html: 229줄 (partial 분리 완료, 3-2)
+- templates/erp_construction_dashboard.html: **120줄** (PART-003 완료)
+- templates/erp_production_dashboard.html: **120줄** (PART-004 완료)
 
 ## 가용 자원 더블체크 (GDM 기준, 2026-02-16)
 
@@ -215,12 +232,13 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 | Skills | GDM/tech-stack/self-evolution/architect/code-review/production-audit | .cursor/skills/skills/ | 624개+ 공통 스킬 |
 | 배포 노트 | DEPLOY_NOTES.md | docs/DEPLOY_NOTES.md | 쉬운 한글 배포 내용 |
 
-## 다음에 시작할 작업 (2026-02-18 갱신)
-- **우선 착수**: **NEXT-002** (대형 템플릿 partial) — 파일 정리·NEXT-001 완료 후 순서. 계획표 `docs/plans/2026-02-18-file-cleanup-and-next-plan.md` §3 참조.
+## 다음에 시작할 작업 (2026-02-19 갱신)
+- **완료 더블체크**: NEXT-002 PART-003·004·005 완료 (TASK_REGISTRY 기준). calculator.html → wdcalculator/partials 분리 완료. `python -c "import app"` OK.
+- **우선 착수**: **NEXT-003** (pytest 도입) 또는 **GDM 감사** 1회 실행 후 우선순위 재정렬.
 - **보류**: app.py SLIM-035 (319줄→300줄) — 일단 중단, 필요 시 app-slim 계획서에서 재개.
-- **배포**: erp.py 분리 내용은 DEPLOY_NOTES 반영·deploy 푸시 완료.
-- **이후 순서**: NEXT-001 완료. 다음 NEXT-002(대형 템플릿 partial)·NEXT-003(pytest)·NEXT-004(db_admin 비밀번호) 등. 동일 계획표 §3 참조.
-- **계획서**: `docs/plans/2026-02-18-file-cleanup-and-next-plan.md` (파일 정리·다음 착수), `docs/plans/2026-02-17-erp-split-plan.md`, `docs/plans/2026-02-18-app-slim-task-plan.md`
+- **배포**: erp.py 분리·대형 템플릿 partial 반영 후 deploy 푸시 진행.
+- **이후 순서**: NEXT-003(pytest)·NEXT-004(db_admin 비밀번호)·Phase 3 고도화(테스트/CI/CD). 계획표 §3 참조.
+- **계획서**: `docs/plans/2026-02-18-file-cleanup-and-next-plan.md`, `docs/plans/2026-02-17-erp-split-plan.md`, `docs/plans/2026-02-18-app-slim-task-plan.md`
 
 ## 고도화 예정
 - [x] app.py 채팅 분리 (Phase 2-1 완료)
@@ -231,7 +249,8 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 - [x] **파일 정리** (CLEAN-001~005) — 완료
 - [~] app.py 300줄 이하 (SLIM-035) — **보류**
 - [x] order_pages.py 500줄 이하 분리 (NEXT-001) — edit_order → apps/order_edit.py
-- [ ] 대형 템플릿 partial (NEXT-002)
+- [x] 대형 템플릿 partial PART-001~005 (NEXT-002) — chat_scripts, erp_dashboard_scripts, erp_construction, erp_production, calculator (wdcalculator/partials)
+- [ ] NEXT-003: pytest 도입 (Phase 3 고도화)
 - [ ] AI 분석 툴 (apps/api/ai.py), 카카오 알림톡 (kakao.py) — 선택
 
 ## 환경 정보
