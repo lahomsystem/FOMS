@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 
-## 마지막 업데이트: 2026-02-18 (파일 정리 Phase 1 완료, deploy 푸시)
+## 마지막 업데이트: 2026-02-19 (Phase 3 스모크 5건 통과, GDM 감사 반영)
 
 ## 세션 재개 시 이어서 작업 가용자원 (컨텍스트 풀 시)
 
@@ -233,11 +233,11 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 | 배포 노트 | DEPLOY_NOTES.md | docs/DEPLOY_NOTES.md | 쉬운 한글 배포 내용 |
 
 ## 다음에 시작할 작업 (2026-02-19 갱신)
-- **완료 더블체크**: NEXT-002 PART-003·004·005 완료 (TASK_REGISTRY 기준). calculator.html → wdcalculator/partials 분리 완료. `python -c "import app"` OK.
-- **우선 착수**: **GDM 감사** 1회 실행 또는 Phase 3 고도화(테스트 확대·CI). NEXT-003·NEXT-004 완료.
+- **완료**: GDM 감사 1회 실행 (`docs/evolution/GDM_AUDIT_2026-02-19.md`). Phase 3 스모크 5건 통과 (test_erp 404 허용 반영).
+- **우선 착수**: Phase 3 계속(API/주문 상태 테스트 추가) 또는 CI(GitHub Actions) 검토. NEXT-003·NEXT-004 완료.
 - **보류**: app.py SLIM-035 (319줄→300줄) — 일단 중단, 필요 시 app-slim 계획서에서 재개.
 - **배포**: erp.py 분리·대형 템플릿 partial 반영 후 deploy 푸시 진행.
-- **이후 순서**: NEXT-003(pytest)·NEXT-004(db_admin 비밀번호)·Phase 3 고도화(테스트/CI/CD). 계획표 §3 참조.
+- **이후 순서**: Phase 3 테스트 확대·CI/CD. 계획표 §3 참조.
 - **계획서**: `docs/plans/2026-02-18-file-cleanup-and-next-plan.md`, `docs/plans/2026-02-17-erp-split-plan.md`, `docs/plans/2026-02-18-app-slim-task-plan.md`
 
 ## 고도화 예정
@@ -250,7 +250,7 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 - [~] app.py 300줄 이하 (SLIM-035) — **보류**
 - [x] order_pages.py 500줄 이하 분리 (NEXT-001) — edit_order → apps/order_edit.py
 - [x] 대형 템플릿 partial PART-001~005 (NEXT-002) — chat_scripts, erp_dashboard_scripts, erp_construction, erp_production, calculator (wdcalculator/partials)
-- [x] NEXT-003: pytest 도입 (tests/, 스모크 3건 통과)
+- [x] NEXT-003: pytest 도입 (tests/, 스모크 5건 통과)
 - [x] NEXT-004: db_admin 비밀번호 환경변수화 (FOMS_ADMIN_DEFAULT_PASSWORD)
 - [ ] AI 분석 툴 (apps/api/ai.py), 카카오 알림톡 (kakao.py) — 선택
 

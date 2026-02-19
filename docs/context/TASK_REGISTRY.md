@@ -15,7 +15,7 @@
 | NEXT-002 PART-003 | 완료 | erp_construction_dashboard.html partial 분리 (styles, filters_grid, modals, scripts) | 2026-02-19 | 2026-02-19 |
 | NEXT-002 PART-004 | 완료 | erp_production_dashboard.html partial 분리 (styles, filters_grid, modals, scripts) | 2026-02-19 | 2026-02-19 |
 | NEXT-002 PART-005 | 완료 | calculator.html partial 분리 (wdcalculator/partials/wdcalculator_*.html) | 2026-02-18 | 2026-02-18 |
-| NEXT-003 | 완료 | pytest 도입 (tests/, conftest.py, test_app_smoke.py — 3 passed) | 2026-02-19 | 2026-02-19 |
+| NEXT-003 | 완료 | pytest 도입 (tests/, conftest.py, test_app_smoke.py — 5 passed, ERP 404 허용) | 2026-02-19 | 2026-02-19 |
 | NEXT-004 | 완료 | db_admin 비밀번호 환경변수화 (FOMS_ADMIN_DEFAULT_PASSWORD) | 2026-02-19 | 2026-02-19 |
 | SLIM-035 | 보류 | app.py 300줄 이하 (일단 중단) | - | 2026-02-18 |
 | ERP-SLIM-10 | 완료 | 시공 대시보드 → apps/erp_construction_page.py (erp_construction_page_bp) | 2026-02-18 | 2026-02-18 |
