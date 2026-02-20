@@ -830,6 +830,19 @@
                     <div class="shipment-address-block">
                       <div class="cell-wrap shipment-address-text mb-1" title="기본 주소">{{ address or '-' }}</div>
                       <ul class="shipment-site-extra-list mb-0" data-order-id="{{ r.id }}" data-field="site_extra">
+                        {# [GDM] ERP Items extra_input 자동 표시 (수정 불가, 저장 제외) #}
+                        {% for it in erp_items %}
+                        {% set ei = (it.get('extra_input') or '')|string|trim %}
+                        {% if ei %}
+                        <li class="d-flex gap-1 align-items-center flex-wrap mb-0" style="min-height:0;">
+                          <span class="site-extra-color-blue fw-semibold" style="line-height:1.1; padding:1px 0; cursor:default;"
+                            title="항목 추가입력 연동">
+                            <i class="fas fa-asterisk fa-xs text-black-50 me-1" style="font-size:0.6em;"></i>{{ ei }}
+                          </span>
+                        </li>
+                        {% endif %}
+                        {% endfor %}
+
                         {% for line in site_extra %}
                         {% if line is mapping %}
                         {% set line_text = line.get('text', '') %}

@@ -85,8 +85,9 @@ def api_erp_shipment_update(order_id):
         order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
         if not order:
             return jsonify({'success': False, 'error': '주문을 찾을 수 없습니다.'}), 404
-        if not order.is_erp_beta and order.status not in ('AS_RECEIVED', 'AS_COMPLETED'):
-            return jsonify({'success': False, 'error': 'ERP Beta 또는 AS 주문만 수정할 수 있습니다.'}), 400
+        # Legacy 주문도 대시보드에서 편집 가능하도록 허용 (GDM 2026-02-19)
+        # if not order.is_erp_beta and order.status not in ('AS_RECEIVED', 'AS_COMPLETED'):
+        #     return jsonify({'success': False, 'error': 'ERP Beta 또는 AS 주문만 수정할 수 있습니다.'}), 400
 
         payload = request.get_json(silent=True) or {}
         structured_data = dict(order.structured_data or {})

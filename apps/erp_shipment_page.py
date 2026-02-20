@@ -9,7 +9,7 @@ from apps.auth import login_required, get_user_by_id
 import datetime
 import json
 import os
-from sqlalchemy import or_
+from sqlalchemy import or_, and_, cast, String
 
 from services.erp_permissions import can_edit_erp
 from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders
@@ -58,7 +58,8 @@ def _get_order_construction_date(order):
         if cons_date:
             date_value = str(cons_date)
 
-    if not date_value and order.is_erp_beta and order.scheduled_date:
+    # Legacy(기존 주문) 또는 Beta Fallback: scheduled_date가 있으면 사용
+    if not date_value and order.scheduled_date:
         date_value = str(order.scheduled_date)
     return date_value
 
@@ -103,7 +104,12 @@ def erp_shipment_dashboard():
     panel_orders = base_query.filter(
         or_(
             Order.is_erp_beta == True,
-            Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED'])
+            Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
+            and_(
+                Order.is_erp_beta == False,
+                Order.scheduled_date != None,
+                Order.scheduled_date != ''
+            )
         )
     ).order_by(Order.id.desc()).limit(1500).all()
 
@@ -135,7 +141,7 @@ def erp_shipment_dashboard():
         construction_counts[key] = construction_counts.get(key, 0) + 1
 
         shipment = {}
-        if order.structured_data and isinstance(order.structured_data, dict):
+        if order.structured_data and isinstance(order.structured_data, dict):  # type: ignore
             shipment = (order.structured_data.get('shipment') or {})
         workers = shipment.get('construction_workers') or []
         for w in workers:
@@ -200,26 +206,56 @@ def erp_shipment_dashboard():
         })
         current += datetime.timedelta(days=1)
 
+    # SQL 레벨에서 날짜 필터링 (최적화 + Limit으로 인한 누락 방지)
+    # JSON 검색용: "YYYY-MM-DD" 형태가 포함되어 있는지 확인
+    date_keyword = f'"{selected_date}"'
+
     all_candidates = base_query.filter(
         or_(
-            Order.is_erp_beta == True,
-            Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED'])
+            # 1. AS 주문: 날짜 컬럼 3개 중 하나라도 일치
+            and_(
+                Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
+                or_(
+                    Order.scheduled_date == selected_date,
+                    Order.as_received_date == selected_date,
+                    Order.as_completed_date == selected_date
+                )
+            ),
+            # 2. Legacy(기존) 주문: scheduled_date 일치
+            and_(
+                Order.is_erp_beta == False,
+                Order.status.notin_(['AS_RECEIVED', 'AS_COMPLETED']),
+                Order.scheduled_date == selected_date
+            ),
+            # 3. ERP Beta 주문: scheduled_date 일치 OR JSON 데이터 내 날짜 문자열 포함
+            and_(
+                Order.is_erp_beta == True,
+                or_(
+                    Order.scheduled_date == selected_date,
+                    cast(Order.structured_data, String).like(f'%{date_keyword}%')
+                )
+            )
         )
-    ).order_by(Order.id.desc()).limit(500).all()
+    ).order_by(Order.id.desc()).all()
     rows = []
     for order in all_candidates:
         match = False
         if order.status in ('AS_RECEIVED', 'AS_COMPLETED'):
             if (order.scheduled_date and str(order.scheduled_date) == selected_date) or \
                (order.as_received_date and str(order.as_received_date) == selected_date) or \
-               (order.as_completed_date and str(order.as_completed_date) == selected_date):
+               (order.as_completed_date and str(order.as_completed_date) == selected_date):  # type: ignore
                 match = True
-        if not match and order.is_erp_beta:
+        if not match and order.is_erp_beta:  # type: ignore
             sd = order.structured_data or {}
             cons = (sd.get('schedule') or {}).get('construction') or {}
             if cons.get('date') and str(cons.get('date')) == selected_date:
                 match = True
-            if not match and order.scheduled_date and str(order.scheduled_date) == selected_date:
+            if not match and order.scheduled_date and str(order.scheduled_date) == selected_date:  # type: ignore
+                match = True
+        
+        # Legacy(기존 주문) 날짜 매칭
+        if not match and not order.is_erp_beta and order.status not in ('AS_RECEIVED', 'AS_COMPLETED'):  # type: ignore
+            if order.scheduled_date and str(order.scheduled_date) == selected_date:  # type: ignore
                 match = True
         if match:
             rows.append(order)
