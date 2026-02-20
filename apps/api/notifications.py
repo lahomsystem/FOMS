@@ -9,7 +9,7 @@ import datetime as dt_mod
 from urllib.parse import quote
 
 from flask import Blueprint, request, jsonify, session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 from db import get_db
 from models import Order, Notification, User
@@ -32,6 +32,43 @@ def _invalidate_badge_cache(user_id):
     """사용자별 배지 캐시 무효화 (읽음 처리 시 호출)."""
     if user_id is not None:
         _badge_cache.pop(user_id, None)
+
+
+def invalidate_badge_cache_for_user_ids(user_ids):
+    """여러 사용자의 배지 캐시를 한 번에 무효화."""
+    if not user_ids:
+        return
+    for uid in user_ids:
+        try:
+            _invalidate_badge_cache(int(uid))
+        except (TypeError, ValueError):
+            continue
+
+
+def resolve_notification_recipient_user_ids(db, target_team=None, target_manager_name=None, include_admin=True):
+    """알림 타겟(팀/담당자명) 기준으로 수신 사용자 ID 집합을 계산."""
+    team = (target_team or '').strip().upper()
+    manager_name = (target_manager_name or '').strip()
+
+    conditions = []
+    if team:
+        conditions.append(func.upper(User.team) == team)
+    if manager_name:
+        conditions.append(User.name == manager_name)
+    if include_admin:
+        conditions.append(User.role == 'ADMIN')
+
+    if not conditions:
+        return set()
+
+    rows = db.query(User.id).filter(or_(*conditions)).all()
+    out = set()
+    for row in rows:
+        try:
+            out.add(int(row[0]))
+        except (TypeError, ValueError, IndexError):
+            continue
+    return out
 
 
 def _ensure_dict(data):

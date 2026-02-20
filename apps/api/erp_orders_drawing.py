@@ -10,8 +10,13 @@ from flask import Blueprint, request, jsonify, session
 from db import get_db
 from models import Order, OrderAttachment, Notification, SecurityLog
 from apps.auth import login_required, get_user_by_id
+from apps.api.notifications import (
+    resolve_notification_recipient_user_ids,
+    invalidate_badge_cache_for_user_ids,
+)
 from services.erp_permissions import erp_edit_required
 from services.erp_policy import can_modify_domain, get_assignee_ids
+from services.realtime_notifications import emit_erp_notification_to_users
 from services.storage import get_storage
 
 erp_orders_drawing_bp = Blueprint(
@@ -219,7 +224,7 @@ def api_order_transfer_drawing(order_id):
             target_team = 'SALES'
             target_manager_name = manager_name if manager_name else None
 
-        db.add(Notification(
+        new_notification = Notification(
             order_id=order_id,
             notification_type='DRAWING_TRANSFERRED',
             target_team=target_team,
@@ -229,9 +234,28 @@ def api_order_transfer_drawing(order_id):
             created_by_user_id=user_id,
             created_by_name=user_name,
             is_read=False
-        ))
+        )
+        db.add(new_notification)
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 도면 전달 완료: {note}"))
         db.commit()
+
+        recipient_user_ids = resolve_notification_recipient_user_ids(
+            db,
+            target_team=target_team,
+            target_manager_name=target_manager_name,
+            include_admin=True,
+        )
+        invalidate_badge_cache_for_user_ids(recipient_user_ids)
+        emit_erp_notification_to_users(
+            recipient_user_ids,
+            {
+                'notification_id': new_notification.id,
+                'order_id': order_id,
+                'notification_type': 'DRAWING_TRANSFERRED',
+                'title': new_notification.title,
+                'message': new_notification.message,
+            },
+        )
 
         target_info = "라홈팀" if target_team == 'CS' else (
             "하우드팀" if target_team == 'HAUDD' else (

@@ -117,7 +117,7 @@ class OrderEvent(Base):
     id = Column(Integer, primary_key=True)
     order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
     event_type = Column(String(50), nullable=False, index=True)  # e.g. STAGE_CHANGED, URGENT_SET
-    payload = Column(JSONB, nullable=True)
+    payload = Column(JSONColumn, nullable=True)
     created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.now, nullable=False, index=True)
 
@@ -136,7 +136,7 @@ class OrderTask(Base):
     owner_team = Column(String(50), nullable=True)  # CS/SALES/MEASURE/DRAWING/PRODUCTION/CONSTRUCTION
     owner_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     due_date = Column(String, nullable=True)  # YYYY-MM-DD
-    meta = Column(JSONB, nullable=True)
+    meta = Column(JSONColumn, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
     updated_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
 
@@ -153,7 +153,7 @@ class SystemBuildStep(Base):
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     message = Column(Text, nullable=True)
-    meta = Column(JSONB, nullable=True)
+    meta = Column(JSONColumn, nullable=True)
 
 class User(Base):
     __tablename__ = 'users'
@@ -280,7 +280,7 @@ class ChatMessage(Base):
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     message_type = Column(String(20), default='text', nullable=False)  # text, image, video, file
     content = Column(Text, nullable=True)  # 텍스트 메시지 내용
-    file_info = Column(JSONB, nullable=True)  # 파일 정보 (JSON 형태)
+    file_info = Column(JSONColumn, nullable=True)  # 파일 정보 (JSON 형태)
     created_at = Column(DateTime, default=datetime.datetime.now, nullable=False, index=True)
     
     # 관계

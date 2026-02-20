@@ -279,12 +279,31 @@
                 }, delayMs);
             }
 
+            // ERP 알림 수신 시 배지/목록을 즉시 동기화한다.
+            function refreshErpNotificationUI() {
+                if (typeof loadGlobalNotificationBadge === 'function') {
+                    loadGlobalNotificationBadge();
+                }
+                if (typeof loadNotificationBadge === 'function') {
+                    loadNotificationBadge();
+                }
+                const panel = document.getElementById('global-notification-panel');
+                const isPanelVisible = panel && panel.style.display === 'block';
+                if (isPanelVisible && typeof loadGlobalNotifications === 'function') {
+                    loadGlobalNotifications();
+                }
+                if (isPanelVisible && typeof loadNotifications === 'function') {
+                    loadNotifications();
+                }
+            }
+
             // 핸들러는 전역에 보관하여 중복 바인딩을 방지한다.
             const globalHandlers = window.__globalSocketHandlers || {
                 onConnect: function () {
                     console.log('[Global Socket.IO] ✅ 연결 성공');
                     console.log('[Global Socket.IO] Socket ID:', globalSocket.id);
                     console.log('[Global Socket.IO] 연결 상태:', globalSocket.connected);
+                    refreshErpNotificationUI();
                 },
                 onConnectError: function (error) {
                     console.error('[Global Socket.IO] ❌ 연결 오류:', error);
@@ -325,6 +344,10 @@
                         console.log('[Global Socket.IO] showGlobalChatNotification 없음, 브라우저 알림 사용');
                         showBrowserNotification(data);
                     }
+                },
+                onErpNotification: function (data) {
+                    console.log('[Global Socket.IO] ERP 알림 수신:', data);
+                    refreshErpNotificationUI();
                 }
             };
             window.__globalSocketHandlers = globalHandlers;
@@ -334,12 +357,14 @@
             globalSocket.off('disconnect', globalHandlers.onDisconnect);
             globalSocket.off('connected', globalHandlers.onConnected);
             globalSocket.off('new_message', globalHandlers.onNewMessage);
+            globalSocket.off('erp_notification', globalHandlers.onErpNotification);
 
             globalSocket.on('connect', globalHandlers.onConnect);
             globalSocket.on('connect_error', globalHandlers.onConnectError);
             globalSocket.on('disconnect', globalHandlers.onDisconnect);
             globalSocket.on('connected', globalHandlers.onConnected);
             globalSocket.on('new_message', globalHandlers.onNewMessage);
+            globalSocket.on('erp_notification', globalHandlers.onErpNotification);
 
             // 전역 알림 표시 함수 (chat.html의 showChatNotification 로직 재사용)
             window.showGlobalChatNotification = function (messageData) {

@@ -18,7 +18,7 @@
     {
       "id": "measured",
       "name": "실측",
-      "url": "/?status=MEASURED"
+      "url": "/?status=MEASURE"
     },
     {
       "id": "metro_orders",

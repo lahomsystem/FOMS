@@ -139,6 +139,8 @@ def main():
         ensure_r2_env()
         client = make_r2_client()
         bucket = os.getenv("R2_BUCKET_NAME")
+        if not bucket:
+            raise RuntimeError("R2_BUCKET_NAME is required when --execute is set")
 
     engine = create_engine(local_db_url, pool_pre_ping=True)
 
@@ -182,6 +184,7 @@ def main():
             # 업로드(원본)
             local_path = os.path.join(upload_folder, storage_key)
             if args.execute:
+                assert bucket is not None
                 ok, msg = upload_file_to_r2(client, bucket, storage_key, local_path, skip_if_exists=args.skip_existing)
                 if ok:
                     if msg == "uploaded":
@@ -200,6 +203,7 @@ def main():
             if thumb_key:
                 thumb_path = os.path.join(upload_folder, thumb_key)
                 if args.execute:
+                    assert bucket is not None
                     ok2, msg2 = upload_file_to_r2(client, bucket, thumb_key, thumb_path, skip_if_exists=args.skip_existing)
                     if not ok2:
                         stats["attachments_missing_files"] += 1
@@ -299,6 +303,7 @@ def main():
 
             local_path = os.path.join(upload_folder, key)
             if args.execute:
+                assert bucket is not None
                 ok, msg = upload_file_to_r2(client, bucket, key, local_path, skip_if_exists=args.skip_existing)
                 if ok:
                     if msg == "uploaded":
