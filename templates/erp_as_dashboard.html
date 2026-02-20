@@ -92,7 +92,19 @@
               <td>{{ r.as_completed_date or '-' }}</td>
               <td>{{ r.manager_name or '-' }}</td>
               <td>{{ (r.customer_name or '-') }} / {{ r.phone|format_phone }}</td>
-              <td class="erp-pro-table__cell--wrap">{{ r.address or '-' }}</td>
+              <td class="erp-pro-table__cell--wrap">
+                <div class="d-flex justify-content-between align-items-start">
+                  <span>{{ r.address or '-' }}</span>
+                  {% if r.address %}
+                  <button type="button" class="btn btn-sm btn-outline-secondary ms-1 find-schedule-btn p-0 px-1" 
+                          data-address="{{ r.address }}" 
+                          title="주변 일정 찾기"
+                          style="font-size: 0.75rem; line-height: 1.5;">
+                    <i class="fas fa-map-marker-alt"></i> 일정
+                  </button>
+                  {% endif %}
+                </div>
+              </td>
               <td>
                 <textarea class="erp-pro-input as-content-input" placeholder="내용 입력..." data-order-id="{{ r.id }}"
                   style="width: 100%; min-height: 40px; height: auto; padding-top: 8px; padding-bottom: 8px; resize: vertical;">{{ (r.structured_data.get('shipment', {}).get('as_content', '')) if r.structured_data else '' }}</textarea>
@@ -154,7 +166,17 @@
             </div>
             <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
               <span class="erp-pro-order-card__label">주소</span>
-              <span class="erp-pro-order-card__value mb-1">{{ r.address or '-' }}</span>
+              <div class="d-flex justify-content-between align-items-start w-100">
+                <span class="erp-pro-order-card__value mb-1">{{ r.address or '-' }}</span>
+                {% if r.address %}
+                <button type="button" class="btn btn-sm btn-outline-secondary find-schedule-btn ms-2 p-0 px-2" 
+                        data-address="{{ r.address }}" 
+                        title="주변 일정 찾기"
+                        style="font-size: 0.75rem; white-space: nowrap;">
+                  <i class="fas fa-map-marker-alt"></i> 일정
+                </button>
+                {% endif %}
+              </div>
             </div>
             <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
               <span class="erp-pro-order-card__label">AS 내용</span>
@@ -191,11 +213,119 @@
   </div>
 </div>
 
+<!-- Schedule Search Modal -->
+<div class="modal fade" id="scheduleSearchModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-map-marked-alt"></i> 가까운 일정 찾기</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-light border mb-3">
+          <small class="text-muted d-block mb-1">기준 주소</small>
+          <strong id="scheduleSearchAddr" class="text-dark"></strong>
+        </div>
+        <div class="list-group" id="scheduleSearchResults">
+          <!-- Results -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     const toastEl = document.getElementById('saveToast');
     const toast = new bootstrap.Toast(toastEl, { delay: 2000 });
     const toastMsg = document.getElementById('toastMessage');
+
+    // 일정 찾기 버튼 핸들러
+    document.body.addEventListener('click', async function(e) {
+      const btn = e.target.closest('.find-schedule-btn');
+      if (!btn) return;
+
+      const addr = btn.dataset.address;
+      const addrEl = document.getElementById('scheduleSearchAddr');
+      
+      // 방어 코드: 요소가 없는 경우 (캐시 등 문제)
+      if (!addrEl) {
+        alert('화면 업데이트가 필요합니다. 페이지를 새로고침(F5) 해주세요.');
+        location.reload();
+        return;
+      }
+
+      addrEl.textContent = addr;
+      const resList = document.getElementById('scheduleSearchResults');
+      if (resList) {
+        resList.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted small">주변 일정을 검색 중입니다...</div></div>';
+      }
+      
+      const modalEl = document.getElementById('scheduleSearchModal');
+      if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+      } else {
+        alert('오류: 모달창을 찾을 수 없습니다.');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/orders/nearby?address=${encodeURIComponent(addr)}`);
+        const data = await res.json();
+        
+        if (resList) {
+            resList.innerHTML = '';
+            
+            if(!data.success || !data.results || data.results.length === 0) {
+              resList.innerHTML = `
+                <div class="text-center py-5 text-muted">
+                  <i class="fas fa-calendar-times mb-2" style="font-size: 2rem;"></i>
+                  <p>근처에 예정된 출고/시공 일정이 없습니다.</p>
+                </div>`;
+              return;
+            }
+
+            data.results.forEach(item => {
+              const el = document.createElement('a');
+              el.className = 'list-group-item list-group-item-action p-3';
+              el.href = `/edit/${item.id}?open=erp-beta`; 
+              
+              let badgeClass = 'bg-secondary';
+              if (item.type === '상차') badgeClass = 'bg-warning text-dark';
+              else if (item.type === '시공') badgeClass = 'bg-success';
+
+              // 날짜 포맷팅 (YYYY-MM-DD -> M월 D일)
+              let dateDisplay = item.date;
+              const dateMatch = item.date && item.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+              if (dateMatch) {
+                  dateDisplay = `${parseInt(dateMatch[2])}월 ${parseInt(dateMatch[3])}일`;
+              }
+
+              el.innerHTML = `
+                <div class="d-flex w-100 justify-content-between align-items-center mb-2">
+                  <div>
+                    <span class="badge ${badgeClass} me-2">${item.type}</span>
+                    <span class="fw-bold">${dateDisplay}</span>
+                    <span class="mx-2 text-muted">|</span>
+                    <span class="fw-semibold">${item.customer_name}</span>
+                  </div>
+                  <small class="text-muted">#${item.id}</small>
+                </div>
+                <p class="mb-1 text-dark"><i class="fas fa-map-marker-alt text-danger me-1"></i> ${item.address}</p>
+                <div class="d-flex justify-content-between align-items-end mt-1">
+                  <small class="text-muted">상태: ${item.status}</small>
+                  <small class="text-primary fw-bold"><i class="fas fa-external-link-alt"></i> 바로가기</small>
+                </div>
+              `;
+              resList.appendChild(el);
+            });
+        }
+      } catch(err) {
+        console.error(err);
+        if (resList) resList.innerHTML = '<div class="text-center py-3 text-danger">오류가 발생했습니다.</div>';
+      }
+    });
 
     function showFeedback(msg, isError = false) {
       toastMsg.textContent = msg;
