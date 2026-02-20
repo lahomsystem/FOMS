@@ -12,9 +12,14 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order, Notification, SecurityLog
 from apps.auth import login_required, get_user_by_id
+from apps.api.notifications import (
+    resolve_notification_recipient_user_ids,
+    invalidate_badge_cache_for_user_ids,
+)
 from services.erp_permissions import erp_edit_required
 from apps.erp import _ensure_dict, _can_modify_sales_domain
 from services.erp_policy import can_modify_domain
+from services.realtime_notifications import emit_erp_notification_to_users
 
 erp_orders_revision_bp = Blueprint(
     'erp_orders_revision',
@@ -116,7 +121,7 @@ def api_order_request_revision(order_id):
         msg += f" 메모: {note}"
         if files:
             msg += f" (첨부 {len(files)}건)"
-        db.add(Notification(
+        new_notification = Notification(
             order_id=order_id,
             notification_type='DRAWING_REVISION',
             target_team='DRAWING',
@@ -124,9 +129,28 @@ def api_order_request_revision(order_id):
             message=msg,
             created_by_user_id=session.get('user_id'),
             created_by_name=current_user.name
-        ))
+        )
+        db.add(new_notification)
         db.add(SecurityLog(user_id=session.get('user_id'), message=f"주문 #{order_id} 도면 수정 요청"))
         db.commit()
+
+        recipient_user_ids = resolve_notification_recipient_user_ids(
+            db,
+            target_team='DRAWING',
+            target_manager_name=None,
+            include_admin=True,
+        )
+        invalidate_badge_cache_for_user_ids(recipient_user_ids)
+        emit_erp_notification_to_users(
+            recipient_user_ids,
+            {
+                'notification_id': new_notification.id,
+                'order_id': order_id,
+                'notification_type': 'DRAWING_REVISION',
+                'title': new_notification.title,
+                'message': new_notification.message,
+            },
+        )
 
         return jsonify({'success': True, 'message': '도면 수정 요청이 전송되었습니다.'})
     except Exception as e:

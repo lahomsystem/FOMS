@@ -1,4 +1,5 @@
 import warnings
+from typing import Literal, cast
 # warnings.filterwarnings("ignore", category=DeprecationWarning, module="eventlet")
 # import eventlet
 # eventlet.monkey_patch()
@@ -246,32 +247,40 @@ from services.rate_limit import init_limiter
 limiter = init_limiter(app)
 
 # SocketIO Initialization with Redis & CORS Control
-# Use threading mode for Windows WebSocket support & Stability
+# Production (gunicorn -k gevent): async_mode='gevent' to avoid ConcurrentObjectUseError on same socket.
+# Local (Windows): SOCKETIO_ASYNC_MODE=threading or no Redis → threading.
 socketio = None
 if SOCKETIO_AVAILABLE:
     try:
         from flask_socketio import SocketIO as _SocketIO
         # CORS 도메인 제한 (환경변수 없으면 모든 도메인 허용 - 개발 편의성)
         allowed_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '*').split(',')
-        
-        # Redis가 설정되어 있으면 Message Queue로 사용 (Scale-out 지원)
+        # gunicorn gevent 워커와 동일한 모드 사용 시 소켓 충돌 방지 (ConcurrentObjectUseError)
+        _allowed_modes: tuple[str, ...] = ('threading', 'eventlet', 'gevent', 'gevent_uwsgi')
+        _override = (os.environ.get('SOCKETIO_ASYNC_MODE') or '').strip().lower() or None
+        _mode_default: Literal['gevent', 'threading'] = 'gevent' if redis_url else 'threading'
+        _mode_raw = (_override if _override in _allowed_modes else None) or _mode_default
+        mode: Literal['threading', 'eventlet', 'gevent', 'gevent_uwsgi'] = cast(
+            Literal['threading', 'eventlet', 'gevent', 'gevent_uwsgi'], _mode_raw
+        )
+
         if redis_url:
             print(f"[INFO] Socket.IO connecting to Redis Message Queue: {redis_url}")
             socketio = _SocketIO(
                 app,
                 cors_allowed_origins=allowed_origins,
-                async_mode='threading',
+                async_mode=mode,
                 message_queue=redis_url
             )
-            print("[INFO] Socket.IO initialized in threading mode with Redis.")
+            print(f"[INFO] Socket.IO initialized in {mode} mode with Redis.")
         else:
             print("[WARN] REDIS_URL not found. Socket.IO running in single-worker mode (Memory).")
             socketio = _SocketIO(
                 app,
                 cors_allowed_origins=allowed_origins,
-                async_mode='threading'
+                async_mode=mode
             )
-            print("[INFO] Socket.IO initialized in threading mode (Universal Stable).")
+            print(f"[INFO] Socket.IO initialized in {mode} mode (Universal Stable).")
 
     except Exception as e:
         # fallback

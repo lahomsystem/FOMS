@@ -27,6 +27,7 @@ ENV/
 # 데이터베이스
 *.db
 *.sqlite3
+foms.dump
 
 # 환경 변수 파일
 .env

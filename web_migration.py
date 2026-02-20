@@ -119,6 +119,7 @@ def run_web_migration(sqlite_path, postgres_session, reset=False):
                         # Precheck for Booleans
                         bool_columns = [c.key for c in model_cls.__table__.columns if isinstance(c.type, Boolean)]
 
+                        session = get_session_for_model(model_cls)
                         for row in rows:
                             row_dict = dict(row._mapping)
                             
@@ -151,9 +152,6 @@ def run_web_migration(sqlite_path, postgres_session, reset=False):
                                         filtered_data[k] = v
                             
                             new_obj = model_cls(**filtered_data)
-                            
-                            # Use correct session
-                            session = get_session_for_model(model_cls)
                             session.add(new_obj)
                             count += 1
                             

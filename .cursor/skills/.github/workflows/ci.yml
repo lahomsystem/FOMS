@@ -65,6 +65,7 @@ jobs:
       - name: Auto-commit registry drift (main only)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
+          set -e
           # If no changes, exit successfully
           git diff --quiet && exit 0
 
@@ -79,7 +80,9 @@ jobs:
           git commit -m "chore: sync generated registry files [ci skip]"
           git push origin HEAD
 
+      # Only run when auto-commit did NOT run (PR or non-main push). On main push, drift is fixed by the step above.
       - name: 🚨 Check for Uncommitted Drift
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main')
         run: |
           if ! git diff --quiet; then
             echo "❌ Detected uncommitted changes produced by registry/readme/catalog scripts."
