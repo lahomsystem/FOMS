@@ -1155,7 +1155,21 @@ ${list.map(renderCard).join('')}
             return el ? (el.value || '').trim() : '';
         };
 
-        const measurementDate = getVal('erp-measurement-date');
+        const formatDateToKorean = (dateStr) => {
+            if (!dateStr) return '';
+            // YYYY-MM-DD 형식인지 확인
+            const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (match) {
+                const m = parseInt(match[2], 10);
+                const d = parseInt(match[3], 10);
+                return `${m}월 ${d}일`;
+            }
+            return dateStr;
+        };
+
+        let measurementDate = getVal('erp-measurement-date');
+        measurementDate = formatDateToKorean(measurementDate);
+
         // 시간: select가 직접입력이면 input 값 사용
         let measurementTime = '';
         const timeSelect = document.getElementById('erp-measurement-time-select');
@@ -1173,6 +1187,7 @@ ${list.map(renderCard).join('')}
 
         let constructionDate = getVal('erp-construction-date');
         if (!constructionDate) constructionDate = '상담'; // Default
+        else constructionDate = formatDateToKorean(constructionDate);
 
         const address = getVal('erp-address');
         const phone = getVal('erp-customer-phone');
@@ -1180,6 +1195,7 @@ ${list.map(renderCard).join('')}
         // Header
         let text = `실측일 : ${measurementDate}\n`;
         text += `시   간 : ${measurementTime}\n`;
+        text += `\n`;
         text += `고객명 : ${customerName}\n`;
         text += `발주사 : ${orderer}\n`;
         text += `시공일 : ${constructionDate}\n`;
@@ -1202,8 +1218,8 @@ ${list.map(renderCard).join('')}
             const w = getRowVal('spec_width');
             const d = getRowVal('spec_depth');
             const h = getRowVal('spec_height');
-            let spec = [w, d, h].filter(Boolean).join('*'); // Use * as separator based on typical convention or x? User said combined.
-            if (!spec) spec = ''; // Fallback
+            let spec = [w, d, h].filter(Boolean).join('*');
+            if (!spec) spec = '';
 
             let internal = getRowVal('internal');
             if (!internal) internal = '상담';
@@ -1215,39 +1231,23 @@ ${list.map(renderCard).join('')}
             if (!option) option = '상담';
 
             let handle = getRowVal('handle');
-            // handle default logic not specified, leave as is or empty
-
+            
             let misc = getRowVal('misc');
             if (!misc) misc = '상담';
 
-            // Formatting: Name / Spec / Internal / Color / Option / Handle / Misc
-            // User requested: product_name, spec, internal, color, option_detail, handle, misc
-            // Separator logic? Usually distinct lines or slash separated.
-            // Based on example logic in prompt (implied):
-            // "1. 슬라이딩붙박이장 / 3600*600*2300 / 상담 / (SK) / 상담 / 스마트바 / 상담"
-            
-            let line = '';
             if (itemCount >= 2) {
-                line += `${index + 1}. `;
+                text += `${index + 1}.\n`;
             }
-            
-            // Components array for joining
-            const parts = [];
-            parts.push(pName);
-            parts.push(spec);
-            parts.push(internal);
-            parts.push(color);
-            parts.push(option);
-            if (handle) parts.push(handle); // Only add handle if exists? Or keep strict order? Let's add it.
-            parts.push(misc);
 
-            line += parts.join(' / ');
-            text += line + '\n';
-            
-            // Extra input if any? Not requested but good to have. Skipping for strict adherence.
+            text += `제품명 : ${pName}\n`;
+            text += `규 격 : ${spec}\n`;
+            text += `내 부 : ${internal}\n`;
+            text += `색 상 : ${color}\n`;
+            text += `옵 션 : ${option}\n`;
+            text += `손잡이 : ${handle}\n`;
+            text += `기 타 : ${misc}\n`;
+            text += `\n`;
         });
-
-        text += `\n`;
         
         // Footer
         const totalText = document.getElementById('erp-items-total')?.textContent || '0원';
@@ -1270,12 +1270,29 @@ ${list.map(renderCard).join('')}
         textarea.select();
         textarea.setSelectionRange(0, 99999); // Mobile compatibility
 
-        navigator.clipboard.writeText(textarea.value).then(() => {
-            alert('텍스트가 복사되었습니다.');
-        }).catch(err => {
-            console.error('복사 실패:', err);
-            alert('복사에 실패했습니다. 수동으로 복사해주세요.');
-        });
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(textarea.value).then(() => {
+                alert('텍스트가 복사되었습니다.');
+            }).catch(err => {
+                console.error('Clipboard API 실패, execCommand 시도:', err);
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) alert('텍스트가 복사되었습니다.');
+                    else alert('복사에 실패했습니다. 수동으로 복사해주세요.');
+                } catch (e) {
+                    alert('복사에 실패했습니다. 수동으로 복사해주세요.');
+                }
+            });
+        } else {
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) alert('텍스트가 복사되었습니다.');
+                else alert('복사에 실패했습니다. 수동으로 복사해주세요.');
+            } catch (err) {
+                console.error('Copy failed:', err);
+                alert('복사에 실패했습니다. 수동으로 복사해주세요.');
+            }
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -1541,5 +1558,4 @@ ${list.map(renderCard).join('')}
         if (!ERP_BETA_ENABLED) return;
         document.getElementById('erp-quest-status-btn')?.addEventListener('click', erpUpdateQuestStatus);
     });
-</script>
 </script>
