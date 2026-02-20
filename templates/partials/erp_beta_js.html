@@ -1146,9 +1146,145 @@ ${list.map(renderCard).join('')}
         }
     }
 
+    // ============================================
+    // ERP Beta: Text Conversion (기존주문 변환)
+    // ============================================
+    function erpGenerateConversionText() {
+        const getVal = (id) => {
+            const el = document.getElementById(id);
+            return el ? (el.value || '').trim() : '';
+        };
+
+        const measurementDate = getVal('erp-measurement-date');
+        // 시간: select가 직접입력이면 input 값 사용
+        let measurementTime = '';
+        const timeSelect = document.getElementById('erp-measurement-time-select');
+        if (timeSelect) {
+            if (timeSelect.value === '__direct__') {
+                measurementTime = getVal('erp-measurement-time');
+            } else {
+                measurementTime = timeSelect.value;
+            }
+        }
+
+        const customerName = getVal('erp-customer-name');
+        let orderer = getVal('erp-orderer');
+        if (!orderer) orderer = '라홈'; // Default
+
+        let constructionDate = getVal('erp-construction-date');
+        if (!constructionDate) constructionDate = '상담'; // Default
+
+        const address = getVal('erp-address');
+        const phone = getVal('erp-customer-phone');
+
+        // Header
+        let text = `실측일 : ${measurementDate}\n`;
+        text += `시   간 : ${measurementTime}\n`;
+        text += `고객명 : ${customerName}\n`;
+        text += `발주사 : ${orderer}\n`;
+        text += `시공일 : ${constructionDate}\n`;
+        text += `주  소 : ${address}\n`;
+        text += `연락처 : ${phone}\n`;
+        text += `\n`;
+
+        // Items
+        const rows = erpGetItemRows();
+        const itemCount = rows.length;
+
+        rows.forEach((row, index) => {
+            const getRowVal = (key) => {
+                const el = row.querySelector(`[data-erp="${key}"]`);
+                return el ? (el.value || '').trim() : '';
+            };
+
+            const pName = getRowVal('product_name');
+            // Spec combination
+            const w = getRowVal('spec_width');
+            const d = getRowVal('spec_depth');
+            const h = getRowVal('spec_height');
+            let spec = [w, d, h].filter(Boolean).join('*'); // Use * as separator based on typical convention or x? User said combined.
+            if (!spec) spec = ''; // Fallback
+
+            let internal = getRowVal('internal');
+            if (!internal) internal = '상담';
+
+            let color = getRowVal('color');
+            if (!color) color = '(SK)';
+
+            let option = getRowVal('option_detail');
+            if (!option) option = '상담';
+
+            let handle = getRowVal('handle');
+            // handle default logic not specified, leave as is or empty
+
+            let misc = getRowVal('misc');
+            if (!misc) misc = '상담';
+
+            // Formatting: Name / Spec / Internal / Color / Option / Handle / Misc
+            // User requested: product_name, spec, internal, color, option_detail, handle, misc
+            // Separator logic? Usually distinct lines or slash separated.
+            // Based on example logic in prompt (implied):
+            // "1. 슬라이딩붙박이장 / 3600*600*2300 / 상담 / (SK) / 상담 / 스마트바 / 상담"
+            
+            let line = '';
+            if (itemCount >= 2) {
+                line += `${index + 1}. `;
+            }
+            
+            // Components array for joining
+            const parts = [];
+            parts.push(pName);
+            parts.push(spec);
+            parts.push(internal);
+            parts.push(color);
+            parts.push(option);
+            if (handle) parts.push(handle); // Only add handle if exists? Or keep strict order? Let's add it.
+            parts.push(misc);
+
+            line += parts.join(' / ');
+            text += line + '\n';
+            
+            // Extra input if any? Not requested but good to have. Skipping for strict adherence.
+        });
+
+        text += `\n`;
+        
+        // Footer
+        const totalText = document.getElementById('erp-items-total')?.textContent || '0원';
+        // Remove '원' for calculation if needed, but here we just need text.
+        // User example: 선결제금액: '(2제품의 결제 금액 합계)'원
+        // We will output: 선결제금액: 1,500,000원
+        text += `선결제금액 : ${totalText}`;
+
+        const textarea = document.getElementById('erp-conversion-text');
+        if (textarea) {
+            textarea.value = text;
+            adjustTextareaHeight(textarea); // Auto-resize if helper exists
+        }
+    }
+
+    function erpCopyToClipboard() {
+        const textarea = document.getElementById('erp-conversion-text');
+        if (!textarea || !textarea.value) return;
+        
+        textarea.select();
+        textarea.setSelectionRange(0, 99999); // Mobile compatibility
+
+        navigator.clipboard.writeText(textarea.value).then(() => {
+            alert('텍스트가 복사되었습니다.');
+        }).catch(err => {
+            console.error('복사 실패:', err);
+            alert('복사에 실패했습니다. 수동으로 복사해주세요.');
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         if (!ERP_BETA_ENABLED) return;
+        
         document.getElementById('erp-attachments-upload-btn')?.addEventListener('click', erpUploadSelectedAttachments);
+        document.getElementById('erp-gen-text-btn')?.addEventListener('click', erpGenerateConversionText);
+        document.getElementById('erp-copy-text-btn')?.addEventListener('click', erpCopyToClipboard);
+
 
         // ERP Beta 탭이 열릴 때: ORDER_ID가 있을 때만 데이터 로드 (자동 주문 생성 제거)
         // 저장 버튼을 눌러야만 주문이 생성되고 저장됨

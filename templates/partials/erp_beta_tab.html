@@ -212,6 +212,24 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                     </div>
                     <div class="small text-muted mt-2" id="erp-status-text"></div>
 
+                    <div class="card border-secondary mt-3">
+                        <div class="card-header d-flex justify-content-between align-items-center py-2">
+                            <div class="fw-bold small"><i class="fas fa-file-alt"></i> 기존주문 변환 (텍스트 생성)</div>
+                            <div>
+                                <button class="btn btn-sm btn-secondary" type="button" id="erp-gen-text-btn">
+                                    <i class="fas fa-sync"></i> 변환
+                                </button>
+                                <button class="btn btn-sm btn-success" type="button" id="erp-copy-text-btn">
+                                    <i class="fas fa-copy"></i> 복사
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body p-2">
+                            <textarea class="form-control form-control-sm bg-light" id="erp-conversion-text" rows="8" readonly
+                                placeholder="변환 버튼을 누르면 텍스트가 생성됩니다."></textarea>
+                        </div>
+                    </div>
+
                     <hr class="my-3">
                     <div class="fw-bold mb-2"><i class="fas fa-paperclip"></i> 공통 첨부(사진/동영상)</div>
                     <div class="border rounded p-3" style="border-style: dashed !important; background-color: #f8f9fa;">
