@@ -58,7 +58,7 @@ def api_chat_upload():
                 'success': False,
                 'message': f'파일 업로드 실패: {result.get("error", "알 수 없는 오류")}'
             }), 500
-        storage_key = result.get('key')
+        storage_key = result.get('key') or ''
         file_url = build_file_view_url(storage_key)
         thumbnail_key = result.get('thumbnail_key')
         thumbnail_url = build_file_view_url(thumbnail_key) if thumbnail_key else None
@@ -242,8 +242,8 @@ def api_chat_rooms_list():
 @login_required
 def api_chat_rooms_create():
     """채팅방 생성 API"""
+    db = get_db()
     try:
-        db = get_db()
         user_id = session.get('user_id')
         data = request.get_json()
         name = data.get('name', '').strip()
@@ -312,7 +312,9 @@ def api_chat_rooms_detail(room_id):
                 for m in members:
                     if m.user_id != user_id:
                         total_other_members += 1
-                        if m.last_read_at and m.last_read_at >= msg.created_at:
+                        last_read = getattr(m, 'last_read_at', None)
+                        msg_created = getattr(msg, 'created_at', None)
+                        if last_read is not None and msg_created is not None and last_read >= msg_created:
                             read_count += 1
                 if total_other_members == 0:
                     msg_dict['read_status'] = 'no_other_members'
@@ -336,7 +338,7 @@ def api_chat_rooms_detail(room_id):
             'user_username': m.user.username if m.user else None
         } for m in members]
         room_data['messages'] = list(reversed(messages_with_read_status))
-        if room.order_id:
+        if getattr(room, 'order_id', None):
             try:
                 order = db.query(Order).filter(Order.id == room.order_id).first()
                 if order:
@@ -375,8 +377,8 @@ def api_chat_rooms_detail(room_id):
 @login_required
 def api_chat_rooms_update(room_id):
     """채팅방 수정 API"""
+    db = get_db()
     try:
-        db = get_db()
         user_id = session.get('user_id')
         data = request.get_json()
         room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
@@ -390,7 +392,7 @@ def api_chat_rooms_update(room_id):
             room.description = data.get('description', '').strip()
         if 'order_id' in data:
             room.order_id = data.get('order_id')
-        room.updated_at = datetime.datetime.now()
+        setattr(room, 'updated_at', datetime.datetime.now())
         db.commit()
         log_access(f"채팅방 수정: {room.name} (ID: {room_id})", user_id)
         return jsonify({
@@ -410,8 +412,8 @@ def api_chat_rooms_update(room_id):
 @login_required
 def api_chat_rooms_delete(room_id):
     """채팅방 삭제 API"""
+    db = get_db()
     try:
-        db = get_db()
         user_id = session.get('user_id')
         room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
         if not room:
@@ -435,8 +437,8 @@ def api_chat_rooms_delete(room_id):
 @login_required
 def api_chat_rooms_add_member(room_id):
     """채팅방 멤버 추가 API"""
+    db = get_db()
     try:
-        db = get_db()
         user_id = session.get('user_id')
         data = request.get_json()
         room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
@@ -481,8 +483,8 @@ def api_chat_rooms_add_member(room_id):
 @login_required
 def api_chat_rooms_remove_member(room_id, member_user_id):
     """채팅방 멤버 제거 API"""
+    db = get_db()
     try:
-        db = get_db()
         user_id = session.get('user_id')
         room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
         if not room:
@@ -553,7 +555,7 @@ def api_chat_search_orders():
         limit = int(request.args.get('limit', 20))
         if not query:
             return jsonify({'success': True, 'orders': [], 'count': 0})
-        conds = [Order.customer_name.ilike(f'%{query}%')]
+        conds: list = [Order.customer_name.ilike(f'%{query}%')]
         if query.isdigit():
             conds.append(Order.id == int(query))
         orders = db.query(Order).filter(or_(*conds)).filter(
@@ -563,7 +565,7 @@ def api_chat_search_orders():
             'id': o.id, 'customer_name': o.customer_name, 'phone': o.phone,
             'address': o.address, 'product': o.product, 'status': o.status,
             'received_date': o.received_date,
-            'created_at': o.created_at.strftime('%Y-%m-%d %H:%M:%S') if o.created_at else None
+            'created_at': (lambda t: t.strftime('%Y-%m-%d %H:%M:%S') if t else None)(getattr(o, 'created_at', None))
         } for o in orders]
         return jsonify({'success': True, 'orders': orders_list, 'count': len(orders_list)})
     except Exception as e:
@@ -601,7 +603,7 @@ def api_chat_search():
                 'type': 'message', 'room_id': msg.room_id, 'room_name': room.name if room else None,
                 'message_id': msg.id, 'content': msg.content,
                 'user_name': msg.user.name if msg.user else None,
-                'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S') if msg.created_at else None
+                'created_at': (lambda t: t.strftime('%Y-%m-%d %H:%M:%S') if t else None)(getattr(msg, 'created_at', None))
             })
         rooms = db.query(ChatRoom).join(user_rooms, ChatRoom.id == user_rooms.c.id).filter(
             or_(
@@ -614,7 +616,7 @@ def api_chat_search():
                 results.append({
                     'type': 'room', 'room_id': room.id, 'room_name': room.name,
                     'description': room.description,
-                    'created_at': room.created_at.strftime('%Y-%m-%d %H:%M:%S') if room.created_at else None
+                    'created_at': (lambda t: t.strftime('%Y-%m-%d %H:%M:%S') if t else None)(getattr(room, 'created_at', None))
                 })
         orders = db.query(Order).join(ChatRoom, Order.id == ChatRoom.order_id).join(
             user_rooms, ChatRoom.id == user_rooms.c.id
@@ -660,8 +662,8 @@ def api_chat_search():
 @login_required
 def api_chat_mark_read(room_id):
     """메시지 읽음 상태 업데이트 API"""
+    db = get_db()
     try:
-        db = get_db()
         user_id = session.get('user_id')
         room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
         if not room:
@@ -672,7 +674,7 @@ def api_chat_mark_read(room_id):
         ).first()
         if not member:
             return jsonify({'success': False, 'message': '채팅방 멤버가 아닙니다.'}), 403
-        member.last_read_at = datetime.datetime.now()
+        setattr(member, 'last_read_at', datetime.datetime.now())
         db.commit()
         return jsonify({'success': True})
     except Exception as e:
@@ -707,8 +709,8 @@ def api_chat_users_list():
 @login_required
 def api_chat_send_message():
     """메시지 전송 API (Socket.IO 폴백용)"""
+    db = get_db()
     try:
-        db = get_db()
         user_id = session.get('user_id')
         data = request.get_json()
         room_id = data.get('room_id')
@@ -748,8 +750,11 @@ def api_chat_send_message():
             )
             db.add(attachment)
             db.commit()
-            if attachment.file_type == 'image' and not attachment.thumbnail_url and attachment.storage_key:
-                schedule_chat_thumbnail_generation(attachment.storage_key)
+            atype = getattr(attachment, 'file_type', None)
+            thumb = getattr(attachment, 'thumbnail_url', None)
+            skey = getattr(attachment, 'storage_key', None) or ''
+            if atype == 'image' and not thumb and skey:
+                schedule_chat_thumbnail_generation(skey)
         user = db.query(User).filter(User.id == user_id).first()
         message_data = new_message.to_dict()
         if user:
@@ -760,7 +765,7 @@ def api_chat_send_message():
         ).all()
         if attachments:
             message_data['attachments'] = [a.to_dict() for a in attachments]
-        room.updated_at = datetime.datetime.now()
+        setattr(room, 'updated_at', datetime.datetime.now())
         db.commit()
         return jsonify({'success': True, 'message': message_data})
     except Exception as e:
@@ -811,5 +816,8 @@ def api_chat_get_message(message_id):
 def chat():
     """채팅 페이지 (Quest 10)"""
     from flask import current_app
-    socketio_available = current_app.config.get('SOCKETIO_AVAILABLE', False) and current_app.config.get('_SOCKETIO_INSTANCE') is not None
+    socketio_available = (
+        current_app.config.get('SOCKETIO_AVAILABLE', False)
+        and current_app.config.get('_SOCKETIO_INSTANCE') is not None
+    )
     return render_template('chat.html', socketio_available=socketio_available)

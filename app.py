@@ -247,36 +247,37 @@ limiter = init_limiter(app)
 
 # SocketIO Initialization with Redis & CORS Control
 # Use threading mode for Windows WebSocket support & Stability
+socketio = None
 if SOCKETIO_AVAILABLE:
     try:
+        from flask_socketio import SocketIO as _SocketIO
         # CORS 도메인 제한 (환경변수 없으면 모든 도메인 허용 - 개발 편의성)
         allowed_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '*').split(',')
         
         # Redis가 설정되어 있으면 Message Queue로 사용 (Scale-out 지원)
         if redis_url:
             print(f"[INFO] Socket.IO connecting to Redis Message Queue: {redis_url}")
-            socketio = SocketIO(
-                app, 
-                cors_allowed_origins=allowed_origins, 
+            socketio = _SocketIO(
+                app,
+                cors_allowed_origins=allowed_origins,
                 async_mode='threading',
                 message_queue=redis_url
             )
             print("[INFO] Socket.IO initialized in threading mode with Redis.")
         else:
             print("[WARN] REDIS_URL not found. Socket.IO running in single-worker mode (Memory).")
-            socketio = SocketIO(
-                app, 
-                cors_allowed_origins=allowed_origins, 
+            socketio = _SocketIO(
+                app,
+                cors_allowed_origins=allowed_origins,
                 async_mode='threading'
             )
             print("[INFO] Socket.IO initialized in threading mode (Universal Stable).")
-            
+
     except Exception as e:
         # fallback
         print(f"[WARN] Socket.IO init failed: {e}")
-        socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
-else:
-    socketio = None
+        from flask_socketio import SocketIO as _SocketIO
+        socketio = _SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 if SOCKETIO_AVAILABLE and socketio:
     register_chat_socketio_handlers(socketio)
@@ -285,6 +286,11 @@ if SOCKETIO_AVAILABLE and socketio:
 else:
     app.config['SOCKETIO_AVAILABLE'] = False
     app.config['_SOCKETIO_INSTANCE'] = None
+
+# (선택) SOCKETIO_CLIENT_ENABLED=true 시 클라이언트 강제 허용. 기본은 SOCKETIO_AVAILABLE 따라감(로컬 socketio.run / 원격 gunicorn gevent)
+app.config['SOCKETIO_CLIENT_ENABLED'] = (
+    os.environ.get('SOCKETIO_CLIENT_ENABLED', '').lower() in ('true', '1', 'yes')
+)
 
 # 템플릿 캐시 비활성화 (개발 중 변경사항 즉시 반영)
 app.config['TEMPLATES_AUTO_RELOAD'] = True

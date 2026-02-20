@@ -294,7 +294,11 @@ def erp_shipment_dashboard():
                 return erp_manager
         return order.manager_name or ''
 
-    rows.sort(key=lambda o: (get_manager_name_for_sort(o) or 'ZZZ', o.id))
+    def is_as_order(order):
+        return order.status in ('AS_RECEIVED', 'AS_COMPLETED')
+
+    # AS 건은 하단에 몰아서 표시 (1=AS가 뒤로)
+    rows.sort(key=lambda o: (1 if is_as_order(o) else 0, get_manager_name_for_sort(o) or 'ZZZ', o.id))
 
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     return render_template(

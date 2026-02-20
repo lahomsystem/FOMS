@@ -9,6 +9,7 @@ from sqlalchemy.orm.attributes import flag_modified
 import traceback
 import json
 import datetime
+from foms_address_converter import FOMSAddressConverter
 
 orders_bp = Blueprint('orders', __name__, url_prefix='/api')
 
@@ -17,6 +18,68 @@ def ensure_path(parent, key):
     if key not in parent or not isinstance(parent.get(key), dict):
         parent[key] = {}
     return parent[key]
+
+
+def _get_order_schedule_date(order):
+    """출고/시공일 결정 (AS 대시보드·nearby 검색과 동일 로직). AS는 scheduled_date, as_received_date, as_completed_date. Beta는 structured_data schedule.construction.date 또는 scheduled_date."""
+    if not order:
+        return None
+    status = getattr(order, 'status', None)
+    if status in ('AS_RECEIVED', 'AS_COMPLETED'):
+        v = getattr(order, 'scheduled_date', None)
+        if v and str(v).strip():
+            return str(v).strip()
+        v = getattr(order, 'as_received_date', None)
+        if v and str(v).strip():
+            return str(v).strip()
+        v = getattr(order, 'as_completed_date', None)
+        if v and str(v).strip():
+            return str(v).strip()
+    sd = getattr(order, 'structured_data', None)
+    if getattr(order, 'is_erp_beta', False) and isinstance(sd, dict):
+        cons = (sd.get('schedule') or {}).get('construction') or {}
+        cons_date = cons.get('date')
+        if cons_date:
+            return str(cons_date)
+    v = getattr(order, 'shipping_scheduled_date', None)
+    if v and str(v).strip():
+        return str(v).strip()
+    v = getattr(order, 'scheduled_date', None)
+    if v and str(v).strip():
+        return str(v).strip()
+    return None
+
+
+def _get_order_display_address(order):
+    """표시용 주소 (structured_data site 우선, 없으면 order.address)."""
+    if not order:
+        return ''
+    sd = getattr(order, 'structured_data', None)
+    if isinstance(sd, dict):
+        site = (sd.get('site') or {})
+        address_full = site.get('address_full')
+        address_main = site.get('address_main')
+        address_detail = site.get('address_detail')
+        if address_full:
+            return str(address_full).strip()
+        if address_main:
+            detail = (address_detail or '').strip()
+            return f"{address_main.strip()} {detail}".strip() if detail else address_main.strip()
+    addr = getattr(order, 'address', None)
+    return (addr or '').strip()
+
+
+def _get_order_display_customer_name(order):
+    """표시용 고객명 (structured_data parties.customer.name 우선, 없으면 order.customer_name)."""
+    if not order:
+        return ''
+    sd = getattr(order, 'structured_data', None)
+    if isinstance(sd, dict):
+        name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
+        if name and str(name).strip():
+            return str(name).strip()
+    cn = getattr(order, 'customer_name', None)
+    return (cn or '').strip()
 
 
 @orders_bp.route('/orders/nearby')
@@ -32,52 +95,167 @@ def api_orders_nearby():
     
     db = get_db()
     
-    # 1. 대상 주문 조회 (오늘 이후 출고 또는 시공 예정인 건)
-    # DELETED 제외, 날짜가 있는 건만 조회
+    # 1. 대상 주문 조회 (오늘 이후 출고/시공 예정인 건).
+    # - AS: scheduled_date, as_received_date, as_completed_date
+    # - 일반/레거시: shipping_scheduled_date, scheduled_date
+    # - ERP Beta: 시공일이 structured_data.schedule.construction.date 에만 있는 경우 포함
     candidates = db.query(Order).filter(
         Order.status != 'DELETED',
         or_(
             Order.shipping_scheduled_date >= ref_date,
-            Order.scheduled_date >= ref_date
+            Order.scheduled_date >= ref_date,
+            Order.as_received_date >= ref_date,
+            Order.as_completed_date >= ref_date,
+            and_(Order.is_erp_beta == True, Order.structured_data != None),
         )
-    ).all()
+    ).order_by(Order.id.desc()).limit(2500).all()
 
-    # 2. 주소 유사도 점수 계산
-    # 간단한 토큰 매칭: 시/구/동/로 단위로 쪼개서 일치 개수 확인
-    # 예: "성남시 분당구 판교역로98" -> ["성남시", "분당구", "판교역로98"]
+    # 2. 주소 유사도 점수 계산 (표시용 주소·실제 시공일 사용)
     target_tokens = set(target_address.split())
-    
     scored_orders = []
     for order in candidates:
-        order_addr = (order.address or '').strip()
+        order_addr = _get_order_display_address(order)
         if not order_addr:
             continue
-            
+        d_date = _get_order_schedule_date(order)
+        if not d_date or d_date < ref_date:
+            continue
+
         order_tokens = set(order_addr.split())
-        
-        # 교집합 개수로 점수 산정 (정확도 높이기 위해 앞부분 일치 가중치 등 고려 가능하지만 일단 단순 개수)
         score = len(target_tokens.intersection(order_tokens))
-        
-        # 최소 1개 이상 토큰이 일치해야 후보로 선정 (예: 같은 '시' 또는 '구')
         if score > 0:
-            # 날짜 결정 (상차일 우선, 없으면 시공일)
-            d_date = order.shipping_scheduled_date or order.scheduled_date
-            
+            _shipping = getattr(order, 'shipping_scheduled_date', None)
+            _status = getattr(order, 'status', None) or ''
             scored_orders.append({
                 'id': order.id,
-                'customer_name': order.customer_name,
+                'customer_name': _get_order_display_customer_name(order),
                 'address': order_addr,
                 'date': d_date,
-                'type': '상차' if order.shipping_scheduled_date else '시공',
-                'status': STATUS.get(order.status, order.status),
+                'type': '상차' if _shipping else '시공',
+                'status': STATUS.get(_status, _status),
                 'score': score
             })
 
     # 3. 정렬: 점수 높은 순 -> 날짜 빠른 순
-    # score 역순(-x['score']), date 정순(x['date'])
     scored_orders.sort(key=lambda x: (-x['score'], x['date']))
+    
+    # 4. 카카오 API를 활용한 실 거리 계산 (점진적 반경 확장)
+    try:
+        converter = FOMSAddressConverter()
+        
+        # 1. 기준 주소 분석
+        start_lat, start_lng, _, target_region = converter.analyze_address(target_address)
+        
+        target_sido = ''
+        target_sigungu = ''
+        if target_region:
+            target_sido = target_region.get('region_1depth_name', '')
+            target_sigungu = target_region.get('region_2depth_name', '')
+        
+        # 2. 후보군 우선순위 분류
+        # Group 1: 같은 시군구 (최우선)
+        # Group 2: 같은 시도
+        # Group 3: 인접 시도 (수도권 등)
+        # Group 4: 나머지 (텍스트 유사도 기반)
+        
+        group1 = []
+        group2 = []
+        group3 = []
+        group4 = []
+        
+        # 수도권 정의
+        sudo_kwon = ['서울', '경기', '인천']
+        is_target_sudo = any(x in target_sido for x in sudo_kwon)
+        
+        for order in candidates:
+            order_addr = _get_order_display_address(order)
+            if not order_addr:
+                continue
+            d_date = _get_order_schedule_date(order)
+            if not d_date or d_date < ref_date:
+                continue
 
-    # Top 5 반환
+            target_tokens = set(target_address.split())
+            order_tokens = set(order_addr.split())
+            score = len(target_tokens.intersection(order_tokens))
+
+            _shipping = getattr(order, 'shipping_scheduled_date', None)
+            _status = getattr(order, 'status', None) or ''
+            item = {
+                'id': order.id,
+                'customer_name': _get_order_display_customer_name(order),
+                'address': order_addr,
+                'date': d_date,
+                'type': '상차' if _shipping else '시공',
+                'status': STATUS.get(_status, _status),
+                'score': score
+            }
+
+            if target_sigungu and target_sigungu in order_addr:
+                group1.append(item)
+            elif target_sido and target_sido in order_addr:
+                group2.append(item)
+            elif is_target_sudo and any(x in order_addr for x in sudo_kwon):
+                group3.append(item)
+            else:
+                if score > 0: # 최소한 단어 하나는 겹쳐야 함
+                    group4.append(item)
+        
+        # 3. 후보군 병합 (최대 15개)
+        # 각 그룹 내에서는 날짜 빠른 순 정렬
+        group1.sort(key=lambda x: x['date'] or '9999-99-99')
+        group2.sort(key=lambda x: x['date'] or '9999-99-99')
+        group3.sort(key=lambda x: x['date'] or '9999-99-99')
+        group4.sort(key=lambda x: (-x['score'], x['date'] or '9999-99-99'))
+        
+        final_candidates = (group1 + group2 + group3 + group4)[:15]
+        
+        if start_lat and start_lng and final_candidates:
+            # 상위 후보에 대해 거리 계산 수행
+            final_results = []
+            
+            for item in final_candidates:
+                # 목적지 주소 좌표 변환
+                end_lat, end_lng, _, _ = converter.analyze_address(item['address'])
+                
+                if end_lat and end_lng:
+                    # 경로 계산 (거리/시간)
+                    route_info = converter.calculate_route(start_lat, start_lng, end_lat, end_lng)
+                    
+                    if route_info.get('status') == 'success':
+                        item['distance_km'] = route_info['distance_km']
+                        item['duration_min'] = route_info['duration_min']
+                        item['toll'] = route_info['toll']
+                        item['geo_status'] = 'success'
+                        
+                        # 텍스트 매칭 점수는 참고용으로 남겨두고, 거리 정보를 우선 표시
+                        item['score_text'] = f"{item['distance_km']}km ({item['duration_min']}분)"
+                    else:
+                        item['geo_status'] = 'route_failed'
+                        item['score_text'] = f"경로 계산 실패 (텍스트 점수: {item['score']})"
+                else:
+                    item['geo_status'] = 'geocode_failed'
+                    item['score_text'] = f"좌표 변환 실패 (텍스트 점수: {item['score']})"
+                
+                final_results.append(item)
+            
+            # 5. 재정렬: 거리 계산 성공한 항목 우선, 그 중 소요 시간 짧은 순
+            # geo_status가 success인 것 우선, 그 다음 duration_min 오름차순
+            final_results.sort(key=lambda x: (0 if x.get('geo_status') == 'success' else 1, x.get('duration_min', 9999)))
+            
+            return jsonify({
+                'success': True,
+                'results': final_results[:5],
+                'count': len(final_results)
+            })
+            
+    except Exception as e:
+        print(f"[NEARBY] 거리 계산 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        # 오류 발생 시 기존 텍스트 매칭 결과 반환 (fallback)
+
+    # Top 5 반환 (거리 계산 실패 또는 예외 발생 시)
     return jsonify({
         'success': True,
         'results': scored_orders[:5],
@@ -132,16 +310,16 @@ def api_orders():
 
     events = []
     for order in orders:
-        customer_name = order.customer_name
-        phone = order.phone
-        address = order.address
-        product = order.product
-        measurement_date = order.measurement_date
-        measurement_time = order.measurement_time
-        scheduled_date = order.scheduled_date
+        customer_name = getattr(order, 'customer_name', None) or ''
+        phone = getattr(order, 'phone', None) or ''
+        address = getattr(order, 'address', None) or ''
+        product = getattr(order, 'product', None) or ''
+        measurement_date = getattr(order, 'measurement_date', None)
+        measurement_time = getattr(order, 'measurement_time', None)
+        scheduled_date = getattr(order, 'scheduled_date', None)
 
-        if order.is_erp_beta and order.structured_data:
-            sd = order.structured_data
+        sd = getattr(order, 'structured_data', None)
+        if getattr(order, 'is_erp_beta', False) and isinstance(sd, dict):
             erp_customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
             if erp_customer_name:
                 customer_name = erp_customer_name
@@ -167,28 +345,31 @@ def api_orders():
             if erp_scheduled_date:
                 scheduled_date = erp_scheduled_date
 
-        if order.is_erp_beta and measurement_date:
+        _is_beta = getattr(order, 'is_erp_beta', False)
+        if _is_beta and measurement_date:
             start_date_val = measurement_date
         else:
+            _status = getattr(order, 'status', None) or ''
             status_date_map = {
-                'RECEIVED': order.received_date, 'MEASURED': measurement_date,
+                'RECEIVED': getattr(order, 'received_date', None), 'MEASURED': measurement_date,
                 'SCHEDULED': scheduled_date, 'SHIPPED_PENDING': scheduled_date,
-                'COMPLETED': order.completion_date,
-                'AS_RECEIVED': order.as_received_date, 'AS_COMPLETED': order.as_completed_date
+                'COMPLETED': getattr(order, 'completion_date', None),
+                'AS_RECEIVED': getattr(order, 'as_received_date', None), 'AS_COMPLETED': getattr(order, 'as_completed_date', None)
             }
-            start_date_val = status_date_map.get(order.status)
+            start_date_val = status_date_map.get(_status)
 
         if not start_date_val:
             continue
 
+        _status = getattr(order, 'status', None) or ''
         status_time_map = {
-            'RECEIVED': order.received_time, 'MEASURED': measurement_time,
+            'RECEIVED': getattr(order, 'received_time', None), 'MEASURED': measurement_time,
             'SCHEDULED': None, 'SHIPPED_PENDING': None, 'COMPLETED': None,
             'AS_RECEIVED': None, 'AS_COMPLETED': None
         }
-        time_str = status_time_map.get(order.status)
+        time_str = status_time_map.get(_status)
 
-        if order.status == 'MEASURED' and measurement_time in ['종일', '오전', '오후']:
+        if _status == 'MEASURED' and measurement_time in ['종일', '오전', '오후']:
             start_datetime = start_date_val
             all_day = True
         elif time_str:
@@ -198,7 +379,7 @@ def api_orders():
             start_datetime = start_date_val
             all_day = True
 
-        color = status_colors.get(order.status, '#3788d8')
+        color = status_colors.get(_status, '#3788d8')
         title = f"{customer_name} | {phone} | {product}"
 
         events.append({
@@ -210,13 +391,13 @@ def api_orders():
             'borderColor': color,
             'extendedProps': {
                 'customer_name': customer_name, 'phone': phone, 'address': address,
-                'product': product, 'options': order.options, 'notes': order.notes,
-                'status': order.status, 'received_date': order.received_date,
-                'received_time': order.received_time,
+                'product': product, 'options': getattr(order, 'options', None), 'notes': getattr(order, 'notes', None),
+                'status': _status, 'received_date': getattr(order, 'received_date', None),
+                'received_time': getattr(order, 'received_time', None),
                 'measurement_date': measurement_date, 'measurement_time': measurement_time,
-                'completion_date': order.completion_date, 'scheduled_date': scheduled_date,
-                'as_received_date': order.as_received_date, 'as_completed_date': order.as_completed_date,
-                'manager_name': order.manager_name
+                'completion_date': getattr(order, 'completion_date', None), 'scheduled_date': scheduled_date,
+                'as_received_date': getattr(order, 'as_received_date', None), 'as_completed_date': getattr(order, 'as_completed_date', None),
+                'manager_name': getattr(order, 'manager_name', None)
             }
         })
 
@@ -237,7 +418,9 @@ def update_regional_status():
 
     order = db.query(Order).filter_by(id=order_id).first()
 
-    if not order or (not order.is_regional and not order.is_self_measurement):
+    _regional = getattr(order, 'is_regional', False)
+    _self_meas = getattr(order, 'is_self_measurement', False)
+    if not order or (not _regional and not _self_meas):
         return jsonify({'success': False, 'message': '유효하지 않은 주문입니다.'}), 404
 
     # 업데이트 가능한 필드인지 확인 (보안 목적)
@@ -255,7 +438,7 @@ def update_regional_status():
     try:
         setattr(order, field, value)
         db.commit()
-        order_type = "자가실측" if order.is_self_measurement else "지방 주문"
+        order_type = "자가실측" if _self_meas else "지방 주문"
         log_access(f"{order_type} #{order.id}의 '{field}' 상태를 '{value}'(으)로 변경", session['user_id'])
         return jsonify({'success': True, 'message': '상태가 업데이트되었습니다.'})
     except Exception as e:
@@ -275,13 +458,15 @@ def update_regional_memo():
 
     order = db.query(Order).filter_by(id=order_id).first()
 
-    if not order or (not order.is_regional and not order.is_self_measurement):
+    _regional = getattr(order, 'is_regional', False)
+    _self_meas = getattr(order, 'is_self_measurement', False)
+    if not order or (not _regional and not _self_meas):
         return jsonify({'success': False, 'message': '유효하지 않은 주문입니다.'}), 404
 
     try:
         order.regional_memo = memo
         db.commit()
-        order_type = "자가실측" if order.is_self_measurement else "지방 주문"
+        order_type = "자가실측" if _self_meas else "지방 주문"
         log_access(f"{order_type} #{order.id}의 메모를 업데이트", session['user_id'])
         return jsonify({'success': True, 'message': '메모가 저장되었습니다.'})
     except Exception as e:
@@ -334,14 +519,14 @@ def update_order_field():
             setattr(order, field, value)
 
         # ERP Beta 주문이거나 structured_data 연동이 필요한 필드(as_content 등)인 경우
-        if order.is_erp_beta or field == 'as_content' or field == 'as_visit_date':
+        _is_beta = getattr(order, 'is_erp_beta', False)
+        if _is_beta or field == 'as_content' or field == 'as_visit_date':
             # structured_data가 None이면 빈 딕셔너리로 초기화 (JSONB 필드 대응)
-            if order.structured_data is None:
-                order.structured_data = {}
-            
-            if isinstance(order.structured_data, dict):
-                sd = order.structured_data
-            else:
+            sd = getattr(order, 'structured_data', None)
+            if sd is None:
+                setattr(order, 'structured_data', {})
+                sd = {}
+            elif not isinstance(sd, dict):
                 sd = {}
 
             if field == 'manager_name':
@@ -424,19 +609,19 @@ def update_order_status():
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
         
         # 상태 업데이트
-        old_status = order.status
+        old_status_val: str = getattr(order, 'status', None) or ''
         order.status = new_status
         db.commit()
         
         # 로그 기록
         user_id = session.get('user_id')
-        old_status_name = STATUS.get(old_status, old_status)
+        old_status_name = STATUS.get(old_status_val, old_status_val)
         new_status_name = STATUS.get(new_status, new_status)
         log_access(f"주문 #{order_id} 상태 변경: {old_status_name} → {new_status_name}", user_id)
         
         return jsonify({
             'success': True,
-            'old_status': old_status,
+            'old_status': old_status_val,
             'new_status': new_status,
             'status_display': STATUS.get(new_status, new_status)
         })

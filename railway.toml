@@ -1,0 +1,5 @@
+# Railway Config as Code
+# Procfile과 동일한 시작 명령 (Socket.IO gevent 워커)
+# Service > Settings > Build 에서 Custom Start Command 미설정 시 이 값 사용
+[deploy]
+startCommand = "gunicorn -k gevent -w 1 --max-requests 1000 --timeout 120 app:app"

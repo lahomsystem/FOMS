@@ -1,6 +1,11 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<style>
+  /* AS 방문일이 정해진 주문 셀: 옅은 연분홍 파스텔 */
+  .erp-as-visit-cell--set { background-color: #ffd6e0 !important; }
+  .erp-as-visit-row--set { background-color: #ffd6e0 !important; }
+</style>
 <div class="erp-pro">
   <!-- Modern Header -->
   <header class="erp-pro-header">
@@ -85,13 +90,16 @@
                 {% endif %}
               </td>
               <td>{{ r.as_received_date or '-' }}</td>
-              <td>
+              <td class="{% if r.scheduled_date %}erp-as-visit-cell--set{% endif %}">
                 <input type="date" class="erp-pro-input editable-date-as" value="{{ r.scheduled_date or '' }}"
                   data-order-id="{{ r.id }}" data-field="as_visit_date" style="width: 100%;">
               </td>
               <td>{{ r.as_completed_date or '-' }}</td>
               <td>{{ r.manager_name or '-' }}</td>
-              <td>{{ (r.customer_name or '-') }} / {{ r.phone|format_phone }}</td>
+              <td>
+                <span class="d-block">{{ (r.customer_name or '-') }}</span>
+                <span class="d-block small text-muted">{{ r.phone|format_phone }}</span>
+              </td>
               <td class="erp-pro-table__cell--wrap">
                 <div class="d-flex justify-content-between align-items-start">
                   <span>{{ r.address or '-' }}</span>
@@ -145,7 +153,10 @@
           <div class="erp-pro-order-card__body">
             <div class="erp-pro-order-card__row">
               <span class="erp-pro-order-card__label">고객</span>
-              <span class="erp-pro-order-card__value">{{ (r.customer_name or '-') }} / {{ r.phone|format_phone }}</span>
+              <div class="erp-pro-order-card__value">
+                <span class="d-block">{{ (r.customer_name or '-') }}</span>
+                <span class="d-block small text-muted">{{ r.phone|format_phone }}</span>
+              </div>
             </div>
             <div class="erp-pro-order-card__row">
               <span class="erp-pro-order-card__label">담당자</span>
@@ -155,7 +166,7 @@
               <span class="erp-pro-order-card__label">AS 접수</span>
               <span class="erp-pro-order-card__value">{{ r.as_received_date or '-' }}</span>
             </div>
-            <div class="erp-pro-order-card__row">
+            <div class="erp-pro-order-card__row {% if r.scheduled_date %}erp-as-visit-row--set{% endif %}">
               <span class="erp-pro-order-card__label">AS 방문일</span>
               <input type="date" class="erp-pro-input editable-date-as" value="{{ r.scheduled_date or '' }}"
                 data-order-id="{{ r.id }}" data-field="as_visit_date">
@@ -312,7 +323,10 @@
                   </div>
                   <small class="text-muted">#${item.id}</small>
                 </div>
-                <p class="mb-1 text-dark"><i class="fas fa-map-marker-alt text-danger me-1"></i> ${item.address}</p>
+                <p class="mb-1 text-dark">
+                    <i class="fas fa-map-marker-alt text-danger me-1"></i> ${item.address}
+                    ${item.score_text ? `<span class="badge bg-light text-dark border ms-2"><i class="fas fa-car-side me-1"></i>${item.score_text}</span>` : ''}
+                </p>
                 <div class="d-flex justify-content-between align-items-end mt-1">
                   <small class="text-muted">상태: ${item.status}</small>
                   <small class="text-primary fw-bold"><i class="fas fa-external-link-alt"></i> 바로가기</small>
@@ -356,6 +370,15 @@
           .then(data => {
             this.style.backgroundColor = '';
             if (data.success) {
+              const cell = this.closest('td');
+              const cardRow = this.closest('.erp-pro-order-card__row');
+              if (value) {
+                if (cell) cell.classList.add('erp-as-visit-cell--set');
+                if (cardRow) cardRow.classList.add('erp-as-visit-row--set');
+              } else {
+                if (cell) cell.classList.remove('erp-as-visit-cell--set');
+                if (cardRow) cardRow.classList.remove('erp-as-visit-row--set');
+              }
               showFeedback('방문일이 저장되었습니다.');
             } else {
               showFeedback('저장 실패: ' + data.message, true);
