@@ -235,3 +235,19 @@
 | 2026-02-19 17:12:23 | allow | `-` | `(payload에 command 없음)` |
 | 2026-02-19 17:12:28 | allow | `-` | `(payload에 command 없음)` |
 | 2026-02-19 17:12:40 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-19 17:12:46 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-19 17:12:57 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-19 17:13:20 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-19 17:13:33 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-19 17:16:16 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-19 17:16:22 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-19 17:16:26 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-19 17:17:38 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-19 17:17:43 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-19 22:44:53 | allow | `-` | `echo hook-debug-test` |
+| 2026-02-20 09:28:18 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-20 09:28:36 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-20 09:28:58 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-20 10:54:43 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-20 10:54:53 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-20 10:55:02 | allow | `-` | `(payload에 command 없음)` |

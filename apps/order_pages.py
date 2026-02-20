@@ -76,7 +76,8 @@ def index():
                     Order.measurement_time.like(search_term),
                     Order.scheduled_date.like(search_term),
                     Order.completion_date.like(search_term),
-                    Order.manager_name.like(search_term)
+                    Order.manager_name.like(search_term),
+                    Order.structured_data.cast(String).like(search_term)
                 )
             )
         for column, filter_value in active_column_filters.items():
@@ -97,7 +98,7 @@ def index():
         for order_db_item in orders_from_db:
             order_display_data = copy.deepcopy(order_db_item)
             order_display_data.display_options = format_options_for_display(order_db_item.options)
-            if order_db_item.is_erp_beta and order_db_item.structured_data:
+            if order_db_item.is_erp_beta and order_db_item.structured_data:  # type: ignore
                 sd = _ensure_dict(order_db_item.structured_data)
                 customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
                 if customer_name:
