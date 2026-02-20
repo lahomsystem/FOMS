@@ -41,6 +41,9 @@ def erp_dashboard():
     can_edit_erp_flag = can_edit_erp(current_user)
 
     f_stage = (request.args.get('stage') or '').strip()
+    # 레거시 호환: MEASURED -> MEASURE
+    if f_stage == 'MEASURED':
+        f_stage = 'MEASURE'
     f_urgent = (request.args.get('urgent') or '').strip()
     f_has_alert = (request.args.get('has_alert') or '').strip()
     f_alert_type = (request.args.get('alert_type') or '').strip()

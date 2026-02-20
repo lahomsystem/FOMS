@@ -56,6 +56,162 @@
           return map[code] || code;
         }
 
+        // === 컬럼 폭 조절 (ERPGridBoundaryResize) ===
+        window.ERPGridBoundaryResize = (function() {
+          let _table = null;
+          let _storageKey = null;
+          let _resizingColIndex = -1;
+          let _startX = 0;
+          let _startWidth = 0;
+          
+          function init(config) {
+            const table = config.tableSelector instanceof Element ? config.tableSelector : document.querySelector(config.tableSelector);
+            if (!table) return;
+            
+            _table = table;
+            _storageKey = config.storageKey || 'erp-grid-widths';
+            
+            // 1. 저장된 폭 불러오기
+            restoreWidths();
+            
+            // 2. 리사이저 추가
+            addResizers();
+            
+            // 3. 초기화 버튼 이벤트
+            if (config.resetButtonSelector) {
+              const btn = document.querySelector(config.resetButtonSelector);
+              if (btn) {
+                btn.addEventListener('click', resetWidths);
+              }
+            }
+          }
+          
+          function addResizers() {
+            const ths = _table.querySelectorAll('thead th');
+            ths.forEach((th, index) => {
+              // 마지막 컬럼은 리사이저 제외
+              if (index === ths.length - 1) return;
+              
+              // 이미 리사이저가 있으면 스킵
+              if (th.querySelector('.erp-col-resizer')) return;
+              
+              th.style.position = 'relative';
+              
+              const resizer = document.createElement('div');
+              resizer.className = 'erp-col-resizer';
+              resizer.style.position = 'absolute';
+              resizer.style.right = '0';
+              resizer.style.top = '0';
+              resizer.style.bottom = '0';
+              resizer.style.width = '5px';
+              resizer.style.cursor = 'col-resize';
+              resizer.style.zIndex = '100';
+              resizer.style.userSelect = 'none';
+              
+              resizer.addEventListener('mousedown', (e) => startResize(e, th, index));
+              // 클릭 이벤트 전파 방지 (정렬 등과 충돌 방지)
+              resizer.addEventListener('click', (e) => e.stopPropagation());
+              
+              th.appendChild(resizer);
+            });
+            
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+          }
+          
+          function startResize(e, th, index) {
+            e.preventDefault();
+            _resizingColIndex = index;
+            _startX = e.pageX;
+            _startWidth = th.offsetWidth;
+            
+            document.body.style.cursor = 'col-resize';
+            _table.classList.add('resizing');
+          }
+          
+          function onMouseMove(e) {
+            if (_resizingColIndex < 0) return;
+            
+            const diff = e.pageX - _startX;
+            const newWidth = Math.max(50, _startWidth + diff); // 최소 50px
+            
+            const ths = _table.querySelectorAll('thead th');
+            if (ths[_resizingColIndex]) {
+              ths[_resizingColIndex].style.width = newWidth + 'px';
+              ths[_resizingColIndex].style.minWidth = newWidth + 'px';
+              ths[_resizingColIndex].style.maxWidth = newWidth + 'px';
+            }
+          }
+          
+          function onMouseUp(e) {
+            if (_resizingColIndex >= 0) {
+              saveWidths();
+              _resizingColIndex = -1;
+              document.body.style.cursor = '';
+              _table.classList.remove('resizing');
+            }
+          }
+          
+          function saveWidths() {
+            if (!_storageKey) return;
+            const widths = {};
+            const ths = _table.querySelectorAll('thead th');
+            ths.forEach((th, index) => {
+              if (th.style.width) {
+                widths[index] = th.style.width;
+              }
+            });
+            try {
+              localStorage.setItem(_storageKey, JSON.stringify(widths));
+            } catch (e) {
+              console.error('컬럼 폭 저장 실패', e);
+            }
+          }
+          
+          function restoreWidths() {
+            if (!_storageKey) return;
+            try {
+              const saved = localStorage.getItem(_storageKey);
+              if (!saved) return;
+              
+              const widths = JSON.parse(saved);
+              const ths = _table.querySelectorAll('thead th');
+              
+              Object.keys(widths).forEach(index => {
+                if (ths[index]) {
+                  const w = widths[index];
+                  ths[index].style.width = w;
+                  ths[index].style.minWidth = w;
+                  ths[index].style.maxWidth = w;
+                }
+              });
+            } catch (e) {
+              console.error('컬럼 폭 복원 실패', e);
+            }
+          }
+          
+          function resetWidths() {
+            if (!_storageKey) return;
+            localStorage.removeItem(_storageKey);
+            
+            const ths = _table.querySelectorAll('thead th');
+            ths.forEach(th => {
+              th.style.width = '';
+              th.style.minWidth = '';
+              th.style.maxWidth = '';
+            });
+            
+            // CSS에서 정의된 기본값으로 돌아감 (페이지 리로드 없이 적용됨)
+            // 필요하다면 window.location.reload()를 호출할 수도 있음
+            showErpToast('컬럼 폭이 초기화되었습니다.', 'success');
+          }
+          
+          return {
+            init: init
+          };
+        })();
+
+
         let __selectedOrderId = null;
         let __attachmentsCache = {};
         let __currentAttachmentList = [];
