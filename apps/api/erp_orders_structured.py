@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from db import get_db
 from models import Order, OrderEvent
+from constants import STATUS
 from apps.auth import login_required, role_required
 from services.erp_policy import (
     STAGE_LABELS,
@@ -150,6 +151,15 @@ def api_put_order_structured(order_id):
                 new_stage = (structured_data.get('workflow') or {}).get('stage')
                 old_stage = (old_sd.get('workflow') or {}).get('stage')
                 if new_stage and new_stage != old_stage:
+                    # [GDM] Order.status 동기화 (기존 필터링 호환)
+                    # ERP Beta 단계가 기존 상태 코드와 호환되면 Order.status 업데이트
+                    if new_stage in STATUS:
+                        order.status = new_stage
+                    elif new_stage == 'AS':
+                        # AS 단계는 상세 매핑 필요할 수 있으나, 일단 STATUS에 'AS'가 있으므로 사용
+                        # 필요시 'AS_RECEIVED' 등으로 매핑 가능
+                        order.status = 'AS'
+
                     is_quest_complete, missing_teams = check_quest_approvals_complete(old_sd, old_stage)
                     if not is_quest_complete and missing_teams:
                         stage_label = STAGE_LABELS.get(old_stage, old_stage) if old_stage else '알 수 없음'
