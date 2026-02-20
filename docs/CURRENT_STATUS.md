@@ -93,6 +93,9 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 **docs/DEPLOY_NOTES.md** — deploy에 올릴 때마다 "뭘 했는지" 누구나 알 수 있게 쉬운 말로 정리
 
 ## 최근 변경
+- [2026-02-20] **ERP Beta: 기존주문 변환 기능 추가**
+  - `templates/partials/erp_beta_tab.html` UI 추가 (텍스트 생성 카드).
+  - `templates/partials/erp_beta_js.html` 로직 추가 (텍스트 생성/복사).
 - [2026-02-19] **NEXT-004 완료: db_admin 비밀번호 환경변수화**
   - scripts/db_admin.py: FOMS_ADMIN_DEFAULT_PASSWORD 사용. init·reset-admin 기본값 제거. DEPLOY_NOTES 반영.
 - [2026-02-19] **완료 더블체크 + 다음 단계 정리 + NEXT-003 pytest 도입**
