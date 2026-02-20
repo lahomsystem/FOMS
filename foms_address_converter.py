@@ -78,25 +78,39 @@ class FOMSAddressConverter:
                 
                 if documents:
                     doc = documents[0]
+                    region_info = {}
+                    
                     if 'address' in doc and doc['address']:
                         lat = float(doc['address']['y'])
                         lng = float(doc['address']['x'])
+                        region_info = {
+                            'region_1depth_name': doc['address'].get('region_1depth_name', ''),
+                            'region_2depth_name': doc['address'].get('region_2depth_name', ''),
+                            'region_3depth_name': doc['address'].get('region_3depth_name', '')
+                        }
                         
                         if self._is_valid_coordinates(lat, lng):
-                            return lat, lng, "성공"
+                            return lat, lng, "성공", region_info
                     
                     # road_address 시도
                     if 'road_address' in doc and doc['road_address']:
                         lat = float(doc['road_address']['y'])
                         lng = float(doc['road_address']['x'])
+                        # 도로명 주소 정보가 있으면 덮어쓰거나 보완
+                        if not region_info:
+                            region_info = {
+                                'region_1depth_name': doc['road_address'].get('region_1depth_name', ''),
+                                'region_2depth_name': doc['road_address'].get('region_2depth_name', ''),
+                                'region_3depth_name': doc['road_address'].get('region_3depth_name', '')
+                            }
                         
                         if self._is_valid_coordinates(lat, lng):
-                            return lat, lng, "성공"
+                            return lat, lng, "성공", region_info
             
-            return None, None, "주소를 찾을 수 없음"
+            return None, None, "주소를 찾을 수 없음", None
             
         except Exception as e:
-            return None, None, f"API 오류: {str(e)}"
+            return None, None, f"API 오류: {str(e)}", None
     
     def _try_keyword_api(self, address):
         """키워드 API로 변환 시도"""
@@ -117,14 +131,20 @@ class FOMSAddressConverter:
                     doc = documents[0]
                     lat = float(doc['y'])
                     lng = float(doc['x'])
+                    # 키워드 검색 결과에는 상세 행정구역 정보가 없을 수도 있음 (place_name, address_name 등은 있음)
+                    # address_name을 파싱하거나 보조 정보로 사용해야 할 수 있음. 여기서는 일단 None.
+                    # 하지만 보통 documents[0]에 address_name "서울 광진구 ..." 형태로 들어있으므로 
+                    # 필요하면 여기서 파싱 로직을 추가할 수도 있지만, API 스펙상 region depth 필드는 장소 검색에 직접적으로 없을 수 있음.
+                    # (카카오 장소 검색 API 응답에는 address_name, road_address_name, category_group_code 등이 있음)
+                    # 여기서는 일단 None 처리.
                     
                     if self._is_valid_coordinates(lat, lng):
-                        return lat, lng, "키워드 검색 성공"
+                        return lat, lng, "키워드 검색 성공", None
             
-            return None, None, "키워드 검색 실패"
+            return None, None, "키워드 검색 실패", None
             
         except Exception as e:
-            return None, None, f"키워드 API 오류: {str(e)}"
+            return None, None, f"키워드 API 오류: {str(e)}", None
     
     def _strip_detail_for_geocoding(self, address):
         """지오코딩 전 상세주소(동/호수, 아파트명 등)를 분리하여 핵심 주소만 반환
@@ -173,9 +193,14 @@ class FOMSAddressConverter:
         return original
     
     def convert_address(self, address):
-        """AI 기반 주소 변환"""
+        """AI 기반 주소 변환 (기존 호환성 유지)"""
+        lat, lng, status, _ = self.analyze_address(address)
+        return lat, lng, status
+
+    def analyze_address(self, address):
+        """AI 기반 주소 변환 및 분석 (상세 정보 포함)"""
         if not address or str(address).strip() == '':
-            return None, None, "빈 주소"
+            return None, None, "빈 주소", None
         
         # 1단계: 학습 데이터에서 검색
         try:
@@ -184,7 +209,8 @@ class FOMSAddressConverter:
                 return (
                     learned_suggestion['latitude'], 
                     learned_suggestion['longitude'], 
-                    f"학습 데이터 매칭 (신뢰도: {learned_suggestion['confidence']:.2f})"
+                    f"학습 데이터 매칭 (신뢰도: {learned_suggestion['confidence']:.2f})",
+                    None
                 )
         except Exception as e:
             pass
@@ -224,14 +250,14 @@ class FOMSAddressConverter:
         for strategy_name, addr_to_try in strategies:
             if addr_to_try:
                 # 주소 API 시도
-                lat, lng, status = self._try_address_api(addr_to_try)
+                lat, lng, status, region_info = self._try_address_api(addr_to_try)
                 if lat is not None and lng is not None:
-                    return lat, lng, f"{status} ({strategy_name})"
+                    return lat, lng, f"{status} ({strategy_name})", region_info
                 
                 # 키워드 API 시도
-                lat, lng, status = self._try_keyword_api(addr_to_try)
+                lat, lng, status, region_info = self._try_keyword_api(addr_to_try)
                 if lat is not None and lng is not None:
-                    return lat, lng, f"{status} ({strategy_name})"
+                    return lat, lng, f"{status} ({strategy_name})", region_info
         
         # 6단계: 주소 구성 요소 분석 후 재시도
         try:
@@ -241,9 +267,9 @@ class FOMSAddressConverter:
                 if components['dong']:
                     simplified_address += f" {components['dong']}"
                 
-                lat, lng, status = self._try_address_api(simplified_address)
+                lat, lng, status, region_info = self._try_address_api(simplified_address)
                 if lat is not None and lng is not None:
-                    return lat, lng, f"{status} (simplified)"
+                    return lat, lng, f"{status} (simplified)", region_info
         except Exception as e:
             print(f"주소 구성 요소 분석 오류: {e}")
         
@@ -251,7 +277,7 @@ class FOMSAddressConverter:
         time.sleep(DELAY_BETWEEN_REQUESTS)
         
         print(f"[CONVERTER] 모든 변환 시도 실패")
-        return None, None, "AI 변환 실패"
+        return None, None, "AI 변환 실패", None
     
     def add_learning_data(self, original_address, corrected_address, lat, lng):
         """학습 데이터 추가"""

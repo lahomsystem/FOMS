@@ -52,7 +52,8 @@ Thumbs.db
 
 # 임시·백업 파일 (파일 정리 Phase 1)
 *.tmp
-*.bak 
+*.bak
+temp_*.html 
 
 # Load test secrets / generated accounts
 tests/load/session_cookies.txt

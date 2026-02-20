@@ -1,3 +1,3 @@
 # Railway 배포용 Procfile (Quest 14)
-# SocketIO를 지원하기 위해 eventlet 워커 사용
-web: gunicorn --worker-class gthread --workers 1 --threads 20 --max-requests 1000 --timeout 120 app:app
+# Socket.IO 지원: gevent 워커 1개 (다중 워커 시 sticky session 필요)
+web: gunicorn -k gevent -w 1 --max-requests 1000 --timeout 120 app:app

@@ -3,9 +3,15 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!exportBtn) return;
 
     exportBtn.addEventListener('click', async function () {
+        const originalText = exportBtn.innerHTML;
+
+        function resetBtn(restoreText) {
+            exportBtn.innerHTML = restoreText !== undefined ? restoreText : originalText;
+            exportBtn.disabled = false;
+        }
+
         try {
             // 버튼 로딩 상태
-            const originalText = exportBtn.innerHTML;
             exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장 중...';
             exportBtn.disabled = true;
 
@@ -16,7 +22,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (!tableElement) {
                 alert('캡처할 배송 일정이 없습니다.');
-                resetBtn();
+                resetBtn(originalText);
                 return;
             }
 
@@ -28,7 +34,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // 테이블이 스크롤되어 일부만 보일 수 있으므로, 전체를 캡처하기 위해 windowWidth/Height 옵션 등을 고려하거나
             // onclone에서 스타일을 강제 조정해야 함.
 
-            await html2canvas(tableElement, {
+            const canvas = await html2canvas(tableElement, {
                 scale: 2, // 고해상도
                 useCORS: true,
                 logging: false,
@@ -97,27 +103,21 @@ document.addEventListener('DOMContentLoaded', function () {
                         thead.insertBefore(titleRow, thead.firstChild);
                     }
                 }
-            }).then(canvas => {
-                // 4. 다운로드
-                const link = document.createElement('a');
-                link.download = `시공일정_${dateStr}.png`;
-                link.href = canvas.toDataURL('image/png');
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
             });
 
-            resetBtn();
+            // 4. 다운로드 (await 직후 처리로 Promise 체인 제거 → 콘솔 오류 방지)
+            const link = document.createElement('a');
+            link.download = `시공일정_${dateStr}.png`;
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            resetBtn(originalText);
 
         } catch (err) {
             console.error('이미지 저장 실패:', err);
             alert('이미지 저장 중 오류가 발생했습니다.\n' + err.message);
-            resetBtn();
-        }
-
-        function resetBtn() {
-            exportBtn.innerHTML = originalText;
-            exportBtn.disabled = false;
+            resetBtn(originalText);
         }
     });
 });
