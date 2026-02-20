@@ -21,7 +21,7 @@ def _default_menu_config():
             {'id': 'calendar', 'name': '캘린더', 'url': '/calendar'},
             {'id': 'order_list', 'name': '전체 주문', 'url': '/'},
             {'id': 'received', 'name': '접수', 'url': '/?status=RECEIVED'},
-            {'id': 'measured', 'name': '실측', 'url': '/?status=MEASURED'},
+            {'id': 'measured', 'name': '실측', 'url': '/?status=MEASURE'},
             {'id': 'metro_orders', 'name': '수도권 주문', 'url': '/?region=metro'},
             {'id': 'regional_orders', 'name': '지방 주문', 'url': '/?region=regional'},
             {'id': 'storage_dashboard', 'name': '수납장 대시보드', 'url': '/storage_dashboard'},

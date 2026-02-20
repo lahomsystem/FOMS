@@ -34,6 +34,8 @@ def index():
     try:
         db = get_db()
         status_filter = request.args.get('status')
+        if status_filter == 'MEASURED':  # 레거시 호환
+            status_filter = 'MEASURE'
         region_filter = request.args.get('region')
         search_query = request.args.get('search', '').strip()
         page = request.args.get('page', 1, type=int)

@@ -9,6 +9,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from models import Order, User, OrderEvent
+from constants import STATUS
 from apps.auth import login_required, role_required
 from services.erp_permissions import can_edit_erp
 from services.erp_policy import (
@@ -384,6 +385,12 @@ def api_order_quest_approve(order_id):
                     workflow["stage"] = next_stage_code
                     workflow["stage_updated_at"] = now.isoformat()
                     sd["workflow"] = workflow
+
+                    # [GDM] Order.status 동기화
+                    if next_stage_code in STATUS:
+                        order.status = next_stage_code
+                    elif next_stage_code == 'AS':
+                        order.status = 'AS'
 
                     next_quest = create_quest_from_template(next_stage_name, username, sd)
                     if next_quest:
