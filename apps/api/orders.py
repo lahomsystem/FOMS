@@ -8,6 +8,7 @@ from sqlalchemy import or_, and_, func
 from sqlalchemy.orm.attributes import flag_modified
 import traceback
 import json
+import datetime
 
 orders_bp = Blueprint('orders', __name__, url_prefix='/api')
 
@@ -16,6 +17,72 @@ def ensure_path(parent, key):
     if key not in parent or not isinstance(parent.get(key), dict):
         parent[key] = {}
     return parent[key]
+
+
+@orders_bp.route('/orders/nearby')
+@login_required
+def api_orders_nearby():
+    """AS 대시보드용: 주소 기반 가까운 출고/시공 일정 찾기"""
+    target_address = request.args.get('address', '').strip()
+    if not target_address:
+        return jsonify({'success': False, 'message': '주소가 필요합니다.'}), 400
+
+    # 기준일: 오늘 (또는 파라미터)
+    ref_date = request.args.get('date', datetime.datetime.now().strftime('%Y-%m-%d'))
+    
+    db = get_db()
+    
+    # 1. 대상 주문 조회 (오늘 이후 출고 또는 시공 예정인 건)
+    # DELETED 제외, 날짜가 있는 건만 조회
+    candidates = db.query(Order).filter(
+        Order.status != 'DELETED',
+        or_(
+            Order.shipping_scheduled_date >= ref_date,
+            Order.scheduled_date >= ref_date
+        )
+    ).all()
+
+    # 2. 주소 유사도 점수 계산
+    # 간단한 토큰 매칭: 시/구/동/로 단위로 쪼개서 일치 개수 확인
+    # 예: "성남시 분당구 판교역로98" -> ["성남시", "분당구", "판교역로98"]
+    target_tokens = set(target_address.split())
+    
+    scored_orders = []
+    for order in candidates:
+        order_addr = (order.address or '').strip()
+        if not order_addr:
+            continue
+            
+        order_tokens = set(order_addr.split())
+        
+        # 교집합 개수로 점수 산정 (정확도 높이기 위해 앞부분 일치 가중치 등 고려 가능하지만 일단 단순 개수)
+        score = len(target_tokens.intersection(order_tokens))
+        
+        # 최소 1개 이상 토큰이 일치해야 후보로 선정 (예: 같은 '시' 또는 '구')
+        if score > 0:
+            # 날짜 결정 (상차일 우선, 없으면 시공일)
+            d_date = order.shipping_scheduled_date or order.scheduled_date
+            
+            scored_orders.append({
+                'id': order.id,
+                'customer_name': order.customer_name,
+                'address': order_addr,
+                'date': d_date,
+                'type': '상차' if order.shipping_scheduled_date else '시공',
+                'status': STATUS.get(order.status, order.status),
+                'score': score
+            })
+
+    # 3. 정렬: 점수 높은 순 -> 날짜 빠른 순
+    # score 역순(-x['score']), date 정순(x['date'])
+    scored_orders.sort(key=lambda x: (-x['score'], x['date']))
+
+    # Top 5 반환
+    return jsonify({
+        'success': True,
+        'results': scored_orders[:5],
+        'count': len(scored_orders)
+    })
 
 
 @orders_bp.route('/orders')

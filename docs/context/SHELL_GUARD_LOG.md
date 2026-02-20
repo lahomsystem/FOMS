@@ -333,3 +333,10 @@
 | 2026-02-20 13:32:42 | allow | `-` | `(payload에 command 없음)` |
 | 2026-02-20 13:32:42 | allow | `-` | `(payload에 command 없음)` |
 | 2026-02-20 13:32:42 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-20 13:32:55 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-20 13:32:55 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-20 13:32:55 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-20 13:40:57 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-20 13:41:05 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-20 13:41:05 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-20 13:41:05 | allow | `-` | `(payload에 command 없음)` |
