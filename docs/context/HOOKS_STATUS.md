@@ -15,10 +15,12 @@
 
 ## 확인 방법
 
-- 실제 payload 확인(적용 완료):
-- `CURSOR_HOOK_DEBUG=1` 설정 시 `docs/context/HOOK_PAYLOAD_DEBUG.jsonl`에 훅별 payload 기록
-- 기본은 훅별 1회 캡처 (`CURSOR_HOOK_DEBUG_ONCE=1`)
-- 반복 캡처가 필요하면 `CURSOR_HOOK_DEBUG_ONCE=0`
+- **실제 payload로 키 매핑 점검** (기록이 unknown/빈 값일 때):
+  1. 터미널에서 `set CURSOR_HOOK_DEBUG=1` (PowerShell: `$env:CURSOR_HOOK_DEBUG="1"`)
+  2. Cursor에서 훅이 실행되는 동작(세션 시작, 파일 편집, 셸 실행 등) 한 번씩 수행
+  3. `docs/context/HOOK_PAYLOAD_DEBUG.jsonl` 에서 훅별 payload 구조 확인
+  4. `payload_keys` / `payload` 를 보고 `.cursor/hooks/` 쪽에서 찾는 키 이름을 보강
+- 기본은 훅별 1회만 캡처 (`CURSOR_HOOK_DEBUG_ONCE=1`). 반복 캡처는 `CURSOR_HOOK_DEBUG_ONCE=0`
 - Cursor 문서: <https://cursor.com/docs/agent/hooks>
 
 ## 적용된 조치 (2026-02-19)

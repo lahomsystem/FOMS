@@ -288,6 +288,26 @@
                 gap: 4px;
               }
 
+              .shipment-worker-cell {
+                font-weight: 500;
+                text-align: center;
+              }
+              .shipment-worker-cell[style*="background-color"] {
+                color: #000000 !important;
+              }
+              .shipment-table tbody tr:hover td.shipment-worker-cell,
+              .shipment-table tbody tr:hover td.shipment-worker-cell[style*="background-color"],
+              td.shipment-worker-cell[style*="background-color"]:hover {
+                background-color: inherit !important;
+                background: inherit !important;
+                color: #000000 !important;
+              }
+              .shipment-table tbody tr:hover td.shipment-worker-cell[data-worker-bg-color] {
+                background-color: var(--worker-bg-color, inherit) !important;
+                background: var(--worker-bg-color, inherit) !important;
+                color: #000000 !important;
+              }
+
               .shipment-saved-datalist {
                 font-size: 0.85rem;
               }
@@ -752,6 +772,25 @@
               </thead>
               <tbody>
                 {% if rows %}
+                {# 시공자 목록 수집 및 파스텔 색상 할당 (실측 대시보드 담당자와 동일 방식) #}
+                {% set worker_list = [] %}
+                {% for r in rows %}
+                {% set _sd = r.structured_data or {} %}
+                {% set _ship = _sd.get('shipment') or {} %}
+                {% set _cw = _ship.get('construction_workers') or [] %}
+                {% set ns_first = namespace(val='') %}
+                {% for _w in _cw %}
+                  {% if _w|string|trim and not ns_first.val %}
+                    {% set ns_first.val = _w|string|trim %}
+                  {% endif %}
+                {% endfor %}
+                {% set _first = ns_first.val %}
+                {% if _first and _first not in worker_list %}
+                {% set _ = worker_list.append(_first) %}
+                {% endif %}
+                {% endfor %}
+                {% set pastel_colors = ['#B8D4E3', '#FFE5CC', '#E8D5E9', '#D5E9D5', '#F0D5D5', '#D5D5E9', '#FFF0D5', '#D5E9E5', '#F5D5E5', '#E9E5D5'] %}
+
                 {% for r in rows %}
                 {# 백엔드에서 준비된 필드 사용 (apply_erp_beta_display_fields) #}
                 {% set customer = r.customer_name %}
@@ -768,6 +807,23 @@
                 {% set drawing_managers = [shipment.get('drawing_manager')] %}
                 {% endif %}
                 {% set construction_workers = shipment.get('construction_workers') or [] %}
+                {% set ns_key = namespace(val='') %}
+                {% for _w in construction_workers %}
+                  {% if _w|string|trim and not ns_key.val %}
+                    {% set ns_key.val = _w|string|trim %}
+                  {% endif %}
+                {% endfor %}
+                {% set worker_key = ns_key.val %}
+                {% set ns = namespace(worker_index=-1) %}
+                {% for w in worker_list %}
+                {% if w == worker_key %}{% set ns.worker_index = loop.index0 %}{% endif %}
+                {% endfor %}
+                {% if ns.worker_index >= 0 %}
+                {% set worker_bg_color = pastel_colors[ns.worker_index % pastel_colors|length] %}
+                {% else %}
+                {% set worker_bg_color = '#E9ECEF' %}
+                {% endif %}
+                {% set worker_text_color = '#000000' %}
 
                 {# 제품/규격: items 기준 세로 배치. 규격 = 실제 W/300 숫자 #}
                 {% set erp_items = sd.get('items') or [] %}
@@ -778,7 +834,7 @@
                 {% if item_count == 0 %}{% set item_count = 1 %}{% endif %}
                 {% set product_display = r.product or '-' %}
 
-                <tr data-order-id="{{ r.id }}" class="shipment-row">
+                <tr data-order-id="{{ r.id }}" class="shipment-row" data-as="{{ 1 if r.status in ('AS_RECEIVED', 'AS_COMPLETED') else 0 }}" data-manager="{{ (r.manager_name or '')|e }}">
                   <td style="border-right: 1px solid #e0e0e0;">
                     {% if can_edit_shipment %}
                     <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-beta"
@@ -944,7 +1000,8 @@
                       {% endif %}
                     </div>
                   </td>
-                  <td class="shipment-field-cell" style="border-right: 1px solid #e0e0e0;">
+                  <td class="shipment-field-cell shipment-worker-cell" style="border-right: 1px solid #e0e0e0; --worker-bg-color: {{ worker_bg_color }}; background-color: {{ worker_bg_color }}; color: {{ worker_text_color }};"
+                    data-worker-bg-color="{{ worker_bg_color }}">
                     <div class="shipment-workers-list {% if not construction_workers %}no-workers{% endif %}"
                       data-order-id="{{ r.id }}" data-field="construction_workers"
                       data-n="{{ construction_workers|length }}">
@@ -1086,16 +1143,95 @@
         fillDatalist('datalist-construction-workers', 'construction_workers');
       }
 
+      var PASTEL_COLORS = ['#B8D4E3', '#FFE5CC', '#E8D5E9', '#D5E9D5', '#F0D5D5', '#D5D5E9', '#FFF0D5', '#D5E9E5', '#F5D5E5', '#E9E5D5'];
+      var WORKER_DEFAULT_BG = '#E9ECEF';
+
+      function getFirstWorkerFromRow(tr) {
+        var list = tr.querySelector('.shipment-workers-list');
+        if (!list) return '';
+        var inputs = list.querySelectorAll('input[data-field="construction_workers"]');
+        for (var i = 0; i < inputs.length; i++) {
+          var v = String(inputs[i].value || '').trim();
+          if (v) return v;
+        }
+        var views = list.querySelectorAll('.worker-view');
+        for (var i = 0; i < views.length; i++) {
+          var v = String(views[i].textContent || '').trim();
+          if (v) return v;
+        }
+        return '';
+      }
+      function workerKeyForSort(tr) {
+        var w = getFirstWorkerFromRow(tr);
+        return (w && w.toLowerCase()) || 'ZZZ';
+      }
+
+      function applyShipmentWorkerSortAndColors() {
+        var tbody = document.querySelector('.shipment-table tbody');
+        if (!tbody) return;
+        var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr.shipment-row'));
+        if (!rows.length) return;
+        rows.sort(function (a, b) {
+          var asA = parseInt(a.dataset.as, 10) || 0;
+          var asB = parseInt(b.dataset.as, 10) || 0;
+          if (asA !== asB) return asA - asB;
+          var wA = workerKeyForSort(a);
+          var wB = workerKeyForSort(b);
+          if (wA !== wB) return wA.localeCompare(wB);
+          var mA = (a.dataset.manager || '').trim() || 'ZZZ';
+          var mB = (b.dataset.manager || '').trim() || 'ZZZ';
+          if (mA !== mB) return mA.localeCompare(mB);
+          return (parseInt(a.dataset.orderId, 10) || 0) - (parseInt(b.dataset.orderId, 10) || 0);
+        });
+        rows.forEach(function (tr) { tbody.appendChild(tr); });
+        var workerList = [];
+        rows.forEach(function (tr) {
+          var w = getFirstWorkerFromRow(tr);
+          var key = w ? w.toLowerCase() : '';
+          if (key && workerList.indexOf(key) === -1) workerList.push(key);
+        });
+        rows.forEach(function (tr) {
+          var td = tr.querySelector('td.shipment-worker-cell');
+          if (!td) return;
+          var w = getFirstWorkerFromRow(tr);
+          var key = w ? w.toLowerCase() : '';
+          var idx = key ? workerList.indexOf(key) : -1;
+          var color = idx >= 0 ? PASTEL_COLORS[idx % PASTEL_COLORS.length] : WORKER_DEFAULT_BG;
+          td.style.setProperty('--worker-bg-color', color);
+          td.style.backgroundColor = color;
+          td.style.color = '#000000';
+          td.setAttribute('data-worker-bg-color', color);
+        });
+      }
+      function scheduleApplyShipmentWorkerSortAndColors() {
+        setTimeout(applyShipmentWorkerSortAndColors, 0);
+      }
+
       fetch('/api/erp/shipment-settings').then(function (r) { return r.json(); }).then(function (data) {
         if (data && data.success && data.settings) window.__erpShipmentSettings = data.settings;
         fillDatalist('datalist-construction-time', 'construction_time');
         fillDatalist('datalist-drawing-manager', 'drawing_manager');
         fillDatalist('datalist-construction-workers', 'construction_workers');
+        applyShipmentWorkerSortAndColors();
       }).catch(function () {
         fillDatalist('datalist-construction-time', 'construction_time');
         fillDatalist('datalist-drawing-manager', 'drawing_manager');
         fillDatalist('datalist-construction-workers', 'construction_workers');
+        applyShipmentWorkerSortAndColors();
       });
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { setTimeout(applyShipmentWorkerSortAndColors, 50); });
+      } else {
+        setTimeout(applyShipmentWorkerSortAndColors, 50);
+      }
+      var shipmentTableEl = document.querySelector('.shipment-table');
+      if (shipmentTableEl) {
+        shipmentTableEl.addEventListener('blur', function (e) {
+          if (e.target && e.target.getAttribute && e.target.getAttribute('data-field') === 'construction_workers') {
+            scheduleApplyShipmentWorkerSortAndColors();
+          }
+        }, true);
+      }
 
       function showSavedDropdown(anchor, listKey, onSelect) {
         var existing = document.getElementById('shipment-saved-dropdown');
@@ -1224,6 +1360,7 @@
             }
             if (val) saveToList(STORAGE_KEYS.construction_workers, val);
             refreshWorkerDatalist();
+            scheduleApplyShipmentWorkerSortAndColors();
           });
         }
         if (field === 'drawing_managers') {
@@ -1430,6 +1567,7 @@
           wrap.querySelectorAll('input[data-field="construction_workers"]').forEach(function (i) { workers.push(i.value.trim()); });
           saveShipmentField(orderId, 'construction_workers', workers);
           refreshWorkerDatalist();
+          scheduleApplyShipmentWorkerSortAndColors();
         });
       });
 
@@ -1461,6 +1599,7 @@
             saveShipmentField(orderId, 'construction_workers', workers);
             if (val) saveToList(STORAGE_KEYS.construction_workers, val);
             refreshWorkerDatalist();
+            scheduleApplyShipmentWorkerSortAndColors();
           });
           span.querySelector('.btn-remove-worker').addEventListener('click', function () {
             span.remove();
@@ -1469,6 +1608,7 @@
             wrap.querySelectorAll('input[data-field="construction_workers"]').forEach(function (i) { workers.push(i.value.trim()); });
             saveShipmentField(orderId, 'construction_workers', workers);
             refreshWorkerDatalist();
+            scheduleApplyShipmentWorkerSortAndColors();
           });
         });
       });
@@ -1511,6 +1651,7 @@
               inputs.forEach(function (inp) { workers.push(inp.value.trim()); });
               saveShipmentField(orderId, 'construction_workers', workers);
               refreshWorkerDatalist();
+              scheduleApplyShipmentWorkerSortAndColors();
             }
           });
         });
@@ -1637,6 +1778,8 @@
             var workers = [];
             listWrap.querySelectorAll('input[data-field="construction_workers"]').forEach(function (i) { workers.push(i.value.trim()); });
             saveShipmentField(orderId, 'construction_workers', workers);
+            refreshWorkerDatalist();
+            scheduleApplyShipmentWorkerSortAndColors();
           });
         }
       });

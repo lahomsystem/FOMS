@@ -48,3 +48,25 @@
 
 - [ ] **A6. 점검**  
   코드 리뷰, 수동 테스트(일반 사용자 mine 토글, 시공팀 계정으로 출고/시공만 접근·본인 건만 표시)
+
+---
+
+# 출고 대시보드 시공자 그룹·파스텔 색상 (2026-02-22)
+
+- [x] **B1. 백엔드 정렬**  
+  erp_shipment_page.py: get_construction_worker_key_for_sort, is_as_order 추가; rows.sort(AS, worker_key, manager, id)
+
+- [x] **B2. 템플릿 서버 렌더**  
+  worker_list·pastel_colors, 행별 worker_key·worker_bg_color, tr data-as/data-manager, td.shipment-worker-cell 스타일
+
+- [x] **B3. CSS**  
+  .shipment-worker-cell 및 hover 시 배경 유지(var(--worker-bg-color))
+
+- [x] **B4. JS 정렬·색**  
+  getFirstWorkerFromRow, workerKeyForSort, applyShipmentWorkerSortAndColors, scheduleApplyShipmentWorkerSortAndColors; PASTEL_COLORS, WORKER_DEFAULT_BG
+
+- [x] **B5. JS 호출 시점**  
+  로드 시 fetch 후 + DOMContentLoaded/setTimeout 50ms; 시공자 blur(위임 포함)·추가 blur·삭제 클릭·저장된 값 선택 시 scheduleApplyShipmentWorkerSortAndColors
+
+- [ ] **B6. 검증**  
+  시공자 입력/추가 시 같은 시공자끼리 묶임·파스텔 색 적용; 시공자 전부 삭제 시 해당 행 회색·정렬 반영; 새로고침 없이 동작
