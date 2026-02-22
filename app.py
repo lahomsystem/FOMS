@@ -7,6 +7,7 @@ import os
 import hashlib
 import datetime
 import json
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, g, session, send_from_directory, current_app
 from flask_compress import Compress
 from whitenoise import WhiteNoise
@@ -246,6 +247,40 @@ redis_url = os.environ.get('REDIS_URL')
 from services.rate_limit import init_limiter
 limiter = init_limiter(app)
 
+# Socket.IO Redis URL helper
+def _mask_url_secret(raw_url: str) -> str:
+    """로그 출력 시 URL의 인증정보를 마스킹."""
+    try:
+        p = urlsplit(raw_url)
+        if not p.netloc or '@' not in p.netloc:
+            return raw_url
+        creds, hostpart = p.netloc.rsplit('@', 1)
+        if ':' in creds:
+            user, _ = creds.split(':', 1)
+            masked = f"{user}:***@{hostpart}"
+        else:
+            masked = f"***@{hostpart}"
+        return urlunsplit((p.scheme, masked, p.path, p.query, p.fragment))
+    except Exception:
+        return raw_url
+
+
+def _augment_redis_url_for_socketio(raw_url: str | None) -> str | None:
+    """Socket.IO Redis 매니저 연결 안정성을 위한 query 옵션 보강."""
+    if not raw_url:
+        return raw_url
+    try:
+        p = urlsplit(raw_url)
+        query = dict(parse_qsl(p.query, keep_blank_values=True))
+        query.setdefault('health_check_interval', '30')
+        query.setdefault('socket_keepalive', '1')
+        query.setdefault('retry_on_timeout', '1')
+        new_query = urlencode(query)
+        return urlunsplit((p.scheme, p.netloc, p.path, new_query, p.fragment))
+    except Exception:
+        return raw_url
+
+
 # SocketIO Initialization with Redis & CORS Control
 # Production (gunicorn -k gevent): async_mode='gevent' to avoid ConcurrentObjectUseError on same socket.
 # Local (Windows): SOCKETIO_ASYNC_MODE=threading or no Redis → threading.
@@ -264,21 +299,27 @@ if SOCKETIO_AVAILABLE:
             Literal['threading', 'eventlet', 'gevent', 'gevent_uwsgi'], _mode_raw
         )
 
+        socketio_kwargs = {
+            'cors_allowed_origins': allowed_origins,
+            'async_mode': mode,
+            'ping_interval': 25,
+            'ping_timeout': 60,
+        }
+
         if redis_url:
-            print(f"[INFO] Socket.IO connecting to Redis Message Queue: {redis_url}")
+            socketio_redis_url = _augment_redis_url_for_socketio(redis_url) or redis_url
+            print(f"[INFO] Socket.IO connecting to Redis Message Queue: {_mask_url_secret(socketio_redis_url)}")
             socketio = _SocketIO(
                 app,
-                cors_allowed_origins=allowed_origins,
-                async_mode=mode,
-                message_queue=redis_url
+                message_queue=socketio_redis_url,
+                **socketio_kwargs,
             )
             print(f"[INFO] Socket.IO initialized in {mode} mode with Redis.")
         else:
             print("[WARN] REDIS_URL not found. Socket.IO running in single-worker mode (Memory).")
             socketio = _SocketIO(
                 app,
-                cors_allowed_origins=allowed_origins,
-                async_mode=mode
+                **socketio_kwargs,
             )
             print(f"[INFO] Socket.IO initialized in {mode} mode (Universal Stable).")
 
@@ -299,6 +340,9 @@ else:
 # (선택) SOCKETIO_CLIENT_ENABLED=true 시 클라이언트 강제 허용. 기본은 SOCKETIO_AVAILABLE 따라감(로컬 socketio.run / 원격 gunicorn gevent)
 app.config['SOCKETIO_CLIENT_ENABLED'] = (
     os.environ.get('SOCKETIO_CLIENT_ENABLED', '').lower() in ('true', '1', 'yes')
+)
+app.config['SOCKETIO_ALLOW_POLLING_FALLBACK'] = (
+    os.environ.get('SOCKETIO_ALLOW_POLLING_FALLBACK', '').lower() in ('true', '1', 'yes')
 )
 
 # 템플릿 캐시 비활성화 (개발 중 변경사항 즉시 반영)

@@ -208,3 +208,56 @@ railway run python railway_bootstrap.py
 - Grand Develop Master: `.cursor/agents/grand-develop-master.md` (백업/복원 검증, 원격 FOMS 동작 확인)
 - 백업/복원 검증: `docs/evolution/BACKUP_RESTORE_VERIFICATION.md`
 - Railway 마이그레이션: `MIGRATION_RAILWAY_R2.md`, `MIGRATION_GUIDE_RAILWAY.md`
+
+---
+
+## 8. Socket.IO 안정화 체크리스트 (2026-02-22 반영)
+
+아래 항목은 **Redis + Socket.IO + gevent** 운영 안정화를 위한 절차다.
+
+### 8.1 이미 코드에 반영된 항목
+
+- `Procfile`, `railway.toml`:
+  - `--max-requests 1000` 제거
+  - `--graceful-timeout 30 --keep-alive 5` 적용
+- `app.py`:
+  - Socket.IO `ping_interval=25`, `ping_timeout=60`
+  - Redis URL 옵션 자동 보강:
+    - `health_check_interval=30`
+    - `socket_keepalive=1`
+    - `retry_on_timeout=1`
+  - 로그 출력 시 Redis URL 비밀번호 마스킹
+  - `SOCKETIO_ALLOW_POLLING_FALLBACK` 환경변수 지원
+- `templates/layout.html`:
+  - 운영 기본: websocket 우선(필요 시에만 polling fallback)
+  - 재연결 시 소켓 객체를 강제 파기하지 않고 `connect()` 재시도
+
+### 8.2 운영자가 직접 해야 할 일
+
+1. Railway 재배포
+2. Redis 비밀번호 회전 후 `REDIS_URL` 갱신
+3. 배포 후 로그 확인:
+   - 없어야 정상: `Autorestarting worker after current request`
+   - 없어야 정상: `ConcurrentObjectUseError`
+4. 일부 네트워크에서 websocket 불가 시에만 아래 추가:
+   - `SOCKETIO_ALLOW_POLLING_FALLBACK=true`
+
+### 8.3 Redis `TCP_INVALID_SYN` 해석 기준
+
+- 단발성(간헐) + 직후 `OK` 연결이면 대체로 정상 범주(재연결/헬스체크 타이밍).
+- 아래 중 하나면 조사 필요:
+  - `TCP_INVALID_SYN`가 지속적으로 다발 발생
+  - 실사용 중 알림 누락/채팅 지연 동반
+  - Socket.IO disconnect/reconnect 루프가 계속 반복
+
+### 8.4 문제 재발 시 즉시 점검 순서
+
+1. Railway 변수 확인:
+   - `REDIS_URL` 최신값(회전 반영)
+   - `SOCKETIO_ALLOW_POLLING_FALLBACK` 값
+2. 현재 Start Command 확인:
+   - `gunicorn -k gevent -w 1 --timeout 120 --graceful-timeout 30 --keep-alive 5 app:app`
+3. 앱 로그/네트워크 플로우에서 같은 시각대 이벤트 대조:
+   - worker 재시작 로그
+   - socket disconnect reason
+   - Redis SYN 오류 비율

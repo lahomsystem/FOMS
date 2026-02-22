@@ -1,10 +1,28 @@
-import requests
-import time
+import os
 import re
+import requests
+import threading
+import time
+from collections import OrderedDict
 from datetime import datetime
 from map_config import KAKAO_REST_API_KEY, MAX_RETRIES, DELAY_BETWEEN_REQUESTS, MIN_LAT, MAX_LAT, MIN_LNG, MAX_LNG
 from foms_address_learning import FOMSAddressLearningSystem
 from foms_advanced_address_processor import FOMSAdvancedAddressProcessor
+
+
+def _read_int_env(name, default_value, min_value):
+    try:
+        value = int(os.environ.get(name, str(default_value)) or default_value)
+    except (TypeError, ValueError):
+        value = default_value
+    return max(min_value, value)
+
+
+_GEOCODE_CACHE_MAX_ENTRIES = _read_int_env('GEOCODE_CACHE_MAX_ENTRIES', 5000, 100)
+_GEOCODE_CACHE_TTL_SECONDS = _read_int_env('GEOCODE_CACHE_TTL_SECONDS', 86400, 60)
+_GEOCODE_CACHE_FAIL_TTL_SECONDS = _read_int_env('GEOCODE_CACHE_FAIL_TTL_SECONDS', 600, 15)
+_geocode_cache = OrderedDict()
+_geocode_cache_lock = threading.Lock()
 
 
 class FOMSAddressConverter:
@@ -191,6 +209,43 @@ class FOMSAddressConverter:
             return cleaned.strip()
         
         return original
+
+    def _cache_key(self, address):
+        normalized = self._normalize_address(self._strip_detail_for_geocoding(address or ''))
+        return normalized.lower().strip()
+
+    def _cache_get(self, key):
+        if not key:
+            return None
+        now_ts = time.time()
+        with _geocode_cache_lock:
+            item = _geocode_cache.get(key)
+            if not item:
+                return None
+            expires_at, payload = item
+            if expires_at <= now_ts:
+                _geocode_cache.pop(key, None)
+                return None
+            _geocode_cache.move_to_end(key)
+            return payload
+
+    def _cache_set(self, key, lat, lng, status, region_info):
+        if not key:
+            return
+        is_success = (lat is not None and lng is not None)
+        ttl = _GEOCODE_CACHE_TTL_SECONDS if is_success else _GEOCODE_CACHE_FAIL_TTL_SECONDS
+        expires_at = time.time() + ttl
+        payload = (lat, lng, status, region_info)
+        with _geocode_cache_lock:
+            _geocode_cache[key] = (expires_at, payload)
+            _geocode_cache.move_to_end(key)
+            while len(_geocode_cache) > _GEOCODE_CACHE_MAX_ENTRIES:
+                _geocode_cache.popitem(last=False)
+
+    @staticmethod
+    def clear_geocode_cache():
+        with _geocode_cache_lock:
+            _geocode_cache.clear()
     
     def convert_address(self, address):
         """AI 기반 주소 변환 (기존 호환성 유지)"""
@@ -201,17 +256,24 @@ class FOMSAddressConverter:
         """AI 기반 주소 변환 및 분석 (상세 정보 포함)"""
         if not address or str(address).strip() == '':
             return None, None, "빈 주소", None
+
+        cache_key = self._cache_key(address)
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
         
         # 1단계: 학습 데이터에서 검색
         try:
             learned_suggestion = self.learning_system.suggest_correction(address)
             if learned_suggestion and learned_suggestion.get('latitude') and learned_suggestion.get('longitude'):
-                return (
+                result = (
                     learned_suggestion['latitude'], 
                     learned_suggestion['longitude'], 
                     f"학습 데이터 매칭 (신뢰도: {learned_suggestion['confidence']:.2f})",
                     None
                 )
+                self._cache_set(cache_key, result[0], result[1], result[2], result[3])
+                return result
         except Exception as e:
             pass
         
@@ -252,12 +314,16 @@ class FOMSAddressConverter:
                 # 주소 API 시도
                 lat, lng, status, region_info = self._try_address_api(addr_to_try)
                 if lat is not None and lng is not None:
-                    return lat, lng, f"{status} ({strategy_name})", region_info
+                    final_status = f"{status} ({strategy_name})"
+                    self._cache_set(cache_key, lat, lng, final_status, region_info)
+                    return lat, lng, final_status, region_info
                 
                 # 키워드 API 시도
                 lat, lng, status, region_info = self._try_keyword_api(addr_to_try)
                 if lat is not None and lng is not None:
-                    return lat, lng, f"{status} ({strategy_name})", region_info
+                    final_status = f"{status} ({strategy_name})"
+                    self._cache_set(cache_key, lat, lng, final_status, region_info)
+                    return lat, lng, final_status, region_info
         
         # 6단계: 주소 구성 요소 분석 후 재시도
         try:
@@ -269,7 +335,9 @@ class FOMSAddressConverter:
                 
                 lat, lng, status, region_info = self._try_address_api(simplified_address)
                 if lat is not None and lng is not None:
-                    return lat, lng, f"{status} (simplified)", region_info
+                    final_status = f"{status} (simplified)"
+                    self._cache_set(cache_key, lat, lng, final_status, region_info)
+                    return lat, lng, final_status, region_info
         except Exception as e:
             print(f"주소 구성 요소 분석 오류: {e}")
         
@@ -277,11 +345,13 @@ class FOMSAddressConverter:
         time.sleep(DELAY_BETWEEN_REQUESTS)
         
         print(f"[CONVERTER] 모든 변환 시도 실패")
+        self._cache_set(cache_key, None, None, "AI 변환 실패", None)
         return None, None, "AI 변환 실패", None
     
     def add_learning_data(self, original_address, corrected_address, lat, lng):
         """학습 데이터 추가"""
         self.learning_system.add_correction(original_address, corrected_address, lat, lng)
+        self.clear_geocode_cache()
     
     def get_address_suggestions(self, address):
         """주소 교정 제안"""

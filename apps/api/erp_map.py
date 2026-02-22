@@ -3,6 +3,8 @@ ERP 지도·주소·유저 API. (Phase 4-4)
 erp.py에서 분리: map_data, erp users 목록, generate_map, update_address.
 """
 import datetime
+import os
+import threading
 
 from flask import Blueprint, request, jsonify, render_template
 from sqlalchemy import or_, and_, func, String
@@ -17,6 +19,40 @@ from foms_map_generator import FOMSMapGenerator
 from sqlalchemy.orm.attributes import flag_modified
 
 erp_map_bp = Blueprint('erp_map', __name__)
+_converter_instance = None
+_converter_lock = threading.Lock()
+_MAP_MAX_LIMIT_DEFAULT = 200
+
+
+def _read_int_env(name, default_value, min_value):
+    try:
+        value = int(os.environ.get(name, str(default_value)) or default_value)
+    except (TypeError, ValueError):
+        value = default_value
+    return max(min_value, value)
+
+
+_MAP_SCAN_MAX_LIMIT = _read_int_env('ERP_MAP_SCAN_MAX_LIMIT', 800, 200)
+
+
+def _resolve_map_limit(raw_limit, default_limit=100):
+    max_limit = _read_int_env('ERP_MAP_MAX_LIMIT', _MAP_MAX_LIMIT_DEFAULT, 50)
+    try:
+        value = int(raw_limit) if raw_limit is not None else int(default_limit)
+    except (TypeError, ValueError):
+        value = int(default_limit)
+    if value <= 0:
+        value = int(default_limit)
+    return min(value, max_limit)
+
+
+def _get_address_converter():
+    global _converter_instance
+    if _converter_instance is None:
+        with _converter_lock:
+            if _converter_instance is None:
+                _converter_instance = FOMSAddressConverter()
+    return _converter_instance
 
 
 @erp_map_bp.route('/map_view')
@@ -33,7 +69,8 @@ def api_map_data():
     try:
         date_filter = request.args.get('date')
         status_filter = request.args.get('status')
-        limit = int(request.args.get('limit', 100))
+        limit = _resolve_map_limit(request.args.get('limit'), default_limit=100)
+        scan_limit = min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
 
         db = get_db()
         query = db.query(Order).filter(Order.status != 'DELETED')
@@ -79,7 +116,7 @@ def api_map_data():
 
             query = query.filter(or_(*date_conditions))
 
-        orders = query.order_by(Order.id.desc()).limit(limit * 5).all()
+        orders = query.order_by(Order.id.desc()).limit(scan_limit).all()
 
         if date_filter:
             filtered_orders = []
@@ -100,7 +137,20 @@ def api_map_data():
                     filtered_orders.append(order)
             orders = filtered_orders[:limit]
 
-        converter = FOMSAddressConverter()
+        converter = _get_address_converter()
+        request_geocode_cache = {}
+
+        def convert_address_cached(address):
+            key = (address or '').strip()
+            if not key:
+                return None, None, "빈 주소"
+            cached = request_geocode_cache.get(key)
+            if cached is not None:
+                return cached
+            resolved = converter.convert_address(key)
+            request_geocode_cache[key] = resolved
+            return resolved
+
         map_data = []
         for order in orders:
             customer_name = order.customer_name
@@ -140,7 +190,7 @@ def api_map_data():
                         else:
                             product = product_name
 
-            lat, lng, status = converter.convert_address(address_to_use)
+            lat, lng, status = convert_address_cached(address_to_use)
             if lat is not None and lng is not None:
                 map_data.append({
                     'id': order.id,
@@ -195,6 +245,7 @@ def api_generate_map():
         manager_filter = (request.args.get('manager') or '').strip()
         search_query = (request.args.get('q') or request.args.get('search') or '').strip()
         title = request.args.get('title', '주문 위치 지도')
+        limit = _resolve_map_limit(request.args.get('limit'), default_limit=200)
 
         db = get_db()
         query = db.query(Order).filter(Order.status != 'DELETED')
@@ -240,7 +291,7 @@ def api_generate_map():
 
             query = query.filter(or_(*date_conditions))
 
-        orders = query.order_by(Order.id.desc()).limit(500).all()
+        orders = query.order_by(Order.id.desc()).limit(limit).all()
 
         if date_filter:
             filtered_orders = []
@@ -259,9 +310,22 @@ def api_generate_map():
 
                 if should_include:
                     filtered_orders.append(order)
-            orders = filtered_orders[:100]
+            orders = filtered_orders[:limit]
 
-        converter = FOMSAddressConverter()
+        converter = _get_address_converter()
+        request_geocode_cache = {}
+
+        def convert_address_cached(address):
+            key = (address or '').strip()
+            if not key:
+                return None, None, "빈 주소"
+            cached = request_geocode_cache.get(key)
+            if cached is not None:
+                return cached
+            resolved = converter.convert_address(key)
+            request_geocode_cache[key] = resolved
+            return resolved
+
         map_data = []
         orders_list = []
 
@@ -347,7 +411,7 @@ def api_generate_map():
                 if not searchable or search_lower not in searchable:
                     continue
 
-            lat, lng, status = converter.convert_address(address_to_use)
+            lat, lng, status = convert_address_cached(address_to_use)
 
             def format_date(date_value):
                 if date_value is None:
@@ -436,7 +500,7 @@ def api_calculate_route():
         end_lng = request.args.get('end_lng', type=float)
         if not all([start_lat, start_lng, end_lat, end_lng]):
             return jsonify({'success': False, 'error': '출발지와 도착지 좌표가 모두 필요합니다.'}), 400
-        converter = FOMSAddressConverter()
+        converter = _get_address_converter()
         route_result = converter.calculate_route(start_lat, start_lng, end_lat, end_lng)
         if route_result['status'] == 'success':
             return jsonify({'success': True, 'data': route_result})
@@ -453,7 +517,7 @@ def api_address_suggestions():
         address = request.args.get('address')
         if not address:
             return jsonify({'success': False, 'error': '주소가 필요합니다.'}), 400
-        converter = FOMSAddressConverter()
+        converter = _get_address_converter()
         suggestions = converter.get_address_suggestions(address)
         return jsonify({'success': True, 'suggestions': suggestions})
     except Exception as e:
@@ -472,7 +536,7 @@ def api_add_address_learning():
         longitude = data.get('longitude')
         if not all([original_address, corrected_address, latitude, longitude]):
             return jsonify({'success': False, 'error': '모든 필드가 필요합니다.'}), 400
-        converter = FOMSAddressConverter()
+        converter = _get_address_converter()
         converter.add_learning_data(original_address, corrected_address, latitude, longitude)
         return jsonify({'success': True, 'message': '학습 데이터가 추가되었습니다.'})
     except Exception as e:
@@ -487,7 +551,7 @@ def api_validate_address():
         address = request.args.get('address')
         if not address:
             return jsonify({'success': False, 'error': '주소가 필요합니다.'}), 400
-        converter = FOMSAddressConverter()
+        converter = _get_address_converter()
         validation = converter.validate_address(address)
         return jsonify({'success': True, 'validation': validation})
     except Exception as e:
@@ -525,7 +589,7 @@ def api_update_order_address(order_id):
 
         db.commit()
 
-        converter = FOMSAddressConverter()
+        converter = _get_address_converter()
         lat, lng, status = converter.convert_address(new_address)
 
         return jsonify({

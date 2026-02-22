@@ -11,10 +11,12 @@ from models import Order, OrderAttachment
 from apps.auth import login_required
 from apps.api.files import build_file_view_url, build_file_download_url
 from services.storage import get_storage
+from services.order_attachment_thumbnail import schedule_order_attachment_thumbnail_generation
 from constants import ERP_MEDIA_ALLOWED_EXTENSIONS
 
 DRAWING_ATTACHMENT_EXTRA_EXTENSIONS = {'pdf', 'zip', 'dwg', 'dxf'}
 ATTACHMENT_CATEGORIES = ('measurement', 'drawing', 'construction')
+ASYNC_ATTACHMENT_THUMBNAIL = os.environ.get('ASYNC_ATTACHMENT_THUMBNAIL', '1').lower() in ('1', 'true', 'yes', 'on')
 
 
 def normalize_attachment_category(raw_category):
@@ -218,11 +220,12 @@ def api_order_attachments_upload(order_id):
         thumbnail_key = None
         try:
             if file_type == 'image' and hasattr(storage, '_generate_thumbnail'):
-                unique_filename = storage_key.rsplit('/', 1)[-1] if storage_key else None
-                if unique_filename:
-                    file.seek(0)
-                    storage._generate_thumbnail(file, unique_filename, folder, 'image', storage_key=storage_key)
-                    thumbnail_key = f"{folder}/thumb_{unique_filename}"
+                if not ASYNC_ATTACHMENT_THUMBNAIL:
+                    unique_filename = storage_key.rsplit('/', 1)[-1] if storage_key else None
+                    if unique_filename:
+                        file.seek(0)
+                        storage._generate_thumbnail(file, unique_filename, folder, 'image', storage_key=storage_key)
+                        thumbnail_key = f"{folder}/thumb_{unique_filename}"
         except Exception:
             thumbnail_key = None
 
@@ -239,6 +242,8 @@ def api_order_attachments_upload(order_id):
         db.add(att)
         db.commit()
         db.refresh(att)
+        if ASYNC_ATTACHMENT_THUMBNAIL and file_type == 'image' and att.storage_key and not att.thumbnail_key:
+            schedule_order_attachment_thumbnail_generation(att.id, att.storage_key)
 
         d = att.to_dict()
         d['view_url'] = build_file_view_url(att.storage_key)

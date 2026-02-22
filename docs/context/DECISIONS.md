@@ -36,3 +36,9 @@
 - **결정**: business_calendar, erp_policy, storage를 services/로 이전
 - **이유**: 비즈니스 로직을 한 곳에 두고, app.py는 Blueprint 등록만 담당하도록 구조 정렬
 - **영향**: services/ 신규, app.py·apps/erp.py·apps/api/files.py·erp_automation.py·erp_build_step_runner.py import 경로 변경, 루트 business_calendar.py·erp_policy.py·storage.py 삭제
+
+### [2026-02-20] Production 다중 사용자 확장 계획서 분석 및 적용 방향
+- **컨텍스트**: Railway 기준 다중 사용자 무지연 운영 계획서가 FOMS Production에 맞는지 검증 요청
+- **결정**: 계획서 전반 적합. 2·3단계(웹 확장·DB/Redis 튜닝) 즉시, 5·6단계(지도 선계산·Direct Upload) 핵심 전환
+- **이유**: 현재 지도 API는 요청 시 Kakao 지오코딩 호출, 파일 업로드는 앱 서버 경유 → 계획서 진단과 일치. SLO 달성을 위해 해당 전환 필수
+- **영향**: docs/evolution/FOMS_PRODUCTION_SCALABILITY_ANALYSIS.md, db.py(풀 환경변수화), railway.toml, erp_map.py, storage/upload 플로우
