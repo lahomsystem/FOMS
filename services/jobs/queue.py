@@ -1,6 +1,6 @@
 """
 Redis Queue (RQ) 연결 및 enqueue 헬퍼.
-USE_RQ_WORKER=1 && REDIS_URL 있을 때만 활성화.
+REDIS_URL 있으면 enqueue 가능. (USE_RQ_WORKER는 start.sh 전용, enqueue와 분리)
 """
 import os
 
@@ -8,15 +8,12 @@ _rq_queue = None
 
 
 def get_rq_queue():
-    """RQ default 큐 반환. REDIS_URL 없으면 None."""
+    """RQ default 큐 반환. REDIS_URL 있으면 enqueue 가능 (FOMS 웹)."""
     global _rq_queue
     if _rq_queue is not None:
         return _rq_queue
     redis_url = os.environ.get('REDIS_URL')
     if not redis_url:
-        return None
-    use_rq = os.environ.get('USE_RQ_WORKER', '').lower() in ('1', 'true', 'yes')
-    if not use_rq:
         return None
     try:
         from redis import Redis
