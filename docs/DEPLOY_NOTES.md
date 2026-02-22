@@ -4,6 +4,48 @@
 
 ---
 
+## Railway production 브랜치 설정 (실 서비스)
+
+**실제 서비스**는 `production` 브랜치에서 배포합니다.
+
+1. [Railway 프로젝트](https://railway.com/project/cbe0af66-875b-460c-88f6-780dd705f45c) 접속
+2. **FOMS 웹 서비스** 클릭 → **Settings**
+3. **Source** 또는 **Repository** 섹션에서 **Branch**를 `production` 으로 변경
+4. 저장 후 `production` 브랜치에 푸시할 때마다 자동 배포
+
+참고: [Railway GitHub Autodeploys](https://docs.railway.app/guides/github-autodeploys)
+
+---
+
+## Staging → Production 설정 복제 (Worker/Replica 동일화)
+
+**스테이징** [project/65ffbdc5-9bdf-4c17-a8d7-b1bc3615143a](https://railway.com/project/65ffbdc5-9bdf-4c17-a8d7-b1bc3615143a) 에 적용된 구성을 **프로덕션** [project/cbe0af66-875b-460c-88f6-780dd705f45c](https://railway.com/project/cbe0af66-875b-460c-88f6-780dd705f45c) 에 그대로 복제할 때:
+
+### Web 서비스
+| 항목 | 스테이징 값 | 프로덕션에 적용 |
+|------|-------------|-----------------|
+| Replica 수 | 2 | Settings → Replicas = 2 |
+| Branch | deploy 또는 동일 | production |
+| Start Command | `sh start.sh` (railway.toml) | 동일 |
+| gunicorn workers | `-w 2` (start.sh) | 코드에 이미 반영 |
+
+### Worker 서비스
+| 항목 | 스테이징 값 | 프로덕션에 적용 |
+|------|-------------|-----------------|
+| 서비스 존재 | Worker 서비스 있음 | 없으면 생성 |
+| Config Path | `railway-worker.toml` | Settings → Config Path = railway-worker.toml |
+| Start Command | `rq worker default --url $REDIS_URL` | Procfile/railway-worker.toml |
+| 환경변수 | `USE_RQ_WORKER=1`, `REDIS_URL` | 동일 설정 |
+| GitHub 연결 | 같은 repo, branch | 같은 repo, branch = production |
+
+### 절차
+1. 프로덕션 프로젝트 열기
+2. Web 서비스: Replicas 2로 설정 (Settings → Scale)
+3. Worker 서비스: 스테이징과 동일하게 생성·설정 (Config Path, USE_RQ_WORKER=1, REDIS_URL)
+4. 배포 후 로그에서 `rq worker default` 기동 확인
+
+---
+
 ## 2026-02-19 (이번 배포)
 
 ### 뭘 했나요?

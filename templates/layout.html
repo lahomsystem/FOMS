@@ -774,84 +774,6 @@
         </div>
     </div>
 
-    <!-- 빠른 상태 변경 플로팅 버튼 -->
-    {% if current_user %}
-    <div class="quick-status-fab-container" style="position: fixed; bottom: 90px; right: 20px; z-index: 9990;">
-        <button id="btn-quick-status-fab" class="btn btn-warning rounded-circle shadow-lg text-white"
-            style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; font-size: 20px; border: none;"
-            title="빠른 상태 변경">
-            <i class="fas fa-bolt"></i>
-        </button>
-    </div>
-
-    <!-- 빠른 상태 변경 모달 -->
-    <div class="modal fade" id="quickStatusModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow-lg">
-                <div class="modal-header bg-warning text-white">
-                    <h5 class="modal-title fw-bold"><i class="fas fa-bolt me-2"></i>빠른 상태 변경</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                        aria-label="Close"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <div class="mb-3">
-                        <label for="quick-order-id" class="form-label fw-bold">고객명 / 주문번호</label>
-                        <div class="input-group input-group-lg">
-                            <span class="input-group-text bg-light"><i class="fas fa-search"></i></span>
-                            <input type="text" class="form-control" id="quick-order-id" placeholder="예: 망고 또는 1955" autofocus>
-                            <button class="btn btn-primary" type="button" id="btn-quick-search">
-                                <i class="fas fa-search"></i> 조회
-                            </button>
-                        </div>
-                        <div class="form-text">고객명 또는 주문번호를 입력하고 조회하세요.</div>
-                    </div>
-
-                    <div id="quick-search-results" class="list-group mb-3 d-none"></div>
-
-                    <div id="quick-order-info" class="alert alert-light border d-none mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="badge bg-secondary" id="quick-order-id-badge">#</span>
-                            <span class="fw-bold fs-5" id="quick-customer-name"></span>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="text-muted small">현재 상태:</span>
-                            <span class="badge bg-info text-dark" id="quick-current-status"></span>
-                        </div>
-                        <div class="mt-2 pt-2 border-top small text-muted" id="quick-order-details"></div>
-                    </div>
-
-                    <div id="quick-change-form" class="d-none">
-                        <div class="mb-3">
-                            <label for="quick-new-status" class="form-label fw-bold">변경할 상태</label>
-                            <select class="form-select form-select-lg" id="quick-new-status">
-                                <option value="">선택하세요...</option>
-                                {% if STATUS %}
-                                {% for code, label in STATUS.items() %}
-                                {% if code != 'DELETED' %}
-                                <option value="{{ code }}">{{ label }}</option>
-                                {% endif %}
-                                {% endfor %}
-                                {% endif %}
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="quick-status-note" class="form-label">작업 메모 (선택)</label>
-                            <textarea class="form-control" id="quick-status-note" rows="2"
-                                placeholder="특이사항이 있다면 입력하세요"></textarea>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-                    <button type="button" class="btn btn-primary px-4" id="btn-quick-save" disabled>
-                        <i class="fas fa-check"></i> 변경 저장
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
     <!-- 전역 채팅 알림 팝업 컨테이너 (모든 페이지에서 사용) -->
     {% if current_user %}
     <div id="chat-notification-container" class="chat-notification-container"></div>
@@ -914,7 +836,6 @@
     <!-- Custom JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/quick-status-change.js') }}"></script>
 
     <!-- 도면 뷰어 전역 JavaScript -->
     <script>
