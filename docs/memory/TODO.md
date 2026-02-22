@@ -17,3 +17,12 @@
   - 6.1 session API 확인 완료
   - 6.2 수동: 동시 20건 CPU/메모리 비교 (Railway/로컬에서 선택 수행)
   - 6.3 multipart API 확인 완료 (POST /api/chat/upload HTTP 200)
+
+- [ ] **6. 원격(Railway) 주소변환(지도) 동작 확인**  
+  - 진단 보고서: `docs/incidents/2026-02-22-remote-geocode-diagnosis.md`
+  - Railway 대시보드에서 FOMS 웹 REDIS_URL, Worker Online/REDIS_URL/DATABASE_URL 확인
+  - 설정 반영 후 지도 페이지 새로고침으로 마커 표시 여부 검증
+
+- [ ] **7. 지도 버튼 즉시 변환 (동기 병렬 geocode)**  
+  - api_generate_map: lat/lng 없는 주문 최대 10건 ThreadPoolExecutor 병렬 geocode
+  - 병렬 수 5, Kakao API 호출 후 DB 갱신, map_data에 반영

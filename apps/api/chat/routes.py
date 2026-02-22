@@ -10,7 +10,7 @@ from apps.auth import login_required, log_access
 from services.storage import get_storage
 from apps.api.files import build_file_view_url
 from apps.api.chat.utils import allowed_chat_file, get_chat_file_max_size, schedule_chat_thumbnail_generation
-from constants import CHAT_ALLOWED_EXTENSIONS
+from constants import CHAT_ALLOWED_EXTENSIONS, DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES
 from wdcalculator_db import get_wdcalculator_db
 from wdcalculator_models import Estimate, EstimateOrderMatch
 
@@ -52,14 +52,16 @@ def api_chat_upload_session():
         storage = get_storage()
         key = storage.generate_direct_upload_key(filename, folder)
         ct = storage._get_content_type(filename)
+        if ct not in DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES:
+            return jsonify({'success': False, 'message': '허용되지 않은 파일 형식입니다.'}), 400
         upload_url = storage.generate_presigned_put_url(key, ct, expires_in=900)
         if upload_url is None:
             return jsonify({'success': False, 'message': 'Direct upload는 R2/S3 환경에서만 사용 가능합니다.'}), 400
         if not upload_url:
             return jsonify({'success': False, 'message': 'Presigned URL 생성 실패'}), 500
 
-        from datetime import datetime, timezone, timedelta
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=900)
+        from datetime import datetime as _utc_now, timezone, timedelta
+        expires_at = _utc_now.now(timezone.utc) + timedelta(seconds=900)
         return jsonify({
             'success': True,
             'upload_url': upload_url,
@@ -923,4 +925,8 @@ def chat():
         current_app.config.get('SOCKETIO_AVAILABLE', False)
         and current_app.config.get('_SOCKETIO_INSTANCE') is not None
     )
-    return render_template('chat.html', socketio_available=socketio_available)
+    return render_template(
+        'chat.html',
+        socketio_available=socketio_available,
+        use_direct_upload=USE_DIRECT_UPLOAD,
+    )

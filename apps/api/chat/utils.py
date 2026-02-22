@@ -48,8 +48,8 @@ def _generate_chat_thumbnail_background(storage_key: str):
             attachment = attachment_db.query(ChatAttachment).filter(
                 ChatAttachment.storage_key == storage_key
             ).order_by(ChatAttachment.id.desc()).first()
-            if attachment and not attachment.thumbnail_url:
-                attachment.thumbnail_url = build_file_view_url(thumbnail_key)
+            if attachment and not (getattr(attachment, 'thumbnail_url', None) or ''):
+                setattr(attachment, 'thumbnail_url', build_file_view_url(thumbnail_key))
                 attachment_db.commit()
         finally:
             attachment_db.close()

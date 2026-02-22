@@ -14,8 +14,8 @@
 | 1 | Railway Worker 서비스 추가 + USE_RQ_WORKER=1 | railway §B | 인프라 | 대시보드 수동 |
 | 2 | Railway Web Replica 2개 설정 | railway §A | 인프라 | 대시보드 수동 |
 | 3 | Phase C 7.3: 지도 동시 40명 부하 테스트 | phase-c §7.3 | 검증 | k6/locust 등 |
-| 4 | 채팅 direct upload (백엔드 + UI) | phase-d §3.4, §4.4 | 개발 | session→complete |
-| 5 | Phase D 6.1~6.3 검증 | phase-d §4.6 | 검증 | 대용량/동시/로컬 |
+| 4 | 채팅 direct upload (백엔드 + UI) | phase-d §3.4, §4.4 | 개발 | **완료** (session/complete·use_direct_upload 전달·Content-Type 허용 목록) |
+| 5 | Phase D 6.1~6.3 검증 | phase-d §4.6 | 검증 | 대용량/동시/로컬 (선택) |
 
 ## 3. 각 작업 상세
 
@@ -48,7 +48,20 @@
 | 3.4 | `apps/api/chat/routes.py`, 채팅 UI 템플릿 |
 | 3.5 | 테스트/검증 스크립트 |
 
-## 5. 롤백
+## 5. 지도 주소변환 UX 개선 (2026-02-22)
+
+**증상**: 처음 열면 주소변환이 안 되다가, 시간이 지나 웹 새로고침을 해야 정상 표시됨 (Worker가 geocode를 순차 처리해 건당 ~4.5초).
+
+**조치 1 (완료)**: 지도 화면에서 `conversion_status='pending'`인 주문이 있으면 6초 간격으로 자동 폴링(최대 10회).
+
+**조치 2 (신규) - 지도 버튼 누르면 바로 빠르게 변환**:
+- **현재**: `api_generate_map`에서 lat/lng 없는 주문은 enqueue만 하고 즉시 반환 → 마커 없음, 폴링 대기.
+- **개선**: 지도 API 응답 전에, lat/lng 없는 주문을 **동기 병렬 geocode** (ThreadPoolExecutor, 최대 5건 동시) 처리.
+- **제한**: 한 번에 최대 10건까지 동기 처리 (나머지는 기존처럼 enqueue).
+- **예상 체감**: 8건 × 2초/5병렬 ≈ 3~4초 후 지도 로드 (기존 36초+ 대비 대폭 단축).
+- **영향 파일**: `apps/api/erp_map.py` (api_generate_map)
+
+## 6. 롤백
 
 - 3.1~3.2: Railway에서 Worker/Replica 제거·환경변수 원복
 - 3.4: 채팅 multipart 경로 유지, direct는 feature flag
