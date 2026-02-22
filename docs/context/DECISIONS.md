@@ -42,3 +42,9 @@
 - **결정**: 계획서 전반 적합. 2·3단계(웹 확장·DB/Redis 튜닝) 즉시, 5·6단계(지도 선계산·Direct Upload) 핵심 전환
 - **이유**: 현재 지도 API는 요청 시 Kakao 지오코딩 호출, 파일 업로드는 앱 서버 경유 → 계획서 진단과 일치. SLO 달성을 위해 해당 전환 필수
 - **영향**: docs/evolution/FOMS_PRODUCTION_SCALABILITY_ANALYSIS.md, db.py(풀 환경변수화), railway.toml, erp_map.py, storage/upload 플로우
+
+### [2026-02-22] Phase C·D·Railway 계획 1~5번 실행 완료
+- **컨텍스트**: GDM_EXECUTION_PLAN 기준 Railway 확장, 지도 부하 테스트, 채팅 direct upload, Phase D 검증
+- **결정**: Railway Worker 추가, Web Replica 2, load_test_map.py, 채팅 direct API·UI, verify_phase_d.py 생성 및 실행
+- **이유**: 계획서(phase-c-map-design, phase-d-direct-upload-design, railway-multi-user-scalability-plan) 정의 작업 단계별 완료
+- **영향**: railway-worker.toml, scripts/load_test_map.py, scripts/verify_phase_d.py, apps/api/chat/routes.py, templates/partials/chat_scripts_file.html

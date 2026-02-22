@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 
-## 마지막 업데이트: 2026-02-19 (Phase 3 스모크 5건 통과, GDM 감사 반영)
+## 마지막 업데이트: 2026-02-22 (Phase C·D·Railway 계획 완료)
 
 ## 세션 재개 시 이어서 작업 가용자원 (컨텍스트 풀 시)
 
@@ -93,6 +93,35 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 **docs/DEPLOY_NOTES.md** — deploy에 올릴 때마다 "뭘 했는지" 누구나 알 수 있게 쉬운 말로 정리
 
 ## 최근 변경
+- [2026-02-22] **Phase C·D·Railway 계획 1~5번 완료**
+  - 1. Railway Worker 서비스 추가: `USE_RQ_WORKER=1`, railway-worker.toml (rq worker default)
+  - 2. Railway Web Replica 2개: `railway scale -s foms --us-east4-eqdc4a 2`
+  - 3. Phase C 7.3 지도 부하 테스트: `scripts/load_test_map.py` 생성 및 실행 (map_data/generate_map 각 40/40, p95 4.12초)
+  - 4. 채팅 direct upload: session→PUT→complete API 및 UI (chat_scripts_file.html) 적용
+  - 5. Phase D 6.1~6.3 검증: `scripts/verify_phase_d.py` (6.1 session API, 6.3 multipart 확인). 6.2 CPU/메모리 비교는 수동 권장
+  - 원격 동작 확인: Web 서비스 URL은 Railway 대시보드 또는 `railway link -s foms; railway domain`으로 확보 후 `/`, `/login`, `/erp/` curl 검증
+- [2026-02-22] **GDM 감사 완료** – `docs/evolution/GDM_AUDIT_REPORT_2026-02-22.md` 작성. 전체 62/100, 긴급 3건(API 키 하드코딩, bare except, SQL injection), 개선 권장 15+건. Phase 1~4 로드맵 정리.
+- [2026-02-22] **Phase D (Direct R2 업로드) 착수 + blueprint·drawing-gateway complete + 4.1 첨부 UI direct 플로우 완료**
+  - `services/storage.py`: `generate_presigned_put_url`, `object_exists`, `generate_direct_upload_key` 추가
+  - `apps/api/attachments.py`: `POST /api/upload/session`, `POST /api/orders/<id>/attachments/complete` API 추가
+  - `apps/api/erp_orders_blueprint.py`: `POST /api/orders/<id>/blueprint/complete` 추가
+  - `apps/api/erp_orders_drawing.py`: `POST /api/orders/<id>/drawing-gateway/complete` 추가
+  - 세션 API: `folder` 기준 blueprint/drawing_gateway 카테고리 매핑 추가
+  - 기존 multipart 업로드 유지. R2/S3 환경에서만 direct upload 세션 발급 가능.
+  - **4.1 첨부 UI direct 플로우**: `erpUploadSelectedAttachments`, `erpUploadItemAttachments`에서 USE_DIRECT_UPLOAD 시 session→PUT→complete 적용. context_processors에 use_direct_upload 주입, edit_order/add_order에 USE_DIRECT_UPLOAD 전달.
+  - **4.2 blueprint UI direct 플로우**: edit_order.html `uploadBlueprint`에서 USE_DIRECT_UPLOAD 시 session→PUT→blueprint/complete 적용.
+  - **4.3 drawing-gateway UI direct 플로우**: erp_dashboard_scripts_drawing, erp_drawing_workbench_detail의 `uploadRevisionGatewayFiles`에서 direct 플로우 적용.
+  - 일회성 스크립트 삭제: `fix_rest.py`, `check_db_connection.py`
+- [2026-02-22] **Phase C (지도 geocode) GDM 핫픽스 및 백필 완료**
+  - **오류 분석**: RQ 워커 미작동 환경에서 `api_update_order_address` 큐 전송 실패를 무시하여 주문 좌표 갱신이 안되는 문제 해결.
+  - **Fallback 추가**: RQ 미작동 시 즉석 변환(동기 처리) 수행하도록 `apps/api/erp_map.py` 우회 로직 추가 완료.
+  - **백필 스크립트 실행 (미변환건 복구)**: 이전 시스템에서 이관된 좌표 없는 주문 1,348건에 대하여, 스크린샷 200건 선행 변환 및 나머지 과거 데이터에 대해 API rate limit (0.1s 딜레이) 준수하며 백엔드 스크립트(`fix_rest.py`) 구동으로 100% 좌표 부여 (성공적 복구 완료).
+- [2026-02-22] **Phase C (지도 geocode) GDM 실행 완료**
+  - 코드 검증: models, migration, jobs, erp_map 확인. enqueue 6곳 연결 완료.
+  - **alembic 마이그레이션 완료**: `$env:DATABASE_URL="postgresql://postgres:lahom@localhost:5432/furniture_orders"` 후 `alembic stamp add_blueprint_image_url` → `alembic upgrade head` (phase_c_geocode_cols 적용).
+  - **geocode_backfill --dry-run 통과**: lat/lng NULL인 주문 1,219건, 주소 있는 건 1,217건.
+  - import app OK, pytest 7 passed.
+  - **Windows 참고**: alembic 연결 시 UnicodeDecodeError 나면 DATABASE_URL을 명시적으로 설정하면 해결됨.
 - [2026-02-20] **ERP Beta: 기존주문 변환 기능 추가**
   - `templates/partials/erp_beta_tab.html` UI 추가 (텍스트 생성 카드).
   - `templates/partials/erp_beta_js.html` 로직 추가 (텍스트 생성/복사).
@@ -235,9 +264,10 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 | Skills | GDM/tech-stack/self-evolution/architect/code-review/production-audit | .cursor/skills/skills/ | 624개+ 공통 스킬 |
 | 배포 노트 | DEPLOY_NOTES.md | docs/DEPLOY_NOTES.md | 쉬운 한글 배포 내용 |
 
-## 다음에 시작할 작업 (2026-02-19 갱신)
-- **완료**: CI/CD 파이프라인 구성 (NEXT-005). GDM 감사 1회 실행. pytest 7건 통과.
-- **우선 착수**: Phase 3 계속(API/주문 상태 테스트 추가) 또는 Phase 4(ERP 분리) 재개.
+## 다음에 시작할 작업 (2026-02-22 갱신)
+- **Phase C 로컬 완료**: geocode 마이그레이션·backfill dry-run 통과. **다음**: Railway Worker 서비스 추가, REDIS_URL·USE_RQ_WORKER=1 설정 후 `geocode_backfill.py` 실제 enqueue.
+- **완료**: Phase C 코드 검증. CI/CD 파이프라인 구성 (NEXT-005). GDM 감사 1회 실행. pytest 7건 통과.
+- **우선 착수**: Phase C 마이그레이션 적용 또는 Phase 3/4 재개.
 - **보류**: app.py SLIM-035 (319줄→300줄) — 일단 중단, 필요 시 app-slim 계획서에서 재개.
 - **배포**: erp.py 분리·대형 템플릿 partial 반영 후 deploy 푸시 진행.
 - **이후 순서**: Phase 3 테스트 확대·CI/CD. 계획표 §3 참조.

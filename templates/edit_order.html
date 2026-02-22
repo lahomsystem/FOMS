@@ -531,6 +531,7 @@
     // 주문 ID 상수 선언 (HTML 데이터 속성에서 읽기)
     const ORDER_ID = parseInt(document.querySelector('.card[data-order-id]')?.dataset.orderId || '0');
     const ERP_BETA_ENABLED = {{ 'true' if (erp_beta_enabled and order.is_erp_beta) else 'false' }};
+    const USE_DIRECT_UPLOAD = {{ 'true' if use_direct_upload else 'false' }};
 
     // 전역 XSS 방지 HTML 이스케이프 함수 (ERP Beta 등 전역에서 사용)
     function escapeHtml(text) {
@@ -1519,46 +1520,70 @@
     }
     }
 
-    function uploadBlueprint(orderId, file) {
+    async function uploadBlueprint(orderId, file) {
         const loading = document.getElementById('blueprint-loading');
         const uploadArea = document.getElementById('blueprint-upload-area');
         const preview = document.getElementById('blueprint-preview');
 
-        // 파일 크기 검증
         const maxSize = 50 * 1024 * 1024; // 50MB
         if (file.size > maxSize) {
             alert('파일 크기가 너무 큽니다. 최대 50MB까지 업로드 가능합니다.');
             return;
         }
 
-        const formData = new FormData();
-        formData.append('file', file);
-
         loading.style.display = 'block';
         uploadArea.style.display = 'none';
         preview.style.display = 'none';
 
-        fetch(`/api/orders/${orderId}/blueprint`, {
-            method: 'POST',
-            body: formData
-        })
-            .then(response => response.json())
-            .then(data => {
-                loading.style.display = 'none';
-                if (data.success) {
-                    alert('도면이 업로드되었습니다.');
-                    loadBlueprint(orderId);
+        try {
+            let data;
+            if (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD) {
+                const folder = `orders/${orderId}/blueprint`;
+                const sessRes = await fetch('/api/upload/session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: file.name, size: file.size, folder: folder })
+                });
+                const sess = await sessRes.json();
+                if (!sess.success || !sess.upload_url) {
+                    data = sess;
                 } else {
-                    alert('도면 업로드 실패: ' + data.message);
-                    uploadArea.style.display = 'block';
+                    const putRes = await fetch(sess.upload_url, { method: 'PUT', body: file });
+                    if (!putRes.ok) {
+                        data = { success: false, message: '업로드 실패: ' + putRes.status };
+                    } else {
+                        const completeRes = await fetch(`/api/orders/${orderId}/blueprint/complete`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key: sess.key, filename: file.name })
+                        });
+                        data = await completeRes.json();
+                    }
                 }
-            })
-            .catch(error => {
-                loading.style.display = 'none';
-                console.error('도면 업로드 오류:', error);
-                alert('도면 업로드 중 오류가 발생했습니다.');
+            } else {
+                const formData = new FormData();
+                formData.append('file', file);
+                const res = await fetch(`/api/orders/${orderId}/blueprint`, {
+                    method: 'POST',
+                    body: formData
+                });
+                data = await res.json();
+            }
+
+            loading.style.display = 'none';
+            if (data.success) {
+                alert('도면이 업로드되었습니다.');
+                loadBlueprint(orderId);
+            } else {
+                alert('도면 업로드 실패: ' + (data.message || '알 수 없는 오류'));
                 uploadArea.style.display = 'block';
-            });
+            }
+        } catch (error) {
+            loading.style.display = 'none';
+            console.error('도면 업로드 오류:', error);
+            alert('도면 업로드 중 오류가 발생했습니다.');
+            uploadArea.style.display = 'block';
+        }
     }
 
     function deleteBlueprint(orderId) {

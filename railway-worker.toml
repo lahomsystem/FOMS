@@ -1,0 +1,7 @@
+# Worker 서비스 전용 Railway Config
+# Railway 대시보드 > Worker 서비스 > Settings > Config Path: railway-worker.toml
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "rq worker default --url $REDIS_URL"

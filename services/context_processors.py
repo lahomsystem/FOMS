@@ -58,6 +58,7 @@ def inject_status_list():
         ).order_by(User.name).all()
 
     erp_beta_enabled = str(os.getenv('ERP_BETA_ENABLED', 'true')).lower() in ['1', 'true', 'yes', 'y', 'on']
+    use_direct_upload = str(os.getenv('USE_DIRECT_UPLOAD', '1')).lower() in ['1', 'true', 'yes', 'on']
     return dict(
         STATUS=display_status,
         BULK_ACTION_STATUS=bulk_action_status,
@@ -66,7 +67,8 @@ def inject_status_list():
         current_user=current_user,
         admin_switch_users=admin_switch_users,
         impersonating_from_id=impersonating_from_id,
-        erp_beta_enabled=erp_beta_enabled
+        erp_beta_enabled=erp_beta_enabled,
+        use_direct_upload=use_direct_upload
     )
 
 

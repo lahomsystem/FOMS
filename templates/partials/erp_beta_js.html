@@ -5,6 +5,7 @@
     // Required globals:
     // - ERP_BETA_ENABLED (boolean)
     // - ORDER_ID (number; in add_order should be "let", in edit_order can be const)
+    // - USE_DIRECT_UPLOAD (boolean): true면 session→PUT→complete 플로우 사용
     // - window.__ERP_BETA_DRAFT_MODE (boolean): true on add_order, false on edit_order
     // - window.__ERP_DRAFT_ENDPOINT (string): optional, default '/api/orders/erp/draft'
     // ============================================================
@@ -889,15 +890,23 @@
         }
         erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 이미지 업로드 중... (${files.length}개)`);
         let ok = 0;
-        for (const f of files) {
-            const fd = new FormData();
-            fd.append('file', f);
-            fd.append('category', 'measurement');
-            fd.append('item_index', String(itemIndex));
-            const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
-            const data = await res.json();
-            if (data.success) ok += 1;
-            else console.warn('item upload failed', data);
+        if (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD) {
+            for (const f of files) {
+                const data = await erpDoDirectUploadOne(f, 'measurement', itemIndex);
+                if (data.success) ok += 1;
+                else console.warn('item upload failed', data);
+            }
+        } else {
+            for (const f of files) {
+                const fd = new FormData();
+                fd.append('file', f);
+                fd.append('category', 'measurement');
+                fd.append('item_index', String(itemIndex));
+                const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.success) ok += 1;
+                else console.warn('item upload failed', data);
+            }
         }
         erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 업로드 완료: ${ok}/${files.length}`);
         await erpLoadAttachments();
@@ -1099,6 +1108,30 @@ ${list.map(renderCard).join('')}
         modal.show();
     }
 
+    async function erpDoDirectUploadOne(file, category, itemIndex) {
+        const folder = `orders/${ORDER_ID}/${category || 'attachments'}`;
+        const sessRes = await fetch('/api/upload/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: file.name, size: file.size, folder: folder })
+        });
+        const sess = await sessRes.json();
+        if (!sess.success || !sess.upload_url) return sess;
+        const putRes = await fetch(sess.upload_url, { method: 'PUT', body: file });
+        if (!putRes.ok) return { success: false, message: `PUT 실패: ${putRes.status}` };
+        const completeRes = await fetch(`/api/orders/${ORDER_ID}/attachments/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                key: sess.key,
+                filename: file.name,
+                category: category,
+                item_index: itemIndex == null ? null : itemIndex
+            })
+        });
+        return await completeRes.json();
+    }
+
     async function erpUploadSelectedAttachments() {
         if (!ERP_BETA_ENABLED) return;
         if (!ORDER_ID) {
@@ -1117,14 +1150,22 @@ ${list.map(renderCard).join('')}
         erpAttachmentsSetStatus(`업로드 중... (${files.length}개)`);
 
         let ok = 0;
-        for (const f of files) {
-            const fd = new FormData();
-            fd.append('file', f);
-            fd.append('category', category);
-            const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
-            const data = await res.json();
-            if (data.success) ok += 1;
-            else console.warn('upload failed', data);
+        if (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD) {
+            for (const f of files) {
+                const data = await erpDoDirectUploadOne(f, category, null);
+                if (data.success) ok += 1;
+                else console.warn('upload failed', data);
+            }
+        } else {
+            for (const f of files) {
+                const fd = new FormData();
+                fd.append('file', f);
+                fd.append('category', category);
+                const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.success) ok += 1;
+                else console.warn('upload failed', data);
+            }
         }
 
         input.value = '';

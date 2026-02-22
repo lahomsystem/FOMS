@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-02-22 11:10:11
+> 생성 시각: 2026-02-22 16:52:28
 > 세션: unknown
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `unknown` <- 0 edit(s), ~0 chars (2026-02-22 10:36:48)
-- `unknown` <- 0 edit(s), ~0 chars (2026-02-21 01:57:44)
-- `unknown` <- 0 edit(s), ~0 chars (2026-02-21 01:12:05)
-- `unknown` <- 0 edit(s), ~0 chars (2026-02-21 01:12:03)
-- `unknown` <- 0 edit(s), ~0 chars (2026-02-21 01:11:56)
-- `unknown` <- 0 edit(s), ~0 chars (2026-02-21 01:11:34)
-- `unknown` <- 0 edit(s), ~0 chars (2026-02-21 01:11:11)
-- `unknown` <- 0 edit(s), ~0 chars (2026-02-20 22:16:36)
-- `unknown` <- 0 edit(s), ~0 chars (2026-02-20 22:16:18)
-- `unknown` <- 0 edit(s), ~0 chars (2026-02-20 19:58:44)
+- `unknown` <- 0 edit(s), ~0 chars (2026-02-22 16:51:13)
+- `unknown` <- 0 edit(s), ~0 chars (2026-02-22 16:51:04)
+- `unknown` <- 0 edit(s), ~0 chars (2026-02-22 16:50:38)
+- `unknown` <- 0 edit(s), ~0 chars (2026-02-22 16:50:03)
+- `unknown` <- 0 edit(s), ~0 chars (2026-02-22 16:48:29)
+- `unknown` <- 0 edit(s), ~0 chars (2026-02-22 16:48:17)
+- `unknown` <- 0 edit(s), ~0 chars (2026-02-22 16:47:52)
+- `unknown` <- 0 edit(s), ~0 chars (2026-02-22 16:47:47)
+- `unknown` <- 0 edit(s), ~0 chars (2026-02-22 16:47:16)
+- `unknown` <- 0 edit(s), ~0 chars (2026-02-22 16:45:10)
 
 ### 진행 중이던 작업
 (없음)

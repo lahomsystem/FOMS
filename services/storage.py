@@ -263,6 +263,45 @@ class StorageAdapter:
                 'message': f'기존 파일 썸네일 생성 실패: {str(e)}'
             }
     
+    def generate_direct_upload_key(self, filename: str, folder: str) -> str:
+        """Direct upload용 고유 키 생성 (세션 발급 시 사용)."""
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        unique_filename = f"{timestamp}_{secure_filename(filename)}"
+        return f"{folder}/{unique_filename}"
+
+    def generate_presigned_put_url(self, key: str, content_type: str, expires_in: int = 900) -> str | None:
+        """Direct Upload용 Presigned PUT URL 생성 (R2/S3 전용).
+        로컬 스토리지일 때는 None 반환 (기존 multipart 유지).
+        """
+        if self.storage_type not in ['r2', 's3']:
+            return None
+        try:
+            url = self.client.generate_presigned_url(
+                'put_object',
+                Params={
+                    'Bucket': self.bucket_name,
+                    'Key': key,
+                    'ContentType': content_type
+                },
+                ExpiresIn=expires_in
+            )
+            return url
+        except ClientError as e:
+            print(f"Presigned PUT URL 생성 오류: {e}")
+            return None
+
+    def object_exists(self, key: str) -> bool:
+        """객체 존재 여부 확인 (업로드 완료 검증용)."""
+        if self.storage_type in ['r2', 's3']:
+            try:
+                self.client.head_object(Bucket=self.bucket_name, Key=key)
+                return True
+            except ClientError:
+                return False
+        else:
+            file_path = os.path.join(self.upload_folder, key)
+            return os.path.isfile(file_path)
+
     def get_download_url(self, key, expires_in=3600):
         """다운로드 URL 생성 (서명된 URL)"""
         if self.storage_type in ['r2', 's3']:
