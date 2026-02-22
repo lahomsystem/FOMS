@@ -393,6 +393,18 @@ def api_generate_map():
             lng = getattr(order, 'lng', None)
             geocode_status = getattr(order, 'geocode_status', None) or ('success' if (lat and lng) else 'failed')
 
+            # Lazy geocode enqueue: lat/lng 없고 주소 있으면 RQ job enqueue (2026-02-22)
+            if lat is None or lng is None:
+                from services.geocode_helpers import extract_address_from_order
+                addr = extract_address_from_order(order)
+                if addr and addr.strip() and addr.strip() != '-':
+                    if geocode_status != 'pending':
+                        queued = enqueue_geocode_order_address(order.id)
+                        if queued:
+                            order.geocode_status = 'pending'
+                            geocode_status = 'pending'
+                            db.commit()
+
             def format_date(date_value):
                 if date_value is None:
                     return None
