@@ -107,6 +107,11 @@ if not app.secret_key:
 
 # Session cookie configuration (prevent conflicts with other Flask apps on same domain)
 app.config['SESSION_COOKIE_NAME'] = 'session_staging'  # Different from port 5000 (session_dev)
+# Railway/HTTPS: 세션 쿠키가 저장되지 않는 문제 방지
+_is_railway = bool(os.environ.get('RAILWAY_ENVIRONMENT'))
+if _is_production or _is_railway:
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # ProxyFix: Railway/Reverse Proxy 뒤에서만 적용 (직접 접속 시 ERR_TOO_MANY_REDIRECTS 방지)
 # - LAN IP(172.30.x.x) 또는 localhost 직접 접속 시 X-Forwarded-* 헤더 오염으로 리다이렉트 루프 발생
