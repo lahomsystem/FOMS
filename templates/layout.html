@@ -608,6 +608,17 @@
 
             {% if current_user %}
             <div class="d-flex align-items-center gap-3">
+                <!-- Global "내 할 일" filter: 시공팀 이외만 표시 (시공팀은 출고/시공 대시보드에서 항상 본인 주문만 표시) -->
+                {% if (current_user.team or '') != 'CONSTRUCTION' %}
+                <div class="position-relative">
+                    <button class="btn btn-link p-0 text-dark border-0 position-relative" id="global-mine-only-btn"
+                        title="로그인 담당자만 보기" onclick="toggleGlobalMineOnly()"
+                        aria-label="내 할 일만 보기 토글"
+                        aria-pressed="false">
+                        <i class="fas fa-user-check fa-2x" id="global-mine-only-icon"></i>
+                    </button>
+                </div>
+                {% endif %}
                 <!-- Global Notification Button -->
                 <div class="position-relative">
                     <button class="btn btn-link p-0 text-dark border-0 position-relative" id="global-notification-btn"
@@ -698,7 +709,7 @@
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            {% if request.endpoint and request.endpoint.startswith('erp_measurement_dashboard') %}
+            {% if request.endpoint and request.endpoint.startswith('erp_measurement_dashboard') and (current_user.team or '') != 'CONSTRUCTION' %}
             <div class="d-flex align-items-center gap-2 ms-2 d-lg-none">
                 <span class="fw-bold fs-6" style="line-height: 1;">
                     <i class="fas fa-ruler-combined"></i> ERP Beta - 실측 대시보드
@@ -723,8 +734,9 @@
                     </li>
                     {% endif %}
                 </ul>
-                <!-- 도구 섹션 (계산기, 채팅) -->
+                <!-- 도구 섹션 (시공팀은 ERP/WDPLANNER/WDCalculator만 숨기고 채팅은 노출) -->
                 <ul class="navbar-nav ms-auto border-start ps-3">
+                    {% if (current_user.team or '') != 'CONSTRUCTION' %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('erp_dashboard.erp_dashboard') }}">
                             <i class="fas fa-layer-group"></i> ERP 대시보드
@@ -740,6 +752,7 @@
                             <i class="fas fa-calculator"></i> WDCalculator
                         </a>
                     </li>
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('chat.chat') }}">
                             <i class="fas fa-comments"></i> 채팅
@@ -1498,6 +1511,53 @@
                 console.error('Notification badge error:', e);
             }
         }
+
+        function getErpMineOnlyCookie() {
+            const match = document.cookie.match(/\berp_mine_only=([^;]*)/);
+            return match ? (match[1] || '').trim() : '';
+        }
+        function setErpMineOnlyCookie(on) {
+            const value = on ? '1' : '';
+            const maxAge = on ? 60 * 60 * 24 * 30 : 0;
+            document.cookie = 'erp_mine_only=' + value + '; path=/; max-age=' + maxAge + '; SameSite=Lax';
+        }
+        (function syncMineFromCookieToUrl() {
+            var path = window.location.pathname || '';
+            if (path.indexOf('/erp/') === -1) return;
+            if (getErpMineOnlyCookie() !== '1') return;
+            var params = new URLSearchParams(window.location.search);
+            if (params.has('mine')) return;
+            params.set('mine', '1');
+            var newUrl = path + '?' + params.toString();
+            history.replaceState(null, '', newUrl);
+            window.location.reload();
+        })();
+        function toggleGlobalMineOnly() {
+            const on = getErpMineOnlyCookie() !== '1';
+            setErpMineOnlyCookie(on);
+            updateGlobalMineOnlyButton(on);
+            var path = window.location.pathname || '';
+            var params = new URLSearchParams(window.location.search);
+            if (path.indexOf('/erp/') !== -1) {
+                if (on && !params.has('mine')) params.set('mine', '1');
+                if (!on && params.has('mine')) params.delete('mine');
+                var newUrl = path + (params.toString() ? '?' + params.toString() : '');
+                history.replaceState(null, '', newUrl);
+            }
+            window.location.reload();
+        }
+        function updateGlobalMineOnlyButton(on) {
+            const btn = document.getElementById('global-mine-only-btn');
+            const icon = document.getElementById('global-mine-only-icon');
+            if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            if (icon) {
+                icon.style.color = on ? '#0d6efd' : '#6c757d';
+            }
+        }
+        (function initGlobalMineOnly() {
+            var on = getErpMineOnlyCookie() === '1';
+            updateGlobalMineOnlyButton(on);
+        })();
 
         async function toggleGlobalNotificationPanel() {
             const panel = document.getElementById('global-notification-panel');

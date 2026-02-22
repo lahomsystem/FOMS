@@ -16,6 +16,7 @@ from services.erp_display import (
     _erp_has_media,
     _erp_alerts,
 )
+from services.erp_shipment_settings import is_order_mine_for_user
 
 
 erp_production_page_bp = Blueprint(
@@ -53,6 +54,9 @@ def erp_production_dashboard():
         .limit(300)
         .all()
     )
+    erp_mine_only = request.args.get('mine') == '1'
+    if erp_mine_only and user:
+        orders = [o for o in orders if is_order_mine_for_user(o, user)]
 
     att_counts = {}
     try:
@@ -167,4 +171,5 @@ def erp_production_dashboard():
         stage_labels=STAGE_LABELS,
         is_admin=is_admin,
         can_edit_erp=can_edit_erp(current_user),
+        erp_mine_only=erp_mine_only,
     )

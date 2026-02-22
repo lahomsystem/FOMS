@@ -83,6 +83,11 @@
       "name": "김영걸",
       "capacity": 10,
       "off_dates": []
+    },
+    {
+      "name": "김시공",
+      "capacity": 20,
+      "off_dates": []
     }
   ],
   "site_extra": []

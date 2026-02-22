@@ -79,7 +79,10 @@ def api_erp_shipment_settings_save():
 @erp_edit_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def api_erp_shipment_update(order_id):
-    """출고 대시보드 업데이트."""
+    """출고 대시보드 업데이트. 시공팀은 수정 불가(조회만)."""
+    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    if current_user and getattr(current_user, 'team', None) == 'CONSTRUCTION':
+        return jsonify({'success': False, 'error': '시공팀은 출고 데이터를 수정할 수 없습니다.'}), 403
     try:
         db = get_db()
         order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()

@@ -10,6 +10,7 @@ from sqlalchemy import text
 
 from services.erp_permissions import can_edit_erp
 from services.erp_policy import STAGE_LABELS
+from services.erp_shipment_settings import is_order_mine_for_user
 from services.erp_display import (
     _ensure_dict,
     _erp_get_stage,
@@ -44,6 +45,8 @@ def erp_construction_dashboard():
 
     f_stage = (request.args.get('stage') or '').strip()
     f_q = (request.args.get('q') or '').strip()
+    is_construction = user and getattr(user, 'team', None) == 'CONSTRUCTION'
+    mine_only = is_construction or (request.args.get('mine') == '1')
 
     orders = (
         db.query(Order)
@@ -52,6 +55,8 @@ def erp_construction_dashboard():
         .limit(300)
         .all()
     )
+    if mine_only and user:
+        orders = [o for o in orders if is_order_mine_for_user(o, user)]
 
     att_counts = {}
     try:
@@ -147,4 +152,5 @@ def erp_construction_dashboard():
         stage_labels=STAGE_LABELS,
         is_admin=is_admin,
         can_edit_erp=can_edit_erp(current_user),
+        erp_mine_only=mine_only,
     )
