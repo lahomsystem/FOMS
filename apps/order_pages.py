@@ -12,6 +12,7 @@ from db import get_db
 from models import Order
 from constants import STATUS
 from services.order_display_utils import format_options_for_display, _ensure_dict
+from services.jobs.queue import enqueue_geocode_order_address
 from services.request_utils import get_preserved_filter_args
 
 order_pages_bp = Blueprint('order_pages', __name__, url_prefix='')
@@ -230,6 +231,7 @@ def add_order():
                 db.add(new_order)
                 db.flush()
                 db.commit()
+                enqueue_geocode_order_address(new_order.id)
                 flash('ERP Beta 주문이 성공적으로 추가되었습니다.', 'success')
                 return redirect(url_for('order_pages.index'))
 
@@ -309,6 +311,7 @@ def add_order():
             user_for_log = get_user_by_id(session.get('user_id'))
             user_name_for_log = user_for_log.name if user_for_log else "Unknown user"
             db.commit()
+            enqueue_geocode_order_address(order_id_for_log)
             log_access(f"주문 #{order_id_for_log} ({customer_name_for_log}) 추가 - 담당자: {user_name_for_log}", session.get('user_id'))
             flash('주문이 성공적으로 추가되었습니다.', 'success')
             return redirect(url_for('order_pages.index'))

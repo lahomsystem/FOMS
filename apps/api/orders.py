@@ -10,6 +10,7 @@ import traceback
 import json
 import datetime
 from foms_address_converter import FOMSAddressConverter
+from services.jobs.queue import enqueue_geocode_order_address
 
 orders_bp = Blueprint('orders', __name__, url_prefix='/api')
 
@@ -572,6 +573,9 @@ def update_order_field():
                 flag_modified(order, 'structured_data')
 
         db.commit()
+
+        if field == 'address':
+            enqueue_geocode_order_address(order_id)
         
         # 상태 변경 시 특별한 로깅
         if field == 'status':
