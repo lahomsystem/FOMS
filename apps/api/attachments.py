@@ -112,6 +112,144 @@ def ensure_order_attachments_item_index_column():
 
 attachments_bp = Blueprint('attachments', __name__, url_prefix='/api')
 
+USE_DIRECT_UPLOAD = os.environ.get('USE_DIRECT_UPLOAD', '1').lower() in ('1', 'true', 'yes', 'on')
+
+
+@attachments_bp.route('/upload/session', methods=['POST'])
+@login_required
+def api_upload_session():
+    """Phase D: Direct R2 업로드용 세션 발급 (presigned PUT URL).
+    R2/S3 환경에서만 동작. 로컬 스토리지는 400 반환.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        filename = data.get('filename')
+        size = data.get('size', 0)
+        folder = data.get('folder', '')
+
+        if not filename or not isinstance(size, (int, float)) or size <= 0 or not folder:
+            return jsonify({'success': False, 'message': 'filename, size, folder 필수가 필요합니다.'}), 400
+
+        if '..' in folder or folder.startswith('/'):
+            return jsonify({'success': False, 'message': '유효하지 않은 folder 경로입니다.'}), 400
+
+        storage = get_storage()
+        key = storage.generate_direct_upload_key(filename, folder)
+        ct = storage._get_content_type(filename)
+        upload_url = storage.generate_presigned_put_url(key, ct, expires_in=900)
+        if upload_url is None:
+            return jsonify({'success': False, 'message': 'Direct upload는 R2/S3 환경에서만 사용 가능합니다.'}), 400
+        if not upload_url:
+            return jsonify({'success': False, 'message': 'Presigned URL 생성 실패'}), 500
+
+        max_size = get_erp_media_max_size(filename)
+        if size > max_size:
+            size_mb = max_size / (1024 * 1024)
+            return jsonify({'success': False, 'message': f'파일 크기가 너무 큽니다. 최대 {size_mb:.0f}MB'}), 400
+
+        parts = folder.split('/')
+        if len(parts) >= 2 and parts[0] == 'orders' and parts[1].isdigit():
+            seg = parts[2] if len(parts) > 2 else 'measurement'
+            if seg == 'drawing_gateway':
+                category = 'drawing'
+            elif seg == 'blueprint':
+                category = 'measurement'
+            else:
+                category = normalize_attachment_category(seg) or 'measurement'
+            if not allowed_erp_attachment_file(filename, category):
+                return jsonify({'success': False, 'message': '허용되지 않은 파일 형식입니다.'}), 400
+
+        from datetime import datetime, timezone
+        expires_at = datetime.now(timezone.utc)
+        from datetime import timedelta
+        expires_at = expires_at + timedelta(seconds=900)
+
+        return jsonify({
+            'success': True,
+            'upload_url': upload_url,
+            'key': key,
+            'expires_at': expires_at.isoformat().replace('+00:00', 'Z')
+        })
+    except Exception as e:
+        import traceback
+        print(f"업로드 세션 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@attachments_bp.route('/orders/<int:order_id>/attachments/complete', methods=['POST'])
+@login_required
+def api_order_attachments_complete(order_id):
+    """Phase D: Direct R2 업로드 완료 후 DB 등록."""
+    try:
+        data = request.get_json(silent=True) or {}
+        key = data.get('key')
+        filename = data.get('filename')
+        category = normalize_attachment_category(data.get('category', 'measurement')) or 'measurement'
+        ok, item_index, err = parse_attachment_item_index(data.get('item_index'))
+        if not ok:
+            return jsonify({'success': False, 'message': err}), 400
+
+        if not key or not filename:
+            return jsonify({'success': False, 'message': 'key, filename 필수가 필요합니다.'}), 400
+
+        if f'orders/{order_id}/' not in key or '..' in key:
+            return jsonify({'success': False, 'message': '유효하지 않은 key 경로입니다.'}), 400
+
+        storage = get_storage()
+        if not storage.object_exists(key):
+            return jsonify({'success': False, 'message': '업로드된 파일을 찾을 수 없습니다. 먼저 PUT으로 업로드하세요.'}), 404
+
+        if not allowed_erp_attachment_file(filename, category):
+            return jsonify({'success': False, 'message': '허용되지 않은 파일 형식입니다.'}), 400
+
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        file_type = storage._get_file_type(filename)
+        file_size = 0
+        try:
+            if storage.storage_type in ['r2', 's3']:
+                resp = storage.client.head_object(Bucket=storage.bucket_name, Key=key)
+                file_size = resp.get('ContentLength', 0)
+        except Exception:
+            pass
+
+        thumbnail_key = None
+        att = OrderAttachment(
+            order_id=order_id,
+            filename=filename,
+            file_type=file_type,
+            category=category,
+            item_index=item_index,
+            file_size=file_size,
+            storage_key=key,
+            thumbnail_key=thumbnail_key
+        )
+        db.add(att)
+        db.commit()
+        db.refresh(att)
+        if ASYNC_ATTACHMENT_THUMBNAIL and file_type == 'image' and att.storage_key and not att.thumbnail_key:
+            schedule_order_attachment_thumbnail_generation(att.id, att.storage_key)
+
+        d = att.to_dict()
+        d['view_url'] = build_file_view_url(att.storage_key)
+        d['download_url'] = build_file_download_url(att.storage_key)
+        d['thumbnail_view_url'] = build_file_view_url(att.thumbnail_key) if att.thumbnail_key else None
+        return jsonify({'success': True, 'attachment': d})
+    except Exception as e:
+        db = get_db()
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        import traceback
+        print(f"Direct upload 완료 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 
 @attachments_bp.route('/orders/<int:order_id>/attachments', methods=['GET'])
 @login_required

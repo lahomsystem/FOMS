@@ -166,14 +166,14 @@
 - [x] services/jobs/: tasks.py, queue.py (RQ job 정의 + enqueue)
 - [x] order_attachment_thumbnail: RQ enqueue 우선, 실패 시 ThreadPool fallback
 - [x] Procfile: worker 프로세스 추가
-- [ ] Railway 대시보드: Worker 서비스 추가, Start Command `rq worker default`
-- [ ] 환경변수: USE_RQ_WORKER=1 (worker 분리 활성화)
+- [x] Railway CLI: Worker 서비스 추가 (`railway add --service worker --variables "USE_RQ_WORKER=1"`), railway-worker.toml 생성
+- [x] 환경변수: USE_RQ_WORKER=1 (worker 서비스에 설정됨). **대시보드 확인**: Config Path, GitHub 연결, REDIS_URL
 
 ### 2026-02-22 단계 A 적용
 - [x] railway.toml, Procfile: gunicorn `-w 2`로 변경
 - [x] app.py: 요청 duration_ms 로깅 (400ms 초과 시 req_duration 로그)
 - [x] 알림 배지 폴링 60초: 기존 유지 (layout.html setInterval 60000)
-- [ ] Railway 대시보드: Web Replica 2개 설정 (수동)
+- [x] Railway CLI: Web Replica 2개 (`railway scale -s foms --us-east4-eqdc4a 2`)
 - [ ] 배포 후 worker autorestart/timeout 모니터링
 
 ## 10. 운영 체크리스트

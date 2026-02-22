@@ -967,6 +967,7 @@
 
 <script>
   (function () {
+    const USE_DIRECT_UPLOAD = {{ use_direct_upload|tojson }};
     const orderId = Number("{{ order.id }}");
     const drawingStatus = String("{{ drawing_status }}");
     const drawingFiles = {{ drawing_files|tojson }};
@@ -1304,7 +1305,31 @@
     }
 
     async function uploadRevisionGatewayFiles(files) {
-      const uploadPromises = Array.from(files || []).map(async (file) => {
+      const uploadOne = async (file) => {
+        if (USE_DIRECT_UPLOAD) {
+          const folder = `orders/${orderId}/drawing_gateway/revisions`;
+          const sessRes = await fetch('/api/upload/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: file.name, size: file.size, folder: folder })
+          });
+          const sess = await sessRes.json();
+          if (!sess.success || !sess.upload_url) {
+            throw new Error(file.name + ' 세션 실패: ' + (sess.message || '알 수 없는 오류'));
+          }
+          const putRes = await fetch(sess.upload_url, { method: 'PUT', body: file });
+          if (!putRes.ok) throw new Error(file.name + ' 업로드 실패: HTTP ' + putRes.status);
+          const completeRes = await fetch(`/api/orders/${orderId}/drawing-gateway/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: sess.key, filename: file.name })
+          });
+          const data = await completeRes.json();
+          if (!data.success || !data.file) {
+            throw new Error(file.name + ' 완료 실패: ' + (data.message || '알 수 없는 오류'));
+          }
+          return data.file;
+        }
         const formData = new FormData();
         formData.append('file', file);
         const res = await fetch(`/api/orders/${orderId}/drawing-gateway-upload`, { method: 'POST', body: formData });
@@ -1313,8 +1338,8 @@
           throw new Error(file.name + ' 업로드 실패: ' + (data.message || '알 수 없는 오류'));
         }
         return data.file;
-      });
-      return Promise.all(uploadPromises);
+      };
+      return Promise.all(Array.from(files || []).map(uploadOne));
     }
 
     async function submitTransfer() {

@@ -6,6 +6,9 @@
 
 | ID | 상태 | 설명 | 시작일 | 최종 업데이트 |
 |----|------|------|--------|-------------|
+| PHASE-C | 완료 | Railway 다중사용자 Phase C: geocode 컬럼·jobs·erp_map 코드·로컬 마이그레이션·geocode_backfill dry-run 검증 완료. Railway Worker/USE_RQ_WORKER=1 설정 후 실제 enqueue 가능. | 2026-02-22 | 2026-02-22 |
+| PHASE-D | 완료 | Phase D Direct R2 Upload: storage.py(presigned PUT, object_exists, direct key), attachments API(session, complete). 프론트엔드 전환/다른 도메인 적용은 후속. | 2026-02-22 | 2026-02-22 |
+| GDM-AUDIT-20260222 | 완료 | GDM 감사: explore/code-reviewer/database 병렬 진단 → GDM_AUDIT_REPORT_2026-02-22.md 작성. 긴급 3건, 권장 15+건, Phase 1~4 로드맵. | 2026-02-22 | 2026-02-22 |
 | CLEAN-001 | 완료 | docs 중복·폐기 문서 점검 (파일 정리 계획표) | 2026-02-18 | 2026-02-18 |
 | CLEAN-002 | 완료 | .cursor/artifacts 미사용/중복 아티팩트 점검 | 2026-02-18 | 2026-02-18 |
 | CLEAN-003 | 완료 | .gitignore 정리 (*.tmp, *.bak 추가) | 2026-02-18 | 2026-02-18 |

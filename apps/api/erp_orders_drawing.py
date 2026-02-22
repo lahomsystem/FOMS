@@ -18,6 +18,7 @@ from services.erp_permissions import erp_edit_required
 from services.erp_policy import can_modify_domain, get_assignee_ids
 from services.realtime_notifications import emit_erp_notification_to_users
 from services.storage import get_storage
+from apps.api.files import build_file_view_url, build_file_download_url
 
 erp_orders_drawing_bp = Blueprint(
     'erp_orders_drawing',
@@ -437,6 +438,49 @@ def api_drawing_gateway_upload(order_id):
                 'file_type': file_type,
                 'view_url': f"/api/files/view/{key}",
                 'download_url': f"/api/files/download/{key}",
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_orders_drawing_bp.route('/<int:order_id>/drawing-gateway/complete', methods=['POST'])
+@login_required
+@erp_edit_required
+def api_drawing_gateway_complete(order_id):
+    """Phase D: Direct R2 업로드 완료 후 파일 메타 반환 (히스토리 표시용)."""
+    try:
+        data = request.get_json(silent=True) or {}
+        key = data.get('key')
+        filename = data.get('filename')
+        if not key or not filename:
+            return jsonify({'success': False, 'message': 'key, filename 필수가 필요합니다.'}), 400
+
+        expected = f"orders/{order_id}/drawing_gateway"
+        if expected not in key or '..' in key:
+            return jsonify({'success': False, 'message': '유효하지 않은 key 경로입니다.'}), 400
+
+        storage = get_storage()
+        if not storage.object_exists(key):
+            return jsonify({'success': False, 'message': '업로드된 파일을 찾을 수 없습니다. 먼저 PUT으로 업로드하세요.'}), 404
+
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        file_type = storage._get_file_type(filename) if hasattr(storage, '_get_file_type') else 'file'
+        if file_type not in ('image', 'video'):
+            file_type = 'file'
+
+        return jsonify({
+            'success': True,
+            'file': {
+                'key': key,
+                'filename': filename,
+                'file_type': file_type,
+                'view_url': build_file_view_url(key),
+                'download_url': build_file_download_url(key),
             }
         })
     except Exception as e:

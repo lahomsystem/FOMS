@@ -455,9 +455,9 @@ def api_generate_map():
             return jsonify({
                 'success': True,
                 'map_html': map_html,
-                'total_orders': 0,
-                'orders': [],
-                'message': f'{title}에 해당하는 주문이 없습니다.'
+                'total_orders': len(orders_list),
+                'orders': orders_list,
+                'message': f'{title} 지도에 표시할 마커가 없습니다. 우측 목록에서 주소 오류를 확인하세요.' if orders_list else f'{title}에 해당하는 주문이 없습니다.'
             })
 
         return jsonify({'success': False, 'error': '지도를 생성할 수 없습니다.'})
@@ -573,7 +573,25 @@ def api_update_order_address(order_id):
 
         db.commit()
 
-        enqueue_geocode_order_address(order_id)
+        queued = enqueue_geocode_order_address(order_id)
+        if not queued:
+            # RQ worker 미사용(개발환경 등) 시 즉각 동기처리(Fallback)
+            from services.jobs.tasks import geocode_order_address
+            try:
+                geocode_order_address(order_id)
+            except Exception as e:
+                print(f"Fallback geocode error: {e}")
+            
+            # DB 변경사항 다시 읽어오기
+            db.refresh(order)
+            return jsonify({
+                'success': True,
+                'address': new_address,
+                'geocode_queued': False,
+                'latitude': order.lat,
+                'longitude': order.lng,
+                'conversion_status': order.geocode_status or 'failed'
+            })
 
         return jsonify({
             'success': True,
