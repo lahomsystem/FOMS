@@ -116,6 +116,25 @@ if _trust_proxy or _is_production:
     from werkzeug.middleware.proxy_fix import ProxyFix
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
+# ==========================================
+# 모니터링: 요청 처리시간 로깅 (계획서 단계 A - 기준선 측정)
+# ==========================================
+import time
+
+@app.before_request
+def _record_request_start():
+    g._request_start = time.perf_counter()
+
+@app.after_request
+def _log_request_duration(response):
+    if hasattr(g, '_request_start'):
+        duration_ms = (time.perf_counter() - g._request_start) * 1000
+        endpoint = request.endpoint or request.path
+        # SLO: 일반 400ms, 지도 1.5s, 배지 250ms - 초과 시 로그 (p95 분석용)
+        if duration_ms > 400:
+            current_app.logger.info(f"req_duration endpoint={endpoint} duration_ms={int(duration_ms)} status={response.status_code}")
+    return response
+
 # Import Apps Blueprints
 from apps.auth import auth_bp, login_required, role_required, ROLES, TEAMS, log_access, get_user_by_id
 app.register_blueprint(auth_bp)

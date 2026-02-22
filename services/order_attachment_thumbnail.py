@@ -43,8 +43,19 @@ def _generate_order_attachment_thumbnail_background(attachment_id, storage_key):
 
 
 def schedule_order_attachment_thumbnail_generation(attachment_id, storage_key):
+    """
+    썸네일 생성 스케줄.
+    USE_RQ_WORKER=1 + REDIS_URL 시 RQ worker로 enqueue,
+    아니면 프로세스 내 ThreadPool로 처리 (fallback).
+    """
     if not attachment_id or not storage_key:
         return
+    try:
+        from services.jobs.queue import enqueue_thumbnail_generation
+        if enqueue_thumbnail_generation(attachment_id, storage_key):
+            return  # RQ로 처리됨
+    except Exception:
+        pass  # RQ 미사용 시 fallback
     try:
         _thumbnail_executor.submit(
             _generate_order_attachment_thumbnail_background,

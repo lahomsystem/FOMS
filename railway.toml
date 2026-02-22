@@ -2,4 +2,5 @@
 # Procfile과 동일한 시작 명령 (Socket.IO gevent 워커)
 # Service > Settings > Build 에서 Custom Start Command 미설정 시 이 값 사용
 [deploy]
-startCommand = "gunicorn -k gevent -w 1 --timeout 120 --graceful-timeout 30 --keep-alive 5 app:app"
+# 계획서 6.1: Replica 2개는 Railway 대시보드에서 설정, 워커 2로 확장
+startCommand = "gunicorn -k gevent -w 2 --timeout 120 --graceful-timeout 30 --keep-alive 5 app:app"
