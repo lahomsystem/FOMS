@@ -11,6 +11,13 @@ if sys.stderr.encoding and 'utf' not in sys.stderr.encoding.lower():
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# 로컬에서 프로덕션 DB 비밀번호 재설정 시: RAILWAY_PUBLIC_DATABASE_URL 사용
+if not os.environ.get('DATABASE_URL') and os.environ.get('RAILWAY_PUBLIC_DATABASE_URL'):
+    url = os.environ['RAILWAY_PUBLIC_DATABASE_URL']
+    if url.startswith('postgres://'):
+        url = 'postgresql://' + url[11:]
+    os.environ['DATABASE_URL'] = url
+
 def main():
     from db import db_session
     from models import User

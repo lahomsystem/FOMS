@@ -33,7 +33,7 @@
    - 이 URL 안에 **비밀번호가 이미 포함**되어 있으므로, 비밀번호를 따로 찾을 필요 없다. 복사한 그대로 붙여넣으면 된다.
    - (Public URL이어야 함 — 호스트가 `roundhouse.proxy.rlwy.net` 같은 형태. `postgres://` 로 시작해도 스크립트가 `postgresql://` 로 바꿔 쓴다.)
    ```powershell
-   $env:RAILWAY_PUBLIC_DATABASE_URL = "여기에_대시보드에서_복사한_URL_전체_붙여넣기"
+   $env:RAILWAY_PUBLIC_DATABASE_URL = "postgresql://postgres:XMuhzNDZDeBlQStbmUQymJTGQvgIKAVq@yamanote.proxy.rlwy.net:34306/railway"
    ```
 
 3. **스크립트 실행**: 한 줄 실행 후, 프롬프트에 `y` 또는 `yes` 입력.
@@ -203,61 +203,30 @@ railway run python railway_bootstrap.py
 
 ---
 
+## 6. 프로덕션 로그인 불가 시 admin 비밀번호 재설정 (admin / admin1234)
+
+원격(프로덕션)에서 **admin** 계정으로 로그인이 안 될 때, 로컬 PC에서 **프로덕션 Postgres**에 접속해 비밀번호만 **admin1234** 로 바꿀 수 있습니다.
+
+1. **Railway 프로덕션 Postgres Public URL** 확보  
+   - [Railway 프로젝트](https://railway.com/project/cbe0af66-875b-460c-88f6-780dd705f45c) → **Postgres** 서비스 → **Connect** → **Public** 연결 URL 복사 (호스트가 `*.proxy.rlwy.net` 형태).
+
+2. **PowerShell에서 환경변수 설정 후 스크립트 실행** (프로젝트 루트):
+   ```powershell
+   $env:RAILWAY_PUBLIC_DATABASE_URL = "postgresql://postgres:비밀번호@호스트:포트/railway"
+   python scripts/railway_reset_admin.py
+   ```
+   - `RAILWAY_PUBLIC_DATABASE_URL` 에 위에서 복사한 **전체 URL**을 붙여넣습니다.
+   - 스크립트는 **admin** 사용자 비밀번호를 **admin1234** 로 설정합니다 (없으면 admin 계정 생성).
+
+3. 출력에 `OK - login with admin / admin1234` 가 나오면, 프로덕션 사이트에서 **ID: admin, PW: admin1234** 로 로그인해 보세요.
+
+**대안**: `DATABASE_URL` 을 프로덕션 Public URL로 설정한 뒤  
+`python scripts/db_admin.py reset-admin --password admin1234` 로 실행해도 됩니다.
+
+---
+
 ## 7. 참조
 
 - Grand Develop Master: `.cursor/agents/grand-develop-master.md` (백업/복원 검증, 원격 FOMS 동작 확인)
 - 백업/복원 검증: `docs/evolution/BACKUP_RESTORE_VERIFICATION.md`
 - Railway 마이그레이션: `MIGRATION_RAILWAY_R2.md`, `MIGRATION_GUIDE_RAILWAY.md`
-
----
-
-## 8. Socket.IO 안정화 체크리스트 (2026-02-22 반영)
-
-아래 항목은 **Redis + Socket.IO + gevent** 운영 안정화를 위한 절차다.
-
-### 8.1 이미 코드에 반영된 항목
-
-- `Procfile`, `railway.toml`:
-  - `--max-requests 1000` 제거
-  - `--graceful-timeout 30 --keep-alive 5` 적용
-- `app.py`:
-  - Socket.IO `ping_interval=25`, `ping_timeout=60`
-  - Redis URL 옵션 자동 보강:
-    - `health_check_interval=30`
-    - `socket_keepalive=1`
-    - `retry_on_timeout=1`
-  - 로그 출력 시 Redis URL 비밀번호 마스킹
-  - `SOCKETIO_ALLOW_POLLING_FALLBACK` 환경변수 지원
-- `templates/layout.html`:
-  - 운영 기본: websocket 우선(필요 시에만 polling fallback)
-  - 재연결 시 소켓 객체를 강제 파기하지 않고 `connect()` 재시도
-
-### 8.2 운영자가 직접 해야 할 일
-
-1. Railway 재배포
-2. Redis 비밀번호 회전 후 `REDIS_URL` 갱신
-3. 배포 후 로그 확인:
-   - 없어야 정상: `Autorestarting worker after current request`
-   - 없어야 정상: `ConcurrentObjectUseError`
-4. 일부 네트워크에서 websocket 불가 시에만 아래 추가:
-   - `SOCKETIO_ALLOW_POLLING_FALLBACK=true`
-
-### 8.3 Redis `TCP_INVALID_SYN` 해석 기준
-
-- 단발성(간헐) + 직후 `OK` 연결이면 대체로 정상 범주(재연결/헬스체크 타이밍).
-- 아래 중 하나면 조사 필요:
-  - `TCP_INVALID_SYN`가 지속적으로 다발 발생
-  - 실사용 중 알림 누락/채팅 지연 동반
-  - Socket.IO disconnect/reconnect 루프가 계속 반복
-
-### 8.4 문제 재발 시 즉시 점검 순서
-
-1. Railway 변수 확인:
-   - `REDIS_URL` 최신값(회전 반영)
-   - `SOCKETIO_ALLOW_POLLING_FALLBACK` 값
-2. 현재 Start Command 확인:
-   - `gunicorn -k gevent -w 1 --timeout 120 --graceful-timeout 30 --keep-alive 5 app:app`
-3. 앱 로그/네트워크 플로우에서 같은 시각대 이벤트 대조:
-   - worker 재시작 로그
-   - socket disconnect reason
-   - Redis SYN 오류 비율

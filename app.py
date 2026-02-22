@@ -186,8 +186,6 @@ from apps.api.erp_measurement import erp_measurement_bp
 app.register_blueprint(erp_measurement_bp)
 from apps.api.erp_map import erp_map_bp
 app.register_blueprint(erp_map_bp)
-from apps.api.erp_orders_quick import erp_orders_quick_bp
-app.register_blueprint(erp_orders_quick_bp)
 from apps.api.erp_orders_drawing import erp_orders_drawing_bp
 app.register_blueprint(erp_orders_drawing_bp)
 from apps.api.erp_orders_revision import erp_orders_revision_bp
