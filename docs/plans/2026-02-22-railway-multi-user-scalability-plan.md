@@ -134,6 +134,23 @@
 2. 비동기 분리 기능 플래그 off 후 기존 경로 임시 복귀
 3. 지도 선계산 전환 장애 시 조회 limit 강화 + 기존 지도 API 임시 복귀
 
+## 적용 이력 (GDM)
+
+### 2026-02-22 단계 B 적용
+- [x] requirements.txt: rq>=1.15.0 추가
+- [x] services/jobs/: tasks.py, queue.py (RQ job 정의 + enqueue)
+- [x] order_attachment_thumbnail: RQ enqueue 우선, 실패 시 ThreadPool fallback
+- [x] Procfile: worker 프로세스 추가
+- [ ] Railway 대시보드: Worker 서비스 추가, Start Command `rq worker default`
+- [ ] 환경변수: USE_RQ_WORKER=1 (worker 분리 활성화)
+
+### 2026-02-22 단계 A 적용
+- [x] railway.toml, Procfile: gunicorn `-w 2`로 변경
+- [x] app.py: 요청 duration_ms 로깅 (400ms 초과 시 req_duration 로그)
+- [x] 알림 배지 폴링 60초: 기존 유지 (layout.html setInterval 60000)
+- [ ] Railway 대시보드: Web Replica 2개 설정 (수동)
+- [ ] 배포 후 worker autorestart/timeout 모니터링
+
 ## 10. 운영 체크리스트
 
 1. 배포 전
