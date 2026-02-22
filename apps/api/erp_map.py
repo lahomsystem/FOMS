@@ -5,6 +5,7 @@ erp.py에서 분리: map_data, erp users 목록, generate_map, update_address.
 import datetime
 import os
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from flask import Blueprint, request, jsonify, render_template
 from sqlalchemy import or_, and_, func, String
@@ -306,6 +307,7 @@ def api_generate_map():
 
         map_data = []
         orders_list = []
+        to_geocode = []  # (order, address, order_ctx) for sync parallel geocode
 
         for order in orders:
             customer_name = order.customer_name
@@ -393,17 +395,19 @@ def api_generate_map():
             lng = getattr(order, 'lng', None)
             geocode_status = getattr(order, 'geocode_status', None) or ('success' if (lat and lng) else 'failed')
 
-            # Lazy geocode enqueue: lat/lng 없고 주소 있으면 RQ job enqueue (2026-02-22)
+            # 지도 진입 시 즉시 변환: lat/lng 없고 주소 있으면 to_geocode에 수집 (2026-02-22)
             if lat is None or lng is None:
                 from services.geocode_helpers import extract_address_from_order
                 addr = extract_address_from_order(order)
                 if addr and addr.strip() and addr.strip() != '-':
-                    if geocode_status != 'pending':
-                        queued = enqueue_geocode_order_address(order.id)
-                        if queued:
-                            order.geocode_status = 'pending'
-                            geocode_status = 'pending'
-                            db.commit()
+                    geocode_status = 'pending'
+                    order_ctx = {
+                        'customer_name': customer_name, 'phone': phone,
+                        'address_to_use': address_to_use, 'product': product,
+                        'status': order.status, 'received_date': order.received_date,
+                        'measurement_date': measurement_date, 'scheduled_date': scheduled_date,
+                    }
+                    to_geocode.append((order, addr.strip(), order_ctx))
 
             def format_date(date_value):
                 if date_value is None:
@@ -444,6 +448,65 @@ def api_generate_map():
                     'latitude': lat,
                     'longitude': lng
                 })
+
+        # 동기 병렬 geocode: to_geocode 최대 10건 즉시 변환 (2026-02-22)
+        _SYNC_GEOCODE_MAX = 40
+        _SYNC_GEOCODE_PARALLEL = 5
+        sync_batch = to_geocode[:_SYNC_GEOCODE_MAX]
+        rest_batch = to_geocode[_SYNC_GEOCODE_MAX:]
+
+        if sync_batch:
+            from services.geocode_helpers import compute_address_hash
+
+            def _geocode_one(item):
+                order, addr, _ = item
+                converter = FOMSAddressConverter()
+                lat, lng, status = converter.convert_address(addr)
+                return order.id, lat, lng, status, item
+
+            sync_results = []
+            with ThreadPoolExecutor(max_workers=_SYNC_GEOCODE_PARALLEL) as ex:
+                futures = {ex.submit(_geocode_one, item): item for item in sync_batch}
+                for fut in as_completed(futures):
+                    try:
+                        sync_results.append(fut.result())
+                    except Exception as e:
+                        item = futures[fut]
+                        sync_results.append((item[0].id, None, None, f'error:{e}', item))
+
+            for order_id, lat, lng, status, (order, addr, ctx) in sync_results:
+                order.geocoded_at = datetime.datetime.now()
+                order.address_hash = compute_address_hash(addr)
+                if lat is not None and lng is not None:
+                    order.lat = float(lat)
+                    order.lng = float(lng)
+                    order.geocode_status = 'success'
+                    map_data.append({
+                        'id': order_id,
+                        'customer_name': ctx['customer_name'],
+                        'phone': ctx['phone'],
+                        'address': ctx['address_to_use'],
+                        'product': ctx['product'],
+                        'status': ctx['status'],
+                        'received_date': ctx['received_date'],
+                        'latitude': order.lat,
+                        'longitude': order.lng
+                    })
+                    for oli in orders_list:
+                        if oli['id'] == order_id:
+                            oli['geocode_failed'] = False
+                            oli['conversion_status'] = 'success'
+                            break
+                else:
+                    order.geocode_status = 'failed'
+            db.commit()
+
+        for order, addr, ctx in rest_batch:
+            if getattr(order, 'geocode_status', None) != 'pending':
+                enqueue_geocode_order_address(order.id)
+                order.geocode_status = 'pending'
+        if rest_batch:
+            db.commit()
 
         map_generator = FOMSMapGenerator()
 
