@@ -18,6 +18,8 @@ from services.erp_policy import (
 )
 from erp_automation import apply_auto_tasks
 from erp_order_text_parser import parse_order_text
+from services.geocode_helpers import extract_address_from_structured_data
+from services.jobs.queue import enqueue_geocode_order_address
 
 
 erp_orders_structured_bp = Blueprint('erp_orders_structured', __name__, url_prefix='/api')
@@ -276,6 +278,13 @@ def api_put_order_structured(order_id):
             pass
 
         db.commit()
+
+        if structured_data is not None:
+            old_addr = extract_address_from_structured_data(old_sd)
+            new_addr = extract_address_from_structured_data(structured_data)
+            if new_addr and old_addr != new_addr:
+                enqueue_geocode_order_address(order_id)
+
         _record_build_step(db, step_key, "COMPLETED", message="Saved structured data")
         return jsonify({'success': True, 'draft_cleared': draft_cleared})
     except Exception as e:

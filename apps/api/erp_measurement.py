@@ -14,6 +14,7 @@ from models import Order
 from apps.auth import login_required, role_required
 from services.erp_permissions import erp_edit_required
 from foms_address_converter import FOMSAddressConverter
+from services.jobs.queue import enqueue_geocode_order_address
 
 erp_measurement_bp = Blueprint(
     'erp_measurement',
@@ -84,6 +85,10 @@ def api_erp_measurement_update(order_id):
         flag_modified(order, 'structured_data')
 
         db.commit()
+
+        if field == 'address':
+            enqueue_geocode_order_address(order_id)
+
         return jsonify({'success': True})
     except Exception as e:
         db.rollback()

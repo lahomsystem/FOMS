@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, func, JSON
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, func, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -59,6 +59,15 @@ class Order(Base):
     
     # 도면 이미지 URL
     blueprint_image_url = Column(Text, nullable=True)
+
+    # ============================================
+    # 지도 지오코딩 (Phase C: 선계산 저장)
+    # ============================================
+    lat = Column(Float, nullable=True)  # 위도
+    lng = Column(Float, nullable=True)  # 경도
+    geocode_status = Column(String(50), nullable=True)  # pending / success / failed
+    geocoded_at = Column(DateTime, nullable=True)  # 지오코딩 완료 시각
+    address_hash = Column(String(64), nullable=True)  # 주소 변경 감지용 (SHA256 앞 16자 등)
 
     # ============================================
     # ERP Beta (Palantir-style structured data)

@@ -16,6 +16,7 @@ from services.erp_permissions import erp_edit_required
 from apps.erp import _normalize_for_search
 from foms_address_converter import FOMSAddressConverter
 from foms_map_generator import FOMSMapGenerator
+from services.jobs.queue import enqueue_geocode_order_address
 from sqlalchemy.orm.attributes import flag_modified
 
 erp_map_bp = Blueprint('erp_map', __name__)
@@ -137,21 +138,8 @@ def api_map_data():
                     filtered_orders.append(order)
             orders = filtered_orders[:limit]
 
-        converter = _get_address_converter()
-        request_geocode_cache = {}
-
-        def convert_address_cached(address):
-            key = (address or '').strip()
-            if not key:
-                return None, None, "빈 주소"
-            cached = request_geocode_cache.get(key)
-            if cached is not None:
-                return cached
-            resolved = converter.convert_address(key)
-            request_geocode_cache[key] = resolved
-            return resolved
-
         map_data = []
+        skipped_no_coords = 0
         for order in orders:
             customer_name = order.customer_name
             phone = order.phone
@@ -190,7 +178,8 @@ def api_map_data():
                         else:
                             product = product_name
 
-            lat, lng, status = convert_address_cached(address_to_use)
+            lat = getattr(order, 'lat', None)
+            lng = getattr(order, 'lng', None)
             if lat is not None and lng is not None:
                 map_data.append({
                     'id': order.id,
@@ -200,16 +189,19 @@ def api_map_data():
                     'product': product,
                     'status': order.status,
                     'received_date': order.received_date,
-                    'latitude': lat,
-                    'longitude': lng,
-                    'conversion_status': status
+                    'latitude': float(lat),
+                    'longitude': float(lng),
+                    'conversion_status': getattr(order, 'geocode_status', None) or 'success'
                 })
+            else:
+                skipped_no_coords += 1
 
         return jsonify({
             'success': True,
             'data': map_data,
             'total_orders': len(orders),
-            'converted_orders': len(map_data)
+            'converted_orders': len(map_data),
+            'skipped_no_coords': skipped_no_coords
         })
     except Exception as e:
         return jsonify({
@@ -312,20 +304,6 @@ def api_generate_map():
                     filtered_orders.append(order)
             orders = filtered_orders[:limit]
 
-        converter = _get_address_converter()
-        request_geocode_cache = {}
-
-        def convert_address_cached(address):
-            key = (address or '').strip()
-            if not key:
-                return None, None, "빈 주소"
-            cached = request_geocode_cache.get(key)
-            if cached is not None:
-                return cached
-            resolved = converter.convert_address(key)
-            request_geocode_cache[key] = resolved
-            return resolved
-
         map_data = []
         orders_list = []
 
@@ -411,7 +389,9 @@ def api_generate_map():
                 if not searchable or search_lower not in searchable:
                     continue
 
-            lat, lng, status = convert_address_cached(address_to_use)
+            lat = getattr(order, 'lat', None)
+            lng = getattr(order, 'lng', None)
+            geocode_status = getattr(order, 'geocode_status', None) or ('success' if (lat and lng) else 'failed')
 
             def format_date(date_value):
                 if date_value is None:
@@ -436,7 +416,7 @@ def api_generate_map():
                 'manager_name': manager_name,
                 'notes': order.notes or '-',
                 'geocode_failed': lat is None or lng is None,
-                'conversion_status': status if (lat is None or lng is None) else 'success'
+                'conversion_status': geocode_status
             }
             orders_list.append(order_list_item)
 
@@ -587,18 +567,20 @@ def api_update_order_address(order_id):
         else:
             order.address = new_address
 
+        order.lat = None
+        order.lng = None
+        order.geocode_status = 'pending'
+
         db.commit()
 
-        converter = _get_address_converter()
-        lat, lng, status = converter.convert_address(new_address)
+        enqueue_geocode_order_address(order_id)
 
         return jsonify({
             'success': True,
-            'latitude': lat,
-            'longitude': lng,
             'address': new_address,
-            'conversion_status': status,
-            'geocode_failed': lat is None or lng is None
+            'geocode_queued': True,
+            'latitude': None,
+            'longitude': None
         })
 
     except Exception as e:

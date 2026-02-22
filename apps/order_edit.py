@@ -8,6 +8,7 @@ from db import get_db
 from models import Order
 from constants import STATUS
 from services.request_utils import get_preserved_filter_args
+from services.jobs.queue import enqueue_geocode_order_address
 
 order_edit_bp = Blueprint('order_edit', __name__, url_prefix='')
 
@@ -185,6 +186,9 @@ def edit_order(order_id):
                           'regional_order_upload', 'regional_cargo_sent', 'regional_construction_info_sent']:
                     setattr(order, f, f in request.form)
             db.commit()
+
+            if 'address' in changes:
+                enqueue_geocode_order_address(order_id)
 
             field_labels = {
                 'received_date': '접수일', 'received_time': '접수시간', 'customer_name': '고객명', 'phone': '전화번호',

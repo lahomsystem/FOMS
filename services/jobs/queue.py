@@ -48,3 +48,23 @@ def enqueue_thumbnail_generation(attachment_id, storage_key):
     except Exception as e:
         print(f"[RQ] enqueue_thumbnail error: {e}")
         return False
+
+
+def enqueue_geocode_order_address(order_id):
+    """
+    주문 주소 지오코딩 job enqueue (Phase C).
+    RQ 활성화 시 큐에 넣고, 아니면 False 반환.
+    """
+    q = get_rq_queue()
+    if not q:
+        return False
+    try:
+        q.enqueue(
+            'services.jobs.tasks.geocode_order_address',
+            int(order_id),
+            job_timeout='2m',
+        )
+        return True
+    except Exception as e:
+        print(f"[RQ] enqueue_geocode_order_address error: {e}")
+        return False

@@ -42,3 +42,57 @@ def create_thumbnail_for_attachment(attachment_id, storage_key):
     except Exception as e:
         print(f"[RQ] create_thumbnail_for_attachment error: {e}")
         raise
+
+
+def geocode_order_address(order_id):
+    """
+    주문 주소 지오코딩 (Phase C).
+    RQ job으로 enqueue되어 worker에서 실행.
+    FOMSAddressConverter로 좌표 획득 후 Order.lat/lng/geocode_status/geocoded_at/address_hash 갱신.
+    """
+    import datetime
+    if not order_id:
+        return
+    try:
+        from db import db_session
+        from models import Order
+        from foms_address_converter import FOMSAddressConverter
+        from services.geocode_helpers import extract_address_from_order, compute_address_hash
+
+        db = db_session()
+        try:
+            order = db.query(Order).filter(Order.id == int(order_id)).first()
+            if not order:
+                return
+
+            address = extract_address_from_order(order)
+            if not address:
+                order.geocode_status = 'failed'
+                order.geocoded_at = datetime.datetime.now()
+                db.commit()
+                return
+
+            new_hash = compute_address_hash(address)
+            if order.address_hash == new_hash and order.lat is not None and order.lng is not None:
+                return
+
+            converter = FOMSAddressConverter()
+            lat, lng, status = converter.convert_address(address)
+
+            order.geocoded_at = datetime.datetime.now()
+            order.address_hash = new_hash
+
+            if lat is not None and lng is not None:
+                order.lat = float(lat)
+                order.lng = float(lng)
+                order.geocode_status = 'success'
+            else:
+                order.geocode_status = 'failed'
+
+            db.commit()
+        finally:
+            db.close()
+            db_session.remove()
+    except Exception as e:
+        print(f"[RQ] geocode_order_address error: {e}")
+        raise
