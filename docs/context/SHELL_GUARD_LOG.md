@@ -563,3 +563,5 @@
 | 2026-02-22 21:39:40 | allow | `-` | `(payload에 command 없음)` |
 | 2026-02-22 21:39:44 | allow | `-` | `(payload에 command 없음)` |
 | 2026-02-22 21:40:00 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-22 22:45:02 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-22 22:45:09 | allow | `-` | `(payload에 command 없음)` |
