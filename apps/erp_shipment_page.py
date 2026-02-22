@@ -307,11 +307,27 @@ def erp_shipment_dashboard():
                 return erp_manager
         return order.manager_name or ''
 
+    def get_construction_worker_key_for_sort(order):
+        """시공자별 그룹·정렬용: 첫 번째 유효한 시공자 또는 빈 문자열."""
+        if not order.is_erp_beta or not order.structured_data:
+            return ''
+        shipment = (order.structured_data.get('shipment') or {})
+        workers = shipment.get('construction_workers') or []
+        for w in workers:
+            w_str = str(w).strip() if w else ''
+            if w_str:
+                return w_str
+        return ''
+
     def is_as_order(order):
         return order.status in ('AS_RECEIVED', 'AS_COMPLETED')
 
-    # AS 건은 하단에 몰아서 표시 (1=AS가 뒤로)
-    rows.sort(key=lambda o: (1 if is_as_order(o) else 0, get_manager_name_for_sort(o) or 'ZZZ', o.id))
+    rows.sort(key=lambda o: (
+        1 if is_as_order(o) else 0,
+        get_construction_worker_key_for_sort(o) or 'ZZZ',
+        get_manager_name_for_sort(o) or 'ZZZ',
+        o.id
+    ))
 
     return render_template(
         'erp_shipment_dashboard.html',
