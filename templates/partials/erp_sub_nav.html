@@ -1,6 +1,9 @@
 {# ERP 서브 내비. erp_sub_nav_active: 'dashboard' | 'measurement' | 'production' | 'construction' | 'as' | 'shipment' | 'drawing_workbench' #}
+{# 시공팀(CONSTRUCTION)은 출고·시공만 표시 #}
 {% set _active = erp_sub_nav_active | default('dashboard') %}
+{% set _construction_only = current_user and (current_user.team or '') == 'CONSTRUCTION' %}
 <nav class="erp-pro-nav" aria-label="ERP 메뉴">
+  {% if not _construction_only %}
   <a class="erp-pro-nav-item {% if _active == 'dashboard' %}active{% endif %}"
     href="{{ url_for('erp_dashboard.erp_dashboard') }}">
     <i class="fas fa-layer-group"></i>
@@ -21,16 +24,19 @@
     <i class="fas fa-industry"></i>
     <span>생산</span>
   </a>
+  {% endif %}
   <a class="erp-pro-nav-item {% if _active == 'shipment' %}active{% endif %}"
     href="{{ url_for('erp_shipment_page.erp_shipment_dashboard') }}">
     <i class="fas fa-truck-loading"></i>
     <span>출고</span>
   </a>
+  {% if not _construction_only %}
   <a class="erp-pro-nav-item {% if _active == 'as' %}active{% endif %}"
     href="{{ url_for('erp_as_page.erp_as_dashboard') }}">
     <i class="fas fa-wrench"></i>
     <span>AS</span>
   </a>
+  {% endif %}
   <a class="erp-pro-nav-item {% if _active == 'construction' %}active{% endif %}"
     href="{{ url_for('erp_construction_page.erp_construction_dashboard') }}">
     <i class="fas fa-hammer"></i>

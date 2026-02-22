@@ -9,6 +9,9 @@
             {% if filters.get('alert_type') %}
             <input type="hidden" name="alert_type" value="{{ filters.get('alert_type') }}">
             {% endif %}
+            {% if filters.get('mine') %}
+            <input type="hidden" name="mine" value="{{ filters.get('mine') }}">
+            {% endif %}
             <div class="erp-filter-main">
               <input class="form-control form-control-sm" name="q" placeholder="검색(고객/연락/주소/담당)"
                 value="{{ (filters.get('q') or '') }}">

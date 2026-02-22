@@ -24,6 +24,7 @@ from services.erp_display import (
     _erp_alerts,
     _erp_has_media,
 )
+from services.erp_shipment_settings import is_order_mine_for_user
 
 
 erp_dashboard_bp = Blueprint('erp_dashboard', __name__, url_prefix='/erp')
@@ -57,6 +58,8 @@ def erp_dashboard():
         .limit(300)
         .all()
     )
+    if request.args.get('mine') == '1' and current_user:
+        orders = [o for o in orders if is_order_mine_for_user(o, current_user)]
 
     att_counts = {}
     try:
@@ -332,6 +335,7 @@ def erp_dashboard():
             'alert_type': f_alert_type,
             'q': f_q,
             'team': f_team,
+            'mine': request.args.get('mine') or '',
         },
         team_labels=TEAM_LABELS,
         stage_labels=STAGE_LABELS,

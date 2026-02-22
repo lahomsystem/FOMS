@@ -13,14 +13,18 @@
         <i class="fas fa-file-image"></i>
         <span class="d-none d-md-inline">이미지 저장</span>
       </button>
+      {% if not is_construction_team %}
       <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_shipment.erp_shipment_settings') }}">
         <i class="fas fa-cog"></i>
         <span class="d-none d-md-inline">설정</span>
       </a>
+      {% endif %}
     </div>
   </header>
   {% set erp_sub_nav_active = 'shipment' %}
   {% include 'partials/erp_sub_nav.html' %}
+  {# 시공팀은 출고 대시보드에서 수정 불가 (조회만) #}
+  {% set can_edit_shipment = (can_edit_erp|default(false)) and (not (is_construction_team|default(false))) %}
 
   {% if not erp_beta_enabled %}
   <div class="erp-pro-alert erp-pro-alert--warning">
@@ -81,6 +85,7 @@
               <div class="small text-muted mt-1 px-1">60일 (시공+AS)</div>
             </div>
           </div>
+          {% if not is_construction_team %}
           <div class="card border-0 shadow-sm mt-2">
             <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center">
               <div class="fw-bold small"><i class="fas fa-chart-line"></i> 날짜별 잔여 시공</div>
@@ -116,6 +121,7 @@
               <div class="small text-muted mt-1 px-1">잔여 자수 / 잔여 인원</div>
             </div>
           </div>
+          {% endif %}
         </div>
         <div class="col-12 col-xl-10 col-lg-10">
           <div class="table-responsive">
@@ -774,7 +780,7 @@
 
                 <tr data-order-id="{{ r.id }}" class="shipment-row">
                   <td style="border-right: 1px solid #e0e0e0;">
-                    {% if can_edit_erp|default(false) %}
+                    {% if can_edit_shipment %}
                     <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-beta"
                       class="btn btn-sm btn-outline-primary" title="주문 상세"><i class="fas fa-edit"></i></a>
                     {% else %}
@@ -855,7 +861,8 @@
                           class="shipment-site-extra-row d-flex gap-1 align-items-center flex-wrap {% if line_text %}has-value{% else %}editing{% endif %}"
                           data-color="{{ line_color }}">
                           <span class="site-extra-view site-extra-color-{{ line_color }}">{{ line_text }}</span>
-                          {% if not line_text %}<span class="site-extra-placeholder">+ 호버하여 추가</span>{% endif %}
+                          {% if not line_text and can_edit_shipment %}<span class="site-extra-placeholder">+ 호버하여 추가</span>{% endif %}
+                          {% if can_edit_shipment %}
                           <button type="button" class="btn btn-sm btn-outline-danger line-remove-btn"
                             title="삭제">&times;</button>
                           <div class="site-extra-edit d-flex gap-1 align-items-center flex-wrap flex-grow-1">
@@ -877,12 +884,15 @@
                             <button type="button" class="btn btn-sm btn-outline-danger btn-remove-site-extra"
                               title="삭제">&times;</button>
                           </div>
+                          {% endif %}
                         </li>
                         {% endfor %}
+                        {% if can_edit_shipment %}
                         <li class="d-flex gap-1 align-items-center address-row-actions">
                           <button type="button" class="btn btn-sm btn-outline-success btn-add-site-extra"
                             data-order-id="{{ r.id }}" title="추가">+</button>
                         </li>
+                        {% endif %}
                       </ul>
                     </div>
                   </td>
@@ -890,6 +900,7 @@
                     <div
                       class="shipment-field-wrap shipment-construction-time-wrap {% if construction_time %}has-value{% endif %}">
                       <span class="shipment-field-view">{{ construction_time }}</span>
+                      {% if can_edit_shipment %}
                       <div class="d-flex align-items-center gap-1 shipment-field-edit flex-nowrap">
                         <input type="text" class="form-control form-control-sm shipment-input flex-grow-1"
                           data-order-id="{{ r.id }}" data-field="construction_time"
@@ -901,6 +912,7 @@
                         <button type="button" class="btn btn-sm btn-outline-danger shipment-field-clear flex-shrink-0"
                           data-order-id="{{ r.id }}" data-field="construction_time" title="삭제">&times;</button>
                       </div>
+                      {% endif %}
                     </div>
                   </td>
                   <td class="shipment-field-cell" style="border-right: 1px solid #e0e0e0;">
@@ -909,6 +921,7 @@
                       {% for dm in drawing_managers %}
                       <span class="shipment-drawing-manager-wrap has-value">
                         <span class="drawing-manager-view">{{ dm }}</span>
+                        {% if can_edit_shipment %}
                         <span class="drawing-manager-edit d-inline-flex align-items-center gap-1 flex-nowrap">
                           <input type="text"
                             class="form-control form-control-sm shipment-input shipment-drawing-manager-input d-inline-block flex-grow-1"
@@ -920,12 +933,15 @@
                             class="btn btn-sm btn-outline-danger btn-remove-drawing-manager flex-shrink-0"
                             title="삭제">&times;</button>
                         </span>
+                        {% endif %}
                       </span>
                       {% endfor %}
+                      {% if can_edit_shipment %}
                       <span class="actions-on-hover d-inline-flex gap-1">
                         <button type="button" class="btn btn-sm btn-outline-success btn-add-drawing-manager"
                           data-order-id="{{ r.id }}" title="도면담당자 추가">+</button>
                       </span>
+                      {% endif %}
                     </div>
                   </td>
                   <td class="shipment-field-cell" style="border-right: 1px solid #e0e0e0;">
@@ -935,6 +951,7 @@
                       {% for w in construction_workers %}
                       <span class="shipment-worker-wrap has-value">
                         <span class="worker-view">{{ w }}</span>
+                        {% if can_edit_shipment %}
                         <span class="worker-edit d-inline-flex align-items-center gap-1 flex-nowrap">
                           <input type="text"
                             class="form-control form-control-sm shipment-input shipment-worker-input d-inline-block flex-grow-1"
@@ -945,12 +962,15 @@
                           <button type="button" class="btn btn-sm btn-outline-danger btn-remove-worker flex-shrink-0"
                             title="삭제">&times;</button>
                         </span>
+                        {% endif %}
                       </span>
                       {% endfor %}
+                      {% if can_edit_shipment %}
                       <span class="actions-on-hover d-inline-flex gap-1">
                         <button type="button" class="btn btn-sm btn-outline-success btn-add-worker"
                           data-order-id="{{ r.id }}" title="시공자 추가">+</button>
                       </span>
+                      {% endif %}
                     </div>
                   </td>
                   <td>
@@ -1032,13 +1052,13 @@
         return String(val || '').trim().toLowerCase();
       }
 
-      function getAssignedWorkerNameSet() {
-        var set = {};
+      function getAssignedWorkerCountMap() {
+        var map = {};
         document.querySelectorAll('input[data-field="construction_workers"]').forEach(function (inp) {
           var v = normalizeWorkerName(inp.value);
-          if (v) set[v] = true;
+          if (v) map[v] = (map[v] || 0) + 1;
         });
-        return set;
+        return map;
       }
 
       function fillDatalist(id, key) {
@@ -1046,25 +1066,20 @@
         if (!list) return;
         list.innerHTML = '';
         const arr = getMergedList(key);
-        var used = key === 'construction_workers' ? getAssignedWorkerNameSet() : null;
+        var countMap = key === 'construction_workers' ? getAssignedWorkerCountMap() : null;
         arr.forEach(function (v) {
           var val = (v && typeof v === 'object' && v.text) ? v.text : String(v);
           if (!val) return;
-          if (used && used[normalizeWorkerName(val)]) return;
           var opt = document.createElement('option');
           opt.value = val;
+          if (countMap) {
+            var n = countMap[normalizeWorkerName(val)] || 0;
+            opt.textContent = n >= 1 ? val + ' ' + n : val;
+          } else {
+            opt.textContent = val;
+          }
           list.appendChild(opt);
         });
-      }
-
-      function isDuplicateWorkerName(currentInput, name) {
-        if (!name) return false;
-        var dup = false;
-        document.querySelectorAll('input[data-field="construction_workers"]').forEach(function (inp) {
-          if (inp === currentInput) return;
-          if (normalizeWorkerName(inp.value) === name) dup = true;
-        });
-        return dup;
       }
 
       function refreshWorkerDatalist() {
@@ -1086,14 +1101,7 @@
         var existing = document.getElementById('shipment-saved-dropdown');
         if (existing) existing.remove();
         var list = (typeof getMergedList === 'function' ? getMergedList(listKey) : loadSavedList(STORAGE_KEYS[listKey] || listKey));
-        if (listKey === 'construction_workers') {
-          var usedWorkers = getAssignedWorkerNameSet();
-          list = list.filter(function (v) {
-            var val = (v && typeof v === 'object' && v.text) ? v.text : String(v);
-            var s = normalizeWorkerName(val);
-            return s && !usedWorkers[s];
-          });
-        }
+        var countMap = listKey === 'construction_workers' ? getAssignedWorkerCountMap() : null;
         if (!list || list.length === 0) {
           var rect = anchor.getBoundingClientRect();
           var div = document.createElement('div');
@@ -1116,11 +1124,22 @@
         div.className = 'dropdown-menu show shipment-saved-dropdown';
         div.style.cssText = 'position:fixed;left:' + rect.left + 'px;top:' + (rect.bottom + 2) + 'px;z-index:1050;max-height:200px;overflow:auto;min-width:120px;';
         list.forEach(function (v) {
+          var val = (v && typeof v === 'object' && v.text) ? v.text : String(v || '');
+          if (!val) return;
           var a = document.createElement('a');
           a.className = 'dropdown-item';
           a.href = '#';
-          a.textContent = v;
-          a.addEventListener('click', function (e) { e.preventDefault(); onSelect(v); div.remove(); });
+          if (countMap) {
+            var n = countMap[normalizeWorkerName(val)] || 0;
+            if (n >= 1) {
+              a.innerHTML = val + ' <span class="text-primary">' + n + '</span>';
+            } else {
+              a.textContent = val;
+            }
+          } else {
+            a.textContent = val;
+          }
+          a.addEventListener('click', function (e) { e.preventDefault(); onSelect(val); div.remove(); });
           div.appendChild(a);
         });
         document.body.appendChild(div);
@@ -1194,11 +1213,6 @@
             var wrap = inp.closest('.shipment-worker-wrap');
             var viewSpan = wrap && wrap.querySelector('.worker-view');
             var val = normalizeWorkerName(inp.value);
-            if (val && isDuplicateWorkerName(inp, val)) {
-              alert('이미 다른 주문에 배정된 시공자입니다.');
-              inp.value = '';
-              val = '';
-            }
             if (viewSpan) viewSpan.textContent = val;
             if (wrap) { if (val) wrap.classList.add('has-value'); else wrap.classList.remove('has-value'); }
             var listWrap = inp.closest('.shipment-workers-list');
@@ -1440,11 +1454,6 @@
           var viewSpan = span.querySelector('.worker-view');
           inp.addEventListener('blur', function () {
             var val = normalizeWorkerName(inp.value);
-            if (val && isDuplicateWorkerName(inp, val)) {
-              alert('이미 다른 주문에 배정된 시공자입니다.');
-              inp.value = '';
-              val = '';
-            }
             if (viewSpan) viewSpan.textContent = val;
             if (span) { if (val) span.classList.add('has-value'); else span.classList.remove('has-value'); }
             var workers = [];
@@ -1493,10 +1502,6 @@
             for (var i = 0; i < inputs.length; i++) { if (!inputs[i].value.trim()) { firstEmpty = inputs[i]; break; } }
             var target = firstEmpty || inputs[0];
             if (target) {
-              if (isDuplicateWorkerName(target, normalizeWorkerName(v))) {
-                alert('이미 다른 주문에 배정된 시공자입니다.');
-                return;
-              }
               target.value = v;
               target.focus();
               var wrap = target.closest('.shipment-worker-wrap');

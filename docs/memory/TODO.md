@@ -26,3 +26,25 @@
 - [ ] **7. 지도 버튼 즉시 변환 (동기 병렬 geocode)**  
   - api_generate_map: lat/lng 없는 주문 최대 10건 ThreadPoolExecutor 병렬 geocode
   - 병렬 수 5, Kakao API 호출 후 DB 갱신, map_data에 반영
+
+---
+
+# 로그인 담당자 필터 + 시공팀 전용 접근 (2026-02-22)
+
+- [x] **A1. 전역 "내 할 일" 버튼**  
+  layout.html: 알림 버튼 왼쪽에 버튼 추가, cookie `erp_mine_only` 토글, ERP 페이지에서 cookie 읽어 mine=1 기본 적용
+
+- [x] **A2. 출고 대시보드 mine 필터**  
+  erp_shipment_page: mine/cookie 시 construction_workers에 current_user.name 포함된 주문만 표시
+
+- [x] **A3. 시공 대시보드 mine 필터**  
+  erp_construction_page: mine/cookie 시 construction_workers에 본인 포함된 주문만 표시
+
+- [x] **A4. 시공팀 접근 제한**  
+  app.py before_request: CONSTRUCTION 팀은 /erp/shipment, /erp/construction 외 접근 시 출고 대시보드로 리다이렉트; erp_sub_nav에서 시공팀일 때 출고·시공만 노출
+
+- [x] **A5. 시공팀 데이터 강제**  
+  출고·시공 대시보드에서 user.team == CONSTRUCTION이면 mine_only 강제(본인 배정 주문만 표시)
+
+- [ ] **A6. 점검**  
+  코드 리뷰, 수동 테스트(일반 사용자 mine 토글, 시공팀 계정으로 출고/시공만 접근·본인 건만 표시)

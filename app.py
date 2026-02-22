@@ -130,6 +130,32 @@ import time
 def _record_request_start():
     g._request_start = time.perf_counter()
 
+
+@app.before_request
+def _erp_construction_team_restrict():
+    """시공팀(CONSTRUCTION)은 출고·시공 대시보드만 접근 가능. 그 외 메뉴(캘린더, 휴지통, WDPLANNER, WDCalculator, 채팅 등) 접근 시 출고로 리다이렉트."""
+    path = (request.path or '').strip()
+    if path.startswith('/static/') or path.startswith('/login') or path.startswith('/logout') or path.startswith('/register'):
+        return
+    user_id = session.get('user_id')
+    if not user_id:
+        return
+    user = get_user_by_id(user_id)
+    if not user or getattr(user, 'team', None) != 'CONSTRUCTION':
+        return
+    # 허용: 출고, 시공
+    if path.startswith('/erp/shipment') or path.startswith('/erp/construction'):
+        return
+    # ERP 내 그 외 경로 → 출고로
+    if path.startswith('/erp/'):
+        return redirect(url_for('erp_shipment_page.erp_shipment_dashboard', date=date.today().strftime('%Y-%m-%d')))
+    # 차단: 캘린더, 휴지통, WDPLANNER, WDCalculator, 전체 주문(/) 및 기타 대시보드 (채팅은 허용)
+    if path == '/' or path.startswith('/?') or path.startswith('/calendar') or path.startswith('/trash') or \
+       path.startswith('/wdplanner') or path.startswith('/wdcalculator') or \
+       path.startswith('/storage_dashboard') or path.startswith('/regional_dashboard') or \
+       path.startswith('/self_measurement_dashboard') or path.startswith('/metropolitan_dashboard') or path.startswith('/admin'):
+        return redirect(url_for('erp_shipment_page.erp_shipment_dashboard', date=date.today().strftime('%Y-%m-%d')))
+
 @app.after_request
 def _log_request_duration(response):
     if hasattr(g, '_request_start'):

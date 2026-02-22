@@ -10,6 +10,7 @@ import datetime
 
 from services.erp_permissions import can_edit_erp
 from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders
+from services.erp_shipment_settings import is_order_mine_for_user
 
 
 erp_as_page_bp = Blueprint('erp_as_page', __name__, url_prefix='/erp')
@@ -41,12 +42,14 @@ def erp_as_dashboard():
         query = query.filter(Order.manager_name.ilike(f'%{manager_filter}%'))
 
     rows = query.order_by(Order.id.desc()).limit(300).all()
+    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    erp_mine_only = request.args.get('mine') == '1'
+    if erp_mine_only and current_user:
+        rows = [r for r in rows if is_order_mine_for_user(r, current_user)]
 
     for r in rows:
         r.structured_data = _ensure_dict(r.structured_data)
     apply_erp_display_fields_to_orders(rows)
-
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     return render_template(
         'erp_as_dashboard.html',
         status_filter=status_filter,
@@ -54,4 +57,5 @@ def erp_as_dashboard():
         selected_date=selected_date,
         rows=rows,
         can_edit_erp=can_edit_erp(current_user),
+        erp_mine_only=erp_mine_only,
     )

@@ -17,6 +17,7 @@ from services.erp_template_filters import spec_w300_value
 from services.erp_shipment_settings import (
     load_erp_shipment_settings,
     normalize_erp_shipment_workers,
+    is_order_mine_for_user,
 )
 
 
@@ -84,17 +85,23 @@ def _get_order_spec_units(order):
 def erp_shipment_dashboard():
     """ERP Beta - 출고 대시보드 (날짜별 시공 건수, AS 포함, 출고일지 스타일)"""
     db = get_db()
+    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     today_date = datetime.datetime.now().strftime('%Y-%m-%d')
     today_dt = datetime.datetime.strptime(today_date, '%Y-%m-%d').date()
     manager_filter = (request.args.get('manager') or '').strip()
 
     req_date = request.args.get('date')
     if not req_date:
-        return redirect(url_for('erp_shipment_page.erp_shipment_dashboard', date=today_date, manager=manager_filter or None))
+        return redirect(url_for('erp_shipment_page.erp_shipment_dashboard', date=today_date, manager=manager_filter or None, mine=request.args.get('mine')))
+
+    is_construction = current_user and getattr(current_user, 'team', None) == 'CONSTRUCTION'
+    # 시공팀: 항상 본인 주문만. 그 외: URL에 mine=1 있을 때만 (클라이언트가 cookie 보고 URL 보정)
+    mine_only = is_construction or (request.args.get('mine') == '1')
     try:
         datetime.datetime.strptime(req_date, '%Y-%m-%d').date()
     except (ValueError, TypeError):
-        return redirect(url_for('erp_shipment_page.erp_shipment_dashboard', date=today_date, manager=manager_filter or None))
+        mine_redirect = request.args.get('mine') if not is_construction else None
+        return redirect(url_for('erp_shipment_page.erp_shipment_dashboard', date=today_date, manager=manager_filter or None, mine=mine_redirect))
     selected_date = req_date
 
     base_query = db.query(Order).filter(Order.status != 'DELETED')
@@ -112,6 +119,9 @@ def erp_shipment_dashboard():
             )
         )
     ).order_by(Order.id.desc()).limit(1500).all()
+    # 시공팀 또는 mine=1일 때만 목록/패널을 담당 주문으로 제한 (의도적 이중 필터: panel_orders + 아래 rows)
+    if mine_only and current_user:
+        panel_orders = [o for o in panel_orders if is_order_mine_for_user(o, current_user)]
 
     settings = load_erp_shipment_settings()
     worker_settings = normalize_erp_shipment_workers(settings.get('construction_workers', []))
@@ -260,6 +270,9 @@ def erp_shipment_dashboard():
         if match:
             rows.append(order)
 
+    # 시공팀 또는 mine=1일 때만 당일 목록(rows)도 담당 주문으로 제한
+    if mine_only and current_user:
+        rows = [r for r in rows if is_order_mine_for_user(r, current_user)]
     rows = rows[:300]
 
     for r in rows:
@@ -300,7 +313,6 @@ def erp_shipment_dashboard():
     # AS 건은 하단에 몰아서 표시 (1=AS가 뒤로)
     rows.sort(key=lambda o: (1 if is_as_order(o) else 0, get_manager_name_for_sort(o) or 'ZZZ', o.id))
 
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     return render_template(
         'erp_shipment_dashboard.html',
         selected_date=selected_date,
@@ -310,4 +322,6 @@ def erp_shipment_dashboard():
         remaining_panel_dates=remaining_panel_dates,
         today_date=today_date,
         can_edit_erp=can_edit_erp(current_user),
+        erp_mine_only=mine_only,
+        is_construction_team=is_construction,
     )

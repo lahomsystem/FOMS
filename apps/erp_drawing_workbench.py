@@ -16,6 +16,7 @@ from services.erp_display import (
     _drawing_status_label,
     _drawing_next_action_text,
 )
+from services.erp_shipment_settings import is_order_mine_for_user
 
 erp_drawing_workbench_bp = Blueprint('erp_drawing_workbench', __name__, url_prefix='/erp')
 
@@ -29,6 +30,7 @@ def erp_drawing_workbench_dashboard():
     q_raw = (request.args.get('q') or '').strip()
     q = q_raw.lower()
     status_filter = (request.args.get('status') or '').strip().upper()
+    # ERP 공통: mine은 URL 쿼리만 사용 (layout에서 쿠키→URL 동기화)
     mine_only = (request.args.get('mine') or '').strip() == '1'
     unread_only = (request.args.get('unread') or '').strip() == '1'
     due_today_only = (request.args.get('due_today') or '').strip() == '1'
@@ -81,7 +83,7 @@ def erp_drawing_workbench_dashboard():
             (drawing_status in ('PENDING', 'RETURNED') and is_drawing_assignee)
             or (drawing_status == 'TRANSFERRED' and can_sales)
         )
-        if mine_only and not my_todo:
+        if mine_only and not my_todo and not is_order_mine_for_user(o, current_user):
             continue
 
         unchecked_requests = 0
@@ -193,6 +195,7 @@ def erp_drawing_workbench_dashboard():
         filters={'q': q_raw, 'status': status_filter, 'mine': '1' if mine_only else '', 'unread': '1' if unread_only else '', 'due_today': '1' if due_today_only else '', 'assignee': assignee_filter_raw},
         can_edit_erp=can_edit_erp(current_user),
         erp_beta_enabled=True,
+        erp_mine_only=mine_only,
     )
 
 

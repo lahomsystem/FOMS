@@ -43,3 +43,9 @@
 - Railway 1·2: 대시보드 접근 권한 필요 (완료)
 - 3.3 부하 테스트: scripts/load_test_map.py (완료)
 - Phase D 6.1~6.3: scripts/verify_phase_d.py + 수동 검증
+
+## 8. 로그인 담당자 필터·시공팀 전용 (2026-02-22)
+
+- **요구**: (1) 알림 왼쪽 "로그인 담당자만" 토글 버튼, (2) 내 할 일 필터를 출고/시공 등에 적용, (3) 시공팀은 출고·시공 대시보드만 접근, 해당 두 화면에서도 본인 배정 주문만 표시.
+- **배정 데이터**: 출고/시공 배정은 `structured_data.shipment.construction_workers`(시공자 이름 리스트). `User.name`과 매칭.
+- **결정**: 전역 토글은 cookie `erp_mine_only=1` 사용. 시공팀(`user.team == 'CONSTRUCTION'`)은 ERP 서브네비에서 출고·시공만 노출, 타 ERP 라우트 접근 시 출고/시공으로 리다이렉트, 출고/시공에서는 항상 본인 배정만 표시.

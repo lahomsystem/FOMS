@@ -48,6 +48,53 @@ def normalize_erp_shipment_workers(workers):
     return normalized
 
 
+def is_order_assigned_to_user_for_construction(order, user_name):
+    """주문의 시공/출고 배정(construction_workers)에 해당 사용자 이름이 포함되어 있는지 여부."""
+    if not user_name or not order:
+        return False
+    sd = getattr(order, 'structured_data', None) or {}
+    if not isinstance(sd, dict):
+        return False
+    shipment = sd.get('shipment') or {}
+    workers = shipment.get('construction_workers') or []
+    key = str(user_name or '').strip().lower()
+    for w in workers:
+        name_part = w if isinstance(w, str) else (isinstance(w, dict) and w.get('name')) or ''
+        if str(name_part or '').strip().lower() == key:
+            return True
+    return False
+
+
+def is_order_mine_for_user(order, user):
+    """
+    '내 할 일' 단일 판단: 시공자(construction_workers)에 있거나 담당자(manager)면 True.
+    URL mine=1 필터용. 시공팀/영업팀 공통.
+    """
+    if not order or not user:
+        return False
+    if is_order_assigned_to_user_for_construction(order, getattr(user, 'name', None)):
+        return True
+    user_name = (getattr(user, 'name', None) or '').strip().lower()
+    user_username = (getattr(user, 'username', None) or '').strip().lower()
+    if not user_name and not user_username:
+        return False
+    manager_names = set()
+    sd = getattr(order, 'structured_data', None) or {}
+    if isinstance(sd, dict):
+        parties = sd.get('parties') or {}
+        mn = ((parties.get('manager') or {}).get('name') or '').strip()
+        if mn:
+            manager_names.add(mn.lower())
+        wf = sd.get('workflow') or {}
+        owner = (wf.get('current_quest') or {}).get('owner_person') or ''
+        if (owner or '').strip():
+            manager_names.add(str(owner).strip().lower())
+    mn_col = (getattr(order, 'manager_name', None) or '').strip()
+    if mn_col:
+        manager_names.add(mn_col.lower())
+    return (user_name in manager_names) or (user_username in manager_names)
+
+
 def load_erp_shipment_settings():
     """ERP 출고 설정(시공시간/도면담당자/시공자/현장주소) JSON 파일에서 로드."""
     try:

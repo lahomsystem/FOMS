@@ -13,6 +13,7 @@ from sqlalchemy import or_, and_, func, String
 
 from services.erp_permissions import can_edit_erp
 from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders
+from services.erp_shipment_settings import is_order_mine_for_user
 
 
 erp_measurement_dashboard_bp = Blueprint(
@@ -82,13 +83,20 @@ def erp_measurement_dashboard():
 
         query = query.filter(or_(*date_conditions))
 
+    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    mine_filter_active = request.args.get('mine') == '1' and current_user
+
     all_rows = query.order_by(Order.id.desc()).limit(500).all()
+    if mine_filter_active:
+        all_rows = [r for r in all_rows if is_order_mine_for_user(r, current_user)]
 
     for r in all_rows:
         r.structured_data = _ensure_dict(r.structured_data)
     apply_erp_display_fields_to_orders(all_rows)
 
     panel_orders = base_query.order_by(Order.id.desc()).limit(1500).all()
+    if mine_filter_active:
+        panel_orders = [o for o in panel_orders if is_order_mine_for_user(o, current_user)]
 
     try:
         base_date = datetime.datetime.strptime(selected_date, '%Y-%m-%d').date()
@@ -175,7 +183,6 @@ def erp_measurement_dashboard():
     if open_map:
         return redirect(url_for('erp_map.map_view', date=selected_date, status='MEASURED'))
 
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     return render_template(
         'erp_measurement_dashboard.html',
         selected_date=selected_date,
@@ -184,4 +191,5 @@ def erp_measurement_dashboard():
         measurement_panel_dates=measurement_panel_dates,
         today_date=today_date,
         can_edit_erp=can_edit_erp(current_user),
+        erp_mine_only=mine_filter_active,
     )
