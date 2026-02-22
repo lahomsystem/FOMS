@@ -63,3 +63,7 @@ tests/load/results/
 
 # 로컬 전용 (배포 제외)
 config/local*
+
+# 훅 payload 디버그 (CURSOR_HOOK_DEBUG=1 시 생성)
+docs/context/HOOK_PAYLOAD_DEBUG.jsonl
+docs/context/.hook_debug_once
