@@ -12,7 +12,10 @@ tools: Read, Grep, Glob, Shell, StrReplace, Write, SemanticSearch
 
 ## 운영 환경 및 Git
 - **운영 환경**: Windows 11. 터미널/쉘 명령은 Win11에 맞게 사용 (PowerShell, 경로·명령 구분자 등).
-- **Git**: 커밋 메시지는 한글로 알기 쉽게 정리 → 커밋 후 푸시. 한글 깨짐 방지를 위해 UTF-8 유지 (필요 시 `core.quotepath false`).
+- **Git**: 커밋 메시지는 한글로 알기 쉽게 정리 → 커밋 후 푸시.
+- **한글 깨짐 방지 (Win11 필수)**:
+  1. 저장소에서 한 번 설정: `git config core.quotepath false` · `git config i18n.commitEncoding utf-8` · `git config i18n.logOutputEncoding utf-8`
+  2. **한글 커밋 시** PowerShell이 `-m "한글"` 인자를 잘못 인코딩하므로 **금지**. 반드시 **UTF-8로 저장한 파일**에 메시지를 쓴 뒤 `git commit -F 파일경로` 또는 `git commit --amend -F 파일경로` 사용. (예: 메시지를 `commit_msg.txt`에 UTF-8로 저장 → `git commit -F commit_msg.txt` → 필요 시 파일 삭제)
 
 ## 핵심 정체성
 

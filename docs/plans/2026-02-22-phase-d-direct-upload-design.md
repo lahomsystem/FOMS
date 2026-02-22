@@ -76,9 +76,8 @@ Client --(multipart/form-data, file)--> App Server --(upload_file/upload_chat_fi
   - `POST /api/orders/<id>/blueprint/complete` 추가. session → PUT → complete 플로우 지원.
 - [x] 3.3 **도면 수정요청** (`erp_orders_drawing.py`) — 2026-02-22
   - `POST /api/orders/<id>/drawing-gateway/complete` 추가. 동일 플로우.
-- [ ] 3.4 **채팅** (`chat/routes.py`)
-  - 채팅은 temp_id 사용, 완료 후 ChatAttachment 등록
-  - session 시 room_id/temp_id 포함
+- [x] 3.4 **채팅** (`chat/routes.py`) — 2026-02-22
+  - session/complete API 구현됨. key 경로 `chat/` 검증, room_id 반영 폴더.
 
 ### 4.4 프론트엔드
 
@@ -86,15 +85,15 @@ Client --(multipart/form-data, file)--> App Server --(upload_file/upload_chat_fi
   - erpUploadSelectedAttachments, erpUploadItemAttachments에서 USE_DIRECT_UPLOAD 시 direct 플로우 적용
 - [x] 4.2 도면(blueprint) 업로드 UI: edit_order.html uploadBlueprint에서 USE_DIRECT_UPLOAD 시 session→PUT→blueprint/complete (2026-02-22)
 - [x] 4.3 도면 수정요청(drawing-gateway) 업로드 UI: erp_dashboard_scripts_drawing, erp_drawing_workbench_detail의 uploadRevisionGatewayFiles에서 direct 플로우 (2026-02-22)
-- [ ] 4.4 채팅 업로드 UI: 동일
-- [ ] 4.5 파일 크기/타입 사전 검증 (세션 요청 시)
+- [x] 4.4 채팅 업로드 UI: chat_scripts_file.html USE_DIRECT_UPLOAD_CHAT 시 session→PUT→complete. 채팅 라우트에서 use_direct_upload 전달 (2026-02-22)
+- [x] 4.5 파일 크기/타입 사전 검증 (세션 요청 시) — 각 세션 API에서 size·허용 확장자 검증 적용됨
 
 ### 4.5 보안·제한
 
-- [ ] 5.1 presigned URL 만료 시간: 15분
-- [ ] 5.2 Content-Type 제한 (세션 발급 시 허용 목록)
-- [ ] 5.3 파일 크기 상한 (세션 요청 시 검증)
-- [ ] 5.4 key 경로 검증: `orders/<id>/...` 등 허용 패턴만
+- [x] 5.1 presigned URL 만료 시간: 15분 (expires_in=900)
+- [x] 5.2 Content-Type 제한 (세션 발급 시 DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES 허용 목록, constants.py)
+- [x] 5.3 파일 크기 상한 (세션 요청 시 get_erp_media_max_size / get_chat_file_max_size 검증)
+- [x] 5.4 key 경로 검증: complete 시 `orders/<id>/` 또는 `chat/` prefix 검증
 
 ### 4.6 검증
 

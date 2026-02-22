@@ -722,6 +722,12 @@
                 </div>
             </div>
             
+            <div id="geocode-poll-banner" class="alert alert-info alert-dismissible fade show small py-2 mb-2" role="alert" style="display: none; margin: 8px 12px 0;">
+                <i class="fas fa-sync-alt fa-spin me-1"></i>
+                <span id="geocode-poll-text">주소 변환 중... 잠시 후 자동 갱신됩니다.</span>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="닫기" onclick="clearGeocodePoll()"></button>
+            </div>
+            
             <div id="map-content" style="display: none;">
                 <!-- 지도가 여기에 표시됩니다 -->
             </div>
@@ -817,6 +823,10 @@
     <script>
         let currentOrders = [];
         let selectedOrderId = null;
+        let geocodePollTimeoutId = null;
+        let geocodePollRetries = 0;
+        const GEOCODE_POLL_INTERVAL_MS = 6000;
+        const GEOCODE_POLL_MAX_RETRIES = 10;
         
         // URL 파라미터에서 초기값 가져오기
         const urlParams = new URLSearchParams(window.location.search);
@@ -908,8 +918,21 @@
             doc.querySelectorAll('.leaflet-control-minimap').forEach(el => el.remove());
         }
         
-        function loadMap() {
-            showLoading();
+        function clearGeocodePoll() {
+            if (geocodePollTimeoutId) {
+                clearTimeout(geocodePollTimeoutId);
+                geocodePollTimeoutId = null;
+            }
+            geocodePollRetries = 0;
+            const banner = document.getElementById('geocode-poll-banner');
+            if (banner) banner.style.display = 'none';
+        }
+        
+        function loadMap(isAutoPoll) {
+            if (!isAutoPoll) {
+                clearGeocodePoll();
+                showLoading();
+            }
             
             const dateFilter = document.getElementById('date-filter').value;
             const statusFilter = document.getElementById('status-filter').value;
@@ -938,29 +961,45 @@
                     
                     if (data.success) {
                         document.getElementById('map-content').innerHTML = data.map_html;
-                        hideLoading();
+                        if (!isAutoPoll) hideLoading();
                         setTimeout(cleanupMapOverlays, 200);
                         setTimeout(cleanupMapOverlays, 800);
                         
                         // 주문 목록 업데이트
                         currentOrders = data.orders || [];
-                        console.log('currentOrders 설정:', currentOrders);
-                        console.log('currentOrders 길이:', currentOrders.length);
                         updateOrderList(currentOrders);
                         document.getElementById('order-count-badge').textContent = currentOrders.length;
                         
-                        console.log(`지도 로드 완료: ${data.total_orders}개 주문, 주문 목록: ${currentOrders.length}개`);
+                        // 주소 변환 대기 중이면 6초 후 자동 갱신 (Worker가 순차 처리 ~4.5초/건)
+                        const hasPending = (data.orders || []).some(function(o) {
+                            return o.geocode_failed && (o.conversion_status === 'pending');
+                        });
+                        const banner = document.getElementById('geocode-poll-banner');
+                        const pollText = document.getElementById('geocode-poll-text');
+                        if (hasPending && geocodePollRetries < GEOCODE_POLL_MAX_RETRIES) {
+                            geocodePollRetries++;
+                            if (banner) banner.style.display = 'block';
+                            if (pollText) pollText.textContent = '주소 변환 중... ' + (GEOCODE_POLL_INTERVAL_MS/1000) + '초 후 자동 갱신 (' + geocodePollRetries + '/' + GEOCODE_POLL_MAX_RETRIES + ')';
+                            geocodePollTimeoutId = setTimeout(function() { loadMap(true); }, GEOCODE_POLL_INTERVAL_MS);
+                        } else {
+                            clearGeocodePoll();
+                        }
                     } else {
-                        showError(data.error || '지도를 로드할 수 없습니다.');
+                        clearGeocodePoll();
+                        if (!isAutoPoll) showError(data.error || '지도를 로드할 수 없습니다.');
                         currentOrders = [];
                         updateOrderList([]);
                     }
                 })
-                .catch(error => {
+                .catch(function(error) {
                     console.error('지도 로드 오류:', error);
-                    showError('서버 연결 오류가 발생했습니다.');
-                    currentOrders = [];
-                    updateOrderList([]);
+                    clearGeocodePoll();
+                    if (!isAutoPoll) {
+                        showError('서버 연결 오류가 발생했습니다.');
+                        currentOrders = [];
+                        updateOrderList([]);
+                    }
+                    // auto-poll 실패 시: 이전 화면 유지, 폴링만 중단
                 });
         }
         

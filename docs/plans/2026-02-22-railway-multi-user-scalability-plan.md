@@ -83,14 +83,14 @@
 1. 대용량 동시 업로드 시 웹 앱 자원 사용량 급감
 2. 업로드 처리량 상승
 
-### 2026-02-22 단계 C 적용 (진행 중)
+### 2026-02-22 단계 C 적용 (완료)
 - [x] 5.1 DB: models.py Order에 lat, lng, geocode_status, geocoded_at, address_hash 컬럼 추가
 - [x] 5.1 Alembic 마이그레이션: migrations/versions/add_geocode_columns_to_orders.py
 - [x] 5.2 services/geocode_helpers.py: compute_address_hash, extract_address_from_order
 - [x] 5.2 services/jobs/tasks.py: geocode_order_address job
 - [x] 5.2 services/jobs/queue.py: enqueue_geocode_order_address 헬퍼
-- [ ] 5.3 지도 API 전환 (api_map_data, api_generate_map, api_update_order_address)
-- [ ] 5.4 주소 변경 경로에 enqueue_geocode_order_address 연결
+- [x] 5.3 지도 API 전환 (api_map_data, api_generate_map, api_update_order_address)
+- [x] 5.4 주소 변경 경로에 enqueue_geocode_order_address 연결
 
 ### Phase C 실행 체크리스트 (상세: docs/plans/2026-02-22-phase-c-map-design.md)
 

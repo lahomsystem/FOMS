@@ -19,7 +19,7 @@ Report To: `grand-develop-master`
 ## Git 워크플로우 규칙
 1. **대형 변경은 반드시 feature 브랜치에서**
 2. **한 커밋 = 한 논리적 변경**
-3. **커밋 메시지**: 한글로 알기 쉽게 정리 → 커밋 후 푸시 (한글 깨지지 않게 UTF-8 유지, 필요 시 `git config core.quotepath false`)
+3. **커밋 메시지**: 한글로 알기 쉽게 정리 → 커밋 후 푸시. **Win11 한글 방지**: `git config core.quotepath false` 및 `i18n.commitEncoding`/`i18n.logOutputEncoding` utf-8 설정. 한글 메시지는 **반드시 UTF-8 파일에 저장 후** `git commit -F 파일경로` 사용 (`-m "한글"` 사용 금지, PowerShell 인코딩 깨짐).
 4. **선택적 접두어**: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:` (한글 요약과 함께 사용 가능)
 5. **테스트 후 머지** - 최소 `pytest -q`(없으면 smoke test) + `python app.py` 기동 확인
 6. **PR 기반 머지** - `deploy` 직접 push 금지, 보호 브랜치 정책 준수
