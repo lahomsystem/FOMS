@@ -231,15 +231,17 @@
             // 페이지 내에서는 항상 하나의 소켓만 유지하여 중복 connect/disconnect를 방지한다.
             // Flask 개발서버(debug)에서는 websocket 업그레이드가 불안정할 수 있어 polling-only로 고정한다.
             const forcePollingInDebug = {{ 'true' if config.DEBUG else 'false' }};
+            const allowPollingFallback = {{ 'true' if config.get('SOCKETIO_ALLOW_POLLING_FALLBACK') else 'false' }};
             window.getAppSocketOptions = window.getAppSocketOptions || function () {
                 const options = {
-                    transports: ['websocket', 'polling'],
-                    upgrade: true,
+                    transports: allowPollingFallback ? ['websocket', 'polling'] : ['websocket'],
+                    upgrade: allowPollingFallback,
+                    rememberUpgrade: true,
                     reconnection: true,
                     reconnectionAttempts: Infinity,
                     reconnectionDelay: 1000,
                     reconnectionDelayMax: 5000,
-                    timeout: 20000
+                    timeout: 30000
                 };
                 if (forcePollingInDebug) {
                     options.transports = ['polling'];
@@ -265,17 +267,15 @@
             // 연결 끊김/오류 시 stale sid 방지를 위해 싱글톤을 정리하고 새 핸드셰이크로 재연결 (RCA: ERR_CONNECTION_RESET / 400)
             function clearSocketAndScheduleReconnect(socketRef, delayMs) {
                 if (window.__appSocketReconnectScheduled) return;
-                if (socketRef && socketRef.io && typeof socketRef.io.reconnection === 'function') {
-                    try { socketRef.io.reconnection(false); } catch (e) {}
-                    try { socketRef.disconnect(); } catch (e) {}
-                }
-                window.__appSocket = null;
                 delayMs = delayMs || 2000;
                 console.warn('[Global Socket.IO] 연결이 끊어졌습니다. ' + (delayMs/1000) + '초 후 새 연결을 시도합니다.');
                 window.__appSocketReconnectScheduled = true;
                 setTimeout(function () {
                     window.__appSocketReconnectScheduled = false;
-                    if (typeof window.getAppSocket === 'function') window.getAppSocket();
+                    const s = window.__appSocket || socketRef;
+                    if (s && !s.connected && typeof s.connect === 'function') {
+                        try { s.connect(); } catch (e) {}
+                    }
                 }, delayMs);
             }
 
