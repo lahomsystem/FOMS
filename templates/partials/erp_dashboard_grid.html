@@ -15,11 +15,27 @@
               <span class="badge bg-primary fs-6 px-3 py-2">표시: <strong>{{ orders|length }}</strong>건</span>
             </div>
           </div>
+          {% if can_edit_erp and status_choices is defined %}
+          <div id="erp-grid-bulk-bar" class="d-none align-items-center gap-2 mb-2 flex-wrap">
+            <span class="text-secondary">선택: <strong id="erp-grid-selected-count">0</strong>건</span>
+            <span class="text-secondary">→</span>
+            <label class="mb-0 d-flex align-items-center gap-1">
+              <span class="text-secondary small">상태</span>
+              <select id="erp-grid-bulk-status" class="form-select form-select-sm" style="width: auto; min-width: 8rem;">
+                <option value="">선택</option>
+                {% for code, label in status_choices %}
+                <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <button type="button" class="btn btn-sm btn-primary" id="erp-grid-bulk-apply"><i class="fas fa-check me-1"></i>적용</button>
+          </div>
+          {% endif %}
           <div class="table-responsive">
             <table class="table table-sm table-hover align-middle erp-dashboard-grid-resizable" id="erp-grid">
               <thead>
                 <tr>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">경보</th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;"><div class="d-flex align-items-center gap-1 flex-nowrap">{% if can_edit_erp %}<input type="checkbox" class="form-check-input mt-0" id="erp-grid-select-all" title="전체 선택" aria-label="전체 선택">{% endif %}<span>경보</span></div></th>
                   <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">단계</th>
                   <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">퀘스트</th>
                   <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">고객</th>
@@ -38,28 +54,31 @@
                 {% for o in orders %}
                 <tr class="erp-main-row" data-order-id="{{ o.id }}">
                   <td data-label="경보">
-                    {% if o.alerts.urgent %}<span class="badge bg-danger fw-bold"
-                      style="font-size: 1.1rem; padding: 0.5em 0.8em;">긴급</span>{% endif %}
-                    {% if o.alerts.drawing_overdue %}<span class="badge bg-danger fw-bold"
-                      style="font-size: 1.1rem; padding: 0.5em 0.8em;">도면48h</span>{% endif %}
-                    {% if o.alerts.measurement_d4 %}
-                    {% set meas_d = o.alerts['measurement_days'] if 'measurement_days' in o.alerts else none %}
-                    <span class="badge bg-warning text-dark fw-bold"
-                      style="font-size: 1.1rem; padding: 0.5em 0.8em;">실측D-{{ meas_d if meas_d is not none else '4'
-                      }}</span>
-                    {% endif %}
-                    {% if o.alerts.construction_d3 %}
-                    {% set cons_d = o.alerts['construction_days'] if 'construction_days' in o.alerts else none %}
-                    <span class="badge bg-warning text-dark fw-bold"
-                      style="font-size: 1.1rem; padding: 0.5em 0.8em;">시공D-{{ cons_d if cons_d is not none else '3'
-                      }}</span>
-                    {% endif %}
-                    {% if o.alerts.production_d2 %}
-                    {% set prod_d = o.alerts['production_days'] if 'production_days' in o.alerts else none %}
-                    <span class="badge bg-warning text-dark fw-bold"
-                      style="font-size: 1.1rem; padding: 0.5em 0.8em;">생산D-{{ prod_d if prod_d is not none else '2'
-                      }}</span>
-                    {% endif %}
+                    <div class="d-flex align-items-center gap-1 flex-nowrap">
+                      {% if can_edit_erp %}<input type="checkbox" class="form-check-input erp-grid-order-check mt-0" data-order-id="{{ o.id }}" aria-label="주문 선택">{% endif %}
+                      {% if o.alerts.urgent %}<span class="badge bg-danger fw-bold"
+                        style="font-size: 1.1rem; padding: 0.5em 0.8em;">긴급</span>{% endif %}
+                      {% if o.alerts.drawing_overdue %}<span class="badge bg-danger fw-bold"
+                        style="font-size: 1.1rem; padding: 0.5em 0.8em;">도면48h</span>{% endif %}
+                      {% if o.alerts.measurement_d4 %}
+                      {% set meas_d = o.alerts['measurement_days'] if 'measurement_days' in o.alerts else none %}
+                      <span class="badge bg-warning text-dark fw-bold"
+                        style="font-size: 1.1rem; padding: 0.5em 0.8em;">실측D-{{ meas_d if meas_d is not none else '4'
+                        }}</span>
+                      {% endif %}
+                      {% if o.alerts.construction_d3 %}
+                      {% set cons_d = o.alerts['construction_days'] if 'construction_days' in o.alerts else none %}
+                      <span class="badge bg-warning text-dark fw-bold"
+                        style="font-size: 1.1rem; padding: 0.5em 0.8em;">시공D-{{ cons_d if cons_d is not none else '3'
+                        }}</span>
+                      {% endif %}
+                      {% if o.alerts.production_d2 %}
+                      {% set prod_d = o.alerts['production_days'] if 'production_days' in o.alerts else none %}
+                      <span class="badge bg-warning text-dark fw-bold"
+                        style="font-size: 1.1rem; padding: 0.5em 0.8em;">생산D-{{ prod_d if prod_d is not none else '2'
+                        }}</span>
+                      {% endif %}
+                    </div>
                   </td>
                   <td data-label="단계"><span class="badge bg-secondary"
                       style="font-size: 1.1rem; padding: 0.5em 0.7em;">{{ o.stage }}</span></td>

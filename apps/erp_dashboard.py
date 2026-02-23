@@ -25,6 +25,7 @@ from services.erp_display import (
     _erp_has_media,
 )
 from services.erp_shipment_settings import is_order_mine_for_user
+from constants import BULK_ACTION_STATUS
 
 
 erp_dashboard_bp = Blueprint('erp_dashboard', __name__, url_prefix='/erp')
@@ -341,4 +342,5 @@ def erp_dashboard():
         stage_labels=STAGE_LABELS,
         is_admin=is_admin,
         can_edit_erp=can_edit_erp_flag,
+        status_choices=list(BULK_ACTION_STATUS.items()),
     )

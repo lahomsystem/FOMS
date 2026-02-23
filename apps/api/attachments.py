@@ -126,6 +126,7 @@ def api_upload_session():
         filename = data.get('filename')
         size = data.get('size', 0)
         folder = data.get('folder', '')
+        category_param = data.get('category')
 
         if not filename or not isinstance(size, (int, float)) or size <= 0 or not folder:
             return jsonify({'success': False, 'message': 'filename, size, folder 필수가 필요합니다.'}), 400
@@ -149,17 +150,22 @@ def api_upload_session():
             size_mb = max_size / (1024 * 1024)
             return jsonify({'success': False, 'message': f'파일 크기가 너무 큽니다. 최대 {size_mb:.0f}MB'}), 400
 
-        parts = folder.split('/')
-        if len(parts) >= 2 and parts[0] == 'orders' and parts[1].isdigit():
-            seg = parts[2] if len(parts) > 2 else 'measurement'
-            if seg == 'drawing_gateway':
-                category = 'drawing'
-            elif seg == 'blueprint':
-                category = 'measurement'
+        if category_param is not None:
+            category = normalize_attachment_category(category_param) or 'measurement'
+        else:
+            parts = folder.split('/')
+            if len(parts) >= 2 and parts[0] == 'orders' and parts[1].isdigit():
+                seg = parts[2] if len(parts) > 2 else 'measurement'
+                if seg == 'drawing_gateway':
+                    category = 'drawing'
+                elif seg == 'blueprint':
+                    category = 'measurement'
+                else:
+                    category = normalize_attachment_category(seg) or 'measurement'
             else:
-                category = normalize_attachment_category(seg) or 'measurement'
-            if not allowed_erp_attachment_file(filename, category):
-                return jsonify({'success': False, 'message': '허용되지 않은 파일 형식입니다.'}), 400
+                category = 'measurement'
+        if not allowed_erp_attachment_file(filename, category):
+            return jsonify({'success': False, 'message': '허용되지 않은 파일 형식입니다.'}), 400
 
         from datetime import datetime, timezone
         expires_at = datetime.now(timezone.utc)

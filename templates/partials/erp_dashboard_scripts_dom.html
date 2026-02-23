@@ -216,4 +216,70 @@
 
           // 도면 수정 창구 이미지 뷰어 초기화
           initDrawingGatewayImageViewer();
+
+          // 작업 큐: 다중 선택 후 상태 일괄 변경
+          (function () {
+            const bulkBar = document.getElementById('erp-grid-bulk-bar');
+            const countEl = document.getElementById('erp-grid-selected-count');
+            const selectEl = document.getElementById('erp-grid-bulk-status');
+            const applyBtn = document.getElementById('erp-grid-bulk-apply');
+            const selectAll = document.getElementById('erp-grid-select-all');
+            const grid = document.getElementById('erp-grid');
+            if (!grid || !bulkBar || !countEl || !selectEl || !applyBtn) return;
+
+            function updateSelectedCount() {
+              const checks = grid.querySelectorAll('.erp-grid-order-check:checked');
+              const n = checks.length;
+              countEl.textContent = n;
+              if (n > 0) {
+                bulkBar.classList.remove('d-none');
+                bulkBar.classList.add('d-flex');
+              } else {
+                bulkBar.classList.add('d-none');
+                bulkBar.classList.remove('d-flex');
+              }
+              if (selectAll) selectAll.checked = n > 0 && grid.querySelectorAll('.erp-grid-order-check').length === n;
+            }
+
+            if (selectAll) {
+              selectAll.addEventListener('change', function () {
+                grid.querySelectorAll('.erp-grid-order-check').forEach(cb => { cb.checked = selectAll.checked; });
+                updateSelectedCount();
+              });
+            }
+            grid.addEventListener('change', function (e) {
+              if (e.target.classList.contains('erp-grid-order-check')) updateSelectedCount();
+            });
+
+            applyBtn.addEventListener('click', function () {
+              const status = (selectEl.value || '').trim();
+              if (!status) {
+                alert('변경할 상태를 선택하세요.');
+                return;
+              }
+              const orderIds = Array.from(grid.querySelectorAll('.erp-grid-order-check:checked'))
+                .map(cb => cb.getAttribute('data-order-id'))
+                .filter(Boolean);
+              if (orderIds.length === 0) {
+                alert('주문을 선택하세요.');
+                return;
+              }
+              applyBtn.disabled = true;
+              fetch('/api/bulk_update_order_status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ order_ids: orderIds, status: status })
+              })
+                .then(r => r.json())
+                .then(data => {
+                  if (data.success) {
+                    window.location.reload();
+                  } else {
+                    alert(data.message || '상태 변경에 실패했습니다.');
+                  }
+                })
+                .catch(() => alert('요청 중 오류가 발생했습니다.'))
+                .finally(() => { applyBtn.disabled = false; });
+            });
+          })();
         });

@@ -2,8 +2,8 @@
 from flask import Blueprint, jsonify, request, session, current_app
 from apps.auth import login_required, role_required, log_access
 from db import get_db
-from models import Order
-from constants import STATUS
+from models import Order, OrderEvent
+from constants import STATUS, BULK_ACTION_STATUS
 from sqlalchemy import or_, and_, func
 from sqlalchemy.orm.attributes import flag_modified
 import traceback
@@ -633,4 +633,69 @@ def update_order_status():
     except Exception as e:
         db.rollback()
         current_app.logger.error(f"주문 상태 업데이트 실패: {str(e)}")
+        return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
+
+
+@orders_bp.route('/bulk_update_order_status', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def bulk_update_order_status():
+    """작업 큐에서 다중 선택한 주문의 상태를 한 번에 변경. ERP Beta는 structured_data.workflow.stage 동기화."""
+    try:
+        data = request.get_json()
+        order_ids = data.get('order_ids')
+        new_status = (data.get('status') or '').strip()
+
+        if not order_ids or not isinstance(order_ids, list):
+            return jsonify({'success': False, 'message': 'order_ids(배열)가 필요합니다.'}), 400
+        if not new_status or new_status not in BULK_ACTION_STATUS:
+            return jsonify({'success': False, 'message': '유효한 status가 필요합니다. (DELETED 불가)'}), 400
+
+        db = get_db()
+        user_id = session.get('user_id')
+        updated = 0
+        for oid in order_ids:
+            try:
+                oid = int(oid)
+            except (TypeError, ValueError):
+                continue
+            order = db.query(Order).filter(Order.id == oid).first()
+            if not order:
+                continue
+            old_status_val = getattr(order, 'status', None) or ''
+            setattr(order, 'status', new_status)
+            sd_raw = getattr(order, 'structured_data', None)
+            if getattr(order, 'is_erp_beta', False) and sd_raw:
+                sd = sd_raw
+                if not isinstance(sd, dict):
+                    continue
+                wf = sd.get('workflow') or {}
+                old_stage = (wf.get('stage') or '').strip()
+                if new_status in STATUS:
+                    wf = dict(wf)
+                    wf['stage'] = new_status
+                    wf['stage_updated_at'] = datetime.datetime.now().isoformat()
+                    sd['workflow'] = wf
+                    setattr(order, 'structured_data', sd)
+                    flag_modified(order, 'structured_data')
+                db.add(OrderEvent(
+                    order_id=order.id,
+                    event_type='STAGE_CHANGED',
+                    payload={'from': old_stage, 'to': new_status, 'manual': True, 'bulk': True},
+                    created_by_user_id=user_id
+                ))
+            log_access(f"주문 #{order.id} 상태 변경: {old_status_val} → {new_status}", user_id)
+            updated += 1
+        db.commit()
+        return jsonify({
+            'success': True,
+            'updated': updated,
+            'new_status': new_status,
+            'status_display': STATUS.get(new_status, new_status)
+        })
+    except Exception as e:
+        db = get_db()
+        if db:
+            db.rollback()
+        current_app.logger.error(f"bulk_update_order_status 실패: {str(e)}")
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
