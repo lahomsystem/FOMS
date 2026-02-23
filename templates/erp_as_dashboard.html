@@ -391,18 +391,17 @@
       });
     });
 
-    // AS 내용 자동 저장 (Blur 시)
+    // AS 내용 자동 저장 (Blur 시 + 디바운스 자동 저장으로 새로고침 시에도 유지)
     document.querySelectorAll('.as-content-input').forEach(input => {
       let originalValue = input.value;
+      let saveTimeout = null;
+      const DEBOUNCE_MS = 1800;
 
-      input.addEventListener('blur', function () {
-        if (this.value === originalValue) return;
-
-        const orderId = this.dataset.orderId;
-        const value = this.value.trim();
-
-        this.style.backgroundColor = '#fff3cd';
-
+      function saveAsContent(el) {
+        const orderId = el.dataset.orderId;
+        const value = (el.value || '').trim();
+        if (el.value === originalValue) return;
+        el.style.backgroundColor = '#fff3cd';
         fetch('/api/update_order_field', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -414,7 +413,7 @@
         })
           .then(res => res.json())
           .then(data => {
-            this.style.backgroundColor = '';
+            el.style.backgroundColor = '';
             if (data.success) {
               originalValue = value;
               showFeedback('AS 내용이 저장되었습니다.');
@@ -423,9 +422,21 @@
             }
           })
           .catch(err => {
-            this.style.backgroundColor = '';
+            el.style.backgroundColor = '';
             showFeedback('네트워크 오류가 발생했습니다.', true);
           });
+      }
+
+      input.addEventListener('blur', function () {
+        if (saveTimeout) clearTimeout(saveTimeout);
+        if (this.value === originalValue) return;
+        saveAsContent(this);
+      });
+
+      input.addEventListener('input', function () {
+        if (saveTimeout) clearTimeout(saveTimeout);
+        if (this.value === originalValue) return;
+        saveTimeout = setTimeout(() => saveAsContent(this), DEBOUNCE_MS);
       });
 
       input.addEventListener('keypress', function (e) {

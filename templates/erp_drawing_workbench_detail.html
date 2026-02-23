@@ -933,6 +933,11 @@
             <input id="dw-revision-files" type="file" class="d-none" multiple onchange="handleRevisionFilesChange(this)">
           </div>
           <div id="dw-revision-preview" class="d-none"></div>
+          <div id="dw-revision-progress" class="mt-2 d-none">
+            <div class="progress" style="height: 20px;">
+              <div class="progress-bar progress-bar-striped progress-bar-animated" id="dw-revision-progress-bar" role="progressbar" style="width: 0%">0%</div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -1327,10 +1332,28 @@
     }
 
     async function uploadRevisionGatewayFiles(files) {
-      const uploadOne = async (file) => {
+      const progressWrap = document.getElementById('dw-revision-progress');
+      const progressBar = document.getElementById('dw-revision-progress-bar');
+      const fileList = Array.from(files || []);
+      const totalFiles = fileList.length;
+      if (progressWrap && totalFiles) progressWrap.classList.remove('d-none');
+      const setProgress = (p) => {
+        if (progressBar) { progressBar.style.width = p + '%'; progressBar.textContent = Math.round(p) + '%'; }
+      };
+
+      const uploadOne = async (file, index) => {
         const fallbackFormData = async () => {
           const formData = new FormData();
           formData.append('file', file);
+          if (typeof uploadWithProgress !== 'undefined') {
+            const data = await uploadWithProgress(`/api/orders/${orderId}/drawing-gateway-upload`, formData, {
+              onProgress: (p) => setProgress(((index + p / 100) / totalFiles) * 100)
+            });
+            if (!data.success || !data.file) {
+              throw new Error(file.name + ' 업로드 실패: ' + (data.message || '알 수 없는 오류'));
+            }
+            return data.file;
+          }
           const res = await fetch(`/api/orders/${orderId}/drawing-gateway-upload`, { method: 'POST', body: formData });
           const data = await res.json();
           if (!data.success || !data.file) {
@@ -1369,7 +1392,20 @@
         }
         return fallbackFormData();
       };
-      return Promise.all(Array.from(files || []).map(uploadOne));
+
+      const results = [];
+      for (let i = 0; i < fileList.length; i++) {
+        try {
+          const file = await uploadOne(fileList[i], i);
+          results.push(file);
+          setProgress(((i + 1) / totalFiles) * 100);
+        } catch (e) {
+          console.warn('uploadRevisionGatewayFiles', e);
+        }
+      }
+      if (progressWrap) progressWrap.classList.add('d-none');
+      if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
+      return results;
     }
 
     async function submitTransfer() {

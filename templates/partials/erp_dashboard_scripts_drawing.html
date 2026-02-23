@@ -66,35 +66,58 @@
 
           if (files.length > 0) {
             try {
-              const uploadPromises = Array.from(files).map(async (file) => {
+              const progressWrap = document.getElementById('erp-drawing-transfer-progress');
+              const progressBar = document.getElementById('erp-drawing-transfer-progress-bar');
+              if (progressWrap) progressWrap.classList.remove('d-none');
+              const fileList = Array.from(files);
+              const totalFiles = fileList.length;
+
+              const uploadPromises = fileList.map(async (file, index) => {
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('category', 'drawing');
                 formData.append('note', '[도면 전달 첨부] ' + note);
 
-                const upRes = await fetch(`/api/orders/${__currentTransferOrderId}/attachments`, {
-                  method: 'POST',
-                  body: formData
-                });
-                const upData = await upRes.json();
-                if (!upData.success) {
-                  throw new Error(file.name + ' 업로드 실패: ' + (upData.message || upData.error));
+                if (typeof uploadWithProgress !== 'undefined') {
+                  const upData = await uploadWithProgress(
+                    `/api/orders/${__currentTransferOrderId}/attachments`,
+                    formData,
+                    {
+                      onProgress: (p) => {
+                        if (progressBar) {
+                          const totalPercent = Math.round(((index + p / 100) / totalFiles) * 100);
+                          progressBar.style.width = totalPercent + '%';
+                          progressBar.textContent = totalPercent + '%';
+                        }
+                      }
+                    }
+                  );
+                  if (!upData.success) throw new Error(file.name + ' 업로드 실패: ' + (upData.message || upData.error));
+                  const att = upData.attachment || {};
+                  if (att.storage_key) {
+                    return { key: att.storage_key, filename: att.filename || file.name, view_url: att.view_url || `/api/files/view/${att.storage_key}`, download_url: att.download_url || `/api/files/download/${att.storage_key}` };
+                  }
+                  return null;
                 }
+                const upRes = await fetch(`/api/orders/${__currentTransferOrderId}/attachments`, { method: 'POST', body: formData });
+                const upData = await upRes.json();
+                if (!upData.success) throw new Error(file.name + ' 업로드 실패: ' + (upData.message || upData.error));
                 const att = upData.attachment || {};
                 if (att.storage_key) {
-                  return {
-                    key: att.storage_key,
-                    filename: att.filename || file.name,
-                    view_url: att.view_url || `/api/files/view/${att.storage_key}`,
-                    download_url: att.download_url || `/api/files/download/${att.storage_key}`,
-                  };
+                  return { key: att.storage_key, filename: att.filename || file.name, view_url: att.view_url || `/api/files/view/${att.storage_key}`, download_url: att.download_url || `/api/files/download/${att.storage_key}` };
                 }
                 return null;
               });
 
               const results = await Promise.all(uploadPromises);
               createdFiles = results.filter(r => r !== null);
+              if (progressWrap) progressWrap.classList.add('d-none');
+              if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
             } catch (e) {
+              const progressWrap = document.getElementById('erp-drawing-transfer-progress');
+              const progressBar = document.getElementById('erp-drawing-transfer-progress-bar');
+              if (progressWrap) progressWrap.classList.add('d-none');
+              if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
               console.error(e);
               showErpToast(e.message || '파일 업로드 중 오류가 발생했습니다.', 'error');
               return;

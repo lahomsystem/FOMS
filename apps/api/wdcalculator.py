@@ -674,7 +674,7 @@ def api_wdcalculator_search_orders():
         ).order_by(Order.created_at.desc()).limit(50).all()
         orders_list = [{
             'id': o.id, 'customer_name': o.customer_name, 'phone': o.phone, 'address': o.address,
-            'product': o.product, 'status': o.status, 'received_date': o.received_date.isoformat() if o.received_date else None
+            'product': o.product, 'status': o.status, 'received_date': o.received_date if o.received_date else None
         } for o in orders]
         return jsonify({'success': True, 'orders': orders_list, 'count': len(orders_list)})
     except Exception as e:

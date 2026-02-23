@@ -1242,24 +1242,48 @@ ${list.map(renderCard).join('')}
         const category = erpNormalizeAttachmentCategory(categoryEl ? categoryEl.value : 'measurement');
         erpAttachmentsSetStatus(`업로드 중... (${files.length}개)`);
 
+        const progressWrap = document.getElementById('erp-attachments-progress');
+        const progressBar = document.getElementById('erp-attachments-progress-bar');
+        if (progressWrap) progressWrap.classList.remove('d-none');
+        const totalFiles = files.length;
+
         let ok = 0;
         if (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD) {
-            for (const f of files) {
-                const data = await erpDoDirectUploadOne(f, category, null);
+            for (let i = 0; i < files.length; i++) {
+                if (progressBar) { const p = Math.round(((i + 0.5) / totalFiles) * 100); progressBar.style.width = p + '%'; progressBar.textContent = p + '%'; }
+                const data = await erpDoDirectUploadOne(files[i], category, null);
                 if (data.success) ok += 1;
                 else console.warn('upload failed', data);
             }
         } else {
-            for (const f of files) {
+            for (let i = 0; i < files.length; i++) {
+                const f = files[i];
                 const fd = new FormData();
                 fd.append('file', f);
                 fd.append('category', category);
-                const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
-                const data = await res.json();
-                if (data.success) ok += 1;
-                else console.warn('upload failed', data);
+                if (typeof uploadWithProgress !== 'undefined') {
+                    const data = await uploadWithProgress(`/api/orders/${ORDER_ID}/attachments`, fd, {
+                        onProgress: (p) => {
+                            if (progressBar) {
+                                const totalPercent = Math.round(((i + p / 100) / totalFiles) * 100);
+                                progressBar.style.width = totalPercent + '%';
+                                progressBar.textContent = totalPercent + '%';
+                            }
+                        }
+                    });
+                    if (data.success) ok += 1;
+                    else console.warn('upload failed', data);
+                } else {
+                    const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if (data.success) ok += 1;
+                    else console.warn('upload failed', data);
+                }
             }
         }
+
+        if (progressWrap) progressWrap.classList.add('d-none');
+        if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
 
         input.value = '';
         erpAttachmentsSetStatus(`업로드 완료: ${ok}/${files.length}`);

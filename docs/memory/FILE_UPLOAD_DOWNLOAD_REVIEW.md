@@ -69,6 +69,30 @@
 
 ---
 
+## 4) 업로드 진행률 표시 (2026-02-23 적용)
+
+**목표**: 모든 파일 업로드 구간에서 도면작업실처럼 **실제 업로드 %**를 막대 그래프로 표시.
+
+### 적용 현황
+| 구간 | 진행률 UI | 방식 | 비고 |
+|------|-----------|------|------|
+| **도면작업실 전달** | `#dw-transfer-progress` | XHR `upload.onprogress` | 기존 패턴 |
+| **채팅 파일** | `#chat-upload-progress` | `uploadWithProgress()` (multipart) / 90→100% (direct) | 공통 유틸 |
+| **ERP 대시보드 도면 전달** | `#erp-drawing-transfer-progress` | `uploadWithProgress()` 파일별 | 공통 유틸 |
+| **주문 상세 도면(blueprint)** | `#blueprint-upload-progress` | `uploadWithProgress()` | 공통 유틸 |
+| **ERP Beta 첨부** | `#erp-attachments-progress` | direct 시 (i+0.5)/N*100, multipart 시 `uploadWithProgress()` | 신규 적용 |
+| **도면작업실 수정요청 첨부** | `#dw-revision-progress` | 순차 업로드 + `uploadWithProgress()` fallback | 신규 적용 |
+
+### 공통 유틸
+- **`static/js/upload-progress.js`**: `window.uploadWithProgress(url, formData, { onProgress, timeout })` — XHR 기반, `xhr.upload.onprogress`로 0~100% 콜백. `layout.html`에서 전역 로드.
+
+### GDM 리뷰 요약
+- **일관성**: 도면작업실 전달 패턴을 참고해 multipart 업로드는 XHR 진행률, direct(PUT) 업로드는 퍼센트 이벤트 없어 단계(90→100%)만 표시.
+- **품질**: progress bar는 `d-none`으로 초기 숨김, 완료/에러 시 0%로 초기화 후 숨김. `uploadWithProgress` 미정의 시 기존 `fetch` fallback 유지.
+- **권장**: 신규 업로드 UI 추가 시 동일 패턴(progress wrap + bar + `uploadWithProgress` 또는 단계 표시) 적용.
+
+---
+
 ## 참고 파일
 - `apps/api/files.py`: view, download, presigned_urls
 - `templates/partials/erp_beta_js.html`: erpOpenAttachmentPreview, erpDoDirectUploadOne

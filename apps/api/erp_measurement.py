@@ -15,6 +15,7 @@ from apps.auth import login_required, role_required
 from services.erp_permissions import erp_edit_required
 from foms_address_converter import FOMSAddressConverter
 from services.jobs.queue import enqueue_geocode_order_address
+from services.erp_display import get_today_kst
 
 erp_measurement_bp = Blueprint(
     'erp_measurement',
@@ -103,7 +104,7 @@ def api_erp_measurement_update(order_id):
 def api_erp_measurement_route():
     """ERP 실측 동선 추천 (MVP)"""
     db = get_db()
-    date_filter = request.args.get('date') or datetime.datetime.now().strftime('%Y-%m-%d')
+    date_filter = request.args.get('date') or get_today_kst().strftime('%Y-%m-%d')
     manager_filter = (request.args.get('manager') or '').strip()
     limit = int(request.args.get('limit', 20))
     limit = max(1, min(limit, 30))

@@ -38,6 +38,17 @@ function handleFileSelect(files) {
     finalContent.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 업로드 중...';
     preview.classList.add('active');
     
+    var progressWrap = document.getElementById('chat-upload-progress');
+    var progressBar = document.getElementById('chat-upload-progress-bar');
+    function showProgress(percent) {
+      if (progressWrap) progressWrap.classList.remove('d-none');
+      if (progressBar) { progressBar.style.width = percent + '%'; progressBar.textContent = percent + '%'; }
+    }
+    function hideProgress() {
+      if (progressWrap) progressWrap.classList.add('d-none');
+      if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
+    }
+    
     if (USE_DIRECT_UPLOAD_CHAT) {
         // Phase D: session -> PUT -> complete
         fetch('/api/chat/upload/session', {
@@ -60,13 +71,17 @@ function handleFileSelect(files) {
                 headers: { 'Content-Type': file.type || 'application/octet-stream' }
             }).then(() => sessionData.key);
         })
-        .then(key => fetch('/api/chat/upload/complete', {
+        .then(key => {
+            showProgress(90);
+            return fetch('/api/chat/upload/complete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key: key, filename: file.name })
         }))
         .then(r => r.json())
         .then(data => {
+            showProgress(100);
+            hideProgress();
             if (data.success) {
                 previewFile = { type: data.file_info.file_type, info: data.file_info };
                 showPreview(data.file_info);
@@ -81,30 +96,75 @@ function handleFileSelect(files) {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('room_id', currentRoomId);
-            fetch('/api/chat/upload', { method: 'POST', body: formData })
-            .then(r => r.json())
+            if (typeof uploadWithProgress !== 'undefined') {
+                uploadWithProgress('/api/chat/upload', formData, { onProgress: showProgress })
+                .then(data => {
+                    showProgress(100);
+                    hideProgress();
+                    if (data.success) {
+                        previewFile = { type: data.file_info.file_type, info: data.file_info };
+                        showPreview(data.file_info);
+                    } else {
+                        preview.classList.remove('active');
+                        if (finalContent) finalContent.innerHTML = '';
+                        alert('파일 업로드 실패: ' + (data.message || '알 수 없는 오류'));
+                    }
+                })
+                .catch(err2 => {
+                    hideProgress();
+                    console.error('파일 업로드 오류:', err2);
+                    preview.classList.remove('active');
+                    if (finalContent) finalContent.innerHTML = '';
+                    alert('파일 업로드 중 오류가 발생했습니다.');
+                });
+            } else {
+                fetch('/api/chat/upload', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        previewFile = { type: data.file_info.file_type, info: data.file_info };
+                        showPreview(data.file_info);
+                    } else {
+                        preview.classList.remove('active');
+                        if (finalContent) finalContent.innerHTML = '';
+                        alert('파일 업로드 실패: ' + (data.message || '알 수 없는 오류'));
+                    }
+                })
+                .catch(err2 => {
+                    console.error('파일 업로드 오류:', err2);
+                    preview.classList.remove('active');
+                    if (finalContent) finalContent.innerHTML = '';
+                    alert('파일 업로드 중 오류가 발생했습니다.');
+                });
+            }
+        });
+    } else {
+        // 기존 multipart (진행률 표시)
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('room_id', currentRoomId);
+        if (typeof uploadWithProgress !== 'undefined') {
+            uploadWithProgress('/api/chat/upload', formData, { onProgress: showProgress })
             .then(data => {
+                showProgress(100);
+                hideProgress();
                 if (data.success) {
                     previewFile = { type: data.file_info.file_type, info: data.file_info };
                     showPreview(data.file_info);
                 } else {
                     preview.classList.remove('active');
                     if (finalContent) finalContent.innerHTML = '';
-                    alert('파일 업로드 실패: ' + (data.message || '알 수 없는 오류'));
+                    alert('파일 업로드 실패: ' + data.message);
                 }
             })
-            .catch(err2 => {
-                console.error('파일 업로드 오류:', err2);
+            .catch(err => {
+                hideProgress();
+                console.error('파일 업로드 오류:', err);
                 preview.classList.remove('active');
                 if (finalContent) finalContent.innerHTML = '';
                 alert('파일 업로드 중 오류가 발생했습니다.');
             });
-        });
-    } else {
-        // 기존 multipart
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('room_id', currentRoomId);
+        } else {
         fetch('/api/chat/upload', { method: 'POST', body: formData })
         .then(r => r.json())
         .then(data => {
@@ -123,6 +183,7 @@ function handleFileSelect(files) {
             if (finalContent) finalContent.innerHTML = '';
             alert('파일 업로드 중 오류가 발생했습니다.');
         });
+        }
     }
 }
 
