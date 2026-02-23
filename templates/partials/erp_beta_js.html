@@ -1271,12 +1271,16 @@ ${list.map(renderCard).join('')}
         // Items
         const rows = erpGetItemRows();
         const itemCount = rows.length;
+        const allExtraInputs = [];
 
         rows.forEach((row, index) => {
             const getRowVal = (key) => {
                 const el = row.querySelector(`[data-erp="${key}"]`);
                 return el ? (el.value || '').trim() : '';
             };
+
+            const extraInput = getRowVal('extra_input');
+            if (extraInput) allExtraInputs.push(extraInput);
 
             const pName = getRowVal('product_name');
             // Spec combination
@@ -1313,7 +1317,14 @@ ${list.map(renderCard).join('')}
             text += `기 타 : ${misc}\n`;
             text += `\n`;
         });
-        
+
+        // 추가 입력 (기타 <-> 선결제금액 사이)
+        if (allExtraInputs.length > 0) {
+            const extraBlock = allExtraInputs.join('\n');
+            text += `추가 입력 : ${extraBlock}\n`;
+            text += `\n`;
+        }
+
         // Footer
         const totalText = document.getElementById('erp-items-total')?.textContent || '0원';
         // Remove '원' for calculation if needed, but here we just need text.
