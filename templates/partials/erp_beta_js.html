@@ -402,6 +402,8 @@
         document.getElementById('erp-orderer').value = sd?.parties?.orderer?.name || '';
         document.getElementById('erp-manager').value = sd?.parties?.manager?.name || '';
         document.getElementById('erp-workflow-stage').value = sd?.workflow?.stage || '';
+        const erpNotesEl = document.getElementById('erp-notes');
+        if (erpNotesEl) erpNotesEl.value = data.notes || '';
         document.getElementById('erp-urgent-flag').checked = !!sd?.flags?.urgent;
         document.getElementById('erp-urgent-reason').value = sd?.flags?.urgent_reason || '';
         // 주소 로드: 주소+상세주소는 한 필드(erp-address)에 함께 표기
@@ -594,6 +596,7 @@
             const received_date = receivedDateEl ? (receivedDateEl.value || '').trim() : '';
             const received_time = receivedTimeEl ? (receivedTimeEl.value || '').trim() : '';
 
+            const notesVal = (typeof getVal === 'function' ? getVal('erp-notes') : (document.getElementById('erp-notes')?.value || '')).trim();
             const res = await fetch(`/api/orders/${targetId}/structured`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -603,7 +606,8 @@
                     structured_schema_version: 1,
                     structured_confidence: structured_data.confidence,
                     received_date: received_date || undefined,
-                    received_time: received_time || undefined
+                    received_time: received_time || undefined,
+                    notes: notesVal || undefined
                 })
             });
             const data = await res.json();

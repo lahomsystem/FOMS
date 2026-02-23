@@ -95,7 +95,8 @@ def api_get_order_structured(order_id):
             'structured_confidence': order.structured_confidence,
             'structured_updated_at': order.structured_updated_at.strftime('%Y-%m-%d %H:%M:%S') if order.structured_updated_at else None,
             'received_date': order.received_date or '',
-            'received_time': order.received_time or ''
+            'received_time': order.received_time or '',
+            'notes': order.notes or ''
         })
     except Exception as e:
         import traceback
@@ -125,6 +126,7 @@ def api_put_order_structured(order_id):
         confidence = payload.get('structured_confidence')
         received_date = payload.get('received_date')
         received_time = payload.get('received_time')
+        notes = payload.get('notes')
         now = datetime.datetime.now()
         draft_cleared = False
 
@@ -140,6 +142,8 @@ def api_put_order_structured(order_id):
             order.received_date = received_date.strip()
         if received_time is not None and isinstance(received_time, str):
             order.received_time = received_time.strip() or None
+        if notes is not None:
+            order.notes = (notes if isinstance(notes, str) else str(notes or '')) or None
         if structured_data is not None:
             if not structured_data.get('workflow'):
                 structured_data['workflow'] = {}
