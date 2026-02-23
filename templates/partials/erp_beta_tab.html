@@ -5,7 +5,7 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
 - JS expects a tab button with id="erp-beta-tab" to hook tab shown events.
 #}
 {% set erp_beta_active = erp_beta_active or false %}
-<div class="tab-pane fade{% if erp_beta_active %} show active{% endif %}" id="erp-beta" role="tabpanel">
+<div class="tab-pane fade{% if erp_beta_active %} show active{% endif %}" id="erp-beta" role="tabpanel" lang="ko">
     <div class="card border-secondary" data-erp-order-id="{{ order.id if order is defined and order else 0 }}">
         <div class="card-header d-flex justify-content-between align-items-center">
             <div class="fw-bold">
@@ -69,17 +69,17 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                                 </div>
                             </div>
                             <input type="text" class="form-control form-control-sm" id="erp-urgent-reason"
-                                placeholder="긴급 사유 (예: 시공일 임박/현장 변경/자재 이슈 등)" autocomplete="off">
+                                placeholder="긴급 사유 (예: 시공일 임박/현장 변경/자재 이슈 등)" autocomplete="off" lang="ko">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label mb-1">고객명</label>
                             <input type="text" class="form-control form-control-sm" id="erp-customer-name"
-                                autocomplete="off">
+                                autocomplete="off" lang="ko">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label mb-1">연락처</label>
                             <input type="tel" class="form-control form-control-sm" id="erp-customer-phone"
-                                autocomplete="tel">
+                                autocomplete="tel" lang="ko">
                             <div class="form-check mt-1">
                                 <input class="form-check-input" type="checkbox" id="erp-manual-phone-input"
                                     autocomplete="off">
@@ -92,16 +92,16 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                             </button>
                             <div class="collapse mt-1" id="erp-collapse-phone-note">
                                 <input type="text" class="form-control form-control-sm" id="erp-phone-note"
-                                    placeholder="예: 부재중/문자 요청/통화 가능 시간 등" autocomplete="off">
+                                    placeholder="예: 부재중/문자 요청/통화 가능 시간 등" autocomplete="off" lang="ko">
                             </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label mb-1">발주사(개인/회사명)</label>
-                            <input type="text" class="form-control form-control-sm" id="erp-orderer" autocomplete="off">
+                            <input type="text" class="form-control form-control-sm" id="erp-orderer" autocomplete="off" lang="ko">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label mb-1">담당자</label>
-                            <input type="text" class="form-control form-control-sm" id="erp-manager" autocomplete="off">
+                            <input type="text" class="form-control form-control-sm" id="erp-manager" autocomplete="off" lang="ko">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label mb-1">단계(Workflow)</label>
@@ -128,7 +128,7 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                                 </button>
                             </div>
                             <input type="text" class="form-control form-control-sm" id="erp-address"
-                                placeholder="주소를 입력하거나 찾기 버튼을 클릭하세요" autocomplete="off">
+                                placeholder="주소를 입력하거나 찾기 버튼을 클릭하세요" autocomplete="off" lang="ko">
                             <button class="btn btn-sm btn-link p-0 mt-1 text-secondary text-decoration-none collapsed"
                                 id="erp-collapse-address-note-btn" type="button"
                                 data-bs-toggle="collapse" data-bs-target="#erp-collapse-address-note"
@@ -137,7 +137,7 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                             </button>
                             <div class="collapse mt-1" id="erp-collapse-address-note">
                                 <input type="text" class="form-control form-control-sm" id="erp-address-note"
-                                    placeholder="예: 주차/출입/엘리베이터/경비실 등" autocomplete="off">
+                                    placeholder="예: 주차/출입/엘리베이터/경비실 등" autocomplete="off" lang="ko">
                             </div>
                         </div>
                     </div>
@@ -159,7 +159,7 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                                 <option value="종일">종일</option>
                             </select>
                             <input type="text" class="form-control form-control-sm mt-2" id="erp-measurement-time"
-                                placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off">
+                                placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off" lang="ko">
                         </div>
                         <div class="col-12">
                             <button class="btn btn-sm btn-link p-0 mt-1 text-secondary" type="button"
@@ -171,7 +171,7 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                                 <div class="mt-1">
                                     <label class="form-label mb-1">실측 특이사항</label>
                                     <input type="text" class="form-control form-control-sm" id="erp-measurement-note"
-                                        placeholder="예: 시간 변경 가능/현장 특이사항/준비물 등" autocomplete="off">
+                                        placeholder="예: 시간 변경 가능/현장 특이사항/준비물 등" autocomplete="off" lang="ko">
                                 </div>
                             </div>
                         </div>

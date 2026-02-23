@@ -879,8 +879,7 @@
                     <div class="d-flex flex-column gap-1 shipment-spec-list">
                       {% if r.is_erp_beta and erp_items %}
                       {% for it in erp_items %}
-                      {% set w_val = (it.get('spec_width') or it.get('spec') or '') %}
-                      <div class="shipment-spec-line">{{ w_val|spec_w300 or '-' }}</div>
+                      <div class="shipment-spec-line">{{ it|item_spec_w300 or '-' }}</div>
                       {% endfor %}
                       {% else %}
                       <div class="shipment-spec-line">-</div>
