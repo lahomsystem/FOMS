@@ -187,7 +187,8 @@
                 view_url: gatewayViewUrl(f),
                 download_url: gatewayDownloadUrl(f),
                 filename: gatewayFileName(f),
-                file_type: 'image'
+                file_type: 'image',
+                key: (f && f.key) || ''
              }));
              window.GlobalImageViewer.open(viewerFiles, index || 0);
           } else {

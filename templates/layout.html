@@ -1111,12 +1111,16 @@
                 init(); // Ensure init
                 if (!files || !files.length) return;
                 
-                // Normalize files structure
-                state.files = files.map(f => ({
-                    url: f.view_url || f.url || (f.key ? `/api/files/view/${f.key}` : ''),
-                    filename: f.filename || f.name || '이미지',
-                    download_url: f.download_url || (f.key ? `/api/files/download/${f.key}` : '')
-                })).filter(f => !!f.url);
+                // Normalize files structure (key for R2 presigned direct link)
+                state.files = files.map(f => {
+                    const key = f.key || f.storage_key || (f.download_url && String(f.download_url).replace(/^\/api\/files\/download\//, '')) || (f.view_url && String(f.view_url).replace(/^\/api\/files\/view\//, '')) || (f.url && String(f.url).replace(/^\/api\/files\/view\//, '')) || null;
+                    return {
+                        url: f.view_url || f.url || (key ? `/api/files/view/${key}` : ''),
+                        filename: f.filename || f.name || '이미지',
+                        download_url: f.download_url || (key ? `/api/files/download/${key}` : ''),
+                        key: key || null
+                    };
+                }).filter(f => !!f.url);
                 
                 if (state.files.length === 0) {
                     alert('표시할 이미지가 없습니다.');
@@ -1164,6 +1168,13 @@
                     els.root.classList.add('single-file');
                 }
                 requestAnimationFrame(positionNavButtons);
+                
+                if (file.key) {
+                    var path = (function(k){ return String(k).split('/').map(function(s){ return encodeURIComponent(s); }).join('/'); })(file.key);
+                    fetch('/api/files/presigned-urls/' + path).then(function(r){ return r.json(); }).then(function(data){
+                        if (data.success && data.view_url && state.files[state.index] === file) els.image.src = data.view_url;
+                    }).catch(function(){});
+                }
             }
             
             function updateTransform() {

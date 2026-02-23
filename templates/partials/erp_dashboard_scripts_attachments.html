@@ -76,7 +76,8 @@
                   view_url: a.view_url || '',
                   download_url: a.download_url || (a.view_url || ''),
                   filename: a.filename || '이미지',
-                  file_type: 'image'
+                  file_type: 'image',
+                  key: a.storage_key || ''
                 }))
                 .filter((a) => !!a.view_url);
 

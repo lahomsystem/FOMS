@@ -23,14 +23,17 @@ function renderMessage(msg) {
                 const imageUrl = attachment.url || attachment.storage_url;
                 const storageKey = attachment.storage_key || '';
                 const filename = attachment.filename || `image_${index + 1}.jpg`;
+                const safeAttr = (s) => String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                const safeJsStr = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 
                 return `
                     <div class="message-file-image-wrapper">
                         <img src="${attachment.thumbnail_url || imageUrl}" 
-                             onclick="openImageLightbox('${imageUrl}')" 
+                             data-url="${safeAttr(imageUrl)}" data-key="${safeAttr(storageKey)}"
+                             onclick="openImageLightbox(this)" 
                              style="cursor: zoom-in; max-width: 300px; border-radius: 8px; background-color: white; padding: 4px; display: block;">
                         <button class="chat-image-download-btn" 
-                                onclick="downloadChatImage('${storageKey}', '${escapeHtml(filename)}', event)"
+                                onclick="downloadChatImage('${safeJsStr(storageKey)}', '${escapeHtml(filename)}', event)"
                                 title="다운로드">
                             <i class="fas fa-download"></i>
                         </button>
@@ -57,6 +60,7 @@ function renderMessage(msg) {
                 const videoUrl = attachment.url || attachment.storage_url;
                 const storageKey = attachment.storage_key || '';
                 const filename = attachment.filename || 'video.mp4';
+                const safeJsStr = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 
                 content = `
                     <div class="message-file" style="position: relative; display: inline-block;">
@@ -64,7 +68,7 @@ function renderMessage(msg) {
                             <source src="${videoUrl}">
                         </video>
                         <button class="chat-image-download-btn" 
-                                onclick="downloadChatImage('${storageKey}', '${escapeHtml(filename)}', event)"
+                                onclick="downloadChatImage('${safeJsStr(storageKey)}', '${escapeHtml(filename)}', event)"
                                 title="다운로드">
                             <i class="fas fa-download"></i>
                         </button>

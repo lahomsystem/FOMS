@@ -1149,6 +1149,28 @@ ${list.map(renderCard).join('')}
 
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
         modal.show();
+
+        var storageKey = a.storage_key || (a.download_url && String(a.download_url).replace(/^\/api\/files\/download\//, ''));
+        if (storageKey) {
+            var presignedPath = storageKey.split('/').map(function (s) { return encodeURIComponent(s); }).join('/');
+            fetch('/api/files/presigned-urls/' + presignedPath)
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data.success) return;
+                    if (data.download_url) {
+                        dl.href = data.download_url;
+                        var downloadLink = body.querySelector('a.btn-primary') || body.querySelector('a[href*="download"]');
+                        if (downloadLink) downloadLink.href = data.download_url;
+                    }
+                    if (data.view_url) {
+                        var img = body.querySelector('img');
+                        if (img) img.src = data.view_url;
+                        var video = body.querySelector('video');
+                        if (video) video.src = data.view_url;
+                    }
+                })
+                .catch(function () {});
+        }
     }
 
     async function erpDoDirectUploadOne(file, category, itemIndex) {

@@ -42,6 +42,7 @@
           data-view-url="{{ view_url }}"
           data-download-url="{{ download_url }}"
           data-filename="{{ fname }}"
+          data-key="{{ fkey }}"
           onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))">
           <img src="{{ view_url }}" alt="{{ fname }}">
         </div>
@@ -534,6 +535,7 @@
                       data-view-url="{{ photo.view_url }}"
                       data-download-url="{{ photo.download_url }}"
                       data-filename="{{ photo.filename }}"
+                      data-key="{{ photo.key }}"
                       onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))">
                       <img src="{{ photo.view_url }}" alt="{{ photo.filename }}">
                     </div>
@@ -564,6 +566,7 @@
                 data-view-url="{{ photo.view_url }}"
                 data-download-url="{{ photo.download_url }}"
                 data-filename="{{ photo.filename }}"
+                data-key="{{ photo.key }}"
                 onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))">
                 <img src="{{ photo.view_url }}" alt="{{ photo.filename }}">
               </div>
@@ -987,6 +990,7 @@
         view_url: el.dataset.viewUrl || '',
         download_url: el.dataset.downloadUrl || '',
         filename: el.dataset.filename || '이미지',
+        key: el.dataset.key || ''
       })).filter((f) => !!f.view_url);
       
       if (!files.length) return;
@@ -1236,73 +1240,89 @@
     async function uploadToDrawingCategory(files, noteText) {
       const progressBar = document.getElementById('dw-transfer-progress-bar');
       const progressWrap = document.getElementById('dw-transfer-progress');
+      const fileList = Array.from(files || []);
       
       if (progressWrap) progressWrap.classList.remove('d-none');
       
-      const uploadPromises = Array.from(files || []).map(async (file, index) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('category', 'drawing');
-        formData.append('note', noteText || '');
-        
-        const xhr = new XMLHttpRequest();
-        
-        return new Promise((resolve, reject) => {
-          xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable && progressBar) {
-              const percentComplete = Math.round((e.loaded / e.total) * 100);
-              const totalPercent = Math.round(((index + percentComplete / 100) / files.length) * 100);
-              progressBar.style.width = totalPercent + '%';
-              progressBar.textContent = totalPercent + '%';
-            }
-          });
-          
-          xhr.addEventListener('load', () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                const upData = JSON.parse(xhr.responseText);
-                if (!upData.success) {
-                  reject(new Error(file.name + ' 업로드 실패: ' + (upData.message || upData.error || '알 수 없는 오류')));
-                } else {
-                  const att = upData.attachment || {};
-                  if (!att.storage_key) {
-                    resolve(null);
+      const uploadOne = async (file, index) => {
+        const updateProgress = (percent) => {
+          if (progressBar) {
+            const totalPercent = Math.round(((index + percent / 100) / fileList.length) * 100);
+            progressBar.style.width = totalPercent + '%';
+            progressBar.textContent = totalPercent + '%';
+          }
+        };
+        const fallbackXHR = () => {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('category', 'drawing');
+          formData.append('note', noteText || '');
+          return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.timeout = 300000;
+            xhr.upload.addEventListener('progress', (e) => {
+              if (e.lengthComputable) updateProgress((e.loaded / e.total) * 100);
+            });
+            xhr.addEventListener('load', () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                  const upData = JSON.parse(xhr.responseText);
+                  if (!upData.success) {
+                    reject(new Error(file.name + ' 업로드 실패: ' + (upData.message || upData.error || '알 수 없는 오류')));
                   } else {
-                    resolve({
-                      key: att.storage_key,
-                      filename: att.filename || file.name,
-                      view_url: att.view_url || `/api/files/view/${att.storage_key}`,
-                      download_url: att.download_url || `/api/files/download/${att.storage_key}`
-                    });
+                    const att = upData.attachment || {};
+                    if (!att.storage_key) resolve(null);
+                    else resolve({ key: att.storage_key, filename: att.filename || file.name, view_url: att.view_url || `/api/files/view/${att.storage_key}`, download_url: att.download_url || `/api/files/download/${att.storage_key}` });
                   }
-                }
-              } catch (e) {
-                reject(new Error(file.name + ' 응답 파싱 실패'));
-              }
-            } else {
-              reject(new Error(file.name + ' 업로드 실패: HTTP ' + xhr.status));
-            }
+                } catch (e) { reject(new Error(file.name + ' 응답 파싱 실패')); }
+              } else reject(new Error(file.name + ' 업로드 실패: HTTP ' + xhr.status));
+            });
+            xhr.addEventListener('error', () => reject(new Error(file.name + ' 업로드 중 네트워크 오류')));
+            xhr.addEventListener('timeout', () => reject(new Error(file.name + ' 업로드 시간 초과(5분)')));
+            xhr.open('POST', `/api/orders/${orderId}/attachments`);
+            xhr.send(formData);
           });
-          
-          xhr.addEventListener('error', () => {
-            reject(new Error(file.name + ' 업로드 중 네트워크 오류'));
+        };
+        if (USE_DIRECT_UPLOAD) {
+          const folder = `orders/${orderId}/attachments`;
+          let sessRes;
+          try {
+            sessRes = await fetch('/api/upload/session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filename: file.name, size: file.size, folder: folder, category: 'drawing' })
+            });
+          } catch (_) { return fallbackXHR(); }
+          const sess = await sessRes.json();
+          if (!sessRes.ok || !sess.success || !sess.upload_url) return fallbackXHR();
+          let putRes;
+          try {
+            putRes = await fetch(sess.upload_url, { method: 'PUT', body: file });
+          } catch (_) { return fallbackXHR(); }
+          if (!putRes.ok) return fallbackXHR();
+          updateProgress(90);
+          const completeRes = await fetch(`/api/orders/${orderId}/attachments/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: sess.key, filename: file.name, category: 'drawing' })
           });
-          
-          xhr.open('POST', `/api/orders/${orderId}/attachments`);
-          xhr.send(formData);
-        });
-      });
+          const data = await completeRes.json();
+          if (!data.success || !data.attachment) {
+            throw new Error(file.name + ' 등록 실패: ' + (data.message || '알 수 없는 오류'));
+          }
+          const att = data.attachment;
+          updateProgress(100);
+          return { key: att.storage_key, filename: att.filename || file.name, view_url: att.view_url || `/api/files/view/${att.storage_key}`, download_url: att.download_url || `/api/files/download/${att.storage_key}` };
+        }
+        return fallbackXHR();
+      };
       
-      const results = await Promise.all(uploadPromises);
+      const results = await Promise.all(fileList.map((file, i) => uploadOne(file, i)));
       
       if (progressWrap) {
         progressWrap.classList.add('d-none');
-        if (progressBar) {
-          progressBar.style.width = '0%';
-          progressBar.textContent = '0%';
-        }
+        if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
       }
-      
       return results.filter(Boolean);
     }
 
