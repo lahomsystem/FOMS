@@ -154,7 +154,6 @@ def permanent_delete_orders():
                 delete_storage_files_for_order(db, order)
                 db.delete(order)
         db.commit()
-        reset_order_ids(db)
         log_access(f"주문 {len(selected_ids)}개 영구 삭제", session.get('user_id'), {"count": len(selected_ids)})
         flash(f'{len(selected_ids)}개의 주문이 영구적으로 삭제되었습니다.', 'success')
     except Exception as e:
@@ -180,7 +179,6 @@ def permanent_delete_all_orders():
             delete_storage_files_for_order(db, order)
             db.delete(order)
         db.commit()
-        reset_order_ids(db)
         log_access(f"모든 주문 영구 삭제 ({deleted_count}개 항목)", session.get('user_id'), {"count": deleted_count})
         flash(f'모든 주문({deleted_count}개)이 영구적으로 삭제되었습니다.', 'success')
     except Exception as e:

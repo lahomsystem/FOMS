@@ -8,13 +8,13 @@ from werkzeug.security import check_password_hash, generate_password_hash
 # Given the project structure, we might need to adjust paths if app.py is the main entry point
 try:
     from db import get_db
-    from models import User, SecurityLog, OrderEvent, OrderTask, Notification, ChatRoomMember
+    from models import User, SecurityLog, OrderEvent, OrderTask, Notification, ChatRoomMember, ChatMessage, ChatRoom, AccessLog
 except ImportError:
     import sys
     import os
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from db import get_db
-    from models import User, SecurityLog, OrderEvent, OrderTask, Notification, ChatRoomMember
+    from models import User, SecurityLog, OrderEvent, OrderTask, Notification, ChatRoomMember, ChatMessage, ChatRoom, AccessLog
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -515,7 +515,16 @@ def delete_user(user_id):
         db.query(Notification).filter(Notification.created_by_user_id == user_id).update({Notification.created_by_user_id: None}, synchronize_session=False)
         db.query(Notification).filter(Notification.read_by_user_id == user_id).update({Notification.read_by_user_id: None}, synchronize_session=False)
         
-        # 5. Remove from Chat Rooms
+        # 4b. Access logs: set user_id to NULL so logs remain but no longer reference deleted user
+        db.query(AccessLog).filter(AccessLog.user_id == user_id).update({AccessLog.user_id: None}, synchronize_session=False)
+        
+        # 5. Delete chat messages by this user (removes FK from chat_messages to users)
+        db.query(ChatMessage).filter(ChatMessage.user_id == user_id).delete(synchronize_session=False)
+        
+        # 6. Delete chat rooms created by this user (CASCADE removes messages and members in those rooms)
+        db.query(ChatRoom).filter(ChatRoom.created_by == user_id).delete(synchronize_session=False)
+        
+        # 7. Remove from other chat rooms (membership only)
         db.query(ChatRoomMember).filter(ChatRoomMember.user_id == user_id).delete(synchronize_session=False)
         
         # Delete user

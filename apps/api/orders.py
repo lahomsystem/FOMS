@@ -648,12 +648,16 @@ def bulk_update_order_status():
 
         if not order_ids or not isinstance(order_ids, list):
             return jsonify({'success': False, 'message': 'order_ids(배열)가 필요합니다.'}), 400
-        if not new_status or new_status not in BULK_ACTION_STATUS:
-            return jsonify({'success': False, 'message': '유효한 status가 필요합니다. (DELETED 불가)'}), 400
+        if not new_status:
+            return jsonify({'success': False, 'message': 'status가 필요합니다.'}), 400
+        is_delete = new_status == 'DELETED'
+        if not is_delete and new_status not in BULK_ACTION_STATUS:
+            return jsonify({'success': False, 'message': '유효한 status가 필요합니다.'}), 400
 
         db = get_db()
         user_id = session.get('user_id')
         updated = 0
+        deleted_at_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         for oid in order_ids:
             try:
                 oid = int(oid)
@@ -663,6 +667,13 @@ def bulk_update_order_status():
             if not order:
                 continue
             old_status_val = getattr(order, 'status', None) or ''
+            if is_delete:
+                setattr(order, 'status', 'DELETED')
+                setattr(order, 'original_status', old_status_val or 'RECEIVED')
+                setattr(order, 'deleted_at', deleted_at_str)
+                log_access(f"주문 #{order.id} 휴지통 이동 (bulk): {old_status_val} → DELETED", user_id)
+                updated += 1
+                continue
             setattr(order, 'status', new_status)
             sd_raw = getattr(order, 'structured_data', None)
             if getattr(order, 'is_erp_beta', False) and sd_raw:
