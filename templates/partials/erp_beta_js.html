@@ -1116,9 +1116,33 @@ ${list.map(renderCard).join('')}
             body: JSON.stringify({ filename: file.name, size: file.size, folder: folder })
         });
         const sess = await sessRes.json();
-        if (!sess.success || !sess.upload_url) return sess;
-        const putRes = await fetch(sess.upload_url, { method: 'PUT', body: file });
-        if (!putRes.ok) return { success: false, message: `PUT 실패: ${putRes.status}` };
+        if (!sessRes.ok || !sess.success || !sess.upload_url) {
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('category', category || 'measurement');
+            if (itemIndex != null) fd.append('item_index', String(itemIndex));
+            const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
+            const data = await res.json();
+            return data.success ? { success: true, attachment: data.attachment } : data;
+        }
+        const fallbackForm = async () => {
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('category', category || 'measurement');
+            if (itemIndex != null) fd.append('item_index', String(itemIndex));
+            const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
+            const d = await res.json();
+            return d.success ? { success: true, attachment: d.attachment } : d;
+        };
+        let putRes;
+        try {
+            putRes = await fetch(sess.upload_url, { method: 'PUT', body: file });
+        } catch (_) {
+            return fallbackForm();
+        }
+        if (!putRes.ok) {
+            return fallbackForm();
+        }
         const completeRes = await fetch(`/api/orders/${ORDER_ID}/attachments/complete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

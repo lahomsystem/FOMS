@@ -77,10 +77,28 @@ function handleFileSelect(files) {
             }
         })
         .catch(err => {
-            console.error('파일 업로드 오류:', err);
-            preview.classList.remove('active');
-            if (finalContent) finalContent.innerHTML = '';
-            alert('파일 업로드 중 오류가 발생했습니다.');
+            console.warn('Direct 업로드 실패, multipart로 재시도:', err);
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('room_id', currentRoomId);
+            fetch('/api/chat/upload', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    previewFile = { type: data.file_info.file_type, info: data.file_info };
+                    showPreview(data.file_info);
+                } else {
+                    preview.classList.remove('active');
+                    if (finalContent) finalContent.innerHTML = '';
+                    alert('파일 업로드 실패: ' + (data.message || '알 수 없는 오류'));
+                }
+            })
+            .catch(err2 => {
+                console.error('파일 업로드 오류:', err2);
+                preview.classList.remove('active');
+                if (finalContent) finalContent.innerHTML = '';
+                alert('파일 업로드 중 오류가 발생했습니다.');
+            });
         });
     } else {
         // 기존 multipart
