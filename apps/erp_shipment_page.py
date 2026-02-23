@@ -127,8 +127,9 @@ def erp_shipment_dashboard():
             datetime.datetime.strptime(req_date, '%Y-%m-%d').date()
         except (ValueError, TypeError):
             use_single_day = False
+    # 날짜 미지정 시 기본은 '전체'(req_date='') — 오늘로 자동 설정하지 않음
     if not use_range and not use_single_day:
-        req_date = today_date
+        req_date = ''
     selected_date = req_date
 
     base_query = db.query(Order).filter(Order.status != 'DELETED')
