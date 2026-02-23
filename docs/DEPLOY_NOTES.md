@@ -28,6 +28,7 @@
 | Branch | deploy 또는 동일 | production |
 | Start Command | `sh start.sh` (railway.toml) | 동일 |
 | gunicorn workers | `-w 2` (start.sh) | 코드에 이미 반영 |
+| gunicorn timeout | `--timeout 120` (초) | 요청이 120초 넘으면 워커 종료. 대용량 업로드는 Direct Upload(R2 presigned) 사용 권장. |
 
 ### Worker 서비스
 | 항목 | 스테이징 값 | 프로덕션에 적용 |
