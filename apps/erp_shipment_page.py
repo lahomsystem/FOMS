@@ -13,7 +13,7 @@ from sqlalchemy import or_, and_, cast, String
 
 from services.erp_permissions import can_edit_erp
 from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders
-from services.erp_template_filters import spec_w300_value
+from services.erp_template_filters import item_spec_w300_value
 from services.erp_shipment_settings import (
     load_erp_shipment_settings,
     normalize_erp_shipment_workers,
@@ -66,7 +66,7 @@ def _get_order_construction_date(order):
 
 
 def _get_order_spec_units(order):
-    """주문의 spec_w300 단위 합산."""
+    """주문의 spec_w300 단위 합산. 항목별 W합/300 (spec_rows 있으면 W 합산 후 /300)."""
     if not order.is_erp_beta or not order.structured_data:
         return 0.0
     sd = order.structured_data or {}
@@ -75,8 +75,7 @@ def _get_order_spec_units(order):
     for it in items:
         if not isinstance(it, dict):
             continue
-        w_raw = (it.get('spec_width') or it.get('spec') or '')
-        total += spec_w300_value(w_raw)
+        total += item_spec_w300_value(it)
     return total
 
 
