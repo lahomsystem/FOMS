@@ -182,25 +182,40 @@
         };
 
         const productName = String(item.product_name || '').trim();
-        // 규격을 W, D, H로 분리 (기존 spec 필드에서 파싱 또는 별도 필드 사용)
-        let specWidth = String(item.spec_width || '').trim();
-        let specDepth = String(item.spec_depth || '').trim();
-        let specHeight = String(item.spec_height || '').trim();
-        // 기존 spec 필드가 있고 W, D, H가 없으면 파싱 시도 (예: "800x600x2000" 또는 "800*600*2000")
-        if (!specWidth && !specDepth && !specHeight && item.spec) {
-            const specStr = String(item.spec || '').trim();
-            const parts = specStr.split(/[xX*×]/).map(s => s.trim());
-            if (parts.length >= 3) {
-                specWidth = parts[0];
-                specDepth = parts[1];
-                specHeight = parts[2];
-            } else if (parts.length === 2) {
-                specWidth = parts[0];
-                specDepth = parts[1];
-            } else if (parts.length === 1) {
-                specWidth = parts[0];
+        // 규격 행 목록: spec_rows 우선, 없으면 단일 spec_width/spec_depth/spec_height 또는 spec 파싱
+        let specRows = Array.isArray(item.spec_rows) ? item.spec_rows : [];
+        if (specRows.length === 0) {
+            let specWidth = String(item.spec_width || '').trim();
+            let specDepth = String(item.spec_depth || '').trim();
+            let specHeight = String(item.spec_height || '').trim();
+            if (!specWidth && !specDepth && !specHeight && item.spec) {
+                const specStr = String(item.spec || '').trim();
+                const parts = specStr.split(/[xX*×]/).map(s => s.trim());
+                if (parts.length >= 3) {
+                    specWidth = parts[0];
+                    specDepth = parts[1];
+                    specHeight = parts[2];
+                } else if (parts.length === 2) {
+                    specWidth = parts[0];
+                    specDepth = parts[1];
+                } else if (parts.length === 1) {
+                    specWidth = parts[0];
+                }
             }
+            specRows = [{ spec_width: specWidth, spec_depth: specDepth, spec_height: specHeight }];
         }
+        const specRowsHtml = specRows.map((sr, idx) => {
+            const w = escapeHtml(String((sr.spec_width ?? sr.w ?? '')).trim());
+            const d = escapeHtml(String((sr.spec_depth ?? sr.d ?? '')).trim());
+            const h = escapeHtml(String((sr.spec_height ?? sr.h ?? '')).trim());
+            const showDel = specRows.length > 1 ? '' : ' style="display:none;"';
+            return `<div class="erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1">
+    <div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">W(폭)</label><input class="form-control form-control-sm" data-erp="spec_width" data-spec-row placeholder="폭" value="${w}" lang="ko"></div>
+    <div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="form-control form-control-sm" data-erp="spec_depth" data-spec-row placeholder="깊이" value="${d}" lang="ko"></div>
+    <div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="form-control form-control-sm" data-erp="spec_height" data-spec-row placeholder="높이" value="${h}" lang="ko"></div>
+    <button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn"${showDel}><i class="fas fa-minus"></i></button>
+</div>`;
+        }).join('');
         const internal = defaultConsult(item.internal);
         const color = defaultConsult(item.color);
         const optionDetail = defaultConsult(item.option_detail);
@@ -221,20 +236,10 @@
         <label class="form-label mb-1 small text-primary">제품명</label>
         <input class="form-control form-control-sm" data-erp="product_name" value="${escapeHtml(productName)}" lang="ko">
     </div>
-    <div class="col-md-3">
-        <label class="form-label mb-1 small text-primary">규격 W(폭)</label>
-        <input class="form-control form-control-sm" data-erp="spec_width" placeholder="폭"
-            value="${escapeHtml(specWidth)}" lang="ko">
-    </div>
-    <div class="col-md-3">
-        <label class="form-label mb-1 small text-primary">규격 D(깊이)</label>
-        <input class="form-control form-control-sm" data-erp="spec_depth" placeholder="깊이"
-            value="${escapeHtml(specDepth)}" lang="ko">
-    </div>
-    <div class="col-md-3">
-        <label class="form-label mb-1 small text-primary">규격 H(높이)</label>
-        <input class="form-control form-control-sm" data-erp="spec_height" placeholder="높이"
-            value="${escapeHtml(specHeight)}" lang="ko">
+    <div class="col-12">
+        <label class="form-label mb-1 small text-primary">규격 (폭·깊이·높이)</label>
+        <div class="erp-spec-rows">${specRowsHtml}</div>
+        <button type="button" class="btn btn-sm btn-outline-primary mt-1 erp-add-spec-row-btn"><i class="fas fa-plus"></i> 규격 1행 추가</button>
     </div>
     <div class="col-md-6">
         <label class="form-label mb-1 small text-primary">내부</label>
@@ -284,6 +289,37 @@
 </div>
 `;
 
+        function updateSpecRowRemoveVisibility() {
+            const container = row.querySelector('.erp-spec-rows');
+            if (!container) return;
+            const rows = container.querySelectorAll('.erp-spec-row');
+            container.querySelectorAll('.erp-remove-spec-row-btn').forEach((btn, i) => {
+                btn.style.display = rows.length > 1 ? '' : 'none';
+            });
+        }
+        row.querySelector('.erp-add-spec-row-btn')?.addEventListener('click', () => {
+            const container = row.querySelector('.erp-spec-rows');
+            if (!container) return;
+            const div = document.createElement('div');
+            div.className = 'erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1';
+            div.innerHTML = `<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">W(폭)</label><input class="form-control form-control-sm" data-erp="spec_width" data-spec-row placeholder="폭" value="" lang="ko"></div>
+    <div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="form-control form-control-sm" data-erp="spec_depth" data-spec-row placeholder="깊이" value="" lang="ko"></div>
+    <div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="form-control form-control-sm" data-erp="spec_height" data-spec-row placeholder="높이" value="" lang="ko"></div>
+    <button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn"><i class="fas fa-minus"></i></button>`;
+            div.querySelector('.erp-remove-spec-row-btn').addEventListener('click', () => {
+                div.remove();
+                updateSpecRowRemoveVisibility();
+            });
+            container.appendChild(div);
+            updateSpecRowRemoveVisibility();
+        });
+        row.querySelectorAll('.erp-remove-spec-row-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                this.closest('.erp-spec-row')?.remove();
+                updateSpecRowRemoveVisibility();
+            });
+        });
+
         row.querySelector('.erp-remove-item-btn')?.addEventListener('click', async () => {
             const removedIndex = erpGetItemIndexFromRow(row);
             if (removedIndex >= 0 && typeof erpReindexMeasurementAttachmentsAfterItemRemoval === 'function') {
@@ -296,16 +332,14 @@
                 erpRenderAttachments();
             }
         });
-        row.querySelectorAll('[data-erp]').forEach(inp => {
-            inp.addEventListener('input', () => {
-                erpRecalcItemsTotal();
-                if (inp.dataset.erp === 'product_name') {
-                    erpRefreshItemRowIndices();
-                    if (typeof erpRenderAttachments === 'function') {
-                        erpRenderAttachments();
-                    }
+        row.addEventListener('input', (e) => {
+            erpRecalcItemsTotal();
+            if (e.target && e.target.dataset && e.target.dataset.erp === 'product_name') {
+                erpRefreshItemRowIndices();
+                if (typeof erpRenderAttachments === 'function') {
+                    erpRenderAttachments();
                 }
-            });
+            }
         });
         const itemAttachmentInput = row.querySelector('.erp-item-attachments-input');
         row.querySelector('.erp-item-upload-btn')?.addEventListener('click', () => {
@@ -428,21 +462,30 @@
         itemsWrap.querySelectorAll('.erp-item-row').forEach(row => {
             const obj = {};
             row.querySelectorAll('[data-erp]').forEach(inp => {
+                if (inp.closest('.erp-spec-row')) return;
                 obj[inp.dataset.erp] = inp.value;
             });
-            // W, D, H를 spec 필드로 합성 (호환성을 위해)
-            const w = String(obj.spec_width || '').trim();
-            const d = String(obj.spec_depth || '').trim();
-            const h = String(obj.spec_height || '').trim();
-            if (w || d || h) {
-                const specParts = [];
-                if (w) specParts.push(w);
-                if (d) specParts.push(d);
-                if (h) specParts.push(h);
+            // 규격 다중 행 수집
+            const specRows = [];
+            row.querySelectorAll('.erp-spec-row').forEach(sr => {
+                const w = String(sr.querySelector('[data-erp="spec_width"]')?.value ?? '').trim();
+                const d = String(sr.querySelector('[data-erp="spec_depth"]')?.value ?? '').trim();
+                const h = String(sr.querySelector('[data-erp="spec_height"]')?.value ?? '').trim();
+                specRows.push({ spec_width: w, spec_depth: d, spec_height: h });
+            });
+            if (specRows.length > 0) {
+                obj.spec_rows = specRows;
+                const first = specRows[0];
+                obj.spec_width = first.spec_width;
+                obj.spec_depth = first.spec_depth;
+                obj.spec_height = first.spec_height;
+                const specParts = [first.spec_width, first.spec_depth, first.spec_height].filter(Boolean);
                 obj.spec = specParts.join('x');
-            } else if (obj.spec) {
-                // 기존 spec 필드가 있으면 유지
             } else {
+                obj.spec_rows = [];
+                obj.spec_width = '';
+                obj.spec_depth = '';
+                obj.spec_height = '';
                 obj.spec = '';
             }
             if (obj.price) {
@@ -1283,12 +1326,16 @@ ${list.map(renderCard).join('')}
             if (extraInput) allExtraInputs.push(extraInput);
 
             const pName = getRowVal('product_name');
-            // Spec combination
-            const w = getRowVal('spec_width');
-            const d = getRowVal('spec_depth');
-            const h = getRowVal('spec_height');
-            let spec = [w, d, h].filter(Boolean).join('*');
-            if (!spec) spec = '';
+            // Spec: 다중 행 수집 (W합/표시용은 출고 대시보드에서 처리)
+            const specParts = [];
+            row.querySelectorAll('.erp-spec-row').forEach(sr => {
+                const w = (sr.querySelector('[data-erp="spec_width"]')?.value ?? '').trim();
+                const d = (sr.querySelector('[data-erp="spec_depth"]')?.value ?? '').trim();
+                const h = (sr.querySelector('[data-erp="spec_height"]')?.value ?? '').trim();
+                const one = [w, d, h].filter(Boolean).join('*');
+                if (one) specParts.push(one);
+            });
+            const spec = specParts.length ? specParts.join(', ') : '';
 
             let internal = getRowVal('internal');
             if (!internal) internal = '상담';
