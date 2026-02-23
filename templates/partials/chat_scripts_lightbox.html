@@ -11,7 +11,7 @@ let imageZoom = {
     lastTranslateY: 0
 };
 
-function openImageLightbox(imageUrl) {
+function openImageLightbox(imageUrl, optionalKey) {
     const lightbox = document.getElementById('image-lightbox');
     const img = document.getElementById('image-lightbox-img');
     
@@ -19,6 +19,10 @@ function openImageLightbox(imageUrl) {
         console.error('라이트박스 요소를 찾을 수 없습니다.');
         return;
     }
+    
+    var url = (typeof imageUrl === 'string') ? imageUrl : (imageUrl && (imageUrl.dataset && imageUrl.dataset.url) || imageUrl.src);
+    var key = optionalKey || (imageUrl && imageUrl.dataset && imageUrl.dataset.key) || null;
+    if (!url) return;
     
     // 이미지 로드 후 transform 적용
     img.onload = function() {
@@ -30,15 +34,20 @@ function openImageLightbox(imageUrl) {
         updateImageTransform();
     };
     
-    // 이미지가 이미 로드되어 있는 경우
     if (img.complete) {
         img.onload();
     }
     
-    img.src = imageUrl;
+    img.src = url;
     lightbox.classList.add('active');
     
-    // ESC 키로 닫기
+    if (key) {
+        var path = String(key).split('/').map(function(s) { return encodeURIComponent(s); }).join('/');
+        fetch('/api/files/presigned-urls/' + path).then(function(r) { return r.json(); }).then(function(data) {
+            if (data.success && data.view_url) img.src = data.view_url;
+        }).catch(function() {});
+    }
+    
     document.addEventListener('keydown', handleLightboxKeydown);
 }
 

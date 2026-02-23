@@ -1,3 +1,24 @@
+# 전역 파일 업/다운 R2 최단 경로 (2026-02-23, PLAN.md/CONTEXT.md 참조)
+
+- [x] **G1. GlobalImageViewer presigned 연동**  
+  layout.html: state.files에 key 보존, render()에서 file.key 있으면 GET /api/files/presigned-urls/<key> 후 els.image.src 교체
+
+- [x] **G2. 도면 워크벤치 data-key + open 시 key 전달**  
+  erp_drawing_workbench_detail.html: data-key 추가, openDrawingGatewayImageViewer에서 files[].key 설정
+
+- [x] **G3. 대시보드 gateway viewerFiles에 key 포함**  
+  erp_dashboard_scripts_gateway.html: f.key 전달
+
+- [x] **G4. 대시보드 attachments/production/construction open 시 key 포함**  
+  imageFiles 맵에 key: a.storage_key 추가 (detail/core는 GlobalImageViewer 직접 호출 없음)
+
+- [x] **G5. 채팅 lightbox presigned**  
+  openImageLightbox(element|url, optionalKey) 확장, 채팅 메시지에서 data-url/data-key로 openImageLightbox(this) 호출
+
+- [ ] **G6. (선택) edit_order 블루프린트 보기/다운 presigned** — 미적용
+
+---
+
 # Phase C·D·Railway 잔여 TODO (승인 후 차례대로 실행)
 
 - [x] **1. Railway Worker 서비스 추가 + USE_RQ_WORKER=1**  
