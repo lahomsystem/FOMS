@@ -38,12 +38,18 @@
     <div class="erp-pro-card__header erp-pro-card__header--filter">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
         <div class="erp-pro-filter-group">
+          <label class="erp-pro-filter-label">검색</label>
+          <input type="text" class="erp-pro-input" name="q" value="{{ search_q }}" placeholder="고객·담당자·시공자·주소">
+        </div>
+        <div class="erp-pro-filter-group">
           <label class="erp-pro-filter-label">기준 날짜</label>
           <input type="date" class="erp-pro-input" name="date" value="{{ selected_date }}">
         </div>
         <div class="erp-pro-filter-group">
-          <label class="erp-pro-filter-label">담당자</label>
-          <input type="text" class="erp-pro-input" name="manager" value="{{ manager_filter }}" placeholder="예: 정다슬">
+          <label class="erp-pro-filter-label">날짜 범위</label>
+          <input type="date" class="erp-pro-input" name="date_from" value="{{ date_from }}" placeholder="시작">
+          <span class="erp-pro-filter-label">~</span>
+          <input type="date" class="erp-pro-input" name="date_to" value="{{ date_to }}" placeholder="끝">
         </div>
         <div class="erp-pro-filter-actions">
           <button class="erp-pro-btn erp-pro-btn--primary" type="submit">
@@ -60,7 +66,7 @@
             <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap">
               <div class="fw-bold small"><i class="fas fa-calendar-check"></i> 날짜별 시공</div>
               <div class="d-flex align-items-center gap-1">
-                <a href="{{ url_for('erp_shipment_page.erp_shipment_dashboard', date=today_date, manager=manager_filter or '') }}"
+                <a href="{{ url_for('erp_shipment_page.erp_shipment_dashboard', date=today_date, q=search_q or '') }}"
                   class="btn btn-sm btn-outline-primary py-0 px-1" title="오늘">오늘</a>
                 <span class="badge bg-primary">{{ selected_date }}</span>
               </div>
@@ -71,7 +77,7 @@
                 {% set day_label = ['월','화','수','목','금','토','일'][item.weekday] %}
                 <a id="date-{{ item.date }}"
                   class="measurement-panel-item measurement-panel-item-oneline {% if item.is_selected %}is-selected{% endif %} {% if item.is_weekend %}is-weekend{% endif %} {% if item.is_holiday %}is-holiday{% endif %} {% if item.date == today_date %}is-today{% endif %}"
-                  href="{{ url_for('erp_shipment_page.erp_shipment_dashboard', date=item.date, manager=manager_filter or '') }}#date-{{ item.date }}">
+                  href="{{ url_for('erp_shipment_page.erp_shipment_dashboard', date=item.date, q=search_q or '') }}#date-{{ item.date }}">
                   <div class="d-flex align-items-center justify-content-between gap-1 w-100 flex-nowrap">
                     <span class="measurement-panel-date">{{ item.date }}</span>
                     <span class="measurement-panel-day">({{ day_label }})</span>

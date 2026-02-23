@@ -12,7 +12,7 @@ import os
 from sqlalchemy import or_, and_, cast, String
 
 from services.erp_permissions import can_edit_erp
-from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders
+from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from services.erp_template_filters import item_spec_w300_value
 from services.erp_shipment_settings import (
     load_erp_shipment_settings,
@@ -79,33 +79,60 @@ def _get_order_spec_units(order):
     return total
 
 
+def _erp_order_search_filter(query, q):
+    """고객·담당자·시공자·주소 전체 검색 (Order 컬럼 + ERP Beta structured_data 텍스트)."""
+    if not q or not q.strip():
+        return query
+    term = f'%{q.strip()}%'
+    return query.filter(
+        or_(
+            Order.customer_name.ilike(term),
+            Order.manager_name.ilike(term),
+            Order.address.ilike(term),
+            and_(
+                Order.is_erp_beta == True,
+                cast(Order.structured_data, String).ilike(term)
+            )
+        )
+    )
+
+
 @erp_shipment_page_bp.route('/shipment')
 @login_required
 def erp_shipment_dashboard():
     """ERP Beta - 출고 대시보드 (날짜별 시공 건수, AS 포함, 출고일지 스타일)"""
     db = get_db()
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
-    today_date = datetime.datetime.now().strftime('%Y-%m-%d')
-    today_dt = datetime.datetime.strptime(today_date, '%Y-%m-%d').date()
-    manager_filter = (request.args.get('manager') or '').strip()
-
-    req_date = request.args.get('date')
-    if not req_date:
-        return redirect(url_for('erp_shipment_page.erp_shipment_dashboard', date=today_date, manager=manager_filter or None, mine=request.args.get('mine')))
+    today_kst = get_today_kst()
+    today_date = today_kst.strftime('%Y-%m-%d')
+    today_dt = today_kst
+    search_q = (request.args.get('q') or request.args.get('manager') or '').strip()
+    date_from = (request.args.get('date_from') or '').strip()
+    date_to = (request.args.get('date_to') or '').strip()
+    req_date = request.args.get('date') or ''
 
     is_construction = current_user and getattr(current_user, 'team', None) == 'CONSTRUCTION'
-    # 시공팀: 항상 본인 주문만. 그 외: URL에 mine=1 있을 때만 (클라이언트가 cookie 보고 URL 보정)
     mine_only = is_construction or (request.args.get('mine') == '1')
-    try:
-        datetime.datetime.strptime(req_date, '%Y-%m-%d').date()
-    except (ValueError, TypeError):
-        mine_redirect = request.args.get('mine') if not is_construction else None
-        return redirect(url_for('erp_shipment_page.erp_shipment_dashboard', date=today_date, manager=manager_filter or None, mine=mine_redirect))
+
+    use_range = bool(date_from and date_to)
+    if use_range:
+        try:
+            datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
+            datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            use_range = False
+    use_single_day = bool(req_date) and not use_range
+    if use_single_day:
+        try:
+            datetime.datetime.strptime(req_date, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            use_single_day = False
+    if not use_range and not use_single_day:
+        req_date = today_date
     selected_date = req_date
 
     base_query = db.query(Order).filter(Order.status != 'DELETED')
-    if manager_filter:
-        base_query = base_query.filter(Order.manager_name.ilike(f'%{manager_filter}%'))
+    base_query = _erp_order_search_filter(base_query, search_q)
 
     panel_orders = base_query.filter(
         or_(
@@ -126,8 +153,8 @@ def erp_shipment_dashboard():
     worker_settings = normalize_erp_shipment_workers(settings.get('construction_workers', []))
     worker_name_map = {_normalize_worker_name(w['name']): w for w in worker_settings if w.get('name')}
 
-    range_start = today_dt
-    range_end = today_dt + datetime.timedelta(days=14)
+    range_start = today_kst
+    range_end = today_kst + datetime.timedelta(days=14)
     years = {range_start.year, range_end.year}
     holiday_dates = set()
     for y in years:
@@ -216,58 +243,85 @@ def erp_shipment_dashboard():
         current += datetime.timedelta(days=1)
 
     # SQL 레벨에서 날짜 필터링 (최적화 + Limit으로 인한 누락 방지)
-    # JSON 검색용: "YYYY-MM-DD" 형태가 포함되어 있는지 확인
-    date_keyword = f'"{selected_date}"'
-
-    all_candidates = base_query.filter(
-        or_(
-            # 1. AS 주문: 날짜 컬럼 3개 중 하나라도 일치
-            and_(
-                Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
-                or_(
-                    Order.scheduled_date == selected_date,
-                    Order.as_received_date == selected_date,
-                    Order.as_completed_date == selected_date
-                )
-            ),
-            # 2. Legacy(기존) 주문: scheduled_date 일치
-            and_(
-                Order.is_erp_beta == False,
-                Order.status.notin_(['AS_RECEIVED', 'AS_COMPLETED']),
-                Order.scheduled_date == selected_date
-            ),
-            # 3. ERP Beta 주문: scheduled_date 일치 OR JSON 데이터 내 날짜 문자열 포함
-            and_(
+    if use_range:
+        all_candidates = base_query.filter(
+            or_(
                 Order.is_erp_beta == True,
-                or_(
-                    Order.scheduled_date == selected_date,
-                    cast(Order.structured_data, String).like(f'%{date_keyword}%')
+                Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
+                and_(
+                    Order.is_erp_beta == False,
+                    Order.scheduled_date != None,
+                    Order.scheduled_date != ''
                 )
             )
-        )
-    ).order_by(Order.id.desc()).all()
-    rows = []
-    for order in all_candidates:
-        match = False
-        if order.status in ('AS_RECEIVED', 'AS_COMPLETED'):
-            if (order.scheduled_date and str(order.scheduled_date) == selected_date) or \
-               (order.as_received_date and str(order.as_received_date) == selected_date) or \
-               (order.as_completed_date and str(order.as_completed_date) == selected_date):  # type: ignore
-                match = True
-        if not match and order.is_erp_beta:  # type: ignore
-            sd = order.structured_data or {}
-            cons = (sd.get('schedule') or {}).get('construction') or {}
-            if cons.get('date') and str(cons.get('date')) == selected_date:
-                match = True
-            if not match and order.scheduled_date and str(order.scheduled_date) == selected_date:  # type: ignore
-                match = True
-        
-        # Legacy(기존 주문) 날짜 매칭
-        if not match and not order.is_erp_beta and order.status not in ('AS_RECEIVED', 'AS_COMPLETED'):  # type: ignore
-            if order.scheduled_date and str(order.scheduled_date) == selected_date:  # type: ignore
-                match = True
-        if match:
-            rows.append(order)
+        ).order_by(Order.id.desc()).limit(1500).all()
+        rows = []
+        for order in all_candidates:
+            date_value = _get_order_construction_date(order)
+            if not date_value:
+                continue
+            if date_from <= date_value <= date_to:
+                rows.append(order)
+    elif use_single_day:
+        date_keyword = f'"{selected_date}"'
+        all_candidates = base_query.filter(
+            or_(
+                and_(
+                    Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
+                    or_(
+                        Order.scheduled_date == selected_date,
+                        Order.as_received_date == selected_date,
+                        Order.as_completed_date == selected_date
+                    )
+                ),
+                and_(
+                    Order.is_erp_beta == False,
+                    Order.status.notin_(['AS_RECEIVED', 'AS_COMPLETED']),
+                    Order.scheduled_date == selected_date
+                ),
+                and_(
+                    Order.is_erp_beta == True,
+                    or_(
+                        Order.scheduled_date == selected_date,
+                        cast(Order.structured_data, String).like(f'%{date_keyword}%')
+                    )
+                )
+            )
+        ).order_by(Order.id.desc()).all()
+        rows = []
+        for order in all_candidates:
+            match = False
+            if order.status in ('AS_RECEIVED', 'AS_COMPLETED'):
+                if (order.scheduled_date and str(order.scheduled_date) == selected_date) or \
+                   (order.as_received_date and str(order.as_received_date) == selected_date) or \
+                   (order.as_completed_date and str(order.as_completed_date) == selected_date):  # type: ignore
+                    match = True
+            if not match and order.is_erp_beta:  # type: ignore
+                sd = order.structured_data or {}
+                cons = (sd.get('schedule') or {}).get('construction') or {}
+                if cons.get('date') and str(cons.get('date')) == selected_date:
+                    match = True
+                if not match and order.scheduled_date and str(order.scheduled_date) == selected_date:  # type: ignore
+                    match = True
+            if not match and not order.is_erp_beta and order.status not in ('AS_RECEIVED', 'AS_COMPLETED'):  # type: ignore
+                if order.scheduled_date and str(order.scheduled_date) == selected_date:  # type: ignore
+                    match = True
+            if match:
+                rows.append(order)
+    else:
+        # 전체 기간: 날짜 필터 없음 (검색어만)
+        all_candidates = base_query.filter(
+            or_(
+                Order.is_erp_beta == True,
+                Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
+                and_(
+                    Order.is_erp_beta == False,
+                    Order.scheduled_date != None,
+                    Order.scheduled_date != ''
+                )
+            )
+        ).order_by(Order.id.desc()).limit(500).all()
+        rows = all_candidates
 
     # 시공팀 또는 mine=1일 때만 당일 목록(rows)도 담당 주문으로 제한
     if mine_only and current_user:
@@ -331,7 +385,10 @@ def erp_shipment_dashboard():
     return render_template(
         'erp_shipment_dashboard.html',
         selected_date=selected_date,
-        manager_filter=manager_filter,
+        search_q=search_q,
+        date_from=date_from,
+        date_to=date_to,
+        use_date_range=use_range,
         rows=rows,
         construction_panel_dates=construction_panel_dates,
         remaining_panel_dates=remaining_panel_dates,

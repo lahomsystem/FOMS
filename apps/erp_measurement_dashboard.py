@@ -9,10 +9,10 @@ from apps.auth import login_required, get_user_by_id
 import datetime
 import json
 import os
-from sqlalchemy import or_, and_, func, String
+from sqlalchemy import or_, and_, func, cast, String
 
 from services.erp_permissions import can_edit_erp
-from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders
+from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from services.erp_shipment_settings import is_order_mine_for_user
 
 
@@ -32,25 +32,76 @@ def _load_holidays_for_year(year):
         return set()
 
 
+def _erp_order_search_filter(query, q):
+    """고객·담당자·시공자·주소 전체 검색 (Order 컬럼 + ERP Beta structured_data 텍스트)."""
+    if not q or not q.strip():
+        return query
+    term = f'%{q.strip()}%'
+    return query.filter(
+        or_(
+            Order.customer_name.ilike(term),
+            Order.manager_name.ilike(term),
+            Order.address.ilike(term),
+            and_(
+                Order.is_erp_beta == True,
+                cast(Order.structured_data, String).ilike(term)
+            )
+        )
+    )
+
+
 @erp_measurement_dashboard_bp.route('/measurement')
 @login_required
 def erp_measurement_dashboard():
     """ERP Beta - 실측 대시보드 (structured_data 기반, MVP는 Order 컬럼 연동으로 운용)"""
     db = get_db()
-    selected_date = request.args.get('date') or datetime.datetime.now().strftime('%Y-%m-%d')
-    today_date = datetime.datetime.now().strftime('%Y-%m-%d')
-    manager_filter = (request.args.get('manager') or '').strip()
+    today_kst = get_today_kst()
+    today_date = today_kst.strftime('%Y-%m-%d')
+    search_q = (request.args.get('q') or request.args.get('manager') or '').strip()
+    date_from = (request.args.get('date_from') or '').strip()
+    date_to = (request.args.get('date_to') or '').strip()
+    selected_date = (request.args.get('date') or '').strip()
     open_map = request.args.get('open_map') == '1'
 
+    # 패널 표시용 기준일 (날짜 범위/단일일 없으면 오늘; 전체 기간이면 쿼리만 날짜 미적용)
+    if not selected_date:
+        selected_date = date_from or today_date
+
     base_query = db.query(Order).filter(Order.status != 'DELETED')
-
-    if manager_filter:
-        base_query = base_query.filter(Order.manager_name.ilike(f'%{manager_filter}%'))
-
+    base_query = _erp_order_search_filter(base_query, search_q)
     query = base_query
 
-    # 날짜 필터: ERP Beta 주문은 Order.measurement_date가 null일 수 있으므로
-    if selected_date:
+    use_range = bool(date_from and date_to)
+    has_explicit_date = bool(request.args.get('date', '').strip())
+    use_single_day = bool(has_explicit_date and selected_date and not use_range)
+
+    if use_range:
+        try:
+            datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
+            datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            use_range = False
+            use_single_day = True
+            selected_date = today_date
+
+    if use_range:
+        date_conditions = [
+            and_(Order.measurement_date >= date_from, Order.measurement_date <= date_to),
+            and_(Order.received_date >= date_from, Order.received_date <= date_to),
+            and_(Order.scheduled_date >= date_from, Order.scheduled_date <= date_to),
+            and_(Order.completion_date >= date_from, Order.completion_date <= date_to),
+            and_(Order.as_received_date >= date_from, Order.as_received_date <= date_to),
+            and_(Order.as_completed_date >= date_from, Order.as_completed_date <= date_to),
+        ]
+        date_conditions.append(
+            and_(
+                Order.is_erp_beta == True,
+                func.cast(Order.received_date, String) >= date_from,
+                func.cast(Order.received_date, String) <= date_to
+            )
+        )
+        query = query.filter(or_(*date_conditions))
+    elif use_single_day:
         try:
             filter_date = datetime.datetime.strptime(selected_date, '%Y-%m-%d').date()
             date_start = filter_date - datetime.timedelta(days=30)
@@ -67,7 +118,6 @@ def erp_measurement_dashboard():
             Order.as_received_date == selected_date,
             Order.as_completed_date == selected_date
         ]
-
         if date_start and date_end:
             date_start_str = date_start.strftime('%Y-%m-%d')
             date_end_str = date_end.strftime('%Y-%m-%d')
@@ -80,7 +130,6 @@ def erp_measurement_dashboard():
             )
         else:
             date_conditions.append(Order.is_erp_beta == True)
-
         query = query.filter(or_(*date_conditions))
 
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
@@ -101,11 +150,10 @@ def erp_measurement_dashboard():
     try:
         base_date = datetime.datetime.strptime(selected_date, '%Y-%m-%d').date()
     except Exception:
-        base_date = datetime.date.today()
+        base_date = today_kst
 
-    today_only = datetime.date.today()
-    range_start = today_only
-    range_end = today_only + datetime.timedelta(days=14)
+    range_start = today_kst
+    range_end = today_kst + datetime.timedelta(days=14)
     years = {range_start.year, range_end.year}
     holiday_dates = set()
     for y in years:
@@ -150,7 +198,7 @@ def erp_measurement_dashboard():
 
     rows = []
     for order in all_rows:
-        if selected_date:
+        if use_single_day and selected_date:
             should_include = False
             if order.is_erp_beta and order.structured_data:
                 sd = order.structured_data
@@ -186,7 +234,10 @@ def erp_measurement_dashboard():
     return render_template(
         'erp_measurement_dashboard.html',
         selected_date=selected_date,
-        manager_filter=manager_filter,
+        search_q=search_q,
+        date_from=date_from,
+        date_to=date_to,
+        use_date_range=use_range,
         rows=rows,
         measurement_panel_dates=measurement_panel_dates,
         today_date=today_date,

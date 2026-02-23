@@ -10,6 +10,14 @@ from services.erp_policy import (
 )
 from services.business_calendar import business_days_until
 
+# ERP 대시보드 "오늘" 기준: 서버가 UTC 등이면 자정이 한국 09:00가 되어 날짜가 하루 밀림. KST 기준으로 통일.
+def get_today_kst():
+    """한국 시간(KST, Asia/Seoul) 기준 오늘 날짜. 실측/출고 등 대시보드 날짜 기준 통일용."""
+    try:
+        return datetime.datetime.now(pytz.timezone('Asia/Seoul')).date()
+    except Exception:
+        return datetime.date.today()
+
 
 def _ensure_dict(data):
     """JSONB 필드가 문자열로 오인될 경우를 대비해 딕셔너리로 확실히 변환"""
@@ -120,10 +128,7 @@ def _erp_alerts(order, structured_data, attachments_count: int):
     urgent = _erp_get_urgent_flag(structured_data)
     meas_date = (((structured_data or {}).get('schedule') or {}).get('measurement') or {}).get('date')
     cons_date = (((structured_data or {}).get('schedule') or {}).get('construction') or {}).get('date')
-    try:
-        today_kst = datetime.datetime.now(pytz.timezone('Asia/Seoul')).date()
-    except Exception:
-        today_kst = datetime.date.today()
+    today_kst = get_today_kst()
     meas_d = business_days_until(meas_date, today=today_kst) if meas_date else None
     cons_d = business_days_until(cons_date, today=today_kst) if cons_date else None
     measurement_d4 = meas_d is not None and 0 <= meas_d <= 4

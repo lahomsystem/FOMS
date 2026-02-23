@@ -508,6 +508,11 @@
                                 </div>
                                 <p class="text-muted mt-2">업로드 중...</p>
                             </div>
+                            <div id="blueprint-upload-progress" class="mt-2 d-none">
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="blueprint-upload-progress-bar" role="progressbar" style="width: 0%">0%</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     {% endif %}
@@ -1535,6 +1540,17 @@
         uploadArea.style.display = 'none';
         preview.style.display = 'none';
 
+        var progressWrap = document.getElementById('blueprint-upload-progress');
+        var progressBar = document.getElementById('blueprint-upload-progress-bar');
+        function setProgress(p) {
+            if (progressWrap) progressWrap.classList.remove('d-none');
+            if (progressBar) { progressBar.style.width = p + '%'; progressBar.textContent = p + '%'; }
+        }
+        function hideProgress() {
+            if (progressWrap) progressWrap.classList.add('d-none');
+            if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
+        }
+
         try {
             let data;
             if (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD) {
@@ -1548,8 +1564,12 @@
                 if (!sessRes.ok || !sess.success || !sess.upload_url) {
                     const formData = new FormData();
                     formData.append('file', file);
-                    const res = await fetch(`/api/orders/${orderId}/blueprint`, { method: 'POST', body: formData });
-                    data = await res.json();
+                    if (typeof uploadWithProgress !== 'undefined') {
+                        data = await uploadWithProgress(`/api/orders/${orderId}/blueprint`, formData, { onProgress: setProgress });
+                    } else {
+                        const res = await fetch(`/api/orders/${orderId}/blueprint`, { method: 'POST', body: formData });
+                        data = await res.json();
+                    }
                 } else {
                     let putRes;
                     try {
@@ -1557,16 +1577,24 @@
                     } catch (_) {
                         const formData = new FormData();
                         formData.append('file', file);
-                        const res = await fetch(`/api/orders/${orderId}/blueprint`, { method: 'POST', body: formData });
-                        data = await res.json();
+                        if (typeof uploadWithProgress !== 'undefined') {
+                            data = await uploadWithProgress(`/api/orders/${orderId}/blueprint`, formData, { onProgress: setProgress });
+                        } else {
+                            const res = await fetch(`/api/orders/${orderId}/blueprint`, { method: 'POST', body: formData });
+                            data = await res.json();
+                        }
                         putRes = null;
                     }
                     if (!putRes || !putRes.ok) {
                         if (!data) {
                             const formData = new FormData();
                             formData.append('file', file);
-                            const res = await fetch(`/api/orders/${orderId}/blueprint`, { method: 'POST', body: formData });
-                            data = await res.json();
+                            if (typeof uploadWithProgress !== 'undefined') {
+                                data = await uploadWithProgress(`/api/orders/${orderId}/blueprint`, formData, { onProgress: setProgress });
+                            } else {
+                                const res = await fetch(`/api/orders/${orderId}/blueprint`, { method: 'POST', body: formData });
+                                data = await res.json();
+                            }
                         }
                     } else {
                         const completeRes = await fetch(`/api/orders/${orderId}/blueprint/complete`, {
@@ -1580,13 +1608,15 @@
             } else {
                 const formData = new FormData();
                 formData.append('file', file);
-                const res = await fetch(`/api/orders/${orderId}/blueprint`, {
-                    method: 'POST',
-                    body: formData
-                });
-                data = await res.json();
+                if (typeof uploadWithProgress !== 'undefined') {
+                    data = await uploadWithProgress(`/api/orders/${orderId}/blueprint`, formData, { onProgress: setProgress });
+                } else {
+                    const res = await fetch(`/api/orders/${orderId}/blueprint`, { method: 'POST', body: formData });
+                    data = await res.json();
+                }
             }
 
+            hideProgress();
             loading.style.display = 'none';
             if (data.success) {
                 alert('도면이 업로드되었습니다.');
@@ -1596,6 +1626,7 @@
                 uploadArea.style.display = 'block';
             }
         } catch (error) {
+            hideProgress();
             loading.style.display = 'none';
             console.error('도면 업로드 오류:', error);
             alert('도면 업로드 중 오류가 발생했습니다.');

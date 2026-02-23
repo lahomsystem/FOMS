@@ -9,7 +9,7 @@ from apps.auth import login_required, get_user_by_id
 import datetime
 
 from services.erp_permissions import can_edit_erp
-from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders
+from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from services.erp_shipment_settings import is_order_mine_for_user
 
 
@@ -27,7 +27,7 @@ def erp_as_dashboard():
     open_map = request.args.get('open_map') == '1'
 
     if open_map:
-        date_val = selected_date or datetime.datetime.now().strftime('%Y-%m-%d')
+        date_val = selected_date or get_today_kst().strftime('%Y-%m-%d')
         status_val = status_filter or 'ALL'
         return redirect(url_for('erp_map.map_view', date=date_val, status=status_val))
 
