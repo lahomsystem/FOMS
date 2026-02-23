@@ -76,6 +76,56 @@ def spec_w300_value(value):
         return 0.0
 
 
+def _extract_first_number(value):
+    """문자열에서 첫 숫자 추출 (float). 없으면 0."""
+    if value is None or value == '':
+        return 0.0
+    s = str(value).strip().replace(',', '')
+    try:
+        m = re.search(r'[\d.]+', s)
+        return float(m.group()) if m else 0.0
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def item_spec_w300_display(item):
+    """항목(item)의 가로 규격 W 합 / 300 표시. spec_rows 있으면 각 W 합산 후 /300."""
+    if not item or not isinstance(item, dict):
+        return ''
+    spec_rows = item.get('spec_rows')
+    if spec_rows and isinstance(spec_rows, list):
+        total_w = 0.0
+        for row in spec_rows:
+            if isinstance(row, dict):
+                w = row.get('spec_width') or row.get('w') or ''
+            else:
+                w = ''
+            total_w += _extract_first_number(w)
+        if not total_w:
+            return ''
+        return round(total_w / 300, 1)
+    w_raw = item.get('spec_width') or item.get('spec') or ''
+    return spec_w300_filter(w_raw) if w_raw else ''
+
+
+def item_spec_w300_value(item):
+    """항목(item)의 W합/300 수치 (출고 단위 합산용)."""
+    if not item or not isinstance(item, dict):
+        return 0.0
+    spec_rows = item.get('spec_rows')
+    if spec_rows and isinstance(spec_rows, list):
+        total_w = 0.0
+        for row in spec_rows:
+            if isinstance(row, dict):
+                w = row.get('spec_width') or row.get('w') or ''
+            else:
+                w = ''
+            total_w += _extract_first_number(w)
+        return round(total_w / 300, 1) if total_w else 0.0
+    w_raw = item.get('spec_width') or item.get('spec') or ''
+    return spec_w300_value(w_raw)
+
+
 def register_erp_template_filters(bp):
     """Blueprint에 ERP 템플릿 필터 등록 (Blueprint.add_app_template_filter 사용)"""
     bp.add_app_template_filter(split_count_filter, 'split_count')
@@ -83,3 +133,4 @@ def register_erp_template_filters(bp):
     bp.add_app_template_filter(strip_product_w_filter, 'strip_product_w')
     bp.add_app_template_filter(spec_w300_filter, 'spec_w300')
     bp.add_app_template_filter(format_phone_filter, 'format_phone')
+    bp.add_app_template_filter(item_spec_w300_display, 'item_spec_w300')

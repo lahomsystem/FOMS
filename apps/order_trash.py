@@ -7,6 +7,7 @@ from apps.auth import login_required, role_required, log_access, get_user_by_id
 from db import get_db
 from models import Order
 from services.request_utils import get_preserved_filter_args
+from services.order_storage_cleanup import delete_storage_files_for_order
 
 order_trash_bp = Blueprint('order_trash', __name__, url_prefix='')
 
@@ -150,6 +151,7 @@ def permanent_delete_orders():
         for order_id in selected_ids:
             order = db.query(Order).filter(Order.id == order_id).first()
             if order:
+                delete_storage_files_for_order(db, order)
                 db.delete(order)
         db.commit()
         reset_order_ids(db)
@@ -175,6 +177,7 @@ def permanent_delete_all_orders():
 
         deleted_count = len(deleted_orders)
         for order in deleted_orders:
+            delete_storage_files_for_order(db, order)
             db.delete(order)
         db.commit()
         reset_order_ids(db)

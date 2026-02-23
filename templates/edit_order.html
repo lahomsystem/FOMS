@@ -1545,12 +1545,29 @@
                     body: JSON.stringify({ filename: file.name, size: file.size, folder: folder })
                 });
                 const sess = await sessRes.json();
-                if (!sess.success || !sess.upload_url) {
-                    data = sess;
+                if (!sessRes.ok || !sess.success || !sess.upload_url) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    const res = await fetch(`/api/orders/${orderId}/blueprint`, { method: 'POST', body: formData });
+                    data = await res.json();
                 } else {
-                    const putRes = await fetch(sess.upload_url, { method: 'PUT', body: file });
-                    if (!putRes.ok) {
-                        data = { success: false, message: '업로드 실패: ' + putRes.status };
+                    let putRes;
+                    try {
+                        putRes = await fetch(sess.upload_url, { method: 'PUT', body: file });
+                    } catch (_) {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        const res = await fetch(`/api/orders/${orderId}/blueprint`, { method: 'POST', body: formData });
+                        data = await res.json();
+                        putRes = null;
+                    }
+                    if (!putRes || !putRes.ok) {
+                        if (!data) {
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            const res = await fetch(`/api/orders/${orderId}/blueprint`, { method: 'POST', body: formData });
+                            data = await res.json();
+                        }
                     } else {
                         const completeRes = await fetch(`/api/orders/${orderId}/blueprint/complete`, {
                             method: 'POST',
