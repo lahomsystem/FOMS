@@ -342,5 +342,5 @@ def erp_dashboard():
         stage_labels=STAGE_LABELS,
         is_admin=is_admin,
         can_edit_erp=can_edit_erp_flag,
-        status_choices=list(BULK_ACTION_STATUS.items()),
+        status_choices=list(BULK_ACTION_STATUS.items()) + [('DELETED', '삭제(휴지통)')],
     )
