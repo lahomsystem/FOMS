@@ -58,7 +58,13 @@ def inject_status_list():
         ).order_by(User.name).all()
 
     erp_beta_enabled = str(os.getenv('ERP_BETA_ENABLED', 'true')).lower() in ['1', 'true', 'yes', 'y', 'on']
-    use_direct_upload = str(os.getenv('USE_DIRECT_UPLOAD', '1')).lower() in ['1', 'true', 'yes', 'on']
+    use_direct_upload_env = str(os.getenv('USE_DIRECT_UPLOAD', '1')).lower() in ['1', 'true', 'yes', 'on']
+    try:
+        from services.storage import get_storage
+        storage = get_storage()
+        use_direct_upload = use_direct_upload_env and storage.storage_type in ('r2', 's3')
+    except Exception:
+        use_direct_upload = False
     return dict(
         STATUS=display_status,
         BULK_ACTION_STATUS=bulk_action_status,

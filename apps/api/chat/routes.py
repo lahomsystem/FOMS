@@ -925,8 +925,13 @@ def chat():
         current_app.config.get('SOCKETIO_AVAILABLE', False)
         and current_app.config.get('_SOCKETIO_INSTANCE') is not None
     )
+    try:
+        storage = get_storage()
+        use_direct_upload = USE_DIRECT_UPLOAD and storage.storage_type in ('r2', 's3')
+    except Exception:
+        use_direct_upload = False
     return render_template(
         'chat.html',
         socketio_available=socketio_available,
-        use_direct_upload=USE_DIRECT_UPLOAD,
+        use_direct_upload=use_direct_upload,
     )

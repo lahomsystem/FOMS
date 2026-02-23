@@ -23,6 +23,8 @@
 ## 3. 결정 사항
 
 - Phase D USE_DIRECT_UPLOAD=1 기본, R2 없으면 multipart fallback
+- **2026-02-23 이미지 업로드 400 수정**: use_direct_upload는 **스토리지가 R2/S3일 때만** True. 로컬/R2미설정 시 USE_DIRECT_UPLOAD=false로 클라이언트가 session 대신 FormData(multipart) 직행 → 400 해소.
+- **2026-02-23 CORS 폴백**: R2 presigned PUT이 CORS로 차단되면 fetch가 throw. 모든 direct-upload 흐름(erp_beta, edit_order, erp_dashboard_drawing, erp_drawing_workbench, chat)에 try/catch 추가 → PUT 실패 시 FormData(multipart)로 자동 폴백.
 - 채팅 direct 업로드: 2026-02-22 구현 완료 (session→complete, chat_scripts_file.html)
 
 ## 4. 최근 이슈: 원격 주소변환 미동작 (2026-02-22)
