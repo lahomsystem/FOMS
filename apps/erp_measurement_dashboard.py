@@ -60,29 +60,30 @@ def erp_measurement_dashboard():
     search_q = (request.args.get('q') or request.args.get('manager') or '').strip()
     date_from = (request.args.get('date_from') or '').strip()
     date_to = (request.args.get('date_to') or '').strip()
-    selected_date = (request.args.get('date') or '').strip()
+    req_date = (request.args.get('date') or '').strip()
     open_map = request.args.get('open_map') == '1'
-
-    # 패널 표시용 기준일 (날짜 범위/단일일 없으면 오늘; 전체 기간이면 쿼리만 날짜 미적용)
-    if not selected_date:
-        selected_date = date_from or today_date
 
     base_query = db.query(Order).filter(Order.status != 'DELETED')
     base_query = _erp_order_search_filter(base_query, search_q)
     query = base_query
 
     use_range = bool(date_from and date_to)
-    has_explicit_date = bool(request.args.get('date', '').strip())
-    use_single_day = bool(has_explicit_date and selected_date and not use_range)
-
     if use_range:
         try:
             datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
             datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
         except (ValueError, TypeError):
             use_range = False
-            use_single_day = True
-            selected_date = today_date
+    use_single_day = bool(req_date) and not use_range
+    if use_single_day:
+        try:
+            datetime.datetime.strptime(req_date, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            use_single_day = False
+    # 날짜 미지정 시 기본은 '전체'(selected_date='') — 출고 대시보드와 동일
+    if not use_range and not use_single_day:
+        req_date = ''
+    selected_date = req_date
 
     if use_range:
         date_conditions = [
@@ -140,7 +141,7 @@ def erp_measurement_dashboard():
         all_rows = [r for r in all_rows if is_order_mine_for_user(r, current_user)]
 
     for r in all_rows:
-        r.structured_data = _ensure_dict(r.structured_data)
+        r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
     apply_erp_display_fields_to_orders(all_rows)
 
     panel_orders = base_query.order_by(Order.id.desc()).limit(1500).all()

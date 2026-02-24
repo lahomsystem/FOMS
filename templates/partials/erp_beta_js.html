@@ -29,6 +29,28 @@
         }
     }
 
+    function getOrdererValue() {
+        const direct = document.getElementById('erp-orderer-direct');
+        const selectEl = document.getElementById('erp-orderer-select');
+        const inputEl = document.getElementById('erp-orderer');
+        if (direct && direct.checked && inputEl) return (inputEl.value || '').trim();
+        if (selectEl) return (selectEl.value || '').trim();
+        return (inputEl && inputEl.value) ? inputEl.value.trim() : '';
+    }
+    function toggleOrdererUI() {
+        const direct = document.getElementById('erp-orderer-direct');
+        const selectEl = document.getElementById('erp-orderer-select');
+        const inputEl = document.getElementById('erp-orderer');
+        if (!direct || !selectEl || !inputEl) return;
+        if (direct.checked) {
+            selectEl.classList.add('d-none');
+            inputEl.classList.remove('d-none');
+        } else {
+            selectEl.classList.remove('d-none');
+            inputEl.classList.add('d-none');
+        }
+    }
+
     if (typeof adjustTextareaHeight !== 'function') {
         function adjustTextareaHeight(textarea) {
             if (!textarea) return;
@@ -399,7 +421,21 @@
             }
         } catch (e) { }
         document.getElementById('erp-phone-note').value = sd?.notes?.phone_note || '';
-        document.getElementById('erp-orderer').value = sd?.parties?.orderer?.name || '';
+        (function () {
+            const ordererName = (sd?.parties?.orderer?.name || '').trim();
+            const selectEl = document.getElementById('erp-orderer-select');
+            const inputEl = document.getElementById('erp-orderer');
+            const directCb = document.getElementById('erp-orderer-direct');
+            if (ordererName === '라홈' || ordererName === '하우드') {
+                if (selectEl) selectEl.value = ordererName;
+                if (directCb) directCb.checked = false;
+                if (inputEl) inputEl.value = '';
+            } else {
+                if (inputEl) inputEl.value = ordererName;
+                if (directCb) directCb.checked = true;
+            }
+            toggleOrdererUI();
+        })();
         document.getElementById('erp-manager').value = sd?.parties?.manager?.name || '';
         document.getElementById('erp-workflow-stage').value = sd?.workflow?.stage || '';
         const erpNotesEl = document.getElementById('erp-notes');
@@ -521,7 +557,7 @@
                     name: getVal('erp-customer-name'),
                     phone: getVal('erp-customer-phone')
                 },
-                orderer: { name: getVal('erp-orderer') },
+                orderer: { name: typeof getOrdererValue === 'function' ? getOrdererValue() : getVal('erp-orderer') },
                 manager: { name: getVal('erp-manager') }
             },
             site: (function () {
@@ -646,6 +682,10 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         if (!ERP_BETA_ENABLED) return;
+
+        // ERP Beta: 발주사 드롭다운 + 직접입력 토글
+        document.getElementById('erp-orderer-direct')?.addEventListener('change', toggleOrdererUI);
+        toggleOrdererUI();
 
         // ERP Beta: 주소 입력 (통합 - 찾기 버튼으로 주소 검색 또는 직접 입력 가능)
         const addrInput = document.getElementById('erp-address');
@@ -1366,7 +1406,7 @@ ${list.map(renderCard).join('')}
         }
 
         const customerName = getVal('erp-customer-name');
-        let orderer = getVal('erp-orderer');
+        let orderer = typeof getOrdererValue === 'function' ? getOrdererValue() : getVal('erp-orderer');
         if (!orderer) orderer = '라홈'; // Default
 
         let constructionDate = getVal('erp-construction-date');

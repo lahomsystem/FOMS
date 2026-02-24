@@ -1001,8 +1001,8 @@
                       {% endif %}
                     </div>
                   </td>
-                  <td class="shipment-field-cell shipment-worker-cell" style="border-right: 1px solid #e0e0e0; --worker-bg-color: {{ worker_bg_color }}; background-color: {{ worker_bg_color }}; color: {{ worker_text_color }};"
-                    data-worker-bg-color="{{ worker_bg_color }}">
+                  <td class="shipment-field-cell shipment-worker-cell" style="border-right: 1px solid #e0e0e0;"
+                    data-worker-bg-color="{{ worker_bg_color }}" data-worker-text-color="{{ worker_text_color }}">
                     <div class="shipment-workers-list {% if not construction_workers %}no-workers{% endif %}"
                       data-order-id="{{ r.id }}" data-field="construction_workers"
                       data-n="{{ construction_workers|length }}">
@@ -1207,6 +1207,15 @@
       function scheduleApplyShipmentWorkerSortAndColors() {
         setTimeout(applyShipmentWorkerSortAndColors, 0);
       }
+      function applyInitialWorkerCellColorsFromData() {
+        document.querySelectorAll('.shipment-worker-cell[data-worker-bg-color]').forEach(function (td) {
+          var bg = td.getAttribute('data-worker-bg-color');
+          var text = td.getAttribute('data-worker-text-color');
+          if (bg) { td.style.setProperty('--worker-bg-color', bg); td.style.backgroundColor = bg; }
+          if (text) td.style.color = text;
+        });
+      }
+      applyInitialWorkerCellColorsFromData();
 
       fetch('/api/erp/shipment-settings').then(function (r) { return r.json(); }).then(function (data) {
         if (data && data.success && data.settings) window.__erpShipmentSettings = data.settings;
