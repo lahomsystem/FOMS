@@ -12,7 +12,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order, OrderEvent, SecurityLog
 from apps.auth import login_required, get_user_by_id
-from services.erp_permissions import erp_edit_required
+from services.erp_permissions import erp_construction_edit_required
 from apps.erp import _ensure_dict
 
 erp_orders_construction_bp = Blueprint(
@@ -24,7 +24,7 @@ erp_orders_construction_bp = Blueprint(
 
 @erp_orders_construction_bp.route('/<int:order_id>/construction/start', methods=['POST'])
 @login_required
-@erp_edit_required
+@erp_construction_edit_required
 def api_construction_start(order_id):
     """시공 시작 (히스토리 기록)"""
     db = get_db()
@@ -63,7 +63,7 @@ def api_construction_start(order_id):
 
 @erp_orders_construction_bp.route('/<int:order_id>/construction/complete', methods=['POST'])
 @login_required
-@erp_edit_required
+@erp_construction_edit_required
 def api_construction_complete(order_id):
     """시공 완료 → 완료(COMPLETED) 단계로 이동 (ERP 프로세스 맵에서 '완료'로 표시)"""
     db = get_db()
@@ -129,7 +129,7 @@ def api_construction_complete(order_id):
 
 @erp_orders_construction_bp.route('/<int:order_id>/construction/fail', methods=['POST'])
 @login_required
-@erp_edit_required
+@erp_construction_edit_required
 def api_construction_fail(order_id):
     """시공 불가 → 원인별 재작업 단계로 이동"""
     db = get_db()
