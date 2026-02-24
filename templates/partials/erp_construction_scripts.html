@@ -90,7 +90,7 @@
             </div>`
           : `<img src="${thumb}" alt="${name}" class="img-fluid rounded"
               style="max-height: 180px; object-fit: contain; width:100%; cursor: zoom-in; background:#fff; padding:4px;"
-              onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ${index})">`;
+              onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ` + index + `)">`;
 
         return `
           <div class="col-md-4 col-sm-6 col-12">
@@ -101,7 +101,7 @@
                   <div class="small text-truncate" title="${name}" style="max-width: 70%;">${name}</div>
                   <div class="btn-group btn-group-sm">
                     <button class="btn btn-outline-secondary" type="button" title="미리보기"
-                      onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ${index})">
+                      onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ` + index + `)">
                       <i class="fas fa-eye"></i>
                     </button>
                     <a class="btn btn-outline-primary" href="${downloadUrl}" title="다운로드" target="_blank" rel="noopener">
@@ -598,7 +598,9 @@
             if (approved) {
               html += `<span class="badge bg-success ms-2" style="font-size: 1rem; padding: 0.4em 0.7em;">승인완료</span>`;
             } else {
-              html += `<button class="btn btn-primary fw-semibold ms-2" onclick="approveQuestTeam(${orderId}, '${escapeHtml(team)}')" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>`;
+              const teamEsc = escapeHtml(team).replace(/'/g, "\\'");
+              const onclickVal = "approveQuestTeam(" + orderId + ", '" + teamEsc + "')";
+              html += '<button class="btn btn-primary fw-semibold ms-2" onclick="' + onclickVal + '" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>';
             }
             html += `</div>`;
           }
@@ -799,23 +801,29 @@
         let attachmentsHtml = '';
         if (aList.length > 0) {
           attachmentsHtml = '<div class="d-flex flex-wrap gap-1 mt-2">';
+          const escAttr = (s) => String(s || '').replace(/'/g, "\\'");
           aList.forEach(a => {
             const name = escapeHtml(a.filename || '');
             const viewUrl = a.view_url || '#';
             const thumb = a.thumbnail_view_url || viewUrl;
             const downloadUrl = a.download_url || viewUrl;
             const fileType = a.file_type || 'image';
+            const vQ = escAttr(viewUrl);
+            const dQ = escAttr(downloadUrl);
+            const nQ = escAttr(name);
             if (fileType === 'video') {
-              attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'video')">
-                <div style="width: 80px; height: 60px; background: #000; display: flex; align-items: center; justify-content: center;">
-                  <video src="${viewUrl}" preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>
-                </div>
-                <div class="position-absolute top-0 start-0 bg-dark bg-opacity-75 text-white p-1" style="font-size: 10px;"><i class="fas fa-play"></i></div>
-              </div>`;
+              const oncl = "openAttachmentPreviewModal(" + a.id + ", '" + vQ + "', '" + dQ + "', '" + nQ + "', 'video')";
+              attachmentsHtml += '<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="' + oncl + '">' +
+                '<div style="width: 80px; height: 60px; background: #000; display: flex; align-items: center; justify-content: center;">' +
+                  '<video src="' + vQ + '" preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>' +
+                '</div>' +
+                '<div class="position-absolute top-0 start-0 bg-dark bg-opacity-75 text-white p-1" style="font-size: 10px;"><i class="fas fa-play"></i></div>' +
+              '</div>';
             } else {
-              attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'image')">
-                <img src="${thumb}" style="width: 80px; height: 60px; object-fit: cover; background:#fff; display: block;" alt="${name}">
-              </div>`;
+              const oncl = "openAttachmentPreviewModal(" + a.id + ", '" + vQ + "', '" + dQ + "', '" + nQ + "', 'image')";
+              attachmentsHtml += '<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="' + oncl + '">' +
+                '<img src="' + escAttr(thumb) + '" style="width: 80px; height: 60px; object-fit: cover; background:#fff; display: block;" alt="' + nQ + '">' +
+              '</div>';
             }
           });
           attachmentsHtml += '</div>';
@@ -875,13 +883,13 @@
           let buttonsHtml = '';
           if (displayStage === '시공대기') {
             buttonsHtml += `
-                    <button class="btn btn-outline-primary" onclick="startConstruction(${orderId})">
+                    <button class="btn btn-outline-primary" onclick="startConstruction(` + orderId + `)">
                       <i class="fas fa-play"></i> 시공 시작
                     </button>`;
           }
           if (displayStage === '시공중') {
             buttonsHtml += `
-                    <button class="btn btn-success" onclick="completeConstruction(${orderId})">
+                    <button class="btn btn-success" onclick="completeConstruction(` + orderId + `)">
                       <i class="fas fa-check"></i> 시공 완료
                     </button>`;
           }
