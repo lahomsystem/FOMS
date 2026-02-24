@@ -65,7 +65,7 @@ def api_construction_start(order_id):
 @login_required
 @erp_edit_required
 def api_construction_complete(order_id):
-    """시공 완료 → CS 단계로 이동"""
+    """시공 완료 → 완료(COMPLETED) 단계로 이동 (ERP 프로세스 맵에서 '완료'로 표시)"""
     db = get_db()
     try:
         order = db.query(Order).get(order_id)
@@ -78,33 +78,33 @@ def api_construction_complete(order_id):
         sd = _ensure_dict(order.structured_data)
         wf = sd.get('workflow') or {}
 
-        wf['stage'] = 'CS'
+        wf['stage'] = 'COMPLETED'
         wf['stage_updated_at'] = datetime.datetime.now().isoformat()
         wf['stage_updated_by'] = user.name if user else 'Unknown'
 
         hist = wf.get('history') or []
         hist.append({
-            'stage': 'CS',
+            'stage': 'COMPLETED',
             'updated_at': wf['stage_updated_at'],
             'updated_by': wf['stage_updated_by'],
-            'note': '시공 완료 → CS 단계 진입'
+            'note': '시공 완료 → 완료'
         })
         wf['history'] = hist
         sd['workflow'] = wf
 
         order.structured_data = copy.deepcopy(sd)
         flag_modified(order, "structured_data")
-        order.status = 'CS'
+        order.status = 'COMPLETED'
 
         event_payload = {
             'domain': 'CONSTRUCTION_DOMAIN',
             'action': 'CONSTRUCTION_COMPLETED',
             'target': 'workflow.stage',
             'before': 'CONSTRUCTION',
-            'after': 'CS',
+            'after': 'COMPLETED',
             'change_method': 'API',
             'source_screen': 'erp_construction_dashboard',
-            'reason': '시공 완료 → CS 단계 진입'
+            'reason': '시공 완료 → 완료'
         }
         order_event = OrderEvent(
             order_id=order_id,
@@ -114,13 +114,13 @@ def api_construction_complete(order_id):
         )
         db.add(order_event)
 
-        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 시공 완료 → CS 단계 진입"))
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 시공 완료 → 완료"))
         db.commit()
 
         return jsonify({
             'success': True,
-            'message': '시공이 완료되었습니다. CS 단계로 이동합니다.',
-            'new_status': 'CS'
+            'message': '시공이 완료되었습니다. 완료 단계로 이동합니다.',
+            'new_status': 'COMPLETED'
         })
     except Exception as e:
         db.rollback()
