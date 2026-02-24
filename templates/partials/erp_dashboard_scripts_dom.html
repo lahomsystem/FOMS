@@ -21,10 +21,19 @@
             }
           })();
 
-          // 필터 폼 제출 시 alert_type 파라미터 유지
+          // 필터 폼 제출 시 텍스트 검색(q)이 있으면 stage, team 초기화 (항상 전체 검색)
+          // 및 alert_type 파라미터 유지
           const form = document.getElementById('erp-filters-form');
           if (form) {
             form.addEventListener('submit', function (e) {
+              const qInput = this.querySelector('input[name="q"]');
+              if (qInput && qInput.value.trim() !== '') {
+                const stageSelect = this.querySelector('select[name="stage"]');
+                if (stageSelect) stageSelect.value = '';
+                const teamSelect = this.querySelector('select[name="team"]');
+                if (teamSelect) teamSelect.value = '';
+              }
+
               const url = new URL(window.location.href);
               const currentAlertType = url.searchParams.get('alert_type');
               if (currentAlertType) {

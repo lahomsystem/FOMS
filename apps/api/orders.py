@@ -521,7 +521,7 @@ def update_order_field():
 
         # AS 완료일 입력 시 ERP 프로세스 AS 처리 카테고리 > 완료로 처리 (기존/Beta 동일)
         if field == 'as_completed_date' and value:
-            order.status = 'AS_COMPLETED'
+            setattr(order, 'status', 'AS_COMPLETED')
             if getattr(order, 'is_erp_beta', False):
                 sd = getattr(order, 'structured_data', None) or {}
                 if isinstance(sd, dict):
@@ -530,7 +530,7 @@ def update_order_field():
                     wf['stage'] = 'AS_COMPLETED'
                     wf['stage_updated_at'] = datetime.datetime.now().isoformat()
                     sd['workflow'] = wf
-                    order.structured_data = sd
+                    setattr(order, 'structured_data', sd)
                     flag_modified(order, 'structured_data')
 
         # ERP Beta 주문이거나 structured_data 연동이 필요한 필드(as_content 등)인 경우

@@ -500,25 +500,23 @@
       }
     }
 
-    async function completeConstruction(orderId) {
-      if (!confirm('시공을 완료하시겠습니까? (상태가 완료(AS대기)로 변경됩니다)')) return;
-
-      try {
-        const res = await fetch(`/api/orders/${orderId}/construction/complete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await res.json();
-
-        if (data.success) {
-          alert(data.message);
-          window.location.reload();
-        } else {
-          alert('오류: ' + data.message);
-        }
-      } catch (err) {
-        console.error('Construction complete error:', err);
-        alert('처리 중 오류가 발생했습니다.');
+    function completeConstruction(orderId) {
+      const orderIdInput = document.getElementById('erp-cons-complete-order-id');
+      if (orderIdInput) orderIdInput.value = orderId;
+      
+      const fileInput = document.getElementById('erp-cons-complete-input');
+      if (fileInput) fileInput.value = '';
+      
+      const statusEl = document.getElementById('erp-cons-complete-status');
+      if (statusEl) statusEl.innerHTML = '';
+      
+      const progressWrap = document.getElementById('erp-cons-complete-progress');
+      if (progressWrap) progressWrap.classList.add('d-none');
+      
+      const modalEl = document.getElementById('erpConstructionCompleteModal');
+      if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
       }
     }
 
@@ -862,21 +860,33 @@
         // 시공 관련 버튼
         let actionHtml = '';
         if (stage === 'CONSTRUCTION' || stage === '시공' || stage === '시공대기' || stage === '시공중') {
+          // 상태별 버튼
+          let buttonsHtml = '';
+          if (stage === '시공대기' || stage === 'CONSTRUCTION' || stage === '시공') {
+            buttonsHtml += `
+                    <button class="btn btn-outline-primary" onclick="startConstruction(${orderId})">
+                      <i class="fas fa-play"></i> 시공 시작
+                    </button>`;
+          }
+          if (stage === '시공중') {
+            buttonsHtml += `
+                    <button class="btn btn-success" onclick="completeConstruction(${orderId})">
+                      <i class="fas fa-check"></i> 시공 완료
+                    </button>`;
+          }
+
           actionHtml = `
             <div class="col-12">
               <div class="card bg-light border-primary">
-                <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
-                  <div>
-                    <h5 class="card-title fw-bold text-primary mb-1"><i class="fas fa-hammer"></i> 시공 관리</h5>
-                    <p class="mb-0 text-muted small">시공 일정 및 완료 여부를 관리하세요.</p>
-                  </div>
-                  <div class="d-flex gap-2">
-                    <button class="btn btn-outline-primary" onclick="startConstruction(${orderId})">
-                      <i class="fas fa-play"></i> 시공 시작
-                    </button>
-                    <button class="btn btn-success" onclick="completeConstruction(${orderId})">
-                      <i class="fas fa-check"></i> 시공 완료
-                    </button>
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                      <h5 class="card-title fw-bold text-primary mb-1"><i class="fas fa-hammer"></i> 시공 관리</h5>
+                      <p class="mb-0 text-muted small">시공 일정 및 완료 여부를 관리하세요.</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                      ${buttonsHtml}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -913,11 +923,129 @@
       }
     }
 
+    async function submitConstructionComplete() {
+        const orderId = document.getElementById('erp-cons-complete-order-id').value;
+        if (!orderId) return;
+
+        const input = document.getElementById('erp-cons-complete-input');
+        const statusEl = document.getElementById('erp-cons-complete-status');
+        const progressWrap = document.getElementById('erp-cons-complete-progress');
+        const progressBar = document.getElementById('erp-cons-complete-progress-bar');
+        const completeBtn = document.getElementById('erp-cons-complete-btn');
+
+        const files = (input && input.files) ? Array.from(input.files) : [];
+        const hasFiles = files.length > 0;
+        const category = 'construction';
+
+        if (completeBtn) completeBtn.disabled = true;
+
+        if (hasFiles) {
+            if (statusEl) statusEl.textContent = `업로드 중... (0/${files.length})`;
+            if (progressWrap) progressWrap.classList.remove('d-none');
+            if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
+
+            let ok = 0;
+            const totalFiles = files.length;
+            const CONCURRENCY = 3;
+
+            async function doUploadOne(file) {
+                try {
+                    const folder = `orders/${orderId}/attachments`;
+                    const sessRes = await fetch('/api/upload/session', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filename: file.name, size: file.size, folder: folder })
+                    });
+                    const sessData = await sessRes.json();
+                    if (!sessData.success) throw new Error(sessData.error || '세션 생성 실패');
+                    
+                    const putRes = await fetch(sessData.upload_url, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                        body: file
+                    });
+                    if (!putRes.ok) throw new Error('R2 PUT 실패');
+                    
+                    const finRes = await fetch('/api/upload/finalize', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            session_id: sessData.session_id,
+                            order_id: orderId,
+                            category: category
+                        })
+                    });
+                    const finData = await finRes.json();
+                    if (!finData.success) throw new Error(finData.error || 'finalize 실패');
+                    return { success: true };
+                } catch (err) {
+                    console.error('Upload error:', err);
+                    return { success: false, error: err.message };
+                }
+            }
+
+            for (let start = 0; start < files.length; start += CONCURRENCY) {
+                const chunk = files.slice(start, start + CONCURRENCY);
+                const results = await Promise.all(chunk.map(f => doUploadOne(f)));
+                results.forEach(r => { if (r.success) ok++; });
+                
+                const pct = Math.round((Math.min(start + CONCURRENCY, totalFiles) / totalFiles) * 100);
+                if (progressBar) { progressBar.style.width = pct + '%'; progressBar.textContent = pct + '%'; }
+                if (statusEl) statusEl.textContent = `업로드 중... (${Math.min(start + CONCURRENCY, totalFiles)}/${totalFiles})`;
+            }
+
+            if (ok < files.length) {
+                if (statusEl) statusEl.innerHTML = '<span class="text-danger">일부 파일 업로드에 실패했습니다. 다시 시도해주세요.</span>';
+                if (completeBtn) completeBtn.disabled = false;
+                return; // 업로드 실패 시 완료 처리 중단
+            } else {
+                if (statusEl) statusEl.innerHTML = `<span class="text-success">${ok}개 사진 업로드 완료! 상태 변경 중...</span>`;
+            }
+        } else {
+             if (statusEl) statusEl.textContent = `사진 업로드 없이 상태 변경 중...`;
+        }
+
+        // 2. 시공 완료 API 호출
+        try {
+            const res = await fetch(`/api/orders/${orderId}/construction/complete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                const modalEl = document.getElementById('erpConstructionCompleteModal');
+                if (modalEl) {
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                }
+                // ERP 대시보드의 '완료' 탭으로 이동
+                window.location.href = '/erp/dashboard?stage=완료';
+            } else {
+                if (statusEl) statusEl.innerHTML = `<span class="text-danger">오류: ${data.message}</span>`;
+                if (completeBtn) completeBtn.disabled = false;
+            }
+        } catch (err) {
+            console.error('Construction complete error:', err);
+            if (statusEl) statusEl.innerHTML = `<span class="text-danger">처리 중 오류가 발생했습니다.</span>`;
+            if (completeBtn) completeBtn.disabled = false;
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
-      // 필터 폼 제출 시 alert_type 파라미터 유지
+      // 필터 폼 제출 시 텍스트 검색(q)이 있으면 stage, team 초기화 (항상 전체 검색)
+      // 및 alert_type 파라미터 유지
       const form = document.getElementById('erp-filters-form');
       if (form) {
         form.addEventListener('submit', function (e) {
+          const qInput = this.querySelector('input[name="q"]');
+          if (qInput && qInput.value.trim() !== '') {
+            const stageSelect = this.querySelector('select[name="stage"]');
+            if (stageSelect) stageSelect.value = '';
+            const teamSelect = this.querySelector('select[name="team"]');
+            if (teamSelect) teamSelect.value = '';
+          }
+
           const url = new URL(window.location.href);
           const currentAlertType = url.searchParams.get('alert_type');
           if (currentAlertType) {
@@ -959,6 +1087,19 @@
       // 프로세스 맵 & 알림 타일 클릭 → 필터 적용 후 리로드
       const applyFilter = (name, value) => {
         if (!form) return;
+
+        // 다른 필터(검색어, 팀 등) 초기화 (각 타일건만 온전히 필터링)
+        const singleFilterNames = ['stage', 'alert_type', 'urgent', 'has_alert', 'team', 'q'];
+        singleFilterNames.forEach(fieldName => {
+            if (fieldName !== name) {
+                let existingInput = form.querySelector(`[name="${fieldName}"]`);
+                if (existingInput) {
+                    if (existingInput.type === 'checkbox') existingInput.checked = false;
+                    else existingInput.value = '';
+                }
+            }
+        });
+
         let input = form.querySelector(`[name="${name}"]`);
 
         // input이 없으면 (특히 alert_type hidden input이 초기 상태에서 없을 수 있음) 생성
