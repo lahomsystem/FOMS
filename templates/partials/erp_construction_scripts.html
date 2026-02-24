@@ -655,6 +655,18 @@
         const construct = (((sd.schedule || {}).construction || {}).date) || '-';
         const manager = (((sd.parties || {}).manager || {}).name) || '-';
         const stage = (((sd.workflow || {}).stage)) || '-';
+        const hist = (sd.workflow || {}).history || [];
+        const is_started = hist.some(h => String(h.note || '').trim() === '시공 시작');
+        let displayStage = '';
+        if (stage === 'CONSTRUCTION' || stage === '시공') {
+          displayStage = is_started ? '시공중' : '시공대기';
+        } else if (stage === 'CS' || stage === 'COMPLETED' || stage === '완료' || stage === 'AS_WAIT') {
+          displayStage = '시공완료';
+        } else if (stage === 'CONSTRUCTING') {
+          displayStage = '시공중';
+        } else {
+          displayStage = stage;
+        }
         const urgent = ((sd.flags || {}).urgent) || false;
 
         // 담당팀: 현재 단계의 담당팀으로 자동 계산
@@ -857,18 +869,17 @@
             </div>`;
 
         // 도면 전달 버튼 (DRAWING 단계일 때만)
-        // 시공 관련 버튼
+        // 시공 관련 버튼: displayStage 기준으로 시공대기=시공 시작, 시공중=시공 완료만 노출
         let actionHtml = '';
-        if (stage === 'CONSTRUCTION' || stage === '시공' || stage === '시공대기' || stage === '시공중') {
-          // 상태별 버튼
+        if (displayStage === '시공대기' || displayStage === '시공중') {
           let buttonsHtml = '';
-          if (stage === '시공대기' || stage === 'CONSTRUCTION' || stage === '시공') {
+          if (displayStage === '시공대기') {
             buttonsHtml += `
                     <button class="btn btn-outline-primary" onclick="startConstruction(${orderId})">
                       <i class="fas fa-play"></i> 시공 시작
                     </button>`;
           }
-          if (stage === '시공중') {
+          if (displayStage === '시공중') {
             buttonsHtml += `
                     <button class="btn btn-success" onclick="completeConstruction(${orderId})">
                       <i class="fas fa-check"></i> 시공 완료
@@ -954,29 +965,30 @@
                     const sessRes = await fetch('/api/upload/session', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ filename: file.name, size: file.size, folder: folder })
+                        body: JSON.stringify({ filename: file.name, size: file.size, folder: folder, category: category })
                     });
                     const sessData = await sessRes.json();
-                    if (!sessData.success) throw new Error(sessData.error || '세션 생성 실패');
-                    
+                    if (!sessRes.ok || !sessData.success) throw new Error(sessData.message || sessData.error || '세션 생성 실패');
+
                     const putRes = await fetch(sessData.upload_url, {
                         method: 'PUT',
                         headers: { 'Content-Type': file.type || 'application/octet-stream' },
                         body: file
                     });
                     if (!putRes.ok) throw new Error('R2 PUT 실패');
-                    
-                    const finRes = await fetch('/api/upload/finalize', {
+
+                    const completeRes = await fetch(`/api/orders/${orderId}/attachments/complete`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            session_id: sessData.session_id,
-                            order_id: orderId,
-                            category: category
+                            key: sessData.key,
+                            filename: file.name,
+                            category: category,
+                            item_index: null
                         })
                     });
-                    const finData = await finRes.json();
-                    if (!finData.success) throw new Error(finData.error || 'finalize 실패');
+                    const completeData = await completeRes.json();
+                    if (!completeData.success) throw new Error(completeData.message || completeData.error || '첨부 등록 실패');
                     return { success: true };
                 } catch (err) {
                     console.error('Upload error:', err);

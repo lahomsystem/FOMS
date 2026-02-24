@@ -85,6 +85,8 @@ def erp_construction_dashboard():
             display_stage = '시공중' if is_started else '시공대기'
         elif stage in ('COMPLETED', '완료', 'AS_WAIT'):
             display_stage = '시공완료'
+        elif stage == 'CS':
+            display_stage = '시공완료'
         elif stage == 'CONSTRUCTING':
             display_stage = '시공중'
 
