@@ -6,7 +6,7 @@ from flask import Blueprint, render_template, request, session, redirect, url_fo
 from db import get_db
 from models import Order
 from apps.auth import login_required, get_user_by_id
-from sqlalchemy import or_, and_, cast, String
+from sqlalchemy import or_, and_, cast, String, case
 import datetime
 
 from services.erp_permissions import can_edit_erp
@@ -59,7 +59,9 @@ def erp_as_dashboard():
 
     query = _erp_order_search_filter(query, search_q)
 
-    rows = query.order_by(Order.id.desc()).limit(300).all()
+    # AS 접수(AS_RECEIVED) 먼저, 완료(AS_COMPLETED)는 하단; 각 그룹 내 id 내림차순
+    status_order = case((Order.status == 'AS_RECEIVED', 0), else_=1)
+    rows = query.order_by(status_order, Order.id.desc()).limit(300).all()
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     erp_mine_only = request.args.get('mine') == '1'
     if erp_mine_only and current_user:
