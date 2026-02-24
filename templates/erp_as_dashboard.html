@@ -5,6 +5,9 @@
   /* AS 방문일이 정해진 주문 셀: 옅은 연분홍 파스텔 */
   .erp-as-visit-cell--set { background-color: #ffd6e0 !important; }
   .erp-as-visit-row--set { background-color: #ffd6e0 !important; }
+  /* AS 완료일이 정해진 주문 셀 */
+  .erp-as-complete-cell--set { background-color: #d4edda !important; }
+  .erp-as-complete-row--set { background-color: #d4edda !important; }
 </style>
 <div class="erp-pro">
   <!-- Modern Header -->
@@ -94,7 +97,10 @@
                 <input type="date" class="erp-pro-input editable-date-as" value="{{ r.scheduled_date or '' }}"
                   data-order-id="{{ r.id }}" data-field="as_visit_date" style="width: 100%;">
               </td>
-              <td>{{ r.as_completed_date or '-' }}</td>
+              <td class="{% if r.as_completed_date %}erp-as-complete-cell--set{% endif %}">
+                <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_completed_date or '' }}"
+                  data-order-id="{{ r.id }}" data-field="as_completed_date" style="width: 100%;">
+              </td>
               <td>{{ r.manager_name or '-' }}</td>
               <td>
                 <span class="d-block">{{ (r.customer_name or '-') }}</span>
@@ -171,9 +177,10 @@
               <input type="date" class="erp-pro-input editable-date-as" value="{{ r.scheduled_date or '' }}"
                 data-order-id="{{ r.id }}" data-field="as_visit_date">
             </div>
-            <div class="erp-pro-order-card__row">
+            <div class="erp-pro-order-card__row {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
               <span class="erp-pro-order-card__label">AS 완료</span>
-              <span class="erp-pro-order-card__value">{{ r.as_completed_date or '-' }}</span>
+              <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_completed_date or '' }}"
+                data-order-id="{{ r.id }}" data-field="as_completed_date">
             </div>
             <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
               <span class="erp-pro-order-card__label">주소</span>
@@ -372,14 +379,36 @@
             if (data.success) {
               const cell = this.closest('td');
               const cardRow = this.closest('.erp-pro-order-card__row');
+              const isVisit = (field === 'as_visit_date');
+              const isComplete = (field === 'as_completed_date');
               if (value) {
-                if (cell) cell.classList.add('erp-as-visit-cell--set');
-                if (cardRow) cardRow.classList.add('erp-as-visit-row--set');
+                if (isVisit) {
+                  if (cell) cell.classList.add('erp-as-visit-cell--set');
+                  if (cardRow) cardRow.classList.add('erp-as-visit-row--set');
+                } else if (isComplete) {
+                  if (cell) cell.classList.add('erp-as-complete-cell--set');
+                  if (cardRow) cardRow.classList.add('erp-as-complete-row--set');
+                }
+                if (isComplete) {
+                  const row = this.closest('tr');
+                  const card = this.closest('.erp-pro-order-card');
+                  const badge = row ? row.querySelector('.erp-pro-badge') : (card ? card.querySelector('.erp-pro-badge') : null);
+                  if (badge) {
+                    badge.textContent = 'AS 완료';
+                    badge.className = 'erp-pro-badge erp-pro-badge--success';
+                  }
+                }
               } else {
-                if (cell) cell.classList.remove('erp-as-visit-cell--set');
-                if (cardRow) cardRow.classList.remove('erp-as-visit-row--set');
+                if (cell) {
+                  cell.classList.remove('erp-as-visit-cell--set');
+                  cell.classList.remove('erp-as-complete-cell--set');
+                }
+                if (cardRow) {
+                  cardRow.classList.remove('erp-as-visit-row--set');
+                  cardRow.classList.remove('erp-as-complete-row--set');
+                }
               }
-              showFeedback('방문일이 저장되었습니다.');
+              showFeedback(isComplete ? '완료일이 저장되었습니다.' : '방문일이 저장되었습니다.');
             } else {
               showFeedback('저장 실패: ' + data.message, true);
             }
