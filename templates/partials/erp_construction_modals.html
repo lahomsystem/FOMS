@@ -54,5 +54,38 @@
     </div>
   </div>
 
+  <!-- 시공 완료 처리 모달 -->
+  <div class="modal fade" id="erpConstructionCompleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-check-circle text-success"></i> 시공 완료 처리</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3">시공을 완료하시겠습니까? (상태가 완료(AS대기)로 변경됩니다)</p>
+          <input type="hidden" id="erp-cons-complete-order-id">
+          <div class="fw-bold mb-2 pt-3 border-top"><i class="fas fa-camera"></i> 시공 완료 사진 업로드</div>
+          <div class="border rounded p-3" style="border-style: dashed !important; background-color: #f8f9fa;">
+            <input type="file" id="erp-cons-complete-input" accept="image/*,video/*" multiple class="form-control form-control-sm mb-2">
+            <small class="text-muted d-block mb-2">여러 개 선택 가능 (시공 카테고리에 업로드됩니다)</small>
+            <div class="small text-muted" id="erp-cons-complete-status"></div>
+            <div id="erp-cons-complete-progress" class="mt-2 d-none">
+              <div class="progress" style="height: 18px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" id="erp-cons-complete-progress-bar" role="progressbar" style="width: 0%">0%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+          <button type="button" class="btn btn-success" id="erp-cons-complete-btn" onclick="submitConstructionComplete()">
+            <i class="fas fa-check"></i> 완료 처리
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="erp-dashboard-config" data-team-labels="{{ team_labels|tojson|e }}" data-stage-labels="{{ stage_labels|tojson|e }}" style="display:none" aria-hidden="true"></div>
   <script>
