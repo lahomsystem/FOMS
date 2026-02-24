@@ -15,6 +15,53 @@
 
         if (!config.erpBetaActive) return;
 
+        const MEASUREMENT_MANAGER_COLORS = ['#FF0000', '#0080FF', '#FFFF00', '#00FF00', '#FF00FF', '#00FFFF', '#FF8000', '#FF1493', '#00FF80', '#FF69B4'];
+
+        function getManagerFromRow(tr) {
+            const cell = tr.querySelector('td.manager-cell');
+            return (cell && (cell.textContent || '').trim()) || '';
+        }
+        function managerKeyForSort(tr) {
+            const m = getManagerFromRow(tr);
+            if (!m || m === '-') return 'ZZZ';
+            return m.toLowerCase();
+        }
+        function applyMeasurementManagerSortAndColors() {
+            const tbody = document.querySelector('.measurement-table tbody');
+            if (!tbody) return;
+            const rows = Array.from(tbody.querySelectorAll('tr.measurement-row'));
+            if (!rows.length) return;
+            rows.sort(function (a, b) {
+                const mA = managerKeyForSort(a);
+                const mB = managerKeyForSort(b);
+                if (mA !== mB) return mA.localeCompare(mB);
+                return (parseInt(a.dataset.orderId, 10) || 0) - (parseInt(b.dataset.orderId, 10) || 0);
+            });
+            rows.forEach(function (tr) { tbody.appendChild(tr); });
+            const managerList = [];
+            rows.forEach(function (tr) {
+                const m = getManagerFromRow(tr);
+                const key = (m && m !== '-') ? m.toLowerCase() : '';
+                if (key && managerList.indexOf(key) === -1) managerList.push(key);
+            });
+            rows.forEach(function (tr) {
+                const cell = tr.querySelector('td.manager-cell');
+                if (!cell) return;
+                const m = getManagerFromRow(tr);
+                const key = (m && m !== '-') ? m.toLowerCase() : '';
+                const idx = key ? managerList.indexOf(key) : -1;
+                const color = idx >= 0 ? MEASUREMENT_MANAGER_COLORS[idx % MEASUREMENT_MANAGER_COLORS.length] : '#CCCCCC';
+                cell.setAttribute('data-manager-bg-color', color);
+                cell.style.setProperty('--manager-bg-color', color);
+                cell.style.setProperty('background-color', color, 'important');
+                cell.style.setProperty('color', '#000000', 'important');
+                tr.dataset.manager = m || '';
+            });
+        }
+        function scheduleApplyMeasurementManagerSortAndColors() {
+            setTimeout(applyMeasurementManagerSortAndColors, 0);
+        }
+
         // 1. Scroll to today
         const todayId = "date-" + config.todayDate;
         const todayEl = document.getElementById(todayId);
@@ -23,31 +70,8 @@
             todayEl.scrollIntoView({ block: 'center' });
         }
 
-        // 2. Manager Cell Colors
-        const colorList = ['#FF0000', '#0080FF', '#FFFF00', '#00FF00', '#FF00FF', '#00FFFF', '#FF8000', '#FF1493', '#00FF80', '#FF69B4'];
-        const managerCells = document.querySelectorAll('td.manager-cell');
-        const managerColorMap = {};
-        let colorIndex = 0;
-
-        managerCells.forEach(cell => {
-            const managerName = (cell.textContent || '').trim();
-            if (managerName && managerName !== '-' && !managerColorMap[managerName]) {
-                managerColorMap[managerName] = colorList[colorIndex % colorList.length];
-                colorIndex++;
-            }
-        });
-
-        managerCells.forEach(cell => {
-            const managerName = (cell.textContent || '').trim();
-            if (managerName && managerName !== '-') {
-                const bgColor = managerColorMap[managerName] || '#CCCCCC';
-                cell.setAttribute('data-manager-bg-color', bgColor);
-                cell.style.setProperty('--manager-bg-color', bgColor);
-                cell.style.setProperty('background-color', bgColor, 'important');
-                cell.style.setProperty('background', bgColor, 'important');
-                cell.style.setProperty('color', '#000000', 'important');
-            }
-        });
+        // 2. Manager Cell Colors (초기 적용 후, 담당자 편집 시 scheduleApplyMeasurementManagerSortAndColors로 실시간 재정렬·재색상)
+        applyMeasurementManagerSortAndColors();
 
         // 3. Route Plan
         const btn = document.getElementById('btn-route-plan');
@@ -102,17 +126,17 @@
             });
         }
 
-        // 4. Inline Edit
+        // 4. Inline Edit (담당자: ERP Beta + 비-ERP 모두, 주소/전화: ERP Beta만)
         const editableCells = document.querySelectorAll('.editable-cell');
         editableCells.forEach(cell => {
             cell.addEventListener('click', async function () {
                 const tr = this.closest('tr');
                 const orderId = tr.dataset.orderId;
-                const isErpBeta = tr.dataset.isErpBeta === 'true';
+                const isErpBeta = tr.dataset.isErp === 'true';
                 const field = this.dataset.field;
                 const currentValue = this.textContent.trim();
 
-                if (!isErpBeta) return;
+                if (!isErpBeta && field !== 'manager') return;
                 if (this.querySelector('input')) return;
 
                 const input = document.createElement('input');
@@ -133,15 +157,38 @@
                     }
                     this.textContent = '저장 중...';
                     try {
-                        const res = await fetch(`/api/erp/measurement/update/${orderId}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ field, value: newValue })
-                        });
-                        const data = await res.json();
-                        this.textContent = data.success ? (newValue || '-') : (currentValue || '-');
+                        let res;
+                        if (field === 'manager' && !isErpBeta) {
+                            res = await fetch('/api/update_order_field', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'same-origin',
+                                body: JSON.stringify({ order_id: parseInt(orderId, 10), field: 'manager_name', value: newValue })
+                            });
+                        } else {
+                            res = await fetch(`/api/erp/measurement/update/${orderId}`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'same-origin',
+                                body: JSON.stringify({ field, value: newValue })
+                            });
+                        }
+                        const contentType = res.headers.get('Content-Type') || '';
+                        const data = contentType.includes('application/json') ? await res.json() : { success: false, error: res.status === 404 ? 'API 경로를 확인해 주세요.' : '저장 실패' };
+                        if (data.success) {
+                            this.textContent = newValue || '-';
+                            if (field === 'manager') {
+                                const tr = this.closest('tr');
+                                if (tr) tr.dataset.manager = newValue || '';
+                                scheduleApplyMeasurementManagerSortAndColors();
+                            }
+                        } else {
+                            this.textContent = currentValue || '-';
+                            if (data.message || data.error) console.warn('담당자 저장 실패:', data.message || data.error);
+                        }
                     } catch (e) {
                         this.innerHTML = originalContent;
+                        console.warn('담당자 저장 중 오류:', e);
                     }
                 });
             });

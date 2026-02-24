@@ -1,36 +1,25 @@
-# 전역 업/다운로드 R2 적용 맥락 (CONTEXT)
+# AS대시보드 데이터 이관 컨텍스트
 
-**작성일**: 2026-02-23
+- **배경**: Staging 환경과 Production 환경이 분리되어 운영되던 중, Staging에만 등록된 'AS 관련 주문'을 Production으로 이관해야 하는 요구사항 발생.
+- **주요 제약사항**:
+  1. Staging과 Production 간 `orders.id` 가 다를 수 있거나 충돌할 수 있음 (Id 덮어쓰기 금지).
+  2. 공통 주문은 제외해야 하므로 `(customer_name, phone)` 등 비즈니스 식별자를 기준으로 중복을 판단해야 함.
+  3. `orders` 테이블의 컬럼뿐 아니라 `structured_data` 및 연관 `order_attachments` 등의 데이터도 최대한 보존해야 "완벽한 이관"이 됨.
+- **해결 방향**: Python을 이용한 마이그레이션 스크립트로 양쪽 DB를 연결해 메모리 상에서 비교(Set Diff) 후, 신규 Insert 수행 (새로운 PK 할당).
 
 ---
 
-## 1. 결정 배경
+# 원격 업로드 개선 컨텍스트 (2026-02-23)
 
-- **요구**: FOMS 전역에서 파일 업/다운이 “원활”하게 동작 (R2 direct 최단 경로).
-- **현황**: 업로드는 대부분 이미 R2 direct(session → PUT). 다운/미리보기는 ERP Beta 첨부만 presigned 직접 적용, 나머지는 `/api/files/view|download` 경유(리다이렉트).
-- **선택**: 기존 `GET /api/files/presigned-urls/<path:storage_key>` API를 그대로 사용하고, **프론트만** “뷰어/모달을 열 때 presigned 조회 후 src/href 교체”하도록 확장.
+- **배경**: 원격(production)에서 파일 업로드가 느리다는 사용자 피드백. 이미 Phase D Direct Upload(브라우저 → R2 직접 PUT)를 사용 중이라 지연 구간은 사용자 네트워크 ↔ R2.
+- **결정**: 서버/API 변경 없이 **프론트만** 개선. Phase 1으로 **병렬 업로드**(파일 2~3개씩 동시 전송) 적용하여 체감 시간 단축. Phase 2(진행률 표시)는 선택.
+- **참조**: `docs/memory/PLAN_UPLOAD_IMPROVEMENT.md`
 
-## 2. 기술 선택
+---
 
-- **Presigned API 유지**: 이미 구현·보안 검사(`..`, `/` 제거, `@login_required`) 완료. 채팅·주문·도면 모두 동일 스토리지 키 체계면 동일 API 사용.
-- **중앙 처리**: `GlobalImageViewer`(layout.html)에서만 presigned fetch 수행. 호출부는 `key`만 넘기면 되어, 중복 로직·실수 가능성 감소.
-- **점진 적용**: 뷰어 열 때 기존 URL로 먼저 표시 후 비동기 presigned로 교체. 실패 시 기존 URL 유지로 하위 호환.
+# 실측 대시보드 담당자 직접 입력 (2026-02-23)
 
-## 3. 데이터 소스
-
-- **OrderAttachment**: `to_dict()`에 `storage_key` 포함. API 응답에 그대로 노출.
-- **도면 파일**: `drawing_files` 등에 `key` 또는 `storage_key` 형태로 존재. Jinja에서 `fkey`로 전달.
-- **채팅**: `f.key` 또는 `storage_key` 형태. layout 쪽 파일 목록에 `key` 포함 가능.
-- **블루프린트**: `order.blueprint_image_url`가 `/api/files/view/...` 형식이면 key 추출 가능. 필요 시 서버에서 `blueprint_storage_key` 추가.
-
-## 4. 제약
-
-- **파일 크기**: GDM 목표(HTML 800줄, JS 300줄) 초과 템플릿은 기존대로. 이번 작업은 기존 스크립트 내 소량 추가 위주.
-- **인증**: presigned-urls는 `@login_required`. 비로그인 시 기존 앱 URL만 사용.
-- **로컬 스토리지**: presigned API가 로컬일 때 기존 view/download URL을 반환하므로, 로컬 환경에서도 동작 유지.
-
-## 5. 미적용 범위
-
-- **업로드**: 변경 없음 (이미 R2 direct 적용 구간 다수).
-- **Form fallback 업로드**: 계속 앱 경유. 필요 시 추후 session 방식으로 통일 검토.
-- **edit_order 블루프린트**: 우선순위 낮음, 선택 단계에서 적용.
+- **배경**: 실측 대시보드에서 담당자 셀을 클릭해 직접 입력하고, 저장 시 주문 상세(Order.manager_name 및 ERP Beta 시 structured_data.parties.manager.name)에 반영되도록 요청.
+- **원인**: 템플릿은 `data-is-erp`만 넘기는데 JS는 `dataset.isErpBeta`를 참조해 편집 분기가 항상 비활성화됨. API는 이미 ERP Beta용 `/api/erp/measurement/update`, 비-ERP용 `/api/orders/update_order_field`(manager_name) 지원.
+- **결정**: measurement.js에서 (1) `tr.dataset.isErp === 'true'` 로 수정해 ERP Beta에서 인라인 편집 동작하도록 함. (2) 비-ERP 주문은 담당자만 `update_order_field`로 저장하도록 분기 추가.
+- **참조**: `docs/memory/PLAN_MEASUREMENT_MANAGER.md`
