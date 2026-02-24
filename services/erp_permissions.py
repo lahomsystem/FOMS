@@ -1,4 +1,4 @@
-"""ERP Beta 수정 권한: 관리자, CS, SALES 팀만 수정 가능."""
+"""ERP Beta 수정 권한: 관리자, CS, SALES 팀만 수정 가능. 시공 시작/완료/불가는 시공팀(CONSTRUCTION)도 가능."""
 from flask import session, jsonify
 from apps.auth import get_user_by_id
 
@@ -13,6 +13,15 @@ def can_edit_erp(user):
     if user.role == 'ADMIN':
         return True
     return (user.team or '').strip() in ERP_EDIT_ALLOWED_TEAMS
+
+
+def can_edit_erp_construction(user):
+    """시공 대시보드 전용: 시공 시작/완료/불가 버튼 권한 — 관리자 또는 시공팀(CONSTRUCTION)"""
+    if not user:
+        return False
+    if user.role == 'ADMIN':
+        return True
+    return (user.team or '').strip() == 'CONSTRUCTION'
 
 
 def erp_edit_required(f):
@@ -30,4 +39,22 @@ def erp_edit_required(f):
                 'message': 'ERP Beta 수정 권한이 없습니다. (관리자, 라홈팀, 하우드팀, 영업팀만 수정 가능)'
             }), 403
         return f(*args, **kwargs)
+    return wrapped
+
+
+def erp_construction_edit_required(f):
+    """시공 시작/완료/불가 API 전용: can_edit_erp 또는 시공팀(CONSTRUCTION)이면 허용"""
+    from functools import wraps
+
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        user = get_user_by_id(session.get('user_id'))
+        if not user:
+            return jsonify({'success': False, 'message': '로그인이 필요합니다.'}), 401
+        if can_edit_erp(user) or can_edit_erp_construction(user):
+            return f(*args, **kwargs)
+        return jsonify({
+            'success': False,
+            'message': '시공 시작/완료 권한이 없습니다. (관리자, 라홈팀, 영업팀 또는 시공팀만 가능)'
+        }), 403
     return wrapped
