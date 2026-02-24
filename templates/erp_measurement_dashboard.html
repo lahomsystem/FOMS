@@ -235,6 +235,15 @@
                 box-shadow: 0 0 0 1px rgba(25, 135, 84, 0.25);
               }
 
+              /* 실측일 컬럼: 연분홍으로 눈에 띄게 */
+              .measurement-table td.measurement-date-cell {
+                background-color: #ffe4ec !important;
+                font-weight: 600;
+              }
+              .measurement-table tbody tr:hover td.measurement-date-cell {
+                background-color: #ffc8d8 !important;
+              }
+
               .measurement-panel-item {
                 scroll-margin-top: 16px;
               }
@@ -309,6 +318,7 @@
                   <th style="width: 120px; border-right: 1px solid #e0e0e0;">발주사</th>
                   <th style="border-right: 1px solid #e0e0e0;">주소</th>
                   <th style="width: 120px; border-right: 1px solid #e0e0e0;">전화번호</th>
+                  <th style="width: 95px; border-right: 1px solid #e0e0e0;">실측일</th>
                   <th style="width: 90px; border-right: 1px solid #e0e0e0;">시간</th>
                   <th class="measurement-product-cell" style="max-width: 140px; border-right: 1px solid #e0e0e0;">제품
                   </th>
@@ -339,6 +349,7 @@
                 {% set address = r.address %}
                 {% set phone = r.phone %}
                 {% set meas_time = r.measurement_time %}
+                {% set meas_date = r.measurement_date %}
                 {% set product = r.product %}
                 {% set manager = r.manager_name %}
 
@@ -377,6 +388,7 @@
                     style="border-right: 1px solid #e0e0e0;">{{ address or '-' }}</td>
                   <td class="editable-cell" data-field="phone" style="border-right: 1px solid #e0e0e0;">{{
                     phone|format_phone }}</td>
+                  <td class="measurement-date-cell" style="border-right: 1px solid #e0e0e0; white-space: nowrap;">{{ meas_date or '-' }}</td>
                   <td style="border-right: 1px solid #e0e0e0;">{{ meas_time or '-' }}</td>
                   <td class="cell-wrap measurement-product-cell" style="border-right: 1px solid #e0e0e0;">{{ (product or
                     '-')|strip_product_w or '-' }}</td>
@@ -388,7 +400,7 @@
                 {% endfor %}
                 {% else %}
                 <tr>
-                  <td colspan="8" class="text-center text-muted py-4">데이터가 없습니다.</td>
+                  <td colspan="9" class="text-center text-muted py-4">데이터가 없습니다.</td>
                 </tr>
                 {% endif %}
               </tbody>

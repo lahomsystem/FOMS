@@ -708,6 +708,9 @@
 | 2026-02-24 19:08:44 | allow | `-` | `(payload에 command 없음)` |
 | 2026-02-24 19:08:49 | allow | `-` | `(payload에 command 없음)` |
 | 2026-02-24 19:08:55 | allow | `-` | `(payload에 command 없음)` |
-| 2026-02-25 00:03:07 | allow | `-` | `(payload에 command 없음)` |
-| 2026-02-25 00:03:11 | allow | `-` | `(payload에 command 없음)` |
-| 2026-02-25 00:03:16 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-24 19:19:46 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-24 19:19:51 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-24 19:38:16 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-24 19:38:21 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-25 00:04:17 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-25 00:04:17 | allow | `-` | `(payload에 command 없음)` |
