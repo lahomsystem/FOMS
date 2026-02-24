@@ -577,7 +577,7 @@ def update_order_field():
         if field == 'address':
             enqueue_geocode_order_address(order_id)
         
-        # 상태 변경 시 특별한 로깅
+        # 상태 변경 시 특별한 로깅 (AS 접수로 바꿀 때도 scheduled_date/as_visit_date 자동 입력하지 않음)
         if field == 'status':
             log_access(f"자가실측 주문 #{order.id} 상태 변경: '{old_value}' → '{value}'", session['user_id'])
         else:
@@ -612,7 +612,7 @@ def update_order_status():
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
         
-        # 상태 업데이트
+        # 상태 업데이트 (AS 접수 시 AS 방문일 자동 입력 금지: scheduled_date/as_received_date 미설정)
         old_status_val: str = getattr(order, 'status', None) or ''
         order.status = new_status
         db.commit()
@@ -675,6 +675,7 @@ def bulk_update_order_status():
                 updated += 1
                 continue
             setattr(order, 'status', new_status)
+            # AS 접수 시 AS 방문일 자동 입력 금지: scheduled_date, as_received_date, schedule.construction.date 설정하지 않음
             sd_raw = getattr(order, 'structured_data', None)
             if getattr(order, 'is_erp_beta', False) and sd_raw:
                 sd = sd_raw
@@ -687,6 +688,7 @@ def bulk_update_order_status():
                     wf['stage'] = new_status
                     wf['stage_updated_at'] = datetime.datetime.now().isoformat()
                     sd['workflow'] = wf
+                    # schedule.construction.date 는 AS 접수 시 자동 세팅하지 않음 (AS 방문일은 사용자 입력만)
                     setattr(order, 'structured_data', sd)
                     flag_modified(order, 'structured_data')
                 db.add(OrderEvent(

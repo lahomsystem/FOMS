@@ -31,6 +31,8 @@ STAGE_LABELS: Dict[str, str] = {
     "CS": "CS",                  # H - 원본 요구사항 기반 추가
     "COMPLETED": "완료",         # 최종 완료
     "AS": "AS처리",              # AS 서브프로세스
+    "AS_RECEIVED": "AS접수",     # AS 접수 (AS 대시보드 표시)
+    "AS_COMPLETED": "AS완료",    # AS 완료
 }
 
 
@@ -45,6 +47,8 @@ DEFAULT_OWNER_TEAM_BY_STAGE: Dict[str, str] = {
     "CS": "CS",                  # H 단계 추가
     "COMPLETED": "CS",
     "AS": "CS",
+    "AS_RECEIVED": "CS",
+    "AS_COMPLETED": "CS",
 }
 
 # 한글 단계명을 영문 코드로 변환하는 매핑 (app.py의 _erp_get_stage() 매핑의 역매핑)
@@ -59,6 +63,8 @@ STAGE_NAME_TO_CODE: Dict[str, str] = {
     "CS": "CS",
     "완료": "COMPLETED",
     "AS처리": "AS",
+    "AS접수": "AS_RECEIVED",
+    "AS완료": "AS_COMPLETED",
 }
 
 # 프로젝트 루트의 data/ 폴더 (기존 data/erp_policy.json 등 유지)

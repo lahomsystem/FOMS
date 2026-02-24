@@ -99,8 +99,14 @@
 - [x] **U1. ERP 첨부 병렬 업로드**  
   erp_beta_js.html: erpUploadSelectedAttachments에서 USE_DIRECT_UPLOAD 시 파일을 3개씩 동시에 erpDoDirectUploadOne 호출(Promise.all), 진행률 = 완료 수/전체
 
+- [x] **U1b. 제품별 이미지 업로드 병렬화** (2026-02-24 GDM 지휘)  
+  erp_beta_js.html: erpUploadItemAttachments에서 동일하게 CONCURRENCY=3, Promise.all(chunk.map(...)), 진행률 = 완료 수/전체
+
 - [ ] **U2. 검증**  
-  로컬·원격에서 다수 파일 선택 업로드 성공, 기존 폴백(순차/FormData) 유지 확인
+  로컬·원격에서 공통 첨부·제품별 이미지 각각 다수 파일 업로드 성공, 기존 폴백(순차/FormData) 유지 확인
+
+- [x] **U3. 목록/썸네일 presigned** (2026-02-24 GDM Phase2)  
+  layout.html 공통 후크 erpReplaceThumbnailsWithPresigned, 대시보드 첨부 카드·도면 워크벤치 썸네일 data-storage-key 적용
 
 ---
 

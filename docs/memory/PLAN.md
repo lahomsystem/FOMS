@@ -1,98 +1,64 @@
-# 전역 파일 업/다운로드 R2 최단 경로 적용 계획서
+# AS대시보드 Staging -> Production 데이터 이관 계획서
 
-**작성일**: 2026-02-23  
-**기준**: `.cursor/agents/grand-develop-master.md`, `docs/memory/FILE_UPLOAD_DOWNLOAD_REVIEW.md`  
-**목표**: FOMS 전역에서 파일 미리보기/다운로드 시 R2 presigned 직접 링크 사용으로 앱 서버 경유 최소화
-
----
-
-## 1. 현황 요약
-
-| 구분 | 업로드 | 다운로드/미리보기 |
-|------|--------|-------------------|
-| **이미 R2 직접** | ERP Beta 첨부, 도면 워크벤치, 채팅, edit_order 블루프린트 (session → PUT) | **ERP Beta 주문 입력 첨부 미리보기 모달만** (presigned 조회 후 교체) |
-| **앱 경유** | Form fallback (POST multipart) | 도면 워크벤치, 대시보드 전 구간, 채팅 뷰어, edit_order 블루프린트 보기 등 |
-
-**기존 API**: `GET /api/files/presigned-urls/<path:storage_key>` 이미 존재. R2/S3 시 presigned URL 반환, 로컬 시 기존 view/download URL 반환.
+**작성일**: 2026-02-23
+**작성자**: Grand Develop Master (Virtual CTO)
+**목표**: Staging 환경의 AS대시보드 전용 주문 건 중 Production에 없는 데이터를 추출해 완벽하게(상태 포함) 이관.
 
 ---
 
-## 2. 설계 원칙
-
-1. **단일 API 사용**: 모든 프론트에서 `GET /api/files/presigned-urls/<storage_key>`만 사용. 채팅 파일도 동일 스토리지 키 체계면 동일 API 사용.
-2. **점진 적용**: 뷰어/모달을 **열 때** 기존 URL로 즉시 표시한 뒤, 비동기로 presigned 조회 후 `img.src`/다운로드 링크만 교체 (ERP Beta와 동일 패턴). 타이밍 이슈·깜빡임 최소화.
-3. **중앙화**: `GlobalImageViewer`(layout.html)를 사용하는 모든 구간은 **뷰어 한 곳**에서만 presigned 로직 수행. 호출 측은 `key`(storage_key)만 넘기면 됨.
-4. **하위 호환**: `key`가 없으면 기존처럼 앱 URL만 사용 (리다이렉트로 동작 유지).
-
----
-
-## 3. 적용 구간 및 데이터 흐름
-
-### 3.1 GlobalImageViewer 사용처 (layout.html)
-
-- **역할**: 전역 이미지 뷰어. `GlobalImageViewer.open(files, startIndex)` 호출 시 `files[]`에 `url`, `download_url`, `filename`, **(추가) key** 포함.
-- **수정**:
-  - `open()`에서 `state.files`에 `key: f.key || parseKeyFromUrl(f.url) || parseKeyFromUrl(f.download_url) || null` 보존.
-  - `render()`에서 `els.image.src = file.url` 설정 후, `file.key`가 있으면 `fetch('/api/files/presigned-urls/' + encodePath(file.key))` → 성공 시 `els.image.src = data.view_url`로 교체.
-  - 공통 유틸: `function encodePath(key) { return key.split('/').map(s => encodeURIComponent(s)).join('/'); }`
-- **호출 측 의무**: `open(files, index)` 시 각 `f`에 `key`(storage_key) 포함. 없으면 기존 URL만 사용.
-
-### 3.2 도면 워크벤치 상세 (`erp_drawing_workbench_detail.html`)
-
-- **현재**: `render_gateway_file_gallery` 등에서 `data-view-url`, `data-download-url`, `data-filename` 있음. `data-key` 없음.
-- **수정**:
-  - 매크로/섹션에서 `data-key` 또는 `data-storage-key="{{ fkey }}"` 추가 (fkey = `f.get('key')` 또는 동일 값).
-  - `openDrawingGatewayImageViewer`에서 `files` 구성 시 `key: el.dataset.key || el.dataset.storageKey || ''` 추가.
-  - `GlobalImageViewer.open(files, index)`에 그대로 전달 → layout 쪽에서 presigned 처리.
-
-### 3.3 대시보드 partials (GlobalImageViewer 호출부)
-
-- **erp_dashboard_scripts_gateway.html**: `viewerFiles`에 `view_url`, `download_url`, `filename` 있음. `f.key` 있으면 `key: f.key` 추가.
-- **erp_production_scripts.html**: `imageFiles`/`__currentAttachmentList`에 `storage_key` 있으면 `key: a.storage_key` 추가.
-- **erp_construction_scripts.html**: 동일. 첨부 목록에 `storage_key` 포함해 `key` 전달.
-- **erp_dashboard_scripts_attachments.html**: 동일. `key` 전달.
-- **erp_dashboard_scripts_detail.html**: `viewUrl`, `downloadUrl` 구성 시 `key: a.storage_key` 추가.
-- **erp_dashboard_scripts_core.html**: 동일. API에서 오는 첨부에 `storage_key` 있으면 `key`로 전달.
-
-(위 구간은 모두 이미 `view_url`/`download_url`을 API·서버에서 받고 있으므로, 같은 객체에 `storage_key` 또는 `key`가 있으면 open 시 포함만 하면 됨.)
-
-### 3.4 채팅 (layout + chat partials)
-
-- **layout.html**: 채팅에서 뷰어를 열 때 이미 `f.key` 등으로 파일 목록을 넘길 수 있으면, `state.files`에 `key` 포함되도록 정규화만 하면 됨.
-- **openImageLightbox** (chat_scripts_lightbox.html): 단일 URL만 받음.  
-  - **선택 A**: `openImageLightbox(url, key)`로 확장. `key` 있으면 presigned 조회 후 `img.src` 교체.  
-  - **선택 B**: 채팅 메시지에서 이미지 클릭 시 `GlobalImageViewer.open([{ url, download_url, filename, key }], 0)` 호출로 통일.  
-  - **권장**: 선택 A (최소 변경). 호출부에서 `key` 전달 가능하면 전달 (예: `/api/files/view/chat/xxx` → key `chat/xxx` 파싱해 전달).
-
-### 3.5 edit_order 블루프린트
-
-- **현재**: `blueprint_image_url`로 이미지 표시, 다운로드 버튼이 별도 존재.
-- **선택 사항**: 블루프린트 보기/다운로드도 presigned 적용 시, `blueprint_image_url`에서 key 추출 (또는 서버에서 `blueprint_storage_key` 전달) 후 페이지 로드 또는 버튼 클릭 시 presigned 조회해 `img.src`/다운로드 링크 교체. 우선순위 낮음.
+## 1. 요구사항 분석
+- **Staging DB**: `postgresql://postgres:jDkSuQDkQZkGZCFmPMOnFoDaXNJebidd@maglev.proxy.rlwy.net:24958/railway`
+- **Production DB**: `postgresql://postgres:XMuhzNDZDeBlQStbmUQymJTGQvgIKAVq@yamanote.proxy.rlwy.net:34306/railway`
+- **조건 1**: AS대시보드 노출 대상 데이터만 한정 (status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') 또는 workflow.stage == 'AS')
+- **조건 2**: Staging과 Production에 공통으로 존재하는 주문은 이관에서 제외.
+- **조건 3**: Production에 없는 Staging 주문을 추출해 상태(status, structured_data, 날짜 등) 보존 하에 Production에 삽입.
 
 ---
 
-## 4. 단계별 실행 순서 (착수 계획)
-
-| 단계 | 작업 | 파일 | 검증 |
-|------|------|------|------|
-| 1 | GlobalImageViewer에 `key` 보존 + render()에서 presigned 조회·교체 | layout.html | 뷰어 열었을 때 R2 직접 로드 확인 |
-| 2 | 도면 워크벤치 상세에 `data-key` 추가, open 시 `key` 전달 | erp_drawing_workbench_detail.html | 도면 갤러리 클릭 시 presigned 적용 |
-| 3 | 대시보드 gateway에서 viewerFiles에 `key` 포함 | erp_dashboard_scripts_gateway.html | 게이트웨이 이미지 클릭 시 presigned |
-| 4 | 대시보드 attachments/production/construction/detail/core에서 open 시 `key` 포함 | 해당 partials 5개 | 각 구간 이미지 미리보기 presigned |
-| 5 | 채팅 openImageLightbox에 key 인자·presigned 처리 또는 채팅→GlobalImageViewer 통일 | chat_scripts_lightbox.html, 채팅 메시지 렌더링부 | 채팅 이미지 클릭 시 presigned |
-| 6 | (선택) edit_order 블루프린트 보기/다운 presigned | edit_order.html | 블루프린트 presigned |
+## 2. 아키텍처 및 데이터 영향도 평가
+- **식별자(PK) 충돌 문제**: Staging에서 생성된 주문의 `id`가 이미 Production에 존재할 수 있습니다. 따라서 `id`를 그대로 덮어쓰는 것은 기존 Production 데이터(비-AS 주문 포함)를 손상시킬 수 있어 매우 위험합니다. 
+- **공통 주문 판별 기준**: `id`가 다를 수 있으므로 `(customer_name, phone, product)` 또는 `(customer_name, phone, address)`를 복합 키로 사용하여 동일 주문을 판별해야 합니다.
+- **관계형 데이터 (연관 테이블)**: 주문(`orders`) 테이블뿐만 아니라 `order_attachments`(첨부파일), `system_build_steps`(시스템 로그), `erp_logs` 등 연관 데이터까지 이관할지 결정해야 "완벽한 상태 보존"이 됩니다.
 
 ---
 
-## 5. 위험·롤백
+## 3. 구현 방법 (3가지 대안)
 
-- **위험**: presigned API 실패 시 기존 앱 URL이 이미 적용되어 있으므로 동작은 유지됨.
-- **롤백**: 각 단계는 독립적. layout의 presigned 로직 제거 또는 `key` 미전달로 즉시 앱 경유로 복귀 가능.
+### 방법 A: 일회성 Python 마이그레이션 스크립트 작성 (권장)
+- **개요**: psycopg2 또는 SQLAlchemy를 사용해 양쪽 DB에 동시 접속하는 Python 스크립트를 작성합니다.
+- **장점**: 논리적 비교(고객명+전화번호)가 쉽고, 관계형 데이터(첨부파일 등)의 외래키(`order_id`)를 새 Production `id`에 맞춰 매핑/변경하기 용이합니다.
+- **단점**: 스크립트 개발 시간이 약간 소요됩니다.
+
+### 방법 B: SQL 덤프 및 조건부 INSERT (pg_dump + DBeaver/DataGrip)
+- **개요**: Staging에서 AS 주문만 `pg_dump`로 SQL화 한 후, Production에서 `INSERT INTO ... ON CONFLICT DO NOTHING` 실행.
+- **장점**: 별도 코딩 없이 SQL만으로 빠르게 처리 가능합니다.
+- **단점**: `id` 충돌 발생 시 처리가 까다롭고, 공통 데이터 제외 기준을 SQL 조인으로 작성해야 하므로 실수 시 Production 데이터 오염 위험이 높습니다.
+
+### 방법 C: CSV/Excel 추출 후 FOMS 업로드 기능 활용
+- **개요**: Staging에서 AS 데이터를 엑셀로 다운로드 후 Production의 "주문 추가" 기능으로 업로드.
+- **장점**: 가장 안전하며 Production DB를 직접 건드리지 않습니다.
+- **단점**: `structured_data` 등 ERP Beta의 복잡한 JSON 상태나 첨부파일이 완벽하게 이관되지 않습니다. (요구사항 3 충족 실패 가능성)
 
 ---
 
-## 6. 참조
+## 4. 추천안 및 이유 (The GDM Way)
+**추천안: 방법 A (일회성 Python 마이그레이션 스크립트 작성)**
+- **이유**: "주문 건 상태까지 완벽하게 넣으려고 해"라는 요구사항을 충족하려면 `structured_data`, `status`, 날짜 필드들을 그대로 복제해야 합니다. Staging과 Production 간 `order_id` 충돌을 피하기 위해 새 `id`를 발급받되, 기존 데이터 구조를 그대로 복사하는 것은 Python 스크립트(Pandas/SQLAlchemy)가 가장 안전하고 확실합니다.
 
-- `apps/api/files.py`: `presigned_urls(storage_key)`
-- `templates/partials/erp_beta_js.html`: `erpOpenAttachmentPreview` (presigned 적용 참고)
-- `docs/memory/FILE_UPLOAD_DOWNLOAD_REVIEW.md`: 사용처 정리
+---
+
+## 5. 진행 단계 (실행 계획)
+1. **분석**: Staging DB에서 AS 주문 총 건수 및 식별 기준 확립 (고객명+연락처 기준).
+2. **스크립트 작성**: `scripts/migrate_as_orders.py` 작성.
+   - Staging DB 연결 -> AS 주문 조회.
+   - Production DB 연결 -> 기존 AS 주문 조회.
+   - 교집합 제외(고객명+전화번호 기준).
+   - 남은 Staging 주문을 Production DB에 `INSERT` (단, `id`는 자동 증가 적용).
+   - 연관된 `order_attachments`가 있다면 새 `order_id`로 변경하여 `INSERT`.
+3. **Dry-Run (모의 실행)**: 실제 삽입 없이 로그로 몇 건이 이관되는지 출력.
+4. **실제 반영**: 사용자 승인 후 스크립트 실행.
+
+---
+
+사용자님, 위 **방법 A(Python 스크립트 기반 이관)** 로 진행하는 것에 동의하시는지요? 
+승인해주시면 `migrate_as_orders.py` 스크립트를 작성하고 모의 실행(Dry-Run) 결과를 보여드리겠습니다.

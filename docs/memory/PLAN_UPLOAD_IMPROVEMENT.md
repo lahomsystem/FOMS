@@ -31,7 +31,13 @@
 - **구현**: `erpUploadSelectedAttachments`에서 `for` + `await` 대신, `Promise.all` + 청크(예: 2~3개씩 묶어서) 또는 `Promise.allSettled`로 동시 실행. 진행률은 “완료된 개수 / 전체”로 표시.
 - **담당**: frontend-ui (또는 GDM 직접).
 
-### Phase 2 (선택): Direct PUT 진행률 표시
+### Phase 2 (목록/썸네일 presigned) — 2026-02-24 적용
+
+- **내용**: 목록·갤러리 썸네일 `img`의 src를 `/api/files/view` 경유 대신 **presigned URL(R2 직행)**로 로드.
+- **구현**: (1) `layout.html`에 `erpReplaceThumbnailsWithPresigned(container)` 공통 후크 — `img[data-storage-key]`에 대해 `GET /api/files/presigned-urls/<key>` 호출 후 src 교체(5개씩 병렬). (2) 대시보드 첨부 `buildDrawingTargetCards` 썸네일에 `data-storage-key` 추가, 카드 삽입 후 후크 호출. (3) 도면 워크벤치 상세(Jinja) 썸네일 3곳에 `data-storage-key` 추가 → DOMContentLoaded 시 후크가 document 전체에 적용.
+- **효과**: 썸네일 로딩 시 Railway 경유 없이 R2 직행으로 체감 속도 개선.
+
+### Phase 2a (선택): Direct PUT 진행률 표시
 
 - **내용**: `fetch(sess.upload_url, { method: 'PUT', body: file })`는 업로드 진행 이벤트 미지원 → **XMLHttpRequest**로 PUT하여 `upload.onprogress`로 진행률 표시.
 - **효과**: 실제 전송 속도는 동일하나, “몇 % 올라가는지” 보여주어 체감 개선.
@@ -49,9 +55,10 @@
 - **추천**: **Phase 1(병렬 업로드)만 우선 적용.**  
   - 이유: 코드 변경 최소, API 변경 없음, 기존 폴백 유지. 원격에서 여러 파일 올릴 때 체감 속도 개선 기대.
 - **진행 단계**:
-  1. `erp_beta_js.html`의 `erpUploadSelectedAttachments`에서 direct-upload 분기만 병렬화 (동시 2~3개, 진행률 = 완료 수/전체).
-  2. (선택) 동일 패턴 쓰는 다른 업로드 진입점(도면 워크벤치, 블루프린트 등)에서도 동일 방식 적용.
-  3. 검증: 원격에서 파일 5개 이상 선택 후 업로드 시간·진행 표시 확인.
+  1. ✅ `erp_beta_js.html`의 `erpUploadSelectedAttachments`에서 direct-upload 분기만 병렬화 (동시 3개, 진행률 = 완료 수/전체). **적용 완료.**
+  2. ✅ `erp_beta_js.html`의 `erpUploadItemAttachments`(제품별 이미지 추가)에서 동일하게 CONCURRENCY=3, `Promise.all(chunk.map(...))` 적용. **2026-02-24 적용 완료.**
+  3. (선택) 도면 워크벤치·블루프린트 등 다른 진입점에서도 동일 방식 적용.
+  4. 검증: 원격에서 공통 첨부·제품별 이미지 각각 다수 파일 업로드 후 시간·진행 표시 확인.
 
 ---
 

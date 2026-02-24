@@ -982,15 +982,20 @@
         const totalFiles = files.length;
         let ok = 0;
         if (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD) {
-            for (let i = 0; i < files.length; i++) {
+            const CONCURRENCY = 3;
+            for (let start = 0; start < files.length; start += CONCURRENCY) {
+                const chunk = files.slice(start, start + CONCURRENCY);
+                const results = await Promise.all(chunk.map(function (f) { return erpDoDirectUploadOne(f, 'measurement', itemIndex); }));
+                for (let i = 0; i < results.length; i++) {
+                    if (results[i] && results[i].success) ok += 1;
+                    else if (results[i]) console.warn('item upload failed', results[i]);
+                }
                 if (progressBar) {
-                    const p = Math.round(((i + 0.5) / totalFiles) * 100);
+                    const done = Math.min(start + chunk.length, totalFiles);
+                    const p = Math.round((done / totalFiles) * 100);
                     progressBar.style.width = p + '%';
                     progressBar.textContent = p + '%';
                 }
-                const data = await erpDoDirectUploadOne(files[i], 'measurement', itemIndex);
-                if (data.success) ok += 1;
-                else console.warn('item upload failed', data);
             }
         } else {
             for (let i = 0; i < files.length; i++) {
@@ -1040,14 +1045,20 @@
                 const thumb = a.thumbnail_view_url || a.view_url || '';
                 const name = escapeHtml(a.filename || '');
                 return `
-<div class="border rounded bg-white p-1 d-flex align-items-center gap-1" style="max-width: 180px;">
+<div class="border rounded bg-white p-1 d-flex align-items-center gap-1" style="max-width: 200px;">
     <img src="${thumb}" alt="${name}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:zoom-in;"
         onclick="erpOpenAttachmentPreview('${a.id}')">
-    <div class="small text-truncate" style="max-width: 90px;" title="${name}">${name}</div>
-    <button type="button" class="btn btn-sm btn-outline-secondary" title="공통으로 이동"
-        onclick="erpLinkAttachmentToItem('${a.id}', '')">
-        <i class="fas fa-unlink"></i>
-    </button>
+    <div class="small text-truncate flex-grow-1" style="max-width: 80px;" title="${name}">${name}</div>
+    <div class="d-flex gap-1">
+        <button type="button" class="btn btn-sm btn-outline-secondary" title="공통으로 이동"
+            onclick="erpLinkAttachmentToItem('${a.id}', '')">
+            <i class="fas fa-unlink"></i>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-danger" title="삭제(공통 첨부에서도 제거)"
+            onclick="erpDeleteAttachment('${a.id}')">
+            <i class="fas fa-trash"></i>
+        </button>
+    </div>
 </div>`;
             }).join('');
         });
@@ -1617,6 +1628,8 @@ ${list.map(renderCard).join('')}
         PRODUCTION: 'F. 생산',
         CONSTRUCTION: 'G. 시공',
         CS: 'H. CS',
+        AS_RECEIVED: 'AS접수',
+        AS_COMPLETED: 'AS완료',
         COMPLETED: '완료',
         AS: 'AS처리',
     };

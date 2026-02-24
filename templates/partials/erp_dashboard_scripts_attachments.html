@@ -166,7 +166,7 @@
             const activeCls = key === selected ? 'is-active' : '';
             const selectedBadge = key === selected ? '<span class="drawing-target-selected-pill">선택됨</span>' : '';
             const thumbHtml = isDrawingImageFile(f)
-              ? `<img src="${escapeHtml(viewUrl)}" alt="${escapeHtml(filename)}">`
+              ? `<img src="${escapeHtml(viewUrl)}" alt="${escapeHtml(filename)}"${key ? ' data-storage-key="' + escapeHtml(key) + '"' : ''}>`
               : `<i class="fas fa-file-alt text-secondary"></i>`;
             cards.push(`
               <button type="button"
@@ -225,6 +225,7 @@
           }
           cardsEl.innerHTML = buildDrawingTargetCards(orderId, selectEl.value, { role: 'revision' });
           syncDrawingTargetCardSelection('revision', selectEl.value);
+          if (window.erpReplaceThumbnailsWithPresigned) window.erpReplaceThumbnailsWithPresigned(cardsEl);
           selectEl.onchange = () => syncDrawingTargetCardSelection('revision', selectEl.value);
           if (helpEl) {
             helpEl.textContent = files.length > 1
@@ -263,6 +264,7 @@
           }
           cardsEl.innerHTML = buildDrawingTargetCards(orderId, selectEl.value, { role: 'replace', includeNone: !isRetransfer });
           syncDrawingTargetCardSelection('replace', selectEl.value);
+          if (window.erpReplaceThumbnailsWithPresigned) window.erpReplaceThumbnailsWithPresigned(cardsEl);
           selectEl.onchange = () => syncDrawingTargetCardSelection('replace', selectEl.value);
           if (helpEl) {
             helpEl.textContent = isRetransfer

@@ -1,6 +1,6 @@
 # 파일 업/다운로드 코드 리뷰 (GDM 기준)
 
-**검토일**: 2026-02-23  
+**검토일**: 2026-02-24  
 **기준**: `.cursor/agents/grand-develop-master.md`  
 **대상**: R2 direct 업/다운 적용 여부 및 전역 일관성
 
@@ -35,19 +35,21 @@
 - **다운로드/미리보기**: presigned 직접 링크를 **쓰는 곳은 ERP Beta 주문 입력 첨부 미리보기 모달뿐**이며, 나머지는 모두 `/api/files/view/...`, `/api/files/download/...`를 사용해 **요청마다 Flask 앱을 한 번 거칩니다** (리다이렉트로 R2는 되지만 최단 경로 아님).
 
 ### 업로드 사용처 (R2 direct 적용 여부)
-| 구간 | 방식 | 비고 |
-|------|------|------|
-| ERP Beta 주문 첨부 | session → PUT | R2 direct |
-| 도면 워크벤치 | session → PUT | R2 direct |
-| 채팅 | /api/chat/upload/session → PUT | R2 direct |
-| edit_order 블루프린트 | /api/upload/session → PUT | R2 direct |
-| 주문 첨부 Form fallback | POST multipart | 앱 경유 (R2/S3이면 storage.upload_file) |
+| 구간 | 방식 | 병렬 업로드 | 비고 |
+|------|------|-------------|------|
+| ERP Beta 주문 첨부 (공통) | session → PUT | ✅ 3개씩 (2026-02-24) | R2 direct |
+| ERP Beta 제품별 이미지 추가 | session → PUT | ✅ 3개씩 (2026-02-24) | R2 direct |
+| 도면 워크벤치 | session → PUT | 별도 구현 | R2 direct |
+| 채팅 | /api/chat/upload/session → PUT | — | R2 direct |
+| edit_order 블루프린트 | /api/upload/session → PUT | — | R2 direct |
+| 주문 첨부 Form fallback | POST multipart | — | 앱 경유 (R2/S3이면 storage.upload_file) |
 
-### 다운로드/미리보기 사용처 (presigned 직접 vs 앱 경유) — 2026-02-23 전역 적용 후
+### 다운로드/미리보기 사용처 (presigned 직접 vs 앱 경유) — 2026-02-24 갱신
 | 구간 | view/download URL | presigned 직접 사용 |
 |------|-------------------|----------------------|
 | **ERP Beta 주문 입력 첨부 미리보기** | presigned 조회 후 교체 | 예 |
 | **도면 워크벤치 상세** | GlobalImageViewer + data-key → presigned | 예 |
+| **도면 워크벤치·대시보드 목록 썸네일** | img에 data-storage-key → erpReplaceThumbnailsWithPresigned | 예 (2026-02-24) |
 | **대시보드 게이트웨이/첨부/생산/시공** | GlobalImageViewer.open 시 key 전달 → presigned | 예 |
 | **채팅 이미지 라이트박스** | openImageLightbox(this) + data-key → presigned | 예 |
 | edit_order 블루프린트 | /api/files/view, download | 아니오 (선택 미적용) |
@@ -80,7 +82,7 @@
 | **채팅 파일** | `#chat-upload-progress` | `uploadWithProgress()` (multipart) / 90→100% (direct) | 공통 유틸 |
 | **ERP 대시보드 도면 전달** | `#erp-drawing-transfer-progress` | `uploadWithProgress()` 파일별 | 공통 유틸 |
 | **주문 상세 도면(blueprint)** | `#blueprint-upload-progress` | `uploadWithProgress()` | 공통 유틸 |
-| **ERP Beta 첨부** | `#erp-attachments-progress` | direct 시 (i+0.5)/N*100, multipart 시 `uploadWithProgress()` | 신규 적용 |
+| **ERP Beta 첨부 (공통·제품별)** | `#erp-attachments-progress` | direct 시 청크 완료 수/전체 %, multipart 시 `uploadWithProgress()` | 공통·제품별 모두 병렬(3개씩) 적용 |
 | **도면작업실 수정요청 첨부** | `#dw-revision-progress` | 순차 업로드 + `uploadWithProgress()` fallback | 신규 적용 |
 
 ### 공통 유틸

@@ -1289,8 +1289,30 @@
             };
         })();
 
+        /** Phase2: 목록/썸네일 presigned — data-storage-key가 있는 img의 src를 R2 직행 URL로 교체 */
+        window.erpReplaceThumbnailsWithPresigned = function(container) {
+            var root = container && container.nodeType === 1 ? container : document;
+            var imgs = root.querySelectorAll ? root.querySelectorAll('img[data-storage-key]') : [];
+            if (!imgs.length) return;
+            var CONCURRENCY = 5;
+            function encodePath(k) { return String(k).split('/').map(function(s) { return encodeURIComponent(s); }).join('/'); }
+            function fetchOne(img) {
+                var key = img.getAttribute('data-storage-key');
+                if (!key) return Promise.resolve();
+                var path = encodePath(key);
+                return fetch('/api/files/presigned-urls/' + path).then(function(r) { return r.json(); }).then(function(data) {
+                    if (data.success && data.view_url) img.src = data.view_url;
+                }).catch(function() {});
+            }
+            for (var i = 0; i < imgs.length; i += CONCURRENCY) {
+                var chunk = Array.prototype.slice.call(imgs, i, i + CONCURRENCY);
+                Promise.all(chunk.map(fetchOne));
+            }
+        };
+
         document.addEventListener('DOMContentLoaded', () => {
             window.GlobalImageViewer.init();
+            if (window.erpReplaceThumbnailsWithPresigned) window.erpReplaceThumbnailsWithPresigned(document);
         });
     </script>
     {% block scripts %}{% endblock %}
