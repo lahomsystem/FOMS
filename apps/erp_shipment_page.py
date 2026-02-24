@@ -330,7 +330,7 @@ def erp_shipment_dashboard():
     rows = rows[:300]
 
     for r in rows:
-        r.structured_data = _ensure_dict(r.structured_data)
+        r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
         sd = r.structured_data
 
         r.is_production_approved = False

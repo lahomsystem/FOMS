@@ -96,8 +96,18 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label mb-1">발주사(개인/회사명)</label>
-                            <input type="text" class="form-control form-control-sm" id="erp-orderer" autocomplete="off" lang="ko">
+                            <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                <label class="form-label mb-0">발주사</label>
+                                <label class="form-check form-check-inline mb-0 small">
+                                    <input type="checkbox" class="form-check-input" id="erp-orderer-direct" autocomplete="off">
+                                    <span class="form-check-label">직접입력</span>
+                                </label>
+                            </div>
+                            <select class="form-select form-select-sm" id="erp-orderer-select">
+                                <option value="라홈">라홈</option>
+                                <option value="하우드">하우드</option>
+                            </select>
+                            <input type="text" class="form-control form-control-sm mt-1 d-none" id="erp-orderer" autocomplete="off" lang="ko" placeholder="발주사 직접 입력">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label mb-1">담당자</label>

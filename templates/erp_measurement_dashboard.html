@@ -38,13 +38,7 @@
         </div>
         <div class="erp-pro-filter-group">
           <label class="erp-pro-filter-label">기준 날짜</label>
-          <input type="date" class="erp-pro-input" name="date" value="{{ selected_date }}">
-        </div>
-        <div class="erp-pro-filter-group">
-          <label class="erp-pro-filter-label">날짜 범위</label>
-          <input type="date" class="erp-pro-input" name="date_from" value="{{ date_from }}" placeholder="시작">
-          <span class="erp-pro-filter-label">~</span>
-          <input type="date" class="erp-pro-input" name="date_to" value="{{ date_to }}" placeholder="끝">
+          <input type="date" class="erp-pro-input" name="date" value="{{ selected_date }}" placeholder="전체">
         </div>
         <div class="erp-pro-filter-actions">
           <button class="erp-pro-btn erp-pro-btn--primary" type="submit">
@@ -52,7 +46,7 @@
             <span>조회</span>
           </button>
           <a class="erp-pro-btn erp-pro-btn--secondary"
-            href="/erp/measurement?date={{ selected_date }}&q={{ search_q | urlencode }}&open_map=1">
+            href="/erp/measurement?{% if selected_date %}date={{ selected_date }}&{% endif %}q={{ search_q | urlencode }}&open_map=1">
             <i class="fas fa-map"></i>
             <span class="d-none d-sm-inline">지도</span>
           </a>
@@ -70,9 +64,11 @@
             <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap">
               <div class="fw-bold small"><i class="fas fa-calendar-day"></i> 날짜별 실측</div>
               <div class="d-flex align-items-center gap-1">
+                <a href="{{ url_for('erp_measurement_dashboard.erp_measurement_dashboard', q=search_q or '') }}"
+                  class="btn btn-sm btn-outline-secondary py-0 px-1" title="전체">전체</a>
                 <a href="{{ url_for('erp_measurement_dashboard.erp_measurement_dashboard', date=today_date, q=search_q or '') }}"
                   class="btn btn-sm btn-outline-primary py-0 px-1" title="오늘">오늘</a>
-                <span class="badge bg-primary">{{ selected_date }}</span>
+                <span class="badge bg-primary">{% if selected_date %}{{ selected_date }}{% else %}전체{% endif %}</span>
               </div>
             </div>
             <div class="card-body p-1">
