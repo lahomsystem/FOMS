@@ -1315,11 +1315,20 @@ ${list.map(renderCard).join('')}
 
         let ok = 0;
         if (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD) {
-            for (let i = 0; i < files.length; i++) {
-                if (progressBar) { const p = Math.round(((i + 0.5) / totalFiles) * 100); progressBar.style.width = p + '%'; progressBar.textContent = p + '%'; }
-                const data = await erpDoDirectUploadOne(files[i], category, null);
-                if (data.success) ok += 1;
-                else console.warn('upload failed', data);
+            const CONCURRENCY = 3;
+            for (let start = 0; start < files.length; start += CONCURRENCY) {
+                const chunk = files.slice(start, start + CONCURRENCY);
+                const results = await Promise.all(chunk.map(function (f) { return erpDoDirectUploadOne(f, category, null); }));
+                for (let i = 0; i < results.length; i++) {
+                    if (results[i] && results[i].success) ok += 1;
+                    else if (results[i]) console.warn('upload failed', results[i]);
+                }
+                if (progressBar) {
+                    const done = Math.min(start + chunk.length, totalFiles);
+                    const p = Math.round((done / totalFiles) * 100);
+                    progressBar.style.width = p + '%';
+                    progressBar.textContent = p + '%';
+                }
             }
         } else {
             for (let i = 0; i < files.length; i++) {
