@@ -105,31 +105,31 @@ def index():
                 sd = _ensure_dict(order_db_item.structured_data)
                 customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
                 if customer_name:
-                    order_display_data.customer_name = customer_name
+                    setattr(order_display_data, 'customer_name', customer_name)
                 phone = ((sd.get('parties') or {}).get('customer') or {}).get('phone')
                 if phone:
-                    order_display_data.phone = phone
+                    setattr(order_display_data, 'phone', phone)
                 address = ((sd.get('site') or {}).get('address_full') or (sd.get('site') or {}).get('address_main'))
                 if address:
-                    order_display_data.address = address
+                    setattr(order_display_data, 'address', address)
                 items = sd.get('items') or []
                 if items:
                     first_item = items[0]
                     product_name = first_item.get('product_name') or first_item.get('name')
                     if product_name:
-                        order_display_data.product = f"{product_name} 외 {len(items) - 1}개" if len(items) > 1 else product_name
+                        setattr(order_display_data, 'product', f"{product_name} 외 {len(items) - 1}개" if len(items) > 1 else product_name)
                 measurement_date = (((sd.get('schedule') or {}).get('measurement') or {}).get('date'))
                 if measurement_date:
-                    order_display_data.measurement_date = measurement_date
+                    setattr(order_display_data, 'measurement_date', measurement_date)
                 measurement_time = (((sd.get('schedule') or {}).get('measurement') or {}).get('time'))
                 if measurement_time:
-                    order_display_data.measurement_time = measurement_time
+                    setattr(order_display_data, 'measurement_time', measurement_time)
                 construction_date = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
                 if construction_date:
-                    order_display_data.scheduled_date = construction_date
+                    setattr(order_display_data, 'scheduled_date', construction_date)
                 manager_name = ((sd.get('parties') or {}).get('manager') or {}).get('name')
                 if manager_name:
-                    order_display_data.manager_name = manager_name
+                    setattr(order_display_data, 'manager_name', manager_name)
             processed_orders.append(order_display_data)
 
         user = get_user_by_id(session['user_id']) if 'user_id' in session else None
@@ -173,6 +173,7 @@ def index():
 def add_order():
     """주문 추가 페이지."""
     if request.method == 'POST':
+        db = None
         try:
             db = get_db()
             create_mode = (request.form.get('create_mode') or 'LEGACY').upper().strip()
@@ -317,7 +318,8 @@ def add_order():
             return redirect(url_for('order_pages.index'))
 
         except Exception as e:
-            db.rollback()
+            if db is not None:
+                db.rollback()
             flash(f'오류가 발생했습니다: {str(e)}', 'error')
             return redirect(url_for('order_pages.add_order'))
 
@@ -355,11 +357,11 @@ def bulk_action():
             for order_id in selected_ids:
                 order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
                 if order:
-                    original_status = order.status
+                    original_status = getattr(order, 'status', None)
                     deleted_at = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    order.status = 'DELETED'
-                    order.original_status = original_status
-                    order.deleted_at = deleted_at
+                    setattr(order, 'status', 'DELETED')
+                    setattr(order, 'original_status', original_status)
+                    setattr(order, 'deleted_at', deleted_at)
                     log_access(f"주문 #{order_id} 삭제 (일괄 작업)", current_user_id, {"order_id": order_id})
                     processed_count += 1
                 else:
@@ -380,15 +382,15 @@ def bulk_action():
                                             'customer_name', 'notes', 'measurement_date', 'measurement_time',
                                             'completion_date', 'original_status', 'deleted_at']:
                             setattr(copied_order, col_name, getattr(original_order, col_name))
-                    copied_order.status = 'RECEIVED'
-                    copied_order.received_date = today_str
-                    copied_order.received_time = time_str
-                    copied_order.customer_name = f"[복사: 원본 #{original_order.id}] {original_order.customer_name}"
-                    original_notes = original_order.notes or ""
-                    copied_order.notes = f"원본 주문 #{original_order.id} 에서 복사됨.\n---\n" + original_notes
-                    copied_order.measurement_date = None
-                    copied_order.measurement_time = None
-                    copied_order.completion_date = None
+                    setattr(copied_order, 'status', 'RECEIVED')
+                    setattr(copied_order, 'received_date', today_str)
+                    setattr(copied_order, 'received_time', time_str)
+                    setattr(copied_order, 'customer_name', f"[복사: 원본 #{original_order.id}] {getattr(original_order, 'customer_name', '')}")
+                    original_notes = getattr(original_order, 'notes', None) or ""
+                    setattr(copied_order, 'notes', f"원본 주문 #{original_order.id} 에서 복사됨.\n---\n" + original_notes)
+                    setattr(copied_order, 'measurement_date', None)
+                    setattr(copied_order, 'measurement_time', None)
+                    setattr(copied_order, 'completion_date', None)
                     db.add(copied_order)
                     db.flush()
                     log_access(f"주문 #{original_order.id}를 새 주문 #{copied_order.id}로 복사 (일괄 작업)",
@@ -402,13 +404,14 @@ def bulk_action():
             if new_status in STATUS:
                 for order_id in selected_ids:
                     order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
-                    if order and order.status != new_status:
-                        old_status = order.status
-                        order.status = new_status
-                        old_status_kr = STATUS.get(old_status, old_status)
+                    old_status_val = getattr(order, 'status', None) if order is not None else None
+                    if order is not None and old_status_val != new_status:
+                        setattr(order, 'status', new_status)
+                        # AS 접수(AS_RECEIVED)로 바꿀 때도 scheduled_date(AS 방문일) 자동 입력하지 않음
+                        old_status_kr = STATUS.get(old_status_val, old_status_val) if old_status_val else str(old_status_val)
                         new_status_kr = STATUS.get(new_status, new_status)
                         log_access(f"주문 #{order_id} 상태 변경: {old_status_kr} => {new_status_kr} (일괄 작업)",
-                                   current_user_id, {"order_id": order_id, "old_status": old_status, "new_status": new_status})
+                                   current_user_id, {"order_id": order_id, "old_status": str(old_status_val or ""), "new_status": new_status})
                         processed_count += 1
                     elif not order:
                         failed_count += 1

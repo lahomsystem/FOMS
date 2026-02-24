@@ -91,3 +91,24 @@
 
 - [ ] **B6. 검증**  
   시공자 입력/추가 시 같은 시공자끼리 묶임·파스텔 색 적용; 시공자 전부 삭제 시 해당 행 회색·정렬 반영; 새로고침 없이 동작
+
+---
+
+# 원격 업로드 개선 (2026-02-23, PLAN_UPLOAD_IMPROVEMENT.md)
+
+- [x] **U1. ERP 첨부 병렬 업로드**  
+  erp_beta_js.html: erpUploadSelectedAttachments에서 USE_DIRECT_UPLOAD 시 파일을 3개씩 동시에 erpDoDirectUploadOne 호출(Promise.all), 진행률 = 완료 수/전체
+
+- [ ] **U2. 검증**  
+  로컬·원격에서 다수 파일 선택 업로드 성공, 기존 폴백(순차/FormData) 유지 확인
+
+---
+
+# 실측 대시보드 담당자 직접 입력 (2026-02-23)
+
+- [x] **M1. 계획 문서**  
+  PLAN_MEASUREMENT_MANAGER.md, CONTEXT.md 반영
+- [x] **M2. measurement.js**  
+  data-is-erp 사용으로 편집 활성화; 비-ERP 시 update_order_field(manager_name) 호출
+- [ ] **M3. 검증**  
+  실측 대시보드에서 담당자 입력 → 주문 상세/편집 페이지에 동일 값 표시 (수동 확인)
