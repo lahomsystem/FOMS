@@ -91,7 +91,9 @@ def erp_dashboard():
         if stage:
             stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
             stage_label_from_code = STAGE_LABELS.get(stage_code, stage)
-            if stage_code != 'DRAWING':
+            if stage_code == 'CONSTRUCTION':
+                pass  # 시공 단계 퀘스트는 시공 대시보드에서만 처리 (메인 대시보드에서는 미표시)
+            elif stage_code != 'DRAWING':
                 possible_stages = {stage, stage_code, stage_label_from_code}
                 if stage in STAGE_NAME_TO_CODE:
                     possible_stages.add(STAGE_NAME_TO_CODE[stage])
