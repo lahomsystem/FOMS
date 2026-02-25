@@ -52,6 +52,15 @@
     - `templates/partials/erp_construction_scripts.html` (시공 완료, 시공 재업로드, AS 접수 3곳)
     - `templates/erp_drawing_workbench_detail.html` (attachments/complete 1곳)
   - 효과: 파일당 R2 head_object 2회 → 1회(object_exists만)로 감소, 502/지연 완화 기대.
+- **추가 적용 (여전히 느림 대응)**:
+  - **R2/S3 클라이언트 타임아웃** (`services/storage.py`): `botocore.config.Config(connect_timeout=10, read_timeout=15, retries=1)` 적용. 환경 변수 `R2_CONNECT_TIMEOUT`, `R2_READ_TIMEOUT`으로 조정 가능. 장시간 대기 시 502 대신 빠르게 실패.
+  - **DELETE 첨부** (`apps/api/attachments.py`): 본문(storage_key) + 썸네일(thumbnail_key) R2 삭제를 `ThreadPoolExecutor`로 병렬 실행 → 대기 시간을 합이 아닌 max로 단축.
+
+### 로그 해석 (complete 502 + badge/session 지연)
+- **complete 502 (2분 2초)**: 게이트웨이 타임아웃. 서버가 2분 동안 응답하지 못함 → R2 `head_object` 등이 응답 지연.
+- **complete 200 (2초)**: 클라이언트 `size` 적용 시 정상 응답은 2초대 가능.
+- **badge 1분 29초 / 9초**: `/erp/api/notifications/badge`는 30초 캐시 있음. 캐시 미스 시에도 DB 1~2회 조회 수준이라 자체 지연은 짧음. **한 워커가 complete로 2분 잡고 있으면 다른 요청(badge, session)이 대기** → 1분대·9초대 지연 발생.
+- **대응**: R2 클라이언트 `read_timeout=15` 적용 후에는 complete가 최대 ~15초 안에 성공/실패하고, 워커가 빨리 놓이므로 badge/session 대기 시간이 줄어듦. **타임아웃·병렬 삭제 변경이 deploy에 반영되어 있어야 함.**
 
 ---
 
