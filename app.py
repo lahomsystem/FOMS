@@ -1,9 +1,10 @@
 import os
+from typing import Literal
 
 # Gunicorn / Gevent 구동 시 IO 함수(socket 등)가 worker thread를 블로킹하지 않도록 몽키 패치 적용
 if os.environ.get('SERVER_SOFTWARE', '').startswith('gunicorn') or os.environ.get('GUNICORN_CMD_ARGS'):
     try:
-        import gevent.monkey
+        import gevent.monkey  # type: ignore
         gevent.monkey.patch_all()
         print("[INFO] gevent monkey patch 적용 완료 (비동기 IO 활성화)")
     except ImportError:
@@ -346,13 +347,11 @@ if SOCKETIO_AVAILABLE:
         # CORS 도메인 제한 (환경변수 없으면 모든 도메인 허용 - 개발 편의성)
         allowed_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '*').split(',')
         # gunicorn gevent 워커와 동일한 모드 사용 시 소켓 충돌 방지 (ConcurrentObjectUseError)
-        _allowed_modes: tuple[str, ...] = ('threading', 'eventlet', 'gevent', 'gevent_uwsgi')
+        _allowed_modes = ('threading', 'eventlet', 'gevent', 'gevent_uwsgi')
         _override = (os.environ.get('SOCKETIO_ASYNC_MODE') or '').strip().lower() or None
-        _mode_default: Literal['gevent', 'threading'] = 'gevent' if redis_url else 'threading'
-        _mode_raw = (_override if _override in _allowed_modes else None) or _mode_default
-        mode: Literal['threading', 'eventlet', 'gevent', 'gevent_uwsgi'] = cast(
-            Literal['threading', 'eventlet', 'gevent', 'gevent_uwsgi'], _mode_raw
-        )
+        _mode_default = 'gevent' if redis_url else 'threading'
+        
+        mode = _override if _override in _allowed_modes else _mode_default
 
         socketio_kwargs = {
             'cors_allowed_origins': allowed_origins,
