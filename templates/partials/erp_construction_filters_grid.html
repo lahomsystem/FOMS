@@ -152,7 +152,7 @@
                       <button class="btn btn-outline-secondary btn-sm" onclick="reuploadConstructionPhotos({{ o.id }})">
                         <i class="fas fa-redo"></i> 재 업로드
                       </button>
-                      {% if o.as_received_date %}
+                      {% if o.as_received_done %}
                       <button class="btn btn-outline-secondary btn-sm" onclick="openAsReuploadModal({{ o.id }})" title="본인이 올린 AS 사진만 삭제 후 새로 업로드">
                         <i class="fas fa-redo"></i> AS 재업로드
                       </button>
