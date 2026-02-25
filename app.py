@@ -1,9 +1,16 @@
-import warnings
-from typing import Literal, cast
-# warnings.filterwarnings("ignore", category=DeprecationWarning, module="eventlet")
-# import eventlet
-# eventlet.monkey_patch()
 import os
+
+# Gunicorn / Gevent 구동 시 IO 함수(socket 등)가 worker thread를 블로킹하지 않도록 몽키 패치 적용
+if os.environ.get('SERVER_SOFTWARE', '').startswith('gunicorn') or os.environ.get('GUNICORN_CMD_ARGS'):
+    try:
+        import gevent.monkey
+        gevent.monkey.patch_all()
+        print("[INFO] gevent monkey patch 적용 완료 (비동기 IO 활성화)")
+    except ImportError:
+        pass
+
+import sys
+import warnings
 import hashlib
 import datetime
 import json

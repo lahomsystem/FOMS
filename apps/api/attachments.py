@@ -3,6 +3,7 @@
 """
 
 import os
+from concurrent.futures import ThreadPoolExecutor
 from flask import Blueprint, request, jsonify, session
 from sqlalchemy import text
 
@@ -525,10 +526,10 @@ def api_order_attachments_delete(order_id, attachment_id):
         sk = _att_key(att, 'storage_key')
         tk = _att_key(att, 'thumbnail_key')
         try:
-            if sk:
-                storage.delete_file(sk)
-            if tk:
-                storage.delete_file(tk)
+            keys_to_delete = [k for k in (sk, tk) if k]
+            if keys_to_delete:
+                with ThreadPoolExecutor(max_workers=2) as ex:
+                    list(ex.map(storage.delete_file, keys_to_delete))
         except Exception:
             pass
 
