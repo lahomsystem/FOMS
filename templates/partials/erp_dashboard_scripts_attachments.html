@@ -13,7 +13,7 @@
             }
 
             if (aList.length > 0) {
-              __attachmentsByCategory = { measurement: [], drawing: [], construction: [] };
+              __attachmentsByCategory = { measurement: [], drawing: [], construction: [], as: [] };
               aList.forEach((a) => {
                 const key = normalizeAttachmentCategory(a.category);
                 const normalized = Object.assign({}, a, { category: key });
@@ -27,6 +27,7 @@
                 if (__attachmentsByCategory.drawing.length) targetCategory = 'drawing';
                 else if (__attachmentsByCategory.measurement.length) targetCategory = 'measurement';
                 else if (__attachmentsByCategory.construction.length) targetCategory = 'construction';
+                else if (__attachmentsByCategory.as && __attachmentsByCategory.as.length) targetCategory = 'as';
               }
               __activeAttachmentCategory = targetCategory;
 

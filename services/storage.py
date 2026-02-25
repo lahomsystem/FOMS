@@ -15,9 +15,11 @@ from datetime import datetime
 try:
     import boto3
     from botocore.exceptions import ClientError
+    from botocore.config import Config as BotocoreConfig
     BOTO3_AVAILABLE = True
 except ImportError:
     BOTO3_AVAILABLE = False
+    BotocoreConfig = None
 
 # 이미지 처리 (썸네일 생성)
 try:
@@ -86,16 +88,23 @@ class StorageAdapter:
                     os.makedirs(self.upload_folder, exist_ok=True)
                     return
             
-            # S3 클라이언트 초기화 (R2는 S3 API 호환)
+            # S3 클라이언트 초기화 (R2는 S3 API 호환). 타임아웃으로 장시간 대기 방지.
+            kwargs = {
+                'endpoint_url': self.endpoint_url if self.storage_type == 'r2' else None,
+                'aws_access_key_id': self.access_key_id,
+                'aws_secret_access_key': self.secret_access_key,
+                'region_name': 'auto' if self.storage_type == 'r2' else self.region_name,
+            }
+            if BOTO3_AVAILABLE and BotocoreConfig:
+                _connect = int(os.getenv('R2_CONNECT_TIMEOUT', '10'))
+                _read = int(os.getenv('R2_READ_TIMEOUT', '15'))
+                kwargs['config'] = BotocoreConfig(connect_timeout=_connect, read_timeout=_read, retries={'max_attempts': 1})
             try:
-                self.client = boto3.client(
-                    's3',
-                    endpoint_url=self.endpoint_url if self.storage_type == 'r2' else None,
-                    aws_access_key_id=self.access_key_id,
-                    aws_secret_access_key=self.secret_access_key,
-                    region_name='auto' if self.storage_type == 'r2' else self.region_name
-                )
-                print(f"[INFO] [OK] {self.storage_type.upper()} 스토리지가 활성화되었습니다.")
+                self.client = boto3.client('s3', **kwargs)
+                if BOTO3_AVAILABLE and BotocoreConfig:
+                    print(f"[INFO] [OK] {self.storage_type.upper()} 스토리지가 활성화되었습니다. (connect={_connect}s, read={_read}s)")
+                else:
+                    print(f"[INFO] [OK] {self.storage_type.upper()} 스토리지가 활성화되었습니다.")
             except Exception as e:
                 print(f"[ERROR] 클라우드 스토리지 초기화 실패: {e}")
                 print("[INFO] 로컬 저장소로 폴백합니다.")

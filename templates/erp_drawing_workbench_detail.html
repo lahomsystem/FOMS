@@ -1309,7 +1309,7 @@
           const completeRes = await fetch(`/api/orders/${orderId}/attachments/complete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key: sess.key, filename: file.name, category: 'drawing' })
+            body: JSON.stringify({ key: sess.key, filename: file.name, category: 'drawing', size: file.size })
           });
           const data = await completeRes.json();
           if (!data.success || !data.attachment) {

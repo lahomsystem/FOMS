@@ -12,7 +12,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order, OrderEvent, SecurityLog
 from apps.auth import login_required, get_user_by_id
-from services.erp_permissions import erp_edit_required
+from services.erp_permissions import erp_edit_required, erp_construction_edit_required
 from apps.erp import _ensure_dict
 
 erp_orders_as_bp = Blueprint(
@@ -179,6 +179,52 @@ def api_as_complete(order_id):
         db.commit()
 
         return jsonify({'success': True, 'message': 'AS가 완료되었습니다.', 'new_status': 'CS'})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+def _ensure_path(d, *keys):
+    """딕셔너리 내 경로 보장 (orders.py ensure_path와 동일)."""
+    for k in keys:
+        d = d.setdefault(k, {})
+    return d
+
+
+@erp_orders_as_bp.route('/<int:order_id>/as/register', methods=['POST'])
+@login_required
+@erp_construction_edit_required
+def api_as_register(order_id):
+    """AS 접수 등록: 시공 대시보드에서 AS 이미지 업로드 후 호출. as_content 저장, 접수일=오늘, status=AS_RECEIVED."""
+    db = get_db()
+    try:
+        order = db.query(Order).get(order_id)
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        data = request.get_json(silent=True) or {}
+        as_content = (data.get('as_content') or '').strip()
+
+        today = datetime.datetime.now().strftime('%Y-%m-%d')
+        sd = _ensure_dict(order.structured_data)
+        shipment = _ensure_path(sd, 'shipment')
+        shipment['as_content'] = as_content
+        order.structured_data = copy.deepcopy(sd)
+        flag_modified(order, 'structured_data')
+
+        order.as_received_date = today
+        order.status = 'AS_RECEIVED'
+
+        user_id = session.get('user_id')
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 접수 등록 (접수일: {today})"))
+        db.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'AS 접수가 등록되었습니다.',
+            'as_received_date': today,
+            'new_status': 'AS_RECEIVED',
+        })
     except Exception as e:
         db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500

@@ -3,20 +3,27 @@
 """
 
 import os
-from flask import Blueprint, request, jsonify
+from concurrent.futures import ThreadPoolExecutor
+from flask import Blueprint, request, jsonify, session
 from sqlalchemy import text
 
 from db import get_db
 from models import Order, OrderAttachment
-from apps.auth import login_required
+from apps.auth import login_required, get_user_by_id
 from apps.api.files import build_file_view_url, build_file_download_url
 from services.storage import get_storage
 from services.order_attachment_thumbnail import schedule_order_attachment_thumbnail_generation
 from constants import ERP_MEDIA_ALLOWED_EXTENSIONS, DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES
 
 DRAWING_ATTACHMENT_EXTRA_EXTENSIONS = {'pdf', 'zip', 'dwg', 'dxf'}
-ATTACHMENT_CATEGORIES = ('measurement', 'drawing', 'construction')
+ATTACHMENT_CATEGORIES = ('measurement', 'drawing', 'construction', 'as')
 ASYNC_ATTACHMENT_THUMBNAIL = os.environ.get('ASYNC_ATTACHMENT_THUMBNAIL', '1').lower() in ('1', 'true', 'yes', 'on')
+
+
+def _att_key(att: OrderAttachment, key: str) -> str | None:
+    """ORM 인스턴스에서 storage_key/thumbnail_key 값을 꺼내 타입 체커 만족용."""
+    v = getattr(att, key, None)
+    return str(v) if v is not None and v else None
 
 
 def normalize_attachment_category(raw_category):
@@ -107,6 +114,27 @@ def ensure_order_attachments_item_index_column():
         except Exception:
             pass
         print(f"[AUTO-MIGRATION] Failed to ensure order_attachments.item_index: {e}")
+        return False
+
+
+def ensure_order_attachments_user_id_column():
+    """레거시 DB용: order_attachments.user_id 컬럼 존재 보장 (업로더 식별, AS 재업로드 시 본인 것만 삭제)."""
+    db = None
+    try:
+        db = get_db()
+        db.execute(text(
+            "ALTER TABLE order_attachments "
+            "ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+        ))
+        db.commit()
+        return True
+    except Exception as e:
+        try:
+            if db is not None:
+                db.rollback()
+        except Exception:
+            pass
+        print(f"[AUTO-MIGRATION] Failed to ensure order_attachments.user_id: {e}")
         return False
 
 
@@ -218,12 +246,23 @@ def api_order_attachments_complete(order_id):
 
         file_type = storage._get_file_type(filename)
         file_size = 0
-        try:
-            if storage.storage_type in ['r2', 's3']:
+        used_client_size = False
+        client_size = data.get('size')
+        max_size = get_erp_media_max_size(filename)
+        if client_size is not None:
+            try:
+                sz = int(client_size)
+                if 0 <= sz <= max_size:
+                    file_size = sz
+                    used_client_size = True
+            except (TypeError, ValueError):
+                pass
+        if not used_client_size and storage.storage_type in ['r2', 's3']:
+            try:
                 resp = storage.client.head_object(Bucket=storage.bucket_name, Key=key)
                 file_size = resp.get('ContentLength', 0)
-        except Exception:
-            pass
+            except Exception:
+                pass
 
         thumbnail_key = None
         att = OrderAttachment(
@@ -234,18 +273,21 @@ def api_order_attachments_complete(order_id):
             item_index=item_index,
             file_size=file_size,
             storage_key=key,
-            thumbnail_key=thumbnail_key
+            thumbnail_key=thumbnail_key,
+            user_id=session.get('user_id'),
         )
         db.add(att)
         db.commit()
         db.refresh(att)
-        if ASYNC_ATTACHMENT_THUMBNAIL and file_type == 'image' and att.storage_key and not att.thumbnail_key:
-            schedule_order_attachment_thumbnail_generation(att.id, att.storage_key)
+        sk = _att_key(att, 'storage_key')
+        tk = _att_key(att, 'thumbnail_key')
+        if ASYNC_ATTACHMENT_THUMBNAIL and file_type == 'image' and sk and not tk:
+            schedule_order_attachment_thumbnail_generation(att.id, sk)
 
         d = att.to_dict()
-        d['view_url'] = build_file_view_url(att.storage_key)
-        d['download_url'] = build_file_download_url(att.storage_key)
-        d['thumbnail_view_url'] = build_file_view_url(att.thumbnail_key) if att.thumbnail_key else None
+        d['view_url'] = build_file_view_url(sk) if sk else ''
+        d['download_url'] = build_file_download_url(sk) if sk else ''
+        d['thumbnail_view_url'] = build_file_view_url(tk) if tk else None
         return jsonify({'success': True, 'attachment': d})
     except Exception as e:
         db = get_db()
@@ -295,9 +337,11 @@ def api_order_attachments_list(order_id):
         for a in atts:
             d = a.to_dict()
             d['category'] = normalize_attachment_category(d.get('category')) or 'measurement'
-            d['view_url'] = build_file_view_url(a.storage_key)
-            d['download_url'] = build_file_download_url(a.storage_key)
-            d['thumbnail_view_url'] = build_file_view_url(a.thumbnail_key) if a.thumbnail_key else None
+            sk = _att_key(a, 'storage_key')
+            tk = _att_key(a, 'thumbnail_key')
+            d['view_url'] = build_file_view_url(sk) if sk else ''
+            d['download_url'] = build_file_download_url(sk) if sk else ''
+            d['thumbnail_view_url'] = build_file_view_url(tk) if tk else None
             items.append(d)
 
         return jsonify({'success': True, 'attachments': items})
@@ -383,18 +427,21 @@ def api_order_attachments_upload(order_id):
             item_index=item_index,
             file_size=file_size,
             storage_key=storage_key,
-            thumbnail_key=thumbnail_key
+            thumbnail_key=thumbnail_key,
+            user_id=session.get('user_id'),
         )
         db.add(att)
         db.commit()
         db.refresh(att)
-        if ASYNC_ATTACHMENT_THUMBNAIL and file_type == 'image' and att.storage_key and not att.thumbnail_key:
-            schedule_order_attachment_thumbnail_generation(att.id, att.storage_key)
+        sk = _att_key(att, 'storage_key')
+        tk = _att_key(att, 'thumbnail_key')
+        if ASYNC_ATTACHMENT_THUMBNAIL and file_type == 'image' and sk and not tk:
+            schedule_order_attachment_thumbnail_generation(att.id, sk)
 
         d = att.to_dict()
-        d['view_url'] = build_file_view_url(att.storage_key)
-        d['download_url'] = build_file_download_url(att.storage_key)
-        d['thumbnail_view_url'] = build_file_view_url(att.thumbnail_key) if att.thumbnail_key else None
+        d['view_url'] = build_file_view_url(sk) if sk else ''
+        d['download_url'] = build_file_download_url(sk) if sk else ''
+        d['thumbnail_view_url'] = build_file_view_url(tk) if tk else None
 
         return jsonify({'success': True, 'attachment': d})
     except Exception as e:
@@ -429,15 +476,17 @@ def api_order_attachments_patch(order_id, attachment_id):
         if not att:
             return jsonify({'success': False, 'message': '첨부파일을 찾을 수 없습니다.'}), 404
 
-        att.item_index = item_index
+        setattr(att, 'item_index', item_index)
         db.commit()
         db.refresh(att)
 
         d = att.to_dict()
         d['category'] = normalize_attachment_category(d.get('category')) or 'measurement'
-        d['view_url'] = build_file_view_url(att.storage_key)
-        d['download_url'] = build_file_download_url(att.storage_key)
-        d['thumbnail_view_url'] = build_file_view_url(att.thumbnail_key) if att.thumbnail_key else None
+        sk = _att_key(att, 'storage_key')
+        tk = _att_key(att, 'thumbnail_key')
+        d['view_url'] = build_file_view_url(sk) if sk else ''
+        d['download_url'] = build_file_download_url(sk) if sk else ''
+        d['thumbnail_view_url'] = build_file_view_url(tk) if tk else None
         return jsonify({'success': True, 'attachment': d})
     except Exception as e:
         db = get_db()
@@ -454,7 +503,7 @@ def api_order_attachments_patch(order_id, attachment_id):
 @attachments_bp.route('/orders/<int:order_id>/attachments/<int:attachment_id>', methods=['DELETE'])
 @login_required
 def api_order_attachments_delete(order_id, attachment_id):
-    """주문 첨부 삭제(ERP Beta)."""
+    """주문 첨부 삭제(ERP Beta). 관리자(ADMIN)는 모든 첨부 삭제 가능, 그 외는 본인 업로드만 삭제 가능(AS 재업로드 보호)."""
     try:
         db = get_db()
         att = db.query(OrderAttachment).filter(
@@ -464,12 +513,21 @@ def api_order_attachments_delete(order_id, attachment_id):
         if not att:
             return jsonify({'success': False, 'message': '첨부파일을 찾을 수 없습니다.'}), 404
 
+        att_user_id = getattr(att, 'user_id', None)
+        current_user_id = session.get('user_id')
+        current_user = get_user_by_id(current_user_id) if current_user_id else None
+        is_admin = current_user and getattr(current_user, 'role', None) == 'ADMIN'
+        if not is_admin and att_user_id is not None and current_user_id is not None and att_user_id != current_user_id:
+            return jsonify({'success': False, 'message': '다른 사용자가 업로드한 파일은 삭제할 수 없습니다.'}), 403
+
         storage = get_storage()
+        sk = _att_key(att, 'storage_key')
+        tk = _att_key(att, 'thumbnail_key')
         try:
-            if att.storage_key:
-                storage.delete_file(att.storage_key)
-            if att.thumbnail_key:
-                storage.delete_file(att.thumbnail_key)
+            keys_to_delete = [k for k in (sk, tk) if k]
+            if keys_to_delete:
+                with ThreadPoolExecutor(max_workers=2) as ex:
+                    list(ex.map(storage.delete_file, keys_to_delete))
         except Exception:
             pass
 

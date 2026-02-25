@@ -9,6 +9,7 @@ from sqlalchemy.orm.attributes import flag_modified
 import traceback
 import json
 import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from foms_address_converter import FOMSAddressConverter
 from services.jobs.queue import enqueue_geocode_order_address
 
@@ -202,48 +203,68 @@ def api_orders_nearby():
                 if score > 0: # 최소한 단어 하나는 겹쳐야 함
                     group4.append(item)
         
-        # 3. 후보군 병합 (최대 15개)
-        # 각 그룹 내에서는 날짜 빠른 순 정렬
+        # 3. 후보군 병합 (반환 개수만큼만 사용 → 지오코딩/경로 호출 최소화)
         group1.sort(key=lambda x: x['date'] or '9999-99-99')
         group2.sort(key=lambda x: x['date'] or '9999-99-99')
         group3.sort(key=lambda x: x['date'] or '9999-99-99')
         group4.sort(key=lambda x: (-x['score'], x['date'] or '9999-99-99'))
         
-        final_candidates = (group1 + group2 + group3 + group4)[:15]
+        max_candidates = 5  # 최종 5건만 반환하므로 후보도 5건만 거리 계산
+        final_candidates = (group1 + group2 + group3 + group4)[:max_candidates]
         
         if start_lat and start_lng and final_candidates:
-            # 상위 후보에 대해 거리 계산 수행
-            final_results = []
-            
-            for item in final_candidates:
-                # 목적지 주소 좌표 변환
+            # 4-1. 목적지 좌표 변환 (병렬)
+            def geocode_one(item):
                 end_lat, end_lng, _, _ = converter.analyze_address(item['address'])
-                
-                if end_lat and end_lng:
-                    # 경로 계산 (거리/시간)
-                    route_info = converter.calculate_route(start_lat, start_lng, end_lat, end_lng)
-                    
-                    if route_info.get('status') == 'success':
-                        item['distance_km'] = route_info['distance_km']
-                        item['duration_min'] = route_info['duration_min']
-                        item['toll'] = route_info['toll']
-                        item['geo_status'] = 'success'
-                        
-                        # 텍스트 매칭 점수는 참고용으로 남겨두고, 거리 정보를 우선 표시
-                        item['score_text'] = f"{item['distance_km']}km ({item['duration_min']}분)"
-                    else:
-                        item['geo_status'] = 'route_failed'
-                        item['score_text'] = f"경로 계산 실패 (텍스트 점수: {item['score']})"
-                else:
+                return item, end_lat, end_lng
+
+            geo_results = []
+            with ThreadPoolExecutor(max_workers=min(5, len(final_candidates))) as ex:
+                futures = {ex.submit(geocode_one, item): item for item in final_candidates}
+                for fut in as_completed(futures):
+                    try:
+                        geo_results.append(fut.result())
+                    except Exception as e:
+                        item = futures[fut]
+                        geo_results.append((item, None, None))
+
+            # 4-2. 경로 계산 (좌표 있는 것만, 병렬)
+            def route_one(args):
+                item, end_lat, end_lng = args
+                if not end_lat or not end_lng:
                     item['geo_status'] = 'geocode_failed'
                     item['score_text'] = f"좌표 변환 실패 (텍스트 점수: {item['score']})"
-                
-                final_results.append(item)
-            
-            # 5. 재정렬: 거리 계산 성공한 항목 우선, 그 중 소요 시간 짧은 순
-            # geo_status가 success인 것 우선, 그 다음 duration_min 오름차순
+                    return item
+                route_info = converter.calculate_route(start_lat, start_lng, end_lat, end_lng)
+                if route_info.get('status') == 'success':
+                    item['distance_km'] = route_info['distance_km']
+                    item['duration_min'] = route_info['duration_min']
+                    item['toll'] = route_info.get('toll', 0)
+                    item['geo_status'] = 'success'
+                    item['score_text'] = f"{item['distance_km']}km ({item['duration_min']}분)"
+                else:
+                    item['geo_status'] = 'route_failed'
+                    item['score_text'] = f"경로 계산 실패 (텍스트 점수: {item['score']})"
+                return item
+
+            route_inputs = [r for r in geo_results if r[1] is not None and r[2] is not None]
+            final_results = []
+            with ThreadPoolExecutor(max_workers=min(5, len(route_inputs) or 1)) as ex_route:
+                route_futures = [ex_route.submit(route_one, (item, elat, elng)) for item, elat, elng in route_inputs]
+                for fut in as_completed(route_futures):
+                    try:
+                        final_results.append(fut.result())
+                    except Exception:
+                        pass
+            # 좌표 실패한 항목 추가 (거리 없이 표시)
+            for item, elat, elng in geo_results:
+                if elat is None or elng is None:
+                    item['geo_status'] = 'geocode_failed'
+                    item['score_text'] = f"좌표 변환 실패 (텍스트 점수: {item['score']})"
+                    final_results.append(item)
+
+            # 5. 재정렬: 거리 계산 성공 우선, 그 다음 소요 시간 짧은 순
             final_results.sort(key=lambda x: (0 if x.get('geo_status') == 'success' else 1, x.get('duration_min', 9999)))
-            
             return jsonify({
                 'success': True,
                 'results': final_results[:5],

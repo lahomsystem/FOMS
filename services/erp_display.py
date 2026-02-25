@@ -91,7 +91,8 @@ def apply_erp_display_fields(order):
         order.measurement_time = measurement_time
     construction = schedule.get('construction') or {}
     construction_date = construction.get('date')
-    if construction_date:
+    # AS 접수/완료 주문은 AS 방문일을 시공일로 덮어쓰지 않음 (AS 방문일은 수동 입력만)
+    if construction_date and getattr(order, 'status', None) not in ('AS_RECEIVED', 'AS_COMPLETED'):
         order.scheduled_date = str(construction_date)
 
 

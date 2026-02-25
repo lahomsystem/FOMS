@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 
-## 마지막 업데이트: 2026-02-22 (Phase C·D·Railway 계획 완료)
+## 마지막 업데이트: 2026-02-25 (AS 대시보드, 실측 인라인 UI, 시공 UX, 전역 Presigned URL 도입 완료)
 
 ## 세션 재개 시 이어서 작업 가용자원 (컨텍스트 풀 시)
 
@@ -93,6 +93,18 @@ SESSION_LOG.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md, DECISIONS.md, TASK_REGISTRY.
 **docs/DEPLOY_NOTES.md** — deploy에 올릴 때마다 "뭘 했는지" 누구나 알 수 있게 쉬운 말로 정리
 
 ## 최근 변경
+- [2026-02-25] **AS 프로세스 및 대시보드 개선 완료**
+  - AS 대시보드 내 다중 사진 조회, 신규 접수 인라인 기능 및 `attachments.py` 파일 업로드 타입 안정화.
+  - 주변 5건 물건(Nearby) 위치 병렬 지오코딩 검색 추가.
+- [2026-02-25] **실측 대시보드 인라인 주문 상세 UI (아코디언) 적용 완료**
+  - 고객/주문명 셀에 꺾쇠(v) 토글 추가. 클릭 시 주문 행 바로 밑에 상세 정보가 자연스럽게 슬라이드 되도록 화면 전면 개편.
+  - 컬럼 정렬(Sort) 시에도 펼쳐진 상세 행이 소속 주문을 잃지 않고 본 행 위치를 완벽히 따라가도록 자바스크립트 구조 보완.
+- [2026-02-24] **시공 대시보드 UX 및 프로세스 맵 연동 고도화**
+  - 시공 완료 처리 후 사진 재업로드 기능, 시공 퀘스트 버튼 위치 조정.
+  - 시공 완료 상태가 ERP 전체 프로세스 맵(Process Map)에서도 정상 '완료'로 표시되도록 백엔드 상호 동기화 수정.
+- [2026-02-23] **전역 스토리지 (Presigned URL) 체제 전환 및 업로드 UI 개선**
+  - 파일 다운로드 및 미리보기에 Cloudflare R2 Presigned 체제를 전면 도입하여 보안 강화.
+  - 전체 ERP 대시보드의 업로드창에 진행률 바(Progress Bar) 연동 구현, 개별 품목 첨부파일 개별 삭제(Delete) 기능 구현 완료.
 - [2026-02-22] **Phase C·D·Railway 계획 1~5번 완료**
   - 1. Railway Worker 서비스 추가: `USE_RQ_WORKER=1`, railway-worker.toml (rq worker default)
   - 2. Railway Web Replica 2개: `railway scale -s foms --us-east4-eqdc4a 2`

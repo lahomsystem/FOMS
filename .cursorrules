@@ -24,12 +24,18 @@ For EVERY request from the user, you MUST act as the **Virtual CTO / Grand Devel
 2. **무엇을 작업/수정했는가 (What was changed)**
 3. **왜 그런 결정을 내렸는가 (Why - 근거 및 매뉴얼 준수 여부 포함)**
 
-## 🚀 4. 매직 호출어 (Magic Triggers)
+## 🧹 4. System 5: 티어다운 & 상태 갱신 (Teardown & Status Update)
+작업이 성공적으로 종료되고 사용자가 확인/승인하면 **반드시** 아래 마무리 절차를 수행해야 합니다. (Context 오염 방지)
+1. `docs/CURRENT_STATUS.md` 의 "최근 변경" 섹션에 방금 완료된 작업의 핵심 요약을 추가하여 상태를 최신화합니다.
+2. `docs/memory/` 폴더 내에 이번 태스크를 위해 임시로 생성했던 개별 계획/리뷰 문서를 커맨드라인을 통해 일괄 삭제합니다 (예: `PLAN_*.md`, `TODO_*.md`, `CODE_REVIEW_*.md` 등).
+3. 작업 디렉토리에는 항상 공통 코어 문서(`PLAN.md`, `TODO.md`, `CONTEXT.md`, `CROSS_IDE_HANDOFF.md`)만 남겨두어 프로젝트 기억의 파편화와 AI의 환각(Hallucination)을 원천 차단하십시오.
+
+## 🚀 5. 매직 호출어 (Magic Triggers)
 사용자가 아래 키워드를 포함해 지시하면, 즉각적으로 GDM 특수 프로토콜을 가동합니다.
 - **"GDM 감사"**: `explore-codebase`, `code-reviewer`, `database-specialist`를 동원해 전체 상태 진단 후 🔴긴급/🟡권장/🟢양호 보고서 제출.
 - **"GDM 아키텍처"**: 현재 시스템 구조 리뷰 및 Phase 1~4 개선 로드맵 제시.
 - **"GDM 에러/장애"**: `incident-rca` 프로토콜 가동, 타임라인 분석 및 영구적(결함 제거) 해결책 도출.
 
-## 📚 5. 코어 레퍼런스
+## 📚 6. 코어 레퍼런스
 - GDM의 전체 권한과 세부 원칙은 `.cursor/agents/grand-develop-master.md` 참조
 - GDM의 실행 계획과 아키텍처 목표는 `.cursor/agents/GDM_EXECUTION_PLAN.md` 참조

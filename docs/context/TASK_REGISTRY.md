@@ -6,6 +6,10 @@
 
 | ID | 상태 | 설명 | 시작일 | 최종 업데이트 |
 |----|------|------|--------|-------------|
+| ERP-AS-001 | 완료 | AS 프로세스 및 대시보드 개선 (다중 사진 조회/다운, 인라인 접수 UI, 주변물건 지오코딩 조회, `attachments.py` 안정화) | 2026-02-25 | 2026-02-25 |
+| ERP-MSR-001 | 완료 | 실측 대시보드 인라인 주문 상세 UI (아코디언 토글 추가, 컬럼 정렬 시 소속 유지 스크립트 고도화 완비) | 2026-02-25 | 2026-02-25 |
+| ERP-CNST-001 | 완료 | 시공 대시보드 UX 및 프로세스 맵 동기화 (재업로드/퀘스트 버튼 이동 및 시스템 전체 완료 동기화) | 2026-02-24 | 2026-02-24 |
+| GLOBAL-R2-001 | 완료 | 전역 파일 스토리지 R2 Presigned URL 체제 도입 (미리보기/다운로드 암호화, 품목 삭제 및 진행률 막대 연동) | 2026-02-23 | 2026-02-23 |
 | PHASE-C | 완료 | Railway 다중사용자 Phase C: geocode 컬럼·jobs·erp_map 코드·로컬 마이그레이션·geocode_backfill dry-run 검증 완료. Railway Worker/USE_RQ_WORKER=1 설정 후 실제 enqueue 가능. | 2026-02-22 | 2026-02-22 |
 | PHASE-D | 완료 | Phase D Direct R2 Upload: storage.py(presigned PUT, object_exists, direct key), attachments API(session, complete). 프론트엔드 전환/다른 도메인 적용은 후속. | 2026-02-22 | 2026-02-22 |
 | GDM-AUDIT-20260222 | 완료 | GDM 감사: explore/code-reviewer/database 병렬 진단 → GDM_AUDIT_REPORT_2026-02-22.md 작성. 긴급 3건, 권장 15+건, Phase 1~4 로드맵. | 2026-02-22 | 2026-02-22 |
