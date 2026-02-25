@@ -6,7 +6,7 @@ from flask import Blueprint, render_template, request, session, redirect, url_fo
 from db import get_db
 from models import Order
 from apps.auth import login_required, get_user_by_id
-from sqlalchemy import or_, and_, cast, String, case
+from sqlalchemy import or_, and_, cast, String
 import datetime
 
 from services.erp_permissions import can_edit_erp
@@ -59,9 +59,15 @@ def erp_as_dashboard():
 
     query = _erp_order_search_filter(query, search_q)
 
-    # AS 접수(AS_RECEIVED) 먼저, 완료(AS_COMPLETED)는 하단; 각 그룹 내 id 내림차순
-    status_order = case((Order.status == 'AS_RECEIVED', 0), else_=1)
-    rows = query.order_by(status_order, Order.id.desc()).limit(300).all()
+    # 기본 정렬: 접수일(as_received_date) 내림차순(최신 접수 맨 위), 동일 시 id 내림차순
+    sort_dir = (request.args.get('sort_dir') or 'desc').strip().lower()
+    if sort_dir != 'asc':
+        sort_dir = 'desc'
+    order_col = Order.as_received_date
+    if sort_dir == 'desc':
+        rows = query.order_by(order_col.desc().nullslast(), Order.id.desc()).limit(300).all()
+    else:
+        rows = query.order_by(order_col.asc().nullsfirst(), Order.id.desc()).limit(300).all()
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     erp_mine_only = request.args.get('mine') == '1'
     if erp_mine_only and current_user:
@@ -81,4 +87,5 @@ def erp_as_dashboard():
         can_edit_erp=can_edit_erp(current_user),
         erp_mine_only=erp_mine_only,
         can_view_as_photos=can_view_as_photos,
+        sort_dir=sort_dir,
     )

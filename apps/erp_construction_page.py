@@ -128,6 +128,7 @@ def erp_construction_dashboard():
             'construction_date': (((sd.get('schedule') or {}).get('construction') or {}).get('date')),
             'manager_name': (((sd.get('parties') or {}).get('manager') or {}).get('name')) or '-',
             'phone': (((sd.get('parties') or {}).get('customer') or {}).get('phone')) or '-',
+            'as_received_date': getattr(o, 'as_received_date', None) or '',
         })
 
     process_steps = [
