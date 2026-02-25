@@ -10,6 +10,7 @@
     var _cfg = document.getElementById('erp-dashboard-config');
     const TEAM_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-team-labels'), {}) : {};
     const STAGE_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-stage-labels'), {}) : {};
+    const CURRENT_USER_ID = _cfg ? (parseInt(_cfg.getAttribute('data-current-user-id'), 10) || null) : null;
 
     function label(map, code, fallback = '-') {
       if (!code) return fallback;
@@ -541,10 +542,34 @@
     function openAsAcceptModal(orderId) {
       const orderIdInput = document.getElementById('erp-cons-as-order-id');
       if (orderIdInput) orderIdInput.value = orderId;
+      const reuploadInput = document.getElementById('erp-cons-as-reupload-mode');
+      if (reuploadInput) reuploadInput.value = '0';
       const fileInput = document.getElementById('erp-cons-as-input');
       if (fileInput) fileInput.value = '';
+      const asContentEl = document.getElementById('erp-cons-as-content');
+      if (asContentEl) asContentEl.value = '';
       const statusEl = document.getElementById('erp-cons-as-status');
       if (statusEl) statusEl.textContent = '';
+      const progressWrap = document.getElementById('erp-cons-as-progress');
+      if (progressWrap) progressWrap.classList.add('d-none');
+      const modalEl = document.getElementById('erpConstructionAsAcceptModal');
+      if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+      }
+    }
+
+    function openAsReuploadModal(orderId) {
+      const orderIdInput = document.getElementById('erp-cons-as-order-id');
+      if (orderIdInput) orderIdInput.value = orderId;
+      const reuploadInput = document.getElementById('erp-cons-as-reupload-mode');
+      if (reuploadInput) reuploadInput.value = '1';
+      const fileInput = document.getElementById('erp-cons-as-input');
+      if (fileInput) fileInput.value = '';
+      const asContentEl = document.getElementById('erp-cons-as-content');
+      if (asContentEl) asContentEl.value = '';
+      const statusEl = document.getElementById('erp-cons-as-status');
+      if (statusEl) statusEl.textContent = '본인이 올린 AS 사진만 삭제 후 새 사진을 업로드합니다.';
       const progressWrap = document.getElementById('erp-cons-as-progress');
       if (progressWrap) progressWrap.classList.add('d-none');
       const modalEl = document.getElementById('erpConstructionAsAcceptModal');
@@ -1141,6 +1166,8 @@
     async function submitAsAccept() {
         const orderId = document.getElementById('erp-cons-as-order-id').value;
         if (!orderId) return;
+        const reuploadInput = document.getElementById('erp-cons-as-reupload-mode');
+        const isReupload = reuploadInput && reuploadInput.value === '1';
         const input = document.getElementById('erp-cons-as-input');
         const statusEl = document.getElementById('erp-cons-as-status');
         const progressWrap = document.getElementById('erp-cons-as-progress');
@@ -1152,6 +1179,26 @@
             return;
         }
         if (asBtn) asBtn.disabled = true;
+        if (isReupload && CURRENT_USER_ID != null) {
+            if (statusEl) statusEl.textContent = '본인 AS 사진 삭제 중...';
+            try {
+                const listRes = await fetch(`/api/orders/${orderId}/attachments?category=as`);
+                const listData = await listRes.json();
+                if (listData.success && listData.attachments && listData.attachments.length > 0) {
+                    for (const att of listData.attachments) {
+                        if (att.user_id === CURRENT_USER_ID && att.id) {
+                            await fetch(`/api/orders/${orderId}/attachments/${att.id}`, { method: 'DELETE' });
+                        }
+                    }
+                }
+                if (reuploadInput) reuploadInput.value = '0';
+            } catch (e) {
+                console.error('AS reupload delete own error:', e);
+                if (statusEl) statusEl.innerHTML = '<span class="text-danger">기존 AS 사진 삭제 중 오류가 발생했습니다.</span>';
+                if (asBtn) asBtn.disabled = false;
+                return;
+            }
+        }
         if (statusEl) statusEl.textContent = `업로드 중... (0/${files.length})`;
         if (progressWrap) progressWrap.classList.remove('d-none');
         if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
@@ -1202,7 +1249,21 @@
                 if (asBtn) asBtn.disabled = false;
                 return;
             }
-            if (statusEl) statusEl.innerHTML = `<span class="text-success">AS 접수 ${ok}개 사진 업로드 완료.</span>`;
+            if (statusEl) statusEl.textContent = 'AS 접수 등록 중...';
+            const asContentEl = document.getElementById('erp-cons-as-content');
+            const asContent = (asContentEl && asContentEl.value) ? asContentEl.value.trim() : '';
+            const registerRes = await fetch(`/api/orders/${orderId}/as/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ as_content: asContent })
+            });
+            const registerData = await registerRes.json();
+            if (!registerData.success) {
+                if (statusEl) statusEl.innerHTML = '<span class="text-danger">접수 등록 실패: ' + (registerData.message || '알 수 없음') + '</span>';
+                if (asBtn) asBtn.disabled = false;
+                return;
+            }
+            if (statusEl) statusEl.innerHTML = '<span class="text-success">AS 접수 등록 완료. (접수일·상태 반영)</span>';
             const modalEl = document.getElementById('erpConstructionAsAcceptModal');
             if (modalEl) {
                 const modal = bootstrap.Modal.getInstance(modalEl);

@@ -70,6 +70,8 @@ def erp_as_dashboard():
     for r in rows:
         r.structured_data = _ensure_dict(r.structured_data)
     apply_erp_display_fields_to_orders(rows)
+    # 시공자가 아닌 사용자만 AS 카테고리 사진 조회 가능 (관리자 등)
+    can_view_as_photos = not (current_user and (current_user.team or '').strip() == 'CONSTRUCTION')
     return render_template(
         'erp_as_dashboard.html',
         status_filter=status_filter,
@@ -78,4 +80,5 @@ def erp_as_dashboard():
         rows=rows,
         can_edit_erp=can_edit_erp(current_user),
         erp_mine_only=erp_mine_only,
+        can_view_as_photos=can_view_as_photos,
     )
