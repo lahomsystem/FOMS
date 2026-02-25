@@ -1,5 +1,0 @@
-fix: gevent 몽키 패치 누락으로 인한 파일 업로드 스레드 블로킹 현상 수정
-
-- app.py 최상단에 gevent.monkey.patch_all() 적용하여 boto3 업로드 시 Gunicorn 워커 멈춤 방지
-- ERP 업로드 병목을 해결하고 빠른 속도 보장
-- devops-deploy 룰 업데이트 및 관련 Cursor hook 로그 최신화
