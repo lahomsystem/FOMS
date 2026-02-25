@@ -54,7 +54,12 @@ Thumbs.db
 # 임시·백업 파일 (파일 정리 Phase 1)
 *.tmp
 *.bak
-temp_*.html 
+temp_*.html
+
+# 배포/커밋용 임시 메시지 파일 (푸시 후 삭제 규칙 - devops-deploy.md)
+commit_msg*.txt
+commit_msg_*.txt
+msg.txt 
 
 # Load test secrets / generated accounts
 tests/load/session_cookies.txt
