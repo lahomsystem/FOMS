@@ -245,12 +245,23 @@ def api_order_attachments_complete(order_id):
 
         file_type = storage._get_file_type(filename)
         file_size = 0
-        try:
-            if storage.storage_type in ['r2', 's3']:
+        used_client_size = False
+        client_size = data.get('size')
+        max_size = get_erp_media_max_size(filename)
+        if client_size is not None:
+            try:
+                sz = int(client_size)
+                if 0 <= sz <= max_size:
+                    file_size = sz
+                    used_client_size = True
+            except (TypeError, ValueError):
+                pass
+        if not used_client_size and storage.storage_type in ['r2', 's3']:
+            try:
                 resp = storage.client.head_object(Bucket=storage.bucket_name, Key=key)
                 file_size = resp.get('ContentLength', 0)
-        except Exception:
-            pass
+            except Exception:
+                pass
 
         thumbnail_key = None
         ensure_order_attachments_user_id_column()
