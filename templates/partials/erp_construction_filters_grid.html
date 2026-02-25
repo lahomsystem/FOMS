@@ -135,7 +135,25 @@
                   <td data-label="단계"><span class="badge bg-secondary"
                       style="font-size: 1.1rem; padding: 0.5em 0.7em;">{{ o.stage }}</span></td>
                   <td data-label="퀘스트" class="erp-quest-cell erp-wrap">
-                    {% if o.current_quest %}
+                    {% if o.stage == '시공대기' %}
+                    <div class="d-inline-flex align-items-center gap-2">
+                      <button class="btn btn-outline-primary btn-sm" onclick="startConstruction({{ o.id }})">
+                        <i class="fas fa-play"></i> 시공 시작
+                      </button>
+                    </div>
+                    {% elif o.stage == '시공중' %}
+                    <div class="d-inline-flex align-items-center gap-2">
+                      <button class="btn btn-success btn-sm" onclick="completeConstruction({{ o.id }})">
+                        <i class="fas fa-check"></i> 시공 완료
+                      </button>
+                    </div>
+                    {% elif o.stage == '시공완료' %}
+                    <div class="d-inline-flex align-items-center gap-2">
+                      <button class="btn btn-outline-secondary btn-sm" onclick="reuploadConstructionPhotos({{ o.id }})">
+                        <i class="fas fa-redo"></i> 재 업로드
+                      </button>
+                    </div>
+                    {% elif o.current_quest %}
                     <div class="d-inline-flex align-items-center gap-2">
                       {% if o.current_quest.all_approved %}
                       <span class="badge bg-success" style="font-size: 1rem; padding: 0.4em 0.7em;">완료</span>
