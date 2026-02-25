@@ -3,7 +3,7 @@
 """
 
 import os
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from sqlalchemy import text
 
 from db import get_db
@@ -113,6 +113,27 @@ def ensure_order_attachments_item_index_column():
         except Exception:
             pass
         print(f"[AUTO-MIGRATION] Failed to ensure order_attachments.item_index: {e}")
+        return False
+
+
+def ensure_order_attachments_user_id_column():
+    """레거시 DB용: order_attachments.user_id 컬럼 존재 보장 (업로더 식별, AS 재업로드 시 본인 것만 삭제)."""
+    db = None
+    try:
+        db = get_db()
+        db.execute(text(
+            "ALTER TABLE order_attachments "
+            "ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+        ))
+        db.commit()
+        return True
+    except Exception as e:
+        try:
+            if db is not None:
+                db.rollback()
+        except Exception:
+            pass
+        print(f"[AUTO-MIGRATION] Failed to ensure order_attachments.user_id: {e}")
         return False
 
 
@@ -232,6 +253,7 @@ def api_order_attachments_complete(order_id):
             pass
 
         thumbnail_key = None
+        ensure_order_attachments_user_id_column()
         att = OrderAttachment(
             order_id=order_id,
             filename=filename,
@@ -240,7 +262,8 @@ def api_order_attachments_complete(order_id):
             item_index=item_index,
             file_size=file_size,
             storage_key=key,
-            thumbnail_key=thumbnail_key
+            thumbnail_key=thumbnail_key,
+            user_id=session.get('user_id'),
         )
         db.add(att)
         db.commit()
@@ -385,6 +408,7 @@ def api_order_attachments_upload(order_id):
         except Exception:
             thumbnail_key = None
 
+        ensure_order_attachments_user_id_column()
         att = OrderAttachment(
             order_id=order_id,
             filename=filename,
@@ -393,7 +417,8 @@ def api_order_attachments_upload(order_id):
             item_index=item_index,
             file_size=file_size,
             storage_key=storage_key,
-            thumbnail_key=thumbnail_key
+            thumbnail_key=thumbnail_key,
+            user_id=session.get('user_id'),
         )
         db.add(att)
         db.commit()
@@ -468,7 +493,7 @@ def api_order_attachments_patch(order_id, attachment_id):
 @attachments_bp.route('/orders/<int:order_id>/attachments/<int:attachment_id>', methods=['DELETE'])
 @login_required
 def api_order_attachments_delete(order_id, attachment_id):
-    """주문 첨부 삭제(ERP Beta)."""
+    """주문 첨부 삭제(ERP Beta). 다른 사용자가 업로드한 첨부는 삭제 불가(AS 재업로드 보호)."""
     try:
         db = get_db()
         att = db.query(OrderAttachment).filter(
@@ -477,6 +502,11 @@ def api_order_attachments_delete(order_id, attachment_id):
         ).first()
         if not att:
             return jsonify({'success': False, 'message': '첨부파일을 찾을 수 없습니다.'}), 404
+
+        att_user_id = getattr(att, 'user_id', None)
+        current_user_id = session.get('user_id')
+        if att_user_id is not None and current_user_id is not None and att_user_id != current_user_id:
+            return jsonify({'success': False, 'message': '다른 사용자가 업로드한 파일은 삭제할 수 없습니다.'}), 403
 
         storage = get_storage()
         sk = _att_key(att, 'storage_key')

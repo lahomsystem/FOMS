@@ -93,7 +93,7 @@ class OrderAttachment(Base):
 
     filename = Column(String(255), nullable=False)
     file_type = Column(String(50), nullable=False)  # image / video
-    category = Column(String(50), nullable=False, default='measurement')  # measurement / drawing / construction
+    category = Column(String(50), nullable=False, default='measurement')  # measurement / drawing / construction / as
     item_index = Column(Integer, nullable=True, default=None, index=True)  # 제품 항목 인덱스 (None=공통)
     file_size = Column(Integer, nullable=False, default=0)
 
@@ -101,6 +101,7 @@ class OrderAttachment(Base):
     thumbnail_key = Column(String(500), nullable=True)  # 이미지 썸네일 key (선택)
 
     created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)  # 업로더 (AS 재업로드 시 본인 것만 삭제)
 
     order = relationship('Order', foreign_keys=[order_id])
 
@@ -115,7 +116,8 @@ class OrderAttachment(Base):
             'file_size': self.file_size,
             'storage_key': self.storage_key,
             'thumbnail_key': self.thumbnail_key,
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
+            'user_id': self.user_id,
         }
 
 

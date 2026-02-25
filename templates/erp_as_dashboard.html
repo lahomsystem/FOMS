@@ -77,6 +77,7 @@
               <th style="width: 120px;">담당자</th>
               <th style="width: 120px;">고객</th>
               <th style="width: 450px;">주소</th>
+              <th style="width: 60px;">첨부</th>
               <th style="width: 450px;">AS 내용</th>
               <th style="width: 100px;">상태</th>
             </tr>
@@ -120,6 +121,15 @@
                 </div>
               </td>
               <td>
+                {% if can_view_as_photos %}
+                <button type="button" class="btn btn-sm btn-outline-primary p-1 as-photos-btn" data-order-id="{{ r.id }}" title="AS 사진 보기">
+                  <i class="fas fa-paperclip"></i>
+                </button>
+                {% else %}
+                <span class="text-muted small">-</span>
+                {% endif %}
+              </td>
+              <td>
                 <textarea class="erp-pro-input as-content-input" placeholder="내용 입력..." data-order-id="{{ r.id }}"
                   style="width: 100%; min-height: 40px; height: auto; padding-top: 8px; padding-bottom: 8px; resize: vertical;">{{ (r.structured_data.get('shipment', {}).get('as_content', '')) if r.structured_data else '' }}</textarea>
               </td>
@@ -133,7 +143,7 @@
             {% endfor %}
             {% else %}
             <tr>
-              <td colspan="7" class="text-center text-muted py-4">데이터가 없습니다.</td>
+              <td colspan="9" class="text-center text-muted py-4">데이터가 없습니다.</td>
             </tr>
             {% endif %}
           </tbody>
@@ -196,6 +206,14 @@
                 {% endif %}
               </div>
             </div>
+            {% if can_view_as_photos %}
+            <div class="erp-pro-order-card__row">
+              <span class="erp-pro-order-card__label">AS 사진</span>
+              <button type="button" class="btn btn-sm btn-outline-primary as-photos-btn" data-order-id="{{ r.id }}" title="AS 사진 보기">
+                <i class="fas fa-paperclip"></i> 보기
+              </button>
+            </div>
+            {% endif %}
             <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
               <span class="erp-pro-order-card__label">AS 내용</span>
               <textarea class="erp-pro-input as-content-input mt-1" placeholder="내용 입력..." data-order-id="{{ r.id }}"
@@ -227,6 +245,31 @@
       </div>
       <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
         aria-label="Close"></button>
+    </div>
+  </div>
+</div>
+
+<!-- AS 사진 모달 (시공자가 아닌 사용자만 노출된 버튼으로 진입) -->
+<div class="modal fade" id="asPhotosModal" tabindex="-1" aria-labelledby="asPhotosModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="asPhotosModalLabel"><i class="fas fa-paperclip"></i> AS 사진 · 주문 #<span id="asPhotosOrderId"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <div id="asPhotosGallery" class="row g-2">
+          <!-- 갤러리 카드들이 JS로 채워짐 -->
+        </div>
+        <div id="asPhotosEmpty" class="text-center text-muted py-5 d-none">
+          <i class="fas fa-images fa-2x mb-2"></i>
+          <p class="mb-0">등록된 AS 사진이 없습니다.</p>
+        </div>
+        <div id="asPhotosLoading" class="text-center py-5 d-none">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="mt-2 mb-0 text-muted small">불러오는 중...</p>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -354,6 +397,58 @@
       toastEl.classList.add(isError ? 'bg-danger' : 'bg-success');
       toast.show();
     }
+
+    // AS 사진 모달: 버튼 클릭 시 해당 주문의 AS 카테고리 첨부만 조회 후 갤러리 표시
+    document.body.addEventListener('click', async function (e) {
+      const btn = e.target.closest('.as-photos-btn');
+      if (!btn) return;
+      const orderId = btn.dataset.orderId;
+      if (!orderId) return;
+
+      const modalEl = document.getElementById('asPhotosModal');
+      const galleryEl = document.getElementById('asPhotosGallery');
+      const emptyEl = document.getElementById('asPhotosEmpty');
+      const loadingEl = document.getElementById('asPhotosLoading');
+      const orderIdSpan = document.getElementById('asPhotosOrderId');
+      if (!modalEl || !galleryEl || !emptyEl || !loadingEl || !orderIdSpan) return;
+
+      orderIdSpan.textContent = orderId;
+      galleryEl.innerHTML = '';
+      emptyEl.classList.add('d-none');
+      loadingEl.classList.remove('d-none');
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+
+      try {
+        const res = await fetch(`/api/orders/${orderId}/attachments?category=as`);
+        const data = await res.json();
+        loadingEl.classList.add('d-none');
+        const list = (data && data.attachments) ? data.attachments : [];
+        if (list.length === 0) {
+          emptyEl.classList.remove('d-none');
+          return;
+        }
+        list.forEach(function (a) {
+          const isImage = (a.file_type || '').toLowerCase() === 'image' || /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/i.test(a.filename || '');
+          const viewUrl = a.view_url || '';
+          const thumbUrl = a.thumbnail_view_url || viewUrl;
+          const filename = a.filename || '파일';
+          const col = document.createElement('div');
+          col.className = 'col-6 col-md-4';
+          if (isImage && viewUrl) {
+            col.innerHTML = '<a href="' + viewUrl.replace(/"/g, '&quot;') + '" target="_blank" rel="noopener" class="d-block border rounded overflow-hidden"><img src="' + (thumbUrl || viewUrl).replace(/"/g, '&quot;') + '" alt="" class="img-fluid w-100" style="object-fit: cover; max-height: 180px;"></a>';
+          } else {
+            col.innerHTML = '<a href="' + (a.download_url || viewUrl || '#').replace(/"/g, '&quot;') + '" target="_blank" rel="noopener" class="d-block border rounded p-2 text-center"><i class="fas fa-file fa-2x text-muted"></i><div class="small text-truncate mt-1">' + filename.replace(/</g, '&lt;') + '</div></a>';
+          }
+          galleryEl.appendChild(col);
+        });
+      } catch (err) {
+        loadingEl.classList.add('d-none');
+        emptyEl.classList.remove('d-none');
+        emptyEl.querySelector('p').textContent = '불러오기에 실패했습니다.';
+        showFeedback('AS 사진을 불러올 수 없습니다.', true);
+      }
+    });
 
     // AS 방문일 자동 저장
     document.querySelectorAll('.editable-date-as').forEach(input => {
