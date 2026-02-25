@@ -24,18 +24,20 @@
     let __attachmentsByCategory = {
       measurement: [],
       drawing: [],
-      construction: []
+      construction: [],
+      as: []
     };
 
     const ATTACHMENT_CATEGORY_META = {
       measurement: { label: '실측', icon: 'fa-ruler-combined' },
       drawing: { label: '도면', icon: 'fa-drafting-compass' },
-      construction: { label: '시공', icon: 'fa-hammer' }
+      construction: { label: '시공', icon: 'fa-hammer' },
+      as: { label: 'AS', icon: 'fa-wrench' }
     };
 
     function normalizeAttachmentCategory(category) {
       const c = String(category || '').trim().toLowerCase();
-      if (c === 'drawing' || c === 'construction') return c;
+      if (c === 'drawing' || c === 'construction' || c === 'as') return c;
       return 'measurement';
     }
 
@@ -47,7 +49,7 @@
     function renderAttachmentCategoryTabs() {
       const tabsEl = document.getElementById('erp-attachments-category-tabs');
       if (!tabsEl) return;
-      const keys = ['measurement', 'drawing', 'construction'];
+      const keys = ['measurement', 'drawing', 'construction', 'as'];
       tabsEl.innerHTML = keys.map((key) => {
         const meta = ATTACHMENT_CATEGORY_META[key];
         const count = (__attachmentsByCategory[key] || []).length;
@@ -390,7 +392,7 @@
         }
 
         if (aList.length > 0) {
-          __attachmentsByCategory = { measurement: [], drawing: [], construction: [] };
+          __attachmentsByCategory = { measurement: [], drawing: [], construction: [], as: [] };
           aList.forEach((a) => {
             const key = normalizeAttachmentCategory(a.category);
             const normalized = Object.assign({}, a, { category: key });
@@ -530,6 +532,22 @@
       const progressWrap = document.getElementById('erp-cons-reupload-progress');
       if (progressWrap) progressWrap.classList.add('d-none');
       const modalEl = document.getElementById('erpConstructionReuploadModal');
+      if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+      }
+    }
+
+    function openAsAcceptModal(orderId) {
+      const orderIdInput = document.getElementById('erp-cons-as-order-id');
+      if (orderIdInput) orderIdInput.value = orderId;
+      const fileInput = document.getElementById('erp-cons-as-input');
+      if (fileInput) fileInput.value = '';
+      const statusEl = document.getElementById('erp-cons-as-status');
+      if (statusEl) statusEl.textContent = '';
+      const progressWrap = document.getElementById('erp-cons-as-progress');
+      if (progressWrap) progressWrap.classList.add('d-none');
+      const modalEl = document.getElementById('erpConstructionAsAcceptModal');
       if (modalEl) {
         const modal = new bootstrap.Modal(modalEl);
         modal.show();
@@ -1117,6 +1135,84 @@
             console.error('Reupload error:', err);
             if (statusEl) statusEl.innerHTML = '<span class="text-danger">처리 중 오류가 발생했습니다.</span>';
             if (reuploadBtn) reuploadBtn.disabled = false;
+        }
+    }
+
+    async function submitAsAccept() {
+        const orderId = document.getElementById('erp-cons-as-order-id').value;
+        if (!orderId) return;
+        const input = document.getElementById('erp-cons-as-input');
+        const statusEl = document.getElementById('erp-cons-as-status');
+        const progressWrap = document.getElementById('erp-cons-as-progress');
+        const progressBar = document.getElementById('erp-cons-as-progress-bar');
+        const asBtn = document.getElementById('erp-cons-as-btn');
+        const files = (input && input.files) ? Array.from(input.files) : [];
+        if (files.length === 0) {
+            if (statusEl) statusEl.innerHTML = '<span class="text-danger">AS 사진을 선택해주세요.</span>';
+            return;
+        }
+        if (asBtn) asBtn.disabled = true;
+        if (statusEl) statusEl.textContent = `업로드 중... (0/${files.length})`;
+        if (progressWrap) progressWrap.classList.remove('d-none');
+        if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
+        const category = 'as';
+        const CONCURRENCY = 3;
+        let ok = 0;
+        const totalFiles = files.length;
+        try {
+            async function doUploadOne(file) {
+                try {
+                    const folder = `orders/${orderId}/attachments`;
+                    const sessRes = await fetch('/api/upload/session', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filename: file.name, size: file.size, folder: folder, category: category })
+                    });
+                    const sessData = await sessRes.json();
+                    if (!sessRes.ok || !sessData.success) throw new Error(sessData.message || sessData.error || '세션 생성 실패');
+                    const putRes = await fetch(sessData.upload_url, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                        body: file
+                    });
+                    if (!putRes.ok) throw new Error('R2 PUT 실패');
+                    const completeRes = await fetch(`/api/orders/${orderId}/attachments/complete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ key: sessData.key, filename: file.name, category: category, item_index: null })
+                    });
+                    const completeData = await completeRes.json();
+                    if (!completeData.success) throw new Error(completeData.message || completeData.error || '첨부 등록 실패');
+                    return { success: true };
+                } catch (err) {
+                    console.error('AS upload file error:', err);
+                    return { success: false, error: err.message };
+                }
+            }
+            for (let start = 0; start < files.length; start += CONCURRENCY) {
+                const chunk = files.slice(start, start + CONCURRENCY);
+                const results = await Promise.all(chunk.map(f => doUploadOne(f)));
+                results.forEach(r => { if (r.success) ok++; });
+                const pct = Math.round((Math.min(start + CONCURRENCY, totalFiles) / totalFiles) * 100);
+                if (progressBar) { progressBar.style.width = pct + '%'; progressBar.textContent = pct + '%'; }
+                if (statusEl) statusEl.textContent = `업로드 중... (${Math.min(start + CONCURRENCY, totalFiles)}/${totalFiles})`;
+            }
+            if (ok < files.length) {
+                if (statusEl) statusEl.innerHTML = '<span class="text-danger">일부 파일 업로드에 실패했습니다. 다시 시도해주세요.</span>';
+                if (asBtn) asBtn.disabled = false;
+                return;
+            }
+            if (statusEl) statusEl.innerHTML = `<span class="text-success">AS 접수 ${ok}개 사진 업로드 완료.</span>`;
+            const modalEl = document.getElementById('erpConstructionAsAcceptModal');
+            if (modalEl) {
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+            }
+            window.location.reload();
+        } catch (err) {
+            console.error('AS accept upload error:', err);
+            if (statusEl) statusEl.innerHTML = '<span class="text-danger">처리 중 오류가 발생했습니다.</span>';
+            if (asBtn) asBtn.disabled = false;
         }
     }
 

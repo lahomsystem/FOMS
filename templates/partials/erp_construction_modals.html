@@ -120,5 +120,38 @@
     </div>
   </div>
 
+  <!-- AS 접수 모달: 시공자가 AS 사진 업로드 → ERP Beta AS 섹션에 저장 -->
+  <div class="modal fade" id="erpConstructionAsAcceptModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-tools text-info"></i> AS 접수</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3 text-muted small">AS 접수용 사진을 업로드하면 이 주문의 <strong>ERP Beta AS 섹션</strong>에 저장됩니다. (상태 변경 없음)</p>
+          <input type="hidden" id="erp-cons-as-order-id">
+          <div class="fw-bold mb-2 pt-2 border-top"><i class="fas fa-camera"></i> AS 사진 선택</div>
+          <div class="border rounded p-3" style="border-style: dashed !important; background-color: #f8f9fa;">
+            <input type="file" id="erp-cons-as-input" accept="image/*,video/*" multiple class="form-control form-control-sm mb-2">
+            <small class="text-muted d-block mb-2">여러 개 선택 가능</small>
+            <div class="small text-muted" id="erp-cons-as-status"></div>
+            <div id="erp-cons-as-progress" class="mt-2 d-none">
+              <div class="progress" style="height: 18px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" id="erp-cons-as-progress-bar" role="progressbar" style="width: 0%">0%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+          <button type="button" class="btn btn-info" id="erp-cons-as-btn" onclick="submitAsAccept()">
+            <i class="fas fa-upload"></i> AS 접수 업로드
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="erp-dashboard-config" data-team-labels="{{ team_labels|tojson|e }}" data-stage-labels="{{ stage_labels|tojson|e }}" style="display:none" aria-hidden="true"></div>
   <script>
