@@ -8,7 +8,7 @@ from sqlalchemy import text
 
 from db import get_db
 from models import Order, OrderAttachment
-from apps.auth import login_required
+from apps.auth import login_required, get_user_by_id
 from apps.api.files import build_file_view_url, build_file_download_url
 from services.storage import get_storage
 from services.order_attachment_thumbnail import schedule_order_attachment_thumbnail_generation
@@ -493,7 +493,7 @@ def api_order_attachments_patch(order_id, attachment_id):
 @attachments_bp.route('/orders/<int:order_id>/attachments/<int:attachment_id>', methods=['DELETE'])
 @login_required
 def api_order_attachments_delete(order_id, attachment_id):
-    """주문 첨부 삭제(ERP Beta). 다른 사용자가 업로드한 첨부는 삭제 불가(AS 재업로드 보호)."""
+    """주문 첨부 삭제(ERP Beta). 관리자(ADMIN)는 모든 첨부 삭제 가능, 그 외는 본인 업로드만 삭제 가능(AS 재업로드 보호)."""
     try:
         db = get_db()
         att = db.query(OrderAttachment).filter(
@@ -505,7 +505,9 @@ def api_order_attachments_delete(order_id, attachment_id):
 
         att_user_id = getattr(att, 'user_id', None)
         current_user_id = session.get('user_id')
-        if att_user_id is not None and current_user_id is not None and att_user_id != current_user_id:
+        current_user = get_user_by_id(current_user_id) if current_user_id else None
+        is_admin = current_user and getattr(current_user, 'role', None) == 'ADMIN'
+        if not is_admin and att_user_id is not None and current_user_id is not None and att_user_id != current_user_id:
             return jsonify({'success': False, 'message': '다른 사용자가 업로드한 파일은 삭제할 수 없습니다.'}), 403
 
         storage = get_storage()
