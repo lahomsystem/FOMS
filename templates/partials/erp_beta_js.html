@@ -1297,7 +1297,8 @@ ${list.map(renderCard).join('')}
                 key: sess.key,
                 filename: file.name,
                 category: category,
-                item_index: itemIndex == null ? null : itemIndex
+                item_index: itemIndex == null ? null : itemIndex,
+                size: file.size
             })
         });
         return await completeRes.json();

@@ -1015,7 +1015,8 @@
                             key: sessData.key,
                             filename: file.name,
                             category: category,
-                            item_index: null
+                            item_index: null,
+                            size: file.size
                         })
                     });
                     const completeData = await completeRes.json();
@@ -1126,7 +1127,7 @@
                     const completeRes = await fetch(`/api/orders/${orderId}/attachments/complete`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ key: sessData.key, filename: file.name, category: category, item_index: null })
+                        body: JSON.stringify({ key: sessData.key, filename: file.name, category: category, item_index: null, size: file.size })
                     });
                     const completeData = await completeRes.json();
                     if (!completeData.success) throw new Error(completeData.message || completeData.error || '첨부 등록 실패');
@@ -1226,7 +1227,7 @@
                     const completeRes = await fetch(`/api/orders/${orderId}/attachments/complete`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ key: sessData.key, filename: file.name, category: category, item_index: null })
+                        body: JSON.stringify({ key: sessData.key, filename: file.name, category: category, item_index: null, size: file.size })
                     });
                     const completeData = await completeRes.json();
                     if (!completeData.success) throw new Error(completeData.message || completeData.error || '첨부 등록 실패');
