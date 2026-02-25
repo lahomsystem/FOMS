@@ -739,3 +739,7 @@
 | 2026-02-25 13:46:49 | allow | `-` | `(payload에 command 없음)` |
 | 2026-02-25 13:46:53 | allow | `-` | `(payload에 command 없음)` |
 | 2026-02-25 13:47:45 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-25 13:47:49 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-25 13:47:53 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-25 13:49:37 | allow | `-` | `(payload에 command 없음)` |
+| 2026-02-25 13:49:41 | allow | `-` | `(payload에 command 없음)` |
