@@ -14,9 +14,11 @@ def run_auto_init(app):
             from apps.api.attachments import (
                 ensure_order_attachments_category_column,
                 ensure_order_attachments_item_index_column,
+                ensure_order_attachments_user_id_column,
             )
             ensure_order_attachments_category_column()
             ensure_order_attachments_item_index_column()
+            ensure_order_attachments_user_id_column()
             init_wdcalculator_db()
             print("[AUTO-INIT] Tables checked/created successfully.")
 

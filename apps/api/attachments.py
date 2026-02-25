@@ -265,7 +265,6 @@ def api_order_attachments_complete(order_id):
                 pass
 
         thumbnail_key = None
-        ensure_order_attachments_user_id_column()
         att = OrderAttachment(
             order_id=order_id,
             filename=filename,
@@ -420,7 +419,6 @@ def api_order_attachments_upload(order_id):
         except Exception:
             thumbnail_key = None
 
-        ensure_order_attachments_user_id_column()
         att = OrderAttachment(
             order_id=order_id,
             filename=filename,
