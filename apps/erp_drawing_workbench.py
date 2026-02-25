@@ -17,6 +17,7 @@ from services.erp_display import (
     _drawing_next_action_text,
 )
 from services.erp_shipment_settings import is_order_mine_for_user
+from services.erp_product_items import build_product_items_for_order
 
 erp_drawing_workbench_bp = Blueprint('erp_drawing_workbench', __name__, url_prefix='/erp')
 
@@ -303,23 +304,13 @@ def erp_drawing_workbench_detail(order_id):
         {'label': '요청사항 확인', 'ok': unread_count == 0},
     ]
 
-    raw_product_items = s_data.get('items') or s_data.get('products') or s_data.get('product_items') or []
-    if isinstance(raw_product_items, dict):
-        raw_product_items = [raw_product_items]
-    product_items = []
-    for it in list(raw_product_items):
-        if not isinstance(it, dict):
-            continue
-        item = dict(it)
-        item['width'] = item.get('width') or item.get('spec_width') or ''
-        item['depth'] = item.get('depth') or item.get('spec_depth') or ''
-        item['height'] = item.get('height') or item.get('spec_height') or ''
-        item['measurement_images'] = []
-        product_items.append(item)
-
-    measure_photos = []
+    product_items = build_product_items_for_order(db, order)
+    # 도면 상세 전용: 공통 실측 이미지(항목에 매핑되지 않은 첨부) 수집
     common_measure_photos = []
-    for att in db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id, OrderAttachment.category.in_(['measurement', 'measure_photo', 'photo'])).order_by(OrderAttachment.created_at.desc()).all():
+    for att in db.query(OrderAttachment).filter(
+        OrderAttachment.order_id == order_id,
+        OrderAttachment.category.in_(['measurement', 'measure_photo', 'photo'])
+    ).order_by(OrderAttachment.created_at.desc()).all():
         item_index_raw = getattr(att, 'item_index', None)
         try:
             item_index = int(item_index_raw) if item_index_raw is not None else None
@@ -327,12 +318,15 @@ def erp_drawing_workbench_detail(order_id):
                 item_index = None
         except (TypeError, ValueError):
             item_index = None
-        photo = {'filename': att.filename, 'view_url': f'/api/files/view/{att.storage_key}', 'download_url': f'/api/files/download/{att.storage_key}', 'key': att.storage_key, 'item_index': item_index}
-        measure_photos.append(photo)
-        if item_index is not None and 0 <= item_index < len(product_items):
-            product_items[item_index].setdefault('measurement_images', []).append(photo)
-        else:
-            common_measure_photos.append(photo)
+        if item_index is None or item_index < 0 or item_index >= len(product_items):
+            common_measure_photos.append({
+                'filename': att.filename,
+                'view_url': f'/api/files/view/{att.storage_key}',
+                'download_url': f'/api/files/download/{att.storage_key}',
+                'key': att.storage_key,
+                'item_index': item_index,
+            })
+    measure_photos = []  # 템플릿 호환용 (미사용)
 
     return render_template(
         'erp_drawing_workbench_detail.html',
