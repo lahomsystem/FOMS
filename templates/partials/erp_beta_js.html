@@ -871,12 +871,13 @@
     const ERP_ATTACHMENT_CATEGORY_LABELS = {
         measurement: '실측',
         drawing: '도면',
-        construction: '시공'
+        construction: '시공',
+        as: 'AS'
     };
 
     function erpNormalizeAttachmentCategory(category) {
         const c = String(category || '').trim().toLowerCase();
-        if (c === 'drawing' || c === 'construction') return c;
+        if (c === 'drawing' || c === 'construction' || c === 'as') return c;
         return 'measurement';
     }
 
@@ -1076,7 +1077,7 @@
             return;
         }
 
-        const grouped = { measurement: [], drawing: [], construction: [] };
+        const grouped = { measurement: [], drawing: [], construction: [], as: [] };
         items.forEach((a) => {
             const key = erpNormalizeAttachmentCategory(a.category);
             grouped[key].push(Object.assign({}, a, { category: key }));
@@ -1140,7 +1141,7 @@
 `;
         };
 
-        const order = ['measurement', 'drawing', 'construction'];
+        const order = ['measurement', 'drawing', 'construction', 'as'];
         wrap.innerHTML = order.map((key) => {
             const list = grouped[key] || [];
             const label = ERP_ATTACHMENT_CATEGORY_LABELS[key] || key;
