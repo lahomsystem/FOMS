@@ -1039,8 +1039,8 @@
                     const modal = bootstrap.Modal.getInstance(modalEl);
                     if (modal) modal.hide();
                 }
-                // ERP 대시보드의 '완료' 탭으로 이동
-                window.location.href = '/erp/dashboard?stage=완료';
+                // 시공 완료 후 시공 대시보드에 머물기 (출고 대시보드로 가지 않음)
+                window.location.href = '/erp/construction/dashboard';
             } else {
                 if (statusEl) statusEl.innerHTML = `<span class="text-danger">오류: ${data.message}</span>`;
                 if (completeBtn) completeBtn.disabled = false;
