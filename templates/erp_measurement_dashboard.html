@@ -244,6 +244,99 @@
                 background-color: #ffc8d8 !important;
               }
 
+              .measurement-chevron {
+                cursor: pointer;
+                margin-left: 4px;
+                opacity: 0.7;
+                user-select: none;
+              }
+              .measurement-chevron:hover {
+                opacity: 1;
+              }
+              .measurement-chevron.is-open {
+                transform: rotate(180deg);
+              }
+              .measurement-detail-row td {
+                padding: 12px;
+                background-color: #f8fbff;
+                border-bottom: 1px solid #e0e0e0;
+                vertical-align: top;
+              }
+              .measurement-detail-row .dw-product-main-card {
+                border: 1px solid #dfe7f3;
+                border-radius: 10px;
+                background: #fff;
+                padding: 12px;
+                margin-bottom: 10px;
+              }
+              .measurement-detail-row .dw-product-main-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                margin-bottom: 8px;
+              }
+              .measurement-detail-row .dw-product-main-name {
+                font-size: 1.08rem;
+                font-weight: 700;
+                color: #0f2a52;
+              }
+              .measurement-detail-row .dw-product-split {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+                gap: 14px;
+              }
+              .measurement-detail-row .dw-product-info-form .form-control {
+                background: #f3f5fa;
+                border-color: #dbe3f0;
+                color: #394b63;
+              }
+              .measurement-detail-row .dw-product-info-form .form-control[readonly] {
+                cursor: copy;
+              }
+              .measurement-detail-row .dw-attach-panel {
+                border: 1px solid #dbe4f3;
+                border-radius: 10px;
+                background: #f8fbff;
+                padding: 10px;
+                height: 100%;
+              }
+              .measurement-detail-row .dw-attach-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                gap: 8px;
+              }
+              .measurement-detail-row .dw-attach-grid--single {
+                grid-template-columns: 1fr;
+              }
+              .measurement-detail-row .dw-attach-thumb {
+                width: 100%;
+                border-radius: 8px;
+                overflow: hidden;
+                border: 1px solid #d4deee;
+                cursor: pointer;
+                background: #fff;
+                padding: 4px;
+              }
+              .measurement-detail-row .dw-attach-thumb img {
+                max-width: 100%;
+                max-height: 320px;
+                width: auto;
+                height: auto;
+                object-fit: contain;
+                display: block;
+              }
+              .measurement-detail-row .dw-attach-name {
+                font-size: 0.78rem;
+                color: #667a94;
+                margin-top: 4px;
+                word-break: break-all;
+              }
+              @media (max-width: 768px) {
+                .measurement-detail-row .dw-product-split {
+                  grid-template-columns: 1fr;
+                }
+              }
               .measurement-panel-item {
                 scroll-margin-top: 16px;
               }
@@ -382,7 +475,12 @@
                     <span class="text-muted small">(권한없음)</span>
                     {% endif %}
                   </td>
-                  <td style="border-right: 1px solid #e0e0e0;">{{ customer or '-' }}</td>
+                  <td style="border-right: 1px solid #e0e0e0;">
+                    <span class="d-inline-flex align-items-center">
+                      {{ customer or '-' }}
+                      <i class="fas fa-chevron-down measurement-chevron ms-1" data-order-id="{{ r.id }}" role="button" aria-expanded="false" title="주문 상세 보기"></i>
+                    </span>
+                  </td>
                   <td style="border-right: 1px solid #e0e0e0;">{{ orderer or '-' }}</td>
                   <td class="editable-cell cell-wrap measurement-address-cell" data-field="address"
                     style="border-right: 1px solid #e0e0e0;">{{ address or '-' }}</td>
@@ -395,6 +493,100 @@
                   <td class="editable-cell manager-cell" data-field="manager"
                     style="background-color: {{ manager_bg_color }}; color: {{ text_color }};">
                     {{ manager or '-' }}
+                  </td>
+                </tr>
+                <tr class="measurement-detail-row" id="detail-{{ r.id }}" data-order-id="{{ r.id }}" style="display:none;" aria-hidden="true">
+                  <td colspan="9">
+                    {% set product_items_row = r.product_items if r.product_items is defined else [] %}
+                    {% if product_items_row %}
+                      {% for item in product_items_row %}
+                      {% set item_idx = loop.index0 %}
+                      {% set item_measurements = item.get('measurement_images') or [] %}
+                      {% set spec_w = item.get('spec_width') or item.get('width') or '' %}
+                      {% set spec_d = item.get('spec_depth') or item.get('depth') or '' %}
+                      {% set spec_h = item.get('spec_height') or item.get('height') or '' %}
+                      {% set price_raw = item.get('price') %}
+                      {% set location_text = item.get('misc') or '' %}
+                    <div class="dw-product-main-card">
+                      <div class="dw-product-main-head">
+                        <div class="dw-product-main-name">{{ item.get('product_name') or ('제품 항목 ' ~ loop.index) }}</div>
+                        <div class="d-flex align-items-center gap-1">
+                          {% if item.get('quantity') %}<span class="badge bg-primary">수량 {{ item.get('quantity') }}</span>{% endif %}
+                          <span class="badge bg-light text-dark border">항목 {{ loop.index }}</span>
+                        </div>
+                      </div>
+                      <div class="dw-product-split">
+                        <div class="dw-product-info-form">
+                          <div class="row g-2">
+                            <div class="col-12">
+                              <label class="form-label mb-1 small text-primary">제품명</label>
+                              <input class="form-control form-control-sm" value="{{ item.get('product_name') or '' }}" readonly title="클릭하면 값이 복사됩니다.">
+                            </div>
+                            <div class="col-md-3">
+                              <label class="form-label mb-1 small text-primary">규격 W(폭)</label>
+                              <input class="form-control form-control-sm" value="{{ spec_w }}" readonly title="클릭하면 값이 복사됩니다.">
+                            </div>
+                            <div class="col-md-3">
+                              <label class="form-label mb-1 small text-primary">규격 D(깊이)</label>
+                              <input class="form-control form-control-sm" value="{{ spec_d }}" readonly title="클릭하면 값이 복사됩니다.">
+                            </div>
+                            <div class="col-md-3">
+                              <label class="form-label mb-1 small text-primary">규격 H(높이)</label>
+                              <input class="form-control form-control-sm" value="{{ spec_h }}" readonly title="클릭하면 값이 복사됩니다.">
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label mb-1 small text-primary">내부</label>
+                              <input class="form-control form-control-sm" value="{{ item.get('internal') or '' }}" readonly title="클릭하면 값이 복사됩니다.">
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label mb-1 small text-primary">색상</label>
+                              <input class="form-control form-control-sm" value="{{ item.get('color') or '' }}" readonly title="클릭하면 값이 복사됩니다.">
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label mb-1 small text-primary">옵션</label>
+                              <input class="form-control form-control-sm" value="{{ item.get('option_detail') or '' }}" readonly title="클릭하면 값이 복사됩니다.">
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label mb-1 small text-primary">손잡이</label>
+                              <input class="form-control form-control-sm" value="{{ item.get('handle') or '' }}" readonly title="클릭하면 값이 복사됩니다.">
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
+                              <input class="form-control form-control-sm" value="{{ location_text }}" readonly title="클릭하면 값이 복사됩니다.">
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
+                              <input class="form-control form-control-sm" value="{% if price_raw not in [None, ''] %}{% if price_raw is number %}{{ '{:,}'.format(price_raw|int) }}{% else %}{{ price_raw }}{% endif %}{% endif %}" readonly title="클릭하면 값이 복사됩니다.">
+                            </div>
+                            <div class="col-12">
+                              <label class="form-label mb-1 small text-primary">추가 입력</label>
+                              <textarea class="form-control form-control-sm" rows="3" readonly title="클릭하면 값이 복사됩니다.">{{ item.get('extra_input') or '' }}</textarea>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="dw-attach-panel">
+                          <div class="small fw-semibold text-muted mb-2"><i class="fas fa-image"></i> 실측 첨부 파일</div>
+                          {% if item_measurements %}
+                          <div class="dw-attach-grid {% if item_measurements|length == 1 %}dw-attach-grid--single{% endif %}">
+                            {% for photo in item_measurements %}
+                            <div>
+                              <div class="dw-attach-thumb" data-group-key="measure_detail_{{ r.id }}_item_{{ item_idx }}" data-index="{{ loop.index0 }}" data-view-url="{{ photo.view_url }}" data-download-url="{{ photo.download_url }}" data-filename="{{ photo.filename }}" data-key="{{ photo.key }}" onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))">
+                                <img src="{{ photo.view_url }}" alt="{{ photo.filename }}">
+                              </div>
+                              <div class="dw-attach-name">{{ photo.filename }}</div>
+                            </div>
+                            {% endfor %}
+                          </div>
+                          {% else %}
+                          <div class="small text-muted">연결된 실측 첨부 파일이 없습니다.</div>
+                          {% endif %}
+                        </div>
+                      </div>
+                    </div>
+                      {% endfor %}
+                    {% else %}
+                    <div class="small text-muted">등록된 제품 정보가 없습니다.</div>
+                    {% endif %}
                   </td>
                 </tr>
                 {% endfor %}
@@ -452,4 +644,26 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/erp/common_utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement.js') }}"></script>
+<script>
+(function () {
+  function openDrawingGatewayImageViewer(groupKey, index) {
+    if (!window.GlobalImageViewer) return;
+    var thumbs = Array.prototype.filter.call(
+      document.querySelectorAll('[data-group-key][data-view-url]'),
+      function (el) { return String(el.dataset.groupKey || '') === String(groupKey); }
+    );
+    var files = thumbs.map(function (el) {
+      return {
+        view_url: el.dataset.viewUrl || '',
+        download_url: el.dataset.downloadUrl || '',
+        filename: el.dataset.filename || '이미지',
+        key: el.dataset.key || ''
+      };
+    }).filter(function (f) { return !!f.view_url; });
+    if (!files.length) return;
+    window.GlobalImageViewer.open(files, index || 0);
+  }
+  window.openDrawingGatewayImageViewer = openDrawingGatewayImageViewer;
+})();
+</script>
 {% endblock %}

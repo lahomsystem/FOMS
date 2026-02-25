@@ -29,22 +29,32 @@
         function applyMeasurementManagerSortAndColors() {
             const tbody = document.querySelector('.measurement-table tbody');
             if (!tbody) return;
-            const rows = Array.from(tbody.querySelectorAll('tr.measurement-row'));
-            if (!rows.length) return;
-            rows.sort(function (a, b) {
-                const mA = managerKeyForSort(a);
-                const mB = managerKeyForSort(b);
-                if (mA !== mB) return mA.localeCompare(mB);
-                return (parseInt(a.dataset.orderId, 10) || 0) - (parseInt(b.dataset.orderId, 10) || 0);
+            const mainRows = Array.from(tbody.querySelectorAll('tr.measurement-row'));
+            if (!mainRows.length) return;
+            // 주문 행과 그 다음 상세 행(measurement-detail-row)을 쌍으로 유지해 정렬 (상세가 아래로 가도록)
+            const pairs = mainRows.map(function (tr) {
+                const orderId = tr.dataset.orderId || '';
+                const next = tr.nextElementSibling;
+                const detailRow = (next && next.classList && next.classList.contains('measurement-detail-row') && (next.dataset.orderId === orderId || next.id === 'detail-' + orderId)) ? next : null;
+                return { main: tr, detail: detailRow };
             });
-            rows.forEach(function (tr) { tbody.appendChild(tr); });
+            pairs.sort(function (a, b) {
+                const mA = managerKeyForSort(a.main);
+                const mB = managerKeyForSort(b.main);
+                if (mA !== mB) return mA.localeCompare(mB);
+                return (parseInt(a.main.dataset.orderId, 10) || 0) - (parseInt(b.main.dataset.orderId, 10) || 0);
+            });
+            pairs.forEach(function (p) {
+                tbody.appendChild(p.main);
+                if (p.detail) tbody.appendChild(p.detail);
+            });
             const managerList = [];
-            rows.forEach(function (tr) {
+            mainRows.forEach(function (tr) {
                 const m = getManagerFromRow(tr);
                 const key = (m && m !== '-') ? m.toLowerCase() : '';
                 if (key && managerList.indexOf(key) === -1) managerList.push(key);
             });
-            rows.forEach(function (tr) {
+            mainRows.forEach(function (tr) {
                 const cell = tr.querySelector('td.manager-cell');
                 if (!cell) return;
                 const m = getManagerFromRow(tr);
@@ -72,6 +82,29 @@
 
         // 2. Manager Cell Colors (초기 적용 후, 담당자 편집 시 scheduleApplyMeasurementManagerSortAndColors로 실시간 재정렬·재색상)
         applyMeasurementManagerSortAndColors();
+
+        // 2b. 주문 상세 chevron 토글 (v 꺽쇠 클릭 시 해당 행 아래 상세 슬라이드)
+        document.querySelectorAll('.measurement-chevron').forEach(function (chevron) {
+            chevron.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var orderId = this.dataset.orderId;
+                var detailRow = orderId ? document.getElementById('detail-' + orderId) : null;
+                if (!detailRow) return;
+                var isOpen = this.getAttribute('aria-expanded') === 'true';
+                if (isOpen) {
+                    detailRow.style.display = 'none';
+                    detailRow.setAttribute('aria-hidden', 'true');
+                    this.setAttribute('aria-expanded', 'false');
+                    this.classList.remove('is-open');
+                } else {
+                    detailRow.style.display = 'table-row';
+                    detailRow.setAttribute('aria-hidden', 'false');
+                    this.setAttribute('aria-expanded', 'true');
+                    this.classList.add('is-open');
+                }
+            });
+        });
 
         // 3. Route Plan
         const btn = document.getElementById('btn-route-plan');

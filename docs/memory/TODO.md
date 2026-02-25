@@ -118,3 +118,18 @@
   data-is-erp 사용으로 편집 활성화; 비-ERP 시 update_order_field(manager_name) 호출
 - [ ] **M3. 검증**  
   실측 대시보드에서 담당자 입력 → 주문 상세/편집 페이지에 동일 값 표시 (수동 확인)
+
+---
+
+# 실측 대시보드 주문 상세 표시 (2026-02-25, PLAN_MEASUREMENT_DASHBOARD_DETAIL.md)
+
+- [x] **D1. product_items 공통화**  
+  services/erp_product_items.py: build_product_items_for_order(db, order); 도면 작업실에서 사용
+- [x] **D2. 실측 대시보드 뷰**  
+  행별 r.product_items = build_product_items_for_order(db, r)
+- [x] **D3. 템플릿**  
+  고객 셀에 v 꺽쇠(fa-chevron-down), 주문 행 아래 measurement-detail-row(dw-product-main-card 블록)
+- [x] **D4. JS**  
+  measurement.js: chevron 클릭 시 상세 행 토글; openDrawingGatewayImageViewer 인라인 스크립트
+- [ ] **D5. 검증**  
+  실측 대시보드에서 v 클릭 → 상세 슬라이드, 썸네일 클릭 → 이미지 뷰어 동작 (수동 확인)

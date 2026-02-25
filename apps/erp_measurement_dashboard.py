@@ -14,6 +14,7 @@ from sqlalchemy import or_, and_, func, cast, String
 from services.erp_permissions import can_edit_erp
 from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from services.erp_shipment_settings import is_order_mine_for_user
+from services.erp_product_items import build_product_items_for_order
 
 
 erp_measurement_dashboard_bp = Blueprint(
@@ -218,6 +219,8 @@ def erp_measurement_dashboard():
 
     rows = rows[:300]
     apply_erp_display_fields_to_orders(rows)
+    for r in rows:
+        r.product_items = build_product_items_for_order(db, r)
 
     def get_manager_name_for_sort(order):
         if order.is_erp_beta and order.structured_data:
