@@ -297,7 +297,7 @@ class FOMSMapGenerator:
             }});
             </script>
             """
-            m.get_root().html.add_child(folium.Element(click_js))
+            getattr(m.get_root(), "html").add_child(folium.Element(click_js))
         
         # 범례 추가
         legend_html = f"""
@@ -321,7 +321,7 @@ class FOMSMapGenerator:
         </div>
         """
         
-        m.get_root().html.add_child(folium.Element(legend_html))
+        getattr(m.get_root(), "html").add_child(folium.Element(legend_html))
 
         # Pro 스타일: 지도 마커 모바일 시인성 (터치 영역·가독성)
         marker_style = """
@@ -341,7 +341,7 @@ class FOMSMapGenerator:
         }
         </style>
         """
-        m.get_root().html.add_child(folium.Element(marker_style))
+        getattr(m.get_root(), "html").add_child(folium.Element(marker_style))
         
         # 경로 계산을 위한 JavaScript 함수들 추가
         route_js = """
@@ -513,7 +513,7 @@ class FOMSMapGenerator:
         </script>
         """
         
-        m.get_root().html.add_child(folium.Element(route_js))
+        getattr(m.get_root(), "html").add_child(folium.Element(route_js))
         
         return m
     
@@ -559,6 +559,6 @@ class FOMSMapGenerator:
         </div>
         """
         
-        m.get_root().html.add_child(folium.Element(message_html))
+        getattr(m.get_root(), "html").add_child(folium.Element(message_html))
         
         return m

@@ -87,5 +87,76 @@
     </div>
   </div>
 
-  <div id="erp-dashboard-config" data-team-labels="{{ team_labels|tojson|e }}" data-stage-labels="{{ stage_labels|tojson|e }}" style="display:none" aria-hidden="true"></div>
+  <!-- 시공 완료 사진 재업로드 모달 (기존 시공 이미지 전체 삭제 후 새 사진만 업로드) -->
+  <div class="modal fade" id="erpConstructionReuploadModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-redo text-info"></i> 시공 완료 사진 재업로드</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3 text-muted small">기존 시공 이미지는 <strong>전체 삭제</strong>된 뒤, 선택한 새 사진으로 대체됩니다. 파일을 선택한 후 재 업로드 버튼을 눌러주세요.</p>
+          <input type="hidden" id="erp-cons-reupload-order-id">
+          <div class="fw-bold mb-2 pt-2 border-top"><i class="fas fa-camera"></i> 새 시공 사진 선택</div>
+          <div class="border rounded p-3" style="border-style: dashed !important; background-color: #f8f9fa;">
+            <input type="file" id="erp-cons-reupload-input" accept="image/*,video/*" multiple class="form-control form-control-sm mb-2">
+            <small class="text-muted d-block mb-2">여러 개 선택 가능</small>
+            <div class="small text-muted" id="erp-cons-reupload-status"></div>
+            <div id="erp-cons-reupload-progress" class="mt-2 d-none">
+              <div class="progress" style="height: 18px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" id="erp-cons-reupload-progress-bar" role="progressbar" style="width: 0%">0%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+          <button type="button" class="btn btn-info" id="erp-cons-reupload-btn" onclick="submitConstructionReupload()">
+            <i class="fas fa-redo"></i> 재 업로드
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AS 접수 모달: 시공자가 AS 내용 입력 + 사진 업로드 → 접수일·상태 자동 등록 -->
+  <div class="modal fade" id="erpConstructionAsAcceptModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-tools text-info"></i> AS 접수</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3 text-muted small">AS 내용을 입력하고 사진을 업로드하면 <strong>AS 접수일(오늘)</strong>과 <strong>AS 접수 상태</strong>가 자동 등록됩니다.</p>
+          <input type="hidden" id="erp-cons-as-order-id">
+          <input type="hidden" id="erp-cons-as-reupload-mode" value="0">
+          <div class="mb-3">
+            <label for="erp-cons-as-content" class="form-label fw-bold"><i class="fas fa-align-left"></i> AS 내용</label>
+            <textarea id="erp-cons-as-content" class="form-control" rows="3" placeholder="AS 접수 내용을 입력하세요. (AS 대시보드에 표시됩니다)"></textarea>
+          </div>
+          <div class="fw-bold mb-2 pt-2 border-top"><i class="fas fa-camera"></i> AS 사진 선택</div>
+          <div class="border rounded p-3" style="border-style: dashed !important; background-color: #f8f9fa;">
+            <input type="file" id="erp-cons-as-input" accept="image/*,video/*" multiple class="form-control form-control-sm mb-2">
+            <small class="text-muted d-block mb-2">여러 개 선택 가능</small>
+            <div class="small text-muted" id="erp-cons-as-status"></div>
+            <div id="erp-cons-as-progress" class="mt-2 d-none">
+              <div class="progress" style="height: 18px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" id="erp-cons-as-progress-bar" role="progressbar" style="width: 0%">0%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+          <button type="button" class="btn btn-info" id="erp-cons-as-btn" onclick="submitAsAccept()">
+            <i class="fas fa-upload"></i> AS 접수 업로드
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="erp-dashboard-config" data-team-labels="{{ team_labels|tojson|e }}" data-stage-labels="{{ stage_labels|tojson|e }}" data-current-user-id="{{ current_user.id if current_user else '' }}" style="display:none" aria-hidden="true"></div>
   <script>

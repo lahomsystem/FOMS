@@ -1,9 +1,17 @@
-import warnings
-from typing import Literal, cast
-# warnings.filterwarnings("ignore", category=DeprecationWarning, module="eventlet")
-# import eventlet
-# eventlet.monkey_patch()
+from typing import Literal
 import os
+
+# Gunicorn / Gevent 구동 시 IO 함수(socket 등)가 worker thread를 블로킹하지 않도록 몽키 패치 적용
+if os.environ.get('SERVER_SOFTWARE', '').startswith('gunicorn') or os.environ.get('GUNICORN_CMD_ARGS'):
+    try:
+        import gevent.monkey  # type: ignore[import-untyped]
+        _ = gevent.monkey.patch_all()
+        print("[INFO] gevent monkey patch 적용 완료 (비동기 IO 활성화)")
+    except ImportError:
+        pass
+
+import sys
+import warnings
 import hashlib
 import datetime
 import json
@@ -67,12 +75,14 @@ from services.business_calendar import business_days_until
 from constants import STATUS, BULK_ACTION_STATUS, CABINET_STATUS, UPLOAD_FOLDER, ALLOWED_EXTENSIONS, CHAT_ALLOWED_EXTENSIONS, ERP_MEDIA_ALLOWED_EXTENSIONS
 
 # SocketIO Import (Quest 5)
+_socketio_available: bool = False
 try:
     from flask_socketio import SocketIO, emit, join_room, leave_room
-    SOCKETIO_AVAILABLE = True
-except ImportError:
+    _socketio_available = True
     SOCKETIO_AVAILABLE = False
+except ImportError:
     print("[WARN] Flask-SocketIO not installed. pip install flask-socketio python-socketio eventlet")
+SOCKETIO_AVAILABLE = _socketio_available
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -333,19 +343,17 @@ def _augment_redis_url_for_socketio(raw_url: str | None) -> str | None:
 # Production (gunicorn -k gevent): async_mode='gevent' to avoid ConcurrentObjectUseError on same socket.
 # Local (Windows): SOCKETIO_ASYNC_MODE=threading or no Redis → threading.
 socketio = None
-if SOCKETIO_AVAILABLE:
+if _socketio_available:
     try:
         from flask_socketio import SocketIO as _SocketIO
         # CORS 도메인 제한 (환경변수 없으면 모든 도메인 허용 - 개발 편의성)
         allowed_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '*').split(',')
         # gunicorn gevent 워커와 동일한 모드 사용 시 소켓 충돌 방지 (ConcurrentObjectUseError)
-        _allowed_modes: tuple[str, ...] = ('threading', 'eventlet', 'gevent', 'gevent_uwsgi')
+        _allowed_modes = ('threading', 'eventlet', 'gevent', 'gevent_uwsgi')
         _override = (os.environ.get('SOCKETIO_ASYNC_MODE') or '').strip().lower() or None
-        _mode_default: Literal['gevent', 'threading'] = 'gevent' if redis_url else 'threading'
-        _mode_raw = (_override if _override in _allowed_modes else None) or _mode_default
-        mode: Literal['threading', 'eventlet', 'gevent', 'gevent_uwsgi'] = cast(
-            Literal['threading', 'eventlet', 'gevent', 'gevent_uwsgi'], _mode_raw
-        )
+        _mode_default = 'gevent' if redis_url else 'threading'
+        
+        mode = _override if _override in _allowed_modes else _mode_default
 
         socketio_kwargs = {
             'cors_allowed_origins': allowed_origins,

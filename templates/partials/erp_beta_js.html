@@ -871,12 +871,13 @@
     const ERP_ATTACHMENT_CATEGORY_LABELS = {
         measurement: '실측',
         drawing: '도면',
-        construction: '시공'
+        construction: '시공',
+        as: 'AS'
     };
 
     function erpNormalizeAttachmentCategory(category) {
         const c = String(category || '').trim().toLowerCase();
-        if (c === 'drawing' || c === 'construction') return c;
+        if (c === 'drawing' || c === 'construction' || c === 'as') return c;
         return 'measurement';
     }
 
@@ -1076,7 +1077,7 @@
             return;
         }
 
-        const grouped = { measurement: [], drawing: [], construction: [] };
+        const grouped = { measurement: [], drawing: [], construction: [], as: [] };
         items.forEach((a) => {
             const key = erpNormalizeAttachmentCategory(a.category);
             grouped[key].push(Object.assign({}, a, { category: key }));
@@ -1140,7 +1141,7 @@
 `;
         };
 
-        const order = ['measurement', 'drawing', 'construction'];
+        const order = ['measurement', 'drawing', 'construction', 'as'];
         wrap.innerHTML = order.map((key) => {
             const list = grouped[key] || [];
             const label = ERP_ATTACHMENT_CATEGORY_LABELS[key] || key;
@@ -1296,7 +1297,8 @@ ${list.map(renderCard).join('')}
                 key: sess.key,
                 filename: file.name,
                 category: category,
-                item_index: itemIndex == null ? null : itemIndex
+                item_index: itemIndex == null ? null : itemIndex,
+                size: file.size
             })
         });
         return await completeRes.json();
@@ -1304,17 +1306,16 @@ ${list.map(renderCard).join('')}
 
     async function erpUploadSelectedAttachments() {
         if (!ERP_BETA_ENABLED) return;
-        if (!ORDER_ID) {
-            const ok = await erpRequireOrderIdOrWarn('첨부 업로드:');
-            if (!ok) return;
-        }
         const input = document.getElementById('erp-attachments-input');
         if (!input || !input.files || input.files.length === 0) {
             erpAttachmentsSetStatus('업로드할 파일을 선택하세요.', true);
             return;
         }
-
         const files = Array.from(input.files);
+        if (!ORDER_ID) {
+            const ok = await erpRequireOrderIdOrWarn('첨부 업로드:');
+            if (!ok) return;
+        }
         const categoryEl = document.getElementById('erp-attachments-category');
         const category = erpNormalizeAttachmentCategory(categoryEl ? categoryEl.value : 'measurement');
         erpAttachmentsSetStatus(`업로드 중... (${files.length}개)`);
