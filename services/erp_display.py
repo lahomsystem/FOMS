@@ -33,6 +33,46 @@ def _ensure_dict(data):
     return {}
 
 
+def _normalize_date_to_yyyymmdd(value):
+    """실측일/시공일 등 날짜 값을 YYYY-MM-DD 문자열로 통일. 표시 오류(월/일 뒤바뀜 등) 방지."""
+    if value is None:
+        return None
+    if isinstance(value, datetime.datetime):
+        return value.date().strftime('%Y-%m-%d')
+    if isinstance(value, datetime.date):
+        return value.strftime('%Y-%m-%d')
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return None
+        # 이미 YYYY-MM-DD 형태면 그대로 (앞 10자만 사용해 ISO 시간 제거)
+        if len(s) >= 10 and s[4] == '-' and s[7] == '-':
+            try:
+                datetime.datetime.strptime(s[:10], '%Y-%m-%d')
+                return s[:10]
+            except ValueError:
+                pass
+        try:
+            dt = datetime.datetime.strptime(s[:10], '%Y-%m-%d')
+            return dt.strftime('%Y-%m-%d')
+        except ValueError:
+            pass
+        try:
+            dt = datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S')
+            return dt.strftime('%Y-%m-%d')
+        except ValueError:
+            pass
+    if isinstance(value, dict):
+        y, m, d = value.get('year'), value.get('month'), value.get('day')
+        if y is not None and m is not None and d is not None:
+            try:
+                dt = datetime.date(int(y), int(m), int(d))
+                return dt.strftime('%Y-%m-%d')
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
 def apply_erp_display_fields(order):
     """structured_data에서 Order 표시용 속성 채우기 (customer_name, phone, product 등)"""
     if not order or not order.structured_data:
@@ -82,18 +122,28 @@ def apply_erp_display_fields(order):
             order.product = ", ".join(product_parts)
 
     schedule = sd.get('schedule') or {}
+    # 실측일: ERP Beta일 때만 schedule.measurement.date 사용 (비 Beta는 DB 컬럼 유지, 예: 1843)
     measurement = schedule.get('measurement') or {}
-    measurement_date = measurement.get('date')
-    if measurement_date:
-        order.measurement_date = str(measurement_date)
+    measurement_date_raw = measurement.get('date')
+    measurement_date = _normalize_date_to_yyyymmdd(measurement_date_raw) if measurement_date_raw else None
+    is_erp_beta = bool(getattr(order, 'is_erp_beta', False))
+    if is_erp_beta and measurement_date:
+        order.measurement_date = measurement_date
     measurement_time = measurement.get('time')
     if measurement_time:
         order.measurement_time = measurement_time
+    # 시공일: ERP Beta일 때만 schedule.construction.date 사용
     construction = schedule.get('construction') or {}
-    construction_date = construction.get('date')
-    # AS 접수/완료 주문은 AS 방문일을 시공일로 덮어쓰지 않음 (AS 방문일은 수동 입력만)
-    if construction_date and getattr(order, 'status', None) not in ('AS_RECEIVED', 'AS_COMPLETED'):
-        order.scheduled_date = str(construction_date)
+    construction_date_raw = construction.get('date')
+    construction_date = _normalize_date_to_yyyymmdd(construction_date_raw) if construction_date_raw else None
+    if is_erp_beta and construction_date and getattr(order, 'status', None) not in ('AS_RECEIVED', 'AS_COMPLETED'):
+        order.scheduled_date = construction_date
+
+    # 기존 주문(실측일 컬럼): ERP Beta가 아니거나 schedule.measurement.date 없을 때 DB measurement_date 정규화만
+    if not (is_erp_beta and measurement_date) and getattr(order, 'measurement_date', None):
+        normalized_legacy = _normalize_date_to_yyyymmdd(order.measurement_date)
+        if normalized_legacy:
+            order.measurement_date = normalized_legacy
 
 
 def _erp_get_urgent_flag(structured_data):

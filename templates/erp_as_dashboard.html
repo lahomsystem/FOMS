@@ -8,6 +8,7 @@
   /* AS 완료일이 정해진 주문 셀 */
   .erp-as-complete-cell--set { background-color: #d4edda !important; }
   .erp-as-complete-row--set { background-color: #d4edda !important; }
+
 </style>
 <div class="erp-pro">
   <!-- Modern Header -->
@@ -254,26 +255,26 @@
   </div>
 </div>
 
-<!-- AS 사진 모달 (시공자가 아닌 사용자만 노출된 버튼으로 진입) -->
-<div class="modal fade" id="asPhotosModal" tabindex="-1" aria-labelledby="asPhotosModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+<!-- AS 대시보드 첨부 파일 모달 (ERP 첨부 파일 모달과 동일 구조: 탭 + 카드 갤러리, 미리보기 시 GlobalImageViewer) -->
+<div class="modal fade" id="asErpAttachmentsCategoryModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="asPhotosModalLabel"><i class="fas fa-paperclip"></i> AS 사진 · 주문 #<span id="asPhotosOrderId"></span></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+        <h5 class="modal-title"><i class="fas fa-paperclip"></i> 첨부 파일</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <div id="asPhotosGallery" class="row g-2">
-          <!-- 갤러리 카드들이 JS로 채워짐 -->
+        <div class="d-flex flex-wrap gap-2 mb-3" id="erp-attachments-category-tabs">
+          <!-- 실측/도면/시공/AS 탭, JS로 채움 -->
         </div>
-        <div id="asPhotosEmpty" class="text-center text-muted py-5 d-none">
-          <i class="fas fa-images fa-2x mb-2"></i>
-          <p class="mb-0">등록된 AS 사진이 없습니다.</p>
+        <div class="row g-2" id="erp-attachments-category-gallery">
+          <!-- 카드 갤러리, JS로 채움 -->
         </div>
-        <div id="asPhotosLoading" class="text-center py-5 d-none">
-          <div class="spinner-border text-primary" role="status"></div>
-          <p class="mt-2 mb-0 text-muted small">불러오는 중...</p>
-        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <i class="fas fa-times"></i> 닫기
+        </button>
       </div>
     </div>
   </div>
@@ -403,57 +404,150 @@
       toast.show();
     }
 
-    // AS 사진 모달: 버튼 클릭 시 해당 주문의 AS 카테고리 첨부만 조회 후 갤러리 표시
-    document.body.addEventListener('click', async function (e) {
-      const btn = e.target.closest('.as-photos-btn');
-      if (!btn) return;
-      const orderId = btn.dataset.orderId;
-      if (!orderId) return;
+    // AS 대시보드 첨부 파일 모달 (ERP 첨부 파일 모달과 동일: 4탭 + 카드 갤러리, 미리보기 = GlobalImageViewer)
+    (function () {
+      function escapeHtml(s) {
+        if (s == null) return '';
+        var str = String(s);
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+      var ATTACHMENT_CATEGORY_META = {
+        measurement: { label: '실측', icon: 'fa-ruler-combined' },
+        drawing: { label: '도면', icon: 'fa-drafting-compass' },
+        construction: { label: '시공', icon: 'fa-hammer' },
+        as: { label: 'AS', icon: 'fa-wrench' }
+      };
+      function normalizeAttachmentCategory(category) {
+        var c = String(category || '').trim().toLowerCase();
+        if (c === 'drawing' || c === 'construction' || c === 'as') return c;
+        return 'measurement';
+      }
+      function getAttachmentCategoryLabel(category) {
+        var key = normalizeAttachmentCategory(category);
+        return (ATTACHMENT_CATEGORY_META[key] || ATTACHMENT_CATEGORY_META.measurement).label;
+      }
+      var __attachmentsByCategory = { measurement: [], drawing: [], construction: [], as: [] };
+      var __activeAttachmentCategory = 'measurement';
+      var __currentAttachmentList = [];
 
-      const modalEl = document.getElementById('asPhotosModal');
-      const galleryEl = document.getElementById('asPhotosGallery');
-      const emptyEl = document.getElementById('asPhotosEmpty');
-      const loadingEl = document.getElementById('asPhotosLoading');
-      const orderIdSpan = document.getElementById('asPhotosOrderId');
-      if (!modalEl || !galleryEl || !emptyEl || !loadingEl || !orderIdSpan) return;
-
-      orderIdSpan.textContent = orderId;
-      galleryEl.innerHTML = '';
-      emptyEl.classList.add('d-none');
-      loadingEl.classList.remove('d-none');
-      const modal = new bootstrap.Modal(modalEl);
-      modal.show();
-
-      try {
-        const res = await fetch(`/api/orders/${orderId}/attachments?category=as`);
-        const data = await res.json();
-        loadingEl.classList.add('d-none');
-        const list = (data && data.attachments) ? data.attachments : [];
-        if (list.length === 0) {
-          emptyEl.classList.remove('d-none');
+      function renderAttachmentCategoryTabs() {
+        var tabsEl = document.getElementById('erp-attachments-category-tabs');
+        if (!tabsEl) return;
+        var keys = ['measurement', 'drawing', 'construction', 'as'];
+        tabsEl.innerHTML = keys.map(function (key) {
+          var meta = ATTACHMENT_CATEGORY_META[key];
+          var count = (__attachmentsByCategory[key] || []).length;
+          var isActive = key === __activeAttachmentCategory;
+          var activeCls = isActive ? 'btn-primary' : 'btn-outline-primary';
+          var badgeCls = isActive ? 'bg-light text-dark' : 'bg-primary text-white';
+          return '<button type="button" class="btn btn-sm ' + activeCls + '" onclick="window.selectAttachmentCategoryAs && window.selectAttachmentCategoryAs(\'' + key + '\')">' +
+            '<i class="fas ' + meta.icon + '"></i> ' + meta.label +
+            ' <span class="badge ' + badgeCls + ' ms-1">' + count + '</span></button>';
+        }).join('');
+      }
+      function renderAttachmentCategoryGallery() {
+        var galleryEl = document.getElementById('erp-attachments-category-gallery');
+        if (!galleryEl) return;
+        var list = __attachmentsByCategory[__activeAttachmentCategory] || [];
+        if (!list.length) {
+          galleryEl.innerHTML = '<div class="col-12"><div class="text-muted small p-3 border rounded bg-light">' +
+            getAttachmentCategoryLabel(__activeAttachmentCategory) + ' 카테고리에 첨부 파일이 없습니다.</div></div>';
           return;
         }
-        list.forEach(function (a) {
-          const isImage = (a.file_type || '').toLowerCase() === 'image' || /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/i.test(a.filename || '');
-          const viewUrl = a.view_url || '';
-          const thumbUrl = a.thumbnail_view_url || viewUrl;
-          const filename = a.filename || '파일';
-          const col = document.createElement('div');
-          col.className = 'col-6 col-md-4';
-          if (isImage && viewUrl) {
-            col.innerHTML = '<a href="' + viewUrl.replace(/"/g, '&quot;') + '" target="_blank" rel="noopener" class="d-block border rounded overflow-hidden"><img src="' + (thumbUrl || viewUrl).replace(/"/g, '&quot;') + '" alt="" class="img-fluid w-100" style="object-fit: cover; max-height: 180px;"></a>';
+        galleryEl.innerHTML = list.map(function (a, index) {
+          var name = escapeHtml(a.filename || '');
+          var type = (a.file_type || 'file').toLowerCase();
+          var thumb = a.thumbnail_view_url || a.view_url || '#';
+          var viewUrl = a.view_url || '#';
+          var downloadUrl = a.download_url || '#';
+          var cat = __activeAttachmentCategory;
+          var mediaHtml;
+          if (type === 'video') {
+            mediaHtml = '<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">' +
+              '<video src="' + escapeHtml(viewUrl) + '" controls preload="metadata" style="width:100%;height:100%;"></video></div>';
+          } else if (type === 'image') {
+            mediaHtml = '<img src="' + escapeHtml(thumb) + '" alt="' + name + '" class="img-fluid rounded" ' +
+              'style="max-height: 180px; object-fit: contain; width:100%; cursor: zoom-in; background:#fff; padding:4px;" ' +
+              'onclick="window.openAttachmentFromCategoryAs && window.openAttachmentFromCategoryAs(\'' + cat + '\', ' + index + ')">';
           } else {
-            col.innerHTML = '<a href="' + (a.download_url || viewUrl || '#').replace(/"/g, '&quot;') + '" target="_blank" rel="noopener" class="d-block border rounded p-2 text-center"><i class="fas fa-file fa-2x text-muted"></i><div class="small text-truncate mt-1">' + filename.replace(/</g, '&lt;') + '</div></a>';
+            mediaHtml = '<div class="border rounded d-flex flex-column align-items-center justify-content-center bg-light" style="height: 180px;">' +
+              '<i class="fas fa-file-alt text-secondary mb-2" style="font-size: 2rem;"></i>' +
+              '<div class="small text-muted text-center px-2">문서 파일</div></div>';
           }
-          galleryEl.appendChild(col);
-        });
-      } catch (err) {
-        loadingEl.classList.add('d-none');
-        emptyEl.classList.remove('d-none');
-        emptyEl.querySelector('p').textContent = '불러오기에 실패했습니다.';
-        showFeedback('AS 사진을 불러올 수 없습니다.', true);
+          return '<div class="col-md-4 col-sm-6 col-12">' +
+            '<div class="card h-100">' +
+            '<div class="card-body p-2">' + mediaHtml +
+            '<div class="d-flex justify-content-between align-items-center mt-2">' +
+            '<div class="small text-truncate" title="' + name + '" style="max-width: 70%;">' + name + '</div>' +
+            '<div class="btn-group btn-group-sm">' +
+            '<button type="button" class="btn btn-outline-secondary" title="미리보기" onclick="window.openAttachmentFromCategoryAs && window.openAttachmentFromCategoryAs(\'' + cat + '\', ' + index + ')">' +
+            '<i class="fas fa-eye"></i></button>' +
+            '<a class="btn btn-outline-primary" href="' + escapeHtml(downloadUrl) + '" title="다운로드" target="_blank" rel="noopener"><i class="fas fa-download"></i></a>' +
+            '</div></div></div></div>';
+        }).join('');
       }
-    });
+      function selectAttachmentCategory(category) {
+        __activeAttachmentCategory = normalizeAttachmentCategory(category);
+        renderAttachmentCategoryTabs();
+        renderAttachmentCategoryGallery();
+      }
+      function showAttachmentAtIndex(index) {
+        if (!__currentAttachmentList || index < 0 || index >= __currentAttachmentList.length) return;
+        if (window.GlobalImageViewer) {
+          window.GlobalImageViewer.open(__currentAttachmentList, index);
+        } else {
+          showFeedback('이미지 뷰어를 불러올 수 없습니다.', true);
+        }
+      }
+      function openAttachmentFromCategory(category, index) {
+        var key = normalizeAttachmentCategory(category);
+        var list = __attachmentsByCategory[key] || [];
+        if (!list.length) return;
+        __activeAttachmentCategory = key;
+        __currentAttachmentList = list;
+        showAttachmentAtIndex(index);
+      }
+      window.selectAttachmentCategoryAs = selectAttachmentCategory;
+      window.openAttachmentFromCategoryAs = openAttachmentFromCategory;
+
+      document.body.addEventListener('click', async function (e) {
+        var btn = e.target.closest('.as-photos-btn');
+        if (!btn) return;
+        var orderId = btn.dataset.orderId;
+        if (!orderId) return;
+        var modalEl = document.getElementById('asErpAttachmentsCategoryModal');
+        var tabsEl = document.getElementById('erp-attachments-category-tabs');
+        var galleryEl = document.getElementById('erp-attachments-category-gallery');
+        if (!modalEl || !tabsEl || !galleryEl) return;
+        tabsEl.innerHTML = '';
+        galleryEl.innerHTML = '<div class="col-12 text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 mb-0 text-muted small">불러오는 중...</p></div>';
+        var modal = new bootstrap.Modal(modalEl);
+        modal.show();
+        try {
+          var res = await fetch('/api/orders/' + orderId + '/attachments');
+          var data = await res.json();
+          var rawList = (data && data.attachments) ? data.attachments : [];
+          __attachmentsByCategory = { measurement: [], drawing: [], construction: [], as: [] };
+          rawList.forEach(function (a) {
+            var key = normalizeAttachmentCategory(a.category);
+            if (!__attachmentsByCategory[key]) __attachmentsByCategory[key] = [];
+            __attachmentsByCategory[key].push(Object.assign({}, a, { category: key }));
+          });
+          var firstNonEmpty = ['as', 'measurement', 'drawing', 'construction'].filter(function (k) {
+            return (__attachmentsByCategory[k] || []).length > 0;
+          })[0];
+          __activeAttachmentCategory = firstNonEmpty || 'measurement';
+          renderAttachmentCategoryTabs();
+          renderAttachmentCategoryGallery();
+          if (rawList.length === 0) {
+            galleryEl.innerHTML = '<div class="col-12"><div class="text-muted small p-3 border rounded bg-light">등록된 첨부 파일이 없습니다.</div></div>';
+          }
+        } catch (err) {
+          galleryEl.innerHTML = '<div class="col-12 text-center py-3 text-danger">불러오기에 실패했습니다.</div>';
+          showFeedback('첨부 파일을 불러올 수 없습니다.', true);
+        }
+      });
+    })();
 
     // AS 방문일 자동 저장
     document.querySelectorAll('.editable-date-as').forEach(input => {

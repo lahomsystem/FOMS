@@ -821,6 +821,10 @@
                 <span class="erp-product-items-value">${escapeHtml(safeValue(item.misc))}</span>
               </div>
               <div class="erp-product-items-row">
+                <span class="erp-product-items-label">추가 입력:</span>
+                <span class="erp-product-items-value">${escapeHtml(safeValue(item.extra_input)).replace(/\n/g, '<br>')}</span>
+              </div>
+              <div class="erp-product-items-row">
                 <span class="erp-product-items-label">금액:</span>
                 <span class="erp-product-items-value">${escapeHtml(priceText)}</span>
               </div>
