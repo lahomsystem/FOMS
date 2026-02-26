@@ -66,6 +66,11 @@ def erp_measurement_dashboard():
 
     base_query = db.query(Order).filter(Order.status != 'DELETED')
     base_query = _erp_order_search_filter(base_query, search_q)
+    # 자가실측·지방실측 제외(진짜 실측 필요한 것만 집계, 지도와 동일 기준)
+    base_query = base_query.filter(
+        Order.is_regional != True,
+        ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
+    )
     query = base_query
 
     use_range = bool(date_from and date_to)
