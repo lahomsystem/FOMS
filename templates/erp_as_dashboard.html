@@ -278,9 +278,18 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <div class="d-flex flex-wrap gap-2 mb-3" id="erp-attachments-category-tabs">
-          <!-- 실측/도면/시공/AS 탭, JS로 채움 -->
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+          <div class="d-flex flex-wrap gap-2 flex-grow-1" id="erp-attachments-category-tabs">
+            <!-- 실측/도면/시공/AS 탭, JS로 채움 -->
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <input type="file" id="as-modal-upload-input" class="d-none" accept="image/*,video/*,.pdf,.doc,.docx" multiple>
+            <button type="button" class="btn btn-sm btn-primary" id="as-modal-upload-btn" title="AS 사진/파일 추가 (R2 업로드)">
+              <i class="fas fa-upload"></i> AS 사진 추가
+            </button>
+          </div>
         </div>
+        <div id="as-modal-upload-status" class="small text-muted mb-2" style="display: none;"></div>
         <div class="row g-2" id="erp-attachments-category-gallery">
           <!-- 카드 갤러리, JS로 채움 -->
         </div>
@@ -327,29 +336,23 @@
       if (!btn) return;
 
       const addr = btn.dataset.address;
-      const addrEl = document.getElementById('scheduleSearchAddr');
-      
-      // 방어 코드: 요소가 없는 경우 (캐시 등 문제)
-      if (!addrEl) {
+      const modalEl = document.getElementById('scheduleSearchModal');
+      // 모달 자체가 없을 때만 캐시/구버전 페이지로 간주
+      if (!modalEl) {
         alert('화면 업데이트가 필요합니다. 페이지를 새로고침(F5) 해주세요.');
         location.reload();
         return;
       }
+      const addrEl = document.getElementById('scheduleSearchAddr') || modalEl.querySelector('#scheduleSearchAddr');
+      if (addrEl) addrEl.textContent = addr;
 
-      addrEl.textContent = addr;
       const resList = document.getElementById('scheduleSearchResults');
       if (resList) {
         resList.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted small">주변 일정을 검색 중입니다...</div></div>';
       }
-      
-      const modalEl = document.getElementById('scheduleSearchModal');
-      if (modalEl) {
-        const modal = new bootstrap.Modal(modalEl);
-        modal.show();
-      } else {
-        alert('오류: 모달창을 찾을 수 없습니다.');
-        return;
-      }
+
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
 
       try {
         const res = await fetch(`/api/orders/nearby?address=${encodeURIComponent(addr)}`);
@@ -524,19 +527,12 @@
       window.selectAttachmentCategoryAs = selectAttachmentCategory;
       window.openAttachmentFromCategoryAs = openAttachmentFromCategory;
 
-      document.body.addEventListener('click', async function (e) {
-        var btn = e.target.closest('.as-photos-btn');
-        if (!btn) return;
-        var orderId = btn.dataset.orderId;
-        if (!orderId) return;
-        var modalEl = document.getElementById('asErpAttachmentsCategoryModal');
-        var tabsEl = document.getElementById('erp-attachments-category-tabs');
+      var __currentAsModalOrderId = null;
+
+      async function refreshAsModalAttachments() {
+        var orderId = __currentAsModalOrderId;
         var galleryEl = document.getElementById('erp-attachments-category-gallery');
-        if (!modalEl || !tabsEl || !galleryEl) return;
-        tabsEl.innerHTML = '';
-        galleryEl.innerHTML = '<div class="col-12 text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 mb-0 text-muted small">불러오는 중...</p></div>';
-        var modal = new bootstrap.Modal(modalEl);
-        modal.show();
+        if (!orderId || !galleryEl) return;
         try {
           var res = await fetch('/api/orders/' + orderId + '/attachments');
           var data = await res.json();
@@ -558,9 +554,91 @@
           }
         } catch (err) {
           galleryEl.innerHTML = '<div class="col-12 text-center py-3 text-danger">불러오기에 실패했습니다.</div>';
+        }
+      }
+
+      document.body.addEventListener('click', async function (e) {
+        var btn = e.target.closest('.as-photos-btn');
+        if (!btn) return;
+        var orderId = btn.dataset.orderId;
+        if (!orderId) return;
+        __currentAsModalOrderId = orderId;
+        var modalEl = document.getElementById('asErpAttachmentsCategoryModal');
+        var tabsEl = document.getElementById('erp-attachments-category-tabs');
+        var galleryEl = document.getElementById('erp-attachments-category-gallery');
+        if (!modalEl || !tabsEl || !galleryEl) return;
+        tabsEl.innerHTML = '';
+        galleryEl.innerHTML = '<div class="col-12 text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 mb-0 text-muted small">불러오는 중...</p></div>';
+        var modal = new bootstrap.Modal(modalEl);
+        modal.show();
+        try {
+          await refreshAsModalAttachments();
+        } catch (err) {
+          galleryEl.innerHTML = '<div class="col-12 text-center py-3 text-danger">불러오기에 실패했습니다.</div>';
           showFeedback('첨부 파일을 불러올 수 없습니다.', true);
         }
       });
+
+      var asUploadInput = document.getElementById('as-modal-upload-input');
+      var asUploadBtn = document.getElementById('as-modal-upload-btn');
+      var asUploadStatus = document.getElementById('as-modal-upload-status');
+      if (asUploadBtn && asUploadInput) {
+        asUploadBtn.addEventListener('click', function () {
+          if (!__currentAsModalOrderId) return;
+          asUploadInput.value = '';
+          asUploadInput.click();
+        });
+        asUploadInput.addEventListener('change', async function () {
+          var orderId = __currentAsModalOrderId;
+          var files = this.files ? Array.from(this.files) : [];
+          this.value = '';
+          if (!orderId || files.length === 0) return;
+          asUploadBtn.disabled = true;
+          if (asUploadStatus) {
+            asUploadStatus.style.display = 'block';
+            asUploadStatus.textContent = '업로드 중... (0/' + files.length + ')';
+          }
+          var ok = 0;
+          var category = 'as';
+          var folder = 'orders/' + orderId + '/attachments';
+          for (var i = 0; i < files.length; i++) {
+            var file = files[i];
+            try {
+              var sessRes = await fetch('/api/upload/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: file.name, size: file.size, folder: folder, category: category })
+              });
+              var sessData = await sessRes.json();
+              if (!sessRes.ok || !sessData.success) throw new Error(sessData.message || '세션 생성 실패');
+              var putRes = await fetch(sessData.upload_url, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                body: file
+              });
+              if (!putRes.ok) throw new Error('업로드 실패');
+              var completeRes = await fetch('/api/orders/' + orderId + '/attachments/complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: sessData.key, filename: file.name, category: category, size: file.size })
+              });
+              var completeData = await completeRes.json();
+              if (!completeData.success) throw new Error(completeData.message || '등록 실패');
+              ok++;
+            } catch (err) {
+              console.error('AS upload error:', err);
+            }
+            if (asUploadStatus) asUploadStatus.textContent = '업로드 중... (' + (i + 1) + '/' + files.length + ')';
+          }
+          if (asUploadStatus) {
+            asUploadStatus.textContent = ok === files.length ? '업로드 완료.' : '업로드 완료 (' + ok + '/' + files.length + ').';
+            setTimeout(function () { asUploadStatus.style.display = 'none'; }, 2000);
+          }
+          asUploadBtn.disabled = false;
+          if (ok > 0) await refreshAsModalAttachments();
+          if (ok > 0) showFeedback('AS 사진 ' + ok + '개가 추가되었습니다.');
+        });
+      }
     })();
 
     // AS 방문일 자동 저장
