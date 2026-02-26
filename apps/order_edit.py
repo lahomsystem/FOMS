@@ -1,9 +1,12 @@
 """주문 수정 페이지 Blueprint: edit_order (/edit/<order_id>)."""
+import copy
 import json
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, jsonify
+from sqlalchemy.orm.attributes import flag_modified
 
 from apps.auth import login_required, role_required, log_access, get_user_by_id
 from services.erp_permissions import can_edit_erp
+from services.erp_display import _ensure_dict
 from db import get_db
 from models import Order
 from constants import STATUS
@@ -25,7 +28,7 @@ def edit_order(order_id):
         flash('주문을 찾을 수 없거나 이미 삭제되었습니다.', 'error')
         return redirect(url_for('order_pages.index'))
 
-    if order.is_erp_beta:
+    if bool(getattr(order, 'is_erp_beta', False)):
         user = get_user_by_id(session['user_id'])
         if not can_edit_erp(user):
             flash('ERP Beta 주문 수정 권한이 없습니다. (관리자, CS, 영업팀만 가능)', 'error')
@@ -38,9 +41,10 @@ def edit_order(order_id):
         'option_detail': '', 'handle': '', 'misc': '', 'quote': ''
     }
 
-    if order.options:
+    _options_raw = getattr(order, 'options', None)
+    if _options_raw:
         try:
-            options_data = json.loads(order.options)
+            options_data = json.loads(str(_options_raw))
             if isinstance(options_data, dict):
                 if 'option_type' in options_data:
                     option_type = options_data['option_type']
@@ -64,34 +68,35 @@ def edit_order(order_id):
                             direct_options[k_eng] = options_data[k_kor]
                 else:
                     option_type = 'online'
-                    online_options = order.options or ""
+                    online_options = str(_options_raw or "")
             else:
                 option_type = 'online'
-                online_options = order.options or ""
+                online_options = str(_options_raw or "")
         except json.JSONDecodeError:
             option_type = 'online'
-            online_options = order.options if order.options else ""
+            online_options = str(_options_raw or "") if _options_raw else ""
 
     if request.method == 'POST':
         try:
-            received_date = request.form.get('received_date', order.received_date)
-            received_time = request.form.get('received_time', order.received_time)
-            customer_name = request.form.get('customer_name', order.customer_name)
-            phone = request.form.get('phone', order.phone)
-            address = request.form.get('address', order.address)
-            product = request.form.get('product', order.product)
-            notes = request.form.get('notes', order.notes)
-            status = request.form.get('status', order.status)
-            measurement_date = request.form.get('measurement_date', order.measurement_date)
-            measurement_time = request.form.get('measurement_time', order.measurement_time)
-            completion_date = request.form.get('completion_date', order.completion_date)
-            manager_name = request.form.get('manager_name', order.manager_name)
-            scheduled_date = request.form.get('scheduled_date', order.scheduled_date)
-            as_received_date = request.form.get('as_received_date', order.as_received_date)
-            as_completed_date = request.form.get('as_completed_date', order.as_completed_date)
-            shipping_scheduled_date = request.form.get('shipping_scheduled_date', order.shipping_scheduled_date)
+            _o = order  # local ref for getattr defaults
+            received_date = request.form.get('received_date', getattr(_o, 'received_date', None) or '')
+            received_time = request.form.get('received_time', getattr(_o, 'received_time', None) or '')
+            customer_name = request.form.get('customer_name', getattr(_o, 'customer_name', None) or '')
+            phone = request.form.get('phone', getattr(_o, 'phone', None) or '')
+            address = request.form.get('address', getattr(_o, 'address', None) or '')
+            product = request.form.get('product', getattr(_o, 'product', None) or '')
+            notes = request.form.get('notes', getattr(_o, 'notes', None) or '')
+            status = request.form.get('status', getattr(_o, 'status', None) or '')
+            measurement_date = request.form.get('measurement_date', getattr(_o, 'measurement_date', None) or '')
+            measurement_time = request.form.get('measurement_time', getattr(_o, 'measurement_time', None) or '')
+            completion_date = request.form.get('completion_date', getattr(_o, 'completion_date', None) or '')
+            manager_name = request.form.get('manager_name', getattr(_o, 'manager_name', None) or '')
+            scheduled_date = request.form.get('scheduled_date', getattr(_o, 'scheduled_date', None) or '')
+            as_received_date = request.form.get('as_received_date', getattr(_o, 'as_received_date', None) or '')
+            as_completed_date = request.form.get('as_completed_date', getattr(_o, 'as_completed_date', None) or '')
+            shipping_scheduled_date = request.form.get('shipping_scheduled_date', getattr(_o, 'shipping_scheduled_date', None) or '')
 
-            options_data_json_to_save = order.options
+            options_data_json_to_save = getattr(order, 'options', None)
             if 'option_type' in request.form:
                 ct = request.form.get('option_type')
                 if ct == 'direct':
@@ -115,32 +120,33 @@ def edit_order(order_id):
                     }, ensure_ascii=False)
 
             changes = {}
-            if order.received_date != received_date: changes['received_date'] = {'old': order.received_date, 'new': received_date}
-            if order.received_time != received_time: changes['received_time'] = {'old': order.received_time, 'new': received_time}
-            if order.customer_name != customer_name: changes['customer_name'] = {'old': order.customer_name, 'new': customer_name}
-            if order.phone != phone: changes['phone'] = {'old': order.phone, 'new': phone}
-            if order.address != address: changes['address'] = {'old': order.address, 'new': address}
-            if order.product != product: changes['product'] = {'old': order.product, 'new': product}
-            if order.options != options_data_json_to_save: changes['options'] = {'old': order.options, 'new': options_data_json_to_save}
-            if order.notes != notes: changes['notes'] = {'old': order.notes, 'new': notes}
-            if order.status != status: changes['status'] = {'old': order.status, 'new': status}
-            if order.measurement_date != measurement_date: changes['measurement_date'] = {'old': order.measurement_date, 'new': measurement_date}
-            if order.measurement_time != measurement_time: changes['measurement_time'] = {'old': order.measurement_time, 'new': measurement_time}
-            if order.completion_date != completion_date: changes['completion_date'] = {'old': order.completion_date, 'new': completion_date}
-            if order.manager_name != manager_name: changes['manager_name'] = {'old': order.manager_name, 'new': manager_name}
-            if order.scheduled_date != scheduled_date: changes['scheduled_date'] = {'old': order.scheduled_date, 'new': scheduled_date}
-            if order.as_received_date != as_received_date: changes['as_received_date'] = {'old': order.as_received_date, 'new': as_received_date}
-            if order.as_completed_date != as_completed_date: changes['as_completed_date'] = {'old': order.as_completed_date, 'new': as_completed_date}
-            if order.shipping_scheduled_date != shipping_scheduled_date: changes['shipping_scheduled_date'] = {'old': order.shipping_scheduled_date, 'new': shipping_scheduled_date}
+            _od = lambda a, d=None: getattr(order, a, d)
+            if _od('received_date') != received_date: changes['received_date'] = {'old': _od('received_date'), 'new': received_date}
+            if _od('received_time') != received_time: changes['received_time'] = {'old': _od('received_time'), 'new': received_time}
+            if _od('customer_name') != customer_name: changes['customer_name'] = {'old': _od('customer_name'), 'new': customer_name}
+            if _od('phone') != phone: changes['phone'] = {'old': _od('phone'), 'new': phone}
+            if _od('address') != address: changes['address'] = {'old': _od('address'), 'new': address}
+            if _od('product') != product: changes['product'] = {'old': _od('product'), 'new': product}
+            if _od('options') != options_data_json_to_save: changes['options'] = {'old': _od('options'), 'new': options_data_json_to_save}
+            if _od('notes') != notes: changes['notes'] = {'old': _od('notes'), 'new': notes}
+            if _od('status') != status: changes['status'] = {'old': _od('status'), 'new': status}
+            if _od('measurement_date') != measurement_date: changes['measurement_date'] = {'old': _od('measurement_date'), 'new': measurement_date}
+            if _od('measurement_time') != measurement_time: changes['measurement_time'] = {'old': _od('measurement_time'), 'new': measurement_time}
+            if _od('completion_date') != completion_date: changes['completion_date'] = {'old': _od('completion_date'), 'new': completion_date}
+            if _od('manager_name') != manager_name: changes['manager_name'] = {'old': _od('manager_name'), 'new': manager_name}
+            if _od('scheduled_date') != scheduled_date: changes['scheduled_date'] = {'old': _od('scheduled_date'), 'new': scheduled_date}
+            if _od('as_received_date') != as_received_date: changes['as_received_date'] = {'old': _od('as_received_date'), 'new': as_received_date}
+            if _od('as_completed_date') != as_completed_date: changes['as_completed_date'] = {'old': _od('as_completed_date'), 'new': as_completed_date}
+            if _od('shipping_scheduled_date') != shipping_scheduled_date: changes['shipping_scheduled_date'] = {'old': _od('shipping_scheduled_date'), 'new': shipping_scheduled_date}
             is_regional_new = 'is_regional' in request.form
-            if order.is_regional != is_regional_new: changes['is_regional'] = {'old': order.is_regional, 'new': is_regional_new}
+            if bool(_od('is_regional', False)) != is_regional_new: changes['is_regional'] = {'old': _od('is_regional'), 'new': is_regional_new}
             is_self_measurement_new = 'is_self_measurement' in request.form
-            if order.is_self_measurement != is_self_measurement_new: changes['is_self_measurement'] = {'old': order.is_self_measurement, 'new': is_self_measurement_new}
+            if bool(_od('is_self_measurement', False)) != is_self_measurement_new: changes['is_self_measurement'] = {'old': _od('is_self_measurement'), 'new': is_self_measurement_new}
             measurement_completed_new = 'measurement_completed' in request.form
-            if order.measurement_completed != measurement_completed_new: changes['measurement_completed'] = {'old': order.measurement_completed, 'new': measurement_completed_new}
-            construction_type_new = request.form.get('construction_type', order.construction_type)
-            if order.construction_type != construction_type_new: changes['construction_type'] = {'old': order.construction_type, 'new': construction_type_new}
-            new_payment_amount = order.payment_amount
+            if bool(_od('measurement_completed', False)) != measurement_completed_new: changes['measurement_completed'] = {'old': _od('measurement_completed'), 'new': measurement_completed_new}
+            construction_type_new = request.form.get('construction_type', _od('construction_type'))
+            if _od('construction_type') != construction_type_new: changes['construction_type'] = {'old': _od('construction_type'), 'new': construction_type_new}
+            new_payment_amount = getattr(order, 'payment_amount', 0) or 0
             if 'payment_amount' in request.form:
                 pa_str = request.form.get('payment_amount', '').replace(',', '')
                 if pa_str:
@@ -151,37 +157,51 @@ def edit_order(order_id):
                         raise ValueError("Invalid payment amount")
                 else:
                     new_payment_amount = 0
-            if order.payment_amount != new_payment_amount: changes['payment_amount'] = {'old': order.payment_amount, 'new': new_payment_amount}
+            if _od('payment_amount') != new_payment_amount: changes['payment_amount'] = {'old': _od('payment_amount'), 'new': new_payment_amount}
 
-            order.received_date = received_date
-            order.received_time = received_time
-            order.customer_name = customer_name
-            order.phone = phone
-            order.address = address
-            order.product = product
-            order.options = options_data_json_to_save
-            order.notes = notes
-            order.status = status
-            order.measurement_date = measurement_date
-            order.measurement_time = measurement_time
-            order.completion_date = completion_date
-            order.manager_name = manager_name
-            order.scheduled_date = scheduled_date
-            order.as_received_date = as_received_date
-            order.as_completed_date = as_completed_date
-            order.shipping_scheduled_date = shipping_scheduled_date
-            order.payment_amount = new_payment_amount
-            order.is_regional = is_regional_new
-            order.is_self_measurement = is_self_measurement_new
+            setattr(order, 'received_date', received_date)
+            setattr(order, 'received_time', received_time)
+            setattr(order, 'customer_name', customer_name)
+            setattr(order, 'phone', phone)
+            setattr(order, 'address', address)
+            setattr(order, 'product', product)
+            setattr(order, 'options', options_data_json_to_save)
+            setattr(order, 'notes', notes)
+            setattr(order, 'status', status)
+            setattr(order, 'measurement_date', measurement_date)
+            setattr(order, 'measurement_time', measurement_time)
+            setattr(order, 'completion_date', completion_date)
+            setattr(order, 'manager_name', manager_name)
+            setattr(order, 'scheduled_date', scheduled_date)
+            setattr(order, 'as_received_date', as_received_date)
+            setattr(order, 'as_completed_date', as_completed_date)
+            setattr(order, 'shipping_scheduled_date', shipping_scheduled_date)
+            setattr(order, 'payment_amount', new_payment_amount)
+            setattr(order, 'is_regional', is_regional_new)
+            setattr(order, 'is_self_measurement', is_self_measurement_new)
             is_cabinet_new = 'is_cabinet' in request.form
-            if order.is_cabinet != is_cabinet_new: changes['is_cabinet'] = {'old': order.is_cabinet, 'new': is_cabinet_new}
-            order.is_cabinet = is_cabinet_new
-            if is_cabinet_new and not order.cabinet_status:
-                order.cabinet_status = 'RECEIVED'
+            if bool(_od('is_cabinet', False)) != is_cabinet_new: changes['is_cabinet'] = {'old': _od('is_cabinet'), 'new': is_cabinet_new}
+            setattr(order, 'is_cabinet', is_cabinet_new)
+            if is_cabinet_new and not getattr(order, 'cabinet_status', None):
+                setattr(order, 'cabinet_status', 'RECEIVED')
             elif not is_cabinet_new:
-                order.cabinet_status = None
-            order.construction_type = construction_type_new
-            if order.is_regional:
+                setattr(order, 'cabinet_status', None)
+            setattr(order, 'construction_type', construction_type_new)
+            # ERP Beta: 기존 주문 편집 폼에서 바꾼 실측일/시공일을 structured_data에도 반영 (실측 대시보드 등 표시가 structured_data 우선이므로)
+            _sd = getattr(order, 'structured_data', None)
+            if getattr(order, 'is_erp_beta', False) and _sd:
+                sd = _ensure_dict(_sd)
+                if isinstance(sd, dict):
+                    schedule = sd.setdefault('schedule', {})
+                    measurement = schedule.setdefault('measurement', {})
+                    measurement['date'] = measurement_date or ''
+                    measurement['time'] = measurement_time or ''
+                    if getattr(order, 'status', None) not in ('AS_RECEIVED', 'AS_COMPLETED'):
+                        construction = schedule.setdefault('construction', {})
+                        construction['date'] = scheduled_date or ''
+                    setattr(order, 'structured_data', copy.deepcopy(sd))
+                    flag_modified(order, 'structured_data')
+            if bool(getattr(order, 'is_regional', False)):
                 for f in ['measurement_completed', 'regional_sales_order_upload', 'regional_blueprint_sent',
                           'regional_order_upload', 'regional_cargo_sent', 'regional_construction_info_sent']:
                     setattr(order, f, f in request.form)

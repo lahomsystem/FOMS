@@ -163,6 +163,97 @@
       }
     }
 
+    /* ERP Beta 주문 상세 - 제품 항목 dw-product-main-card (도면/실측과 동일 레이아웃) */
+    .erp-order-detail .dw-product-main-card {
+      border: 1px solid #dfe7f3;
+      border-radius: 10px;
+      background: #ffffff;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .erp-order-detail .dw-product-main-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .erp-order-detail .dw-product-main-name {
+      font-size: 1.08rem;
+      font-weight: 700;
+      color: #0f2a52;
+    }
+    .erp-order-detail .dw-product-split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 767px) {
+      .erp-order-detail .dw-product-split {
+        grid-template-columns: 1fr;
+      }
+    }
+    .erp-order-detail .dw-product-info-form .form-control {
+      background: #f3f5fa;
+      border-color: #dbe3f0;
+      color: #394b63;
+    }
+    .erp-order-detail .dw-product-info-form .form-control[readonly] {
+      cursor: copy;
+    }
+    .erp-order-detail .dw-product-info-form .form-control[readonly]:hover {
+      border-color: #9fb6db;
+      background: #eef3fb;
+    }
+    .erp-order-detail .dw-attach-panel {
+      border: 1px solid #dbe4f3;
+      border-radius: 10px;
+      background: #f8fbff;
+      padding: 10px;
+      height: 100%;
+    }
+    .erp-order-detail .dw-attach-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+    }
+    .erp-order-detail .dw-attach-grid--single {
+      grid-template-columns: 1fr;
+    }
+    .erp-order-detail .dw-attach-thumb {
+      width: 100%;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #d4deee;
+      cursor: pointer;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+    }
+    .erp-order-detail .dw-attach-thumb:hover {
+      border-color: #0d6efd;
+      box-shadow: 0 2px 8px rgba(13, 110, 253, 0.2);
+    }
+    .erp-order-detail .dw-attach-grid--single .dw-attach-thumb {
+      min-height: 180px;
+    }
+    .erp-order-detail .dw-attach-thumb img {
+      max-width: 100%;
+      max-height: 320px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+    }
+    .erp-order-detail .dw-attach-name {
+      font-size: 0.78rem;
+      color: #667a94;
+      margin-top: 4px;
+      word-break: break-all;
+    }
+
     /* 가독성 개선 스타일 - 텍스트 크기 증가 */
     #erp-grid {
       font-size: 1rem;
