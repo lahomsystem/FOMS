@@ -72,11 +72,12 @@ def api_map_data():
         date_filter = request.args.get('date')
         status_filter = request.args.get('status')
         limit = _resolve_map_limit(request.args.get('limit'), default_limit=100)
-        scan_limit = min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
+        scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
 
         db = get_db()
         query = db.query(Order).filter(Order.status != 'DELETED')
 
+        # 자가실측·지방실측 제외(진짜 실측 필요한 것만)
         query = query.filter(
             Order.is_regional != True,
             ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
@@ -243,6 +244,7 @@ def api_generate_map():
         db = get_db()
         query = db.query(Order).filter(Order.status != 'DELETED')
 
+        # 자가실측·지방실측 제외(진짜 실측 필요한 것만)
         query = query.filter(
             Order.is_regional != True,
             ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
@@ -284,7 +286,10 @@ def api_generate_map():
 
             query = query.filter(or_(*date_conditions))
 
-        orders = query.order_by(Order.id.desc()).limit(limit).all()
+        # 날짜 필터 시 후보를 넉넉히 스캔(기본 200이면 해당일 실측건이 누락될 수 있음)
+        scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else limit
+        fetch_limit = max(limit, scan_limit) if date_filter else limit
+        orders = query.order_by(Order.id.desc()).limit(fetch_limit).all()
 
         if date_filter:
             filtered_orders = []
