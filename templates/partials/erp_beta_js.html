@@ -148,6 +148,7 @@
     function erpRecalcItemsTotal() {
         const itemsWrap = document.getElementById('erp-items');
         const totalEl = document.getElementById('erp-items-total');
+        const remainingSection = document.getElementById('erp-remaining-section');
         if (!itemsWrap || !totalEl) return;
         let sum = 0;
         itemsWrap.querySelectorAll('[data-erp="price"]').forEach(inp => {
@@ -155,6 +156,21 @@
             if (digits) sum += parseInt(digits, 10);
         });
         totalEl.textContent = erpFormatMoneyKRW(sum);
+        if (remainingSection) {
+            remainingSection.style.display = (sum === 0 || !Number.isFinite(sum)) ? 'none' : 'flex';
+        }
+        erpCalculateRemaining();
+    }
+
+    function erpCalculateRemaining() {
+        const totalEl = document.getElementById('erp-items-total');
+        const depositInput = document.getElementById('erp-deposit-amount');
+        const remainingInput = document.getElementById('erp-remaining-amount');
+        if (!totalEl || !remainingInput) return;
+        const totalAmount = parseInt(String(totalEl.textContent || '').replace(/[^0-9]/g, ''), 10) || 0;
+        const depositAmount = parseInt(depositInput?.value || '0', 10) || 0;
+        const remainingAmount = Math.max(0, totalAmount - depositAmount);
+        remainingInput.value = remainingAmount;
     }
 
     function erpGetItemRows() {
@@ -483,6 +499,12 @@
 
         erpSetStatus(`불러오기 완료 (confidence: ${data.structured_confidence || sd.confidence || '-'})`);
         erpRecalcItemsTotal();
+        const depositEl = document.getElementById('erp-deposit-amount');
+        if (depositEl) {
+            const d = sd?.payment?.deposit;
+            depositEl.value = (d != null && Number.isFinite(Number(d))) ? String(d) : '';
+        }
+        erpCalculateRemaining();
 
         // 첨부파일도 함께 로드
         if (typeof erpLoadAttachments === 'function') {
@@ -590,6 +612,11 @@
                 urgent: getCheck('erp-urgent-flag'),
                 urgent_reason: getVal('erp-urgent-reason')
             },
+            payment: (function () {
+                const raw = getVal('erp-deposit-amount');
+                const deposit = raw ? parseInt(String(raw).replace(/[^0-9]/g, ''), 10) : 0;
+                return { deposit: Number.isFinite(deposit) ? deposit : 0 };
+            })(),
             items
         };
     }
@@ -828,6 +855,11 @@
         });
         document.getElementById('erp-save-btn')?.addEventListener('click', erpSaveStructured);
         document.getElementById('erp-load-btn')?.addEventListener('click', erpLoadStructured);
+        const erpDepositInput = document.getElementById('erp-deposit-amount');
+        if (erpDepositInput) {
+            erpDepositInput.addEventListener('input', erpCalculateRemaining);
+            erpDepositInput.addEventListener('change', erpCalculateRemaining);
+        }
 
 
         // add_order(draft) 모드에선 tab 오픈 시 draft 생성 후 로드, edit_order에선 즉시 로드
