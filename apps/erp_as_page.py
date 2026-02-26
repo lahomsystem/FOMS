@@ -44,6 +44,9 @@ def erp_as_dashboard():
     search_q = (request.args.get('q') or request.args.get('manager') or '').strip()
     selected_date = request.args.get('date')
     open_map = request.args.get('open_map') == '1'
+    tab = (request.args.get('tab') or 'incomplete').strip()  # incomplete | completed
+    if tab not in ('incomplete', 'completed'):
+        tab = 'incomplete'
 
     if open_map:
         date_val = selected_date or get_today_kst().strftime('%Y-%m-%d')
@@ -51,11 +54,32 @@ def erp_as_dashboard():
         return redirect(url_for('erp_map.map_view', date=date_val, status=status_val))
 
     query = db.query(Order).filter(Order.status != 'DELETED')
+    query = query.filter(Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']))
+
+    # 하단 탭: 완료 안된 건 vs 완료 된 건
+    if tab == 'completed':
+        query = query.filter(
+            Order.status == 'AS_COMPLETED',
+            Order.as_completed_date.isnot(None),
+            Order.as_completed_date != ''
+        )
+    else:
+        # 완료 안된 건: AS 접수 또는 AS 완료이지만 완료일 미지정
+        query = query.filter(
+            or_(
+                Order.status == 'AS_RECEIVED',
+                and_(
+                    Order.status == 'AS_COMPLETED',
+                    or_(
+                        Order.as_completed_date.is_(None),
+                        Order.as_completed_date == ''
+                    )
+                )
+            )
+        )
 
     if status_filter:
         query = query.filter(Order.status == status_filter)
-    else:
-        query = query.filter(Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']))
 
     query = _erp_order_search_filter(query, search_q)
 
@@ -88,4 +112,5 @@ def erp_as_dashboard():
         erp_mine_only=erp_mine_only,
         can_view_as_photos=can_view_as_photos,
         sort_dir=sort_dir,
+        as_tab=tab,
     )
