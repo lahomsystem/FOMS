@@ -36,7 +36,21 @@
   </div>
   {% else %}
   <div class="erp-pro-card">
-    <div class="erp-pro-card__header erp-pro-card__header--filter">
+    <div class="erp-as-top-tabs border-bottom mb-3">
+      <ul class="nav nav-tabs nav-fill border-bottom-0">
+        <li class="nav-item">
+          <a class="nav-link {{ 'active' if as_tab == 'incomplete' else '' }}" href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" title="완료 안된 건">
+            <i class="fas fa-times text-danger fs-5"></i>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {{ 'active' if as_tab == 'completed' else '' }}" href="{{ url_for('erp_as_page.erp_as_dashboard', tab='completed', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" title="완료 된 건">
+            <i class="far fa-circle text-primary fw-bold fs-5"></i>
+          </a>
+        </li>
+      </ul>
+    </div>
+    <div class="erp-pro-card__header erp-pro-card__header--filter pt-0">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
         <input type="hidden" name="sort_dir" value="{{ sort_dir or 'desc' }}">
         <div class="erp-pro-filter-group">
