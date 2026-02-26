@@ -76,77 +76,143 @@
               }
             }
 
-            // 제품 항목 (모든 상세 정보 표시)
+            // 첨부 파일 목록 먼저 파싱 (제품 항목별 첨부 패널에서 사용)
+            let aList = [];
+            if (attachments) {
+              if (Array.isArray(attachments)) {
+                aList = attachments;
+              } else if (attachments.attachments && Array.isArray(attachments.attachments)) {
+                aList = attachments.attachments;
+              } else if (attachments.success !== false && attachments.attachments) {
+                aList = attachments.attachments;
+              } else if (attachments.success === false) {
+                console.warn('Attachments API returned error:', attachments.message || 'Unknown error');
+                aList = [];
+              } else {
+                aList = [];
+              }
+            }
+            __attachmentsCache[orderId] = aList;
+
+            // 제품 항목: dw-product-main-card 구조 (헤더 + 폼 + 첨부 패널)
             const items = (sd.items || []) || [];
             let itemsHtml = '';
+            const safeValue = (val) => {
+              if (val === null || val === undefined || val === '') return '';
+              return String(val).trim();
+            };
+            const isImageFile = (a) => {
+              const ft = (a.file_type || '').toLowerCase();
+              if (ft === 'image') return true;
+              const fn = String(a.filename || '').toLowerCase();
+              return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/.test(fn);
+            };
             if (items.length > 0) {
-              let gridHtml = '<div class="erp-product-items-grid mt-3">';
-              items.forEach(item => {
-                // 규격을 W, D, H로 분리
+              if (typeof __orderDetailImageGroups === 'undefined') window.__orderDetailImageGroups = {};
+              __orderDetailImageGroups[orderId] = [];
+              let gridHtml = '<div class="mt-3">';
+              items.forEach((item, idx) => {
                 let specW = item.spec_width || '';
                 let specD = item.spec_depth || '';
                 let specH = item.spec_height || '';
-                // 기존 spec 필드가 있고 W, D, H가 없으면 파싱
                 if (!specW && !specD && !specH && item.spec) {
                   const specStr = String(item.spec || '').trim();
                   const parts = specStr.split(/[xX*×]/).map(s => s.trim());
-                  if (parts.length >= 3) {
-                    specW = parts[0];
-                    specD = parts[1];
-                    specH = parts[2];
-                  } else if (parts.length === 2) {
-                    specW = parts[0];
-                    specD = parts[1];
-                  } else if (parts.length === 1) {
-                    specW = parts[0];
-                  }
+                  if (parts.length >= 3) { specW = parts[0]; specD = parts[1]; specH = parts[2]; }
+                  else if (parts.length === 2) { specW = parts[0]; specD = parts[1]; }
+                  else if (parts.length === 1) { specW = parts[0]; }
                 }
-                // 규격을 한 줄로 통합 (모바일용)
-                const specParts = [];
-                if (specW && specW !== '-') specParts.push(`W:${specW}`);
-                if (specD && specD !== '-') specParts.push(`D:${specD}`);
-                if (specH && specH !== '-') specParts.push(`H:${specH}`);
-                const specCombined = specParts.length > 0 ? specParts.join(' × ') : '-';
-                const priceText = item.price ? item.price.toLocaleString('ko-KR') + '원' : '-';
+                const priceVal = item.price != null && item.price !== '' ? (Number(item.price) ? Number(item.price).toLocaleString('ko-KR') : String(item.price)) : '';
+                const productName = escapeHtml(safeValue(item.product_name || item.name) || '-');
+                const itemAtts = aList.filter(a => Number(a.item_index) === idx);
+                const imageAtts = itemAtts.filter(isImageFile);
+                __orderDetailImageGroups[orderId][idx] = imageAtts;
 
-                // 값이 빈 문자열이거나 null/undefined일 때 '-'로 표시
-                const safeValue = (val) => {
-                  if (val === null || val === undefined || val === '') return '-';
-                  return String(val).trim() || '-';
-                };
+                const groupKey = `order_${orderId}_item_${idx}`;
+                let attachPanelHtml = '<div class="dw-attach-panel"><div class="small fw-semibold text-muted mb-2"><i class="fas fa-image"></i> 실측 첨부 파일</div>';
+                if (itemAtts.length > 0) {
+                  const singleClass = itemAtts.length === 1 ? ' dw-attach-grid--single' : '';
+                  attachPanelHtml += `<div class="dw-attach-grid${singleClass}">`;
+                  let imageIndex = 0;
+                  itemAtts.forEach((a) => {
+                    const name = escapeHtml(a.filename || '');
+                    const viewUrl = (a.view_url || a.thumbnail_view_url || '#').replace(/'/g, "\\'");
+                    const downloadUrl = (a.download_url || viewUrl).replace(/'/g, "\\'");
+                    const fileKey = (a.key || a.storage_key || '').replace(/'/g, "\\'");
+                    const imgSrc = a.thumbnail_view_url || a.view_url || '#';
+                    const isImg = isImageFile(a);
+                    const idxAttr = isImg ? (imageIndex++, imageIndex - 1) : 0;
+                    const dataAttrs = `data-group-key="${groupKey}" data-index="${idxAttr}" data-view-url="${escapeHtml(a.view_url || '')}" data-download-url="${escapeHtml(a.download_url || '')}" data-filename="${name}" data-key="${escapeHtml(fileKey)}"`;
+                    if (isImg) {
+                      attachPanelHtml += `<div><div class="dw-attach-thumb" ${dataAttrs} onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))"><img src="${escapeHtml(imgSrc)}" alt="${name}"></div><div class="dw-attach-name">${name}</div></div>`;
+                    } else {
+                      attachPanelHtml += `<div><div class="dw-attach-thumb d-flex align-items-center justify-content-center bg-light text-secondary" ${dataAttrs} onclick="openAttachmentPreviewModal(${a.id || 0}, '${viewUrl}', '${downloadUrl}', '${name.replace(/'/g, "\\'")}', '${(a.file_type || 'file')}')"><i class="fas fa-file-alt"></i></div><div class="dw-attach-name">${name}</div></div>`;
+                    }
+                  });
+                  attachPanelHtml += '</div>';
+                } else {
+                  attachPanelHtml += '<div class="small text-muted">연결된 실측 첨부 파일이 없습니다.</div>';
+                }
+                attachPanelHtml += '</div>';
 
-                gridHtml += `<div class="erp-product-items-card">
-              <div class="erp-product-items-row">
-                <span class="erp-product-items-label">제품명:</span>
-                <span class="erp-product-items-value">${escapeHtml(safeValue(item.product_name || item.name))}</span>
+                gridHtml += `
+            <div class="dw-product-main-card">
+              <div class="dw-product-main-head">
+                <div class="dw-product-main-name">${productName}</div>
+                <div class="d-flex align-items-center gap-1">
+                  <span class="badge bg-light text-dark border">항목 ${idx + 1}</span>
+                </div>
               </div>
-              <div class="erp-product-items-row">
-                <span class="erp-product-items-label">규격:</span>
-                <span class="erp-product-items-value">${escapeHtml(specCombined)}</span>
-              </div>
-              <div class="erp-product-items-row">
-                <span class="erp-product-items-label">내부:</span>
-                <span class="erp-product-items-value">${escapeHtml(safeValue(item.internal))}</span>
-              </div>
-              <div class="erp-product-items-row">
-                <span class="erp-product-items-label">색상:</span>
-                <span class="erp-product-items-value">${escapeHtml(safeValue(item.color))}</span>
-              </div>
-              <div class="erp-product-items-row">
-                <span class="erp-product-items-label">옵션:</span>
-                <span class="erp-product-items-value">${escapeHtml(safeValue(item.option_detail || item.options))}</span>
-              </div>
-              <div class="erp-product-items-row">
-                <span class="erp-product-items-label">손잡이:</span>
-                <span class="erp-product-items-value">${escapeHtml(safeValue(item.handle))}</span>
-              </div>
-              <div class="erp-product-items-row">
-                <span class="erp-product-items-label">기타:</span>
-                <span class="erp-product-items-value">${escapeHtml(safeValue(item.misc))}</span>
-              </div>
-              <div class="erp-product-items-row">
-                <span class="erp-product-items-label">금액:</span>
-                <span class="erp-product-items-value">${escapeHtml(priceText)}</span>
+              <div class="dw-product-split">
+                <div class="dw-product-info-form">
+                  <div class="row g-2">
+                    <div class="col-12">
+                      <label class="form-label mb-1 small text-primary">제품명</label>
+                      <input class="form-control form-control-sm" value="${productName}" readonly title="클릭하면 값이 복사됩니다.">
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label mb-1 small text-primary">규격 W(폭)</label>
+                      <input class="form-control form-control-sm" value="${escapeHtml(safeValue(specW) || '-')}" readonly title="클릭하면 값이 복사됩니다.">
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label mb-1 small text-primary">규격 D(깊이)</label>
+                      <input class="form-control form-control-sm" value="${escapeHtml(safeValue(specD) || '-')}" readonly title="클릭하면 값이 복사됩니다.">
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label mb-1 small text-primary">규격 H(높이)</label>
+                      <input class="form-control form-control-sm" value="${escapeHtml(safeValue(specH) || '-')}" readonly title="클릭하면 값이 복사됩니다.">
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label mb-1 small text-primary">내부</label>
+                      <input class="form-control form-control-sm" value="${escapeHtml(safeValue(item.internal) || '-')}" readonly title="클릭하면 값이 복사됩니다.">
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label mb-1 small text-primary">색상</label>
+                      <input class="form-control form-control-sm" value="${escapeHtml(safeValue(item.color) || '-')}" readonly title="클릭하면 값이 복사됩니다.">
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label mb-1 small text-primary">옵션</label>
+                      <input class="form-control form-control-sm" value="${escapeHtml(safeValue(item.option_detail || item.options) || '-')}" readonly title="클릭하면 값이 복사됩니다.">
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label mb-1 small text-primary">손잡이</label>
+                      <input class="form-control form-control-sm" value="${escapeHtml(safeValue(item.handle) || '-')}" readonly title="클릭하면 값이 복사됩니다.">
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
+                      <input class="form-control form-control-sm" value="${escapeHtml(safeValue(item.misc) || '-')}" readonly title="클릭하면 값이 복사됩니다.">
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
+                      <input class="form-control form-control-sm" value="${escapeHtml(priceVal || '-')}" readonly title="클릭하면 값이 복사됩니다.">
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label mb-1 small text-primary">추가 입력</label>
+                      <textarea class="form-control form-control-sm" rows="3" readonly title="클릭하면 값이 복사됩니다.">${escapeHtml(safeValue(item.extra_input))}</textarea>
+                    </div>
+                  </div>
+                </div>
+                ${attachPanelHtml}
               </div>
             </div>`;
               });
@@ -155,31 +221,6 @@
             } else {
               itemsHtml = '<div class="text-muted mt-3" style="font-size: 1rem;">제품 항목 없음</div>';
             }
-
-            // 첨부 파일 (여백 최소화, 미리보기 기능)
-            // API 응답 구조 확인: attachments.attachments 또는 attachments (배열 직접 반환)
-            let aList = [];
-            if (attachments) {
-              if (Array.isArray(attachments)) {
-                aList = attachments;
-              } else if (attachments.attachments && Array.isArray(attachments.attachments)) {
-                aList = attachments.attachments;
-              } else if (attachments.success !== false && attachments.attachments) {
-                // success가 true이고 attachments가 있는 경우
-                aList = attachments.attachments;
-              } else if (attachments.success === false) {
-                console.warn('Attachments API returned error:', attachments.message || 'Unknown error');
-                aList = [];
-              } else {
-                // 디버깅: 응답 구조 확인
-                console.log('Attachments API response structure:', attachments);
-                aList = [];
-              }
-            } else {
-              console.warn('Attachments response is null or undefined');
-            }
-            // 첨부 파일 캐시 저장
-            __attachmentsCache[orderId] = aList;
 
             let attachmentsHtml = '';
             if (aList.length > 0) {
@@ -539,6 +580,12 @@
             </div>
           </div>
         `;
+            // 이미지 뷰어용 그룹 등록 (openDrawingGatewayImageViewer에서 사용)
+            if (typeof __drawingGatewayImageGroups !== 'undefined' && window.__orderDetailImageGroups && window.__orderDetailImageGroups[orderId]) {
+              (window.__orderDetailImageGroups[orderId] || []).forEach((imageFiles, idx) => {
+                __drawingGatewayImageGroups[`order_${orderId}_item_${idx}`] = imageFiles || [];
+              });
+            }
 
           } catch (err) {
             console.error('주문 상세 로드 실패:', err);
