@@ -746,6 +746,15 @@
   color: var(--erp-text-white);
 }
 
+/* ERP Beta 예약금 입력란: 외부 패딩 덮어쓰기 방지, placeholder 색상 */
+#erp-deposit-amount {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+#erp-deposit-amount::placeholder {
+  color: rgba(0, 0, 0, 0.5);
+}
+
 .erp-pro-badge--solid-success {
   background: var(--erp-success);
   color: var(--erp-text-white);
