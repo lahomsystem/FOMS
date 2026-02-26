@@ -145,6 +145,18 @@
         return `${Math.round(n).toLocaleString('ko-KR')}원`;
     }
 
+    function erpParseDepositValue() {
+        const el = document.getElementById('erp-deposit-amount');
+        if (!el) return 0;
+        const digits = String(el.value || '').replace(/[^0-9]/g, '');
+        return digits ? parseInt(digits, 10) : 0;
+    }
+
+    function erpFormatDepositDisplay(num) {
+        if (num == null || !Number.isFinite(num) || num < 0) return '0원';
+        return num === 0 ? '0원' : num.toLocaleString('ko-KR') + '원';
+    }
+
     function erpRecalcItemsTotal() {
         const itemsWrap = document.getElementById('erp-items');
         const totalEl = document.getElementById('erp-items-total');
@@ -164,13 +176,12 @@
 
     function erpCalculateRemaining() {
         const totalEl = document.getElementById('erp-items-total');
-        const depositInput = document.getElementById('erp-deposit-amount');
-        const remainingInput = document.getElementById('erp-remaining-amount');
-        if (!totalEl || !remainingInput) return;
+        const remainingEl = document.getElementById('erp-remaining-amount');
+        if (!totalEl || !remainingEl) return;
         const totalAmount = parseInt(String(totalEl.textContent || '').replace(/[^0-9]/g, ''), 10) || 0;
-        const depositAmount = parseInt(depositInput?.value || '0', 10) || 0;
+        const depositAmount = erpParseDepositValue();
         const remainingAmount = Math.max(0, totalAmount - depositAmount);
-        remainingInput.value = remainingAmount;
+        remainingEl.textContent = remainingAmount > 0 ? erpFormatMoneyKRW(remainingAmount) : '0원';
     }
 
     function erpGetItemRows() {
@@ -502,7 +513,8 @@
         const depositEl = document.getElementById('erp-deposit-amount');
         if (depositEl) {
             const d = sd?.payment?.deposit;
-            depositEl.value = (d != null && Number.isFinite(Number(d))) ? String(d) : '';
+            const num = (d != null && Number.isFinite(Number(d))) ? Number(d) : 0;
+            depositEl.value = erpFormatDepositDisplay(num);
         }
         erpCalculateRemaining();
 
@@ -857,8 +869,18 @@
         document.getElementById('erp-load-btn')?.addEventListener('click', erpLoadStructured);
         const erpDepositInput = document.getElementById('erp-deposit-amount');
         if (erpDepositInput) {
-            erpDepositInput.addEventListener('input', erpCalculateRemaining);
-            erpDepositInput.addEventListener('change', erpCalculateRemaining);
+            erpDepositInput.addEventListener('input', function () {
+                const raw = (this.value || '').replace(/[^0-9]/g, '');
+                const num = raw ? parseInt(raw, 10) : 0;
+                const formatted = erpFormatDepositDisplay(num);
+                if (this.value !== formatted) this.value = formatted;
+                erpCalculateRemaining();
+            });
+            erpDepositInput.addEventListener('change', function () {
+                const num = erpParseDepositValue();
+                this.value = erpFormatDepositDisplay(num);
+                erpCalculateRemaining();
+            });
         }
 
 
