@@ -311,13 +311,19 @@ class StorageAdapter:
             file_path = os.path.join(self.upload_folder, key)
             return os.path.isfile(file_path)
 
-    def get_download_url(self, key, expires_in=3600):
-        """다운로드 URL 생성 (서명된 URL)"""
+    def get_download_url(self, key, expires_in=3600, response_content_disposition=None):
+        """다운로드 URL 생성 (서명된 URL).
+        response_content_disposition 이 있으면 R2/S3가 해당 헤더로 응답해 브라우저가 파일을 열지 않고 다운로드한다.
+        예: 'attachment; filename="example.png"'
+        """
         if self.storage_type in ['r2', 's3']:
             try:
+                params = {'Bucket': self.bucket_name, 'Key': key}
+                if response_content_disposition:
+                    params['ResponseContentDisposition'] = response_content_disposition
                 url = self.client.generate_presigned_url(
                     'get_object',
-                    Params={'Bucket': self.bucket_name, 'Key': key},
+                    Params=params,
                     ExpiresIn=expires_in
                 )
                 return url
