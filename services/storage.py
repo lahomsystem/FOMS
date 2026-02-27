@@ -5,6 +5,7 @@ Quest 2: 스토리지 추상화 계층
 Railway: R2 환경 변수가 있으면 자동으로 R2 사용
 """
 import os
+import uuid
 import io
 import shutil
 from flask import current_app
@@ -275,7 +276,9 @@ class StorageAdapter:
     def generate_direct_upload_key(self, filename: str, folder: str) -> str:
         """Direct upload용 고유 키 생성 (세션 발급 시 사용)."""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        unique_filename = f"{timestamp}_{secure_filename(filename)}"
+        unique_id = uuid.uuid4().hex[:8]
+        safe_name = secure_filename(filename) or "file"
+        unique_filename = f"{timestamp}_{unique_id}_{safe_name}"
         return f"{folder}/{unique_filename}"
 
     def generate_presigned_put_url(self, key: str, content_type: str, expires_in: int = 900) -> str | None:
@@ -356,7 +359,9 @@ class StorageAdapter:
         try:
             # 고유한 파일명 생성
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            unique_filename = f"{timestamp}_{secure_filename(filename)}"
+            unique_id = uuid.uuid4().hex[:8]
+            safe_name = secure_filename(filename) or "file"
+            unique_filename = f"{timestamp}_{unique_id}_{safe_name}"
             key = f"{folder}/{unique_filename}"
             
             # Content-Type 설정
@@ -396,7 +401,9 @@ class StorageAdapter:
             
             # 고유한 파일명 생성
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            unique_filename = f"{timestamp}_{secure_filename(filename)}"
+            unique_id = uuid.uuid4().hex[:8]
+            safe_name = secure_filename(filename) or "file"
+            unique_filename = f"{timestamp}_{unique_id}_{safe_name}"
             file_path = os.path.join(target_folder, unique_filename)
             
             # 파일 저장 (Werkzeug FileStorage 또는 일반 file 객체 모두 지원)
