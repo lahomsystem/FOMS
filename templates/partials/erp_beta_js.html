@@ -390,20 +390,7 @@
                 }
             }
         });
-        const itemAttachmentInput = row.querySelector('.erp-item-attachments-input');
-        row.querySelector('.erp-item-upload-btn')?.addEventListener('click', () => {
-            itemAttachmentInput?.click();
-        });
-        itemAttachmentInput?.addEventListener('change', async () => {
-            const files = itemAttachmentInput.files ? Array.from(itemAttachmentInput.files) : [];
-            if (!files.length) return;
-            const itemIndex = erpGetItemIndexFromRow(row);
-            if (itemIndex < 0) return;
-            if (typeof erpUploadItemAttachments === 'function') {
-                await erpUploadItemAttachments(itemIndex, files);
-            }
-            itemAttachmentInput.value = '';
-        });
+        // Event listener removed as it's now handled by inline onchange="erpUploadItemAttachmentsPromptless(this)"
 
         setTimeout(() => {
             erpRefreshItemRowIndices();
