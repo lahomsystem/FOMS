@@ -60,9 +60,11 @@
                     <!-- 주문 정보 탭 -->
                     {% if not is_erp_beta_order %}
                     <div class="tab-pane fade show active" id="order-info" role="tabpanel">
-                        <form method="post" action="{{ url_for('order_edit.edit_order', order_id=order.id, **preserved_args) }}"
+                        <form method="post"
+                            action="{{ url_for('order_edit.edit_order', order_id=order.id, **preserved_args) }}"
                             id="editOrderForm">
-                            <input type="hidden" name="referrer" value="{{ request.referrer or url_for('order_pages.index') }}">
+                            <input type="hidden" name="referrer"
+                                value="{{ request.referrer or url_for('order_pages.index') }}">
                             <div class="row mb-3">
                                 <div class="col-md-4">
                                     <label for="received_date" class="form-label">접수일 <span
@@ -484,19 +486,19 @@
                                             <h6 class="mb-0">업로드된 도면</h6>
                                             <div>
                                                 <button class="btn btn-sm btn-info me-2"
-                                                    onclick="if(typeof window.openBlueprintViewer === 'function') { window.openBlueprintViewer({{ order.id }}); } else { alert('도면 뷰어를 불러올 수 없습니다.'); }"
+                                                    onclick="if(typeof window.openBlueprintViewer === 'function') { window.openBlueprintViewer('{{ order.id }}'); } else { alert('도면 뷰어를 불러올 수 없습니다.'); }"
                                                     title="도면 보기">
                                                     <i class="fas fa-eye"></i> 보기
                                                 </button>
                                                 <button class="btn btn-sm btn-danger"
-                                                    onclick="deleteBlueprint({{ order.id }})" title="도면 삭제">
+                                                    onclick="deleteBlueprint('{{ order.id }}')" title="도면 삭제">
                                                     <i class="fas fa-trash"></i> 삭제
                                                 </button>
                                             </div>
                                         </div>
                                         <img id="blueprint-preview-img" src="" alt="도면" class="img-fluid rounded"
                                             style="max-height: 500px; cursor: pointer; border: 1px solid #ddd;"
-                                            onclick="if(typeof window.openBlueprintViewer === 'function') { window.openBlueprintViewer({{ order.id }}); } else { alert('도면 뷰어를 불러올 수 없습니다.'); }">
+                                            onclick="if(typeof window.openBlueprintViewer === 'function') { window.openBlueprintViewer('{{ order.id }}'); } else { alert('도면 뷰어를 불러올 수 없습니다.'); }">
                                     </div>
                                 </div>
                             </div>
@@ -510,7 +512,8 @@
                             </div>
                             <div id="blueprint-upload-progress" class="mt-2 d-none">
                                 <div class="progress" style="height: 20px;">
-                                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="blueprint-upload-progress-bar" role="progressbar" style="width: 0%">0%</div>
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                        id="blueprint-upload-progress-bar" role="progressbar" style="width: 0%">0%</div>
                                 </div>
                             </div>
                         </div>
@@ -535,8 +538,8 @@
 <script>
     // 주문 ID 상수 선언 (HTML 데이터 속성에서 읽기)
     const ORDER_ID = parseInt(document.querySelector('.card[data-order-id]')?.dataset.orderId || '0');
-    const ERP_BETA_ENABLED = {{ 'true' if (erp_beta_enabled and order.is_erp_beta) else 'false' }};
-    const USE_DIRECT_UPLOAD = {{ 'true' if use_direct_upload else 'false' }};
+    const ERP_BETA_ENABLED = ("{{ 'true' if (erp_beta_enabled and order.is_erp_beta) else 'false' }}" === "true");
+    const USE_DIRECT_UPLOAD = ("{{ 'true' if use_direct_upload else 'false' }}" === "true");
 
     // 전역 XSS 방지 HTML 이스케이프 함수 (ERP Beta 등 전역에서 사용)
     function escapeHtml(text) {
@@ -1472,12 +1475,12 @@
     // 페이지 로드 시 도면 조회
     document.addEventListener('DOMContentLoaded', function () {
         if (!document.getElementById('blueprint-tab')) return;
-        loadBlueprint({{ order.id }});
+        loadBlueprint(ORDER_ID);
     });
 
     // 도면 탭 클릭 시 도면 조회
     document.getElementById('blueprint-tab')?.addEventListener('shown.bs.tab', function () {
-        loadBlueprint({{ order.id }});
+        loadBlueprint(ORDER_ID);
     });
 
     function loadBlueprint(orderId) {
@@ -1505,8 +1508,8 @@
     function handleBlueprintSelect(event) {
         const file = event.target.files[0];
         if (file) {
-            uploadBlueprint({{ order.id }}, file);
-    }
+            uploadBlueprint(ORDER_ID, file);
+        }
     }
 
     function handleBlueprintDrop(event) {
@@ -1518,14 +1521,18 @@
         if (files.length > 0) {
             const file = files[0];
             if (file.type.startsWith('image/')) {
-                uploadBlueprint({{ order.id }}, file);
-        } else {
-            alert('이미지 파일만 업로드 가능합니다.');
+                uploadBlueprint(ORDER_ID, file);
+            } else {
+                alert('이미지 파일만 업로드 가능합니다.');
+            }
         }
     }
-    }
 
-    async function uploadBlueprint(orderId, file) {
+    async function uploadBlueprint(orderId, originalFile) {
+        let file = originalFile;
+        if (typeof window.compressImageFile === 'function') {
+            try { file = await window.compressImageFile(originalFile, { quality: 0.8 }); } catch (e) { }
+        }
         const loading = document.getElementById('blueprint-loading');
         const uploadArea = document.getElementById('blueprint-upload-area');
         const preview = document.getElementById('blueprint-preview');
@@ -1573,7 +1580,11 @@
                 } else {
                     let putRes;
                     try {
-                        putRes = await fetch(sess.upload_url, { method: 'PUT', body: file });
+                        putRes = await fetch(sess.upload_url, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                            body: file
+                        });
                     } catch (_) {
                         const formData = new FormData();
                         formData.append('file', file);
