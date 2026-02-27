@@ -1,3 +1,0 @@
-{"hook": "afterFileEdit", "payload_keys": ["edits"], "payload": {"edits": [{"file_path": "test.py", "new_string": "hello"}]}}
-{"hook": "sessionStart", "payload_keys": ["id"], "payload": {"id": "test_id_1"}}
-{"hook": "afterFileEdit", "payload_keys": ["file_path", "edits"], "payload": {"file_path": "test.py", "edits": [{"new_string": "test"}]}}
