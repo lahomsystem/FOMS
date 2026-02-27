@@ -146,7 +146,11 @@
                     if (isImg) {
                       attachPanelHtml += `<div><div class="dw-attach-thumb" ${dataAttrs} onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))"><img src="${escapeHtml(imgSrc)}" alt="${name}"></div><div class="dw-attach-name">${name}</div></div>`;
                     } else {
-                      attachPanelHtml += `<div><div class="dw-attach-thumb d-flex align-items-center justify-content-center bg-light text-secondary" ${dataAttrs} onclick="openAttachmentPreviewModal(${a.id || 0}, '${viewUrl}', '${downloadUrl}', '${name.replace(/'/g, "\\'")}', '${(a.file_type || 'file')}')"><i class="fas fa-file-alt"></i></div><div class="dw-attach-name">${name}</div></div>`;
+                      const safeNameForModal = String(a.filename || '').split("'").join("\\'");
+                      const fileTypeForPreview = (a.file_type && String(a.file_type)) ? String(a.file_type) : 'file';
+                      const q = String.fromCharCode(39);
+                      const onclickModal = 'openAttachmentPreviewModal(' + (a.id || 0) + ', ' + q + viewUrl + q + ', ' + q + downloadUrl + q + ', ' + q + safeNameForModal + q + ', ' + q + fileTypeForPreview + q + ')';
+                      attachPanelHtml += '<div><div class="dw-attach-thumb d-flex align-items-center justify-content-center bg-light text-secondary" ' + dataAttrs + ' onclick="' + onclickModal + '"><i class="fas fa-file-alt"></' + 'i></div><div class="dw-attach-name">' + name + '</div></div>';
                     }
                   });
                   attachPanelHtml += '</div>';
@@ -211,6 +215,20 @@
                       <textarea class="form-control form-control-sm" rows="3" readonly title="클릭하면 값이 복사됩니다.">${escapeHtml(safeValue(item.extra_input))}</textarea>
                     </div>
                   </div>
+                  <div class="d-flex flex-column align-items-end gap-2 mt-2 erp-amount-block">
+                    <div class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem;">
+                      <span class="fw-bold text-nowrap">출고가</span>
+                      <div class="badge bg-primary flex-shrink-0 text-end" id="erp-items-total-${orderId}-${idx}" style="font-size: 1rem; width: 9rem; padding: 0.5rem;">0원</div>
+                    </div>
+                    <div id="erp-deposit-section-${orderId}-${idx}" class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem;">
+                      <label for="erp-deposit-amount-${orderId}-${idx}" class="form-label mb-0 fw-bold text-nowrap">예약금(선금)</label>
+                      <input type="text" id="erp-deposit-amount-${orderId}-${idx}" inputmode="numeric" placeholder="0원" maxlength="24" readonly class="flex-shrink-0" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다." style="box-sizing:border-box; display:inline-block; font-size:1rem; font-weight:700; width:9rem; height:2rem; line-height:2rem; padding:0; margin:0; text-align:right; border:0; border-radius:0.25rem; background:#FFB6C1; color:#000;">
+                    </div>
+                    <div id="erp-remaining-section-${orderId}-${idx}" class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
+                      <label class="form-label mb-0 fw-bold text-nowrap">잔금</label>
+                      <div class="badge bg-primary flex-shrink-0 text-end" id="erp-remaining-amount-${orderId}-${idx}" style="font-size: 1rem; width: 9rem; padding: 0.5rem;">0원</div>
+                    </div>
+                  </div>
                 </div>
                 ${attachPanelHtml}
               </div>
@@ -231,21 +249,26 @@
                 const thumb = a.thumbnail_view_url || viewUrl;
                 const downloadUrl = a.download_url || viewUrl;
                 const fileType = a.file_type || 'image';
+                const safeViewUrl = String(viewUrl).split("'").join("\\'");
+                const safeDownloadUrl = String(downloadUrl).split("'").join("\\'");
+                const safeName = String(a.filename || '').split("'").join("\\'");
+                const q = String.fromCharCode(39);
+                const onclickAttach = 'openAttachmentPreviewModal(' + a.id + ', ' + q + safeViewUrl + q + ', ' + q + safeDownloadUrl + q + ', ' + q + safeName + q + ', ' + q + fileType + q + ')';
                 if (fileType === 'video') {
-                  attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'video')">
-                <div style="width: 80px; height: 60px; background: #000; display: flex; align-items: center; justify-content: center;">
-                  <video src="${viewUrl}" preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>
-                </div>
-                <div class="position-absolute top-0 start-0 bg-dark bg-opacity-75 text-white p-1" style="font-size: 10px;"><i class="fas fa-play"></i></div>
-              </div>`;
+                  attachmentsHtml += '<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="' + onclickAttach + '">' +
+                    '<div style="width: 80px; height: 60px; background: #000; display: flex; align-items: center; justify-content: center;">' +
+                    '<video src=\'' + viewUrl + '\' preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>' +
+                    '</div>' +
+                    '<div class="position-absolute top-0 start-0 bg-dark bg-opacity-75 text-white p-1" style="font-size: 10px;"><i class="fas fa-play"></' + 'i></div>' +
+                    '</div>';
                 } else if (fileType === 'file') {
-                  attachmentsHtml += `<div class="position-relative d-flex align-items-center justify-content-center" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden; background:#f8f9fa;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'file')">
-                <i class="fas fa-file-alt text-secondary"></i>
-              </div>`;
+                  attachmentsHtml += '<div class="position-relative d-flex align-items-center justify-content-center" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden; background:#f8f9fa;" onclick="' + onclickAttach + '">' +
+                    '<i class="fas fa-file-alt text-secondary"></' + 'i>' +
+                    '</div>';
                 } else {
-                  attachmentsHtml += `<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="openAttachmentPreviewModal(${a.id}, '${viewUrl.replace(/'/g, "\\'")}', '${downloadUrl.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}', 'image')">
-                <img src="${thumb}" style="width: 80px; height: 60px; object-fit: cover; background:#fff; display: block;" alt="${name}">
-              </div>`;
+                  attachmentsHtml += '<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="' + onclickAttach + '">' +
+                    '<img src=\'' + thumb + '\' style="width: 80px; height: 60px; object-fit: cover; background:#fff; display: block;" alt=\'' + name + '\'>' +
+                    '</div>';
                 }
               });
               attachmentsHtml += '</div>';
@@ -325,11 +348,7 @@
               let assignBtn = '';
 
               if (canDrawingAssign && (isSalesTeam || isManager || isAdmin || isDrawingTeam)) {
-                assignBtn = `
-                    <button class="btn btn-outline-primary btn-sm" onclick="openDraftsmanAssignModal(${orderId})">
-                        <i class="fas fa-user-plus"></i> 담당자 지정
-                    </button>
-                 `;
+                assignBtn = '<button class="btn btn-outline-primary btn-sm" onclick="openDraftsmanAssignModal(' + orderId + ')"><i class="fas fa-user-plus"></' + 'i> 담당자 지정</' + 'button>';
               }
 
               let statusBadge = '';
@@ -340,64 +359,27 @@
 
               if (drawingStatus === 'TRANSFERRED') {
                 statusBadge = '<span class="badge bg-warning text-dark ms-2">확정 대기중</span>';
-
-                // 1. 영업/담당자/관리자: [수령 확정] OR [수정 요청]
                 if (canEdit && (isSalesTeam || isManager || isAdmin)) {
-                  mainBtn = `
-                <div class="d-flex gap-2">
-                    <button class="btn btn-success flex-grow-1" onclick="confirmDrawingReceipt(${orderId})">
-                        <i class="fas fa-check-double"></i> 수령 확정
-                    </button>
-                    <button class="btn btn-warning" onclick="openRevisionRequestModal(${orderId})">
-                        <i class="fas fa-undo"></i> 수정 요청
-                    </button>
-                </div>
-              `;
+                  mainBtn = '<div class="d-flex gap-2"><button class="btn btn-success flex-grow-1" onclick="confirmDrawingReceipt(' + orderId + ')"><i class="fas fa-check-double"></' + 'i> 수령 확정</' + 'button><button class="btn btn-warning" onclick="openRevisionRequestModal(' + orderId + ')"><i class="fas fa-undo"></' + 'i> 수정 요청</' + 'button></div>';
                 } else {
-                  // 도면팀인 경우: [재전송] (기존 파일 삭제됨), [전달 취소]
                   if (canDrawingWork) {
-                    mainBtn = `
-                        <div class="d-flex gap-2">
-                             <button class="btn btn-primary flex-grow-1" onclick="openTransferDrawingModal(${orderId}, true)">
-                                <i class="fas fa-sync"></i> 재전송
-                            </button>
-                            <button class="btn btn-outline-danger" onclick="cancelDrawingTransfer(${orderId})">
-                                <i class="fas fa-times"></i> 전달 취소
-                            </button>
-                        </div>
-                        <div class="text-muted small mt-1">
-                            <i class="fas fa-info-circle"></i> 재전송 시 <span class="text-danger fw-bold">기존 파일이 삭제</span>되고 새 파일로 대체됩니다.
-                        </div>
-                    `;
+                    mainBtn = '<div class="d-flex gap-2"><button class="btn btn-primary flex-grow-1" onclick="openTransferDrawingModal(' + orderId + ', true)"><i class="fas fa-sync"></' + 'i> 재전송</' + 'button><button class="btn btn-outline-danger" onclick="cancelDrawingTransfer(' + orderId + ')"><i class="fas fa-times"></' + 'i> 전달 취소</' + 'button></div><div class="text-muted small mt-1"><i class="fas fa-info-circle"></' + 'i> 재전송 시 <span class="text-danger fw-bold">기존 파일이 삭제</span>되고 새 파일로 대체됩니다.</div>';
                   } else {
-                    mainBtn = `<button class="btn btn-secondary" disabled>확정 대기중</button>`;
+                    mainBtn = '<button class="btn btn-secondary" disabled>확정 대기중</button>';
                   }
                 }
               } else if (drawingStatus === 'RETURNED') {
                 statusBadge = '<span class="badge bg-danger ms-2">수정 요청됨</span>';
                 // 수정 요청 상태에서는 도면팀이 다시 재전송(업로드) 해야 함
                 if (canDrawingWork) {
-                  mainBtn = `
-                    <button class="btn btn-primary" onclick="openTransferDrawingModal(${orderId}, true)">
-                        <i class="fas fa-paper-plane"></i> 수정본 전달 (재전송)
-                    </button>
-                     <div class="text-danger small mt-1">
-                        <i class="fas fa-exclamation-triangle"></i> 수정 요청 사항을 확인 후 다시 전달해주세요.
-                    </div>
-                `;
+                  mainBtn = '<button class="btn btn-primary" onclick="openTransferDrawingModal(' + orderId + ', true)"><i class="fas fa-paper-plane"></' + 'i> 수정본 전달 (재전송)</' + 'button><div class="text-danger small mt-1"><i class="fas fa-exclamation-triangle"></' + 'i> 수정 요청 사항을 확인 후 다시 전달해주세요.</div>';
                 } else {
-                  mainBtn = `<button class="btn btn-secondary" disabled>수정 작업 대기중</button>`;
+                  mainBtn = '<button class="btn btn-secondary" disabled>수정 작업 대기중</button>';
                 }
               } else {
-                // PENDING or WORKING
                 statusBadge = '<span class="badge bg-secondary ms-2">작업중</span>';
-                // Only Drawing Team or Assigned Draftsman can transfer (and must have ERP edit permission)
                 if (canDrawingWork) {
-                  mainBtn = `
-                        <button class="btn btn-primary" onclick="openTransferDrawingModal(${orderId}, false)">
-                            <i class="fas fa-paper-plane"></i> 도면 전달
-                        </button>
-                    `;
+                  mainBtn = '<button class="btn btn-primary" onclick="openTransferDrawingModal(' + orderId + ', false)"><i class="fas fa-paper-plane"></' + 'i> 도면 전달</' + 'button>';
                 } else {
                   // 담당자 미지정이면 도면 전달 불가
                   if (!hasAssignee) {
@@ -422,33 +404,21 @@
                   const byUserId = Number(h.by_user_id || 0) || '';
                   const note = escapeHtml(h.note || '요청 메모 없음');
                   const targetNo = Number(h.target_drawing_number || 0);
-                  const targetBadge = targetNo > 0 ? `<span class="badge bg-info text-dark ms-1">${targetNo}번 대상</span>` : '';
+                  const targetBadge = targetNo > 0 ? '<span class="badge bg-info text-dark ms-1">' + targetNo + '번 대상</span>' : '';
                   const reviewCheck = (h.review_check && typeof h.review_check === 'object') ? h.review_check : {};
                   const isChecked = !!reviewCheck.checked;
                   const checkedBy = escapeHtml(reviewCheck.checked_by_name || '-');
                   const checkedAt = escapeHtml(reviewCheck.checked_at || '-');
                   const pinBadge = idx === 0 ? '<span class="badge bg-danger ms-1">최신 요청</span>' : '';
                   const checkBadge = isChecked
-                    ? `<span class="badge bg-success ms-1">반영 완료</span>`
-                    : `<span class="badge bg-secondary ms-1">미완료</span>`;
-                  const toggleBtn = `
-                    <button class="btn btn-sm ${isChecked ? 'btn-outline-secondary' : 'btn-outline-success'} mt-2"
-                      onclick="toggleRevisionChecklist(${orderId}, '${requestAtEnc}', '${String(byUserId)}', ${isChecked ? 'false' : 'true'})">
-                      <i class="fas ${isChecked ? 'fa-rotate-left' : 'fa-check'}"></i>
-                      ${isChecked ? '완료 해제' : '반영 완료'}
-                    </button>
-                  `;
+                    ? '<span class="badge bg-success ms-1">반영 완료</span>'
+                    : '<span class="badge bg-secondary ms-1">미완료</span>';
+                  const onclickToggle = 'toggleRevisionChecklist(' + orderId + ', \'' + requestAtEnc + '\', \'' + String(byUserId) + '\', ' + (isChecked ? 'false' : 'true') + ')';
+                  const toggleBtn = '<button class="btn btn-sm ' + (isChecked ? 'btn-outline-secondary' : 'btn-outline-success') + ' mt-2" onclick="' + onclickToggle + '"><i class="fas ' + (isChecked ? 'fa-rotate-left' : 'fa-check') + '"></' + 'i>' + (isChecked ? '완료 해제' : '반영 완료') + '</' + 'button>';
                   const checkMeta = isChecked
-                    ? `<div class="small text-success mt-1"><i class="fas fa-user-check"></i> ${checkedBy} · ${checkedAt}</div>`
+                    ? '<div class="small text-success mt-1"><i class="fas fa-user-check"></' + 'i> ' + checkedBy + ' · ' + checkedAt + '</div>'
                     : '';
-                  return `
-                    <div class="border rounded p-2 mb-2 bg-white">
-                      <div class="small text-muted mb-1">${when} · ${by} ${pinBadge} ${checkBadge} ${targetBadge}</div>
-                      <div class="small">${note}</div>
-                      ${checkMeta}
-                      ${toggleBtn}
-                    </div>
-                  `;
+                  return '<div class="border rounded p-2 mb-2 bg-white"><div class="small text-muted mb-1">' + when + ' · ' + by + ' ' + pinBadge + ' ' + checkBadge + ' ' + targetBadge + '</div><div class="small">' + note + '</div>' + checkMeta + toggleBtn + '</div>';
                 }).join('')
                 : '<div class="text-muted small">수정 요청 이력이 없습니다.</div>';
 
@@ -457,24 +427,15 @@
               const prevTransfer = transferEvents.length > 1 ? transferEvents[transferEvents.length - 2] : null;
               const latestFiles = Array.isArray((latestTransfer || {}).files) ? latestTransfer.files : [];
               const prevFiles = Array.isArray((prevTransfer || {}).files) ? prevTransfer.files : [];
-              const compareFilesHtml = `
-                <div class="row g-2">
-                  <div class="col-md-6">
-                    <div class="border rounded p-2 h-100 bg-light">
-                      <div class="fw-semibold small mb-1">이전본 ${prevTransfer ? '' : '(없음)'}</div>
-                      <div class="small text-muted mb-2">${prevTransfer ? escapeHtml(prevTransfer.transferred_at || '-') : '-'}</div>
-                      ${prevTransfer ? renderGatewayFiles(prevFiles, `wb_prev_${orderId}`) : '<div class="text-muted small">비교할 이전 전달본이 없습니다.</div>'}
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <div class="border rounded p-2 h-100 bg-light">
-                      <div class="fw-semibold small mb-1">최신본 ${latestTransfer ? '' : '(없음)'}</div>
-                      <div class="small text-muted mb-2">${latestTransfer ? escapeHtml(latestTransfer.transferred_at || '-') : '-'}</div>
-                      ${latestTransfer ? renderGatewayFiles(latestFiles, `wb_latest_${orderId}`) : '<div class="text-muted small">최신 전달본이 없습니다.</div>'}
-                    </div>
-                  </div>
-                </div>
-              `;
+              const compareFilesHtml = '<div class="row g-2"><div class="col-md-6"><div class="border rounded p-2 h-100 bg-light">' +
+                '<div class="fw-semibold small mb-1">이전본 ' + (prevTransfer ? '' : '(없음)') + '</div>' +
+                '<div class="small text-muted mb-2">' + (prevTransfer ? escapeHtml(prevTransfer.transferred_at || '-') : '-') + '</div>' +
+                (prevTransfer ? renderGatewayFiles(prevFiles, 'wb_prev_' + orderId) : '<div class="text-muted small">비교할 이전 전달본이 없습니다.</div>') +
+                '</div></div><div class="col-md-6"><div class="border rounded p-2 h-100 bg-light">' +
+                '<div class="fw-semibold small mb-1">최신본 ' + (latestTransfer ? '' : '(없음)') + '</div>' +
+                '<div class="small text-muted mb-2">' + (latestTransfer ? escapeHtml(latestTransfer.transferred_at || '-') : '-') + '</div>' +
+                (latestTransfer ? renderGatewayFiles(latestFiles, 'wb_latest_' + orderId) : '<div class="text-muted small">최신 전달본이 없습니다.</div>') +
+                '</div></div></div>';
 
               let currentTaskText = '도면 담당자가 도면 전달을 진행해 주세요.';
               if (!hasAssignee) currentTaskText = '도면 담당자를 먼저 지정해야 합니다.';
@@ -486,16 +447,9 @@
                 { label: '최신 전달본 확인', ok: latestFiles.length > 0 || (Array.isArray(sd.drawing_current_files) && sd.drawing_current_files.length > 0) },
                 { label: '요청사항 검토', ok: drawingStatus !== 'RETURNED' || revisionRequests.length > 0 },
               ];
-              const checklistHtml = `
-                <div class="bg-white border rounded p-2 mb-2">
-                  <div class="small fw-semibold mb-1"><i class="fas fa-list-check text-primary"></i> 작업 체크리스트</div>
-                  ${checklist.map(item => `
-                    <div class="small ${item.ok ? 'text-success' : 'text-secondary'}">
-                      <i class="fas ${item.ok ? 'fa-check-circle' : 'fa-circle'}"></i> ${escapeHtml(item.label)}
-                    </div>
-                  `).join('')}
-                </div>
-              `;
+              const checklistHtml = '<div class="bg-white border rounded p-2 mb-2"><div class="small fw-semibold mb-1"><i class="fas fa-list-check text-primary"></' + 'i> 작업 체크리스트</div>' + checklist.map(function (item) {
+                return '<div class="small ' + (item.ok ? 'text-success' : 'text-secondary') + '"><i class="fas ' + (item.ok ? 'fa-check-circle' : 'fa-circle') + '"></' + 'i> ' + escapeHtml(item.label) + '</div>';
+              }).join('') + '</div>';
 
               const latestEvent = drawHistory.length ? drawHistory[drawHistory.length - 1] : null;
               const latestAction = (latestEvent && latestEvent.action) || '';
