@@ -1037,10 +1037,28 @@
         const totalFiles = files.length;
         let ok = 0;
         if (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD) {
-            const CONCURRENCY = 3;
+            let sessionMap = {};
+            try {
+                const bRes = await fetch('/api/upload/session/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        files: files.map(f => ({ filename: f.name, size: f.size })),
+                        folder: `orders/${ORDER_ID}/measurement`,
+                        category: 'measurement'
+                    })
+                });
+                const bData = await bRes.json();
+                if (bData.success && bData.sessions) {
+                    for (let s of bData.sessions) s.success = true;
+                    for (let s of bData.sessions) sessionMap[s.filename] = s;
+                }
+            } catch (e) { }
+
+            const CONCURRENCY = 10;
             for (let start = 0; start < files.length; start += CONCURRENCY) {
                 const chunk = files.slice(start, start + CONCURRENCY);
-                const results = await Promise.all(chunk.map(function (f) { return erpDoDirectUploadOne(f, 'measurement', itemIndex); }));
+                const results = await Promise.all(chunk.map(function (f) { return erpDoDirectUploadOne(f, 'measurement', itemIndex, sessionMap[f.name]); }));
                 for (let i = 0; i < results.length; i++) {
                     if (results[i] && results[i].success) ok += 1;
                     else if (results[i]) console.warn('item upload failed', results[i]);
@@ -1305,26 +1323,35 @@ ${list.map(renderCard).join('')}
                         if (video) video.src = data.view_url;
                     }
                 })
-                .catch(function () {});
+                .catch(function () { });
         }
     }
 
-    async function erpDoDirectUploadOne(file, category, itemIndex) {
-        const folder = `orders/${ORDER_ID}/${category || 'attachments'}`;
-        const sessRes = await fetch('/api/upload/session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename: file.name, size: file.size, folder: folder })
-        });
-        const sess = await sessRes.json();
-        if (!sessRes.ok || !sess.success || !sess.upload_url) {
-            const fd = new FormData();
-            fd.append('file', file);
-            fd.append('category', category || 'measurement');
-            if (itemIndex != null) fd.append('item_index', String(itemIndex));
-            const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
-            const data = await res.json();
-            return data.success ? { success: true, attachment: data.attachment } : data;
+    async function erpDoDirectUploadOne(originalFile, category, itemIndex, preFetchedSess) {
+        let file = originalFile;
+        if (typeof window.compressImageFile === 'function') {
+            try { file = await window.compressImageFile(originalFile, { quality: 0.8 }); } catch (e) { console.warn('Compression failed', e); }
+        }
+
+        let sess = preFetchedSess;
+        if (!sess || !sess.success || !sess.upload_url) {
+            const folder = `orders/${ORDER_ID}/${category || 'attachments'}`;
+            const sessRes = await fetch('/api/upload/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: file.name, size: file.size, folder: folder })
+            });
+            sess = await sessRes.json();
+
+            if (!sessRes.ok || !sess.success || !sess.upload_url) {
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('category', category || 'measurement');
+                if (itemIndex != null) fd.append('item_index', String(itemIndex));
+                const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
+                const data = await res.json();
+                return data.success ? { success: true, attachment: data.attachment } : data;
+            }
         }
         const fallbackForm = async () => {
             const fd = new FormData();
@@ -1337,7 +1364,11 @@ ${list.map(renderCard).join('')}
         };
         let putRes;
         try {
-            putRes = await fetch(sess.upload_url, { method: 'PUT', body: file });
+            putRes = await fetch(sess.upload_url, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                body: file
+            });
         } catch (_) {
             return fallbackForm();
         }
@@ -1381,10 +1412,29 @@ ${list.map(renderCard).join('')}
 
         let ok = 0;
         if (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD) {
-            const CONCURRENCY = 3;
+            let sessionMap = {};
+            try {
+                const folder = `orders/${ORDER_ID}/${category || 'attachments'}`;
+                const bRes = await fetch('/api/upload/session/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        files: files.map(f => ({ filename: f.name, size: f.size })),
+                        folder: folder,
+                        category: category
+                    })
+                });
+                const bData = await bRes.json();
+                if (bData.success && bData.sessions) {
+                    for (let s of bData.sessions) s.success = true;
+                    for (let s of bData.sessions) sessionMap[s.filename] = s;
+                }
+            } catch (e) { }
+
+            const CONCURRENCY = 10;
             for (let start = 0; start < files.length; start += CONCURRENCY) {
                 const chunk = files.slice(start, start + CONCURRENCY);
-                const results = await Promise.all(chunk.map(function (f) { return erpDoDirectUploadOne(f, category, null); }));
+                const results = await Promise.all(chunk.map(function (f) { return erpDoDirectUploadOne(f, category, null, sessionMap[f.name]); }));
                 for (let i = 0; i < results.length; i++) {
                     if (results[i] && results[i].success) ok += 1;
                     else if (results[i]) console.warn('upload failed', results[i]);
@@ -1538,7 +1588,7 @@ ${list.map(renderCard).join('')}
             if (!option) option = '상담';
 
             let handle = getRowVal('handle');
-            
+
             let misc = getRowVal('misc');
             if (!misc) misc = '상담';
 
@@ -1580,7 +1630,7 @@ ${list.map(renderCard).join('')}
     function erpCopyToClipboard() {
         const textarea = document.getElementById('erp-conversion-text');
         if (!textarea || !textarea.value) return;
-        
+
         textarea.select();
         textarea.setSelectionRange(0, 99999); // Mobile compatibility
 
@@ -1611,7 +1661,7 @@ ${list.map(renderCard).join('')}
 
     document.addEventListener('DOMContentLoaded', function () {
         if (!ERP_BETA_ENABLED) return;
-        
+
         document.getElementById('erp-attachments-upload-btn')?.addEventListener('click', erpUploadSelectedAttachments);
         document.getElementById('erp-gen-text-btn')?.addEventListener('click', erpGenerateConversionText);
         document.getElementById('erp-copy-text-btn')?.addEventListener('click', erpCopyToClipboard);

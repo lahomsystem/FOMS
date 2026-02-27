@@ -212,6 +212,81 @@ def api_upload_session():
         print(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)}), 500
 
+@attachments_bp.route('/upload/session/batch', methods=['POST'])
+@login_required
+def api_upload_session_batch():
+    """Phase D: Direct R2 다중 업로드용 세션 발급 (여러 파일의 presigned PUT URL 일괄 발급)."""
+    try:
+        data = request.get_json(silent=True) or {}
+        files = data.get('files', [])
+        folder = data.get('folder', '')
+        category_param = data.get('category')
+
+        if not files or not isinstance(files, list):
+            return jsonify({'success': False, 'message': 'files 리스트가 필요합니다.'}), 400
+
+        if not folder or '..' in folder or folder.startswith('/'):
+            return jsonify({'success': False, 'message': '유효하지 않은 folder 경로입니다.'}), 400
+
+        if category_param is not None:
+            category = normalize_attachment_category(category_param) or 'measurement'
+        else:
+            parts = folder.split('/')
+            if len(parts) >= 2 and parts[0] == 'orders' and parts[1].isdigit():
+                seg = parts[2] if len(parts) > 2 else 'measurement'
+                if seg == 'drawing_gateway':
+                    category = 'drawing'
+                elif seg == 'blueprint':
+                    category = 'measurement'
+                else:
+                    category = normalize_attachment_category(seg) or 'measurement'
+            else:
+                category = 'measurement'
+
+        storage = get_storage()
+        sessions = []
+        
+        from datetime import datetime, timezone, timedelta
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=900)
+        expires_at_str = expires_at.isoformat().replace('+00:00', 'Z')
+
+        for f_data in files:
+            filename = f_data.get('filename')
+            size = f_data.get('size', 0)
+            
+            if not filename or not isinstance(size, (int, float)) or size <= 0:
+                continue
+
+            max_size = get_erp_media_max_size(filename)
+            if size > max_size:
+                continue
+
+            if not allowed_erp_attachment_file(filename, category):
+                continue
+                
+            key = storage.generate_direct_upload_key(filename, folder)
+            ct = storage._get_content_type(filename)
+            if ct not in DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES:
+                continue
+
+            upload_url = storage.generate_presigned_put_url(key, ct, expires_in=900)
+            if not upload_url:
+                continue
+                
+            sessions.append({
+                'filename': filename,
+                'upload_url': upload_url,
+                'key': key,
+                'expires_at': expires_at_str
+            })
+
+        return jsonify({'success': True, 'sessions': sessions})
+    except Exception as e:
+        import traceback
+        print(f"업로드 다중 세션 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 
 @attachments_bp.route('/orders/<int:order_id>/attachments/complete', methods=['POST'])
 @login_required
