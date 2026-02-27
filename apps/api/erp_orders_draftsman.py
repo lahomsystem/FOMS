@@ -413,6 +413,8 @@ def api_order_confirm_drawing_receipt(order_id):
                             storage.delete_file(key)
                         except Exception:
                             pass
+                # ← DB 레코드 삭제 반드시 커밋 (없으면 빈 카드가 목록에 남음)
+                db.commit()
         except Exception as cleanup_err:
             import traceback
             print(f"[WARN] 수령 확정 구 버전 파일 정리 중 오류 (주문 #{order_id}): {cleanup_err}")
