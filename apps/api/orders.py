@@ -659,9 +659,13 @@ def update_order_status():
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
         
-        # 상태 업데이트 (AS 접수 시 AS 방문일 자동 입력 금지: scheduled_date/as_received_date 미설정)
         old_status_val: str = getattr(order, 'status', None) or ''
         order.status = new_status
+
+        # AS 접수 상태로 변경 시 접수일이 없으면 오늘 날짜 자동 설정
+        if new_status == 'AS_RECEIVED' and not getattr(order, 'as_received_date', None):
+            setattr(order, 'as_received_date', datetime.date.today().strftime('%Y-%m-%d'))
+
         db.commit()
         
         # 로그 기록
@@ -722,7 +726,10 @@ def bulk_update_order_status():
                 updated += 1
                 continue
             setattr(order, 'status', new_status)
-            # AS 접수 시 AS 방문일 자동 입력 금지: scheduled_date, as_received_date, schedule.construction.date 설정하지 않음
+            # AS 접수 상태로 변경 시 접수일이 없으면 오늘 날짜 자동 설정
+            if new_status == 'AS_RECEIVED' and not getattr(order, 'as_received_date', None):
+                today_str = datetime.datetime.now().strftime('%Y-%m-%d')
+                setattr(order, 'as_received_date', today_str)
             sd_raw = getattr(order, 'structured_data', None)
             if getattr(order, 'is_erp_beta', False) and sd_raw:
                 sd = sd_raw
@@ -735,7 +742,6 @@ def bulk_update_order_status():
                     wf['stage'] = new_status
                     wf['stage_updated_at'] = datetime.datetime.now().isoformat()
                     sd['workflow'] = wf
-                    # schedule.construction.date 는 AS 접수 시 자동 세팅하지 않음 (AS 방문일은 사용자 입력만)
                     setattr(order, 'structured_data', sd)
                     flag_modified(order, 'structured_data')
                 db.add(OrderEvent(
