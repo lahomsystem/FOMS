@@ -521,7 +521,7 @@ def update_order_field():
         'regional_blueprint_sent', 'regional_order_upload',
         'regional_cargo_sent', 'regional_construction_info_sent',
         'as_received_date', 'as_completed_date',  # AS 관련 날짜 필드들
-        'as_visit_date', 'as_content', # AS 방문일 및 내용 (직접 입력용)
+        'as_visit_date', 'as_content', 'as_pending',  # AS 방문일·내용·미결 플래그
         'measurement_date',  # 실측일 필드
         'regional_memo',  # 메모 필드 허용 (수납장 대시보드 등)
         'is_cabinet', 'cabinet_status',  # 수납장 관련
@@ -534,13 +534,13 @@ def update_order_field():
         old_value = getattr(order, field, None)
         if field == 'as_visit_date':
             order.scheduled_date = value
-        elif field == 'as_content':
-            # as_content는 모델 필드가 아니므로 건너뜀 (아래 structured_data 로직에서 처리)
+        elif field == 'as_content' or field == 'as_pending':
+            # as_content, as_pending는 모델 필드가 아니므로 건너뜀 (structured_data에서 처리)
             pass
         else:
             setattr(order, field, value)
 
-        # AS 완료일 입력 시 ERP 프로세스 AS 처리 카테고리 > 완료로 처리 (기존/Beta 동일)
+        # AS 완료일 입력 시 ERP 프로세스 AS 처리 카테고리 > 완료로 처리 (기존/Beta 동일), 미결 해제
         if field == 'as_completed_date' and value:
             setattr(order, 'status', 'AS_COMPLETED')
             if getattr(order, 'is_erp_beta', False):
@@ -553,10 +553,17 @@ def update_order_field():
                     sd['workflow'] = wf
                     setattr(order, 'structured_data', sd)
                     flag_modified(order, 'structured_data')
+            sd = getattr(order, 'structured_data', None) or {}
+            if isinstance(sd, dict):
+                shipment = sd.get('shipment')
+                if isinstance(shipment, dict) and shipment.get('as_pending'):
+                    shipment['as_pending'] = False
+                    setattr(order, 'structured_data', sd)
+                    flag_modified(order, 'structured_data')
 
-        # ERP Beta 주문이거나 structured_data 연동이 필요한 필드(as_content 등)인 경우
+        # ERP Beta 주문이거나 structured_data 연동이 필요한 필드(as_content, as_pending 등)인 경우
         _is_beta = getattr(order, 'is_erp_beta', False)
-        if _is_beta or field == 'as_content' or field == 'as_visit_date':
+        if _is_beta or field == 'as_content' or field == 'as_visit_date' or field == 'as_pending':
             # structured_data가 None이면 빈 딕셔너리로 초기화 (JSONB 필드 대응)
             sd = getattr(order, 'structured_data', None)
             if sd is None:
@@ -565,7 +572,12 @@ def update_order_field():
             elif not isinstance(sd, dict):
                 sd = {}
 
-            if field == 'manager_name':
+            if field == 'as_pending':
+                shipment = ensure_path(sd, 'shipment')
+                shipment['as_pending'] = str(value).lower() in ('1', 'true', 'yes')
+                setattr(order, 'structured_data', sd)
+                flag_modified(order, 'structured_data')
+            elif field == 'manager_name':
                 parties = ensure_path(sd, 'parties')
                 manager = ensure_path(parties, 'manager')
                 manager['name'] = value
