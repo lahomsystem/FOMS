@@ -324,9 +324,9 @@
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div class="small fw-semibold text-muted erp-item-attachment-hint">항목 실측 이미지</div>
                 <div class="d-flex gap-1">
-                    <input type="file" class="d-none erp-item-attachments-input" accept="image/*" multiple>
-                    <button type="button" class="btn btn-sm btn-outline-primary erp-item-upload-btn">
-                        <i class="fas fa-image"></i> 이미지 추가
+                    <input type="file" class="d-none erp-item-attachments-input" accept="image/*" multiple onchange="erpUploadItemAttachmentsPromptless(this)">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="this.previousElementSibling.click()">
+                        <i class="fas fa-image"></i> 즉시 추가
                     </button>
                 </div>
             </div>
@@ -390,20 +390,7 @@
                 }
             }
         });
-        const itemAttachmentInput = row.querySelector('.erp-item-attachments-input');
-        row.querySelector('.erp-item-upload-btn')?.addEventListener('click', () => {
-            itemAttachmentInput?.click();
-        });
-        itemAttachmentInput?.addEventListener('change', async () => {
-            const files = itemAttachmentInput.files ? Array.from(itemAttachmentInput.files) : [];
-            if (!files.length) return;
-            const itemIndex = erpGetItemIndexFromRow(row);
-            if (itemIndex < 0) return;
-            if (typeof erpUploadItemAttachments === 'function') {
-                await erpUploadItemAttachments(itemIndex, files);
-            }
-            itemAttachmentInput.value = '';
-        });
+        // Event listener removed as it's now handled by inline onchange="erpUploadItemAttachmentsPromptless(this)"
 
         setTimeout(() => {
             erpRefreshItemRowIndices();
@@ -1030,17 +1017,66 @@
             erpAttachmentsSetStatus('업로드할 이미지를 선택하세요.', true);
             return;
         }
-        erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 이미지 업로드 중... (${files.length}개)`);
+
+        // --- Optimistic UI Start ---
+        // 1. UI에 회색 스켈레톤/로딩 카드 먼저 렌더링
+        const row = erpGetItemRows()[itemIndex];
+        const galleryWrap = row ? row.querySelector('.erp-item-attachments-gallery') : null;
+        if (galleryWrap) {
+            // "연결된 실측 이미지가 없습니다." 텍스트 제거
+            const emptyText = galleryWrap.querySelector('.text-muted');
+            if (emptyText && emptyText.textContent.includes('없습니다')) emptyText.remove();
+
+            files.forEach((f, fi) => {
+                const uniqueId = 'opt-ul-' + Date.now() + '-' + fi;
+                f._optId = uniqueId; // 파일 객체에 임시 ID 부여
+                const name = escapeHtml(f.name);
+                let previewUrl = '';
+                try { previewUrl = URL.createObjectURL(f); } catch (e) { }
+
+                const placeholderHtml = `
+<div id="${uniqueId}" class="border rounded bg-light p-1 d-flex align-items-center gap-1 opacity-75" style="max-width: 200px;">
+    <div class="position-relative">
+        <img src="${previewUrl}" class="rounded" style="width:40px;height:40px;object-fit:cover;filter:grayscale(100%);">
+        <div class="spinner-border spinner-border-sm text-primary position-absolute" style="top:50%;left:50%;margin-top:-0.5rem;margin-left:-0.5rem;" role="status"></div>
+    </div>
+    <div class="small text-truncate flex-grow-1" style="max-width: 80px;" title="${name}">${name}</div>
+    <div class="small text-primary fw-bold pe-2 opt-pct">0%</div>
+</div>`;
+                galleryWrap.insertAdjacentHTML('beforeend', placeholderHtml);
+            });
+        }
+        // --- Optimistic UI End ---
+
+        erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 이미지 등록 중... (${files.length}개)`);
         const progressWrap = document.getElementById('erp-attachments-progress');
         const progressBar = document.getElementById('erp-attachments-progress-bar');
         if (progressWrap) progressWrap.classList.remove('d-none');
         const totalFiles = files.length;
         let ok = 0;
         if (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD) {
-            const CONCURRENCY = 3;
+            let sessionMap = {};
+            try {
+                const bRes = await fetch('/api/upload/session/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        files: files.map(f => ({ filename: f.name, size: f.size })),
+                        folder: `orders/${ORDER_ID}/measurement`,
+                        category: 'measurement'
+                    })
+                });
+                const bData = await bRes.json();
+                if (bData.success && bData.sessions) {
+                    for (let s of bData.sessions) s.success = true;
+                    for (let s of bData.sessions) sessionMap[s.filename] = s;
+                }
+            } catch (e) { }
+
+            const CONCURRENCY = 10;
             for (let start = 0; start < files.length; start += CONCURRENCY) {
                 const chunk = files.slice(start, start + CONCURRENCY);
-                const results = await Promise.all(chunk.map(function (f) { return erpDoDirectUploadOne(f, 'measurement', itemIndex); }));
+                const results = await Promise.all(chunk.map(function (f) { return erpDoDirectUploadOne(f, 'measurement', itemIndex, sessionMap[f.name]); }));
                 for (let i = 0; i < results.length; i++) {
                     if (results[i] && results[i].success) ok += 1;
                     else if (results[i]) console.warn('item upload failed', results[i]);
@@ -1050,6 +1086,15 @@
                     const p = Math.round((done / totalFiles) * 100);
                     progressBar.style.width = p + '%';
                     progressBar.textContent = p + '%';
+
+                    // Update optimistic cards
+                    chunk.forEach(f => {
+                        const el = document.getElementById(f._optId);
+                        if (el) {
+                            const pctSpan = el.querySelector('.opt-pct');
+                            if (pctSpan) pctSpan.textContent = '완료';
+                        }
+                    });
                 }
             }
         } else {
@@ -1081,8 +1126,21 @@
         }
         if (progressWrap) progressWrap.classList.add('d-none');
         if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
-        erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 업로드 완료: ${ok}/${files.length}`);
+        erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 신속 등록 완료: ${ok}/${files.length}`);
         await erpLoadAttachments();
+    }
+
+    async function erpUploadItemAttachmentsPromptless(inputElement) {
+        if (!inputElement || !inputElement.files || inputElement.files.length === 0) return;
+        const row = inputElement.closest('.erp-item-row');
+        if (!row) return;
+        // 행 인덱스 계산
+        const rows = Array.from(document.querySelectorAll('.erp-item-row'));
+        const itemIndex = rows.indexOf(row);
+        if (itemIndex < 0) return;
+
+        await erpUploadItemAttachments(itemIndex, Array.from(inputElement.files));
+        inputElement.value = ''; // Reset input to allow triggering change event again with same files
     }
 
     function erpRenderItemAttachmentPanels() {
@@ -1305,26 +1363,35 @@ ${list.map(renderCard).join('')}
                         if (video) video.src = data.view_url;
                     }
                 })
-                .catch(function () {});
+                .catch(function () { });
         }
     }
 
-    async function erpDoDirectUploadOne(file, category, itemIndex) {
-        const folder = `orders/${ORDER_ID}/${category || 'attachments'}`;
-        const sessRes = await fetch('/api/upload/session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename: file.name, size: file.size, folder: folder })
-        });
-        const sess = await sessRes.json();
-        if (!sessRes.ok || !sess.success || !sess.upload_url) {
-            const fd = new FormData();
-            fd.append('file', file);
-            fd.append('category', category || 'measurement');
-            if (itemIndex != null) fd.append('item_index', String(itemIndex));
-            const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
-            const data = await res.json();
-            return data.success ? { success: true, attachment: data.attachment } : data;
+    async function erpDoDirectUploadOne(originalFile, category, itemIndex, preFetchedSess) {
+        let file = originalFile;
+        if (typeof window.compressImageFile === 'function') {
+            try { file = await window.compressImageFile(originalFile, { quality: 0.8 }); } catch (e) { console.warn('Compression failed', e); }
+        }
+
+        let sess = preFetchedSess;
+        if (!sess || !sess.success || !sess.upload_url) {
+            const folder = `orders/${ORDER_ID}/${category || 'attachments'}`;
+            const sessRes = await fetch('/api/upload/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: file.name, size: file.size, folder: folder })
+            });
+            sess = await sessRes.json();
+
+            if (!sessRes.ok || !sess.success || !sess.upload_url) {
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('category', category || 'measurement');
+                if (itemIndex != null) fd.append('item_index', String(itemIndex));
+                const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
+                const data = await res.json();
+                return data.success ? { success: true, attachment: data.attachment } : data;
+            }
         }
         const fallbackForm = async () => {
             const fd = new FormData();
@@ -1337,7 +1404,11 @@ ${list.map(renderCard).join('')}
         };
         let putRes;
         try {
-            putRes = await fetch(sess.upload_url, { method: 'PUT', body: file });
+            putRes = await fetch(sess.upload_url, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                body: file
+            });
         } catch (_) {
             return fallbackForm();
         }
@@ -1372,6 +1443,33 @@ ${list.map(renderCard).join('')}
         }
         const categoryEl = document.getElementById('erp-attachments-category');
         const category = erpNormalizeAttachmentCategory(categoryEl ? categoryEl.value : 'measurement');
+        // --- Optimistic UI Start ---
+        const galleryWrap = document.getElementById('erp-attachments-gallery');
+        if (galleryWrap) {
+            files.forEach((f, fi) => {
+                const uniqueId = 'opt-ul-gen-' + Date.now() + '-' + fi;
+                f._optId = uniqueId;
+                const name = escapeHtml(f.name);
+                let previewUrl = '';
+                try { previewUrl = URL.createObjectURL(f); } catch (e) { }
+
+                const placeholderHtml = `
+<div id="${uniqueId}" class="col-md-4 col-sm-6 col-12 opacity-75">
+    <div class="card h-100 bg-light border-dashed">
+        <div class="card-body p-2 d-flex flex-column align-items-center justify-content-center position-relative">
+            <img src="${previewUrl}" class="rounded mb-2" style="width:100%;height:180px;object-fit:cover;filter:grayscale(80%);">
+            <div class="spinner-border text-primary position-absolute" style="top:50%;left:50%;margin-top:-1rem;margin-left:-1rem;" role="status"></div>
+            <div class="small text-truncate w-100 text-center" title="${name}">${name}</div>
+            <div class="small text-primary fw-bold mt-1 opt-pct">0%</div>
+        </div>
+    </div>
+</div>`;
+                // 상단에 임시 요소 추가 (append 대신 prepend에 가깝게 하려면)
+                galleryWrap.insertAdjacentHTML('afterbegin', placeholderHtml);
+            });
+        }
+        // --- Optimistic UI End ---
+
         erpAttachmentsSetStatus(`업로드 중... (${files.length}개)`);
 
         const progressWrap = document.getElementById('erp-attachments-progress');
@@ -1381,10 +1479,29 @@ ${list.map(renderCard).join('')}
 
         let ok = 0;
         if (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD) {
-            const CONCURRENCY = 3;
+            let sessionMap = {};
+            try {
+                const folder = `orders/${ORDER_ID}/${category || 'attachments'}`;
+                const bRes = await fetch('/api/upload/session/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        files: files.map(f => ({ filename: f.name, size: f.size })),
+                        folder: folder,
+                        category: category
+                    })
+                });
+                const bData = await bRes.json();
+                if (bData.success && bData.sessions) {
+                    for (let s of bData.sessions) s.success = true;
+                    for (let s of bData.sessions) sessionMap[s.filename] = s;
+                }
+            } catch (e) { }
+
+            const CONCURRENCY = 10;
             for (let start = 0; start < files.length; start += CONCURRENCY) {
                 const chunk = files.slice(start, start + CONCURRENCY);
-                const results = await Promise.all(chunk.map(function (f) { return erpDoDirectUploadOne(f, category, null); }));
+                const results = await Promise.all(chunk.map(function (f) { return erpDoDirectUploadOne(f, category, null, sessionMap[f.name]); }));
                 for (let i = 0; i < results.length; i++) {
                     if (results[i] && results[i].success) ok += 1;
                     else if (results[i]) console.warn('upload failed', results[i]);
@@ -1394,6 +1511,15 @@ ${list.map(renderCard).join('')}
                     const p = Math.round((done / totalFiles) * 100);
                     progressBar.style.width = p + '%';
                     progressBar.textContent = p + '%';
+
+                    // Update optimistic cards
+                    chunk.forEach(f => {
+                        const el = document.getElementById(f._optId);
+                        if (el) {
+                            const pctSpan = el.querySelector('.opt-pct');
+                            if (pctSpan) pctSpan.textContent = '완료';
+                        }
+                    });
                 }
             }
         } else {
@@ -1538,7 +1664,7 @@ ${list.map(renderCard).join('')}
             if (!option) option = '상담';
 
             let handle = getRowVal('handle');
-            
+
             let misc = getRowVal('misc');
             if (!misc) misc = '상담';
 
@@ -1580,7 +1706,7 @@ ${list.map(renderCard).join('')}
     function erpCopyToClipboard() {
         const textarea = document.getElementById('erp-conversion-text');
         if (!textarea || !textarea.value) return;
-        
+
         textarea.select();
         textarea.setSelectionRange(0, 99999); // Mobile compatibility
 
@@ -1611,7 +1737,7 @@ ${list.map(renderCard).join('')}
 
     document.addEventListener('DOMContentLoaded', function () {
         if (!ERP_BETA_ENABLED) return;
-        
+
         document.getElementById('erp-attachments-upload-btn')?.addEventListener('click', erpUploadSelectedAttachments);
         document.getElementById('erp-gen-text-btn')?.addEventListener('click', erpGenerateConversionText);
         document.getElementById('erp-copy-text-btn')?.addEventListener('click', erpCopyToClipboard);
