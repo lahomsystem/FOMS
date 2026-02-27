@@ -108,26 +108,10 @@ def api_order_transfer_drawing(order_id):
 
         if new_files:
             if mode == 'REPLACE_ALL':
-                storage = get_storage()
+                # 기존 파일은 타임라인 히스토리에서 계속 참조되므로 R2에서 삭제하지 않음.
+                # drawing_current_files 만 새 파일로 교체한다.
                 for idx, old_file in enumerate(old_files):
-                    old_key = ((old_file or {}).get('key') or '').strip()
-                    if old_key:
-                        replaced_target_numbers.append(idx + 1)
-                        try:
-                            storage.delete_file(old_key)
-                        except Exception:
-                            pass
-                        rows = db.query(OrderAttachment).filter(
-                            OrderAttachment.order_id == order_id,
-                            OrderAttachment.storage_key == old_key
-                        ).all()
-                        for row in rows:
-                            try:
-                                if row.thumbnail_key:
-                                    storage.delete_file(row.thumbnail_key)
-                            except Exception:
-                                pass
-                            db.delete(row)
+                    replaced_target_numbers.append(idx + 1)
                 updated_files = list(new_files)
             elif replace_target_keys:
                 indices_to_replace = []
@@ -139,27 +123,9 @@ def api_order_transfer_drawing(order_id):
                 if len(indices_to_replace) != len(replace_target_keys):
                     return jsonify({'success': False, 'message': '일부 교체 대상 도면을 찾을 수 없습니다. 목록을 새로고침 후 다시 시도해주세요.'}), 400
                 indices_to_replace.sort(key=lambda x: x[0], reverse=True)
-                storage = get_storage()
                 for idx, target_key in indices_to_replace:
                     replaced_target_numbers.append(idx + 1)
-                    target_item = old_files[idx] if idx < len(old_files) else {}
-                    target_file_key = (target_item.get('key') or '').strip()
-                    if target_file_key:
-                        try:
-                            storage.delete_file(target_file_key)
-                        except Exception:
-                            pass
-                        rows = db.query(OrderAttachment).filter(
-                            OrderAttachment.order_id == order_id,
-                            OrderAttachment.storage_key == target_file_key
-                        ).all()
-                        for row in rows:
-                            try:
-                                if row.thumbnail_key:
-                                    storage.delete_file(row.thumbnail_key)
-                            except Exception:
-                                pass
-                            db.delete(row)
+                    # 교체 대상 파일도 히스토리 참조를 위해 R2에서 삭제하지 않음.
                     updated_files.pop(idx)
                 first_index = min([x[0] for x in indices_to_replace])
                 for offset, nf in enumerate(new_files):
@@ -190,6 +156,7 @@ def api_order_transfer_drawing(order_id):
             'note': note,
             'files_count': len(new_files),
             'files': new_files,
+            'previous_current_files': old_files,  # 취소 시 복원용
             'mode': mode if mode else ('REPLACE' if replace_target_keys else 'APPEND'),
             'replace_target_keys': replace_target_keys if replace_target_keys else None,
             'replace_target_numbers': replaced_target_numbers if replaced_target_numbers else None,
@@ -280,11 +247,13 @@ def api_order_transfer_drawing(order_id):
 @erp_orders_drawing_bp.route('/<int:order_id>/cancel-transfer', methods=['POST'])
 @login_required
 def api_order_cancel_transfer(order_id):
-    """도면 전달 취소 (도면팀/관리자)"""
+    """도면 전달 취소 (도면팀/관리자)
+    수정 요청 후 재전달한 경우, 이번 전달에서 '새로 올린 파일'만 삭제하고
+    이전 상태(RETURNED 또는 PENDING)로 복원한다.
+    """
     db = None
     try:
         data = request.get_json(silent=True) or {}
-        note = data.get('note', '')
 
         db = get_db()
         order = db.query(Order).filter(Order.id == order_id).first()
@@ -317,22 +286,44 @@ def api_order_cancel_transfer(order_id):
             return jsonify({'success': False, 'message': '권한이 없습니다. (관리자/지정 도면담당/마지막 전달 실행자만 가능)'}), 403
 
         if s_data.get('drawing_status') != 'TRANSFERRED':
-            return jsonify({'success': False, 'message': '확정 대기(\'TRANSFERRED\') 상태에서만 취소할 수 있습니다.'}), 400
+            return jsonify({'success': False, 'message': "확정 대기('TRANSFERRED') 상태에서만 취소할 수 있습니다."}), 400
 
+        history = list(s_data.get('drawing_transfer_history', []))
         current_files = list(s_data.get('drawing_current_files', []) or [])
-        current_keys = []
-        for f in current_files:
-            if isinstance(f, dict):
-                k = (f.get('key') or '').strip()
-                if k:
-                    current_keys.append(k)
+
+        # ── 1. 취소할 최신 TRANSFER 이력 탐색 ──────────────────────────────────
+        latest_transfer_idx = None
+        latest_transfer_entry = None
+        for idx in range(len(history) - 1, -1, -1):
+            h = history[idx]
+            if isinstance(h, dict) and h.get('action') == 'TRANSFER':
+                latest_transfer_idx = idx
+                latest_transfer_entry = h
+                break
+
+        # ── 2. 이번 전달에서 새로 올린 파일 키 목록 파악 ──────────────────────
+        # transfer_info['files'] = 이번 전달에서 올린 신규 파일만 기록됨
+        newly_uploaded_keys = set()
+        transfer_mode = 'APPEND'
+        if latest_transfer_entry:
+            transfer_mode = (latest_transfer_entry.get('mode') or 'APPEND').upper()
+            for tf in (latest_transfer_entry.get('files') or []):
+                if isinstance(tf, dict):
+                    k = (tf.get('key') or '').strip()
+                    if k:
+                        newly_uploaded_keys.add(k)
+
+        # ── 3. 삭제 대상 결정 ──────────────────────────────────────────────────
+        # 이번 전달에서 새로 올린 파일(newly_uploaded_keys)만 삭제.
+        # 기존 파일들은 1차 전달 이력 등 타임라인에서 계속 참조되므로 절대 삭제 금지.
+        keys_to_delete = newly_uploaded_keys
 
         deleted_files_count = 0
-        if current_keys:
+        if keys_to_delete:
             storage = get_storage()
             rows = db.query(OrderAttachment).filter(
                 OrderAttachment.order_id == order_id,
-                OrderAttachment.storage_key.in_(current_keys)
+                OrderAttachment.storage_key.in_(list(keys_to_delete))
             ).all()
             deleted_row_keys = set()
             for row in rows:
@@ -346,7 +337,7 @@ def api_order_cancel_transfer(order_id):
                 except Exception:
                     pass
                 db.delete(row)
-            for key in current_keys:
+            for key in keys_to_delete:
                 if key in deleted_row_keys:
                     continue
                 try:
@@ -355,51 +346,64 @@ def api_order_cancel_transfer(order_id):
                 except Exception:
                     pass
 
-        s_data['drawing_status'] = 'PENDING'
-        s_data['drawing_transferred'] = False
-        s_data['drawing_current_files'] = []
-        s_data['last_drawing_transfer'] = None
-        history = list(s_data.get('drawing_transfer_history', []))
+        # ── 4. drawing_current_files 복원 ──────────────────────────────────────
+        # transfer_info에 저장된 previous_current_files로 정확히 복원.
+        # (이전 버전 호환: 없으면 APPEND 모드에서는 새 파일만 제거하는 방식으로 폴백)
+        if latest_transfer_entry and isinstance(latest_transfer_entry.get('previous_current_files'), list):
+            restored_files = list(latest_transfer_entry['previous_current_files'])
+        elif transfer_mode == 'APPEND':
+            restored_files = [
+                f for f in current_files
+                if isinstance(f, dict) and (f.get('key') or '').strip() not in newly_uploaded_keys
+            ]
+        else:
+            restored_files = []
+
+        # ── 5. 히스토리에서 최신 TRANSFER 제거 ──────────────────────────────────
         removed_transfer = False
-        current_key_set = set(current_keys)
-        for idx in range(len(history) - 1, -1, -1):
-            h = history[idx]
-            if not isinstance(h, dict) or h.get('action') != 'TRANSFER':
+        if latest_transfer_idx is not None:
+            history.pop(latest_transfer_idx)
+            removed_transfer = True
+
+        # ── 6. 이전 상태로 복원 ──────────────────────────────────────────────────
+        # 히스토리에서 마지막 액션이 REQUEST_REVISION이면 RETURNED, 아니면 PENDING
+        restore_status = 'PENDING'
+        for h in reversed(history):
+            if not isinstance(h, dict):
                 continue
-            transfer_files = h.get('files') if isinstance(h.get('files'), list) else []
-            transfer_keys = set()
-            for tf in transfer_files:
-                if isinstance(tf, dict):
-                    k = (tf.get('key') or '').strip()
-                    if k:
-                        transfer_keys.add(k)
-            if (not current_key_set) or (transfer_keys & current_key_set):
-                history.pop(idx)
-                removed_transfer = True
+            prev_action = h.get('action')
+            if prev_action == 'REQUEST_REVISION':
+                restore_status = 'RETURNED'
                 break
-        if (not removed_transfer) and history:
-            for idx in range(len(history) - 1, -1, -1):
-                h = history[idx]
-                if isinstance(h, dict) and h.get('action') == 'TRANSFER':
-                    history.pop(idx)
-                    removed_transfer = True
-                    break
+            elif prev_action == 'TRANSFER':
+                restore_status = 'PENDING'
+                break
+
+        s_data['drawing_status'] = restore_status
+        s_data['drawing_transferred'] = False
+        s_data['drawing_current_files'] = restored_files
+        s_data['last_drawing_transfer'] = None
         s_data['drawing_transfer_history'] = history
         order.structured_data = s_data
         db.add(SecurityLog(
             user_id=session.get('user_id'),
-            message=f"주문 #{order_id} 도면 전달 취소 (파일 {deleted_files_count}개 삭제, 히스토리 정리: {'Y' if removed_transfer else 'N'})"
+            message=(
+                f"주문 #{order_id} 도면 전달 취소 → {restore_status} 복귀 "
+                f"(신규 파일 {deleted_files_count}개 삭제, 보존 {len(restored_files)}개, "
+                f"히스토리 정리: {'Y' if removed_transfer else 'N'})"
+            )
         ))
         db.commit()
+
+        status_label = '수정 요청 상태' if restore_status == 'RETURNED' else '작업중 상태'
         return jsonify({
             'success': True,
-            'message': f'도면 전달이 취소되었습니다. (작업중 상태로 복귀, 전달 파일 {deleted_files_count}개 삭제)'
+            'message': f'도면 전달이 취소되었습니다. ({status_label}로 복귀, 신규 업로드 파일 {deleted_files_count}개 삭제)'
         })
     except Exception as e:
         if db is not None:
             db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
-
 
 @erp_orders_drawing_bp.route('/<int:order_id>/drawing-gateway-upload', methods=['POST'])
 @login_required
