@@ -3,22 +3,72 @@
 {% block content %}
 <style>
   /* AS 방문일이 정해진 주문 셀: 옅은 연분홍 파스텔 */
-  .erp-as-visit-cell--set { background-color: #ffd6e0 !important; }
-  .erp-as-visit-row--set { background-color: #ffd6e0 !important; }
+  .erp-as-visit-cell--set {
+    background-color: #ffd6e0 !important;
+  }
+
+  .erp-as-visit-row--set {
+    background-color: #ffd6e0 !important;
+  }
+
   /* AS 완료일이 정해진 주문 셀 */
-  .erp-as-complete-cell--set { background-color: #d4edda !important; }
-  .erp-as-complete-row--set { background-color: #d4edda !important; }
+  .erp-as-complete-cell--set {
+    background-color: #d4edda !important;
+  }
+
+  .erp-as-complete-row--set {
+    background-color: #d4edda !important;
+  }
+
   /* AS 사진 보기 버튼: 사진 있음=파란색, 없음=분홍 파스텔 */
-  .as-photos-btn.as-photos-btn--no-photos { color: #FFB6C1 !important; border-color: #FFB6C1 !important; }
-  .as-photos-btn.as-photos-btn--no-photos:hover { color: #e0909e !important; border-color: #e0909e !important; background-color: rgba(255, 182, 193, 0.15); }
+  .as-photos-btn.as-photos-btn--no-photos {
+    color: #FFB6C1 !important;
+    border-color: #FFB6C1 !important;
+  }
+
+  .as-photos-btn.as-photos-btn--no-photos:hover {
+    color: #e0909e !important;
+    border-color: #e0909e !important;
+    background-color: rgba(255, 182, 193, 0.15);
+  }
+
   /* AS 미결: 고객 셀 노란 파스텔 */
-  .erp-as-customer-cell--pending { background-color: #fff9c4 !important; }
-  .erp-as-customer-row--pending { background-color: #fff9c4 !important; }
-  .erp-pro-badge--pending { background-color: #ffc107; color: #212529; }
+  .erp-as-customer-cell--pending {
+    background-color: #fff9c4 !important;
+  }
+
+  .erp-as-customer-row--pending {
+    background-color: #fff9c4 !important;
+  }
+
+  .erp-pro-badge--pending {
+    background-color: #ffc107;
+    color: #212529;
+  }
+
   /* AS 방문일 셀: 셀 바깥 오른쪽 하단에 미결 버튼 */
-  .erp-as-visit-cell { position: relative; min-height: 48px; }
-  .erp-as-pending-btn { position: absolute; right: 4px; bottom: 4px; font-size: 0.7rem; padding: 2px 6px; line-height: 1.2; background-color: #fff9c4 !important; border: 1px solid #e6d84c !important; color: #333 !important; }
-  .erp-as-pending-btn:hover { background-color: #fff59d !important; border-color: #d4c43c !important; color: #111 !important; }
+  .erp-as-visit-cell {
+    position: relative;
+    min-height: 48px;
+  }
+
+  .erp-as-pending-btn {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    line-height: 1.2;
+    background-color: #fff9c4 !important;
+    border: 1px solid #e6d84c !important;
+    color: #333 !important;
+  }
+
+  .erp-as-pending-btn:hover {
+    background-color: #fff59d !important;
+    border-color: #d4c43c !important;
+    color: #111 !important;
+  }
 </style>
 <div class="erp-pro">
   <!-- Modern Header -->
@@ -49,12 +99,16 @@
     <div class="erp-as-top-tabs border-bottom mb-3">
       <ul class="nav nav-tabs nav-fill border-bottom-0">
         <li class="nav-item">
-          <a class="nav-link {{ 'active' if as_tab == 'incomplete' else '' }}" href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" title="완료 안된 건">
+          <a class="nav-link {{ 'active' if as_tab == 'incomplete' else '' }}"
+            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+            title="완료 안된 건">
             <i class="fas fa-times text-danger fs-5"></i>
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link {{ 'active' if as_tab == 'completed' else '' }}" href="{{ url_for('erp_as_page.erp_as_dashboard', tab='completed', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}" title="완료 된 건">
+          <a class="nav-link {{ 'active' if as_tab == 'completed' else '' }}"
+            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='completed', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+            title="완료 된 건">
             <i class="far fa-circle text-primary fw-bold fs-5"></i>
           </a>
         </li>
@@ -98,8 +152,10 @@
             <tr>
               <th style="width: 90px;">주문</th>
               <th style="width: 120px;" class="erp-as-sort-th">
-                <a href="?status={{ status_filter or '' }}&q={{ search_q or '' | urlencode }}&sort_dir={{ 'asc' if sort_dir == 'desc' else 'desc' }}" class="text-decoration-none text-dark" title="클릭 시 접수일 정렬 방향 변경">
-                  AS 접수일 {% if sort_dir == 'desc' %}<i class="fas fa-sort-down ms-1"></i>{% else %}<i class="fas fa-sort-up ms-1"></i>{% endif %}
+                <a href="?status={{ status_filter or '' }}&q={{ search_q or '' | urlencode }}&sort_dir={{ 'asc' if sort_dir == 'desc' else 'desc' }}"
+                  class="text-decoration-none text-dark" title="클릭 시 접수일 정렬 방향 변경">
+                  AS 접수일 {% if sort_dir == 'desc' %}<i class="fas fa-sort-down ms-1"></i>{% else %}<i
+                    class="fas fa-sort-up ms-1"></i>{% endif %}
                 </a>
               </th>
               <th style="width: 150px;">AS 방문일</th>
@@ -118,7 +174,8 @@
             <tr>
               <td>
                 {% if can_edit_erp|default(false) %}
-                <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-beta" class="erp-pro-link">#{{ r.id }}</a>
+                <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-beta" class="erp-pro-link">#{{
+                  r.id }}</a>
                 {% else %}
                 #{{ r.id }} <span class="text-muted small">(권한없음)</span>
                 {% endif %}
@@ -130,7 +187,8 @@
                     data-order-id="{{ r.id }}" data-field="as_visit_date" style="width: 100%;">
                 </div>
                 {% if r.scheduled_date %}
-                <button type="button" class="erp-as-pending-btn as-pending-btn" data-order-id="{{ r.id }}" title="미결 표시">미결</button>
+                <button type="button" class="erp-as-pending-btn as-pending-btn" data-order-id="{{ r.id }}"
+                  title="미결 표시">미결</button>
                 {% endif %}
               </td>
               <td class="{% if r.as_completed_date %}erp-as-complete-cell--set{% endif %}">
@@ -146,10 +204,8 @@
                 <div class="d-flex justify-content-between align-items-start">
                   <span>{{ r.address or '-' }}</span>
                   {% if r.address %}
-                  <button type="button" class="btn btn-sm btn-outline-secondary ms-1 find-schedule-btn p-0 px-1" 
-                          data-address="{{ r.address }}" 
-                          title="주변 일정 찾기"
-                          style="font-size: 0.75rem; line-height: 1.5;">
+                  <button type="button" class="btn btn-sm btn-outline-secondary ms-1 find-schedule-btn p-0 px-1"
+                    data-address="{{ r.address }}" title="주변 일정 찾기" style="font-size: 0.75rem; line-height: 1.5;">
                     <i class="fas fa-map-marker-alt"></i> 일정
                   </button>
                   {% endif %}
@@ -157,7 +213,9 @@
               </td>
               <td>
                 {% if can_view_as_photos %}
-                <button type="button" class="btn btn-sm p-1 as-photos-btn {{ 'btn-outline-primary' if r.has_as_photos else 'as-photos-btn--no-photos' }}" data-order-id="{{ r.id }}" title="AS 사진 보기">
+                <button type="button"
+                  class="btn btn-sm p-1 as-photos-btn {{ 'btn-outline-primary' if r.has_as_photos else 'as-photos-btn--no-photos' }}"
+                  data-order-id="{{ r.id }}" title="AS 사진 보기">
                   <i class="fas fa-paperclip"></i>
                 </button>
                 {% else %}
@@ -192,7 +250,8 @@
         <div class="erp-pro-order-card">
           <div class="erp-pro-order-card__header">
             {% if can_edit_erp|default(false) %}
-            <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-beta" class="erp-pro-order-card__id">#{{ r.id }}</a>
+            <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-beta"
+              class="erp-pro-order-card__id">#{{ r.id }}</a>
             {% else %}
             <span class="erp-pro-order-card__id">#{{ r.id }} <span class="text-muted small">(권한없음)</span></span>
             {% endif %}
@@ -218,14 +277,16 @@
               <span class="erp-pro-order-card__label">AS 접수</span>
               <span class="erp-pro-order-card__value">{{ r.as_received_date or '-' }}</span>
             </div>
-            <div class="erp-pro-order-card__row erp-as-visit-cell {% if r.scheduled_date %}erp-as-visit-row--set{% endif %}">
+            <div
+              class="erp-pro-order-card__row erp-as-visit-cell {% if r.scheduled_date %}erp-as-visit-row--set{% endif %}">
               <span class="erp-pro-order-card__label">AS 방문일</span>
               <div class="erp-as-visit-cell-wrap">
                 <input type="date" class="erp-pro-input editable-date-as" value="{{ r.scheduled_date or '' }}"
                   data-order-id="{{ r.id }}" data-field="as_visit_date">
               </div>
               {% if r.scheduled_date %}
-              <button type="button" class="erp-as-pending-btn as-pending-btn" data-order-id="{{ r.id }}" title="미결 표시">미결</button>
+              <button type="button" class="erp-as-pending-btn as-pending-btn" data-order-id="{{ r.id }}"
+                title="미결 표시">미결</button>
               {% endif %}
             </div>
             <div class="erp-pro-order-card__row {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
@@ -238,10 +299,8 @@
               <div class="d-flex justify-content-between align-items-start w-100">
                 <span class="erp-pro-order-card__value mb-1">{{ r.address or '-' }}</span>
                 {% if r.address %}
-                <button type="button" class="btn btn-sm btn-outline-secondary find-schedule-btn ms-2 p-0 px-2" 
-                        data-address="{{ r.address }}" 
-                        title="주변 일정 찾기"
-                        style="font-size: 0.75rem; white-space: nowrap;">
+                <button type="button" class="btn btn-sm btn-outline-secondary find-schedule-btn ms-2 p-0 px-2"
+                  data-address="{{ r.address }}" title="주변 일정 찾기" style="font-size: 0.75rem; white-space: nowrap;">
                   <i class="fas fa-map-marker-alt"></i> 일정
                 </button>
                 {% endif %}
@@ -250,7 +309,9 @@
             {% if can_view_as_photos %}
             <div class="erp-pro-order-card__row">
               <span class="erp-pro-order-card__label">AS 사진</span>
-              <button type="button" class="btn btn-sm as-photos-btn {{ 'btn-outline-primary' if r.has_as_photos else 'as-photos-btn--no-photos' }}" data-order-id="{{ r.id }}" title="AS 사진 보기">
+              <button type="button"
+                class="btn btn-sm as-photos-btn {{ 'btn-outline-primary' if r.has_as_photos else 'as-photos-btn--no-photos' }}"
+                data-order-id="{{ r.id }}" title="AS 사진 보기">
                 <i class="fas fa-paperclip"></i> 보기
               </button>
             </div>
@@ -304,7 +365,8 @@
             <!-- 실측/도면/시공/AS 탭, JS로 채움 -->
           </div>
           <div class="d-flex align-items-center gap-2">
-            <input type="file" id="as-modal-upload-input" class="d-none" accept="image/*,video/*,.pdf,.doc,.docx" multiple>
+            <input type="file" id="as-modal-upload-input" class="d-none" accept="image/*,video/*,.pdf,.doc,.docx"
+              multiple>
             <button type="button" class="btn btn-sm btn-primary" id="as-modal-upload-btn" title="AS 사진/파일 추가 (R2 업로드)">
               <i class="fas fa-upload"></i> AS 사진 추가
             </button>
@@ -352,7 +414,7 @@
     const toastMsg = document.getElementById('toastMessage');
 
     // 일정 찾기 버튼 핸들러
-    document.body.addEventListener('click', async function(e) {
+    document.body.addEventListener('click', async function (e) {
       const btn = e.target.closest('.find-schedule-btn');
       if (!btn) return;
 
@@ -378,36 +440,36 @@
       try {
         const res = await fetch(`/api/orders/nearby?address=${encodeURIComponent(addr)}`);
         const data = await res.json();
-        
+
         if (resList) {
-            resList.innerHTML = '';
-            
-            if(!data.success || !data.results || data.results.length === 0) {
-              resList.innerHTML = `
+          resList.innerHTML = '';
+
+          if (!data.success || !data.results || data.results.length === 0) {
+            resList.innerHTML = `
                 <div class="text-center py-5 text-muted">
                   <i class="fas fa-calendar-times mb-2" style="font-size: 2rem;"></i>
                   <p>근처에 예정된 출고/시공 일정이 없습니다.</p>
                 </div>`;
-              return;
+            return;
+          }
+
+          data.results.forEach(item => {
+            const el = document.createElement('a');
+            el.className = 'list-group-item list-group-item-action p-3';
+            el.href = `/edit/${item.id}?open=erp-beta`;
+
+            let badgeClass = 'bg-secondary';
+            if (item.type === '상차') badgeClass = 'bg-warning text-dark';
+            else if (item.type === '시공') badgeClass = 'bg-success';
+
+            // 날짜 포맷팅 (YYYY-MM-DD -> M월 D일)
+            let dateDisplay = item.date;
+            const dateMatch = item.date && item.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (dateMatch) {
+              dateDisplay = `${parseInt(dateMatch[2])}월 ${parseInt(dateMatch[3])}일`;
             }
 
-            data.results.forEach(item => {
-              const el = document.createElement('a');
-              el.className = 'list-group-item list-group-item-action p-3';
-              el.href = `/edit/${item.id}?open=erp-beta`; 
-              
-              let badgeClass = 'bg-secondary';
-              if (item.type === '상차') badgeClass = 'bg-warning text-dark';
-              else if (item.type === '시공') badgeClass = 'bg-success';
-
-              // 날짜 포맷팅 (YYYY-MM-DD -> M월 D일)
-              let dateDisplay = item.date;
-              const dateMatch = item.date && item.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-              if (dateMatch) {
-                  dateDisplay = `${parseInt(dateMatch[2])}월 ${parseInt(dateMatch[3])}일`;
-              }
-
-              el.innerHTML = `
+            el.innerHTML = `
                 <div class="d-flex w-100 justify-content-between align-items-center mb-2">
                   <div>
                     <span class="badge ${badgeClass} me-2">${item.type}</span>
@@ -426,10 +488,10 @@
                   <small class="text-primary fw-bold"><i class="fas fa-external-link-alt"></i> 바로가기</small>
                 </div>
               `;
-              resList.appendChild(el);
-            });
+            resList.appendChild(el);
+          });
         }
-      } catch(err) {
+      } catch (err) {
         console.error(err);
         if (resList) resList.innerHTML = '<div class="text-center py-3 text-danger">오류가 발생했습니다.</div>';
       }
@@ -521,7 +583,7 @@
             '<button type="button" class="btn btn-outline-secondary" title="미리보기" onclick="window.openAttachmentFromCategoryAs && window.openAttachmentFromCategoryAs(\'' + cat + '\', ' + index + ')">' +
             '<i class="fas fa-eye"></i></button>' +
             '<a class="btn btn-outline-primary" href="' + escapeHtml(downloadUrl) + '" title="다운로드" target="_blank" rel="noopener"><i class="fas fa-download"></i></a>' +
-            '</div></div></div></div>';
+            '</div></div></div></div></div>';
         }).join('');
       }
       function selectAttachmentCategory(category) {
