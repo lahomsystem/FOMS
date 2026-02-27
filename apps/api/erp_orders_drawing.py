@@ -108,26 +108,10 @@ def api_order_transfer_drawing(order_id):
 
         if new_files:
             if mode == 'REPLACE_ALL':
-                storage = get_storage()
+                # 기존 파일은 타임라인 히스토리에서 계속 참조되므로 R2에서 삭제하지 않음.
+                # drawing_current_files 만 새 파일로 교체한다.
                 for idx, old_file in enumerate(old_files):
-                    old_key = ((old_file or {}).get('key') or '').strip()
-                    if old_key:
-                        replaced_target_numbers.append(idx + 1)
-                        try:
-                            storage.delete_file(old_key)
-                        except Exception:
-                            pass
-                        rows = db.query(OrderAttachment).filter(
-                            OrderAttachment.order_id == order_id,
-                            OrderAttachment.storage_key == old_key
-                        ).all()
-                        for row in rows:
-                            try:
-                                if row.thumbnail_key:
-                                    storage.delete_file(row.thumbnail_key)
-                            except Exception:
-                                pass
-                            db.delete(row)
+                    replaced_target_numbers.append(idx + 1)
                 updated_files = list(new_files)
             elif replace_target_keys:
                 indices_to_replace = []
@@ -139,27 +123,9 @@ def api_order_transfer_drawing(order_id):
                 if len(indices_to_replace) != len(replace_target_keys):
                     return jsonify({'success': False, 'message': '일부 교체 대상 도면을 찾을 수 없습니다. 목록을 새로고침 후 다시 시도해주세요.'}), 400
                 indices_to_replace.sort(key=lambda x: x[0], reverse=True)
-                storage = get_storage()
                 for idx, target_key in indices_to_replace:
                     replaced_target_numbers.append(idx + 1)
-                    target_item = old_files[idx] if idx < len(old_files) else {}
-                    target_file_key = (target_item.get('key') or '').strip()
-                    if target_file_key:
-                        try:
-                            storage.delete_file(target_file_key)
-                        except Exception:
-                            pass
-                        rows = db.query(OrderAttachment).filter(
-                            OrderAttachment.order_id == order_id,
-                            OrderAttachment.storage_key == target_file_key
-                        ).all()
-                        for row in rows:
-                            try:
-                                if row.thumbnail_key:
-                                    storage.delete_file(row.thumbnail_key)
-                            except Exception:
-                                pass
-                            db.delete(row)
+                    # 교체 대상 파일도 히스토리 참조를 위해 R2에서 삭제하지 않음.
                     updated_files.pop(idx)
                 first_index = min([x[0] for x in indices_to_replace])
                 for offset, nf in enumerate(new_files):
@@ -190,6 +156,7 @@ def api_order_transfer_drawing(order_id):
             'note': note,
             'files_count': len(new_files),
             'files': new_files,
+            'previous_current_files': old_files,  # 취소 시 복원용
             'mode': mode if mode else ('REPLACE' if replace_target_keys else 'APPEND'),
             'replace_target_keys': replace_target_keys if replace_target_keys else None,
             'replace_target_numbers': replaced_target_numbers if replaced_target_numbers else None,
@@ -347,17 +314,9 @@ def api_order_cancel_transfer(order_id):
                         newly_uploaded_keys.add(k)
 
         # ── 3. 삭제 대상 결정 ──────────────────────────────────────────────────
-        # APPEND 모드 : 이번에 추가한 파일만 삭제 (기존 원본 파일은 보존)
-        # REPLACE/REPLACE_ALL 모드 : current_files 전체 삭제 (원본은 이미 교체됨)
-        if transfer_mode == 'APPEND':
-            keys_to_delete = newly_uploaded_keys
-        else:
-            keys_to_delete = set()
-            for f in current_files:
-                if isinstance(f, dict):
-                    k = (f.get('key') or '').strip()
-                    if k:
-                        keys_to_delete.add(k)
+        # 이번 전달에서 새로 올린 파일(newly_uploaded_keys)만 삭제.
+        # 기존 파일들은 1차 전달 이력 등 타임라인에서 계속 참조되므로 절대 삭제 금지.
+        keys_to_delete = newly_uploaded_keys
 
         deleted_files_count = 0
         if keys_to_delete:
@@ -388,12 +347,14 @@ def api_order_cancel_transfer(order_id):
                     pass
 
         # ── 4. drawing_current_files 복원 ──────────────────────────────────────
-        # APPEND: 이번에 추가한 파일들만 제거 → 이전 원본 파일 목록 복원
-        # REPLACE / REPLACE_ALL: 이전 원본이 이미 삭제됐으므로 빈 리스트
-        if transfer_mode == 'APPEND':
+        # transfer_info에 저장된 previous_current_files로 정확히 복원.
+        # (이전 버전 호환: 없으면 APPEND 모드에서는 새 파일만 제거하는 방식으로 폴백)
+        if latest_transfer_entry and isinstance(latest_transfer_entry.get('previous_current_files'), list):
+            restored_files = list(latest_transfer_entry['previous_current_files'])
+        elif transfer_mode == 'APPEND':
             restored_files = [
                 f for f in current_files
-                if isinstance(f, dict) and (f.get('key') or '').strip() not in keys_to_delete
+                if isinstance(f, dict) and (f.get('key') or '').strip() not in newly_uploaded_keys
             ]
         else:
             restored_files = []
