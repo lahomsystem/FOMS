@@ -10,11 +10,12 @@ from flask import Blueprint, request, jsonify, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
-from models import Order, User, OrderEvent, SecurityLog
+from models import Order, User, OrderAttachment, OrderEvent, SecurityLog
 from apps.auth import login_required, get_user_by_id
 from services.erp_permissions import erp_edit_required
 from apps.erp import _ensure_dict
 from services.erp_policy import can_modify_domain, get_assignee_ids
+from services.storage import get_storage
 
 erp_orders_draftsman_bp = Blueprint(
     'erp_orders_draftsman',
@@ -364,6 +365,59 @@ def api_order_confirm_drawing_receipt(order_id):
         db.add(SecurityLog(user_id=current_user.id, message=f"주문 #{order_id} 도면 확정 및 단계 이동 ({old_stage} -> {next_stage})"))
 
         db.commit()
+
+        # ── 구 버전 도면 파일 R2 정리 ────────────────────────────────────────────
+        # drawing_current_files 에 있는 키만 최종본으로 인정하고,
+        # 이전 TRANSFER/REPLACE 히스토리에서 현재 최종본에 없는 파일들을 삭제한다.
+        try:
+            current_file_keys = set()
+            for f in (s_data.get('drawing_current_files') or []):
+                if isinstance(f, dict):
+                    k = (f.get('key') or '').strip()
+                    if k:
+                        current_file_keys.add(k)
+
+            # 모든 TRANSFER 히스토리 항목에서 파일 키 수집
+            old_keys_to_delete = set()
+            for h in (s_data.get('drawing_transfer_history') or []):
+                if not isinstance(h, dict):
+                    continue
+                # TRANSFER 이력의 files 와 previous_current_files 모두 검사
+                for field in ('files', 'previous_current_files'):
+                    for f in (h.get(field) or []):
+                        if isinstance(f, dict):
+                            k = (f.get('key') or '').strip()
+                            if k and k not in current_file_keys:
+                                old_keys_to_delete.add(k)
+
+            if old_keys_to_delete:
+                storage = get_storage()
+                rows = db.query(OrderAttachment).filter(
+                    OrderAttachment.order_id == order_id,
+                    OrderAttachment.storage_key.in_(list(old_keys_to_delete))
+                ).all()
+                deleted_row_keys = set()
+                for row in rows:
+                    try:
+                        if row.storage_key:
+                            storage.delete_file(row.storage_key)
+                            deleted_row_keys.add(row.storage_key)
+                        if row.thumbnail_key:
+                            storage.delete_file(row.thumbnail_key)
+                    except Exception:
+                        pass
+                    db.delete(row)
+                for key in old_keys_to_delete:
+                    if key not in deleted_row_keys:
+                        try:
+                            storage.delete_file(key)
+                        except Exception:
+                            pass
+        except Exception as cleanup_err:
+            import traceback
+            print(f"[WARN] 수령 확정 구 버전 파일 정리 중 오류 (주문 #{order_id}): {cleanup_err}")
+            print(traceback.format_exc())
+            # 파일 정리 실패는 치명적 오류가 아니므로 계속 진행
 
         return jsonify({'success': True, 'message': '도면이 확정되었습니다. 다음 단계로 이동합니다.', 'new_stage': next_stage})
 
