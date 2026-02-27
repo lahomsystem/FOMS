@@ -324,9 +324,9 @@
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div class="small fw-semibold text-muted erp-item-attachment-hint">항목 실측 이미지</div>
                 <div class="d-flex gap-1">
-                    <input type="file" class="d-none erp-item-attachments-input" accept="image/*" multiple>
-                    <button type="button" class="btn btn-sm btn-outline-primary erp-item-upload-btn">
-                        <i class="fas fa-image"></i> 이미지 추가
+                    <input type="file" class="d-none erp-item-attachments-input" accept="image/*" multiple onchange="erpUploadItemAttachmentsPromptless(this)">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="this.previousElementSibling.click()">
+                        <i class="fas fa-image"></i> 즉시 추가
                     </button>
                 </div>
             </div>
@@ -1030,7 +1030,38 @@
             erpAttachmentsSetStatus('업로드할 이미지를 선택하세요.', true);
             return;
         }
-        erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 이미지 업로드 중... (${files.length}개)`);
+
+        // --- Optimistic UI Start ---
+        // 1. UI에 회색 스켈레톤/로딩 카드 먼저 렌더링
+        const row = erpGetItemRows()[itemIndex];
+        const galleryWrap = row ? row.querySelector('.erp-item-attachments-gallery') : null;
+        if (galleryWrap) {
+            // "연결된 실측 이미지가 없습니다." 텍스트 제거
+            const emptyText = galleryWrap.querySelector('.text-muted');
+            if (emptyText && emptyText.textContent.includes('없습니다')) emptyText.remove();
+
+            files.forEach((f, fi) => {
+                const uniqueId = 'opt-ul-' + Date.now() + '-' + fi;
+                f._optId = uniqueId; // 파일 객체에 임시 ID 부여
+                const name = escapeHtml(f.name);
+                let previewUrl = '';
+                try { previewUrl = URL.createObjectURL(f); } catch (e) { }
+
+                const placeholderHtml = `
+<div id="${uniqueId}" class="border rounded bg-light p-1 d-flex align-items-center gap-1 opacity-75" style="max-width: 200px;">
+    <div class="position-relative">
+        <img src="${previewUrl}" class="rounded" style="width:40px;height:40px;object-fit:cover;filter:grayscale(100%);">
+        <div class="spinner-border spinner-border-sm text-primary position-absolute" style="top:50%;left:50%;margin-top:-0.5rem;margin-left:-0.5rem;" role="status"></div>
+    </div>
+    <div class="small text-truncate flex-grow-1" style="max-width: 80px;" title="${name}">${name}</div>
+    <div class="small text-primary fw-bold pe-2 opt-pct">0%</div>
+</div>`;
+                galleryWrap.insertAdjacentHTML('beforeend', placeholderHtml);
+            });
+        }
+        // --- Optimistic UI End ---
+
+        erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 이미지 등록 중... (${files.length}개)`);
         const progressWrap = document.getElementById('erp-attachments-progress');
         const progressBar = document.getElementById('erp-attachments-progress-bar');
         if (progressWrap) progressWrap.classList.remove('d-none');
@@ -1068,6 +1099,15 @@
                     const p = Math.round((done / totalFiles) * 100);
                     progressBar.style.width = p + '%';
                     progressBar.textContent = p + '%';
+
+                    // Update optimistic cards
+                    chunk.forEach(f => {
+                        const el = document.getElementById(f._optId);
+                        if (el) {
+                            const pctSpan = el.querySelector('.opt-pct');
+                            if (pctSpan) pctSpan.textContent = '완료';
+                        }
+                    });
                 }
             }
         } else {
@@ -1099,8 +1139,21 @@
         }
         if (progressWrap) progressWrap.classList.add('d-none');
         if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
-        erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 업로드 완료: ${ok}/${files.length}`);
+        erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 신속 등록 완료: ${ok}/${files.length}`);
         await erpLoadAttachments();
+    }
+
+    async function erpUploadItemAttachmentsPromptless(inputElement) {
+        if (!inputElement || !inputElement.files || inputElement.files.length === 0) return;
+        const row = inputElement.closest('.erp-item-row');
+        if (!row) return;
+        // 행 인덱스 계산
+        const rows = Array.from(document.querySelectorAll('.erp-item-row'));
+        const itemIndex = rows.indexOf(row);
+        if (itemIndex < 0) return;
+
+        await erpUploadItemAttachments(itemIndex, Array.from(inputElement.files));
+        inputElement.value = ''; // Reset input to allow triggering change event again with same files
     }
 
     function erpRenderItemAttachmentPanels() {
