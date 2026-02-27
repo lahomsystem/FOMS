@@ -4,7 +4,7 @@ erp.py에서 분리: /erp/as
 """
 from flask import Blueprint, render_template, request, session, redirect, url_for
 from db import get_db
-from models import Order
+from models import Order, OrderAttachment
 from apps.auth import login_required, get_user_by_id
 from sqlalchemy import or_, and_, cast, String
 import datetime
@@ -100,6 +100,18 @@ def erp_as_dashboard():
     for r in rows:
         r.structured_data = _ensure_dict(r.structured_data)
     apply_erp_display_fields_to_orders(rows)
+    # AS 카테고리 첨부가 있는 주문 ID 집합 (버튼 색상: 있음=파란색, 없음=분홍 파스텔)
+    order_ids = [r.id for r in rows]
+    as_photo_order_ids = set()
+    if order_ids:
+        as_with_photos = db.query(OrderAttachment.order_id).filter(
+            OrderAttachment.order_id.in_(order_ids),
+            OrderAttachment.category == 'as'
+        ).distinct().all()
+        as_photo_order_ids = {x[0] for x in as_with_photos}
+    for r in rows:
+        r.has_as_photos = r.id in as_photo_order_ids
+        r.as_pending = (r.structured_data.get('shipment') or {}).get('as_pending') is True
     # 시공자가 아닌 사용자만 AS 카테고리 사진 조회 가능 (관리자 등)
     can_view_as_photos = not (current_user and (current_user.team or '').strip() == 'CONSTRUCTION')
     return render_template(

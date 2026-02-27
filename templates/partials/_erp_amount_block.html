@@ -1,0 +1,17 @@
+{# ERP 금액 블록 공용 partial (출고가 / 예약금 / 잔금)
+   호출 시 total_formatted, deposit_formatted, remaining_formatted 를 전달 (예: "1,234,567원").
+   JS에서 사용 시 placeholder(__TOTAL__, __DEPOSIT__, __REMAINING__)로 렌더 후 replace. #}
+<div class="d-flex flex-column align-items-end gap-2 mt-2 erp-amount-block">
+  <div class="dw-amount-row d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem;">
+    <span class="fw-bold text-nowrap">출고가</span>
+    <div class="badge bg-primary flex-shrink-0 text-end dw-amount-value" style="font-size:1.2rem !important; font-weight:700; width: 9rem; padding: 0.5rem;">{{ total_formatted }}</div>
+  </div>
+  <div class="dw-amount-row d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem;">
+    <label class="form-label mb-0 fw-bold text-nowrap">예약금(선금)</label>
+    <div class="badge flex-shrink-0 text-end dw-amount-value" style="font-size:1.2rem !important; font-weight:700; width:9rem; padding:0.5rem; background:#FFB6C1; color:#000;">{{ deposit_formatted }}</div>
+  </div>
+  <div class="dw-amount-row d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem;">
+    <label class="form-label mb-0 fw-bold text-nowrap">잔금</label>
+    <div class="badge bg-primary flex-shrink-0 text-end dw-amount-value" style="font-size:1.2rem !important; font-weight:700; width: 9rem; padding: 0.5rem;">{{ remaining_formatted }}</div>
+  </div>
+</div>

@@ -8,7 +8,17 @@
   /* AS 완료일이 정해진 주문 셀 */
   .erp-as-complete-cell--set { background-color: #d4edda !important; }
   .erp-as-complete-row--set { background-color: #d4edda !important; }
-
+  /* AS 사진 보기 버튼: 사진 있음=파란색, 없음=분홍 파스텔 */
+  .as-photos-btn.as-photos-btn--no-photos { color: #FFB6C1 !important; border-color: #FFB6C1 !important; }
+  .as-photos-btn.as-photos-btn--no-photos:hover { color: #e0909e !important; border-color: #e0909e !important; background-color: rgba(255, 182, 193, 0.15); }
+  /* AS 미결: 고객 셀 노란 파스텔 */
+  .erp-as-customer-cell--pending { background-color: #fff9c4 !important; }
+  .erp-as-customer-row--pending { background-color: #fff9c4 !important; }
+  .erp-pro-badge--pending { background-color: #ffc107; color: #212529; }
+  /* AS 방문일 셀: 셀 바깥 오른쪽 하단에 미결 버튼 */
+  .erp-as-visit-cell { position: relative; min-height: 48px; }
+  .erp-as-pending-btn { position: absolute; right: 4px; bottom: 4px; font-size: 0.7rem; padding: 2px 6px; line-height: 1.2; background-color: #fff9c4 !important; border: 1px solid #e6d84c !important; color: #333 !important; }
+  .erp-as-pending-btn:hover { background-color: #fff59d !important; border-color: #d4c43c !important; color: #111 !important; }
 </style>
 <div class="erp-pro">
   <!-- Modern Header -->
@@ -114,16 +124,21 @@
                 {% endif %}
               </td>
               <td>{{ r.as_received_date or '-' }}</td>
-              <td class="{% if r.scheduled_date %}erp-as-visit-cell--set{% endif %}">
-                <input type="date" class="erp-pro-input editable-date-as" value="{{ r.scheduled_date or '' }}"
-                  data-order-id="{{ r.id }}" data-field="as_visit_date" style="width: 100%;">
+              <td class="erp-as-visit-cell {% if r.scheduled_date %}erp-as-visit-cell--set{% endif %}">
+                <div class="erp-as-visit-cell-wrap">
+                  <input type="date" class="erp-pro-input editable-date-as" value="{{ r.scheduled_date or '' }}"
+                    data-order-id="{{ r.id }}" data-field="as_visit_date" style="width: 100%;">
+                </div>
+                {% if r.scheduled_date %}
+                <button type="button" class="erp-as-pending-btn as-pending-btn" data-order-id="{{ r.id }}" title="미결 표시">미결</button>
+                {% endif %}
               </td>
               <td class="{% if r.as_completed_date %}erp-as-complete-cell--set{% endif %}">
                 <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_completed_date or '' }}"
                   data-order-id="{{ r.id }}" data-field="as_completed_date" style="width: 100%;">
               </td>
               <td>{{ r.manager_name or '-' }}</td>
-              <td>
+              <td class="{% if r.as_pending %}erp-as-customer-cell--pending{% endif %}">
                 <span class="d-block">{{ (r.customer_name or '-') }}</span>
                 <span class="d-block small text-muted">{{ r.phone|format_phone }}</span>
               </td>
@@ -142,7 +157,7 @@
               </td>
               <td>
                 {% if can_view_as_photos %}
-                <button type="button" class="btn btn-sm btn-outline-primary p-1 as-photos-btn" data-order-id="{{ r.id }}" title="AS 사진 보기">
+                <button type="button" class="btn btn-sm p-1 as-photos-btn {{ 'btn-outline-primary' if r.has_as_photos else 'as-photos-btn--no-photos' }}" data-order-id="{{ r.id }}" title="AS 사진 보기">
                   <i class="fas fa-paperclip"></i>
                 </button>
                 {% else %}
@@ -153,10 +168,10 @@
                 <textarea class="erp-pro-input as-content-input" placeholder="내용 입력..." data-order-id="{{ r.id }}"
                   style="width: 100%; min-height: 40px; height: auto; padding-top: 8px; padding-bottom: 8px; resize: vertical;">{{ (r.structured_data.get('shipment', {}).get('as_content', '')) if r.structured_data else '' }}</textarea>
               </td>
-              <td>
+              <td class="erp-as-status-cell" data-order-id="{{ r.id }}">
                 <span
-                  class="erp-pro-badge {% if r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}">
-                  {{ STATUS.get(r.status, r.status) }}
+                  class="erp-pro-badge {% if r.as_pending %}erp-pro-badge--pending{% elif r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}">
+                  {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
                 </span>
               </td>
             </tr>
@@ -182,12 +197,13 @@
             <span class="erp-pro-order-card__id">#{{ r.id }} <span class="text-muted small">(권한없음)</span></span>
             {% endif %}
             <span
-              class="erp-pro-badge {% if r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}">
-              {{ STATUS.get(r.status, r.status) }}
+              class="erp-pro-badge erp-as-status-badge {% if r.as_pending %}erp-pro-badge--pending{% elif r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}"
+              data-order-id="{{ r.id }}">
+              {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
             </span>
           </div>
           <div class="erp-pro-order-card__body">
-            <div class="erp-pro-order-card__row">
+            <div class="erp-pro-order-card__row {% if r.as_pending %}erp-as-customer-row--pending{% endif %}">
               <span class="erp-pro-order-card__label">고객</span>
               <div class="erp-pro-order-card__value">
                 <span class="d-block">{{ (r.customer_name or '-') }}</span>
@@ -202,10 +218,15 @@
               <span class="erp-pro-order-card__label">AS 접수</span>
               <span class="erp-pro-order-card__value">{{ r.as_received_date or '-' }}</span>
             </div>
-            <div class="erp-pro-order-card__row {% if r.scheduled_date %}erp-as-visit-row--set{% endif %}">
+            <div class="erp-pro-order-card__row erp-as-visit-cell {% if r.scheduled_date %}erp-as-visit-row--set{% endif %}">
               <span class="erp-pro-order-card__label">AS 방문일</span>
-              <input type="date" class="erp-pro-input editable-date-as" value="{{ r.scheduled_date or '' }}"
-                data-order-id="{{ r.id }}" data-field="as_visit_date">
+              <div class="erp-as-visit-cell-wrap">
+                <input type="date" class="erp-pro-input editable-date-as" value="{{ r.scheduled_date or '' }}"
+                  data-order-id="{{ r.id }}" data-field="as_visit_date">
+              </div>
+              {% if r.scheduled_date %}
+              <button type="button" class="erp-as-pending-btn as-pending-btn" data-order-id="{{ r.id }}" title="미결 표시">미결</button>
+              {% endif %}
             </div>
             <div class="erp-pro-order-card__row {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
               <span class="erp-pro-order-card__label">AS 완료</span>
@@ -229,7 +250,7 @@
             {% if can_view_as_photos %}
             <div class="erp-pro-order-card__row">
               <span class="erp-pro-order-card__label">AS 사진</span>
-              <button type="button" class="btn btn-sm btn-outline-primary as-photos-btn" data-order-id="{{ r.id }}" title="AS 사진 보기">
+              <button type="button" class="btn btn-sm as-photos-btn {{ 'btn-outline-primary' if r.has_as_photos else 'as-photos-btn--no-photos' }}" data-order-id="{{ r.id }}" title="AS 사진 보기">
                 <i class="fas fa-paperclip"></i> 보기
               </button>
             </div>
@@ -671,6 +692,16 @@
                 if (isVisit) {
                   if (cell) cell.classList.add('erp-as-visit-cell--set');
                   if (cardRow) cardRow.classList.add('erp-as-visit-row--set');
+                  var container = this.closest('.erp-as-visit-cell');
+                  if (container && !container.querySelector('.as-pending-btn')) {
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'erp-as-pending-btn as-pending-btn';
+                    btn.dataset.orderId = orderId;
+                    btn.title = '미결 표시';
+                    btn.textContent = '미결';
+                    container.appendChild(btn);
+                  }
                 } else if (isComplete) {
                   if (cell) cell.classList.add('erp-as-complete-cell--set');
                   if (cardRow) cardRow.classList.add('erp-as-complete-row--set');
@@ -683,6 +714,14 @@
                     badge.textContent = 'AS 완료';
                     badge.className = 'erp-pro-badge erp-pro-badge--success';
                   }
+                  if (row) {
+                    const customerTd = row.querySelector('td:nth-child(6)');
+                    if (customerTd) customerTd.classList.remove('erp-as-customer-cell--pending');
+                  }
+                  if (card) {
+                    const customerRow = card.querySelector('.erp-pro-order-card__body .erp-pro-order-card__row');
+                    if (customerRow) customerRow.classList.remove('erp-as-customer-row--pending');
+                  }
                 }
               } else {
                 if (cell) {
@@ -692,6 +731,13 @@
                 if (cardRow) {
                   cardRow.classList.remove('erp-as-visit-row--set');
                   cardRow.classList.remove('erp-as-complete-row--set');
+                }
+                if (isVisit) {
+                  var container = this.closest('.erp-as-visit-cell');
+                  if (container) {
+                    var pendingBtn = container.querySelector('.as-pending-btn');
+                    if (pendingBtn) pendingBtn.remove();
+                  }
                 }
               }
               showFeedback(isComplete ? '완료일이 저장되었습니다.' : '방문일이 저장되었습니다.');
@@ -704,6 +750,54 @@
             showFeedback('네트워크 오류가 발생했습니다.', true);
           });
       });
+    });
+
+    // AS 미결 버튼 클릭: 고객 셀 노란색, 상태 '미결' 표시
+    document.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest('.as-pending-btn');
+      if (!btn || !btn.dataset.orderId) return;
+      e.preventDefault();
+      var orderId = btn.dataset.orderId;
+      btn.disabled = true;
+      fetch('/api/update_order_field', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId, field_name: 'as_pending', new_value: '1' })
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          btn.disabled = false;
+          if (data.success) {
+            var row = document.querySelector('tr td.erp-as-status-cell[data-order-id="' + orderId + '"]');
+            var card = document.querySelector('.erp-pro-order-card .erp-as-status-badge[data-order-id="' + orderId + '"]');
+            if (row) {
+              var tr = row.closest('tr');
+              var customerTd = tr.querySelector('td:nth-child(6)');
+              if (customerTd) customerTd.classList.add('erp-as-customer-cell--pending');
+              var badge = row.querySelector('.erp-pro-badge');
+              if (badge) {
+                badge.textContent = '미결';
+                badge.className = 'erp-pro-badge erp-pro-badge--pending';
+              }
+            }
+            if (card) {
+              card.textContent = '미결';
+              card.className = 'erp-pro-badge erp-as-status-badge erp-pro-badge--pending';
+              var cardEl = card.closest('.erp-pro-order-card');
+              if (cardEl) {
+                var customerRow = cardEl.querySelector('.erp-pro-order-card__body .erp-pro-order-card__row');
+                if (customerRow) customerRow.classList.add('erp-as-customer-row--pending');
+              }
+            }
+            showFeedback('미결로 표시했습니다.');
+          } else {
+            showFeedback('저장 실패: ' + (data.message || ''), true);
+          }
+        })
+        .catch(function () {
+          btn.disabled = false;
+          showFeedback('네트워크 오류가 발생했습니다.', true);
+        });
     });
 
     // AS 내용 자동 저장 (Blur 시 + 디바운스 자동 저장으로 새로고침 시에도 유지)
