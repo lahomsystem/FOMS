@@ -1,50 +1,47 @@
 # Architecture Decisions Log
 
-> 중요한 기술/아키텍처 결정을 기록합니다. AI가 이전 결정을 기억하도록 합니다.
+> AI 세션 간 중요 기술/아키텍처 결정을 기록합니다.
 
-## 결정 기록 형식
-```
-### [날짜] 결정 제목
-- **컨텍스트**: 왜 이 결정이 필요했는가
-- **결정**: 무엇을 결정했는가
-- **이유**: 왜 이것을 선택했는가
-- **영향**: 어떤 파일/시스템에 영향을 주는가
-```
+---
 
-## 기록
+### [2026-02-27] 도면 파일 생명주기 설계 확정
+- **결정**: 발송 시 R2 물리 삭제 금지, 수령 확정 시 일괄 정리
+- **이유**: 전달 취소 시 원본 복원 가능해야 함. 타임라인 히스토리에서 구 파일 참조 유지 필요
+- **영향**: `apps/api/erp_orders_drawing.py` (REPLACE 시 삭제 코드 제거), `apps/api/erp_orders_draftsman.py` (수령 확정 시 정리 + db.commit)
 
-### [2026-02-16] Flask 유지 + 점진 고도화 전략
-- **컨텍스트**: SvelteKit 전면 마이그레이션 vs Flask 유지 검토
-- **결정**: 기존 Flask 스택 유지, Strangler Fig 패턴으로 점진 개선
+### [2026-02-27] 지도 Auto-poll 방식 변경
+- **결정**: geocode pending 시 `/api/generate_map` (Folium 전체 재생성) 대신 `/api/map_data` (좌표만 조회)로 폴링
+- **이유**: iframe 전체 재로드가 "자꾸 refresh된다"는 UX 문제 유발
+- **영향**: `templates/map_view.html` (15초 간격, 5회 제한)
+
+### [2026-02-26] 업로드 로직 표준화 (배치+병렬)
+- **결정**: AS/시공/도면 대시보드 모두 배치 Presigned URL 요청 + 병렬 업로드 (최대 10개 동시)
+- **이유**: 업로드 속도 개선 + 파일명 충돌 방지 (UUID 포함 키)
+- **영향**: `templates/partials/erp_dashboard_scripts_drawing.html`, `templates/erp_drawing_workbench_detail.html`, `services/storage.py`
+
+### [2026-02-23] Direct R2 Upload (Phase D)
+- **결정**: 브라우저 → R2 Presigned PUT 직접 업로드. 앱 서버 파일 경유 없음
+- **이유**: 서버 메모리/CPU 절약, 업로드 속도 향상
+- **영향**: `services/storage.py`, `apps/api/attachments.py`, 모든 업로드 프론트엔드
+
+### [2026-02-22] Railway Worker + Geocode 컬럼
+- **결정**: Railway Worker 서비스 추가, `orders.lat/lng/geocode_status` 컬럼 추가, RQ Job Queue로 비동기 geocode
+- **이유**: 지도 로드 시 실시간 Kakao API 호출 병목 제거
+- **영향**: `railway-worker.toml`, `models.py`, `services/jobs/`
+
+### [2026-02-20] Production 다중 사용자 확장
+- **결정**: Web Replica 2개, Worker 1개, DB 풀 환경변수화
+- **이유**: 동시 사용자 증가 대응
+- **영향**: `railway.toml`, `db.py`
+
+### [2026-02-16] Flask 유지 + 점진 고도화 (Strangler Fig)
+- **결정**: SvelteKit 전면 마이그레이션 대신 Flask 유지, Blueprint 분리 우선
 - **이유**: 전면 마이그레이션 리스크 과대, 기존 스택 충분히 유효
-- **영향**: 전체 프로젝트 방향성, app.py Blueprint 분리 1순위
 
-### [2026-02-16] MCP 22개 → 6개 최적화
-- **컨텍스트**: 과다 MCP 설치로 리소스 낭비 및 에러 발생
-- **결정**: 핵심 6개만 유지 (sequential-thinking, mcp-reasoner, context7, postgres, memory, markitdown)
-- **이유**: 실제 사용 빈도와 안정성 기준으로 선별
-- **영향**: mcp.json, cursor rules 업데이트
+### [2026-02-16] services/ 폴더 도입
+- **결정**: `business_calendar`, `erp_policy`, `storage` → `services/` 이동
+- **이유**: 비즈니스 로직 집중, `app.py`는 Blueprint 등록만 담당
 
-### [2026-02-16] 컨텍스트 엔지니어링 시스템 도입
-- **컨텍스트**: AI 세션 간 기억 상실, 지시 미준수 문제
-- **결정**: Hooks + Rules + Subagents + Memory MCP 통합 시스템
-- **이유**: Hooks는 결정적(deterministic), Rules는 가이드라인, Memory는 영속 저장
-- **영향**: .cursor/hooks.json, docs/context/, .cursor/rules/, .cursor/agents/
-
-### [2026-02-16] services/ 폴더 도입 완료 (Phase 1)
-- **컨텍스트**: 규칙(02-architecture)에 정의된 services/ 구조 미적용 상태
-- **결정**: business_calendar, erp_policy, storage를 services/로 이전
-- **이유**: 비즈니스 로직을 한 곳에 두고, app.py는 Blueprint 등록만 담당하도록 구조 정렬
-- **영향**: services/ 신규, app.py·apps/erp.py·apps/api/files.py·erp_automation.py·erp_build_step_runner.py import 경로 변경, 루트 business_calendar.py·erp_policy.py·storage.py 삭제
-
-### [2026-02-20] Production 다중 사용자 확장 계획서 분석 및 적용 방향
-- **컨텍스트**: Railway 기준 다중 사용자 무지연 운영 계획서가 FOMS Production에 맞는지 검증 요청
-- **결정**: 계획서 전반 적합. 2·3단계(웹 확장·DB/Redis 튜닝) 즉시, 5·6단계(지도 선계산·Direct Upload) 핵심 전환
-- **이유**: 현재 지도 API는 요청 시 Kakao 지오코딩 호출, 파일 업로드는 앱 서버 경유 → 계획서 진단과 일치. SLO 달성을 위해 해당 전환 필수
-- **영향**: docs/evolution/FOMS_PRODUCTION_SCALABILITY_ANALYSIS.md, db.py(풀 환경변수화), railway.toml, erp_map.py, storage/upload 플로우
-
-### [2026-02-22] Phase C·D·Railway 계획 1~5번 실행 완료
-- **컨텍스트**: GDM_EXECUTION_PLAN 기준 Railway 확장, 지도 부하 테스트, 채팅 direct upload, Phase D 검증
-- **결정**: Railway Worker 추가, Web Replica 2, load_test_map.py, 채팅 direct API·UI, verify_phase_d.py 생성 및 실행
-- **이유**: 계획서(phase-c-map-design, phase-d-direct-upload-design, railway-multi-user-scalability-plan) 정의 작업 단계별 완료
-- **영향**: railway-worker.toml, scripts/load_test_map.py, scripts/verify_phase_d.py, apps/api/chat/routes.py, templates/partials/chat_scripts_file.html
+### [2026-02-16] 컨텍스트 엔지니어링 시스템
+- **결정**: Hooks + Rules + Memory (`docs/`) 통합 시스템
+- **이유**: AI 세션 간 기억 상실, 지시 미준수 문제 해결
