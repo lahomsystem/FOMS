@@ -40,7 +40,7 @@
 
 ### 1.2.5 System 2 강제 대기 프로토콜 (최우선 수행)
 GDM은 산하 에이전트들에게 코딩 작업 지시를 내리기 전, **무조건** 다음 절차를 거칩니다.
-1. `docs/memory/` 경로에 3대 핵심 문서(`PLAN.md`, `CONTEXT.md`, `TODO.md`) 파일 작성 지시.
+1. `docs/AI_STATUS.md`와 `docs/AI_CHANGELOG.md` 확인 후 작업 방향 설정.
 2. 문서 작성 후 사용자에게 "**승인 대기 요청**".
 3. 사용자가 승인하기 전까지는 절대 코딩 및 서브에이전트 태스크 시작 금지.
 
@@ -67,7 +67,7 @@ GDM은 산하 에이전트들에게 코딩 작업 지시를 내리기 전, **무
 | 2 | 기존 컴포넌트와 충돌 확인 | Glob, Read | 중복·충돌 여부 |
 | 3 | MCP 후보 시 → self_upgrade_manifest 검토 후 등록 | - | manifest 갱신 |
 | 4 | 생성 + 검증 (서버 기동, import 확인) | Write, Shell | 새 파일 |
-| 5 | docs/CURRENT_STATUS.md 업데이트 | StrReplace | 상태 반영 |
+| 5 | docs/AI_STATUS.md 업데이트 | StrReplace | 상태 반영 |
 | 6 | docs/context/DECISIONS.md 기록 | StrReplace | 결정 사유 |
 
 **거버넌스**: Rule(alwaysApply)·Hook·Agent·MCP 생성 시 사용자 승인 필수
@@ -78,8 +78,8 @@ GDM은 산하 에이전트들에게 코딩 작업 지시를 내리기 전, **무
 
 | 순서 | 작업 | 참조 | 산출물 |
 |------|------|------|--------|
-| 1 | docs/CURRENT_STATUS.md 읽기 | Read | 현재 상태 |
-| 2 | TASK_REGISTRY, EDIT_LOG로 최근 변경 분석 | Read | 진행 상황 |
+| 1 | docs/AI_STATUS.md 읽기 | Read | 현재 상태 |
+| 2 | docs/AI_CHANGELOG.md, EDIT_LOG로 최근 변경 분석 | Read | 진행 상황 |
 | 3 | 기술 부채·파일 크기 현황 정리 | Grep, Shell | 수치 |
 | 4 | 비전문가 언어 보고서 작성 | GDM | 요약 + 다음 할 일 |
 
@@ -128,7 +128,7 @@ GDM은 산하 에이전트들에게 코딩 작업 지시를 내리기 전, **무
 
 | 주기 | 작업 | 트리거 | 산출물 |
 |------|------|--------|--------|
-| **세션 시작 시** | COMPACT_CHECKPOINT → CURRENT_STATUS → TASK_REGISTRY 점진 로딩 | 08-context-engineering | 컨텍스트 복원 |
+| **세션 시작 시** | COMPACT_CHECKPOINT → AI_STATUS → AI_CHANGELOG 점진 로딩 | 08-context-engineering | 컨텍스트 복원 |
 | **감사 요청 시** | 종합 감사 실행 (섹션 1.1) | 사용자 "GDM 감사" | 건강 진단 보고서 |
 | **배포 전** | 백업/복원 검증 (주문·상태 완전 저장·복원) | 배포 지시 시 | BACKUP_RESTORE_VERIFICATION 또는 보고서 |
 | **배포 후** | 원격 URL HTTP 검증 (`/`, `/login`, `/erp/`) | 배포 완료/점검 요청 시 | 원격 동작 확인 결과 |
@@ -226,8 +226,8 @@ GDM은 산하 에이전트들에게 코딩 작업 지시를 내리기 전, **무
 - [ ] `python app.py` → 서버 기동
 - [ ] 주요 페이지 수동 접근 (200 OK)
 - [ ] ReadLints (수정 파일)
-- [ ] docs/CURRENT_STATUS.md 갱신 (상태 변경 시)
-- [ ] TASK_REGISTRY 갱신 (신규/완료 작업 시)
+- [ ] docs/AI_STATUS.md 자동/수동 갱신 (상태 변경 시)
+- [ ] docs/AI_CHANGELOG.md 갱신 (신규/완료 작업 시)
 
 ---
 

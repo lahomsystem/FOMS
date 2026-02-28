@@ -15,15 +15,15 @@ AI 세션 간 기억 연속성을 보장하고 토큰 효율을 극대화합니�
 
 ### 1. 세션 시작 컨텍스트 로드
 새 세션 시작 시 다음 파일을 읽고 요약합니다:
-- `docs/CURRENT_STATUS.md` → 프로젝트 전체 상태
-- `docs/context/TASK_REGISTRY.md` → 진행 중 작업
+- `docs/AI_STATUS.md` → 프로젝트 전체 상태
+- `docs/AI_CHANGELOG.md` → 지난 작업 기록
 - `docs/context/COMPACT_CHECKPOINT.md` → 압축 복원 지점 (있는 경우)
 - `docs/context/DECISIONS.md` → 최근 결정사항
 
 ### 2. 세션 종료 체크포인트 저장
-세션 종료 시 다음을 업데이트합니다:
-- `docs/CURRENT_STATUS.md` (변경사항, 다음 할 일)
-- `docs/context/TASK_REGISTRY.md` (작업 상태 변경)
+세션 종료 시 알아서 다음을 업데이트하거나, 워크플로우를 호출합니다:
+- `docs/AI_STATUS.md` (최근 완료 항목, 알려진 이슈)
+- `docs/AI_CHANGELOG.md` (새 작업 이력 추가)
 - `docs/context/DECISIONS.md` (새 결정사항이 있는 경우)
 - 단순 조회/무변경 세션은 문서 업데이트를 생략하고 "변경 없음"으로 종료
 
@@ -62,7 +62,8 @@ AI 세션 간 기억 연속성을 보장하고 토큰 효율을 극대화합니�
 
 ## 참조 Files
 - `docs/context/` 디렉토리 전체
-- `docs/CURRENT_STATUS.md`
+- `docs/AI_STATUS.md`
+- `docs/AI_CHANGELOG.md`
 - `.cursor/rules/*.mdc`
 - `.cursor/hooks.json`
 
