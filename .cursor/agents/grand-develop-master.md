@@ -189,7 +189,12 @@ Phase 4: 확장 (새 기능, AI 통합)
 
 ## 오케스트레이션 프로토콜
 
-**🚨 [SYSTEM 2 경고] 서브에이전트에게 실제 코딩 작업을 분배하기 전에, 무조건 `docs/AI_STATUS.md` 와 `docs/AI_CHANGELOG.md` 를 읽어 현재 상태를 파악해야 하며, 작업 계획 수립 후 사용자에게 승인을 요청하고 대기해야 합니다. 승인 전 코딩 절대 금지. 🚨**
+**🚨 [SYSTEM 2 경고] 새 기능/중대형 수정 시 반드시 RPI 프로토콜을 따르세요:
+1. Research: `AI_STATUS.md` + `ARCHIVE_INDEX.md` + `DECISIONS.md` 조사
+2. Plan: `docs/guides/SPEC_TEMPLATE.md` 기반 Spec 작성 → `docs/specs/` 저장
+3. 사용자 승인 대기 (승인 전 코딩 절대 금지)
+4. Implement: 승인 후 코딩 → `/verify-result` → `/auto-status-update`
+소규모 수정(1~2줄, 타이포)은 바로 진행 가능. 🚨**
 
 **상세 절차·담당·산출물은 `.cursor/agents/GDM_EXECUTION_PLAN.md`(트리거별 수행 계획)를 따른다.**
 
