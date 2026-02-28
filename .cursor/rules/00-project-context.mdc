@@ -1,0 +1,33 @@
+---
+description: FOMS 프로젝트 컨텍스트. 새 세션 시작 시 AI_STATUS.md를 읽어 상황 파악.
+alwaysApply: true
+---
+
+# FOMS 프로젝트 컨텍스트
+
+## 프로젝트 개요
+- **이름**: FOMS (Furniture Order Management System) - 가구 주문 관리 ERP
+- **스택**: Flask 2.3 + SQLAlchemy 2.0 + PostgreSQL + Jinja2 + Bootstrap 5 + Vanilla JS
+- **배포**: Railway (PostgreSQL + R2 스토리지)
+- **운영 환경**: Windows 11 (PowerShell, `\` 경로, `;` 명령 구분)
+- **워크플로우**: RECEIVED → HAPPYCALL → MEASURE → DRAWING → CONFIRM → PRODUCTION → CONSTRUCTION → CS → COMPLETED
+
+## 새 세션 시작 시 (필수)
+1. `docs/AI_STATUS.md` 읽기 → **50줄로 전체 상황 파악**
+2. 이전 작업 이력 필요 시 → `docs/AI_CHANGELOG.md` 참조
+3. 아키텍처 결정 필요 시 → `docs/context/DECISIONS.md` 참조
+
+## 작업 완료 시 (자동)
+- Cursor: Hook(session_stop)이 자동으로 AI_STATUS.md + AI_CHANGELOG.md 갱신
+- 수동: `/auto-status-update` 워크플로우 실행
+
+## 디렉토리 구조 핵심
+- `app.py`: 플라스크 앱 초기화 (최소화)
+- `apps/api/`: 도메인별 API Blueprint
+- `services/`: 비즈니스 로직 및 정책 엔진
+- `templates/`: 화면 구성 HTML
+- `static/`: JS, CSS 자원
+
+## Git 커밋 규칙
+- **항상 한글 사용**, 무엇을 왜 수정했는지 명확하게 기록
+- 변경 후 항상 Origin에 Push
