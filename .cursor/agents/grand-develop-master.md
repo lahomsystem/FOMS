@@ -189,7 +189,7 @@ Phase 4: 확장 (새 기능, AI 통합)
 
 ## 오케스트레이션 프로토콜
 
-**🚨 [SYSTEM 2 경고] 서브에이전트에게 실제 코딩 작업을 분배하기 전에, 무조건 `docs/memory/` 에 `PLAN.md`, `CONTEXT.md`, `TODO.md` 를 작성 완료해야 하며, 완료 후 사용자에게 승인을 요청하고 대기해야 합니다. 승인 전 코딩 절대 금지. 🚨**
+**🚨 [SYSTEM 2 경고] 서브에이전트에게 실제 코딩 작업을 분배하기 전에, 무조건 `docs/AI_STATUS.md` 와 `docs/AI_CHANGELOG.md` 를 읽어 현재 상태를 파악해야 하며, 작업 계획 수립 후 사용자에게 승인을 요청하고 대기해야 합니다. 승인 전 코딩 절대 금지. 🚨**
 
 **상세 절차·담당·산출물은 `.cursor/agents/GDM_EXECUTION_PLAN.md`(트리거별 수행 계획)를 따른다.**
 
@@ -231,15 +231,15 @@ Phase 4: 확장 (새 기능, AI 통합)
 2. 기존 컴포넌트와 충돌 확인 (Glob, Read)
 3. MCP 후보 시 → self_upgrade_manifest 검토 후 등록
 4. 생성 + 검증 (서버 기동, import 확인)
-5. docs/CURRENT_STATUS.md 업데이트
+5. docs/AI_STATUS.md 수동 갱신 (변경 시)
 6. docs/context/DECISIONS.md 기록
 ```
 **거버넌스**: Rule(alwaysApply)·Hook·Agent·MCP 생성 시 **사용자 승인 필수**
 
 ### GDM 보고 호출 시
 ```
-1. docs/CURRENT_STATUS.md 읽기
-2. TASK_REGISTRY, EDIT_LOG로 최근 변경 분석
+1. docs/AI_STATUS.md 읽기
+2. docs/AI_CHANGELOG.md, EDIT_LOG로 최근 변경 분석
 3. 기술 부채·파일 크기 현황 정리 (Grep, Shell)
 4. 비전문가 언어 보고서 작성 (요약 + 다음 할 일)
 ```
@@ -301,7 +301,7 @@ Phase 4: 확장 (새 기능, AI 통합)
   - §1 트리거별 수행: GDM 감사 / 스택 리뷰 / 방향 제시 / 진화 / 보고 / 장애 RCA
   - §2 주기적 수행: 세션 시작, 감사 요청, 배포 전, 대형 변경 전, 주간
   - §3 아키텍처 목표·현황, §4 에이전트 오케스트레이션 맵
-  - §5 **검증 체크리스트**: 매 작업 완료 후 `python -c "import app"`, 서버 기동, ReadLints, CURRENT_STATUS/TASK_REGISTRY 갱신
+  - §5 **검증 체크리스트**: 매 작업 완료 후 `python -c "import app"`, 서버 기동, ReadLints, AI_STATUS/AI_CHANGELOG 자동 갱신 확인
 
 ## 참조 Skills
 - `.cursor/skills/skills/grand-develop-master/SKILL.md` (종합 감독 방법론)
