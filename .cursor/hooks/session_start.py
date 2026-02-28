@@ -69,7 +69,15 @@ def main():
         f.write(header + new_entry + sessions_part)
 
     # AI 자동 메모리: 세션 시작 시 안내
-    system1_message = "\n[SYSTEM] 새 세션입니다. `docs/AI_STATUS.md`를 읽어 현재 상황을 파악하세요. 이전 작업 이력이 필요하면 `docs/AI_CHANGELOG.md`를 참조하세요."
+    system1_message = """
+[SYSTEM] 새 세션입니다.
+1. `docs/AI_STATUS.md`를 읽어 현재 상황을 파악하세요.
+2. 새 기능/중대형 수정이면 반드시 조사(R)→계획(P)→실행(I) 순서를 따르세요.
+   - 조사: DECISIONS.md, ARCHIVE_INDEX.md에서 관련 과거 기록 검색
+   - 계획: docs/guides/SPEC_TEMPLATE.md 기반으로 Spec 작성 → 사용자 승인 대기
+   - 실행: 승인 후 코딩 시작
+3. 대화가 길어지면 핵심을 요약하고 새 세션을 권유하세요 (Dumb Zone 회피).
+"""
 
     output = {
         "continue": True,

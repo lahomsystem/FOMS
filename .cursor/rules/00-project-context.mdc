@@ -12,10 +12,14 @@ alwaysApply: true
 - **운영 환경**: Windows 11 (PowerShell, `\` 경로, `;` 명령 구분)
 - **워크플로우**: RECEIVED → HAPPYCALL → MEASURE → DRAWING → CONFIRM → PRODUCTION → CONSTRUCTION → CS → COMPLETED
 
-## 새 세션 시작 시 (필수)
+## 새 세션 시작 시 + 작업 프로토콜 (RPI — 필수 준수)
 1. `docs/AI_STATUS.md` 읽기 → **50줄로 전체 상황 파악**
-2. 이전 작업 이력 필요 시 → `docs/AI_CHANGELOG.md` 참조
-3. 아키텍처 결정 필요 시 → `docs/context/DECISIONS.md` 참조
+2. **핵심 코어 변경(DB/Auth/API) 포함 작업** → RPI 프로토콜 필수:
+   - Research: `DECISIONS.md` + `ARCHIVE_INDEX.md`에서 관련 과거 기록 조사
+   - Plan: `docs/guides/SPEC_TEMPLATE.md` 기반 Spec 작성 → 사용자 승인 대기
+   - Implement: 승인 후 코딩 → `/verify-result` → `/auto-status-update` 실행
+3. **단순 UI 변경/타이포** → 바로 코딩 허용
+4. **대화가 길어지면** → 핵심 요약 후 새 세션 권유 (Dumb Zone 회피)
 
 ## 작업 완료 시 (자동)
 - Cursor: Hook(session_stop)이 자동으로 AI_STATUS.md + AI_CHANGELOG.md 갱신
