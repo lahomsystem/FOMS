@@ -4,6 +4,9 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-01 | 세션 자동 기록 | settings.json, test_file.py, erp_orders_drawing.py | 38349d2 |
+| 2026-03-01 | 세션 자동 기록 | test_file.py, erp_orders_drawing.py | 94be5b3 |
+| 2026-02-28 | 세션 자동 기록 | erp_orders_drawing.py | 2ade8ae |
 | 2026-02-28 | AI 자동 메모리 시스템 구축 | hooks, workflows, docs 정리 | - |
 | 2026-02-27 | docs 정리 (완료/오래된 문서 삭제, 4개 문서 최신화) | docs/ 30+ files | b7900ee |
 | 2026-02-27 | 지도 auto-poll iframe 재로드 제거 | templates/map_view.html | ab55226 |

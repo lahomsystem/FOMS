@@ -14,7 +14,7 @@ def _load_debug():
     except Exception:
         return lambda *a, **k: None, lambda: {}
 maybe_log_payload, get_payload = _load_debug()
-from shared_utils import find_key_recursive
+from shared_utils import find_key_recursive, extract_project_root
 
 DANGEROUS_PATTERNS = [
     r"rm\s+(-rf|-fr)\s+[/\\]",
@@ -82,14 +82,7 @@ def main():
     if not isinstance(payload, dict):
         payload = {}
 
-    project_root = find_key_recursive(payload, ["workspace_roots", "workspaceRoots"], default=None)
-    if isinstance(project_root, list) and len(project_root) > 0:
-        project_root = str(project_root[0])
-    elif project_root is not None:
-        project_root = str(project_root)
-
-    if not project_root or project_root.lower() == "none" or project_root == "unknown":
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = extract_project_root(payload)
 
     maybe_log_payload("beforeShellExecution", payload, project_root)
 

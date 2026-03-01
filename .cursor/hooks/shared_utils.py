@@ -2,6 +2,9 @@
 Cursor 훅 공용 유틸. find_key_recursive 등 payload 추출 로직 공유.
 """
 from __future__ import annotations
+import os
+import re
+
 
 def find_key_recursive(data: object, target_keys: list[str], default: str | None = "unknown") -> str | None:
     """중첩 dict/list에서 target_keys 중 하나라도 있으면 해당 값을 반환. 없으면 default."""
@@ -18,3 +21,33 @@ def find_key_recursive(data: object, target_keys: list[str], default: str | None
             if res is not None:
                 return res
     return default
+
+
+def normalize_win_path(path_str: str | None) -> str | None:
+    """Cursor workspace_roots의 '/c:/...' 형식을 Windows 호환 'c:/...'로 변환.
+
+    Cursor 2.5+ 는 workspace_roots를 URI 스타일('/c:/Users/...')로 전달함.
+    Windows Python에서 os.path.abspath('/c:/...') → 'C:\\c:\\...'가 되므로
+    선행 '/'를 제거해야 올바른 경로가 됨.
+    """
+    if not path_str or not isinstance(path_str, str):
+        return path_str
+    s = path_str.strip()
+    if re.match(r"^/[A-Za-z]:/", s):
+        s = s[1:]
+    return s
+
+
+def extract_project_root(payload: dict) -> str:
+    """payload에서 project_root 추출 + Windows 경로 정규화. fallback: __file__ 기준."""
+    raw = find_key_recursive(payload, ["workspace_roots", "workspaceRoots"], default=None)
+    if isinstance(raw, list) and len(raw) > 0:
+        root = normalize_win_path(str(raw[0]))
+    elif raw is not None:
+        root = normalize_win_path(str(raw))
+    else:
+        root = None
+
+    if not root or root.lower() == "none" or root == "unknown":
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return root
