@@ -1,0 +1,38 @@
+---
+description: Windows 11 터미널/쉘 환경 규칙. 모든 명령은 Win11·PowerShell 기준으로 작성.
+alwaysApply: true
+---
+
+# Win11 환경 규칙
+
+**이 프로젝트의 로컬 운영 환경은 Windows 11입니다. 터미널 명령, 스크립트, Git 사용은 반드시 Win11에 맞게 작성·실행하세요.**
+
+## 1. 셸 및 명령 연결
+- **기본 셸**: PowerShell (CMD가 아닌 PowerShell 기준).
+- **명령 연결**: `&&` 사용 금지. PowerShell 5.x에서는 `&&`가 없어 에러가 난다. **반드시 `;`(세미콜론)**으로 명령을 이어 쓴다.
+  - 예: `cd "C:\path"; git status` (O) / `cd "C:\path" && git status` (X)
+
+## 2. 경로
+- **구분자**: Windows 경로는 `\` 사용. 경로에 **공백이 있으면 반드시 큰따옴표**로 감싼다.
+  - 예: `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"`
+- 상대 경로도 공백 포함 시 따옴표 사용.
+
+## 3. Git
+- **한글 커밋 메시지**: PowerShell 기본 인코딩 이슈로 `git commit -m "한글"` 사용 시 깨질 수 있다. **UTF-8로 저장한 파일을 사용해 `git commit -F 파일경로`** 로 커밋한다. 커밋 후 사용한 임시 메시지 파일은 삭제한다.
+- 원격 푸시: `git push origin 브랜치이름` (동일).
+
+## 4. 줄 연속·이스케이프
+- **줄 연속**: Bash의 `\` 대신 PowerShell에서는 **백틱 `` ` ``** 사용.
+- **문자 이스케이프**: PowerShell에서는 백틱 `` ` ``이 이스케이프 문자이다.
+
+## 5. 환경 변수·스크립트
+- 환경 변수 참조: Bash `$VAR` 대신 PowerShell은 **`$env:VAR`** 등 PowerShell 문법 사용.
+- 실행 정책 이슈가 있으면 `Set-ExecutionPolicy` 등은 사용자에게 안내만 하고, 규칙 파일에서는 “Win11 기준으로 작성”만 명시.
+
+## 6. 에이전트·코드 생성 시
+- 터미널에서 실행할 명령을 생성할 때는 **항상 Windows 11 + PowerShell**을 가정한다.
+- 문서·주석에 예시 명령을 쓸 때도 Win11/PowerShell 예시를 우선 사용한다.
+
+## 7. Cursor 훅 (Agent Hooks)
+- `.cursor/hooks.json` 이나 `.vscode/settings.json`에 등록된 훅 실행 시, Win11 환경에서는 `python` 명령이 사용되므로, 시스템 PATH에 등록된 Python이 올바르게 동작하도록 보장해야 한다.
+- 가상환경(venv)을 사용하는 경우, `python` 대신 `.venv\Scripts\python.exe` 등 명시적 경로로 호출하거나, `terminal.integrated.env.windows` 에 PYTHONPATH를 등록해 훅에서 모듈을 찾을 수 있도록 세팅을 반영한다.
