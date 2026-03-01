@@ -1,9 +1,26 @@
 // 유틸리티 함수 (다른 partial에서 공통 사용)
+// 백틱도 &#96;로 이스케이프하여 템플릿 리터럴 안에서 삽입 시 구문 오류 방지
 function escapeHtml(text) {
     if (text == null || text === undefined) return '';
     const div = document.createElement('div');
     div.textContent = text;
-    return div.innerHTML;
+    return div.innerHTML.replace(/`/g, '&#96;');
+}
+/** onclick 등 단일 따옴표 JS 문자열·템플릿 리터럴 안에 넣을 때 사용 (작은따옴표·백슬래시·백틱 이스케이프) */
+function escapeJsString(s) {
+    if (s == null || s === undefined) return '';
+    return String(s)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/`/g, '\\`');
+}
+
+/** HTML 속성(쌍따옴표 기반) 안에 동적 문자열을 안전하게 삽입하기 위한 이스케이프 함수 */
+function safeAttr(str) {
+    if (str == null || str === undefined) return '';
+    const d = document.createElement('div');
+    d.textContent = String(str);
+    return d.innerHTML.replace(/"/g, '&quot;');
 }
 
 function formatDate(dateString) {

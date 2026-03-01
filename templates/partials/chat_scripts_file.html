@@ -74,10 +74,11 @@ function handleFileSelect(files) {
         .then(key => {
             showProgress(90);
             return fetch('/api/chat/upload/complete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key: key, filename: file.name })
-        }))
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: key, filename: file.name })
+            });
+        })
         .then(r => r.json())
         .then(data => {
             showProgress(100);

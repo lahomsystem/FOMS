@@ -1,5 +1,6 @@
-// Socket.IO 연결
-document.addEventListener('DOMContentLoaded', function() {
+// Socket.IO 연결 (외부 scripts.js 지연 로드 시 이미 loaded일 수 있음)
+(function runWhenReady() {
+    function init() {
     // 채팅 페이지 높이 조절
     adjustChatPageHeight();
     
@@ -123,6 +124,127 @@ document.addEventListener('DOMContentLoaded', function() {
             handleFileSelect(e.target.files);
         });
     }
+    
+    // 채팅방 목록 클릭 위임 (Phase 2.1: 인라인 onclick 제거)
+    const roomsListEl = document.getElementById('rooms-list');
+    if (roomsListEl) {
+        roomsListEl.addEventListener('click', function(e) {
+            const item = e.target.closest('.chat-room-item[data-room-id]');
+            if (item) {
+                const id = parseInt(item.getAttribute('data-room-id'), 10);
+                if (!isNaN(id) && typeof selectRoom === 'function') selectRoom(id);
+            }
+        });
+        roomsListEl.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const item = e.target.closest('.chat-room-item[data-room-id]');
+            if (item) {
+                e.preventDefault();
+                const id = parseInt(item.getAttribute('data-room-id'), 10);
+                if (!isNaN(id) && typeof selectRoom === 'function') selectRoom(id);
+            }
+        });
+    }
+    
+    // 주문 위젯 위임 (Phase 2.2.1: change, focusout, click)
+    const orderWidgetEl = document.getElementById('chat-order-widget-container');
+    if (orderWidgetEl) {
+        orderWidgetEl.addEventListener('change', function(e) {
+            const el = e.target;
+            const orderId = parseInt(el.getAttribute('data-order-id'), 10);
+            if (isNaN(orderId)) return;
+            if (el.classList.contains('status-dropdown') && el.getAttribute('data-field') === 'status') {
+                if (typeof updateOrderStatus === 'function') updateOrderStatus(orderId, el.value);
+                if (typeof applyStatusColor === 'function') applyStatusColor(el);
+            } else if (el.getAttribute('data-field') === 'scheduled_date') {
+                if (typeof updateOrderField === 'function') updateOrderField(orderId, 'scheduled_date', el.value);
+            }
+        });
+        orderWidgetEl.addEventListener('focusout', function(e) {
+            const el = e.target;
+            if (el.getAttribute('data-field') !== 'manager_name') return;
+            const orderId = parseInt(el.getAttribute('data-order-id'), 10);
+            if (!isNaN(orderId) && typeof updateOrderField === 'function') updateOrderField(orderId, 'manager_name', el.value);
+        });
+        orderWidgetEl.addEventListener('click', function(e) {
+            const btn = e.target.closest('[data-action="open-blueprint"]');
+            if (!btn) return;
+            const orderId = parseInt(btn.getAttribute('data-order-id'), 10);
+            if (!isNaN(orderId) && typeof openBlueprintViewer === 'function') openBlueprintViewer(orderId);
+        });
+    }
+    
+    // 메시지 다운로드 버튼 위임 (Phase 2.4)
+    const messagesContainer = document.getElementById('messages-container');
+    if (messagesContainer) {
+        messagesContainer.addEventListener('click', function(e) {
+            const btn = e.target.closest('[data-action="download-chat-image"]');
+            if (btn) {
+                e.preventDefault();
+                var key = btn.getAttribute('data-storage-key') || '';
+                var filename = btn.getAttribute('data-filename') || '';
+                if (typeof downloadChatImage === 'function') downloadChatImage(key, filename, e);
+                return;
+            }
+            const allBtn = e.target.closest('[data-action="download-all-images"]');
+            if (allBtn) {
+                e.preventDefault();
+                var mid = parseInt(allBtn.getAttribute('data-message-id'), 10);
+                if (!isNaN(mid) && typeof downloadAllChatImages === 'function') downloadAllChatImages(mid, e);
+            }
+        });
+    }
+    
+    // 전역 검색 결과 클릭 위임 (Phase 2.5)
+    const globalSearchResults = document.getElementById('global-search-results');
+    if (globalSearchResults) {
+        globalSearchResults.addEventListener('click', function(e) {
+            const row = e.target.closest('.global-search-row[data-action]');
+            if (!row) return;
+            const action = row.getAttribute('data-action');
+            const roomId = parseInt(row.getAttribute('data-room-id'), 10);
+            if (isNaN(roomId)) return;
+            if (action === 'search-result-message' && typeof selectRoomAndHighlight === 'function') {
+                var mid = parseInt(row.getAttribute('data-message-id'), 10);
+                selectRoomAndHighlight(roomId, isNaN(mid) ? 0 : mid);
+            } else if (action === 'search-result-room' && typeof selectRoom === 'function') {
+                selectRoom(roomId);
+            }
+        });
+    }
+    
+    // 주문 검색/연결 모달 행 클릭 위임 (Phase 2.3)
+    document.addEventListener('click', function(e) {
+        const row = e.target.closest('.order-search-row[data-action]');
+        if (row) {
+            const action = row.getAttribute('data-action');
+            const orderId = parseInt(row.getAttribute('data-order-id'), 10);
+            if (isNaN(orderId)) return;
+            if (action === 'select-order' && typeof selectOrderForRoom === 'function') {
+                const customerName = row.getAttribute('data-customer-name') || '';
+                const product = row.getAttribute('data-product') || '';
+                selectOrderForRoom(orderId, customerName, product);
+            } else if (action === 'connect-order' && typeof connectOrderToRoom === 'function') {
+                connectOrderToRoom(orderId, '');
+            }
+            return;
+        }
+        const btn = e.target.closest('#chat-header [data-action]');
+        if (!btn) return;
+        const action = btn.getAttribute('data-action');
+        const roomId = parseInt(btn.getAttribute('data-room-id'), 10);
+        if (action === 'toggle-search' && typeof toggleSearch === 'function') { toggleSearch(); return; }
+        if (action === 'back-to-list' && typeof goBackToChatList === 'function') { goBackToChatList(); return; }
+        if (isNaN(roomId)) return;
+        if (action === 'edit-room-name' && typeof showEditRoomNameModal === 'function') {
+            const name = btn.getAttribute('data-room-name') || '';
+            showEditRoomNameModal(roomId, name);
+        } else if (action === 'connect-order' && typeof showConnectOrderModal === 'function') { showConnectOrderModal(roomId);
+        } else if (action === 'disconnect-order' && typeof disconnectOrder === 'function') { disconnectOrder(roomId);
+        } else if (action === 'invite-member' && typeof showInviteMemberModal === 'function') { showInviteMemberModal(roomId);
+        } else if (action === 'delete-room' && typeof deleteRoom === 'function') { deleteRoom(roomId);
+        }
+    });
     
     // 마우스 휠로 확대/축소 (라이트박스가 활성화된 경우에만)
     const lightbox = document.getElementById('image-lightbox');
@@ -321,4 +443,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-});
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();

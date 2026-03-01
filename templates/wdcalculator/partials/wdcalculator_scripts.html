@@ -3208,6 +3208,54 @@ document.addEventListener('DOMContentLoaded', function() {
                         
                         savedEstimatesList.appendChild(item);
                     });
+                    // 모바일(휴대폰): 기본 1건만 표시, 더보기/줄이기
+                    const listItems = savedEstimatesList.querySelectorAll('.list-group-item');
+                    const moreWrap = document.getElementById('savedEstimatesMoreWrap');
+                    const listContainer = document.getElementById('savedEstimatesListContainer');
+                    const MOBILE_BREAKPOINT = 576;
+                    const VISIBLE_COUNT_MOBILE = 1;
+                    const hiddenClass = 'saved-estimate-item--hidden-mobile';
+                    const expandedClass = 'saved-estimates-list--expanded';
+                    const collapseBarId = 'savedEstimatesCollapseBar';
+                    if (moreWrap) moreWrap.classList.add('d-none');
+                    savedEstimatesList.classList.remove(expandedClass);
+                    const oldCollapseBar = document.getElementById(collapseBarId);
+                    if (oldCollapseBar) oldCollapseBar.remove();
+                    if (listItems.length > VISIBLE_COUNT_MOBILE && moreWrap && listContainer) {
+                        const applyCollapse = function() {
+                            for (let i = VISIBLE_COUNT_MOBILE; i < listItems.length; i++) listItems[i].classList.add(hiddenClass);
+                            savedEstimatesList.classList.remove(expandedClass);
+                            const bar = document.getElementById(collapseBarId);
+                            if (bar) bar.remove();
+                            const btn = document.getElementById('savedEstimatesToggleBtn');
+                            if (btn) btn.textContent = '더보기 (' + (listItems.length - VISIBLE_COUNT_MOBILE) + '건)';
+                        };
+                        const applyExpand = function() {
+                            for (let i = VISIBLE_COUNT_MOBILE; i < listItems.length; i++) listItems[i].classList.remove(hiddenClass);
+                            savedEstimatesList.classList.add(expandedClass);
+                            const bar = document.createElement('div');
+                            bar.id = collapseBarId;
+                            bar.className = 'text-center py-2 border-bottom bg-light saved-estimates-collapse-bar';
+                            bar.innerHTML = '<button type="button" class="btn btn-sm btn-outline-secondary saved-estimates-more-btn" id="savedEstimatesCollapseBtn">줄이기</button>';
+                            listContainer.insertBefore(bar, savedEstimatesList);
+                            bar.querySelector('#savedEstimatesCollapseBtn').addEventListener('click', applyCollapse);
+                            const btn = document.getElementById('savedEstimatesToggleBtn');
+                            if (btn) btn.textContent = '줄이기';
+                        };
+                        if (window.matchMedia('(max-width: ' + MOBILE_BREAKPOINT + 'px)').matches) {
+                            applyCollapse();
+                            moreWrap.classList.remove('d-none');
+                            moreWrap.setAttribute('aria-hidden', 'false');
+                            moreWrap.innerHTML = '<button type="button" class="btn btn-sm btn-outline-secondary saved-estimates-more-btn" id="savedEstimatesToggleBtn">더보기 (' + (listItems.length - VISIBLE_COUNT_MOBILE) + '건)</button>';
+                            moreWrap.querySelector('#savedEstimatesToggleBtn').addEventListener('click', function() {
+                                if (savedEstimatesList.classList.contains(expandedClass)) {
+                                    applyCollapse();
+                                } else {
+                                    applyExpand();
+                                }
+                            });
+                        }
+                    }
                 } else {
                     noSavedEstimates.style.display = 'block';
                 }

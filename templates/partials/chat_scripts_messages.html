@@ -23,34 +23,19 @@ function renderMessage(msg) {
                 const imageUrl = attachment.url || attachment.storage_url;
                 const storageKey = attachment.storage_key || '';
                 const filename = attachment.filename || `image_${index + 1}.jpg`;
-                const safeAttr = (s) => String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-                const safeJsStr = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 
-                return `
-                    <div class="message-file-image-wrapper">
-                        <img src="${attachment.thumbnail_url || imageUrl}" 
-                             data-url="${safeAttr(imageUrl)}" data-key="${safeAttr(storageKey)}"
-                             onclick="openImageLightbox(this)" 
-                             style="cursor: zoom-in; max-width: 300px; border-radius: 8px; background-color: white; padding: 4px; display: block;">
-                        <button class="chat-image-download-btn" 
-                                onclick="downloadChatImage('${safeJsStr(storageKey)}', '${escapeHtml(filename)}', event)"
-                                title="다운로드">
-                            <i class="fas fa-download"></i>
-                        </button>
-                    </div>
-                `;
+                return '<div class="message-file-image-wrapper">' +
+                    '<img src="' + escapeHtml(attachment.thumbnail_url || imageUrl || '') + '" ' +
+                    'data-url="' + safeAttr(imageUrl) + '" data-key="' + safeAttr(storageKey) + '" ' +
+                    'onclick="openImageLightbox(this)" style="cursor: zoom-in; max-width: 300px; border-radius: 8px; background-color: white; padding: 4px; display: block;">' +
+                    '<button type="button" class="chat-image-download-btn" data-action="download-chat-image" data-storage-key="' + safeAttr(storageKey) + '" data-filename="' + safeAttr(filename) + '" title="다운로드">' +
+                    '<i class="fas fa-download"></i></button></div>';
             }).join('');
             
-            // 여러 이미지가 있으면 "전체 다운로드" 버튼 추가
-            const downloadAllBtn = hasMultipleImages ? `
-                <div class="mt-2">
-                    <button class="btn btn-sm btn-outline-primary" 
-                            onclick="downloadAllChatImages(${msg.id}, event)"
-                            title="모든 이미지 다운로드">
-                        <i class="fas fa-download"></i> 전체 다운로드 (${imageAttachments.length}개)
-                    </button>
-                </div>
-            ` : '';
+            const msgIdNum = Number(msg.id) || 0;
+            const downloadAllBtn = hasMultipleImages
+                ? '<div class="mt-2"><button type="button" class="btn btn-sm btn-outline-primary" data-action="download-all-images" data-message-id="' + msgIdNum + '" title="모든 이미지 다운로드"><i class="fas fa-download"></i> 전체 다운로드 (' + imageAttachments.length + '개)</button></div>'
+                : '';
             
             content = `<div class="message-file">${imageHtml}${downloadAllBtn}</div>`;
         } else {
@@ -62,21 +47,12 @@ function renderMessage(msg) {
                 const filename = attachment.filename || 'video.mp4';
                 const safeJsStr = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 
-                content = `
-                    <div class="message-file" style="position: relative; display: inline-block;">
-                        <video controls style="max-width: 300px;">
-                            <source src="${videoUrl}">
-                        </video>
-                        <button class="chat-image-download-btn" 
-                                onclick="downloadChatImage('${safeJsStr(storageKey)}', '${escapeHtml(filename)}', event)"
-                                title="다운로드">
-                            <i class="fas fa-download"></i>
-                        </button>
-                    </div>
-                `;
+                content = '<div class="message-file" style="position: relative; display: inline-block;">' +
+                    '<video controls style="max-width: 300px;"><source src="' + escapeHtml(videoUrl || '') + '"></video>' +
+                    '<button type="button" class="chat-image-download-btn" data-action="download-chat-image" data-storage-key="' + (function(){ var s = String(storageKey || ''); return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); })() + '" data-filename="' + (function(){ var s = String(filename || ''); return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); })() + '" title="다운로드"><i class="fas fa-download"></i></button></div>';
             } else {
                 const fileUrl = attachment.url || attachment.storage_url;
-                content = `<a href="${fileUrl}" target="_blank" class="btn btn-sm btn-outline-primary">
+                content = `<a href="${escapeHtml(fileUrl || '')}" target="_blank" class="btn btn-sm btn-outline-primary">
                               <i class="fas fa-download"></i> ${escapeHtml(attachment.filename)}
                            </a>`;
             }
@@ -107,7 +83,7 @@ function renderMessage(msg) {
                 ${content}
             </div>
             <div class="message-meta">
-                ${!isOwn ? userName + ' · ' : ''}${formatDateTime(msg.created_at)}
+                ${!isOwn ? escapeHtml(userName) + ' · ' : ''}${formatDateTime(msg.created_at)}
             </div>
             ${readReceipt}
         </div>

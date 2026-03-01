@@ -1689,6 +1689,13 @@
 
 /* Responsive Filter Form */
 @media (max-width: 768px) {
+  .erp-pro-card__header--filter {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    padding-left: var(--erp-space-sm) !important;
+    padding-right: var(--erp-space-sm) !important;
+  }
+
   .erp-pro-filter-form {
     flex-direction: column;
     align-items: stretch;
@@ -1710,61 +1717,88 @@
   }
 }
 
-/* 모바일 전용: 검색 필터 1줄 미니멀 (실측/출고 대시보드) */
+/* 모바일: 필터 1행(검색·상태·담당자) + 2행(체크박스) + 3행(버튼), 미니멀 세로폭 */
 @media (max-width: 768px) {
   .erp-pro-filter-form--inline-mobile {
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
+    display: grid !important;
+    grid-template-columns: 1fr minmax(72px, auto) 1fr !important;
+    grid-template-rows: auto auto auto !important;
+    gap: 0.5rem 0.5rem !important;
     align-items: center !important;
-    gap: 6px !important;
   }
-  
-  .erp-pro-filter-form--inline-mobile .erp-pro-filter-group {
-    width: auto !important;
+
+  /* 1행: 검색 | 상태 | 도면 담당자 (한 줄, 미니멀) */
+  .erp-pro-filter-form--inline-mobile .erp-pro-filter-group:nth-child(1) {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
     min-width: 0 !important;
-    flex: 1 1 auto !important;
   }
-
-  .erp-pro-filter-form--inline-mobile .erp-pro-filter-group:first-child {
-    flex: 0 0 auto !important;
-    max-width: 120px !important;
-  }
-
   .erp-pro-filter-form--inline-mobile .erp-pro-filter-group:nth-child(2) {
-    flex: 1 1 100px !important;
-    min-width: 80px !important;
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    min-width: 0 !important;
   }
-  
+  .erp-pro-filter-form--inline-mobile .erp-pro-filter-group:nth-child(3) {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    min-width: 0 !important;
+  }
+
   .erp-pro-filter-form--inline-mobile .erp-pro-filter-label {
     display: none !important;
   }
-  
+
   .erp-pro-filter-form--inline-mobile .erp-pro-input {
-    padding: 6px 8px !important;
-    font-size: 0.8125rem !important;
-    min-height: 36px !important;
-  }
-  
-  .erp-pro-filter-form--inline-mobile .erp-pro-filter-actions {
-    flex: 0 0 auto !important;
-    flex-wrap: nowrap !important;
-  }
-  
-  /* 모바일 필터: 버튼 박스를 아이콘 크기에 맞게 최소화 (돋보기 등 표시) */
-  .erp-pro-filter-form--inline-mobile .erp-pro-filter-actions .erp-pro-btn {
-    padding: 5px 7px !important;
-    min-height: 28px !important;
-    min-width: 28px !important;
-    font-size: 0.8125rem !important;
-  }
-  
-  .erp-pro-filter-form--inline-mobile .erp-pro-btn span {
-    display: none !important;
-  }
-  
-  .erp-pro-filter-form--inline-mobile .erp-pro-btn i {
-    margin: 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    padding: 0.4rem 0.4rem !important;
     font-size: 0.875rem !important;
+    min-height: 40px !important;
+  }
+
+  /* 2행: 내 할 일 / 미확인만 / 오늘 마감 */
+  .erp-pro-filter-form--inline-mobile .d-flex.flex-wrap.gap-2 {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+    align-items: center !important;
+  }
+
+  .erp-pro-filter-form--inline-mobile .form-check,
+  .erp-pro-filter-form--inline-mobile .form-check .small,
+  .erp-pro-filter-form--inline-mobile .form-check span {
+    white-space: nowrap !important;
+  }
+
+  .erp-pro-filter-form--inline-mobile .form-check {
+    flex-shrink: 0 !important;
+    margin-bottom: 0 !important;
+    min-height: 36px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+  }
+
+  /* 3행: 조회 / 초기화 */
+  .erp-pro-filter-form--inline-mobile .erp-pro-filter-actions {
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    gap: 0.5rem !important;
+  }
+
+  .erp-pro-filter-form--inline-mobile .erp-pro-filter-actions .erp-pro-btn {
+    min-height: 40px !important;
+    min-width: 44px !important;
+    padding: 0.4rem 0.6rem !important;
+    font-size: 0.875rem !important;
+  }
+
+  .erp-pro-filter-form--inline-mobile .erp-pro-btn span {
+    display: inline !important;
   }
 }
 
@@ -2298,6 +2332,59 @@
     flex: 0 0 auto;
     margin-right: 8px;
     font-size: 0.85rem;
+  }
+  /* 값(첫 번째 자식~) 오른쪽 정렬: data-label 왼쪽, 값 오른쪽 */
+  .erp-pro .erp-mobile-card-table tbody td > *:first-of-type {
+    margin-left: auto;
+  }
+  .erp-pro .erp-mobile-card-table tbody td > * {
+    text-align: right;
+  }
+}
+
+/* 발송/실측 등 카드 테이블: 모바일에서 카드 가로 100%, 한 눈에 보이게 */
+@media (max-width: 992px) {
+  .erp-pro .table-responsive.shipment-table-wrapper {
+    overflow-x: visible !important;
+  }
+  .erp-pro .shipment-table.erp-mobile-card-table,
+  .erp-pro .measurement-table.erp-mobile-card-table {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  .erp-pro .erp-mobile-card-table.shipment-table tbody tr,
+  .erp-pro .erp-mobile-card-table.measurement-table tbody tr {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .erp-pro .erp-mobile-card-table tbody td {
+    min-width: 0 !important;
+    align-items: flex-start !important;
+  }
+  .erp-pro .erp-mobile-card-table tbody td::before {
+    flex-shrink: 0 !important;
+  }
+  .erp-pro .erp-mobile-card-table tbody td > * {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+  }
+  .erp-pro .erp-mobile-card-table .shipment-address-text,
+  .erp-pro .erp-mobile-card-table .shipment-address-block,
+  .erp-pro .erp-mobile-card-table .cell-wrap,
+  .erp-pro .erp-mobile-card-table .shipment-product-line,
+  .erp-pro .erp-mobile-card-table .shipment-product-list,
+  .erp-pro .erp-mobile-card-table .shipment-spec-line {
+    white-space: normal !important;
+    word-break: break-word !important;
+    max-width: 100% !important;
+  }
+  .erp-pro .erp-mobile-card-table .shipment-field-edit,
+  .erp-pro .erp-mobile-card-table .d-flex.flex-nowrap {
+    flex-wrap: wrap !important;
+    min-width: 0 !important;
   }
 }
 

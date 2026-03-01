@@ -126,7 +126,7 @@
           {% endif %}
         </div>
         <div class="col-12 col-xl-10 col-lg-10">
-          <div class="table-responsive">
+          <div class="table-responsive shipment-table-wrapper">
             <style>
               .shipment-row {
                 border-bottom: 1px solid #e9ecef;
@@ -758,6 +758,14 @@
               }
               /* 모바일: 카드 전환은 erp-pro.css .erp-mobile-card-table 적용, 터치 영역 확보 */
               @media (max-width: 992px) {
+                .shipment-table {
+                  min-width: 0 !important;
+                  width: 100% !important;
+                }
+                .shipment-table th,
+                .shipment-table td {
+                  white-space: normal !important;
+                }
                 .measurement-panel-item {
                   min-height: 44px;
                   display: flex;

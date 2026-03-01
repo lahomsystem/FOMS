@@ -123,7 +123,7 @@ function createNotificationElement(notification) {
     if (hasAttachment && message.attachments && message.attachments[0]) {
         const attachment = message.attachments[0];
         if (attachment.file_type === 'image' && attachment.thumbnail_url) {
-            attachmentHtml = `<img src="${attachment.thumbnail_url}" class="chat-notification-image" alt="이미지">`;
+            attachmentHtml = `<img src="${escapeHtml(attachment.thumbnail_url || '')}" class="chat-notification-image" alt="이미지">`;
         } else {
             const fileIcon = attachment.file_type === 'video' ? 'fa-video' : 'fa-file';
             attachmentHtml = `

@@ -537,7 +537,7 @@ chat.html (13KB, 🔴 자체 모바일 미대응)
 
 테스트 방법: Chrome DevTools → Device Toolbar 사용
 
-#### 작업 5-2: git commit + push (실행 대기)
+#### 작업 5-2: git commit + push ✅
 
 - 커밋 메시지: `feat: 모바일 ERP 최적화 — 카드 전환, 풀스크린 모달, Progressive Disclosure`
 - deploy 브랜치에 push
