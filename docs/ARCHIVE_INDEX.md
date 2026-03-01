@@ -29,6 +29,7 @@
 | BACKUP_RESTORE_VERIFICATION.md | 백업, 복원 | 백업/복원 검증 절차 |
 | EVOLUTION_DECISIONS.md | 진화, 결정 | 시스템 진화 결정 기록 |
 | EVOLUTION_EXECUTION_REPORT_2026-02-17.md | 진화, 실행 | 2/17 진화 실행 보고 |
+| EXPERIMENT_LOG.md | 실험, 로그 | 기술 실험 로그 |
 | HYPOTHESIS_BACKLOG.md | 가설, 백로그 | 기술 가설 백로그 |
 | RADAR.md | 기술, 레이더 | 기술 트렌드 레이더 |
 
