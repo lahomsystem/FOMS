@@ -402,8 +402,20 @@
                   max-height: 240px;
                 }
               }
+              /* 모바일: 카드 전환은 erp-pro.css .erp-mobile-card-table, 터치·레이아웃 */
+              @media (max-width: 992px) {
+                .measurement-panel-item {
+                  min-height: 44px;
+                  display: flex;
+                  align-items: center;
+                }
+                .erp-pro .row.g-3 > [class*="col-"] {
+                  flex: 0 0 100%;
+                  max-width: 100%;
+                }
+              }
             </style>
-            <table class="table table-sm table-hover align-middle measurement-table">
+            <table class="table table-sm table-hover align-middle measurement-table erp-mobile-card-table">
               <thead class="table-light">
                 <tr>
                   <th style="width: 70px; border-right: 1px solid #e0e0e0;">상세</th>
@@ -465,7 +477,7 @@
 
                 <tr data-order-id="{{ r.id }}" data-is-erp="{{ 'true' if r.is_erp_beta else 'false' }}"
                   data-manager="{{ manager or '' }}" class="measurement-row">
-                  <td class="text-center" style="border-right: 1px solid #e0e0e0;">
+                  <td class="text-center" data-label="상세" style="border-right: 1px solid #e0e0e0;">
                     {% if can_edit_erp|default(false) %}
                     <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_measurement_dashboard') }}?open=erp-beta"
                       class="btn btn-sm btn-outline-primary" title="주문 상세">
@@ -475,22 +487,22 @@
                     <span class="text-muted small">(권한없음)</span>
                     {% endif %}
                   </td>
-                  <td style="border-right: 1px solid #e0e0e0;">
+                  <td data-label="고객" style="border-right: 1px solid #e0e0e0;">
                     <span class="d-inline-flex align-items-center">
                       {{ customer or '-' }}
                       <i class="fas fa-chevron-down measurement-chevron ms-1" data-order-id="{{ r.id }}" role="button" aria-expanded="false" title="주문 상세 보기"></i>
                     </span>
                   </td>
-                  <td style="border-right: 1px solid #e0e0e0;">{{ orderer or '-' }}</td>
-                  <td class="editable-cell cell-wrap measurement-address-cell" data-field="address"
+                  <td data-label="발주사" style="border-right: 1px solid #e0e0e0;">{{ orderer or '-' }}</td>
+                  <td class="editable-cell cell-wrap measurement-address-cell" data-field="address" data-label="주소"
                     style="border-right: 1px solid #e0e0e0;">{{ address or '-' }}</td>
-                  <td class="editable-cell" data-field="phone" style="border-right: 1px solid #e0e0e0;">{{
+                  <td class="editable-cell" data-field="phone" data-label="전화번호" style="border-right: 1px solid #e0e0e0;">{{
                     phone|format_phone }}</td>
-                  <td class="measurement-date-cell" style="border-right: 1px solid #e0e0e0; white-space: nowrap;">{{ meas_date or '-' }}</td>
-                  <td style="border-right: 1px solid #e0e0e0;">{{ meas_time or '-' }}</td>
-                  <td class="cell-wrap measurement-product-cell" style="border-right: 1px solid #e0e0e0;">{{ (product or
+                  <td class="measurement-date-cell" data-label="실측일" style="border-right: 1px solid #e0e0e0; white-space: nowrap;">{{ meas_date or '-' }}</td>
+                  <td data-label="시간" style="border-right: 1px solid #e0e0e0;">{{ meas_time or '-' }}</td>
+                  <td class="cell-wrap measurement-product-cell" data-label="제품" style="border-right: 1px solid #e0e0e0;">{{ (product or
                     '-')|strip_product_w or '-' }}</td>
-                  <td class="editable-cell manager-cell" data-field="manager"
+                  <td class="editable-cell manager-cell" data-field="manager" data-label="담당자"
                     style="background-color: {{ manager_bg_color }}; color: {{ text_color }};">
                     {{ manager or '-' }}
                   </td>
@@ -621,7 +633,7 @@
 
 <!-- 동선 추천 모달 -->
 <div class="modal fade" id="routePlanModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-md-down">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="fas fa-route"></i> 동선 추천 (MVP)</h5>

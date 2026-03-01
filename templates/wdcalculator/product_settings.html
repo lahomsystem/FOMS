@@ -97,6 +97,39 @@
     #notesCategoriesListContainer table th {
         display: table-cell !important;
     }
+    /* WDCalculator 모바일: 테이블 → 카드 전환 (2026-03 계획) */
+    @media (max-width: 992px) {
+        .wdcalc-mobile-card-table thead { display: none; }
+        .wdcalc-mobile-card-table tbody tr {
+            display: block;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            margin-bottom: 0.75rem;
+            padding: 0.75rem;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,.06);
+        }
+        .wdcalc-mobile-card-table tbody td {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.4rem 0;
+            border: none;
+            border-bottom: 1px solid #f5f5f5;
+            font-size: 0.95rem;
+        }
+        .wdcalc-mobile-card-table tbody td:last-child { border-bottom: none; }
+        .wdcalc-mobile-card-table tbody td::before {
+            content: attr(data-label);
+            font-weight: 600;
+            color: #6c757d;
+            flex: 0 0 auto;
+            margin-right: 8px;
+            font-size: 0.85rem;
+        }
+        .wdcalc-mobile-card-table .form-control,
+        .wdcalc-mobile-card-table .btn { min-height: 44px; }
+    }
 </style>
 {% endblock %}
 
@@ -143,7 +176,7 @@
                         <div class="row mb-3 price-input-group" id="price1mGroup">
                             <div class="col-md-6">
                                 <label for="price1m" class="form-label">1m 비용 (원) <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="price1m" name="price_1m" min="0" step="1">
+                                <input type="number" inputmode="numeric" pattern="[0-9]*" class="form-control" id="price1m" name="price_1m" min="0" step="1">
                             </div>
                         </div>
 
@@ -151,11 +184,11 @@
                         <div class="row mb-3 price-input-group" id="price30cmGroup">
                             <div class="col-md-6">
                                 <label for="price30cm" class="form-label">30cm 비용 (원) <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="price30cm" name="price_30cm" min="0" step="1">
+                                <input type="number" inputmode="numeric" pattern="[0-9]*" class="form-control" id="price30cm" name="price_30cm" min="0" step="1">
                             </div>
                             <div class="col-md-6">
                                 <label for="price1cm" class="form-label">1cm 비용 (원) <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="price1cm" name="price_1cm" min="0" step="1">
+                                <input type="number" inputmode="numeric" pattern="[0-9]*" class="form-control" id="price1cm" name="price_1cm" min="0" step="1">
                             </div>
                         </div>
 
@@ -170,7 +203,7 @@
                             </div>
                             <div class="col-md-4">
                                 <label for="couponValue" class="form-label">쿠폰가 값</label>
-                                <input type="number" class="form-control" id="couponValue" name="coupon_value" min="0" step="0.1" value="0">
+                                <input type="number" inputmode="numeric" pattern="[0-9]*" class="form-control" id="couponValue" name="coupon_value" min="0" step="0.1" value="0">
                             </div>
                         </div>
 
@@ -200,7 +233,7 @@
                 <div class="card-body">
                     {% if products %}
                     <div class="table-responsive">
-                        <table class="table table-bordered table-hover">
+                        <table class="table table-bordered table-hover wdcalc-mobile-card-table">
                             <thead class="table-light">
                                 <tr>
                                     <th style="width: 60px;">ID</th>
@@ -214,16 +247,16 @@
                             <tbody>
                                 {% for product in products %}
                                 <tr class="product-row" data-product-id="{{ product.id }}">
-                                    <td>{{ product.id }}</td>
-                                    <td><strong>{{ product.name }}</strong></td>
-                                    <td>
+                                    <td data-label="ID">{{ product.id }}</td>
+                                    <td data-label="제품명"><strong>{{ product.name }}</strong></td>
+                                    <td data-label="가격 옵션">
                                         {% if product.pricing_type == '1m' %}
                                             <span class="badge bg-info">1m</span>
                                         {% else %}
                                             <span class="badge bg-warning">30cm</span>
                                         {% endif %}
                                     </td>
-                                    <td>
+                                    <td data-label="비용 정보">
                                         {% if product.pricing_type == '1m' %}
                                             1m: {{ "{:,}".format(product.price_1m) }}원
                                         {% else %}
@@ -231,7 +264,7 @@
                                             1cm: {{ "{:,}".format(product.price_1cm) }}원
                                         {% endif %}
                                     </td>
-                                    <td>
+                                    <td data-label="쿠폰가">
                                         {% if product.coupon_type == 'percentage' %}
                                             {{ product.coupon_value }}%
                                         {% elif product.coupon_type == 'fixed' %}
@@ -240,7 +273,7 @@
                                             <span class="text-muted">없음</span>
                                         {% endif %}
                                     </td>
-                                    <td>
+                                    <td data-label="작업">
                                         <div class="d-flex gap-1">
                                             <button class="btn btn-sm btn-outline-primary edit-product-btn" data-product-id="{{ product.id }}" title="수정">
                                                 <i class="fas fa-edit"></i> 수정
@@ -302,7 +335,7 @@
                             </div>
                             <div class="col-md-4">
                                 <label for="additionalOptionPrice" class="form-label">가격 (원) <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="additionalOptionPrice" name="option_price" min="0" step="1" required placeholder="가격을 입력하세요">
+                                <input type="number" inputmode="numeric" pattern="[0-9]*" class="form-control" id="additionalOptionPrice" name="option_price" min="0" step="1" required placeholder="가격을 입력하세요">
                             </div>
                         </div>
 
@@ -321,7 +354,7 @@
                         <h6 class="mb-3">추가 옵션 목록</h6>
                         {% if categories %}
                         <div class="table-responsive">
-                            <table class="table table-bordered table-hover">
+                            <table class="table table-bordered table-hover wdcalc-mobile-card-table">
                                 <thead class="table-light">
                                     <tr>
                                         <th style="width: 60px;">ID</th>
@@ -337,11 +370,11 @@
                                         {% for option in category.options %}
                                         {% if option.id %}
                                         <tr data-category-id="{{ category.id }}" data-option-id="{{ option.id }}">
-                                            <td>{{ option.id }}</td>
-                                            <td><strong>{{ category.name }}</strong></td>
-                                            <td>{{ option.name }}</td>
-                                            <td>{{ "{:,}".format(option.price|int) }}원</td>
-                                            <td>
+                                            <td data-label="ID">{{ option.id }}</td>
+                                            <td data-label="카테고리명"><strong>{{ category.name }}</strong></td>
+                                            <td data-label="옵션명">{{ option.name }}</td>
+                                            <td data-label="가격">{{ "{:,}".format(option.price|int) }}원</td>
+                                            <td data-label="작업">
                                                 <div class="d-flex gap-1">
                                                     <button class="btn btn-sm btn-outline-primary edit-additional-option-btn" data-category-id="{{ category.id }}" data-option-id="{{ option.id }}" data-category-name="{{ category.name }}" title="수정">
                                                         <i class="fas fa-edit"></i> 수정
@@ -426,7 +459,7 @@
                             <!-- 서버 사이드 렌더링: 데이터가 있으면 테이블 표시 -->
                             {% if notes_categories and notes_categories|length > 0 %}
                             <div class="table-responsive">
-                                <table class="table table-bordered table-hover" id="notesCategoriesTable">
+                                <table class="table table-bordered table-hover wdcalc-mobile-card-table" id="notesCategoriesTable">
                                     <thead class="table-light">
                                         <tr>
                                             <th style="width: 60px;">ID</th>
@@ -443,10 +476,10 @@
                                         {% if option and option.name %}
                                         {% set ns.global_index = ns.global_index + 1 %}
                                         <tr data-category-id="{{ category.id }}" data-option-id="{{ option.id if option.id else '' }}" data-option-name="{{ option.name }}" data-option-index="{{ loop.index0 }}">
-                                            <td>{{ ns.global_index }}</td>
-                                            <td><strong>{{ category.name }}</strong></td>
-                                            <td>{{ option.name }}</td>
-                                            <td>
+                                            <td data-label="ID">{{ ns.global_index }}</td>
+                                            <td data-label="카테고리명"><strong>{{ category.name }}</strong></td>
+                                            <td data-label="옵션명">{{ option.name }}</td>
+                                            <td data-label="작업">
                                                 <div class="d-flex gap-1">
                                                     <button class="btn btn-sm btn-outline-primary edit-notes-option-btn" data-category-id="{{ category.id }}" data-option-id="{{ option.id if option.id else '' }}" data-option-name="{{ option.name }}" data-option-index="{{ loop.index0 }}" data-category-name="{{ category.name }}" title="수정">
                                                         <i class="fas fa-edit"></i> 수정
@@ -796,7 +829,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('테이블이 없어서 새로 생성');
             container.innerHTML = `
                 <div class="table-responsive">
-                    <table class="table table-bordered table-hover" id="notesCategoriesTable">
+                    <table class="table table-bordered table-hover wdcalc-mobile-card-table" id="notesCategoriesTable">
                         <thead class="table-light">
                             <tr>
                                 <th style="width: 60px;">ID</th>
@@ -838,10 +871,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         const displayId = rowNumber;
                         html += `
                             <tr data-category-id="${category.id}" data-option-id="${option.id || ''}" data-option-name="${escapeHtml(option.name || '')}" data-option-index="${optionIndex}">
-                                <td>${displayId}</td>
-                                <td><strong>${escapeHtml(category.name || '')}</strong></td>
-                                <td>${escapeHtml(option.name || '')}</td>
-                                <td>
+                                <td data-label="ID">${displayId}</td>
+                                <td data-label="카테고리명"><strong>${escapeHtml(category.name || '')}</strong></td>
+                                <td data-label="옵션명">${escapeHtml(option.name || '')}</td>
+                                <td data-label="작업">
                                     <div class="d-flex gap-1">
                                         <button class="btn btn-sm btn-outline-primary edit-notes-option-btn" data-category-id="${category.id}" data-option-id="${option.id || ''}" data-option-name="${escapeHtml(option.name || '')}" data-option-index="${optionIndex}" data-category-name="${escapeHtml(category.name || '')}" title="수정">
                                             <i class="fas fa-edit"></i> 수정

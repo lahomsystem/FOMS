@@ -60,9 +60,17 @@ function renderRooms(rooms) {
     }).join('');
 }
 
+// 모바일: 목록 ↔ 메시지 전환 (WhatsApp 패턴)
+function goBackToChatList() {
+    document.querySelector('.chat-page-content')?.classList.remove('chat-mobile-show-messages');
+}
+
 // 채팅방 선택
 function selectRoom(roomId) {
     currentRoomId = roomId;
+    if (window.matchMedia('(max-width: 992px)').matches) {
+        document.querySelector('.chat-page-content')?.classList.add('chat-mobile-show-messages');
+    }
     
     // URL 업데이트 (브라우저 히스토리 관리)
     const url = new URL(window.location);

@@ -2219,3 +2219,172 @@
     transition: none !important;
   }
 }
+
+/* ============================================================
+   MOBILE ERP OPTIMIZATION (2026-03 추가)
+   최신 ERP 트렌드: Progressive Disclosure + Bento Grid
+   ============================================================ */
+
+/* --- Breakpoint 체계 ---
+   ≤ 576px : 스마트폰 세로 (xs)
+   ≤ 768px : 스마트폰 가로 & 소형 태블릿 (sm)
+   ≤ 992px : 태블릿 세로 (md) — 주요 전환점
+   ≤ 1200px: 태블릿 가로 (lg)
+*/
+
+/* 1. 터치 타겟 보장: 44px 최소 높이 */
+@media (max-width: 992px) {
+  .erp-pro .form-control,
+  .erp-pro .form-select,
+  .erp-pro .btn {
+    min-height: 44px;
+    font-size: 1rem;
+  }
+
+  /* 모달: 모바일 풀스크린 */
+  .erp-pro .modal-dialog {
+    max-width: 100vw !important;
+    margin: 0 !important;
+    min-height: 100vh;
+  }
+  .erp-pro .modal-content {
+    border-radius: 0 !important;
+    min-height: 100vh;
+  }
+
+  /* 상세 패널: 모바일 풀오버레이 */
+  .erp-pro .erp-detail-panel {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    max-height: 100vh !important;
+    z-index: 1050 !important;
+    background: #fff !important;
+    overflow-y: auto !important;
+    padding: 1rem !important;
+  }
+}
+
+/* 2. 테이블 → 카드 전환 공통 패턴 */
+@media (max-width: 992px) {
+  .erp-pro .erp-mobile-card-table thead { display: none; }
+  .erp-pro .erp-mobile-card-table tbody tr {
+    display: block;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  }
+  .erp-pro .erp-mobile-card-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.4rem 0;
+    border: none;
+    border-bottom: 1px solid #f5f5f5;
+    font-size: 0.95rem;
+  }
+  .erp-pro .erp-mobile-card-table tbody td:last-child {
+    border-bottom: none;
+  }
+  .erp-pro .erp-mobile-card-table tbody td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #6c757d;
+    flex: 0 0 auto;
+    margin-right: 8px;
+    font-size: 0.85rem;
+  }
+}
+
+/* 3. 스마트폰 세로 추가 최적화 */
+@media (max-width: 576px) {
+  .erp-pro .form-control,
+  .erp-pro .form-select {
+    font-size: 16px !important; /* iOS 줌 방지 */
+  }
+  .erp-pro .erp-alert-col {
+    flex: 0 0 50% !important;
+    max-width: 50% !important;
+  }
+  .erp-pro .erp-process-col {
+    min-width: 72px;
+  }
+}
+
+/* 4. 데스크톱에서 필터 아코디언 항상 펼침 */
+@media (min-width: 993px) {
+  .erp-pro .erp-filter-collapse {
+    display: block !important;
+    visibility: visible !important;
+  }
+}
+
+/* 5. ERP 서브 네비 모바일 (작업 2-5) */
+@media (max-width: 992px) {
+  .erp-pro-nav {
+    position: relative;
+    padding-right: 28px;
+  }
+  .erp-pro-nav::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 24px;
+    background: linear-gradient(to right, transparent, var(--erp-bg-card, #fff));
+    pointer-events: none;
+  }
+  .erp-pro-nav-item,
+  .erp-pro-nav__item {
+    min-height: 44px;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .erp-pro-nav-item.active,
+  .erp-pro-nav__item.active {
+    box-shadow: inset 0 -3px 0 0 var(--erp-primary, #0d6efd);
+  }
+}
+
+/* 6. ERP Beta 탭 모바일 (작업 2-6) */
+@media (max-width: 992px) {
+  .erp-pro #erpBetaTabs.nav-pills,
+  .erp-pro .erp-beta-tabs-nav {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 0.25rem;
+    padding-bottom: 2px;
+    margin-bottom: 0.75rem !important;
+  }
+  .erp-pro #erpBetaTabs .nav-item,
+  .erp-pro .erp-beta-tabs-nav .nav-item {
+    flex-shrink: 0;
+  }
+  .erp-pro #erpBetaTabs .nav-link,
+  .erp-pro .erp-beta-tabs-nav .nav-link {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+  }
+  .erp-pro #erp-beta .row.g-2 [class*="col-md-"] {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+  .erp-pro #erp-beta .form-control,
+  .erp-pro #erp-beta .form-select,
+  .erp-pro #erp-beta .btn {
+    min-height: 44px;
+  }
+}

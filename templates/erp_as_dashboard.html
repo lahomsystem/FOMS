@@ -69,6 +69,21 @@
     border-color: #d4c43c !important;
     color: #111 !important;
   }
+
+  /* 모바일: 터치 44px, 갤러리 1열 (2026-03 ERP 최적화) */
+  @media (max-width: 992px) {
+    .erp-pro .erp-pro-order-card__body .erp-pro-input,
+    .erp-pro .erp-pro-order-cards .btn {
+      min-height: 44px;
+    }
+    .erp-pro #as-modal-upload-btn {
+      min-height: 44px;
+    }
+    #asErpAttachmentsCategoryModal .row.g-2 > [class*="col-"] {
+      flex: 0 0 100%;
+      max-width: 100%;
+    }
+  }
 </style>
 <div class="erp-pro">
   <!-- Modern Header -->
@@ -353,7 +368,7 @@
 
 <!-- AS 대시보드 첨부 파일 모달 (ERP 첨부 파일 모달과 동일 구조: 탭 + 카드 갤러리, 미리보기 시 GlobalImageViewer) -->
 <div class="modal fade" id="asErpAttachmentsCategoryModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered modal-xl">
+  <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-md-down">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="fas fa-paperclip"></i> 첨부 파일</h5>
@@ -388,7 +403,7 @@
 
 <!-- Schedule Search Modal -->
 <div class="modal fade" id="scheduleSearchModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-fullscreen-md-down">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="fas fa-map-marked-alt"></i> 가까운 일정 찾기</h5>
