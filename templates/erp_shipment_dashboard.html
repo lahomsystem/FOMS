@@ -756,8 +756,20 @@
               .text-danger {
                 color: #e53e3e !important;
               }
+              /* 모바일: 카드 전환은 erp-pro.css .erp-mobile-card-table 적용, 터치 영역 확보 */
+              @media (max-width: 992px) {
+                .measurement-panel-item {
+                  min-height: 44px;
+                  display: flex;
+                  align-items: center;
+                }
+                .erp-pro .row.g-3 > [class*="col-"] {
+                  flex: 0 0 100%;
+                  max-width: 100%;
+                }
+              }
             </style>
-            <table class="table table-sm table-hover align-middle shipment-table">
+            <table class="table table-sm table-hover align-middle shipment-table erp-mobile-card-table">
               <thead class="table-light">
                 <tr>
                   <th style="width: 60px; border-right: 1px solid #e0e0e0;">상세</th>
@@ -837,7 +849,7 @@
                 {% set product_display = r.product or '-' %}
 
                 <tr data-order-id="{{ r.id }}" class="shipment-row" data-as="{{ 1 if r.status in ('AS_RECEIVED', 'AS_COMPLETED') else 0 }}" data-manager="{{ (r.manager_name or '')|e }}">
-                  <td style="border-right: 1px solid #e0e0e0;">
+                  <td data-label="상세" style="border-right: 1px solid #e0e0e0;">
                     {% if can_edit_shipment %}
                     <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-beta"
                       class="btn btn-sm btn-outline-primary" title="주문 상세"><i class="fas fa-edit"></i></a>
@@ -845,16 +857,16 @@
                     <span class="text-muted small">(권한없음)</span>
                     {% endif %}
                   </td>
-                  <td class="{% if r.is_production_approved %}shipment-customer-done{% endif %}" style="border-right: 1px solid #e0e0e0;">
+                  <td class="{% if r.is_production_approved %}shipment-customer-done{% endif %}" data-label="고객" style="border-right: 1px solid #e0e0e0;">
                     <div>{{ customer or '-' }}</div>
                     {% if r.phone %}
                     <small class="text-muted">{{ r.phone|format_phone }}</small>
                     {% endif %}
                   </td>
-                  <td style="border-right: 1px solid #e0e0e0;">
+                  <td data-label="대리점(발주사)" style="border-right: 1px solid #e0e0e0;">
                     {{ orderer or '-' }}
                   </td>
-                  <td class="cell-wrap shipment-product-cell" style="border-right: 1px solid #e0e0e0;">
+                  <td class="cell-wrap shipment-product-cell" data-label="제품" style="border-right: 1px solid #e0e0e0;">
                     {% if r.status in ('AS_RECEIVED', 'AS_COMPLETED') %}
                     {% set as_content = (r.structured_data.get('shipment', {}).get('as_content', '')) if
                     r.structured_data else '' %}
@@ -874,7 +886,7 @@
                     </div>
                     {% endif %}
                   </td>
-                  <td class="cell-wrap" style="border-right: 1px solid #e0e0e0;">
+                  <td class="cell-wrap" data-label="규격(W/300)" style="border-right: 1px solid #e0e0e0;">
                     {% if r.status in ('AS_RECEIVED', 'AS_COMPLETED') %}
                     <span class="badge bg-danger mb-1">AS</span>
                     {% else %}
@@ -889,7 +901,7 @@
                     </div>
                     {% endif %}
                   </td>
-                  <td class="shipment-address-cell" style="border-right: 1px solid #e0e0e0;">
+                  <td class="shipment-address-cell" data-label="현장주소" style="border-right: 1px solid #e0e0e0;">
                     <div class="shipment-address-block">
                       <div class="cell-wrap shipment-address-text mb-1" title="기본 주소">{{ address or '-' }}</div>
                       <ul class="shipment-site-extra-list mb-0" data-order-id="{{ r.id }}" data-field="site_extra">
@@ -953,7 +965,7 @@
                       </ul>
                     </div>
                   </td>
-                  <td class="shipment-field-cell" style="border-right: 1px solid #e0e0e0;">
+                  <td class="shipment-field-cell" data-label="시공시간" style="border-right: 1px solid #e0e0e0;">
                     <div
                       class="shipment-field-wrap shipment-construction-time-wrap {% if construction_time %}has-value{% endif %}">
                       <span class="shipment-field-view">{{ construction_time }}</span>
@@ -972,7 +984,7 @@
                       {% endif %}
                     </div>
                   </td>
-                  <td class="shipment-field-cell" style="border-right: 1px solid #e0e0e0;">
+                  <td class="shipment-field-cell" data-label="도면담당자" style="border-right: 1px solid #e0e0e0;">
                     <div class="shipment-drawing-managers-list {% if not drawing_managers %}no-items{% endif %}"
                       data-order-id="{{ r.id }}" data-field="drawing_managers" data-n="{{ drawing_managers|length }}">
                       {% for dm in drawing_managers %}
@@ -1001,7 +1013,7 @@
                       {% endif %}
                     </div>
                   </td>
-                  <td class="shipment-field-cell shipment-worker-cell" style="border-right: 1px solid #e0e0e0;"
+                  <td class="shipment-field-cell shipment-worker-cell" data-label="시공자" style="border-right: 1px solid #e0e0e0;"
                     data-worker-bg-color="{{ worker_bg_color }}" data-worker-text-color="{{ worker_text_color }}">
                     <div class="shipment-workers-list {% if not construction_workers %}no-workers{% endif %}"
                       data-order-id="{{ r.id }}" data-field="construction_workers"
@@ -1031,7 +1043,7 @@
                       {% endif %}
                     </div>
                   </td>
-                  <td>
+                  <td data-label="담당자">
                     {{ r.manager_name or '-' }}
                   </td>
                 </tr>

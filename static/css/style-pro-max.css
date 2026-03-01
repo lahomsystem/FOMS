@@ -265,3 +265,27 @@ h6 {
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: var(--space-4);
 }
+
+/* MOBILE RESPONSIVE (2026-03 ERP 최적화) */
+@media (max-width: 992px) {
+    :root {
+        --space-5: 16px;
+        --space-6: 24px;
+    }
+    .container-premium { padding: var(--space-3); }
+    .grid-dashboard {
+        grid-template-columns: 1fr;
+        gap: var(--space-3);
+    }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.2rem; }
+    h3 { font-size: 1.1rem; }
+}
+
+@media (max-width: 576px) {
+    :root {
+        --space-5: 12px;
+    }
+    .grid-dashboard { gap: var(--space-2); }
+    h1 { font-size: 1.25rem; }
+}

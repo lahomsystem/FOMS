@@ -972,4 +972,67 @@
             opacity: 0;
         }
     }
+
+    /* ========== 채팅 모바일 최적화 (2026-03 계획) ========== */
+    @media (max-width: 992px) {
+        .chat-page-content .col-lg-3 {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+            z-index: 10;
+            transition: transform 0.2s ease;
+        }
+        .chat-page-content .col-lg-9 {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+            z-index: 5;
+            transform: translateX(100%);
+            transition: transform 0.2s ease;
+        }
+        .chat-page-content.chat-mobile-show-messages .col-lg-3 {
+            transform: translateX(-100%);
+            pointer-events: none;
+        }
+        .chat-page-content.chat-mobile-show-messages .col-lg-9 {
+            transform: translateX(0);
+            z-index: 15;
+            pointer-events: auto;
+        }
+        .chat-mobile-back-btn {
+            min-width: 44px;
+            min-height: 44px;
+        }
+        .chat-page-content.chat-mobile-show-messages .chat-mobile-back-btn {
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+        }
+        #chat-input-area .chat-input-wrapper .btn,
+        #chat-input-area .chat-input-wrapper textarea.form-control,
+        .chat-sidebar-card .btn,
+        .chat-main-card .chat-header .btn {
+            min-height: 44px;
+        }
+        #file-preview .btn,
+        #preview-content button,
+        #preview-content .preview-remove {
+            min-height: 44px;
+            min-width: 44px;
+        }
+    }
+    @media (max-width: 992px) {
+        #chat-input-area {
+            position: sticky;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #fff;
+            z-index: 20;
+        }
+    }
 </style>

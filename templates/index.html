@@ -354,7 +354,8 @@
         text-align: center;
     }
 
-    /* === 컬럼 가로폭: 정보가 보이도록 min-width 지정, 가로 슬라이드로 확인 === */
+    /* === 컬럼 가로폭: PC에서만 적용 (모바일은 erp-mobile-card-table 카드 전환) === */
+    @media (min-width: 993px) {
     .th-select,
     th.th-select,
     td.th-select {
@@ -504,6 +505,37 @@
     .th-actions .btn-group .btn i {
         margin: 0 !important;
     }
+    }
+
+    /* 모바일: 상단 헤더/툴바 터치 44px 및 스택 */
+    @media (max-width: 992px) {
+        .order-list-page-header {
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+        .order-list-page-header__actions {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .order-list-page-header__actions .erp-pro-btn {
+            min-height: 44px;
+            flex: 1 1 auto;
+        }
+        .order-list-toolbar {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0.75rem;
+        }
+        .order-list-toolbar .order-list-search input,
+        .order-list-toolbar .order-list-search button,
+        .order-list-toolbar .erp-pro-btn,
+        .order-list-toolbar .form-control,
+        .order-list-toolbar .form-select {
+            min-height: 44px;
+        }
+    }
 
     /* 고객명 셀 truncate 완화 (컬럼 폭으로 더 보이게) */
     .customer-name-cell .text-truncate {
@@ -618,7 +650,7 @@
     <form action="{{ url_for('order_pages.bulk_action') }}" method="post" id="bulk-action-form">
         <div class="order-list-table-container">
             <div class="table-responsive table-fixed-header">
-                <table class="table table-bordered table-hover">
+                <table class="table table-bordered table-hover erp-mobile-card-table">
                     <thead class="table-light">
                         <tr>
                             <th class="th-select">
@@ -743,11 +775,11 @@
                         {% set ns = namespace(copy_counters={}) %} {# 복사본 카운터 초기화 #}
                         {% for order in orders %}
                         <tr data-order-id="{{ order.id }}">
-                            <td class="th-select">
+                            <td class="th-select" data-label="선택">
                                 <input type="checkbox" name="selected_order" value="{{ order.id }}"
                                     class="order-checkbox">
                             </td>
-                            <td class="th-id">
+                            <td class="th-id" data-label="번호">
                                 {% set is_copied = order.customer_name.startswith('[복사: 원본 #') %}
                                 {% if is_copied %}
                                 {% set parts = order.customer_name.split('#', 1)[1].split(']', 1) %}
@@ -760,7 +792,7 @@
                                 {{ order.id }}
                                 {% endif %}
                             </td>
-                            <td class="th-actions">
+                            <td class="th-actions" data-label="작업">
                                 <div class="btn-group">
                                     <a href="{{ url_for('order_edit.edit_order', order_id=order.id, **request.args) }}"
                                         class="btn btn-sm btn-outline-primary" title="수정" aria-label="주문 {{ order.id }} 수정">
@@ -774,9 +806,9 @@
                                     </a>
                                 </div>
                             </td>
-                            <td class="th-received-date">{{ order.received_date }}</td>
-                            <td class="th-received-time">{{ order.received_time or '' }}</td>
-                            <td class="th-customer-name customer-name-cell">
+                            <td class="th-received-date" data-label="접수일">{{ order.received_date }}</td>
+                            <td class="th-received-time" data-label="접수시간">{{ order.received_time or '' }}</td>
+                            <td class="th-customer-name customer-name-cell" data-label="고객명">
                                 {% set is_copied = order.customer_name.startswith('[복사:') %}
                                 {% set display_name = order.customer_name %}
                                 {% if is_copied %}
@@ -795,10 +827,10 @@
                                 <span class="badge bg-info text-dark ms-1">복사</span>
                                 {% endif %}
                             </td>
-                            <td class="th-phone">{{ order.phone|format_phone }}</td>
-                            <td class="th-address td-address" title="{{ order.address }}">{{ order.address }}</td>
-                            <td class="th-product" title="{{ order.product }}">{{ order.product }}</td>
-                            <td class="th-options options-cell td-options">
+                            <td class="th-phone" data-label="전화번호">{{ order.phone|format_phone }}</td>
+                            <td class="th-address td-address" data-label="주소" title="{{ order.address }}">{{ order.address }}</td>
+                            <td class="th-product" data-label="제품" title="{{ order.product }}">{{ order.product }}</td>
+                            <td class="th-options options-cell td-options" data-label="옵션">
                                 {% if order.options %}
                                 {% set options_str = order.options %}
                                 {% set options_json = parse_json_string(options_str) %}
@@ -962,7 +994,7 @@
                                 ''
                                 {% endif %}
                             </td>
-                            <td class="th-notes td-notes notes-cell">
+                            <td class="th-notes td-notes notes-cell" data-label="비고">
                                 {% if order.notes %}
                                 {% set notes_content = order.notes | string %}
                                 {# 비고가 있으면 항상 버튼 표시 (간단하게 변경) #}
@@ -982,17 +1014,17 @@
                                 ''
                                 {% endif %}
                             </td>
-                            <td class="td-payment-amount">
+                            <td class="td-payment-amount" data-label="결제금액">
                                 {% if order.payment_amount is not none %}
                                 {{ "{:,.0f}".format(order.payment_amount) }}원
                                 {% endif %}
                             </td>
-                            <td class="td-measurement-date">{{ order.measurement_date if order.measurement_date else ''
+                            <td class="td-measurement-date" data-label="실측일">{{ order.measurement_date if order.measurement_date else ''
                                 }}</td>
-                            <td class="th-measurement-time">{{ order.measurement_time or '' }}</td>
-                            <td class="th-scheduled-date">{{ order.scheduled_date or '' }}</td>
-                            <td class="th-manager-name">{{ order.manager_name or '' }}</td>
-                            <td class="th-status">
+                            <td class="th-measurement-time" data-label="실측시간">{{ order.measurement_time or '' }}</td>
+                            <td class="th-scheduled-date" data-label="설치 예정일">{{ order.scheduled_date or '' }}</td>
+                            <td class="th-manager-name" data-label="담당자">{{ order.manager_name or '' }}</td>
+                            <td class="th-status" data-label="상태">
                                 <span class="badge 
                                 {% if order.status == 'RECEIVED' %}bg-primary
                                 {% elif order.status == 'MEASURED' %}bg-warning
