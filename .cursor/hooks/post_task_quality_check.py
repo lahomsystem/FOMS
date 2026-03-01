@@ -45,7 +45,7 @@ def main():
         payload = {}
 
     project_root = find_key_recursive(payload, ["workspace_roots", "workspaceRoots"], default=None)
-    if isinstance(project_root, list) and project_root:
+    if isinstance(project_root, list) and len(project_root) > 0:
         project_root = str(project_root[0])
     elif project_root is not None:
         project_root = str(project_root)

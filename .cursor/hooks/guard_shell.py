@@ -6,7 +6,6 @@ from datetime import datetime
 
 def _load_debug():
     try:
-        import sys
         d = os.path.dirname(os.path.abspath(__file__))
         if d not in sys.path:
             sys.path.insert(0, d)
