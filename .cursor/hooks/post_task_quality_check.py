@@ -44,10 +44,12 @@ def main():
     if not isinstance(payload, dict):
         payload = {}
 
-    project_root = find_key_recursive(payload, ["workspace_roots"], default=None)
+    project_root = find_key_recursive(payload, ["workspace_roots", "workspaceRoots"], default=None)
     if isinstance(project_root, list) and project_root:
         project_root = str(project_root[0])
-    if not project_root or project_root == "unknown" or project_root == "None":
+    elif project_root is not None:
+        project_root = str(project_root)
+    if not project_root or project_root.lower() == "none" or project_root == "unknown":
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
     edited_files = _read_recent_edited_files(project_root)
