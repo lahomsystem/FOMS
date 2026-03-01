@@ -36,7 +36,23 @@
         }
         /* MOBILE LAYOUT (2026-03 ERP 최적화) */
         @media (max-width: 992px) {
-            .layout-header__title { font-size: 1rem !important; }
+            .layout-header {
+                padding-top: 0.5rem !important;
+                padding-bottom: 0.5rem !important;
+                min-height: 0;
+            }
+            .layout-header__title {
+                font-size: 1rem !important;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                min-width: 0;
+                line-height: 1.25;
+                flex: 1 1 0;
+            }
+            .layout-header .d-flex.align-items-center.gap-3 {
+                flex-shrink: 0;
+            }
             .layout-nav-collapse .nav-link {
                 min-height: 44px;
                 display: flex;
@@ -46,7 +62,7 @@
             }
         }
         @media (max-width: 576px) {
-            .layout-header__title { font-size: 0.95rem !important; }
+            .layout-header__title { font-size: 0.9rem !important; }
         }
     </style>
     {% block head %}{% endblock %}

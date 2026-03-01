@@ -916,6 +916,16 @@ def api_chat_get_message(message_id):
 # 채팅 페이지 (Quest 10)
 # ============================================
 
+def _chat_use_direct_upload():
+    """채팅 페이지/스크립트용 direct upload 여부 (공통)."""
+    from flask import current_app
+    try:
+        storage = get_storage()
+        return USE_DIRECT_UPLOAD and storage.storage_type in ('r2', 's3')
+    except Exception:
+        return False
+
+
 @chat_bp.route('/chat')
 @login_required
 def chat():
@@ -925,13 +935,21 @@ def chat():
         current_app.config.get('SOCKETIO_AVAILABLE', False)
         and current_app.config.get('_SOCKETIO_INSTANCE') is not None
     )
-    try:
-        storage = get_storage()
-        use_direct_upload = USE_DIRECT_UPLOAD and storage.storage_type in ('r2', 's3')
-    except Exception:
-        use_direct_upload = False
+    use_direct_upload = _chat_use_direct_upload()
     return render_template(
         'chat.html',
         socketio_available=socketio_available,
         use_direct_upload=use_direct_upload,
     )
+
+
+@chat_bp.route('/chat/scripts.js')
+@login_required
+def chat_scripts_js():
+    """채팅 스크립트 번들 (외부 JS로 분리하여 </script> 파싱 이슈 제거)."""
+    body = render_template(
+        'partials/chat_scripts_bundle.html',
+        use_direct_upload=_chat_use_direct_upload(),
+    )
+    from flask import Response
+    return Response(body, mimetype='application/javascript; charset=utf-8')

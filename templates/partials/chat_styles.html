@@ -39,6 +39,10 @@
         transition: background-color 0.2s;
         border: 1px solid #e0e0e0;
     }
+    .order-search-row:hover,
+    .global-search-row:hover {
+        background-color: #f0f0f0 !important;
+    }
     
     .chat-room-item:hover {
         background-color: #f0f0f0;
@@ -142,6 +146,7 @@
     }
     
     .chat-page-content {
+        position: relative;
         flex: 1 1 0;
         display: flex;
         min-height: 0;
@@ -1026,13 +1031,16 @@
         }
     }
     @media (max-width: 992px) {
+        .chat-header {
+            padding: 10px 12px !important;
+        }
+        .chat-header h5 {
+            font-size: 1.1rem;
+        }
         #chat-input-area {
-            position: sticky;
-            bottom: 0;
-            left: 0;
-            right: 0;
             background: #fff;
             z-index: 20;
+            padding-bottom: env(safe-area-inset-bottom, 1rem) !important;
         }
     }
 </style>

@@ -1,6 +1,7 @@
 # 모바일 ERP 최적화 — 검증 가이드 (Phase 5-1)
 
-Chrome DevTools → **Device Toolbar** (Ctrl+Shift+M)로 아래 뷰포트에서 동작 확인.
+- **1:1 소스 더블체크**: `docs/plans/2026-03-01-mobile-erp-doublecheck.md` (Phase 1~4 + 동작 확인)
+- **수동 뷰포트 확인**: Chrome DevTools → **Device Toolbar** (Ctrl+Shift+M)로 아래 뷰포트에서 동작 확인.
 
 ## 디바이스별 뷰포트
 

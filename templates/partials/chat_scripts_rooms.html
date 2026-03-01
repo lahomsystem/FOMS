@@ -45,18 +45,12 @@ function renderRooms(rooms) {
         const lastMessage = room.last_message ? 
             (room.last_message.content || '파일') : '메시지가 없습니다';
         const unreadBadge = room.unread_count > 0 ? 
-            `<span class="unread-badge">${room.unread_count}</span>` : '';
-        
-        return `
-            <div class="chat-room-item" onclick="selectRoom(${room.id})" data-room-id="${room.id}">
-                <div class="room-name">${escapeHtml(room.name)}</div>
-                <div class="room-last-message">${escapeHtml(lastMessage)}</div>
-                <div class="room-meta">
-                    <span>${formatDate(room.updated_at || room.created_at)}</span>
-                    ${unreadBadge}
-                </div>
-            </div>
-        `;
+            '<span class="unread-badge">' + room.unread_count + '</span>' : '';
+        const rid = Number(room.id) || 0;
+        return '<div class="chat-room-item" data-room-id="' + rid + '" role="button" tabindex="0">' +
+            '<div class="room-name">' + escapeHtml(room.name) + '</div>' +
+            '<div class="room-last-message">' + escapeHtml(lastMessage) + '</div>' +
+            '<div class="room-meta"><span>' + formatDate(room.updated_at || room.created_at) + '</span>' + unreadBadge + '</div></div>';
     }).join('');
 }
 
@@ -130,6 +124,7 @@ function renderRoomHeader(room) {
     const header = document.getElementById('chat-header');
     const orderWidgetContainer = document.getElementById('chat-order-widget-container');
     let orderWidget = '';
+    const safeRoomId = Number(room.id) || 0;
     
     // 주문 정보 위젯 (Quest 12) - 테이블 형식으로 표시
     if (room.order) {
@@ -169,14 +164,18 @@ function renderRoomHeader(room) {
         for (const [code, name] of Object.entries(statusList)) {
             const codeUpper = code.toUpperCase();
             const selected = (currentStatus === codeUpper) ? 'selected' : '';
-            statusOptions += `<option value="${code}" ${selected}>${name}</option>`;
+            statusOptions += `<option value="${escapeHtml(code)}" ${selected}>${escapeHtml(name)}</option>`;
         }
-        
-        // statusOptions가 비어있는 경우 기본값 설정
+        const defaultStatusOption = '<option value="RECEIVED" selected>접수</option>';
         if (!statusOptions) {
             console.warn('Status options is empty, using default');
-            statusOptions = '<option value="RECEIVED" selected>접수</option>';
+            statusOptions = defaultStatusOption;
         }
+        const safeOrderId = Number(order.id) || 0;
+        const statusClass = (currentStatus || 'RECEIVED').toLowerCase().replace(/_/g, '_');
+        const selectCellHtml = '<select class="form-select form-select-sm status-dropdown status-' + statusClass + '" data-order-id="' + safeOrderId + '" data-field="status" data-current-status="' + (currentStatus || 'RECEIVED') + '">' + statusOptions + '</select>';
+        const managerInputHtml = '<input type="text" class="form-control form-control-sm" value="' + escapeHtml(order.manager_name || '') + '" placeholder="담당자 입력" data-order-id="' + safeOrderId + '" data-field="manager_name">';
+        const scheduledInputHtml = '<input type="date" class="form-control form-control-sm" value="' + (order.scheduled_date || '') + '" data-order-id="' + safeOrderId + '" data-field="scheduled_date">';
         
         console.log('Generated status options:', statusOptions.substring(0, 200));
         
@@ -200,18 +199,14 @@ function renderRoomHeader(room) {
                         </thead>
                         <tbody>
                             <tr>
-                                <td>#${order.id}</td>
+                                <td>#${safeOrderId}</td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         <div>
                                             <div>${escapeHtml(order.customer_name || '-')}</div>
                                             <small class="text-muted">${escapeHtml(order.phone || '-')}</small>
                                         </div>
-                                        ${order.blueprint_image_url ? `
-                                            <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer(${order.id})" title="도면 보기">
-                                                <i class="fas fa-drafting-compass"></i> 도면
-                                            </button>
-                                        ` : ''}
+                                        ${order.blueprint_image_url ? '<button type="button" class="btn btn-sm btn-outline-info" data-action="open-blueprint" data-order-id="' + safeOrderId + '" title="도면 보기"><i class="fas fa-drafting-compass"></i> 도면</button>' : ''}
                                     </div>
                                 </td>
                                 <td title="${escapeHtml(order.address || '-')}">
@@ -221,34 +216,18 @@ function renderRoomHeader(room) {
                                     ${escapeHtml(order.product || '-')}
                                 </td>
                                 <td>
-                                    <select class="form-select form-select-sm status-dropdown status-${(currentStatus || 'RECEIVED').toLowerCase().replace(/_/g, '_')}" 
-                                            data-order-id="${order.id}" 
-                                            data-current-status="${currentStatus || 'RECEIVED'}"
-                                            onchange="updateOrderStatus(${order.id}, this.value); if(typeof applyStatusColor === 'function') applyStatusColor(this);">
-                                        ${statusOptions || '<option value="RECEIVED" selected>접수</option>'}
-                                    </select>
+                                    ${selectCellHtml}
                                 </td>
                                 <td>${order.measurement_date || '-'}</td>
                                 <td>${unprocessedBadges}</td>
                                 <td>
-                                    <input type="text" 
-                                           class="form-control form-control-sm" 
-                                           value="${escapeHtml(order.manager_name || '')}"
-                                           placeholder="담당자 입력"
-                                           data-order-id="${order.id}"
-                                           data-field="manager_name"
-                                           onblur="updateOrderField(${order.id}, 'manager_name', this.value)">
+                                    ${managerInputHtml}
                                 </td>
                                 <td>
-                                    <input type="date" 
-                                           class="form-control form-control-sm" 
-                                           value="${order.scheduled_date || ''}"
-                                           data-order-id="${order.id}"
-                                           data-field="scheduled_date"
-                                           onchange="updateOrderField(${order.id}, 'scheduled_date', this.value)">
+                                    ${scheduledInputHtml}
                                 </td>
                                 <td>
-                                    <a href="/edit/${order.id}" 
+                                    <a href="/edit/${safeOrderId}" 
                                        class="btn btn-sm btn-outline-secondary" 
                                        title="수정"
                                        target="_blank">
@@ -271,41 +250,63 @@ function renderRoomHeader(room) {
         orderWidgetContainer.style.display = 'none';
     }
     
-    // 멤버 목록 표시
+    // 멤버 목록 표시 - PC에서는 뱃지, 모바일에서는 심플한 텍스트로
     const membersHtml = room.members ? room.members.map(m => {
         const userName = m.user_name || (m.user ? m.user.name : '알 수 없음');
-        return `<span class="badge bg-secondary me-1">${escapeHtml(userName)}</span>`;
+        return '<span class="badge bg-secondary me-1">' + escapeHtml(userName) + '</span>';
     }).join('') : '';
+    const membersText = room.members ? room.members.map(m => m.user_name || (m.user ? m.user.name : '알 수 없음')).join(', ') : '';
     
-    // 헤더에는 채팅방 정보와 버튼만 표시
-    header.innerHTML = `
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <div>
-                <h5 class="mb-0">${escapeHtml(room.name)}</h5>
-                ${room.description ? `<small class="text-muted">${escapeHtml(room.description)}</small>` : ''}
-            </div>
-            <div>
-                <button class="btn btn-sm btn-outline-secondary me-1" onclick="toggleSearch()" title="메시지 검색">
-                    <i class="fas fa-search"></i>
-                </button>
-                ${room.created_by == currentUserId ? `<button class="btn btn-sm btn-outline-secondary me-1" onclick="showEditRoomNameModal(${room.id}, '${escapeHtml(room.name)}')" title="이름 수정">
-                    <i class="fas fa-edit"></i>
-                </button>` : ''}
-                ${!room.order ? `<button class="btn btn-sm btn-outline-info me-1" onclick="showConnectOrderModal(${room.id})" title="주문 연결">
-                    <i class="fas fa-link"></i> 주문 연결
-                </button>` : `<button class="btn btn-sm btn-outline-warning me-1" onclick="disconnectOrder(${room.id})" title="주문 연결 해제">
-                    <i class="fas fa-unlink"></i> 연결 해제
-                </button>`}
-                <button class="btn btn-sm btn-outline-primary me-1" onclick="showInviteMemberModal(${room.id})" title="멤버 초대">
-                    <i class="fas fa-user-plus"></i> 초대
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteRoom(${room.id})" title="채팅방 삭제">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-        ${membersHtml ? `<div class="mb-0"><small class="text-muted">멤버: </small>${membersHtml}</div>` : ''}
-    `;
+    const roomNameAttr = safeAttr(room.name);
+    
+    // 모바일 전용 드롭다운 메뉴 아이템
+    const editRoomItem = room.created_by == currentUserId
+        ? '<li><button class="dropdown-item py-2" type="button" data-action="edit-room-name" data-room-id="' + safeRoomId + '" data-room-name="' + roomNameAttr + '"><i class="fas fa-edit fa-fw text-secondary me-2"></i>이름 수정</button></li>'
+        : '';
+    const connectItem = !room.order
+        ? '<li><button class="dropdown-item py-2" type="button" data-action="connect-order" data-room-id="' + safeRoomId + '"><i class="fas fa-link fa-fw text-info me-2"></i>주문 연결</button></li>'
+        : '<li><button class="dropdown-item py-2" type="button" data-action="disconnect-order" data-room-id="' + safeRoomId + '"><i class="fas fa-unlink fa-fw text-warning me-2"></i>연결 해제</button></li>';
+    const inviteItem = '<li><button class="dropdown-item py-2" type="button" data-action="invite-member" data-room-id="' + safeRoomId + '"><i class="fas fa-user-plus fa-fw text-primary me-2"></i>멤버 초대</button></li>';
+    const deleteItem = '<li><hr class="dropdown-divider my-1"></li><li><button class="dropdown-item py-2 text-danger" type="button" data-action="delete-room" data-room-id="' + safeRoomId + '"><i class="fas fa-trash fa-fw me-2"></i>채팅방 삭제</button></li>';
+
+    const mobileMenuHtml = '<div class="dropdown d-inline-block d-md-none">' +
+        '<button class="btn btn-link text-dark p-2 text-decoration-none" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="fas fa-ellipsis-v fa-lg"></i></button>' +
+        '<ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 0.95rem; min-width: 150px;">' +
+        editRoomItem + connectItem + inviteItem + deleteItem +
+        '</ul></div>';
+        
+    // PC/태블릿 전용 버튼
+    const editRoomBtn = room.created_by == currentUserId
+        ? '<button type="button" class="btn btn-sm btn-outline-secondary" data-action="edit-room-name" data-room-id="' + safeRoomId + '" data-room-name="' + roomNameAttr + '" title="이름 수정"><i class="fas fa-edit"></i></button>'
+        : '';
+    const connectOrDisconnectBtn = !room.order
+        ? '<button type="button" class="btn btn-sm btn-outline-info" data-action="connect-order" data-room-id="' + safeRoomId + '" title="주문 연결"><i class="fas fa-link"></i><span class="d-none d-lg-inline ms-1">주문 연결</span></button>'
+        : '<button type="button" class="btn btn-sm btn-outline-warning" data-action="disconnect-order" data-room-id="' + safeRoomId + '" title="주문 연결 해제"><i class="fas fa-unlink"></i><span class="d-none d-lg-inline ms-1">연결 해제</span></button>';
+    const inviteBtn = '<button type="button" class="btn btn-sm btn-outline-primary" data-action="invite-member" data-room-id="' + safeRoomId + '" title="멤버 초대"><i class="fas fa-user-plus"></i><span class="d-none d-lg-inline ms-1">초대</span></button>';
+    const deleteBtn = '<button type="button" class="btn btn-sm btn-outline-danger" data-action="delete-room" data-room-id="' + safeRoomId + '" title="채팅방 삭제"><i class="fas fa-trash"></i></button>';
+
+    const desktopButtonsHtml = '<div class="d-none d-md-flex align-items-center gap-1 ms-2">' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary" data-action="toggle-search" title="메시지 검색"><i class="fas fa-search"></i></button>' +
+        editRoomBtn + connectOrDisconnectBtn + inviteBtn + deleteBtn +
+        '</div>';
+    
+    header.innerHTML = '<div class="d-flex align-items-center justify-content-between w-100" style="min-width: 0;">' +
+        '<div class="d-flex align-items-center pe-2" style="min-width: 0; flex: 1;">' +
+            '<button type="button" class="btn btn-link text-dark chat-mobile-back-btn p-0 me-2 d-md-none flex-shrink-0 text-decoration-none" data-action="back-to-list" title="목록으로"><i class="fas fa-arrow-left fa-lg"></i></button>' +
+            '<div class="d-flex flex-column" style="min-width: 0; flex: 1;">' +
+                '<div class="d-flex align-items-center gap-2">' +
+                    '<h5 class="mb-0 text-truncate fw-bold" style="font-size:1.15rem; line-height: 1.2;">' + escapeHtml(room.name) + '</h5>' +
+                    (membersHtml ? '<div class="d-none d-md-flex align-items-center flex-wrap pt-1">' + membersHtml + '</div>' : '') +
+                '</div>' +
+                (membersText ? '<span class="text-muted text-truncate d-md-none" style="font-size:0.8rem; line-height: 1.2; margin-top: 2px;">' + escapeHtml(membersText) + '</span>' : '') +
+            '</div>' +
+        '</div>' +
+        '<div class="d-flex align-items-center flex-shrink-0">' +
+            '<button type="button" class="btn btn-link text-dark p-2 text-decoration-none d-md-none" data-action="toggle-search" title="메시지 검색"><i class="fas fa-search fa-lg"></i></button>' +
+            mobileMenuHtml +
+            desktopButtonsHtml +
+        '</div>' +
+    '</div>';
 }
 
 // 메시지 목록 렌더링

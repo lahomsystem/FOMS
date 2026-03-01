@@ -184,12 +184,14 @@ function searchOrdersForRoom(query) {
         .then(data => {
             const resultsDiv = document.getElementById('order-search-results');
             if (data.success && data.orders.length > 0) {
-                resultsDiv.innerHTML = data.orders.map(order => `
-                    <div class="p-2 border-bottom" style="cursor: pointer; background-color: white;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'" onclick="selectOrderForRoom(${order.id}, '${escapeHtml(order.customer_name)}', '${escapeHtml(order.product || '-')}')">
-                        <strong>주문 #${order.id}</strong> - ${escapeHtml(order.customer_name)}<br>
-                        <small class="text-muted">${escapeHtml(order.product || '-')} | ${escapeHtml(order.status || '-')}</small>
-                    </div>
-                `).join('');
+                resultsDiv.innerHTML = data.orders.map(order => {
+                    const oid = Number(order.id) || 0;
+                    const custAttr = safeAttr(order.customer_name);
+                    const prodAttr = safeAttr(order.product || '-');
+                    return '<div class="p-2 border-bottom order-search-row" role="button" tabindex="0" style="cursor: pointer; background-color: white;" data-action="select-order" data-order-id="' + oid + '" data-customer-name="' + custAttr + '" data-product="' + prodAttr + '">' +
+                        '<strong>주문 #' + oid + '</strong> - ' + escapeHtml(order.customer_name) + '<br>' +
+                        '<small class="text-muted">' + escapeHtml(order.product || '-') + ' | ' + escapeHtml(order.status || '-') + '</small></div>';
+                }).join('');
                 resultsDiv.style.display = 'block';
             } else {
                 resultsDiv.innerHTML = '<div class="text-center text-muted py-2">검색 결과가 없습니다</div>';
@@ -204,7 +206,7 @@ function searchOrdersForRoom(query) {
 function selectOrderForRoom(orderId, customerName, product) {
     selectedOrderId = orderId;
     document.getElementById('selected-order').style.display = 'block';
-    document.getElementById('selected-order-name').textContent = `주문 #${orderId} - ${customerName} (${product})`;
+    document.getElementById('selected-order-name').textContent = '주문 #' + orderId + ' - ' + customerName + ' (' + product + ')';
     document.getElementById('order-search-results').style.display = 'none';
     document.getElementById('order-search').value = '';
 }
@@ -236,12 +238,12 @@ function searchOrdersForConnect(query) {
         .then(data => {
             const resultsDiv = document.getElementById('connect-order-results');
             if (data.success && data.orders.length > 0) {
-                resultsDiv.innerHTML = data.orders.map(order => `
-                    <div class="p-2 border-bottom" style="cursor: pointer; background-color: white;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'" onclick="connectOrderToRoom(${order.id}, '${escapeHtml(order.customer_name)}')">
-                        <strong>주문 #${order.id}</strong> - ${escapeHtml(order.customer_name)}<br>
-                        <small class="text-muted">${escapeHtml(order.product || '-')} | ${escapeHtml(order.status || '-')}</small>
-                    </div>
-                `).join('');
+                resultsDiv.innerHTML = data.orders.map(order => {
+                    const oid = Number(order.id) || 0;
+                    return '<div class="p-2 border-bottom order-search-row" role="button" tabindex="0" style="cursor: pointer; background-color: white;" data-action="connect-order" data-order-id="' + oid + '">' +
+                        '<strong>주문 #' + oid + '</strong> - ' + escapeHtml(order.customer_name) + '<br>' +
+                        '<small class="text-muted">' + escapeHtml(order.product || '-') + ' | ' + escapeHtml(order.status || '-') + '</small></div>';
+                }).join('');
             } else {
                 resultsDiv.innerHTML = '<div class="text-center text-muted py-2">검색 결과가 없습니다</div>';
             }
@@ -468,7 +470,7 @@ function deleteRoom(roomId) {
         if (data.success) {
             alert('채팅방이 삭제되었습니다.');
             currentRoomId = null;
-            document.getElementById('chat-header').innerHTML = '<div class="text-center text-muted py-4" style="flex: 1;">채팅방을 선택하세요</div><button class="btn btn-sm btn-outline-secondary" onclick="toggleSearch()" title="메시지 검색" style="display: none;" id="search-btn"><i class="fas fa-search"></i></button>';
+            document.getElementById('chat-header').innerHTML = '<div class="text-center text-muted py-4" style="flex: 1;">채팅방을 선택하세요</div><button type="button" class="btn btn-sm btn-outline-secondary" data-action="toggle-search" title="메시지 검색" style="display: none;" id="search-btn"><i class="fas fa-search"></i></button>';
             document.getElementById('chat-order-widget-container').innerHTML = '';
             document.getElementById('chat-order-widget-container').style.display = 'none';
             document.getElementById('messages-container').innerHTML = '';

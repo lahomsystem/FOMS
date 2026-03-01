@@ -1,0 +1,6 @@
+guard_shell.py
+track_edits.py
+session_start.py
+pre_compact.py
+post_task_quality_check.py
+session_stop.py

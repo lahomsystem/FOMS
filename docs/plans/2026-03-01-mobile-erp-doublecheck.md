@@ -1,7 +1,8 @@
 # 모바일 ERP 최적화 구현 — 1:1 소스 더블체크 보고서
 
-> **검증일**: 2026-03-01  
-> **기준**: `docs/plans/2026-03-01-mobile-erp-optimization-plan.md` vs 실제 소스
+> **검증일**: 2026-03-01 (Phase 4·동작 확인 추가)  
+> **기준**: `docs/plans/2026-03-01-mobile-erp-optimization-plan.md` vs 실제 소스  
+> **동작 확인**: Flask test_client로 주요 라우트 200 응답 검증 완료
 
 ---
 
@@ -11,7 +12,7 @@
 
 | 계획서 요구 | 소스 위치 | 결과 |
 |------------|-----------|------|
-| `<body>`에서 `overflow-x: hidden` 제거 | L616–617: `style="width: 100% !important; max-width: 100% !important; margin: 0 ..."` | ✅ body에 overflow-x 없음 |
+| `<body>`에서 `overflow-x: hidden` 제거 | layout.html L616–617: body style에 width/max-width/margin/padding만 있음 | ✅ overflow-x 없음 (재검증) |
 | 헤더 반응형, h1 모바일 `font-size: 1rem` | L621–622 `layout-header`, `layout-header__title`; L36–49 인라인 스타일 | ✅ 992px에서 .layout-header__title 1rem, 576px에서 0.95rem |
 | 네비 메뉴 터치 44px | L40–46 .layout-nav-collapse .nav-link min-height 44px | ✅ |
 | `navbar-expand-lg` → `navbar-expand-md` | L721 `navbar-expand-md` | ✅ |
@@ -124,9 +125,51 @@
 
 ---
 
-## 5. 종합
+## 5. Phase 4 (WDCalculator + 채팅) — 1:1 소스 검증
 
-- **일치**: Phase 1·2·3-1 계획 항목 대부분 소스와 1:1 일치.
+### 4-1 WDCalculator (product_settings.html, wdcalculator_styles/scripts)
+
+| 계획서 요구 | 소스 위치 | 결과 |
+|------------|-----------|------|
+| 설정 테이블 카드 전환 (제품·옵션·비고 목록) | product_settings.html L100–132 `.wdcalc-mobile-card-table` @media 992px | ✅ |
+| 3개 테이블에 클래스 + data-label | L236, 357, 462: wdcalc-mobile-card-table; 서버/JS 렌더 td에 data-label | ✅ |
+| 가격 입력 inputmode="numeric" pattern="[0-9]*" | L179, 187, 191, 206, 338 (price1m, price30cm, price1cm, couponValue, additionalOptionPrice) | ✅ |
+| 모달 풀스크린 | wdcalculator_scripts.html L2920 `modal-dialog modal-lg modal-fullscreen-md-down` | ✅ |
+| 터치 44px (wdcalculator-container) | wdcalculator_styles.html @media 992 .wdcalculator-container .form-control 등 min-height 44px | ✅ |
+
+### 4-2 채팅 (chat.html, chat_styles.html, chat_scripts_rooms.html)
+
+| 계획서 요구 | 소스 위치 | 결과 |
+|------------|-----------|------|
+| 목록 ↔ 메시지 전환 (WhatsApp 패턴) | chat_styles.html L976–1012 @media 992: .col-lg-3/9 절대 위치, .chat-mobile-show-messages 시 슬라이드 | ✅ |
+| selectRoom() 시 모바일에서 클래스 추가 | chat_scripts_rooms.html L70–72 matchMedia('(max-width: 992px)') → addClass | ✅ |
+| goBackToChatList() | chat_scripts_rooms.html L64–66 removeClass | ✅ |
+| 백 버튼 (목록으로) | chat.html L56 .chat-mobile-back-btn, onclick="goBackToChatList()" | ✅ |
+| 3개 모달 풀스크린 | chat.html L137, 187, 211 createRoomModal, connectOrderModal, inviteMemberModal modal-fullscreen-md-down | ✅ |
+| 입력 영역 sticky bottom | chat_styles.html L1023–1031 #chat-input-area position: sticky; bottom: 0 | ✅ |
+| 터치 44px (입력/버튼/미리보기) | chat_styles.html L1014–1021 | ✅ |
+
+---
+
+## 6. 동작 확인 (Flask test client)
+
+| 경로 | HTTP 상태 | 비고 |
+|------|----------|------|
+| `/` | 200 | 주문 목록 (카드 전환·data-label) |
+| `/erp/dashboard` | 200 | 접수 대시보드 (필터 아코디언·모달) |
+| `/chat` | 200 | 채팅 (목록↔메시지 전환) |
+| `/wdcalculator/product-settings` | 200 | WDCalculator 설정 (테이블 카드·숫자 키패드) |
+| `/erp/shipment` | 200 | 발송 대시보드 |
+| `/erp/measurement` | 200 | 실측 대시보드 |
+| `/erp/as` | 200 | AS 대시보드 |
+
+*실제 뷰포트/디바이스 확인은 `docs/plans/2026-03-01-mobile-erp-verification.md` 체크리스트로 수동 검증.*
+
+---
+
+## 7. 종합
+
+- **일치**: Phase 1·2·3·4 계획 항목이 소스와 1:1 일치함.
 - **참고(동작 동일)**:
-  - 모달 풀스크린: 계획서는 전역 `.modal-dialog`, 구현은 `.erp-pro .modal-dialog` + 4개 모달에 `modal-fullscreen-md-down`. Bootstrap 모달이 body로 이동하므로 실제 동작은 `modal-fullscreen-md-down`으로 보장됨.
-- **미구현/선택**: 이미지 내보내기 모달은 템플릿에 없어 풀스크린 클래스 미적용. 동적 생성 시 해당 모달에 `modal-fullscreen-md-down` 추가 권장.
+  - 모달 풀스크린: 계획서는 전역 `.modal-dialog`, 구현은 `.erp-pro .modal-dialog` + 각 모달에 `modal-fullscreen-md-down`. Bootstrap 모달이 body로 이동하므로 실제 동작은 `modal-fullscreen-md-down`으로 보장됨.
+- **미구현/선택**: 발송 대시보드 이미지 내보내기 모달은 템플릿에 없어 풀스크린 클래스 미적용. 동적 생성 시 해당 모달에 `modal-fullscreen-md-down` 추가 권장.

@@ -388,4 +388,46 @@
     min-height: 44px;
   }
 }
+
+/* 저장된 견적 사이드바: 모바일(휴대폰) 3건만 표시 + 가독성/시인성 */
+@media (max-width: 576px) {
+  .saved-estimates-list .saved-estimate-item--hidden-mobile {
+    display: none !important;
+  }
+  .saved-estimates-sidebar .list-group-item {
+    padding: 0.75rem 0.65rem !important;
+    font-size: 0.95rem;
+    min-height: 0;
+  }
+  .saved-estimates-sidebar .list-group-item h6 {
+    max-width: none;
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+  .saved-estimates-sidebar .list-group-item .small {
+    font-size: 0.9rem;
+  }
+  .saved-estimates-sidebar .list-group-item .fw-bold.text-primary {
+    font-size: 1rem;
+  }
+  .saved-estimates-sidebar .list-group-item .btn {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.4rem 0.5rem;
+  }
+  .saved-estimates-sidebar .saved-estimates-more-btn {
+    min-height: 44px;
+    padding: 0.5rem 1rem;
+  }
+  .saved-estimates-sidebar .saved-estimates-collapse-bar {
+    flex-shrink: 0;
+  }
+  .saved-estimates-sidebar .saved-estimates-collapse-bar .btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .saved-estimates-sidebar #savedEstimatesListContainer {
+    -webkit-overflow-scrolling: touch;
+  }
+}
 </style>

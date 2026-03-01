@@ -4,18 +4,23 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
-| 2026-03-01 | 세션 자동 기록 | settings.json, test_file.py, erp_orders_drawing.py | 38349d2 |
-| 2026-03-01 | 세션 자동 기록 | test_file.py, erp_orders_drawing.py | 94be5b3 |
-| 2026-02-28 | 세션 자동 기록 | erp_orders_drawing.py | 2ade8ae |
-| 2026-02-28 | AI 자동 메모리 시스템 구축 | hooks, workflows, docs 정리 | - |
-| 2026-02-27 | docs 정리 (완료/오래된 문서 삭제, 4개 문서 최신화) | docs/ 30+ files | b7900ee |
-| 2026-02-27 | 지도 auto-poll iframe 재로드 제거 | templates/map_view.html | ab55226 |
-| 2026-02-27 | 수령 확정 후 구 버전 파일 DB 레코드 미삭제 수정 | apps/api/erp_orders_draftsman.py | 3d3a951 |
-| 2026-02-27 | 도면 전달 취소 시 원본 파일 유실 버그 수정 | apps/api/erp_orders_drawing.py | 91a6885 |
-| 2026-02-26 | AS/시공/도면 대시보드 업로드 로직 표준화 | partials, workbench, storage.py | - |
-| 2026-02-25 | AS 대시보드 갤러리 + 인라인 접수 + attachments 안정화 | apps/api/attachments.py 외 | - |
-| 2026-02-25 | 실측 대시보드 인라인 주문 상세 UI (아코디언) | measurement.js, template | - |
-| 2026-02-24 | 시공 대시보드 UX + 전체 완료 동기화 | erp_construction_page.py | - |
-| 2026-02-24 | 전역 R2 Presigned URL 체제 도입 | storage.py, layout.html | - |
-| 2026-02-23 | Phase C+D 완료 (Railway Worker, Direct Upload) | models, jobs, storage | - |
-| 2026-02-22 | 지도 동기 병렬 geocode (최대 40건) | erp_map.py | - |
+| 2026-03-01 | 세션 자동 기록 | chat_scripts_rooms.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-726edb73-d628-4661-87ff-444dda4aee44.png, chat_styles.html 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | chat_styles.html, chat_scripts_dom.html, chat_scripts_rooms.html 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | chat_scripts_file.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-13556dc3-6a41-49fa-8ea8-db6db200fd35.png, chat_scripts_dom.html 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | chat_scripts_dom.html, chat.html, routes.py 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | chat_styles.html, chat_scripts_dom.html, chat_scripts_extras.html 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | chat_scripts_extras.html, chat_scripts_rooms.html, chat_scripts_modals.html 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | chat_scripts_rooms.html, chat_scripts_modals.html, chat_scripts_messages.html 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | chat_scripts_messages.html, chat_scripts_rooms.html, chat_scripts_notifications.html 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | chat_scripts_rooms.html, chat_scripts_utils.html, chat_scripts_messages.html 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | chat_scripts_messages.html, chat_scripts_modals.html, chat_scripts_rooms.html 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | wdcalculator_scripts.html, wdcalculator_styles.html, wdcalculator_body.html 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | wdcalculator_styles.html, wdcalculator_scripts.html, wdcalculator_body.html 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | erp-pro.css, erp_shipment_dashboard.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-713095b0-5af0-4d36-b369-1b0dedb8423f.png 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | erp-pro.css, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-713095b0-5af0-4d36-b369-1b0dedb8423f.png, layout.html 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | erp-pro.css, layout.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-0b45be7c-565a-425a-9ae6-7cdcc6346435.png 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | erp_drawing_workbench_dashboard.html, erp-pro.css, layout.html 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | layout.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-0b45be7c-565a-425a-9ae6-7cdcc6346435.png, commit_msg.txt 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | commit_msg.txt, chat_scripts_rooms.html, chat_styles.html 외 2개 | 30ec6b0 |
+| 2026-03-01 | 세션 자동 기록 | chat_scripts_rooms.html, chat_styles.html, chat.html 외 2개 | 0daac5d |
+| 2026-03-01 | 세션 자동 기록 | erp_as_dashboard.html, erp_construction_modals.html, erp_production_modals.html 외 2개 | 0daac5d |

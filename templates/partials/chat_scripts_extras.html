@@ -100,32 +100,24 @@ function performGlobalSearch(query) {
         .then(data => {
             if (data.success && data.results.length > 0) {
                 resultsDiv.innerHTML = data.results.map(result => {
-                    let html = '';
+                    const rid = Number(result.room_id) || 0;
+                    const mid = Number(result.message_id) || 0;
                     if (result.type === 'message') {
                         const contentPreview = result.content ? escapeHtml(result.content.substring(0, 50)) + (result.content.length > 50 ? '...' : '') : '메시지';
-                        html = `
-                            <div class="p-2 border-bottom" style="cursor: pointer; background-color: white;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'" onclick="selectRoomAndHighlight(${result.room_id}, ${result.message_id})">
-                                <strong>${escapeHtml(result.room_name || '알 수 없음')}</strong><br>
-                                <small>메시지: ${contentPreview}</small><br>
-                                <small class="text-muted">${escapeHtml(result.user_name || '알 수 없음')} | ${result.created_at || ''}</small>
-                            </div>
-                        `;
+                        return '<div class="p-2 border-bottom global-search-row" role="button" tabindex="0" style="cursor: pointer; background-color: white;" data-action="search-result-message" data-room-id="' + rid + '" data-message-id="' + mid + '">' +
+                            '<strong>' + escapeHtml(result.room_name || '알 수 없음') + '</strong><br>' +
+                            '<small>메시지: ' + contentPreview + '</small><br>' +
+                            '<small class="text-muted">' + escapeHtml(result.user_name || '알 수 없음') + ' | ' + (result.created_at || '') + '</small></div>';
                     } else if (result.type === 'room') {
-                        html = `
-                            <div class="p-2 border-bottom" style="cursor: pointer; background-color: white;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'" onclick="selectRoom(${result.room_id})">
-                                <strong>채팅방: ${escapeHtml(result.room_name)}</strong>
-                                ${result.description ? `<br><small class="text-muted">${escapeHtml(result.description)}</small>` : ''}
-                            </div>
-                        `;
+                        const desc = result.description ? '<br><small class="text-muted">' + escapeHtml(result.description) + '</small>' : '';
+                        return '<div class="p-2 border-bottom global-search-row" role="button" tabindex="0" style="cursor: pointer; background-color: white;" data-action="search-result-room" data-room-id="' + rid + '">' +
+                            '<strong>채팅방: ' + escapeHtml(result.room_name || '') + '</strong>' + desc + '</div>';
                     } else if (result.type === 'order') {
-                        html = `
-                            <div class="p-2 border-bottom" style="cursor: pointer; background-color: white;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'" onclick="selectRoom(${result.room_id})">
-                                <strong>${escapeHtml(result.room_name || '알 수 없음')}</strong><br>
-                                <small>주문 #${result.order_id}: ${escapeHtml(result.customer_name || '-')} | ${escapeHtml(result.phone || '-')} | ${escapeHtml(result.address || '-')}</small>
-                            </div>
-                        `;
+                        return '<div class="p-2 border-bottom global-search-row" role="button" tabindex="0" style="cursor: pointer; background-color: white;" data-action="search-result-room" data-room-id="' + rid + '">' +
+                            '<strong>' + escapeHtml(result.room_name || '알 수 없음') + '</strong><br>' +
+                            '<small>주문 #' + (result.order_id || '') + ': ' + escapeHtml(result.customer_name || '-') + ' | ' + escapeHtml(result.phone || '-') + ' | ' + escapeHtml(result.address || '-') + '</small></div>';
                     }
-                    return html;
+                    return '';
                 }).join('');
                 resultsDiv.style.display = 'block';
                 roomsList.style.display = 'none';
@@ -165,4 +157,3 @@ function updateChatHeader() {
         searchBtn.style.display = 'none';
     }
 }
-</script>
