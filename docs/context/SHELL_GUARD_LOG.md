@@ -46,3 +46,5 @@
 | 2026-03-01 18:23:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c " with open('templates/partials/chat_styles.html', 'r', encoding='utf-8') as f: lin` |
 | 2026-03-01 18:55:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c " from app import app with app.test_request_context(): from flask import render_tem` |
 | 2026-03-01 19:02:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git add . ; git commit --trailer "Made-with: Cursor" -F commit_msg.txt ; git push origin depl` |
+| 2026-03-01 19:02:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git checkout production ; git merge deploy ; git push origin production ; git checkout deploy` |
+| 2026-03-01 19:02:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git add docs/context/SHELL_GUARD_LOG.md ; git commit --trailer "Made-with: Cursor" -m "chore:` |
