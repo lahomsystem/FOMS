@@ -61,6 +61,22 @@
         });
         listEl.innerHTML = html;
 
+        // 브리핑 보드 등에서 focus_order 파라미터로 진입 시 해당 주문 행으로 스크롤 및 하이라이트
+        (function () {
+          var urlParams = new URLSearchParams(window.location.search);
+          var focusOrder = urlParams.get('focus_order');
+          if (focusOrder) {
+            setTimeout(function () {
+              var row = listEl.querySelector('.erp-completion-row[data-order-id="' + focusOrder + '"]');
+              if (row) {
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                row.classList.add('table-info');
+                setTimeout(function () { row.classList.remove('table-info'); }, 2500);
+              }
+            }, 300);
+          }
+        })();
+
         var modalEl = document.getElementById('erp-settlement-modal');
         var orderIdInput = document.getElementById('erp-settlement-order-id');
         var submitBtn = document.getElementById('erp-settlement-submit');

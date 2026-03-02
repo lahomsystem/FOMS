@@ -487,25 +487,26 @@
               return;
             }
 
-            list.innerHTML = data.notifications.map(n => `
-          <div class="notification-item ${n.is_read ? '' : 'notification-item--unread'}" 
-               data-id="${n.id}" 
-               data-order-id="${n.order_id}"
-               onclick="handleNotificationClick(${n.id}, ${n.order_id}, '${String(n.notification_type || '').replace(/'/g, "\\'")}', '${String(n.deep_tab || '').replace(/'/g, "\\'")}', '${String(n.deep_event_id || '').replace(/'/g, "\\'")}', '${String(n.deep_target_no || '').replace(/'/g, "\\'")}')">
-            <div class="notification-item__header">
-              <span class="notification-item__title">${escapeHtml(n.title)}</span>
-              <span class="notification-item__time">${formatNotificationTime(n.created_at)}</span>
-            </div>
-            <div class="notification-item__message">${escapeHtml(n.message)}</div>
-            <div class="notification-item__target">
-              ${n.target_manager_name ? '담당: ' + escapeHtml(n.target_manager_name) : (n.target_team ? '팀: ' + escapeHtml(n.target_team) : '')}
-            </div>
-          </div>
-        `).join('');
+            const safeAttr = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            list.innerHTML = data.notifications.map(n => {
+              return '<div class="notification-item ' + (n.is_read ? '' : 'notification-item--unread') + '" data-notification-id="' + n.id + '" data-order-id="' + (n.order_id || '') + '" data-notification-type="' + safeAttr(n.notification_type) + '" data-deep-tab="' + safeAttr(n.deep_tab) + '" data-deep-event-id="' + safeAttr(n.deep_event_id) + '" data-deep-target-no="' + safeAttr(n.deep_target_no) + '" role="button" tabindex="0">' +
+                '<div class="notification-item__header"><span class="notification-item__title">' + escapeHtml(n.title) + '</span><span class="notification-item__time">' + formatNotificationTime(n.created_at) + '</span></div>' +
+                '<div class="notification-item__message">' + escapeHtml(n.message) + '</div>' +
+                '<div class="notification-item__target">' + (n.target_manager_name ? '담당: ' + escapeHtml(n.target_manager_name) : (n.target_team ? '팀: ' + escapeHtml(n.target_team) : '')) + '</div></div>';
+            }).join('');
           } catch (e) {
             console.error('Load notifications error:', e);
           }
         }
+
+        document.body.addEventListener('click', function (ev) {
+          const item = ev.target.closest('#notification-list .notification-item[data-notification-id]');
+          if (!item) return;
+          ev.preventDefault();
+          const id = parseInt(item.getAttribute('data-notification-id'), 10);
+          const orderId = parseInt(item.getAttribute('data-order-id'), 10) || null;
+          handleNotificationClick(id, orderId, item.getAttribute('data-notification-type') || '', item.getAttribute('data-deep-tab') || '', item.getAttribute('data-deep-event-id') || '', item.getAttribute('data-deep-target-no') || '');
+        });
 
         function toggleNotificationPanel() {
           const panel = document.getElementById('notification-panel');

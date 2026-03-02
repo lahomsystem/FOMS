@@ -186,7 +186,7 @@
           <tbody>
             {% if rows %}
             {% for r in rows %}
-            <tr>
+            <tr data-order-id="{{ r.id }}">
               <td>
                 {% if can_edit_erp|default(false) %}
                 <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-beta" class="erp-pro-link">#{{
@@ -262,7 +262,7 @@
       <div class="erp-pro-order-cards d-md-none">
         {% if rows %}
         {% for r in rows %}
-        <div class="erp-pro-order-card">
+        <div class="erp-pro-order-card" data-order-id="{{ r.id }}">
           <div class="erp-pro-order-card__header">
             {% if can_edit_erp|default(false) %}
             <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-beta"
@@ -424,6 +424,23 @@
 
 <script>
   document.addEventListener('DOMContentLoaded', function () {
+    // 브리핑 보드 등에서 focus_order 파라미터로 진입 시 해당 주문 행/카드로 스크롤 및 하이라이트
+    (function () {
+      const urlParams = new URLSearchParams(window.location.search);
+      const focusOrder = urlParams.get('focus_order');
+      if (!focusOrder) return;
+      setTimeout(function () {
+        const row = document.querySelector('tr[data-order-id="' + focusOrder + '"]');
+        const card = document.querySelector('.erp-pro-order-card[data-order-id="' + focusOrder + '"]');
+        const el = row || card;
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('table-info');
+          setTimeout(function () { el.classList.remove('table-info'); }, 2500);
+        }
+      }, 400);
+    })();
+
     const toastEl = document.getElementById('saveToast');
     const toast = new bootstrap.Toast(toastEl, { delay: 2000 });
     const toastMsg = document.getElementById('toastMessage');
