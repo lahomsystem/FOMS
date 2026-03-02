@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-01 18:27:17
+> 생성 시각: 2026-03-02 13:54:10
 > 세션: 7608c340
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `templates/partials/chat_styles.html` <- 2 edit(s), ~73 chars (2026-03-01 18:27:02)
-- `templates/partials/chat_styles.html` <- 1 edit(s), ~27 chars (2026-03-01 18:26:36)
-- `templates/partials/chat_scripts_dom.html` <- 1 edit(s), ~112 chars (2026-03-01 18:25:42)
-- `templates/partials/chat_scripts_rooms.html` <- 4 edit(s), ~1845 chars (2026-03-01 18:25:33)
-- `templates/chat.html` <- 1 edit(s), ~91 chars (2026-03-01 18:22:36)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-89099eac-2ea4-43fd-913d-a23c25a58d0c.png` <- 1 edit(s), ~0 chars (2026-03-01 18:20:59)
-- `templates/partials/chat_scripts_messages.html` <- 1 edit(s), ~0 chars (2026-03-01 18:14:30)
-- `templates/partials/chat_scripts_modals.html` <- 1 edit(s), ~136 chars (2026-03-01 18:14:01)
-- `templates/partials/chat_scripts_rooms.html` <- 1 edit(s), ~45 chars (2026-03-01 18:13:42)
-- `templates/partials/chat_scripts_utils.html` <- 1 edit(s), ~263 chars (2026-03-01 18:13:33)
+- `templates/partials/erp_completion_scripts.html` <- 1 edit(s), ~303 chars (2026-03-02 13:54:10)
+- `templates/partials/erp_completion_scripts.html` <- 2 edit(s), ~199 chars (2026-03-02 13:53:53)
+- `templates/partials/erp_completion_scripts.html` <- 1 edit(s), ~0 chars (2026-03-02 13:53:44)
+- `templates/partials/erp_completion_scripts.html` <- 1 edit(s), ~266 chars (2026-03-02 13:53:34)
+- `templates/partials/erp_completion_scripts.html` <- 1 edit(s), ~500 chars (2026-03-02 13:53:27)
+- `templates/partials/erp_completion_styles.html` <- 2 edit(s), ~439 chars (2026-03-02 13:53:26)
+- `commit_msg_deploy.txt` <- 1 edit(s), ~275 chars (2026-03-02 13:39:28)
+- `apps/api/erp_orders_completion.py` <- 1 edit(s), ~77 chars (2026-03-02 13:38:29)
+- `apps/api/erp_orders_completion.py` <- 1 edit(s), ~96 chars (2026-03-02 13:38:26)
+- `apps/api/erp_orders_completion.py` <- 1 edit(s), ~107 chars (2026-03-02 13:38:24)
 
 ### 진행 중이던 작업
 (없음)

@@ -5,10 +5,11 @@
   .erp-completion-summary { font-size: 0.9rem; min-width: 0; }
   .erp-completion-gallery { display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.25rem 0; -webkit-overflow-scrolling: touch; min-width: 0; }
   .erp-completion-gallery img { width: 72px; height: 72px; object-fit: cover; border-radius: 6px; cursor: pointer; flex-shrink: 0; }
-  .erp-completion-media--video { width: 72px; height: 72px; flex-shrink: 0; border-radius: 6px; background: #e9ecef; border: 1px solid #dee2e6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: not-allowed; }
+  .erp-completion-media--video { width: 72px; height: 72px; flex-shrink: 0; border-radius: 6px; background: #e9ecef; border: 1px solid #dee2e6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; }
+  .erp-completion-media--video:hover { background: #dee2e6; border-color: #adb5bd; }
   .erp-completion-media--video .erp-completion-media__icon { color: #6c757d; font-size: 1.25rem; }
   .erp-completion-media--video .erp-completion-media__label { font-size: 0.65rem; color: #495057; }
-  .erp-completion-media--video .erp-completion-media__disabled { font-size: 0.6rem; color: #868e96; }
+  .erp-completion-media--video .erp-completion-media__play { font-size: 0.6rem; color: #0d6efd; }
   .global-viewer-completion-extra { max-width: 90vw; word-break: break-word; }
   @media (max-width: 768px) {
     .erp-completion .erp-pro-card__body { padding: 0.75rem; }

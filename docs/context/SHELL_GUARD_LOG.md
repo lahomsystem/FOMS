@@ -48,3 +48,16 @@
 | 2026-03-01 19:02:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git add . ; git commit --trailer "Made-with: Cursor" -F commit_msg.txt ; git push origin depl` |
 | 2026-03-01 19:02:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git checkout production ; git merge deploy ; git push origin production ; git checkout deploy` |
 | 2026-03-01 19:02:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git add docs/context/SHELL_GUARD_LOG.md ; git commit --trailer "Made-with: Cursor" -m "chore:` |
+| 2026-03-01 19:02:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git push origin deploy` |
+| 2026-03-02 10:29:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c "from app import app; from apps.erp_completion_page import erp_completion_page_bp; ` |
+| 2026-03-02 10:38:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c "from app import app; from apps.api.erp_orders_completion import erp_orders_complet` |
+| 2026-03-02 11:21:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-02 11:22:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add app.py apps/erp_completion_page.py apps/api/erp_orders_completion.py templates/erp_com` |
+| 2026-03-02 11:22:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg_deploy.txt` |
+| 2026-03-02 11:22:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-02 12:03:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-02 12:04:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_completion_scripts.html templates/partials/erp_completion_style` |
+| 2026-03-02 12:04:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg_deploy.txt; git push origin deploy` |
+| 2026-03-02 13:39:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-02 13:39:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add apps/api/erp_orders_completion.py templates/erp_completion_dashboard.html templates/pa` |
+| 2026-03-02 13:39:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg_deploy.txt; git push origin deploy` |

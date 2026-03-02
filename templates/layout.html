@@ -34,6 +34,7 @@
             outline: 2px solid #fff;
             outline-offset: 2px;
         }
+
         /* MOBILE LAYOUT (2026-03 ERP 최적화) */
         @media (max-width: 992px) {
             .layout-header {
@@ -41,6 +42,7 @@
                 padding-bottom: 0.5rem !important;
                 min-height: 0;
             }
+
             .layout-header__title {
                 font-size: 1rem !important;
                 white-space: nowrap;
@@ -50,9 +52,11 @@
                 line-height: 1.25;
                 flex: 1 1 0;
             }
+
             .layout-header .d-flex.align-items-center.gap-3 {
                 flex-shrink: 0;
             }
+
             .layout-nav-collapse .nav-link {
                 min-height: 44px;
                 display: flex;
@@ -61,8 +65,11 @@
                 padding-bottom: 0.75rem;
             }
         }
+
         @media (max-width: 576px) {
-            .layout-header__title { font-size: 0.9rem !important; }
+            .layout-header__title {
+                font-size: 0.9rem !important;
+            }
         }
     </style>
     {% block head %}{% endblock %}
@@ -240,9 +247,11 @@
     </style>
     {% endif %}
     <!-- 전역 Socket.IO 초기화 (서버가 Socket.IO 제공 시 로드. 로컬 socketio.run / 원격 gunicorn gevent) -->
-    {% if current_user and (not request.endpoint or (request.endpoint != 'admin' and not request.endpoint.startswith('admin_'))) and config.get('SOCKETIO_AVAILABLE') %}
+    {% if current_user and (not request.endpoint or (request.endpoint != 'admin' and not
+    request.endpoint.startswith('admin_'))) and config.get('SOCKETIO_AVAILABLE') %}
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <script id="socket-config" type="application/json">{"forcePolling":{{ "true" if config.DEBUG else "false" }},"allowPollingFallback":{{ "true" if config.get("SOCKETIO_ALLOW_POLLING_FALLBACK") else "false" }}}</script>
+    <script id="socket-config"
+        type="application/json">{"forcePolling":{{ "true" if config.DEBUG else "false" }},"allowPollingFallback":{{ "true" if config.get("SOCKETIO_ALLOW_POLLING_FALLBACK") else "false" }}}</script>
     <script>
         // 전역 Socket.IO 초기화 (모든 페이지에서 알림 받을 수 있게)
         (function () {
@@ -260,7 +269,7 @@
 
             // 전역 Socket.IO 싱글톤 생성/재사용 (설정은 JSON 블록에서 로드하여 JS 파서/Jinja 충돌 방지)
             var _socketConfigEl = document.getElementById('socket-config');
-            var _socketConfig = _socketConfigEl ? (function(){ try { return JSON.parse(_socketConfigEl.textContent); } catch(e){ return {forcePolling: false, allowPollingFallback: true}; }})() : {forcePolling: false, allowPollingFallback: true};
+            var _socketConfig = _socketConfigEl ? (function () { try { return JSON.parse(_socketConfigEl.textContent); } catch (e) { return { forcePolling: false, allowPollingFallback: true }; } })() : { forcePolling: false, allowPollingFallback: true };
             const forcePollingInDebug = !!_socketConfig.forcePolling;
             const allowPollingFallback = !!_socketConfig.allowPollingFallback;
             window.getAppSocketOptions = window.getAppSocketOptions || function () {
@@ -299,13 +308,13 @@
             function clearSocketAndScheduleReconnect(socketRef, delayMs) {
                 if (window.__appSocketReconnectScheduled) return;
                 delayMs = delayMs || 2000;
-                console.warn('[Global Socket.IO] 연결이 끊어졌습니다. ' + (delayMs/1000) + '초 후 새 연결을 시도합니다.');
+                console.warn('[Global Socket.IO] 연결이 끊어졌습니다. ' + (delayMs / 1000) + '초 후 새 연결을 시도합니다.');
                 window.__appSocketReconnectScheduled = true;
                 setTimeout(function () {
                     window.__appSocketReconnectScheduled = false;
                     const s = window.__appSocket || socketRef;
                     if (s && !s.connected && typeof s.connect === 'function') {
-                        try { s.connect(); } catch (e) {}
+                        try { s.connect(); } catch (e) { }
                     }
                 }, delayMs);
             }
@@ -643,8 +652,7 @@
                 {% if (current_user.team or '') != 'CONSTRUCTION' %}
                 <div class="position-relative">
                     <button class="btn btn-link p-0 text-dark border-0 position-relative" id="global-mine-only-btn"
-                        title="로그인 담당자만 보기" onclick="toggleGlobalMineOnly()"
-                        aria-label="내 할 일만 보기 토글"
+                        title="로그인 담당자만 보기" onclick="toggleGlobalMineOnly()" aria-label="내 할 일만 보기 토글"
                         aria-pressed="false">
                         <i class="fas fa-user-check fa-2x" id="global-mine-only-icon"></i>
                     </button>
@@ -653,10 +661,8 @@
                 <!-- Global Notification Button -->
                 <div class="position-relative">
                     <button class="btn btn-link p-0 text-dark border-0 position-relative" id="global-notification-btn"
-                        title="알림" onclick="toggleGlobalNotificationPanel()"
-                        aria-label="알림 패널 열기"
-                        aria-controls="global-notification-panel"
-                        aria-expanded="false">
+                        title="알림" onclick="toggleGlobalNotificationPanel()" aria-label="알림 패널 열기"
+                        aria-controls="global-notification-panel" aria-expanded="false">
                         <i class="fas fa-bell fa-2x" id="global-notification-icon" style="color: #495057;"></i>
                         <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
                             id="global-notification-badge" style="display: none; font-size: 0.65rem;">
@@ -666,8 +672,7 @@
                     </button>
                     <!-- Notification Panel -->
                     <div class="dropdown-menu dropdown-menu-end p-0 shadow-lg border-0" id="global-notification-panel"
-                        role="region"
-                        aria-label="전역 알림"
+                        role="region" aria-label="전역 알림"
                         style="display: none; position: absolute; top: 140%; right: 0; width: 420px; max-width: min(420px, calc(100vw - 24px)); max-height: 480px; overflow-y: auto; z-index: 9999; border-radius: 12px;">
                         <div
                             class="p-3 border-bottom d-flex justify-content-between align-items-center bg-white sticky-top">
@@ -677,7 +682,8 @@
                                 <i class="fas fa-check-double me-1"></i>모두 읽음
                             </button>
                         </div>
-                        <div id="global-notification-list" class="list-group list-group-flush" aria-live="polite" aria-atomic="false">
+                        <div id="global-notification-list" class="list-group list-group-flush" aria-live="polite"
+                            aria-atomic="false">
                             <!-- JS will populate this -->
                             <div class="text-center p-5 text-muted">
                                 <i class="far fa-bell fa-3x mb-3 text-light"></i><br>
@@ -693,11 +699,14 @@
                         <i class="fas fa-user-circle"></i> {{ current_user.name }} ({{ ROLES[current_user.role] }})
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown" style="z-index: 1050;">
-                        <li><a class="dropdown-item" href="{{ url_for('user_pages.profile') }}"><i class="fas fa-user-cog"></i> 내
+                        <li><a class="dropdown-item" href="{{ url_for('user_pages.profile') }}"><i
+                                    class="fas fa-user-cog"></i> 내
                                 정보</a></li>
-                        <li><a class="dropdown-item" href="{{ url_for('user_pages.change_logs') }}"><i class="fas fa-history"></i> 내 변경 로그</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('user_pages.change_logs') }}"><i
+                                    class="fas fa-history"></i> 내 변경 로그</a></li>
                         {% if impersonating_from_id %}
-                        <li><a class="dropdown-item" href="{{ url_for('auth.switch_back') }}"><i class="fas fa-undo"></i> 원래 관리자로 돌아가기</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth.switch_back') }}"><i
+                                    class="fas fa-undo"></i> 원래 관리자로 돌아가기</a></li>
                         {% endif %}
                         {% if current_user.role == 'ADMIN' %}
                         <li>
@@ -710,9 +719,12 @@
                                     class="fas fa-shield-alt"></i>
                                 보안 로그</a></li>
                         {% if not impersonating_from_id and admin_switch_users %}
-                        <li><h6 class="dropdown-header">다른 사용자로 전환</h6></li>
+                        <li>
+                            <h6 class="dropdown-header">다른 사용자로 전환</h6>
+                        </li>
                         {% for u in admin_switch_users %}
-                        <li><a class="dropdown-item" href="{{ url_for('auth.switch_user', target_user_id=u.id) }}">{{ u.name }} ({{ u.username }})</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth.switch_user', target_user_id=u.id) }}">{{
+                                u.name }} ({{ u.username }})</a></li>
                         {% endfor %}
                         {% endif %}
                         {% endif %}
@@ -734,13 +746,13 @@
         </header>
 
         {% if current_user %}
-        <nav class="navbar navbar-expand-md navbar-light bg-light border-bottom px-2 px-lg-4"
-            aria-label="메인 메뉴"
+        <nav class="navbar navbar-expand-md navbar-light bg-light border-bottom px-2 px-lg-4" aria-label="메인 메뉴"
             style="position: sticky; top: 0; z-index: 1000; background-color: white !important;">
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            {% if request.endpoint and request.endpoint.startswith('erp_measurement_dashboard') and (current_user.team or '') != 'CONSTRUCTION' %}
+            {% if request.endpoint and request.endpoint.startswith('erp_measurement_dashboard') and (current_user.team
+            or '') != 'CONSTRUCTION' %}
             <div class="d-flex align-items-center gap-2 ms-2 d-lg-none">
                 <span class="fw-bold fs-6" style="line-height: 1;">
                     <i class="fas fa-ruler-combined"></i> ERP Beta - 실측 대시보드
@@ -865,7 +877,9 @@
             <i class="fas fa-chevron-right"></i>
         </button>
         <div id="global-viewer-stage">
-            <img id="global-viewer-image" src="" alt="" draggable="false">
+            <img id="global-viewer-image" src="" alt="" draggable="false" style="display:none;">
+            <video id="global-viewer-video" src="" controls
+                style="display:none; max-width:100%; max-height:100vh;"></video>
         </div>
         <div id="global-viewer-footer">
             <div id="global-viewer-filename"></div>
@@ -1060,7 +1074,7 @@
 
     <script>
         // Global Immersive Image Viewer Logic
-        window.GlobalImageViewer = (function() {
+        window.GlobalImageViewer = (function () {
             const state = {
                 files: [],
                 index: 0,
@@ -1075,12 +1089,12 @@
                 touchLastY: 0,
                 touching: false
             };
-            
+
             let els = {};
 
             function init() {
                 if (els.root) return; // Already init
-                
+
                 els = {
                     root: document.getElementById('global-image-viewer'),
                     backdrop: document.getElementById('global-viewer-backdrop'),
@@ -1089,10 +1103,11 @@
                     nextBtn: document.getElementById('global-viewer-next'),
                     stage: document.getElementById('global-viewer-stage'),
                     image: document.getElementById('global-viewer-image'),
+                    video: document.getElementById('global-viewer-video'),
                     filename: document.getElementById('global-viewer-filename'),
                     counter: document.getElementById('global-viewer-counter')
                 };
-                
+
                 if (!els.root) return;
 
                 // Events
@@ -1100,23 +1115,23 @@
                 els.backdrop?.addEventListener('click', close);
                 els.prevBtn?.addEventListener('click', prev);
                 els.nextBtn?.addEventListener('click', next);
-                
+
                 // Show nav on mouse move
                 els.root.addEventListener('mousemove', () => {
-                   els.root.classList.add('nav-visible');
+                    els.root.classList.add('nav-visible');
                 });
                 els.root.addEventListener('mouseleave', () => {
-                   els.root.classList.remove('nav-visible');
+                    els.root.classList.remove('nav-visible');
                 });
 
                 // Zoom
                 els.image?.addEventListener('wheel', handleWheel, { passive: false });
-                
+
                 // Drag
                 els.image?.addEventListener('mousedown', startDrag);
                 window.addEventListener('mousemove', doDrag);
                 window.addEventListener('mouseup', endDrag);
-                
+
                 // Keys
                 document.addEventListener('keydown', handleKey);
 
@@ -1138,11 +1153,11 @@
                 els.stage?.addEventListener('touchmove', handleTouchMove, { passive: true });
                 els.stage?.addEventListener('touchend', handleTouchEnd, { passive: true });
             }
-            
+
             function open(files, startIndex = 0) {
                 init(); // Ensure init
                 if (!files || !files.length) return;
-                
+
                 // Normalize files structure (key for R2 presigned direct link)
                 state.files = files.map(f => {
                     const key = f.key || f.storage_key || (f.download_url && String(f.download_url).replace(/^\/api\/files\/download\//, '')) || (f.view_url && String(f.view_url).replace(/^\/api\/files\/view\//, '')) || (f.url && String(f.url).replace(/^\/api\/files\/view\//, '')) || null;
@@ -1153,22 +1168,21 @@
                         key: key || null
                     };
                 }).filter(f => !!f.url);
-                
+
                 if (state.files.length === 0) {
                     alert('표시할 이미지가 없습니다.');
                     return;
                 }
 
                 state.index = Math.max(0, Math.min(state.files.length - 1, startIndex));
-                
+
                 els.root.style.display = 'flex';
                 els.root.classList.add('d-flex');
                 els.root.setAttribute('aria-hidden', 'false');
                 document.body.style.overflow = 'hidden'; // Lock scroll
-                
+
                 render();
             }
-            
             function close() {
                 if (!els.root) return;
                 els.root.style.display = 'none';
@@ -1176,22 +1190,40 @@
                 els.root.setAttribute('aria-hidden', 'true');
                 document.body.style.overflow = '';
                 state.files = [];
+                if (els.video) {
+                    els.video.pause();
+                    els.video.src = '';
+                }
             }
-            
+
             function render() {
                 const file = state.files[state.index];
                 if (!file) return;
-                
+
                 // Reset transform
                 state.scale = 1;
                 state.tx = 0;
                 state.ty = 0;
                 updateTransform();
-                
-                els.image.src = file.url;
-                els.image.alt = file.filename;
+
+                var isVideo = (file.url || '').match(/\.(mp4|webm|ogg)$/i) || (file.filename || '').match(/\.(mp4|webm|ogg)$/i);
+
+                if (isVideo) {
+                    els.image.style.display = 'none';
+                    els.image.src = '';
+                    els.video.style.display = 'block';
+                    els.video.src = file.url;
+                } else {
+                    els.video.style.display = 'none';
+                    els.video.pause();
+                    els.video.src = '';
+                    els.image.style.display = 'block';
+                    els.image.src = file.url;
+                    els.image.alt = file.filename;
+                }
+
                 els.filename.textContent = file.filename;
-                
+
                 if (state.files.length > 1) {
                     els.counter.textContent = `${state.index + 1} / ${state.files.length}`;
                     els.root.classList.remove('single-file');
@@ -1200,40 +1232,47 @@
                     els.root.classList.add('single-file');
                 }
                 requestAnimationFrame(positionNavButtons);
-                
+
                 if (file.key) {
-                    var path = (function(k){ return String(k).split('/').map(function(s){ return encodeURIComponent(s); }).join('/'); })(file.key);
-                    fetch('/api/files/presigned-urls/' + path).then(function(r){ return r.json(); }).then(function(data){
-                        if (data.success && data.view_url && state.files[state.index] === file) els.image.src = data.view_url;
-                    }).catch(function(){});
+                    var path = (function (k) { return String(k).split('/').map(function (s) { return encodeURIComponent(s); }).join('/'); })(file.key);
+                    fetch('/api/files/presigned-urls/' + path).then(function (r) { return r.json(); }).then(function (data) {
+                        if (data.success && data.view_url && state.files[state.index] === file) {
+                            var isVideo = (file.url || '').match(/\.(mp4|webm|ogg)$/i) || (file.filename || '').match(/\.(mp4|webm|ogg)$/i);
+                            if (isVideo) {
+                                els.video.src = data.view_url;
+                            } else {
+                                els.image.src = data.view_url;
+                            }
+                        }
+                    }).catch(function () { });
                 }
             }
-            
+
             function updateTransform() {
-                if(els.image) els.image.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
+                if (els.image) els.image.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
             }
-            
+
             function prev() {
                 if (state.index > 0) {
                     state.index--;
                     render();
                 }
             }
-            
+
             function next() {
                 if (state.index < state.files.length - 1) {
                     state.index++;
                     render();
                 }
             }
-            
+
             function handleWheel(e) {
                 e.preventDefault();
                 const delta = e.deltaY > 0 ? -0.1 : 0.1;
                 state.scale = Math.max(0.1, Math.min(5, state.scale + delta));
                 updateTransform();
             }
-            
+
             function startDrag(e) {
                 e.preventDefault();
                 state.dragging = true;
@@ -1243,7 +1282,7 @@
                 state.baseTy = state.ty;
                 els.image.style.cursor = 'grabbing';
             }
-            
+
             function doDrag(e) {
                 if (!state.dragging) return;
                 e.preventDefault();
@@ -1251,12 +1290,12 @@
                 state.ty = state.baseTy + (e.clientY - state.dragStartY);
                 updateTransform();
             }
-            
+
             function endDrag() {
                 state.dragging = false;
                 if (els.image) els.image.style.cursor = 'grab';
             }
-            
+
             function handleKey(e) {
                 if (!els.root || els.root.style.display === 'none') return;
                 if (e.key === 'Escape') close();
@@ -1312,7 +1351,7 @@
                 if (dx < 0) next();
                 else prev();
             }
-            
+
             return {
                 init,
                 open,
@@ -1321,19 +1360,19 @@
         })();
 
         /** Phase2: 목록/썸네일 presigned — data-storage-key가 있는 img의 src를 R2 직행 URL로 교체 */
-        window.erpReplaceThumbnailsWithPresigned = function(container) {
+        window.erpReplaceThumbnailsWithPresigned = function (container) {
             var root = container && container.nodeType === 1 ? container : document;
             var imgs = root.querySelectorAll ? root.querySelectorAll('img[data-storage-key]') : [];
             if (!imgs.length) return;
             var CONCURRENCY = 5;
-            function encodePath(k) { return String(k).split('/').map(function(s) { return encodeURIComponent(s); }).join('/'); }
+            function encodePath(k) { return String(k).split('/').map(function (s) { return encodeURIComponent(s); }).join('/'); }
             function fetchOne(img) {
                 var key = img.getAttribute('data-storage-key');
                 if (!key) return Promise.resolve();
                 var path = encodePath(key);
-                return fetch('/api/files/presigned-urls/' + path).then(function(r) { return r.json(); }).then(function(data) {
+                return fetch('/api/files/presigned-urls/' + path).then(function (r) { return r.json(); }).then(function (data) {
                     if (data.success && data.view_url) img.src = data.view_url;
-                }).catch(function() {});
+                }).catch(function () { });
             }
             for (var i = 0; i < imgs.length; i += CONCURRENCY) {
                 var chunk = Array.prototype.slice.call(imgs, i, i + CONCURRENCY);
@@ -1350,32 +1389,60 @@
     <style>
         /* Global Notification Styles */
         @keyframes bell-shake {
-            0% { transform: rotate(0); }
-            15% { transform: rotate(15deg); }
-            30% { transform: rotate(-15deg); }
-            45% { transform: rotate(10deg); }
-            60% { transform: rotate(-10deg); }
-            75% { transform: rotate(5deg); }
-            85% { transform: rotate(-5deg); }
-            100% { transform: rotate(0); }
+            0% {
+                transform: rotate(0);
+            }
+
+            15% {
+                transform: rotate(15deg);
+            }
+
+            30% {
+                transform: rotate(-15deg);
+            }
+
+            45% {
+                transform: rotate(10deg);
+            }
+
+            60% {
+                transform: rotate(-10deg);
+            }
+
+            75% {
+                transform: rotate(5deg);
+            }
+
+            85% {
+                transform: rotate(-5deg);
+            }
+
+            100% {
+                transform: rotate(0);
+            }
         }
+
         .bell-active {
             animation: bell-shake 2.5s infinite;
             color: #ffc107 !important;
             text-shadow: 0 0 10px rgba(255, 193, 7, 0.4);
         }
+
         .notification-item {
             transition: background-color 0.2s;
             cursor: pointer;
             border-left: 3px solid transparent;
         }
+
         .notification-item:hover {
             background-color: #f8f9fa;
         }
+
         .notification-item.unread {
             background-color: #f0f7ff;
             border-left-color: #0d6efd;
         }
+
         .notification-time {
             font-size: 0.75rem;
             color: #adb5bd;
@@ -1385,12 +1452,15 @@
         #global-image-viewer {
             position: fixed;
             inset: 0;
-            z-index: 10600; /* Higher than Bootstrap modal (1055) */
+            z-index: 10600;
+            /* Higher than Bootstrap modal (1055) */
             display: none;
         }
+
         #global-image-viewer.d-flex {
             display: flex !important;
         }
+
         #global-viewer-backdrop {
             position: absolute;
             inset: 0;
@@ -1398,6 +1468,7 @@
             backdrop-filter: blur(14px) saturate(120%);
             -webkit-backdrop-filter: blur(14px) saturate(120%);
         }
+
         #global-viewer-stage {
             position: absolute;
             inset: 0;
@@ -1406,15 +1477,17 @@
             justify-content: center;
             overflow: hidden;
         }
+
         #global-viewer-image {
             max-width: 95vw;
             max-height: 90vh;
             transform-origin: center center;
             cursor: grab;
             user-select: none;
-            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
             transition: transform 0.1s linear;
         }
+
         .global-viewer-nav {
             position: absolute;
             top: 50%;
@@ -1435,18 +1508,26 @@
             transition: all 0.2s ease;
             font-size: 24px;
         }
+
         .global-viewer-nav:hover {
             background: rgba(255, 255, 255, 0.25);
             transform: translateY(-50%) scale(1.1);
         }
-        #global-viewer-prev { left: 24px; }
-        #global-viewer-next { right: 24px; }
-        
+
+        #global-viewer-prev {
+            left: 24px;
+        }
+
+        #global-viewer-next {
+            right: 24px;
+        }
+
         #global-image-viewer:hover .global-viewer-nav,
         #global-image-viewer.nav-visible .global-viewer-nav {
             opacity: 1;
             pointer-events: auto;
         }
+
         #global-image-viewer.single-file .global-viewer-nav {
             display: none !important;
         }
@@ -1475,6 +1556,7 @@
             justify-content: center;
             transition: all 0.2s ease;
         }
+
         #global-viewer-close:hover {
             background: rgba(255, 59, 48, 0.8);
             transform: rotate(90deg);
@@ -1496,8 +1578,9 @@
             z-index: 2;
             max-width: 90vw;
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
+
         #global-viewer-filename {
             font-weight: 600;
             max-width: 300px;
@@ -1505,11 +1588,12 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+
         #global-viewer-counter {
             opacity: 0.7;
             font-size: 0.9em;
             padding-left: 12px;
-            border-left: 1px solid rgba(255,255,255,0.3);
+            border-left: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         @media (prefers-reduced-motion: reduce) {
