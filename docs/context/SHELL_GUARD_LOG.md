@@ -73,3 +73,7 @@
 | 2026-03-02 19:16:26 | allow | `-` | `ls "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\admin\"` |
 | 2026-03-02 19:20:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c "import app; print('OK')"` |
 | 2026-03-02 20:33:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git status --short` |
+| 2026-03-02 20:40:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python .cursor/hooks/cleanup_temp.py` |
+| 2026-03-02 20:51:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python scripts/run_notifications_migration.py "postgresql://postgres:XMuhzNDZDeBlQStbmUQymJTG` |
+| 2026-03-02 20:51:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python scripts/run_notifications_migration.py "postgresql://postgres:jDkSuQDkQZkGZCFmPMOnFoDa` |
+| 2026-03-02 20:55:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git status` |

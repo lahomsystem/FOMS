@@ -4,6 +4,10 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-02 | 세션 자동 기록 | personal_board.py, run_notifications_migration.py, commit_msg.txt 외 2개 | c9379fc |
+| 2026-03-02 | 세션 자동 기록 | run_notifications_migration.py, personal_board.py, commit_msg.txt 외 2개 | c9379fc |
+| 2026-03-02 | 세션 자동 기록 | personal_board.py, commit_msg.txt, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d8dd97a1-ee4f-43b4-968b-d5e373f4a785.png 외 2개 | c9379fc |
+| 2026-03-02 | 세션 자동 기록 | commit_msg.txt, personal_board.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d8dd97a1-ee4f-43b4-968b-d5e373f4a785.png 외 2개 | c9379fc |
 | 2026-03-02 | 브리핑 보드 및 알림 배너 딥링크 라우팅 전수 검사 및 404 오류 수정 | layout.html, personal_board.py | 6a46f6e |
 | 2026-03-02 | 브리핑 보드 erpbeta 표기 오류 수정 및 생산/시공 단계별 딥링크 연결 | personal_board.py | 7aa8afe |
 | 2026-03-02 | 긴급 알림 시스템 구축 (브리핑 보드 시각/청각 알림 및 배너 UI) | layout.html, personal_board.py | cd4980e |
@@ -20,9 +24,3 @@
 | 2026-03-02 | 세션 자동 기록 | layout.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-08ad9b9b-daa9-471a-b651-94544af2f60b.png, personal_board.py 외 2개 | c4161da |
 | 2026-03-02 | 세션 자동 기록 | layout.html, personal_board.py, app.py 외 2개 | c4161da |
 | 2026-03-02 | 세션 자동 기록 | erp_completion_scripts.html, erp_completion_styles.html, commit_msg_deploy.txt 외 2개 | ea29689 |
-| 2026-03-02 | 세션 자동 기록 | commit_msg_deploy.txt, erp_orders_completion.py, erp_completion_scripts.html 외 2개 | ea29689 |
-| 2026-03-02 | 세션 자동 기록 | erp_orders_completion.py, erp_completion_scripts.html, erp_completion_dashboard.html 외 2개 | db95f8e |
-| 2026-03-02 | 세션 자동 기록 | erp_completion_styles.html, erp_completion_scripts.html, commit_msg_deploy.txt 외 2개 | 4b75797 |
-| 2026-03-02 | 세션 자동 기록 | commit_msg_deploy.txt, erp_completion_styles.html, erp_completion_scripts.html 외 2개 | 4b75797 |
-| 2026-03-02 | 세션 자동 기록 | erp_completion_styles.html, erp_completion_scripts.html, erp_completion_dashboard.html 외 2개 | 7011646 |
-| 2026-03-02 | 세션 자동 기록 | erp_completion_scripts.html, erp_completion_dashboard.html, erp_orders_completion.py 외 2개 | 7011646 |
