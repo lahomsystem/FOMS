@@ -11,7 +11,7 @@ from flask import Blueprint, jsonify, request, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
-from models import Order, OrderAttachment, OrderEvent, SecurityLog
+from models import Order, OrderAttachment, OrderEvent, SecurityLog, User
 from apps.auth import login_required, get_user_by_id
 from apps.api.files import build_file_view_url, build_file_download_url
 from services.erp_display import _ensure_dict
@@ -153,9 +153,12 @@ def api_settlement_issue(order_id):
         department = (data.get('department') or '').strip().upper()
         amount = data.get('amount')
         reason = (data.get('reason') or '').strip()
+        charge_to_user_id = data.get('charge_to_user_id')
 
         if department not in SETTLEMENT_DEPARTMENTS:
             return jsonify({'success': False, 'message': '귀속 대상이 올바르지 않습니다. (SALES, DRAWING, PRODUCTION, CONSTRUCTION, CUSTOMER)'}), 400
+        if amount is None:
+            return jsonify({'success': False, 'message': '청구 금액을 입력해주세요.'}), 400
         try:
             amount = int(amount)
         except (TypeError, ValueError):
@@ -164,6 +167,23 @@ def api_settlement_issue(order_id):
             amount = -amount
         if not reason:
             return jsonify({'success': False, 'message': '사유를 입력해주세요.'}), 400
+
+        charge_to_name = None
+        if charge_to_user_id is not None and charge_to_user_id != '':
+            if department == 'CUSTOMER':
+                charge_to_user_id = None
+            else:
+                try:
+                    uid = int(charge_to_user_id)
+                except (TypeError, ValueError):
+                    return jsonify({'success': False, 'message': '귀속 인원이 올바르지 않습니다.'}), 400
+                charge_user = db.query(User).filter(User.id == uid, User.is_active == True).first()
+                if not charge_user:
+                    return jsonify({'success': False, 'message': '해당 귀속 인원을 찾을 수 없거나 비활성입니다.'}), 400
+                if (charge_user.team or '').strip().upper() != department:
+                    return jsonify({'success': False, 'message': '선택한 인원이 해당 부서 소속이 아닙니다.'}), 400
+                charge_to_user_id = uid
+                charge_to_name = str(charge_user.name) if charge_user.name is not None else None
 
         user_id = session.get('user_id')
         user = get_user_by_id(user_id)
@@ -178,36 +198,50 @@ def api_settlement_issue(order_id):
         deductions = settlement.get('deductions')
         if not isinstance(deductions, list):
             deductions = []
-        deductions.append({
+        ded_item = {
             'id': ded_id,
             'department': department,
             'amount': amount,
             'reason': reason,
             'created_at': now_iso,
             'created_by': created_by,
-        })
+        }
+        if charge_to_user_id is not None:
+            ded_item['charge_to_user_id'] = charge_to_user_id
+        if charge_to_name:
+            ded_item['charge_to_name'] = charge_to_name
+        deductions.append(ded_item)
         settlement['deductions'] = deductions
         settlement['status'] = 'ISSUE_RAISED'
         base = settlement.get('base_cost')
         if base is not None and isinstance(base, (int, float)):
             settlement['final_cost'] = base + sum(d.get('amount', 0) for d in deductions)
         sd['settlement'] = settlement
-        order.structured_data = copy.deepcopy(sd)
+        order.structured_data = copy.deepcopy(sd)  # type: ignore[assignment]
         flag_modified(order, 'structured_data')
 
+        event_payload = {
+            'deduction_id': ded_id,
+            'department': department,
+            'amount': amount,
+            'reason': reason,
+            'created_by': created_by,
+        }
+        if charge_to_user_id is not None:
+            event_payload['charge_to_user_id'] = charge_to_user_id
+        if charge_to_name:
+            event_payload['charge_to_name'] = charge_to_name
         db.add(OrderEvent(
             order_id=order_id,
             event_type='SETTLEMENT_ISSUE_RAISED',
-            payload={
-                'deduction_id': ded_id,
-                'department': department,
-                'amount': amount,
-                'reason': reason,
-                'created_by': created_by,
-            },
+            payload=event_payload,
             created_by_user_id=user_id,
         ))
-        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 비용 청구: {department} {amount}원 — {reason[:50]}"))
+        log_msg = f"주문 #{order_id} 비용 청구: {department}"
+        if charge_to_name:
+            log_msg += f" {charge_to_name}({charge_to_user_id})"
+        log_msg += f" {amount}원 — {reason[:50]}"
+        db.add(SecurityLog(user_id=user_id, message=log_msg))
         db.commit()
 
         return jsonify({

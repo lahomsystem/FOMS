@@ -63,6 +63,52 @@
       var modalEl = document.getElementById('erp-settlement-modal');
       var orderIdInput = document.getElementById('erp-settlement-order-id');
       var submitBtn = document.getElementById('erp-settlement-submit');
+      var depSelect = document.getElementById('erp-settlement-department');
+      var chargeToWrapper = document.getElementById('erp-settlement-charge-to-wrapper');
+      var chargeToSelect = document.getElementById('erp-settlement-charge-to-user');
+      var DEPTS_WITH_MEMBERS = ['SALES', 'DRAWING', 'PRODUCTION', 'CONSTRUCTION'];
+
+      function resetChargeToUser() {
+        if (chargeToSelect) {
+          chargeToSelect.innerHTML = '<option value="">부서만</option>';
+          chargeToSelect.value = '';
+        }
+        if (chargeToWrapper) chargeToWrapper.classList.add('d-none');
+      }
+
+      function loadTeamMembers(team, callback) {
+        fetch('/erp/api/users?team=' + encodeURIComponent(team), { credentials: 'same-origin' })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (chargeToSelect && data.success && Array.isArray(data.users)) {
+              chargeToSelect.innerHTML = '<option value="">부서만</option>';
+              data.users.forEach(function(u) {
+                var opt = document.createElement('option');
+                opt.value = String(u.id);
+                opt.textContent = u.name || ('#' + u.id);
+                chargeToSelect.appendChild(opt);
+              });
+            }
+            if (callback) callback();
+          })
+          .catch(function() {
+            if (chargeToSelect) chargeToSelect.innerHTML = '<option value="">부서만</option>';
+            if (callback) callback();
+          });
+      }
+
+      if (depSelect) {
+        depSelect.addEventListener('change', function() {
+          var dep = (depSelect.value || '').trim();
+          if (DEPTS_WITH_MEMBERS.indexOf(dep) !== -1) {
+            chargeToWrapper.classList.remove('d-none');
+            loadTeamMembers(dep);
+          } else {
+            resetChargeToUser();
+          }
+        });
+      }
+
       if (modalEl && orderIdInput && submitBtn) {
         listEl.addEventListener('click', function(e) {
           var btn = e.target.closest('[data-action="open-settlement-modal"]');
@@ -70,9 +116,10 @@
             var oid = btn.getAttribute('data-order-id');
             if (oid) {
               orderIdInput.value = oid;
-              document.getElementById('erp-settlement-department').value = '';
+              if (depSelect) depSelect.value = '';
               document.getElementById('erp-settlement-amount').value = '';
               document.getElementById('erp-settlement-reason').value = '';
+              resetChargeToUser();
               var modal = window.bootstrap && window.bootstrap.Modal ? new window.bootstrap.Modal(modalEl) : null;
               if (modal) modal.show();
             }
@@ -81,19 +128,22 @@
         });
         submitBtn.addEventListener('click', function() {
           var oid = orderIdInput.value;
-          var dep = document.getElementById('erp-settlement-department').value;
+          var dep = depSelect ? depSelect.value : '';
           var amount = document.getElementById('erp-settlement-amount').value;
           var reason = document.getElementById('erp-settlement-reason').value.trim();
           if (!oid || !dep || !amount || !reason) {
             alert('귀속 대상·금액·사유를 모두 입력해주세요.');
             return;
           }
+          var payload = { department: dep, amount: -Math.abs(parseInt(amount, 10) || 0), reason: reason };
+          var chargeVal = chargeToSelect ? chargeToSelect.value : '';
+          if (chargeVal && /^\d+$/.test(chargeVal)) payload.charge_to_user_id = parseInt(chargeVal, 10);
           submitBtn.disabled = true;
           fetch('/api/orders/' + oid + '/settlement/issue', {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ department: dep, amount: -Math.abs(parseInt(amount, 10) || 0), reason: reason })
+            body: JSON.stringify(payload)
           })
             .then(function(r) { return r.json(); })
             .then(function(res) {
