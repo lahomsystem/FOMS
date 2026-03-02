@@ -341,28 +341,36 @@ class ChatAttachment(Base):
 
 
 class Notification(Base):
-    """알림 시스템 - 담당 팀/영업사원에게 알림 전달
-    
-    담당(manager_name) 값에 따라 알림 대상 결정:
-    - '라홈' → 라홈팀(CS)
-    - '하우드' → 하우드팀(HAUDD)
-    - 그 외 → 해당 영업사원(SALES)
+    """알림 시스템 - 담당 팀/영업사원/특정 사용자에게 알림 전달
+
+    target_type에 따른 대상 결정:
+    - ORDER: 주문 관련 (기존 방식 — target_team/target_manager_name)
+    - ALL: 전체 사용자 (사용자별 레코드 복제)
+    - TEAM: 특정 팀 대상
+    - USER: 특정 사용자 직접 지정 (target_user_id)
     """
     __tablename__ = 'notifications'
     
     id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=True, index=True)
     
     # 알림 유형
     notification_type = Column(String(50), nullable=False, index=True)
-    # DRAWING_TRANSFERRED: 도면 전달됨
-    # STAGE_CHANGED: 단계 변경됨
-    # QUEST_ASSIGNED: 퀘스트 할당됨
-    # AS_REQUIRED: AS 필요
+    # DRAWING_TRANSFERRED / DRAWING_REVISION / STAGE_CHANGED
+    # QUEST_ASSIGNED / AS_REQUIRED
+    # ANNOUNCEMENT / URGENT_ANNOUNCEMENT / URGENT_MENTION
     
-    # 알림 대상 (팀 또는 영업사원명)
-    target_team = Column(String(50), nullable=True, index=True)  # CS, HAUDD, SALES, etc.
-    target_manager_name = Column(String(100), nullable=True, index=True)  # 특정 영업사원명
+    # 대상 유형: ORDER(주문관련), ALL(전체), TEAM(팀), USER(특정인)
+    target_type = Column(String(20), nullable=False, default='ORDER', server_default='ORDER', index=True)
+    
+    # 알림 대상 (팀 또는 영업사원명 — 기존 호환)
+    target_team = Column(String(50), nullable=True, index=True)
+    target_manager_name = Column(String(100), nullable=True, index=True)
+    # 특정 사용자 직접 지정
+    target_user_id = Column(Integer, ForeignKey('users.id'), nullable=True, index=True)
+    
+    # 긴급 여부
+    is_urgent = Column(Boolean, default=False, nullable=False, server_default='false', index=True)
     
     # 알림 내용
     title = Column(String(200), nullable=False)
@@ -384,14 +392,18 @@ class Notification(Base):
     order = relationship('Order', foreign_keys=[order_id])
     created_by = relationship('User', foreign_keys=[created_by_user_id])
     read_by = relationship('User', foreign_keys=[read_by_user_id])
+    target_user = relationship('User', foreign_keys=[target_user_id])
     
     def to_dict(self):
         return {
             'id': self.id,
             'order_id': self.order_id,
             'notification_type': self.notification_type,
+            'target_type': self.target_type,
             'target_team': self.target_team,
             'target_manager_name': self.target_manager_name,
+            'target_user_id': self.target_user_id,
+            'is_urgent': bool(self.is_urgent),
             'title': self.title,
             'message': self.message,
             'created_by_name': self.created_by_name,

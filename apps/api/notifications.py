@@ -45,8 +45,33 @@ def invalidate_badge_cache_for_user_ids(user_ids):
             continue
 
 
-def resolve_notification_recipient_user_ids(db, target_team=None, target_manager_name=None, include_admin=True):
-    """알림 타겟(팀/담당자명) 기준으로 수신 사용자 ID 집합을 계산."""
+def resolve_notification_recipient_user_ids(
+    db, target_type=None, target_team=None, target_manager_name=None,
+    target_user_ids=None, include_admin=True
+):
+    """알림 타겟 기준으로 수신 사용자 ID 집합을 계산.
+    
+    target_type:
+      ALL  → 전체 활성 사용자
+      TEAM → target_team 기준
+      USER → target_user_ids 직접 지정
+      ORDER/None → 기존 방식 (target_team/target_manager_name)
+    """
+    ttype = (target_type or '').strip().upper()
+
+    if ttype == 'ALL':
+        rows = db.query(User.id).all()
+        return {int(r[0]) for r in rows}
+
+    if ttype == 'USER' and target_user_ids:
+        out = set()
+        for uid in target_user_ids:
+            try:
+                out.add(int(uid))
+            except (TypeError, ValueError):
+                continue
+        return out
+
     team = (target_team or '').strip().upper()
     manager_name = (target_manager_name or '').strip()
 
@@ -62,13 +87,23 @@ def resolve_notification_recipient_user_ids(db, target_team=None, target_manager
         return set()
 
     rows = db.query(User.id).filter(or_(*conditions)).all()
-    out = set()
-    for row in rows:
-        try:
-            out.add(int(row[0]))
-        except (TypeError, ValueError, IndexError):
-            continue
-    return out
+    return {int(r[0]) for r in rows}
+
+
+def _build_user_notification_filter(user, user_id):
+    """비관리자 사용자의 알림 필터 조건 목록을 반환. ADMIN이면 None (전체 접근)."""
+    if user.role == 'ADMIN':
+        return None
+    conditions = []
+    user_team = user.team.upper() if user.team else None
+    user_name = user.name.strip() if user.name else None
+    if user_team:
+        conditions.append(Notification.target_team == user_team)
+    if user_name:
+        conditions.append(Notification.target_manager_name == user_name)
+    conditions.append(Notification.target_user_id == user_id)
+    conditions.append(Notification.target_type == 'ALL')
+    return conditions
 
 
 def _ensure_dict(data):
@@ -106,7 +141,9 @@ def _build_drawing_event_key(idx, event):
 def _resolve_notification_deep_link(notification, order_structured_data):
     """알림 -> 도면 작업실 상세 딥링크 정보(event_id/target_no/tab) 계산."""
     n_type = str(getattr(notification, 'notification_type', '') or '').upper()
-    if n_type not in ('DRAWING_TRANSFERRED', 'DRAWING_REVISION'):
+    oid = getattr(notification, 'order_id', None)
+
+    if n_type not in ('DRAWING_TRANSFERRED', 'DRAWING_REVISION') or not oid:
         return {
             'deep_tab': None,
             'deep_event_id': None,
@@ -122,7 +159,7 @@ def _resolve_notification_deep_link(notification, order_structured_data):
             'deep_tab': target_tab,
             'deep_event_id': None,
             'deep_target_no': None,
-            'deep_link_url': f"/erp/drawing-workbench/{notification.order_id}?tab={target_tab}",
+            'deep_link_url': f"/erp/drawing-workbench/{oid}?tab={target_tab}",
         }
 
     created_at = getattr(notification, 'created_at', None)
@@ -166,7 +203,7 @@ def _resolve_notification_deep_link(notification, order_structured_data):
         query_parts.append(f"event_id={quote(str(deep_event_id), safe='')}")
     if deep_target_no:
         query_parts.append(f"target_no={deep_target_no}")
-    deep_link_url = f"/erp/drawing-workbench/{notification.order_id}?{'&'.join(query_parts)}"
+    deep_link_url = f"/erp/drawing-workbench/{oid}?{'&'.join(query_parts)}"
     return {
         'deep_tab': target_tab,
         'deep_event_id': deep_event_id,
@@ -191,22 +228,12 @@ def api_notifications_list():
         limit = int(request.args.get('limit', 20))
 
         query = db.query(Notification)
-        user_team = user.team.upper() if user.team else None
-        user_name = user.name.strip() if user.name else None
+        conds = _build_user_notification_filter(user, user_id)
 
-        if _NOTIFICATION_DEBUG:
-            print(f"[DEBUG] Notification Check - User: '{user_name}', Team: '{user_team}'")
-
-        if user.role != 'ADMIN':
-            conditions = []
-            if user_team:
-                conditions.append(Notification.target_team == user_team)
-            if user_name:
-                conditions.append(Notification.target_manager_name == user_name)
-            if conditions:
-                query = query.filter(or_(*conditions))
-            else:
+        if conds is not None:
+            if not conds:
                 return jsonify({'success': True, 'notifications': [], 'unread_count': 0})
+            query = query.filter(or_(*conds))
 
         if unread_only:
             query = query.filter(Notification.is_read == False)
@@ -215,17 +242,11 @@ def api_notifications_list():
         notifications = query.all()
 
         unread_query = db.query(Notification).filter(Notification.is_read == False)
-        if user.role != 'ADMIN':
-            conditions = []
-            if user_team:
-                conditions.append(Notification.target_team == user_team)
-            if user_name:
-                conditions.append(Notification.target_manager_name == user_name)
-            if conditions:
-                unread_query = unread_query.filter(or_(*conditions))
+        if conds is not None and conds:
+            unread_query = unread_query.filter(or_(*conds))
         unread_count = unread_query.count()
 
-        order_ids = list({int(n.order_id) for n in notifications if getattr(n, 'order_id', None)})
+        order_ids = list({int(n.order_id) for n in notifications if n.order_id is not None})
         order_map = {}
         if order_ids:
             order_rows = db.query(Order.id, Order.structured_data).filter(Order.id.in_(order_ids)).all()
@@ -235,7 +256,8 @@ def api_notifications_list():
         notif_payloads = []
         for n in notifications:
             row = n.to_dict()
-            deep = _resolve_notification_deep_link(n, order_map.get(int(n.order_id), {}))
+            sd = order_map.get(n.order_id, {}) if n.order_id else {}
+            deep = _resolve_notification_deep_link(n, sd)
             row.update(deep)
             notif_payloads.append(row)
 
@@ -270,23 +292,15 @@ def api_notifications_badge():
         if not user:
             return jsonify({'success': True, 'count': 0})
 
-        user_team = user.team.upper() if user.team else None
-        user_name = user.name
-
         query = db.query(Notification).filter(Notification.is_read == False)
+        conds = _build_user_notification_filter(user, user_id)
 
-        if user.role != 'ADMIN':
-            conditions = []
-            if user_team:
-                conditions.append(Notification.target_team == user_team)
-            if user_name:
-                conditions.append(Notification.target_manager_name == user_name)
-            if conditions:
-                query = query.filter(or_(*conditions))
-            else:
+        if conds is not None:
+            if not conds:
                 count = 0
                 _badge_cache[user_id] = (count, now_ts + BADGE_CACHE_TTL_SECONDS)
                 return jsonify({'success': True, 'count': count})
+            query = query.filter(or_(*conds))
 
         count = query.count()
         _badge_cache[user_id] = (count, now_ts + BADGE_CACHE_TTL_SECONDS)
@@ -331,19 +345,11 @@ def api_notifications_mark_all_read():
         if not user:
             return jsonify({'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}), 404
 
-        user_team = user.team.upper() if user.team else None
-        user_name = user.name
-
         query = db.query(Notification).filter(Notification.is_read == False)
+        conds = _build_user_notification_filter(user, user_id)
 
-        if user.role != 'ADMIN':
-            conditions = []
-            if user_team:
-                conditions.append(Notification.target_team == user_team)
-            if user_name:
-                conditions.append(Notification.target_manager_name == user_name)
-            if conditions:
-                query = query.filter(or_(*conditions))
+        if conds is not None and conds:
+            query = query.filter(or_(*conds))
 
         now = dt_mod.datetime.now()
         updated = query.update({
@@ -357,4 +363,237 @@ def api_notifications_mark_all_read():
         return jsonify({'success': True, 'message': f'{updated}개 알림을 읽음 처리했습니다.', 'count': updated})
     except Exception as e:
         db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@notifications_bp.route('/notifications/delete-all', methods=['POST'])
+@login_required
+def api_notifications_delete_all():
+    """현재 사용자 기준으로 보이는 알림 전체 삭제 (목록과 동일 필터)."""
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        user = db.query(User).filter(User.id == user_id).first()
+
+        if not user:
+            return jsonify({'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}), 404
+
+        query = db.query(Notification)
+        conds = _build_user_notification_filter(user, user_id)
+
+        if conds is not None and conds:
+            query = query.filter(or_(*conds))
+        elif conds is not None:
+            return jsonify({'success': True, 'message': '삭제할 알림이 없습니다.', 'count': 0})
+
+        deleted = query.delete(synchronize_session='fetch')
+        db.commit()
+        _invalidate_badge_cache(user_id)
+        return jsonify({'success': True, 'message': f'{deleted}개 알림을 삭제했습니다.', 'count': deleted})
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────
+# 사용자 목록 (동료 호출 대상 선택용)
+# ─────────────────────────────────────────────────
+
+@notifications_bp.route('/users/list', methods=['GET'])
+@login_required
+def api_users_list_for_mention():
+    """동료 호출 대상 선택용 사용자 목록."""
+    try:
+        db = get_db()
+        users = db.query(User.id, User.name, User.team, User.role).order_by(User.name).all()
+        return jsonify({
+            'success': True,
+            'users': [
+                {'id': u.id, 'name': u.name, 'team': u.team, 'role': u.role}
+                for u in users
+            ],
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────
+# 발송 API
+# ─────────────────────────────────────────────────
+
+@notifications_bp.route('/notifications/send', methods=['POST'])
+@login_required
+def api_notifications_send():
+    """관리자/매니저 전용 — 공지/알림 발송.
+    
+    target_type:
+      ALL  → 전체 사용자에게 레코드 복제
+      TEAM → 특정 팀 대상 사용자에게 레코드 복제
+      USER → target_user_ids 목록에 레코드 복제
+    """
+    try:
+        db = get_db()
+        user_id = session.get('user_id')
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or user.role not in ('ADMIN', 'MANAGER'):
+            return jsonify({'success': False, 'message': '권한이 없습니다.'}), 403
+
+        data = request.get_json(silent=True) or {}
+        title = (data.get('title') or '').strip()
+        message = (data.get('message') or '').strip()
+        is_urgent = bool(data.get('is_urgent'))
+        target_type = (data.get('target_type') or 'ALL').strip().upper()
+        target_team_val = (data.get('target_team') or '').strip().upper() or None
+        target_user_ids_raw = data.get('target_user_ids') or []
+        order_id_val = data.get('order_id')
+
+        if not title:
+            return jsonify({'success': False, 'message': '제목을 입력해주세요.'}), 400
+        if target_type not in ('ALL', 'TEAM', 'USER'):
+            return jsonify({'success': False, 'message': '대상 유형이 올바르지 않습니다.'}), 400
+        if target_type == 'TEAM' and not target_team_val:
+            return jsonify({'success': False, 'message': '팀을 선택해주세요.'}), 400
+        if target_type == 'USER' and not target_user_ids_raw:
+            return jsonify({'success': False, 'message': '사용자를 선택해주세요.'}), 400
+
+        ntype = 'URGENT_ANNOUNCEMENT' if is_urgent else 'ANNOUNCEMENT'
+
+        recipient_ids = resolve_notification_recipient_user_ids(
+            db,
+            target_type=target_type,
+            target_team=target_team_val,
+            target_user_ids=target_user_ids_raw,
+            include_admin=True,
+        )
+        if not recipient_ids:
+            return jsonify({'success': False, 'message': '수신 대상자가 없습니다.'}), 400
+
+        # 전체/팀/개인 발송 시 수신자별 레코드 생성. 각 레코드는 해당 수신자 전용이므로
+        # target_type 을 'USER' 로 저장해, 브리핑 보드 등에서 target_user_id 로 1건만 조회되게 함.
+        stored_target_type = 'USER' if target_type in ('ALL', 'TEAM', 'USER') else target_type
+        for uid in recipient_ids:
+            notif = Notification(
+                order_id=int(order_id_val) if order_id_val else None,
+                notification_type=ntype,
+                target_type=stored_target_type,
+                target_team=target_team_val,
+                target_user_id=uid,
+                is_urgent=is_urgent,
+                title=title,
+                message=message or None,
+                created_by_user_id=user_id,
+                created_by_name=str(user.name or ''),
+                is_read=False,
+            )
+            db.add(notif)
+
+        db.flush()
+        db.commit()
+
+        invalidate_badge_cache_for_user_ids(recipient_ids)
+
+        from services.realtime_notifications import emit_erp_notification_to_users
+        payload = {
+            'title': title,
+            'message': message,
+            'urgent': is_urgent,
+            'notification_type': ntype,
+            'order_id': int(order_id_val) if order_id_val else None,
+            'created_by_name': str(user.name or ''),
+        }
+        emit_erp_notification_to_users(list(recipient_ids), payload)
+
+        return jsonify({
+            'success': True,
+            'message': f'{len(recipient_ids)}명에게 알림을 발송했습니다.',
+            'sent_count': len(recipient_ids),
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@notifications_bp.route('/orders/<int:order_id>/urgent-mention', methods=['POST'])
+@login_required
+def api_order_urgent_mention(order_id):
+    """주문 상세에서 특정 동료를 긴급 호출(멘션).
+    
+    Body: { target_user_id: int, message: str (선택) }
+    """
+    try:
+        db = get_db()
+        sender_id = session.get('user_id')
+        sender = db.query(User).filter(User.id == sender_id).first()
+        if not sender:
+            return jsonify({'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}), 404
+
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        data = request.get_json(silent=True) or {}
+        target_uid_raw = data.get('target_user_id')
+        if not target_uid_raw:
+            return jsonify({'success': False, 'message': '호출 대상을 선택해주세요.'}), 400
+
+        try:
+            target_uid = int(target_uid_raw)
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'message': '올바르지 않은 사용자입니다.'}), 400
+
+        target_user = db.query(User).filter(User.id == target_uid).first()
+        if not target_user:
+            return jsonify({'success': False, 'message': '대상 사용자를 찾을 수 없습니다.'}), 404
+
+        msg = (data.get('message') or '').strip()
+        customer = order.customer_name or f'#{order_id}'
+        title = f'[긴급 멘션] {sender.name}님이 #{order_id} {customer} 주문에서 호출했습니다'
+
+        notif = Notification(
+            order_id=order_id,
+            notification_type='URGENT_MENTION',
+            target_type='USER',
+            target_user_id=target_uid,
+            is_urgent=True,
+            title=title,
+            message=msg or None,
+            created_by_user_id=sender_id,
+            created_by_name=str(sender.name or ''),
+            is_read=False,
+        )
+        db.add(notif)
+        db.commit()
+
+        invalidate_badge_cache_for_user_ids([target_uid])
+
+        from services.realtime_notifications import emit_erp_notification_to_users
+        payload = {
+            'title': title,
+            'message': msg or '',
+            'urgent': True,
+            'notification_type': 'URGENT_MENTION',
+            'order_id': order_id,
+            'created_by_name': str(sender.name or ''),
+        }
+        emit_erp_notification_to_users([target_uid], payload)
+
+        return jsonify({
+            'success': True,
+            'message': f'{target_user.name}님에게 긴급 멘션을 보냈습니다.',
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        try:
+            db.rollback()
+        except Exception:
+            pass
         return jsonify({'success': False, 'message': str(e)}), 500
