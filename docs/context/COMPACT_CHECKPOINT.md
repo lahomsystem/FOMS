@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-02 19:35:12
+> 생성 시각: 2026-03-02 20:51:09
 > 세션: 7608c340
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `templates/partials/erp_dashboard_scripts_detail.html` <- 1 edit(s), ~74 chars (2026-03-02 19:20:45)
-- `apps/api/notifications.py` <- 1 edit(s), ~696 chars (2026-03-02 19:20:36)
-- `templates/partials/erp_dashboard_scripts_detail.html` <- 1 edit(s), ~1117 chars (2026-03-02 19:20:12)
-- `templates/partials/erp_dashboard_scripts_detail.html` <- 1 edit(s), ~832 chars (2026-03-02 19:19:45)
-- `templates/partials/erp_dashboard_scripts_detail.html` <- 1 edit(s), ~964 chars (2026-03-02 19:19:25)
-- `templates/layout.html` <- 1 edit(s), ~1643 chars (2026-03-02 19:18:31)
-- `templates/layout.html` <- 1 edit(s), ~108 chars (2026-03-02 19:18:06)
-- `templates/admin.html` <- 1 edit(s), ~152 chars (2026-03-02 19:17:28)
-- `templates/admin/notifications_send.html` <- 1 edit(s), ~7513 chars (2026-03-02 19:17:18)
-- `apps/admin.py` <- 1 edit(s), ~802 chars (2026-03-02 19:16:22)
+- `scripts/run_notifications_migration.py` <- 1 edit(s), ~2034 chars (2026-03-02 20:50:49)
+- `docs/railway-notifications-migration.md` <- 1 edit(s), ~2608 chars (2026-03-02 20:47:25)
+- `apps/api/personal_board.py` <- 3 edit(s), ~494 chars (2026-03-02 20:45:01)
+- `.cursor/hooks/cleanup_temp.py` <- 2 edit(s), ~188 chars (2026-03-02 20:40:45)
+- `.cursor/hooks/session_stop.py` <- 1 edit(s), ~197 chars (2026-03-02 20:40:17)
+- `.cursor/hooks/cleanup_temp.py` <- 1 edit(s), ~1381 chars (2026-03-02 20:40:01)
+- `commit_msg.txt` <- 1 edit(s), ~269 chars (2026-03-02 20:33:49)
+- `apps/api/personal_board.py` <- 3 edit(s), ~235 chars (2026-03-02 20:30:02)
+- `apps/api/personal_board.py` <- 3 edit(s), ~209 chars (2026-03-02 20:29:45)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d8dd97a1-ee4f-43b4-968b-d5e373f4a785.png` <- 1 edit(s), ~0 chars (2026-03-02 20:28:05)
 
 ### 진행 중이던 작업
 (없음)

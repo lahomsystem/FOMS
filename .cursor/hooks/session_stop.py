@@ -110,6 +110,13 @@ def main():
     except Exception:
         pass  # 메모리 업데이트 실패는 세션 종료를 막지 않음
 
+    # ── 작업용 임시/테스트 파일 클린업 (commit_msg.txt, tmp_*.txt 등) ──
+    try:
+        from cleanup_temp import cleanup_temp_files
+        cleanup_temp_files(project_root)
+    except Exception:
+        pass
+
     sys.stdout.write(json.dumps({"continue": True}))
 
 if __name__ == "__main__":

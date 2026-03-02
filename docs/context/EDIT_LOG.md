@@ -5,6 +5,14 @@
 
 ## 최근 파일 편집
 
+- `commit_msg.txt` <- 1 edit(s), ~275 chars (2026-03-02 20:55:52)
+- `apps/api/personal_board.py` <- 3 edit(s), ~203 chars (2026-03-02 20:53:18)
+- `scripts/run_notifications_migration.py` <- 1 edit(s), ~2034 chars (2026-03-02 20:50:49)
+- `docs/railway-notifications-migration.md` <- 1 edit(s), ~2608 chars (2026-03-02 20:47:25)
+- `apps/api/personal_board.py` <- 3 edit(s), ~494 chars (2026-03-02 20:45:01)
+- `.cursor/hooks/cleanup_temp.py` <- 2 edit(s), ~188 chars (2026-03-02 20:40:45)
+- `.cursor/hooks/session_stop.py` <- 1 edit(s), ~197 chars (2026-03-02 20:40:17)
+- `.cursor/hooks/cleanup_temp.py` <- 1 edit(s), ~1381 chars (2026-03-02 20:40:01)
 - `commit_msg.txt` <- 1 edit(s), ~269 chars (2026-03-02 20:33:49)
 - `apps/api/personal_board.py` <- 3 edit(s), ~235 chars (2026-03-02 20:30:02)
 - `apps/api/personal_board.py` <- 3 edit(s), ~209 chars (2026-03-02 20:29:45)
@@ -47,11 +55,3 @@
 - `docs/plans/2026-03-02-urgent-notification-system-plan.md` <- 2 edit(s), ~535 chars (2026-03-02 19:03:21)
 - `docs/plans/2026-03-02-urgent-notification-system-plan.md` <- 2 edit(s), ~1614 chars (2026-03-02 19:02:53)
 - `docs/plans/2026-03-02-urgent-notification-system-plan.md` <- 1 edit(s), ~55 chars (2026-03-02 19:02:09)
-- `docs/plans/2026-03-02-urgent-notification-system-plan.md` <- 14 edit(s), ~5094 chars (2026-03-02 18:39:57)
-- `commit_msg.txt` <- 2 edit(s), ~116 chars (2026-03-02 18:34:13)
-- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~144 chars (2026-03-02 18:32:27)
-- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~182 chars (2026-03-02 18:29:09)
-- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~127 chars (2026-03-02 18:28:43)
-- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~206 chars (2026-03-02 18:28:07)
-- `templates/layout.html` <- 1 edit(s), ~54 chars (2026-03-02 18:17:43)
-- `templates/layout.html` <- 6 edit(s), ~622 chars (2026-03-02 18:17:10)

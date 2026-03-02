@@ -7,8 +7,8 @@
 ### Session: 7608c340
 - **시작**: 2026-03-01 12:22:00
 - **상태**: completed
-- **편집 파일**: `apps/api/personal_board.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d8dd97a1-ee4f-43b4-968b-d5e373f4a785.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-446d7760-294d-4106-ab7a-ef4ba712aa77.png`, `templates/layout.html`, `apps/api/notifications.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-da2e9dbc-b980-4e4d-bc49-67b92b7ed337.png`, `templates/partials/erp_dashboard_scripts_detail.html`, `templates/admin.html`, `templates/admin/notifications_send.html`, `apps/admin.py`
-- **종료**: 2026-03-02 20:30:45
+- **편집 파일**: `apps/api/personal_board.py`, `scripts/run_notifications_migration.py`, `docs/railway-notifications-migration.md`, `.cursor/hooks/cleanup_temp.py`, `.cursor/hooks/session_stop.py`, `commit_msg.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d8dd97a1-ee4f-43b4-968b-d5e373f4a785.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-446d7760-294d-4106-ab7a-ef4ba712aa77.png`, `templates/layout.html`, `apps/api/notifications.py`
+- **종료**: 2026-03-02 20:53:33
 
 ### Session: unknown
 - **시작**: 2026-03-01 12:18:46
