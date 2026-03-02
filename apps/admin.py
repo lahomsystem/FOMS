@@ -4,6 +4,7 @@
 /admin/update_menu - 메뉴 구성 업데이트
 /admin/migration - DB 마이그레이션 (SQLite → Postgres)
 /admin/test-r2 - R2 스토리지 연결 테스트
+/admin/notifications - 공지/알림 발송 화면
 """
 import os
 from flask import Blueprint, request, redirect, url_for, flash, render_template, jsonify, session
@@ -11,6 +12,7 @@ from werkzeug.utils import secure_filename
 
 from apps.auth import login_required, role_required, log_access, get_user_by_id
 from db import get_db
+from models import User
 from services.storage import get_storage
 
 admin_bp = Blueprint('admin', __name__, url_prefix='')
@@ -140,3 +142,30 @@ def admin_test_r2():
 
     except Exception as e:
         return jsonify({'success': False, 'message': f'테스트 중 오류: {str(e)}'})
+
+
+@admin_bp.route('/admin/notifications')
+@login_required
+@role_required(['ADMIN', 'MANAGER'])
+def admin_notifications():
+    """공지/알림 발송 페이지."""
+    return render_template('admin/notifications_send.html')
+
+
+@admin_bp.route('/admin/api/users', methods=['GET'])
+@login_required
+@role_required(['ADMIN', 'MANAGER'])
+def admin_api_users():
+    """사용자 목록 API (알림 발송 대상 선택용)."""
+    try:
+        db = get_db()
+        users = db.query(User.id, User.name, User.team, User.role).order_by(User.name).all()
+        return jsonify({
+            'success': True,
+            'users': [
+                {'id': u.id, 'name': u.name, 'team': u.team, 'role': u.role}
+                for u in users
+            ],
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
