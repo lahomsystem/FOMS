@@ -1,211 +1,225 @@
 <script>
-(function() {
-  function escapeHtml(s) {
-    if (s == null || s === '') return '';
-    var t = String(s);
-    return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-  function escapeAttr(s) {
-    if (s == null || s === '') return '';
-    return escapeHtml(s).replace(/'/g, '&#39;');
-  }
-  const listEl = document.getElementById('erp-completion-list');
-  if (!listEl) return;
+  (function () {
+    function escapeHtml(s) {
+      if (s == null || s === '') return '';
+      var t = String(s);
+      return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function escapeAttr(s) {
+      if (s == null || s === '') return '';
+      return escapeHtml(s).replace(/'/g, '&#39;');
+    }
+    const listEl = document.getElementById('erp-completion-list');
+    if (!listEl) return;
 
-  fetch('/api/orders/completion', { credentials: 'same-origin' })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (!data.success || !Array.isArray(data.orders)) {
-        listEl.innerHTML = '<div class="alert alert-warning">목록을 불러올 수 없습니다.</div>';
-        return;
-      }
-      const orders = data.orders;
-      if (orders.length === 0) {
-        listEl.innerHTML = '<div class="text-center py-5 text-muted"><i class="far fa-folder-open fa-2x mb-2"></i><p class="mb-0">완료·AS 건이 없습니다.</p></div>';
-        return;
-      }
-      let html = '';
-      orders.forEach(function(o) {
-        const date = escapeHtml(o.construction_date || '-');
-        const resultLabel = o.status === 'COMPLETED' ? '완료' : (o.status === 'AS_RECEIVED' ? 'AS접수' : (o.status === 'AS_COMPLETED' ? 'AS완료' : escapeHtml(o.status)));
-        const photos = o.construction_photos || [];
-        let galleryHtml = '';
-        if (photos.length) {
-          galleryHtml = '<div class="erp-completion-gallery">';
-          var imageIndex = 0;
-          photos.forEach(function(p, idx) {
-            var isVideo = (p.file_type || '').toLowerCase().indexOf('video') !== -1;
-            if (isVideo) {
-              galleryHtml += '<div class="erp-completion-media erp-completion-media--video" title="보기가 안 됨"><span class="erp-completion-media__icon"><i class="fas fa-video"></i></span><span class="erp-completion-media__label">미리보기</span><span class="erp-completion-media__disabled">보기가 안 됨</span></div>';
-            } else {
-              var url = (p.view_url || '#').replace(/"/g, '&quot;');
-              var alt = escapeAttr(p.filename || '');
-              galleryHtml += '<img src="' + url + '" alt="' + alt + '" data-order-id="' + o.id + '" data-photo-index="' + imageIndex + '" loading="lazy">';
-              imageIndex += 1;
-            }
-          });
-          galleryHtml += '</div>';
-        } else {
-          galleryHtml = '<div class="text-muted small">시공 사진 없음</div>';
+    fetch('/api/orders/completion', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.success || !Array.isArray(data.orders)) {
+          listEl.innerHTML = '<div class="alert alert-warning">목록을 불러올 수 없습니다.</div>';
+          return;
         }
-        var safeManager = escapeHtml(o.manager_name || '-');
-        var safeCustomer = escapeHtml(o.customer_name || '-');
-        var safeProduct = escapeHtml(o.product_summary || '-');
-        var orderDetailHref = '/edit/' + o.id + '?open=erp-beta';
-        html += '<div class="erp-completion-row" data-order-id="' + o.id + '">';
-        html += '<div class="erp-completion-summary d-flex flex-wrap align-items-center gap-2"><a href="' + escapeAttr(orderDetailHref) + '" class="fw-bold text-decoration-none" title="주문 상세">#' + o.id + '</a>';
-        html += '<span>' + date + '</span> | <span>' + safeManager + '</span> | <span>' + safeCustomer + '</span> | <span class="text-truncate" style="max-width:180px">' + safeProduct + '</span> | <span class="badge bg-secondary">' + resultLabel + '</span>';
-        html += ' <button type="button" class="btn btn-sm btn-outline-warning" data-action="open-settlement-modal" data-order-id="' + o.id + '" title="비용 청구"><i class="fas fa-file-invoice-dollar"></i><span class="d-none d-md-inline ms-1">비용 청구</span></button></div>';
-        html += galleryHtml + '</div>';
-      });
-      listEl.innerHTML = html;
-
-      var modalEl = document.getElementById('erp-settlement-modal');
-      var orderIdInput = document.getElementById('erp-settlement-order-id');
-      var submitBtn = document.getElementById('erp-settlement-submit');
-      var depSelect = document.getElementById('erp-settlement-department');
-      var chargeToWrapper = document.getElementById('erp-settlement-charge-to-wrapper');
-      var chargeToSelect = document.getElementById('erp-settlement-charge-to-user');
-      var DEPTS_WITH_MEMBERS = ['SALES', 'DRAWING', 'PRODUCTION', 'CONSTRUCTION'];
-
-      function resetChargeToUser() {
-        if (chargeToSelect) {
-          chargeToSelect.innerHTML = '<option value="">부서만</option>';
-          chargeToSelect.value = '';
+        const orders = data.orders;
+        if (orders.length === 0) {
+          listEl.innerHTML = '<div class="text-center py-5 text-muted"><i class="far fa-folder-open fa-2x mb-2"></i><p class="mb-0">완료·AS 건이 없습니다.</p></div>';
+          return;
         }
-        if (chargeToWrapper) chargeToWrapper.classList.add('d-none');
-      }
-
-      function loadTeamMembers(team, callback) {
-        fetch('/erp/api/users?team=' + encodeURIComponent(team), { credentials: 'same-origin' })
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (chargeToSelect && data.success && Array.isArray(data.users)) {
-              chargeToSelect.innerHTML = '<option value="">부서만</option>';
-              data.users.forEach(function(u) {
-                var opt = document.createElement('option');
-                opt.value = String(u.id);
-                opt.textContent = u.name || ('#' + u.id);
-                chargeToSelect.appendChild(opt);
-              });
-            }
-            if (callback) callback();
-          })
-          .catch(function() {
-            if (chargeToSelect) chargeToSelect.innerHTML = '<option value="">부서만</option>';
-            if (callback) callback();
-          });
-      }
-
-      if (depSelect) {
-        depSelect.addEventListener('change', function() {
-          var dep = (depSelect.value || '').trim();
-          if (DEPTS_WITH_MEMBERS.indexOf(dep) !== -1) {
-            chargeToWrapper.classList.remove('d-none');
-            loadTeamMembers(dep);
-          } else {
-            resetChargeToUser();
-          }
-        });
-      }
-
-      if (modalEl && orderIdInput && submitBtn) {
-        listEl.addEventListener('click', function(e) {
-          var btn = e.target.closest('[data-action="open-settlement-modal"]');
-          if (btn) {
-            var oid = btn.getAttribute('data-order-id');
-            if (oid) {
-              orderIdInput.value = oid;
-              if (depSelect) depSelect.value = '';
-              document.getElementById('erp-settlement-amount').value = '';
-              document.getElementById('erp-settlement-reason').value = '';
-              resetChargeToUser();
-              var modal = window.bootstrap && window.bootstrap.Modal ? new window.bootstrap.Modal(modalEl) : null;
-              if (modal) modal.show();
-            }
-            return;
-          }
-        });
-        submitBtn.addEventListener('click', function() {
-          var oid = orderIdInput.value;
-          var dep = depSelect ? depSelect.value : '';
-          var amount = document.getElementById('erp-settlement-amount').value;
-          var reason = document.getElementById('erp-settlement-reason').value.trim();
-          if (!oid || !dep || !amount || !reason) {
-            alert('귀속 대상·금액·사유를 모두 입력해주세요.');
-            return;
-          }
-          var payload = { department: dep, amount: -Math.abs(parseInt(amount, 10) || 0), reason: reason };
-          var chargeVal = chargeToSelect ? chargeToSelect.value : '';
-          if (chargeVal && /^\d+$/.test(chargeVal)) payload.charge_to_user_id = parseInt(chargeVal, 10);
-          submitBtn.disabled = true;
-          fetch('/api/orders/' + oid + '/settlement/issue', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          })
-            .then(function(r) { return r.json(); })
-            .then(function(res) {
-              submitBtn.disabled = false;
-              if (res.success) {
-                if (window.bootstrap && modalEl) {
-                  var m = window.bootstrap.Modal.getInstance(modalEl);
-                  if (m) m.hide();
-                }
-                alert('비용 청구가 등록되었습니다.');
-                orderIdInput.value = '';
+        let html = '';
+        orders.forEach(function (o) {
+          const date = escapeHtml(o.construction_date || '-');
+          const resultLabel = o.status === 'COMPLETED' ? '완료' : (o.status === 'AS_RECEIVED' ? 'AS접수' : (o.status === 'AS_COMPLETED' ? 'AS완료' : escapeHtml(o.status)));
+          const photos = o.construction_photos || [];
+          let galleryHtml = '';
+          if (photos.length) {
+            galleryHtml = '<div class="erp-completion-gallery">';
+            var imageIndex = 0;
+            photos.forEach(function (p, idx) {
+              var isVideo = (p.file_type || '').toLowerCase().indexOf('video') !== -1;
+              if (isVideo) {
+                galleryHtml += '<div class="erp-completion-media erp-completion-media--video" data-order-id="' + o.id + '" data-photo-index="' + imageIndex + '" title="동영상 재생" role="button" tabindex="0"><span class="erp-completion-media__icon"><i class="fas fa-video"></i></span><span class="erp-completion-media__label">동영상</span><span class="erp-completion-media__play"><i class="fas fa-play"></i></span></div>';
+                imageIndex += 1;
               } else {
-                alert(res.message || '등록에 실패했습니다.');
+                var url = (p.view_url || '#').replace(/"/g, '&quot;');
+                var alt = escapeAttr(p.filename || '');
+                galleryHtml += '<img src="' + url + '" alt="' + alt + '" data-order-id="' + o.id + '" data-photo-index="' + imageIndex + '" loading="lazy">';
+                imageIndex += 1;
               }
-            })
-            .catch(function(err) {
-              submitBtn.disabled = false;
-              console.error(err);
-              alert('요청 중 오류가 발생했습니다.');
             });
+            galleryHtml += '</div>';
+          } else {
+            galleryHtml = '<div class="text-muted small">시공 사진 없음</div>';
+          }
+          var safeManager = escapeHtml(o.manager_name || '-');
+          var safeCustomer = escapeHtml(o.customer_name || '-');
+          var safeProduct = escapeHtml(o.product_summary || '-');
+          var orderDetailHref = '/edit/' + o.id + '?open=erp-beta';
+          html += '<div class="erp-completion-row" data-order-id="' + o.id + '">';
+          html += '<div class="erp-completion-summary d-flex flex-wrap align-items-center gap-2"><a href="' + escapeAttr(orderDetailHref) + '" class="fw-bold text-decoration-none" title="주문 상세">#' + o.id + '</a>';
+          html += '<span>' + date + '</span> | <span>' + safeManager + '</span> | <span>' + safeCustomer + '</span> | <span class="text-truncate" style="max-width:180px">' + safeProduct + '</span> | <span class="badge bg-secondary">' + resultLabel + '</span>';
+          html += ' <button type="button" class="btn btn-sm btn-outline-warning" data-action="open-settlement-modal" data-order-id="' + o.id + '" title="비용 청구"><i class="fas fa-file-invoice-dollar"></i><span class="d-none d-md-inline ms-1">비용 청구</span></button></div>';
+          html += galleryHtml + '</div>';
         });
-      }
+        listEl.innerHTML = html;
 
-      listEl.addEventListener('click', function(e) {
-        const img = e.target.closest('img[data-order-id][data-photo-index]');
-        if (!img || typeof window.GlobalImageViewer === 'undefined' || !window.GlobalImageViewer.open) return;
-        const orderId = parseInt(img.getAttribute('data-order-id'), 10);
-        const photoIndex = parseInt(img.getAttribute('data-photo-index'), 10);
-        const row = img.closest('.erp-completion-row');
-        const order = orders.find(function(o) { return o.id === orderId; });
-        if (!order || !order.construction_photos || !order.construction_photos.length) return;
-        var imageOnly = order.construction_photos.filter(function(p) {
-          return (p.file_type || '').toLowerCase().indexOf('video') === -1;
-        });
-        if (!imageOnly.length) return;
-        const files = imageOnly.map(function(p) {
-          return { url: p.view_url, filename: p.filename, key: p.storage_key };
-        });
-        window.GlobalImageViewer.open(files, photoIndex);
-        var footer = document.getElementById('global-viewer-footer');
-        if (footer) {
-          var extra = document.getElementById('global-viewer-completion-extra');
-          if (extra) extra.remove();
-          var parts = [];
-          if (order.as_content) parts.push('AS: ' + order.as_content);
-          if (order.completion_note) parts.push(order.completion_note);
-          if (order.construction_fail_history && order.construction_fail_history.length) {
-            parts.push('시공 불가 이력: ' + order.construction_fail_history.length + '건');
+        var modalEl = document.getElementById('erp-settlement-modal');
+        var orderIdInput = document.getElementById('erp-settlement-order-id');
+        var submitBtn = document.getElementById('erp-settlement-submit');
+        var depSelect = document.getElementById('erp-settlement-department');
+        var chargeToWrapper = document.getElementById('erp-settlement-charge-to-wrapper');
+        var chargeToSelect = document.getElementById('erp-settlement-charge-to-user');
+        var DEPTS_WITH_MEMBERS = ['SALES', 'DRAWING', 'PRODUCTION', 'CONSTRUCTION'];
+
+        function resetChargeToUser() {
+          if (chargeToSelect) {
+            chargeToSelect.innerHTML = '<option value="">부서만</option>';
+            chargeToSelect.value = '';
           }
-          if (parts.length) {
-            extra = document.createElement('div');
-            extra.id = 'global-viewer-completion-extra';
-            extra.className = 'global-viewer-completion-extra small text-muted mt-1';
-            extra.textContent = parts.join(' | ');
-            footer.appendChild(extra);
-          }
+          if (chargeToWrapper) chargeToWrapper.classList.add('d-none');
         }
+
+        function loadTeamMembers(team, callback) {
+          fetch('/erp/api/users?team=' + encodeURIComponent(team), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (chargeToSelect && data.success && Array.isArray(data.users)) {
+                chargeToSelect.innerHTML = '<option value="">부서만</option>';
+                data.users.forEach(function (u) {
+                  var opt = document.createElement('option');
+                  opt.value = String(u.id);
+                  opt.textContent = u.name || ('#' + u.id);
+                  chargeToSelect.appendChild(opt);
+                });
+              }
+              if (callback) callback();
+            })
+            .catch(function () {
+              if (chargeToSelect) chargeToSelect.innerHTML = '<option value="">부서만</option>';
+              if (callback) callback();
+            });
+        }
+
+        if (depSelect) {
+          depSelect.addEventListener('change', function () {
+            var dep = (depSelect.value || '').trim();
+            if (DEPTS_WITH_MEMBERS.indexOf(dep) !== -1) {
+              chargeToWrapper.classList.remove('d-none');
+              loadTeamMembers(dep);
+            } else {
+              resetChargeToUser();
+            }
+          });
+        }
+
+        if (modalEl && orderIdInput && submitBtn) {
+          listEl.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-action="open-settlement-modal"]');
+            if (btn) {
+              var oid = btn.getAttribute('data-order-id');
+              if (oid) {
+                orderIdInput.value = oid;
+                if (depSelect) depSelect.value = '';
+                document.getElementById('erp-settlement-amount').value = '';
+                document.getElementById('erp-settlement-reason').value = '';
+                resetChargeToUser();
+                var modal = window.bootstrap && window.bootstrap.Modal ? new window.bootstrap.Modal(modalEl) : null;
+                if (modal) modal.show();
+              }
+              return;
+            }
+          });
+          submitBtn.addEventListener('click', function () {
+            var oid = orderIdInput.value;
+            var dep = depSelect ? depSelect.value : '';
+            var amount = document.getElementById('erp-settlement-amount').value;
+            var reason = document.getElementById('erp-settlement-reason').value.trim();
+            if (!oid || !dep || !amount || !reason) {
+              alert('귀속 대상·금액·사유를 모두 입력해주세요.');
+              return;
+            }
+            var payload = { department: dep, amount: -Math.abs(parseInt(amount, 10) || 0), reason: reason };
+            var chargeVal = chargeToSelect ? chargeToSelect.value : '';
+            if (chargeVal && /^\d+$/.test(chargeVal)) payload.charge_to_user_id = parseInt(chargeVal, 10);
+            submitBtn.disabled = true;
+            fetch('/api/orders/' + oid + '/settlement/issue', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            })
+              .then(function (r) { return r.json(); })
+              .then(function (res) {
+                submitBtn.disabled = false;
+                if (res.success) {
+                  if (window.bootstrap && modalEl) {
+                    var m = window.bootstrap.Modal.getInstance(modalEl);
+                    if (m) m.hide();
+                  }
+                  alert('비용 청구가 등록되었습니다.');
+                  orderIdInput.value = '';
+                } else {
+                  alert(res.message || '등록에 실패했습니다.');
+                }
+              })
+              .catch(function (err) {
+                submitBtn.disabled = false;
+                console.error(err);
+                alert('요청 중 오류가 발생했습니다.');
+              });
+          });
+        }
+
+        listEl.addEventListener('click', function (e) {
+          var videoEl = e.target.closest('.erp-completion-media--video[data-order-id]');
+          const img = e.target.closest('img[data-order-id][data-photo-index]');
+
+          var targetEl = videoEl || img;
+          if (!targetEl || typeof window.GlobalImageViewer === 'undefined' || !window.GlobalImageViewer.open) return;
+
+          const orderId = parseInt(targetEl.getAttribute('data-order-id'), 10);
+          const photoIndex = parseInt(targetEl.getAttribute('data-photo-index'), 10);
+
+          const order = orders.find(function (o) { return o.id === orderId; });
+          if (!order || !order.construction_photos || !order.construction_photos.length) return;
+
+          // 동영상 및 이미지 모두 포함
+          var validPhotos = order.construction_photos;
+          if (!validPhotos.length) return;
+
+          const files = validPhotos.map(function (p) {
+            return { url: p.view_url, filename: p.filename, key: p.storage_key };
+          });
+          window.GlobalImageViewer.open(files, photoIndex);
+          var footer = document.getElementById('global-viewer-footer');
+          if (footer) {
+            var extra = document.getElementById('global-viewer-completion-extra');
+            if (extra) extra.remove();
+            var parts = [];
+            if (order.as_content) parts.push('AS: ' + order.as_content);
+            if (order.completion_note) parts.push(order.completion_note);
+            if (order.construction_fail_history && order.construction_fail_history.length) {
+              parts.push('시공 불가 이력: ' + order.construction_fail_history.length + '건');
+            }
+            if (parts.length) {
+              extra = document.createElement('div');
+              extra.id = 'global-viewer-completion-extra';
+              extra.className = 'global-viewer-completion-extra small text-muted mt-1';
+              extra.textContent = parts.join(' | ');
+              footer.appendChild(extra);
+            }
+          }
+        });
+        listEl.addEventListener('keydown', function (e) {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          var videoEl = e.target.closest('.erp-completion-media--video[data-order-id]');
+          if (videoEl) {
+            e.preventDefault();
+            videoEl.click();
+          }
+        });
+      })
+      .catch(function (err) {
+        console.error('Completion list load error:', err);
+        listEl.innerHTML = '<div class="alert alert-danger">목록 로드 중 오류가 발생했습니다.</div>';
       });
-    })
-    .catch(function(err) {
-      console.error('Completion list load error:', err);
-      listEl.innerHTML = '<div class="alert alert-danger">목록 로드 중 오류가 발생했습니다.</div>';
-    });
-})();
+  })();
 </script>
