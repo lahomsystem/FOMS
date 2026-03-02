@@ -1,0 +1,149 @@
+<script>
+(function() {
+  function escapeHtml(s) {
+    if (s == null || s === '') return '';
+    var t = String(s);
+    return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function escapeAttr(s) {
+    if (s == null || s === '') return '';
+    return escapeHtml(s).replace(/'/g, '&#39;');
+  }
+  const listEl = document.getElementById('erp-completion-list');
+  if (!listEl) return;
+
+  fetch('/api/orders/completion', { credentials: 'same-origin' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.success || !Array.isArray(data.orders)) {
+        listEl.innerHTML = '<div class="alert alert-warning">목록을 불러올 수 없습니다.</div>';
+        return;
+      }
+      const orders = data.orders;
+      if (orders.length === 0) {
+        listEl.innerHTML = '<div class="text-center py-5 text-muted"><i class="far fa-folder-open fa-2x mb-2"></i><p class="mb-0">완료·AS 건이 없습니다.</p></div>';
+        return;
+      }
+      let html = '';
+      orders.forEach(function(o) {
+        const date = escapeHtml(o.construction_date || '-');
+        const resultLabel = o.status === 'COMPLETED' ? '완료' : (o.status === 'AS_RECEIVED' ? 'AS접수' : (o.status === 'AS_COMPLETED' ? 'AS완료' : escapeHtml(o.status)));
+        const photos = o.construction_photos || [];
+        let galleryHtml = '';
+        if (photos.length) {
+          galleryHtml = '<div class="erp-completion-gallery">';
+          photos.forEach(function(p, idx) {
+            var url = (p.view_url || '#').replace(/"/g, '&quot;');
+            var alt = escapeAttr(p.filename || '');
+            galleryHtml += '<img src="' + url + '" alt="' + alt + '" data-order-id="' + o.id + '" data-photo-index="' + idx + '" loading="lazy">';
+          });
+          galleryHtml += '</div>';
+        } else {
+          galleryHtml = '<div class="text-muted small">시공 사진 없음</div>';
+        }
+        var safeManager = escapeHtml(o.manager_name || '-');
+        var safeCustomer = escapeHtml(o.customer_name || '-');
+        var safeProduct = escapeHtml(o.product_summary || '-');
+        html += '<div class="erp-completion-row" data-order-id="' + o.id + '">';
+        html += '<div class="erp-completion-summary d-flex flex-wrap align-items-center gap-2"><span class="fw-bold">#' + o.id + '</span>';
+        html += '<span>' + date + '</span> | <span>' + safeManager + '</span> | <span>' + safeCustomer + '</span> | <span class="text-truncate" style="max-width:180px">' + safeProduct + '</span> | <span class="badge bg-secondary">' + resultLabel + '</span>';
+        html += ' <button type="button" class="btn btn-sm btn-outline-warning" data-action="open-settlement-modal" data-order-id="' + o.id + '" title="비용 청구"><i class="fas fa-file-invoice-dollar"></i><span class="d-none d-md-inline ms-1">비용 청구</span></button></div>';
+        html += galleryHtml + '</div>';
+      });
+      listEl.innerHTML = html;
+
+      var modalEl = document.getElementById('erp-settlement-modal');
+      var orderIdInput = document.getElementById('erp-settlement-order-id');
+      var submitBtn = document.getElementById('erp-settlement-submit');
+      if (modalEl && orderIdInput && submitBtn) {
+        listEl.addEventListener('click', function(e) {
+          var btn = e.target.closest('[data-action="open-settlement-modal"]');
+          if (btn) {
+            var oid = btn.getAttribute('data-order-id');
+            if (oid) {
+              orderIdInput.value = oid;
+              document.getElementById('erp-settlement-department').value = '';
+              document.getElementById('erp-settlement-amount').value = '';
+              document.getElementById('erp-settlement-reason').value = '';
+              var modal = window.bootstrap && window.bootstrap.Modal ? new window.bootstrap.Modal(modalEl) : null;
+              if (modal) modal.show();
+            }
+            return;
+          }
+        });
+        submitBtn.addEventListener('click', function() {
+          var oid = orderIdInput.value;
+          var dep = document.getElementById('erp-settlement-department').value;
+          var amount = document.getElementById('erp-settlement-amount').value;
+          var reason = document.getElementById('erp-settlement-reason').value.trim();
+          if (!oid || !dep || !amount || !reason) {
+            alert('귀속 대상·금액·사유를 모두 입력해주세요.');
+            return;
+          }
+          submitBtn.disabled = true;
+          fetch('/api/orders/' + oid + '/settlement/issue', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ department: dep, amount: -Math.abs(parseInt(amount, 10) || 0), reason: reason })
+          })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+              submitBtn.disabled = false;
+              if (res.success) {
+                if (window.bootstrap && modalEl) {
+                  var m = window.bootstrap.Modal.getInstance(modalEl);
+                  if (m) m.hide();
+                }
+                alert('비용 청구가 등록되었습니다.');
+                orderIdInput.value = '';
+              } else {
+                alert(res.message || '등록에 실패했습니다.');
+              }
+            })
+            .catch(function(err) {
+              submitBtn.disabled = false;
+              console.error(err);
+              alert('요청 중 오류가 발생했습니다.');
+            });
+        });
+      }
+
+      listEl.addEventListener('click', function(e) {
+        const img = e.target.closest('img[data-order-id][data-photo-index]');
+        if (!img || typeof window.GlobalImageViewer === 'undefined' || !window.GlobalImageViewer.open) return;
+        const orderId = parseInt(img.getAttribute('data-order-id'), 10);
+        const photoIndex = parseInt(img.getAttribute('data-photo-index'), 10);
+        const row = img.closest('.erp-completion-row');
+        const order = orders.find(function(o) { return o.id === orderId; });
+        if (!order || !order.construction_photos || !order.construction_photos.length) return;
+        const files = order.construction_photos.map(function(p) {
+          return { url: p.view_url, filename: p.filename, key: p.storage_key };
+        });
+        window.GlobalImageViewer.open(files, photoIndex);
+        var footer = document.getElementById('global-viewer-footer');
+        if (footer) {
+          var extra = document.getElementById('global-viewer-completion-extra');
+          if (extra) extra.remove();
+          var parts = [];
+          if (order.as_content) parts.push('AS: ' + order.as_content);
+          if (order.completion_note) parts.push(order.completion_note);
+          if (order.construction_fail_history && order.construction_fail_history.length) {
+            parts.push('시공 불가 이력: ' + order.construction_fail_history.length + '건');
+          }
+          if (parts.length) {
+            extra = document.createElement('div');
+            extra.id = 'global-viewer-completion-extra';
+            extra.className = 'global-viewer-completion-extra small text-muted mt-1';
+            extra.textContent = parts.join(' | ');
+            footer.appendChild(extra);
+          }
+        }
+      });
+    })
+    .catch(function(err) {
+      console.error('Completion list load error:', err);
+      listEl.innerHTML = '<div class="alert alert-danger">목록 로드 중 오류가 발생했습니다.</div>';
+    });
+})();
+</script>
