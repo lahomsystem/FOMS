@@ -153,8 +153,8 @@ def _erp_construction_team_restrict():
     user = get_user_by_id(user_id)
     if not user or getattr(user, 'team', None) != 'CONSTRUCTION':
         return
-    # 허용: 출고, 시공
-    if path.startswith('/erp/shipment') or path.startswith('/erp/construction'):
+    # 허용: 출고, 시공, 시공 완료 대시보드
+    if path.startswith('/erp/shipment') or path.startswith('/erp/construction') or path.startswith('/erp/completion'):
         return
     # ERP 내 그 외 경로 → 출고로
     if path.startswith('/erp/'):
@@ -198,6 +198,8 @@ from apps.erp_production_page import erp_production_page_bp
 app.register_blueprint(erp_production_page_bp)
 from apps.erp_construction_page import erp_construction_page_bp
 app.register_blueprint(erp_construction_page_bp)
+from apps.erp_completion_page import erp_completion_page_bp
+app.register_blueprint(erp_completion_page_bp)
 
 # API Files Blueprint
 from apps.api.files import files_bp, build_file_view_url, build_file_download_url
@@ -236,6 +238,8 @@ from apps.api.erp_orders_cs import erp_orders_cs_bp
 app.register_blueprint(erp_orders_cs_bp)
 from apps.api.erp_orders_as import erp_orders_as_bp
 app.register_blueprint(erp_orders_as_bp)
+from apps.api.erp_orders_completion import erp_orders_completion_bp
+app.register_blueprint(erp_orders_completion_bp)
 from apps.api.erp_orders_confirm import erp_orders_confirm_bp
 app.register_blueprint(erp_orders_confirm_bp)
 from apps.storage_dashboard import storage_dashboard_bp
