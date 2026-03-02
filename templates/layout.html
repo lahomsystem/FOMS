@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>가구 주문 관리 시스템</title>
+    <title>하우드 ERP</title>
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -894,10 +894,16 @@
                         <div
                             class="p-3 border-bottom d-flex justify-content-between align-items-center bg-white sticky-top">
                             <h6 class="mb-0 fw-bold"><i class="fas fa-bell text-warning me-2"></i>알림</h6>
-                            <button class="btn btn-sm btn-light text-secondary"
-                                onclick="markAllGlobalNotificationsRead()" style="font-size: 0.8rem;">
-                                <i class="fas fa-check-double me-1"></i>모두 읽음
-                            </button>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-sm btn-light text-secondary"
+                                    onclick="markAllGlobalNotificationsRead()" style="font-size: 0.8rem;">
+                                    <i class="fas fa-check-double me-1"></i>모두 읽음
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteAllGlobalNotifications()"
+                                    style="font-size: 0.8rem;">
+                                    <i class="fas fa-trash-alt me-1"></i>전체 삭제
+                                </button>
+                            </div>
                         </div>
                         <div id="global-notification-list" class="list-group list-group-flush" aria-live="polite"
                             aria-atomic="false">
@@ -973,6 +979,8 @@
                 <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
             </div>
             <div class="offcanvas-body p-3 overflow-auto" id="personal-briefing-body">
+                <!-- 긴급 알림 배너 영역 -->
+                <div id="urgent-banner-area" class="d-none mb-2"></div>
                 <div class="text-center text-muted py-4" id="personal-briefing-placeholder">
                     <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
                     <p class="mb-0">로딩 중...</p>
@@ -2100,6 +2108,26 @@
             }
         }
 
+        async function deleteAllGlobalNotifications() {
+            if (!confirm('알림을 모두 삭제하시겠습니까? 삭제된 알림은 복구할 수 없습니다.')) return;
+            try {
+                const res = await fetch('/erp/api/notifications/delete-all', { method: 'POST' });
+                const data = await res.json().catch(function () { return {}; });
+                if (data.success) {
+                    loadGlobalNotificationBadge();
+                    loadGlobalNotifications();
+                    if (data.count != null && data.count > 0) {
+                        alert(data.message || data.count + '개 알림을 삭제했습니다.');
+                    }
+                } else {
+                    alert(data.message || '삭제에 실패했습니다.');
+                }
+            } catch (e) {
+                console.error(e);
+                alert('알림 삭제 중 오류가 발생했습니다.');
+            }
+        }
+
         function escapeHtml(text) {
             if (!text) return '';
             return text.replace(/&/g, "&amp;")
@@ -2179,6 +2207,28 @@
                         }
                         placeholderEl.classList.add('d-none');
                         widgetsEl.classList.remove('d-none');
+
+                        // ── 긴급 알림 배너 (최상단) ──
+                        var urgentBanner = document.getElementById('urgent-banner-area');
+                        var urgentList = data.urgent_notifications || [];
+                        if (urgentList.length && urgentBanner) {
+                            var bHtml = '';
+                            urgentList.forEach(function (un) {
+                                var deepHref = un.order_id ? '/erp/dashboard?focus_order=' + un.order_id : '#';
+                                var typeLabel = un.notification_type === 'URGENT_MENTION' ? '긴급 멘션' : '긴급 공지';
+                                bHtml += '<a href="' + deepHref + '" class="alert alert-danger d-flex align-items-center gap-2 py-2 px-3 mb-1 text-decoration-none" role="alert" style="font-size:0.85rem">' +
+                                    '<i class="fas fa-exclamation-triangle"></i>' +
+                                    '<span class="fw-semibold">[' + _esc(typeLabel) + ']</span> ' +
+                                    '<span class="flex-grow-1 text-truncate">' + _esc(un.title) + '</span>' +
+                                    (un.created_by_name ? '<small class="text-muted ms-1">by ' + _esc(un.created_by_name) + '</small>' : '') +
+                                    '</a>';
+                            });
+                            urgentBanner.innerHTML = bHtml;
+                            urgentBanner.classList.remove('d-none');
+                        } else if (urgentBanner) {
+                            urgentBanner.classList.add('d-none');
+                            urgentBanner.innerHTML = '';
+                        }
 
                         var u = data.urgent_inbox || {};
                         var noti = u.notifications || 0;

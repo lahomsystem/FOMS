@@ -43,6 +43,20 @@ STAGE_DASHBOARD_URL = {
     "AS_COMPLETED": "/erp/as",
 }
 
+
+def _display_customer_name(customer_name, structured_data, order_id):
+    """브리핑 보드 표시용 고객명. ERP Beta 플레이스홀더('ERP Beta') 대신 structured_data 또는 주문번호 사용."""
+    if isinstance(structured_data, dict):
+        parties = structured_data.get('parties') or {}
+        name = (parties.get('customer') or {}).get('name')
+        if name and str(name).strip():
+            return str(name).strip()
+    raw = (customer_name or '').strip()
+    if raw.upper() in ('ERP BETA', 'ERP_BETA'):
+        return f'#{order_id}'
+    return customer_name or f'#{order_id}'
+
+
 def _order_card(order_id, customer_name, status, structured_data):
     """주문 한 건을 위젯에서 표시할 카드 딕셔너리로 변환."""
     from services.erp_display import _erp_get_stage
@@ -57,15 +71,19 @@ def _order_card(order_id, customer_name, status, structured_data):
     stage_label = STAGE_LABELS.get(stage_code, stage)
     
     is_urgent = bool((sd.get('flags') or {}).get('urgent'))
-    deep_url = STAGE_DASHBOARD_URL.get(stage_code, '/erp/dashboard')
-    
+    stage_dashboard = STAGE_DASHBOARD_URL.get(stage_code, '/erp/dashboard')
+    display_name = _display_customer_name(customer_name, sd, order_id)
+    # 클릭 시 해당 주문 건으로 이동 (브리핑 보드 리다이렉트 정확도)
+    deep_url = f'/edit/{order_id}?open=erp-beta'
+
     return {
         'order_id': order_id,
-        'customer_name': customer_name or f'#{order_id}',
+        'customer_name': display_name,
         'status': stage_code,
         'stage_label': stage_label,
         'is_urgent': is_urgent,
         'deep_url': deep_url,
+        'stage_dashboard': stage_dashboard,
     }
 
 
@@ -302,7 +320,7 @@ def _schedule_today_tomorrow(db, user_id, user_team):
     out_today = []
     out_tomorrow = []
     type_label = {'measurement': '실측', 'construction': '시공'}
-    type_url = {'measurement': '/erp/measurement', 'construction': '/erp/construction'}
+    type_url = {'measurement': '/erp/measurement', 'construction': '/erp/construction/dashboard'}
     try:
         orders = (
             db.query(Order.id, Order.customer_name, Order.status, Order.structured_data)
@@ -329,13 +347,14 @@ def _schedule_today_tomorrow(db, user_id, user_team):
                 date_val = (sched.get(stype) or {}).get('date') or ''
                 time_val = (sched.get(stype) or {}).get('time') or ''
                 
-                # 시공은 /erp/construction/dashboard, 실측은 /erp/measurement
-                stype_deep_url = '/erp/measurement' if stype == 'measurement' else '/erp/construction/dashboard'
+                # 클릭 시 해당 주문 건으로 이동 (내일 일정 '이새롬' 등 → 해당 탭의 해당 주문)
+                order_detail_url = f'/edit/{oid}?open=erp-beta'
 
+                display_name = _display_customer_name(cname, sd, oid)
                 if date_val == today_s:
                     out_today.append({
                         'order_id': oid,
-                        'customer_name': cname or f'#{oid}',
+                        'customer_name': display_name,
                         'type': stype,
                         'type_label': type_label[stype],
                         'date': date_val,
@@ -343,12 +362,12 @@ def _schedule_today_tomorrow(db, user_id, user_team):
                         'status': stage_code,
                         'stage_label': stage_label,
                         'is_urgent': bool((sd.get('flags') or {}).get('urgent')),
-                        'deep_url': stype_deep_url,
+                        'deep_url': order_detail_url,
                     })
                 elif date_val == tomorrow_s:
                     out_tomorrow.append({
                         'order_id': oid,
-                        'customer_name': cname or f'#{oid}',
+                        'customer_name': display_name,
                         'type': stype,
                         'type_label': type_label[stype],
                         'date': date_val,
@@ -356,7 +375,7 @@ def _schedule_today_tomorrow(db, user_id, user_team):
                         'status': stage_code,
                         'stage_label': stage_label,
                         'is_urgent': bool((sd.get('flags') or {}).get('urgent')),
-                        'deep_url': stype_deep_url,
+                        'deep_url': order_detail_url,
                     })
         return out_today[:20], out_tomorrow[:20]
     except Exception:
