@@ -672,6 +672,22 @@
 <script src="{{ url_for('static', filename='js/erp/measurement.js') }}"></script>
 <script>
 (function () {
+  document.addEventListener('DOMContentLoaded', function () {
+    var urlParams = new URLSearchParams(window.location.search);
+    var focusOrder = urlParams.get('focus_order');
+    if (focusOrder) {
+      setTimeout(function () {
+        var row = document.querySelector('tr.measurement-row[data-order-id="' + focusOrder + '"]') || document.querySelector('tr[data-order-id="' + focusOrder + '"]');
+        if (row) {
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          row.classList.add('table-info');
+          setTimeout(function () { row.classList.remove('table-info'); }, 2500);
+        }
+      }, 400);
+    }
+  });
+})();
+(function () {
   function openDrawingGatewayImageViewer(groupKey, index) {
     if (!window.GlobalImageViewer) return;
     var thumbs = Array.prototype.filter.call(

@@ -73,8 +73,14 @@ def _order_card(order_id, customer_name, status, structured_data):
     is_urgent = bool((sd.get('flags') or {}).get('urgent'))
     stage_dashboard = STAGE_DASHBOARD_URL.get(stage_code, '/erp/dashboard')
     display_name = _display_customer_name(customer_name, sd, order_id)
-    # 클릭 시 해당 주문 건으로 이동 (브리핑 보드 리다이렉트 정확도)
-    deep_url = f'/edit/{order_id}?open=erp-beta'
+    # 클릭 시 해당 단계 대시보드의 해당 주문 위치로 이동 (AS완료→tab=completed, AS미완료→tab=incomplete)
+    base = stage_dashboard.split('?')[0]
+    if stage_code == 'AS_COMPLETED':
+        deep_url = f'{base}?tab=completed&focus_order={order_id}'
+    elif stage_code in ('AS', 'AS_RECEIVED'):
+        deep_url = f'{base}?tab=incomplete&focus_order={order_id}'
+    else:
+        deep_url = f'{base}?focus_order={order_id}'
 
     return {
         'order_id': order_id,
@@ -347,8 +353,9 @@ def _schedule_today_tomorrow(db, user_id, user_team):
                 date_val = (sched.get(stype) or {}).get('date') or ''
                 time_val = (sched.get(stype) or {}).get('time') or ''
                 
-                # 클릭 시 해당 주문 건으로 이동 (내일 일정 '이새롬' 등 → 해당 탭의 해당 주문)
-                order_detail_url = f'/edit/{oid}?open=erp-beta'
+                # 클릭 시 해당 유형 탭의 해당 주문으로 (실측→/erp/measurement, 시공→시공 대시보드)
+                type_base = type_url.get(stype, '/erp/dashboard').split('?')[0]
+                order_detail_url = f'{type_base}?focus_order={oid}'
 
                 display_name = _display_customer_name(cname, sd, oid)
                 if date_val == today_s:
