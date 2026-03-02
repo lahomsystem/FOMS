@@ -34,8 +34,8 @@ STAGE_DASHBOARD_URL = {
     "MEASURE":      "/erp/measurement",
     "DRAWING":      "/erp/drawing-workbench",
     "CONFIRM":      "/erp/dashboard",
-    "PRODUCTION":   "/erp/production",
-    "CONSTRUCTION": "/erp/construction",
+    "PRODUCTION":   "/erp/production/dashboard",
+    "CONSTRUCTION": "/erp/construction/dashboard",
     "CS":           "/erp/dashboard",
     "COMPLETED":    "/erp/completion",
     "AS":           "/erp/as",
@@ -45,15 +45,24 @@ STAGE_DASHBOARD_URL = {
 
 def _order_card(order_id, customer_name, status, structured_data):
     """주문 한 건을 위젯에서 표시할 카드 딕셔너리로 변환."""
+    from services.erp_display import _erp_get_stage
+    from services.erp_policy import STAGE_NAME_TO_CODE
+    
     sd = structured_data or {}
     stage = status or ''
-    stage_label = STAGE_LABELS.get(stage, stage)
+    if str(stage).lower() == 'erpbeta':
+        stage = _erp_get_stage(None, sd) or '주문접수'
+
+    stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
+    stage_label = STAGE_LABELS.get(stage_code, stage)
+    
     is_urgent = bool((sd.get('flags') or {}).get('urgent'))
-    deep_url = STAGE_DASHBOARD_URL.get(stage, '/erp/dashboard')
+    deep_url = STAGE_DASHBOARD_URL.get(stage_code, '/erp/dashboard')
+    
     return {
         'order_id': order_id,
         'customer_name': customer_name or f'#{order_id}',
-        'status': stage,
+        'status': stage_code,
         'stage_label': stage_label,
         'is_urgent': is_urgent,
         'deep_url': deep_url,
@@ -93,20 +102,23 @@ def _announcements_count(db):
         return 0
 
 
-def _unread_notifications_count(db, user):
+def _unread_notifications_count(db, user, user_id):
     """현재 사용자 대상 미읽음 알림 수."""
     if not user:
         return 0
     q = db.query(Notification).filter(Notification.is_read == False)
+    if user.role == 'ADMIN':
+        return q.count()
     conditions = []
     if user.team:
         conditions.append(Notification.target_team == (user.team or '').strip().upper())
     if user.name:
         conditions.append(Notification.target_manager_name == (user.name or '').strip())
-    if user.role != 'ADMIN' and not conditions:
+    conditions.append(Notification.target_user_id == user_id)
+    conditions.append(Notification.target_type == 'ALL')
+    if not conditions:
         return 0
-    if conditions:
-        q = q.filter(or_(*conditions))
+    q = q.filter(or_(*conditions))
     return q.count()
 
 
@@ -238,6 +250,51 @@ def _settlement_alerts_count(db, user_id):
         return 0
 
 
+def _urgent_notifications(db, user, user_id, limit=10):
+    """미읽음 긴급 알림 목록 (브리핑 보드 상단 배너용).
+    전체 공지는 수신자별 레코드(target_type='USER', target_user_id=uid)로 저장되므로
+    비관리자는 target_user_id == user_id 로 자기 1건만 조회. 관리자/기존 데이터는
+    동일 공지(title+message+created_at) 중복 제거로 1건만 노출.
+    """
+    try:
+        q = db.query(Notification).filter(
+            Notification.is_urgent == True,
+            Notification.is_read == False,
+        )
+        if user.role != 'ADMIN':
+            conditions = []
+            if user.team:
+                conditions.append(Notification.target_team == (user.team or '').strip().upper())
+            if user.name:
+                conditions.append(Notification.target_manager_name == (user.name or '').strip())
+            conditions.append(Notification.target_user_id == user_id)
+            conditions.append(Notification.target_type == 'ALL')
+            q = q.filter(or_(*conditions))
+        rows = q.order_by(Notification.created_at.desc()).limit(limit * 3).all()
+        # 동일 공지 중복 제거: (title, message, created_at) 기준으로 첫 건만 사용
+        seen = set()
+        out = []
+        for n in rows:
+            key = (n.title or '', n.message or '', n.created_at.strftime('%Y-%m-%d %H:%M:%S') if n.created_at else '')
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({
+                'id': n.id,
+                'title': n.title,
+                'message': n.message,
+                'order_id': n.order_id,
+                'notification_type': n.notification_type,
+                'created_by_name': n.created_by_name,
+                'created_at': n.created_at.strftime('%Y-%m-%d %H:%M:%S') if n.created_at else None,
+            })
+            if len(out) >= limit:
+                break
+        return out
+    except Exception:
+        return []
+
+
 def _schedule_today_tomorrow(db, user_id, user_team):
     """오늘/내일 실측·시공 일정 카드 (고객명+단계+딥링크 포함)."""
     today_s = datetime.date.today().strftime('%Y-%m-%d')
@@ -257,10 +314,24 @@ def _schedule_today_tomorrow(db, user_id, user_team):
         for oid, cname, status, sd in orders:
             if not isinstance(sd, dict):
                 continue
+            
+            stage = status or ''
+            if str(stage).lower() == 'erpbeta':
+                from services.erp_display import _erp_get_stage
+                stage = _erp_get_stage(None, sd) or '주문접수'
+            
+            from services.erp_policy import STAGE_NAME_TO_CODE, STAGE_LABELS
+            stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
+            stage_label = STAGE_LABELS.get(stage_code, stage)
+
             sched = sd.get('schedule') or {}
             for stype in ('measurement', 'construction'):
                 date_val = (sched.get(stype) or {}).get('date') or ''
                 time_val = (sched.get(stype) or {}).get('time') or ''
+                
+                # 시공은 /erp/construction/dashboard, 실측은 /erp/measurement
+                stype_deep_url = '/erp/measurement' if stype == 'measurement' else '/erp/construction/dashboard'
+
                 if date_val == today_s:
                     out_today.append({
                         'order_id': oid,
@@ -269,10 +340,10 @@ def _schedule_today_tomorrow(db, user_id, user_team):
                         'type_label': type_label[stype],
                         'date': date_val,
                         'time': time_val,
-                        'status': status or '',
-                        'stage_label': STAGE_LABELS.get(status or '', status or ''),
+                        'status': stage_code,
+                        'stage_label': stage_label,
                         'is_urgent': bool((sd.get('flags') or {}).get('urgent')),
-                        'deep_url': type_url[stype],
+                        'deep_url': stype_deep_url,
                     })
                 elif date_val == tomorrow_s:
                     out_tomorrow.append({
@@ -282,10 +353,10 @@ def _schedule_today_tomorrow(db, user_id, user_team):
                         'type_label': type_label[stype],
                         'date': date_val,
                         'time': time_val,
-                        'status': status or '',
-                        'stage_label': STAGE_LABELS.get(status or '', status or ''),
+                        'status': stage_code,
+                        'stage_label': stage_label,
                         'is_urgent': bool((sd.get('flags') or {}).get('urgent')),
-                        'deep_url': type_url[stype],
+                        'deep_url': stype_deep_url,
                     })
         return out_today[:20], out_tomorrow[:20]
     except Exception:
@@ -308,13 +379,14 @@ def api_summary():
 
         work_stream = _work_stream_counts(db, user.team)
         announcements_count = _announcements_count(db)
-        noti_count = _unread_notifications_count(db, user)
+        noti_count = _unread_notifications_count(db, user, user_id)
         unread_chats = _unread_chats_count(db, user_id)
         recent_work = _recent_work(db, user_id)
         stalled_count = _stalled_count(db, user.team)
         pending_quest, pending_task = _pending_quest_and_task(db, user_id, user.team)
         settlement_alerts = _settlement_alerts_count(db, user_id)
         schedule_today, schedule_tomorrow = _schedule_today_tomorrow(db, user_id, user.team)
+        urgent_notifications = _urgent_notifications(db, user, user_id)
 
         return jsonify({
             'success': True,
@@ -322,12 +394,13 @@ def api_summary():
             'announcements_count': announcements_count,
             'urgent_inbox': {'notifications': noti_count, 'unread_chats': unread_chats},
             'stalled_count': stalled_count,
-            'recent_work': recent_work,           # [{order_id, customer_name, stage_label, is_urgent, deep_url}, ...]
-            'schedule_today': schedule_today,     # [{order_id, customer_name, type_label, time, is_urgent, deep_url}, ...]
+            'recent_work': recent_work,
+            'schedule_today': schedule_today,
             'schedule_tomorrow': schedule_tomorrow,
             'settlement_alerts': settlement_alerts,
             'pending_quest_count': pending_quest,
             'pending_task_count': pending_task,
+            'urgent_notifications': urgent_notifications,
         })
     except Exception as e:
         import traceback
