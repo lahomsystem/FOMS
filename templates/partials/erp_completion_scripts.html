@@ -32,10 +32,17 @@
         let galleryHtml = '';
         if (photos.length) {
           galleryHtml = '<div class="erp-completion-gallery">';
+          var imageIndex = 0;
           photos.forEach(function(p, idx) {
-            var url = (p.view_url || '#').replace(/"/g, '&quot;');
-            var alt = escapeAttr(p.filename || '');
-            galleryHtml += '<img src="' + url + '" alt="' + alt + '" data-order-id="' + o.id + '" data-photo-index="' + idx + '" loading="lazy">';
+            var isVideo = (p.file_type || '').toLowerCase().indexOf('video') !== -1;
+            if (isVideo) {
+              galleryHtml += '<div class="erp-completion-media erp-completion-media--video" title="보기가 안 됨"><span class="erp-completion-media__icon"><i class="fas fa-video"></i></span><span class="erp-completion-media__label">미리보기</span><span class="erp-completion-media__disabled">보기가 안 됨</span></div>';
+            } else {
+              var url = (p.view_url || '#').replace(/"/g, '&quot;');
+              var alt = escapeAttr(p.filename || '');
+              galleryHtml += '<img src="' + url + '" alt="' + alt + '" data-order-id="' + o.id + '" data-photo-index="' + imageIndex + '" loading="lazy">';
+              imageIndex += 1;
+            }
           });
           galleryHtml += '</div>';
         } else {
@@ -44,8 +51,9 @@
         var safeManager = escapeHtml(o.manager_name || '-');
         var safeCustomer = escapeHtml(o.customer_name || '-');
         var safeProduct = escapeHtml(o.product_summary || '-');
+        var orderDetailHref = '/edit/' + o.id + '?open=erp-beta';
         html += '<div class="erp-completion-row" data-order-id="' + o.id + '">';
-        html += '<div class="erp-completion-summary d-flex flex-wrap align-items-center gap-2"><span class="fw-bold">#' + o.id + '</span>';
+        html += '<div class="erp-completion-summary d-flex flex-wrap align-items-center gap-2"><a href="' + escapeAttr(orderDetailHref) + '" class="fw-bold text-decoration-none" title="주문 상세">#' + o.id + '</a>';
         html += '<span>' + date + '</span> | <span>' + safeManager + '</span> | <span>' + safeCustomer + '</span> | <span class="text-truncate" style="max-width:180px">' + safeProduct + '</span> | <span class="badge bg-secondary">' + resultLabel + '</span>';
         html += ' <button type="button" class="btn btn-sm btn-outline-warning" data-action="open-settlement-modal" data-order-id="' + o.id + '" title="비용 청구"><i class="fas fa-file-invoice-dollar"></i><span class="d-none d-md-inline ms-1">비용 청구</span></button></div>';
         html += galleryHtml + '</div>';
@@ -117,7 +125,11 @@
         const row = img.closest('.erp-completion-row');
         const order = orders.find(function(o) { return o.id === orderId; });
         if (!order || !order.construction_photos || !order.construction_photos.length) return;
-        const files = order.construction_photos.map(function(p) {
+        var imageOnly = order.construction_photos.filter(function(p) {
+          return (p.file_type || '').toLowerCase().indexOf('video') === -1;
+        });
+        if (!imageOnly.length) return;
+        const files = imageOnly.map(function(p) {
           return { url: p.view_url, filename: p.filename, key: p.storage_key };
         });
         window.GlobalImageViewer.open(files, photoIndex);
