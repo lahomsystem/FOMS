@@ -296,7 +296,7 @@
     </div>
     <div class="col-md-6">
         <label class="form-label mb-1 small text-primary">색상</label>
-        <input class="form-control form-control-sm" data-erp="color" value="${escapeHtml(color)}" lang="ko">
+        <input class="form-control form-control-sm" data-erp="color" value="${escapeHtml(color === '상담' ? '(SK)' : color + ' (SK)')}" lang="ko">
     </div>
     <div class="col-md-6">
         <label class="form-label mb-1 small text-primary">옵션</label>

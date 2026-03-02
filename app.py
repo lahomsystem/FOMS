@@ -240,6 +240,8 @@ from apps.api.erp_orders_as import erp_orders_as_bp
 app.register_blueprint(erp_orders_as_bp)
 from apps.api.erp_orders_completion import erp_orders_completion_bp
 app.register_blueprint(erp_orders_completion_bp)
+from apps.api.personal_board import personal_board_bp
+app.register_blueprint(personal_board_bp)
 from apps.api.erp_orders_confirm import erp_orders_confirm_bp
 app.register_blueprint(erp_orders_confirm_bp)
 from apps.storage_dashboard import storage_dashboard_bp
