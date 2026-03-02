@@ -41,6 +41,8 @@
                 padding-top: 0.5rem !important;
                 padding-bottom: 0.5rem !important;
                 min-height: 0;
+                flex-wrap: nowrap;
+                gap: 0.25rem;
             }
 
             .layout-header__title {
@@ -50,11 +52,13 @@
                 text-overflow: ellipsis;
                 min-width: 0;
                 line-height: 1.25;
-                flex: 1 1 0;
+                flex: 0 1 auto;
+                max-width: 38%;
             }
 
             .layout-header .d-flex.align-items-center.gap-3 {
                 flex-shrink: 0;
+                min-width: 0;
             }
 
             .layout-nav-collapse .nav-link {
@@ -66,10 +70,168 @@
             }
         }
 
+        /* 모바일(휴대폰) 미니멀 정렬: 깔끔한 한 줄 헤더 */
         @media (max-width: 576px) {
-            .layout-header__title {
-                font-size: 0.9rem !important;
+            .layout-header {
+                padding-left: 0.75rem !important;
+                padding-right: 0.75rem !important;
+                gap: 0;
             }
+
+            .layout-header__title {
+                font-size: 0.875rem !important;
+                max-width: 32%;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3 {
+                gap: 0.35rem !important;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3 .btn-link,
+            .layout-header .d-flex.align-items-center.gap-3 .position-relative .btn-link {
+                min-width: 40px;
+                min-height: 40px;
+                padding: 0.25rem !important;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 8px;
+                color: #495057 !important;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3 .fa-2x {
+                font-size: 1.25rem !important;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3>.position-relative,
+            .layout-header .d-flex.align-items-center.gap-3>.dropdown {
+                display: flex;
+                align-items: center;
+            }
+
+            .layout-header #userDropdown {
+                padding: 0.35rem 0.5rem !important;
+                font-size: 0.8rem !important;
+                max-width: 140px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .layout-header #userDropdown .dropdown-toggle::after {
+                margin-left: 0.25rem;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .layout-header__title {
+                max-width: 28%;
+            }
+
+            .layout-header #userDropdown {
+                max-width: 100px;
+                font-size: 0.75rem !important;
+            }
+
+            .layout-header #userDropdown .fa-user-circle {
+                margin-right: 0 !important;
+            }
+        }
+
+        /* 브리핑 보드: 최상단 중앙 슬라이딩 드롭다운 버튼 (아래 방향 체브론) */
+        .personal-briefing-chevron-btn {
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            background: #fff;
+            color: #212529;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, border-color 0.2s, transform 0.2s;
+        }
+
+        .personal-briefing-chevron-btn:hover {
+            background: #f8f9fa;
+            border-color: #adb5bd;
+            color: #212529;
+        }
+
+        .personal-briefing-chevron-btn:focus {
+            box-shadow: 0 0 0 0.2rem rgba(0, 0, 0, 0.1);
+        }
+
+        .personal-briefing-chevron {
+            font-size: 1.35rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        @media (max-width: 576px) {
+            .personal-briefing-chevron-btn {
+                width: 38px;
+                height: 38px;
+            }
+
+            .personal-briefing-chevron {
+                font-size: 1.1rem;
+            }
+        }
+
+        /* 긴급 알림 강제 인지 애니메이션 */
+        @keyframes urgentPulseBorder {
+            0% {
+                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.8);
+                border-color: #dc3545;
+            }
+
+            70% {
+                box-shadow: 0 0 0 15px rgba(220, 53, 69, 0);
+                border-color: #dc3545;
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+                border-color: rgba(220, 53, 69, 0.5);
+            }
+        }
+
+        @keyframes urgentShake {
+
+            0%,
+            100% {
+                transform: translateX(0) translateY(0);
+            }
+
+            20% {
+                transform: translateX(-3px) rotate(-5deg);
+            }
+
+            40% {
+                transform: translateX(3px) rotate(5deg);
+            }
+
+            60% {
+                transform: translateX(-3px) rotate(-5deg);
+            }
+
+            80% {
+                transform: translateX(3px) rotate(5deg);
+            }
+        }
+
+        .urgent-alert-active {
+            animation: urgentPulseBorder 1s infinite, urgentShake 0.5s infinite;
+            background-color: #fff0f0 !important;
+            color: #dc3545 !important;
+            border: 2px solid #dc3545 !important;
+            z-index: 1055;
+        }
+
+        .urgent-alert-active i {
+            color: #dc3545 !important;
         }
     </style>
     {% block head %}{% endblock %}
@@ -388,9 +550,51 @@
                 onErpNotification: function (data) {
                     console.log('[Global Socket.IO] ERP 알림 수신:', data);
                     refreshErpNotificationUI();
+                    if (data && data.urgent) {
+                        triggerUrgentBriefingAlert(data);
+                    }
                 }
             };
             window.__globalSocketHandlers = globalHandlers;
+
+            // 긴급 알림 발생 시 시각적/청각적 강제 인지 함수
+            window.triggerUrgentBriefingAlert = function (data) {
+                console.warn('[URGENT] 긴급 이벤트 수신, 강제 인지 처리:', data);
+
+                // 1. 청각 알림 (비프음)
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(880, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.3);
+                } catch (e) { console.error('Audio 처리 실패:', e); }
+
+                // 2. 브리핑 보드 버튼 애니메이션 (붉은 점멸)
+                const btn = document.getElementById('personal-briefing-toggle');
+                if (btn) {
+                    btn.classList.add('urgent-alert-active');
+                    const icon = btn.querySelector('i');
+                    if (icon) {
+                        icon.setAttribute('data-orig-class', icon.className);
+                        icon.className = 'fas fa-exclamation-triangle personal-briefing-chevron';
+                    }
+                    // 10초 후 자동 해제 (또는 열었을 때 해제되도록 함)
+                    setTimeout(() => {
+                        btn.classList.remove('urgent-alert-active');
+                        if (icon && icon.getAttribute('data-orig-class')) {
+                            icon.className = icon.getAttribute('data-orig-class');
+                        }
+                    }, 10000);
+                }
+            };
 
             globalSocket.off('connect', globalHandlers.onConnect);
             globalSocket.off('connect_error', globalHandlers.onConnectError);
@@ -643,8 +847,21 @@
     <a class="skip-link" href="#main-content">본문 바로가기</a>
     <div class="container-fluid p-0"
         style="width: 100vw !important; max-width: 100vw !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box;">
-        <header class="bg-light py-3 px-4 d-flex justify-content-between align-items-center layout-header">
+        <header
+            class="bg-light py-3 px-4 d-flex justify-content-between align-items-center layout-header position-relative">
             <h1 class="mb-0 h3 layout-header__title">가구 주문 관리 시스템</h1>
+
+            {% if current_user %}
+            <!-- 브리핑 보드: 화면 최상단 중앙, 슬라이딩 드롭다운(아래 방향 체브론) -->
+            <div class="position-absolute start-50 translate-middle-x top-0 bottom-0 d-flex align-items-center layout-header__center"
+                style="z-index: 2;">
+                <button class="btn personal-briefing-chevron-btn" id="personal-briefing-toggle" type="button"
+                    data-bs-toggle="offcanvas" data-bs-target="#personal-briefing-offcanvas"
+                    aria-controls="personal-briefing-offcanvas" title="내 브리핑 보드 (아래로 펼치기)" aria-label="브리핑 보드 열기">
+                    <i class="fas fa-chevron-down personal-briefing-chevron" aria-hidden="true"></i>
+                </button>
+            </div>
+            {% endif %}
 
             {% if current_user %}
             <div class="d-flex align-items-center gap-3">
@@ -671,8 +888,8 @@
                         </span>
                     </button>
                     <!-- Notification Panel -->
-                    <div class="dropdown-menu dropdown-menu-end p-0 shadow-lg border-0" id="global-notification-panel"
-                        role="region" aria-label="전역 알림"
+                    <div class="dropdown-menu dropdown-menu-end p-0 shadow-lg border-0 global-notification-panel"
+                        id="global-notification-panel" role="region" aria-label="전역 알림"
                         style="display: none; position: absolute; top: 140%; right: 0; width: 420px; max-width: min(420px, calc(100vw - 24px)); max-height: 480px; overflow-y: auto; z-index: 9999; border-radius: 12px;">
                         <div
                             class="p-3 border-bottom d-flex justify-content-between align-items-center bg-white sticky-top">
@@ -744,6 +961,26 @@
             </div>
             {% endif %}
         </header>
+
+        <!-- Personal Briefing Board (offcanvas-top, ~50% viewport) -->
+        {% if current_user %}
+        <div class="offcanvas offcanvas-top" id="personal-briefing-offcanvas" tabindex="-1"
+            aria-labelledby="personal-briefing-title" style="height: 55vh; max-height: 55vh;">
+            <div class="offcanvas-header border-bottom py-2">
+                <h5 class="offcanvas-title" id="personal-briefing-title">
+                    <i class="fas fa-th-large me-2"></i>내 브리핑 보드
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+            </div>
+            <div class="offcanvas-body p-3 overflow-auto" id="personal-briefing-body">
+                <div class="text-center text-muted py-4" id="personal-briefing-placeholder">
+                    <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                    <p class="mb-0">로딩 중...</p>
+                </div>
+                <div class="row g-2 d-none" id="personal-briefing-widgets"></div>
+            </div>
+        </div>
+        {% endif %}
 
         {% if current_user %}
         <nav class="navbar navbar-expand-md navbar-light bg-light border-bottom px-2 px-lg-4" aria-label="메인 메뉴"
@@ -1596,6 +1833,64 @@
             border-left: 1px solid rgba(255, 255, 255, 0.3);
         }
 
+        /* 모바일: 알림 패널 화면 최적화 (전체 표시, 겹침 방지) */
+        @media (max-width: 768px) {
+            .global-notification-panel {
+                position: fixed !important;
+                left: 0 !important;
+                right: 0 !important;
+                top: 52px !important;
+                width: 100vw !important;
+                max-width: 100vw !important;
+                height: calc(100vh - 52px) !important;
+                max-height: calc(100vh - 52px) !important;
+                border-radius: 12px 12px 0 0 !important;
+                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+            }
+
+            .global-notification-panel[style*="display: none"] {
+                display: none !important;
+            }
+
+            .global-notification-panel .p-3.border-bottom {
+                padding: 0.75rem 1rem !important;
+                flex-shrink: 0;
+            }
+
+            .global-notification-panel #global-notification-list {
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .global-notification-panel .notification-item {
+                padding: 0.85rem 1rem !important;
+                min-height: 52px;
+            }
+
+            .global-notification-panel .notification-item strong {
+                max-width: none !important;
+                white-space: normal !important;
+                overflow: visible !important;
+            }
+
+            .global-notification-panel .notification-time {
+                font-size: 0.75rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .global-notification-panel {
+                top: 48px !important;
+                height: calc(100vh - 48px) !important;
+                max-height: calc(100vh - 48px) !important;
+            }
+        }
+
         @media (prefers-reduced-motion: reduce) {
             .bell-active {
                 animation: none !important;
@@ -1813,6 +2108,148 @@
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
         }
+
+        (function personalBriefingBoard() {
+            const offcanvasEl = document.getElementById('personal-briefing-offcanvas');
+            const placeholderEl = document.getElementById('personal-briefing-placeholder');
+            const widgetsEl = document.getElementById('personal-briefing-widgets');
+            if (!offcanvasEl || !placeholderEl || !widgetsEl) return;
+
+            function _esc(s) {
+                return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            }
+            function stagePill(label) {
+                return label ? '<span class="badge rounded-pill text-bg-light border" style="font-size:0.65rem">' + _esc(label) + '</span>' : '';
+            }
+            function orderCard(item) {
+                var borderCls = item.is_urgent ? 'border-danger border-2' : 'border';
+                var bg = item.is_urgent ? 'background:#fff5f5;' : '';
+                var icon = item.is_urgent ? '🚨 ' : '';
+                var url = item.deep_url || '/erp/dashboard';
+                return '<a href="' + url + '" class="text-decoration-none d-block mb-1">' +
+                    '<div class="d-flex align-items-center justify-content-between px-2 py-1 rounded ' + borderCls + '" style="background:#fff;min-height:36px;' + bg + '">' +
+                    '<span class="fw-semibold text-dark" style="font-size:0.85rem">' + icon + _esc(item.customer_name) + '</span>' +
+                    '<span>' + stagePill(item.stage_label || item.type_label) +
+                    (item.is_urgent ? '<span class="badge bg-danger ms-1" style="font-size:0.65rem">긴급</span>' : '') +
+                    '</span></div></a>';
+            }
+            function schedCard(item) {
+                var borderCls = item.is_urgent ? 'border-danger border-2' : 'border';
+                var bg = item.is_urgent ? 'background:#fff5f5;' : '';
+                var typeColor = item.type === 'measurement' ? '#198754' : '#0d6efd';
+                var url = item.deep_url || '/erp/dashboard';
+                return '<a href="' + url + '" class="text-decoration-none d-block mb-1">' +
+                    '<div class="d-flex align-items-center justify-content-between px-2 py-1 rounded ' + borderCls + '" style="background:#fff;min-height:36px;' + bg + '">' +
+                    '<span class="fw-semibold text-dark" style="font-size:0.85rem">' + (item.is_urgent ? '🚨 ' : '') + _esc(item.customer_name) + '</span>' +
+                    '<span>' +
+                    '<span class="badge me-1" style="background:' + typeColor + ';font-size:0.65rem">' + _esc(item.type_label || '') + '</span>' +
+                    (item.time ? '<span class="text-muted" style="font-size:0.72rem">' + _esc(item.time) + '</span>' : '') +
+                    (item.is_urgent ? '<span class="badge bg-danger ms-1" style="font-size:0.65rem">긴급</span>' : '') +
+                    '</span></div></a>';
+            }
+            function numWidget(icon, title, value, href, colorCls) {
+                return '<div class="col-4 col-md-2"><a href="' + href + '" class="text-decoration-none">' +
+                    '<div class="card h-100 text-center border shadow-sm py-1 px-0">' +
+                    '<div class="fw-bold ' + colorCls + '" style="font-size:1.25rem;line-height:1.1">' + value + '</div>' +
+                    '<div class="text-muted" style="font-size:0.6rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + title + '">' + icon + ' ' + title + '</div>' +
+                    '</div></a></div>';
+            }
+
+            offcanvasEl.addEventListener('show.bs.offcanvas', function () {
+                const btn = document.getElementById('personal-briefing-toggle');
+                if (btn && btn.classList.contains('urgent-alert-active')) {
+                    btn.classList.remove('urgent-alert-active');
+                    const icon = btn.querySelector('i');
+                    if (icon && icon.getAttribute('data-orig-class')) {
+                        icon.className = icon.getAttribute('data-orig-class');
+                    }
+                }
+            });
+
+            offcanvasEl.addEventListener('shown.bs.offcanvas', function () {
+                placeholderEl.classList.remove('d-none');
+                widgetsEl.classList.add('d-none');
+                widgetsEl.innerHTML = '';
+                fetch('/api/personal-board/summary', { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data.success) {
+                            placeholderEl.innerHTML = '<p class="text-danger mb-0 text-center">요약을 불러올 수 없습니다.</p>';
+                            return;
+                        }
+                        placeholderEl.classList.add('d-none');
+                        widgetsEl.classList.remove('d-none');
+
+                        var u = data.urgent_inbox || {};
+                        var noti = u.notifications || 0;
+                        var chats = u.unread_chats || 0;
+                        var ws = data.work_stream || {};
+                        var workTotal = Object.values(ws).reduce(function (s, v) { return s + (v || 0); }, 0);
+
+                        // ── 요약 숫자 위젯 클릭시 해당 대시보드 이동 ──
+                        var row1 = '<div class="col-12"><div class="row g-1 mb-2">';
+                        row1 += numWidget('📋', '내 업무', workTotal, '/erp/dashboard', workTotal > 0 ? 'text-primary' : 'text-muted');
+                        row1 += numWidget('🔔', 'ERP알림', noti, '#', noti > 0 ? 'text-danger' : 'text-muted');
+                        row1 += numWidget('💬', '채팅', chats, '/chat', chats > 0 ? 'text-warning' : 'text-muted');
+                        row1 += numWidget('⚠️', '정체', data.stalled_count || 0, '/erp/dashboard', (data.stalled_count || 0) > 0 ? 'text-danger' : 'text-muted');
+                        row1 += numWidget('💸', '첩구', data.settlement_alerts || 0, '/erp/completion', (data.settlement_alerts || 0) > 0 ? 'text-danger' : 'text-muted');
+                        row1 += numWidget('✅', 'Task', data.pending_task_count || 0, '/erp/dashboard', (data.pending_task_count || 0) > 0 ? 'text-warning' : 'text-muted');
+                        row1 += '</div></div>';
+                        widgetsEl.insertAdjacentHTML('beforeend', row1);
+
+                        // ── 단계별 업무 현황 넷지 ──
+                        var wsKeys = Object.keys(ws);
+                        if (wsKeys.length) {
+                            var wsHtml = '<div class="col-12"><div class="border rounded p-2 mb-2" style="background:#f8f9fa">' +
+                                '<div class="text-muted mb-1" style="font-size:0.7rem;font-weight:600">📊 내 팀 업무 현황</div><div class="d-flex flex-wrap gap-1">';
+                            wsKeys.forEach(function (label) {
+                                var cnt = ws[label];
+                                var cls = cnt > 5 ? 'bg-danger' : cnt > 2 ? 'bg-warning text-dark' : 'bg-secondary';
+                                wsHtml += '<span class="badge ' + cls + '">' + _esc(label) + ' <strong>' + cnt + '건</strong></span>';
+                            });
+                            wsHtml += '</div></div></div>';
+                            widgetsEl.insertAdjacentHTML('beforeend', wsHtml);
+                        }
+
+                        // ── 최근 작업 + 일정 나란히 2콼 ──
+                        var row2 = '<div class="col-12"><div class="row g-2">';
+
+                        var recent = data.recent_work || [];
+                        row2 += '<div class="col-12 col-md-6"><div class="border rounded p-2" style="min-height:80px">' +
+                            '<div class="text-muted mb-1" style="font-size:0.7rem;font-weight:600">🕒 내 최근 작업 (이어하기)</div>';
+                        if (recent.length) {
+                            recent.forEach(function (item) { row2 += orderCard(item); });
+                        } else {
+                            row2 += '<p class="text-muted small mb-0">최근 작업 내역이 없습니다.</p>';
+                        }
+                        row2 += '</div></div>';
+
+                        var st = data.schedule_today || [];
+                        var stm = data.schedule_tomorrow || [];
+                        row2 += '<div class="col-12 col-md-6"><div class="border rounded p-2" style="min-height:80px">' +
+                            '<div class="text-muted mb-1" style="font-size:0.7rem;font-weight:600">📅 오늘/내일 일정</div>';
+                        if (st.length || stm.length) {
+                            if (st.length) {
+                                row2 += '<div class="text-muted" style="font-size:0.65rem;font-weight:600">▶ 오늘</div>';
+                                st.forEach(function (item) { row2 += schedCard(item); });
+                            }
+                            if (stm.length) {
+                                row2 += '<div class="text-muted mt-1" style="font-size:0.65rem;font-weight:600">▶ 내일</div>';
+                                stm.forEach(function (item) { row2 += schedCard(item); });
+                            }
+                        } else {
+                            row2 += '<p class="text-muted small mb-0">예정된 일정이 없습니다.</p>';
+                        }
+                        row2 += '</div></div>';
+
+                        row2 += '</div></div>';
+                        widgetsEl.insertAdjacentHTML('beforeend', row2);
+                    })
+                    .catch(function () {
+                        placeholderEl.innerHTML = '<p class="text-danger mb-0 text-center">요약 로드 실패.</p>';
+                    });
+            });
+        })();
     </script>
 </body>
 
