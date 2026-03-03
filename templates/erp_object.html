@@ -170,7 +170,7 @@
 <script>
   const ORDER_ID = {{ order_id }};
   const TEAM_LABELS = { CS:'라홈팀', SALES:'영업팀', MEASURE:'실측팀', DRAWING:'도면팀', PRODUCTION:'생산팀', CONSTRUCTION:'시공팀' };
-  const STAGE_LABELS = { RECEIVED:'주문접수', HAPPYCALL:'해피콜', MEASURE:'실측', DRAWING:'도면', CONFIRM:'고객컨펌', PRODUCTION:'생산', CONSTRUCTION:'시공' };
+  const STAGE_LABELS = { RECEIVED:'주문접수', MEASURE:'실측', DRAWING:'도면', CONFIRM:'고객컨펌', PRODUCTION:'생산', CONSTRUCTION:'시공' };
 
   function label(map, code, fallback='-') { if (!code) return fallback; return map[code] || code; }
   function escapeHtml(text) { if (!text) return ''; const div=document.createElement('div'); div.textContent=String(text); return div.innerHTML; }

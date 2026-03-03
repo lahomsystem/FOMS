@@ -293,7 +293,7 @@ def erp_dashboard():
 
     kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0}
     step_stats = {k: {'count': 0, 'overdue': 0, 'imminent': 0} for k in [
-        '주문접수', '해피콜', '실측', '도면', '고객컨펌', '생산', '시공', 'CS', '완료', 'AS처리'
+        '주문접수', '실측', '도면', '고객컨펌', '생산', '시공', 'CS', '완료', 'AS처리'
     ]}
     for r in enriched:
         alerts = r.get('alerts') or {}
@@ -315,7 +315,6 @@ def erp_dashboard():
 
     process_steps = [
         {'label': '주문접수', **step_stats['주문접수']},
-        {'label': '해피콜', **step_stats['해피콜']},
         {'label': '실측', **step_stats['실측']},
         {'label': '도면', **step_stats['도면']},
         {'label': '고객컨펌', **step_stats['고객컨펌']},

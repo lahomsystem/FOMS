@@ -38,7 +38,7 @@ FOMS/
 - **300줄 이하 파일**: 전체 Read 허용
 
 ## ERP 워크플로우 단계
-RECEIVED → HAPPYCALL → MEASURE → DRAWING → CONFIRM → PRODUCTION → CONSTRUCTION → CS → COMPLETED
+RECEIVED → MEASURE → DRAWING → CONFIRM → PRODUCTION → CONSTRUCTION → CS → COMPLETED
 
 ## 주요 탐색 대상
 - API 엔드포인트: `@app.route` 또는 `@bp.route`

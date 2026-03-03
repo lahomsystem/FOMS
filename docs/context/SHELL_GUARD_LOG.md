@@ -109,3 +109,6 @@
 | 2026-03-03 11:25:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-Content "templates\partials\erp_dashboard_scripts_detail.html" -Tail 25` |
 | 2026-03-03 11:40:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $d = Get-Content "templates\partials\erp_dashboard_scripts_detail.html" -Raw; $dom = Get-Conte` |
 | 2026-03-03 11:42:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " with open('templates/partials/erp_dashboard_scripts_detail.html', 'r', encoding='u` |
+| 2026-03-03 13:21:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
+| 2026-03-03 13:21:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
+| 2026-03-03 13:22:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status -s` |

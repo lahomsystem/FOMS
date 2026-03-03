@@ -30,7 +30,6 @@ personal_board_bp = Blueprint(
 # 단계별 딥링크 URL 매핑 (해당 단계의 전용 대시보드로 직접 이동)
 STAGE_DASHBOARD_URL = {
     "RECEIVED":     "/erp/dashboard",
-    "HAPPYCALL":    "/erp/dashboard",
     "MEASURE":      "/erp/measurement",
     "DRAWING":      "/erp/drawing-workbench",
     "CONFIRM":      "/erp/dashboard",

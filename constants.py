@@ -5,7 +5,6 @@
 STATUS = {
     # 메인 프로세스 단계
     'RECEIVED': '접수',           # A. 주문접수
-    'HAPPYCALL': '해피콜',        # B. 해피콜
     'MEASURE': '실측',            # C. 실측 (영업 방문 또는 고객 셀프)
     'DRAWING': '도면',            # D. 도면 작성
     'CONFIRM': '고객컨펌',        # E. 고객 컨펌

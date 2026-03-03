@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-03 11:18:52
+> 생성 시각: 2026-03-03 13:09:02
 > 세션: 7608c340
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `.git_commit_msg.txt` <- 1 edit(s), ~190 chars (2026-03-03 11:18:27)
-- `templates/partials/erp_dashboard_scripts_dom.html` <- 3 edit(s), ~715 chars (2026-03-03 11:15:47)
-- `docs/plans/2026-03-03-erp-dashboard-measurement-construction-date-inline-edit-VERIFICATION.md` <- 1 edit(s), ~4323 chars (2026-03-03 11:10:17)
-- `docs/plans/2026-03-03-erp-dashboard-measurement-construction-date-inline-edit.md` <- 1 edit(s), ~233 chars (2026-03-03 11:00:40)
-- `templates/partials/erp_dashboard_scripts_dom.html` <- 1 edit(s), ~1459 chars (2026-03-03 10:59:46)
-- `templates/partials/erp_dashboard_grid.html` <- 1 edit(s), ~1153 chars (2026-03-03 10:58:35)
-- `apps/api/orders.py` <- 3 edit(s), ~693 chars (2026-03-03 10:57:44)
-- `apps/api/orders.py` <- 2 edit(s), ~128 chars (2026-03-03 10:57:10)
-- `docs/plans/2026-03-03-erp-dashboard-measurement-construction-date-inline-edit.md` <- 1 edit(s), ~142 chars (2026-03-03 10:22:41)
-- `docs/plans/2026-03-03-erp-dashboard-measurement-construction-date-inline-edit.md` <- 1 edit(s), ~149 chars (2026-03-03 10:22:32)
+- `docs/plans/2026-03-03-remove-happycall-stage-plan.md` <- 3 edit(s), ~1384 chars (2026-03-03 13:09:01)
+- `docs/plans/2026-03-03-remove-happycall-stage-plan.md` <- 2 edit(s), ~2120 chars (2026-03-03 13:08:51)
+- `docs/plans/2026-03-03-remove-happycall-stage-plan.md` <- 3 edit(s), ~896 chars (2026-03-03 13:08:40)
+- `docs/plans/2026-03-03-remove-happycall-stage-plan.md` <- 2 edit(s), ~133 chars (2026-03-03 13:08:31)
+- `docs/context/ERP_DASHBOARD_SCRIPTS_HIGHLIGHTING.md` <- 1 edit(s), ~57 chars (2026-03-03 11:45:34)
+- `docs/context/ERP_DASHBOARD_SCRIPTS_HIGHLIGHTING.md` <- 1 edit(s), ~103 chars (2026-03-03 11:45:31)
+- `docs/context/ERP_DASHBOARD_SCRIPTS_HIGHLIGHTING.md` <- 1 edit(s), ~90 chars (2026-03-03 11:45:26)
+- `templates/partials/erp_production_scripts.html` <- 1 edit(s), ~372 chars (2026-03-03 11:44:43)
+- `templates/partials/erp_construction_scripts.html` <- 1 edit(s), ~338 chars (2026-03-03 11:44:13)
+- `templates/partials/erp_construction_filters_grid.html` <- 1 edit(s), ~163 chars (2026-03-03 11:43:27)
 
 ### 진행 중이던 작업
 (없음)

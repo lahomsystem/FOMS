@@ -16,7 +16,7 @@
 | 컬럼 | 설명 | 백업 포함 |
 |------|------|-----------|
 | `id` | 주문 PK | ✅ |
-| `status` | 주문 단계 (RECEIVED → HAPPYCALL → MEASURE → DRAWING → CONFIRM → PRODUCTION → CONSTRUCTION → CS → COMPLETED) | ✅ |
+| `status` | 주문 단계 (RECEIVED → MEASURE → DRAWING → CONFIRM → PRODUCTION → CONSTRUCTION → CS → COMPLETED) | ✅ |
 | `original_status` | 원본 상태 보관 | ✅ |
 | `cabinet_status` | 수납장 상태 (RECEIVED/IN_PRODUCTION/SHIPPED) | ✅ |
 | `structured_data` | JSONB: ERP 워크플로우, 체크리스트, 실측·도면·설치 등 **모든 구조화 상태** | ✅ |

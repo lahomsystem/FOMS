@@ -8,14 +8,6 @@
         "owner_team": "SALES"
       }
     ],
-    "HAPPYCALL": [
-      {
-        "key": "HAPPYCALL_CONTACT",
-        "title": "해피콜 진행(실측/시공 일정 확정)",
-        "owner_team": "CS",
-        "due": { "type": "measurement_date", "offset_business_days": -4 }
-      }
-    ],
     "MEASURE": [
       {
         "key": "MEASURE_CONFIRM",

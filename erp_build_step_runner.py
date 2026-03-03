@@ -491,7 +491,6 @@ def step_12_policy_json(db):
                 "teams": {
                     "default_owner_team_by_stage": {
                         "RECEIVED": "SALES",
-                        "HAPPYCALL": "CS",
                         "MEASURE": "MEASURE",
                         "DRAWING": "DRAWING",
                         "CONFIRM": "DRAWING",
@@ -545,9 +544,6 @@ def step_13_templates_json(db):
                 "stages": {
                     "RECEIVED": [
                         {"key": "VERIFY_INFO", "title": "주문 정보 확인(고객/연락처/주소)", "owner_team": "SALES"}
-                    ],
-                    "HAPPYCALL": [
-                        {"key": "HAPPYCALL_CONTACT", "title": "해피콜 진행(실측/시공 일정 확정)", "owner_team": "CS", "due": {"type": "measurement_date", "offset_business_days": -4}}
                     ],
                     "MEASURE": [
                         {"key": "MEASURE_CONFIRM", "title": "실측 진행 및 결과 정리", "owner_team": "MEASURE", "due": {"type": "measurement_date", "offset_business_days": 0}}

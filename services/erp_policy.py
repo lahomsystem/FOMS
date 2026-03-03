@@ -22,7 +22,6 @@ from services.business_calendar import business_days_until
 
 STAGE_LABELS: Dict[str, str] = {
     "RECEIVED": "주문접수",      # A
-    "HAPPYCALL": "해피콜",        # B
     "MEASURE": "실측",           # C
     "DRAWING": "도면",           # D
     "CONFIRM": "고객컨펌",       # E
@@ -38,7 +37,6 @@ STAGE_LABELS: Dict[str, str] = {
 
 DEFAULT_OWNER_TEAM_BY_STAGE: Dict[str, str] = {
     "RECEIVED": "CS",
-    "HAPPYCALL": "CS",
     "MEASURE": "SALES",
     "DRAWING": "DRAWING",
     "CONFIRM": "SALES",
@@ -54,7 +52,6 @@ DEFAULT_OWNER_TEAM_BY_STAGE: Dict[str, str] = {
 # 한글 단계명을 영문 코드로 변환하는 매핑 (app.py의 _erp_get_stage() 매핑의 역매핑)
 STAGE_NAME_TO_CODE: Dict[str, str] = {
     "주문접수": "RECEIVED",
-    "해피콜": "HAPPYCALL",
     "실측": "MEASURE",
     "도면": "DRAWING",
     "고객컨펌": "CONFIRM",
@@ -448,7 +445,7 @@ def get_quest_templates() -> Dict[str, Any]:
 def get_quest_template_for_stage(stage: Optional[str]) -> Optional[Dict[str, Any]]:
     """
     주어진 단계의 Quest 템플릿을 반환합니다.
-    한글 단계명('주문접수', '해피콜' 등)과 영문 코드('RECEIVED', 'HAPPYCALL' 등) 모두 지원합니다.
+    한글 단계명('주문접수', '실측' 등)과 영문 코드('RECEIVED', 'MEASURE' 등) 모두 지원합니다.
     """
     if not stage:
         return None
@@ -598,7 +595,7 @@ def create_quest_from_template(stage: Optional[str], owner_person: Optional[str]
     owner_team = quest_tpl.get("owner_team") or ""
     
     # 담당 팀 재배정 규칙:
-    # - 주문접수, 해피콜: 라홈팀(CS) - 템플릿에서 이미 설정됨
+    # - 주문접수: 라홈팀(CS) - 템플릿에서 이미 설정됨
     # - 실측, 고객컨펌: 영업팀(SALES) - 단, 발주사에 '라홈' 포함 시 라홈팀(CS)으로 변경
     # - 도면: 도면팀(DRAWING) - 템플릿에서 이미 설정됨
     # - 생산: 생산팀(PRODUCTION) - 템플릿에서 이미 설정됨
