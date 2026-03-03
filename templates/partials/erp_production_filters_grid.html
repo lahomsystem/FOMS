@@ -138,7 +138,7 @@
                         <span class="badge bg-secondary" style="font-size: 1rem; padding: 0.4em 0.7em;">고객 컨펌 전</span>
                       {% else %}
                         <!-- 담당자 승인 후: '제작 시작' 버튼 표시 -->
-                        <button class="btn btn-primary fw-bold" onclick="startProduction({{ o.id }})" style="font-size: 1rem; padding: 0.5em 1em;">
+                        <button type="button" class="btn btn-primary fw-bold erp-production-action" data-order-id="{{ o.id }}" data-action="startProduction" style="font-size: 1rem; padding: 0.5em 1em;">
                           <i class="fas fa-play me-1"></i> 제작 시작
                         </button>
                       {% endif %}
