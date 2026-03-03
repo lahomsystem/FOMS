@@ -7,8 +7,8 @@
 ### Session: 7608c340
 - **시작**: 2026-03-01 12:22:00
 - **상태**: completed
-- **편집 파일**: `apps/api/personal_board.py`, `scripts/run_notifications_migration.py`, `docs/railway-notifications-migration.md`, `.cursor/hooks/cleanup_temp.py`, `.cursor/hooks/session_stop.py`, `commit_msg.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d8dd97a1-ee4f-43b4-968b-d5e373f4a785.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-446d7760-294d-4106-ab7a-ef4ba712aa77.png`, `templates/layout.html`, `apps/api/notifications.py`
-- **종료**: 2026-03-02 20:53:33
+- **편집 파일**: `templates/partials/erp_construction_scripts.html`, `templates/partials/erp_construction_modals.html`, `docs/plans/2026-03-03-construction-scripts-refactoring-plan.md`, `commit_msg.txt`, `docs/context/RCA-construction-dashboard-syntax-error.md`, `templates/erp_dashboard.html`, `templates/partials/erp_production_scripts.html`
+- **종료**: 2026-03-03 09:42:31
 
 ### Session: unknown
 - **시작**: 2026-03-01 12:18:46
