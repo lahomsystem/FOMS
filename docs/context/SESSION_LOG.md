@@ -7,8 +7,8 @@
 ### Session: 7608c340
 - **시작**: 2026-03-01 12:22:00
 - **상태**: completed
-- **편집 파일**: `templates/partials/erp_construction_scripts.html`, `templates/partials/erp_construction_modals.html`, `docs/plans/2026-03-03-construction-scripts-refactoring-plan.md`, `commit_msg.txt`, `docs/context/RCA-construction-dashboard-syntax-error.md`, `templates/erp_dashboard.html`, `templates/partials/erp_production_scripts.html`
-- **종료**: 2026-03-03 09:42:31
+- **편집 파일**: `templates/partials/erp_dashboard_scripts_dom.html`, `docs/plans/2026-03-03-erp-dashboard-measurement-construction-date-inline-edit-VERIFICATION.md`, `docs/plans/2026-03-03-erp-dashboard-measurement-construction-date-inline-edit.md`, `templates/partials/erp_dashboard_grid.html`, `apps/api/orders.py`, `.git_commit_msg.txt`, `templates/partials/erp_construction_scripts.html`, `templates/partials/erp_construction_modals.html`, `docs/plans/2026-03-03-construction-scripts-refactoring-plan.md`, `commit_msg.txt`
+- **종료**: 2026-03-03 11:16:12
 
 ### Session: unknown
 - **시작**: 2026-03-01 12:18:46

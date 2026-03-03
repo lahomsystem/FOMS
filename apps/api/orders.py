@@ -1,7 +1,8 @@
 
 from flask import Blueprint, jsonify, request, session, current_app
-from apps.auth import login_required, role_required, log_access
+from apps.auth import login_required, role_required, log_access, get_user_by_id
 from db import get_db
+from services.erp_permissions import can_edit_erp
 from models import Order, OrderEvent
 from constants import STATUS, BULK_ACTION_STATUS
 from sqlalchemy import or_, and_, func
@@ -497,9 +498,8 @@ def update_regional_memo():
 
 @orders_bp.route('/update_order_field', methods=['POST'])
 @login_required
-@role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def update_order_field():
-    """주문 필드 업데이트 (수도권 및 지방 대시보드용)"""
+    """주문 필드 업데이트 (수도권 및 지방 대시보드용). 실측일/시공일은 can_edit_erp 권한으로도 허용."""
     db = get_db()
     data = request.get_json()
     
@@ -512,6 +512,18 @@ def update_order_field():
 
     if not order:
         return jsonify({'success': False, 'message': '유효하지 않은 주문입니다.'}), 404
+
+    # 권한: 실측일/시공일은 can_edit_erp, 그 외는 ADMIN/MANAGER/STAFF
+    user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    if not user:
+        return jsonify({'success': False, 'message': '로그인이 필요합니다.'}), 401
+    _date_fields = ('measurement_date', 'scheduled_date')
+    if field in _date_fields:
+        if not can_edit_erp(user):
+            return jsonify({'success': False, 'message': '실측일/시공일 수정 권한이 없습니다. (영업, 라홈, 하우드, CS팀만 가능)'}), 403
+    else:
+        if user.role not in ('ADMIN', 'MANAGER', 'STAFF'):
+            return jsonify({'success': False, 'message': '이 작업을 수행할 권한이 없습니다.'}), 403
 
     # 업데이트 가능한 필드인지 확인 (보안 목적)
     allowed_fields = [
