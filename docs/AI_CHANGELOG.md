@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-03 | 세션 자동 기록 | erp_dashboard_filters.html, erp_dashboard.py, Furniture Process.md 외 2개 | aff6a77 |
 | 2026-03-03 | 세션 자동 기록 | Furniture Process.md, test_scripts.js, erp_production_scripts.html 외 2개 | 431d36d |
 | 2026-03-03 | 세션 자동 기록 | test_scripts.js, erp_production_scripts.html, erp_construction_scripts.html 외 2개 | 431d36d |
 | 2026-03-03 | 세션 자동 기록 | erp_production_scripts.html, erp_construction_scripts.html, erp_construction_filters_grid.html 외 2개 | 431d36d |
@@ -23,4 +24,3 @@
 | 2026-03-02 | 세션 자동 기록 | erp_construction_scripts.html, erp_completion_scripts.html, erp_production_scripts.html 외 2개 | 130fd54 |
 | 2026-03-02 | 세션 자동 기록 | personal_board.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d375b29c-2103-48ec-b08a-8eaef63f0564.png, commit_msg.txt 외 2개 | 130fd54 |
 | 2026-03-02 | 세션 자동 기록 | commit_msg.txt, personal_board.py, run_notifications_migration.py 외 2개 | 130fd54 |
-| 2026-03-02 | 세션 자동 기록 | personal_board.py, run_notifications_migration.py, commit_msg.txt 외 2개 | c9379fc |
