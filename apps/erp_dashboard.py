@@ -247,17 +247,24 @@ def erp_dashboard():
             'current_quest': quest_payload,
         })
 
+    # AS 파이프라인: 'AS처리' 클릭 시 AS접수·AS처리·AS완료 모두 표시
+    AS_STAGE_GROUP = ('AS접수', 'AS처리', 'AS완료')
+
     filtered = []
     for r in enriched:
         if f_stage:
             row_stage = (r.get('stage') or '').strip()
             req_stage = f_stage.strip()
-            row_code = STAGE_NAME_TO_CODE.get(row_stage, row_stage)
-            req_code = STAGE_NAME_TO_CODE.get(req_stage, req_stage)
-            row_label = STAGE_LABELS.get(row_code, row_stage)
-            req_label = STAGE_LABELS.get(req_code, req_stage)
-            if req_stage not in {row_stage, row_code, row_label} and req_code not in {row_stage, row_code, row_label} and req_label not in {row_stage, row_code, row_label}:
-                continue
+            if req_stage == 'AS처리':
+                if row_stage not in AS_STAGE_GROUP:
+                    continue
+            else:
+                row_code = STAGE_NAME_TO_CODE.get(row_stage, row_stage)
+                req_code = STAGE_NAME_TO_CODE.get(req_stage, req_stage)
+                row_label = STAGE_LABELS.get(row_code, row_stage)
+                req_label = STAGE_LABELS.get(req_code, req_stage)
+                if req_stage not in {row_stage, row_code, row_label} and req_code not in {row_stage, row_code, row_label} and req_label not in {row_stage, row_code, row_label}:
+                    continue
         if f_urgent == '1' and not (r.get('alerts') or {}).get('urgent'):
             continue
         if f_has_alert == '1':
@@ -306,12 +313,14 @@ def erp_dashboard():
             kpis['construction_d3_count'] += 1
         if alerts.get('production_d2'):
             kpis['production_d2_count'] += 1
-        if stage in step_stats:
-            step_stats[stage]['count'] += 1
+        # AS 파이프라인: AS접수·AS처리·AS완료 모두 'AS처리' 한 칸에 집계
+        bucket = 'AS처리' if stage in ('AS접수', 'AS처리', 'AS완료') else stage
+        if bucket in step_stats:
+            step_stats[bucket]['count'] += 1
             if alerts.get('drawing_overdue'):
-                step_stats[stage]['overdue'] += 1
+                step_stats[bucket]['overdue'] += 1
             if alerts.get('measurement_d4') or alerts.get('construction_d3') or alerts.get('production_d2'):
-                step_stats[stage]['imminent'] += 1
+                step_stats[bucket]['imminent'] += 1
 
     process_steps = [
         {'label': '주문접수', **step_stats['주문접수']},
