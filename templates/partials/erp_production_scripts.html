@@ -529,6 +529,16 @@
       }
     }
 
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('.erp-production-action');
+      if (!btn) return;
+      var orderId = btn.getAttribute('data-order-id');
+      var action = btn.getAttribute('data-action');
+      if (!orderId || !action) return;
+      var fn = window[action];
+      if (typeof fn === 'function') fn(orderId);
+    });
+
     function renderBadges(alerts) {
       const a = alerts || {};
       const out = [];

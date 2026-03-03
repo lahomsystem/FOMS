@@ -102,3 +102,10 @@
 | 2026-03-03 11:18:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add .git_commit_msg.txt; git status` |
 | 2026-03-03 11:19:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F .git_commit_msg2.txt` |
 | 2026-03-03 11:19:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/context/COMPACT_CHECKPOINT.md docs/context/SHELL_GUARD_LOG.md; git status` |
+| 2026-03-03 11:19:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/context/EDIT_LOG.md` |
+| 2026-03-03 11:20:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F .git_commit_msg3.txt` |
+| 2026-03-03 11:20:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-03 11:23:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; (Get-Content "templates\partials\erp_dashboard_scripts_detail.html").Count` |
+| 2026-03-03 11:25:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-Content "templates\partials\erp_dashboard_scripts_detail.html" -Tail 25` |
+| 2026-03-03 11:40:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $d = Get-Content "templates\partials\erp_dashboard_scripts_detail.html" -Raw; $dom = Get-Conte` |
+| 2026-03-03 11:42:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " with open('templates/partials/erp_dashboard_scripts_detail.html', 'r', encoding='u` |

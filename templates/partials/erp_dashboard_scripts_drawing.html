@@ -1,4 +1,10 @@
-var USE_DIRECT_UPLOAD = typeof USE_DIRECT_UPLOAD !== 'undefined' ? USE_DIRECT_UPLOAD : {{ use_direct_upload|tojson }};
+<script>
+var USE_DIRECT_UPLOAD = (function () {
+  if (typeof USE_DIRECT_UPLOAD !== 'undefined') return USE_DIRECT_UPLOAD;
+  var el = document.getElementById('erp-dashboard-config');
+  var raw = el && el.getAttribute('data-use-direct-upload');
+  return raw === 'true' ? true : (raw === 'false' ? false : true);
+})();
 let __currentTransferOrderId = null;
 
 let __isRetransfer = false;
@@ -471,3 +477,4 @@ console.error(e);
 alert('저장 중 오류가 발생했습니다.');
 }
 }
+</script>
