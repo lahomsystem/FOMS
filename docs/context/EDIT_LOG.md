@@ -5,6 +5,7 @@
 
 ## 최근 파일 편집
 
+- `.git_commit_msg2.txt` <- 1 edit(s), ~23 chars (2026-03-03 11:19:09)
 - `.git_commit_msg.txt` <- 1 edit(s), ~190 chars (2026-03-03 11:18:27)
 - `templates/partials/erp_dashboard_scripts_dom.html` <- 3 edit(s), ~715 chars (2026-03-03 11:15:47)
 - `docs/plans/2026-03-03-erp-dashboard-measurement-construction-date-inline-edit-VERIFICATION.md` <- 1 edit(s), ~4323 chars (2026-03-03 11:10:17)
@@ -54,4 +55,3 @@
 - `templates/partials/erp_construction_scripts.html` <- 1 edit(s), ~0 chars (2026-03-02 21:44:45)
 - `templates/partials/erp_construction_scripts.html` <- 1 edit(s), ~92 chars (2026-03-02 21:44:42)
 - `templates/partials/erp_construction_scripts.html` <- 1 edit(s), ~118 chars (2026-03-02 21:44:40)
-- `templates/partials/erp_construction_scripts.html` <- 1 edit(s), ~72 chars (2026-03-02 21:44:14)
