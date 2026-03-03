@@ -77,3 +77,21 @@
 | 2026-03-02 20:51:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python scripts/run_notifications_migration.py "postgresql://postgres:XMuhzNDZDeBlQStbmUQymJTG` |
 | 2026-03-02 20:51:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python scripts/run_notifications_migration.py "postgresql://postgres:jDkSuQDkQZkGZCFmPMOnFoDa` |
 | 2026-03-02 20:55:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git status` |
+| 2026-03-02 21:40:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; (Get-Content "templates\layout.html" | Measure-Object -Line).Lines ; (Get-Content "templates\` |
+| 2026-03-02 21:48:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; $lines = Get-Content "templates\partials\erp_construction_scripts.html"; $line858 = $lines[85` |
+| 2026-03-02 21:49:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; $lines = Get-Content "templates\partials\erp_construction_scripts.html"; for ($i = 0; $i -lt ` |
+| 2026-03-02 21:50:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; $layout = Get-Content "templates\layout.html"; $blockStart = 0; for ($i = 0; $i -lt $layout.C` |
+| 2026-03-02 21:51:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; $content = [System.IO.File]::ReadAllText("templates\partials\erp_construction_scripts.html", ` |
+| 2026-03-02 21:52:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; $line = (Get-Content "templates\partials\erp_construction_scripts.html")[596]; $bytes = [Syst` |
+| 2026-03-02 22:12:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git status` |
+| 2026-03-02 22:12:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git add templates/partials/erp_construction_scripts.html templates/erp_as_dashboard.html temp` |
+| 2026-03-02 22:12:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
+| 2026-03-02 22:12:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git push origin deploy` |
+| 2026-03-02 22:13:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git checkout production ; git merge deploy -m "Merge branch 'deploy' into production"` |
+| 2026-03-02 22:13:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git push origin production` |
+| 2026-03-02 22:14:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git checkout deploy` |
+| 2026-03-03 09:29:59 | allow | `-` | `wc -l "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\partials\erp_construction_scripts.html"` |
+| 2026-03-03 09:30:06 | allow | `-` | `(Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\partials\erp_construction_scripts.html").Count` |
+| 2026-03-03 09:31:18 | allow | `-` | `(Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\partials\erp_construction_modals.html" -Tail 5)` |
+| 2026-03-03 09:44:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-03 09:45:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Made-with: Cursor" -F .git_commit_msg.txt` |

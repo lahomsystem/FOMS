@@ -1,0 +1,5 @@
+construction 스크립트 리팩터 반영 및 문법 하이라이트 수정
+
+- erp_construction_scripts: 여는 <script>를 파셜 앞으로 이동(에디터에서 JS 인식)
+- erp_construction_modals: 불필요한 여는 <script> 제거
+- 리팩터 계획서 및 문서/로그 갱신
