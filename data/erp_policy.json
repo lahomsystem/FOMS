@@ -9,7 +9,6 @@
   "teams": {
     "default_owner_team_by_stage": {
       "RECEIVED": "CS",
-      "HAPPYCALL": "CS",
       "MEASURE": "SALES",
       "DRAWING": "DRAWING",
       "CONFIRM": "SALES",

@@ -15,29 +15,8 @@
       "required_approvals": [
         "CS"
       ],
-      "next_stage": "HAPPYCALL",
-      "notes": "주문은 여러 경로로 접수됨. 접수(A)와 해피콜(B)은 같이 이루어질 수 있음."
-    },
-    "HAPPYCALL": {
-      "code": "B",
-      "title": "해피콜 및 일정 확정",
-      "description": "고객에게 해피콜(전화/채팅)을 진행하여 일정 확정 및 주문 사항을 확인합니다.",
-      "owner_team": "CS",
-      "involved_teams": [
-        "LAHOME",
-        "HAUDD",
-        "SALES"
-      ],
-      "required_approvals": [
-        "CS"
-      ],
       "next_stage": "MEASURE",
-      "tasks": [
-        "실측일 또는 시공일 확정",
-        "주문 사항 확인",
-        "실측팀(영업)에 전달할 특이사항 입력"
-      ],
-      "notes": "접수(A)와 해피콜(B)은 같이 이루어질 수 있음."
+      "notes": "주문은 여러 경로로 접수됨. 접수 후 실측 단계로 진행."
     },
     "MEASURE": {
       "code": "C",

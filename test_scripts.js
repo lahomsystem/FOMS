@@ -671,7 +671,6 @@ __drawingCurrentFilesByOrder[orderId] = Array.isArray(sd.drawing_current_files) 
 // 담당팀: 현재 단계의 담당팀으로 자동 계산
 const STAGE_TO_TEAM = {
 'RECEIVED': 'CS',
-'HAPPYCALL': 'CS',
 'MEASURE': 'SALES',
 'DRAWING': 'DRAWING',
 'CONFIRM': 'SALES',

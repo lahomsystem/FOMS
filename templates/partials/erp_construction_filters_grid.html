@@ -28,7 +28,6 @@
                 <select class="form-select form-select-sm" name="stage">
                   <option value="">단계: 전체</option>
                   <option value="주문접수" {% if filters.get('stage')=='주문접수' %}selected{% endif %}>주문접수</option>
-                  <option value="해피콜" {% if filters.get('stage')=='해피콜' %}selected{% endif %}>해피콜</option>
                   <option value="실측" {% if filters.get('stage')=='실측' %}selected{% endif %}>실측</option>
                   <option value="도면" {% if filters.get('stage')=='도면' %}selected{% endif %}>도면</option>
                   <option value="고객컨펌" {% if filters.get('stage')=='고객컨펌' %}selected{% endif %}>고객컨펌</option>
