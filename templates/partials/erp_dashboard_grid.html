@@ -15,6 +15,8 @@
               <span class="badge bg-primary fs-6 px-3 py-2">표시: <strong>{{ orders|length }}</strong>건</span>
             </div>
           </div>
+          <!-- 스크롤 영역: 일괄 적용 바 sticky가 이 컨테이너 기준으로 동작하도록 함 -->
+          <div class="erp-grid-scroll-wrap">
           {% if can_edit_erp and status_choices is defined %}
           <div id="erp-grid-bulk-bar" class="d-none align-items-center gap-2 mb-2 flex-wrap">
             <span class="text-secondary">선택: <strong id="erp-grid-selected-count">0</strong>건</span>
@@ -368,6 +370,7 @@
                 {% endfor %}
               </tbody>
             </table>
+          </div>
           </div>
         </div>
       </div>
