@@ -291,4 +291,43 @@
                 .finally(() => { applyBtn.disabled = false; });
             });
           })();
+
+          // 실측일/시공일 인라인 편집: 변경 시 확인 후 API 저장 (오입력 방지)
+          var fieldLabelByField = { 'measurement_date': '실측일', 'scheduled_date': '시공일' };
+          document.querySelectorAll('.erp-dashboard-date-input').forEach(function (input) {
+            input.addEventListener('change', function () {
+              var orderId = this.getAttribute('data-order-id');
+              var field = this.getAttribute('data-field');
+              var value = (this.value || '').trim();
+              if (!orderId || !field) return;
+              var prevValue = this.getAttribute('data-prev-value') || '';
+              var label = fieldLabelByField[field] || field;
+              var msg = value
+                ? label + '을(를) ' + value + '(으)로 변경하시겠습니까?'
+                : label + '을(를) 비우시겠습니까?';
+              if (!window.confirm(msg)) {
+                this.value = prevValue || '';
+                return;
+              }
+              fetch('/api/update_order_field', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ order_id: parseInt(orderId, 10), field: field, value: value })
+              })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                  if (data.success) {
+                    input.setAttribute('data-prev-value', value);
+                  } else {
+                    alert(data.message || '저장에 실패했습니다.');
+                    input.value = prevValue || '';
+                  }
+                })
+                .catch(function () {
+                  alert('요청 중 오류가 발생했습니다.');
+                  input.value = prevValue || '';
+                });
+            });
+            input.setAttribute('data-prev-value', input.value || '');
+          });
         });
