@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-03 09:41:10
+> 생성 시각: 2026-03-03 11:18:52
 > 세션: 7608c340
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `docs/plans/2026-03-03-construction-scripts-refactoring-plan.md` <- 1 edit(s), ~17 chars (2026-03-03 09:31:50)
-- `docs/plans/2026-03-03-construction-scripts-refactoring-plan.md` <- 18 edit(s), ~6417 chars (2026-03-03 09:07:44)
-- `commit_msg.txt` <- 1 edit(s), ~175 chars (2026-03-02 22:12:30)
-- `templates/partials/erp_construction_scripts.html` <- 1 edit(s), ~0 chars (2026-03-02 22:10:19)
-- `templates/partials/erp_construction_scripts.html` <- 1 edit(s), ~0 chars (2026-03-02 22:10:16)
-- `templates/partials/erp_construction_scripts.html` <- 1 edit(s), ~0 chars (2026-03-02 22:10:13)
-- `templates/partials/erp_construction_scripts.html` <- 1 edit(s), ~0 chars (2026-03-02 22:10:11)
-- `templates/partials/erp_construction_scripts.html` <- 1 edit(s), ~0 chars (2026-03-02 22:10:07)
-- `templates/partials/erp_construction_scripts.html` <- 1 edit(s), ~0 chars (2026-03-02 22:10:04)
-- `templates/partials/erp_construction_scripts.html` <- 1 edit(s), ~0 chars (2026-03-02 22:10:01)
+- `.git_commit_msg.txt` <- 1 edit(s), ~190 chars (2026-03-03 11:18:27)
+- `templates/partials/erp_dashboard_scripts_dom.html` <- 3 edit(s), ~715 chars (2026-03-03 11:15:47)
+- `docs/plans/2026-03-03-erp-dashboard-measurement-construction-date-inline-edit-VERIFICATION.md` <- 1 edit(s), ~4323 chars (2026-03-03 11:10:17)
+- `docs/plans/2026-03-03-erp-dashboard-measurement-construction-date-inline-edit.md` <- 1 edit(s), ~233 chars (2026-03-03 11:00:40)
+- `templates/partials/erp_dashboard_scripts_dom.html` <- 1 edit(s), ~1459 chars (2026-03-03 10:59:46)
+- `templates/partials/erp_dashboard_grid.html` <- 1 edit(s), ~1153 chars (2026-03-03 10:58:35)
+- `apps/api/orders.py` <- 3 edit(s), ~693 chars (2026-03-03 10:57:44)
+- `apps/api/orders.py` <- 2 edit(s), ~128 chars (2026-03-03 10:57:10)
+- `docs/plans/2026-03-03-erp-dashboard-measurement-construction-date-inline-edit.md` <- 1 edit(s), ~142 chars (2026-03-03 10:22:41)
+- `docs/plans/2026-03-03-erp-dashboard-measurement-construction-date-inline-edit.md` <- 1 edit(s), ~149 chars (2026-03-03 10:22:32)
 
 ### 진행 중이던 작업
 (없음)

@@ -99,3 +99,6 @@
 | 2026-03-03 11:00:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app"` |
 | 2026-03-03 11:18:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
 | 2026-03-03 11:18:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Made-with: Cursor" -F .git_commit_msg.txt` |
+| 2026-03-03 11:18:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add .git_commit_msg.txt; git status` |
+| 2026-03-03 11:19:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F .git_commit_msg2.txt` |
+| 2026-03-03 11:19:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/context/COMPACT_CHECKPOINT.md docs/context/SHELL_GUARD_LOG.md; git status` |
