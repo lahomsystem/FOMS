@@ -5,6 +5,13 @@
 
 ## 최근 파일 편집
 
+- `commit_msg.txt` <- 1 edit(s), ~143 chars (2026-03-04 10:43:32)
+- `apps/erp_construction_page.py` <- 9 edit(s), ~959 chars (2026-03-04 10:38:39)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ed335b13-6715-413a-829b-12efc7b85228.png` <- 1 edit(s), ~0 chars (2026-03-04 10:37:39)
+- `.github/copilot-instructions.md` <- 1 edit(s), ~427 chars (2026-03-04 09:51:04)
+- `AGENTS.md` <- 1 edit(s), ~1129 chars (2026-03-04 09:51:00)
+- `.cursor/rules/01-fix-policy.mdc` <- 1 edit(s), ~804 chars (2026-03-04 09:50:52)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-436ffe07-8dd9-454b-9092-0ddcb811f712.png` <- 1 edit(s), ~0 chars (2026-03-04 09:39:54)
 - `commit_msg.txt` <- 1 edit(s), ~187 chars (2026-03-03 13:51:17)
 - `templates/partials/erp_dashboard_styles.html` <- 1 edit(s), ~298 chars (2026-03-03 13:49:06)
 - `templates/partials/erp_dashboard_grid.html` <- 1 edit(s), ~16 chars (2026-03-03 13:48:59)
@@ -48,10 +55,3 @@
 - `services/erp_policy.py` <- 1 edit(s), ~0 chars (2026-03-03 13:17:25)
 - `constants.py` <- 1 edit(s), ~0 chars (2026-03-03 13:17:23)
 - `erp_build_step_runner.py` <- 1 edit(s), ~0 chars (2026-03-03 13:17:16)
-- `erp_build_step_runner.py` <- 1 edit(s), ~0 chars (2026-03-03 13:17:14)
-- `data/erp_task_templates.json` <- 1 edit(s), ~0 chars (2026-03-03 13:17:10)
-- `data/erp_quest_templates.json` <- 2 edit(s), ~48 chars (2026-03-03 13:17:09)
-- `apps/erp_dashboard.py` <- 1 edit(s), ~0 chars (2026-03-03 13:17:01)
-- `templates/partials/erp_beta_tab.html` <- 1 edit(s), ~0 chars (2026-03-03 13:16:59)
-- `apps/erp_dashboard.py` <- 1 edit(s), ~66 chars (2026-03-03 13:16:59)
-- `templates/partials/erp_construction_filters_grid.html` <- 1 edit(s), ~0 chars (2026-03-03 13:16:56)
