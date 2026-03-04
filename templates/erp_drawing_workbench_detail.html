@@ -1093,7 +1093,7 @@
 <script>
   (function () {
     const _cfg = JSON.parse(document.getElementById('erp-drawing-workbench-config').textContent);
-    const USE_DIRECT_UPLOAD = _cfg.use_direct_upload;
+    var USE_DIRECT_UPLOAD = _cfg.use_direct_upload;
     const orderId = Number(_cfg.order_id);
     const drawingStatus = String(_cfg.drawing_status);
     const drawingFiles = _cfg.drawing_files;
