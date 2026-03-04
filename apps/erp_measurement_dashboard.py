@@ -136,19 +136,11 @@ def erp_measurement_dashboard():
         measurement_any = or_(*measurement_date_conditions) if measurement_date_conditions else Order.measurement_date.is_(None)
         date_conditions = [
             and_(Order.measurement_date.isnot(None), Order.measurement_date != '', measurement_any),
-            and_(Order.received_date >= date_from, Order.received_date <= date_to),
-            and_(Order.scheduled_date >= date_from, Order.scheduled_date <= date_to),
-            and_(Order.completion_date >= date_from, Order.completion_date <= date_to),
-            and_(Order.as_received_date >= date_from, Order.as_received_date <= date_to),
-            and_(Order.as_completed_date >= date_from, Order.as_completed_date <= date_to),
         ]
-        date_conditions.append(
-            and_(
-                Order.is_erp_beta == True,
-                func.cast(Order.received_date, String) >= date_from,
-                func.cast(Order.received_date, String) <= date_to
-            )
-        )
+        
+        erp_beta_date_likes = [cast(Order.structured_data, String).ilike(f'%{d}%') for d in range_dates[:31]]
+        if erp_beta_date_likes:
+            date_conditions.append(and_(Order.is_erp_beta == True, or_(*erp_beta_date_likes)))
         query = query.filter(or_(*date_conditions))
     elif use_single_day:
         try:
@@ -161,25 +153,8 @@ def erp_measurement_dashboard():
 
         date_conditions = [
             and_(Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{selected_date}%')),
-            and_(Order.is_erp_beta == True, cast(Order.structured_data, String).ilike(f'%"measurement_date"%{selected_date}%')),
-            Order.received_date == selected_date,
-            Order.scheduled_date == selected_date,
-            Order.completion_date == selected_date,
-            Order.as_received_date == selected_date,
-            Order.as_completed_date == selected_date
+            and_(Order.is_erp_beta == True, cast(Order.structured_data, String).ilike(f'%{selected_date}%')),
         ]
-        if date_start and date_end:
-            date_start_str = date_start.strftime('%Y-%m-%d')
-            date_end_str = date_end.strftime('%Y-%m-%d')
-            date_conditions.append(
-                and_(
-                    Order.is_erp_beta == True,
-                    func.cast(Order.received_date, String) >= date_start_str,
-                    func.cast(Order.received_date, String) <= date_end_str
-                )
-            )
-        else:
-            date_conditions.append(Order.is_erp_beta == True)
         query = query.filter(or_(*date_conditions))
 
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
@@ -246,9 +221,6 @@ def erp_measurement_dashboard():
             continue
         if use_single_day and selected_date:
             should_include = selected_date in extract_all_measurement_dates(order)
-            if not should_include:
-                if order.received_date == selected_date or order.scheduled_date == selected_date or order.completion_date == selected_date or (getattr(order, 'as_received_date', None) == selected_date) or (getattr(order, 'as_completed_date', None) == selected_date):
-                    should_include = True
             if should_include:
                 rows.append(order)
         elif use_range and date_from and date_to:

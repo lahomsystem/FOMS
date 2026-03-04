@@ -139,3 +139,15 @@
 | 2026-03-04 23:07:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
 | 2026-03-04 23:07:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
 | 2026-03-04 23:08:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status -s` |
+| 2026-03-04 23:10:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
+| 2026-03-04 23:11:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
+| 2026-03-05 08:07:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('OK')"` |
+| 2026-03-05 08:17:24 | allow | `-` | `where pg_dump` |
+| 2026-03-05 08:17:24 | allow | `-` | `Get-ChildItem "C:\Program Files\PostgreSQL" -ErrorAction SilentlyContinue | Select-Object Name` |
+| 2026-03-05 08:17:28 | allow | `-` | `if (Test-Path "C:\Program Files\PostgreSQL") { Get-ChildItem "C:\Program Files\PostgreSQL" } else { Write-Host "PostgreSQL folder not found" }` |
+| 2026-03-05 08:17:29 | allow | `-` | `Get-Command pg_dump -ErrorAction SilentlyContinue | Select-Object Source` |
+| 2026-03-05 08:17:29 | allow | `-` | `$env:Path -split ';' | Where-Object { $_ -like '*postgres*' -or $_ -like '*PostgreSQL*' }` |
+| 2026-03-05 08:17:33 | allow | `-` | `Test-Path "C:\Program Files\PostgreSQL\16\bin\pg_dump.exe"; Test-Path "C:\Program Files\PostgreSQL\15\bin\pg_dump.exe"` |
+| 2026-03-05 08:17:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import os paths = [ r'C:\Program Files\PostgreSQL\16\bin\pg_dump.exe', r'C:\Progra` |
+| 2026-03-05 08:17:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from simple_backup_system import SimpleBackupSystem bs = SimpleBackupSystem() prin` |
+| 2026-03-05 08:17:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:PYTHONIOENCODING="utf-8"; python -c " from simple_backup_system import SimpleBackupSystem` |

@@ -504,12 +504,17 @@ def api_notifications_send():
             'order_id': int(order_id_val) if order_id_val else None,
             'created_by_name': str(user.name or ''),
         }
-        emit_erp_notification_to_users(list(recipient_ids), payload)
+        realtime_sent = emit_erp_notification_to_users(list(recipient_ids), payload)
+
+        msg = f'{len(recipient_ids)}명에게 알림을 발송했습니다.'
+        if realtime_sent < len(recipient_ids) and len(recipient_ids) > 0:
+            msg += f' (실시간 전송: {realtime_sent}명 — 일부는 새로고침 시 확인)'
 
         return jsonify({
             'success': True,
-            'message': f'{len(recipient_ids)}명에게 알림을 발송했습니다.',
+            'message': msg,
             'sent_count': len(recipient_ids),
+            'realtime_sent': realtime_sent,
         })
     except Exception as e:
         import traceback
