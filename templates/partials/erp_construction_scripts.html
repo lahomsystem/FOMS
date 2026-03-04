@@ -743,10 +743,14 @@
       if (statusEl) statusEl.textContent = '사진 업로드 없이 상태 변경 중...';
     }
 
+    const noteEl = document.getElementById('erp-cons-complete-note');
+    const noteValue = (noteEl && noteEl.value) ? String(noteEl.value).trim() : '';
+
     try {
       const res = await fetch(`/api/orders/${orderId}/construction/complete`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completion_note: noteValue })
       });
       const data = await res.json();
       if (data.success) {

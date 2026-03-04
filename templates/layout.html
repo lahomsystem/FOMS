@@ -14,6 +14,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style-pro-max.css') }}">
     <!-- ERP Pro Dashboard Styles (Modern SaaS Design System) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/erp-pro.css') }}">
+    <!-- Flatpickr (다중 실측일/시공일 선택) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <style>
         .skip-link {
             position: absolute;
@@ -2304,6 +2306,9 @@
             });
         })();
     </script>
+    <!-- Flatpickr JS + 한국어 locale (다중 실측일/시공일) -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js"></script>
 </body>
 
 </html>

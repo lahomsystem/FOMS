@@ -65,6 +65,27 @@ def _get_order_construction_date(order):
     return date_value
 
 
+def extract_all_construction_dates(order):
+    """주문에서 대표 시공일 + 항목별 시공일을 모두 추출 (CSV 및 JSON 항목 지원)."""
+    dates = set()
+    base_date = _get_order_construction_date(order)
+    if base_date:
+        for d in str(base_date).split(','):
+            if d.strip():
+                dates.add(d.strip())
+    if getattr(order, 'is_erp_beta', False) and getattr(order, 'structured_data', None):
+        sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+        for it in sd.get('items') or []:
+            if not isinstance(it, dict):
+                continue
+            date_val = it.get('construction_date')
+            if date_val:
+                for d in str(date_val).split(','):
+                    if d.strip():
+                        dates.add(d.strip())
+    return dates
+
+
 def _get_order_spec_units(order):
     """주문의 spec_w300 단위 합산. 항목별 W합/300 (spec_rows 있으면 W 합산 후 /300)."""
     if not order.is_erp_beta or not order.structured_data:
@@ -165,30 +186,29 @@ def erp_shipment_dashboard():
     assigned_workers_by_date = {}
     spec_units_by_date = {}
     for order in panel_orders:
-        date_value = _get_order_construction_date(order)
-        if not date_value:
-            continue
-        try:
-            d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
-        except Exception:
-            continue
-        if d < range_start or d > range_end:
-            continue
-        key = d.strftime('%Y-%m-%d')
-        construction_counts[key] = construction_counts.get(key, 0) + 1
-
-        shipment = {}
-        if order.structured_data and isinstance(order.structured_data, dict):  # type: ignore
-            shipment = (order.structured_data.get('shipment') or {})
-        workers = shipment.get('construction_workers') or []
-        for w in workers:
-            name_key = _normalize_worker_name(w)
-            if not name_key:
+        all_dates = extract_all_construction_dates(order)
+        for date_value in all_dates:
+            try:
+                d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
+            except Exception:
                 continue
-            if name_key in worker_name_map:
-                assigned_workers_by_date.setdefault(key, set()).add(name_key)
+            if d < range_start or d > range_end:
+                continue
+            key = d.strftime('%Y-%m-%d')
+            construction_counts[key] = construction_counts.get(key, 0) + 1
 
-        spec_units_by_date[key] = spec_units_by_date.get(key, 0.0) + _get_order_spec_units(order)
+            shipment = {}
+            if order.structured_data and isinstance(order.structured_data, dict):  # type: ignore
+                shipment = (order.structured_data.get('shipment') or {})
+            workers = shipment.get('construction_workers') or []
+            for w in workers:
+                name_key = _normalize_worker_name(w)
+                if not name_key:
+                    continue
+                if name_key in worker_name_map:
+                    assigned_workers_by_date.setdefault(key, set()).add(name_key)
+
+            spec_units_by_date[key] = spec_units_by_date.get(key, 0.0) + _get_order_spec_units(order)
 
     construction_panel_dates = []
     current = range_start
@@ -258,11 +278,14 @@ def erp_shipment_dashboard():
         ).order_by(Order.id.desc()).limit(1500).all()
         rows = []
         for order in all_candidates:
-            date_value = _get_order_construction_date(order)
-            if not date_value:
-                continue
-            if date_from <= date_value <= date_to:
-                rows.append(order)
+            all_dates = extract_all_construction_dates(order)
+            for date_value in all_dates:
+                try:
+                    if date_from <= date_value <= date_to:
+                        rows.append(order)
+                        break
+                except Exception:
+                    pass
     elif use_single_day:
         date_keyword = f'"{selected_date}"'
         all_candidates = base_query.filter(
@@ -271,6 +294,7 @@ def erp_shipment_dashboard():
                     Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
                     or_(
                         Order.scheduled_date == selected_date,
+                        Order.scheduled_date.ilike(f'%{selected_date}%'),
                         Order.as_received_date == selected_date,
                         Order.as_completed_date == selected_date
                     )
@@ -278,36 +302,22 @@ def erp_shipment_dashboard():
                 and_(
                     Order.is_erp_beta == False,
                     Order.status.notin_(['AS_RECEIVED', 'AS_COMPLETED']),
-                    Order.scheduled_date == selected_date
+                    or_(Order.scheduled_date == selected_date, Order.scheduled_date.ilike(f'%{selected_date}%'))
                 ),
                 and_(
                     Order.is_erp_beta == True,
                     or_(
                         Order.scheduled_date == selected_date,
-                        cast(Order.structured_data, String).like(f'%{date_keyword}%')
+                        Order.scheduled_date.ilike(f'%{selected_date}%'),
+                        cast(Order.structured_data, String).like(f'%{date_keyword}%'),
+                        cast(Order.structured_data, String).ilike(f'%{selected_date}%')
                     )
                 )
             )
         ).order_by(Order.id.desc()).all()
         rows = []
         for order in all_candidates:
-            match = False
-            if order.status in ('AS_RECEIVED', 'AS_COMPLETED'):
-                if (order.scheduled_date and str(order.scheduled_date) == selected_date) or \
-                   (order.as_received_date and str(order.as_received_date) == selected_date) or \
-                   (order.as_completed_date and str(order.as_completed_date) == selected_date):  # type: ignore
-                    match = True
-            if not match and order.is_erp_beta:  # type: ignore
-                sd = order.structured_data or {}
-                cons = (sd.get('schedule') or {}).get('construction') or {}
-                if cons.get('date') and str(cons.get('date')) == selected_date:
-                    match = True
-                if not match and order.scheduled_date and str(order.scheduled_date) == selected_date:  # type: ignore
-                    match = True
-            if not match and not order.is_erp_beta and order.status not in ('AS_RECEIVED', 'AS_COMPLETED'):  # type: ignore
-                if order.scheduled_date and str(order.scheduled_date) == selected_date:  # type: ignore
-                    match = True
-            if match:
+            if selected_date in extract_all_construction_dates(order):
                 rows.append(order)
     else:
         # 전체 기간: 날짜 필터 없음 (검색어만)

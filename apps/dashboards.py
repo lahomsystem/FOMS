@@ -136,41 +136,86 @@ def metropolitan_dashboard():
         ))
 
     base_query = db.query(Order).filter(Order.is_regional == False)
+    today_str = date.today().strftime('%Y-%m-%d')
 
-    urgent_alerts = get_filtered_orders(base_query.filter(
+    def _measurement_dates_include_today(order):
+        if not getattr(order, 'measurement_date', None):
+            return False
+        for d in str(order.measurement_date).split(','):
+            try:
+                if d.strip() == today_str:
+                    return True
+            except Exception:
+                pass
+        return False
+
+    def _measurement_dates_any_lt_today(order):
+        if not getattr(order, 'measurement_date', None):
+            return False
+        for d in str(order.measurement_date).split(','):
+            try:
+                if d.strip() and datetime.datetime.strptime(d.strip(), '%Y-%m-%d').date() < date.today():
+                    return True
+            except Exception:
+                pass
+        return False
+
+    def _measurement_dates_any_gt_today(order):
+        if not getattr(order, 'measurement_date', None):
+            return False
+        for d in str(order.measurement_date).split(','):
+            try:
+                if d.strip() and datetime.datetime.strptime(d.strip(), '%Y-%m-%d').date() > date.today():
+                    return True
+            except Exception:
+                pass
+        return False
+
+    def _scheduled_dates_any_lt_today(order):
+        if not getattr(order, 'scheduled_date', None):
+            return False
+        for d in str(order.scheduled_date).split(','):
+            try:
+                if d.strip() and datetime.datetime.strptime(d.strip(), '%Y-%m-%d').date() < date.today():
+                    return True
+            except Exception:
+                pass
+        return False
+
+    urgent_candidates = get_filtered_orders(base_query.filter(
         Order.status.in_(['MEASURED']),
         Order.measurement_date != None,
-        Order.measurement_date != '',
-        func.date(Order.measurement_date) == date.today()
+        Order.measurement_date != ''
     )).order_by(Order.measurement_date.asc()).all()
+    urgent_alerts = [o for o in urgent_candidates if _measurement_dates_include_today(o)]
 
-    measurement_alerts = get_filtered_orders(base_query.filter(
+    measurement_candidates = get_filtered_orders(base_query.filter(
         Order.status.in_(['MEASURED']),
         Order.measurement_date != None,
         Order.measurement_date != '',
-        func.date(Order.measurement_date) < date.today(),
         or_(Order.scheduled_date == None, Order.scheduled_date == '')
     )).order_by(Order.measurement_date.asc()).all()
+    measurement_alerts = [o for o in measurement_candidates if _measurement_dates_any_lt_today(o)]
 
-    pre_measurement_alerts = get_filtered_orders(base_query.filter(or_(
+    pre_candidates = get_filtered_orders(base_query.filter(or_(
         and_(
             Order.status.in_(['RECEIVED', 'MEASURED']),
             Order.measurement_date != None,
-            Order.measurement_date != '',
-            func.date(Order.measurement_date) > date.today()
+            Order.measurement_date != ''
         ),
         and_(
             Order.status == 'RECEIVED',
             or_(Order.measurement_date == None, Order.measurement_date == '')
         )
     ))).order_by(Order.measurement_date.asc()).all()
+    pre_measurement_alerts = [o for o in pre_candidates if not getattr(o, 'measurement_date', None) or getattr(o, 'measurement_date', '') == '' or _measurement_dates_any_gt_today(o)]
 
-    installation_alerts = get_filtered_orders(base_query.filter(
+    installation_candidates = get_filtered_orders(base_query.filter(
         Order.status.in_(['SCHEDULED', 'SHIPPED_PENDING']),
         Order.scheduled_date != None,
-        Order.scheduled_date != '',
-        func.date(Order.scheduled_date) < date.today()
+        Order.scheduled_date != ''
     )).order_by(Order.scheduled_date.asc()).all()
+    installation_alerts = [o for o in installation_candidates if _scheduled_dates_any_lt_today(o)]
 
     alert_ids = {o.id for o in urgent_alerts + measurement_alerts + pre_measurement_alerts + installation_alerts}
 

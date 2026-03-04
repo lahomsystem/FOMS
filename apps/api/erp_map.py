@@ -96,9 +96,9 @@ def api_map_data():
                 date_end = None
 
             date_conditions = [
-                Order.measurement_date == date_filter,
+                and_(Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{date_filter}%')),
                 Order.received_date == date_filter,
-                Order.scheduled_date == date_filter,
+                and_(Order.scheduled_date.isnot(None), Order.scheduled_date != '', Order.scheduled_date.ilike(f'%{date_filter}%')),
                 Order.completion_date == date_filter,
                 Order.as_received_date == date_filter,
                 Order.as_completed_date == date_filter
@@ -122,23 +122,26 @@ def api_map_data():
         orders = query.order_by(Order.id.desc()).limit(scan_limit).all()
 
         if date_filter:
-            filtered_orders = []
-            for order in orders:
-                should_include = False
-                if order.is_erp_beta and order.structured_data:
-                    sd = order.structured_data
-                    erp_measurement_date = (((sd.get('schedule') or {}).get('measurement') or {}).get('date'))
-                    if erp_measurement_date and str(erp_measurement_date) == date_filter:
-                        should_include = True
-                    elif order.measurement_date and str(order.measurement_date) == date_filter:
-                        should_include = True
-                else:
-                    if order.measurement_date and str(order.measurement_date) == date_filter:
-                        should_include = True
-
-                if should_include:
-                    filtered_orders.append(order)
-            orders = filtered_orders[:limit]
+            def _order_has_date(o, d):
+                s = set()
+                if getattr(o, 'measurement_date', None):
+                    for x in str(o.measurement_date).split(','):
+                        if x.strip():
+                            s.add(x.strip())
+                if getattr(o, 'scheduled_date', None):
+                    for x in str(o.scheduled_date).split(','):
+                        if x.strip():
+                            s.add(x.strip())
+                if getattr(o, 'is_erp_beta', False) and isinstance(getattr(o, 'structured_data', None), dict):
+                    sd = o.structured_data
+                    for path, key in [((sd.get('schedule') or {}).get('measurement') or {}, 'date'), ((sd.get('schedule') or {}).get('construction') or {}, 'date')]:
+                        v = path.get(key) if isinstance(path, dict) else None
+                        if v:
+                            for x in str(v).split(','):
+                                if x.strip():
+                                    s.add(x.strip())
+                return d in s
+            orders = [o for o in orders if _order_has_date(o, date_filter)][:limit]
 
         map_data = []
         skipped_no_coords = 0
@@ -263,9 +266,9 @@ def api_generate_map():
                 date_end = None
 
             date_conditions = [
-                Order.measurement_date == date_filter,
+                and_(Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{date_filter}%')),
                 Order.received_date == date_filter,
-                Order.scheduled_date == date_filter,
+                and_(Order.scheduled_date.isnot(None), Order.scheduled_date != '', Order.scheduled_date.ilike(f'%{date_filter}%')),
                 Order.completion_date == date_filter,
                 Order.as_received_date == date_filter,
                 Order.as_completed_date == date_filter
@@ -292,23 +295,26 @@ def api_generate_map():
         orders = query.order_by(Order.id.desc()).limit(fetch_limit).all()
 
         if date_filter:
-            filtered_orders = []
-            for order in orders:
-                should_include = False
-                if order.is_erp_beta and order.structured_data:
-                    sd = order.structured_data
-                    erp_measurement_date = (((sd.get('schedule') or {}).get('measurement') or {}).get('date'))
-                    if erp_measurement_date and str(erp_measurement_date) == date_filter:
-                        should_include = True
-                    elif order.measurement_date and str(order.measurement_date) == date_filter:
-                        should_include = True
-                else:
-                    if order.measurement_date and str(order.measurement_date) == date_filter:
-                        should_include = True
-
-                if should_include:
-                    filtered_orders.append(order)
-            orders = filtered_orders[:limit]
+            def _order_has_date_fetch(o, d):
+                s = set()
+                if getattr(o, 'measurement_date', None):
+                    for x in str(o.measurement_date).split(','):
+                        if x.strip():
+                            s.add(x.strip())
+                if getattr(o, 'scheduled_date', None):
+                    for x in str(o.scheduled_date).split(','):
+                        if x.strip():
+                            s.add(x.strip())
+                if getattr(o, 'is_erp_beta', False) and isinstance(getattr(o, 'structured_data', None), dict):
+                    sd = o.structured_data
+                    for path, key in [((sd.get('schedule') or {}).get('measurement') or {}, 'date'), ((sd.get('schedule') or {}).get('construction') or {}, 'date')]:
+                        v = path.get(key) if isinstance(path, dict) else None
+                        if v:
+                            for x in str(v).split(','):
+                                if x.strip():
+                                    s.add(x.strip())
+                return d in s
+            orders = [o for o in orders if _order_has_date_fetch(o, date_filter)][:limit]
 
         map_data = []
         orders_list = []

@@ -75,19 +75,24 @@ def api_construction_complete(order_id):
         user_id = session.get('user_id')
         user = get_user_by_id(user_id)
 
+        payload = request.get_json(silent=True) or {}
+        completion_note = (payload.get('completion_note') or '').strip()
+
         sd = _ensure_dict(order.structured_data)
         wf = sd.get('workflow') or {}
 
         wf['stage'] = 'COMPLETED'
         wf['stage_updated_at'] = datetime.datetime.now().isoformat()
         wf['stage_updated_by'] = user.name if user else 'Unknown'
+        wf['completion_note'] = completion_note
 
+        note_suffix = (' | 코멘트: ' + completion_note[:100]) if completion_note else ''
         hist = wf.get('history') or []
         hist.append({
             'stage': 'COMPLETED',
             'updated_at': wf['stage_updated_at'],
             'updated_by': wf['stage_updated_by'],
-            'note': '시공 완료 → 완료'
+            'note': '시공 완료 → 완료' + note_suffix
         })
         wf['history'] = hist
         sd['workflow'] = wf

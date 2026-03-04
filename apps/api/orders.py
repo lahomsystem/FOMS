@@ -313,7 +313,22 @@ def api_orders():
         query = query.filter(
             or_(
                 Order.received_date.between(start_date_only, end_date_only),
-                Order.measurement_date.between(start_date_only, end_date_only)
+                and_(
+                    Order.measurement_date.isnot(None),
+                    Order.measurement_date != '',
+                    or_(
+                        Order.measurement_date.ilike(f'%{start_date_only}%'),
+                        Order.measurement_date.ilike(f'%{end_date_only}%')
+                    )
+                ),
+                and_(
+                    Order.scheduled_date.isnot(None),
+                    Order.scheduled_date != '',
+                    or_(
+                        Order.scheduled_date.ilike(f'%{start_date_only}%'),
+                        Order.scheduled_date.ilike(f'%{end_date_only}%')
+                    )
+                )
             )
         )
 
@@ -384,6 +399,10 @@ def api_orders():
         if not start_date_val:
             continue
 
+        start_dates_list = [s.strip() for s in str(start_date_val).split(',') if s.strip() and len(s.strip()) == 10]
+        if not start_dates_list:
+            start_dates_list = [str(start_date_val).strip()] if str(start_date_val).strip() else []
+
         _status = getattr(order, 'status', None) or ''
         status_time_map = {
             'RECEIVED': getattr(order, 'received_time', None), 'MEASURED': measurement_time,
@@ -392,37 +411,38 @@ def api_orders():
         }
         time_str = status_time_map.get(_status)
 
-        if _status == 'MEASURED' and measurement_time in ['종일', '오전', '오후']:
-            start_datetime = start_date_val
-            all_day = True
-        elif time_str:
-            start_datetime = f"{start_date_val}T{time_str}:00"
-            all_day = False
-        else:
-            start_datetime = start_date_val
-            all_day = True
-
         color = status_colors.get(_status, '#3788d8')
         title = f"{customer_name} | {phone} | {product}"
+        ext = {
+            'customer_name': customer_name, 'phone': phone, 'address': address,
+            'product': product, 'options': getattr(order, 'options', None), 'notes': getattr(order, 'notes', None),
+            'status': _status, 'received_date': getattr(order, 'received_date', None),
+            'received_time': getattr(order, 'received_time', None),
+            'measurement_date': measurement_date, 'measurement_time': measurement_time,
+            'completion_date': getattr(order, 'completion_date', None), 'scheduled_date': scheduled_date,
+            'as_received_date': getattr(order, 'as_received_date', None), 'as_completed_date': getattr(order, 'as_completed_date', None),
+            'manager_name': getattr(order, 'manager_name', None)
+        }
 
-        events.append({
-            'id': order.id,
-            'title': title,
-            'start': start_datetime,
-            'allDay': all_day,
-            'backgroundColor': color,
-            'borderColor': color,
-            'extendedProps': {
-                'customer_name': customer_name, 'phone': phone, 'address': address,
-                'product': product, 'options': getattr(order, 'options', None), 'notes': getattr(order, 'notes', None),
-                'status': _status, 'received_date': getattr(order, 'received_date', None),
-                'received_time': getattr(order, 'received_time', None),
-                'measurement_date': measurement_date, 'measurement_time': measurement_time,
-                'completion_date': getattr(order, 'completion_date', None), 'scheduled_date': scheduled_date,
-                'as_received_date': getattr(order, 'as_received_date', None), 'as_completed_date': getattr(order, 'as_completed_date', None),
-                'manager_name': getattr(order, 'manager_name', None)
-            }
-        })
+        for idx, one_date in enumerate(start_dates_list):
+            if _status == 'MEASURED' and measurement_time in ['종일', '오전', '오후']:
+                start_datetime = one_date
+                all_day = True
+            elif time_str:
+                start_datetime = f"{one_date}T{time_str}:00"
+                all_day = False
+            else:
+                start_datetime = one_date
+                all_day = True
+            events.append({
+                'id': f"{order.id}-{idx}-{one_date}" if len(start_dates_list) > 1 else order.id,
+                'title': title,
+                'start': start_datetime,
+                'allDay': all_day,
+                'backgroundColor': color,
+                'borderColor': color,
+                'extendedProps': ext
+            })
 
     return jsonify(events)
 

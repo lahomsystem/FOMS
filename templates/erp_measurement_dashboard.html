@@ -498,7 +498,12 @@
                     style="border-right: 1px solid #e0e0e0;">{{ address or '-' }}</td>
                   <td class="editable-cell" data-field="phone" data-label="전화번호" style="border-right: 1px solid #e0e0e0;">{{
                     phone|format_phone }}</td>
-                  <td class="measurement-date-cell" data-label="실측일" style="border-right: 1px solid #e0e0e0; white-space: nowrap;">{{ meas_date or '-' }}</td>
+                  <td class="measurement-date-cell" data-label="실측일" style="border-right: 1px solid #e0e0e0; white-space: nowrap;">
+                    {% set _date_str = (meas_date or '') %}
+                    {% set _parts = (_date_str.split(',')|map('trim')|list)|select|list %}
+                    {% for _d in _parts %}<span class="badge bg-secondary me-1">{{ _d }}</span>{% endfor %}
+                    {% if not _parts %}-{% endif %}
+                  </td>
                   <td data-label="시간" style="border-right: 1px solid #e0e0e0;">{{ meas_time or '-' }}</td>
                   <td class="cell-wrap measurement-product-cell" data-label="제품" style="border-right: 1px solid #e0e0e0;">{{ (product or
                     '-')|strip_product_w or '-' }}</td>
