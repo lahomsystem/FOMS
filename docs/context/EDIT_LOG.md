@@ -5,6 +5,12 @@
 
 ## 최근 파일 편집
 
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e94d5310-7a3e-4ca8-a9ea-f7d8169b3ed8.png` <- 1 edit(s), ~0 chars (2026-03-05 08:09:58)
+- `docs/DEPLOY_NOTES.md` <- 1 edit(s), ~110 chars (2026-03-05 08:07:17)
+- `docs/context/INCIDENT_URGENT_NOTIFICATION_NOT_DELIVERED_2026-03-04.md` <- 1 edit(s), ~2488 chars (2026-03-05 08:07:15)
+- `apps/api/notifications.py` <- 4 edit(s), ~347 chars (2026-03-05 08:07:00)
+- `app.py` <- 1 edit(s), ~211 chars (2026-03-05 08:06:59)
+- `services/realtime_notifications.py` <- 5 edit(s), ~354 chars (2026-03-05 08:06:57)
 - `commit_msg.txt` <- 1 edit(s), ~217 chars (2026-03-04 23:08:08)
 - `docs/plans/2026-03-04-self-measurement-connection-GDM-AUDIT.md` <- 1 edit(s), ~2187 chars (2026-03-04 23:06:00)
 - `docs/plans/2026-03-04-self-measurement-connection-GDM-AUDIT.md` <- 1 edit(s), ~300 chars (2026-03-04 23:05:14)
@@ -49,9 +55,3 @@
 - `templates/partials/erp_construction_filters_grid.html` <- 1 edit(s), ~218 chars (2026-03-04 22:25:36)
 - `templates/erp_measurement_dashboard.html` <- 1 edit(s), ~234 chars (2026-03-04 22:25:34)
 - `apps/erp_construction_page.py` <- 1 edit(s), ~43 chars (2026-03-04 22:25:25)
-- `apps/erp_construction_page.py` <- 1 edit(s), ~469 chars (2026-03-04 22:25:22)
-- `apps/erp_construction_page.py` <- 1 edit(s), ~469 chars (2026-03-04 22:25:18)
-- `apps/erp_measurement_dashboard.py` <- 1 edit(s), ~492 chars (2026-03-04 22:25:08)
-- `apps/erp_measurement_dashboard.py` <- 1 edit(s), ~499 chars (2026-03-04 22:25:05)
-- `apps/erp_measurement_dashboard.py` <- 2 edit(s), ~295 chars (2026-03-04 22:25:03)
-- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~109 chars (2026-03-04 22:24:35)

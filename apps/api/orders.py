@@ -220,13 +220,29 @@ def api_orders_nearby():
                     group4.append(item)
         
         # 3. 후보군 병합 (반환 개수만큼만 사용 → 지오코딩/경로 호출 최소화)
-        group1.sort(key=lambda x: x['date'] or '9999-99-99')
-        group2.sort(key=lambda x: x['date'] or '9999-99-99')
-        group3.sort(key=lambda x: x['date'] or '9999-99-99')
+        # GDM 핵심 수정: 이전에는 group1, 2, 3을 그저 "날짜"순으로 정렬해서
+        # 화성시 내에서도 엉뚱하게 먼 곳이 먼저 뽑히는 문제가 있었습니다.
+        # 지오코딩 횟수 제한 때문에 5건만 자를 때, 주소가 최대한 똑같은(score가 높은) 건을
+        # 최우선으로 앞쪽에 배치해야 진짜 근처 일정이 후보에 들어갑니다.
+        group1.sort(key=lambda x: (-x['score'], x['date'] or '9999-99-99'))
+        group2.sort(key=lambda x: (-x['score'], x['date'] or '9999-99-99'))
+        group3.sort(key=lambda x: (-x['score'], x['date'] or '9999-99-99'))
         group4.sort(key=lambda x: (-x['score'], x['date'] or '9999-99-99'))
         
+        # 합친 후에도 전체 스코어 기준으로 한번 더 정렬해서 높은 유사도 주소를 우선 뽑습니다.
+        all_candidates = group1 + group2 + group3 + group4
+        # 중복 제거 (여러 그룹에 속할 수 있음)
+        seen_ids = set()
+        unique_candidates = []
+        for c in all_candidates:
+            if c['id'] not in seen_ids:
+                seen_ids.add(c['id'])
+                unique_candidates.append(c)
+                
+        unique_candidates.sort(key=lambda x: (-x['score'], x['date'] or '9999-99-99'))
+        
         max_candidates = 5  # 최종 5건만 반환하므로 후보도 5건만 거리 계산
-        final_candidates = (group1 + group2 + group3 + group4)[:max_candidates]
+        final_candidates = unique_candidates[:max_candidates]
         
         if start_lat and start_lng and final_candidates:
             # 4-1. 목적지 좌표 변환 (병렬)

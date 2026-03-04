@@ -378,7 +378,10 @@ if _socketio_available:
             )
             print(f"[INFO] Socket.IO initialized in {mode} mode with Redis.")
         else:
-            print("[WARN] REDIS_URL not found. Socket.IO running in single-worker mode (Memory).")
+            print(
+                "[WARN] REDIS_URL not found. Socket.IO running in single-worker mode (Memory). "
+                "Procfile -w 2 사용 시 실시간 알림이 일부 사용자에게 미전달될 수 있음. REDIS_URL 설정 권장."
+            )
             socketio = _SocketIO(
                 app,
                 **socketio_kwargs,
