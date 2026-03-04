@@ -840,6 +840,12 @@
         console.log('[Global Socket.IO] ⚠️ current_user가 없어 Socket.IO를 초기화하지 않습니다.');
     </script>
     {% endif %}
+    <script>
+        // 전역 업로드 환경설정 (Context Processor에 의해 주입된 값을 JS로 노출)
+        // 이 변수가 true여야 각 대시보드의 JS가 "빠른 병렬 Direct Upload (Phase D)" 로직을 수행합니다.
+        window.USE_DIRECT_UPLOAD = {{ 'true' if use_direct_upload else 'false' }};
+        var USE_DIRECT_UPLOAD = window.USE_DIRECT_UPLOAD;
+    </script>
 </head>
 
 <body
