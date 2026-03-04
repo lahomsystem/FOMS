@@ -19,6 +19,19 @@ def get_today_kst():
         return datetime.date.today()
 
 
+def self_measurement_four_checks_done(order):
+    """자가실측 주문의 4개 필수 체크(실측완료·영업발주 업로드·도면 발송·발주 업로드)가 모두 완료되었는지 반환.
+    비자가실측 주문은 False. 실측 대시보드 제외/시공 대시보드 포함 판단에 사용."""
+    if not getattr(order, 'is_self_measurement', False):
+        return False
+    return (
+        getattr(order, 'measurement_completed', False)
+        and getattr(order, 'regional_sales_order_upload', False)
+        and getattr(order, 'regional_blueprint_sent', False)
+        and getattr(order, 'regional_order_upload', False)
+    )
+
+
 def _ensure_dict(data):
     """JSONB 필드가 문자열로 오인될 경우를 대비해 딕셔너리로 확실히 변환"""
     if not data:

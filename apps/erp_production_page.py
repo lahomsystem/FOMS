@@ -131,6 +131,7 @@ def erp_production_dashboard():
         enriched.append({
             'id': o.id,
             'is_erp_beta': o.is_erp_beta,
+            'is_self_measurement': getattr(o, 'is_self_measurement', False),
             'structured_data': sd,
             'customer_name': (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-',
             'address': (((sd.get('site') or {}).get('address_full')) or ((sd.get('site') or {}).get('address_main'))) or '-',

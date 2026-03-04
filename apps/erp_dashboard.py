@@ -230,6 +230,7 @@ def erp_dashboard():
         enriched.append({
             'id': o.id,
             'is_erp_beta': o.is_erp_beta,
+            'is_self_measurement': getattr(o, 'is_self_measurement', False),
             'structured_data': sd,
             'customer_name': (parties.get('customer') or {}).get('name') or '-',
             'phone': (parties.get('customer') or {}).get('phone') or '-',

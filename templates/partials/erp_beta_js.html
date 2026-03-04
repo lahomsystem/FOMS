@@ -467,6 +467,8 @@
         if (erpNotesEl) erpNotesEl.value = data.notes || '';
         document.getElementById('erp-urgent-flag').checked = !!sd?.flags?.urgent;
         document.getElementById('erp-urgent-reason').value = sd?.flags?.urgent_reason || '';
+        const selfMeasEl = document.getElementById('erp-self-measurement');
+        if (selfMeasEl) selfMeasEl.checked = !!data.is_self_measurement;
         // 주소 로드: 주소+상세주소는 한 필드(erp-address)에 함께 표기
         const site = sd?.site || {};
         const addressFull = site.address_full || site.address_main || '';
@@ -690,7 +692,8 @@
                     structured_confidence: structured_data.confidence,
                     received_date: received_date || undefined,
                     received_time: received_time || undefined,
-                    notes: notesVal || undefined
+                    notes: notesVal || undefined,
+                    is_self_measurement: document.getElementById('erp-self-measurement')?.checked === true
                 })
             });
             const data = await res.json();

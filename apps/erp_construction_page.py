@@ -16,6 +16,7 @@ from services.erp_display import (
     _erp_get_stage,
     _erp_has_media,
     _erp_alerts,
+    self_measurement_four_checks_done,
 )
 
 
@@ -86,6 +87,8 @@ def erp_construction_dashboard():
 
     # 1) 타일 건수: 필터 없이 전체 주문 기준으로 항상 집계 (각 타일 클릭 없이도 건수 표시)
     for o in orders:
+        if getattr(o, 'is_self_measurement', False) and not self_measurement_four_checks_done(o):
+            continue
         sd = _ensure_dict(o.structured_data)
         display_stage = _display_stage_for_order(o, sd)
         if not display_stage or display_stage not in step_stats:
@@ -98,6 +101,8 @@ def erp_construction_dashboard():
     # 2) 목록: f_stage / f_q 적용하여 표시할 주문만 enriched에 추가
     enriched = []
     for o in orders:
+        if getattr(o, 'is_self_measurement', False) and not self_measurement_four_checks_done(o):
+            continue
         sd = _ensure_dict(o.structured_data)
         display_stage = _display_stage_for_order(o, sd)
         if not display_stage:
@@ -114,10 +119,12 @@ def erp_construction_dashboard():
                 continue
 
         alerts = _erp_alerts(o, sd, att_counts.get(o.id, 0))
+        is_self = getattr(o, 'is_self_measurement', False)
 
         enriched.append({
             'id': o.id,
             'is_erp_beta': o.is_erp_beta,
+            'is_self_measurement': is_self,
             'structured_data': sd,
             'customer_name': (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-',
             'address': (((sd.get('site') or {}).get('address_full')) or ((sd.get('site') or {}).get('address_main'))) or '-',

@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-04 13:03:33
-> 세션: 7608c340
+> 생성 시각: 2026-03-04 22:41:55
+> 세션: 38de1484
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `docs/plans/2026-03-04-multiple-dates-AUDIT.md` <- 1 edit(s), ~8108 chars (2026-03-04 13:03:31)
-- `templates/partials/erp_dashboard_grid.html` <- 2 edit(s), ~617 chars (2026-03-04 12:58:22)
-- `templates/partials/erp_production_filters_grid.html` <- 1 edit(s), ~872 chars (2026-03-04 12:58:22)
-- `templates/partials/erp_construction_filters_grid.html` <- 1 edit(s), ~872 chars (2026-03-04 12:58:04)
-- `templates/erp_measurement_dashboard.html` <- 1 edit(s), ~250 chars (2026-03-04 12:58:04)
-- `templates/erp_measurement_dashboard.html` <- 3 edit(s), ~443 chars (2026-03-04 12:57:50)
-- `templates/erp_measurement_dashboard.html` <- 1 edit(s), ~689 chars (2026-03-04 12:57:37)
-- `apps/api/erp_measurement.py` <- 1 edit(s), ~32 chars (2026-03-04 12:56:52)
-- `apps/api/erp_measurement.py` <- 2 edit(s), ~997 chars (2026-03-04 12:56:47)
-- `apps/api/erp_measurement.py` <- 1 edit(s), ~291 chars (2026-03-04 12:56:39)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b97714d0-5337-4477-820c-971f04f34ede.png` <- 1 edit(s), ~0 chars (2026-03-04 22:40:53)
+- `docs/plans/2026-03-04-self-measurement-connection-GDM-AUDIT.md` <- 1 edit(s), ~820 chars (2026-03-04 22:38:50)
+- `templates/partials/erp_construction_filters_grid.html` <- 1 edit(s), ~83 chars (2026-03-04 22:38:36)
+- `templates/erp_measurement_dashboard.html` <- 1 edit(s), ~67 chars (2026-03-04 22:38:33)
+- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~134 chars (2026-03-04 22:35:49)
+- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~22 chars (2026-03-04 22:35:42)
+- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~341 chars (2026-03-04 22:35:37)
+- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~68 chars (2026-03-04 22:35:35)
+- `apps/api/erp_orders_structured.py` <- 2 edit(s), ~113 chars (2026-03-04 22:35:34)
+- `apps/api/erp_orders_structured.py` <- 5 edit(s), ~376 chars (2026-03-04 22:35:31)
 
 ### 진행 중이던 작업
 (없음)

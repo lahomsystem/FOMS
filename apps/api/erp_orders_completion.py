@@ -113,6 +113,7 @@ def api_orders_completion():
             result.append({
                 'id': o.id,
                 'status': o.status,
+                'is_self_measurement': getattr(o, 'is_self_measurement', False),
                 'construction_date': construction_date,
                 'customer_name': customer_name,
                 'manager_name': manager_name,

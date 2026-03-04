@@ -128,6 +128,7 @@ def erp_drawing_workbench_dashboard():
 
         rows.append({
             'id': o.id,
+            'is_self_measurement': getattr(o, 'is_self_measurement', False),
             'customer_name': customer_name,
             'manager_name': manager_name,
             'assignee_text': assignee_text,
