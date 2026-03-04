@@ -840,12 +840,9 @@
         console.log('[Global Socket.IO] ⚠️ current_user가 없어 Socket.IO를 초기화하지 않습니다.');
     </script>
     {% endif %}
-    <script>
-        // 전역 업로드 환경설정 (Context Processor에 의해 주입된 값을 JS로 노출)
-        // 이 변수가 true여야 각 대시보드의 JS가 "빠른 병렬 Direct Upload (Phase D)" 로직을 수행합니다.
-        window.USE_DIRECT_UPLOAD = {{ 'true' if use_direct_upload else 'false' }};
-        var USE_DIRECT_UPLOAD = window.USE_DIRECT_UPLOAD;
-    </script>
+    {# USE_DIRECT_UPLOAD는 context_processor(inject_status_list)가 모든 템플릿에 #}
+    {# use_direct_upload Jinja 변수를 자동 주입하므로, 각 하위 JS에서 const로 직접 선언합니다. #}
+    {# layout.html에서 window.USE_DIRECT_UPLOAD로 전역 주입 시 하위 const와 충돌(SyntaxError) 발생. #}
 </head>
 
 <body
