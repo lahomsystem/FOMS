@@ -511,7 +511,7 @@
     if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
 
     // [Fallback Flow] Direct Upload가 비활성화된 경우(예: 로컬 개발 환경) - 가장 느린 순차방식
-    const isDirectUploadEnabled = typeof window.USE_DIRECT_UPLOAD !== 'undefined' ? window.USE_DIRECT_UPLOAD : (typeof USE_DIRECT_UPLOAD !== 'undefined' ? USE_DIRECT_UPLOAD : false);
+    const isDirectUploadEnabled = ("{{ 'true' if use_direct_upload else 'false' }}" === "true");
     if (!isDirectUploadEnabled) {
       for (let i = 0; i < files.length; i++) {
         let file = files[i];
