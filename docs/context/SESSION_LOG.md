@@ -7,8 +7,8 @@
 ### Session: 7608c340
 - **시작**: 2026-03-01 12:22:00
 - **상태**: completed
-- **편집 파일**: `commit_msg.txt`, `templates/partials/erp_dashboard_styles.html`, `templates/partials/erp_dashboard_grid.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-041232a1-e93c-4e3c-aac9-a8709c650d25.png`, `commit_msg_deploy.txt`, `templates/partials/erp_dashboard_filters.html`, `apps/erp_dashboard.py`, `.cursor/artifacts/FOMS_PROCESS_BLUEPRINT_V3.md`, `.cursor/agents/explore-codebase.md`, `Furniture Process.md`
-- **종료**: 2026-03-03 13:52:18
+- **편집 파일**: `apps/erp_construction_page.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ed335b13-6715-413a-829b-12efc7b85228.png`, `.github/copilot-instructions.md`, `AGENTS.md`, `.cursor/rules/01-fix-policy.mdc`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-436ffe07-8dd9-454b-9092-0ddcb811f712.png`, `commit_msg.txt`, `templates/partials/erp_dashboard_styles.html`, `templates/partials/erp_dashboard_grid.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-041232a1-e93c-4e3c-aac9-a8709c650d25.png`
+- **종료**: 2026-03-04 10:38:58
 
 ### Session: unknown
 - **시작**: 2026-03-01 12:18:46

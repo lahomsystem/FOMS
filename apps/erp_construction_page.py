@@ -72,30 +72,38 @@ def erp_construction_dashboard():
         '시공완료': {'count': 0, 'overdue': 0, 'imminent': 0},
     }
 
+    def _display_stage_for_order(o, sd):
+        stage = _erp_get_stage(o, sd)
+        hist = (sd.get('workflow') or {}).get('history') or []
+        is_started = any(str(h.get('note')).strip() == '시공 시작' for h in hist)
+        if stage in ('CONSTRUCTION', '시공'):
+            return '시공중' if is_started else '시공대기'
+        if stage in ('COMPLETED', '완료', 'AS_WAIT') or stage == 'CS':
+            return '시공완료'
+        if stage == 'CONSTRUCTING':
+            return '시공중'
+        return None
+
+    # 1) 타일 건수: 필터 없이 전체 주문 기준으로 항상 집계 (각 타일 클릭 없이도 건수 표시)
+    for o in orders:
+        sd = _ensure_dict(o.structured_data)
+        display_stage = _display_stage_for_order(o, sd)
+        if not display_stage or display_stage not in step_stats:
+            continue
+        alerts = _erp_alerts(o, sd, att_counts.get(o.id, 0))
+        step_stats[display_stage]['count'] += 1
+        if alerts.get('construction_d3'):
+            step_stats[display_stage]['imminent'] += 1
+
+    # 2) 목록: f_stage / f_q 적용하여 표시할 주문만 enriched에 추가
     enriched = []
     for o in orders:
         sd = _ensure_dict(o.structured_data)
-        stage = _erp_get_stage(o, sd)
-
-        display_stage = None
-        hist = (sd.get('workflow') or {}).get('history') or []
-        is_started = any(str(h.get('note')).strip() == '시공 시작' for h in hist)
-
-        if stage in ('CONSTRUCTION', '시공'):
-            display_stage = '시공중' if is_started else '시공대기'
-        elif stage in ('COMPLETED', '완료', 'AS_WAIT'):
-            display_stage = '시공완료'
-        elif stage == 'CS':
-            display_stage = '시공완료'
-        elif stage == 'CONSTRUCTING':
-            display_stage = '시공중'
-
+        display_stage = _display_stage_for_order(o, sd)
         if not display_stage:
             continue
-
         if f_stage and display_stage != f_stage:
             continue
-
         if f_q:
             hay = ' '.join([
                 str((((sd.get('parties') or {}).get('customer') or {}).get('name')) or ''),
@@ -106,11 +114,6 @@ def erp_construction_dashboard():
                 continue
 
         alerts = _erp_alerts(o, sd, att_counts.get(o.id, 0))
-
-        if display_stage in step_stats:
-            step_stats[display_stage]['count'] += 1
-            if alerts.get('construction_d3'):
-                step_stats[display_stage]['imminent'] += 1
 
         enriched.append({
             'id': o.id,
