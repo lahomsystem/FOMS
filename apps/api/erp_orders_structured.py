@@ -4,6 +4,8 @@ ERP 주문 구조화 데이터 API (structured GET/PUT, parse-text, erp/draft).
 
 import json
 import datetime
+from typing import Any
+
 from flask import Blueprint, request, jsonify, session
 from sqlalchemy import text
 
@@ -86,6 +88,7 @@ def api_get_order_structured(order_id):
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
+        _updated_at = getattr(order, 'structured_updated_at', None)
         return jsonify({
             'success': True,
             'order_id': order.id,
@@ -93,10 +96,11 @@ def api_get_order_structured(order_id):
             'structured_data': order.structured_data,
             'structured_schema_version': order.structured_schema_version,
             'structured_confidence': order.structured_confidence,
-            'structured_updated_at': order.structured_updated_at.strftime('%Y-%m-%d %H:%M:%S') if order.structured_updated_at else None,
+            'structured_updated_at': _updated_at.strftime('%Y-%m-%d %H:%M:%S') if _updated_at is not None else None,
             'received_date': order.received_date or '',
             'received_time': order.received_time or '',
-            'notes': order.notes or ''
+            'notes': order.notes or '',
+            'is_self_measurement': getattr(order, 'is_self_measurement', False),
         })
     except Exception as e:
         import traceback
@@ -127,6 +131,7 @@ def api_put_order_structured(order_id):
         received_date = payload.get('received_date')
         received_time = payload.get('received_time')
         notes = payload.get('notes')
+        is_self_measurement = payload.get('is_self_measurement')
         now = datetime.datetime.now()
         draft_cleared = False
 
@@ -134,16 +139,19 @@ def api_put_order_structured(order_id):
             _record_build_step(db, step_key, "FAILED", message="structured_data must be an object")
             return jsonify({'success': False, 'message': 'structured_data는 JSON 객체여야 합니다.'}), 400
 
-        old_sd = order.structured_data or {}
+        _sd_raw: Any = order.structured_data
+        old_sd = _sd_raw if isinstance(_sd_raw, dict) else {}
 
         if raw_order_text is not None:
-            order.raw_order_text = raw_order_text
+            setattr(order, 'raw_order_text', raw_order_text)
+        if is_self_measurement is not None:
+            setattr(order, 'is_self_measurement', bool(is_self_measurement))
         if received_date is not None and isinstance(received_date, str) and received_date.strip():
-            order.received_date = received_date.strip()
+            setattr(order, 'received_date', received_date.strip())
         if received_time is not None and isinstance(received_time, str):
-            order.received_time = received_time.strip() or None
+            setattr(order, 'received_time', received_time.strip() or None)
         if notes is not None:
-            order.notes = (notes if isinstance(notes, str) else str(notes or '')) or None
+            setattr(order, 'notes', (notes if isinstance(notes, str) else str(notes or '')) or None)
         if structured_data is not None:
             if not structured_data.get('workflow'):
                 structured_data['workflow'] = {}
@@ -160,11 +168,11 @@ def api_put_order_structured(order_id):
                     # [GDM] Order.status 동기화 (기존 필터링 호환)
                     # ERP Beta 단계가 기존 상태 코드와 호환되면 Order.status 업데이트
                     if new_stage in STATUS:
-                        order.status = new_stage
+                        setattr(order, 'status', new_stage)
                     elif new_stage == 'AS':
                         # AS 단계는 상세 매핑 필요할 수 있으나, 일단 STATUS에 'AS'가 있으므로 사용
                         # 필요시 'AS_RECEIVED' 등으로 매핑 가능
-                        order.status = 'AS'
+                        setattr(order, 'status', 'AS')
 
                     is_quest_complete, missing_teams = check_quest_approvals_complete(old_sd, old_stage)
                     if not is_quest_complete and missing_teams:
@@ -254,7 +262,8 @@ def api_put_order_structured(order_id):
                 pass
 
             try:
-                apply_auto_tasks(db, order.id, structured_data)
+                _order_id: int = order.id  # type: ignore[assignment]
+                apply_auto_tasks(db, _order_id, structured_data)
             except Exception as _e:
                 print(f"[ERP_BETA] auto-task apply warning: {_e}")
 
@@ -268,10 +277,10 @@ def api_put_order_structured(order_id):
             except Exception:
                 pass
 
-            order.structured_data = structured_data
-        order.structured_schema_version = int(schema_version) if schema_version else 1
-        order.structured_confidence = confidence or (structured_data.get('confidence') if structured_data else None)
-        order.structured_updated_at = now
+            setattr(order, 'structured_data', structured_data)
+        setattr(order, 'structured_schema_version', int(schema_version) if schema_version else 1)
+        setattr(order, 'structured_confidence', confidence or (structured_data.get('confidence') if structured_data else None))
+        setattr(order, 'structured_updated_at', now)
 
         try:
             existing_id = session.get('erp_draft_order_id')

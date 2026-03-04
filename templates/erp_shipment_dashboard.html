@@ -866,7 +866,8 @@
                     {% endif %}
                   </td>
                   <td class="{% if r.is_production_approved %}shipment-customer-done{% endif %}" data-label="고객" style="border-right: 1px solid #e0e0e0;">
-                    <div>{{ customer or '-' }}</div>
+                    <div>{{ customer or '-' }}{% if r.is_self_measurement|default(false) %}
+                      <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i> 자가실측</span>{% endif %}</div>
                     {% if r.phone %}
                     <small class="text-muted">{{ r.phone|format_phone }}</small>
                     {% endif %}

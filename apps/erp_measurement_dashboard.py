@@ -12,7 +12,7 @@ import os
 from sqlalchemy import or_, and_, func, cast, String
 
 from services.erp_permissions import can_edit_erp
-from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
+from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst, self_measurement_four_checks_done
 from services.erp_shipment_settings import is_order_mine_for_user
 from services.erp_product_items import build_product_items_for_order
 
@@ -91,10 +91,15 @@ def erp_measurement_dashboard():
 
     base_query = db.query(Order).filter(Order.status != 'DELETED')
     base_query = _erp_order_search_filter(base_query, search_q)
-    # 자가실측·지방실측 제외(진짜 실측 필요한 것만 집계, 지도와 동일 기준)
+    # 자가실측·지방실측 제외(진짜 실측 필요한 것만 집계), 단 자가실측 주문은 실측 대시보드에 표시 후 4체크 완료 시 시공으로 이관
     base_query = base_query.filter(
-        Order.is_regional != True,
-        ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
+        or_(
+            and_(
+                Order.is_regional != True,
+                ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
+            ),
+            Order.is_self_measurement == True
+        )
     )
     query = base_query
 
@@ -206,6 +211,8 @@ def erp_measurement_dashboard():
 
     measurement_counts = {}
     for order in panel_orders:
+        if self_measurement_four_checks_done(order):
+            continue
         all_dates = extract_all_measurement_dates(order)
         for date_value in all_dates:
             try:
@@ -235,6 +242,8 @@ def erp_measurement_dashboard():
 
     rows = []
     for order in all_rows:
+        if self_measurement_four_checks_done(order):
+            continue
         if use_single_day and selected_date:
             should_include = selected_date in extract_all_measurement_dates(order)
             if not should_include:

@@ -10,6 +10,7 @@ from sqlalchemy.orm.attributes import flag_modified
 import traceback
 import json
 import datetime
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from foms_address_converter import FOMSAddressConverter
 from services.jobs.queue import enqueue_geocode_order_address
@@ -21,6 +22,14 @@ def ensure_path(parent, key):
     if key not in parent or not isinstance(parent.get(key), dict):
         parent[key] = {}
     return parent[key]
+
+
+def _schedule_date_has_on_or_after(d_date_str, ref_date):
+    """시공일 문자열(단일 또는 CSV)에 ref_date 당일 또는 이후 날짜가 하나라도 있으면 True."""
+    if not d_date_str or not ref_date:
+        return False
+    parts = [p.strip() for p in str(d_date_str).split(',') if p and p.strip()]
+    return any(p >= ref_date for p in parts)
 
 
 def _get_order_schedule_date(order):
@@ -121,7 +130,7 @@ def api_orders_nearby():
         if not order_addr:
             continue
         d_date = _get_order_schedule_date(order)
-        if not d_date or d_date < ref_date:
+        if not d_date or not _schedule_date_has_on_or_after(d_date, ref_date):
             continue
 
         order_tokens = set(order_addr.split())
@@ -154,7 +163,13 @@ def api_orders_nearby():
         if target_region:
             target_sido = target_region.get('region_1depth_name', '')
             target_sigungu = target_region.get('region_2depth_name', '')
-        
+
+        # 카카오에서 시군구가 안 나올 때(신규 지역·아파트 등): 주소 문자열에서 첫 'XX시'/'XX군'/'XX구' 추출
+        if not target_sigungu and target_address:
+            m = re.search(r'(\S+시|\S+군|\S+구)', target_address)
+            if m:
+                target_sigungu = m.group(1).strip()
+
         # 2. 후보군 우선순위 분류
         # Group 1: 같은 시군구 (최우선)
         # Group 2: 같은 시도
@@ -175,7 +190,7 @@ def api_orders_nearby():
             if not order_addr:
                 continue
             d_date = _get_order_schedule_date(order)
-            if not d_date or d_date < ref_date:
+            if not d_date or not _schedule_date_has_on_or_after(d_date, ref_date):
                 continue
 
             target_tokens = set(target_address.split())
