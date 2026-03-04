@@ -51,6 +51,31 @@ def _erp_order_search_filter(query, q):
     )
 
 
+def extract_all_measurement_dates(order):
+    """주문에서 대표 실측일 + 항목별 실측일을 모두 추출 (CSV 및 JSON 항목 지원)."""
+    dates = set()
+    if getattr(order, 'measurement_date', None):
+        for d in str(order.measurement_date).split(','):
+            if d.strip():
+                dates.add(d.strip())
+    if getattr(order, 'is_erp_beta', False) and getattr(order, 'structured_data', None):
+        sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+        erp_date = (sd.get('schedule') or {}).get('measurement') or {}
+        if erp_date.get('date'):
+            for d in str(erp_date['date']).split(','):
+                if d.strip():
+                    dates.add(d.strip())
+        for it in sd.get('items') or []:
+            if not isinstance(it, dict):
+                continue
+            date_val = it.get('measurement_date')
+            if date_val:
+                for d in str(date_val).split(','):
+                    if d.strip():
+                        dates.add(d.strip())
+    return dates
+
+
 @erp_measurement_dashboard_bp.route('/measurement')
 @login_required
 def erp_measurement_dashboard():
@@ -92,8 +117,20 @@ def erp_measurement_dashboard():
     selected_date = req_date
 
     if use_range:
+        range_dates = []
+        try:
+            d_start = datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
+            d_end = datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
+            cur = d_start
+            while cur <= d_end:
+                range_dates.append(cur.strftime('%Y-%m-%d'))
+                cur += datetime.timedelta(days=1)
+        except Exception:
+            range_dates = [date_from, date_to]
+        measurement_date_conditions = [Order.measurement_date.ilike(f'%{d}%') for d in range_dates[:31]]
+        measurement_any = or_(*measurement_date_conditions) if measurement_date_conditions else Order.measurement_date.is_(None)
         date_conditions = [
-            and_(Order.measurement_date >= date_from, Order.measurement_date <= date_to),
+            and_(Order.measurement_date.isnot(None), Order.measurement_date != '', measurement_any),
             and_(Order.received_date >= date_from, Order.received_date <= date_to),
             and_(Order.scheduled_date >= date_from, Order.scheduled_date <= date_to),
             and_(Order.completion_date >= date_from, Order.completion_date <= date_to),
@@ -118,7 +155,8 @@ def erp_measurement_dashboard():
             date_end = None
 
         date_conditions = [
-            Order.measurement_date == selected_date,
+            and_(Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{selected_date}%')),
+            and_(Order.is_erp_beta == True, cast(Order.structured_data, String).ilike(f'%"measurement_date"%{selected_date}%')),
             Order.received_date == selected_date,
             Order.scheduled_date == selected_date,
             Order.completion_date == selected_date,
@@ -168,24 +206,16 @@ def erp_measurement_dashboard():
 
     measurement_counts = {}
     for order in panel_orders:
-        date_value = None
-        if order.is_erp_beta and order.structured_data:
-            sd = order.structured_data
-            erp_measurement_date = (((sd.get('schedule') or {}).get('measurement') or {}).get('date'))
-            if erp_measurement_date:
-                date_value = str(erp_measurement_date)
-        if not date_value and order.measurement_date:
-            date_value = str(order.measurement_date)
-        if not date_value:
-            continue
-        try:
-            d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
-        except Exception:
-            continue
-        if d < range_start or d > range_end:
-            continue
-        key = d.strftime('%Y-%m-%d')
-        measurement_counts[key] = measurement_counts.get(key, 0) + 1
+        all_dates = extract_all_measurement_dates(order)
+        for date_value in all_dates:
+            try:
+                d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
+            except Exception:
+                continue
+            if d < range_start or d > range_end:
+                continue
+            key = d.strftime('%Y-%m-%d')
+            measurement_counts[key] = measurement_counts.get(key, 0) + 1
 
     measurement_panel_dates = []
     current = range_start
@@ -206,18 +236,29 @@ def erp_measurement_dashboard():
     rows = []
     for order in all_rows:
         if use_single_day and selected_date:
-            should_include = False
-            if order.is_erp_beta and order.structured_data:
-                sd = order.structured_data
-                erp_measurement_date = (((sd.get('schedule') or {}).get('measurement') or {}).get('date'))
-                if erp_measurement_date and str(erp_measurement_date) == selected_date:
-                    should_include = True
-                elif order.measurement_date and str(order.measurement_date) == selected_date:
-                    should_include = True
-            else:
-                if order.measurement_date and str(order.measurement_date) == selected_date:
+            should_include = selected_date in extract_all_measurement_dates(order)
+            if not should_include:
+                if order.received_date == selected_date or order.scheduled_date == selected_date or order.completion_date == selected_date or (getattr(order, 'as_received_date', None) == selected_date) or (getattr(order, 'as_completed_date', None) == selected_date):
                     should_include = True
             if should_include:
+                rows.append(order)
+        elif use_range and date_from and date_to:
+            try:
+                d_from = datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
+                d_to = datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                d_from = d_to = None
+            if d_from is not None and d_to is not None:
+                all_meas = extract_all_measurement_dates(order)
+                for d_str in all_meas:
+                    try:
+                        d = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
+                        if d_from <= d <= d_to:
+                            rows.append(order)
+                            break
+                    except (ValueError, TypeError):
+                        pass
+            else:
                 rows.append(order)
         else:
             rows.append(order)

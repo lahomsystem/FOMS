@@ -314,6 +314,14 @@
         <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
         <input class="form-control form-control-sm" data-erp="price" inputmode="numeric" value="${escapeHtml(price)}" lang="ko">
     </div>
+    <div class="col-md-6">
+        <label class="form-label mb-1 small text-primary">항목 실측일</label>
+        <input type="text" class="form-control form-control-sm erp-item-date-multiple" data-erp="measurement_date" placeholder="여러 날짜 가능" value="${escapeHtml(String(item.measurement_date || '').trim())}" lang="ko">
+    </div>
+    <div class="col-md-6">
+        <label class="form-label mb-1 small text-primary">항목 시공일</label>
+        <input type="text" class="form-control form-control-sm erp-item-date-multiple" data-erp="construction_date" placeholder="여러 날짜 가능" value="${escapeHtml(String(item.construction_date || '').trim())}" lang="ko">
+    </div>
     <div class="col-12">
         <label class="form-label mb-1 small text-primary">추가 입력</label>
         <textarea class="form-control form-control-sm" data-erp="extra_input" rows="3"
@@ -399,6 +407,9 @@
             }
         }, 0);
         setTimeout(erpRecalcItemsTotal, 0);
+        if (typeof window.erpInitFlatpickrForItemRow === 'function') {
+            window.erpInitFlatpickrForItemRow(row);
+        }
         return row;
     }
 
@@ -462,7 +473,12 @@
         const addressDetail = site.address_detail || '';
         document.getElementById('erp-address').value = addressDetail ? `${addressFull} ${addressDetail}`.trim() : addressFull;
         document.getElementById('erp-address-note').value = sd?.notes?.address_note || '';
-        document.getElementById('erp-measurement-date').value = sd?.schedule?.measurement?.date || '';
+        const measurementDateVal = sd?.schedule?.measurement?.date || '';
+        document.getElementById('erp-measurement-date').value = measurementDateVal;
+        if (window._erpMeasurementDatePicker && measurementDateVal) {
+            const dates = measurementDateVal.split(',').map(s => s.trim()).filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s));
+            if (dates.length) window._erpMeasurementDatePicker.setDate(dates);
+        }
         const measurementTime = sd?.schedule?.measurement?.time || '';
         const erpMeasurementTimeSelect = document.getElementById('erp-measurement-time-select');
         const erpMeasurementTimeInput = document.getElementById('erp-measurement-time');
@@ -482,7 +498,12 @@
             }
         }
         document.getElementById('erp-measurement-note').value = sd?.notes?.measurement_note || '';
-        document.getElementById('erp-construction-date').value = sd?.schedule?.construction?.date || '';
+        const constructionDateVal = sd?.schedule?.construction?.date || '';
+        document.getElementById('erp-construction-date').value = constructionDateVal;
+        if (window._erpConstructionDatePicker && constructionDateVal) {
+            const dates = constructionDateVal.split(',').map(s => s.trim()).filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s));
+            if (dates.length) window._erpConstructionDatePicker.setDate(dates);
+        }
 
 
         const itemsWrap = document.getElementById('erp-items');
@@ -1582,14 +1603,18 @@ ${list.map(renderCard).join('')}
 
         const formatDateToKorean = (dateStr) => {
             if (!dateStr) return '';
-            // YYYY-MM-DD 형식인지 확인
-            const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-            if (match) {
-                const m = parseInt(match[2], 10);
-                const d = parseInt(match[3], 10);
-                return `${m}월 ${d}일`;
-            }
-            return dateStr;
+            const single = (s) => {
+                const t = String(s).trim();
+                const match = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                if (match) {
+                    const m = parseInt(match[2], 10);
+                    const d = parseInt(match[3], 10);
+                    return `${m}월 ${d}일`;
+                }
+                return t || '';
+            };
+            const parts = String(dateStr).split(',').map(s => single(s)).filter(Boolean);
+            return parts.length ? parts.join(', ') : dateStr;
         };
 
         let measurementDate = getVal('erp-measurement-date');
@@ -1738,14 +1763,47 @@ ${list.map(renderCard).join('')}
     document.addEventListener('DOMContentLoaded', function () {
         if (!ERP_BETA_ENABLED) return;
 
+        function initErpMainDatePickers() {
+            const mEl = document.getElementById('erp-measurement-date');
+            const cEl = document.getElementById('erp-construction-date');
+            if (typeof flatpickr !== 'function') return;
+            const opts = { mode: 'multiple', dateFormat: 'Y-m-d', locale: 'ko', allowInput: true };
+            if (mEl && !mEl._flatpickr) {
+                window._erpMeasurementDatePicker = flatpickr(mEl, opts);
+            }
+            if (cEl && !cEl._flatpickr) {
+                window._erpConstructionDatePicker = flatpickr(cEl, opts);
+            }
+            var mOpen = document.getElementById('erp-measurement-date-open');
+            var cOpen = document.getElementById('erp-construction-date-open');
+            if (mOpen && window._erpMeasurementDatePicker && !mOpen._erpDateBound) {
+                mOpen._erpDateBound = true;
+                mOpen.addEventListener('click', function () { window._erpMeasurementDatePicker.open(); });
+            }
+            if (cOpen && window._erpConstructionDatePicker && !cOpen._erpDateBound) {
+                cOpen._erpDateBound = true;
+                cOpen.addEventListener('click', function () { window._erpConstructionDatePicker.open(); });
+            }
+        }
+        window.erpInitFlatpickrForItemRow = function (row) {
+            if (typeof flatpickr !== 'function') return;
+            (row.querySelectorAll('.erp-item-date-multiple') || []).forEach(function (el) {
+                if (el._flatpickr) return;
+                flatpickr(el, { mode: 'multiple', dateFormat: 'Y-m-d', locale: 'ko', allowInput: true });
+            });
+        };
+
         document.getElementById('erp-attachments-upload-btn')?.addEventListener('click', erpUploadSelectedAttachments);
         document.getElementById('erp-gen-text-btn')?.addEventListener('click', erpGenerateConversionText);
         document.getElementById('erp-copy-text-btn')?.addEventListener('click', erpCopyToClipboard);
 
+        // 실측일/시공일 달력: 페이지 로드 시에도 초기화하여 탭 전환 전에도 클릭 시 달력 열림
+        initErpMainDatePickers();
 
         // ERP Beta 탭이 열릴 때: ORDER_ID가 있을 때만 데이터 로드 (자동 주문 생성 제거)
         // 저장 버튼을 눌러야만 주문이 생성되고 저장됨
         document.getElementById('erp-beta-tab')?.addEventListener('shown.bs.tab', async function () {
+            initErpMainDatePickers();
             // 파일 input 초기화 (탭이 열릴 때마다 이전 파일 제거)
             const fileInput = document.getElementById('erp-attachments-input');
             if (fileInput) {

@@ -57,7 +57,11 @@
           html += '<div class="erp-completion-summary d-flex flex-wrap align-items-center gap-2"><a href="' + escapeAttr(orderDetailHref) + '" class="fw-bold text-decoration-none" title="주문 상세">#' + o.id + '</a>';
           html += '<span>' + date + '</span> | <span>' + safeManager + '</span> | <span>' + safeCustomer + '</span> | <span class="text-truncate" style="max-width:180px">' + safeProduct + '</span> | <span class="badge bg-secondary">' + resultLabel + '</span>';
           html += ' <button type="button" class="btn btn-sm btn-outline-warning" data-action="open-settlement-modal" data-order-id="' + o.id + '" title="비용 청구"><i class="fas fa-file-invoice-dollar"></i><span class="d-none d-md-inline ms-1">비용 청구</span></button></div>';
-          html += galleryHtml + '</div>';
+          html += galleryHtml;
+          if (o.completion_note && String(o.completion_note).trim()) {
+            html += '<div class="erp-completion-note text-muted small mt-2"><i class="fas fa-comment-dots"></i> ' + escapeHtml(String(o.completion_note).trim()) + '</div>';
+          }
+          html += '</div>';
         });
         listEl.innerHTML = html;
 
