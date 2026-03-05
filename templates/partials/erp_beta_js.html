@@ -51,6 +51,16 @@
         }
     }
 
+    /** 발주사 ≠ '라홈' (하우드, 직접입력 포함) 시 워크플로우 단계를 '실측'(MEASURE)으로 자동 설정. Spec: 2026-03-04-erp-add-orderer-workflow-default */
+    function syncWorkflowStageByOrderer() {
+        const orderer = (typeof getOrdererValue === 'function' ? getOrdererValue() : '').trim();
+        if (orderer === '라홈') return;
+        const stageEl = document.getElementById('erp-workflow-stage');
+        if (stageEl && stageEl.querySelector('option[value="MEASURE"]')) {
+            stageEl.value = 'MEASURE';
+        }
+    }
+
     if (typeof adjustTextareaHeight !== 'function') {
         function adjustTextareaHeight(textarea) {
             if (!textarea) return;
@@ -734,8 +744,15 @@
         if (!ERP_BETA_ENABLED) return;
 
         // ERP Beta: 발주사 드롭다운 + 직접입력 토글
-        document.getElementById('erp-orderer-direct')?.addEventListener('change', toggleOrdererUI);
+        document.getElementById('erp-orderer-direct')?.addEventListener('change', function () {
+            toggleOrdererUI();
+            syncWorkflowStageByOrderer();
+        });
         toggleOrdererUI();
+        document.getElementById('erp-orderer-select')?.addEventListener('change', syncWorkflowStageByOrderer);
+        document.getElementById('erp-orderer')?.addEventListener('input', syncWorkflowStageByOrderer);
+        document.getElementById('erp-orderer')?.addEventListener('change', syncWorkflowStageByOrderer);
+        syncWorkflowStageByOrderer();
 
         // ERP Beta: 주소 입력 (통합 - 찾기 버튼으로 주소 검색 또는 직접 입력 가능)
         const addrInput = document.getElementById('erp-address');
@@ -1826,9 +1843,10 @@ ${list.map(renderCard).join('')}
                 const rt = document.getElementById('erp-received-time');
                 if (rd) rd.value = localDateStr;
                 if (rt) rt.value = localTimeStr;
-                // 단계(Workflow) 기본값: 주문 접수
+                // 단계(Workflow) 기본값: 주문 접수 (발주사=라홈 시). 발주사≠라홈이면 syncWorkflowStageByOrderer가 MEASURE로 덮어씀
                 const stageEl = document.getElementById('erp-workflow-stage');
                 if (stageEl && !stageEl.value) stageEl.value = 'RECEIVED';
+                syncWorkflowStageByOrderer();
             }
             // ORDER_ID가 있을 때만 데이터 로드(저장 버튼으로 생성된 주문이 있을 때만)
             if (ORDER_ID && ORDER_ID > 0) {

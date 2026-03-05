@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-05 | 세션 자동 기록 | erp_beta_js.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e94d5310-7a3e-4ca8-a9ea-f7d8169b3ed8.png, notifications.py 외 2개 | 277f51f |
 | 2026-03-05 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e94d5310-7a3e-4ca8-a9ea-f7d8169b3ed8.png, notifications.py, app.py 외 2개 | 52f5521 |
 | 2026-03-05 | 세션 자동 기록 | notifications.py, app.py, realtime_notifications.py 외 2개 | 52f5521 |
 | 2026-03-05 | 세션 자동 기록 | commit_msg.txt, erp_construction_page.py, erp_measurement_dashboard.py 외 2개 | 52f5521 |
@@ -23,4 +24,3 @@
 | 2026-03-04 | 세션 자동 기록 | commit_msg.txt, erp_construction_page.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ed335b13-6715-413a-829b-12efc7b85228.png 외 2개 | 6503f4b |
 | 2026-03-04 | 세션 자동 기록 | erp_construction_page.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ed335b13-6715-413a-829b-12efc7b85228.png, copilot-instructions.md 외 2개 | 7090e4c |
 | 2026-03-04 | 세션 자동 기록 | copilot-instructions.md, AGENTS.md, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-436ffe07-8dd9-454b-9092-0ddcb811f712.png 외 2개 | 092faf3 |
-| 2026-03-04 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-436ffe07-8dd9-454b-9092-0ddcb811f712.png, commit_msg.txt, erp_dashboard_styles.html 외 2개 | cc6c45f |

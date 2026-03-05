@@ -5,6 +5,13 @@
 
 ## 최근 파일 편집
 
+- `commit_msg.txt` <- 1 edit(s), ~205 chars (2026-03-05 11:25:55)
+- `docs/specs/2026-03-04-erp-add-orderer-workflow-default.md` <- 2 edit(s), ~304 chars (2026-03-05 09:29:45)
+- `docs/specs/2026-03-04-erp-add-orderer-workflow-default.md` <- 1 edit(s), ~28 chars (2026-03-05 09:29:40)
+- `templates/partials/erp_beta_js.html` <- 2 edit(s), ~149 chars (2026-03-05 09:29:23)
+- `templates/partials/erp_beta_js.html` <- 2 edit(s), ~535 chars (2026-03-05 09:29:06)
+- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~502 chars (2026-03-05 09:29:01)
+- `docs/specs/2026-03-04-erp-add-orderer-workflow-default.md` <- 1 edit(s), ~1675 chars (2026-03-05 09:27:33)
 - `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e94d5310-7a3e-4ca8-a9ea-f7d8169b3ed8.png` <- 1 edit(s), ~0 chars (2026-03-05 08:09:58)
 - `docs/DEPLOY_NOTES.md` <- 1 edit(s), ~110 chars (2026-03-05 08:07:17)
 - `docs/context/INCIDENT_URGENT_NOTIFICATION_NOT_DELIVERED_2026-03-04.md` <- 1 edit(s), ~2488 chars (2026-03-05 08:07:15)
@@ -48,10 +55,3 @@
 - `apps/api/erp_orders_structured.py` <- 2 edit(s), ~113 chars (2026-03-04 22:35:34)
 - `apps/api/erp_orders_structured.py` <- 5 edit(s), ~376 chars (2026-03-04 22:35:31)
 - `apps/api/erp_orders_structured.py` <- 1 edit(s), ~106 chars (2026-03-04 22:35:27)
-- `apps/api/erp_orders_structured.py` <- 2 edit(s), ~183 chars (2026-03-04 22:35:25)
-- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~29 chars (2026-03-04 22:35:20)
-- `docs/plans/2026-03-04-self-measurement-connection-GDM-AUDIT.md` <- 1 edit(s), ~3031 chars (2026-03-04 22:27:20)
-- `templates/partials/erp_construction_filters_grid.html` <- 1 edit(s), ~68 chars (2026-03-04 22:25:47)
-- `templates/partials/erp_construction_filters_grid.html` <- 1 edit(s), ~218 chars (2026-03-04 22:25:36)
-- `templates/erp_measurement_dashboard.html` <- 1 edit(s), ~234 chars (2026-03-04 22:25:34)
-- `apps/erp_construction_page.py` <- 1 edit(s), ~43 chars (2026-03-04 22:25:25)

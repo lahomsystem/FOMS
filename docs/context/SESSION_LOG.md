@@ -7,8 +7,8 @@
 ### Session: 38de1484
 - **시작**: 2026-03-04 22:21:12
 - **상태**: completed
-- **편집 파일**: `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e94d5310-7a3e-4ca8-a9ea-f7d8169b3ed8.png`, `docs/DEPLOY_NOTES.md`, `docs/context/INCIDENT_URGENT_NOTIFICATION_NOT_DELIVERED_2026-03-04.md`, `apps/api/notifications.py`, `app.py`, `services/realtime_notifications.py`, `commit_msg.txt`, `docs/plans/2026-03-04-self-measurement-connection-GDM-AUDIT.md`, `apps/erp_construction_page.py`, `apps/erp_measurement_dashboard.py`
-- **종료**: 2026-03-05 08:19:15
+- **편집 파일**: `docs/specs/2026-03-04-erp-add-orderer-workflow-default.md`, `templates/partials/erp_beta_js.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e94d5310-7a3e-4ca8-a9ea-f7d8169b3ed8.png`, `docs/DEPLOY_NOTES.md`, `docs/context/INCIDENT_URGENT_NOTIFICATION_NOT_DELIVERED_2026-03-04.md`, `apps/api/notifications.py`, `app.py`, `services/realtime_notifications.py`, `commit_msg.txt`, `docs/plans/2026-03-04-self-measurement-connection-GDM-AUDIT.md`
+- **종료**: 2026-03-05 09:29:53
 
 ### Session: 7608c340
 - **시작**: 2026-03-01 12:22:00
