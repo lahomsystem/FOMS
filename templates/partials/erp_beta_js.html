@@ -1028,9 +1028,8 @@
 
                         window.__erpAsReceiveSubmitted = true;
                         bootstrap.Modal.getInstance(modalEl)?.hide();
-                        erpSetStatus('AS 접수 완료. 데이터 새로고침 중...');
-                        await erpLoadStructured();
-                        erpSetStatus('AS 접수 완료!');
+                        erpSetStatus('AS 접수 완료. 대시보드로 이동합니다...');
+                        window.location.href = '/erp/dashboard?stage=AS%EC%B2%98%EB%A6%AC';
                     } catch (e) {
                         console.error(e);
                         alert(e?.message || 'AS 접수 처리 중 오류가 발생했습니다.');

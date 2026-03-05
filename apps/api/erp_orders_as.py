@@ -209,6 +209,9 @@ def api_as_register(order_id):
         sd = _ensure_dict(order.structured_data)
         shipment = _ensure_path(sd, 'shipment')
         shipment['as_content'] = as_content
+        wf = sd.get('workflow') or {}
+        wf['stage'] = 'AS_RECEIVED'
+        sd['workflow'] = wf
         order.structured_data = copy.deepcopy(sd)
         flag_modified(order, 'structured_data')
 
