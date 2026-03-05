@@ -529,6 +529,7 @@
         erpRefreshItemRowIndices();
 
         erpSetStatus(`불러오기 완료 (confidence: ${data.structured_confidence || sd.confidence || '-'})`);
+        window.__erpLastStructuredData = sd;
         erpRecalcItemsTotal();
         const depositEl = document.getElementById('erp-deposit-amount');
         if (depositEl) {
@@ -684,6 +685,31 @@
 
         try {
             const structured_data = erpCollectStructured();
+
+            // AS접수 선택 시: 기존 저장 중단, AS 접수 모달 표시
+            if (structured_data?.workflow?.stage === 'AS_RECEIVED') {
+                window.__erpAsReceivePreviousStage = (window.__erpLastStructuredData?.workflow?.stage || '').trim();
+                window.__erpAsReceiveTargetId = targetId;
+                window.__erpAsReceiveSubmitted = false;
+
+                const modalEl = document.getElementById('asReceiveModal');
+                if (modalEl) {
+                    const contentEl = document.getElementById('as-receive-content');
+                    const filesEl = document.getElementById('as-receive-files');
+                    const previewEl = document.getElementById('as-receive-preview');
+                    if (contentEl) {
+                        contentEl.value = (window.__erpLastStructuredData?.shipment?.as_content || '').trim();
+                    }
+                    if (filesEl) filesEl.value = '';
+                    if (previewEl) previewEl.innerHTML = '';
+
+                    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    modal.show();
+                }
+                erpSetStatus('AS 접수 내용을 입력해주세요.');
+                return;
+            }
+
             const raw_order_text = '';
 
             const receivedDateEl = document.getElementById('erp-received-date');
@@ -895,6 +921,126 @@
         });
         document.getElementById('erp-save-btn')?.addEventListener('click', erpSaveStructured);
         document.getElementById('erp-load-btn')?.addEventListener('click', erpLoadStructured);
+
+        // AS 접수 모달: 파일 미리보기, 10MB 경고, 제출, 취소 시 롤백
+        (function initAsReceiveModal() {
+            const modalEl = document.getElementById('asReceiveModal');
+            const contentEl = document.getElementById('as-receive-content');
+            const filesEl = document.getElementById('as-receive-files');
+            const previewEl = document.getElementById('as-receive-preview');
+            const submitBtn = document.getElementById('as-receive-submit-btn');
+            const AS_VIDEO_SIZE_WARN = 10 * 1024 * 1024; // 10MB
+
+            if (filesEl && previewEl) {
+                filesEl.addEventListener('change', function () {
+                    previewEl.innerHTML = '';
+                    const files = Array.from(this.files || []);
+                    files.forEach(function (f) {
+                        const isVideo = (f.type || '').startsWith('video/');
+                        if (isVideo && f.size > AS_VIDEO_SIZE_WARN) {
+                            const warn = document.createElement('div');
+                            warn.className = 'small text-warning';
+                            warn.textContent = f.name + ' (10MB 초과, 업로드 지연 가능)';
+                            previewEl.appendChild(warn);
+                        }
+                        const span = document.createElement('span');
+                        span.className = 'badge bg-secondary';
+                        span.textContent = f.name;
+                        previewEl.appendChild(span);
+                    });
+                });
+            }
+
+            if (modalEl) {
+                modalEl.addEventListener('hidden.bs.modal', function () {
+                    if (window.__erpAsReceiveSubmitted !== true) {
+                        const stageEl = document.getElementById('erp-workflow-stage');
+                        const prev = (window.__erpAsReceivePreviousStage || '').trim();
+                        if (stageEl && prev) stageEl.value = prev;
+                    }
+                    window.__erpAsReceiveSubmitted = false;
+                });
+            }
+
+            if (submitBtn) {
+                submitBtn.addEventListener('click', async function () {
+                    const content = (contentEl?.value || '').trim();
+                    if (!content) {
+                        alert('AS 내용을 입력해주세요.');
+                        contentEl?.focus();
+                        return;
+                    }
+                    const targetId = window.__erpAsReceiveTargetId;
+                    if (!targetId || targetId <= 0) {
+                        alert('주문 ID를 찾을 수 없습니다.');
+                        return;
+                    }
+                    submitBtn.disabled = true;
+                    const origHtml = submitBtn.innerHTML;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> 처리 중...';
+
+                    try {
+                        const regRes = await fetch(`/api/orders/${targetId}/as/register`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ as_content: content })
+                        });
+                        const regData = await regRes.json();
+                        if (!regData.success) {
+                            throw new Error(regData.message || 'AS 접수 등록 실패');
+                        }
+
+                        const files = filesEl?.files ? Array.from(filesEl.files) : [];
+                        if (files.length > 0) {
+                            const folder = `orders/${targetId}/attachments`;
+                            const category = 'as';
+                            let sessionMap = {};
+                            try {
+                                const bRes = await fetch('/api/upload/session/batch', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        files: files.map(function (f) { return { filename: f.name, size: f.size }; }),
+                                        folder: folder,
+                                        category: category
+                                    })
+                                });
+                                const bData = await bRes.json();
+                                if (bData.success && bData.sessions) {
+                                    bData.sessions.forEach(function (s) {
+                                        s.success = true;
+                                        sessionMap[s.filename] = s;
+                                    });
+                                }
+                            } catch (e) { }
+
+                            const CONCURRENCY = 10;
+                            for (let start = 0; start < files.length; start += CONCURRENCY) {
+                                const chunk = files.slice(start, start + CONCURRENCY);
+                                await Promise.all(chunk.map(function (f) {
+                                    const sess = sessionMap[f.name];
+                                    return (typeof erpDoDirectUploadOne === 'function')
+                                        ? erpDoDirectUploadOne(f, category, null, sess)
+                                        : Promise.resolve({ success: false });
+                                }));
+                            }
+                        }
+
+                        window.__erpAsReceiveSubmitted = true;
+                        bootstrap.Modal.getInstance(modalEl)?.hide();
+                        erpSetStatus('AS 접수 완료. 데이터 새로고침 중...');
+                        await erpLoadStructured();
+                        erpSetStatus('AS 접수 완료!');
+                    } catch (e) {
+                        console.error(e);
+                        alert(e?.message || 'AS 접수 처리 중 오류가 발생했습니다.');
+                    } finally {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = origHtml;
+                    }
+                });
+            }
+        })();
         const erpDepositInput = document.getElementById('erp-deposit-amount');
         if (erpDepositInput) {
             erpDepositInput.addEventListener('input', function () {
