@@ -365,3 +365,35 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
         </div>
     </div>
 </div>
+
+<!-- AS 접수 모달 (ERP Beta: 진행단계 AS접수 선택 시) -->
+<div class="modal fade" id="asReceiveModal" tabindex="-1" aria-labelledby="asReceiveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="asReceiveModalLabel"><i class="fas fa-exclamation-circle text-warning"></i> AS 접수</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">AS 내용 <span class="text-danger">*</span></label>
+                    <textarea id="as-receive-content" class="form-control" rows="5"
+                        placeholder="예: 슬라이딩 붙박이장 가운데 문이 내려앉음(안닫힘)&#10;금일 오후 4시반~6시반까지 통화 어려우심"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">사진/동영상 첨부</label>
+                    <input type="file" id="as-receive-files" class="form-control"
+                        multiple accept="image/*,video/*,.gif">
+                    <div class="small text-muted mt-1">동영상 10MB 초과 시 업로드가 지연될 수 있습니다.</div>
+                    <div id="as-receive-preview" class="d-flex flex-wrap gap-2 mt-2"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" id="as-receive-submit-btn">
+                    <i class="fas fa-check"></i> AS 접수 확인
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
