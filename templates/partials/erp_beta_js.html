@@ -1925,6 +1925,64 @@ ${list.map(renderCard).join('')}
         }
     }
 
+    // ============================================
+    // ERP Beta: 실측 일정 미러링 패널 (14일, 30초 갱신, 클릭 시 실측일 입력)
+    // ============================================
+    async function loadMeasurementPanel() {
+        const panel = document.getElementById('erp-beta-measurement-panel');
+        if (!panel) return;
+        try {
+            const url = '/api/erp/measurement/summary';
+            const res = await fetch(url);
+            const data = await res.json();
+            if (!data || !data.success || !Array.isArray(data.panel_dates)) {
+                panel.innerHTML = '<div class="small text-muted py-2">데이터를 불러올 수 없습니다.</div>';
+                return;
+            }
+            let selectedDate = (panel.dataset.selectedDate || '').trim();
+            if (!selectedDate && window._erpMeasurementDatePicker && window._erpMeasurementDatePicker.selectedDates && window._erpMeasurementDatePicker.selectedDates.length > 0) {
+                const d = window._erpMeasurementDatePicker.selectedDates[0];
+                selectedDate = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+            }
+            let html = '';
+            data.panel_dates.forEach(function (item) {
+                const klasses = ['measurement-panel-item', 'measurement-panel-item-oneline'];
+                if (item.is_weekend) klasses.push('is-weekend');
+                if (item.is_holiday) klasses.push('is-holiday');
+                if (item.is_today) klasses.push('is-today');
+                if (item.date === selectedDate) klasses.push('is-selected');
+                const badges = [];
+                if (item.is_holiday) badges.push('<span class="badge bg-danger">휴일</span>');
+                else if (item.is_weekend) badges.push('<span class="badge bg-warning text-dark">주말</span>');
+                html += '<div class="' + klasses.join(' ') + '" data-date="' + escapeHtml(item.date) + '" role="button">';
+                html += '<div class="d-flex align-items-center justify-content-between gap-1 w-100 flex-nowrap">';
+                html += '<span class="measurement-panel-date">' + escapeHtml(item.date) + '</span>';
+                html += '<span class="measurement-panel-day">(' + escapeHtml(item.day_label) + ')</span>';
+                html += badges.join('');
+                html += '<span class="badge badge-count ms-auto">' + item.count + '</span>';
+                html += '</div></div>';
+            });
+            panel.innerHTML = html;
+            panel.classList.add('measurement-panel-list');
+            panel.querySelectorAll('.measurement-panel-item').forEach(function (el) {
+                el.addEventListener('click', function () {
+                    const dateStr = el.dataset.date;
+                    if (!dateStr) return;
+                    panel.querySelectorAll('.measurement-panel-item').forEach(function (x) { x.classList.remove('is-selected'); });
+                    el.classList.add('is-selected');
+                    panel.dataset.selectedDate = dateStr;
+                    if (window._erpMeasurementDatePicker) {
+                        window._erpMeasurementDatePicker.setDate([dateStr], true);
+                    }
+                });
+            });
+        } catch (e) {
+            console.error('loadMeasurementPanel:', e);
+            panel.innerHTML = '<div class="small text-danger py-2">로드 실패</div>';
+        }
+    }
+    window.loadMeasurementPanel = loadMeasurementPanel;
+
     document.addEventListener('DOMContentLoaded', function () {
         if (!ERP_BETA_ENABLED) return;
 
@@ -1965,10 +2023,15 @@ ${list.map(renderCard).join('')}
         // 실측일/시공일 달력: 페이지 로드 시에도 초기화하여 탭 전환 전에도 클릭 시 달력 열림
         initErpMainDatePickers();
 
+        // 실측 일정 미러링 패널: 로드 + 30초 자동 갱신
+        loadMeasurementPanel();
+        setInterval(loadMeasurementPanel, 30000);
+
         // ERP Beta 탭이 열릴 때: ORDER_ID가 있을 때만 데이터 로드 (자동 주문 생성 제거)
         // 저장 버튼을 눌러야만 주문이 생성되고 저장됨
         document.getElementById('erp-beta-tab')?.addEventListener('shown.bs.tab', async function () {
             initErpMainDatePickers();
+            loadMeasurementPanel();
             // 파일 input 초기화 (탭이 열릴 때마다 이전 파일 제거)
             const fileInput = document.getElementById('erp-attachments-input');
             if (fileInput) {
@@ -1997,6 +2060,7 @@ ${list.map(renderCard).join('')}
             if (ORDER_ID && ORDER_ID > 0) {
                 await erpLoadStructured();
                 erpLoadQuest();
+                loadMeasurementPanel();
             }
         });
     });

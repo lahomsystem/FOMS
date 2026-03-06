@@ -163,49 +163,80 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                     </div>
 
                     <hr class="my-3">
-                    <div class="row g-2">
-                        <div class="col-md-6">
-                            <label class="form-label mb-1">실측일</label>
-                            <div class="input-group input-group-sm">
-                                <input type="text" class="form-control form-control-sm" id="erp-measurement-date"
-                                    placeholder="여러 날짜 선택 가능 (예: 2026-03-13, 2026-03-14)" autocomplete="off"
-                                    title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
-                                <button type="button" class="btn btn-outline-secondary" id="erp-measurement-date-open" title="달력에서 선택" aria-label="달력 열기"><i class="fas fa-calendar-alt"></i></button>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label mb-1">실측시간</label>
-                            <select class="form-select form-select-sm" id="erp-measurement-time-select"
-                                autocomplete="off">
-                                <option value="__direct__" selected>직접 입력</option>
-                                <option value="오전">오전</option>
-                                <option value="오후">오후</option>
-                                <option value="종일">종일</option>
-                            </select>
-                            <input type="text" class="form-control form-control-sm mt-2" id="erp-measurement-time"
-                                placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off" lang="ko">
-                        </div>
-                        <div class="col-12">
-                            <button class="btn btn-sm btn-link p-0 mt-1 text-secondary" type="button"
-                                data-bs-toggle="collapse" data-bs-target="#erp-collapse-measure-note"
-                                aria-expanded="false" aria-controls="erp-collapse-measure-note">
-                                <i class="fas fa-chevron-down small"></i> 실측 특이사항
-                            </button>
-                            <div class="collapse mt-2" id="erp-collapse-measure-note">
-                                <div class="mt-1">
-                                    <label class="form-label mb-1">실측 특이사항</label>
-                                    <input type="text" class="form-control form-control-sm" id="erp-measurement-note"
-                                        placeholder="예: 시간 변경 가능/현장 특이사항/준비물 등" autocomplete="off" lang="ko">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-4">
+                            <div class="card border-0 shadow-sm h-100 mb-3">
+                                <div class="card-header bg-white py-1 px-2 fw-bold small">
+                                    <i class="fas fa-calendar-day"></i> 실측 일정 현황
+                                </div>
+                                <div class="card-body p-1" style="max-height: 400px; overflow-y: auto;">
+                                    <div id="erp-beta-measurement-panel" class="measurement-panel-list">
+                                        <div class="text-center py-3 text-muted small">
+                                            <i class="fas fa-spinner fa-spin"></i> 로딩 중...
+                                        </div>
+                                    </div>
+                                    <div class="small text-muted mt-1 px-1">향후 14일 기준 · 30초 자동 갱신 (클릭 시 실측일에 입력됨)</div>
                                 </div>
                             </div>
+                            <style>
+                                #erp-beta-measurement-panel.measurement-panel-list { max-height: 360px; overflow-y: auto; padding: 4px; }
+                                #erp-beta-measurement-panel .measurement-panel-item { display: block; padding: 5px 8px; margin-bottom: 4px; border-radius: 6px; border: 1px solid #f1f3f5; background: #fff; color: #212529; text-decoration: none; cursor: pointer; transition: all 0.15s ease; }
+                                #erp-beta-measurement-panel .measurement-panel-item:hover { background: #f8f9fa; border-color: #dee2e6; }
+                                #erp-beta-measurement-panel .measurement-panel-item.is-selected { border-color: #0d6efd; box-shadow: 0 0 0 1px rgba(13,110,253,0.2); }
+                                #erp-beta-measurement-panel .measurement-panel-item.is-weekend { background: #fff7e6; }
+                                #erp-beta-measurement-panel .measurement-panel-item.is-holiday { background: #fff1f1; }
+                                #erp-beta-measurement-panel .measurement-panel-item.is-today { border-color: #198754; box-shadow: 0 0 0 1px rgba(25,135,84,0.25); }
+                                #erp-beta-measurement-panel .measurement-panel-date { font-size: 0.85rem; white-space: nowrap; }
+                                #erp-beta-measurement-panel .measurement-panel-day { font-size: 0.8rem; color: #6c757d; }
+                                #erp-beta-measurement-panel .badge-count { font-size: 0.85rem; min-width: 28px; padding: 2px 6px; background-color: #0d6efd; color: #fff; }
+                            </style>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label mb-1">시공일</label>
-                            <div class="input-group input-group-sm">
-                                <input type="text" class="form-control form-control-sm" id="erp-construction-date"
-                                    placeholder="여러 날짜 선택 가능 (예: 2026-03-13, 2026-03-14)" autocomplete="off"
-                                    title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
-                                <button type="button" class="btn btn-outline-secondary" id="erp-construction-date-open" title="달력에서 선택" aria-label="달력 열기"><i class="fas fa-calendar-alt"></i></button>
+                        <div class="col-12 col-md-8">
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label mb-1">실측일</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" class="form-control form-control-sm" id="erp-measurement-date"
+                                            placeholder="여러 날짜 선택 가능 (예: 2026-03-13, 2026-03-14)" autocomplete="off"
+                                            title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
+                                        <button type="button" class="btn btn-outline-secondary" id="erp-measurement-date-open" title="달력에서 선택" aria-label="달력 열기"><i class="fas fa-calendar-alt"></i></button>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <button class="btn btn-sm btn-link p-0 mt-1 text-secondary" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#erp-collapse-measure-note"
+                                        aria-expanded="false" aria-controls="erp-collapse-measure-note">
+                                        <i class="fas fa-chevron-down small"></i> 실측 특이사항
+                                    </button>
+                                    <div class="collapse mt-2" id="erp-collapse-measure-note">
+                                        <div class="mt-1">
+                                            <label class="form-label mb-1">실측 특이사항</label>
+                                            <input type="text" class="form-control form-control-sm" id="erp-measurement-note"
+                                                placeholder="예: 시간 변경 가능/현장 특이사항/준비물 등" autocomplete="off" lang="ko">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label mb-1">실측시간</label>
+                                    <select class="form-select form-select-sm" id="erp-measurement-time-select"
+                                        autocomplete="off">
+                                        <option value="__direct__" selected>직접 입력</option>
+                                        <option value="오전">오전</option>
+                                        <option value="오후">오후</option>
+                                        <option value="종일">종일</option>
+                                    </select>
+                                    <input type="text" class="form-control form-control-sm mt-2" id="erp-measurement-time"
+                                        placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off" lang="ko">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label mb-1">시공일</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" class="form-control form-control-sm" id="erp-construction-date"
+                                            placeholder="여러 날짜 선택 가능 (예: 2026-03-13, 2026-03-14)" autocomplete="off"
+                                            title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
+                                        <button type="button" class="btn btn-outline-secondary" id="erp-construction-date-open" title="달력에서 선택" aria-label="달력 열기"><i class="fas fa-calendar-alt"></i></button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
