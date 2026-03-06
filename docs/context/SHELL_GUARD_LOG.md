@@ -151,3 +151,23 @@
 | 2026-03-05 08:17:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import os paths = [ r'C:\Program Files\PostgreSQL\16\bin\pg_dump.exe', r'C:\Progra` |
 | 2026-03-05 08:17:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from simple_backup_system import SimpleBackupSystem bs = SimpleBackupSystem() prin` |
 | 2026-03-05 08:17:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:PYTHONIOENCODING="utf-8"; python -c " from simple_backup_system import SimpleBackupSystem` |
+| 2026-03-05 09:29:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('OK')"` |
+| 2026-03-05 11:25:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
+| 2026-03-05 11:25:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-05 11:25:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --name-only; git status -s` |
+| 2026-03-05 11:25:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_beta_js.html docs/specs/2026-03-04-erp-add-orderer-workflow-def` |
+| 2026-03-05 11:26:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
+| 2026-03-05 11:26:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-05 11:26:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy -m "Merge deploy: 주문 추가 발주사별 워크플로우 기본값"` |
+| 2026-03-05 11:26:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
+| 2026-03-05 11:26:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; Remove-Item commit_msg.txt -ErrorAction SilentlyContinue` |
+| 2026-03-05 12:02:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app"` |
+| 2026-03-05 12:02:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_beta_tab.html templates/partials/erp_beta_js.html; git status` |
+| 2026-03-05 12:02:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
+| 2026-03-05 12:02:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-05 13:39:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app"` |
+| 2026-03-05 13:39:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add apps/api/erp_orders_as.py templates/partials/erp_beta_js.html; git commit --trailer "M` |
+| 2026-03-05 13:47:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy -m "deploy 브랜치 병합: AS 접수 팝업 연동"; git push origin pro` |
+| 2026-03-06 18:40:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c "import app"` |
+| 2026-03-06 19:02:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-06 19:02:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |

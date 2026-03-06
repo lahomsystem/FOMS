@@ -4,6 +4,11 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-06 | 세션 자동 기록 | erp_beta_js.html, erp_beta_tab.html, erp_measurement.py 외 2개 | b4cfc25 |
+| 2026-03-06 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, erp_orders_as.py 외 2개 | b4cfc25 |
+| 2026-03-05 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, erp_orders_as.py 외 2개 | b4cfc25 |
+| 2026-03-05 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, erp_beta_tab.html 외 2개 | 64a1781 |
+| 2026-03-05 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e94d5310-7a3e-4ca8-a9ea-f7d8169b3ed8.png 외 2개 | 7b2783b |
 | 2026-03-05 | 세션 자동 기록 | erp_beta_js.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e94d5310-7a3e-4ca8-a9ea-f7d8169b3ed8.png, notifications.py 외 2개 | 277f51f |
 | 2026-03-05 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e94d5310-7a3e-4ca8-a9ea-f7d8169b3ed8.png, notifications.py, app.py 외 2개 | 52f5521 |
 | 2026-03-05 | 세션 자동 기록 | notifications.py, app.py, realtime_notifications.py 외 2개 | 52f5521 |
@@ -19,8 +24,3 @@
 | 2026-03-04 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, erp_beta_tab.html 외 2개 | 1a82d4b |
 | 2026-03-04 | 세션 자동 기록 | erp_beta_js.html, erp_beta_tab.html, erp_measurement_dashboard.py 외 2개 | 6503f4b |
 | 2026-03-04 | 세션 자동 기록 | erp_measurement_dashboard.py, erp_dashboard_grid.html, erp_production_filters_grid.html 외 2개 | 6503f4b |
-| 2026-03-04 | 세션 자동 기록 | erp_dashboard_grid.html, erp_production_filters_grid.html, erp_construction_filters_grid.html 외 2개 | 6503f4b |
-| 2026-03-04 | 세션 자동 기록 | erp_completion_scripts.html, erp_orders_construction.py, erp_construction_scripts.html 외 2개 | 6503f4b |
-| 2026-03-04 | 세션 자동 기록 | commit_msg.txt, erp_construction_page.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ed335b13-6715-413a-829b-12efc7b85228.png 외 2개 | 6503f4b |
-| 2026-03-04 | 세션 자동 기록 | erp_construction_page.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ed335b13-6715-413a-829b-12efc7b85228.png, copilot-instructions.md 외 2개 | 7090e4c |
-| 2026-03-04 | 세션 자동 기록 | copilot-instructions.md, AGENTS.md, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-436ffe07-8dd9-454b-9092-0ddcb811f712.png 외 2개 | 092faf3 |

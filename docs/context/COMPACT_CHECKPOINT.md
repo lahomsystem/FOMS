@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-05 08:06:17
-> 세션: 38de1484
+> 생성 시각: 2026-03-06 18:54:51
+> 세션: 27da7d1d
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `commit_msg.txt` <- 1 edit(s), ~217 chars (2026-03-04 23:08:08)
-- `docs/plans/2026-03-04-self-measurement-connection-GDM-AUDIT.md` <- 1 edit(s), ~2187 chars (2026-03-04 23:06:00)
-- `docs/plans/2026-03-04-self-measurement-connection-GDM-AUDIT.md` <- 1 edit(s), ~300 chars (2026-03-04 23:05:14)
-- `apps/erp_construction_page.py` <- 1 edit(s), ~58 chars (2026-03-04 23:04:27)
-- `apps/erp_construction_page.py` <- 1 edit(s), ~38 chars (2026-03-04 23:04:04)
-- `apps/erp_construction_page.py` <- 1 edit(s), ~118 chars (2026-03-04 23:03:52)
-- `apps/erp_construction_page.py` <- 1 edit(s), ~118 chars (2026-03-04 23:03:38)
-- `apps/erp_measurement_dashboard.py` <- 1 edit(s), ~73 chars (2026-03-04 23:03:15)
-- `apps/erp_measurement_dashboard.py` <- 1 edit(s), ~73 chars (2026-03-04 23:03:05)
-- `apps/erp_measurement_dashboard.py` <- 1 edit(s), ~131 chars (2026-03-04 23:03:00)
+- `docs/plans/2026-03-05-erp-measurement-panel-mirroring-plan.md` <- 1 edit(s), ~442 chars (2026-03-06 18:54:51)
+- `docs/plans/2026-03-05-erp-measurement-panel-mirroring-VERIFICATION.md` <- 1 edit(s), ~3021 chars (2026-03-06 18:43:27)
+- `docs/plans/2026-03-05-erp-measurement-panel-mirroring-VERIFICATION.md` <- 1 edit(s), ~19 chars (2026-03-06 18:41:21)
+- `docs/plans/2026-03-05-erp-measurement-panel-mirroring-VERIFICATION.md` <- 2 edit(s), ~412 chars (2026-03-06 18:41:18)
+- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~39 chars (2026-03-06 18:40:39)
+- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~35 chars (2026-03-06 18:40:31)
+- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~122 chars (2026-03-06 18:40:28)
+- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~487 chars (2026-03-06 18:40:24)
+- `templates/partials/erp_beta_js.html` <- 2 edit(s), ~62 chars (2026-03-06 18:40:14)
+- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~3115 chars (2026-03-06 18:40:02)
 
 ### 진행 중이던 작업
 (없음)

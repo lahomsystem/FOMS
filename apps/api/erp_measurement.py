@@ -5,23 +5,101 @@ erp.py에서 분리: 실측 대시보드 업데이트, 실측 동선 추천.
 import datetime
 import math
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from sqlalchemy import or_, and_
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from models import Order
-from apps.auth import login_required, role_required
+from apps.auth import login_required, role_required, get_user_by_id
 from services.erp_permissions import erp_edit_required
+from services.erp_display import get_today_kst, self_measurement_four_checks_done
+from services.erp_shipment_settings import is_order_mine_for_user
 from foms_address_converter import FOMSAddressConverter
 from services.jobs.queue import enqueue_geocode_order_address
-from services.erp_display import get_today_kst
+
+# 실측 패널 집계용: erp_measurement_dashboard 로직 재사용
+from apps.erp_measurement_dashboard import extract_all_measurement_dates, _load_holidays_for_year
 
 erp_measurement_bp = Blueprint(
     'erp_measurement',
     __name__,
     url_prefix='/api/erp/measurement',
 )
+
+
+@erp_measurement_bp.route('/summary')
+@login_required
+def api_erp_measurement_summary():
+    """
+    ERP Beta 실측 일정 미러링 패널용: 오늘~향후 14일 날짜별 실측 건수 JSON.
+    대시보드와 건수 일치를 위해 base_query + mine 필터 동일 적용.
+    """
+    db = get_db()
+    today_kst = get_today_kst()
+    range_start = today_kst
+    range_end = today_kst + datetime.timedelta(days=14)
+
+    base_query = db.query(Order).filter(Order.status != 'DELETED')
+    base_query = base_query.filter(
+        or_(
+            and_(
+                Order.is_regional != True,
+                ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
+            ),
+            Order.is_self_measurement == True
+        )
+    )
+
+    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    mine_filter_active = request.args.get('mine') == '1' and current_user
+
+    panel_orders = base_query.order_by(Order.id.desc()).limit(1500).all()
+    if mine_filter_active:
+        panel_orders = [o for o in panel_orders if is_order_mine_for_user(o, current_user)]
+
+    years = {range_start.year, range_end.year}
+    holiday_dates = set()
+    for y in years:
+        holiday_dates |= _load_holidays_for_year(y)
+
+    measurement_counts = {}
+    for order in panel_orders:
+        if self_measurement_four_checks_done(order):
+            continue
+        all_dates = extract_all_measurement_dates(order)
+        for date_value in all_dates:
+            try:
+                d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
+            except Exception:
+                continue
+            if d < range_start or d > range_end:
+                continue
+            key = d.strftime('%Y-%m-%d')
+            measurement_counts[key] = measurement_counts.get(key, 0) + 1
+
+    day_labels = ['월', '화', '수', '목', '금', '토', '일']
+    today_str = today_kst.strftime('%Y-%m-%d')
+    panel_dates = []
+    current = range_start
+    while current <= range_end:
+        date_str = current.strftime('%Y-%m-%d')
+        is_weekend = current.weekday() >= 5
+        is_holiday = date_str in holiday_dates
+        panel_dates.append({
+            'date': date_str,
+            'day_label': day_labels[current.weekday()],
+            'count': measurement_counts.get(date_str, 0),
+            'is_weekend': is_weekend,
+            'is_holiday': is_holiday,
+            'is_today': date_str == today_str,
+        })
+        current += datetime.timedelta(days=1)
+
+    return jsonify({
+        'success': True,
+        'panel_dates': panel_dates,
+    })
 
 
 @erp_measurement_bp.route('/update/<int:order_id>', methods=['POST'])
