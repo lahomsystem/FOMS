@@ -276,7 +276,8 @@
 </div>`;
         }).join('');
         const internal = defaultConsult(item.internal);
-        const color = defaultConsult(item.color);
+        // 색상: 신규(빈 값)만 '(SK)' 기본. 저장된 값이 있으면 그대로 로드 (suffix 추가 금지)
+        const color = String(item.color ?? '').trim() || '(SK)';
         const optionDetail = defaultConsult(item.option_detail);
         const handle = defaultConsult(item.handle);
         const misc = defaultConsult(item.misc);
@@ -306,7 +307,7 @@
     </div>
     <div class="col-md-6">
         <label class="form-label mb-1 small text-primary">색상</label>
-        <input class="form-control form-control-sm" data-erp="color" value="${escapeHtml(color === '상담' ? '(SK)' : color + ' (SK)')}" lang="ko">
+        <input class="form-control form-control-sm" data-erp="color" value="${escapeHtml(color)}" lang="ko">
     </div>
     <div class="col-md-6">
         <label class="form-label mb-1 small text-primary">옵션</label>
