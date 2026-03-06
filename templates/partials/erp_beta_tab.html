@@ -202,6 +202,15 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                                         <button type="button" class="btn btn-outline-secondary" id="erp-measurement-date-open" title="달력에서 선택" aria-label="달력 열기"><i class="fas fa-calendar-alt"></i></button>
                                     </div>
                                 </div>
+                                <div class="col-md-6">
+                                    <label class="form-label mb-1">시공일</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" class="form-control form-control-sm" id="erp-construction-date"
+                                            placeholder="여러 날짜 선택 가능 (예: 2026-03-13, 2026-03-14)" autocomplete="off"
+                                            title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
+                                        <button type="button" class="btn btn-outline-secondary" id="erp-construction-date-open" title="달력에서 선택" aria-label="달력 열기"><i class="fas fa-calendar-alt"></i></button>
+                                    </div>
+                                </div>
                                 <div class="col-12">
                                     <button class="btn btn-sm btn-link p-0 mt-1 text-secondary" type="button"
                                         data-bs-toggle="collapse" data-bs-target="#erp-collapse-measure-note"
@@ -227,15 +236,6 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                                     </select>
                                     <input type="text" class="form-control form-control-sm mt-2" id="erp-measurement-time"
                                         placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off" lang="ko">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label mb-1">시공일</label>
-                                    <div class="input-group input-group-sm">
-                                        <input type="text" class="form-control form-control-sm" id="erp-construction-date"
-                                            placeholder="여러 날짜 선택 가능 (예: 2026-03-13, 2026-03-14)" autocomplete="off"
-                                            title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
-                                        <button type="button" class="btn btn-outline-secondary" id="erp-construction-date-open" title="달력에서 선택" aria-label="달력 열기"><i class="fas fa-calendar-alt"></i></button>
-                                    </div>
                                 </div>
                             </div>
                         </div>
