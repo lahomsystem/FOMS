@@ -5,6 +5,7 @@
 
 ## 최근 파일 편집
 
+- `commit_msg.txt` <- 1 edit(s), ~205 chars (2026-03-06 19:16:00)
 - `commit_msg.txt` <- 1 edit(s), ~260 chars (2026-03-06 19:02:11)
 - `docs/plans/2026-03-05-erp-measurement-panel-mirroring-plan.md` <- 1 edit(s), ~161 chars (2026-03-06 18:55:02)
 - `docs/plans/2026-03-05-erp-measurement-panel-mirroring-plan.md` <- 1 edit(s), ~164 chars (2026-03-06 18:54:59)
@@ -54,4 +55,3 @@
 - `apps/erp_construction_page.py` <- 1 edit(s), ~38 chars (2026-03-04 23:04:04)
 - `apps/erp_construction_page.py` <- 1 edit(s), ~118 chars (2026-03-04 23:03:52)
 - `apps/erp_construction_page.py` <- 1 edit(s), ~118 chars (2026-03-04 23:03:38)
-- `apps/erp_measurement_dashboard.py` <- 1 edit(s), ~73 chars (2026-03-04 23:03:15)
