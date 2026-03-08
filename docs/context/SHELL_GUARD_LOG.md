@@ -181,3 +181,24 @@
 | 2026-03-06 19:16:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git checkout deploy` |
 | 2026-03-06 19:36:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
 | 2026-03-06 19:36:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Made-with: Cursor" -F commit_msg.txt; git push origin deploy` |
+| 2026-03-08 11:41:18 | allow | `-` | `echo hello` |
+| 2026-03-08 11:41:19 | block | `rm -rf /` | `rm -rf /` |
+| 2026-03-08 11:41:19 | warn | `git push --force` | `git push --force` |
+| 2026-03-08 16:16:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python - << 'EOF' import re files = [ '.claude/hooks/guard_shell.py', '.claude/hooks/track_e` |
+| 2026-03-08 16:16:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && echo '{"tool_name":"Bash","tool_input":{"command":"python app.py"}}' | python .claude/hooks/` |
+| 2026-03-08 16:16:39 | allow | `-` | `python app.py` |
+| 2026-03-08 16:16:45 | warn | `git reset --hard` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && echo '{"tool_name":"Bash","tool_input":{"command":"git reset --hard HEAD~1"}}' | python .cla` |
+| 2026-03-08 16:16:45 | warn | `git reset --hard` | `git reset --hard HEAD~1` |
+| 2026-03-08 16:16:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && echo '{"tool_name":"Edit","tool_input":{"file_path":"c:\\Users\\USER\\OneDrive\\Desktop\\SY\` |
+| 2026-03-08 16:16:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && find .claude -type f | grep -v __pycache__ | sort` |
+| 2026-03-08 16:27:29 | allow | `-` | `mkdir -p .claude/agents` |
+| 2026-03-08 16:33:37 | allow | `-` | `find .claude -type f | grep -v __pycache__ | sort` |
+| 2026-03-08 16:41:22 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-08 16:45:24 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-08 16:46:15 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-08 16:52:15 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-08 16:56:40 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-08 17:30:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch -v` |
+| 2026-03-08 17:30:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
+| 2026-03-08 17:31:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git stash push -m "push-deploy-prod" -- docs/AI_CHANGELOG.md docs/AI_STATUS.md docs/context/ED` |
+| 2026-03-08 17:31:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/AI_STATUS.md docs/context/EDIT_LOG.md docs/context/SESSION_L` |

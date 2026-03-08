@@ -391,6 +391,31 @@
             });
         });
 
+        row.querySelector('[data-erp="extra_input"]')?.addEventListener('paste', (e) => {
+            const raw = e.clipboardData?.getData('text/plain') || '';
+            let cleaned = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            cleaned = cleaned.replace(/[\ufeff\u200b\u200c\u200d]/g, '');
+
+            const newlineRuns = cleaned.match(/\n+/g) || [];
+            const isChannelTalkPlainText =
+                newlineRuns.length > 0 &&
+                newlineRuns.every((run) => run.length === 2);
+
+            if (!isChannelTalkPlainText || raw === cleaned) {
+                return;
+            }
+
+            cleaned = cleaned.replace(/\n\n/g, '\n');
+
+            e.preventDefault();
+            const ta = e.currentTarget;
+            const start = ta.selectionStart ?? ta.value.length;
+            const end = ta.selectionEnd ?? ta.value.length;
+            ta.value = ta.value.slice(0, start) + cleaned + ta.value.slice(end);
+            ta.selectionStart = ta.selectionEnd = start + cleaned.length;
+            ta.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+
         row.querySelector('.erp-remove-item-btn')?.addEventListener('click', async () => {
             const removedIndex = erpGetItemIndexFromRow(row);
             if (removedIndex >= 0 && typeof erpReindexMeasurementAttachmentsAfterItemRemoval === 'function') {

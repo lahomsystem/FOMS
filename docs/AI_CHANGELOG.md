@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-08 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, erp_beta_tab.html 외 2개 | 97476ff |
 | 2026-03-06 | 세션 자동 기록 | erp_beta_js.html, commit_msg.txt, erp_beta_tab.html 외 2개 | 3d8cae0 |
 | 2026-03-06 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, erp_beta_tab.html 외 2개 | 941d615 |
 | 2026-03-06 | 세션 자동 기록 | erp_beta_js.html, erp_beta_tab.html, erp_measurement.py 외 2개 | b4cfc25 |
@@ -23,4 +24,3 @@
 | 2026-03-04 | 세션 자동 기록 | erp_orders_structured.py, erp_construction_filters_grid.html, erp_measurement_dashboard.html 외 2개 | 1a82d4b |
 | 2026-03-04 | 세션 자동 기록 | erp_construction_filters_grid.html, erp_measurement_dashboard.html, erp_construction_page.py 외 2개 | 1a82d4b |
 | 2026-03-04 | 세션 자동 기록 | orders.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-851953b1-e65e-4a00-b3d0-c1337d4e2341.png, commit_msg.txt 외 2개 | 1a82d4b |
-| 2026-03-04 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, erp_beta_tab.html 외 2개 | 1a82d4b |
