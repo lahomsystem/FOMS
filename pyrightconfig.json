@@ -3,7 +3,8 @@
     {
       "root": ".",
       "extraPaths": [
-        ".cursor/hooks"
+        ".cursor/hooks",
+        ".claude/hooks"
       ]
     }
   ]
