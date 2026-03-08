@@ -73,15 +73,27 @@ def api_map_data():
         status_filter = request.args.get('status')
         limit = _resolve_map_limit(request.args.get('limit'), default_limit=100)
         scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
+        dashboard = request.args.get('dashboard')
 
         db = get_db()
         query = db.query(Order).filter(Order.status != 'DELETED')
 
         # 자가실측·지방실측 제외(진짜 실측 필요한 것만)
-        query = query.filter(
-            Order.is_regional != True,
-            ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
-        )
+        if dashboard == 'measurement':
+            query = query.filter(
+                or_(
+                    and_(
+                        Order.is_regional != True,
+                        ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
+                    ),
+                    Order.is_self_measurement == True
+                )
+            )
+        else:
+            query = query.filter(
+                Order.is_regional != True,
+                ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
+            )
 
         if status_filter and status_filter != 'ALL':
             query = query.filter(Order.status == status_filter)
@@ -95,14 +107,19 @@ def api_map_data():
                 date_start = None
                 date_end = None
 
-            date_conditions = [
-                and_(Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{date_filter}%')),
-                Order.received_date == date_filter,
-                and_(Order.scheduled_date.isnot(None), Order.scheduled_date != '', Order.scheduled_date.ilike(f'%{date_filter}%')),
-                Order.completion_date == date_filter,
-                Order.as_received_date == date_filter,
-                Order.as_completed_date == date_filter
-            ]
+            if dashboard == 'measurement':
+                date_conditions = [
+                    and_(Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{date_filter}%'))
+                ]
+            else:
+                date_conditions = [
+                    and_(Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{date_filter}%')),
+                    Order.received_date == date_filter,
+                    and_(Order.scheduled_date.isnot(None), Order.scheduled_date != '', Order.scheduled_date.ilike(f'%{date_filter}%')),
+                    Order.completion_date == date_filter,
+                    Order.as_received_date == date_filter,
+                    Order.as_completed_date == date_filter
+                ]
 
             if date_start and date_end:
                 date_start_str = date_start.strftime('%Y-%m-%d')
@@ -121,8 +138,16 @@ def api_map_data():
 
         orders = query.order_by(Order.id.desc()).limit(scan_limit).all()
 
+        if dashboard == 'measurement':
+            from services.erp_display import self_measurement_four_checks_done
+            orders = [o for o in orders if not self_measurement_four_checks_done(o)]
+
         if date_filter:
             def _order_has_date(o, d):
+                if dashboard == 'measurement':
+                    from apps.erp_measurement_dashboard import extract_all_measurement_dates
+                    return d in extract_all_measurement_dates(o)
+
                 s = set()
                 if getattr(o, 'measurement_date', None):
                     for x in str(o.measurement_date).split(','):
@@ -243,15 +268,27 @@ def api_generate_map():
         search_query = (request.args.get('q') or request.args.get('search') or '').strip()
         title = request.args.get('title', '주문 위치 지도')
         limit = _resolve_map_limit(request.args.get('limit'), default_limit=200)
+        dashboard = request.args.get('dashboard')
 
         db = get_db()
         query = db.query(Order).filter(Order.status != 'DELETED')
 
         # 자가실측·지방실측 제외(진짜 실측 필요한 것만)
-        query = query.filter(
-            Order.is_regional != True,
-            ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
-        )
+        if dashboard == 'measurement':
+            query = query.filter(
+                or_(
+                    and_(
+                        Order.is_regional != True,
+                        ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
+                    ),
+                    Order.is_self_measurement == True
+                )
+            )
+        else:
+            query = query.filter(
+                Order.is_regional != True,
+                ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
+            )
 
         if status_filter and status_filter != 'ALL':
             query = query.filter(Order.status == status_filter)
@@ -265,14 +302,19 @@ def api_generate_map():
                 date_start = None
                 date_end = None
 
-            date_conditions = [
-                and_(Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{date_filter}%')),
-                Order.received_date == date_filter,
-                and_(Order.scheduled_date.isnot(None), Order.scheduled_date != '', Order.scheduled_date.ilike(f'%{date_filter}%')),
-                Order.completion_date == date_filter,
-                Order.as_received_date == date_filter,
-                Order.as_completed_date == date_filter
-            ]
+            if dashboard == 'measurement':
+                date_conditions = [
+                    and_(Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{date_filter}%'))
+                ]
+            else:
+                date_conditions = [
+                    and_(Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{date_filter}%')),
+                    Order.received_date == date_filter,
+                    and_(Order.scheduled_date.isnot(None), Order.scheduled_date != '', Order.scheduled_date.ilike(f'%{date_filter}%')),
+                    Order.completion_date == date_filter,
+                    Order.as_received_date == date_filter,
+                    Order.as_completed_date == date_filter
+                ]
 
             if date_start and date_end:
                 date_start_str = date_start.strftime('%Y-%m-%d')
@@ -289,13 +331,20 @@ def api_generate_map():
 
             query = query.filter(or_(*date_conditions))
 
-        # 날짜 필터 시 후보를 넉넉히 스캔(기본 200이면 해당일 실측건이 누락될 수 있음)
         scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else limit
         fetch_limit = max(limit, scan_limit) if date_filter else limit
         orders = query.order_by(Order.id.desc()).limit(fetch_limit).all()
 
+        if dashboard == 'measurement':
+            from services.erp_display import self_measurement_four_checks_done
+            orders = [o for o in orders if not self_measurement_four_checks_done(o)]
+
         if date_filter:
             def _order_has_date_fetch(o, d):
+                if dashboard == 'measurement':
+                    from apps.erp_measurement_dashboard import extract_all_measurement_dates
+                    return d in extract_all_measurement_dates(o)
+
                 s = set()
                 if getattr(o, 'measurement_date', None):
                     for x in str(o.measurement_date).split(','):

@@ -1,6 +1,6 @@
 # Shell Guard Log
 
-> Cursor Hook(`beforeShellExecution`)가 자동 기록합니다.
+> Claude Code Hook(`PreToolUse:Bash`)가 자동 기록합니다.
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
@@ -202,3 +202,18 @@
 | 2026-03-08 17:30:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
 | 2026-03-08 17:31:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git stash push -m "push-deploy-prod" -- docs/AI_CHANGELOG.md docs/AI_STATUS.md docs/context/ED` |
 | 2026-03-08 17:31:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/AI_STATUS.md docs/context/EDIT_LOG.md docs/context/SESSION_L` |
+| 2026-03-09 08:33:50 | allow | `-` | `find /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/templates -name "*.html" | sort` |
+| 2026-03-09 08:33:50 | allow | `-` | `ls /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/` |
+| 2026-03-09 08:33:51 | allow | `-` | `ls -la /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/ 2>/dev/null && ls -la /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/` |
+| 2026-03-09 08:33:53 | allow | `-` | `ls /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/` |
+| 2026-03-09 08:33:54 | allow | `-` | `ls /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/` |
+| 2026-03-09 08:33:54 | allow | `-` | `ls /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/` |
+| 2026-03-09 08:33:55 | allow | `-` | `wc -l /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/templates/erp_measurement_dashboard.html /c/Users/USER/OneDrive/Desktop/SY/program/lahomprojec` |
+| 2026-03-09 08:33:56 | allow | `-` | `ls -la /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/erp/ 2>/dev/null` |
+| 2026-03-09 08:33:58 | allow | `-` | `ls /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/` |
+| 2026-03-09 08:34:12 | allow | `-` | `grep -n "for.*in\|tojson\|orders\|geocoded\|locations\|markers\|addMarker\|addOverlay\|L\.marker\|kakao.*marker\|naver.*marker" /c/Users/USER/OneDrive/Desktop/S` |
+| 2026-03-09 08:34:13 | allow | `-` | `grep -n "tojson\|for.*in\|orders\|rows\|results" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/templates/self_measurement_dashboard.html | head -6` |
+| 2026-03-09 08:34:18 | allow | `-` | `grep -n "tojson\|safe\|geocod\|orders\|locations\|fetch.*api\|addEventListener\|DOMContentLoaded\|console\.log" /c/Users/USER/OneDrive/Desktop/SY/program/lahomp` |
+| 2026-03-09 08:34:27 | allow | `-` | `grep -n "generate_map\|map_data" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/*.py 2>/dev/null | grep "def\|route\|limit\|query\|all()\|` |
+| 2026-03-09 08:34:28 | allow | `-` | `wc -l /c/Users/USER/AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/tasks/*.output 2>/dev/null` |
+| 2026-03-09 08:34:44 | allow | `-` | `wc -l c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_measurement.py c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/a` |

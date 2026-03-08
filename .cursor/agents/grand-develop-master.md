@@ -387,6 +387,19 @@ Phase 4: 확장 (새 기능, AI 통합)
 - 검증 없이 기술 스택 변경 실행
 - 다른 에이전트 우선 오케스트레이션, 단 실행 환경 제약 시 직접 수행 후 근거 보고
 - 기술 용어만으로 사용자에게 보고
+- AI가 금액, 정산, 예약금, 잔금의 최종 진실값 역할 수행 (수학적 정확성 보장 불가, 정책 엔진이 담당)
+- 웹 요청(HTTP request) 안에서 장시간 LangGraph/AI 워크플로 직접 실행 (RQ Worker에서만 허용)
+- 근거(source citation) 없는 AI 추천/분석 결과를 UI에 확정값처럼 노출
+
+## AI 도입 거버넌스 (Final3 마스터 계획서 연동)
+- **마스터 계획서**: `docs/plans/2026-03-08-final3-foms-ai-master-langchain-langgraph-plan.md`
+- **AI Feature Flag**: 기본값 OFF. 배포 후 수동 활성화만 허용
+- **AI API 비용**: Usage Quota 설정 + 월 한도 초과 시 알림 필수
+- **AI 코드 위치**: `services/ai/` 및 `apps/api/ai/`에만 AI 코드 배치 (Sidecar 격리)
+- **AI 실행 추적**: 모든 LLM 호출은 LangSmith trace + AI Run Log 기록 필수
+- **Prompt/Schema 버전**: 버전 기록 없이 운영 반영 금지
+- **Deterministic Fallback**: AI 실패 시 기존 로직이 반드시 동작해야 함
+- **Read → Draft → Write**: AI 기능은 이 단계를 순서대로만 진화 (건너뛰기 금지)
 
 
 ##  [System 4 규칙] 필수 보고 체계
