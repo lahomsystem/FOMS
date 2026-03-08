@@ -877,6 +877,7 @@
         const initialStatus = urlParams.get('status') || 'ALL';
         const initialManager = urlParams.get('manager') || '';
         const initialSearch = urlParams.get('q') || urlParams.get('search') || '';
+        const dashboardParam = urlParams.get('dashboard') || '';
 
         // 초기값 설정
         document.getElementById('date-filter').value = initialDate;
@@ -989,6 +990,7 @@
                 const pollParams = new URLSearchParams({ date: dateFilter, status: statusFilter });
                 if (managerFilter) pollParams.set('manager', managerFilter);
                 if (searchQuery) pollParams.set('q', searchQuery);
+                if (dashboardParam) pollParams.set('dashboard', dashboardParam);
                 fetch('/api/map_data?' + pollParams)
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
@@ -1032,6 +1034,7 @@
                 title: dateFilter + ' 주문 지도'
             });
             if (searchQuery) params.set('q', searchQuery);
+            if (dashboardParam) params.set('dashboard', dashboardParam);
 
             fetch('/api/generate_map?' + params)
                 .then(function (response) { return response.json(); })

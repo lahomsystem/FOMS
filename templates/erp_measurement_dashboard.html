@@ -2,9 +2,8 @@
 
 {% block content %}
 <div class="erp-pro" data-erp-beta-active="{{ 'true' if erp_beta_enabled else 'false' }}"
-  data-erp-active="{{ 'true' if erp_beta_enabled else 'false' }}"
-  data-today-date="{{ today_date }}" data-selected-date="{{ selected_date }}"
-  data-search-q="{{ search_q }}">
+  data-erp-active="{{ 'true' if erp_beta_enabled else 'false' }}" data-today-date="{{ today_date }}"
+  data-selected-date="{{ selected_date }}" data-search-q="{{ search_q }}">
   <!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -240,6 +239,7 @@
                 background-color: #ffe4ec !important;
                 font-weight: 600;
               }
+
               .measurement-table tbody tr:hover td.measurement-date-cell {
                 background-color: #ffc8d8 !important;
               }
@@ -250,18 +250,22 @@
                 opacity: 0.7;
                 user-select: none;
               }
+
               .measurement-chevron:hover {
                 opacity: 1;
               }
+
               .measurement-chevron.is-open {
                 transform: rotate(180deg);
               }
+
               .measurement-detail-row td {
                 padding: 12px;
                 background-color: #f8fbff;
                 border-bottom: 1px solid #e0e0e0;
                 vertical-align: top;
               }
+
               .measurement-detail-row .dw-product-main-card {
                 border: 1px solid #dfe7f3;
                 border-radius: 10px;
@@ -269,6 +273,7 @@
                 padding: 12px;
                 margin-bottom: 10px;
               }
+
               .measurement-detail-row .dw-product-main-head {
                 display: flex;
                 align-items: center;
@@ -276,24 +281,29 @@
                 gap: 8px;
                 margin-bottom: 8px;
               }
+
               .measurement-detail-row .dw-product-main-name {
                 font-size: 1.08rem;
                 font-weight: 700;
                 color: #0f2a52;
               }
+
               .measurement-detail-row .dw-product-split {
                 display: grid;
                 grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
                 gap: 14px;
               }
+
               .measurement-detail-row .dw-product-info-form .form-control {
                 background: #f3f5fa;
                 border-color: #dbe3f0;
                 color: #394b63;
               }
+
               .measurement-detail-row .dw-product-info-form .form-control[readonly] {
                 cursor: copy;
               }
+
               .measurement-detail-row .dw-attach-panel {
                 border: 1px solid #dbe4f3;
                 border-radius: 10px;
@@ -301,14 +311,17 @@
                 padding: 10px;
                 height: 100%;
               }
+
               .measurement-detail-row .dw-attach-grid {
                 display: grid;
                 grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
                 gap: 8px;
               }
+
               .measurement-detail-row .dw-attach-grid--single {
                 grid-template-columns: 1fr;
               }
+
               .measurement-detail-row .dw-attach-thumb {
                 width: 100%;
                 border-radius: 8px;
@@ -318,6 +331,7 @@
                 background: #fff;
                 padding: 4px;
               }
+
               .measurement-detail-row .dw-attach-thumb img {
                 max-width: 100%;
                 max-height: 320px;
@@ -326,17 +340,20 @@
                 object-fit: contain;
                 display: block;
               }
+
               .measurement-detail-row .dw-attach-name {
                 font-size: 0.78rem;
                 color: #667a94;
                 margin-top: 4px;
                 word-break: break-all;
               }
+
               @media (max-width: 768px) {
                 .measurement-detail-row .dw-product-split {
                   grid-template-columns: 1fr;
                 }
               }
+
               .measurement-panel-item {
                 scroll-margin-top: 16px;
               }
@@ -402,6 +419,7 @@
                   max-height: 240px;
                 }
               }
+
               /* 모바일: 카드 전환은 erp-pro.css .erp-mobile-card-table, 터치·레이아웃 */
               @media (max-width: 992px) {
                 .measurement-panel-item {
@@ -409,7 +427,8 @@
                   display: flex;
                   align-items: center;
                 }
-                .erp-pro .row.g-3 > [class*="col-"] {
+
+                .erp-pro .row.g-3>[class*="col-"] {
                   flex: 0 0 100%;
                   max-width: 100%;
                 }
@@ -491,47 +510,55 @@
                     <span class="d-inline-flex align-items-center">
                       {{ customer or '-' }}
                       {% if r.is_self_measurement|default(false) %}
-                      <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i> 자가실측</span>
+                      <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i>
+                        자가실측</span>
                       {% endif %}
-                      <i class="fas fa-chevron-down measurement-chevron ms-1" data-order-id="{{ r.id }}" role="button" aria-expanded="false" title="주문 상세 보기"></i>
+                      <i class="fas fa-chevron-down measurement-chevron ms-1" data-order-id="{{ r.id }}" role="button"
+                        aria-expanded="false" title="주문 상세 보기"></i>
                     </span>
                   </td>
                   <td data-label="발주사" style="border-right: 1px solid #e0e0e0;">{{ orderer or '-' }}</td>
                   <td class="editable-cell cell-wrap measurement-address-cell" data-field="address" data-label="주소"
                     style="border-right: 1px solid #e0e0e0;">{{ address or '-' }}</td>
-                  <td class="editable-cell" data-field="phone" data-label="전화번호" style="border-right: 1px solid #e0e0e0;">{{
+                  <td class="editable-cell" data-field="phone" data-label="전화번호"
+                    style="border-right: 1px solid #e0e0e0;">{{
                     phone|format_phone }}</td>
-                  <td class="measurement-date-cell" data-label="실측일" style="border-right: 1px solid #e0e0e0; white-space: nowrap;">
+                  <td class="measurement-date-cell" data-label="실측일"
+                    style="border-right: 1px solid #e0e0e0; white-space: nowrap;">
                     {% set _date_str = (meas_date or '') %}
                     {% set _parts = (_date_str.split(',')|map('trim')|list)|select|list %}
                     {% for _d in _parts %}<span class="badge bg-secondary me-1">{{ _d }}</span>{% endfor %}
                     {% if not _parts %}-{% endif %}
                   </td>
                   <td data-label="시간" style="border-right: 1px solid #e0e0e0;">{{ meas_time or '-' }}</td>
-                  <td class="cell-wrap measurement-product-cell" data-label="제품" style="border-right: 1px solid #e0e0e0;">{{ (product or
+                  <td class="cell-wrap measurement-product-cell" data-label="제품"
+                    style="border-right: 1px solid #e0e0e0;">{{ (product or
                     '-')|strip_product_w or '-' }}</td>
                   <td class="editable-cell manager-cell" data-field="manager" data-label="담당자"
                     style="background-color: {{ manager_bg_color }}; color: {{ text_color }};">
                     {{ manager or '-' }}
                   </td>
                 </tr>
-                <tr class="measurement-detail-row" id="detail-{{ r.id }}" data-order-id="{{ r.id }}" style="display:none;" aria-hidden="true">
+                <tr class="measurement-detail-row" id="detail-{{ r.id }}" data-order-id="{{ r.id }}"
+                  style="display:none;" aria-hidden="true">
                   <td colspan="9">
                     {% set product_items_row = r.product_items if r.product_items is defined else [] %}
                     {% if product_items_row %}
-                      {% for item in product_items_row %}
-                      {% set item_idx = loop.index0 %}
-                      {% set item_measurements = item.get('measurement_images') or [] %}
-                      {% set spec_w = item.get('spec_width') or item.get('width') or '' %}
-                      {% set spec_d = item.get('spec_depth') or item.get('depth') or '' %}
-                      {% set spec_h = item.get('spec_height') or item.get('height') or '' %}
-                      {% set price_raw = item.get('price') %}
-                      {% set location_text = item.get('misc') or '' %}
+                    {% for item in product_items_row %}
+                    {% set item_idx = loop.index0 %}
+                    {% set item_measurements = item.get('measurement_images') or [] %}
+                    {% set spec_w = item.get('spec_width') or item.get('width') or '' %}
+                    {% set spec_d = item.get('spec_depth') or item.get('depth') or '' %}
+                    {% set spec_h = item.get('spec_height') or item.get('height') or '' %}
+                    {% set price_raw = item.get('price') %}
+                    {% set location_text = item.get('misc') or '' %}
                     <div class="dw-product-main-card">
                       <div class="dw-product-main-head">
-                        <div class="dw-product-main-name">{{ item.get('product_name') or ('제품 항목 ' ~ loop.index) }}</div>
+                        <div class="dw-product-main-name">{{ item.get('product_name') or ('제품 항목 ' ~ loop.index) }}
+                        </div>
                         <div class="d-flex align-items-center gap-1">
-                          {% if item.get('quantity') %}<span class="badge bg-primary">수량 {{ item.get('quantity') }}</span>{% endif %}
+                          {% if item.get('quantity') %}<span class="badge bg-primary">수량 {{ item.get('quantity')
+                            }}</span>{% endif %}
                           <span class="badge bg-light text-dark border">항목 {{ loop.index }}</span>
                         </div>
                       </div>
@@ -540,71 +567,100 @@
                           <div class="row g-2">
                             <div class="col-12">
                               <label class="form-label mb-1 small text-primary">제품명</label>
-                              <input class="form-control form-control-sm" value="{{ item.get('product_name') or '' }}" readonly title="클릭하면 값이 복사됩니다.">
+                              <input class="form-control form-control-sm" value="{{ item.get('product_name') or '' }}"
+                                readonly title="클릭하면 값이 복사됩니다.">
                             </div>
                             <div class="col-md-3">
                               <label class="form-label mb-1 small text-primary">규격 W(폭)</label>
-                              <input class="form-control form-control-sm" value="{{ spec_w }}" readonly title="클릭하면 값이 복사됩니다.">
+                              <input class="form-control form-control-sm" value="{{ spec_w }}" readonly
+                                title="클릭하면 값이 복사됩니다.">
                             </div>
                             <div class="col-md-3">
                               <label class="form-label mb-1 small text-primary">규격 D(깊이)</label>
-                              <input class="form-control form-control-sm" value="{{ spec_d }}" readonly title="클릭하면 값이 복사됩니다.">
+                              <input class="form-control form-control-sm" value="{{ spec_d }}" readonly
+                                title="클릭하면 값이 복사됩니다.">
                             </div>
                             <div class="col-md-3">
                               <label class="form-label mb-1 small text-primary">규격 H(높이)</label>
-                              <input class="form-control form-control-sm" value="{{ spec_h }}" readonly title="클릭하면 값이 복사됩니다.">
+                              <input class="form-control form-control-sm" value="{{ spec_h }}" readonly
+                                title="클릭하면 값이 복사됩니다.">
                             </div>
                             <div class="col-md-6">
                               <label class="form-label mb-1 small text-primary">내부</label>
-                              <input class="form-control form-control-sm" value="{{ item.get('internal') or '' }}" readonly title="클릭하면 값이 복사됩니다.">
+                              <input class="form-control form-control-sm" value="{{ item.get('internal') or '' }}"
+                                readonly title="클릭하면 값이 복사됩니다.">
                             </div>
                             <div class="col-md-6">
                               <label class="form-label mb-1 small text-primary">색상</label>
-                              <input class="form-control form-control-sm" value="{{ item.get('color') or '' }}" readonly title="클릭하면 값이 복사됩니다.">
+                              <input class="form-control form-control-sm" value="{{ item.get('color') or '' }}" readonly
+                                title="클릭하면 값이 복사됩니다.">
                             </div>
                             <div class="col-md-6">
                               <label class="form-label mb-1 small text-primary">옵션</label>
-                              <input class="form-control form-control-sm" value="{{ item.get('option_detail') or '' }}" readonly title="클릭하면 값이 복사됩니다.">
+                              <input class="form-control form-control-sm" value="{{ item.get('option_detail') or '' }}"
+                                readonly title="클릭하면 값이 복사됩니다.">
                             </div>
                             <div class="col-md-6">
                               <label class="form-label mb-1 small text-primary">손잡이</label>
-                              <input class="form-control form-control-sm" value="{{ item.get('handle') or '' }}" readonly title="클릭하면 값이 복사됩니다.">
+                              <input class="form-control form-control-sm" value="{{ item.get('handle') or '' }}"
+                                readonly title="클릭하면 값이 복사됩니다.">
                             </div>
                             <div class="col-md-6">
                               <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
-                              <input class="form-control form-control-sm" value="{{ location_text }}" readonly title="클릭하면 값이 복사됩니다.">
+                              <input class="form-control form-control-sm" value="{{ location_text }}" readonly
+                                title="클릭하면 값이 복사됩니다.">
                             </div>
                             <div class="col-md-6">
                               <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
-                              <input class="form-control form-control-sm" value="{% if price_raw not in [None, ''] %}{% if price_raw is number %}{{ '{:,}'.format(price_raw|int) }}{% else %}{{ price_raw }}{% endif %}{% endif %}" readonly title="클릭하면 값이 복사됩니다.">
+                              <input class="form-control form-control-sm"
+                                value="{% if price_raw not in [None, ''] %}{% if price_raw is number %}{{ '{:,}'.format(price_raw|int) }}{% else %}{{ price_raw }}{% endif %}{% endif %}"
+                                readonly title="클릭하면 값이 복사됩니다.">
                             </div>
                             <div class="col-12">
                               <label class="form-label mb-1 small text-primary">추가 입력</label>
-                              <textarea class="form-control form-control-sm" rows="3" readonly title="클릭하면 값이 복사됩니다.">{{ item.get('extra_input') or '' }}</textarea>
+                              <textarea class="form-control form-control-sm" rows="3" readonly
+                                title="클릭하면 값이 복사됩니다.">{{ item.get('extra_input') or '' }}</textarea>
                             </div>
                           </div>
                           <div class="d-flex flex-column align-items-end gap-2 mt-2 erp-amount-block">
-                            <div class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem;">
+                            <div
+                              class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
+                              style="max-width: 16rem;">
                               <span class="fw-bold text-nowrap">출고가</span>
-                              <div class="badge bg-primary flex-shrink-0 text-end" id="erp-items-total" style="font-size: 1rem; width: 9rem; padding: 0.5rem;">0원</div>
+                              <div class="badge bg-primary flex-shrink-0 text-end" id="erp-items-total"
+                                style="font-size: 1rem; width: 9rem; padding: 0.5rem;">0원</div>
                             </div>
-                            <div id="erp-deposit-section" class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem;">
-                              <label for="erp-deposit-amount" class="form-label mb-0 fw-bold text-nowrap">예약금(선금)</label>
-                              <input type="text" id="erp-deposit-amount" inputmode="numeric" placeholder="0원" maxlength="24" readonly class="flex-shrink-0" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다." style="box-sizing:border-box; display:inline-block; font-size:1rem; font-weight:700; width:9rem; height:2rem; line-height:2rem; padding:0; margin:0; text-align:right; border:0; border-radius:0.25rem; background:#FFB6C1; color:#000;">
+                            <div id="erp-deposit-section"
+                              class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
+                              style="max-width: 16rem;">
+                              <label for="erp-deposit-amount"
+                                class="form-label mb-0 fw-bold text-nowrap">예약금(선금)</label>
+                              <input type="text" id="erp-deposit-amount" inputmode="numeric" placeholder="0원"
+                                maxlength="24" readonly class="flex-shrink-0" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다."
+                                style="box-sizing:border-box; display:inline-block; font-size:1rem; font-weight:700; width:9rem; height:2rem; line-height:2rem; padding:0; margin:0; text-align:right; border:0; border-radius:0.25rem; background:#FFB6C1; color:#000;">
                             </div>
-                            <div id="erp-remaining-section" class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
+                            <div id="erp-remaining-section"
+                              class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
+                              style="max-width: 16rem; display: none;">
                               <label class="form-label mb-0 fw-bold text-nowrap">잔금</label>
-                              <div class="badge bg-primary flex-shrink-0 text-end" id="erp-remaining-amount" style="font-size: 1rem; width: 9rem; padding: 0.5rem;">0원</div>
+                              <div class="badge bg-primary flex-shrink-0 text-end" id="erp-remaining-amount"
+                                style="font-size: 1rem; width: 9rem; padding: 0.5rem;">0원</div>
                             </div>
                           </div>
                         </div>
                         <div class="dw-attach-panel">
                           <div class="small fw-semibold text-muted mb-2"><i class="fas fa-image"></i> 실측 첨부 파일</div>
                           {% if item_measurements %}
-                          <div class="dw-attach-grid {% if item_measurements|length == 1 %}dw-attach-grid--single{% endif %}">
+                          <div
+                            class="dw-attach-grid {% if item_measurements|length == 1 %}dw-attach-grid--single{% endif %}">
                             {% for photo in item_measurements %}
                             <div>
-                              <div class="dw-attach-thumb" data-group-key="measure_detail_{{ r.id }}_item_{{ item_idx }}" data-index="{{ loop.index0 }}" data-view-url="{{ photo.view_url }}" data-download-url="{{ photo.download_url }}" data-filename="{{ photo.filename }}" data-key="{{ photo.key }}" onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))">
+                              <div class="dw-attach-thumb"
+                                data-group-key="measure_detail_{{ r.id }}_item_{{ item_idx }}"
+                                data-index="{{ loop.index0 }}" data-view-url="{{ photo.view_url }}"
+                                data-download-url="{{ photo.download_url }}" data-filename="{{ photo.filename }}"
+                                data-key="{{ photo.key }}"
+                                onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))">
                                 <img src="{{ photo.view_url }}" alt="{{ photo.filename }}">
                               </div>
                               <div class="dw-attach-name">{{ photo.filename }}</div>
@@ -617,7 +673,7 @@
                         </div>
                       </div>
                     </div>
-                      {% endfor %}
+                    {% endfor %}
                     {% else %}
                     <div class="small text-muted">등록된 제품 정보가 없습니다.</div>
                     {% endif %}
@@ -663,7 +719,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <a class="btn btn-outline-secondary" href="/map_view?date={{ selected_date }}&status=MEASURE" target="_blank">
+        <a class="btn btn-outline-secondary"
+          href="/map_view?date={{ selected_date }}&status=MEASURE&dashboard=measurement" target="_blank">
           <i class="fas fa-map-marked-alt"></i> 지도(핀) 보기
         </a>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
@@ -679,41 +736,41 @@
 <script src="{{ url_for('static', filename='js/erp/common_utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement.js') }}"></script>
 <script>
-(function () {
-  document.addEventListener('DOMContentLoaded', function () {
-    var urlParams = new URLSearchParams(window.location.search);
-    var focusOrder = urlParams.get('focus_order');
-    if (focusOrder) {
-      setTimeout(function () {
-        var row = document.querySelector('tr.measurement-row[data-order-id="' + focusOrder + '"]') || document.querySelector('tr[data-order-id="' + focusOrder + '"]');
-        if (row) {
-          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          row.classList.add('table-info');
-          setTimeout(function () { row.classList.remove('table-info'); }, 2500);
-        }
-      }, 400);
+  (function () {
+    document.addEventListener('DOMContentLoaded', function () {
+      var urlParams = new URLSearchParams(window.location.search);
+      var focusOrder = urlParams.get('focus_order');
+      if (focusOrder) {
+        setTimeout(function () {
+          var row = document.querySelector('tr.measurement-row[data-order-id="' + focusOrder + '"]') || document.querySelector('tr[data-order-id="' + focusOrder + '"]');
+          if (row) {
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            row.classList.add('table-info');
+            setTimeout(function () { row.classList.remove('table-info'); }, 2500);
+          }
+        }, 400);
+      }
+    });
+  })();
+  (function () {
+    function openDrawingGatewayImageViewer(groupKey, index) {
+      if (!window.GlobalImageViewer) return;
+      var thumbs = Array.prototype.filter.call(
+        document.querySelectorAll('[data-group-key][data-view-url]'),
+        function (el) { return String(el.dataset.groupKey || '') === String(groupKey); }
+      );
+      var files = thumbs.map(function (el) {
+        return {
+          view_url: el.dataset.viewUrl || '',
+          download_url: el.dataset.downloadUrl || '',
+          filename: el.dataset.filename || '이미지',
+          key: el.dataset.key || ''
+        };
+      }).filter(function (f) { return !!f.view_url; });
+      if (!files.length) return;
+      window.GlobalImageViewer.open(files, index || 0);
     }
-  });
-})();
-(function () {
-  function openDrawingGatewayImageViewer(groupKey, index) {
-    if (!window.GlobalImageViewer) return;
-    var thumbs = Array.prototype.filter.call(
-      document.querySelectorAll('[data-group-key][data-view-url]'),
-      function (el) { return String(el.dataset.groupKey || '') === String(groupKey); }
-    );
-    var files = thumbs.map(function (el) {
-      return {
-        view_url: el.dataset.viewUrl || '',
-        download_url: el.dataset.downloadUrl || '',
-        filename: el.dataset.filename || '이미지',
-        key: el.dataset.key || ''
-      };
-    }).filter(function (f) { return !!f.view_url; });
-    if (!files.length) return;
-    window.GlobalImageViewer.open(files, index || 0);
-  }
-  window.openDrawingGatewayImageViewer = openDrawingGatewayImageViewer;
-})();
+    window.openDrawingGatewayImageViewer = openDrawingGatewayImageViewer;
+  })();
 </script>
 {% endblock %}

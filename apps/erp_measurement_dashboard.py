@@ -261,7 +261,7 @@ def erp_measurement_dashboard():
 
     if open_map:
         # 당일 실측 건 = 날짜 기준(실측일/예정일)이므로 상태 무관하게 지도에 표시
-        return redirect(url_for('erp_map.map_view', date=selected_date, status='ALL'))
+        return redirect(url_for('erp_map.map_view', date=selected_date, status='ALL', dashboard='measurement', q=search_q))
 
     return render_template(
         'erp_measurement_dashboard.html',
