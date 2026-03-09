@@ -217,3 +217,4 @@
 | 2026-03-09 08:34:27 | allow | `-` | `grep -n "generate_map\|map_data" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/*.py 2>/dev/null | grep "def\|route\|limit\|query\|all()\|` |
 | 2026-03-09 08:34:28 | allow | `-` | `wc -l /c/Users/USER/AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/tasks/*.output 2>/dev/null` |
 | 2026-03-09 08:34:44 | allow | `-` | `wc -l c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_measurement.py c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/a` |
+| 2026-03-09 08:57:55 | allow | `-` | `wc -l c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/templates/partials/erp_beta_js.html c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOM` |
