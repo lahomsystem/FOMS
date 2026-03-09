@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-09 | Phase 4 날짜 최적화 및 쿼리/인덱스 정리 완료 | orders.py, erp_map.py, models.py 외 다수 | TBD |
 | 2026-03-09 | 세션 자동 기록 | commit_msg.txt | e030124 |
 | 2026-03-08 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, erp_beta_tab.html 외 2개 | 97476ff |
 | 2026-03-06 | 세션 자동 기록 | erp_beta_js.html, commit_msg.txt, erp_beta_tab.html 외 2개 | 3d8cae0 |
