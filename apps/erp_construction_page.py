@@ -60,12 +60,17 @@ def erp_construction_dashboard():
         orders = [o for o in orders if is_order_mine_for_user(o, user)]
 
     att_counts = {}
-    try:
-        rows = db.execute(text("SELECT order_id, COUNT(*) AS cnt FROM order_attachments GROUP BY order_id")).fetchall()
-        for r in rows:
-            att_counts[int(r.order_id)] = int(r.cnt)
-    except Exception:
-        att_counts = {}
+    if orders:
+        try:
+            from sqlalchemy import bindparam
+            order_ids = [o.id for o in orders]
+            stmt = text("SELECT order_id, COUNT(*) AS cnt FROM order_attachments WHERE order_id = ANY(:order_ids) GROUP BY order_id")
+            stmt = stmt.bindparams(bindparam('order_ids', value=order_ids))
+            rows = db.execute(stmt).fetchall()
+            for r in rows:
+                att_counts[int(r.order_id)] = int(r.cnt)
+        except Exception:
+            att_counts = {}
 
     step_stats = {
         '시공대기': {'count': 0, 'overdue': 0, 'imminent': 0},

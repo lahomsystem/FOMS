@@ -6,7 +6,7 @@ import datetime
 import math
 
 from flask import Blueprint, request, jsonify, session
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, cast, String
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
@@ -192,8 +192,8 @@ def api_erp_measurement_route():
     if date_filter:
         query = query.filter(
             or_(
-                and_(Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{date_filter}%')),
-                and_(Order.is_erp_beta == True, Order.structured_data.isnot(None))
+                and_(Order.is_erp_beta == False, Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{date_filter}%')),
+                and_(Order.is_erp_beta == True, cast(Order.structured_data, String).ilike(f'%{date_filter}%'))
             )
         )
 

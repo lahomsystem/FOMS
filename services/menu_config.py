@@ -3,15 +3,32 @@ import os
 import json
 
 
+_MENU_CONFIG_CACHE = None
+_MENU_CONFIG_MTIME = 0
+_MENU_CONFIG_PATH = 'menu_config.json'
+
 def load_menu_config():
-    """menu_config.json 로드, 없으면 기본 메뉴 반환."""
+    """menu_config.json 로드, 없으면 기본 메뉴 반환 (캐시 지원)."""
+    global _MENU_CONFIG_CACHE, _MENU_CONFIG_MTIME
     try:
-        if os.path.exists('menu_config.json'):
-            with open('menu_config.json', 'r', encoding='utf-8') as f:
-                return json.load(f)
+        if os.path.exists(_MENU_CONFIG_PATH):
+            mtime = os.path.getmtime(_MENU_CONFIG_PATH)
+            if _MENU_CONFIG_CACHE is None or mtime != _MENU_CONFIG_MTIME:
+                with open(_MENU_CONFIG_PATH, 'r', encoding='utf-8') as f:
+                    _MENU_CONFIG_CACHE = json.load(f)
+                _MENU_CONFIG_MTIME = mtime
+            return _MENU_CONFIG_CACHE
     except Exception:
         pass
-    return _default_menu_config()
+        
+    if _MENU_CONFIG_CACHE is None:
+        return _default_menu_config()
+    return _MENU_CONFIG_CACHE
+
+def invalidate_menu_config_cache():
+    """관리자 메뉴 저장 시 캐시 무효화"""
+    global _MENU_CONFIG_CACHE
+    _MENU_CONFIG_CACHE = None
 
 
 def _default_menu_config():

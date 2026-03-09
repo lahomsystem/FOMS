@@ -1,7 +1,7 @@
 """Flask context processors 및 템플릿 필터 (app.py에서 분리)."""
 import json
 import os
-from flask import session, url_for
+from flask import session, url_for, g
 
 from db import get_db
 from models import User
@@ -44,9 +44,7 @@ def inject_status_list():
     """상태 목록과 현재 사용자 정보를 템플릿에 주입."""
     display_status = {k: v for k, v in STATUS.items() if k != 'DELETED'}
     bulk_action_status = {k: v for k, v in STATUS.items() if k != 'DELETED'}
-    current_user = None
-    if 'user_id' in session:
-        current_user = get_user_by_id(session['user_id'])
+    current_user = getattr(g, 'current_user', None)
 
     admin_switch_users = []
     impersonating_from_id = session.get('impersonating_from')
@@ -86,8 +84,8 @@ def utility_processor():
 def inject_menu():
     """메뉴 설정 주입. 시공팀(CONSTRUCTION)은 출고·시공 대시보드만 노출."""
     menu = load_menu_config()
-    if isinstance(menu, dict) and session.get('user_id'):
-        user = get_user_by_id(session['user_id'])
+    if isinstance(menu, dict):
+        user = getattr(g, 'current_user', None)
         if user and getattr(user, 'team', None) == 'CONSTRUCTION':
             menu = dict(menu)
             menu['main_menu'] = [

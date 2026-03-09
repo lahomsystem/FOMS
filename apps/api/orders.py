@@ -111,7 +111,16 @@ def api_orders_nearby():
     # - AS: scheduled_date, as_received_date, as_completed_date
     # - 일반/레거시: shipping_scheduled_date, scheduled_date
     # - ERP Beta: 시공일이 structured_data.schedule.construction.date 에만 있는 경우 포함
-    candidates = db.query(Order).filter(
+    from sqlalchemy.orm import load_only
+    from sqlalchemy import cast, String
+
+    query = db.query(Order).options(
+        load_only(
+            Order.id, Order.address, Order.status, Order.shipping_scheduled_date,
+            Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
+            Order.is_erp_beta, Order.structured_data, Order.customer_name
+        )
+    ).filter(
         Order.status != 'DELETED',
         or_(
             Order.shipping_scheduled_date >= ref_date,
@@ -120,7 +129,19 @@ def api_orders_nearby():
             Order.as_completed_date >= ref_date,
             and_(Order.is_erp_beta == True, Order.structured_data != None),
         )
-    ).order_by(Order.id.desc()).limit(2500).all()
+    )
+    
+    parts = target_address.split()
+    if parts:
+        search_kw = '%' + '%'.join(parts[:2]) + '%'
+        query = query.filter(
+            or_(
+                Order.address.ilike(search_kw),
+                and_(Order.is_erp_beta == True, cast(Order.structured_data, String).ilike(search_kw))
+            )
+        )
+
+    candidates = query.order_by(Order.id.desc()).limit(2500).all()
 
     # 2. 주소 유사도 점수 계산 (표시용 주소·실제 시공일 사용)
     target_tokens = set(target_address.split())
