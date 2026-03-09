@@ -143,7 +143,8 @@ def erp_measurement_dashboard():
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     mine_filter_active = request.args.get('mine') == '1' and current_user
 
-    all_rows = query.order_by(Order.id.desc()).limit(500).all()
+    from sqlalchemy.orm import selectinload
+    all_rows = query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(500).all()
     if mine_filter_active:
         all_rows = [r for r in all_rows if is_order_mine_for_user(r, current_user)]
 
