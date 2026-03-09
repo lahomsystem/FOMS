@@ -83,6 +83,13 @@ class Order(Base):
     # Phase 4: 정규화된 날짜 테이블 (1:N)
     schedule_dates = relationship('OrderScheduleDate', backref='order', cascade='all, delete-orphan')
 
+    from sqlalchemy import Index, and_
+    __table_args__ = (
+        Index('ix_orders_regional_active', 'id', postgresql_where=(and_(status != 'DELETED', is_regional == True))),
+        Index('ix_orders_self_measurement_active', 'id', postgresql_where=(and_(status != 'DELETED', is_self_measurement == True))),
+        Index('ix_orders_erp_beta_active', 'id', postgresql_where=(and_(status != 'DELETED', is_erp_beta == True))),
+    )
+
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 

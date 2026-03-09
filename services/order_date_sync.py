@@ -2,19 +2,10 @@ import re
 from models import OrderScheduleDate
 from db import get_db
 
-def sync_order_dates(order, db_session=None):
-    """
-    Extracts dates from Order (measurement, construction) and updates the OrderScheduleDate table.
-    Should be called whenever an order is created or updated.
-    Does NOT commit the session. Caller must commit.
-    """
-    if db_session is None:
-        db_session = get_db()
 
-    # Clear existing dates for this order via relationship tracking
-    # If the relationship is loaded or not, we can assign a new list of objects
-    
-    dates_to_add = []
+def collect_order_schedule_date_specs(order):
+    """Build the normalized schedule-date payloads for a single order."""
+    specs = []
 
     # 1. Measurement Dates
     m_dates = set()
@@ -22,9 +13,12 @@ def sync_order_dates(order, db_session=None):
     if legacy_m:
         for d in str(legacy_m).split(','):
             if d.strip():
-                dates_to_add.append(OrderScheduleDate(
-                    order_id=order.id, kind='measurement', date=d.strip(), source='legacy_column'
-                ))
+                specs.append({
+                    'kind': 'measurement',
+                    'date': d.strip(),
+                    'source': 'legacy_column',
+                    'item_index': None,
+                })
                 m_dates.add(d.strip())
 
     if getattr(order, 'is_erp_beta', False) and isinstance(getattr(order, 'structured_data', None), dict):
@@ -36,9 +30,12 @@ def sync_order_dates(order, db_session=None):
             if bmd:
                 for d in str(bmd).split(','):
                     if d.strip() and d.strip() not in m_dates:
-                        dates_to_add.append(OrderScheduleDate(
-                            order_id=order.id, kind='measurement', date=d.strip(), source='beta_schedule'
-                        ))
+                        specs.append({
+                            'kind': 'measurement',
+                            'date': d.strip(),
+                            'source': 'beta_schedule',
+                            'item_index': None,
+                        })
                         m_dates.add(d.strip())
         
         # Beta Items
@@ -48,9 +45,12 @@ def sync_order_dates(order, db_session=None):
                 if imd:
                     for d in str(imd).split(','):
                         if d.strip() and d.strip() not in m_dates:
-                            dates_to_add.append(OrderScheduleDate(
-                                order_id=order.id, kind='measurement', date=d.strip(), source='beta_item', item_index=idx
-                            ))
+                            specs.append({
+                                'kind': 'measurement',
+                                'date': d.strip(),
+                                'source': 'beta_item',
+                                'item_index': idx,
+                            })
                             m_dates.add(d.strip())
 
     # 2. Construction Dates
@@ -59,9 +59,12 @@ def sync_order_dates(order, db_session=None):
     if legacy_c:
         for d in str(legacy_c).split(','):
             if d.strip():
-                dates_to_add.append(OrderScheduleDate(
-                    order_id=order.id, kind='construction', date=d.strip(), source='legacy_column'
-                ))
+                specs.append({
+                    'kind': 'construction',
+                    'date': d.strip(),
+                    'source': 'legacy_column',
+                    'item_index': None,
+                })
                 c_dates.add(d.strip())
 
     if getattr(order, 'is_erp_beta', False) and isinstance(getattr(order, 'structured_data', None), dict):
@@ -90,9 +93,12 @@ def sync_order_dates(order, db_session=None):
         if fallback_date:
             for d in fallback_date.split(','):
                 if d.strip() and d.strip() not in c_dates:
-                    dates_to_add.append(OrderScheduleDate(
-                        order_id=order.id, kind='construction', date=d.strip(), source='beta_schedule_fallback'
-                    ))
+                    specs.append({
+                        'kind': 'construction',
+                        'date': d.strip(),
+                        'source': 'beta_schedule_fallback',
+                        'item_index': None,
+                    })
                     c_dates.add(d.strip())
             
         # Beta Items
@@ -102,14 +108,35 @@ def sync_order_dates(order, db_session=None):
                 if icd:
                     for d in str(icd).split(','):
                         if d.strip() and d.strip() not in c_dates:
-                            dates_to_add.append(OrderScheduleDate(
-                                order_id=order.id, kind='construction', date=d.strip(), source='beta_item', item_index=idx
-                            ))
+                            specs.append({
+                                'kind': 'construction',
+                                'date': d.strip(),
+                                'source': 'beta_item',
+                                'item_index': idx,
+                            })
                             c_dates.add(d.strip())
 
-    # Update via relationship, leaving dependency handling to SQLAlchemy's flush mechanism
-    # Cascade is set to 'all, delete-orphan'
-    order.schedule_dates = dates_to_add
+    return specs
+
+
+def sync_order_dates(order, db_session=None):
+    """
+    Extracts dates from Order and updates the OrderScheduleDate relationship.
+    Does NOT commit the session. Caller must commit.
+    """
+    if db_session is None:
+        db_session = get_db()
+
+    specs = collect_order_schedule_date_specs(order)
+    order.schedule_dates = [
+        OrderScheduleDate(
+            kind=spec['kind'],
+            date=spec['date'],
+            source=spec['source'],
+            item_index=spec['item_index'],
+        )
+        for spec in specs
+    ]
 
 def register_date_sync_listener():
     from sqlalchemy import event

@@ -122,10 +122,16 @@ def erp_measurement_dashboard():
             datetime.datetime.strptime(req_date, '%Y-%m-%d').date()
         except (ValueError, TypeError):
             use_single_day = False
-    # 날짜 미지정 시 기본은 '전체'(selected_date='') — 출고 대시보드와 동일
+    # 기본 진입은 당일 주문만 로드한다. 전체 목록 로드는 대시보드 기본 동작에서 제외.
     if not use_range and not use_single_day:
-        req_date = ''
+        req_date = today_date
+        use_single_day = True
     selected_date = req_date
+
+    range_start = today_kst
+    range_end = today_kst + datetime.timedelta(days=14)
+    range_start_str = range_start.strftime('%Y-%m-%d')
+    range_end_str = range_end.strftime('%Y-%m-%d')
 
     from models import OrderScheduleDate
     if use_range or use_single_day:
@@ -152,8 +158,13 @@ def erp_measurement_dashboard():
         r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
     apply_erp_display_fields_to_orders(all_rows)
 
-    from sqlalchemy.orm import selectinload
-    panel_orders = base_query.options(
+    panel_query = base_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
+    panel_query = panel_query.filter(
+        OrderScheduleDate.kind == 'measurement',
+        OrderScheduleDate.date >= range_start_str,
+        OrderScheduleDate.date <= range_end_str,
+    ).distinct()
+    panel_orders = panel_query.options(
         load_only(
             Order.id, Order.measurement_date, Order.structured_data, 
             Order.is_self_measurement, Order.is_erp_beta, Order.status,
@@ -161,20 +172,13 @@ def erp_measurement_dashboard():
             Order.regional_blueprint_sent, Order.regional_order_upload
         ),
         selectinload(Order.schedule_dates)
-    ).order_by(Order.id.desc()).limit(1500).all()
+    ).order_by(Order.id.desc()).all()
     if mine_filter_active:
         panel_orders = [o for o in panel_orders if is_order_mine_for_user(o, current_user)]
         
     for o in panel_orders:
         o.structured_data = _ensure_dict(o.structured_data)  # type: ignore[assignment]
 
-    try:
-        base_date = datetime.datetime.strptime(selected_date, '%Y-%m-%d').date()
-    except Exception:
-        base_date = today_kst
-
-    range_start = today_kst
-    range_end = today_kst + datetime.timedelta(days=14)
     years = {range_start.year, range_end.year}
     holiday_dates = set()
     for y in years:

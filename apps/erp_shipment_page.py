@@ -154,9 +154,10 @@ def erp_shipment_dashboard():
             datetime.datetime.strptime(req_date, '%Y-%m-%d').date()
         except (ValueError, TypeError):
             use_single_day = False
-    # 날짜 미지정 시 기본은 '전체'(req_date='') — 오늘로 자동 설정하지 않음
+    # 기본 진입은 당일 주문만 로드한다. 전체 목록 로드는 대시보드 기본 동작에서 제외.
     if not use_range and not use_single_day:
-        req_date = ''
+        req_date = today_date
+        use_single_day = True
     selected_date = req_date
     
     base_query = db.query(Order).filter(Order.status != 'DELETED')
@@ -178,25 +179,22 @@ def erp_shipment_dashboard():
         )
     )
 
-    if use_range or use_single_day:
-        panel_query = panel_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
-        panel_query = panel_query.filter(OrderScheduleDate.kind == 'construction')
-        if use_range:
-            d_s = (today_kst - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-            d_e = (today_kst + datetime.timedelta(days=15)).strftime('%Y-%m-%d')
-            panel_query = panel_query.filter(OrderScheduleDate.date >= date_from, OrderScheduleDate.date <= date_to)
-        elif use_single_day:
-            panel_query = panel_query.filter(OrderScheduleDate.date == selected_date)
-        panel_query = panel_query.distinct()
+    panel_range_start = today_kst.strftime('%Y-%m-%d')
+    panel_range_end = (today_kst + datetime.timedelta(days=14)).strftime('%Y-%m-%d')
+    panel_query = panel_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
+    panel_query = panel_query.filter(
+        OrderScheduleDate.kind == 'construction',
+        OrderScheduleDate.date >= panel_range_start,
+        OrderScheduleDate.date <= panel_range_end,
+    ).distinct()
 
-    limit_val = 1500 if use_range or use_single_day else 500
     panel_orders = panel_query.options(
         load_only(
             Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
             Order.structured_data, Order.status, Order.is_erp_beta
         ),
         selectinload(Order.schedule_dates)
-    ).order_by(Order.id.desc()).limit(limit_val).all()
+    ).order_by(Order.id.desc()).all()
 
     # 시공팀 또는 mine=1일 때만 목록/패널을 담당 주문으로 제한 (의도적 이중 필터: panel_orders + 아래 rows)
     if mine_only and current_user:
