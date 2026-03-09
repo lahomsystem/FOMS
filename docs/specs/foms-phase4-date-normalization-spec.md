@@ -40,7 +40,7 @@
 - [x] Step 3: 백필 스크립트 작성 및 로컬 개발 환경에서 전체 Migration 실행 후 개수 통계 검증
 - [x] Step 4: 주문 정보 저장 API(Update, Insert, ERP Beta 등)에 Step 2의 동기화 함수 연동 적용 (`app_init.py`의 `before_flush`로 중앙 집중화 적용 완료)
 - [x] Step 5: (일부) 각 대시보드의 기존 SQLAlchemy `get_query()` 필터를 신규 JOIN 쿼리로 교체 (동작 1:1 보존 검증 병행) - *`erp_measurement_dashboard.py`, `erp_shipment_page.py` 완료*
-- [ ] Step 6: 나머지 API들 (`erp_map.py`, `erp_measurement.py`) 필터 교체
+- [x] Step 6: 나머지 API들 (`erp_map.py`, `erp_measurement.py`) 필터 교체
 
 ## 4. 검증 기준
 - [ ] `python -c "import app"` 통과 및 테이블 속성 정상 생성
