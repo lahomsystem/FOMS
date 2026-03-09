@@ -54,7 +54,8 @@ def api_erp_measurement_summary():
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     mine_filter_active = request.args.get('mine') == '1' and current_user
 
-    panel_orders = base_query.order_by(Order.id.desc()).limit(1500).all()
+    from sqlalchemy.orm import selectinload
+    panel_orders = base_query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(1500).all()
     if mine_filter_active:
         panel_orders = [o for o in panel_orders if is_order_mine_for_user(o, current_user)]
 

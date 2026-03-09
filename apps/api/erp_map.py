@@ -98,75 +98,33 @@ def api_map_data():
         if status_filter and status_filter != 'ALL':
             query = query.filter(Order.status == status_filter)
 
+        from models import OrderScheduleDate
         if date_filter:
-            try:
-                filter_date = datetime.datetime.strptime(date_filter, '%Y-%m-%d').date()
-                date_start = filter_date - datetime.timedelta(days=30)
-                date_end = filter_date + datetime.timedelta(days=30)
-            except Exception:
-                date_start = None
-                date_end = None
-
+            # Join OrderScheduleDate based on the dashboard context
+            query = query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
             if dashboard == 'measurement':
-                date_conditions = [
-                    and_(Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{date_filter}%'))
-                ]
-            else:
-                date_conditions = [
-                    and_(Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{date_filter}%')),
-                    Order.received_date == date_filter,
-                    and_(Order.scheduled_date.isnot(None), Order.scheduled_date != '', Order.scheduled_date.ilike(f'%{date_filter}%')),
-                    Order.completion_date == date_filter,
-                    Order.as_received_date == date_filter,
-                    Order.as_completed_date == date_filter
-                ]
-
-            if date_start and date_end:
-                date_start_str = date_start.strftime('%Y-%m-%d')
-                date_end_str = date_end.strftime('%Y-%m-%d')
-                date_conditions.append(
-                    and_(
-                        Order.is_erp_beta == True,
-                        func.cast(Order.received_date, String) >= date_start_str,
-                        func.cast(Order.received_date, String) <= date_end_str
-                    )
+                query = query.filter(
+                    OrderScheduleDate.kind == 'measurement',
+                    OrderScheduleDate.date == date_filter
                 )
             else:
-                date_conditions.append(Order.is_erp_beta == True)
+                # General map dashboard filters by ANY common dates being matched
+                # Alternatively, we just check if it's explicitly matched in OrderScheduleDate OR received_date/as_dates
+                query = query.filter(
+                    or_(
+                        OrderScheduleDate.date == date_filter,
+                        Order.received_date == date_filter,
+                        Order.as_received_date == date_filter,
+                        Order.as_completed_date == date_filter
+                    )
+                )
+            query = query.distinct()
 
-            query = query.filter(or_(*date_conditions))
-
-        orders = query.order_by(Order.id.desc()).limit(scan_limit).all()
+        orders = query.order_by(Order.id.desc()).limit(limit).all()
 
         if dashboard == 'measurement':
             from services.erp_display import self_measurement_four_checks_done
             orders = [o for o in orders if not self_measurement_four_checks_done(o)]
-
-        if date_filter:
-            def _order_has_date(o, d):
-                if dashboard == 'measurement':
-                    from apps.erp_measurement_dashboard import extract_all_measurement_dates
-                    return d in extract_all_measurement_dates(o)
-
-                s = set()
-                if getattr(o, 'measurement_date', None):
-                    for x in str(o.measurement_date).split(','):
-                        if x.strip():
-                            s.add(x.strip())
-                if getattr(o, 'scheduled_date', None):
-                    for x in str(o.scheduled_date).split(','):
-                        if x.strip():
-                            s.add(x.strip())
-                if getattr(o, 'is_erp_beta', False) and isinstance(getattr(o, 'structured_data', None), dict):
-                    sd = o.structured_data
-                    for path, key in [((sd.get('schedule') or {}).get('measurement') or {}, 'date'), ((sd.get('schedule') or {}).get('construction') or {}, 'date')]:
-                        v = path.get(key) if isinstance(path, dict) else None
-                        if v:
-                            for x in str(v).split(','):
-                                if x.strip():
-                                    s.add(x.strip())
-                return d in s
-            orders = [o for o in orders if _order_has_date(o, date_filter)][:limit]
 
         map_data = []
         skipped_no_coords = 0
