@@ -1,5 +1,5 @@
 # FOMS Phase 4 날짜 검색 구조 정상화 Spec
-> 작성일: 2026-03-09 | 상태: 🟡 승인대기
+> 작성일: 2026-03-09 | 상태: 🟢 승인됨 (진행중)
 
 ## 1. What — 무엇을 만드는가
 
@@ -28,18 +28,19 @@
 
 ### 2.2 아키텍처 방향
 - **데이터 흐름:** 사용자가 문서를 저장(Update) -> 파일/DB 저장이 일어날 때 마지막 단계로 `sync_order_dates(order_id)` 함수를 호출하여 뷰잉용 날짜 테이블을 별도 세팅 (CQRS 관점의 Read Model 분리).
-- **왜 Event Listener(Trigger)를 쓰지 않는가:** JSONB 파싱이나 CSV 콤마 분리 등 Python 레벨의 복잡한 정규화 로직이 들어가므로 DB Trigger보다 App Application 레이어의 Sync 함수가 안전하고 테스트하기 좋습니다.
+- **왜 Event Listener(Trigger)를 쓰지 않는가:** JSONB 파싱이나 CSV 콤마 분리 등 Python 레벨의 복잡한 정규화 로직이 들어가므로 DB Trigger보다 App Application 레이어의 Sync 함수가 안전하고 테스트하기 좋습니다. -> **변경사항: SQLAlchemy의 Event Listener(before_flush)를 활용하여 투명한 동기화 처리 적용 완료**
 
 ### 2.3 의존성 및 영향 범위
 - **조회 성능:** 텍스트 풀스캔, 인덱스 패스 불가 쿼리들이 명시적인 `JOIN + Index Range Scan`으로 바뀌므로 실측/출고 대시보드의 로딩 시간이 극단적으로 줄어듭니다.
 - **영향:** 거의 모든 검색 기능(Beta 활성, 일반 활성 모두)이 신규 테이블로 전환됩니다. 마이그레이션 도중 누락되는 날짜 포맷이 없도록 정규표현식 및 파서(Parser)를 고도화해야 합니다.
 
 ## 3. Steps — 실행 단계
-- [ ] Step 1: `models.py`에 `OrderScheduleDate` 테이블 정의 (`id`, `order_id`, `kind`, `date`, `source`, `item_index`) 및 DB 인덱스 설계 반영
-- [ ] Step 2: 통합 날짜 파서 및 동기화기 `services/order_date_sync.py` 작성 + 테스트 코드로 검증
-- [ ] Step 3: 백필 스크립트 작성 및 로컬 개발 환경에서 전체 Migration 실행 후 개수 통계 검증
-- [ ] Step 4: 주문 정보 저장 API(Update, Insert, ERP Beta 등)에 Step 2의 동기화 함수 연동 적용
-- [ ] Step 5: 각 대시보드의 기존 SQLAlchemy `get_query()` 필터를 신규 JOIN 쿼리로 교체 (동작 1:1 보존 검증 병행)
+- [x] Step 1: `models.py`에 `OrderScheduleDate` 테이블 정의 (`id`, `order_id`, `kind`, `date`, `source`, `item_index`) 및 DB 인덱스 설계 반영
+- [x] Step 2: 통합 날짜 파서 및 동기화기 `services/order_date_sync.py` 작성 + 테스트 코드로 검증
+- [x] Step 3: 백필 스크립트 작성 및 로컬 개발 환경에서 전체 Migration 실행 후 개수 통계 검증
+- [x] Step 4: 주문 정보 저장 API(Update, Insert, ERP Beta 등)에 Step 2의 동기화 함수 연동 적용 (`app_init.py`의 `before_flush`로 중앙 집중화 적용 완료)
+- [x] Step 5: (일부) 각 대시보드의 기존 SQLAlchemy `get_query()` 필터를 신규 JOIN 쿼리로 교체 (동작 1:1 보존 검증 병행) - *`erp_measurement_dashboard.py`, `erp_shipment_page.py` 완료*
+- [ ] Step 6: 나머지 API들 (`erp_map.py`, `erp_measurement.py`) 필터 교체
 
 ## 4. 검증 기준
 - [ ] `python -c "import app"` 통과 및 테이블 속성 정상 생성
