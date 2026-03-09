@@ -113,6 +113,7 @@ def api_orders_nearby():
     # - ERP Beta: 시공일이 structured_data.schedule.construction.date 에만 있는 경우 포함
     from sqlalchemy.orm import load_only
     from sqlalchemy import cast, String
+    from models import OrderScheduleDate
 
     query = db.query(Order).options(
         load_only(
@@ -120,16 +121,21 @@ def api_orders_nearby():
             Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
             Order.is_erp_beta, Order.structured_data, Order.customer_name
         )
-    ).filter(
+    ).outerjoin(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
+
+    query = query.filter(
         Order.status != 'DELETED',
         or_(
             Order.shipping_scheduled_date >= ref_date,
             Order.scheduled_date >= ref_date,
             Order.as_received_date >= ref_date,
             Order.as_completed_date >= ref_date,
-            and_(Order.is_erp_beta == True, Order.structured_data != None),
+            and_(
+                OrderScheduleDate.id.isnot(None),
+                OrderScheduleDate.date >= ref_date
+            )
         )
-    )
+    ).distinct()
     
     parts = target_address.split()
     if parts:
