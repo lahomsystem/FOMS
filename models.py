@@ -80,8 +80,38 @@ class Order(Base):
     structured_confidence = Column(String(20), nullable=True)  # high/medium/low
     structured_updated_at = Column(DateTime, nullable=True)
     
+    # Phase 4: 정규화된 날짜 테이블 (1:N)
+    schedule_dates = relationship('OrderScheduleDate', backref='order', cascade='all, delete-orphan')
+
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+
+class OrderScheduleDate(Base):
+    """Phase 4 날짜 검색 구조 정상화를 위한 조인/검색 전용 테이블"""
+    __tablename__ = 'order_schedule_dates'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    kind = Column(String(50), nullable=False, index=True)      # e.g., 'measurement', 'construction', 'shipping'
+    date = Column(String(20), nullable=False, index=True)      # e.g., '2026-03-09'
+    source = Column(String(50), nullable=False)                # e.g., 'legacy_column', 'beta_schedule', 'beta_item'
+    item_index = Column(Integer, nullable=True)                # e.g., 0, 1 ... (for items array)
+
+    from sqlalchemy import Index
+    __table_args__ = (
+        Index('idx_order_schedule_dates_composite', 'kind', 'date', 'order_id'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'kind': self.kind,
+            'date': self.date,
+            'source': self.source,
+            'item_index': self.item_index
+        }
 
 
 class OrderAttachment(Base):

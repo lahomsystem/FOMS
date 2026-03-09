@@ -52,27 +52,33 @@ def _erp_order_search_filter(query, q):
 
 
 def extract_all_measurement_dates(order):
-    """주문에서 대표 실측일 + 항목별 실측일을 모두 추출 (CSV 및 JSON 항목 지원)."""
+    """주문에서 대표 실측일 + 항목별 실측일을 모두 추출 (schedule_dates DB 기반)"""
     dates = set()
-    if getattr(order, 'measurement_date', None):
-        for d in str(order.measurement_date).split(','):
-            if d.strip():
-                dates.add(d.strip())
-    if getattr(order, 'is_erp_beta', False) and getattr(order, 'structured_data', None):
-        sd = order.structured_data if isinstance(order.structured_data, dict) else {}
-        erp_date = (sd.get('schedule') or {}).get('measurement') or {}
-        if erp_date.get('date'):
-            for d in str(erp_date['date']).split(','):
+    if getattr(order, 'schedule_dates', None) is not None:
+        for d in order.schedule_dates:
+            if d.kind == 'measurement' and d.date:
+                dates.add(d.date)
+    else:
+        # Fallback to legacy behavior if not loaded (should not happen with selectinload)
+        if getattr(order, 'measurement_date', None):
+            for d in str(order.measurement_date).split(','):
                 if d.strip():
                     dates.add(d.strip())
-        for it in sd.get('items') or []:
-            if not isinstance(it, dict):
-                continue
-            date_val = it.get('measurement_date')
-            if date_val:
-                for d in str(date_val).split(','):
+        if getattr(order, 'is_erp_beta', False) and getattr(order, 'structured_data', None):
+            sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+            erp_date = (sd.get('schedule') or {}).get('measurement') or {}
+            if erp_date.get('date'):
+                for d in str(erp_date['date']).split(','):
                     if d.strip():
                         dates.add(d.strip())
+            for it in sd.get('items') or []:
+                if not isinstance(it, dict):
+                    continue
+                date_val = it.get('measurement_date')
+                if date_val:
+                    for d in str(date_val).split(','):
+                        if d.strip():
+                            dates.add(d.strip())
     return dates
 
 
@@ -121,41 +127,18 @@ def erp_measurement_dashboard():
         req_date = ''
     selected_date = req_date
 
-    if use_range:
-        range_dates = []
-        try:
-            d_start = datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
-            d_end = datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
-            cur = d_start
-            while cur <= d_end:
-                range_dates.append(cur.strftime('%Y-%m-%d'))
-                cur += datetime.timedelta(days=1)
-        except Exception:
-            range_dates = [date_from, date_to]
-        measurement_date_conditions = [Order.measurement_date.ilike(f'%{d}%') for d in range_dates[:31]]
-        measurement_any = or_(*measurement_date_conditions) if measurement_date_conditions else Order.measurement_date.is_(None)
-        date_conditions = [
-            and_(Order.measurement_date.isnot(None), Order.measurement_date != '', measurement_any),
-        ]
+    from models import OrderScheduleDate
+    if use_range or use_single_day:
+        query = query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
+        query = query.filter(OrderScheduleDate.kind == 'measurement')
         
-        erp_beta_date_likes = [cast(Order.structured_data, String).ilike(f'%{d}%') for d in range_dates[:31]]
-        if erp_beta_date_likes:
-            date_conditions.append(and_(Order.is_erp_beta == True, or_(*erp_beta_date_likes)))
-        query = query.filter(or_(*date_conditions))
-    elif use_single_day:
-        try:
-            filter_date = datetime.datetime.strptime(selected_date, '%Y-%m-%d').date()
-            date_start = filter_date - datetime.timedelta(days=30)
-            date_end = filter_date + datetime.timedelta(days=30)
-        except Exception:
-            date_start = None
-            date_end = None
-
-        date_conditions = [
-            and_(Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{selected_date}%')),
-            and_(Order.is_erp_beta == True, cast(Order.structured_data, String).ilike(f'%{selected_date}%')),
-        ]
-        query = query.filter(or_(*date_conditions))
+        if use_range:
+            query = query.filter(OrderScheduleDate.date >= date_from, OrderScheduleDate.date <= date_to)
+        elif use_single_day:
+            query = query.filter(OrderScheduleDate.date == selected_date)
+            
+        # Due to one-to-many join, distinct is required to prevent duplicate order rows
+        query = query.distinct()
 
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     mine_filter_active = request.args.get('mine') == '1' and current_user
@@ -168,8 +151,10 @@ def erp_measurement_dashboard():
         r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
     apply_erp_display_fields_to_orders(all_rows)
 
+    from sqlalchemy.orm import selectinload
     panel_orders = base_query.options(
-        load_only(Order.id, Order.measurement_date, Order.structured_data, Order.is_self_measurement, Order.is_erp_beta)
+        load_only(Order.id, Order.measurement_date, Order.structured_data, Order.is_self_measurement, Order.is_erp_beta),
+        selectinload(Order.schedule_dates)
     ).order_by(Order.id.desc()).limit(1500).all()
     if mine_filter_active:
         panel_orders = [o for o in panel_orders if is_order_mine_for_user(o, current_user)]

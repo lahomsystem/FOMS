@@ -20,11 +20,13 @@ def run_auto_init(app):
             ensure_order_attachments_item_index_column()
             ensure_order_attachments_user_id_column()
             init_wdcalculator_db()
-            print("[AUTO-INIT] Tables checked/created successfully.")
-            
             # Phase 2 Indexes
             from services.db_indexes import apply_phase2_indexes
             apply_phase2_indexes()
+            
+            # Phase 4 Date Normalization Event Sync Setup
+            from services.order_date_sync import register_date_sync_listener
+            register_date_sync_listener()
 
             db_session = get_db()
             try:
