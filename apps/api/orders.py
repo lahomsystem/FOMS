@@ -348,7 +348,21 @@ def api_orders():
     limit_raw = request.args.get('limit', '2000')
 
     db = get_db()
-    query = db.query(Order).filter(Order.status != 'DELETED')
+    
+    # 캘린더 응답 최소화를 위해 아주 무거운 필드(원문, 지도 좌표계 등)는 제외
+    # selectinload(Order.schedule_dates)를 추가해 속도 향상(필요시)
+    from sqlalchemy.orm import defer
+    from models import OrderScheduleDate
+    
+    query = db.query(Order).filter(Order.status != 'DELETED').options(
+        defer(Order.raw_order_text),
+        defer(Order.regional_memo),
+        defer(Order.address_hash),
+        defer(Order.lat),
+        defer(Order.lng),
+        defer(Order.geocode_status),
+        defer(Order.options), # options와 notes는 일단 그대로 두었음 (UI 클릭 모달에서 필요)
+    )
 
     if status_filter and status_filter in STATUS:
         if status_filter == 'RECEIVED':
@@ -362,27 +376,25 @@ def api_orders():
             end_date_only = str(end_date).split('T')[0]
         else:
             start_date_only, end_date_only = start_date, end_date
+            
+        # 정확한 날짜 범위 검색을 위해 OrderScheduleDate 테이블과 JOIN
+        query = query.outerjoin(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
         query = query.filter(
             or_(
+                # 기본 주문 테이블의 날짜 (between)
                 Order.received_date.between(start_date_only, end_date_only),
+                Order.as_received_date.between(start_date_only, end_date_only),
+                Order.as_completed_date.between(start_date_only, end_date_only),
+                Order.completion_date.between(start_date_only, end_date_only),
+                # OrderScheduleDate를 통한 측정일/시공일 검색 (between)
                 and_(
-                    Order.measurement_date.isnot(None),
-                    Order.measurement_date != '',
-                    or_(
-                        Order.measurement_date.ilike(f'%{start_date_only}%'),
-                        Order.measurement_date.ilike(f'%{end_date_only}%')
-                    )
-                ),
-                and_(
-                    Order.scheduled_date.isnot(None),
-                    Order.scheduled_date != '',
-                    or_(
-                        Order.scheduled_date.ilike(f'%{start_date_only}%'),
-                        Order.scheduled_date.ilike(f'%{end_date_only}%')
-                    )
+                    OrderScheduleDate.id.isnot(None),
+                    OrderScheduleDate.date.between(start_date_only, end_date_only)
                 )
             )
         )
+        # 중복 제거
+        query = query.distinct()
 
     try:
         limit = int(limit_raw)
