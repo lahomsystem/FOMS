@@ -189,18 +189,22 @@ def erp_shipment_dashboard():
             panel_query = panel_query.filter(OrderScheduleDate.date == selected_date)
         panel_query = panel_query.distinct()
 
+    limit_val = 1500 if use_range or use_single_day else 500
     panel_orders = panel_query.options(
         load_only(
             Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
             Order.structured_data, Order.status, Order.is_erp_beta
         ),
         selectinload(Order.schedule_dates)
-    ).order_by(Order.id.desc()).limit(1500).all()
+    ).order_by(Order.id.desc()).limit(limit_val).all()
 
     # 시공팀 또는 mine=1일 때만 목록/패널을 담당 주문으로 제한 (의도적 이중 필터: panel_orders + 아래 rows)
     if mine_only and current_user:
         panel_orders = [o for o in panel_orders if is_order_mine_for_user(o, current_user)]
-
+    
+    for o in panel_orders:
+        o.structured_data = _ensure_dict(o.structured_data)  # type: ignore[assignment]
+    
     settings = load_erp_shipment_settings()
     worker_settings = normalize_erp_shipment_workers(settings.get('construction_workers', []))
     worker_name_map = {_normalize_worker_name(w['name']): w for w in worker_settings if w.get('name')}

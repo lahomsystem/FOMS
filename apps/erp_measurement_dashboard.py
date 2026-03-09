@@ -154,11 +154,19 @@ def erp_measurement_dashboard():
 
     from sqlalchemy.orm import selectinload
     panel_orders = base_query.options(
-        load_only(Order.id, Order.measurement_date, Order.structured_data, Order.is_self_measurement, Order.is_erp_beta),
+        load_only(
+            Order.id, Order.measurement_date, Order.structured_data, 
+            Order.is_self_measurement, Order.is_erp_beta, Order.status,
+            Order.measurement_completed, Order.regional_sales_order_upload,
+            Order.regional_blueprint_sent, Order.regional_order_upload
+        ),
         selectinload(Order.schedule_dates)
     ).order_by(Order.id.desc()).limit(1500).all()
     if mine_filter_active:
         panel_orders = [o for o in panel_orders if is_order_mine_for_user(o, current_user)]
+        
+    for o in panel_orders:
+        o.structured_data = _ensure_dict(o.structured_data)  # type: ignore[assignment]
 
     try:
         base_date = datetime.datetime.strptime(selected_date, '%Y-%m-%d').date()
