@@ -191,47 +191,17 @@ def api_erp_measurement_route():
     query = db.query(Order).filter(Order.status != 'DELETED')
 
     if date_filter:
+        from models import OrderScheduleDate
+        query = query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
         query = query.filter(
-            or_(
-                and_(Order.is_erp_beta == False, Order.measurement_date.isnot(None), Order.measurement_date != '', Order.measurement_date.ilike(f'%{date_filter}%')),
-                and_(Order.is_erp_beta == True, cast(Order.structured_data, String).ilike(f'%{date_filter}%'))
-            )
-        )
+            OrderScheduleDate.kind == 'measurement',
+            OrderScheduleDate.date == date_filter
+        ).distinct()
 
     if manager_filter:
         query = query.filter(Order.manager_name.ilike(f'%{manager_filter}%'))
 
-    all_orders = query.order_by(Order.measurement_time.asc().nullslast(), Order.id.asc()).limit(limit * 2).all()
-
-    def _order_measurement_dates(o):
-        s = set()
-        if getattr(o, 'measurement_date', None):
-            for x in str(o.measurement_date).split(','):
-                if x.strip():
-                    s.add(x.strip())
-        if getattr(o, 'is_erp_beta', False) and isinstance(getattr(o, 'structured_data', None), dict):
-            sd = o.structured_data
-            erp_date = (sd.get('schedule') or {}).get('measurement') or {}
-            if erp_date.get('date'):
-                for x in str(erp_date['date']).split(','):
-                    if x.strip():
-                        s.add(x.strip())
-            for it in sd.get('items') or []:
-                if isinstance(it, dict) and it.get('measurement_date'):
-                    for x in str(it['measurement_date']).split(','):
-                        if x.strip():
-                            s.add(x.strip())
-        return s
-
-    orders = []
-    for order in all_orders:
-        if date_filter:
-            if date_filter in _order_measurement_dates(order):
-                orders.append(order)
-        else:
-            orders.append(order)
-
-    orders = orders[:limit]
+    orders = query.order_by(Order.measurement_time.asc().nullslast(), Order.id.asc()).limit(limit).all()
 
     converter = FOMSAddressConverter()
     points = []
