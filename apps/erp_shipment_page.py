@@ -315,11 +315,15 @@ def erp_shipment_dashboard():
             rows_query = rows_query.filter(OrderScheduleDate.date == selected_date)
             
         rows_query = rows_query.distinct()
+        has_limit = False
     else:
-        rows_query = rows_query.limit(500)
+        has_limit = True
 
-    rows_query = rows_query.options(selectinload(Order.schedule_dates))
-    rows = rows_query.order_by(Order.id.desc()).all()
+    rows_query = rows_query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc())
+    if has_limit:
+        rows_query = rows_query.limit(500)
+    
+    rows = rows_query.all()
 
     # 시공팀 또는 mine=1일 때만 당일 목록(rows)도 담당 주문으로 제한
     if mine_only and current_user:
