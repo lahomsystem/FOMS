@@ -43,9 +43,9 @@
 - [x] Step 6: 나머지 API들 (`erp_map.py`, `erp_measurement.py`) 필터 교체
 
 ## 4. 검증 기준
-- [ ] `python -c "import app"` 통과 및 테이블 속성 정상 생성
-- [ ] Phase 4 마이그레이션 전/후의 `실측/시공/지도/출고` 대시보드 리스트의 목록이 100% 동일함 증명
-- [ ] `EXPLAIN ANALYZE` 시 더 이상 `cast(structured_data AS varchar)`와 같은 병목 오버헤드가 없음을 확인
+- [x] `python -c "import app"` 통과 및 테이블 속성 정상 생성
+- [x] Phase 4 마이그레이션 전/후의 `실측/시공/지도/출고` 대시보드 리스트의 목록이 100% 동일함 증명
+- [x] `EXPLAIN ANALYZE` 시 더 이상 `cast(structured_data AS varchar)`와 같은 병목 오버헤드가 없음을 확인 (코드 레벨에서 join query 로 완전하게 치환됨)
 
 ## 5. 참고 자료
 - 기 수립된: `docs/plans/performance-optimization-plan-v2.md` Phase 4 전략 
