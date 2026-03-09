@@ -10,7 +10,7 @@ import datetime
 import json
 import os
 from sqlalchemy import or_, and_, cast, String
-
+from sqlalchemy.orm import load_only
 from services.erp_permissions import can_edit_erp
 from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from services.erp_template_filters import item_spec_w300_value
@@ -165,6 +165,11 @@ def erp_shipment_dashboard():
                 Order.scheduled_date != None,
                 Order.scheduled_date != ''
             )
+        )
+    ).options(
+        load_only(
+            Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
+            Order.structured_data, Order.status, Order.is_erp_beta
         )
     ).order_by(Order.id.desc()).limit(1500).all()
     # 시공팀 또는 mine=1일 때만 목록/패널을 담당 주문으로 제한 (의도적 이중 필터: panel_orders + 아래 rows)

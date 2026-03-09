@@ -14,6 +14,7 @@ from apps.auth import login_required, role_required, log_access, get_user_by_id
 from db import get_db
 from models import User
 from services.storage import get_storage
+from services.menu_config import invalidate_menu_config_cache
 
 admin_bp = Blueprint('admin', __name__, url_prefix='')
 
@@ -36,6 +37,8 @@ def update_menu():
         if menu_config:
             with open('menu_config.json', 'w', encoding='utf-8') as f:
                 f.write(menu_config)
+            
+            invalidate_menu_config_cache()
 
             user_for_log = get_user_by_id(session.get('user_id'))
             user_name_for_log = user_for_log.name if user_for_log else "Unknown user"

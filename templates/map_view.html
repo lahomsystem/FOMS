@@ -1,7 +1,12 @@
 <!DOCTYPE html>
 <html lang="ko">
 
-<head>
+<head>\n    <script>
+        if (typeof window.FOMS_DEBUG === \'undefined\') {
+            window.FOMS_DEBUG = false;
+        }
+    </script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>주문 위치 지도 - FOMS</title>
@@ -1104,13 +1109,13 @@
         function updateOrderList(orders) {
             const container = document.getElementById('order-list-content');
 
-            console.log('updateOrderList 호출됨, orders:', orders);
-            console.log('orders 타입:', typeof orders);
-            console.log('orders가 배열인가?', Array.isArray(orders));
-            console.log('orders.length:', orders ? orders.length : 'undefined');
+            if (window.FOMS_DEBUG) console.log('updateOrderList 호출됨, orders:', orders);
+            if (window.FOMS_DEBUG) console.log('orders 타입:', typeof orders);
+            if (window.FOMS_DEBUG) console.log('orders가 배열인가?', Array.isArray(orders));
+            if (window.FOMS_DEBUG) console.log('orders.length:', orders ? orders.length : 'undefined');
 
             if (!orders || !Array.isArray(orders) || orders.length === 0) {
-                console.log('주문 목록이 비어있음');
+                if (window.FOMS_DEBUG) console.log('주문 목록이 비어있음');
                 container.innerHTML = `
                     <div class="empty-state">
                         <i class="fas fa-map-marked-alt"></i>
@@ -1120,7 +1125,7 @@
                 return;
             }
 
-            console.log(`${orders.length}개의 주문을 표시합니다.`);
+            if (window.FOMS_DEBUG) console.log(`${orders.length}개의 주문을 표시합니다.`);
 
             let html = '';
             orders.forEach(order => {

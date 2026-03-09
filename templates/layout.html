@@ -1,7 +1,12 @@
 <!DOCTYPE html>
 <html lang="ko">
 
-<head>
+<head>\n    <script>
+        if (typeof window.FOMS_DEBUG === \'undefined\') {
+            window.FOMS_DEBUG = false;
+        }
+    </script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>하우드 ERP</title>
@@ -421,9 +426,9 @@
         (function () {
             'use strict';
 
-            console.log('[Global Socket.IO] 초기화 시작');
-            console.log('[Global Socket.IO] current_user 존재:', true);
-            console.log('[Global Socket.IO] io 객체 존재:', typeof io !== 'undefined');
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 초기화 시작');
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] current_user 존재:', true);
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] io 객체 존재:', typeof io !== 'undefined');
 
             // Socket.IO 스크립트 로드 확인
             if (typeof io === 'undefined') {
@@ -461,7 +466,7 @@
                 return window.__appSocket;
             };
 
-            console.log('[Global Socket.IO] Socket.IO 인스턴스 생성 중...');
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] Socket.IO 인스턴스 생성 중...');
             const globalSocket = window.getAppSocket();
             if (!globalSocket) {
                 console.error('[Global Socket.IO] ❌ Socket.IO 인스턴스 생성 실패');
@@ -504,9 +509,9 @@
             // 핸들러는 전역에 보관하여 중복 바인딩을 방지한다.
             const globalHandlers = window.__globalSocketHandlers || {
                 onConnect: function () {
-                    console.log('[Global Socket.IO] ✅ 연결 성공');
-                    console.log('[Global Socket.IO] Socket ID:', globalSocket.id);
-                    console.log('[Global Socket.IO] 연결 상태:', globalSocket.connected);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 연결 성공');
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] Socket ID:', globalSocket.id);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 연결 상태:', globalSocket.connected);
                     refreshErpNotificationUI();
                 },
                 onConnectError: function (error) {
@@ -521,36 +526,36 @@
                     }
                 },
                 onConnected: function (data) {
-                    console.log('[Global Socket.IO] 서버 연결 확인:', data);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 서버 연결 확인:', data);
                 },
                 onNewMessage: function (data) {
-                    console.log('[Global Socket.IO] 📨 새 메시지 수신:', data);
-                    console.log('[Global Socket.IO] 메시지 상세:', JSON.stringify(data, null, 2));
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 📨 새 메시지 수신:', data);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 메시지 상세:', JSON.stringify(data, null, 2));
 
                     // 채팅 페이지에서는 chat.html의 핸들러가 처리한다.
                     const isChatPage = window.location.pathname === '/chat';
-                    console.log('[Global Socket.IO] 현재 페이지:', window.location.pathname);
-                    console.log('[Global Socket.IO] 채팅 페이지 여부:', isChatPage);
-                    console.log('[Global Socket.IO] window.currentRoomId:', window.currentRoomId);
-                    console.log('[Global Socket.IO] 메시지 room_id:', data.room_id);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 현재 페이지:', window.location.pathname);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 채팅 페이지 여부:', isChatPage);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] window.currentRoomId:', window.currentRoomId);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 메시지 room_id:', data.room_id);
 
                     if (isChatPage) {
-                        console.log('[Global Socket.IO] ⏭️ 채팅 페이지에서는 로컬 핸들러가 처리합니다. 전역 핸들러 무시');
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ⏭️ 채팅 페이지에서는 로컬 핸들러가 처리합니다. 전역 핸들러 무시');
                         return;
                     }
 
-                    console.log('[Global Socket.IO] ✅ 알림 표시 조건 만족 (다른 페이지)');
-                    console.log('[Global Socket.IO] showGlobalChatNotification 함수 존재:', typeof showGlobalChatNotification === 'function');
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 알림 표시 조건 만족 (다른 페이지)');
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showGlobalChatNotification 함수 존재:', typeof showGlobalChatNotification === 'function');
                     if (typeof showGlobalChatNotification === 'function') {
-                        console.log('[Global Socket.IO] showGlobalChatNotification 호출');
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showGlobalChatNotification 호출');
                         showGlobalChatNotification(data);
                     } else {
-                        console.log('[Global Socket.IO] showGlobalChatNotification 없음, 브라우저 알림 사용');
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showGlobalChatNotification 없음, 브라우저 알림 사용');
                         showBrowserNotification(data);
                     }
                 },
                 onErpNotification: function (data) {
-                    console.log('[Global Socket.IO] ERP 알림 수신:', data);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ERP 알림 수신:', data);
                     refreshErpNotificationUI();
                     if (data && data.urgent) {
                         triggerUrgentBriefingAlert(data);
@@ -660,25 +665,25 @@
 
             // 전역 알림 표시 함수 (chat.html의 showChatNotification 로직 재사용)
             window.showGlobalChatNotification = function (messageData) {
-                console.log('[Global Socket.IO] 🔔 showGlobalChatNotification 호출됨:', messageData);
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 🔔 showGlobalChatNotification 호출됨:', messageData);
 
                 // 채팅방 정보 조회
-                console.log('[Global Socket.IO] 채팅방 정보 조회 시작: room_id=', messageData.room_id);
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 채팅방 정보 조회 시작: room_id=', messageData.room_id);
                 fetch(`/api/chat/rooms/${messageData.room_id}`)
                     .then(response => {
-                        console.log('[Global Socket.IO] 채팅방 정보 응답 상태:', response.status);
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 채팅방 정보 응답 상태:', response.status);
                         return response.json();
                     })
                     .then(result => {
-                        console.log('[Global Socket.IO] 채팅방 정보 조회 결과:', result);
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 채팅방 정보 조회 결과:', result);
                         if (result.success && result.room) {
-                            console.log('[Global Socket.IO] ✅ 채팅방 정보 조회 성공:', result.room);
+                            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 채팅방 정보 조회 성공:', result.room);
                             // chat.html의 showChatNotification 함수가 있으면 사용
                             if (typeof showChatNotification === 'function') {
-                                console.log('[Global Socket.IO] showChatNotification 함수 사용');
+                                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showChatNotification 함수 사용');
                                 showChatNotification(messageData, result.room);
                             } else {
-                                console.log('[Global Socket.IO] showChatNotification 없음, 간단한 알림 사용');
+                                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showChatNotification 없음, 간단한 알림 사용');
                                 // 간단한 알림 표시
                                 showSimpleNotification(messageData, result.room);
                             }
@@ -695,14 +700,14 @@
 
             // 간단한 알림 표시 (chat.html이 아닌 페이지용)
             function showSimpleNotification(messageData, roomData) {
-                console.log('[Global Socket.IO] showSimpleNotification 호출:', messageData, roomData);
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showSimpleNotification 호출:', messageData, roomData);
                 // 전역 알림 팝업 표시
                 showGlobalNotificationPopup(messageData, roomData);
             }
 
             // 전역 알림 팝업 표시 함수 (모든 페이지에서 사용)
             function showGlobalNotificationPopup(messageData, roomData) {
-                console.log('[Global Socket.IO] showGlobalNotificationPopup 호출:', messageData, roomData);
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showGlobalNotificationPopup 호출:', messageData, roomData);
 
                 // 알림 컨테이너 확인
                 let container = document.getElementById('chat-notification-container');
@@ -716,7 +721,7 @@
                 // 중복 알림 방지
                 const messageId = messageData.id || (messageData.room_id + '_' + (messageData.created_at || Date.now()));
                 if (window.globalNotificationIds && window.globalNotificationIds.has(messageId)) {
-                    console.log('[Global Socket.IO] 중복 알림 스킵:', messageId);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 중복 알림 스킵:', messageId);
                     return;
                 }
 
@@ -847,24 +852,24 @@
 
             // 브라우저 알림
             function showBrowserNotification(messageData) {
-                console.log('[Global Socket.IO] showBrowserNotification 호출:', messageData);
-                console.log('[Global Socket.IO] Notification API 지원:', 'Notification' in window);
-                console.log('[Global Socket.IO] Notification 권한:', Notification.permission);
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showBrowserNotification 호출:', messageData);
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] Notification API 지원:', 'Notification' in window);
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] Notification 권한:', Notification.permission);
 
                 if ('Notification' in window) {
                     if (Notification.permission === 'granted') {
-                        console.log('[Global Socket.IO] ✅ 브라우저 알림 표시');
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 브라우저 알림 표시');
                         const notification = new Notification(`${messageData.user_name || '알 수 없음'}님의 메시지`, {
                             body: messageData.content || '새 메시지가 도착했습니다.',
                             icon: '/static/favicon.ico',
                             tag: `chat_${messageData.room_id}`,
                             requireInteraction: false
                         });
-                        console.log('[Global Socket.IO] 브라우저 알림 생성됨:', notification);
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 브라우저 알림 생성됨:', notification);
                     } else if (Notification.permission === 'default') {
-                        console.log('[Global Socket.IO] 알림 권한 요청');
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 알림 권한 요청');
                         Notification.requestPermission().then(permission => {
-                            console.log('[Global Socket.IO] 알림 권한 결과:', permission);
+                            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 알림 권한 결과:', permission);
                             if (permission === 'granted') {
                                 showBrowserNotification(messageData);
                             }
@@ -880,12 +885,12 @@
             // 전역 변수로 노출 (하위 페이지에서 동일 인스턴스 재사용)
             window.globalSocket = globalSocket;
             window.__appSocket = globalSocket;
-            console.log('[Global Socket.IO] ✅ 전역 Socket.IO 초기화 완료');
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 전역 Socket.IO 초기화 완료');
         })();
     </script>
     {% else %}
     <script>
-        console.log('[Global Socket.IO] ⚠️ current_user가 없어 Socket.IO를 초기화하지 않습니다.');
+        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ⚠️ current_user가 없어 Socket.IO를 초기화하지 않습니다.');
     </script>
     {% endif %}
     {# USE_DIRECT_UPLOAD는 context_processor(inject_status_list)가 모든 템플릿에 #}

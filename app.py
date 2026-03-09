@@ -140,6 +140,13 @@ import time
 def _record_request_start():
     g._request_start = time.perf_counter()
 
+@app.before_request
+def _set_current_user():
+    g.current_user = None
+    user_id = session.get('user_id')
+    if user_id:
+        g.current_user = get_user_by_id(user_id)
+
 
 @app.before_request
 def _erp_construction_team_restrict():
@@ -147,10 +154,7 @@ def _erp_construction_team_restrict():
     path = (request.path or '').strip()
     if path.startswith('/static/') or path.startswith('/login') or path.startswith('/logout') or path.startswith('/register'):
         return
-    user_id = session.get('user_id')
-    if not user_id:
-        return
-    user = get_user_by_id(user_id)
+    user = getattr(g, 'current_user', None)
     if not user or getattr(user, 'team', None) != 'CONSTRUCTION':
         return
     # 허용: 출고, 시공, 시공 완료 대시보드
@@ -411,7 +415,7 @@ app.config['SOCKETIO_ALLOW_POLLING_FALLBACK'] = (
 )
 
 # 템플릿 캐시 비활성화 (개발 중 변경사항 즉시 반영)
-app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['TEMPLATES_AUTO_RELOAD'] = not (_is_production or _is_railway)
 
 # Extensions config moved to constants.py
 
