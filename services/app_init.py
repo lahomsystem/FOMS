@@ -21,6 +21,10 @@ def run_auto_init(app):
             ensure_order_attachments_user_id_column()
             init_wdcalculator_db()
             print("[AUTO-INIT] Tables checked/created successfully.")
+            
+            # Phase 2 Indexes
+            from services.db_indexes import apply_phase2_indexes
+            apply_phase2_indexes()
 
             db_session = get_db()
             try:
