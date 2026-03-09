@@ -793,14 +793,20 @@ def bulk_update_order_status():
         user_id = session.get('user_id')
         updated = 0
         deleted_at_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        valid_ids = []
         for oid in order_ids:
             try:
-                oid = int(oid)
+                valid_ids.append(int(oid))
             except (TypeError, ValueError):
                 continue
-            order = db.query(Order).filter(Order.id == oid).first()
-            if not order:
-                continue
+                
+        if not valid_ids:
+            return jsonify({'success': False, 'message': '유효한 주문 ID가 없습니다.'}), 400
+
+        orders = db.query(Order).filter(Order.id.in_(valid_ids)).all()
+        
+        for order in orders:
             old_status_val = getattr(order, 'status', None) or ''
             if is_delete:
                 setattr(order, 'status', 'DELETED')
@@ -816,6 +822,7 @@ def bulk_update_order_status():
                 setattr(order, 'as_received_date', today_str)
             sd_raw = getattr(order, 'structured_data', None)
             if getattr(order, 'is_erp_beta', False) and sd_raw:
+                from models import OrderEvent  # Assuming this exists based on context
                 sd = sd_raw
                 if not isinstance(sd, dict):
                     continue
