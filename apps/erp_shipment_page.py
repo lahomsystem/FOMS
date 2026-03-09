@@ -66,23 +66,29 @@ def _get_order_construction_date(order):
 
 
 def extract_all_construction_dates(order):
-    """주문에서 대표 시공일 + 항목별 시공일을 모두 추출 (CSV 및 JSON 항목 지원)."""
+    """주문에서 대표 시공일 + 항목별 시공일을 모두 추출 (schedule_dates DB 기반)."""
     dates = set()
-    base_date = _get_order_construction_date(order)
-    if base_date:
-        for d in str(base_date).split(','):
-            if d.strip():
-                dates.add(d.strip())
-    if getattr(order, 'is_erp_beta', False) and getattr(order, 'structured_data', None):
-        sd = order.structured_data if isinstance(order.structured_data, dict) else {}
-        for it in sd.get('items') or []:
-            if not isinstance(it, dict):
-                continue
-            date_val = it.get('construction_date')
-            if date_val:
-                for d in str(date_val).split(','):
-                    if d.strip():
-                        dates.add(d.strip())
+    if getattr(order, 'schedule_dates', None) is not None:
+        for d in order.schedule_dates:
+            if d.kind == 'construction' and d.date:
+                dates.add(d.date)
+    else:
+        # Fallback to legacy behavior if not loaded
+        base_date = _get_order_construction_date(order)
+        if base_date:
+            for d in str(base_date).split(','):
+                if d.strip():
+                    dates.add(d.strip())
+        if getattr(order, 'is_erp_beta', False) and getattr(order, 'structured_data', None):
+            sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+            for it in sd.get('items') or []:
+                if not isinstance(it, dict):
+                    continue
+                date_val = it.get('construction_date')
+                if date_val:
+                    for d in str(date_val).split(','):
+                        if d.strip():
+                            dates.add(d.strip())
     return dates
 
 
@@ -152,11 +158,15 @@ def erp_shipment_dashboard():
     if not use_range and not use_single_day:
         req_date = ''
     selected_date = req_date
-
+    
     base_query = db.query(Order).filter(Order.status != 'DELETED')
     base_query = _erp_order_search_filter(base_query, search_q)
 
-    panel_orders = base_query.filter(
+    from models import OrderScheduleDate
+    from sqlalchemy.orm import selectinload
+
+    # 시공/출고 대시보드는 AS 및 시공 관련이므로 Order.status 필터를 적용
+    panel_query = base_query.filter(
         or_(
             Order.is_erp_beta == True,
             Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
@@ -166,12 +176,27 @@ def erp_shipment_dashboard():
                 Order.scheduled_date != ''
             )
         )
-    ).options(
+    )
+
+    if use_range or use_single_day:
+        panel_query = panel_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
+        panel_query = panel_query.filter(OrderScheduleDate.kind == 'construction')
+        if use_range:
+            d_s = (today_kst - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+            d_e = (today_kst + datetime.timedelta(days=15)).strftime('%Y-%m-%d')
+            panel_query = panel_query.filter(OrderScheduleDate.date >= date_from, OrderScheduleDate.date <= date_to)
+        elif use_single_day:
+            panel_query = panel_query.filter(OrderScheduleDate.date == selected_date)
+        panel_query = panel_query.distinct()
+
+    panel_orders = panel_query.options(
         load_only(
             Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
             Order.structured_data, Order.status, Order.is_erp_beta
-        )
+        ),
+        selectinload(Order.schedule_dates)
     ).order_by(Order.id.desc()).limit(1500).all()
+
     # 시공팀 또는 mine=1일 때만 목록/패널을 담당 주문으로 제한 (의도적 이중 필터: panel_orders + 아래 rows)
     if mine_only and current_user:
         panel_orders = [o for o in panel_orders if is_order_mine_for_user(o, current_user)]
@@ -269,75 +294,32 @@ def erp_shipment_dashboard():
         current += datetime.timedelta(days=1)
 
     # SQL 레벨에서 날짜 필터링 (최적화 + Limit으로 인한 누락 방지)
-    if use_range:
-        all_candidates = base_query.filter(
-            or_(
-                Order.is_erp_beta == True,
-                Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
-                and_(
-                    Order.is_erp_beta == False,
-                    Order.scheduled_date != None,
-                    Order.scheduled_date != ''
-                )
+    rows_query = base_query.filter(
+        or_(
+            Order.is_erp_beta == True,
+            Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
+            and_(
+                Order.is_erp_beta == False,
+                Order.scheduled_date != None,
+                Order.scheduled_date != ''
             )
-        ).order_by(Order.id.desc()).limit(1500).all()
-        rows = []
-        for order in all_candidates:
-            all_dates = extract_all_construction_dates(order)
-            for date_value in all_dates:
-                try:
-                    if date_from <= date_value <= date_to:
-                        rows.append(order)
-                        break
-                except Exception:
-                    pass
-    elif use_single_day:
-        date_keyword = f'"{selected_date}"'
-        all_candidates = base_query.filter(
-            or_(
-                and_(
-                    Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
-                    or_(
-                        Order.scheduled_date == selected_date,
-                        Order.scheduled_date.ilike(f'%{selected_date}%'),
-                        Order.as_received_date == selected_date,
-                        Order.as_completed_date == selected_date
-                    )
-                ),
-                and_(
-                    Order.is_erp_beta == False,
-                    Order.status.notin_(['AS_RECEIVED', 'AS_COMPLETED']),
-                    or_(Order.scheduled_date == selected_date, Order.scheduled_date.ilike(f'%{selected_date}%'))
-                ),
-                and_(
-                    Order.is_erp_beta == True,
-                    or_(
-                        Order.scheduled_date == selected_date,
-                        Order.scheduled_date.ilike(f'%{selected_date}%'),
-                        cast(Order.structured_data, String).like(f'%{date_keyword}%'),
-                        cast(Order.structured_data, String).ilike(f'%{selected_date}%')
-                    )
-                )
-            )
-        ).order_by(Order.id.desc()).all()
-        rows = []
-        for order in all_candidates:
-            if selected_date in extract_all_construction_dates(order):
-                rows.append(order)
+        )
+    )
+    
+    if use_range or use_single_day:
+        rows_query = rows_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
+        rows_query = rows_query.filter(OrderScheduleDate.kind == 'construction')
+        if use_range:
+            rows_query = rows_query.filter(OrderScheduleDate.date >= date_from, OrderScheduleDate.date <= date_to)
+        elif use_single_day:
+            rows_query = rows_query.filter(OrderScheduleDate.date == selected_date)
+            
+        rows_query = rows_query.distinct()
     else:
-        # 전체 기간: 날짜 필터 없음 (검색어만)
-        all_candidates = base_query.filter(
-            or_(
-                Order.is_erp_beta == True,
-                Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
-                and_(
-                    Order.is_erp_beta == False,
-                    Order.scheduled_date != None,
-                    Order.scheduled_date != ''
-                )
-            )
-        ).order_by(Order.id.desc()).limit(500).all()
-        rows = all_candidates
+        rows_query = rows_query.limit(500)
+
+    rows_query = rows_query.options(selectinload(Order.schedule_dates))
+    rows = rows_query.order_by(Order.id.desc()).all()
 
     # 시공팀 또는 mine=1일 때만 당일 목록(rows)도 담당 주문으로 제한
     if mine_only and current_user:
