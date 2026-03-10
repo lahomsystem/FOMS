@@ -130,7 +130,7 @@ def api_erp_shipment_update(order_id):
         if 'construction_workers' in payload:
             workers = payload.get('construction_workers')
             if isinstance(workers, list):
-                shipment['construction_workers'] = [str(x).strip() for x in workers]
+                shipment['construction_workers'] = [str(x).strip() for x in workers if str(x).strip()]
             else:
                 shipment['construction_workers'] = []
 

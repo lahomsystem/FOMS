@@ -1,6 +1,6 @@
 # Shell Guard Log
 
-> Claude Code Hook(`PreToolUse:Bash`)가 자동 기록합니다.
+> Cursor Hook(`beforeShellExecution`)가 자동 기록합니다.
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
@@ -218,3 +218,22 @@
 | 2026-03-09 08:34:28 | allow | `-` | `wc -l /c/Users/USER/AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/tasks/*.output 2>/dev/null` |
 | 2026-03-09 08:34:44 | allow | `-` | `wc -l c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_measurement.py c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/a` |
 | 2026-03-09 08:57:55 | allow | `-` | `wc -l c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/templates/partials/erp_beta_js.html c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOM` |
+| 2026-03-10 16:37:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "from services.order_date_sync import collect_order_schedule_date_specs; print('OK')` |
+| 2026-03-10 16:38:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff services/order_date_sync.py` |
+| 2026-03-10 16:38:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add services/order_date_sync.py; git commit --trailer "Made-with: Cursor" -F commit_msg.tx` |
+| 2026-03-10 16:38:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-10 21:55:11 | allow | `-` | `python -c "import app; print('APP_OK')" 2>&1` |
+| 2026-03-10 22:35:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
+| 2026-03-10 22:35:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-10 22:35:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -5` |
+| 2026-03-10 22:35:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
+| 2026-03-10 22:35:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff app.py | head -30` |
+| 2026-03-10 22:35:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff app.py 2>$null | Select-Object -First 40` |
+| 2026-03-10 22:36:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --name-only` |
+| 2026-03-10 22:36:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add app.py apps/api/erp_shipment_settings.py docs/AI_CHANGELOG.md docs/AI_STATUS.md docs/c` |
+| 2026-03-10 22:36:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/css/shipment-dashboard-columns.css static/js/shipment-dashboard-columns.js docs` |
+| 2026-03-10 22:36:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-10 22:36:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/ docs/context/SHELL_GUARD_LOG.md` |
+| 2026-03-10 22:36:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --cached app.py 2>$null` |
+| 2026-03-10 22:36:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short` |
+| 2026-03-10 22:36:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/context/EDIT_LOG.md docs/context/SHELL_GUARD_LOG.md; git commit --trailer "Made-w` |

@@ -1,0 +1,74 @@
+/* =============================================================
+   출고 대시보드 컬럼 리사이즈 전용 스타일
+   파일: static/css/shipment-dashboard-columns.css
+   생성: 2026-03-10 (GDM colgroup+schema+resize 재작성)
+   ============================================================= */
+
+/* 1. 테이블 레이아웃 고정 — colgroup이 폭의 진실 원천 */
+#shipment-dashboard-table {
+  table-layout: fixed;
+}
+
+/* 2. 셀 기본 설정 — 리사이즈 핸들 absolute 배치를 위한 relative */
+#shipment-dashboard-table th,
+#shipment-dashboard-table td {
+  position: relative;
+  overflow: hidden;
+}
+
+/* 3. 리사이즈 핸들 */
+#shipment-dashboard-table .col-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  z-index: 10;
+  padding: 0;
+  margin: 0;
+  display: block;
+}
+
+#shipment-dashboard-table th:hover .col-resize-handle {
+  background: rgba(13, 110, 253, 0.12);
+  border-radius: 2px;
+}
+
+#shipment-dashboard-table .col-resize-handle:focus {
+  outline: none;
+}
+
+/* 4. 텍스트 처리: 제품·현장주소는 줄바꿈 허용 */
+#shipment-dashboard-table td.shipment-product-cell {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+#shipment-dashboard-table td.shipment-address-cell {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  vertical-align: top;
+}
+
+/* 5. 리사이즈 중 텍스트 선택 방지 */
+#shipment-dashboard-table.col-resizing,
+#shipment-dashboard-table.col-resizing * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.col-resizing-active {
+  cursor: col-resize;
+}
+
+/* 6. 모바일: 드래그 리사이즈 비활성화 */
+@media (max-width: 768px) {
+  #shipment-dashboard-table .col-resize-handle {
+    display: none;
+  }
+}
