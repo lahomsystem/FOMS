@@ -227,7 +227,7 @@
               }
 
               .shipment-table {
-                min-width: 1100px;
+                min-width: 1020px;
                 font-size: 0.875rem;
               }
 
@@ -254,17 +254,30 @@
               }
 
               .shipment-table .shipment-address-cell {
-                min-width: 280px;
+                width: 210px;
+                min-width: 190px;
+                max-width: 240px;
+                white-space: normal;
+                vertical-align: top;
               }
 
               .shipment-table .shipment-address-text {
                 font-size: 0.875rem;
                 color: #212529;
+                line-height: 1.25;
               }
 
               .shipment-table .cell-wrap {
                 white-space: normal;
                 word-break: break-word;
+              }
+
+              .shipment-table .shipment-product-cell {
+                max-width: 140px;
+              }
+
+              .shipment-address-block {
+                max-width: 100%;
               }
 
               /* 모바일: 제품 컬럼 가로 확장 → 행 높이 최소화, 가로 스크롤로 확인 */
@@ -278,6 +291,7 @@
                 list-style: none;
                 padding: 0;
                 margin: 0;
+                width: 100%;
               }
 
               .shipment-site-extra-list li.shipment-site-extra-row {
@@ -285,7 +299,7 @@
                 gap: 2px;
                 margin-bottom: 0;
                 min-height: 0;
-                align-items: center;
+                align-items: flex-start;
               }
 
               .shipment-site-extra-list li.shipment-site-extra-row+li.shipment-site-extra-row {
@@ -400,9 +414,14 @@
 
               .shipment-site-extra-row .site-extra-view {
                 display: none;
-                line-height: 1.1;
+                line-height: 1.25;
                 cursor: pointer;
                 padding: 1px 0;
+                white-space: pre-wrap;
+                word-break: break-word;
+                overflow-wrap: anywhere;
+                min-width: 0;
+                flex: 1 1 auto;
               }
 
               .shipment-site-extra-row .site-extra-edit {
@@ -410,11 +429,26 @@
               }
 
               .shipment-site-extra-row.has-value .site-extra-view {
-                display: inline !important;
+                display: block !important;
               }
 
               .shipment-site-extra-row.has-value .site-extra-edit {
                 display: none !important;
+              }
+
+              .shipment-site-extra-static {
+                display: flex;
+                gap: 4px;
+                align-items: flex-start;
+                margin-bottom: 2px;
+              }
+
+              .shipment-site-extra-static .shipment-site-extra-static-text {
+                line-height: 1.25;
+                padding: 1px 0;
+                white-space: pre-wrap;
+                word-break: break-word;
+                overflow-wrap: anywhere;
               }
 
               .shipment-site-extra-row .line-remove-btn {
@@ -796,15 +830,15 @@
               <thead class="table-light">
                 <tr>
                   <th style="width: 60px; border-right: 1px solid #e0e0e0;">상세</th>
-                  <th style="width: 100px; border-right: 1px solid #e0e0e0;">고객</th>
-                  <th style="width: 100px; border-right: 1px solid #e0e0e0;">대리점(발주사)</th>
-                  <th class="shipment-product-cell" style="min-width: 128px; border-right: 1px solid #e0e0e0;">제품</th>
-                  <th style="width: 100px; border-right: 1px solid #e0e0e0;">규격(W/300)</th>
-                  <th style="min-width: 224px; border-right: 1px solid #e0e0e0;">현장주소</th>
-                  <th style="min-width: 130px; border-right: 1px solid #e0e0e0;">시공시간</th>
-                  <th style="min-width: 130px; border-right: 1px solid #e0e0e0;">도면담당자</th>
-                  <th style="min-width: 120px; border-right: 1px solid #e0e0e0;">시공자</th>
-                  <th style="min-width: 100px;">담당자</th>
+                  <th style="width: 90px; border-right: 1px solid #e0e0e0;">고객</th>
+                  <th style="width: 90px; border-right: 1px solid #e0e0e0;">대리점(발주사)</th>
+                  <th class="shipment-product-cell" style="min-width: 116px; border-right: 1px solid #e0e0e0;">제품</th>
+                  <th style="width: 84px; border-right: 1px solid #e0e0e0;">규격(W/300)</th>
+                  <th style="width: 210px; border-right: 1px solid #e0e0e0;">현장주소</th>
+                  <th style="min-width: 118px; border-right: 1px solid #e0e0e0;">시공시간</th>
+                  <th style="min-width: 110px; border-right: 1px solid #e0e0e0;">도면담당자</th>
+                  <th style="min-width: 100px; border-right: 1px solid #e0e0e0;">시공자</th>
+                  <th style="min-width: 88px;">담당자</th>
                 </tr>
               </thead>
               <tbody>
@@ -931,13 +965,13 @@
                       <ul class="shipment-site-extra-list mb-0" data-order-id="{{ r.id }}" data-field="site_extra">
                         {# [GDM] ERP Items extra_input 자동 표시 (수정 불가, 저장 제외) #}
                         {% for it in erp_items %}
-                        {% set ei = (it.get('extra_input') or '')|string|trim %}
-                        {% if ei %}
-                        <li class="d-flex gap-1 align-items-center flex-wrap mb-0" style="min-height:0;">
-                          <span class="site-extra-color-blue fw-semibold" style="line-height:1.1; padding:1px 0; cursor:default;"
+                        {% set ei = (it.get('extra_input') or '')|string %}
+                        {% if ei|trim %}
+                        <li class="shipment-site-extra-static">
+                          <div class="site-extra-color-blue fw-semibold shipment-site-extra-static-text"
                             title="항목 추가입력 연동">
                             <i class="fas fa-asterisk fa-xs text-black-50 me-1" style="font-size:0.6em;"></i>{{ ei }}
-                          </span>
+                          </div>
                         </li>
                         {% endif %}
                         {% endfor %}
