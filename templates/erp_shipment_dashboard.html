@@ -64,7 +64,8 @@
                   class="btn btn-sm btn-outline-secondary py-0 px-1" title="기본값으로 초기화">초기화</a>
                 <a href="{{ url_for('erp_shipment_page.erp_shipment_dashboard', date=today_date, q=search_q or '') }}"
                   class="btn btn-sm btn-outline-primary py-0 px-1" title="오늘">오늘</a>
-                <span class="badge bg-primary">{% if use_date_range %}{{ date_from }} ~ {{ date_to }}{% else %}{{ selected_date }}{% endif %}</span>
+                <span class="badge bg-primary">{% if use_date_range %}{{ date_from }} ~ {{ date_to }}{% else %}{{
+                  selected_date }}{% endif %}</span>
               </div>
             </div>
             <div class="card-body p-1">
@@ -317,9 +318,11 @@
                 font-weight: 500;
                 text-align: center;
               }
+
               .shipment-worker-cell[style*="background-color"] {
                 color: #000000 !important;
               }
+
               .shipment-table tbody tr:hover td.shipment-worker-cell,
               .shipment-table tbody tr:hover td.shipment-worker-cell[style*="background-color"],
               td.shipment-worker-cell[style*="background-color"]:hover {
@@ -327,6 +330,7 @@
                 background: inherit !important;
                 color: #000000 !important;
               }
+
               .shipment-table tbody tr:hover td.shipment-worker-cell[data-worker-bg-color] {
                 background-color: var(--worker-bg-color, inherit) !important;
                 background: var(--worker-bg-color, inherit) !important;
@@ -805,22 +809,26 @@
               .text-danger {
                 color: #e53e3e !important;
               }
+
               /* 모바일: 카드 전환은 erp-pro.css .erp-mobile-card-table 적용, 터치 영역 확보 */
               @media (max-width: 992px) {
                 .shipment-table {
                   min-width: 0 !important;
                   width: 100% !important;
                 }
+
                 .shipment-table th,
                 .shipment-table td {
                   white-space: normal !important;
                 }
+
                 .measurement-panel-item {
                   min-height: 44px;
                   display: flex;
                   align-items: center;
                 }
-                .erp-pro .row.g-3 > [class*="col-"] {
+
+                .erp-pro .row.g-3>[class*="col-"] {
                   flex: 0 0 100%;
                   max-width: 100%;
                 }
@@ -836,8 +844,8 @@
                   <th style="width: 84px; border-right: 1px solid #e0e0e0;">규격(W/300)</th>
                   <th style="width: 210px; border-right: 1px solid #e0e0e0;">현장주소</th>
                   <th style="min-width: 118px; border-right: 1px solid #e0e0e0;">시공시간</th>
-                  <th style="min-width: 110px; border-right: 1px solid #e0e0e0;">도면담당자</th>
-                  <th style="min-width: 100px; border-right: 1px solid #e0e0e0;">시공자</th>
+                  <th style="min-width: 160px; border-right: 1px solid #e0e0e0;">도면담당자</th>
+                  <th style="min-width: 150px; border-right: 1px solid #e0e0e0;">시공자</th>
                   <th style="min-width: 88px;">담당자</th>
                 </tr>
               </thead>
@@ -851,16 +859,17 @@
                 {% set _cw = _ship.get('construction_workers') or [] %}
                 {% set ns_first = namespace(val='') %}
                 {% for _w in _cw %}
-                  {% if _w|string|trim and not ns_first.val %}
-                    {% set ns_first.val = _w|string|trim %}
-                  {% endif %}
+                {% if _w|string|trim and not ns_first.val %}
+                {% set ns_first.val = _w|string|trim %}
+                {% endif %}
                 {% endfor %}
                 {% set _first = ns_first.val %}
                 {% if _first and _first not in worker_list %}
                 {% set _ = worker_list.append(_first) %}
                 {% endif %}
                 {% endfor %}
-                {% set pastel_colors = ['#B8D4E3', '#FFE5CC', '#E8D5E9', '#D5E9D5', '#F0D5D5', '#D5D5E9', '#FFF0D5', '#D5E9E5', '#F5D5E5', '#E9E5D5'] %}
+                {% set pastel_colors = ['#B8D4E3', '#FFE5CC', '#E8D5E9', '#D5E9D5', '#F0D5D5', '#D5D5E9', '#FFF0D5',
+                '#D5E9E5', '#F5D5E5', '#E9E5D5'] %}
 
                 {% for r in rows %}
                 {# 백엔드에서 준비된 필드 사용 (apply_erp_beta_display_fields) #}
@@ -880,9 +889,9 @@
                 {% set construction_workers = shipment.get('construction_workers') or [] %}
                 {% set ns_key = namespace(val='') %}
                 {% for _w in construction_workers %}
-                  {% if _w|string|trim and not ns_key.val %}
-                    {% set ns_key.val = _w|string|trim %}
-                  {% endif %}
+                {% if _w|string|trim and not ns_key.val %}
+                {% set ns_key.val = _w|string|trim %}
+                {% endif %}
                 {% endfor %}
                 {% set worker_key = ns_key.val %}
                 {% set ns = namespace(worker_index=-1) %}
@@ -905,7 +914,9 @@
                 {% if item_count == 0 %}{% set item_count = 1 %}{% endif %}
                 {% set product_display = r.product or '-' %}
 
-                <tr data-order-id="{{ r.id }}" class="shipment-row" data-as="{{ 1 if r.status in ('AS_RECEIVED', 'AS_COMPLETED') else 0 }}" data-manager="{{ (r.manager_name or '')|e }}">
+                <tr data-order-id="{{ r.id }}" class="shipment-row"
+                  data-as="{{ 1 if r.status in ('AS_RECEIVED', 'AS_COMPLETED') else 0 }}"
+                  data-manager="{{ (r.manager_name or '')|e }}">
                   <td data-label="상세" style="border-right: 1px solid #e0e0e0;">
                     {% if can_edit_shipment %}
                     <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-beta"
@@ -914,9 +925,12 @@
                     <span class="text-muted small">(권한없음)</span>
                     {% endif %}
                   </td>
-                  <td class="{% if r.is_production_approved %}shipment-customer-done{% endif %}" data-label="고객" style="border-right: 1px solid #e0e0e0;">
+                  <td class="{% if r.is_production_approved %}shipment-customer-done{% endif %}" data-label="고객"
+                    style="border-right: 1px solid #e0e0e0;">
                     <div>{{ customer or '-' }}{% if r.is_self_measurement|default(false) %}
-                      <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i> 자가실측</span>{% endif %}</div>
+                      <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i>
+                        자가실측</span>{% endif %}
+                    </div>
                     {% if r.phone %}
                     <small class="text-muted">{{ r.phone|format_phone }}</small>
                     {% endif %}
@@ -988,7 +1002,8 @@
                           class="shipment-site-extra-row d-flex gap-1 align-items-center flex-wrap {% if line_text %}has-value{% else %}editing{% endif %}"
                           data-color="{{ line_color }}">
                           <span class="site-extra-view site-extra-color-{{ line_color }}">{{ line_text }}</span>
-                          {% if not line_text and can_edit_shipment %}<span class="site-extra-placeholder">+ 호버하여 추가</span>{% endif %}
+                          {% if not line_text and can_edit_shipment %}<span class="site-extra-placeholder">+ 호버하여
+                            추가</span>{% endif %}
                           {% if can_edit_shipment %}
                           <button type="button" class="btn btn-sm btn-outline-danger line-remove-btn"
                             title="삭제">&times;</button>
@@ -1052,7 +1067,7 @@
                         <span class="drawing-manager-edit d-inline-flex align-items-center gap-1 flex-nowrap">
                           <input type="text"
                             class="form-control form-control-sm shipment-input shipment-drawing-manager-input d-inline-block flex-grow-1"
-                            style="min-width: 70px; width: 90px;" data-order-id="{{ r.id }}"
+                            style="min-width: 110px; width: 130px;" data-order-id="{{ r.id }}"
                             data-field="drawing_managers" data-index="{{ loop.index0 }}"
                             data-key="erp_shipment_drawing_managers" value="{{ dm }}" placeholder="도면담당자"
                             list="datalist-drawing-manager">
@@ -1071,8 +1086,9 @@
                       {% endif %}
                     </div>
                   </td>
-                  <td class="shipment-field-cell shipment-worker-cell" data-label="시공자" style="border-right: 1px solid #e0e0e0;"
-                    data-worker-bg-color="{{ worker_bg_color }}" data-worker-text-color="{{ worker_text_color }}">
+                  <td class="shipment-field-cell shipment-worker-cell" data-label="시공자"
+                    style="border-right: 1px solid #e0e0e0;" data-worker-bg-color="{{ worker_bg_color }}"
+                    data-worker-text-color="{{ worker_text_color }}">
                     <div class="shipment-workers-list {% if not construction_workers %}no-workers{% endif %}"
                       data-order-id="{{ r.id }}" data-field="construction_workers"
                       data-n="{{ construction_workers|length }}">
@@ -1083,7 +1099,7 @@
                         <span class="worker-edit d-inline-flex align-items-center gap-1 flex-nowrap">
                           <input type="text"
                             class="form-control form-control-sm shipment-input shipment-worker-input d-inline-block flex-grow-1"
-                            style="min-width: 60px; width: 80px;" data-order-id="{{ r.id }}"
+                            style="min-width: 100px; width: 120px;" data-order-id="{{ r.id }}"
                             data-field="construction_workers" data-index="{{ loop.index0 }}"
                             data-key="erp_shipment_construction_workers" value="{{ w }}" placeholder="시공자"
                             list="datalist-construction-workers">
