@@ -1,6 +1,7 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/shipment-dashboard-columns.css') }}">
 <div class="erp-pro">
   <!-- Modern Header -->
   <header class="erp-pro-header">
@@ -9,6 +10,10 @@
       <span>출고 대시보드</span>
     </h1>
     <div class="erp-pro-header__actions">
+      <button id="btn-reset-column-widths" class="erp-pro-btn erp-pro-btn--secondary me-2" title="컬럼 폭을 기본값으로 초기화">
+        <i class="fas fa-columns"></i>
+        <span class="d-none d-md-inline">컬럼 폭 초기화</span>
+      </button>
       <button id="btn-export-image" class="erp-pro-btn erp-pro-btn--primary me-2">
         <i class="fas fa-file-image"></i>
         <span class="d-none d-md-inline">이미지 저장</span>
@@ -255,9 +260,7 @@
               }
 
               .shipment-table .shipment-address-cell {
-                width: 210px;
-                min-width: 190px;
-                max-width: 240px;
+                /* width/min-width/max-width → colgroup + shipment-dashboard-columns.css 에서 관리 */
                 white-space: normal;
                 vertical-align: top;
               }
@@ -274,18 +277,11 @@
               }
 
               .shipment-table .shipment-product-cell {
-                max-width: 140px;
+                /* width/min-width/max-width → colgroup + shipment-dashboard-columns.css 에서 관리 */
               }
 
               .shipment-address-block {
                 max-width: 100%;
-              }
-
-              /* 모바일: 제품 컬럼 가로 확장 → 행 높이 최소화, 가로 스크롤로 확인 */
-              @media (max-width: 768px) {
-                .shipment-table .shipment-product-cell {
-                  min-width: 240px !important;
-                }
               }
 
               .shipment-site-extra-list {
@@ -392,11 +388,6 @@
                 color: #006 !important;
               }
 
-              .shipment-worker-wrap {
-                display: flex;
-                align-items: center;
-                gap: 4px;
-              }
 
               .shipment-address-block .address-row-actions {
                 opacity: 0;
@@ -474,95 +465,94 @@
               .shipment-site-extra-row.editing:not(.has-value) .site-extra-edit {
                 display: flex !important;
               }
-
-              .shipment-field-cell .shipment-field-wrap {
+              .shipment-edit-list {
+                --shipment-edit-action-size: 2rem;
+                list-style: none;
+                margin: 0;
+                padding: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
                 min-height: 1.5em;
-                position: relative;
+              }
+
+              .shipment-text-row {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                min-width: 0;
+              }
+
+              .shipment-text-row .shipment-text-view {
+                display: none;
+                line-height: 1.25;
+                cursor: pointer;
+                padding: 1px 0;
+                white-space: pre-wrap;
+                word-break: break-word;
+                overflow-wrap: anywhere;
+                min-width: 0;
+                flex: 1 1 auto;
+              }
+
+              .shipment-text-row .shipment-text-edit {
+                display: none !important;
+                width: 100%;
+                gap: 4px;
+                min-width: 0;
+                flex: 1 1 auto;
+                align-items: center;
+                grid-template-columns: minmax(0, 1fr) var(--shipment-edit-action-size) var(--shipment-edit-action-size);
+              }
+
+              .shipment-text-row.has-value .shipment-text-view {
+                display: block !important;
+              }
+
+              .shipment-text-row.is-empty .shipment-text-view {
+                display: block !important;
+                color: #6c757d;
+              }
+
+              .shipment-text-row.is-empty .shipment-text-view:empty::before {
+                content: attr(data-empty-placeholder);
+              }
+
+              .shipment-text-row.editing .shipment-text-view {
+                display: none !important;
+              }
+
+              .shipment-text-row.editing .shipment-text-edit {
+                display: grid !important;
+              }
+
+              .shipment-text-input {
+                min-width: 0;
                 width: 100%;
               }
 
-              .shipment-field-cell .shipment-field-view {
-                display: none;
+              .shipment-text-edit .shipment-btn-load-saved-text-row,
+              .shipment-text-edit .btn-remove-shipment-text-row {
+                width: var(--shipment-edit-action-size);
+                height: var(--shipment-edit-action-size);
+                padding: 0;
+                flex: 0 0 var(--shipment-edit-action-size);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
               }
 
-              .shipment-field-cell .shipment-field-edit {
-                display: none !important;
+              .shipment-text-list-single {
+                width: 100%;
               }
 
-              .shipment-field-cell .shipment-field-wrap.has-value .shipment-field-view {
-                display: inline !important;
-                cursor: pointer;
+              .shipment-text-list-single .shipment-text-row,
+              .shipment-text-list-single .shipment-text-view,
+              .shipment-text-list-single .shipment-text-edit {
+                width: 100%;
               }
 
-              .shipment-field-cell .shipment-field-wrap:not(.has-value) .shipment-field-edit {
-                display: flex !important;
-                z-index: 2;
-                position: relative;
-              }
-
-              .shipment-field-cell.is-editing .shipment-field-view {
-                display: none !important;
-              }
-
-              .shipment-field-cell.is-editing .shipment-field-edit {
-                display: flex !important;
-                z-index: 2;
-                position: relative;
-              }
-
-              .shipment-field-cell.is-editing .shipment-field-wrap {
-                outline: 1px solid #86b7fe;
-                outline-offset: -1px;
-                border-radius: 4px;
-              }
-
-              .shipment-field-cell .shipment-field-clear {
-                opacity: 0;
-                margin-left: 4px;
-                transition: opacity 0.15s;
-              }
-
-              .shipment-field-cell.is-editing .shipment-field-clear,
-              .shipment-field-cell .shipment-field-wrap:not(.has-value) .shipment-field-clear {
-                opacity: 1;
-              }
-
-              .shipment-workers-list .worker-view {
-                display: none;
-              }
-
-              .shipment-workers-list .worker-edit {
-                display: none !important;
-              }
-
-              .shipment-workers-list .shipment-worker-wrap.has-value .worker-view {
-                display: inline !important;
-                cursor: pointer;
-              }
-
-              .shipment-workers-list .shipment-worker-wrap.is-editing .worker-view {
-                display: none !important;
-              }
-
-              .shipment-workers-list .shipment-worker-wrap.is-editing .worker-edit {
-                display: inline-flex !important;
-              }
-
-              .shipment-workers-list .shipment-worker-wrap:not(.has-value) .worker-edit {
-                display: inline-flex !important;
-              }
-
-              @media (hover: none) {
-                .shipment-workers-list .worker-edit {
-                  display: inline-flex !important;
-                }
-
-                .shipment-workers-list .shipment-worker-wrap.has-value .worker-view {
-                  display: none !important;
-                }
-              }
-
-              .shipment-workers-list .actions-on-hover {
+              .shipment-edit-list .actions-on-hover {
                 opacity: 0;
                 max-height: 0;
                 overflow: hidden;
@@ -571,91 +561,22 @@
                 transition: opacity 0.15s;
               }
 
-              .shipment-workers-list.show-add-actions .actions-on-hover {
+              .shipment-edit-list.show-add-actions .actions-on-hover {
                 opacity: 1;
                 max-height: 2.5em;
                 overflow: visible;
                 margin-top: 4px;
               }
 
-              .shipment-workers-list {
-                min-height: 1.5em;
-              }
-
-              .shipment-drawing-managers-list .drawing-manager-view {
-                display: none;
-              }
-
-              .shipment-drawing-managers-list .drawing-manager-edit {
-                display: none !important;
-              }
-
-              .shipment-drawing-managers-list .shipment-drawing-manager-wrap.has-value .drawing-manager-view {
-                display: inline !important;
-                cursor: pointer;
-              }
-
-              .shipment-drawing-managers-list .shipment-drawing-manager-wrap.is-editing .drawing-manager-view {
-                display: none !important;
-              }
-
-              .shipment-drawing-managers-list .shipment-drawing-manager-wrap.is-editing .drawing-manager-edit {
-                display: inline-flex !important;
-              }
-
-              .shipment-drawing-managers-list .shipment-drawing-manager-wrap:not(.has-value) .drawing-manager-edit {
-                display: inline-flex !important;
-              }
-
               @media (hover: none) {
-                .shipment-drawing-managers-list .drawing-manager-edit {
-                  display: inline-flex !important;
-                }
-
-                .shipment-drawing-managers-list .shipment-drawing-manager-wrap.has-value .drawing-manager-view {
-                  display: none !important;
-                }
-
-                /* 모바일이 아닌 터치 디바이스에서만 + 버튼 항상 표시 (모바일은 아래 미디어에서 빈곳 클릭 시 표시) */
                 @media (min-width: 769px) {
-
-                  .shipment-drawing-managers-list .actions-on-hover,
-                  .shipment-workers-list .actions-on-hover {
+                  .shipment-edit-list .actions-on-hover {
                     opacity: 1 !important;
                     max-height: 2.5em !important;
                     overflow: visible !important;
                     margin-top: 4px !important;
                   }
                 }
-              }
-
-              .shipment-drawing-managers-list .actions-on-hover {
-                opacity: 0;
-                max-height: 0;
-                overflow: hidden;
-                margin: 0;
-                padding: 0;
-                transition: opacity 0.15s;
-              }
-
-              .shipment-drawing-managers-list.show-add-actions .actions-on-hover {
-                opacity: 1;
-                max-height: 2.5em;
-                overflow: visible;
-                margin-top: 4px;
-              }
-
-              .shipment-drawing-managers-list {
-                display: flex;
-                flex-direction: column;
-                flex-wrap: nowrap;
-                gap: 4px;
-                min-height: 1.5em;
-              }
-
-              .shipment-drawing-managers-list .shipment-drawing-manager-wrap {
-                display: flex;
-                align-items: center;
               }
 
               .shipment-site-extra-row.editing:not(.has-value) .site-extra-placeholder {
@@ -690,70 +611,60 @@
 
               .shipment-product-list .shipment-product-line {
                 white-space: normal;
+                overflow-wrap: anywhere;
               }
 
               .shipment-spec-list .shipment-spec-line {
                 white-space: nowrap;
               }
 
-              /* 모바일: 도면담당자/시공자 폰트·입력 크기 축소 → 주문 건 높이 최소화 */
+              /* ???: ????/?????/??? ?? row ?? ?? ?? */
               @media (max-width: 768px) {
+                .shipment-edit-list {
+                  --shipment-edit-action-size: 1.5rem;
+                }
 
-                .shipment-drawing-managers-list .drawing-manager-view,
-                .shipment-drawing-managers-list .shipment-drawing-manager-input,
-                .shipment-drawing-managers-list .shipment-drawing-manager-wrap input,
-                .shipment-workers-list .worker-view,
-                .shipment-workers-list .shipment-worker-input,
-                .shipment-workers-list .shipment-worker-wrap input {
+                .shipment-edit-list .shipment-text-view,
+                .shipment-edit-list .shipment-text-input {
                   font-size: 0.75rem !important;
                 }
 
-                .shipment-drawing-managers-list .shipment-drawing-manager-wrap,
-                .shipment-workers-list .shipment-worker-wrap {
+                .shipment-edit-list .shipment-text-row {
                   gap: 2px !important;
-                  padding: 1px 2px !important;
                   min-height: 0 !important;
                 }
 
-                .shipment-drawing-managers-list .shipment-drawing-manager-input,
-                .shipment-drawing-managers-list .shipment-drawing-manager-wrap input,
-                .shipment-workers-list .shipment-worker-input,
-                .shipment-workers-list .shipment-worker-wrap input {
+                .shipment-edit-list .shipment-text-input {
                   padding: 2px 6px !important;
                   min-height: 24px !important;
                   height: 24px !important;
-                  min-width: 50px !important;
-                  width: 60px !important;
                 }
 
-                .shipment-drawing-managers-list,
-                .shipment-workers-list {
+                .shipment-edit-list .shipment-text-edit {
+                  gap: 2px !important;
+                }
+
+                .shipment-edit-list {
                   gap: 2px !important;
                   min-height: 26px !important;
+                  cursor: pointer;
                 }
 
-                .shipment-drawing-managers-list .drawing-manager-view,
-                .shipment-workers-list .worker-view {
+                .shipment-edit-list .shipment-text-view {
                   padding: 2px 4px;
                   line-height: 1.2;
                 }
 
-                .shipment-drawing-managers-list .btn-add-drawing-manager,
-                .shipment-workers-list .btn-add-worker,
-                .shipment-drawing-managers-list .btn-remove-drawing-manager,
-                .shipment-workers-list .btn-remove-worker {
+                .shipment-edit-list .btn-add-shipment-text-row,
+                .shipment-edit-list .btn-remove-shipment-text-row,
+                .shipment-edit-list .shipment-btn-load-saved-text-row {
                   padding: 2px 6px !important;
                   font-size: 0.7rem !important;
                   min-width: 22px !important;
                   height: 22px !important;
                 }
-              }
 
-              /* 모바일: + 버튼 기본 숨김, 빈곳 클릭 시에만 표시 (PC와 동일한 호버 동작) */
-              @media (max-width: 768px) {
-
-                .shipment-drawing-managers-list .actions-on-hover,
-                .shipment-workers-list .actions-on-hover {
+                .shipment-edit-list .actions-on-hover {
                   opacity: 0 !important;
                   max-height: 0 !important;
                   overflow: hidden !important;
@@ -761,17 +672,11 @@
                   padding: 0 !important;
                 }
 
-                .shipment-drawing-managers-list.show-add-actions .actions-on-hover,
-                .shipment-workers-list.show-add-actions .actions-on-hover {
+                .shipment-edit-list.show-add-actions .actions-on-hover {
                   opacity: 1 !important;
                   max-height: 2em !important;
                   overflow: visible !important;
                   margin-top: 2px !important;
-                }
-
-                .shipment-drawing-managers-list,
-                .shipment-workers-list {
-                  cursor: pointer;
                 }
               }
 
@@ -834,19 +739,31 @@
                 }
               }
             </style>
-            <table class="table table-sm table-hover align-middle shipment-table erp-mobile-card-table">
+            <table class="table table-sm table-hover align-middle shipment-table erp-mobile-card-table" id="shipment-dashboard-table">
+              <colgroup>
+                <col data-col-key="detail">
+                <col data-col-key="customer">
+                <col data-col-key="orderer">
+                <col data-col-key="product">
+                <col data-col-key="spec">
+                <col data-col-key="address">
+                <col data-col-key="construction_time">
+                <col data-col-key="drawing_managers">
+                <col data-col-key="construction_workers">
+                <col data-col-key="manager">
+              </colgroup>
               <thead class="table-light">
                 <tr>
-                  <th style="width: 60px; border-right: 1px solid #e0e0e0;">상세</th>
-                  <th style="width: 90px; border-right: 1px solid #e0e0e0;">고객</th>
-                  <th style="width: 90px; border-right: 1px solid #e0e0e0;">대리점(발주사)</th>
-                  <th class="shipment-product-cell" style="min-width: 116px; border-right: 1px solid #e0e0e0;">제품</th>
-                  <th style="width: 84px; border-right: 1px solid #e0e0e0;">규격(W/300)</th>
-                  <th style="width: 210px; border-right: 1px solid #e0e0e0;">현장주소</th>
-                  <th style="min-width: 118px; border-right: 1px solid #e0e0e0;">시공시간</th>
-                  <th style="min-width: 160px; border-right: 1px solid #e0e0e0;">도면담당자</th>
-                  <th style="min-width: 150px; border-right: 1px solid #e0e0e0;">시공자</th>
-                  <th style="min-width: 88px;">담당자</th>
+                  <th data-col-key="detail" style="border-right: 1px solid #e0e0e0;">상세<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
+                  <th data-col-key="customer" style="border-right: 1px solid #e0e0e0;">고객<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
+                  <th data-col-key="orderer" style="border-right: 1px solid #e0e0e0;">대리점(발주사)<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
+                  <th class="shipment-product-cell" data-col-key="product" style="border-right: 1px solid #e0e0e0;">제품<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
+                  <th data-col-key="spec" style="border-right: 1px solid #e0e0e0;">규격(W/300)<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
+                  <th data-col-key="address" style="border-right: 1px solid #e0e0e0;">현장주소<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
+                  <th data-col-key="construction_time" style="border-right: 1px solid #e0e0e0;">시공시간<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
+                  <th data-col-key="drawing_managers" style="border-right: 1px solid #e0e0e0;">도면담당자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
+                  <th data-col-key="construction_workers" style="border-right: 1px solid #e0e0e0;">시공자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
+                  <th data-col-key="manager">담당자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
                 </tr>
               </thead>
               <tbody>
@@ -1039,83 +956,85 @@
                     </div>
                   </td>
                   <td class="shipment-field-cell" data-label="시공시간" style="border-right: 1px solid #e0e0e0;">
-                    <div
-                      class="shipment-field-wrap shipment-construction-time-wrap {% if construction_time %}has-value{% endif %}">
-                      <span class="shipment-field-view">{{ construction_time }}</span>
-                      {% if can_edit_shipment %}
-                      <div class="d-flex align-items-center gap-1 shipment-field-edit flex-nowrap">
-                        <input type="text" class="form-control form-control-sm shipment-input flex-grow-1"
-                          data-order-id="{{ r.id }}" data-field="construction_time"
-                          data-key="erp_shipment_construction_time" value="{{ construction_time }}"
-                          placeholder="예: 10:00" list="datalist-construction-time" style="min-width: 60px;">
-                        <button type="button"
-                          class="btn btn-sm btn-outline-secondary shipment-btn-load-saved flex-shrink-0"
-                          data-list-key="construction_time" title="저장된 값 불러오기"><i class="fas fa-list"></i></button>
-                        <button type="button" class="btn btn-sm btn-outline-danger shipment-field-clear flex-shrink-0"
-                          data-order-id="{{ r.id }}" data-field="construction_time" title="삭제">&times;</button>
-                      </div>
-                      {% endif %}
-                    </div>
+                    <ul
+                      class="shipment-edit-list shipment-text-list-single shipment-construction-time-list mb-0"
+                      data-order-id="{{ r.id }}" data-field="construction_time" data-list-key="construction_time"
+                      data-storage-key="construction_time" data-datalist-id="datalist-construction-time"
+                      data-placeholder="예: 10:00" data-single="true" data-empty-placeholder="입력">
+                      <li class="shipment-text-row {% if construction_time %}has-value{% else %}is-empty{% endif %}">
+                        <span class="shipment-text-view" data-empty-placeholder="입력">{{ construction_time }}</span>
+                        {% if can_edit_shipment %}
+                        <div class="shipment-text-edit">
+                          <input type="text" class="form-control form-control-sm shipment-text-input"
+                            data-order-id="{{ r.id }}" data-field="construction_time" value="{{ construction_time }}"
+                            placeholder="예: 10:00" list="datalist-construction-time">
+                          <button type="button" class="btn btn-sm btn-outline-secondary shipment-btn-load-saved-text-row"
+                            title="저장된 값 불러오기"><i class="fas fa-list"></i></button>
+                          <button type="button" class="btn btn-sm btn-outline-danger btn-remove-shipment-text-row"
+                            title="삭제">&times;</button>
+                        </div>
+                        {% endif %}
+                      </li>
+                    </ul>
                   </td>
                   <td class="shipment-field-cell" data-label="도면담당자" style="border-right: 1px solid #e0e0e0;">
-                    <div class="shipment-drawing-managers-list {% if not drawing_managers %}no-items{% endif %}"
-                      data-order-id="{{ r.id }}" data-field="drawing_managers" data-n="{{ drawing_managers|length }}">
+                    <ul class="shipment-edit-list shipment-drawing-managers-list mb-0" data-order-id="{{ r.id }}"
+                      data-field="drawing_managers" data-list-key="drawing_manager" data-storage-key="drawing_manager"
+                      data-datalist-id="datalist-drawing-manager" data-placeholder="도면담당자">
                       {% for dm in drawing_managers %}
-                      <span class="shipment-drawing-manager-wrap has-value">
-                        <span class="drawing-manager-view">{{ dm }}</span>
+                      <li class="shipment-text-row {% if dm %}has-value{% else %}editing{% endif %}">
+                        <span class="shipment-text-view drawing-manager-view">{{ dm }}</span>
                         {% if can_edit_shipment %}
-                        <span class="drawing-manager-edit d-inline-flex align-items-center gap-1 flex-nowrap">
-                          <input type="text"
-                            class="form-control form-control-sm shipment-input shipment-drawing-manager-input d-inline-block flex-grow-1"
-                            style="min-width: 110px; width: 130px;" data-order-id="{{ r.id }}"
-                            data-field="drawing_managers" data-index="{{ loop.index0 }}"
-                            data-key="erp_shipment_drawing_managers" value="{{ dm }}" placeholder="도면담당자"
-                            list="datalist-drawing-manager">
-                          <button type="button"
-                            class="btn btn-sm btn-outline-danger btn-remove-drawing-manager flex-shrink-0"
+                        <div class="shipment-text-edit">
+                          <input type="text" class="form-control form-control-sm shipment-text-input"
+                            data-order-id="{{ r.id }}" data-field="drawing_managers" value="{{ dm }}"
+                            placeholder="도면담당자" list="datalist-drawing-manager">
+                          <button type="button" class="btn btn-sm btn-outline-secondary shipment-btn-load-saved-text-row"
+                            title="저장된 도면담당자 불러오기"><i class="fas fa-list"></i></button>
+                          <button type="button" class="btn btn-sm btn-outline-danger btn-remove-shipment-text-row"
                             title="삭제">&times;</button>
-                        </span>
+                        </div>
                         {% endif %}
-                      </span>
+                      </li>
                       {% endfor %}
                       {% if can_edit_shipment %}
-                      <span class="actions-on-hover d-inline-flex gap-1">
-                        <button type="button" class="btn btn-sm btn-outline-success btn-add-drawing-manager"
+                      <li class="actions-on-hover d-inline-flex gap-1">
+                        <button type="button" class="btn btn-sm btn-outline-success btn-add-shipment-text-row"
                           data-order-id="{{ r.id }}" title="도면담당자 추가">+</button>
-                      </span>
+                      </li>
                       {% endif %}
-                    </div>
+                    </ul>
                   </td>
                   <td class="shipment-field-cell shipment-worker-cell" data-label="시공자"
                     style="border-right: 1px solid #e0e0e0;" data-worker-bg-color="{{ worker_bg_color }}"
                     data-worker-text-color="{{ worker_text_color }}">
-                    <div class="shipment-workers-list {% if not construction_workers %}no-workers{% endif %}"
-                      data-order-id="{{ r.id }}" data-field="construction_workers"
-                      data-n="{{ construction_workers|length }}">
+                    <ul class="shipment-edit-list shipment-workers-list mb-0" data-order-id="{{ r.id }}"
+                      data-field="construction_workers" data-list-key="construction_workers"
+                      data-storage-key="construction_workers" data-datalist-id="datalist-construction-workers"
+                      data-placeholder="시공자">
                       {% for w in construction_workers %}
-                      <span class="shipment-worker-wrap has-value">
-                        <span class="worker-view">{{ w }}</span>
+                      <li class="shipment-text-row {% if w %}has-value{% else %}editing{% endif %}">
+                        <span class="shipment-text-view worker-view">{{ w }}</span>
                         {% if can_edit_shipment %}
-                        <span class="worker-edit d-inline-flex align-items-center gap-1 flex-nowrap">
-                          <input type="text"
-                            class="form-control form-control-sm shipment-input shipment-worker-input d-inline-block flex-grow-1"
-                            style="min-width: 100px; width: 120px;" data-order-id="{{ r.id }}"
-                            data-field="construction_workers" data-index="{{ loop.index0 }}"
-                            data-key="erp_shipment_construction_workers" value="{{ w }}" placeholder="시공자"
-                            list="datalist-construction-workers">
-                          <button type="button" class="btn btn-sm btn-outline-danger btn-remove-worker flex-shrink-0"
+                        <div class="shipment-text-edit">
+                          <input type="text" class="form-control form-control-sm shipment-text-input"
+                            data-order-id="{{ r.id }}" data-field="construction_workers" value="{{ w }}"
+                            placeholder="시공자" list="datalist-construction-workers">
+                          <button type="button" class="btn btn-sm btn-outline-secondary shipment-btn-load-saved-text-row"
+                            title="저장된 시공자 불러오기"><i class="fas fa-list"></i></button>
+                          <button type="button" class="btn btn-sm btn-outline-danger btn-remove-shipment-text-row"
                             title="삭제">&times;</button>
-                        </span>
+                        </div>
                         {% endif %}
-                      </span>
+                      </li>
                       {% endfor %}
                       {% if can_edit_shipment %}
-                      <span class="actions-on-hover d-inline-flex gap-1">
-                        <button type="button" class="btn btn-sm btn-outline-success btn-add-worker"
+                      <li class="actions-on-hover d-inline-flex gap-1">
+                        <button type="button" class="btn btn-sm btn-outline-success btn-add-shipment-text-row"
                           data-order-id="{{ r.id }}" title="시공자 추가">+</button>
-                      </span>
+                      </li>
                       {% endif %}
-                    </div>
+                    </ul>
                   </td>
                   <td data-label="담당자">
                     {{ r.manager_name or '-' }}
@@ -1379,125 +1298,75 @@
         setTimeout(function () { document.addEventListener('click', close); }, 10);
       }
 
-      document.querySelectorAll('.shipment-btn-load-saved').forEach(function (btn) {
-        btn.addEventListener('click', function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          var listKey = btn.dataset.listKey;
-          var cell = btn.closest('td');
-          var input = cell ? cell.querySelector('input[data-field="' + listKey + '"]') : null;
-          if (!input) return;
-          showSavedDropdown(btn, listKey, function (v) {
-            input.value = v;
-            input.focus();
-            var wrap = input.closest('.shipment-field-wrap');
-            var viewSpan = wrap && wrap.querySelector('.shipment-field-view');
-            if (viewSpan) viewSpan.textContent = v;
-            if (wrap) { if (v) wrap.classList.add('has-value'); else wrap.classList.remove('has-value'); }
-            var orderId = input.dataset.orderId;
-            if (orderId) saveShipmentField(orderId, listKey, v);
-            if (listKey === 'construction_time') saveToList(STORAGE_KEYS.construction_time, v);
-          });
-        });
-      });
+      var shipmentSaveQueue = Object.create(null);
 
-      function debounce(fn, ms) {
-        var t;
-        return function () {
-          clearTimeout(t);
-          var self = this, args = arguments;
-          t = setTimeout(function () { fn.apply(self, args); }, ms);
-        };
+      function getShipmentSaveQueueKey(orderId, field) {
+        return String(orderId) + '::' + String(field);
       }
 
-      function saveShipmentField(orderId, field, value) {
+      function runQueuedShipmentSave(orderId, field) {
+        var queueKey = getShipmentSaveQueueKey(orderId, field);
+        var state = shipmentSaveQueue[queueKey];
+        if (!state) return Promise.resolve();
+
+        state.pending = true;
+        state.queued = false;
         var payload = {};
+        var version = state.version;
+        var value = state.value;
         payload[field] = value;
-        fetch('/api/erp/shipment/update/' + orderId, {
+
+        return fetch('/api/erp/shipment/update/' + orderId, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
           body: JSON.stringify(payload)
         }).then(function (r) { return r.json(); }).then(function (data) {
-          if (data && data.success) {
+          if (data && data.success && state.version === version) {
             var key = document.querySelector('[data-order-id="' + orderId + '"][data-field="' + field + '"]');
-            if (key && key.dataset.key) saveToList(STORAGE_KEYS[key.dataset.key.replace('erp_shipment_', '')] || key.dataset.key, Array.isArray(value) ? value[0] : value);
+            if (key && key.dataset.key) {
+              saveToList(STORAGE_KEYS[key.dataset.key.replace('erp_shipment_', '')] || key.dataset.key, Array.isArray(value) ? value[0] : value);
+            }
           }
-        }).catch(function () { });
+        }).catch(function (err) {
+          console.error('shipment field save failed', { orderId: orderId, field: field, error: err });
+        }).finally(function () {
+          state.pending = false;
+          if (state.version !== version || state.queued) {
+            runQueuedShipmentSave(orderId, field);
+          }
+        });
+      }
+
+      function saveShipmentField(orderId, field, value) {
+        var queueKey = getShipmentSaveQueueKey(orderId, field);
+        var state = shipmentSaveQueue[queueKey];
+
+        if (!state) {
+          state = { pending: false, queued: false, version: 0, value: null };
+          shipmentSaveQueue[queueKey] = state;
+        }
+
+        state.value = value;
+        state.version += 1;
+        state.queued = true;
+
+        if (state.pending) return Promise.resolve();
+        return runQueuedShipmentSave(orderId, field);
       }
 
       function closeShipmentInlineEditors(exceptNode) {
-        document.querySelectorAll('.shipment-field-cell.is-editing').forEach(function (cell) {
-          if (exceptNode && cell.contains(exceptNode)) return;
-          cell.classList.remove('is-editing');
-        });
-        document.querySelectorAll('.shipment-worker-wrap.is-editing, .shipment-drawing-manager-wrap.is-editing').forEach(function (wrap) {
-          if (exceptNode && wrap.contains(exceptNode)) return;
-          wrap.classList.remove('is-editing');
-        });
-        document.querySelectorAll('.shipment-drawing-managers-list.show-add-actions, .shipment-workers-list.show-add-actions, .shipment-address-block.show-add-actions').forEach(function (el) {
+        document.querySelectorAll('.shipment-edit-list.show-add-actions, .shipment-address-block.show-add-actions').forEach(function (el) {
           if (exceptNode && el.contains(exceptNode)) return;
           el.classList.remove('show-add-actions');
         });
       }
 
-      function bindShipmentFieldEditors(root) {
-        (root || document).querySelectorAll('.shipment-field-cell').forEach(function (cell) {
-          if (cell._shipmentFieldEditorBound) return;
-          cell._shipmentFieldEditorBound = true;
-          var view = cell.querySelector('.shipment-field-view');
-          var input = cell.querySelector('input.shipment-input');
-          if (view && input) {
-            view.addEventListener('click', function (e) {
-              e.preventDefault();
-              e.stopPropagation();
-              closeShipmentInlineEditors(cell);
-              cell.classList.add('is-editing');
-              input.focus();
-            });
-          }
-          if (input) {
-            input.addEventListener('keydown', function (e) {
-              if (e.key === 'Escape') {
-                cell.classList.remove('is-editing');
-                input.blur();
-              }
-            });
-          }
-        });
-      }
-
-      function bindShipmentInlineWrapEditors(root) {
-        (root || document).querySelectorAll('.shipment-worker-wrap, .shipment-drawing-manager-wrap').forEach(function (wrap) {
-          if (wrap._shipmentInlineEditorBound) return;
-          wrap._shipmentInlineEditorBound = true;
-          var view = wrap.querySelector('.worker-view, .drawing-manager-view');
-          var input = wrap.querySelector('input.shipment-input');
-          if (view && input) {
-            view.addEventListener('click', function (e) {
-              e.preventDefault();
-              e.stopPropagation();
-              closeShipmentInlineEditors(wrap);
-              wrap.classList.add('is-editing');
-              input.focus();
-            });
-          }
-          if (input) {
-            input.addEventListener('keydown', function (e) {
-              if (e.key === 'Escape') {
-                wrap.classList.remove('is-editing');
-                input.blur();
-              }
-            });
-          }
-        });
-      }
-
       function initAddButtonToggle() {
-        document.querySelectorAll('.shipment-drawing-managers-list, .shipment-workers-list, .shipment-address-block').forEach(function (el) {
+        document.querySelectorAll('.shipment-edit-list, .shipment-address-block').forEach(function (el) {
           if (el._addToggleBound) return;
           el._addToggleBound = true;
           el.addEventListener('click', function (e) {
-            if (e.target.closest('button') || e.target.closest('input')) return;
+            if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) return;
             var isOpen = el.classList.contains('show-add-actions');
             closeShipmentInlineEditors(el);
             if (isOpen) el.classList.remove('show-add-actions');
@@ -1506,83 +1375,9 @@
         });
       }
 
-      bindShipmentFieldEditors(document);
-      bindShipmentInlineWrapEditors(document);
       initAddButtonToggle();
       document.addEventListener('click', function (e) {
         closeShipmentInlineEditors(e.target);
-      });
-
-      document.querySelectorAll('.shipment-input').forEach(function (inp) {
-        var orderId = inp.dataset.orderId;
-        var field = inp.dataset.field;
-        if (!orderId || !field) return;
-        if (field === 'construction_time') {
-          inp.addEventListener('blur', function () {
-            var val = inp.value.trim();
-            var wrap = inp.closest('.shipment-field-wrap');
-            var viewSpan = wrap && wrap.querySelector('.shipment-field-view');
-            if (viewSpan) viewSpan.textContent = val;
-            if (wrap) { if (val) wrap.classList.add('has-value'); else wrap.classList.remove('has-value'); }
-            var cell = inp.closest('.shipment-field-cell');
-            if (cell && !cell.contains(document.activeElement)) cell.classList.remove('is-editing');
-            saveShipmentField(orderId, field, val);
-            if (val) saveToList(STORAGE_KEYS.construction_time, val);
-          });
-        }
-        if (field === 'construction_workers') {
-          inp.addEventListener('blur', function () {
-            var wrap = inp.closest('.shipment-worker-wrap');
-            var viewSpan = wrap && wrap.querySelector('.worker-view');
-            var val = normalizeWorkerName(inp.value);
-            if (viewSpan) viewSpan.textContent = val;
-            if (wrap) { if (val) wrap.classList.add('has-value'); else wrap.classList.remove('has-value'); }
-            if (wrap && !wrap.contains(document.activeElement)) wrap.classList.remove('is-editing');
-            var listWrap = inp.closest('.shipment-workers-list');
-            var orderId2 = listWrap && listWrap.dataset.orderId;
-            if (orderId2) {
-              var workers = [];
-              listWrap.querySelectorAll('input[data-field="construction_workers"]').forEach(function (i) { workers.push(i.value.trim()); });
-              saveShipmentField(orderId2, field, workers);
-            }
-            if (val) saveToList(STORAGE_KEYS.construction_workers, val);
-            refreshWorkerDatalist();
-            scheduleApplyShipmentWorkerSortAndColors();
-          });
-        }
-        if (field === 'drawing_managers') {
-          inp.addEventListener('blur', function () {
-            var wrap = inp.closest('.shipment-drawing-manager-wrap');
-            var viewSpan = wrap && wrap.querySelector('.drawing-manager-view');
-            var val = inp.value.trim();
-            if (viewSpan) viewSpan.textContent = val;
-            if (wrap) { if (val) wrap.classList.add('has-value'); else wrap.classList.remove('has-value'); }
-            if (wrap && !wrap.contains(document.activeElement)) wrap.classList.remove('is-editing');
-            var listWrap = inp.closest('.shipment-drawing-managers-list');
-            var orderId2 = listWrap && listWrap.dataset.orderId;
-            if (orderId2) {
-              var arr = [];
-              listWrap.querySelectorAll('input[data-field="drawing_managers"]').forEach(function (i) { arr.push(i.value.trim()); });
-              saveShipmentField(orderId2, 'drawing_managers', arr);
-            }
-            if (val) saveToList(STORAGE_KEYS.drawing_manager, val);
-          });
-        }
-      });
-
-      document.querySelectorAll('.shipment-field-clear[data-field="construction_time"]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var wrap = btn.closest('.shipment-field-wrap');
-          var inp = wrap && wrap.querySelector('input[data-field="construction_time"]');
-          var orderId = btn.dataset.orderId || (inp && inp.dataset.orderId);
-          var viewSpan = wrap && wrap.querySelector('.shipment-field-view');
-          if (inp) inp.value = '';
-          if (viewSpan) viewSpan.textContent = '';
-          if (wrap) wrap.classList.remove('has-value');
-          var cell = btn.closest('.shipment-field-cell');
-          if (cell) cell.classList.remove('is-editing');
-          if (orderId) saveShipmentField(orderId, 'construction_time', '');
-        });
       });
 
       function collectSiteExtra(ul) {
@@ -1744,222 +1539,215 @@
           saveSiteExtraFromUl(ul, orderId);
         });
       });
+      function getShipmentEditList(node) {
+        return node && node.closest('.shipment-edit-list[data-order-id][data-field]');
+      }
 
-      document.querySelectorAll('.btn-remove-worker').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var wrap = btn.closest('.shipment-workers-list');
-          var span = btn.closest('.shipment-worker-wrap');
-          var orderId = wrap && wrap.dataset.orderId;
-          if (!span || !orderId) return;
-          span.remove();
-          if (!wrap.querySelector('.shipment-worker-wrap')) wrap.classList.add('no-workers');
-          var workers = [];
-          wrap.querySelectorAll('input[data-field="construction_workers"]').forEach(function (i) { workers.push(i.value.trim()); });
-          saveShipmentField(orderId, 'construction_workers', workers);
+      function getShipmentEditField(list) {
+        return list ? String(list.dataset.field || '') : '';
+      }
+
+      function getShipmentEditListKey(list) {
+        return list ? String(list.dataset.listKey || list.dataset.field || '') : '';
+      }
+
+      function getShipmentEditStorageKey(list) {
+        return list ? String(list.dataset.storageKey || '') : '';
+      }
+
+      function getShipmentEditOrderId(list) {
+        return list ? String(list.dataset.orderId || '') : '';
+      }
+
+      function isShipmentSingleValueList(list) {
+        return !!(list && list.dataset.single === 'true');
+      }
+
+      function trimShipmentEditValue(value) {
+        return String(value || '').trim();
+      }
+
+      function getShipmentEditValues(list) {
+        var field = getShipmentEditField(list);
+        var values = [];
+        if (!list || !field) return values;
+        list.querySelectorAll('input[data-field="' + field + '"]').forEach(function (input) {
+          var value = trimShipmentEditValue(input.value);
+          if (value) values.push(value);
+        });
+        return values;
+      }
+
+      function syncShipmentTextRowState(row) {
+        if (!row) return '';
+        var input = row.querySelector('.shipment-text-input');
+        var view = row.querySelector('.shipment-text-view');
+        var list = getShipmentEditList(row);
+        var value = trimShipmentEditValue(input ? input.value : '');
+        if (view) view.textContent = value;
+        if (value) {
+          row.classList.add('has-value');
+          row.classList.remove('editing');
+          row.classList.remove('is-empty');
+        } else {
+          row.classList.remove('has-value');
+          row.classList.remove('editing');
+          row.classList.toggle('is-empty', isShipmentSingleValueList(list));
+          if (!isShipmentSingleValueList(list)) {
+            row.classList.add('editing');
+          }
+        }
+        return value;
+      }
+
+      function saveShipmentEditList(list) {
+        var orderId = getShipmentEditOrderId(list);
+        var field = getShipmentEditField(list);
+        if (!orderId || !field) return;
+        if (isShipmentSingleValueList(list)) {
+          var input = list.querySelector('.shipment-text-input');
+          saveShipmentField(orderId, field, trimShipmentEditValue(input ? input.value : ''));
+        } else {
+          saveShipmentField(orderId, field, getShipmentEditValues(list));
+        }
+        if (field === 'construction_workers') {
           refreshWorkerDatalist();
           scheduleApplyShipmentWorkerSortAndColors();
-        });
-      });
+        }
+      }
 
-      document.querySelectorAll('.btn-add-worker').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var orderId = btn.dataset.orderId;
-          var wrap = btn.closest('.shipment-workers-list');
-          if (!wrap) return;
-          wrap.classList.remove('no-workers');
-          var inputs = wrap.querySelectorAll('input[data-field="construction_workers"]');
-          var nextIdx = inputs.length;
-          var span = document.createElement('span');
-          span.className = 'shipment-worker-wrap';
-          span.innerHTML = '<span class="worker-view"></span>' +
-            '<span class="worker-edit d-inline-flex align-items-center gap-1 flex-nowrap">' +
-            '<input type="text" class="form-control form-control-sm shipment-input shipment-worker-input d-inline-block flex-grow-1" style="min-width: 60px; width: 80px;" data-order-id="' + orderId + '" data-field="construction_workers" data-index="' + nextIdx + '" data-key="erp_shipment_construction_workers" placeholder="시공자" list="datalist-construction-workers">' +
-            '<button type="button" class="btn btn-sm btn-outline-secondary shipment-btn-load-saved-worker-row flex-shrink-0" data-order-id="' + orderId + '" title="저장된 시공자 불러오기"><i class="fas fa-list"></i></button>' +
-            '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-worker flex-shrink-0" title="삭제">&times;</button></span>';
-          var actionsRow = wrap.querySelector('.actions-on-hover');
-          wrap.insertBefore(span, actionsRow || null);
-          var inp = span.querySelector('input');
-          var viewSpan = span.querySelector('.worker-view');
-          inp.addEventListener('blur', function () {
-            var val = normalizeWorkerName(inp.value);
-            if (viewSpan) viewSpan.textContent = val;
-            if (span) { if (val) span.classList.add('has-value'); else span.classList.remove('has-value'); }
-            if (span && !span.contains(document.activeElement)) span.classList.remove('is-editing');
-            var workers = [];
-            wrap.querySelectorAll('input[data-field="construction_workers"]').forEach(function (i) { workers.push(i.value.trim()); });
-            saveShipmentField(orderId, 'construction_workers', workers);
-            if (val) saveToList(STORAGE_KEYS.construction_workers, val);
-            refreshWorkerDatalist();
-            scheduleApplyShipmentWorkerSortAndColors();
-          });
-          span.querySelector('.btn-remove-worker').addEventListener('click', function () {
-            span.remove();
-            if (!wrap.querySelector('.shipment-worker-wrap')) wrap.classList.add('no-workers');
-            var workers = [];
-            wrap.querySelectorAll('input[data-field="construction_workers"]').forEach(function (i) { workers.push(i.value.trim()); });
-            saveShipmentField(orderId, 'construction_workers', workers);
-            refreshWorkerDatalist();
-            scheduleApplyShipmentWorkerSortAndColors();
-          });
-          bindShipmentInlineWrapEditors(span);
-        });
-      });
+      function saveShipmentEditRowValue(list, row) {
+        var value = syncShipmentTextRowState(row);
+        var storageKey = getShipmentEditStorageKey(list);
+        if (value && storageKey && STORAGE_KEYS[storageKey]) {
+          saveToList(STORAGE_KEYS[storageKey], value);
+        }
+        saveShipmentEditList(list);
+      }
 
-      document.querySelectorAll('.shipment-btn-load-saved-workers').forEach(function (btn) {
-        btn.addEventListener('click', function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          var orderId = btn.dataset.orderId;
-          var row = btn.closest('tr');
-          var inputs = row ? row.querySelectorAll('input[data-field="construction_workers"]') : [];
-          showSavedDropdown(btn, 'construction_workers', function (v) {
-            var firstEmpty = null;
-            for (var i = 0; i < inputs.length; i++) { if (!inputs[i].value.trim()) { firstEmpty = inputs[i]; break; } }
-            var target = firstEmpty || inputs[0];
-            if (target) {
-              target.value = v;
-              target.focus();
-              var wrap = target.closest('.shipment-worker-wrap');
-              if (wrap) wrap.classList.add('has-value');
-              saveToList(STORAGE_KEYS.construction_workers, v);
-              var workers = [];
-              inputs.forEach(function (inp) { workers.push(inp.value.trim()); });
-              saveShipmentField(orderId, 'construction_workers', workers);
-              refreshWorkerDatalist();
-              scheduleApplyShipmentWorkerSortAndColors();
-            }
-          });
-        });
-      });
+      function escapeShipmentEditHtml(value) {
+        return String(value || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
 
-      document.querySelectorAll('.btn-remove-drawing-manager').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var listWrap = btn.closest('.shipment-drawing-managers-list');
-          var span = btn.closest('.shipment-drawing-manager-wrap');
-          var orderId = listWrap && listWrap.dataset.orderId;
-          if (!span || !orderId) return;
-          span.remove();
-          if (!listWrap.querySelector('.shipment-drawing-manager-wrap')) listWrap.classList.add('no-items');
-          var arr = [];
-          listWrap.querySelectorAll('input[data-field="drawing_managers"]').forEach(function (i) { arr.push(i.value.trim()); });
-          saveShipmentField(orderId, 'drawing_managers', arr);
-        });
-      });
+      function getShipmentEditViewClass(field) {
+        if (field === 'construction_workers') return 'shipment-text-view worker-view';
+        if (field === 'drawing_managers') return 'shipment-text-view drawing-manager-view';
+        return 'shipment-text-view';
+      }
 
-      document.querySelectorAll('.btn-add-drawing-manager').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var orderId = btn.dataset.orderId;
-          var wrap = btn.closest('.shipment-drawing-managers-list');
-          if (!wrap) return;
-          wrap.classList.remove('no-items');
-          var inputs = wrap.querySelectorAll('input[data-field="drawing_managers"]');
-          var nextIdx = inputs.length;
-          var span = document.createElement('span');
-          span.className = 'shipment-drawing-manager-wrap';
-          span.innerHTML = '<span class="drawing-manager-view"></span>' +
-            '<span class="drawing-manager-edit d-inline-flex align-items-center gap-1 flex-nowrap">' +
-            '<input type="text" class="form-control form-control-sm shipment-input shipment-drawing-manager-input d-inline-block flex-grow-1" style="min-width: 70px; width: 90px;" data-order-id="' + orderId + '" data-field="drawing_managers" data-index="' + nextIdx + '" data-key="erp_shipment_drawing_managers" placeholder="도면담당자" list="datalist-drawing-manager">' +
-            '<button type="button" class="btn btn-sm btn-outline-secondary shipment-btn-load-saved-drawing-manager-row flex-shrink-0" data-order-id="' + orderId + '" title="저장된 도면담당자 불러오기"><i class="fas fa-list"></i></button>' +
-            '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-drawing-manager flex-shrink-0" title="삭제">&times;</button></span>';
-          var actionsRow = wrap.querySelector('.actions-on-hover');
-          wrap.insertBefore(span, actionsRow || null);
-          var inp = span.querySelector('input');
-          var viewSpan = span.querySelector('.drawing-manager-view');
-          inp.addEventListener('blur', function () {
-            var val = inp.value.trim();
-            if (viewSpan) viewSpan.textContent = val;
-            if (span) { if (val) span.classList.add('has-value'); else span.classList.remove('has-value'); }
-            if (span && !span.contains(document.activeElement)) span.classList.remove('is-editing');
-            var arr = [];
-            wrap.querySelectorAll('input[data-field="drawing_managers"]').forEach(function (i) { arr.push(i.value.trim()); });
-            saveShipmentField(orderId, 'drawing_managers', arr);
-            if (val) saveToList(STORAGE_KEYS.drawing_manager, val);
-          });
-          span.querySelector('.btn-remove-drawing-manager').addEventListener('click', function () {
-            span.remove();
-            if (!wrap.querySelector('.shipment-drawing-manager-wrap')) wrap.classList.add('no-items');
-            var arr = [];
-            wrap.querySelectorAll('input[data-field="drawing_managers"]').forEach(function (i) { arr.push(i.value.trim()); });
-            saveShipmentField(orderId, 'drawing_managers', arr);
-          });
-          bindShipmentInlineWrapEditors(span);
-        });
-      });
+      function buildShipmentTextRow(list, value) {
+        var field = getShipmentEditField(list);
+        var orderId = getShipmentEditOrderId(list);
+        var datalistId = list.dataset.datalistId || '';
+        var emptyPlaceholder = list.dataset.emptyPlaceholder || '';
+        var placeholder = list.dataset.placeholder || '';
+        var escapedValue = escapeShipmentEditHtml(value || '');
+        var li = document.createElement('li');
+        li.className = 'shipment-text-row' + (trimShipmentEditValue(value) ? ' has-value' : ' editing');
+        li.innerHTML =
+          '<span class="' + getShipmentEditViewClass(field) + '"' +
+          (emptyPlaceholder ? ' data-empty-placeholder="' + escapeShipmentEditHtml(emptyPlaceholder) + '"' : '') +
+          '>' + escapedValue + '</span>' +
+          '<div class="shipment-text-edit">' +
+          '<input type="text" class="form-control form-control-sm shipment-text-input"' +
+          ' data-order-id="' + orderId + '"' +
+          ' data-field="' + field + '"' +
+          ' value="' + escapedValue + '"' +
+          ' placeholder="' + escapeShipmentEditHtml(placeholder) + '"' +
+          (datalistId ? ' list="' + escapeShipmentEditHtml(datalistId) + '"' : '') +
+          '>' +
+          '<button type="button" class="btn btn-sm btn-outline-secondary shipment-btn-load-saved-text-row" title="저장된 값 불러오기"><i class="fas fa-list"></i></button>' +
+          '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-shipment-text-row" title="삭제">&times;</button>' +
+          '</div>';
+        return li;
+      }
 
-      document.querySelectorAll('.shipment-btn-load-saved-drawing-managers').forEach(function (btn) {
-        btn.addEventListener('click', function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          var orderId = btn.dataset.orderId;
-          var listWrap = btn.closest('.shipment-drawing-managers-list');
-          var inputs = listWrap ? listWrap.querySelectorAll('input[data-field="drawing_managers"]') : [];
-          showSavedDropdown(btn, 'drawing_manager', function (v) {
-            var firstEmpty = null;
-            for (var i = 0; i < inputs.length; i++) { if (!inputs[i].value.trim()) { firstEmpty = inputs[i]; break; } }
-            var target = firstEmpty || inputs[0];
-            if (target) {
-              target.value = v;
-              target.focus();
-              var wrap = target.closest('.shipment-drawing-manager-wrap');
-              if (wrap) {
-                wrap.classList.add('has-value');
-                var viewSpan = wrap.querySelector('.drawing-manager-view');
-                if (viewSpan) viewSpan.textContent = v;
-              }
-              saveToList(STORAGE_KEYS.drawing_manager, v);
-              var arr = [];
-              listWrap.querySelectorAll('input[data-field="drawing_managers"]').forEach(function (inp) { arr.push(inp.value.trim()); });
-              saveShipmentField(orderId, 'drawing_managers', arr);
-            }
-          });
-        });
-      });
+      document.addEventListener('mousedown', function (e) {
+        if (!e.target.closest('.btn-remove-shipment-text-row, .shipment-btn-load-saved-text-row')) return;
+        var row = e.target.closest('.shipment-text-row');
+        if (row) row.dataset.skipBlurSave = '1';
+      }, true);
 
       document.addEventListener('click', function (e) {
-        var btn = e.target.closest('.shipment-btn-load-saved-drawing-manager-row');
-        if (btn) {
-          e.preventDefault();
-          e.stopPropagation();
-          var orderId = btn.dataset.orderId;
-          var wrap = btn.closest('.shipment-drawing-manager-wrap');
-          var listWrap = btn.closest('.shipment-drawing-managers-list');
-          var inp = wrap && wrap.querySelector('input[data-field="drawing_managers"]');
-          if (!inp || !listWrap || !orderId) return;
-          showSavedDropdown(btn, 'drawing_manager', function (v) {
-            inp.value = v;
-            var viewSpan = wrap.querySelector('.drawing-manager-view');
-            if (viewSpan) viewSpan.textContent = v;
-            if (wrap) wrap.classList.add('has-value');
-            saveToList(STORAGE_KEYS.drawing_manager, v);
-            var arr = [];
-            listWrap.querySelectorAll('input[data-field="drawing_managers"]').forEach(function (i) { arr.push(i.value.trim()); });
-            saveShipmentField(orderId, 'drawing_managers', arr);
-          });
+        var view = e.target.closest('.shipment-text-row .shipment-text-view');
+        if (view) {
+          var row = view.closest('.shipment-text-row');
+          var input = row && row.querySelector('.shipment-text-input');
+          if (row && input) {
+            e.preventDefault();
+            e.stopPropagation();
+            row.classList.remove('has-value');
+            row.classList.remove('is-empty');
+            row.classList.add('editing');
+            input.focus();
+          }
           return;
         }
-        btn = e.target.closest('.shipment-btn-load-saved-worker-row');
-        if (btn) {
+
+        var addBtn = e.target.closest('.btn-add-shipment-text-row');
+        if (addBtn) {
+          var list = getShipmentEditList(addBtn);
+          if (!list) return;
           e.preventDefault();
           e.stopPropagation();
-          var orderId = btn.dataset.orderId;
-          var wrap = btn.closest('.shipment-worker-wrap');
-          var listWrap = btn.closest('.shipment-workers-list');
-          var inp = wrap && wrap.querySelector('input[data-field="construction_workers"]');
-          if (!inp || !listWrap || !orderId) return;
-          showSavedDropdown(btn, 'construction_workers', function (v) {
-            inp.value = v;
-            var viewSpan = wrap.querySelector('.worker-view');
-            if (viewSpan) viewSpan.textContent = v;
-            if (wrap) wrap.classList.add('has-value');
-            saveToList(STORAGE_KEYS.construction_workers, v);
-            var workers = [];
-            listWrap.querySelectorAll('input[data-field="construction_workers"]').forEach(function (i) { workers.push(i.value.trim()); });
-            saveShipmentField(orderId, 'construction_workers', workers);
-            refreshWorkerDatalist();
-            scheduleApplyShipmentWorkerSortAndColors();
+          var row = buildShipmentTextRow(list, '');
+          var actionsRow = addBtn.closest('.actions-on-hover');
+          list.insertBefore(row, actionsRow || null);
+          var input = row.querySelector('.shipment-text-input');
+          if (input) input.focus();
+          return;
+        }
+
+        var removeBtn = e.target.closest('.btn-remove-shipment-text-row');
+        if (removeBtn) {
+          var list = getShipmentEditList(removeBtn);
+          var row = removeBtn.closest('.shipment-text-row');
+          if (!list || !row) return;
+          e.preventDefault();
+          e.stopPropagation();
+          if (isShipmentSingleValueList(list)) {
+            var input = row.querySelector('.shipment-text-input');
+            if (input) input.value = '';
+            syncShipmentTextRowState(row);
+          } else {
+            row.remove();
+          }
+          saveShipmentEditList(list);
+          return;
+        }
+
+        var loadBtn = e.target.closest('.shipment-btn-load-saved-text-row');
+        if (loadBtn) {
+          var list = getShipmentEditList(loadBtn);
+          var row = loadBtn.closest('.shipment-text-row');
+          var input = row && row.querySelector('.shipment-text-input');
+          if (!list || !row || !input) return;
+          e.preventDefault();
+          e.stopPropagation();
+          showSavedDropdown(loadBtn, getShipmentEditListKey(list), function (value) {
+            input.value = value;
+            saveShipmentEditRowValue(list, row);
+            input.focus();
           });
         }
       });
+
+      document.addEventListener('blur', function (e) {
+        if (!e.target.matches || !e.target.matches('.shipment-text-input')) return;
+        var input = e.target;
+        var row = input.closest('.shipment-text-row');
+        var list = getShipmentEditList(input);
+        if (!row || !list) return;
+        if (row.dataset.skipBlurSave === '1') {
+          row.dataset.skipBlurSave = '';
+          return;
+        }
+        saveShipmentEditRowValue(list, row);
+      }, true);
 
       document.querySelectorAll('.shipment-btn-load-saved-site-extra').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
@@ -2023,4 +1811,5 @@
   {% endif %}
 </div><!-- end erp-pro -->
 <script src="{{ url_for('static', filename='js/shipment-image-export.js') }}"></script>
+<script src="{{ url_for('static', filename='js/shipment-dashboard-columns.js') }}"></script>
 {% endblock %}
