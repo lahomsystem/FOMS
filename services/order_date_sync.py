@@ -69,34 +69,22 @@ def collect_order_schedule_date_specs(order):
 
     if getattr(order, 'is_erp_beta', False) and isinstance(getattr(order, 'structured_data', None), dict):
         sd = order.structured_data
-        
-        # get_beta_fallback_date logic from erp_shipment_page.py
+
+        # Beta Schedule: 직접 입력된 시공일만 사용 (측정일+5일 추정 로직 제거)
         s_date = None
         sc = sd.get('schedule') or {}
         if isinstance(sc, dict):
             cd = sc.get('construction') or {}
             if isinstance(cd, dict):
-                s_date = cd.get('date')
-        if not s_date:
-            ms = (sc.get('measurement') or {}) if isinstance(sc, dict) else {}
-            if isinstance(ms, dict):
-                m_date = ms.get('date')
-                if m_date and str(m_date).strip():
-                    from datetime import datetime, timedelta
-                    try:
-                        dt = datetime.strptime(str(m_date).strip(), '%Y-%m-%d')
-                        s_date = (dt + timedelta(days=5)).strftime('%Y-%m-%d')
-                    except Exception:
-                        pass
-        fallback_date = str(s_date).strip() if s_date else None
-        
-        if fallback_date:
-            for d in fallback_date.split(','):
+                s_date = (cd.get('date') or '').strip() or None
+
+        if s_date:
+            for d in s_date.split(','):
                 if d.strip() and d.strip() not in c_dates:
                     specs.append({
                         'kind': 'construction',
                         'date': d.strip(),
-                        'source': 'beta_schedule_fallback',
+                        'source': 'beta_schedule',
                         'item_index': None,
                     })
                     c_dates.add(d.strip())
