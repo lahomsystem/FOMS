@@ -290,9 +290,19 @@
                     {% endif %}
                     {% endif %}
                   </td>
-                  <td data-label="고객" class="fw-bold erp-wrap" style="font-size: 1.1rem; color: #212529;">{{
-                    o.customer_name }}{% if o.is_self_measurement|default(false) %}
-                    <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i> 자가실측</span>{% endif %}</td>
+                  <td data-label="고객" class="fw-bold erp-wrap" style="font-size: 1.1rem; color: #212529;">
+                    <div class="d-flex flex-column">
+                      <span class="d-inline-flex align-items-center gap-1 flex-nowrap">
+                        {{ o.customer_name }}
+                        {% if (o.orderer_name or '')|string and '라홈' in (o.orderer_name or '') %}
+                        <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="라홈" class="erp-lahom-logo ms-1" title="라홈 주문">
+                        {% endif %}
+                      </span>
+                      {% if o.is_self_measurement|default(false) %}
+                      <span class="badge bg-info text-white align-self-start mt-1" title="자가실측" style="width: fit-content;"><i class="fas fa-ruler-combined"></i> 자가실측</span>
+                      {% endif %}
+                    </div>
+                  </td>
                   <td data-label="연락처" style="font-size: 1.1rem; color: #495057;">{{ o.phone }}</td>
                   <td data-label="주소" class="erp-wrap"
                     style="font-size: 1.1rem; color: #495057; word-break: break-word;">{{ o.address }}</td>
