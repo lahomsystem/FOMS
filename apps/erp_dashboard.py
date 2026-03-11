@@ -52,13 +52,9 @@ def erp_dashboard():
     f_q = (request.args.get('q') or '').strip()
     f_team = (request.args.get('team') or '').strip()
 
-    orders = (
-        db.query(Order)
-        .filter(Order.deleted_at.is_(None), Order.is_erp_beta.is_(True))
-        .order_by(Order.created_at.desc())
-        .limit(300)
-        .all()
-    )
+    _q = db.query(Order).filter(Order.deleted_at.is_(None), Order.is_erp_beta.is_(True)).order_by(Order.created_at.desc())
+    # 검색어 있을 때는 전체 대상, 없을 때는 최신 300건만 로드
+    orders = _q.all() if f_q else _q.limit(300).all()
     if request.args.get('mine') == '1' and current_user:
         orders = [o for o in orders if is_order_mine_for_user(o, current_user)]
 
