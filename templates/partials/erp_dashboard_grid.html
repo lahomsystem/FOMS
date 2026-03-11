@@ -318,25 +318,45 @@
                     {% endif %}
                   </td>
                   <td data-label="실측일" class="fw-semibold" style="font-size: 1.1rem; color: #495057;">
-                    {% if can_edit_erp|default(false) %}
-                    <input type="date" class="form-control form-control-sm erp-dashboard-date-input" style="font-size: 1rem; max-width: 10rem;"
-                      data-order-id="{{ o.id }}" data-field="measurement_date" value="{{ o.measurement_date or '' }}" title="실측일 변경">
-                    {% else %}
                     {% set _m = (o.measurement_date or '') %}
                     {% set _mparts = (_m.split(',')|map('trim')|list)|select|list %}
-                    {% for _d in _mparts %}<span class="badge bg-secondary me-1">{{ _d }}</span>{% endfor %}
-                    {% if not _mparts %}-{% endif %}
+                    {% if _mparts|length > 1 %}
+                    <span class="badge bg-secondary">복합</span>
+                    {% elif _mparts|length == 1 %}
+                    {% if can_edit_erp|default(false) %}
+                    <input type="date" class="form-control form-control-sm erp-dashboard-date-input" style="font-size: 1rem; max-width: 10rem;"
+                      data-order-id="{{ o.id }}" data-field="measurement_date" value="{{ _mparts[0] }}" title="실측일 변경">
+                    {% else %}
+                    <span class="badge bg-secondary">{{ _mparts[0] }}</span>
+                    {% endif %}
+                    {% else %}
+                    {% if can_edit_erp|default(false) %}
+                    <input type="date" class="form-control form-control-sm erp-dashboard-date-input" style="font-size: 1rem; max-width: 10rem;"
+                      data-order-id="{{ o.id }}" data-field="measurement_date" value="" title="실측일 변경">
+                    {% else %}
+                    -
+                    {% endif %}
                     {% endif %}
                   </td>
                   <td data-label="시공일" class="fw-semibold" style="font-size: 1.1rem; color: #495057;">
-                    {% if can_edit_erp|default(false) %}
-                    <input type="date" class="form-control form-control-sm erp-dashboard-date-input" style="font-size: 1rem; max-width: 10rem;"
-                      data-order-id="{{ o.id }}" data-field="scheduled_date" value="{{ o.construction_date or '' }}" title="시공일 변경">
-                    {% else %}
                     {% set _c = (o.construction_date or '') %}
                     {% set _cparts = (_c.split(',')|map('trim')|list)|select|list %}
-                    {% for _d in _cparts %}<span class="badge bg-secondary me-1">{{ _d }}</span>{% endfor %}
-                    {% if not _cparts %}-{% endif %}
+                    {% if _cparts|length > 1 %}
+                    <span class="badge bg-secondary">복합</span>
+                    {% elif _cparts|length == 1 %}
+                    {% if can_edit_erp|default(false) %}
+                    <input type="date" class="form-control form-control-sm erp-dashboard-date-input" style="font-size: 1rem; max-width: 10rem;"
+                      data-order-id="{{ o.id }}" data-field="scheduled_date" value="{{ _cparts[0] }}" title="시공일 변경">
+                    {% else %}
+                    <span class="badge bg-secondary">{{ _cparts[0] }}</span>
+                    {% endif %}
+                    {% else %}
+                    {% if can_edit_erp|default(false) %}
+                    <input type="date" class="form-control form-control-sm erp-dashboard-date-input" style="font-size: 1rem; max-width: 10rem;"
+                      data-order-id="{{ o.id }}" data-field="scheduled_date" value="" title="시공일 변경">
+                    {% else %}
+                    -
+                    {% endif %}
                     {% endif %}
                   </td>
                   <td data-label="담당" style="font-size: 1.1rem; color: #495057;">{{ o.manager_name or '-' }}</td>
