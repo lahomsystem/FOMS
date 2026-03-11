@@ -258,8 +258,8 @@ def api_orders_nearby():
             used_radius = _SEARCH_RADII_KM[-1]
             radius_candidates = sorted(with_distance, key=lambda x: x['_dist_km'])
 
-        # 3-3. 정렬: 거리 오름차순 → 날짜 오름차순
-        radius_candidates.sort(key=lambda x: (x['_dist_km'], x.get('date') or '9999-99-99'))
+        # 3-3. 정렬: 시공일 오름차순(가장 빠른 일정 우선) → 거리 오름차순
+        radius_candidates.sort(key=lambda x: (x.get('date') or '9999-99-99', x['_dist_km']))
         final_candidates = radius_candidates[:_MAX_RESULTS]
 
         # 3-4. 최종 5건에만 카카오 경로(실소요시간) 계산
@@ -286,8 +286,8 @@ def api_orders_nearby():
                 except Exception as route_err:
                     current_app.logger.warning("[NEARBY] 경로 계산 실패: %s", route_err)
 
-        # 경로 계산 후 소요시간 기준으로 재정렬
-        final_results.sort(key=lambda x: (x.get('duration_min', 9999), x.get('date') or '9999-99-99'))
+        # 경로 계산 후 시공일 오름차순 재정렬 (동일 날짜 시 소요시간 보조)
+        final_results.sort(key=lambda x: (x.get('date') or '9999-99-99', x.get('duration_min', 9999)))
 
         return jsonify({
             'success': True,
