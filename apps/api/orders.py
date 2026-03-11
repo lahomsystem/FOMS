@@ -105,7 +105,7 @@ def _get_order_display_customer_name(order):
     return (cn or '').strip()
 
 
-_SEARCH_RADII_KM = [10.0, 20.0, 30.0]
+_SEARCH_RADII_KM = [15.0, 20.0, 30.0]
 _MAX_RESULTS = 5
 _GEOCODE_WORKERS = 10
 
@@ -245,34 +245,36 @@ def api_orders_nearby():
                 item['_lng'] = lng
                 with_distance.append(item)
 
-        # 3-2. 점진적 반경 확장: 인근 지역(반경) 안에서 날짜 우선 Top 5
-        # - 반경 시작을 10km로 설정해 소반경 조기 종료 문제 해결
-        # - 반경 내 5건 이상 확보되면 멈추고, 해당 범위 안에서 날짜→거리 정렬
-        radius_candidates = []
+        # 3-2. 점진적 반경 확장 + 날짜 dedupe 기반 멈춤
+        # - 멈춤 기준: raw 5건이 아닌 고유 날짜 5개 확보 시 (중복 날짜로 조기 종료 방지)
+        # - 반경 시작 15km: 인근 13~14km 주문도 첫 패스에서 포함
         used_radius = _SEARCH_RADII_KM[-1]
+        final_candidates: list[dict] = []
+
+        def _dedupe_by_date(items: list[dict]) -> list[dict]:
+            """날짜→거리 정렬 후 날짜별 가장 가까운 1건만 반환."""
+            sorted_items = sorted(items, key=lambda x: (x.get('date') or '9999-99-99', x['_dist_km']))
+            seen: set[str] = set()
+            result = []
+            for it in sorted_items:
+                d = it.get('date') or ''
+                if d not in seen:
+                    seen.add(d)
+                    result.append(it)
+                if len(result) >= _MAX_RESULTS:
+                    break
+            return result
+
         for radius in _SEARCH_RADII_KM:
             within = [it for it in with_distance if it['_dist_km'] <= radius]
-            if len(within) >= _MAX_RESULTS:
+            deduped = _dedupe_by_date(within)
+            if len(deduped) >= _MAX_RESULTS:
                 used_radius = radius
-                radius_candidates = within
+                final_candidates = deduped
                 break
         else:
-            # 최대 반경까지도 5건 미만이면 전체 대상 (거리 무관)
-            radius_candidates = with_distance[:]
-
-        # 인근 반경 안에서 날짜 1순위 → 거리 2순위
-        radius_candidates.sort(key=lambda x: (x.get('date') or '9999-99-99', x['_dist_km']))
-
-        # 같은 날짜는 가장 가까운 1건만 포함 (날짜별 대표 1건 dedupe)
-        seen_dates: set[str] = set()
-        final_candidates = []
-        for item in radius_candidates:
-            d = item.get('date') or ''
-            if d not in seen_dates:
-                seen_dates.add(d)
-                final_candidates.append(item)
-            if len(final_candidates) >= _MAX_RESULTS:
-                break
+            # 최대 반경까지도 고유 날짜 5개 미만 → 거리 무관 전체 대상
+            final_candidates = _dedupe_by_date(with_distance)
 
         # 3-4. 최종 5건에만 카카오 경로(실소요시간) 계산
         def route_item(item: dict):
