@@ -53,6 +53,15 @@ def _get_order_schedule_date(order):
         v = getattr(order, attr, None)
         if v and str(v).strip():
             return str(v).strip()
+    # 최종 fallback: OrderScheduleDate 관계 (construction/shipping kind 중 가장 빠른 날짜)
+    sched_dates = getattr(order, 'schedule_dates', None)
+    if sched_dates:
+        dates = sorted([
+            sd.date for sd in sched_dates
+            if sd.kind in ('construction', 'shipping') and sd.date
+        ])
+        if dates:
+            return dates[0]
     return None
 
 
@@ -137,7 +146,7 @@ def api_orders_nearby():
 
     db = get_db()
 
-    from sqlalchemy.orm import load_only
+    from sqlalchemy.orm import load_only, selectinload
     from models import OrderScheduleDate
 
     # 1. 오늘 이후 실제 시공/출고 예정일이 있는 주문만 조회 (전국 대상 — 지역 사전 필터 없음)
@@ -145,10 +154,13 @@ def api_orders_nearby():
     # Haversine 거리 계산으로 가장 가까운 Top5를 순수하게 찾는다.
     query = (
         db.query(Order)
-        .options(load_only(
-            Order.id, Order.address, Order.status, Order.shipping_scheduled_date,
-            Order.scheduled_date, Order.is_erp_beta, Order.structured_data, Order.customer_name
-        ))
+        .options(
+            load_only(
+                Order.id, Order.address, Order.status, Order.shipping_scheduled_date,
+                Order.scheduled_date, Order.is_erp_beta, Order.structured_data, Order.customer_name
+            ),
+            selectinload(Order.schedule_dates),
+        )
         .outerjoin(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
         .filter(
             Order.status != 'DELETED',
