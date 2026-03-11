@@ -169,10 +169,12 @@ def api_orders_nearby():
     if exclude_id:
         query = query.filter(Order.id != exclude_id)
 
-    # 주소 키워드 사전 필터 (DB 부하 절감 — 앞 3단어 기준)
-    addr_parts = target_address.split()
-    if addr_parts:
-        search_kw = '%' + '%'.join(addr_parts[:3]) + '%'
+    # 주소 키워드 사전 필터 (DB 부하 절감)
+    # 시/군/구 단위만 추출 — 광역 접두어(경기/서울 등) 포함 시 주소 형식 불일치로 검색 누락 방지
+    # 예: "경기 남양주시..." → "남양주시", "남양주시 화도읍..." → "남양주시" 모두 매칭
+    sigungu_match = re.search(r'(\S+시|\S+군|\S+구)', target_address)
+    if sigungu_match:
+        search_kw = f'%{sigungu_match.group(1)}%'
         query = query.filter(
             or_(
                 Order.address.ilike(search_kw),
