@@ -289,6 +289,7 @@ def erp_dashboard():
                 continue
         if f_q:
             hay = ' '.join([
+                str(r.get('id') or ''),
                 str(r.get('customer_name') or ''),
                 str(r.get('phone') or ''),
                 str(r.get('address') or ''),
