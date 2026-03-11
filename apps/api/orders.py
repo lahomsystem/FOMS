@@ -7,8 +7,6 @@ from models import Order, OrderEvent
 from constants import STATUS, BULK_ACTION_STATUS
 from sqlalchemy import or_, and_, func
 from sqlalchemy.orm.attributes import flag_modified
-import traceback
-import json
 import datetime
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
