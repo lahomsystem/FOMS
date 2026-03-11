@@ -816,8 +816,11 @@
                                 {% set display_name = order.customer_name.split('] ', 1)[1] if '] ' in
                                 order.customer_name else order.customer_name %}
                                 {% endif %}
-                                <span class="text-truncate" style="max-width: 100px;" title="{{ order.customer_name }}">
-                                    {{ display_name }}
+                                <span class="d-inline-flex align-items-center gap-1 flex-nowrap" style="max-width: 100px;" title="{{ order.customer_name }}">
+                                    <span class="text-truncate" style="min-width: 0;">{{ display_name }}</span>
+                                    {% if (order.orderer_name|default('')) and '라홈' in (order.orderer_name|default('')) %}
+                                    <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="라홈" class="erp-lahom-logo ms-1" title="라홈 주문">
+                                    {% endif %}
                                     {% if order.is_regional %}
                                     <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"
                                         style="font-size: 0.8em;"></i>
