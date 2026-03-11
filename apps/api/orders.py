@@ -262,7 +262,17 @@ def api_orders_nearby():
 
         # 인근 반경 안에서 날짜 1순위 → 거리 2순위
         radius_candidates.sort(key=lambda x: (x.get('date') or '9999-99-99', x['_dist_km']))
-        final_candidates = radius_candidates[:_MAX_RESULTS]
+
+        # 같은 날짜는 가장 가까운 1건만 포함 (날짜별 대표 1건 dedupe)
+        seen_dates: set[str] = set()
+        final_candidates = []
+        for item in radius_candidates:
+            d = item.get('date') or ''
+            if d not in seen_dates:
+                seen_dates.add(d)
+                final_candidates.append(item)
+            if len(final_candidates) >= _MAX_RESULTS:
+                break
 
         # 3-4. 최종 5건에만 카카오 경로(실소요시간) 계산
         def route_item(item: dict):
