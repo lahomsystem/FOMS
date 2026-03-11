@@ -223,7 +223,12 @@ def api_orders_nearby():
 
         # 3-1. 전체 후보 좌표 병렬 변환
         def geocode_item(item: dict):
-            lat, lng, _, _ = converter.analyze_address(item['address'])
+            addr = item['address']
+            lat, lng, _, _ = converter.analyze_address(addr)
+            # 지방 광역시도 없는 주소(예: "남양주시 화도읍 ...") 는 Kakao 실패 가능
+            # → "경기 " 접두 재시도 (이미 "경기"로 시작하면 건너뜀)
+            if not lat and not addr.startswith(('서울', '경기', '인천', '부산', '대구', '광주', '대전', '울산', '세종', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주')):
+                lat, lng, _, _ = converter.analyze_address(f"경기 {addr}")
             return item, lat, lng
 
         geo_results: list[tuple[dict, float | None, float | None]] = []
@@ -245,14 +250,14 @@ def api_orders_nearby():
                 item['_lng'] = lng
                 with_distance.append(item)
 
-        # 3-2. 점진적 반경 확장 + 날짜 dedupe 기반 멈춤
-        # - 멈춤 기준: raw 5건이 아닌 고유 날짜 5개 확보 시 (중복 날짜로 조기 종료 방지)
-        # - 반경 시작 15km: 인근 13~14km 주문도 첫 패스에서 포함
-        used_radius = _SEARCH_RADII_KM[-1]
-        final_candidates: list[dict] = []
+        # 3-2. 15km 하드캡 + 날짜 dedupe
+        # - 15km 내 후보가 1건 이상이면 그것만 사용 (날짜 5개 미달이어도 확장 안 함)
+        #   → 먼 지역 주문이 날짜 채우려고 유입되는 문제 방지
+        # - 15km 내 후보가 0건일 때만 30km로 단 한 번 확장
+        # - 최후에도 없으면 전체 거리 무관
 
         def _dedupe_by_date(items: list[dict]) -> list[dict]:
-            """날짜→거리 정렬 후 날짜별 가장 가까운 1건만 반환."""
+            """날짜→거리 정렬 후 날짜별 가장 가까운 1건만 최대 5건 반환."""
             sorted_items = sorted(items, key=lambda x: (x.get('date') or '9999-99-99', x['_dist_km']))
             seen: set[str] = set()
             result = []
@@ -265,16 +270,17 @@ def api_orders_nearby():
                     break
             return result
 
-        for radius in _SEARCH_RADII_KM:
-            within = [it for it in with_distance if it['_dist_km'] <= radius]
-            deduped = _dedupe_by_date(within)
-            if len(deduped) >= _MAX_RESULTS:
-                used_radius = radius
-                final_candidates = deduped
-                break
+        _CAP_KM = 15.0
+        _FALLBACK_KM = 30.0
+        within_cap = [it for it in with_distance if it['_dist_km'] <= _CAP_KM]
+        if within_cap:
+            used_radius = _CAP_KM
+            final_candidates = _dedupe_by_date(within_cap)
         else:
-            # 최대 반경까지도 고유 날짜 5개 미만 → 거리 무관 전체 대상
-            final_candidates = _dedupe_by_date(with_distance)
+            within_fb = [it for it in with_distance if it['_dist_km'] <= _FALLBACK_KM]
+            candidates_pool = within_fb if within_fb else with_distance
+            used_radius = _FALLBACK_KM
+            final_candidates = _dedupe_by_date(candidates_pool)
 
         # 3-4. 최종 5건에만 카카오 경로(실소요시간) 계산
         def route_item(item: dict):
