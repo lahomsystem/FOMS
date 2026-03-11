@@ -30,35 +30,43 @@ def _schedule_date_has_on_or_after(d_date_str, ref_date):
     return any(p >= ref_date for p in parts)
 
 
-def _get_order_schedule_date(order):
+def _get_order_schedule_date(order, ref_date: str | None = None):
     """출고/시공 예정일 반환.
 
+    ref_date 지정 시 그 날짜 이후(당일 포함)의 가장 빠른 날짜를 반환한다.
     AS 주문(AS_RECEIVED/AS_COMPLETED): scheduled_date(실제 시공 예정일)만 사용.
-      - as_received_date/as_completed_date는 접수·완료 기록이므로 날짜로 쓰지 않음.
     ERP Beta 주문: structured_data.schedule.construction.date 우선.
     일반 주문: shipping_scheduled_date → scheduled_date 순.
+    최종 fallback: OrderScheduleDate 관계 (construction/shipping kind).
     """
     if not order:
         return None
+
+    def _valid(d):
+        """날짜 문자열이 유효하고 ref_date 이후인지 확인."""
+        s = str(d).strip() if d else ''
+        return s if s and (not ref_date or s >= ref_date) else None
+
     status = getattr(order, 'status', None)
     if status in ('AS_RECEIVED', 'AS_COMPLETED'):
-        v = getattr(order, 'scheduled_date', None)
-        return str(v).strip() if v and str(v).strip() else None
+        return _valid(getattr(order, 'scheduled_date', None))
+
     sd = getattr(order, 'structured_data', None)
     if getattr(order, 'is_erp_beta', False) and isinstance(sd, dict):
         cons_date = ((sd.get('schedule') or {}).get('construction') or {}).get('date')
-        if cons_date:
-            return str(cons_date)
+        if d := _valid(cons_date):
+            return d
+
     for attr in ('shipping_scheduled_date', 'scheduled_date'):
-        v = getattr(order, attr, None)
-        if v and str(v).strip():
-            return str(v).strip()
-    # 최종 fallback: OrderScheduleDate 관계 (construction/shipping kind 중 가장 빠른 날짜)
+        if d := _valid(getattr(order, attr, None)):
+            return d
+
+    # 최종 fallback: OrderScheduleDate 관계 (ref_date 이후 가장 빠른 날짜)
     sched_dates = getattr(order, 'schedule_dates', None)
     if sched_dates:
         dates = sorted([
             sd.date for sd in sched_dates
-            if sd.kind in ('construction', 'shipping') and sd.date
+            if sd.kind in ('construction', 'shipping') and _valid(sd.date)
         ])
         if dates:
             return dates[0]
@@ -111,10 +119,10 @@ def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return R * 2 * math.asin(math.sqrt(a))
 
 
-def _build_candidate_item(order) -> dict:
+def _build_candidate_item(order, ref_date: str | None = None) -> dict:
     """주문 ORM 객체를 nearby 결과 아이템 dict로 변환."""
     order_addr = _get_order_display_address(order)
-    d_date = _get_order_schedule_date(order)
+    d_date = _get_order_schedule_date(order, ref_date)
     _shipping = getattr(order, 'shipping_scheduled_date', None)
     _status = getattr(order, 'status', None) or ''
     return {
@@ -194,10 +202,10 @@ def api_orders_nearby():
         order_addr = _get_order_display_address(order)
         if not order_addr:
             continue
-        d_date = _get_order_schedule_date(order)
-        if not d_date or not _schedule_date_has_on_or_after(d_date, ref_date):
+        d_date = _get_order_schedule_date(order, ref_date)
+        if not d_date:
             continue
-        valid_items.append(_build_candidate_item(order))
+        valid_items.append(_build_candidate_item(order, ref_date))
 
     # 3. 카카오 API: 좌표 기반 점진적 반경 검색
     try:
