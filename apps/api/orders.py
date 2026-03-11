@@ -94,6 +94,8 @@ def _get_order_display_customer_name(order):
 _SEARCH_RADII_KM = [1.0, 3.0, 5.0, 10.0, 20.0, 30.0]
 _MAX_RESULTS = 5
 _GEOCODE_WORKERS = 10
+# 광역시/특별시: 구(區) 단위가 아닌 시 전체로 검색해야 인접 구 누락이 없음
+_METRO_PREFIXES = frozenset(('서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종'))
 
 
 def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -127,7 +129,8 @@ def api_orders_nearby():
     """AS 대시보드용: 주소 기반 가까운 출고/시공 일정 찾기.
 
     카카오 Geocoding API로 좌표를 변환한 뒤, 직선거리 기반 점진적 반경
-    (1 → 3 → 5 → 10 km)으로 후보를 수집하고 상위 5건을 반환합니다.
+    (1 → 3 → 5 → 10 → 20 → 30 km)으로 후보를 수집하고 상위 5건을 반환합니다.
+    30km에서도 미달 시 거리 무관 가장 가까운 순 Top 5 반환.
     카카오 API 장애 시 텍스트 유사도 기반 fallback을 사용합니다.
     """
     target_address = request.args.get('address', '').strip()
@@ -161,6 +164,13 @@ def api_orders_nearby():
                     OrderScheduleDate.id.isnot(None),
                     OrderScheduleDate.date >= ref_date,
                 ),
+                # ERP Beta: 시공일이 structured_data.schedule.construction.date 에만 있는 경우
+                and_(
+                    Order.is_erp_beta == True,
+                    func.jsonb_extract_path_text(
+                        Order.structured_data, 'schedule', 'construction', 'date'
+                    ) >= ref_date,
+                ),
             ),
         )
         .distinct()
@@ -170,11 +180,18 @@ def api_orders_nearby():
         query = query.filter(Order.id != exclude_id)
 
     # 주소 키워드 사전 필터 (DB 부하 절감)
-    # 시/군/구 단위만 추출 — 광역 접두어(경기/서울 등) 포함 시 주소 형식 불일치로 검색 누락 방지
-    # 예: "경기 남양주시..." → "남양주시", "남양주시 화도읍..." → "남양주시" 모두 매칭
-    sigungu_match = re.search(r'(\S+시|\S+군|\S+구)', target_address)
-    if sigungu_match:
-        search_kw = f'%{sigungu_match.group(1)}%'
+    # 광역시(서울/부산 등)는 시 전체로, 도(경기/강원 등)는 시/군 단위로 검색
+    # → 인접 구 누락 방지 + 주소 표기 형식 불일치 대응
+    addr_first = (target_address.split()[0] if target_address else '').rstrip('특별자치')
+    if addr_first in _METRO_PREFIXES:
+        # 광역시: "서울 중구..." → "%서울%" (같은 구뿐 아니라 인접 구도 포함)
+        search_kw = f'%{addr_first}%'
+    else:
+        # 도(경기/강원 등): 시/군 단위 추출 (구는 제외 — 다른 도시의 동명 구 혼입 방지)
+        sigungu_match = re.search(r'(\S+시|\S+군)', target_address)
+        search_kw = f'%{sigungu_match.group(1)}%' if sigungu_match else None
+
+    if search_kw:
         query = query.filter(
             or_(
                 Order.address.ilike(search_kw),
