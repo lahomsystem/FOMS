@@ -91,7 +91,7 @@ def _get_order_display_customer_name(order):
     return (cn or '').strip()
 
 
-_SEARCH_RADII_KM = [1.0, 3.0, 5.0, 10.0]
+_SEARCH_RADII_KM = [1.0, 3.0, 5.0, 10.0, 20.0, 30.0]
 _MAX_RESULTS = 5
 _GEOCODE_WORKERS = 10
 
@@ -237,9 +237,9 @@ def api_orders_nearby():
                 radius_candidates = within
                 break
         else:
-            # 최대 반경(10km)까지 모아도 5건 미만이면 10km 내 전체 사용
+            # 최대 반경까지 5건 미만이면 거리 무관하게 가장 가까운 순으로 전체 사용
             used_radius = _SEARCH_RADII_KM[-1]
-            radius_candidates = [it for it in with_distance if it['_dist_km'] <= used_radius]
+            radius_candidates = sorted(with_distance, key=lambda x: x['_dist_km'])
 
         # 3-3. 정렬: 거리 오름차순 → 날짜 오름차순
         radius_candidates.sort(key=lambda x: (x['_dist_km'], x.get('date') or '9999-99-99'))
