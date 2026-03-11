@@ -1,6 +1,6 @@
 # Shell Guard Log
 
-> Cursor Hook(`beforeShellExecution`)가 자동 기록합니다.
+> Claude Code Hook(`PreToolUse:Bash`)가 자동 기록합니다.
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
@@ -237,3 +237,52 @@
 | 2026-03-10 22:36:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --cached app.py 2>$null` |
 | 2026-03-10 22:36:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short` |
 | 2026-03-10 22:36:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/context/EDIT_LOG.md docs/context/SHELL_GUARD_LOG.md; git commit --trailer "Made-w` |
+| 2026-03-10 22:42:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
+| 2026-03-10 22:42:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
+| 2026-03-10 22:49:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -5 origin/production` |
+| 2026-03-10 22:49:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show HEAD:services/order_date_sync.py 2>$null | Select-String "fallback|beta_schedule_fall` |
+| 2026-03-10 22:49:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show HEAD:services/order_date_sync.py | Select-String "fallback|timedelta|days=5"` |
+| 2026-03-10 22:54:53 | allow | `-` | `railway --version 2>$null; if ($LASTEXITCODE -ne 0) { echo "NOT_INSTALLED" }` |
+| 2026-03-10 22:55:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway status 2>&1` |
+| 2026-03-10 22:55:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway logs --limit 50 2>&1 | Select-Object -Last 30` |
+| 2026-03-10 22:55:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway service 2>&1` |
+| 2026-03-10 22:55:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway logs 2>&1 | Select-Object -Last 40` |
+| 2026-03-10 22:55:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway service foms-production 2>&1; railway logs 2>&1 | Select-Object -Last 20` |
+| 2026-03-10 22:56:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway environment 2>&1` |
+| 2026-03-10 22:56:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline origin/production -3` |
+| 2026-03-10 22:57:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway service FOMS 2>&1; railway logs 2>&1 | Select-Object -Last 5` |
+| 2026-03-10 23:07:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline origin/production -5` |
+| 2026-03-10 23:08:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production` |
+| 2026-03-10 23:08:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import hashlib, time; print(hashlib.md5(str(time.time()).encode()).hexdigest()[:8])` |
+| 2026-03-10 23:08:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" --allow-empty -F commit_msg.txt` |
+| 2026-03-10 23:08:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
+| 2026-03-10 23:09:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
+| 2026-03-10 23:27:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway variables 2>&1 | Select-String "DATABASE|POSTGRES|DATABASE_URL" | Select-Object -First` |
+| 2026-03-10 23:27:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import psycopg2, json conn = psycopg2.connect('postgresql://postgres:XMuhzNDZDeBlQ` |
+| 2026-03-10 23:28:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import psycopg2 conn = psycopg2.connect('postgresql://postgres:XMuhzNDZDeBlQStbmUQ` |
+| 2026-03-10 23:28:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python scripts/check_prod_fallback.py` |
+| 2026-03-10 23:28:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python scripts/delete_prod_fallback.py` |
+| 2026-03-10 23:30:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline services/order_date_sync.py | Select-Object -First 15` |
+| 2026-03-10 23:30:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show 9e95da3 --stat; git show 9e95da3 -- services/order_date_sync.py | Select-String "fall` |
+| 2026-03-11 08:38:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-11 08:52:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python scripts/db_admin.py reset-admin --password admin1234` |
+| 2026-03-11 08:56:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from app import app with app.test_client() as c: with c.session_transaction() as s` |
+| 2026-03-11 08:56:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from app import app with app.test_client() as c: # Login first rv = c.post('/login` |
+| 2026-03-11 08:56:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from app import app with app.test_client() as c: rv = c.post('/login', data={'user` |
+| 2026-03-11 08:57:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from app import app with app.test_client() as c: rv = c.post('/login', data={'user` |
+| 2026-03-11 09:07:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-11 09:07:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add apps/order_pages.py static/css/erp-pro.css templates/index.html; git status` |
+| 2026-03-11 09:07:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
+| 2026-03-11 09:08:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-11 09:08:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy; git push origin production; git checkout deploy` |
+| 2026-03-11 12:49:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-11 13:08:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-11 13:09:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch -a` |
+| 2026-03-11 13:09:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_dashboard_grid.html; git commit --trailer "Made-with: Cursor" -` |
+| 2026-03-11 13:09:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-11 13:10:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy -m "Merge deploy: ERP 대시보드 실측일/시공일 복합 표기"` |
+| 2026-03-11 13:10:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
+| 2026-03-11 13:10:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
+| 2026-03-11 16:44:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp, _haversine_km, _get_order_schedule_date, a` |
+| 2026-03-11 16:47:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp, _haversine_km, _get_order_schedule_date, _` |
+| 2026-03-11 16:50:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add -A && git status` |
