@@ -10,7 +10,6 @@ from sqlalchemy.orm.attributes import flag_modified
 import traceback
 import json
 import datetime
-import re
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from foms_address_converter import FOMSAddressConverter
@@ -94,8 +93,6 @@ def _get_order_display_customer_name(order):
 _SEARCH_RADII_KM = [1.0, 3.0, 5.0, 10.0, 20.0, 30.0]
 _MAX_RESULTS = 5
 _GEOCODE_WORKERS = 10
-# 광역시/특별시: 구(區) 단위가 아닌 시 전체로 검색해야 인접 구 누락이 없음
-_METRO_PREFIXES = frozenset(('서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종'))
 
 
 def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -143,11 +140,11 @@ def api_orders_nearby():
     db = get_db()
 
     from sqlalchemy.orm import load_only
-    from sqlalchemy import cast, String
     from models import OrderScheduleDate
 
-    # 1. 오늘 이후 실제 시공/출고 예정일이 있는 주문만 조회
-    #    (AS 접수일·완료일은 제외 — 이것이 자기 자신 포함 버그의 근본 원인)
+    # 1. 오늘 이후 실제 시공/출고 예정일이 있는 주문만 조회 (전국 대상 — 지역 사전 필터 없음)
+    # 지역 사전 필터를 걸면 인접 시/도 주문을 놓치므로, 날짜 필터만 적용 후
+    # Haversine 거리 계산으로 가장 가까운 Top5를 순수하게 찾는다.
     query = (
         db.query(Order)
         .options(load_only(
@@ -178,26 +175,6 @@ def api_orders_nearby():
 
     if exclude_id:
         query = query.filter(Order.id != exclude_id)
-
-    # 주소 키워드 사전 필터 (DB 부하 절감)
-    # 광역시(서울/부산 등)는 시 전체로, 도(경기/강원 등)는 시/군 단위로 검색
-    # → 인접 구 누락 방지 + 주소 표기 형식 불일치 대응
-    addr_first = (target_address.split()[0] if target_address else '').rstrip('특별자치')
-    if addr_first in _METRO_PREFIXES:
-        # 광역시: "서울 중구..." → "%서울%" (같은 구뿐 아니라 인접 구도 포함)
-        search_kw = f'%{addr_first}%'
-    else:
-        # 도(경기/강원 등): 시/군 단위 추출 (구는 제외 — 다른 도시의 동명 구 혼입 방지)
-        sigungu_match = re.search(r'(\S+시|\S+군)', target_address)
-        search_kw = f'%{sigungu_match.group(1)}%' if sigungu_match else None
-
-    if search_kw:
-        query = query.filter(
-            or_(
-                Order.address.ilike(search_kw),
-                and_(Order.is_erp_beta == True, cast(Order.structured_data, String).ilike(search_kw)),
-            )
-        )
 
     candidates = query.order_by(Order.id.desc()).limit(2500).all()
 
