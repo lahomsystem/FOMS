@@ -1806,6 +1806,14 @@
    Order List Page - 전체 주문 목록 스타일
    ============================================ */
 
+/* 라홈 주문 로고 (고객명 옆, ERP 작업 큐와 동일) */
+.order-list-container .erp-lahom-logo {
+  height: 1.25em;
+  width: auto;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 /* 페이지 헤더 */
 .order-list-page-header {
   display: flex;
