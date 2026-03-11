@@ -7,8 +7,8 @@
 ### Session: 700dcd20
 - **시작**: 2026-03-09 09:45:23
 - **상태**: completed
-- **편집 파일**: `commit_msg.txt`, `services/order_date_sync.py`, `docs/plans/performance-optimization-plan-V1-V2-COMPARISON.md`
-- **종료**: 2026-03-10 16:38:49
+- **편집 파일**: `commit_msg.txt`, `templates/partials/erp_dashboard_grid.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-3b8f06c5-bbe4-46f4-9fb8-292b25faecc5.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e62d5c32-012b-4aea-9a71-ed306ff1903e.png`, `templates/index.html`, `static/css/erp-pro.css`, `apps/order_pages.py`, `scripts/delete_prod_fallback.py`, `scripts/check_prod_fallback.py`
+- **종료**: 2026-03-11 13:10:16
 
 ### Session: 30f3cb90
 - **시작**: 2026-03-08 13:07:18
@@ -94,3 +94,55 @@
 | 2026-03-10 16:38:49 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-10 21:55:40 | END (Claude Code) | 수정: templates/erp_shipment_dashboard.html, static/js/shipment-dashboard-columns.js, static/css/shipment-dashboard-columns.css |
+
+| 2026-03-10 22:37:58 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-10 22:42:22 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-10 22:50:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-10 22:51:11 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-10 22:52:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-10 22:56:22 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-10 22:58:32 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-10 23:07:09 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-10 23:09:18 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-10 23:25:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-10 23:29:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-10 23:31:04 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-11 08:33:40 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-11 08:38:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-11 08:50:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-11 08:52:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-11 08:57:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-11 09:08:25 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-11 12:49:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-11 13:08:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-11 13:10:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-11 16:25:13 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-11 16:29:32 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-11 16:42:51 | END (Claude Code) | 수정: templates/erp_as_dashboard.html |
+
+| 2026-03-11 16:45:13 | END (Claude Code) | 수정: apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-11 16:48:57 | END (Claude Code) | 수정: apps/api/orders.py, templates/erp_as_dashboard.html |

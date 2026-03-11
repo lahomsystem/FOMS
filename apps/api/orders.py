@@ -11,6 +11,7 @@ import traceback
 import json
 import datetime
 import re
+import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from foms_address_converter import FOMSAddressConverter
 from services.jobs.queue import enqueue_geocode_order_address
@@ -33,32 +34,28 @@ def _schedule_date_has_on_or_after(d_date_str, ref_date):
 
 
 def _get_order_schedule_date(order):
-    """출고/시공일 결정 (AS 대시보드·nearby 검색과 동일 로직). AS는 scheduled_date, as_received_date, as_completed_date. Beta는 structured_data schedule.construction.date 또는 scheduled_date."""
+    """출고/시공 예정일 반환.
+
+    AS 주문(AS_RECEIVED/AS_COMPLETED): scheduled_date(실제 시공 예정일)만 사용.
+      - as_received_date/as_completed_date는 접수·완료 기록이므로 날짜로 쓰지 않음.
+    ERP Beta 주문: structured_data.schedule.construction.date 우선.
+    일반 주문: shipping_scheduled_date → scheduled_date 순.
+    """
     if not order:
         return None
     status = getattr(order, 'status', None)
     if status in ('AS_RECEIVED', 'AS_COMPLETED'):
         v = getattr(order, 'scheduled_date', None)
-        if v and str(v).strip():
-            return str(v).strip()
-        v = getattr(order, 'as_received_date', None)
-        if v and str(v).strip():
-            return str(v).strip()
-        v = getattr(order, 'as_completed_date', None)
-        if v and str(v).strip():
-            return str(v).strip()
+        return str(v).strip() if v and str(v).strip() else None
     sd = getattr(order, 'structured_data', None)
     if getattr(order, 'is_erp_beta', False) and isinstance(sd, dict):
-        cons = (sd.get('schedule') or {}).get('construction') or {}
-        cons_date = cons.get('date')
+        cons_date = ((sd.get('schedule') or {}).get('construction') or {}).get('date')
         if cons_date:
             return str(cons_date)
-    v = getattr(order, 'shipping_scheduled_date', None)
-    if v and str(v).strip():
-        return str(v).strip()
-    v = getattr(order, 'scheduled_date', None)
-    if v and str(v).strip():
-        return str(v).strip()
+    for attr in ('shipping_scheduled_date', 'scheduled_date'):
+        v = getattr(order, attr, None)
+        if v and str(v).strip():
+            return str(v).strip()
     return None
 
 
@@ -94,64 +91,99 @@ def _get_order_display_customer_name(order):
     return (cn or '').strip()
 
 
+_SEARCH_RADII_KM = [1.0, 3.0, 5.0, 10.0]
+_MAX_RESULTS = 5
+_GEOCODE_WORKERS = 10
+
+
+def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """두 좌표 간 Haversine 직선거리(km) 반환."""
+    R = 6371.0
+    d_lat = math.radians(lat2 - lat1)
+    d_lng = math.radians(lng2 - lng1)
+    a = math.sin(d_lat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lng / 2) ** 2
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+def _build_candidate_item(order) -> dict:
+    """주문 ORM 객체를 nearby 결과 아이템 dict로 변환."""
+    order_addr = _get_order_display_address(order)
+    d_date = _get_order_schedule_date(order)
+    _shipping = getattr(order, 'shipping_scheduled_date', None)
+    _status = getattr(order, 'status', None) or ''
+    return {
+        'id': order.id,
+        'customer_name': _get_order_display_customer_name(order),
+        'address': order_addr,
+        'date': d_date,
+        'type': '상차' if _shipping else '시공',
+        'status': STATUS.get(_status, _status),
+    }
+
+
 @orders_bp.route('/orders/nearby')
 @login_required
 def api_orders_nearby():
-    """AS 대시보드용: 주소 기반 가까운 출고/시공 일정 찾기"""
+    """AS 대시보드용: 주소 기반 가까운 출고/시공 일정 찾기.
+
+    카카오 Geocoding API로 좌표를 변환한 뒤, 직선거리 기반 점진적 반경
+    (1 → 3 → 5 → 10 km)으로 후보를 수집하고 상위 5건을 반환합니다.
+    카카오 API 장애 시 텍스트 유사도 기반 fallback을 사용합니다.
+    """
     target_address = request.args.get('address', '').strip()
     if not target_address:
-        return jsonify({'success': False, 'message': '주소가 필요합니다.'}), 400
+        return jsonify({'success': False, 'error': '주소가 필요합니다.'}), 400
 
-    # 기준일: 오늘 (또는 파라미터)
+    exclude_id = request.args.get('exclude_id', type=int)
     ref_date = request.args.get('date', datetime.datetime.now().strftime('%Y-%m-%d'))
-    
+
     db = get_db()
-    
-    # 1. 대상 주문 조회 (오늘 이후 출고/시공 예정인 건).
-    # - AS: scheduled_date, as_received_date, as_completed_date
-    # - 일반/레거시: shipping_scheduled_date, scheduled_date
-    # - ERP Beta: 시공일이 structured_data.schedule.construction.date 에만 있는 경우 포함
+
     from sqlalchemy.orm import load_only
     from sqlalchemy import cast, String
     from models import OrderScheduleDate
 
-    query = db.query(Order).options(
-        load_only(
+    # 1. 오늘 이후 실제 시공/출고 예정일이 있는 주문만 조회
+    #    (AS 접수일·완료일은 제외 — 이것이 자기 자신 포함 버그의 근본 원인)
+    query = (
+        db.query(Order)
+        .options(load_only(
             Order.id, Order.address, Order.status, Order.shipping_scheduled_date,
-            Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
-            Order.is_erp_beta, Order.structured_data, Order.customer_name
+            Order.scheduled_date, Order.is_erp_beta, Order.structured_data, Order.customer_name
+        ))
+        .outerjoin(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
+        .filter(
+            Order.status != 'DELETED',
+            or_(
+                Order.shipping_scheduled_date >= ref_date,
+                Order.scheduled_date >= ref_date,
+                and_(
+                    OrderScheduleDate.id.isnot(None),
+                    OrderScheduleDate.date >= ref_date,
+                ),
+            ),
         )
-    ).outerjoin(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
+        .distinct()
+    )
 
-    query = query.filter(
-        Order.status != 'DELETED',
-        or_(
-            Order.shipping_scheduled_date >= ref_date,
-            Order.scheduled_date >= ref_date,
-            Order.as_received_date >= ref_date,
-            Order.as_completed_date >= ref_date,
-            and_(
-                OrderScheduleDate.id.isnot(None),
-                OrderScheduleDate.date >= ref_date
-            )
-        )
-    ).distinct()
-    
-    parts = target_address.split()
-    if parts:
-        search_kw = '%' + '%'.join(parts[:2]) + '%'
+    if exclude_id:
+        query = query.filter(Order.id != exclude_id)
+
+    # 주소 키워드 사전 필터 (DB 부하 절감 — 앞 3단어 기준)
+    addr_parts = target_address.split()
+    if addr_parts:
+        search_kw = '%' + '%'.join(addr_parts[:3]) + '%'
         query = query.filter(
             or_(
                 Order.address.ilike(search_kw),
-                and_(Order.is_erp_beta == True, cast(Order.structured_data, String).ilike(search_kw))
+                and_(Order.is_erp_beta == True, cast(Order.structured_data, String).ilike(search_kw)),
             )
         )
 
     candidates = query.order_by(Order.id.desc()).limit(2500).all()
 
-    # 2. 주소 유사도 점수 계산 (표시용 주소·실제 시공일 사용)
-    target_tokens = set(target_address.split())
-    scored_orders = []
+    # 2. 날짜 유효성 재검증 + 아이템 변환
+    valid_items = []
     for order in candidates:
         order_addr = _get_order_display_address(order)
         if not order_addr:
@@ -159,188 +191,111 @@ def api_orders_nearby():
         d_date = _get_order_schedule_date(order)
         if not d_date or not _schedule_date_has_on_or_after(d_date, ref_date):
             continue
+        valid_items.append(_build_candidate_item(order))
 
-        order_tokens = set(order_addr.split())
-        score = len(target_tokens.intersection(order_tokens))
-        if score > 0:
-            _shipping = getattr(order, 'shipping_scheduled_date', None)
-            _status = getattr(order, 'status', None) or ''
-            scored_orders.append({
-                'id': order.id,
-                'customer_name': _get_order_display_customer_name(order),
-                'address': order_addr,
-                'date': d_date,
-                'type': '상차' if _shipping else '시공',
-                'status': STATUS.get(_status, _status),
-                'score': score
-            })
-
-    # 3. 정렬: 점수 높은 순 -> 날짜 빠른 순
-    scored_orders.sort(key=lambda x: (-x['score'], x['date']))
-    
-    # 4. 카카오 API를 활용한 실 거리 계산 (점진적 반경 확장)
+    # 3. 카카오 API: 좌표 기반 점진적 반경 검색
     try:
         converter = FOMSAddressConverter()
-        
-        # 1. 기준 주소 분석
-        start_lat, start_lng, _, target_region = converter.analyze_address(target_address)
-        
-        target_sido = ''
-        target_sigungu = ''
-        if target_region:
-            target_sido = target_region.get('region_1depth_name', '')
-            target_sigungu = target_region.get('region_2depth_name', '')
+        start_lat, start_lng, _, _ = converter.analyze_address(target_address)
 
-        # 카카오에서 시군구가 안 나올 때(신규 지역·아파트 등): 주소 문자열에서 첫 'XX시'/'XX군'/'XX구' 추출
-        if not target_sigungu and target_address:
-            m = re.search(r'(\S+시|\S+군|\S+구)', target_address)
-            if m:
-                target_sigungu = m.group(1).strip()
+        if not start_lat or not start_lng:
+            raise ValueError("기준 주소 좌표 변환 실패")
 
-        # 2. 후보군 우선순위 분류
-        # Group 1: 같은 시군구 (최우선)
-        # Group 2: 같은 시도
-        # Group 3: 인접 시도 (수도권 등)
-        # Group 4: 나머지 (텍스트 유사도 기반)
-        
-        group1 = []
-        group2 = []
-        group3 = []
-        group4 = []
-        
-        # 수도권 정의
-        sudo_kwon = ['서울', '경기', '인천']
-        is_target_sudo = any(x in target_sido for x in sudo_kwon)
-        
-        for order in candidates:
-            order_addr = _get_order_display_address(order)
-            if not order_addr:
-                continue
-            d_date = _get_order_schedule_date(order)
-            if not d_date or not _schedule_date_has_on_or_after(d_date, ref_date):
-                continue
+        # 3-1. 전체 후보 좌표 병렬 변환
+        def geocode_item(item: dict):
+            lat, lng, _, _ = converter.analyze_address(item['address'])
+            return item, lat, lng
 
-            target_tokens = set(target_address.split())
-            order_tokens = set(order_addr.split())
-            score = len(target_tokens.intersection(order_tokens))
+        geo_results: list[tuple[dict, float | None, float | None]] = []
+        with ThreadPoolExecutor(max_workers=min(_GEOCODE_WORKERS, len(valid_items) or 1)) as ex:
+            futures = {ex.submit(geocode_item, item): item for item in valid_items}
+            for fut in as_completed(futures):
+                try:
+                    geo_results.append(fut.result())
+                except Exception as geo_err:
+                    current_app.logger.warning("[NEARBY] 좌표 변환 실패: %s", geo_err)
+                    geo_results.append((futures[fut], None, None))
 
-            _shipping = getattr(order, 'shipping_scheduled_date', None)
-            _status = getattr(order, 'status', None) or ''
-            item = {
-                'id': order.id,
-                'customer_name': _get_order_display_customer_name(order),
-                'address': order_addr,
-                'date': d_date,
-                'type': '상차' if _shipping else '시공',
-                'status': STATUS.get(_status, _status),
-                'score': score
-            }
+        # 직선거리 계산 (좌표 성공한 것만)
+        with_distance = []
+        for item, lat, lng in geo_results:
+            if lat and lng:
+                item['_dist_km'] = _haversine_km(start_lat, start_lng, lat, lng)
+                item['_lat'] = lat
+                item['_lng'] = lng
+                with_distance.append(item)
 
-            if target_sigungu and target_sigungu in order_addr:
-                group1.append(item)
-            elif target_sido and target_sido in order_addr:
-                group2.append(item)
-            elif is_target_sudo and any(x in order_addr for x in sudo_kwon):
-                group3.append(item)
+        # 3-2. 점진적 반경 확장: 5건 이상 모이는 반경에서 멈춤
+        used_radius = _SEARCH_RADII_KM[-1]
+        radius_candidates = []
+        for radius in _SEARCH_RADII_KM:
+            within = [it for it in with_distance if it['_dist_km'] <= radius]
+            if len(within) >= _MAX_RESULTS:
+                used_radius = radius
+                radius_candidates = within
+                break
+        else:
+            # 최대 반경(10km)까지 모아도 5건 미만이면 10km 내 전체 사용
+            used_radius = _SEARCH_RADII_KM[-1]
+            radius_candidates = [it for it in with_distance if it['_dist_km'] <= used_radius]
+
+        # 3-3. 정렬: 거리 오름차순 → 날짜 오름차순
+        radius_candidates.sort(key=lambda x: (x['_dist_km'], x.get('date') or '9999-99-99'))
+        final_candidates = radius_candidates[:_MAX_RESULTS]
+
+        # 3-4. 최종 5건에만 카카오 경로(실소요시간) 계산
+        def route_item(item: dict):
+            route_info = converter.calculate_route(start_lat, start_lng, item['_lat'], item['_lng'])
+            if route_info.get('status') == 'success':
+                item['distance_km'] = route_info['distance_km']
+                item['duration_min'] = route_info['duration_min']
+                item['score_text'] = f"{route_info['distance_km']}km ({route_info['duration_min']}분)"
             else:
-                if score > 0: # 최소한 단어 하나는 겹쳐야 함
-                    group4.append(item)
-        
-        # 3. 후보군 병합 (반환 개수만큼만 사용 → 지오코딩/경로 호출 최소화)
-        # GDM 핵심 수정: 이전에는 group1, 2, 3을 그저 "날짜"순으로 정렬해서
-        # 화성시 내에서도 엉뚱하게 먼 곳이 먼저 뽑히는 문제가 있었습니다.
-        # 지오코딩 횟수 제한 때문에 5건만 자를 때, 주소가 최대한 똑같은(score가 높은) 건을
-        # 최우선으로 앞쪽에 배치해야 진짜 근처 일정이 후보에 들어갑니다.
-        group1.sort(key=lambda x: (-x['score'], x['date'] or '9999-99-99'))
-        group2.sort(key=lambda x: (-x['score'], x['date'] or '9999-99-99'))
-        group3.sort(key=lambda x: (-x['score'], x['date'] or '9999-99-99'))
-        group4.sort(key=lambda x: (-x['score'], x['date'] or '9999-99-99'))
-        
-        # 합친 후에도 전체 스코어 기준으로 한번 더 정렬해서 높은 유사도 주소를 우선 뽑습니다.
-        all_candidates = group1 + group2 + group3 + group4
-        # 중복 제거 (여러 그룹에 속할 수 있음)
-        seen_ids = set()
-        unique_candidates = []
-        for c in all_candidates:
-            if c['id'] not in seen_ids:
-                seen_ids.add(c['id'])
-                unique_candidates.append(c)
-                
-        unique_candidates.sort(key=lambda x: (-x['score'], x['date'] or '9999-99-99'))
-        
-        max_candidates = 5  # 최종 5건만 반환하므로 후보도 5건만 거리 계산
-        final_candidates = unique_candidates[:max_candidates]
-        
-        if start_lat and start_lng and final_candidates:
-            # 4-1. 목적지 좌표 변환 (병렬)
-            def geocode_one(item):
-                end_lat, end_lng, _, _ = converter.analyze_address(item['address'])
-                return item, end_lat, end_lng
+                item['score_text'] = f"약 {item['_dist_km']:.1f}km"
+            # 내부 좌표 필드 제거 (응답 불필요)
+            item.pop('_dist_km', None)
+            item.pop('_lat', None)
+            item.pop('_lng', None)
+            return item
 
-            geo_results = []
-            with ThreadPoolExecutor(max_workers=min(5, len(final_candidates))) as ex:
-                futures = {ex.submit(geocode_one, item): item for item in final_candidates}
-                for fut in as_completed(futures):
-                    try:
-                        geo_results.append(fut.result())
-                    except Exception as e:
-                        item = futures[fut]
-                        geo_results.append((item, None, None))
+        final_results = []
+        with ThreadPoolExecutor(max_workers=min(_MAX_RESULTS, len(final_candidates) or 1)) as ex_r:
+            route_futures = [ex_r.submit(route_item, item) for item in final_candidates]
+            for fut in as_completed(route_futures):
+                try:
+                    final_results.append(fut.result())
+                except Exception as route_err:
+                    current_app.logger.warning("[NEARBY] 경로 계산 실패: %s", route_err)
 
-            # 4-2. 경로 계산 (좌표 있는 것만, 병렬)
-            def route_one(args):
-                item, end_lat, end_lng = args
-                if not end_lat or not end_lng:
-                    item['geo_status'] = 'geocode_failed'
-                    item['score_text'] = f"좌표 변환 실패 (텍스트 점수: {item['score']})"
-                    return item
-                route_info = converter.calculate_route(start_lat, start_lng, end_lat, end_lng)
-                if route_info.get('status') == 'success':
-                    item['distance_km'] = route_info['distance_km']
-                    item['duration_min'] = route_info['duration_min']
-                    item['toll'] = route_info.get('toll', 0)
-                    item['geo_status'] = 'success'
-                    item['score_text'] = f"{item['distance_km']}km ({item['duration_min']}분)"
-                else:
-                    item['geo_status'] = 'route_failed'
-                    item['score_text'] = f"경로 계산 실패 (텍스트 점수: {item['score']})"
-                return item
+        # 경로 계산 후 소요시간 기준으로 재정렬
+        final_results.sort(key=lambda x: (x.get('duration_min', 9999), x.get('date') or '9999-99-99'))
 
-            route_inputs = [r for r in geo_results if r[1] is not None and r[2] is not None]
-            final_results = []
-            with ThreadPoolExecutor(max_workers=min(5, len(route_inputs) or 1)) as ex_route:
-                route_futures = [ex_route.submit(route_one, (item, elat, elng)) for item, elat, elng in route_inputs]
-                for fut in as_completed(route_futures):
-                    try:
-                        final_results.append(fut.result())
-                    except Exception:
-                        pass
-            # 좌표 실패한 항목 추가 (거리 없이 표시)
-            for item, elat, elng in geo_results:
-                if elat is None or elng is None:
-                    item['geo_status'] = 'geocode_failed'
-                    item['score_text'] = f"좌표 변환 실패 (텍스트 점수: {item['score']})"
-                    final_results.append(item)
+        return jsonify({
+            'success': True,
+            'results': final_results,
+            'count': len(final_results),
+            'search_radius_km': used_radius,
+        })
 
-            # 5. 재정렬: 거리 계산 성공 우선, 그 다음 소요 시간 짧은 순
-            final_results.sort(key=lambda x: (0 if x.get('geo_status') == 'success' else 1, x.get('duration_min', 9999)))
-            return jsonify({
-                'success': True,
-                'results': final_results[:5],
-                'count': len(final_results)
-            })
-            
     except Exception as e:
-        print(f"[NEARBY] 거리 계산 오류: {e}")
-        import traceback
-        traceback.print_exc()
-        # 오류 발생 시 기존 텍스트 매칭 결과 반환 (fallback)
+        current_app.logger.warning("[NEARBY] 카카오 API 오류, fallback 사용: %s", e, exc_info=True)
 
-    # Top 5 반환 (거리 계산 실패 또는 예외 발생 시)
+    # Fallback: 텍스트 유사도 기반 상위 5건
+    target_tokens = set(target_address.split())
+    for item in valid_items:
+        order_tokens = set(item['address'].split())
+        item['_score'] = len(target_tokens & order_tokens)
+        item['score_text'] = ''
+    valid_items.sort(key=lambda x: (-x.get('_score', 0), x.get('date') or '9999-99-99'))
+    fallback_results = valid_items[:_MAX_RESULTS]
+    for item in fallback_results:
+        item.pop('_score', None)
+
     return jsonify({
         'success': True,
-        'results': scored_orders[:5],
-        'count': len(scored_orders)
+        'results': fallback_results,
+        'count': len(fallback_results),
+        'search_radius_km': None,
     })
 
 

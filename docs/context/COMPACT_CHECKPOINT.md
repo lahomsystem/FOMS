@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-06 18:54:51
-> 세션: 27da7d1d
+> 생성 시각: 2026-03-11 12:49:01
+> 세션: e1771d2e
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `docs/plans/2026-03-05-erp-measurement-panel-mirroring-plan.md` <- 1 edit(s), ~442 chars (2026-03-06 18:54:51)
-- `docs/plans/2026-03-05-erp-measurement-panel-mirroring-VERIFICATION.md` <- 1 edit(s), ~3021 chars (2026-03-06 18:43:27)
-- `docs/plans/2026-03-05-erp-measurement-panel-mirroring-VERIFICATION.md` <- 1 edit(s), ~19 chars (2026-03-06 18:41:21)
-- `docs/plans/2026-03-05-erp-measurement-panel-mirroring-VERIFICATION.md` <- 2 edit(s), ~412 chars (2026-03-06 18:41:18)
-- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~39 chars (2026-03-06 18:40:39)
-- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~35 chars (2026-03-06 18:40:31)
-- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~122 chars (2026-03-06 18:40:28)
-- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~487 chars (2026-03-06 18:40:24)
-- `templates/partials/erp_beta_js.html` <- 2 edit(s), ~62 chars (2026-03-06 18:40:14)
-- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~3115 chars (2026-03-06 18:40:02)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-3b8f06c5-bbe4-46f4-9fb8-292b25faecc5.png` <- 1 edit(s), ~0 chars (2026-03-11 12:48:25)
+- `commit_msg.txt` <- 1 edit(s), ~276 chars (2026-03-11 09:07:42)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e62d5c32-012b-4aea-9a71-ed306ff1903e.png` <- 1 edit(s), ~0 chars (2026-03-11 08:56:03)
+- `templates/index.html` <- 1 edit(s), ~111 chars (2026-03-11 08:38:23)
+- `static/css/erp-pro.css` <- 1 edit(s), ~156 chars (2026-03-11 08:38:18)
+- `templates/index.html` <- 1 edit(s), ~247 chars (2026-03-11 08:38:16)
+- `templates/index.html` <- 2 edit(s), ~496 chars (2026-03-11 08:38:09)
+- `apps/order_pages.py` <- 1 edit(s), ~0 chars (2026-03-11 08:38:08)
+- `apps/order_pages.py` <- 2 edit(s), ~122 chars (2026-03-11 08:38:01)
+- `apps/order_pages.py` <- 1 edit(s), ~1 chars (2026-03-11 08:37:57)
 
 ### 진행 중이던 작업
 (없음)

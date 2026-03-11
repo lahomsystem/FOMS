@@ -221,7 +221,9 @@
                   <span>{{ r.address or '-' }}</span>
                   {% if r.address %}
                   <button type="button" class="btn btn-sm btn-outline-secondary ms-1 find-schedule-btn p-0 px-1"
-                    data-address="{{ r.address }}" title="주변 일정 찾기" style="font-size: 0.75rem; line-height: 1.5;">
+                    data-address="{{ r.address }}"
+                    data-order-id="{{ r.id }}"
+                    title="주변 일정 찾기" style="font-size: 0.75rem; line-height: 1.5;">
                     <i class="fas fa-map-marker-alt"></i> 일정
                   </button>
                   {% endif %}
@@ -317,7 +319,9 @@
                 <span class="erp-pro-order-card__value mb-1">{{ r.address or '-' }}</span>
                 {% if r.address %}
                 <button type="button" class="btn btn-sm btn-outline-secondary find-schedule-btn ms-2 p-0 px-2"
-                  data-address="{{ r.address }}" title="주변 일정 찾기" style="font-size: 0.75rem; white-space: nowrap;">
+                  data-address="{{ r.address }}"
+                  data-order-id="{{ r.id }}"
+                  title="주변 일정 찾기" style="font-size: 0.75rem; white-space: nowrap;">
                   <i class="fas fa-map-marker-alt"></i> 일정
                 </button>
                 {% endif %}
@@ -453,6 +457,7 @@
       if (!btn) return;
 
       const addr = btn.dataset.address;
+      const orderId = btn.dataset.orderId;
       const modalEl = document.getElementById('scheduleSearchModal');
       // 모달 자체가 없을 때만 캐시/구버전 페이지로 간주
       if (!modalEl) {
@@ -472,7 +477,9 @@
       modal.show();
 
       try {
-        const res = await fetch(`/api/orders/nearby?address=${encodeURIComponent(addr)}`);
+        const params = new URLSearchParams({ address: addr });
+        if (orderId) params.append('exclude_id', orderId);
+        const res = await fetch(`/api/orders/nearby?${params.toString()}`);
         const data = await res.json();
 
         if (resList) {
@@ -482,9 +489,16 @@
             resList.innerHTML = `
                 <div class="text-center py-5 text-muted">
                   <i class="fas fa-calendar-times mb-2" style="font-size: 2rem;"></i>
-                  <p>근처에 예정된 출고/시공 일정이 없습니다.</p>
+                  <p>10km 반경 내에 예정된 출고/시공 일정이 없습니다.</p>
                 </div>`;
             return;
+          }
+
+          if (data.search_radius_km) {
+            const radiusBadge = document.createElement('div');
+            radiusBadge.className = 'text-muted small mb-2 px-1';
+            radiusBadge.innerHTML = `<i class="fas fa-circle-notch me-1"></i>반경 ${data.search_radius_km}km 내 검색 결과`;
+            resList.appendChild(radiusBadge);
           }
 
           data.results.forEach(item => {
