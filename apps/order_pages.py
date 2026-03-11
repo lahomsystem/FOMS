@@ -15,6 +15,24 @@ from services.order_display_utils import format_options_for_display, _ensure_dic
 from services.jobs.queue import enqueue_geocode_order_address
 from services.request_utils import get_preserved_filter_args
 
+
+def _extract_orderer_from_options(options_str):
+    """레거시 주문 options에서 발주사 추출. online_options_summary 내 '발주사 : X' 패턴."""
+    if not options_str:
+        return None
+    try:
+        data = json.loads(options_str) if isinstance(options_str, str) else options_str
+        if not isinstance(data, dict):
+            return None
+        summary = data.get('online_options_summary') or ''
+        if not summary:
+            return None
+        m = re.search(r'발주사\s*:\s*(.+?)(?:\n|$)', summary, re.MULTILINE)
+        return m.group(1).strip() if m else None
+    except Exception:
+        return None
+
+
 order_pages_bp = Blueprint('order_pages', __name__, url_prefix='')
 
 
@@ -130,6 +148,13 @@ def index():
                 manager_name = ((sd.get('parties') or {}).get('manager') or {}).get('name')
                 if manager_name:
                     setattr(order_display_data, 'manager_name', manager_name)
+                orderer_name = ((sd.get('parties') or {}).get('orderer') or {}).get('name')
+                if orderer_name:
+                    setattr(order_display_data, 'orderer_name', str(orderer_name).strip())
+            else:
+                orderer_name = _extract_orderer_from_options(order_db_item.options)
+                if orderer_name:
+                    setattr(order_display_data, 'orderer_name', orderer_name)
             processed_orders.append(order_display_data)
 
         user = get_user_by_id(session['user_id']) if 'user_id' in session else None
