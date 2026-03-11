@@ -105,7 +105,7 @@ def _get_order_display_customer_name(order):
     return (cn or '').strip()
 
 
-_SEARCH_RADII_KM = [1.0, 3.0, 5.0, 10.0, 20.0, 30.0]
+_SEARCH_RADII_KM = [10.0, 20.0, 30.0]
 _MAX_RESULTS = 5
 _GEOCODE_WORKERS = 10
 
@@ -245,16 +245,24 @@ def api_orders_nearby():
                 item['_lng'] = lng
                 with_distance.append(item)
 
-        # 3-2. 전체 후보를 날짜 1순위 → 거리 2순위로 정렬 후 Top 5 선택
-        # 반경으로 먼저 자르면 날짜가 빠른 주문이 반경 밖에 있을 때 누락되므로
-        # 반경 정보는 UI 표시용으로만 사용한다.
-        final_candidates = sorted(
-            with_distance,
-            key=lambda x: (x.get('date') or '9999-99-99', x['_dist_km'])
-        )[:_MAX_RESULTS]
+        # 3-2. 점진적 반경 확장: 인근 지역(반경) 안에서 날짜 우선 Top 5
+        # - 반경 시작을 10km로 설정해 소반경 조기 종료 문제 해결
+        # - 반경 내 5건 이상 확보되면 멈추고, 해당 범위 안에서 날짜→거리 정렬
+        radius_candidates = []
+        used_radius = _SEARCH_RADII_KM[-1]
+        for radius in _SEARCH_RADII_KM:
+            within = [it for it in with_distance if it['_dist_km'] <= radius]
+            if len(within) >= _MAX_RESULTS:
+                used_radius = radius
+                radius_candidates = within
+                break
+        else:
+            # 최대 반경까지도 5건 미만이면 전체 대상 (거리 무관)
+            radius_candidates = with_distance[:]
 
-        # UI 표시용 반경: 선택된 5건 중 가장 먼 거리
-        used_radius = max((c['_dist_km'] for c in final_candidates), default=_SEARCH_RADII_KM[-1])
+        # 인근 반경 안에서 날짜 1순위 → 거리 2순위
+        radius_candidates.sort(key=lambda x: (x.get('date') or '9999-99-99', x['_dist_km']))
+        final_candidates = radius_candidates[:_MAX_RESULTS]
 
         # 3-4. 최종 5건에만 카카오 경로(실소요시간) 계산
         def route_item(item: dict):
