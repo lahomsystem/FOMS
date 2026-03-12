@@ -105,7 +105,7 @@ def _get_order_display_customer_name(order):
     return (cn or '').strip()
 
 
-_SEARCH_RADII_KM = [15.0, 20.0, 30.0]
+_SEARCH_RADII_KM = [1.0, 3.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0]
 _MAX_RESULTS = 5
 _GEOCODE_WORKERS = 10
 
@@ -141,8 +141,8 @@ def api_orders_nearby():
     """AS 대시보드용: 주소 기반 가까운 출고/시공 일정 찾기.
 
     카카오 Geocoding API로 좌표를 변환한 뒤, 직선거리 기반 점진적 반경
-    (1 → 3 → 5 → 10 → 20 → 30 km)으로 후보를 수집하고 상위 5건을 반환합니다.
-    30km에서도 미달 시 거리 무관 가장 가까운 순 Top 5 반환.
+    (1 → 3 → 5 → 10 → 15 → 20 → 25 → 30 km)으로 후보를 수집하고 상위 5건을 반환합니다.
+    고유 날짜 5건이 모이는 최소 반경에서 중단; 30km에서도 미달 시 거리 무관 Top 5 반환.
     카카오 API 장애 시 텍스트 유사도 기반 fallback을 사용합니다.
     """
     target_address = request.args.get('address', '').strip()
@@ -250,11 +250,10 @@ def api_orders_nearby():
                 item['_lng'] = lng
                 with_distance.append(item)
 
-        # 3-2. 15km 하드캡 + 날짜 dedupe
-        # - 15km 내 후보가 1건 이상이면 그것만 사용 (날짜 5개 미달이어도 확장 안 함)
-        #   → 먼 지역 주문이 날짜 채우려고 유입되는 문제 방지
-        # - 15km 내 후보가 0건일 때만 30km로 단 한 번 확장
-        # - 최후에도 없으면 전체 거리 무관
+        # 3-2. 순차 반경 확장 + 날짜 dedupe
+        # 1km→3km→5km→10km→15km→20km→25km→30km 순으로 확장,
+        # 고유날짜 5건이 모이면 즉시 중단.
+        # 30km에서도 미달이면 전체 거리 무관 최대 5건.
 
         def _dedupe_by_date(items: list[dict]) -> list[dict]:
             """날짜→거리 정렬 후 날짜별 가장 가까운 1건만 최대 5건 반환."""
@@ -270,17 +269,19 @@ def api_orders_nearby():
                     break
             return result
 
-        _CAP_KM = 15.0
-        _FALLBACK_KM = 30.0
-        within_cap = [it for it in with_distance if it['_dist_km'] <= _CAP_KM]
-        if within_cap:
-            used_radius = _CAP_KM
-            final_candidates = _dedupe_by_date(within_cap)
+        final_candidates = []
+        used_radius = None
+        for _radius in _SEARCH_RADII_KM:
+            _within = [it for it in with_distance if it['_dist_km'] <= _radius]
+            _deduped = _dedupe_by_date(_within)
+            if len(_deduped) >= _MAX_RESULTS:
+                final_candidates = _deduped[:_MAX_RESULTS]
+                used_radius = _radius
+                break
         else:
-            within_fb = [it for it in with_distance if it['_dist_km'] <= _FALLBACK_KM]
-            candidates_pool = within_fb if within_fb else with_distance
-            used_radius = _FALLBACK_KM
-            final_candidates = _dedupe_by_date(candidates_pool)
+            # 30km에서도 5건 미달 → 전체 거리 무관 최대 5건
+            final_candidates = _dedupe_by_date(with_distance)[:_MAX_RESULTS]
+            used_radius = _SEARCH_RADII_KM[-1] if with_distance else None
 
         # 3-4. 최종 5건에만 카카오 경로(실소요시간) 계산
         def route_item(item: dict):
@@ -291,7 +292,8 @@ def api_orders_nearby():
                 item['score_text'] = f"{route_info['distance_km']}km ({route_info['duration_min']}분)"
             else:
                 item['score_text'] = f"약 {item['_dist_km']:.1f}km"
-            # 내부 좌표 필드 제거 (응답 불필요)
+            # 직선거리는 프론트 정렬용으로 보존
+            item['dist_km'] = round(item['_dist_km'], 2)
             item.pop('_dist_km', None)
             item.pop('_lat', None)
             item.pop('_lng', None)
@@ -314,6 +316,8 @@ def api_orders_nearby():
             'results': final_results,
             'count': len(final_results),
             'search_radius_km': used_radius,
+            'ref_lat': start_lat,
+            'ref_lng': start_lng,
         })
 
     except Exception as e:
