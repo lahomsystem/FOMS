@@ -49,7 +49,9 @@ def _get_order_schedule_date(order, ref_date: str | None = None):
 
     status = getattr(order, 'status', None)
     if status in ('AS_RECEIVED', 'AS_COMPLETED'):
-        return _valid(getattr(order, 'scheduled_date', None))
+        if d := _valid(getattr(order, 'scheduled_date', None)):
+            return d
+        # scheduled_date 없으면 OrderScheduleDate fallback으로 계속 진행
 
     sd = getattr(order, 'structured_data', None)
     if getattr(order, 'is_erp_beta', False) and isinstance(sd, dict):
