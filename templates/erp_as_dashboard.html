@@ -416,10 +416,37 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <div class="alert alert-light border mb-3">
-          <small class="text-muted d-block mb-1">기준 주소</small>
-          <strong id="scheduleSearchAddr" class="text-dark"></strong>
+        <div class="alert alert-light border mb-2 d-flex justify-content-between align-items-start flex-wrap gap-2">
+          <div>
+            <small class="text-muted d-block mb-1">기준 주소</small>
+            <strong id="scheduleSearchAddr" class="text-dark"></strong>
+          </div>
+          <a id="scheduleMapLink" href="#" target="_blank" rel="noopener noreferrer"
+             class="btn btn-sm btn-outline-warning" style="display:none; white-space:nowrap;">
+            <i class="fas fa-map-marker-alt me-1"></i>카카오지도 보기
+          </a>
         </div>
+        <div id="scheduleSearchRadiusBadge" class="text-muted small mb-2 px-1" style="display:none;">
+          <i class="fas fa-circle-notch me-1"></i><span id="scheduleSearchRadiusText"></span>
+        </div>
+        <!-- 정렬 탭 -->
+        <ul class="nav nav-tabs mb-3" id="scheduleSortTabs" role="tablist" style="display:none;">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" data-sort="distance" type="button" role="tab">
+              <i class="fas fa-route me-1"></i>거리순
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-sort="date" type="button" role="tab">
+              <i class="fas fa-calendar-alt me-1"></i>날짜순
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-sort="combined" type="button" role="tab">
+              <i class="fas fa-layer-group me-1"></i>복합
+            </button>
+          </li>
+        </ul>
         <div class="list-group" id="scheduleSearchResults">
           <!-- Results -->
         </div>
@@ -451,99 +478,157 @@
     const toast = new bootstrap.Toast(toastEl, { delay: 2000 });
     const toastMsg = document.getElementById('toastMessage');
 
-    // 일정 찾기 버튼 핸들러
-    document.body.addEventListener('click', async function (e) {
-      const btn = e.target.closest('.find-schedule-btn');
-      if (!btn) return;
+    // ───────── 가까운 일정 찾기 ─────────
+    (function () {
+      let _scheduleResults = [];
 
-      const addr = btn.dataset.address;
-      const orderId = btn.dataset.orderId;
-      const modalEl = document.getElementById('scheduleSearchModal');
-      // 모달 자체가 없을 때만 캐시/구버전 페이지로 간주
-      if (!modalEl) {
-        alert('화면 업데이트가 필요합니다. 페이지를 새로고침(F5) 해주세요.');
-        location.reload();
-        return;
-      }
-      const addrEl = document.getElementById('scheduleSearchAddr') || modalEl.querySelector('#scheduleSearchAddr');
-      if (addrEl) addrEl.textContent = addr;
-
-      const resList = document.getElementById('scheduleSearchResults');
-      if (resList) {
-        resList.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted small">주변 일정을 검색 중입니다...</div></div>';
+      function esc(s) {
+        if (s == null) return '';
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
       }
 
-      const modal = new bootstrap.Modal(modalEl);
-      modal.show();
+      function fmtDate(d) {
+        const m = d && d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        return m ? `${parseInt(m[2])}월 ${parseInt(m[3])}일` : esc(d || '');
+      }
 
-      try {
-        const params = new URLSearchParams({ address: addr });
-        if (orderId) params.append('exclude_id', orderId);
-        const res = await fetch(`/api/orders/nearby?${params.toString()}`);
-        const data = await res.json();
+      function sortResults(results, sortType) {
+        const arr = results.map(x => Object.assign({}, x));
+        const today = new Date().toISOString().slice(0, 10);
+        if (sortType === 'distance') {
+          arr.sort((a, b) => {
+            const dd = (a.dist_km || 9999) - (b.dist_km || 9999);
+            return dd !== 0 ? dd : (a.date || '').localeCompare(b.date || '');
+          });
+        } else if (sortType === 'date') {
+          arr.sort((a, b) => {
+            const dd = (a.date || '').localeCompare(b.date || '');
+            return dd !== 0 ? dd : (a.dist_km || 9999) - (b.dist_km || 9999);
+          });
+        } else {
+          // 복합: 거리·날짜 각각 0~1 정규화, 낮을수록 최적
+          const maxDist = Math.max(...arr.map(x => x.dist_km || 0)) || 1;
+          const dayDiffs = arr.map(x => Math.max(0, (new Date(x.date || today) - new Date(today)) / 86400000));
+          const maxDays = Math.max(...dayDiffs) || 1;
+          arr.forEach((x, i) => { x._cs = 0.5 * ((x.dist_km || 0) / maxDist) + 0.5 * (dayDiffs[i] / maxDays); });
+          arr.sort((a, b) => a._cs - b._cs);
+        }
+        return arr;
+      }
 
-        if (resList) {
-          resList.innerHTML = '';
+      function renderResults(results, sortType) {
+        const resList = document.getElementById('scheduleSearchResults');
+        if (!resList) return;
+        const sorted = sortResults(results, sortType);
+        const today = new Date().toISOString().slice(0, 10);
+        resList.innerHTML = '';
+        sorted.forEach(item => {
+          const el = document.createElement('a');
+          el.className = 'list-group-item list-group-item-action p-3';
+          el.href = `/edit/${esc(item.id)}?open=erp-beta`;
+          let badgeClass = 'bg-secondary';
+          if (item.type === '상차') badgeClass = 'bg-warning text-dark';
+          else if (item.type === '시공') badgeClass = 'bg-success';
+          let extraBadge = '';
+          if (sortType === 'distance' && item.dist_km != null) {
+            extraBadge = `<span class="badge bg-info text-dark ms-1">직선 ${esc(item.dist_km)}km</span>`;
+          } else if (sortType === 'date' && item.date) {
+            const days = Math.round((new Date(item.date) - new Date(today)) / 86400000);
+            if (days >= 0) extraBadge = `<span class="badge bg-info text-dark ms-1">D+${days}</span>`;
+          } else if (sortType === 'combined' && item._cs != null) {
+            // _cs 낮을수록 최적이므로 역전하여 표시 (높을수록 좋음)
+            const displayScore = Math.round((1 - item._cs) * 100);
+            extraBadge = `<span class="badge bg-secondary ms-1">종합적합 ${displayScore}점</span>`;
+          }
+          el.innerHTML = `
+            <div class="d-flex w-100 justify-content-between align-items-center mb-2">
+              <div>
+                <span class="badge ${badgeClass} me-2">${esc(item.type)}</span>
+                <span class="fw-bold">${fmtDate(item.date)}</span>
+                <span class="mx-2 text-muted">|</span>
+                <span class="fw-semibold">${esc(item.customer_name)}</span>
+                ${extraBadge}
+              </div>
+              <small class="text-muted">#${esc(item.id)}</small>
+            </div>
+            <p class="mb-1 text-dark">
+              <i class="fas fa-map-marker-alt text-danger me-1"></i> ${esc(item.address)}
+              ${item.score_text ? `<span class="badge bg-light text-dark border ms-2"><i class="fas fa-car-side me-1"></i>${esc(item.score_text)}</span>` : ''}
+            </p>
+            <div class="d-flex justify-content-between align-items-end mt-1">
+              <small class="text-muted">상태: ${esc(item.status)}</small>
+              <small class="text-primary fw-bold"><i class="fas fa-external-link-alt"></i> 바로가기</small>
+            </div>`;
+          resList.appendChild(el);
+        });
+      }
 
+      document.getElementById('scheduleSortTabs').addEventListener('click', function (e) {
+        const tab = e.target.closest('[data-sort]');
+        if (!tab || !_scheduleResults.length) return;
+        this.querySelectorAll('.nav-link').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        renderResults(_scheduleResults, tab.dataset.sort);
+      });
+
+      document.body.addEventListener('click', async function (e) {
+        const btn = e.target.closest('.find-schedule-btn');
+        if (!btn) return;
+        const addr = btn.dataset.address;
+        const orderId = btn.dataset.orderId;
+        const modalEl = document.getElementById('scheduleSearchModal');
+        if (!modalEl) { alert('페이지를 새로고침(F5) 해주세요.'); location.reload(); return; }
+
+        const addrEl = document.getElementById('scheduleSearchAddr');
+        if (addrEl) addrEl.textContent = addr;
+        const tabs = document.getElementById('scheduleSortTabs');
+        if (tabs) {
+          tabs.style.display = 'none';
+          tabs.querySelectorAll('.nav-link').forEach((t, i) => t.classList.toggle('active', i === 0));
+        }
+        const radiusBadge = document.getElementById('scheduleSearchRadiusBadge');
+        if (radiusBadge) radiusBadge.style.display = 'none';
+        const mapLink = document.getElementById('scheduleMapLink');
+        if (mapLink) mapLink.style.display = 'none';
+        const resList = document.getElementById('scheduleSearchResults');
+        if (resList) resList.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted small">주변 일정을 검색 중입니다...</div></div>';
+        bootstrap.Modal.getOrCreate(modalEl).show();
+
+        try {
+          const params = new URLSearchParams({ address: addr });
+          if (orderId) params.append('exclude_id', orderId);
+          const res = await fetch(`/api/orders/nearby?${params.toString()}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
           if (!data.success || !data.results || data.results.length === 0) {
-            resList.innerHTML = `
-                <div class="text-center py-5 text-muted">
-                  <i class="fas fa-calendar-times mb-2" style="font-size: 2rem;"></i>
-                  <p>10km 반경 내에 예정된 출고/시공 일정이 없습니다.</p>
-                </div>`;
+            if (resList) resList.innerHTML = `
+              <div class="text-center py-5 text-muted">
+                <i class="fas fa-calendar-times mb-2" style="font-size: 2rem;"></i>
+                <p>30km 반경 내에 예정된 출고/시공 일정이 없습니다.</p>
+              </div>`;
             return;
           }
-
-          if (data.search_radius_km) {
-            const radiusBadge = document.createElement('div');
-            radiusBadge.className = 'text-muted small mb-2 px-1';
-            radiusBadge.innerHTML = `<i class="fas fa-circle-notch me-1"></i>반경 ${data.search_radius_km}km 내 검색 결과`;
-            resList.appendChild(radiusBadge);
+          _scheduleResults = data.results;
+          if (radiusBadge && data.search_radius_km) {
+            document.getElementById('scheduleSearchRadiusText').textContent = `반경 ${data.search_radius_km}km 내 검색 결과`;
+            radiusBadge.style.display = 'block';
           }
-
-          data.results.forEach(item => {
-            const el = document.createElement('a');
-            el.className = 'list-group-item list-group-item-action p-3';
-            el.href = `/edit/${item.id}?open=erp-beta`;
-
-            let badgeClass = 'bg-secondary';
-            if (item.type === '상차') badgeClass = 'bg-warning text-dark';
-            else if (item.type === '시공') badgeClass = 'bg-success';
-
-            // 날짜 포맷팅 (YYYY-MM-DD -> M월 D일)
-            let dateDisplay = item.date;
-            const dateMatch = item.date && item.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-            if (dateMatch) {
-              dateDisplay = `${parseInt(dateMatch[2])}월 ${parseInt(dateMatch[3])}일`;
-            }
-
-            el.innerHTML = `
-                <div class="d-flex w-100 justify-content-between align-items-center mb-2">
-                  <div>
-                    <span class="badge ${badgeClass} me-2">${item.type}</span>
-                    <span class="fw-bold">${dateDisplay}</span>
-                    <span class="mx-2 text-muted">|</span>
-                    <span class="fw-semibold">${item.customer_name}</span>
-                  </div>
-                  <small class="text-muted">#${item.id}</small>
-                </div>
-                <p class="mb-1 text-dark">
-                    <i class="fas fa-map-marker-alt text-danger me-1"></i> ${item.address}
-                    ${item.score_text ? `<span class="badge bg-light text-dark border ms-2"><i class="fas fa-car-side me-1"></i>${item.score_text}</span>` : ''}
-                </p>
-                <div class="d-flex justify-content-between align-items-end mt-1">
-                  <small class="text-muted">상태: ${item.status}</small>
-                  <small class="text-primary fw-bold"><i class="fas fa-external-link-alt"></i> 바로가기</small>
-                </div>
-              `;
-            resList.appendChild(el);
-          });
+          if (mapLink) {
+            const kakaoUrl = (data.ref_lat && data.ref_lng)
+              ? `https://map.kakao.com/link/to/${encodeURIComponent(addr)},${data.ref_lat},${data.ref_lng}`
+              : `https://map.kakao.com/?q=${encodeURIComponent(addr)}`;
+            mapLink.href = kakaoUrl;
+            mapLink.style.display = '';
+          }
+          if (tabs) tabs.style.display = '';
+          renderResults(_scheduleResults, 'distance');
+        } catch (err) {
+          console.error(err);
+          if (resList) resList.innerHTML = '<div class="text-center py-3 text-danger">오류가 발생했습니다.</div>';
         }
-      } catch (err) {
-        console.error(err);
-        if (resList) resList.innerHTML = '<div class="text-center py-3 text-danger">오류가 발생했습니다.</div>';
-      }
-    });
+      });
+    })();
 
     function showFeedback(msg, isError = false) {
       toastMsg.textContent = msg;
