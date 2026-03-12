@@ -157,15 +157,13 @@ def api_orders_nearby():
     from sqlalchemy.orm import load_only, selectinload
     from models import OrderScheduleDate
 
-    # 1. 오늘 이후 시공 예정일이 있는 주문만 조회 (상차일·AS 상태 제외, 전국 대상)
-    # ─ 핵심: AS_RECEIVED·AS_COMPLETED 상태는 scheduled_date가 AS 방문일로 사용되므로 반드시 제외.
-    #         시공일(construction date) 기준으로만 찾아야 하므로 상태 화이트리스트로 제한.
+    # 1. 내일 이후 시공 예정일이 있는 주문만 조회 (AS 상태 제외, 전국 대상)
+    # ─ AS_RECEIVED·AS_COMPLETED만 제외 (scheduled_date가 AS방문일로 오염됨)
+    # ─ 화이트리스트 대신 블랙리스트: 실제 DB 상태가 CONSTRUCTION·MEASURE 등
+    #   다양하므로 AS 상태만 명시적으로 exclude하는 것이 안전.
     # ─ 지역 사전 필터를 걸면 인접 시/도 주문을 놓치므로, 날짜+상태 필터만 적용 후
     #   Haversine 거리 계산으로 가장 가까운 Top5를 순수하게 찾는다.
-    _CONSTRUCTION_STATUSES = (
-        'RECEIVED', 'ON_HOLD', 'MEASURED', 'MEASURED_COMPLETED',
-        'SCHEDULED', 'SHIPPED_PENDING', 'COMPLETED',
-    )
+    _AS_STATUSES = ('AS_RECEIVED', 'AS_COMPLETED', 'DELETED')
     query = (
         db.query(Order)
         .options(
@@ -181,8 +179,8 @@ def api_orders_nearby():
                  OrderScheduleDate.kind == 'construction'),
         )
         .filter(
-            # AS 상태는 scheduled_date가 AS 방문일이므로 제외 — 시공일 기준만 사용
-            Order.status.in_(_CONSTRUCTION_STATUSES),
+            # AS 상태만 제외 (scheduled_date가 AS방문일로 오염) — 나머지 전부 허용
+            ~Order.status.in_(_AS_STATUSES),
             or_(
                 # 시공 예정일: 일반 주문 scheduled_date
                 Order.scheduled_date >= ref_date,
