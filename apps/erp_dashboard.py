@@ -301,6 +301,15 @@ def erp_dashboard():
                 continue
         filtered.append(r)
 
+    # 실측/시공 단계 진입 시: 해당 날짜 내림차순(먼 미래 순) 정렬
+    # YYYY-MM-DD 문자열 비교로 정렬, 날짜 없는 항목은 맨 아래
+    if f_stage:
+        _req_code = STAGE_NAME_TO_CODE.get(f_stage, f_stage)
+        if _req_code == 'MEASURE':
+            filtered.sort(key=lambda r: r.get('measurement_date') or '', reverse=True)
+        elif _req_code == 'CONSTRUCTION':
+            filtered.sort(key=lambda r: r.get('construction_date') or '', reverse=True)
+
     kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0}
     step_stats = {k: {'count': 0, 'overdue': 0, 'imminent': 0} for k in [
         '주문접수', '실측', '도면', '고객컨펌', '생산', '시공', 'CS', '완료', 'AS처리'
