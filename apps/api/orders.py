@@ -254,65 +254,53 @@ def api_orders_nearby():
                 item['_lng'] = lng
                 with_distance.append(item)
 
-        # 3-2. 순차 반경 확장 + 날짜 dedupe
-        # 1km→3km→5km→10km→15km→20km→25km→30km 순으로 확장,
-        # 고유날짜 5건이 모이면 즉시 중단.
-        # 30km에서도 미달이면 전체 거리 무관 최대 5건.
-
-        # 3-2. 30km까지 전체 수집 후 날짜 dedup, 탭별 Top 5 각각 계산
-        # 각 탭이 독립적으로 최적 5건을 선택할 수 있도록 단일 풀에서 분리 계산.
+        # 3-2. 30km 이내 전체 pool에서 탭별 독립 Top5 계산
+        # ─ 날짜 dedup 제거: 같은 날짜여도 각 주문 독립 평가
+        #   (dedup 시 같은 날 더 가까운 주문이 먼저 선택되어 실제 가까운 주문이 탈락하는 버그 수정)
         _MAX_KM = _SEARCH_RADII_KM[-1]  # 30km
         within_max = [it for it in with_distance if it['_dist_km'] <= _MAX_KM]
         pool = within_max if within_max else with_distance
         used_radius = _MAX_KM
 
-        # 날짜별 dedup: 같은 날짜는 가장 가까운 1건만, 개수 제한 없음
-        def _dedup_all_dates(items: list[dict]) -> list[dict]:
-            """날짜→거리 정렬 후 날짜별 가장 가까운 1건 (개수 제한 없음)."""
-            sorted_items = sorted(items, key=lambda x: (x.get('date') or '9999-99-99', x['_dist_km']))
-            seen: set[str] = set()
-            result = []
-            for it in sorted_items:
-                d = it.get('date') or ''
-                if d not in seen:
-                    seen.add(d)
-                    result.append(it)
-            return result
-
-        all_dates_pool = _dedup_all_dates(pool)
-
-        # 1. 거리순 Top 5: 직선거리 오름차순 → 날짜 오름차순
-        by_distance = sorted(all_dates_pool,
+        # 1. 거리순 Top5: 직선거리 오름차순 → 날짜 오름차순 (날짜 dedup 없이 전체에서 선택)
+        by_distance = sorted(pool,
                              key=lambda x: (x['_dist_km'], x.get('date') or '9999-99-99'))[:_MAX_RESULTS]
 
-        # 2. 날짜순 Top 5: 날짜 오름차순 → 직선거리 오름차순
-        by_date = sorted(all_dates_pool,
+        # 2. 날짜순 Top5: 날짜 오름차순 → 직선거리 오름차순
+        by_date = sorted(pool,
                          key=lambda x: (x.get('date') or '9999-99-99', x['_dist_km']))[:_MAX_RESULTS]
 
-        # 3. 복합 Top 5: 거리·날짜 각 0~1 정규화 후 0.5:0.5 합산
+        # 3. 복합 Top5: 거리·날짜 각 0~1 정규화 후 0.5:0.5 합산
         try:
             _ref_obj = datetime.date.fromisoformat(ref_date)
         except Exception:
             _ref_obj = datetime.date.today()
 
-        if all_dates_pool:
-            _max_dist = max(it['_dist_km'] for it in all_dates_pool) or 1.0
+        if pool:
+            _max_dist = max(it['_dist_km'] for it in pool) or 1.0
 
             def _safe_days(it: dict) -> float:
                 try:
                     return max(0, (datetime.date.fromisoformat(it['date']) - _ref_obj).days)
                 except (ValueError, TypeError, KeyError):
-                    return 9999.0
+                    return None  # 무효 날짜는 정규화에서 제외
 
-            _day_vals = [_safe_days(it) for it in all_dates_pool]
-            _max_days = max(_day_vals) or 1.0
+            _day_vals_raw = [_safe_days(it) for it in pool]
+            # 이상치(None) 제외 후 max 계산 — None이면 복합 점수에서 날짜 기여 0으로 처리
+            valid_days = [v for v in _day_vals_raw if v is not None]
+            _max_days = max(valid_days) if valid_days else 1.0
+
+            def _norm_days(v) -> float:
+                return (v / _max_days) if (v is not None and _max_days > 0) else 1.0  # 무효 날짜: 최하 점수
+
             _scored = sorted(
-                zip(all_dates_pool, _day_vals),
-                key=lambda t: 0.5 * (t[0]['_dist_km'] / _max_dist) + 0.5 * (t[1] / _max_days)
+                zip(pool, _day_vals_raw),
+                key=lambda t: 0.5 * (t[0]['_dist_km'] / _max_dist) + 0.5 * _norm_days(t[1])
             )
             by_combined = [it for it, _ in _scored[:_MAX_RESULTS]]
         else:
             by_distance = by_date = by_combined = []
+
 
         # 3-3. 3개 리스트 합집합에 대해서만 route 계산 (중복 제거, 최대 ~15건)
         def route_item(item: dict):
