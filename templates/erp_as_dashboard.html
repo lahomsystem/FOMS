@@ -593,7 +593,7 @@
         if (mapLink) mapLink.style.display = 'none';
         const resList = document.getElementById('scheduleSearchResults');
         if (resList) resList.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted small">주변 일정을 검색 중입니다...</div></div>';
-        bootstrap.Modal.getOrCreate(modalEl).show();
+        new bootstrap.Modal(modalEl).show();
 
         try {
           const params = new URLSearchParams({ address: addr });
