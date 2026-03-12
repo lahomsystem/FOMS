@@ -257,8 +257,16 @@ def api_orders_nearby():
         # 고유날짜 5건이 모이면 즉시 중단.
         # 30km에서도 미달이면 전체 거리 무관 최대 5건.
 
-        def _dedupe_by_date(items: list[dict]) -> list[dict]:
-            """날짜→거리 정렬 후 날짜별 가장 가까운 1건만 최대 5건 반환."""
+        # 3-2. 30km까지 전체 수집 후 날짜 dedup, 탭별 Top 5 각각 계산
+        # 각 탭이 독립적으로 최적 5건을 선택할 수 있도록 단일 풀에서 분리 계산.
+        _MAX_KM = _SEARCH_RADII_KM[-1]  # 30km
+        within_max = [it for it in with_distance if it['_dist_km'] <= _MAX_KM]
+        pool = within_max if within_max else with_distance
+        used_radius = _MAX_KM
+
+        # 날짜별 dedup: 같은 날짜는 가장 가까운 1건만, 개수 제한 없음
+        def _dedup_all_dates(items: list[dict]) -> list[dict]:
+            """날짜→거리 정렬 후 날짜별 가장 가까운 1건 (개수 제한 없음)."""
             sorted_items = sorted(items, key=lambda x: (x.get('date') or '9999-99-99', x['_dist_km']))
             seen: set[str] = set()
             result = []
@@ -267,25 +275,44 @@ def api_orders_nearby():
                 if d not in seen:
                     seen.add(d)
                     result.append(it)
-                if len(result) >= _MAX_RESULTS:
-                    break
             return result
 
-        final_candidates = []
-        used_radius = None
-        for _radius in _SEARCH_RADII_KM:
-            _within = [it for it in with_distance if it['_dist_km'] <= _radius]
-            _deduped = _dedupe_by_date(_within)
-            if len(_deduped) >= _MAX_RESULTS:
-                final_candidates = _deduped[:_MAX_RESULTS]
-                used_radius = _radius
-                break
-        else:
-            # 30km에서도 5건 미달 → 전체 거리 무관 최대 5건
-            final_candidates = _dedupe_by_date(with_distance)[:_MAX_RESULTS]
-            used_radius = _SEARCH_RADII_KM[-1] if with_distance else None
+        all_dates_pool = _dedup_all_dates(pool)
 
-        # 3-4. 최종 5건에만 카카오 경로(실소요시간) 계산
+        # 1. 거리순 Top 5: 직선거리 오름차순 → 날짜 오름차순
+        by_distance = sorted(all_dates_pool,
+                             key=lambda x: (x['_dist_km'], x.get('date') or '9999-99-99'))[:_MAX_RESULTS]
+
+        # 2. 날짜순 Top 5: 날짜 오름차순 → 직선거리 오름차순
+        by_date = sorted(all_dates_pool,
+                         key=lambda x: (x.get('date') or '9999-99-99', x['_dist_km']))[:_MAX_RESULTS]
+
+        # 3. 복합 Top 5: 거리·날짜 각 0~1 정규화 후 0.5:0.5 합산
+        try:
+            _ref_obj = datetime.date.fromisoformat(ref_date)
+        except Exception:
+            _ref_obj = datetime.date.today()
+
+        if all_dates_pool:
+            _max_dist = max(it['_dist_km'] for it in all_dates_pool) or 1.0
+
+            def _safe_days(it: dict) -> float:
+                try:
+                    return max(0, (datetime.date.fromisoformat(it['date']) - _ref_obj).days)
+                except (ValueError, TypeError, KeyError):
+                    return 9999.0
+
+            _day_vals = [_safe_days(it) for it in all_dates_pool]
+            _max_days = max(_day_vals) or 1.0
+            _scored = sorted(
+                zip(all_dates_pool, _day_vals),
+                key=lambda t: 0.5 * (t[0]['_dist_km'] / _max_dist) + 0.5 * (t[1] / _max_days)
+            )
+            by_combined = [it for it, _ in _scored[:_MAX_RESULTS]]
+        else:
+            by_distance = by_date = by_combined = []
+
+        # 3-3. 3개 리스트 합집합에 대해서만 route 계산 (중복 제거, 최대 ~15건)
         def route_item(item: dict):
             route_info = converter.calculate_route(start_lat, start_lng, item['_lat'], item['_lng'])
             if route_info.get('status') == 'success':
@@ -294,29 +321,37 @@ def api_orders_nearby():
                 item['score_text'] = f"{route_info['distance_km']}km ({route_info['duration_min']}분)"
             else:
                 item['score_text'] = f"약 {item['_dist_km']:.1f}km"
-            # 직선거리는 프론트 정렬용으로 보존
             item['dist_km'] = round(item['_dist_km'], 2)
             item.pop('_dist_km', None)
             item.pop('_lat', None)
             item.pop('_lng', None)
             return item
 
-        final_results = []
-        with ThreadPoolExecutor(max_workers=min(_MAX_RESULTS, len(final_candidates) or 1)) as ex_r:
-            route_futures = [ex_r.submit(route_item, item) for item in final_candidates]
+        _seen_route: set[int] = set()
+        route_targets: list[dict] = []
+        for it in by_distance + by_date + by_combined:
+            if it['id'] not in _seen_route:
+                _seen_route.add(it['id'])
+                route_targets.append(it)
+
+        with ThreadPoolExecutor(max_workers=min(len(route_targets) or 1, 15)) as ex_r:
+            route_futures = [ex_r.submit(route_item, it) for it in route_targets]
             for fut in as_completed(route_futures):
                 try:
-                    final_results.append(fut.result())
+                    fut.result()
                 except Exception as route_err:
                     current_app.logger.warning("[NEARBY] 경로 계산 실패: %s", route_err)
 
-        # 경로 계산 후 시공일 오름차순 재정렬 (동일 날짜 시 소요시간 보조)
-        final_results.sort(key=lambda x: (x.get('date') or '9999-99-99', x.get('duration_min', 9999)))
+        # route_item이 in-place 수정이므로 리스트 그대로 사용
+        # dist_km 없는 아이템(route 실패) 제외
+        def _routed(lst: list[dict]) -> list[dict]:
+            return [it for it in lst if 'dist_km' in it]
 
         return jsonify({
             'success': True,
-            'results': final_results,
-            'count': len(final_results),
+            'by_distance': _routed(by_distance),
+            'by_date':     _routed(by_date),
+            'by_combined': _routed(by_combined),
             'search_radius_km': used_radius,
             'ref_lat': start_lat,
             'ref_lng': start_lng,
@@ -338,8 +373,9 @@ def api_orders_nearby():
 
     return jsonify({
         'success': True,
-        'results': fallback_results,
-        'count': len(fallback_results),
+        'by_distance': fallback_results,
+        'by_date':     sorted(fallback_results, key=lambda x: x.get('date') or '9999-99-99'),
+        'by_combined': fallback_results,
         'search_radius_km': None,
     })
 
