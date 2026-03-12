@@ -262,13 +262,26 @@ def api_orders_nearby():
         pool = within_max if within_max else with_distance
         used_radius = _MAX_KM
 
-        # 1. 거리순 Top5: 직선거리 오름차순 → 날짜 오름차순 (날짜 dedup 없이 전체에서 선택)
+        # 1. 거리순 Top5: 직선거리 오름차순 → 날짜 오름차순 (dedup 없음)
         by_distance = sorted(pool,
                              key=lambda x: (x['_dist_km'], x.get('date') or '9999-99-99'))[:_MAX_RESULTS]
 
-        # 2. 날짜순 Top5: 날짜 오름차순 → 직선거리 오름차순
-        by_date = sorted(pool,
-                         key=lambda x: (x.get('date') or '9999-99-99', x['_dist_km']))[:_MAX_RESULTS]
+        # 2. 날짜순 Top5: 날짜별 dedup (각 날짜에서 가장 가까운 1건 대표) → 날짜 오름차순
+        # ─ 이유: dedup 없으면 가장 빠른 날짜(내일 등)가 Top5를 독점해 선택 폭이 없어짐
+        # ─ 날짜별 1건씩 대표 선택 → 최대 5가지 서로 다른 날짜 선택지 제공
+        def _dedup_by_date(items: list[dict]) -> list[dict]:
+            """날짜별 가장 가까운 1건만 남긴 뒤 날짜 오름차순 정렬."""
+            by_date_dist = sorted(items, key=lambda x: (x.get('date') or '9999-99-99', x['_dist_km']))
+            seen: set[str] = set()
+            result = []
+            for it in by_date_dist:
+                d = it.get('date') or ''
+                if d and d not in seen:
+                    seen.add(d)
+                    result.append(it)
+            return result
+
+        by_date = _dedup_by_date(pool)[:_MAX_RESULTS]
 
         # 3. 복합 Top5: 거리·날짜 각 0~1 정규화 후 0.5:0.5 합산
         try:
