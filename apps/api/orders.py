@@ -31,13 +31,13 @@ def _schedule_date_has_on_or_after(d_date_str, ref_date):
 
 
 def _get_order_schedule_date(order, ref_date: str | None = None):
-    """출고/시공 예정일 반환.
+    """시공 예정일 반환 (가까운 일정 찾기 전용 — 시공일만, 상차일 제외).
 
-    ref_date 지정 시 그 날짜 이후(당일 포함)의 가장 빠른 날짜를 반환한다.
-    AS 주문(AS_RECEIVED/AS_COMPLETED): scheduled_date(실제 시공 예정일)만 사용.
+    ref_date 지정 시 그 날짜 이후(당일 포함)의 가장 빠른 시공일을 반환한다.
+    AS 주문(AS_RECEIVED/AS_COMPLETED): scheduled_date → OrderScheduleDate(construction) 순.
     ERP Beta 주문: structured_data.schedule.construction.date 우선.
-    일반 주문: shipping_scheduled_date → scheduled_date 순.
-    최종 fallback: OrderScheduleDate 관계 (construction/shipping kind).
+    일반 주문: scheduled_date → OrderScheduleDate(construction) 순.
+    shipping_scheduled_date(상차일)는 사용하지 않는다.
     """
     if not order:
         return None
@@ -47,28 +47,21 @@ def _get_order_schedule_date(order, ref_date: str | None = None):
         s = str(d).strip() if d else ''
         return s if s and (not ref_date or s >= ref_date) else None
 
-    status = getattr(order, 'status', None)
-    if status in ('AS_RECEIVED', 'AS_COMPLETED'):
-        if d := _valid(getattr(order, 'scheduled_date', None)):
-            return d
-        # scheduled_date 없으면 OrderScheduleDate fallback으로 계속 진행
-
     sd = getattr(order, 'structured_data', None)
     if getattr(order, 'is_erp_beta', False) and isinstance(sd, dict):
         cons_date = ((sd.get('schedule') or {}).get('construction') or {}).get('date')
         if d := _valid(cons_date):
             return d
 
-    for attr in ('shipping_scheduled_date', 'scheduled_date'):
-        if d := _valid(getattr(order, attr, None)):
-            return d
+    if d := _valid(getattr(order, 'scheduled_date', None)):
+        return d
 
-    # 최종 fallback: OrderScheduleDate 관계 (ref_date 이후 가장 빠른 날짜)
+    # 최종 fallback: OrderScheduleDate 관계 — construction kind만
     sched_dates = getattr(order, 'schedule_dates', None)
     if sched_dates:
         dates = sorted([
-            sd.date for sd in sched_dates
-            if sd.kind in ('construction', 'shipping') and _valid(sd.date)
+            row.date for row in sched_dates
+            if row.kind == 'construction' and _valid(row.date)
         ])
         if dates:
             return dates[0]
@@ -122,17 +115,16 @@ def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 
 
 def _build_candidate_item(order, ref_date: str | None = None) -> dict:
-    """주문 ORM 객체를 nearby 결과 아이템 dict로 변환."""
+    """주문 ORM 객체를 nearby 결과 아이템 dict로 변환 (시공일 기준)."""
     order_addr = _get_order_display_address(order)
     d_date = _get_order_schedule_date(order, ref_date)
-    _shipping = getattr(order, 'shipping_scheduled_date', None)
     _status = getattr(order, 'status', None) or ''
     return {
         'id': order.id,
         'customer_name': _get_order_display_customer_name(order),
         'address': order_addr,
         'date': d_date,
-        'type': '상차' if _shipping else '시공',
+        'type': '시공',
         'status': STATUS.get(_status, _status),
     }
 
@@ -165,7 +157,7 @@ def api_orders_nearby():
     from sqlalchemy.orm import load_only, selectinload
     from models import OrderScheduleDate
 
-    # 1. 오늘 이후 실제 시공/출고 예정일이 있는 주문만 조회 (전국 대상 — 지역 사전 필터 없음)
+    # 1. 오늘 이후 시공 예정일이 있는 주문만 조회 (상차일 제외, 전국 대상)
     # 지역 사전 필터를 걸면 인접 시/도 주문을 놓치므로, 날짜 필터만 적용 후
     # Haversine 거리 계산으로 가장 가까운 Top5를 순수하게 찾는다.
     query = (
@@ -177,11 +169,14 @@ def api_orders_nearby():
             ),
             selectinload(Order.schedule_dates),
         )
-        .outerjoin(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
+        .outerjoin(
+            OrderScheduleDate,
+            and_(Order.id == OrderScheduleDate.order_id,
+                 OrderScheduleDate.kind == 'construction'),
+        )
         .filter(
             Order.status != 'DELETED',
             or_(
-                Order.shipping_scheduled_date >= ref_date,
                 Order.scheduled_date >= ref_date,
                 and_(
                     OrderScheduleDate.id.isnot(None),
