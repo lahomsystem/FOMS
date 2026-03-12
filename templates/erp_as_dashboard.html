@@ -480,7 +480,8 @@
 
     // ───────── 가까운 일정 찾기 ─────────
     (function () {
-      let _scheduleResults = [];
+      // 탭별 pre-computed 리스트 (백엔드에서 각각 계산해 내려줌)
+      let _lists = { distance: [], date: [], combined: [] };
 
       function esc(s) {
         if (s == null) return '';
@@ -493,37 +494,19 @@
         return m ? `${parseInt(m[2])}월 ${parseInt(m[3])}일` : esc(d || '');
       }
 
-      function sortResults(results, sortType) {
-        const arr = results.map(x => Object.assign({}, x));
-        const today = new Date().toISOString().slice(0, 10);
-        if (sortType === 'distance') {
-          arr.sort((a, b) => {
-            const dd = (a.dist_km || 9999) - (b.dist_km || 9999);
-            return dd !== 0 ? dd : (a.date || '').localeCompare(b.date || '');
-          });
-        } else if (sortType === 'date') {
-          arr.sort((a, b) => {
-            const dd = (a.date || '').localeCompare(b.date || '');
-            return dd !== 0 ? dd : (a.dist_km || 9999) - (b.dist_km || 9999);
-          });
-        } else {
-          // 복합: 거리·날짜 각각 0~1 정규화, 낮을수록 최적
-          const maxDist = Math.max(...arr.map(x => x.dist_km || 0)) || 1;
-          const dayDiffs = arr.map(x => Math.max(0, (new Date(x.date || today) - new Date(today)) / 86400000));
-          const maxDays = Math.max(...dayDiffs) || 1;
-          arr.forEach((x, i) => { x._cs = 0.5 * ((x.dist_km || 0) / maxDist) + 0.5 * (dayDiffs[i] / maxDays); });
-          arr.sort((a, b) => a._cs - b._cs);
-        }
-        return arr;
-      }
-
-      function renderResults(results, sortType) {
+      // 정렬은 백엔드 담당 — renderResults는 표시만 수행
+      function renderResults(items, sortType) {
         const resList = document.getElementById('scheduleSearchResults');
         if (!resList) return;
-        const sorted = sortResults(results, sortType);
         const today = new Date().toISOString().slice(0, 10);
         resList.innerHTML = '';
-        sorted.forEach(item => {
+        if (!items || items.length === 0) {
+          resList.innerHTML = `<div class="text-center py-5 text-muted">
+            <i class="fas fa-calendar-times mb-2" style="font-size:2rem;"></i>
+            <p>해당 기준으로 조회된 일정이 없습니다.</p></div>`;
+          return;
+        }
+        items.forEach(item => {
           const el = document.createElement('a');
           el.className = 'list-group-item list-group-item-action p-3';
           el.href = `/edit/${esc(item.id)}?open=erp-beta`;
@@ -536,10 +519,8 @@
           } else if (sortType === 'date' && item.date) {
             const days = Math.round((new Date(item.date) - new Date(today)) / 86400000);
             if (days >= 0) extraBadge = `<span class="badge bg-info text-dark ms-1">D+${days}</span>`;
-          } else if (sortType === 'combined' && item._cs != null) {
-            // _cs 낮을수록 최적이므로 역전하여 표시 (높을수록 좋음)
-            const displayScore = Math.round((1 - item._cs) * 100);
-            extraBadge = `<span class="badge bg-secondary ms-1">종합적합 ${displayScore}점</span>`;
+          } else if (sortType === 'combined') {
+            extraBadge = `<span class="badge bg-secondary ms-1">거리+날짜 최적</span>`;
           }
           el.innerHTML = `
             <div class="d-flex w-100 justify-content-between align-items-center mb-2">
@@ -566,10 +547,10 @@
 
       document.getElementById('scheduleSortTabs').addEventListener('click', function (e) {
         const tab = e.target.closest('[data-sort]');
-        if (!tab || !_scheduleResults.length) return;
+        if (!tab) return;
         this.querySelectorAll('.nav-link').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        renderResults(_scheduleResults, tab.dataset.sort);
+        renderResults(_lists[tab.dataset.sort] || [], tab.dataset.sort);
       });
 
       document.body.addEventListener('click', async function (e) {
@@ -601,17 +582,30 @@
           const res = await fetch(`/api/orders/nearby?${params.toString()}`);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
-          if (!data.success || !data.results || data.results.length === 0) {
+
+          const hasAny = data.success &&
+            ((data.by_distance && data.by_distance.length) ||
+             (data.by_date && data.by_date.length) ||
+             (data.by_combined && data.by_combined.length));
+
+          if (!hasAny) {
             if (resList) resList.innerHTML = `
               <div class="text-center py-5 text-muted">
-                <i class="fas fa-calendar-times mb-2" style="font-size: 2rem;"></i>
+                <i class="fas fa-calendar-times mb-2" style="font-size:2rem;"></i>
                 <p>30km 반경 내에 예정된 출고/시공 일정이 없습니다.</p>
               </div>`;
             return;
           }
-          _scheduleResults = data.results;
+
+          _lists = {
+            distance: data.by_distance || [],
+            date:     data.by_date     || [],
+            combined: data.by_combined || [],
+          };
+
           if (radiusBadge && data.search_radius_km) {
-            document.getElementById('scheduleSearchRadiusText').textContent = `반경 ${data.search_radius_km}km 내 검색 결과`;
+            document.getElementById('scheduleSearchRadiusText').textContent =
+              `반경 ${data.search_radius_km}km 내 검색 결과`;
             radiusBadge.style.display = 'block';
           }
           if (mapLink) {
@@ -622,7 +616,7 @@
             mapLink.style.display = '';
           }
           if (tabs) tabs.style.display = '';
-          renderResults(_scheduleResults, 'distance');
+          renderResults(_lists.distance, 'distance');
         } catch (err) {
           console.error(err);
           if (resList) resList.innerHTML = '<div class="text-center py-3 text-danger">오류가 발생했습니다.</div>';
