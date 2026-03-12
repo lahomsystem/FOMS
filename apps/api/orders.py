@@ -31,13 +31,13 @@ def _schedule_date_has_on_or_after(d_date_str, ref_date):
 
 
 def _get_order_schedule_date(order, ref_date: str | None = None):
-    """시공 예정일 반환 (가까운 일정 찾기 전용 — 시공일만, 상차일 제외).
+    """시공일 반환 (가까운 일정 찾기 전용).
 
-    ref_date 지정 시 그 날짜 이후(당일 포함)의 가장 빠른 시공일을 반환한다.
-    AS 주문(AS_RECEIVED/AS_COMPLETED): scheduled_date → OrderScheduleDate(construction) 순.
-    ERP Beta 주문: structured_data.schedule.construction.date 우선.
-    일반 주문: scheduled_date → OrderScheduleDate(construction) 순.
-    shipping_scheduled_date(상차일)는 사용하지 않는다.
+    기준: #erp-construction-date 필드 = structured_data.schedule.construction.date.
+    ref_date 이후(당일 포함) 중 가장 빠른 날짜를 반환한다.
+    • ERP Beta 주문: structured_data.schedule.construction.date 우선
+    • 일반 주문: scheduled_date → OrderScheduleDate(construction kind) 순
+    • shipping_scheduled_date(상차/출고일)는 사용하지 않음 — 시공일과 별개 개념
     """
     if not order:
         return None
@@ -118,14 +118,13 @@ def _build_candidate_item(order, ref_date: str | None = None) -> dict:
     """주문 ORM 객체를 nearby 결과 아이템 dict로 변환 (시공일 기준)."""
     order_addr = _get_order_display_address(order)
     d_date = _get_order_schedule_date(order, ref_date)
-    _status = getattr(order, 'status', None) or ''
     return {
         'id': order.id,
         'customer_name': _get_order_display_customer_name(order),
         'address': order_addr,
         'date': d_date,
         'type': '시공',
-        'status': STATUS.get(_status, _status),
+        # status 필드 제거 — UI에 상태 표시 불필요
     }
 
 
@@ -144,22 +143,29 @@ def api_orders_nearby():
         return jsonify({'success': False, 'error': '주소가 필요합니다.'}), 400
 
     exclude_id = request.args.get('exclude_id', type=int)
-    # KST(Asia/Seoul) 기준 오늘 날짜 사용 — Railway 서버는 UTC이므로 반드시 명시
+    # KST(Asia/Seoul) 기준 내일 날짜 사용 — 오늘은 제외, 내일부터 집계
+    # Railway 서버는 UTC이므로 반드시 ZoneInfo로 KST 명시
     try:
         from zoneinfo import ZoneInfo
-        _kst_today = datetime.datetime.now(ZoneInfo('Asia/Seoul')).strftime('%Y-%m-%d')
+        _kst_tomorrow = (datetime.datetime.now(ZoneInfo('Asia/Seoul')) + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
     except Exception:
-        _kst_today = (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).strftime('%Y-%m-%d')
-    ref_date = request.args.get('date', _kst_today)
+        _kst_tomorrow = (datetime.datetime.utcnow() + datetime.timedelta(hours=9, days=1)).strftime('%Y-%m-%d')
+    ref_date = request.args.get('date', _kst_tomorrow)
 
     db = get_db()
 
     from sqlalchemy.orm import load_only, selectinload
     from models import OrderScheduleDate
 
-    # 1. 오늘 이후 시공 예정일이 있는 주문만 조회 (상차일 제외, 전국 대상)
-    # 지역 사전 필터를 걸면 인접 시/도 주문을 놓치므로, 날짜 필터만 적용 후
-    # Haversine 거리 계산으로 가장 가까운 Top5를 순수하게 찾는다.
+    # 1. 오늘 이후 시공 예정일이 있는 주문만 조회 (상차일·AS 상태 제외, 전국 대상)
+    # ─ 핵심: AS_RECEIVED·AS_COMPLETED 상태는 scheduled_date가 AS 방문일로 사용되므로 반드시 제외.
+    #         시공일(construction date) 기준으로만 찾아야 하므로 상태 화이트리스트로 제한.
+    # ─ 지역 사전 필터를 걸면 인접 시/도 주문을 놓치므로, 날짜+상태 필터만 적용 후
+    #   Haversine 거리 계산으로 가장 가까운 Top5를 순수하게 찾는다.
+    _CONSTRUCTION_STATUSES = (
+        'RECEIVED', 'ON_HOLD', 'MEASURED', 'MEASURED_COMPLETED',
+        'SCHEDULED', 'SHIPPED_PENDING', 'COMPLETED',
+    )
     query = (
         db.query(Order)
         .options(
@@ -175,14 +181,17 @@ def api_orders_nearby():
                  OrderScheduleDate.kind == 'construction'),
         )
         .filter(
-            Order.status != 'DELETED',
+            # AS 상태는 scheduled_date가 AS 방문일이므로 제외 — 시공일 기준만 사용
+            Order.status.in_(_CONSTRUCTION_STATUSES),
             or_(
+                # 시공 예정일: 일반 주문 scheduled_date
                 Order.scheduled_date >= ref_date,
+                # OrderScheduleDate construction kind
                 and_(
                     OrderScheduleDate.id.isnot(None),
                     OrderScheduleDate.date >= ref_date,
                 ),
-                # ERP Beta: 시공일이 structured_data.schedule.construction.date 에만 있는 경우
+                # ERP Beta: #erp-construction-date = structured_data.schedule.construction.date
                 and_(
                     Order.is_erp_beta == True,
                     func.jsonb_extract_path_text(
