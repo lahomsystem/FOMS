@@ -96,3 +96,93 @@ def geocode_order_address(order_id):
     except Exception as e:
         print(f"[RQ] geocode_order_address error: {e}")
         raise
+
+
+def push_order_to_channeltalk(order_id, event_type="update"):
+    """
+    채널톡 그룹 메시지 푸시 (worker 전용).
+
+    주문의 현재 상태를 채널톡 해당 팀 그룹으로 전송.
+    단계에 맞는 카테고리의 이미지(최근 5장)를 Presigned URL로 첨부.
+
+    Args:
+        order_id: Order.id
+        event_type: "new" / "update" / "save"
+    """
+    if not order_id:
+        return
+    try:
+        from services.channel_client import (
+            is_configured,
+            format_order_message,
+            get_target_group_id,
+            get_attachment_category_for_status,
+            send_group_message,
+        )
+
+        if not is_configured():
+            print("[채널톡] 환경변수 미설정 - 푸시 건너뜀")
+            return
+
+        from db import db_session
+        from models import Order, OrderAttachment
+        from services.storage import get_storage
+
+        db = db_session()
+        try:
+            order = db.query(Order).filter(Order.id == int(order_id)).first()
+            if not order:
+                return
+
+            sd = order.structured_data or {}
+            schedule = sd.get("schedule", {})
+
+            plain_text = format_order_message(
+                customer_name=order.customer_name,
+                status=order.status,
+                address=order.address,
+                order_id=order.id,
+                schedule=schedule,
+                event_type=event_type,
+            )
+
+            # 단계에 맞는 이미지 첨부 (최근 5장, Presigned URL)
+            img_category = get_attachment_category_for_status(order.status)
+            files = []
+            if img_category:
+                storage = get_storage()
+                attachments = (
+                    db.query(OrderAttachment)
+                    .filter(
+                        OrderAttachment.order_id == order.id,
+                        OrderAttachment.category == img_category,
+                        OrderAttachment.file_type == "image",
+                    )
+                    .order_by(OrderAttachment.id.desc())
+                    .limit(5)
+                    .all()
+                )
+                for att in attachments:
+                    if att.storage_key:
+                        url = storage.get_download_url(att.storage_key, expires_in=3600)
+                        if url:
+                            files.append({
+                                "fileName": att.filename or "image.jpg",
+                                "url": url,
+                                "mime": "image/jpeg",
+                            })
+
+            group_id = get_target_group_id(order.status)
+            result = send_group_message(
+                group_id=group_id,
+                plain_text=plain_text,
+                files=files,
+            )
+            if not result.get('success'):
+                raise RuntimeError(f"채널톡 전송 실패 (order_id={order_id}, group={group_id})")
+        finally:
+            db.close()
+            db_session.remove()
+    except Exception as e:
+        print(f"[RQ] push_order_to_channeltalk error: {e}")
+        raise

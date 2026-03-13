@@ -2,12 +2,14 @@
 ERP 주문 구조화 데이터 API (structured GET/PUT, parse-text, erp/draft).
 """
 
+import copy
 import json
 import datetime
 from typing import Any
 
 from flask import Blueprint, request, jsonify, session
 from sqlalchemy import text
+from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from models import Order, OrderEvent
@@ -21,7 +23,7 @@ from services.erp_policy import (
 from erp_automation import apply_auto_tasks
 from erp_order_text_parser import parse_order_text
 from services.geocode_helpers import extract_address_from_structured_data
-from services.jobs.queue import enqueue_geocode_order_address
+from services.jobs.queue import enqueue_geocode_order_address, enqueue_channeltalk_push
 
 
 erp_orders_structured_bp = Blueprint('erp_orders_structured', __name__, url_prefix='/api')
@@ -277,7 +279,8 @@ def api_put_order_structured(order_id):
             except Exception:
                 pass
 
-            setattr(order, 'structured_data', structured_data)
+            order.structured_data = copy.deepcopy(structured_data)
+            flag_modified(order, 'structured_data')
         setattr(order, 'structured_schema_version', int(schema_version) if schema_version else 1)
         setattr(order, 'structured_confidence', confidence or (structured_data.get('confidence') if structured_data else None))
         setattr(order, 'structured_updated_at', now)
@@ -297,6 +300,7 @@ def api_put_order_structured(order_id):
             new_addr = extract_address_from_structured_data(structured_data)
             if new_addr and old_addr != new_addr:
                 enqueue_geocode_order_address(order_id)
+            enqueue_channeltalk_push(order_id, "update")
 
         _record_build_step(db, step_key, "COMPLETED", message="Saved structured data")
         return jsonify({'success': True, 'draft_cleared': draft_cleared})
