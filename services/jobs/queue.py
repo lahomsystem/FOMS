@@ -65,3 +65,30 @@ def enqueue_geocode_order_address(order_id):
     except Exception as e:
         print(f"[RQ] enqueue_geocode_order_address error: {e}")
         return False
+
+
+def enqueue_channeltalk_push(order_id, event_type="update"):
+    """
+    채널톡 그룹 메시지 push job enqueue.
+
+    Args:
+        order_id: Order.id
+        event_type: "new" / "update" / "save"
+
+    Returns:
+        큐 등록 성공 여부 (False이면 RQ 미활성화)
+    """
+    q = get_rq_queue()
+    if not q:
+        return False
+    try:
+        q.enqueue(
+            'services.jobs.tasks.push_order_to_channeltalk',
+            int(order_id),
+            event_type,
+            job_timeout='2m',
+        )
+        return True
+    except Exception as e:
+        print(f"[RQ] enqueue_channeltalk_push error: {e}")
+        return False

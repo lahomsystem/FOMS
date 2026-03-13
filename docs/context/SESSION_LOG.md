@@ -4,11 +4,23 @@
 
 ## 최근 세션
 
+### Session: 38bb1d6b
+- **시작**: 2026-03-13 09:03:40
+- **상태**: unknown
+- **편집 파일**: `commit_msg.txt`, `apps/erp_shipment_page.py`
+- **종료**: 2026-03-13 09:03:54
+
+### Session: 6a2cbf0d
+- **시작**: 2026-03-13 08:26:54
+- **상태**: completed
+- **편집 파일**: (없음)
+- **종료**: 2026-03-13 16:32:47
+
 ### Session: 700dcd20
 - **시작**: 2026-03-09 09:45:23
 - **상태**: completed
-- **편집 파일**: `commit_msg.txt`, `templates/partials/erp_dashboard_grid.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-3b8f06c5-bbe4-46f4-9fb8-292b25faecc5.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e62d5c32-012b-4aea-9a71-ed306ff1903e.png`, `templates/index.html`, `static/css/erp-pro.css`, `apps/order_pages.py`, `scripts/delete_prod_fallback.py`, `scripts/check_prod_fallback.py`
-- **종료**: 2026-03-11 13:10:16
+- **편집 파일**: `commit_msg.txt`, `apps/erp_shipment_page.py`
+- **종료**: 2026-03-12 13:59:20
 
 ### Session: 30f3cb90
 - **시작**: 2026-03-08 13:07:18
@@ -146,3 +158,153 @@
 | 2026-03-11 16:45:13 | END (Claude Code) | 수정: apps/api/orders.py, templates/erp_as_dashboard.html |
 
 | 2026-03-11 16:48:57 | END (Claude Code) | 수정: apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-11 23:49:13 | END (Claude Code) | 수정: apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-12 00:07:42 | END (Claude Code) | 수정: apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-12 00:17:04 | END (Claude Code) | 수정: commit_msg.txt, apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-12 00:29:07 | END (Claude Code) | 수정: commit_msg.txt, apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-12 00:30:57 | END (Claude Code) | 수정: commit_msg.txt, apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-12 00:31:50 | END (Claude Code) | 수정: commit_msg.txt, apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-12 00:32:17 | END (Claude Code) | 수정: commit_msg.txt, apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-12 00:38:47 | END (Claude Code) | 수정: commit_msg.txt, apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-12 00:49:19 | END (Claude Code) | 수정: commit_msg.txt, apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-12 01:01:46 | END (Claude Code) | 수정: commit_msg.txt, apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-12 08:16:03 | END (Claude Code) | 수정: commit_msg.txt, apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-12 08:27:58 | END (Claude Code) | 수정: commit_msg.txt, apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-12 08:49:00 | END (Claude Code) | 수정: commit_msg.txt, apps/erp_dashboard.py, apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-12 08:51:03 | END (Claude Code) | 수정: commit_msg.txt, apps/erp_dashboard.py, apps/api/orders.py, templates/erp_as_dashboard.html |
+
+| 2026-03-12 09:17:48 | END (Claude Code) | 수정: templates/erp_as_dashboard.html, apps/api/orders.py, commit_msg.txt, apps/erp_dashboard.py |
+
+| 2026-03-12 09:22:46 | END (Claude Code) | 수정: templates/erp_as_dashboard.html, apps/api/orders.py, commit_msg.txt, apps/erp_dashboard.py |
+
+| 2026-03-12 09:30:05 | END (Claude Code) | 수정: templates/erp_as_dashboard.html, apps/api/orders.py, commit_msg.txt, apps/erp_dashboard.py |
+
+| 2026-03-12 09:40:14 | END (Claude Code) | 수정: templates/erp_as_dashboard.html, apps/api/orders.py, commit_msg.txt, apps/erp_dashboard.py |
+
+| 2026-03-12 09:40:48 | END (Claude Code) | 수정: templates/erp_as_dashboard.html, apps/api/orders.py, commit_msg.txt, apps/erp_dashboard.py |
+
+| 2026-03-12 09:59:05 | END (Claude Code) | 수정: apps/api/orders.py, templates/erp_as_dashboard.html, commit_msg.txt, apps/erp_dashboard.py |
+
+| 2026-03-12 10:00:48 | END (Claude Code) | 수정: apps/api/orders.py, templates/erp_as_dashboard.html, commit_msg.txt, apps/erp_dashboard.py |
+
+| 2026-03-12 10:02:42 | END (Claude Code) | 수정: apps/api/orders.py, templates/erp_as_dashboard.html, commit_msg.txt, apps/erp_dashboard.py |
+
+| 2026-03-12 10:09:56 | END (Claude Code) | 수정: apps/api/orders.py, templates/erp_as_dashboard.html, commit_msg.txt, apps/erp_dashboard.py |
+
+| 2026-03-12 10:17:01 | END (Claude Code) | 수정: templates/erp_as_dashboard.html, apps/api/orders.py, commit_msg.txt, apps/erp_dashboard.py |
+
+| 2026-03-12 10:24:05 | END (Claude Code) | 수정: apps/api/orders.py, templates/erp_as_dashboard.html, commit_msg.txt, apps/erp_dashboard.py |
+
+| 2026-03-12 13:38:47 | END (Claude Code) | 수정: apps/erp_dashboard.py, apps/api/orders.py, templates/erp_as_dashboard.html, commit_msg.txt |
+
+| 2026-03-12 13:39:22 | END (Claude Code) | 수정: apps/erp_dashboard.py, apps/api/orders.py, templates/erp_as_dashboard.html, commit_msg.txt |
+
+| 2026-03-12 13:44:02 | END (Claude Code) | 수정: apps/erp_dashboard.py, apps/api/orders.py, templates/erp_as_dashboard.html, commit_msg.txt |
+
+| 2026-03-12 13:45:53 | END (Claude Code) | 수정: apps/erp_dashboard.py, apps/api/orders.py, templates/erp_as_dashboard.html, commit_msg.txt |
+
+| 2026-03-12 13:49:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-12 13:59:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-13 08:30:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-13 08:52:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-13 09:06:04 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-13 09:39:32 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-13 09:40:24 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-13 09:44:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-13 09:48:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-13 09:50:38 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-13 10:14:17 | END (Claude Code) | 수정: apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/queue.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/tasks.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py |
+
+| 2026-03-13 10:14:31 | END (Claude Code) | 수정: apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/queue.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/tasks.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py |
+
+| 2026-03-13 10:19:04 | END (Claude Code) | 수정: apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/queue.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/tasks.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py |
+
+| 2026-03-13 10:20:31 | END (Claude Code) | 수정: apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/queue.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/tasks.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py |
+
+| 2026-03-13 10:26:28 | END (Claude Code) | 수정: apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/queue.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/tasks.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py |
+
+| 2026-03-13 10:30:59 | END (Claude Code) | 수정: apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/queue.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/tasks.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py |
+
+| 2026-03-13 11:17:27 | END (Claude Code) | 수정: apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/queue.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/tasks.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py |
+
+| 2026-03-13 11:29:24 | END (Claude Code) | 수정: ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/queue.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/tasks.py |
+
+| 2026-03-13 11:38:53 | END (Claude Code) | 수정: ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/queue.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/tasks.py |
+
+| 2026-03-13 11:43:07 | END (Claude Code) | 수정: ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/queue.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/tasks.py |
+
+| 2026-03-13 11:48:00 | END (Claude Code) | 수정: ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/queue.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/tasks.py |
+
+| 2026-03-13 11:55:52 | END (Claude Code) | 수정: ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/queue.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/jobs/tasks.py |
+
+| 2026-03-13 14:06:12 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 14:25:15 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 14:32:53 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 14:33:27 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 14:34:13 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 14:35:26 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 14:38:18 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 14:41:26 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 14:41:47 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 14:44:47 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 14:48:51 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 14:51:25 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 14:53:24 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 14:55:14 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 15:06:01 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 15:11:12 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 15:24:56 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 15:28:04 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 15:29:43 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 16:03:06 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 16:03:43 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 16:05:03 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 16:16:04 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
+
+| 2026-03-13 16:32:47 | END (Claude Code) | 수정: services/jobs/tasks.py, apps/api/channel_integration.py, services/channel_client.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/app.py, templates/partials/erp_beta_js.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/channel_integration.py, templates/partials/erp_beta_tab.html, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/channel_client.py, apps/api/erp_orders_structured.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_structured.py |
