@@ -1908,12 +1908,15 @@ ${list.map(renderCard).join('')}
             text += `\n`;
         }
 
-        // Footer
-        const totalText = document.getElementById('erp-items-total')?.textContent || '0원';
-        // Remove '원' for calculation if needed, but here we just need text.
-        // User example: 선결제금액: '(2제품의 결제 금액 합계)'원
-        // We will output: 선결제금액: 1,500,000원
-        text += `선결제금액 : ${totalText}`;
+        // Footer: 예약금(선금) 값이 있으면 "예약금" 표시, 없으면 "선결제금액" 표시
+        const depositEl = document.getElementById('erp-deposit-amount');
+        const depositVal = depositEl ? (depositEl.value || '').trim() : '';
+        if (depositVal && depositVal !== '0원' && depositVal !== '0') {
+            text += `예약금 : ${depositVal}`;
+        } else {
+            const totalText = document.getElementById('erp-items-total')?.textContent || '0원';
+            text += `선결제금액 : ${totalText}`;
+        }
 
         const textarea = document.getElementById('erp-conversion-text');
         if (textarea) {
@@ -2048,6 +2051,61 @@ ${list.map(renderCard).join('')}
         document.getElementById('erp-attachments-upload-btn')?.addEventListener('click', erpUploadSelectedAttachments);
         document.getElementById('erp-gen-text-btn')?.addEventListener('click', erpGenerateConversionText);
         document.getElementById('erp-copy-text-btn')?.addEventListener('click', erpCopyToClipboard);
+
+        // 채널톡 푸쉬 버튼
+        document.getElementById('erp-channeltalk-push-btn')?.addEventListener('click', async function() {
+            const btn = this;
+
+            // 1. 텍스트 자동 생성 (비어있든 아니든 항상 최신 데이터로 재생성)
+            if (typeof erpGenerateConversionText === 'function') {
+                erpGenerateConversionText();
+            }
+            const text = (document.getElementById('erp-conversion-text')?.value || '').trim();
+            if (!text) {
+                alert('변환할 내용이 없습니다. 주문 정보를 입력해주세요.');
+                return;
+            }
+
+            // 2. order_id 확인
+            const orderId = (typeof ORDER_ID !== 'undefined' && ORDER_ID > 0) ? ORDER_ID : 0;
+            if (!orderId) {
+                alert('주문을 먼저 저장해야 채널톡으로 전송할 수 있습니다.');
+                return;
+            }
+
+            // 3. 버튼 비활성화 (중복 클릭 방지)
+            btn.disabled = true;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 전송중...';
+
+            try {
+                const resp = await fetch('/api/channel/push-manual', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order_id: orderId, text }),
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    btn.innerHTML = '<i class="fas fa-check"></i> 전송완료';
+                    btn.classList.replace('btn-primary', 'btn-success');
+                    setTimeout(() => {
+                        btn.innerHTML = originalHtml;
+                        btn.classList.replace('btn-success', 'btn-primary');
+                        btn.disabled = false;
+                    }, 3000);
+                } else {
+                    const errMsg = data.error || '알 수 없는 오류';
+                    alert(`채널톡 전송 실패:\n${errMsg}`);
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                alert(`네트워크 오류: ${e.message}`);
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        });
 
         // 실측일/시공일 달력: 페이지 로드 시에도 초기화하여 탭 전환 전에도 클릭 시 달력 열림
         initErpMainDatePickers();

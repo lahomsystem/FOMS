@@ -286,6 +286,8 @@ from apps.calendar_page import calendar_bp
 app.register_blueprint(calendar_bp)
 from apps.wdplanner_page import wdplanner_bp
 app.register_blueprint(wdplanner_bp)
+from apps.api.channel_integration import channel_integration_bp
+app.register_blueprint(channel_integration_bp)
 from apps.api.debug import debug_bp
 app.register_blueprint(debug_bp)
 
