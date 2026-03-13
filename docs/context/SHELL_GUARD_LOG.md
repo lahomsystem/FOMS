@@ -1,155 +1,9 @@
 # Shell Guard Log
 
-> Claude Code Hook(`PreToolUse:Bash`)가 자동 기록합니다.
+> Cursor Hook(`beforeShellExecution`)가 자동 기록합니다.
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-02-28 20:29:16 | ask | `pip\s+install\s+(?!-r)` | `pip install flask` |
-| 2026-03-01 12:18:47 | allow | `-` | `(payload에 command 없음)` |
-| 2026-03-01 12:30:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Remove-Item "docs\context\.hook_debug_once" -ErrorAction SilentlyContinue; Remove-Item "docs\c` |
-| 2026-03-01 12:30:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; echo "=== SHELL_GUARD_LOG ==="; Get-Content "docs\context\SHELL_GUARD_LOG.md"; echo ""; echo "` |
-| 2026-03-01 12:30:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if (Test-Path "docs\context\HOOK_PAYLOAD_DEBUG.jsonl") { python -c "import json; [print(json.d` |
-| 2026-03-01 12:32:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; echo "=== SHELL_GUARD_LOG (last 5 rows) ==="; Get-Content "docs\context\SHELL_GUARD_LOG.md" | ` |
-| 2026-03-01 12:32:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import sys; sys.path.insert(0, '.cursor/hooks'); from shared_utils import find_key_` |
-| 2026-03-01 12:32:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $hooks = @("session_start.py", "session_stop.py", "guard_shell.py", "track_edits.py", "pre_com` |
-| 2026-03-01 12:32:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $payload = '{"conversation_id":"test-verify","workspace_roots":["/c:/Users/USER/OneDrive/Deskt` |
-| 2026-03-01 12:32:51 | allow | `-` | `echo test` |
-| 2026-03-01 12:32:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; echo '{"conversation_id":"test-verify","workspace_roots":["/c:/Users/USER/OneDrive/Desktop/SY/` |
-| 2026-03-01 12:37:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch -a` |
-| 2026-03-01 12:37:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add .cursor/hooks/guard_shell.py .cursor/hooks/hook_payload_debug.py .cursor/hooks/post_ta` |
-| 2026-03-01 12:38:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
-| 2026-03-01 12:38:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash pop` |
-| 2026-03-01 12:55:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git branch --show-current` |
-| 2026-03-01 12:55:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/css/erp-pro.css static/css/style-pro-max.css; git add templates/layout.html tem` |
-| 2026-03-01 12:55:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
-| 2026-03-01 12:56:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-01 12:58:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import sys sys.path.insert(0, '.') from app import create_app app = create_app() w` |
-| 2026-03-01 12:58:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import sys sys.path.insert(0, '.') from app import app with app.test_client() as c` |
-| 2026-03-01 12:59:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from app import app with app.test_client() as c: for path in ['/', '/erp/dashboard` |
-| 2026-03-01 17:13:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; Get-ChildItem -Path "templates\partials\chat_scripts*.html" | ForEach-Object { $n = (Get-Cont` |
-| 2026-03-01 17:51:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; Get-ChildItem -Path "templates\partials" -Filter "chat_scripts*.html" | ForEach-Object { $n =` |
-| 2026-03-01 17:52:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c " # Simulate line count: layout up to {% block content %} then chat content then {%` |
-| 2026-03-01 17:53:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c " from app import app with app.test_client() as c: rv = c.get('/chat') if rv.status` |
-| 2026-03-01 17:53:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; $files = @('templates/partials/chat_scripts_core.html','templates/partials/chat_scripts_light` |
-| 2026-03-01 17:53:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; $all = Get-Content "templates/partials/chat_scripts_core.html","templates/partials/chat_scrip` |
-| 2026-03-01 17:53:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; $all = Get-Content "templates/partials/chat_scripts_core.html","templates/partials/chat_scrip` |
-| 2026-03-01 17:55:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; foreach ($f in (Get-ChildItem "templates\partials\chat_scripts*.html")) { $content = Get-Cont` |
-| 2026-03-01 17:57:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c " from app import app # Test bundle render (no login - will 302 for /chat/scripts.j` |
-| 2026-03-01 18:01:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; $base = 0; $files = @('templates/partials/chat_scripts_core.html','templates/partials/chat_sc` |
-| 2026-03-01 18:11:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git diff HEAD` |
-| 2026-03-01 18:12:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; cat templates/partials/chat_scripts_dom.html | grep -n "addEventListener('click'"` |
-| 2026-03-01 18:21:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c " from app import app with app.test_request_context(): from flask import render_tem` |
-| 2026-03-01 18:21:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c " from app import app with app.test_request_context(): from flask import render_tem` |
-| 2026-03-01 18:21:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c " from app import app with app.test_request_context(): from flask import render_tem` |
-| 2026-03-01 18:22:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c " with open('temp_script.js', 'r', encoding='utf-8') as f: lines = f.read().splitli` |
-| 2026-03-01 18:23:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c " with open('templates/partials/chat_styles.html', 'r', encoding='utf-8') as f: con` |
-| 2026-03-01 18:23:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c " with open('templates/partials/chat_styles.html', 'r', encoding='utf-8') as f: lin` |
-| 2026-03-01 18:55:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c " from app import app with app.test_request_context(): from flask import render_tem` |
-| 2026-03-01 19:02:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git add . ; git commit --trailer "Made-with: Cursor" -F commit_msg.txt ; git push origin depl` |
-| 2026-03-01 19:02:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git checkout production ; git merge deploy ; git push origin production ; git checkout deploy` |
-| 2026-03-01 19:02:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git add docs/context/SHELL_GUARD_LOG.md ; git commit --trailer "Made-with: Cursor" -m "chore:` |
-| 2026-03-01 19:02:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git push origin deploy` |
-| 2026-03-02 10:29:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c "from app import app; from apps.erp_completion_page import erp_completion_page_bp; ` |
-| 2026-03-02 10:38:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c "from app import app; from apps.api.erp_orders_completion import erp_orders_complet` |
-| 2026-03-02 11:21:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-02 11:22:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add app.py apps/erp_completion_page.py apps/api/erp_orders_completion.py templates/erp_com` |
-| 2026-03-02 11:22:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg_deploy.txt` |
-| 2026-03-02 11:22:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-02 12:03:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-02 12:04:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_completion_scripts.html templates/partials/erp_completion_style` |
-| 2026-03-02 12:04:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg_deploy.txt; git push origin deploy` |
-| 2026-03-02 13:39:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-02 13:39:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add apps/api/erp_orders_completion.py templates/erp_completion_dashboard.html templates/pa` |
-| 2026-03-02 13:39:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg_deploy.txt; git push origin deploy` |
-| 2026-03-02 17:17:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c "import app; print('OK')"` |
-| 2026-03-02 17:20:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c "import app; print('OK')"` |
-| 2026-03-02 17:25:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c "from apps.api.personal_board import api_summary; print('OK')"` |
-| 2026-03-02 18:33:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-02 18:33:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
-| 2026-03-02 18:34:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status` |
-| 2026-03-02 18:35:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
-| 2026-03-02 18:35:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash pop` |
-| 2026-03-02 19:11:17 | allow | `-` | `ls "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\mcps\user-postgres\tools"` |
-| 2026-03-02 19:16:26 | allow | `-` | `ls "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\admin\"` |
-| 2026-03-02 19:20:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c "import app; print('OK')"` |
-| 2026-03-02 20:33:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git status --short` |
-| 2026-03-02 20:40:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python .cursor/hooks/cleanup_temp.py` |
-| 2026-03-02 20:51:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python scripts/run_notifications_migration.py "postgresql://postgres:XMuhzNDZDeBlQStbmUQymJTG` |
-| 2026-03-02 20:51:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python scripts/run_notifications_migration.py "postgresql://postgres:jDkSuQDkQZkGZCFmPMOnFoDa` |
-| 2026-03-02 20:55:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git status` |
-| 2026-03-02 21:40:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; (Get-Content "templates\layout.html" | Measure-Object -Line).Lines ; (Get-Content "templates\` |
-| 2026-03-02 21:48:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; $lines = Get-Content "templates\partials\erp_construction_scripts.html"; $line858 = $lines[85` |
-| 2026-03-02 21:49:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; $lines = Get-Content "templates\partials\erp_construction_scripts.html"; for ($i = 0; $i -lt ` |
-| 2026-03-02 21:50:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; $layout = Get-Content "templates\layout.html"; $blockStart = 0; for ($i = 0; $i -lt $layout.C` |
-| 2026-03-02 21:51:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; $content = [System.IO.File]::ReadAllText("templates\partials\erp_construction_scripts.html", ` |
-| 2026-03-02 21:52:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; $line = (Get-Content "templates\partials\erp_construction_scripts.html")[596]; $bytes = [Syst` |
-| 2026-03-02 22:12:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git status` |
-| 2026-03-02 22:12:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git add templates/partials/erp_construction_scripts.html templates/erp_as_dashboard.html temp` |
-| 2026-03-02 22:12:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
-| 2026-03-02 22:12:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git push origin deploy` |
-| 2026-03-02 22:13:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git checkout production ; git merge deploy -m "Merge branch 'deploy' into production"` |
-| 2026-03-02 22:13:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git push origin production` |
-| 2026-03-02 22:14:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git checkout deploy` |
-| 2026-03-03 09:29:59 | allow | `-` | `wc -l "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\partials\erp_construction_scripts.html"` |
-| 2026-03-03 09:30:06 | allow | `-` | `(Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\partials\erp_construction_scripts.html").Count` |
-| 2026-03-03 09:31:18 | allow | `-` | `(Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\partials\erp_construction_modals.html" -Tail 5)` |
-| 2026-03-03 09:44:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-03 09:45:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Made-with: Cursor" -F .git_commit_msg.txt` |
-| 2026-03-03 09:45:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add .git_commit_msg.txt; git commit --trailer "Made-with: Cursor" -m "chore: remove tempor` |
-| 2026-03-03 11:00:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app"` |
-| 2026-03-03 11:18:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-03 11:18:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Made-with: Cursor" -F .git_commit_msg.txt` |
-| 2026-03-03 11:18:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add .git_commit_msg.txt; git status` |
-| 2026-03-03 11:19:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F .git_commit_msg2.txt` |
-| 2026-03-03 11:19:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/context/COMPACT_CHECKPOINT.md docs/context/SHELL_GUARD_LOG.md; git status` |
-| 2026-03-03 11:19:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/context/EDIT_LOG.md` |
-| 2026-03-03 11:20:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F .git_commit_msg3.txt` |
-| 2026-03-03 11:20:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-03 11:23:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; (Get-Content "templates\partials\erp_dashboard_scripts_detail.html").Count` |
-| 2026-03-03 11:25:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-Content "templates\partials\erp_dashboard_scripts_detail.html" -Tail 25` |
-| 2026-03-03 11:40:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $d = Get-Content "templates\partials\erp_dashboard_scripts_detail.html" -Raw; $dom = Get-Conte` |
-| 2026-03-03 11:42:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " with open('templates/partials/erp_dashboard_scripts_detail.html', 'r', encoding='u` |
-| 2026-03-03 13:21:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
-| 2026-03-03 13:21:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
-| 2026-03-03 13:22:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status -s` |
-| 2026-03-03 13:22:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
-| 2026-03-03 13:22:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash list` |
-| 2026-03-03 13:23:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git stash pop stash@{1}` |
-| 2026-03-03 13:23:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git stash pop "stash@{1}"` |
-| 2026-03-03 13:42:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
-| 2026-03-03 13:42:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Made-with: Cursor" -F commit_msg_deploy.txt` |
-| 2026-03-03 13:42:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
-| 2026-03-03 13:42:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
-| 2026-03-03 13:51:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
-| 2026-03-03 13:51:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
-| 2026-03-03 13:52:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
-| 2026-03-03 13:52:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
-| 2026-03-04 10:43:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
-| 2026-03-04 10:43:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short` |
-| 2026-03-04 10:43:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
-| 2026-03-04 10:43:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-04 10:49:01 | allow | `-` | `grep -rn "api/orders/completion" apps/api/` |
-| 2026-03-04 14:32:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
-| 2026-03-04 14:32:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-04 14:32:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status` |
-| 2026-03-04 14:33:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
-| 2026-03-04 14:33:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash list` |
-| 2026-03-04 22:25:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app"` |
-| 2026-03-04 22:36:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "from apps.api.erp_orders_structured import erp_orders_structured_bp, api_get_order_` |
-| 2026-03-04 23:07:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
-| 2026-03-04 23:07:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
-| 2026-03-04 23:08:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status -s` |
-| 2026-03-04 23:10:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
-| 2026-03-04 23:11:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
-| 2026-03-05 08:07:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('OK')"` |
-| 2026-03-05 08:17:24 | allow | `-` | `where pg_dump` |
-| 2026-03-05 08:17:24 | allow | `-` | `Get-ChildItem "C:\Program Files\PostgreSQL" -ErrorAction SilentlyContinue | Select-Object Name` |
-| 2026-03-05 08:17:28 | allow | `-` | `if (Test-Path "C:\Program Files\PostgreSQL") { Get-ChildItem "C:\Program Files\PostgreSQL" } else { Write-Host "PostgreSQL folder not found" }` |
-| 2026-03-05 08:17:29 | allow | `-` | `Get-Command pg_dump -ErrorAction SilentlyContinue | Select-Object Source` |
-| 2026-03-05 08:17:29 | allow | `-` | `$env:Path -split ';' | Where-Object { $_ -like '*postgres*' -or $_ -like '*PostgreSQL*' }` |
-| 2026-03-05 08:17:33 | allow | `-` | `Test-Path "C:\Program Files\PostgreSQL\16\bin\pg_dump.exe"; Test-Path "C:\Program Files\PostgreSQL\15\bin\pg_dump.exe"` |
-| 2026-03-05 08:17:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import os paths = [ r'C:\Program Files\PostgreSQL\16\bin\pg_dump.exe', r'C:\Progra` |
-| 2026-03-05 08:17:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from simple_backup_system import SimpleBackupSystem bs = SimpleBackupSystem() prin` |
 | 2026-03-05 08:17:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:PYTHONIOENCODING="utf-8"; python -c " from simple_backup_system import SimpleBackupSystem` |
 | 2026-03-05 09:29:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('OK')"` |
 | 2026-03-05 11:25:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
@@ -286,3 +140,167 @@
 | 2026-03-11 16:44:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp, _haversine_km, _get_order_schedule_date, a` |
 | 2026-03-11 16:47:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp, _haversine_km, _get_order_schedule_date, _` |
 | 2026-03-11 16:50:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add -A && git status` |
+| 2026-03-12 00:16:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp; print('APP_OK')" 2>&1` |
+| 2026-03-12 00:16:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py && git commit -F commit_msg.txt && rm commit_msg.txt && git push ` |
+| 2026-03-12 00:28:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp, _get_order_schedule_date, _build_candidate` |
+| 2026-03-12 00:28:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py && git commit -F commit_msg.txt && rm commit_msg.txt && git push ` |
+| 2026-03-12 00:31:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c " import os, sys sys.path.insert(0, '.') from app import app with app.app_context(` |
+| 2026-03-12 00:31:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c " import os, sys sys.path.insert(0, '.') from app import app with app.app_context(` |
+| 2026-03-12 00:38:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp; print('APP_OK')" 2>&1 | tail -1` |
+| 2026-03-12 00:38:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py && git commit -F commit_msg.txt && rm commit_msg.txt && git push ` |
+| 2026-03-12 00:48:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp, _SEARCH_RADII_KM; print('OK', _SEARCH_RADI` |
+| 2026-03-12 00:49:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py && git commit -F commit_msg.txt && rm commit_msg.txt && git push ` |
+| 2026-03-12 01:01:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp; print('OK')" 2>&1 | tail -1` |
+| 2026-03-12 01:01:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py && git commit -F commit_msg.txt && rm commit_msg.txt && git push ` |
+| 2026-03-12 08:08:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp, _SEARCH_RADII_KM; print('OK', _SEARCH_RADI` |
+| 2026-03-12 08:15:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py && git commit -F commit_msg.txt && rm commit_msg.txt && git push ` |
+| 2026-03-12 08:27:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp; print('OK')" 2>&1 | tail -1` |
+| 2026-03-12 08:27:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py && git commit -F commit_msg.txt && rm commit_msg.txt && git push ` |
+| 2026-03-12 08:47:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c " import sys; sys.path.insert(0, '.') from app import app with app.app_context(): ` |
+| 2026-03-12 08:48:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.erp_dashboard import erp_dashboard_bp; print('OK')" 2>&1 | tail -1` |
+| 2026-03-12 08:48:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/erp_dashboard.py && git commit -F commit_msg.txt && rm commit_msg.txt && git pu` |
+| 2026-03-12 08:50:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.erp_dashboard import erp_dashboard_bp; print('OK')" 2>&1 | tail -1` |
+| 2026-03-12 08:50:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/erp_dashboard.py && git commit -F commit_msg.txt && rm commit_msg.txt && git pu` |
+| 2026-03-12 09:13:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import app; print('APP_OK')" 2>&1` |
+| 2026-03-12 09:14:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c " from apps.api.orders import _SEARCH_RADII_KM, _MAX_RESULTS, _haversine_km print(` |
+| 2026-03-12 09:22:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -3` |
+| 2026-03-12 09:22:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c " from apps.api.orders import _SEARCH_RADII_KM print('諛섍꼍:', _SEARCH_RADII_KM) # f` |
+| 2026-03-12 09:24:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status --short` |
+| 2026-03-12 09:24:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py templates/erp_as_dashboard.html && git status --short` |
+| 2026-03-12 09:29:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git push origin deploy && git log --oneline -3` |
+| 2026-03-12 09:29:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
+| 2026-03-12 09:29:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout deploy && git log --oneline -3` |
+| 2026-03-12 09:39:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && grep -r "bootstrap.*5\|cdn.*bootstrap" templates/base.html 2>/dev/null | head -3` |
+| 2026-03-12 09:40:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
+| 2026-03-12 09:56:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -1` |
+| 2026-03-12 09:58:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
+| 2026-03-12 10:02:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
+| 2026-03-12 10:14:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -1` |
+| 2026-03-12 10:16:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
+| 2026-03-12 10:23:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -1` |
+| 2026-03-12 10:23:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
+| 2026-03-12 13:29:42 | allow | `-` | `python -c "import app; print('APP_OK')" 2>&1` |
+| 2026-03-12 13:32:23 | allow | `-` | `python -c "import app; print('APP_OK')" 2>&1 | tail -1` |
+| 2026-03-12 13:49:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; from apps.erp_shipment_page import erp_shipment_dashboard; print('OK')"` |
+| 2026-03-12 13:58:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-12 13:58:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
+| 2026-03-12 13:59:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add apps/erp_shipment_page.py; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
+| 2026-03-12 13:59:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-13 09:54:32 | allow | `-` | `find . -name "*.py" | xargs grep -l "channel" 2>/dev/null | head -20` |
+| 2026-03-13 09:56:40 | allow | `-` | `curl -s "https://developers.channel.io/docs/native-functions" -H "Accept: text/html" --max-time 15 2>&1 | head -200` |
+| 2026-03-13 09:56:43 | allow | `-` | `curl -s "https://developers.channel.io/reference/introduction" -H "Accept: text/html" --max-time 15 2>&1 | head -100` |
+| 2026-03-13 09:56:49 | allow | `-` | `curl -s "https://api.channel.io/doc/app-store" --max-time 15 -H "Accept: application/json" 2>&1 | head -50` |
+| 2026-03-13 09:56:51 | allow | `-` | `curl -s "https://app-store-api.channel.io/openapi/v3/native-functions" --max-time 15 -H "Accept: application/json" 2>&1 | head -50` |
+| 2026-03-13 09:56:58 | allow | `-` | `curl -s -L "https://app-store-api.channel.io/openapi/v3/native-functions/issueToken" --max-time 15 2>&1 | head -100 && echo "---" && curl -s -L "https://app-sto` |
+| 2026-03-13 09:56:59 | allow | `-` | `curl -s "https://developers.channel.io/docs/openapi/app-store" -A "Mozilla/5.0" --max-time 15 2>&1 | python3 -c "import sys,re; html=sys.stdin.read(); texts=re.` |
+| 2026-03-13 09:57:07 | allow | `-` | `curl -s "https://developers.channel.io/docs/openapi/app-store" -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0` |
+| 2026-03-13 09:57:08 | allow | `-` | `curl -s "https://developers.channel.io/reference/native-function-issue-token" -A "Mozilla/5.0" --max-time 15 2>&1 | head -50 && echo "====" && curl -s "https://` |
+| 2026-03-13 09:57:16 | allow | `-` | `curl -s "https://developers.channel.io/_next/data/EpIouXxZwB9d6xwJaA7wQ/docs/native-functions.json" --max-time 15 2>&1 | head -100` |
+| 2026-03-13 09:57:19 | allow | `-` | `curl -s "https://app-store-api.channel.io/general/v1/search?q=issueToken" --max-time 15 -H "Accept: application/json" 2>&1 | head -50 && echo "===" && curl -s "` |
+| 2026-03-13 09:57:28 | allow | `-` | `curl -s "https://web.archive.org/web/2024/https://developers.channel.io/docs/native-functions" --max-time 20 -A "Mozilla/5.0" 2>&1 | python3 -c " import sys, re` |
+| 2026-03-13 09:57:36 | allow | `-` | `curl -s "https://api.channel.io/app-store/v1/functions" --max-time 10 -H "Content-Type: application/json" 2>&1 | head -20` |
+| 2026-03-13 09:57:42 | allow | `-` | `curl -s "https://api.channel.io/app-store/v1/native-functions/issueToken" --max-time 10 -X POST -H "Content-Type: application/json" -d '{"method":"issueToken","` |
+| 2026-03-13 09:57:45 | allow | `-` | `pip show channeltalk 2>&1; pip show channel-io 2>&1; pip index versions channel-io 2>&1 | head -5` |
+| 2026-03-13 09:57:55 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/channel-talk-example/main/README.md" --max-time 10 2>&1 | head -100 && echo "===" && curl -s "https://raw.` |
+| 2026-03-13 09:57:58 | allow | `-` | `curl -s "https://api.github.com/search/repositories?q=channel.io+native+function&sort=stars" --max-time 10 -H "Accept: application/vnd.github.v3+json" 2>&1 | py` |
+| 2026-03-13 09:58:03 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/bezier-react/main/README.md" --max-time 10 2>&1 | head -30` |
+| 2026-03-13 09:58:21 | allow | `-` | `curl -s "https://api.github.com/orgs/channel-io/repos?per_page=50&sort=updated" --max-time 15 -H "Accept: application/vnd.github.v3+json" 2>&1 | python3 -c " im` |
+| 2026-03-13 09:58:27 | allow | `-` | `curl -s "https://api.github.com/orgs/channel-io/repos?per_page=50&sort=updated" --max-time 15 2>&1 | python3 -c " import sys,json,re raw = sys.stdin.read() # ex` |
+| 2026-03-13 09:58:36 | allow | `-` | `curl -s "https://api.github.com/orgs/channel-io/repos?per_page=50&sort=updated" --max-time 20 -o /tmp/channeltalk_repos.json && python3 /tmp/channeltalk_repos.j` |
+| 2026-03-13 09:58:42 | allow | `-` | `curl -s "https://api.github.com/orgs/channel-io/repos?per_page=50&sort=updated" --max-time 20 > /tmp/channeltalk_repos.json && echo "Downloaded" && wc -c /tmp/c` |
+| 2026-03-13 09:58:48 | allow | `-` | `python3 -c " import json with open('/tmp/channeltalk_repos.json') as f: data = json.load(f) for r in data: print(r['full_name'], '-', r.get('description','')) "` |
+| 2026-03-13 09:58:55 | allow | `-` | `curl -s "https://api.github.com/orgs/channel-io/repos?per_page=50&sort=updated" --max-time 20 > "C:/Users/USER/AppData/Local/Temp/channeltalk_repos.json" && ech` |
+| 2026-03-13 09:59:03 | allow | `-` | `python3 -c " import json with open('C:/Users/USER/AppData/Local/Temp/channeltalk_repos.json') as f: data = json.load(f) for r in data: name = r.get('full_name',` |
+| 2026-03-13 09:59:08 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && python3 -c " import json with open('channeltalk_repos.json') as f: data = json.load(f) for r in data: name = r.get('ful` |
+| 2026-03-13 09:59:15 | allow | `-` | `cd /c/Users/USER/AppData/Local/Temp && ls channeltalk_repos.json && python3 -c " import json with open('channeltalk_repos.json') as f: data = json.load(f) for r` |
+| 2026-03-13 09:59:26 | allow | `-` | `curl -s "https://api.github.com/search/repositories?q=org:channel-io+native+function&sort=stars" --max-time 15 > "C:/Users/USER/AppData/Local/Temp/channeltalk_s` |
+| 2026-03-13 09:59:30 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/channel-web-sdk-loader/main/README.md" --max-time 10 2>&1 | head -80 && echo "===" && curl -s "https://raw` |
+| 2026-03-13 09:59:37 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-sdk/contents/" --max-time 10 2>&1 | head -50 && echo "===" && curl -s "https://api.github.com/search/reposi` |
+| 2026-03-13 09:59:44 | allow | `-` | `curl -s "https://api.github.com/search/code?q=issueToken+org:channel-io" --max-time 15 -H "Accept: application/vnd.github.v3+json" 2>&1 | head -80` |
+| 2026-03-13 10:00:04 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/README.md" --max-time 10 && echo "===" && curl -s "https://raw.githubusercontent.com/cha` |
+| 2026-03-13 10:00:11 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/contents/" --max-time 10 -H "Accept: application/vnd.github.v3+json" 2>&1 | grep '"name"' | head -` |
+| 2026-03-13 10:00:13 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/git/trees/main?recursive=1" --max-time 10 -H "Accept: application/vnd.github.v3+json" 2>&1 | grep ` |
+| 2026-03-13 10:00:19 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/appstore/infra/app_store_client.go" --max-time 10 2>&1` |
+| 2026-03-13 10:00:22 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/appstore/infra/dto/write_message_dto.go" --max-time 10 2>&1 && echo "===" && cu` |
+| 2026-03-13 10:00:29 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/git/trees/main?recursive=1" --max-time 10 -H "Accept: application/vnd.github.v3+json" 2>&1 | grep ` |
+| 2026-03-13 10:00:31 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/appstore/svc/app_store_svc.go" --max-time 10 2>&1 && echo "===" && curl -s "htt` |
+| 2026-03-13 10:00:39 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/auth/infra/auth_client.go" --max-time 10 2>&1 && echo "===" && curl -s "https:/` |
+| 2026-03-13 10:00:40 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/auth/svc/auth_svc.go" --max-time 10 2>&1 && echo "===" && curl -s "https://raw.` |
+| 2026-03-13 10:00:48 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/native/dto/native_function_dto.go" --max-time 10 2>&1 && echo "===" && curl -s ` |
+| 2026-03-13 10:00:49 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/auth/repo/auth_repo.go" --max-time 10 2>&1 && echo "===" && curl -s "https://ra` |
+| 2026-03-13 10:00:57 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/git/trees/main?recursive=1" --max-time 10 -H "Accept: application/vnd.github.v3+json" 2>&1 | grep ` |
+| 2026-03-13 10:00:59 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/native/dto/native_function_dto.go" --max-time 10 2>&1` |
+| 2026-03-13 10:01:03 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/http/server.go" --max-time 10 2>&1 && echo "===" && curl -s "https://raw.github` |
+| 2026-03-13 10:01:04 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/git/trees/main?recursive=1" --max-time 10 2>&1 | grep '"path"' | head -60` |
+| 2026-03-13 10:01:11 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/api/public/route/function/dto/function_dto.go" --max-time 10 2>&1 && echo "===" && curl ` |
+| 2026-03-13 10:01:13 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/git/trees/main?recursive=1" --max-time 10 2>&1 | grep '"path"' | tail -30` |
+| 2026-03-13 10:01:21 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/config/config.go" --max-time 10 2>&1` |
+| 2026-03-13 10:01:23 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/wam/src/utils/wam.ts" --max-time 10 2>&1 && echo "===" && curl -s "https://raw.githubuse` |
+| 2026-03-13 10:01:33 | allow | `-` | `curl -s "https://developers.channel.io/docs/app-store-verification" -A "Mozilla/5.0" --max-time 15 2>&1 | grep -oP '"text":"[^"]{10,}"' | head -50` |
+| 2026-03-13 10:01:35 | allow | `-` | `curl -s "https://developers.channel.io/docs/app-store-authentication" -A "Mozilla/5.0" --max-time 15 2>&1 | grep -oP '"content":"[^"]{20,}"' | head -50` |
+| 2026-03-13 10:01:40 | allow | `-` | `curl -s "https://developers.channel.io/docs/app-store-verification" -A "Mozilla/5.0" --max-time 15 > "C:/Users/USER/AppData/Local/Temp/channeltalk_verification.` |
+| 2026-03-13 10:01:49 | allow | `-` | `curl -s "https://registry.npmjs.org/@channel.io/app-store-api" --max-time 10 2>&1 | head -100` |
+| 2026-03-13 10:01:57 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-store-webhook-python/contents/" --max-time 10 2>&1 | grep '"name"' && echo "===" && curl -s "https://api.gi` |
+| 2026-03-13 10:02:02 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/git/trees/main?recursive=1" --max-time 10 2>&1 | grep -E '"path"' | grep -v ".gz"` |
+| 2026-03-13 10:02:10 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/config/root/root.go" --max-time 10 2>&1 && echo "===" && curl -s "https://raw.g` |
+| 2026-03-13 10:02:14 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/api/public/fx.go" --max-time 10 2>&1` |
+| 2026-03-13 10:02:25 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/go.mod" --max-time 10 2>&1` |
+| 2026-03-13 10:02:27 | allow | `-` | `curl -s "https://api.github.com/search/repositories?q=channel-io+app+webhook+signature&sort=updated" --max-time 15 2>&1 | grep -E '"full_name"|"description"' | ` |
+| 2026-03-13 10:02:41 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/issues?state=all&per_page=10" --max-time 10 2>&1 | grep -E '"title"|"body"' | head -20` |
+| 2026-03-13 10:02:44 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/api/public/route/function/dto/function_dto.go" --max-time 10 2>&1 | grep -i "sign\|heade` |
+| 2026-03-13 10:02:48 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/config/viper.go" --max-time 10 2>&1` |
+| 2026-03-13 10:08:53 | allow | `-` | `python -c "from services.channel_client import is_configured, send_group_message, format_order_message; print('channel_client OK')"` |
+| 2026-03-13 10:09:15 | allow | `-` | `python -c "from services.jobs.queue import enqueue_channeltalk_push; print('queue OK')"` |
+| 2026-03-13 10:09:19 | allow | `-` | `python -c "from apps.api.erp_orders_structured import erp_orders_structured_bp; print('blueprint OK')"` |
+| 2026-03-13 10:09:24 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-13 10:12:52 | allow | `-` | `python -c "from services.channel_client import is_configured, format_order_message, get_target_group_id; print('channel_client OK')" && python -c "import app; p` |
+| 2026-03-13 10:13:53 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-13 11:24:41 | allow | `-` | `ls /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/` |
+| 2026-03-13 11:25:14 | allow | `-` | `python -c "from apps.api.channel_integration import channel_integration_bp; print('channel_integration OK')"` |
+| 2026-03-13 11:25:24 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-13 11:25:31 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-13 11:25:56 | allow | `-` | `python -c "from apps.api.channel_integration import channel_integration_bp; print('channel_integration OK')" && python -c "import app; print('APP_OK')"` |
+| 2026-03-13 11:29:04 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-13 11:31:57 | allow | `-` | `curl -s "https://developers.channel.io/docs/native-functions" -L --max-time 15 -A "Mozilla/5.0" 2>&1| head -200` |
+| 2026-03-13 11:32:35 | allow | `-` | `curl -s "https://api.github.com/search/repositories?q=channel-io+native+functions&sort=stars" --max-time 15 2>&1| python -c "import sys,json; data=json.load(sys` |
+| 2026-03-13 11:32:43 | allow | `-` | `curl -s "https://developers.channel.io/reference/native-functions-overview" -L --max-time 15 -A "Mozilla/5.0" 2>&1 | python -c " import sys content = sys.stdin.` |
+| 2026-03-13 11:32:46 | allow | `-` | `curl -s "https://developers.channel.io/reference/write-group-message" -L --max-time 15 -A "Mozilla/5.0" 2>&1 | python -c " import sys, re content = sys.stdin.re` |
+| 2026-03-13 11:32:50 | allow | `-` | `curl -s "https://developers.channel.io/reference/app-store-api-v1-native-functions" -L --max-time 20 -A "Mozilla/5.0" -H "Accept: application/json" 2>&1 | head ` |
+| 2026-03-13 11:32:52 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/channel-native-functions-sdk/contents" --max-time 15 2>&1 curl -s "https://api.github.com/search/code?q=deleteM` |
+| 2026-03-13 11:33:07 | allow | `-` | `curl -sL "https://api.github.com/orgs/channel-io/repos?per_page=50&type=public" --max-time 20 2>&1 | python3 -c "import sys, json; data=json.loads(sys.stdin.rea` |
+| 2026-03-13 11:33:43 | allow | `-` | `curl -sL "https://developers.channel.io/en/articles/Function-77250b17" --max-time 20 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" 2>&1 | py` |
+| 2026-03-13 11:33:50 | allow | `-` | `curl -sL "https://developers.channel.io/en/articles/Function-77250b17" --max-time 30 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, li` |
+| 2026-03-13 11:34:09 | allow | `-` | `curl -sL "https://developers.channel.io/en/articles/Function-77250b17" --max-time 30 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, li` |
+| 2026-03-13 11:34:24 | allow | `-` | `python3 << 'PYEOF' import re with open('C:/Users/USER/AppData/Local/Temp/channeltalk_article.html', 'r', encoding='utf-8', errors='ignore') as f: content = f.re` |
+| 2026-03-13 11:34:36 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && python3 -c " import re with open('channeltalk_article.html', 'r', encoding='utf-8', errors='ignore') as f: content = f.` |
+| 2026-03-13 11:34:48 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && dir channeltalk_article.html 2>&1` |
+| 2026-03-13 11:34:58 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -o "deleteMessage[^\"<]*" channeltalk_article.html | head -20 2>&1` |
+| 2026-03-13 11:35:00 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -o "writeGroupMessage[^<\"]*" channeltalk_article.html | head -20 2>&1` |
+| 2026-03-13 11:35:05 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -c "deleteMessage" channeltalk_article.html 2>&1 grep -c "deleteGroupMessage" channeltalk_article.html 2>&1 grep -` |
+| 2026-03-13 11:35:10 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -oi "method.*[A-Z][a-z]\{3,\}" channeltalk_article.html | head -30 2>&1` |
+| 2026-03-13 11:35:22 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -o ">[^<]*Message[^<]*<" channeltalk_article.html | grep -v "class\|style\|script\|href" | sort -u | head -60 2>&1` |
+| 2026-03-13 11:35:29 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -o '"method": "[^"]*"' channeltalk_article.html | sort -u 2>&1` |
+| 2026-03-13 11:35:31 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -oi "update[A-Za-z]*Message\|delete[A-Za-z]*Message\|edit[A-Za-z]*Message" channeltalk_article.html | sort -u 2>&1` |
+| 2026-03-13 11:35:35 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -oi 'method.*[A-Za-z]\{4,\}' channeltalk_article.html | grep -iv "class\|style\|charset\|content\|http\|get\|post\` |
+| 2026-03-13 11:35:48 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -o '"method":[^,}]*' channeltalk_article.html | sort -u 2>&1` |
+| 2026-03-13 11:35:55 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -o '"method": \\\\\"[^\\]*\\\\\"' channeltalk_article.html | sort -u 2>&1 grep -o 'method.*write\|method.*issue\|m` |
+| 2026-03-13 11:36:09 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -o '"method": \\"[a-zA-Z]*\\"' channeltalk_article.html | sort -u 2>&1` |
+| 2026-03-13 11:36:16 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -oP '(?<="method": \\\\")[a-zA-Z]+(?=\\\\")' channeltalk_article.html | sort -u 2>&1` |
+| 2026-03-13 11:36:28 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && strings channeltalk_article.html | grep -E '"method".*[A-Z][a-z]{3,}' | head -20 2>&1` |
+| 2026-03-13 11:36:34 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -o 'write[A-Z][A-Za-z]*\|issue[A-Z][A-Za-z]*\|update[A-Z][A-Za-z]*\|delete[A-Z][A-Za-z]*\|register[A-Z][A-Za-z]*\|` |
+| 2026-03-13 11:36:39 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -o "issueToken\|issueChannelToken\|issue[A-Z][A-Za-z]*" channeltalk_article.html | sort -u 2>&1` |
+| 2026-03-13 11:36:48 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && grep -o '[a-zA-Z]*[Tt]oken[a-zA-Z]*' channeltalk_article.html | sort -u 2>&1` |
+| 2026-03-13 11:37:35 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && curl -sL "https://developers.channel.io/en/articles/Authentication-e7c2fb6f" --max-time 30 -A "Mozilla/5.0 (Windows NT ` |
+| 2026-03-13 11:41:39 | allow | `-` | `curl -s "https://developers.channel.io/reference/overview" -A "Mozilla/5.0" --max-time 15 2>&1| head -100` |
+| 2026-03-13 11:41:42 | allow | `-` | `curl -s "https://api.channel.io/open/v5" -A "Mozilla/5.0" --max-time 10 2>&1` |
+| 2026-03-13 11:42:44 | allow | `-` | `curl -s -L "https://developers.channel.io/reference/overview-1" -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" --max-time 15 2>&1` |
+| 2026-03-13 11:42:46 | allow | `-` | `curl -s -L "https://developers.channel.io/docs/open-api" -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" --max-time 15 2>&1 | head` |
+| 2026-03-13 14:02:47 | allow | `-` | `python -c "from services.channel_client import send_group_message; print('channel_client OK')"` |
+| 2026-03-13 14:03:24 | allow | `-` | `python -c "from apps.api.channel_integration import channel_integration_bp; print('channel_integration OK')"` |
+| 2026-03-13 14:03:28 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-13 14:03:52 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-13 14:05:59 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-13 16:43:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-13 16:43:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
+| 2026-03-13 16:44:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/AI_STATUS.md docs/context/COMPACT_CHECKPOINT.md docs/context` |
+| 2026-03-13 16:44:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/AI_STATUS.md docs/context/COMPACT_CHECKPOINT.md docs/context` |
