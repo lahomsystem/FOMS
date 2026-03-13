@@ -1,8 +1,11 @@
 # Edit Log
 
-> Claude Code Hook(`PostToolUse:Edit|Write`)가 자동 기록합니다.
+> 이 파일은 Cursor Hooks에 의해 자동 관리됩니다.
+> 최근 50개 편집 기록만 유지합니다.
 
-| Time | File | Tool |
-|------|------|------|
-| 2026-03-11 16:42:20 | `templates/erp_as_dashboard.html` | Edit |
-| 2026-03-11 16:43:09 | `apps/api/orders.py` | Edit |
+## 최근 파일 편집
+
+- `commit_msg.txt` <- 2 edit(s), ~130 chars (2026-03-13 16:44:10)
+- `commit_msg.txt` <- 2 edit(s), ~157 chars (2026-03-13 16:44:07)
+- `commit_msg.txt` <- 2 edit(s), ~117 chars (2026-03-13 16:44:05)
+- `commit_msg.txt` <- 1 edit(s), ~114 chars (2026-03-13 16:44:02)
