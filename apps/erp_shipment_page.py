@@ -242,6 +242,25 @@ def erp_shipment_dashboard():
 
             spec_units_by_date[key] = spec_units_by_date.get(key, 0.0) + _get_order_spec_units(order)
 
+    # 검색 시 자동으로 검색 결과가 있는 날짜로 이동 (날짜 수동 클릭 번거로움 제거)
+    if search_q and not use_range and (not req_date or req_date == today_date):
+        dates_with_counts = [d for d, c in construction_counts.items() if c > 0]
+        if dates_with_counts:
+            today_d = today_kst.date()
+            future_or_today = [
+                d for d in dates_with_counts
+                if datetime.datetime.strptime(d, '%Y-%m-%d').date() >= today_d
+            ]
+            past = [
+                d for d in dates_with_counts
+                if datetime.datetime.strptime(d, '%Y-%m-%d').date() < today_d
+            ]
+            if future_or_today:
+                selected_date = min(future_or_today)
+            else:
+                selected_date = max(past)
+            use_single_day = True
+
     construction_panel_dates = []
     current = range_start
     while current <= range_end:
