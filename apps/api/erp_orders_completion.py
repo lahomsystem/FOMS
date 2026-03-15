@@ -142,6 +142,7 @@ def _ensure_path(d, *keys):
 @login_required
 def api_settlement_issue(order_id):
     """비용 청구/차감 이벤트 기록. structured_data.settlement에 deductions 추가, status=ISSUE_RAISED."""
+    db = None
     try:
         db = get_db()
         order = db.query(Order).filter(Order.id == order_id, Order.deleted_at.is_(None)).first()
@@ -252,8 +253,7 @@ def api_settlement_issue(order_id):
             'settlement': settlement,
         })
     except Exception as e:
-        db = get_db()
-        if db:
+        if db is not None:
             db.rollback()
         import traceback
         traceback.print_exc()
