@@ -4,6 +4,8 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-15 | 세션 자동 기록 | erp_beta_js.html, commit_msg.txt | 483a040 |
+| 2026-03-13 | 채널톡 푸쉬: 저장 없이 푸쉬 가능 (draft+자동저장 후 푸쉬) | erp_beta_js.html | - |
 | 2026-03-13 | 세션 자동 기록 | commit_msg.txt, erp_shipment_page.py | 8b3bd37 |
 | 2026-03-12 | 세션 자동 기록 | commit_msg.txt, erp_shipment_page.py | 8b3bd37 |
 | 2026-03-12 | 세션 자동 기록 | erp_shipment_page.py | 04d9257 |
@@ -22,5 +24,3 @@
 | 2026-03-06 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, erp_beta_tab.html 외 2개 | 941d615 |
 | 2026-03-06 | 세션 자동 기록 | erp_beta_js.html, erp_beta_tab.html, erp_measurement.py 외 2개 | b4cfc25 |
 | 2026-03-06 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, erp_orders_as.py 외 2개 | b4cfc25 |
-| 2026-03-05 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, erp_orders_as.py 외 2개 | b4cfc25 |
-| 2026-03-05 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, erp_beta_tab.html 외 2개 | 64a1781 |
