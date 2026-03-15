@@ -145,9 +145,10 @@ def _canonicalize_geocode_status(order, lat, lng, has_address):
         return raw
     if lat is not None and lng is not None:
         return 'success'
-    if has_address:
+    # 주소 있으나 좌표 없음: pending(변환 중)만 노란색, NULL/기타는 failed(분홍색)
+    if has_address and raw == 'pending':
         return 'pending'
-    return 'failed'
+    return 'failed'  # geocode_status NULL 등 → 좌표 변환 실패로 간주
 
 
 def _format_date(val):
