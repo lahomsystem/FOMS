@@ -23,7 +23,7 @@ from sqlalchemy.orm.attributes import flag_modified
 erp_map_bp = Blueprint('erp_map', __name__)
 _converter_instance = None
 _converter_lock = threading.Lock()
-_MAP_MAX_LIMIT_DEFAULT = 200
+_MAP_MAX_LIMIT_DEFAULT = 300  # measurement 실측일 100건 초과 시 미표시 방지 (2026-03-15)
 
 
 def _read_int_env(name, default_value, min_value):
@@ -71,9 +71,12 @@ def api_map_data():
     try:
         date_filter = request.args.get('date')
         status_filter = request.args.get('status')
-        limit = _resolve_map_limit(request.args.get('limit'), default_limit=100)
-        scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
         dashboard = request.args.get('dashboard')
+        limit = _resolve_map_limit(
+            request.args.get('limit'),
+            default_limit=200 if dashboard == 'measurement' else 100
+        )
+        scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
 
         db = get_db()
         query = db.query(Order).filter(Order.active_filter())
@@ -222,11 +225,14 @@ def api_generate_map():
     try:
         date_filter = request.args.get('date')
         status_filter = request.args.get('status')
+        dashboard = request.args.get('dashboard')
         manager_filter = (request.args.get('manager') or '').strip()
         search_query = (request.args.get('q') or request.args.get('search') or '').strip()
         title = request.args.get('title', '주문 위치 지도')
-        limit = _resolve_map_limit(request.args.get('limit'), default_limit=200)
-        dashboard = request.args.get('dashboard')
+        limit = _resolve_map_limit(
+            request.args.get('limit'),
+            default_limit=300 if dashboard == 'measurement' else 200
+        )
 
         db = get_db()
         query = db.query(Order).filter(Order.active_filter())
@@ -351,6 +357,7 @@ def api_generate_map():
             if search_query:
                 search_lower = _normalize_for_search(search_query).lower()
                 searchable_parts = [
+                    str(order.id),
                     address_to_use,
                     order.address,
                     customer_name,
