@@ -12,6 +12,7 @@ from models import Order
 from constants import STATUS
 from services.request_utils import get_preserved_filter_args
 from services.jobs.queue import enqueue_geocode_order_address
+from services.order_geocode import reset_order_geocode_on_address_change
 
 order_edit_bp = Blueprint('order_edit', __name__, url_prefix='')
 
@@ -163,7 +164,10 @@ def edit_order(order_id):
             setattr(order, 'received_time', received_time)
             setattr(order, 'customer_name', customer_name)
             setattr(order, 'phone', phone)
-            setattr(order, 'address', address)
+            if 'address' in changes:
+                reset_order_geocode_on_address_change(order, address)
+            else:
+                setattr(order, 'address', address)
             setattr(order, 'product', product)
             setattr(order, 'options', options_data_json_to_save)
             setattr(order, 'notes', notes)

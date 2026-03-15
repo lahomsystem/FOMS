@@ -17,6 +17,7 @@ from services.erp_display import get_today_kst, self_measurement_four_checks_don
 from services.erp_shipment_settings import is_order_mine_for_user
 from foms_address_converter import FOMSAddressConverter
 from services.jobs.queue import enqueue_geocode_order_address
+from services.order_geocode import reset_order_geocode_on_address_change
 
 # 실측 패널 집계용: erp_measurement_dashboard 로직 재사용
 from apps.erp_measurement_dashboard import extract_all_measurement_dates, _load_holidays_for_year
@@ -136,17 +137,7 @@ def api_erp_measurement_update(order_id):
             order.manager_name = value
 
         elif field == 'address':
-            if 'site' not in structured_data:
-                structured_data['site'] = {}
-            structured_data['site']['address_full'] = value
-            parts = value.split(' ', 1)
-            if len(parts) >= 2:
-                structured_data['site']['address_main'] = parts[0]
-                structured_data['site']['address_detail'] = parts[1]
-            else:
-                structured_data['site']['address_main'] = value
-                structured_data['site']['address_detail'] = ''
-            order.address = value
+            reset_order_geocode_on_address_change(order, value)
 
         elif field == 'phone':
             if 'parties' not in structured_data:
@@ -159,10 +150,11 @@ def api_erp_measurement_update(order_id):
         else:
             return jsonify({'success': False, 'message': f'지원하지 않는 필드: {field}'}), 400
 
-        order.structured_data = structured_data
+        if field != 'address':
+            order.structured_data = structured_data
         order.structured_updated_at = datetime.datetime.now()
-
-        flag_modified(order, 'structured_data')
+        if field != 'address':
+            flag_modified(order, 'structured_data')
 
         db.commit()
 

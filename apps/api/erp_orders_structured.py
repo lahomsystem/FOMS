@@ -28,6 +28,7 @@ from erp_automation import apply_auto_tasks
 from erp_order_text_parser import parse_order_text
 from services.geocode_helpers import extract_address_from_structured_data
 from services.jobs.queue import enqueue_geocode_order_address, enqueue_channeltalk_push
+from services.order_geocode import reset_order_geocode_on_address_change
 
 TEAM_LABELS = {
     'CS': '라홈팀', 'SALES': '영업팀', 'MEASURE': '실측팀',
@@ -314,13 +315,19 @@ def api_put_order_structured(order_id):
         setattr(order, 'structured_confidence', confidence or (structured_data.get('confidence') if structured_data else None))
         setattr(order, 'structured_updated_at', now)
 
-        db.commit()
-
+        address_changed = False
         if structured_data is not None:
             old_addr = extract_address_from_structured_data(old_sd)
             new_addr = extract_address_from_structured_data(structured_data)
             if new_addr and old_addr != new_addr:
-                enqueue_geocode_order_address(order_id)
+                address_changed = True
+                reset_order_geocode_on_address_change(order, new_addr)
+
+        db.commit()
+
+        if address_changed:
+            enqueue_geocode_order_address(order_id)
+        if structured_data is not None:
             enqueue_channeltalk_push(order_id, "update")
 
         _record_build_step(db, step_key, "COMPLETED", message="Saved structured data")

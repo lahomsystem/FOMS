@@ -6,6 +6,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 최근 완료 (최대 5개)
+- [2026-03-15] 실측 지도 재구현 Spec Phase 1~6 완료: map_snapshot, order_geocode, conversion_status 단일화, geocode_failed 제거
 - [2026-03-15] Phase C 완료: soft-delete 기준 통일(Order.active_filter), C-1/C-2 인덱스 마이그레이션 작성
 - [2026-03-15] Phase A/B 완료: JSONB flag_modified, User N+1 제거, Promise.all 병렬화, 정렬 중복 제거
 - [2026-03-09] 성능 개선 Phase 0-4 완료 (OrderScheduleDate 전환, 달력/지도/근접검색 최적화, Partial Index 적용)
@@ -19,6 +20,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 (없음)
 
 ## 검증 필요
+- [ ] 실측 지도 E2E: /erp/measurement?open_map=1 → 지도 진입, pending/failed/success UI, poll 전체 재구성 확인
+- [ ] Legacy 정리: `python scripts/fix_geocode_status_inconsistency.py` 1회 실행 (배포 전)
 - [ ] Phase C 마이그레이션: Railway/운영에서 `alembic upgrade head` 실행 (CONCURRENTLY 트랜잭션 검증)
 - [ ] 시공팀 접근 제한 + mine 필터 수동 테스트
 - [ ] 출고 대시보드 시공자 그룹 파스텔 색상 확인
@@ -30,6 +33,9 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 ## 핵심 모듈 (최근 수정)
 | 파일 | 역할 |
 |------|------|
+| services/map_snapshot.py | build_measurement_map_query, build_measurement_snapshot (실측 지도 공통) |
+| services/order_geocode.py | reset_order_geocode_on_address_change (주소 변경 시 geocode reset) |
+| apps/api/erp_map.py | map_snapshot 적용, conversion_status 단일화, geocode_failed 제거 |
 | models.py | Order.active_filter(), Phase C Index (deleted_at 포함) |
 | migrations/versions/phase_c_indexes_concurrently.py | C-1 ix_orders_active_id, C-2 ix_orders_structured_data_gin |
 | apps/api/personal_board.py | _recent_work active_filter 적용 |
