@@ -4,6 +4,10 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-15 | 세션 자동 기록 | erp_map.py, map_view.html, .dockerignore 외 2개 | cfe41b8 |
+| 2026-03-15 | 세션 자동 기록 | map_view.html, .dockerignore, Dockerfile 외 2개 | cfe41b8 |
+| 2026-03-15 | 세션 자동 기록 | .dockerignore, Dockerfile, start.sh 외 2개 | cfe41b8 |
+| 2026-03-15 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-4ab76da0-cf0a-4a6e-85e8-62d5a5ae1216.png, erp_map.py, map_view.html 외 2개 | cfe41b8 |
 | 2026-03-15 | 세션 자동 기록 | erp_map.py, map_view.html, erp_measurement_dashboard.py 외 2개 | d0f6b76 |
 | 2026-03-15 | 세션 자동 기록 | map_view.html, erp_map.py, erp_measurement_dashboard.py 외 2개 | d0f6b76 |
 | 2026-03-15 | 세션 자동 기록 | erp_map.py, foms_map_generator.py, map_view.html 외 2개 | d0f6b76 |
@@ -20,7 +24,3 @@
 | 2026-03-15 | 세션 자동 기록 | erp_shipment_dashboard.html, erp_construction_scripts.html, erp_dashboard.py 외 2개 | 1284e2b |
 | 2026-03-15 | 세션 자동 기록 | erp_orders_drawing.py, erp_orders_blueprint.py, erp_orders_structured.py 외 2개 | 1284e2b |
 | 2026-03-15 | 세션 자동 기록 | commit_msg.txt, .gitignore, erp_beta_js.html | 1284e2b |
-| 2026-03-15 | 세션 자동 기록 | .gitignore, commit_msg.txt, erp_beta_js.html | 6522aa0 |
-| 2026-03-15 | 찌꺼기 파일 정리 (hook debug, 미참조 partial, 미사용 모듈 6건) | .gitignore, 삭제 6건 | - |
-| 2026-03-15 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html | 6522aa0 |
-| 2026-03-15 | 세션 자동 기록 | erp_beta_js.html, commit_msg.txt | 483a040 |

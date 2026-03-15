@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info
+.eggs
+
+# IDE / 로컬
+.idea
+.vscode
+.cursor
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# 문서/백업 (배포 불필요)
+docs/
+backups/
+SCheduler
+*.dump
+*.bak
+*.tmp
+
+# 테스트/스크립트 (선택적 - 필요 시 제거)
+# tests/
+# scripts/
+
+# 로컬 설정
+.env
+.env.*
+config/local*
+
+# Cursor/개발 도구
+.cursor
+*.log
