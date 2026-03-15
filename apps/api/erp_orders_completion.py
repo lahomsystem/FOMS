@@ -51,7 +51,7 @@ def api_orders_completion():
         orders = (
             db.query(Order)
             .filter(
-                Order.deleted_at.is_(None),
+                Order.active_filter(),
                 Order.is_erp_beta.is_(True),
                 Order.status.in_(TARGET_STATUSES),
             )
@@ -131,13 +131,6 @@ def api_orders_completion():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-def _ensure_path(d, *keys):
-    """딕셔너리 내 경로 보장."""
-    for k in keys:
-        d = d.setdefault(k, {})
-    return d
-
-
 @erp_orders_completion_bp.route('/<int:order_id>/settlement/issue', methods=['POST'])
 @login_required
 def api_settlement_issue(order_id):
@@ -145,7 +138,7 @@ def api_settlement_issue(order_id):
     db = None
     try:
         db = get_db()
-        order = db.query(Order).filter(Order.id == order_id, Order.deleted_at.is_(None)).first()
+        order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
         if order.status not in TARGET_STATUSES:

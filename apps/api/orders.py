@@ -140,7 +140,7 @@ def api_orders_nearby():
     """
     target_address = request.args.get('address', '').strip()
     if not target_address:
-        return jsonify({'success': False, 'error': '주소가 필요합니다.'}), 400
+        return jsonify({'success': False, 'message': '주소가 필요합니다.', 'error': '주소가 필요합니다.'}), 400
 
     exclude_id = request.args.get('exclude_id', type=int)
     # KST(Asia/Seoul) 기준 내일 날짜 사용 — 오늘은 제외, 내일부터 집계
@@ -399,7 +399,7 @@ def api_orders():
     from sqlalchemy.orm import defer
     from models import OrderScheduleDate
     
-    query = db.query(Order).filter(Order.status != 'DELETED').options(
+    query = db.query(Order).filter(Order.active_filter()).options(
         defer(Order.raw_order_text),
         defer(Order.regional_memo),
         defer(Order.address_hash),

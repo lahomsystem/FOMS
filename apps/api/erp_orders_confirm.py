@@ -32,8 +32,8 @@ def api_customer_confirm(order_id):
     """
     db = get_db()
     try:
-        order = db.query(Order).get(order_id)
-        if not order:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         data = request.get_json() or {}

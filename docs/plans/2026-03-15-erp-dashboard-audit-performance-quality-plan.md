@@ -228,11 +228,14 @@ except Exception as e:
 
 | 파일 | 현재 문제 |
 |---|---|
-| `templates/partials/erp_construction_scripts.html` | 기존 첨부 삭제를 `for ... await fetch(DELETE)`로 직렬 실행 |
+| `templates/partials/erp_construction_scripts.html` | `construction` 재업로드와 `as` 재업로드 경로 모두에서 기존 첨부 삭제를 `for ... await fetch(DELETE)`로 직렬 실행 |
 
 **정정 메모**:
 - 기존 문서에 적힌 `templates/partials/erp_beta_js.html`의 동일 bulk-delete 패턴은 현재 확인되지 않았다.
 - Beta 쪽은 별도 마이크로 감사 후 필요 시 추가한다.
+- 현재 확인된 순차 삭제 루프는 같은 파일 안의 두 경로다.
+  - `construction` 재업로드: 794~797행
+  - `as` 재업로드: 844~846행
 
 **수정 방향**:
 ```javascript
@@ -454,6 +457,9 @@ USING gin ((structured_data->'parties'->'customer'->>'name') gin_trgm_ops);
 - `apps/api/erp_orders_production.py`
 - `apps/api/erp_orders_revision.py`
 
+**소스 대조 메모**:
+- 현재 `apps/api` 전체 기준으로는 **6개 파일 / 13개 호출**이 확인된다.
+
 **정정 방향**:
 ```python
 order = db.get(Order, order_id)
@@ -529,6 +535,7 @@ if not order or order.status == "DELETED" or order.deleted_at is not None:
 - 같은 파일 내 이중 선언 먼저 제거
 
 **주의**:
+- `static/js/erp/common_utils.js`에는 이미 `window.ERPUtils.escapeHtml` 구현이 존재하므로, 공용 유틸 통합은 빈 신규 파일 생성이 아니라 기존 자산 정리로 접근한다.
 - 이미 `static/js/erp/common_utils.js`가 존재하므로, 동일 목적의 `common.js`를 새로 추가하면 공용 유틸 경로가 다시 분산된다.
 - 파일명 변경이 필요하면 별도 정리 커밋에서 import 경로 일괄 이전까지 포함해 처리한다.
 

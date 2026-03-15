@@ -51,7 +51,7 @@ def erp_construction_dashboard():
 
     orders = (
         db.query(Order)
-        .filter(Order.deleted_at.is_(None), Order.is_erp_beta.is_(True))
+        .filter(Order.active_filter(), Order.is_erp_beta.is_(True))
         .order_by(Order.created_at.desc())
         .limit(300)
         .all()

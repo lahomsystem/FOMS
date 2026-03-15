@@ -2,10 +2,14 @@
 도면 이미지 API (주문별 blueprint 업로드/조회/삭제).
 """
 
+import logging
 import os
+
 from flask import Blueprint, request, jsonify
 
 from db import get_db
+
+logger = logging.getLogger(__name__)
 from models import Order
 from apps.auth import login_required
 from apps.api.files import build_file_view_url
@@ -109,6 +113,7 @@ def api_delete_blueprint(order_id):
 @login_required
 def api_blueprint_complete(order_id):
     """Phase D: Direct R2 업로드 완료 후 order.blueprint_image_url 갱신."""
+    db = None
     try:
         data = request.get_json(silent=True) or {}
         key = data.get('key')
@@ -143,12 +148,10 @@ def api_blueprint_complete(order_id):
             'message': '도면이 업로드되었습니다.'
         })
     except Exception as e:
-        db = get_db()
-        try:
-            db.rollback()
-        except Exception:
-            pass
-        import traceback
-        print(f"Blueprint complete 오류: {e}")
-        print(traceback.format_exc())
+        if db is not None:
+            try:
+                db.rollback()
+            except Exception as rb_err:
+                logger.warning("Blueprint complete: rollback failed: %s", rb_err, exc_info=True)
+        logger.warning("Blueprint complete 오류: %s", e, exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500

@@ -29,8 +29,8 @@ def api_production_start(order_id):
     """제작 시작 (PRODUCTION 단계로 이동)"""
     db = get_db()
     try:
-        order = db.query(Order).get(order_id)
-        if not order:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         user_id = session.get('user_id')
@@ -74,8 +74,8 @@ def api_production_complete(order_id):
     """제작 완료 (CONSTRUCTION 단계로 이동)"""
     db = get_db()
     try:
-        order = db.query(Order).get(order_id)
-        if not order:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         user_id = session.get('user_id')

@@ -2,10 +2,15 @@
 ERP 주문 도면 전달/취소/창구 업로드 API. (Phase 4-5b, 4-5c)
 erp.py에서 분리: transfer-drawing, cancel-transfer, drawing-gateway-upload.
 """
+import copy
 import json
+import logging
 from datetime import datetime
 
 from flask import Blueprint, request, jsonify, session
+from sqlalchemy.orm.attributes import flag_modified
+
+logger = logging.getLogger(__name__)
 
 from db import get_db
 from models import Order, OrderAttachment, Notification, SecurityLog
@@ -57,7 +62,7 @@ def api_order_transfer_drawing(order_id):
         s_data = {}
         if order.structured_data:
             if isinstance(order.structured_data, dict):
-                s_data = dict(order.structured_data)
+                s_data = copy.deepcopy(order.structured_data)
             elif isinstance(order.structured_data, str):
                 try:
                     s_data = json.loads(order.structured_data)
@@ -173,6 +178,7 @@ def api_order_transfer_drawing(order_id):
         s_data['drawing_transferred'] = True
         s_data['last_drawing_transfer'] = transfer_info
         order.structured_data = s_data
+        flag_modified(order, 'structured_data')
 
         manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
         customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
@@ -239,8 +245,8 @@ def api_order_transfer_drawing(order_id):
         if db is not None:
             try:
                 db.rollback()
-            except Exception:
-                pass
+            except Exception as rb_err:
+                logger.warning("transfer-drawing: rollback failed: %s", rb_err, exc_info=True)
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
 
 
@@ -260,7 +266,7 @@ def api_order_cancel_transfer(order_id):
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
-        s_data = dict(order.structured_data or {})
+        s_data = copy.deepcopy(order.structured_data or {})
         current_user = get_user_by_id(session.get('user_id'))
         if not current_user:
             return jsonify({'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}), 401
@@ -385,6 +391,7 @@ def api_order_cancel_transfer(order_id):
         s_data['last_drawing_transfer'] = None
         s_data['drawing_transfer_history'] = history
         order.structured_data = s_data
+        flag_modified(order, 'structured_data')
         db.add(SecurityLog(
             user_id=session.get('user_id'),
             message=(
@@ -430,7 +437,7 @@ def api_drawing_gateway_upload(order_id):
 
         key = result.get('key')
         filename = file.filename
-        file_type = storage._get_file_type(filename) if hasattr(storage, '_get_file_type') else 'file'
+        file_type = storage.get_file_type(filename)
         if file_type not in ('image', 'video'):
             file_type = 'file'
 
@@ -473,7 +480,7 @@ def api_drawing_gateway_complete(order_id):
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
-        file_type = storage._get_file_type(filename) if hasattr(storage, '_get_file_type') else 'file'
+        file_type = storage.get_file_type(filename)
         if file_type not in ('image', 'video'):
             file_type = 'file'
 

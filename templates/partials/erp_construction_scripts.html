@@ -791,11 +791,10 @@
       const listRes = await fetch(`/api/orders/${orderId}/attachments?category=construction`);
       const listData = await listRes.json();
       if (listData.success && listData.attachments && listData.attachments.length > 0) {
-        for (const att of listData.attachments) {
-          if (att.id) {
-            await fetch(`/api/orders/${orderId}/attachments/${att.id}`, { method: 'DELETE' });
-          }
-        }
+        const toDelete = listData.attachments.filter(function (a) { return a && a.id; });
+        await Promise.all(toDelete.map(function (att) {
+          return fetch('/api/orders/' + orderId + '/attachments/' + att.id, { method: 'DELETE' });
+        }));
       }
 
       const result = await executeBatchUpload(orderId, files, 'construction', { statusEl, progressWrap, progressBar });
@@ -841,11 +840,12 @@
         const listRes = await fetch(`/api/orders/${orderId}/attachments?category=as`);
         const listData = await listRes.json();
         if (listData.success && listData.attachments && listData.attachments.length > 0) {
-          for (const att of listData.attachments) {
-            if (att.user_id === CURRENT_USER_ID && att.id) {
-              await fetch(`/api/orders/${orderId}/attachments/${att.id}`, { method: 'DELETE' });
-            }
-          }
+          const toDelete = listData.attachments.filter(function (a) {
+            return a && a.user_id === CURRENT_USER_ID && a.id;
+          });
+          await Promise.all(toDelete.map(function (att) {
+            return fetch('/api/orders/' + orderId + '/attachments/' + att.id, { method: 'DELETE' });
+          }));
         }
         if (reuploadInput) reuploadInput.value = '0';
       } catch (e) {

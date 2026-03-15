@@ -95,7 +95,7 @@ def erp_measurement_dashboard():
     req_date = (request.args.get('date') or '').strip()
     open_map = request.args.get('open_map') == '1'
 
-    base_query = db.query(Order).filter(Order.status != 'DELETED')
+    base_query = db.query(Order).filter(Order.active_filter())
     base_query = _erp_order_search_filter(base_query, search_q)
     # 자가실측·지방실측 제외(진짜 실측 필요한 것만 집계), 단 자가실측 주문은 실측 대시보드에 표시 후 4체크 완료 시 시공으로 이관
     base_query = base_query.filter(

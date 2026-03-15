@@ -40,7 +40,7 @@ def api_erp_measurement_summary():
     range_start = today_kst
     range_end = today_kst + datetime.timedelta(days=14)
 
-    base_query = db.query(Order).filter(Order.status != 'DELETED')
+    base_query = db.query(Order).filter(Order.active_filter())
     base_query = base_query.filter(
         or_(
             and_(
@@ -111,19 +111,19 @@ def api_erp_measurement_update(order_id):
     """실측 대시보드 업데이트"""
     try:
         db = get_db()
-        order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
+        order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
         if not order:
-            return jsonify({'success': False, 'error': '주문을 찾을 수 없습니다.'}), 404
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         if not order.is_erp_beta:
-            return jsonify({'success': False, 'error': 'ERP Beta 주문만 수정할 수 있습니다.'}), 400
+            return jsonify({'success': False, 'message': 'ERP Beta 주문만 수정할 수 있습니다.'}), 400
 
         payload = request.get_json(silent=True) or {}
         field = payload.get('field')
         value = payload.get('value', '').strip()
 
         if not field:
-            return jsonify({'success': False, 'error': '필드명이 필요합니다.'}), 400
+            return jsonify({'success': False, 'message': '필드명이 필요합니다.'}), 400
 
         structured_data = order.structured_data or {}
 
@@ -157,7 +157,7 @@ def api_erp_measurement_update(order_id):
             order.phone = value
 
         else:
-            return jsonify({'success': False, 'error': f'지원하지 않는 필드: {field}'}), 400
+            return jsonify({'success': False, 'message': f'지원하지 않는 필드: {field}'}), 400
 
         order.structured_data = structured_data
         order.structured_updated_at = datetime.datetime.now()
@@ -175,7 +175,7 @@ def api_erp_measurement_update(order_id):
         import traceback
         print(f"[ERP_MEASUREMENT] 업데이트 오류: {e}")
         print(traceback.format_exc())
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @erp_measurement_bp.route('/route')
@@ -188,7 +188,7 @@ def api_erp_measurement_route():
     limit = int(request.args.get('limit', 20))
     limit = max(1, min(limit, 30))
 
-    query = db.query(Order).filter(Order.status != 'DELETED')
+    query = db.query(Order).filter(Order.active_filter())
 
     if date_filter:
         from models import OrderScheduleDate

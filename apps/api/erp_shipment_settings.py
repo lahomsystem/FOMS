@@ -3,6 +3,7 @@ ERP 출고 설정 페이지 및 API. (Phase 4-2)
 erp.py에서 분리. 서비스는 services/erp_shipment_settings 사용.
 """
 import datetime
+import logging
 
 from flask import Blueprint, request, jsonify, session, render_template
 from sqlalchemy.orm.attributes import flag_modified
@@ -17,6 +18,7 @@ from services.erp_shipment_settings import (
     normalize_erp_shipment_workers,
 )
 
+logger = logging.getLogger(__name__)
 erp_shipment_bp = Blueprint('erp_shipment', __name__)
 
 
@@ -69,9 +71,9 @@ def api_erp_shipment_settings_save():
                     current[key] = [str(x).strip() for x in payload[key] if str(x).strip()]
         if save_erp_shipment_settings(current):
             return jsonify({'success': True})
-        return jsonify({'success': False, 'error': '저장 실패'}), 500
+        return jsonify({'success': False, 'message': '저장 실패'}), 500
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @erp_shipment_bp.route('/api/erp/shipment/update/<int:order_id>', methods=['POST'])
@@ -82,15 +84,15 @@ def api_erp_shipment_update(order_id):
     """출고 대시보드 업데이트. 시공팀은 수정 불가(조회만)."""
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     if current_user and getattr(current_user, 'team', None) == 'CONSTRUCTION':
-        return jsonify({'success': False, 'error': '시공팀은 출고 데이터를 수정할 수 없습니다.'}), 403
+        return jsonify({'success': False, 'message': '시공팀은 출고 데이터를 수정할 수 없습니다.'}), 403
     try:
         db = get_db()
-        order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
+        order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
         if not order:
-            return jsonify({'success': False, 'error': '주문을 찾을 수 없습니다.'}), 404
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
         # Legacy 주문도 대시보드에서 편집 가능하도록 허용 (GDM 2026-02-19)
         # if not order.is_erp_beta and order.status not in ('AS_RECEIVED', 'AS_COMPLETED'):
-        #     return jsonify({'success': False, 'error': 'ERP Beta 또는 AS 주문만 수정할 수 있습니다.'}), 400
+        #     return jsonify({'success': False, 'message': 'ERP Beta 또는 AS 주문만 수정할 수 있습니다.'}), 400
 
         payload = request.get_json(silent=True) or {}
         structured_data = dict(order.structured_data or {})
@@ -142,7 +144,5 @@ def api_erp_shipment_update(order_id):
         return jsonify({'success': True})
     except Exception as e:
         db.rollback()
-        import traceback
-        print(f"[ERP_SHIPMENT] 업데이트 오류: {e}")
-        print(traceback.format_exc())
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.exception("[ERP_SHIPMENT] 업데이트 오류: %s", e)
+        return jsonify({'success': False, 'message': str(e)}), 500

@@ -76,7 +76,7 @@ def api_map_data():
         dashboard = request.args.get('dashboard')
 
         db = get_db()
-        query = db.query(Order).filter(Order.status != 'DELETED')
+        query = db.query(Order).filter(Order.active_filter())
 
         # 자가실측·지방실측 제외(진짜 실측 필요한 것만)
         if dashboard == 'measurement':
@@ -229,7 +229,7 @@ def api_generate_map():
         dashboard = request.args.get('dashboard')
 
         db = get_db()
-        query = db.query(Order).filter(Order.status != 'DELETED')
+        query = db.query(Order).filter(Order.active_filter())
 
         # 자가실측·지방실측 제외(진짜 실측 필요한 것만)
         if dashboard == 'measurement':

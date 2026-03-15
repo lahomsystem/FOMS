@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-15 13:21:52
+> 생성 시각: 2026-03-15 14:40:24
 > 세션: 6a2cbf0d
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `docs/evolution/GDM_DELETION_AUDIT_2026-03-15.md` <- 1 edit(s), ~3190 chars (2026-03-15 12:58:05)
-- `docs/AI_CHANGELOG.md` <- 1 edit(s), ~87 chars (2026-03-15 12:54:58)
-- `.gitignore` <- 1 edit(s), ~88 chars (2026-03-15 12:54:45)
-- `commit_msg.txt` <- 1 edit(s), ~172 chars (2026-03-15 12:30:33)
-- `docs/AI_CHANGELOG.md` <- 1 edit(s), ~77 chars (2026-03-15 12:29:22)
-- `templates/partials/erp_beta_js.html` <- 2 edit(s), ~707 chars (2026-03-15 12:29:00)
-- `templates/partials/erp_beta_js.html` <- 17 edit(s), ~2573 chars (2026-03-15 12:28:51)
-- `commit_msg.txt` <- 2 edit(s), ~130 chars (2026-03-13 16:44:10)
-- `commit_msg.txt` <- 2 edit(s), ~157 chars (2026-03-13 16:44:07)
-- `commit_msg.txt` <- 2 edit(s), ~117 chars (2026-03-13 16:44:05)
+- `docs/evolution/FINAL_GDM_AUDIT_2026-03-15.md` <- 1 edit(s), ~8352 chars (2026-03-15 14:40:05)
+- `apps/api/erp_orders_revision.py` <- 1 edit(s), ~63 chars (2026-03-15 14:36:33)
+- `apps/api/erp_orders_revision.py` <- 1 edit(s), ~57 chars (2026-03-15 14:36:30)
+- `apps/api/erp_orders_revision.py` <- 1 edit(s), ~36 chars (2026-03-15 14:36:27)
+- `apps/api/erp_orders_revision.py` <- 1 edit(s), ~14 chars (2026-03-15 14:36:22)
+- `apps/api/erp_orders_revision.py` <- 1 edit(s), ~122 chars (2026-03-15 14:36:14)
+- `apps/api/erp_orders_revision.py` <- 1 edit(s), ~122 chars (2026-03-15 14:36:11)
+- `docs/evolution/PHASE_D_GDM_AUDIT_2026-03-15.md` <- 1 edit(s), ~6681 chars (2026-03-15 14:35:51)
+- `docs/evolution/PHASE_D_CODE_REVIEW_2026-03-15.md` <- 1 edit(s), ~5380 chars (2026-03-15 14:35:51)
+- `templates/partials/erp_dashboard_scripts_core.html` <- 1 edit(s), ~0 chars (2026-03-15 14:34:02)
 
 ### 진행 중이던 작업
 (없음)

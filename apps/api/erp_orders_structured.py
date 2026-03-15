@@ -3,17 +3,21 @@ ERP 주문 구조화 데이터 API (structured GET/PUT, parse-text, erp/draft).
 """
 
 import copy
-import json
 import datetime
-from typing import Any
+import json
+import logging
+from typing import Any, Optional
 
 from flask import Blueprint, request, jsonify, session
+
+logger = logging.getLogger(__name__)
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from models import Order, OrderEvent
-from constants import STATUS
+from constants import STATUS, ERP_DRAFT_PLACEHOLDER_CUSTOMER, ERP_DRAFT_PLACEHOLDER_PHONE, ERP_DRAFT_PLACEHOLDER_PRODUCT
 from apps.auth import login_required, role_required
 from services.erp_policy import (
     STAGE_LABELS,
@@ -25,6 +29,10 @@ from erp_order_text_parser import parse_order_text
 from services.geocode_helpers import extract_address_from_structured_data
 from services.jobs.queue import enqueue_geocode_order_address, enqueue_channeltalk_push
 
+TEAM_LABELS = {
+    'CS': '라홈팀', 'SALES': '영업팀', 'MEASURE': '실측팀',
+    'DRAWING': '도면팀', 'PRODUCTION': '생산팀', 'CONSTRUCTION': '시공팀',
+}
 
 erp_orders_structured_bp = Blueprint('erp_orders_structured', __name__, url_prefix='/api')
 
@@ -75,9 +83,140 @@ def _record_build_step(db, step_key, status, message=None, meta=None):
     except Exception as e:
         try:
             db.rollback()
-        except Exception:
-            pass
-        print(f"[ERP_BETA] build-step log warning: {e}")
+        except Exception as rb_err:
+            logger.warning("build-step: rollback failed: %s", rb_err, exc_info=True)
+        logger.warning("[ERP_BETA] build-step log: %s", e, exc_info=True)
+
+
+def _handle_stage_transition(
+    db: Session,
+    order: Order,
+    old_sd: dict,
+    structured_data: dict,
+) -> None:
+    """단계 전환 감지 및 OrderEvent/Quest 생성."""
+    new_stage = (structured_data.get('workflow') or {}).get('stage')
+    old_stage = (old_sd.get('workflow') or {}).get('stage')
+    if not new_stage or new_stage == old_stage:
+        return
+    if new_stage in STATUS:
+        setattr(order, 'status', new_stage)
+    elif new_stage == 'AS':
+        setattr(order, 'status', 'AS')
+    is_quest_complete, missing_teams = check_quest_approvals_complete(old_sd, old_stage)
+    if not is_quest_complete and missing_teams:
+        stage_label = STAGE_LABELS.get(old_stage, old_stage) if old_stage else '알 수 없음'
+        missing_team_labels = [TEAM_LABELS.get(t, t) for t in missing_teams]
+        logger.warning("[%s] Quest 승인 미완료 팀: %s", stage_label, ', '.join(missing_team_labels))
+    (structured_data.get('workflow') or {})['stage_updated_at'] = datetime.datetime.now().isoformat()
+    db.add(OrderEvent(
+        order_id=order.id,
+        event_type='STAGE_CHANGED',
+        payload={'from': old_stage, 'to': new_stage, 'manual': True},
+        created_by_user_id=session.get('user_id')
+    ))
+    quests = structured_data.get('quests') or []
+    has_new_stage_quest = any(
+        isinstance(q, dict) and q.get('stage') == new_stage for q in quests
+    )
+    if not has_new_stage_quest:
+        new_quest = create_quest_from_template(new_stage, session.get('username') or '', structured_data)
+        if new_quest:
+            if not structured_data.get('quests'):
+                structured_data['quests'] = []
+            structured_data['quests'].append(new_quest)
+
+
+def _record_structured_events(
+    db: Session,
+    order: Order,
+    old_sd: dict,
+    structured_data: dict,
+) -> None:
+    """긴급/일정/오너팀 변경 이벤트 기록."""
+    try:
+        new_urgent = bool((structured_data.get('flags') or {}).get('urgent'))
+        old_urgent = bool((old_sd.get('flags') or {}).get('urgent'))
+        if new_urgent != old_urgent:
+            db.add(OrderEvent(
+                order_id=order.id,
+                event_type='URGENT_CHANGED',
+                payload={'from': old_urgent, 'to': new_urgent, 'reason': (structured_data.get('flags') or {}).get('urgent_reason')},
+                created_by_user_id=session.get('user_id')
+            ))
+    except Exception as e:
+        logger.warning("URGENT_CHANGED event record failed: %s", e, exc_info=True)
+    try:
+        new_meas = ((structured_data.get('schedule') or {}).get('measurement') or {}).get('date')
+        old_meas = ((old_sd.get('schedule') or {}).get('measurement') or {}).get('date')
+        if new_meas != old_meas:
+            db.add(OrderEvent(
+                order_id=order.id,
+                event_type='MEASUREMENT_DATE_CHANGED',
+                payload={'from': old_meas, 'to': new_meas},
+                created_by_user_id=session.get('user_id')
+            ))
+    except Exception as e:
+        logger.warning("MEASUREMENT_DATE_CHANGED event record failed: %s", e, exc_info=True)
+    try:
+        new_cons = ((structured_data.get('schedule') or {}).get('construction') or {}).get('date')
+        old_cons = ((old_sd.get('schedule') or {}).get('construction') or {}).get('date')
+        if new_cons != old_cons:
+            db.add(OrderEvent(
+                order_id=order.id,
+                event_type='CONSTRUCTION_DATE_CHANGED',
+                payload={'from': old_cons, 'to': new_cons},
+                created_by_user_id=session.get('user_id')
+            ))
+    except Exception as e:
+        logger.warning("CONSTRUCTION_DATE_CHANGED event record failed: %s", e, exc_info=True)
+    try:
+        new_team = (structured_data.get('assignments') or {}).get('owner_team')
+        old_team = (old_sd.get('assignments') or {}).get('owner_team')
+        if new_team != old_team:
+            db.add(OrderEvent(
+                order_id=order.id,
+                event_type='OWNER_TEAM_CHANGED',
+                payload={'from': old_team, 'to': new_team},
+                created_by_user_id=session.get('user_id')
+            ))
+    except Exception as e:
+        logger.warning("OWNER_TEAM_CHANGED event record failed: %s", e, exc_info=True)
+
+
+def _apply_structured_side_effects(db: Session, order_id: int, structured_data: dict) -> None:
+    """auto-task 적용."""
+    try:
+        apply_auto_tasks(db, order_id, structured_data)
+    except Exception as e:
+        logger.warning("[ERP_BETA] auto-task apply: %s", e, exc_info=True)
+
+
+def _finalize_draft_state(
+    order: Order,
+    structured_data: Optional[dict],
+    now: datetime.datetime,
+) -> bool:
+    """draft 메타 정리 및 session 정리. draft_cleared 여부 반환."""
+    draft_cleared = False
+    if structured_data:
+        try:
+            meta = structured_data.get('meta') or {}
+            if meta.get('draft') is True:
+                meta['draft'] = False
+                meta['finalized_at'] = now.isoformat()
+                structured_data['meta'] = meta
+                draft_cleared = True
+        except Exception as e:
+            logger.warning("draft meta clear failed: %s", e, exc_info=True)
+    try:
+        existing_id = session.get('erp_draft_order_id')
+        if existing_id and int(existing_id) == order.id:
+            session.pop('erp_draft_order_id', None)
+            draft_cleared = True
+    except Exception as e:
+        logger.warning("session erp_draft_order_id clear failed: %s", e, exc_info=True)
+    return draft_cleared
 
 
 @erp_orders_structured_bp.route('/orders/<int:order_id>/structured', methods=['GET'])
@@ -86,7 +225,7 @@ def api_get_order_structured(order_id):
     """구조화 데이터 조회(전사 공용)."""
     db = get_db()
     try:
-        order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
+        order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
@@ -105,9 +244,7 @@ def api_get_order_structured(order_id):
             'is_self_measurement': getattr(order, 'is_self_measurement', False),
         })
     except Exception as e:
-        import traceback
-        print(f"[ERP_BETA] structured GET 오류: {e}")
-        print(traceback.format_exc())
+        logger.exception("[ERP_BETA] structured GET 오류: %s", e)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -120,7 +257,7 @@ def api_put_order_structured(order_id):
     step_key = f"ERP_BETA_API_SAVE_{order_id}"
     _record_build_step(db, step_key, "RUNNING", message="Saving structured data")
     try:
-        order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
+        order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
         if not order:
             _record_build_step(db, step_key, "FAILED", message="Order not found")
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
@@ -162,136 +299,20 @@ def api_put_order_structured(order_id):
             if not structured_data.get('assignments'):
                 structured_data['assignments'] = {}
 
-            # workflow.stage 변경 감지 + 이벤트
             try:
-                new_stage = (structured_data.get('workflow') or {}).get('stage')
-                old_stage = (old_sd.get('workflow') or {}).get('stage')
-                if new_stage and new_stage != old_stage:
-                    # [GDM] Order.status 동기화 (기존 필터링 호환)
-                    # ERP Beta 단계가 기존 상태 코드와 호환되면 Order.status 업데이트
-                    if new_stage in STATUS:
-                        setattr(order, 'status', new_stage)
-                    elif new_stage == 'AS':
-                        # AS 단계는 상세 매핑 필요할 수 있으나, 일단 STATUS에 'AS'가 있으므로 사용
-                        # 필요시 'AS_RECEIVED' 등으로 매핑 가능
-                        setattr(order, 'status', 'AS')
+                _handle_stage_transition(db, order, old_sd, structured_data)
+            except Exception as e:
+                logger.warning("단계 전환 검증 오류: %s", e, exc_info=True)
 
-                    is_quest_complete, missing_teams = check_quest_approvals_complete(old_sd, old_stage)
-                    if not is_quest_complete and missing_teams:
-                        stage_label = STAGE_LABELS.get(old_stage, old_stage) if old_stage else '알 수 없음'
-                        TEAM_LABELS = {
-                            'CS': '라홈팀', 'SALES': '영업팀', 'MEASURE': '실측팀',
-                            'DRAWING': '도면팀', 'PRODUCTION': '생산팀', 'CONSTRUCTION': '시공팀',
-                        }
-                        missing_team_labels = [TEAM_LABELS.get(t, t) for t in missing_teams]
-                        print(f"경고: [{stage_label}] 단계의 Quest 승인 미완료 팀: {', '.join(missing_team_labels)}")
-
-                    (structured_data.get('workflow') or {})['stage_updated_at'] = datetime.datetime.now().isoformat()
-                    db.add(OrderEvent(
-                        order_id=order.id,
-                        event_type='STAGE_CHANGED',
-                        payload={'from': old_stage, 'to': new_stage, 'manual': True},
-                        created_by_user_id=session.get('user_id')
-                    ))
-
-                    quests = structured_data.get('quests') or []
-                    has_new_stage_quest = any(
-                        isinstance(q, dict) and q.get('stage') == new_stage for q in quests
-                    )
-                    if not has_new_stage_quest:
-                        new_quest = create_quest_from_template(new_stage, session.get('username') or '', structured_data)
-                        if new_quest:
-                            if not structured_data.get('quests'):
-                                structured_data['quests'] = []
-                            structured_data['quests'].append(new_quest)
-            except Exception as _e:
-                import traceback
-                print(f"단계 전환 검증 오류: {_e}")
-                print(traceback.format_exc())
-
-            # 긴급 변경 이벤트
-            try:
-                new_urgent = bool((structured_data.get('flags') or {}).get('urgent'))
-                old_urgent = bool((old_sd.get('flags') or {}).get('urgent'))
-                if new_urgent != old_urgent:
-                    db.add(OrderEvent(
-                        order_id=order.id,
-                        event_type='URGENT_CHANGED',
-                        payload={'from': old_urgent, 'to': new_urgent, 'reason': (structured_data.get('flags') or {}).get('urgent_reason')},
-                        created_by_user_id=session.get('user_id')
-                    ))
-            except Exception:
-                pass
-
-            # 일정 변경 이벤트
-            try:
-                new_meas = ((structured_data.get('schedule') or {}).get('measurement') or {}).get('date')
-                old_meas = ((old_sd.get('schedule') or {}).get('measurement') or {}).get('date')
-                if new_meas != old_meas:
-                    db.add(OrderEvent(
-                        order_id=order.id,
-                        event_type='MEASUREMENT_DATE_CHANGED',
-                        payload={'from': old_meas, 'to': new_meas},
-                        created_by_user_id=session.get('user_id')
-                    ))
-            except Exception:
-                pass
-            try:
-                new_cons = ((structured_data.get('schedule') or {}).get('construction') or {}).get('date')
-                old_cons = ((old_sd.get('schedule') or {}).get('construction') or {}).get('date')
-                if new_cons != old_cons:
-                    db.add(OrderEvent(
-                        order_id=order.id,
-                        event_type='CONSTRUCTION_DATE_CHANGED',
-                        payload={'from': old_cons, 'to': new_cons},
-                        created_by_user_id=session.get('user_id')
-                    ))
-            except Exception:
-                pass
-
-            # 오너팀 변경 이벤트
-            try:
-                new_team = (structured_data.get('assignments') or {}).get('owner_team')
-                old_team = (old_sd.get('assignments') or {}).get('owner_team')
-                if new_team != old_team:
-                    db.add(OrderEvent(
-                        order_id=order.id,
-                        event_type='OWNER_TEAM_CHANGED',
-                        payload={'from': old_team, 'to': new_team},
-                        created_by_user_id=session.get('user_id')
-                    ))
-            except Exception:
-                pass
-
-            try:
-                _order_id: int = order.id  # type: ignore[assignment]
-                apply_auto_tasks(db, _order_id, structured_data)
-            except Exception as _e:
-                print(f"[ERP_BETA] auto-task apply warning: {_e}")
-
-            try:
-                meta = structured_data.get('meta') or {}
-                if meta.get('draft') is True:
-                    meta['draft'] = False
-                    meta['finalized_at'] = now.isoformat()
-                    structured_data['meta'] = meta
-                    draft_cleared = True
-            except Exception:
-                pass
+            _record_structured_events(db, order, old_sd, structured_data)
+            _apply_structured_side_effects(db, order.id, structured_data)
+            draft_cleared = _finalize_draft_state(order, structured_data, now)
 
             order.structured_data = copy.deepcopy(structured_data)
             flag_modified(order, 'structured_data')
         setattr(order, 'structured_schema_version', int(schema_version) if schema_version else 1)
         setattr(order, 'structured_confidence', confidence or (structured_data.get('confidence') if structured_data else None))
         setattr(order, 'structured_updated_at', now)
-
-        try:
-            existing_id = session.get('erp_draft_order_id')
-            if existing_id and int(existing_id) == order.id:
-                session.pop('erp_draft_order_id', None)
-                draft_cleared = True
-        except Exception:
-            pass
 
         db.commit()
 
@@ -306,9 +327,7 @@ def api_put_order_structured(order_id):
         return jsonify({'success': True, 'draft_cleared': draft_cleared})
     except Exception as e:
         db.rollback()
-        import traceback
-        print(f"[ERP_BETA] structured PUT 오류: {e}")
-        print(traceback.format_exc())
+        logger.exception("[ERP_BETA] structured PUT 오류: %s", e)
         _record_build_step(db, step_key, "FAILED", message=str(e))
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -331,9 +350,7 @@ def api_parse_order_text():
         _record_build_step(db, "ERP_BETA_API_PARSE_TEXT", "COMPLETED", message="Parsed order text")
         return jsonify({'success': True, 'structured_data': structured})
     except Exception as e:
-        import traceback
-        print(f"[ERP_BETA] parse-text 오류: {e}")
-        print(traceback.format_exc())
+        logger.exception("[ERP_BETA] parse-text 오류: %s", e)
         _record_build_step(db, "ERP_BETA_API_PARSE_TEXT", "FAILED", message=str(e))
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -347,7 +364,7 @@ def api_erp_create_draft():
     try:
         existing_id = session.get('erp_draft_order_id')
         if existing_id:
-            order = db.query(Order).filter(Order.id == int(existing_id), Order.status != 'DELETED').first()
+            order = db.query(Order).filter(Order.id == int(existing_id), Order.active_filter()).first()
             if order:
                 return jsonify({'success': True, 'order_id': order.id, 'reused': True})
 
@@ -365,10 +382,10 @@ def api_erp_create_draft():
         order = Order(
             received_date=today,
             received_time=time_str,
-            customer_name='ERP Beta',
-            phone='000-0000-0000',
+            customer_name=ERP_DRAFT_PLACEHOLDER_CUSTOMER,
+            phone=ERP_DRAFT_PLACEHOLDER_PHONE,
             address='-',
-            product='ERP Beta',
+            product=ERP_DRAFT_PLACEHOLDER_PRODUCT,
             options=None,
             notes=None,
             status='RECEIVED',
@@ -388,9 +405,7 @@ def api_erp_create_draft():
     except Exception as e:
         try:
             db.rollback()
-        except Exception:
-            pass
-        import traceback
-        print(f"[ERP_BETA] draft create error: {e}")
-        print(traceback.format_exc())
+        except Exception as rb_err:
+            logger.warning("draft create: rollback failed: %s", rb_err, exc_info=True)
+        logger.warning("[ERP_BETA] draft create error: %s", e, exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500

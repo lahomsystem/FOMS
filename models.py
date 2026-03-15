@@ -85,10 +85,16 @@ class Order(Base):
 
     from sqlalchemy import Index, and_
     __table_args__ = (
-        Index('ix_orders_regional_active', 'id', postgresql_where=(and_(status != 'DELETED', is_regional == True))),
-        Index('ix_orders_self_measurement_active', 'id', postgresql_where=(and_(status != 'DELETED', is_self_measurement == True))),
-        Index('ix_orders_erp_beta_active', 'id', postgresql_where=(and_(status != 'DELETED', is_erp_beta == True))),
+        Index('ix_orders_regional_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_regional == True))),
+        Index('ix_orders_self_measurement_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_self_measurement == True))),
+        Index('ix_orders_erp_beta_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_erp_beta == True))),
     )
+
+    @classmethod
+    def active_filter(cls):
+        """Phase C-0: active 주문 필터 (soft-delete 제외). status != DELETED AND deleted_at IS NULL."""
+        from sqlalchemy import and_
+        return and_(cls.status != 'DELETED', cls.deleted_at.is_(None))
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}

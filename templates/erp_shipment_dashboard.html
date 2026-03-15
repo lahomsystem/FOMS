@@ -1232,13 +1232,7 @@
         fillDatalist('datalist-construction-time', 'construction_time');
         fillDatalist('datalist-drawing-manager', 'drawing_manager');
         fillDatalist('datalist-construction-workers', 'construction_workers');
-        applyShipmentWorkerSortAndColors();
       });
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () { setTimeout(applyShipmentWorkerSortAndColors, 50); });
-      } else {
-        setTimeout(applyShipmentWorkerSortAndColors, 50);
-      }
       var shipmentTableEl = document.querySelector('.shipment-table');
       if (shipmentTableEl) {
         shipmentTableEl.addEventListener('blur', function (e) {

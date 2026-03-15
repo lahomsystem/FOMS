@@ -319,7 +319,7 @@ def api_order_attachments_complete(order_id):
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
-        file_type = storage._get_file_type(filename)
+        file_type = storage.get_file_type(filename)
         file_size = 0
         used_client_size = False
         client_size = data.get('size')
@@ -474,7 +474,7 @@ def api_order_attachments_upload(order_id):
 
         storage_key = result.get('key')
         filename = file.filename
-        file_type = storage._get_file_type(filename)
+        file_type = storage.get_file_type(filename)
         if category == 'drawing':
             if file_type not in ['image', 'video', 'file']:
                 return jsonify({'success': False, 'message': '지원되지 않는 도면 파일 형식입니다.'}), 400
