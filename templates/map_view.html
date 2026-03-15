@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="ko">
 
-<head>\n    <script>
-        if (typeof window.FOMS_DEBUG === \'undefined\') {
+<head>
+    <script>
+        if (typeof window.FOMS_DEBUG === 'undefined') {
             window.FOMS_DEBUG = false;
         }
     </script>
@@ -1233,7 +1234,7 @@
                             <div class="order-info-row">
                                 <span class="order-info-label">주소:</span>
                                 <span class="order-info-value">${escapeHtml(order.address || '-')}</span>
-                                <button class="btn btn-sm ${editBtnClass} btn-edit-address" onclick="event.stopPropagation(); openAddressEdit(${order.id}, '${escapeHtml(order.address || '')}');" title="${editBtnTitle}"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-sm ${editBtnClass} btn-edit-address" onclick="event.stopPropagation(); openAddressEdit(${order.id}, '${escapeForJsString(order.address || '')}');" title="${editBtnTitle}"><i class="fas fa-edit"></i></button>
                             </div>
                             <div class="order-info-row">
                                 <span class="order-info-label">제품:</span>
@@ -1436,6 +1437,16 @@
             const div = document.createElement('div');
             div.textContent = String(text);
             return div.innerHTML;
+        }
+
+        /** JS 문자열 내에서 사용할 때 안전하게 이스케이프 (openAddressEdit 등 onclick에 전달). */
+        function escapeForJsString(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/\n/g, '\\n')
+                .replace(/\r/g, '\\r');
         }
 
         // 키보드 단축키
