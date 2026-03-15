@@ -13,8 +13,8 @@
 ### Session: 6a2cbf0d
 - **시작**: 2026-03-13 08:26:54
 - **상태**: completed
-- **편집 파일**: `docs/evolution/VERIFICATION_CHECKLIST_2026-03-15.md`, `docs/evolution/FINAL_GDM_AUDIT_2026-03-15.md`, `apps/api/erp_orders_revision.py`, `docs/evolution/PHASE_D_GDM_AUDIT_2026-03-15.md`, `docs/evolution/PHASE_D_CODE_REVIEW_2026-03-15.md`, `templates/partials/erp_dashboard_scripts_core.html`, `templates/partials/erp_dashboard_styles.html`, `apps/api/attachments.py`, `apps/api/chat/routes.py`, `apps/api/erp_orders_drawing.py`
-- **종료**: 2026-03-15 14:46:27
+- **편집 파일**: `apps/api/erp_map.py`, `templates/map_view.html`, `apps/erp_measurement_dashboard.py`, `foms_map_generator.py`, `services/jobs/tasks.py`, `apps/api/erp_measurement.py`, `scripts/debug_order_2629.py`, `scripts/debug_flask_2629.py`, `commit_msg.txt`, `scripts/run_map_check.py`
+- **종료**: 2026-03-15 19:35:46
 
 ### Session: 700dcd20
 - **시작**: 2026-03-09 09:45:23
@@ -374,3 +374,31 @@
 | 2026-03-15 14:45:07 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-15 14:46:27 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 14:57:40 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 15:22:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 17:25:34 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 17:27:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 17:28:50 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 17:34:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 17:37:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 18:33:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 18:36:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 18:51:01 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 19:24:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 19:27:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 19:32:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 19:35:46 | END (Claude Code) | 수정: (없음) |

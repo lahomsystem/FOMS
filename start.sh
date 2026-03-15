@@ -3,5 +3,5 @@
 if [ "$USE_RQ_WORKER" = "1" ]; then
   exec rq worker default --url "$REDIS_URL"
 else
-  exec gunicorn -k gevent -w 2 --timeout 120 --graceful-timeout 30 --keep-alive 5 app:app
+  exec gunicorn -k gevent -w 2 --timeout 120 --graceful-timeout 30 --keep-alive 5 --bind "0.0.0.0:${PORT:-8080}" app:app
 fi
