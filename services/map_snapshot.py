@@ -5,6 +5,21 @@
 from sqlalchemy import or_, and_, cast, String
 
 from models import Order
+
+
+def _measurement_date_variants(yyyy_mm_dd):
+    """
+    YYYY-MM-DD와 YYYY-M-D 형식 모두 반환.
+    OrderScheduleDate.date가 '2026-3-16'처럼 저장된 경우 필터 매칭.
+    """
+    if not yyyy_mm_dd or len(yyyy_mm_dd) < 10:
+        return [yyyy_mm_dd] if yyyy_mm_dd else []
+    parts = yyyy_mm_dd.split('-')
+    if len(parts) != 3:
+        return [yyyy_mm_dd]
+    y, m, d = parts[0], parts[1].lstrip('0') or '0', parts[2].lstrip('0') or '0'
+    compact = f"{y}-{m}-{d}"
+    return list(dict.fromkeys([yyyy_mm_dd, compact]))
 from services.erp_display import self_measurement_four_checks_done
 from services.geocode_helpers import extract_address_from_order
 
@@ -72,11 +87,14 @@ def build_measurement_map_query(db, date, q, manager, dashboard, limit=500):
 
     if date:
         query = query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
+        # date 형식 유연 비교: YYYY-MM-DD vs YYYY-M-D (3월 16일 → 03 vs 3)
+        date_variants = _measurement_date_variants(date)
         query = query.filter(
             OrderScheduleDate.kind == 'measurement',
-            OrderScheduleDate.date == date
+            OrderScheduleDate.date.in_(date_variants)
         )
-        query = query.distinct()
+        # distinct(Order.id): 1:N join 시 중복 제거, ORDER BY와 호환 (PostgreSQL DISTINCT ON)
+        query = query.distinct(Order.id)
 
     query = query.order_by(Order.id.desc()).limit(limit)
 
