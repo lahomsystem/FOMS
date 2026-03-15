@@ -160,7 +160,7 @@ def erp_shipment_dashboard():
         use_single_day = True
     selected_date = req_date
     
-    base_query = db.query(Order).filter(Order.status != 'DELETED')
+    base_query = db.query(Order).filter(Order.active_filter())
     base_query = _erp_order_search_filter(base_query, search_q)
 
     from models import OrderScheduleDate

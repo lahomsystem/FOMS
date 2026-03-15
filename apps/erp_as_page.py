@@ -53,7 +53,7 @@ def erp_as_dashboard():
         status_val = status_filter or 'ALL'
         return redirect(url_for('erp_map.map_view', date=date_val, status=status_val))
 
-    query = db.query(Order).filter(Order.status != 'DELETED')
+    query = db.query(Order).filter(Order.active_filter())
     query = query.filter(Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']))
 
     # 하단 탭: 완료 안된 건 vs 완료 된 건

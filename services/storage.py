@@ -184,7 +184,7 @@ class StorageAdapter:
     
     def upload_chat_file(self, file_obj, filename, message_id, generate_thumbnail=True):
         """채팅 파일 업로드 (썸네일 생성 포함)"""
-        file_type = self._get_file_type(filename)
+        file_type = self.get_file_type(filename)
         folder = f"chat/{message_id}"
         
         # 파일 업로드
@@ -219,7 +219,7 @@ class StorageAdapter:
             return {'success': False, 'message': 'Pillow unavailable'}
 
         filename = storage_key.rsplit('/', 1)[-1] if '/' in storage_key else storage_key
-        file_type = self._get_file_type(filename)
+        file_type = self.get_file_type(filename)
         if file_type != 'image':
             return {'success': False, 'message': 'Thumbnail is only supported for images'}
 
@@ -494,18 +494,20 @@ class StorageAdapter:
             print(f"썸네일 생성 오류: {e}")
             return None
     
-    def _get_file_type(self, filename):
-        """파일 타입 반환 (image, video, file)"""
+    def get_file_type(self, filename: str) -> str:
+        """파일 타입 반환 (image, video, file). Public API."""
         ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
         image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp']
         video_exts = ['mp4', 'mov', 'avi', 'mkv', 'webm']
-        
         if ext in image_exts:
             return 'image'
-        elif ext in video_exts:
+        if ext in video_exts:
             return 'video'
-        else:
-            return 'file'
+        return 'file'
+
+    def _get_file_type(self, filename):
+        """Deprecated: use get_file_type(). Kept for backward compatibility."""
+        return self.get_file_type(filename)
     
     def _get_content_type(self, filename):
         """파일 확장자로 Content-Type 결정"""

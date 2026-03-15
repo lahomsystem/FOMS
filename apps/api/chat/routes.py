@@ -106,7 +106,7 @@ def api_chat_upload_complete():
             pass
 
         file_url = build_file_view_url(key)
-        file_type = storage._get_file_type(filename)
+        file_type = storage.get_file_type(filename)
         file_info = {
             'filename': filename,
             'url': file_url,
@@ -233,7 +233,7 @@ def api_chat_preview(storage_key):
             return jsonify({'success': False, 'message': '잘못된 파일 경로입니다.'}), 400
         storage = get_storage()
         filename = storage_key.rsplit('/', 1)[-1] if '/' in storage_key else storage_key
-        file_type = storage._get_file_type(filename)
+        file_type = storage.get_file_type(filename)
         if file_type == 'image':
             if storage.storage_type in ['r2', 's3']:
                 url = storage.get_download_url(storage_key, expires_in=3600)
@@ -664,7 +664,7 @@ def api_chat_search_orders():
         if query.isdigit():
             conds.append(Order.id == int(query))
         orders = db.query(Order).filter(or_(*conds)).filter(
-            Order.deleted_at.is_(None)
+            Order.active_filter()
         ).order_by(Order.created_at.desc()).limit(limit).all()
         orders_list = [{
             'id': o.id, 'customer_name': o.customer_name, 'phone': o.phone,

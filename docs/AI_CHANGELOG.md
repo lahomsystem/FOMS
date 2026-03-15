@@ -4,6 +4,12 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-15 | 세션 자동 기록 | erp_orders_revision.py, erp_dashboard_scripts_core.html, erp_dashboard_styles.html 외 2개 | 1284e2b |
+| 2026-03-15 | 세션 자동 기록 | personal_board.py, phase_c_indexes_concurrently.py, db_indexes.py 외 2개 | 1284e2b |
+| 2026-03-15 | Phase C 완료: soft-delete 통일, C-1/C-2 인덱스 마이그레이션, 코드리뷰/GDM | models.py, apps/* 25+, migrations, docs/evolution | - |
+| 2026-03-15 | 세션 자동 기록 | erp_shipment_dashboard.html, erp_construction_scripts.html, erp_dashboard.py 외 2개 | 1284e2b |
+| 2026-03-15 | 세션 자동 기록 | erp_orders_drawing.py, erp_orders_blueprint.py, erp_orders_structured.py 외 2개 | 1284e2b |
+| 2026-03-15 | 세션 자동 기록 | commit_msg.txt, .gitignore, erp_beta_js.html | 1284e2b |
 | 2026-03-15 | 세션 자동 기록 | .gitignore, commit_msg.txt, erp_beta_js.html | 6522aa0 |
 | 2026-03-15 | 찌꺼기 파일 정리 (hook debug, 미참조 partial, 미사용 모듈 6건) | .gitignore, 삭제 6건 | - |
 | 2026-03-15 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html | 6522aa0 |
@@ -18,9 +24,3 @@
 | 2026-03-11 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e62d5c32-012b-4aea-9a71-ed306ff1903e.png, index.html, erp-pro.css 외 2개 | 3aa3830 |
 | 2026-03-11 | 세션 자동 기록 | index.html, erp-pro.css, order_pages.py 외 2개 | 3aa3830 |
 | 2026-03-11 | 세션 자동 기록 | delete_prod_fallback.py, check_prod_fallback.py, commit_msg.txt | 3aa3830 |
-| 2026-03-10 | 세션 자동 기록 | delete_prod_fallback.py, check_prod_fallback.py, commit_msg.txt | 3aa3830 |
-| 2026-03-10 | 세션 자동 기록 | commit_msg.txt, order_date_sync.py | 9e05a36 |
-| 2026-03-09 | Phase 4 날짜 최적화 및 쿼리/인덱스 정리 완료 | orders.py, erp_map.py, models.py 외 다수 | TBD |
-| 2026-03-09 | 세션 자동 기록 | commit_msg.txt | e030124 |
-| 2026-03-08 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, erp_beta_tab.html 외 2개 | 97476ff |
-| 2026-03-06 | 세션 자동 기록 | erp_beta_js.html, commit_msg.txt, erp_beta_tab.html 외 2개 | 3d8cae0 |

@@ -20,7 +20,7 @@ def storage_dashboard():
 
     base_query = db.query(Order).filter(
         Order.is_cabinet == True,
-        Order.status != 'DELETED'
+        Order.active_filter()
     )
 
     if search_query:
@@ -73,7 +73,7 @@ def export_storage_dashboard_excel():
     # 제작중 주문만 조회
     base_query = db.query(Order).filter(
         Order.is_cabinet == True,
-        Order.status != 'DELETED',
+        Order.active_filter(),
         Order.cabinet_status == 'IN_PRODUCTION'
     )
 

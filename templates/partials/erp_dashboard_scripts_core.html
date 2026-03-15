@@ -12,29 +12,11 @@
           if (!container) {
             container = document.createElement('div');
             container.id = id;
-            container.style.position = 'fixed';
-            container.style.top = '84px';
-            container.style.right = '16px';
-            container.style.zIndex = '30000';
-            container.style.display = 'grid';
-            container.style.gap = '8px';
-            container.style.maxWidth = '320px';
+            container.className = 'erp-toast-container';
             document.body.appendChild(container);
           }
-          const palette = {
-            success: { bg: '#ecfdf5', bd: '#10b981', fg: '#065f46' },
-            error: { bg: '#fef2f2', bd: '#ef4444', fg: '#991b1b' },
-            info: { bg: '#eff6ff', bd: '#3b82f6', fg: '#1e3a8a' },
-          };
-          const p = palette[type] || palette.info;
           const toast = document.createElement('div');
-          toast.style.background = p.bg;
-          toast.style.border = `1px solid ${p.bd}`;
-          toast.style.color = p.fg;
-          toast.style.borderRadius = '10px';
-          toast.style.padding = '9px 11px';
-          toast.style.fontSize = '13px';
-          toast.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)';
+          toast.className = 'erp-toast erp-toast-' + (type === 'success' || type === 'error' ? type : 'info');
           toast.textContent = String(message || '');
           container.appendChild(toast);
           setTimeout(() => {
@@ -100,15 +82,6 @@
               
               const resizer = document.createElement('div');
               resizer.className = 'erp-col-resizer';
-              resizer.style.position = 'absolute';
-              resizer.style.right = '0';
-              resizer.style.top = '0';
-              resizer.style.bottom = '0';
-              resizer.style.width = '5px';
-              resizer.style.cursor = 'col-resize';
-              resizer.style.zIndex = '100';
-              resizer.style.userSelect = 'none';
-              
               resizer.addEventListener('mousedown', (e) => startResize(e, th, index));
               // 클릭 이벤트 전파 방지 (정렬 등과 충돌 방지)
               resizer.addEventListener('click', (e) => e.stopPropagation());

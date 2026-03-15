@@ -74,28 +74,24 @@ def api_channel_push_manual():
         text = (payload.get('text') or '').strip()
 
         if not order_id:
-            return jsonify({'success': False, 'error': 'order_id가 없습니다.'}), 400
+            return jsonify({'success': False, 'message': 'order_id가 없습니다.'}), 400
         if not text:
-            return jsonify({'success': False, 'error': '전송할 텍스트가 없습니다. 변환 버튼을 먼저 누르거나 내용을 입력해주세요.'}), 400
+            return jsonify({'success': False, 'message': '전송할 텍스트가 없습니다. 변환 버튼을 먼저 누르거나 내용을 입력해주세요.'}), 400
         if len(text) > _MAX_TEXT_LENGTH:
-            return jsonify({'success': False, 'error': f'텍스트가 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).'}), 400
+            return jsonify({'success': False, 'message': f'텍스트가 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).'}), 400
 
         if not is_configured():
-            return jsonify({
-                'success': False,
-                'error': '채널톡 환경변수(CHANNEL_APP_SECRET, CHANNEL_ID)가 서버에 설정되지 않았습니다.',
-            }), 503
+            msg = '채널톡 환경변수(CHANNEL_APP_SECRET, CHANNEL_ID)가 서버에 설정되지 않았습니다.'
+            return jsonify({'success': False, 'message': msg, 'error': msg}), 503
 
         group_id = os.environ.get('CHANNEL_GROUP_MEASUREMENT', '')
         if not group_id:
-            return jsonify({
-                'success': False,
-                'error': 'CHANNEL_GROUP_MEASUREMENT 환경변수가 설정되지 않았습니다.',
-            }), 503
+            msg = 'CHANNEL_GROUP_MEASUREMENT 환경변수가 설정되지 않았습니다.'
+            return jsonify({'success': False, 'message': msg, 'error': msg}), 503
 
-        order = db.query(Order).filter(Order.id == int(order_id), Order.status != 'DELETED').first()
+        order = db.query(Order).filter(Order.id == int(order_id), Order.active_filter()).first()
         if not order:
-            return jsonify({'success': False, 'error': f'주문 #{order_id}을 찾을 수 없습니다.'}), 404
+            return jsonify({'success': False, 'message': f'주문 #{order_id}을 찾을 수 없습니다.'}), 404
 
         # 이전 푸쉬 이력 확인 → 재전송이면 [수정] prefix 추가
         # message_id 유무와 무관하게 pushed=True 플래그로 재전송 여부 판단
@@ -153,9 +149,9 @@ def api_channel_push_manual():
         # 채널톡 API 레벨 오류 (토큰 발급 실패, API 거부 등)
         err_msg = str(e)
         logger.error("[채널톡 수동푸쉬] RuntimeError: %s", err_msg)
-        return jsonify({'success': False, 'error': f'채널톡 API 오류: {err_msg}'}), 502
+        return jsonify({'success': False, 'message': f'채널톡 API 오류: {err_msg}', 'error': err_msg}), 502
 
     except Exception as e:
         err_msg = str(e)
         logger.error("[채널톡 수동푸쉬] 예외: %s\n%s", err_msg, traceback.format_exc())
-        return jsonify({'success': False, 'error': f'서버 오류: {err_msg}'}), 500
+        return jsonify({'success': False, 'message': f'서버 오류: {err_msg}', 'error': err_msg}), 500

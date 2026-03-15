@@ -54,6 +54,11 @@ ERP_MEDIA_ALLOWED_EXTENSIONS = {
     'mp4', 'mov', 'avi', 'mkv', 'webm',
 }
 
+# ERP draft/placeholder (실제 운영 로직에서 사용)
+ERP_DRAFT_PLACEHOLDER_CUSTOMER = "ERP Beta"
+ERP_DRAFT_PLACEHOLDER_PHONE = "000-0000-0000"
+ERP_DRAFT_PLACEHOLDER_PRODUCT = "ERP Beta"
+
 # Phase D: Direct upload 세션 발급 시 허용 Content-Type (보안)
 DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES = frozenset({
     'image/jpeg', 'image/png', 'image/gif', 'image/webp',

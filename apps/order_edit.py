@@ -22,7 +22,7 @@ order_edit_bp = Blueprint('order_edit', __name__, url_prefix='')
 def edit_order(order_id):
     """주문 수정 페이지."""
     db = get_db()
-    order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
+    order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
 
     if not order:
         flash('주문을 찾을 수 없거나 이미 삭제되었습니다.', 'error')

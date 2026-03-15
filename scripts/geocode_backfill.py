@@ -33,7 +33,7 @@ def get_orders_needing_geocode(limit=None):
     db = db_session()
     query = (
         db.query(Order)
-        .filter(Order.status != 'DELETED')
+        .filter(Order.active_filter())
         .filter(
             (Order.lat.is_(None)) | (Order.lng.is_(None))
         )

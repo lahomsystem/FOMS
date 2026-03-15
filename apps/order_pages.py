@@ -10,7 +10,7 @@ from sqlalchemy import or_, String
 from apps.auth import login_required, role_required, log_access, get_user_by_id
 from db import get_db
 from models import Order
-from constants import STATUS
+from constants import ERP_DRAFT_PLACEHOLDER_CUSTOMER, ERP_DRAFT_PLACEHOLDER_PHONE, ERP_DRAFT_PLACEHOLDER_PRODUCT, STATUS
 from services.order_display_utils import format_options_for_display, _ensure_dict
 from services.jobs.queue import enqueue_geocode_order_address
 from services.request_utils import get_preserved_filter_args
@@ -72,7 +72,7 @@ def index():
                 column_filters[col] = request.args[filter_key]
         active_column_filters = {k: v for k, v in column_filters.items() if v}
 
-        query = db.query(Order).filter(Order.status != 'DELETED')
+        query = db.query(Order).filter(Order.active_filter())
         if status_filter and status_filter != 'ALL':
             query = query.filter(Order.status == status_filter)
         if region_filter == 'metro':
@@ -241,10 +241,10 @@ def add_order():
                     structured_data['schedule'].setdefault('construction', {})
                     structured_data['schedule']['construction']['date'] = cons_date
 
-                cust_name = ((structured_data.get('parties') or {}).get('customer') or {}).get('name') or (request.form.get('erp_customer_name') or '').strip() or 'ERP Beta'
-                cust_phone = ((structured_data.get('parties') or {}).get('customer') or {}).get('phone') or (request.form.get('erp_customer_phone') or '').strip() or '000-0000-0000'
+                cust_name = ((structured_data.get('parties') or {}).get('customer') or {}).get('name') or (request.form.get('erp_customer_name') or '').strip() or ERP_DRAFT_PLACEHOLDER_CUSTOMER
+                cust_phone = ((structured_data.get('parties') or {}).get('customer') or {}).get('phone') or (request.form.get('erp_customer_phone') or '').strip() or ERP_DRAFT_PLACEHOLDER_PHONE
                 addr = ((structured_data.get('site') or {}).get('address_full') or (structured_data.get('site') or {}).get('address_main')) or (request.form.get('erp_address') or '').strip() or '-'
-                prod = (request.form.get('erp_product') or '').strip() or 'ERP Beta'
+                prod = (request.form.get('erp_product') or '').strip() or ERP_DRAFT_PLACEHOLDER_PRODUCT
 
                 new_order = Order(
                     received_date=request.form.get('received_date') or datetime.datetime.now().strftime('%Y-%m-%d'),
@@ -380,7 +380,7 @@ def bulk_action():
         db = get_db()
         if action == 'delete':
             for order_id in selected_ids:
-                order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
+                order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
                 if order:
                     original_status = getattr(order, 'status', None)
                     deleted_at = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -428,7 +428,7 @@ def bulk_action():
             new_status = action.split('_', 1)[1]
             if new_status in STATUS:
                 for order_id in selected_ids:
-                    order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
+                    order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
                     old_status_val = getattr(order, 'status', None) if order is not None else None
                     if order is not None and old_status_val != new_status:
                         setattr(order, 'status', new_status)

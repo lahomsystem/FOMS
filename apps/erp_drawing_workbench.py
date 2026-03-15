@@ -43,7 +43,7 @@ def erp_drawing_workbench_dashboard():
 
     orders = (
         db.query(Order)
-        .filter(Order.deleted_at.is_(None), Order.is_erp_beta.is_(True))
+        .filter(Order.active_filter(), Order.is_erp_beta.is_(True))
         .order_by(Order.created_at.desc())
         .limit(500)
         .all()
@@ -207,7 +207,7 @@ def erp_drawing_workbench_detail(order_id):
     """도면 작업실 상세: 도면팀↔주문담당 협업 실행판."""
     db = get_db()
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
-    order = db.query(Order).filter(Order.id == order_id, Order.deleted_at.is_(None), Order.is_erp_beta.is_(True)).first()
+    order = db.query(Order).filter(Order.id == order_id, Order.active_filter(), Order.is_erp_beta.is_(True)).first()
     if not order:
         flash('주문을 찾을 수 없습니다.', 'warning')
         return redirect(url_for('erp_drawing_workbench.erp_drawing_workbench_dashboard'))

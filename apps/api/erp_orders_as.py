@@ -14,6 +14,7 @@ from models import Order, OrderEvent, SecurityLog
 from apps.auth import login_required, get_user_by_id
 from services.erp_permissions import erp_edit_required, erp_construction_edit_required
 from apps.erp import _ensure_dict
+from services.erp_utils import ensure_path
 
 erp_orders_as_bp = Blueprint(
     'erp_orders_as',
@@ -29,8 +30,8 @@ def api_as_start(order_id):
     """AS 시작 (CS 단계에서 AS가 필요한 경우)"""
     db = get_db()
     try:
-        order = db.query(Order).get(order_id)
-        if not order:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         data = request.get_json() or {}
@@ -114,8 +115,8 @@ def api_as_complete(order_id):
     """AS 완료 → CS 복귀"""
     db = get_db()
     try:
-        order = db.query(Order).get(order_id)
-        if not order:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         data = request.get_json() or {}
@@ -184,13 +185,6 @@ def api_as_complete(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-def _ensure_path(d, *keys):
-    """딕셔너리 내 경로 보장 (orders.py ensure_path와 동일)."""
-    for k in keys:
-        d = d.setdefault(k, {})
-    return d
-
-
 @erp_orders_as_bp.route('/<int:order_id>/as/register', methods=['POST'])
 @login_required
 @erp_construction_edit_required
@@ -198,8 +192,8 @@ def api_as_register(order_id):
     """AS 접수 등록: 시공 대시보드에서 AS 이미지 업로드 후 호출. as_content 저장, 접수일=오늘, status=AS_RECEIVED."""
     db = get_db()
     try:
-        order = db.query(Order).get(order_id)
-        if not order:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         data = request.get_json(silent=True) or {}
@@ -207,7 +201,7 @@ def api_as_register(order_id):
 
         today = datetime.datetime.now().strftime('%Y-%m-%d')
         sd = _ensure_dict(order.structured_data)
-        shipment = _ensure_path(sd, 'shipment')
+        shipment = ensure_path(sd, 'shipment')
         shipment['as_content'] = as_content
         wf = sd.get('workflow') or {}
         wf['stage'] = 'AS_RECEIVED'
@@ -240,8 +234,8 @@ def api_as_schedule(order_id):
     """AS 방문일 확정"""
     db = get_db()
     try:
-        order = db.query(Order).get(order_id)
-        if not order:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         data = request.get_json() or {}

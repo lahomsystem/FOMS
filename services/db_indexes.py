@@ -6,11 +6,11 @@ def apply_phase2_indexes():
     db = get_db()
     try:
         # 1. 지방 대시보드용
-        db.execute(text("CREATE INDEX IF NOT EXISTS idx_order_regional ON orders(id DESC) WHERE status <> 'DELETED' AND is_regional = true;"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS idx_order_regional ON orders(id DESC) WHERE status <> 'DELETED' AND deleted_at IS NULL AND is_regional = true;"))
         # 2. 자가실측 대시보드용
-        db.execute(text("CREATE INDEX IF NOT EXISTS idx_order_self_measurement ON orders(id DESC) WHERE status <> 'DELETED' AND is_self_measurement = true;"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS idx_order_self_measurement ON orders(id DESC) WHERE status <> 'DELETED' AND deleted_at IS NULL AND is_self_measurement = true;"))
         # 3. ERP Beta 활성 주문용
-        db.execute(text("CREATE INDEX IF NOT EXISTS idx_order_erp_beta ON orders(id DESC) WHERE status <> 'DELETED' AND is_erp_beta = true;"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS idx_order_erp_beta ON orders(id DESC) WHERE status <> 'DELETED' AND deleted_at IS NULL AND is_erp_beta = true;"))
         db.commit()
         print("[AUTO-INIT] Phase 2: Partial Indexes verified/created successfully.")
     except Exception as e:

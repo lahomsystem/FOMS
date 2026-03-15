@@ -16,7 +16,7 @@ def reset_order_ids(db):
     """주문 ID를 1부터 연속적으로 재정렬합니다."""
     try:
         db.execute(text("CREATE TEMPORARY TABLE temp_order_mapping (old_id INT, new_id INT)"))
-        orders = db.query(Order).filter(Order.status != 'DELETED').order_by(Order.id).all()
+        orders = db.query(Order).filter(Order.active_filter()).order_by(Order.id).all()
         new_id = 0
         for new_id, order in enumerate(orders, 1):
             if order.id != new_id:
@@ -60,7 +60,7 @@ def delete_order(order_id):
     """주문을 휴지통으로 이동 (소프트 삭제)."""
     try:
         db = get_db()
-        order = db.query(Order).filter(Order.id == order_id, Order.status != 'DELETED').first()
+        order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
         if not order:
             flash('주문을 찾을 수 없거나 이미 삭제되었습니다.', 'error')
             return redirect(url_for('order_pages.index'))

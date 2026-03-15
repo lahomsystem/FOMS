@@ -778,7 +778,7 @@ def can_modify_by_team_policy(user, order, domain: str, emergency_override: bool
     if not order.structured_data or not order.structured_data.get('workflow'):
         return False
     
-    current_stage = order.structured_data['workflow'].get('current_stage')
+    current_stage = order.structured_data['workflow'].get('stage')
     if not current_stage:
         return False
     

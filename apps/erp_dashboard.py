@@ -52,7 +52,7 @@ def erp_dashboard():
     f_q = (request.args.get('q') or '').strip()
     f_team = (request.args.get('team') or '').strip()
 
-    _q = db.query(Order).filter(Order.deleted_at.is_(None), Order.is_erp_beta.is_(True)).order_by(Order.created_at.desc())
+    _q = db.query(Order).filter(Order.active_filter(), Order.is_erp_beta.is_(True)).order_by(Order.created_at.desc())
     # 검색어 있을 때는 전체 대상, 없을 때는 최신 300건만 로드
     orders = _q.all() if f_q else _q.limit(300).all()
     if request.args.get('mine') == '1' and current_user:
@@ -79,6 +79,32 @@ def erp_dashboard():
         'PRODUCTION': '생산팀',
         'CONSTRUCTION': '시공팀',
     }
+
+    # B-2: 루프 전 모든 assignee user_id 수집 → 단일 IN 조회로 user_map 생성
+    all_assignee_ids = set()
+    for o in orders:
+        sd = _ensure_dict(o.structured_data)
+        stage = _erp_get_stage(o, sd)
+        stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
+        if stage_code in ('MEASURE', 'DRAWING', 'CONFIRM'):
+            assignments = sd.get('assignments') or {}
+            if stage_code in ('MEASURE', 'CONFIRM'):
+                uids = assignments.get('sales_assignee_user_ids') or []
+            else:
+                uids = assignments.get('drawing_assignee_user_ids') or []
+                if not uids:
+                    for a in ((assignments.get('drawing_assignees') or []) + (sd.get('drawing_assignees') or [])):
+                        if isinstance(a, dict) and a.get('id'):
+                            uids.append(a['id'])
+            for uid in uids:
+                try:
+                    all_assignee_ids.add(int(uid))
+                except (TypeError, ValueError):
+                    pass
+    user_map = {}
+    if all_assignee_ids:
+        users = db.query(User).filter(User.id.in_(all_assignee_ids)).all()
+        user_map = {u.id: (u.name or '') for u in users if u.name}
 
     enriched = []
     for o in orders:
@@ -189,8 +215,7 @@ def erp_dashboard():
                                 user_ids.append(a['id'])
                 user_ids = [int(uid) for uid in user_ids if isinstance(uid, (int, str)) and str(uid).isdigit()]
                 if user_ids:
-                    assignee_users = db.query(User).filter(User.id.in_(user_ids)).all()
-                    assignee_display_names = [u.name for u in assignee_users if u.name]
+                    assignee_display_names = [user_map.get(uid, '') for uid in user_ids if user_map.get(uid)]
                 elif stage_code in ('MEASURE', 'CONFIRM'):
                     mgr = (((sd.get('parties') or {}).get('manager') or {}).get('name')) or o.manager_name or current_quest.get('owner_person') or ''
                     if str(mgr).strip():

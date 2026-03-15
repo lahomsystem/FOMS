@@ -182,7 +182,7 @@ def download_excel():
     sort_column = request.args.get('sort', 'id')
     sort_direction = request.args.get('direction', 'desc')
 
-    query = db.query(Order).filter(Order.deleted_at.is_(None))
+    query = db.query(Order).filter(Order.active_filter())
 
     if status_filter:
         if status_filter == 'RECEIVED':

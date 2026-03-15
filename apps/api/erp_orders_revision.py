@@ -4,6 +4,7 @@ erp.py에서 분리: request-revision, request-revision-check, drawing/request-r
 """
 import copy
 import datetime
+import logging
 
 from flask import Blueprint, request, jsonify, session
 
@@ -21,6 +22,7 @@ from apps.erp import _ensure_dict, _can_modify_sales_domain
 from services.erp_policy import can_modify_domain
 from services.realtime_notifications import emit_erp_notification_to_users
 
+logger = logging.getLogger(__name__)
 erp_orders_revision_bp = Blueprint(
     'erp_orders_revision',
     __name__,
@@ -52,11 +54,11 @@ def api_order_request_revision(order_id):
             target_drawing_keys = []
 
         db = get_db()
-        order = db.query(Order).filter(Order.id == order_id).first()
-        if not order:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
-        s_data = dict(order.structured_data or {})
+        s_data = copy.deepcopy(order.structured_data or {})
         current_files = list(s_data.get('drawing_current_files', []) or [])
 
         current_user = get_user_by_id(session.get('user_id'))
@@ -111,6 +113,7 @@ def api_order_request_revision(order_id):
         s_data['drawing_transfer_history'] = history
 
         order.structured_data = s_data
+        flag_modified(order, 'structured_data')
 
         msg = f"주문 #{order_id} 도면 수정 요청이 접수되었습니다."
         if target_drawing_numbers:
@@ -155,9 +158,7 @@ def api_order_request_revision(order_id):
         return jsonify({'success': True, 'message': '도면 수정 요청이 전송되었습니다.'})
     except Exception as e:
         db.rollback()
-        import traceback
-        print(f"Request Revision Error: {e}")
-        print(traceback.format_exc())
+        logger.exception("Request Revision Error: %s", e)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -183,8 +184,8 @@ def api_order_request_revision_check(order_id):
             by_user_id = None
 
         db = get_db()
-        order = db.query(Order).filter(Order.id == order_id).first()
-        if not order:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         s_data = _ensure_dict(order.structured_data)
@@ -255,9 +256,7 @@ def api_order_request_revision_check(order_id):
     except Exception as e:
         if db is not None:
             db.rollback()
-        import traceback
-        print(f"Request Revision Check Error: {e}")
-        print(traceback.format_exc())
+        logger.exception("Request Revision Check Error: %s", e)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -268,8 +267,8 @@ def api_drawing_request_revision(order_id):
     """도면 수정 요청 (고객 컨펌 또는 생산 단계에서) - Blueprint V3: blueprint.revisions 구조"""
     db = get_db()
     try:
-        order = db.query(Order).get(order_id)
-        if not order:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         data = request.get_json() or {}
@@ -334,8 +333,8 @@ def api_drawing_complete_revision(order_id):
     """도면 수정 완료 (도면팀에서 수정 후)"""
     db = get_db()
     try:
-        order = db.query(Order).get(order_id)
-        if not order:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         data = request.get_json() or {}

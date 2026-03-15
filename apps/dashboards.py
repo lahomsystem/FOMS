@@ -27,7 +27,7 @@ def regional_dashboard():
 
     base_query = db.query(Order).filter(
         Order.is_regional == True,
-        Order.status != 'DELETED'
+        Order.active_filter()
     )
 
     if search_query:
@@ -266,7 +266,7 @@ def self_measurement_dashboard():
 
     base_query = db.query(Order).filter(
         Order.is_self_measurement == True,
-        Order.status != 'DELETED'
+        Order.active_filter()
     )
 
     if search_query:

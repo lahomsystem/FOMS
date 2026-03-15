@@ -103,7 +103,7 @@ def _work_stream_counts(db, user_team):
     rows = (
         db.query(Order.status, func.count(Order.id))
         .filter(Order.status.in_(stages_for_team))
-        .filter(Order.status != 'DELETED')
+        .filter(Order.active_filter())
         .group_by(Order.status)
         .all()
     )
@@ -195,7 +195,7 @@ def _recent_work(db, user_id, limit=5):
 
         orders = (
             db.query(Order.id, Order.customer_name, Order.status, Order.structured_data)
-            .filter(Order.id.in_(order_ids))
+            .filter(Order.id.in_(order_ids), Order.active_filter())
             .all()
         )
         order_map = {o[0]: o for o in orders}
@@ -230,7 +230,7 @@ def _stalled_count(db, user_team, days=3):
             db.query(Order.id)
             .filter(Order.id.in_(stalled_order_ids))
             .filter(Order.status.in_(stages))
-            .filter(Order.status != 'DELETED')
+            .filter(Order.active_filter())
             .count()
         )
     except Exception:
@@ -254,7 +254,7 @@ def _settlement_alerts_count(db, user_id):
         from apps.api.erp_orders_completion import TARGET_STATUSES
         orders = (
             db.query(Order.id, Order.structured_data)
-            .filter(Order.deleted_at.is_(None), Order.status.in_(TARGET_STATUSES))
+            .filter(Order.active_filter(), Order.status.in_(TARGET_STATUSES))
             .limit(500)
             .all()
         )
@@ -329,7 +329,7 @@ def _schedule_today_tomorrow(db, user_id, user_team):
     try:
         orders = (
             db.query(Order.id, Order.customer_name, Order.status, Order.structured_data)
-            .filter(Order.deleted_at.is_(None))
+            .filter(Order.active_filter())
             .order_by(Order.id.desc())
             .limit(300)
             .all()

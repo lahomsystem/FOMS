@@ -441,7 +441,7 @@ def step_11_backfill_auto_tasks(db):
         from models import Order  # local import
         from erp_automation import apply_auto_tasks  # noqa
 
-        orders = db.query(Order).filter(Order.deleted_at.is_(None), Order.structured_data.isnot(None)).order_by(Order.created_at.desc()).limit(500).all()
+        orders = db.query(Order).filter(Order.active_filter(), Order.structured_data.isnot(None)).order_by(Order.created_at.desc()).limit(500).all()
 
         changed = 0
         for o in orders:
