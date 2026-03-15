@@ -10,12 +10,13 @@ from services.geocode_helpers import extract_address_from_order
 
 
 def _measurement_search_filter(query, q):
-    """고객·담당자·주소 전체 검색 (Order + ERP Beta structured_data)."""
+    """고객·담당자·주소·주문ID 전체 검색 (Order + ERP Beta structured_data)."""
     if not q or not q.strip():
         return query
     term = f'%{q.strip()}%'
     return query.filter(
         or_(
+            cast(Order.id, String).ilike(term),  # q=2662 주문 ID 검색
             Order.customer_name.ilike(term),
             Order.manager_name.ilike(term),
             Order.address.ilike(term),
