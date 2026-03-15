@@ -2,6 +2,7 @@
 ERP 실측 API. (Phase 4-3)
 erp.py에서 분리: 실측 대시보드 업데이트, 실측 동선 추천.
 """
+import copy
 import datetime
 import math
 
@@ -125,7 +126,7 @@ def api_erp_measurement_update(order_id):
         if not field:
             return jsonify({'success': False, 'message': '필드명이 필요합니다.'}), 400
 
-        structured_data = order.structured_data or {}
+        structured_data = copy.deepcopy(order.structured_data or {})
 
         if field == 'manager':
             if 'parties' not in structured_data:
@@ -147,6 +148,9 @@ def api_erp_measurement_update(order_id):
                 structured_data['site']['address_main'] = value
                 structured_data['site']['address_detail'] = ''
             order.address = value
+            order.lat = None
+            order.lng = None
+            order.geocode_status = 'pending'
 
         elif field == 'phone':
             if 'parties' not in structured_data:
@@ -167,7 +171,10 @@ def api_erp_measurement_update(order_id):
         db.commit()
 
         if field == 'address':
-            enqueue_geocode_order_address(order_id)
+            queued = enqueue_geocode_order_address(order_id)
+            if not queued:
+                from services.jobs.tasks import geocode_order_address
+                geocode_order_address(order_id)
 
         return jsonify({'success': True})
     except Exception as e:

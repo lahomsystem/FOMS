@@ -4,40 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-09 08:34:44 | allow | `-` | `wc -l c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_measurement.py c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/a` |
-| 2026-03-09 08:57:55 | allow | `-` | `wc -l c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/templates/partials/erp_beta_js.html c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOM` |
-| 2026-03-10 16:37:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "from services.order_date_sync import collect_order_schedule_date_specs; print('OK')` |
-| 2026-03-10 16:38:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff services/order_date_sync.py` |
-| 2026-03-10 16:38:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add services/order_date_sync.py; git commit --trailer "Made-with: Cursor" -F commit_msg.tx` |
-| 2026-03-10 16:38:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-10 21:55:11 | allow | `-` | `python -c "import app; print('APP_OK')" 2>&1` |
-| 2026-03-10 22:35:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
-| 2026-03-10 22:35:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-10 22:35:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -5` |
-| 2026-03-10 22:35:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
-| 2026-03-10 22:35:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff app.py | head -30` |
-| 2026-03-10 22:35:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff app.py 2>$null | Select-Object -First 40` |
-| 2026-03-10 22:36:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --name-only` |
-| 2026-03-10 22:36:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add app.py apps/api/erp_shipment_settings.py docs/AI_CHANGELOG.md docs/AI_STATUS.md docs/c` |
-| 2026-03-10 22:36:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/css/shipment-dashboard-columns.css static/js/shipment-dashboard-columns.js docs` |
-| 2026-03-10 22:36:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-10 22:36:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/ docs/context/SHELL_GUARD_LOG.md` |
-| 2026-03-10 22:36:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --cached app.py 2>$null` |
-| 2026-03-10 22:36:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short` |
-| 2026-03-10 22:36:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/context/EDIT_LOG.md docs/context/SHELL_GUARD_LOG.md; git commit --trailer "Made-w` |
-| 2026-03-10 22:42:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
-| 2026-03-10 22:42:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
-| 2026-03-10 22:49:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -5 origin/production` |
-| 2026-03-10 22:49:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show HEAD:services/order_date_sync.py 2>$null | Select-String "fallback|beta_schedule_fall` |
-| 2026-03-10 22:49:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show HEAD:services/order_date_sync.py | Select-String "fallback|timedelta|days=5"` |
-| 2026-03-10 22:54:53 | allow | `-` | `railway --version 2>$null; if ($LASTEXITCODE -ne 0) { echo "NOT_INSTALLED" }` |
-| 2026-03-10 22:55:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway status 2>&1` |
-| 2026-03-10 22:55:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway logs --limit 50 2>&1 | Select-Object -Last 30` |
-| 2026-03-10 22:55:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway service 2>&1` |
-| 2026-03-10 22:55:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway logs 2>&1 | Select-Object -Last 40` |
-| 2026-03-10 22:55:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway service foms-production 2>&1; railway logs 2>&1 | Select-Object -Last 20` |
-| 2026-03-10 22:56:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway environment 2>&1` |
-| 2026-03-10 22:56:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline origin/production -3` |
 | 2026-03-10 22:57:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway service FOMS 2>&1; railway logs 2>&1 | Select-Object -Last 5` |
 | 2026-03-10 23:07:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline origin/production -5` |
 | 2026-03-10 23:08:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production` |
@@ -304,3 +270,37 @@
 | 2026-03-15 17:35:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short` |
 | 2026-03-15 17:35:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
 | 2026-03-15 17:36:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add apps/api/erp_map.py docs/ docs/evolution/MAP_ORDERS_2670_2662_ANALYSIS_2026-03-15.md; ` |
+| 2026-03-15 17:36:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-15 17:36:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
+| 2026-03-15 17:36:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-15 17:36:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy -m "Merge deploy: 실측 지도 #2670 #2662 미표시 해결"; git pus` |
+| 2026-03-15 17:36:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git stash; git checkout production; git merge deploy -m "Merge deploy: 실측 지도 2670 2662 미표시 해결"` |
+| 2026-03-15 18:15:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
+| 2026-03-15 18:15:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
+| 2026-03-15 18:15:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; grep -n -C 5 "address" apps/api/erp_map.py` |
+| 2026-03-15 18:16:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; grep -n -C 5 "def self_measurement_four_checks_done" services/erp_display.py` |
+| 2026-03-15 18:17:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
+| 2026-03-15 18:18:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
+| 2026-03-15 18:19:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
+| 2026-03-15 18:19:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_flask_2629.py` |
+| 2026-03-15 18:21:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_flask_2629.py` |
+| 2026-03-15 18:23:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
+| 2026-03-15 18:23:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
+| 2026-03-15 18:24:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
+| 2026-03-15 18:25:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_flask_2629.py` |
+| 2026-03-15 18:26:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_flask_2629.py` |
+| 2026-03-15 18:26:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
+| 2026-03-15 18:27:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
+| 2026-03-15 18:27:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
+| 2026-03-15 18:28:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
+| 2026-03-15 18:30:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
+| 2026-03-15 18:32:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
+| 2026-03-15 19:13:05 | allow | `-` | `python -m py_compile "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\apps\api\erp_map.py" "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\F` |
+| 2026-03-15 19:18:52 | allow | `-` | `python -m py_compile "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\apps\api\erp_map.py" "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\F` |
+| 2026-03-15 19:19:44 | allow | `-` | `python -c "from app import app; print('APP_OK')"` |
+| 2026-03-15 19:26:56 | allow | `-` | `python -m py_compile "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\apps\api\erp_map.py" "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\F` |
+| 2026-03-15 19:39:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git status` |
+| 2026-03-15 19:39:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git branch --show-current` |
+| 2026-03-15 19:39:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git log --oneline -5` |
+| 2026-03-15 19:39:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git diff --stat` |
+| 2026-03-15 19:40:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git add -A` |

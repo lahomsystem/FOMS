@@ -69,6 +69,13 @@ class FOMSMapGenerator:
         """주문 상태에 따른 마커 색상 반환"""
         status_colors = {
             'RECEIVED': '#007bff',      # 파란색 - 접수
+            'MEASURE': '#28a745',       # 초록색 - 실측
+            'MEASURED': '#28a745',      # 레거시 - 실측
+            'DRAWING': '#6f42c1',       # 보라색 - 도면
+            'CONFIRM': '#0d6efd',       # 파란색 - 고객컨펌
+            'PRODUCTION': '#fd7e14',    # 주황색 - 생산
+            'CONSTRUCTION': '#20c997',  # 민트색 - 시공
+            'CS': '#dc3545',            # 빨간색 - CS
             'CONFIRMED': '#28a745',     # 초록색 - 확인
             'IN_PRODUCTION': '#ffc107', # 노란색 - 제작중
             'COMPLETED': '#6c757d',     # 회색 - 완료
