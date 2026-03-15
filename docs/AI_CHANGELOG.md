@@ -4,6 +4,8 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-15 | 세션 자동 기록 | map_view.html, erp_map.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-a400de32-43b9-4af2-9e8c-a3ed4fc57e3d.png 외 2개 | b4466d2 |
+| 2026-03-15 | 세션 자동 기록 | commit_msg.txt, map_view.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e46885a3-acb0-48a5-aeb7-b8d870ed7b9a.png 외 2개 | b4466d2 |
 | 2026-03-15 | 세션 자동 기록 | map_view.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e46885a3-acb0-48a5-aeb7-b8d870ed7b9a.png, commit_msg.txt 외 2개 | a003fc4 |
 | 2026-03-15 | 세션 자동 기록 | commit_msg.txt, erp_map.py, map_view.html 외 2개 | a003fc4 |
 | 2026-03-15 | 세션 자동 기록 | erp_map.py, map_view.html, .dockerignore 외 2개 | cfe41b8 |
@@ -22,5 +24,3 @@
 | 2026-03-15 | 세션 자동 기록 | commit_msg.txt, erp_orders_revision.py, erp_dashboard_scripts_core.html 외 2개 | 7d14c5e |
 | 2026-03-15 | 세션 자동 기록 | erp_orders_revision.py, erp_dashboard_scripts_core.html, erp_dashboard_styles.html 외 2개 | 1284e2b |
 | 2026-03-15 | 세션 자동 기록 | personal_board.py, phase_c_indexes_concurrently.py, db_indexes.py 외 2개 | 1284e2b |
-| 2026-03-15 | Phase C 완료: soft-delete 통일, C-1/C-2 인덱스 마이그레이션, 코드리뷰/GDM | models.py, apps/* 25+, migrations, docs/evolution | - |
-| 2026-03-15 | 세션 자동 기록 | erp_shipment_dashboard.html, erp_construction_scripts.html, erp_dashboard.py 외 2개 | 1284e2b |

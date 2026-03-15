@@ -841,12 +841,12 @@
                 <div class="modal-body">
                     <input type="hidden" id="map-address-edit-order-id">
 
-                    <!-- 현재 잘못된 주소 표시 (주소 변환 실패 시에만) -->
+                    <!-- 현재 잘못된 주소 표시 (지도 좌표 변환 실패 시에만) -->
                     <div class="alert alert-danger d-flex align-items-start mb-3" id="map-address-error-alert"
                         style="display: none;">
                         <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
                         <div class="flex-grow-1">
-                            <div class="fw-bold mb-1">주소 검색에 실패한 주소:</div>
+                            <div class="fw-bold mb-1">지도 좌표 변환에 실패한 주소:</div>
                             <div id="map-address-current" class="font-monospace"></div>
                         </div>
                     </div>
@@ -903,10 +903,12 @@
         const GEOCODE_POLL_INTERVAL_MS = 15000;  // 15초 간격 (이전: 6초)
         const GEOCODE_POLL_MAX_RETRIES = 5;       // 최대 5회 (이전: 10회)
 
+        /** geocode 실패 여부: geocode_failed 우선, 없으면 conversion_status로 판별 */
         function isOrderGeocodeFailed(order) {
             if (!order) return false;
             if (order.geocode_failed === true) return true;
             if (order.geocode_failed === false) return false;
+            if (order.conversion_status === 'success') return false;
             return order.conversion_status === 'failed' || order.conversion_status === 'pending';
         }
 
