@@ -257,11 +257,14 @@ def _build_map_payload(orders, *, manager_filter='', search_query='', enqueue_mi
         lat = getattr(order, 'lat', None)
         lng = getattr(order, 'lng', None)
         stored_geocode_status = getattr(order, 'geocode_status', None)
-        geocode_status = stored_geocode_status or (
-            'success' if (lat is not None and lng is not None) else 'failed'
-        )
+        has_coords = lat is not None and lng is not None
 
-        if lat is None or lng is None:
+        # lat/lng를 단일 진실 소스로 사용 (stored_geocode_status와 불일치 시 좌표 우선)
+        if has_coords:
+            geocode_failed = False
+            geocode_status = 'success'
+        else:
+            geocode_failed = True
             skipped_no_coords += 1
             address_for_geocode = extract_address_from_order(order)
             if (
@@ -273,6 +276,8 @@ def _build_map_payload(orders, *, manager_filter='', search_query='', enqueue_mi
             ):
                 geocode_status = 'pending'
                 to_geocode.append(order)
+            else:
+                geocode_status = stored_geocode_status or 'failed'
 
         orders_list.append({
             'id': order.id,
@@ -287,7 +292,7 @@ def _build_map_payload(orders, *, manager_filter='', search_query='', enqueue_mi
             'completion_date': _format_map_date(order.completion_date),
             'manager_name': display['manager_name'],
             'notes': order.notes or '-',
-            'geocode_failed': lat is None or lng is None,
+            'geocode_failed': geocode_failed,
             'conversion_status': geocode_status,
         })
 
