@@ -481,6 +481,36 @@
             font-size: 0.65rem;
         }
 
+        /* 주소 변환 중 - 옅은 노란색 (pending, 2026-03-15) */
+        .order-item.geocode-pending {
+            background-color: #fff8e1;
+            border-left: 4px solid #ffc107;
+        }
+
+        .order-item.geocode-pending:hover {
+            background-color: #ffecb3;
+            border-color: #ffb300;
+        }
+
+        .order-item.geocode-pending.selected {
+            background-color: #ffe082;
+            border-color: #ffc107;
+        }
+
+        .geocode-pending-badge {
+            background-color: #ffc107;
+            color: #000;
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+            margin-left: 4px;
+        }
+
+        .geocode-pending-badge i {
+            font-size: 0.65rem;
+        }
+
         .btn-edit-address {
             padding: 2px 8px;
             font-size: 0.75rem;
@@ -710,7 +740,7 @@
                         <input type="date" id="date-filter" class="form-select-sm">
                     </div>
 
-                    <div class="filter-group">
+                    <div class="filter-group" id="status-filter-group">
                         <label class="filter-label">상태:</label>
                         <select id="status-filter" class="form-select-sm">
                             <option value="ALL">모든 상태</option>
@@ -879,14 +909,18 @@
         // URL 파라미터에서 초기값 가져오기
         const urlParams = new URLSearchParams(window.location.search);
         const initialDate = urlParams.get('date') || new Date().toISOString().split('T')[0];
-        const initialStatus = urlParams.get('status') || 'ALL';
+        const dashboardParam = urlParams.get('dashboard') || '';
+        const initialStatus = (dashboardParam === 'measurement') ? 'ALL' : (urlParams.get('status') || 'ALL');
         const initialManager = urlParams.get('manager') || '';
         const initialSearch = urlParams.get('q') || urlParams.get('search') || '';
-        const dashboardParam = urlParams.get('dashboard') || '';
 
         // 초기값 설정
         document.getElementById('date-filter').value = initialDate;
         document.getElementById('status-filter').value = initialStatus;
+        const statusFilterGroup = document.getElementById('status-filter-group');
+        if (statusFilterGroup) {
+            statusFilterGroup.style.display = (dashboardParam === 'measurement') ? 'none' : '';
+        }
         document.getElementById('manager-filter').value = initialManager;
         document.getElementById('map-search-input').value = initialSearch;
 
@@ -984,7 +1018,7 @@
             }
 
             const dateFilter = document.getElementById('date-filter').value;
-            const statusFilter = document.getElementById('status-filter').value;
+            const statusFilter = (dashboardParam === 'measurement') ? 'ALL' : (document.getElementById('status-filter').value || 'ALL');
             const managerFilter = (document.getElementById('manager-filter').value || '').trim();
             const searchQuery = (document.getElementById('map-search-input').value || '').trim();
 
@@ -1000,22 +1034,27 @@
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
                         if (!data.success) { clearGeocodePoll(); return; }
-                        // 새로 geocode 완료된 건만 currentOrders에 반영
-                        const newCoords = {};
-                        (data.data || []).forEach(function (d) {
-                            newCoords[d.id] = { lat: d.latitude, lng: d.longitude };
-                        });
-                        let anyResolved = false;
-                        currentOrders = currentOrders.map(function (o) {
-                            if (o.geocode_failed && newCoords[o.id]) {
-                                anyResolved = true;
-                                return Object.assign({}, o, { geocode_failed: false, conversion_status: 'success' });
-                            }
-                            return o;
-                        });
-                        if (anyResolved) updateOrderList(currentOrders);
-                        // 아직 pending 있으면 계속 poll
-                        const stillPending = currentOrders.some(function (o) { return o.geocode_failed; });
+                        // measurement: 서버 응답으로 전체 재구성 (2026-03-15)
+                        if (Array.isArray(data.orders)) {
+                            currentOrders = data.orders;
+                            updateOrderList(currentOrders);
+                        } else {
+                            const newCoords = {};
+                            (data.data || []).forEach(function (d) {
+                                newCoords[d.id] = { lat: d.latitude, lng: d.longitude };
+                            });
+                            let anyResolved = false;
+                            currentOrders = currentOrders.map(function (o) {
+                                if (o.conversion_status === 'pending' && newCoords[o.id]) {
+                                    anyResolved = true;
+                                    const c = newCoords[o.id];
+                                    return Object.assign({}, o, { conversion_status: 'success', latitude: c.lat, longitude: c.lng });
+                                }
+                                return o;
+                            });
+                            if (anyResolved) updateOrderList(currentOrders);
+                        }
+                        const stillPending = currentOrders.some(function (o) { return o.conversion_status === 'pending'; });
                         const banner = document.getElementById('geocode-poll-banner');
                         const pollText = document.getElementById('geocode-poll-text');
                         if (stillPending && geocodePollRetries < GEOCODE_POLL_MAX_RETRIES) {
@@ -1056,7 +1095,7 @@
 
                         // 주소 변환 대기 주문 있으면 15초 후 목록만 조용히 갱신
                         const hasPending = (data.orders || []).some(function (o) {
-                            return o.geocode_failed && (o.conversion_status === 'pending');
+                            return o.conversion_status === 'pending';
                         });
                         const banner = document.getElementById('geocode-poll-banner');
                         const pollText = document.getElementById('geocode-poll-text');
@@ -1131,11 +1170,20 @@
             orders.forEach(order => {
                 const statusClass = `status-${order.status}`;
                 const statusText = getStatusText(order.status);
-                const failedClass = order.geocode_failed ? 'geocode-failed' : '';
+                const failedClass = order.conversion_status === 'failed' ? 'geocode-failed'
+                    : order.conversion_status === 'pending' ? 'geocode-pending' : '';
 
-                // 수정 버튼 스타일: 실패한 경우 빨간색, 정상인 경우 회색
-                const editBtnClass = order.geocode_failed ? 'btn-outline-danger' : 'btn-outline-secondary';
-                const editBtnTitle = order.geocode_failed ? '주소 오류 - 수정 필요' : '주소 수정';
+                // 수정 버튼 스타일: 실패=빨강, pending=노랑, 정상=회색
+                const editBtnClass = order.conversion_status === 'failed' ? 'btn-outline-danger'
+                    : order.conversion_status === 'pending' ? 'btn-outline-warning' : 'btn-outline-secondary';
+                const editBtnTitle = order.conversion_status === 'failed' ? '주소 오류 - 수정 필요'
+                    : order.conversion_status === 'pending' ? '변환 중' : '주소 수정';
+
+                const badge = order.conversion_status === 'pending'
+                    ? '<span class="geocode-pending-badge"><i class="fas fa-hourglass-half"></i> 변환 중</span>'
+                    : order.conversion_status === 'failed'
+                    ? '<span class="geocode-failed-badge"><i class="fas fa-exclamation-triangle"></i> 주소오류</span>'
+                    : '';
 
                 html += `
                     <div class="order-item ${failedClass} ${selectedOrderId === order.id ? 'selected' : ''}" 
@@ -1143,7 +1191,7 @@
                          data-order-id="${order.id}">
                         <div class="order-item-header">
                             <span class="order-id">#${order.id}</span>
-                            ${order.geocode_failed ? '<span class="geocode-failed-badge"><i class="fas fa-exclamation-triangle"></i> 주소오류</span>' : ''}
+                            ${badge}
                             <span class="order-status status-badge ${statusClass}">${statusText}</span>
                         </div>
                         <div class="order-info">
@@ -1394,7 +1442,7 @@
 
             // 해당 주문 찾기
             const order = currentOrders.find(o => o.id == orderId);
-            const isGeocodeFailure = order && order.geocode_failed;
+            const isGeocodeFailure = order && (order.conversion_status === 'failed' || order.conversion_status === 'pending');
 
             selectedModalAddress = '';
             document.getElementById('map-address-edit-order-id').value = orderId;
@@ -1561,17 +1609,13 @@
                     return;
                 }
 
-                // 성공 - currentOrders 업데이트 (Phase C: geocode_queued 응답)
+                // 성공 - currentOrders 업데이트 (서버 응답 기준, 2026-03-15)
                 const order = currentOrders.find(o => o.id == orderId);
                 if (order) {
                     order.address = fullAddress;
-                    if (data.geocode_queued) {
-                        order.geocode_failed = true;  // 아직 좌표 없음 (백그라운드 처리 중)
-                        order.conversion_status = 'pending';
-                    } else {
-                        order.geocode_failed = !(data.latitude != null && data.longitude != null);
-                        order.conversion_status = order.geocode_failed ? (data.conversion_status || 'failed') : 'success';
-                    }
+                    order.conversion_status = data.conversion_status || 'pending';
+                    order.latitude = data.latitude ?? null;
+                    order.longitude = data.longitude ?? null;
                 }
 
                 // 주문 목록 UI 갱신
@@ -1585,11 +1629,11 @@
                     addressSearchModal.hide();
                 }
 
-                // 성공 메시지 (Phase C: geocode_queued 대응)
+                // 성공 메시지 (conversion_status 기준, 2026-03-15)
                 if (data.geocode_queued) {
                     alert(`주소가 저장되었습니다.\n\n지오코딩은 백그라운드에서 처리 중입니다. 잠시 후 지도를 새로고침하면 마커가 표시됩니다.`);
-                } else if (data.geocode_failed) {
-                    alert(`주소가 수정되었으나 좌표 변환에 실패했습니다.\n\n사유: ${data.conversion_status || '알 수 없음'}\n\n다른 주소로 다시 시도해주세요.`);
+                } else if (data.conversion_status === 'failed') {
+                    alert(`주소가 수정되었으나 좌표 변환에 실패했습니다.\n\n다른 주소로 다시 시도해주세요.`);
                 } else {
                     alert(`주소가 성공적으로 수정되었습니다.\n\n지도에 마커가 표시됩니다.`);
                 }
