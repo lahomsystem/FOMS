@@ -683,13 +683,19 @@
         };
     }
 
-    async function erpSaveStructured() {
-        if (!ERP_BETA_ENABLED) return;
+    /**
+     * ERP Beta 구조화 데이터 저장.
+     * @param {Object} opts - 옵션
+     * @param {boolean} [opts.redirect=true] - 저장 성공 후 리다이렉트 여부 (푸쉬 전 자동 저장 시 false)
+     * @returns {Promise<{success: boolean, message?: string}>}
+     */
+    async function erpSaveStructured(opts = {}) {
+        const doRedirect = opts.redirect !== false;
+        if (!ERP_BETA_ENABLED) return { success: false, message: 'ERP Beta 비활성' };
 
         // ORDER_ID 안전하게 확보
         let targetId = parseInt(String(ORDER_ID || '0'), 10) || 0;
         if (!targetId) {
-            // 전역 변수가 없으면 DOM에서 다시 시도
             const cardEl = document.querySelector('.card[data-erp-order-id]') || document.querySelector('.card[data-order-id]');
             if (cardEl) {
                 const idVal = cardEl.dataset.erpOrderId || cardEl.dataset.orderId || '0';
@@ -700,14 +706,13 @@
         // 신규 주문(draft) 모드: ID가 0이면 반드시 draft 생성
         if (window.__ERP_BETA_DRAFT_MODE && targetId <= 0) {
             const id = await erpRequireOrderIdOrWarn('저장:');
-            if (!id) return;
+            if (!id) return { success: false, message: '주문번호 생성 실패' };
             targetId = parseInt(String(id), 10) || 0;
         }
 
-        // 일반 모드/예외 상황: ID 없으면 저장 중단
         if (targetId <= 0) {
             erpSetStatus('주문 ID를 찾을 수 없습니다.', true);
-            return;
+            return { success: false, message: '주문 ID를 찾을 수 없습니다.' };
         }
 
         erpSetStatus('저장 중...');
@@ -717,42 +722,37 @@
 
             // AS접수 선택 시: 기존 저장 중단, AS 접수 모달 표시
             if (structured_data?.workflow?.stage === 'AS_RECEIVED') {
-                window.__erpAsReceivePreviousStage = (window.__erpLastStructuredData?.workflow?.stage || '').trim();
-                window.__erpAsReceiveTargetId = targetId;
-                window.__erpAsReceiveSubmitted = false;
-
-                const modalEl = document.getElementById('asReceiveModal');
-                if (modalEl) {
-                    const contentEl = document.getElementById('as-receive-content');
-                    const filesEl = document.getElementById('as-receive-files');
-                    const previewEl = document.getElementById('as-receive-preview');
-                    if (contentEl) {
-                        contentEl.value = (window.__erpLastStructuredData?.shipment?.as_content || '').trim();
+                if (doRedirect) {
+                    window.__erpAsReceivePreviousStage = (window.__erpLastStructuredData?.workflow?.stage || '').trim();
+                    window.__erpAsReceiveTargetId = targetId;
+                    window.__erpAsReceiveSubmitted = false;
+                    const modalEl = document.getElementById('asReceiveModal');
+                    if (modalEl) {
+                        const contentEl = document.getElementById('as-receive-content');
+                        const filesEl = document.getElementById('as-receive-files');
+                        const previewEl = document.getElementById('as-receive-preview');
+                        if (contentEl) contentEl.value = (window.__erpLastStructuredData?.shipment?.as_content || '').trim();
+                        if (filesEl) filesEl.value = '';
+                        if (previewEl) previewEl.innerHTML = '';
+                        bootstrap.Modal.getOrCreateInstance(modalEl).show();
                     }
-                    if (filesEl) filesEl.value = '';
-                    if (previewEl) previewEl.innerHTML = '';
-
-                    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-                    modal.show();
+                    erpSetStatus('AS 접수 내용을 입력해주세요.');
                 }
-                erpSetStatus('AS 접수 내용을 입력해주세요.');
-                return;
+                return { success: false, message: 'AS 접수 선택 시에는 저장 후 푸쉬해주세요.' };
             }
-
-            const raw_order_text = '';
 
             const receivedDateEl = document.getElementById('erp-received-date');
             const receivedTimeEl = document.getElementById('erp-received-time');
             const received_date = receivedDateEl ? (receivedDateEl.value || '').trim() : '';
             const received_time = receivedTimeEl ? (receivedTimeEl.value || '').trim() : '';
-
             const notesVal = (typeof getVal === 'function' ? getVal('erp-notes') : (document.getElementById('erp-notes')?.value || '')).trim();
+
             const res = await fetch(`/api/orders/${targetId}/structured`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     structured_data,
-                    raw_order_text,
+                    raw_order_text: '',
                     structured_schema_version: 1,
                     structured_confidence: structured_data.confidence,
                     received_date: received_date || undefined,
@@ -764,32 +764,27 @@
             const data = await res.json();
             if (!data.success) {
                 erpSetStatus(data.message || '저장 실패', true);
-                return;
+                return { success: false, message: data.message || '저장 실패' };
             }
-            erpSetStatus('저장 완료! 이동합니다...');
+            erpSetStatus(doRedirect ? '저장 완료! 이동합니다...' : '저장 완료');
 
-            // 저장 후 리다이렉트
-            setTimeout(() => {
-                if (window.__ERP_BETA_DRAFT_MODE) {
-                    // 신규 주문 저장: 전체 주문 목록으로 이동
-                    window.location.href = '/erp/dashboard';
-                } else {
-                    // 기존 주문 저장: 작업 큐(목록)으로 복귀
-                    // edit_order.html에 있는 referrer 값을 우선 사용
-                    const referrerInput = document.querySelector('input[name="referrer"]');
-                    let targetUrl = referrerInput ? referrerInput.value : document.referrer;
-
-                    // 만약 referrer가 없거나, 현재 페이지(상세/추가)라면 기본 대시보드로 이동
-                    if (!targetUrl || targetUrl.includes(window.location.pathname)) {
-                        targetUrl = '/erp/dashboard';
+            if (doRedirect) {
+                setTimeout(() => {
+                    if (window.__ERP_BETA_DRAFT_MODE) {
+                        window.location.href = '/erp/dashboard';
+                    } else {
+                        const referrerInput = document.querySelector('input[name="referrer"]');
+                        let targetUrl = referrerInput ? referrerInput.value : document.referrer;
+                        if (!targetUrl || targetUrl.includes(window.location.pathname)) targetUrl = '/erp/dashboard';
+                        window.location.href = targetUrl;
                     }
-
-                    window.location.href = targetUrl;
-                }
-            }, 500);
+                }, 500);
+            }
+            return { success: true };
         } catch (e) {
             console.error(e);
             erpSetStatus(`저장 실패: ${String(e?.message || e)}`, true);
+            return { success: false, message: String(e?.message || e) };
         }
     }
 
@@ -2066,10 +2061,20 @@ ${list.map(renderCard).join('')}
                 return;
             }
 
-            // 2. order_id 확인
-            const orderId = (typeof ORDER_ID !== 'undefined' && ORDER_ID > 0) ? ORDER_ID : 0;
+            // 2. order_id 확보 (신규 주문이면 draft 생성 + 저장 후 푸쉬, 기존 주문이면 바로 푸쉬)
+            let orderId = (typeof ORDER_ID !== 'undefined' && ORDER_ID > 0) ? ORDER_ID : 0;
             if (!orderId) {
-                alert('주문을 먼저 저장해야 채널톡으로 전송할 수 있습니다.');
+                const id = await erpRequireOrderIdOrWarn('푸쉬:');
+                if (!id) return;
+                const saveRes = await erpSaveStructured({ redirect: false });
+                if (!saveRes.success) {
+                    alert(saveRes.message || '저장 실패. 푸쉬를 위해 저장이 필요합니다.');
+                    return;
+                }
+                orderId = (typeof ORDER_ID !== 'undefined' && ORDER_ID > 0) ? ORDER_ID : parseInt(String(id), 10) || 0;
+            }
+            if (!orderId) {
+                alert('주문 ID를 확보할 수 없습니다.');
                 return;
             }
 
