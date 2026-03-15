@@ -2,24 +2,35 @@
 실측 지도 공통 Snapshot 및 Query Builder (2026-03-15).
 지도/대시보드 검색 규칙 통일, canonical DTO 조립.
 """
-from sqlalchemy import or_, and_, cast, String
+import math
+from sqlalchemy import or_, and_, cast, String, func
 
 from models import Order
 
 
 def _measurement_date_variants(yyyy_mm_dd):
     """
-    YYYY-MM-DD와 YYYY-M-D 형식 모두 반환.
-    OrderScheduleDate.date가 '2026-3-16'처럼 저장된 경우 필터 매칭.
+    OrderScheduleDate.date가 다양한 형식으로 저장된 경우 모두 매칭.
+    - 2026-03-16, 2026-3-16 (하이픈)
+    - 2026.03.16, 2026.3.16 (점)
+    - 2026/03/16, 2026/3/16 (슬래시)
     """
     if not yyyy_mm_dd or len(yyyy_mm_dd) < 10:
         return [yyyy_mm_dd] if yyyy_mm_dd else []
-    parts = yyyy_mm_dd.split('-')
+    parts = yyyy_mm_dd.replace('.', '-').replace('/', '-').split('-')
     if len(parts) != 3:
         return [yyyy_mm_dd]
     y, m, d = parts[0], parts[1].lstrip('0') or '0', parts[2].lstrip('0') or '0'
-    compact = f"{y}-{m}-{d}"
-    return list(dict.fromkeys([yyyy_mm_dd, compact]))
+    m2, d2 = parts[1], parts[2]  # zero-padded
+    variants = [
+        f"{y}-{m2}-{d2}",   # 2026-03-16
+        f"{y}-{m}-{d}",     # 2026-3-16
+        f"{y}.{m2}.{d2}",   # 2026.03.16
+        f"{y}.{m}.{d}",     # 2026.3.16
+        f"{y}/{m2}/{d2}",   # 2026/03/16
+        f"{y}/{m}/{d}",     # 2026/3/16
+    ]
+    return list(dict.fromkeys(variants))
 from services.erp_display import self_measurement_four_checks_done
 from services.geocode_helpers import extract_address_from_order
 
@@ -87,13 +98,19 @@ def build_measurement_map_query(db, date, q, manager, dashboard, limit=500):
 
     if date:
         query = query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
-        # date 형식 유연 비교: YYYY-MM-DD vs YYYY-M-D (3월 16일 → 03 vs 3)
         date_variants = _measurement_date_variants(date)
+        date_digits = date.replace('-', '')[:8] if date else ''  # 20260316
+        # 형식 유연: IN (하이픈/점/슬래시) OR 숫자만 추출 비교 (공백·기타 구분자 대응)
         query = query.filter(
             OrderScheduleDate.kind == 'measurement',
-            OrderScheduleDate.date.in_(date_variants)
+            or_(
+                OrderScheduleDate.date.in_(date_variants),
+                func.substring(
+                    func.regexp_replace(func.trim(OrderScheduleDate.date), r'[^0-9]', '', 'g'),
+                    1, 8
+                ) == date_digits
+            )
         )
-        # distinct(Order.id): 1:N join 시 중복 제거, ORDER BY와 호환 (PostgreSQL DISTINCT ON)
         query = query.distinct(Order.id)
 
     query = query.order_by(Order.id.desc()).limit(limit)
@@ -181,6 +198,30 @@ def _format_date(val):
     return str(val)
 
 
+def _apply_marker_offset_for_duplicates(markers):
+    """
+    동일 (lat,lng) 마커에 소량 오프셋 적용. 겹쳐서 1개만 보이던 2건 표시.
+    ~0.00015도(약 15m)씩 나선형으로 분산.
+    """
+    if not markers:
+        return
+    # (lat, lng) → 해당 마커 인덱스 목록
+    by_pos = {}
+    for i, m in enumerate(markers):
+        key = (round(m['latitude'], 8), round(m['longitude'], 8))
+        by_pos.setdefault(key, []).append(i)
+    offset = 0.00015
+    for indices in by_pos.values():
+        if len(indices) <= 1:
+            continue
+        for k, i in enumerate(indices[1:], 1):
+            # 나선형: 1→동, 2→남동, 3→남, 4→남서...
+            angle = (k - 1) * 60
+            rad = math.radians(angle)
+            markers[i]['latitude'] = markers[i]['latitude'] + offset * math.cos(rad)
+            markers[i]['longitude'] = markers[i]['longitude'] + offset * math.sin(rad)
+
+
 def build_measurement_snapshot(orders, manager_filter=None):
     """
     주문 리스트에서 canonical DTO 조립 (목록 + 마커 + 요약).
@@ -255,6 +296,9 @@ def build_measurement_snapshot(orders, manager_filter=None):
                 'received_date': _format_date(order.received_date),
                 'phone': ctx['phone'],
             })
+
+    # 동일 좌표 마커 오프셋: 겹쳐서 1개만 보이던 문제 해결 (2662↔2655, 2670↔2650 등)
+    _apply_marker_offset_for_duplicates(markers)
 
     return {
         'orders': orders_list,
