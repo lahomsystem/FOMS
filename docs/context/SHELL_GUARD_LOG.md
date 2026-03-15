@@ -4,8 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-08 16:46:15 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-03-08 16:52:15 | allow | `-` | `python -c "import app; print('APP_OK')"` |
 | 2026-03-08 16:56:40 | allow | `-` | `python -c "import app; print('APP_OK')"` |
 | 2026-03-08 17:30:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch -v` |
 | 2026-03-08 17:30:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
@@ -304,3 +302,5 @@
 | 2026-03-15 14:36:27 | allow | `-` | `python -c "import app; print('APP_OK')"` |
 | 2026-03-15 14:48:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
 | 2026-03-15 14:49:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status --short` |
+| 2026-03-15 22:18:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-15 22:19:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/context/SHELL_GUARD_LOG.md; git commit --trailer "Made-with: Cursor" -m "chore: d` |
