@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-15 14:40:24
+> 생성 시각: 2026-03-15 19:33:14
 > 세션: 6a2cbf0d
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `docs/evolution/FINAL_GDM_AUDIT_2026-03-15.md` <- 1 edit(s), ~8352 chars (2026-03-15 14:40:05)
-- `apps/api/erp_orders_revision.py` <- 1 edit(s), ~63 chars (2026-03-15 14:36:33)
-- `apps/api/erp_orders_revision.py` <- 1 edit(s), ~57 chars (2026-03-15 14:36:30)
-- `apps/api/erp_orders_revision.py` <- 1 edit(s), ~36 chars (2026-03-15 14:36:27)
-- `apps/api/erp_orders_revision.py` <- 1 edit(s), ~14 chars (2026-03-15 14:36:22)
-- `apps/api/erp_orders_revision.py` <- 1 edit(s), ~122 chars (2026-03-15 14:36:14)
-- `apps/api/erp_orders_revision.py` <- 1 edit(s), ~122 chars (2026-03-15 14:36:11)
-- `docs/evolution/PHASE_D_GDM_AUDIT_2026-03-15.md` <- 1 edit(s), ~6681 chars (2026-03-15 14:35:51)
-- `docs/evolution/PHASE_D_CODE_REVIEW_2026-03-15.md` <- 1 edit(s), ~5380 chars (2026-03-15 14:35:51)
-- `templates/partials/erp_dashboard_scripts_core.html` <- 1 edit(s), ~0 chars (2026-03-15 14:34:02)
+- `templates/map_view.html` <- 2 edit(s), ~64 chars (2026-03-15 19:26:47)
+- `templates/map_view.html` <- 4 edit(s), ~938 chars (2026-03-15 19:26:17)
+- `apps/api/erp_map.py` <- 1 edit(s), ~110 chars (2026-03-15 19:26:04)
+- `apps/erp_measurement_dashboard.py` <- 1 edit(s), ~165 chars (2026-03-15 19:25:54)
+- `apps/api/erp_map.py` <- 13 edit(s), ~1394 chars (2026-03-15 19:18:37)
+- `foms_map_generator.py` <- 1 edit(s), ~358 chars (2026-03-15 19:12:34)
+- `templates/map_view.html` <- 14 edit(s), ~2793 chars (2026-03-15 19:11:49)
+- `services/jobs/tasks.py` <- 2 edit(s), ~130 chars (2026-03-15 19:10:13)
+- `apps/api/erp_measurement.py` <- 4 edit(s), ~386 chars (2026-03-15 19:09:53)
+- `scripts/debug_order_2629.py` <- 2 edit(s), ~1884 chars (2026-03-15 18:32:39)
 
 ### 진행 중이던 작업
 (없음)

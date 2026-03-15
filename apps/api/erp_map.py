@@ -2,13 +2,14 @@
 ERP 지도·주소·유저 API. (Phase 4-4)
 erp.py에서 분리: map_data, erp users 목록, generate_map, update_address.
 """
+import copy
 import datetime
 import os
 import threading
 
 
 from flask import Blueprint, request, jsonify, render_template
-from sqlalchemy import or_, and_, func, String
+from sqlalchemy import or_, and_
 
 from db import get_db
 from models import Order, User
@@ -24,7 +25,7 @@ from services.map_snapshot import build_measurement_map_query, build_measurement
 erp_map_bp = Blueprint('erp_map', __name__)
 _converter_instance = None
 _converter_lock = threading.Lock()
-_MAP_MAX_LIMIT_DEFAULT = 200
+_MAP_MAX_LIMIT_DEFAULT = 300  # measurement 실측일 100건 초과 시 미표시 방지 (2026-03-15)
 
 
 def _read_int_env(name, default_value, min_value):
@@ -58,6 +59,266 @@ def _get_address_converter():
     return _converter_instance
 
 
+def _normalize_map_status_filter(raw_status):
+    status = (raw_status or '').strip().upper()
+    if not status:
+        return ''
+    legacy_aliases = {
+        'MEASURED': 'MEASURE',
+    }
+    return legacy_aliases.get(status, status)
+
+
+def _format_map_date(date_value):
+    if date_value is None:
+        return None
+    if isinstance(date_value, str):
+        return date_value
+    if hasattr(date_value, 'strftime'):
+        return date_value.strftime('%Y-%m-%d')
+    return str(date_value)
+
+
+def _query_map_orders(db, *, date_filter=None, status_filter=None, dashboard=None, limit=100):
+    query = db.query(Order).filter(Order.active_filter())
+
+    # 자가실측·지방실측 제외(진짜 실측 필요한 것만)
+    if dashboard == 'measurement':
+        query = query.filter(
+            or_(
+                and_(
+                    Order.is_regional != True,
+                    ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
+                ),
+                Order.is_self_measurement == True
+            )
+        )
+    else:
+        query = query.filter(
+            Order.is_regional != True,
+            ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
+        )
+
+    normalized_status = _normalize_map_status_filter(status_filter)
+    if dashboard == 'measurement':
+        # 실측 대시보드 지도는 항상 실측 상태만 보여준다.
+        normalized_status = 'MEASURE'
+    if normalized_status and normalized_status != 'ALL':
+        if normalized_status == 'MEASURE':
+            query = query.filter(Order.status.in_(['MEASURE', 'MEASURED']))
+        else:
+            query = query.filter(Order.status == normalized_status)
+
+    from models import OrderScheduleDate
+    if date_filter:
+        query = query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
+        if dashboard == 'measurement':
+            query = query.filter(
+                OrderScheduleDate.kind == 'measurement',
+                OrderScheduleDate.date == date_filter
+            )
+        else:
+            query = query.filter(
+                or_(
+                    OrderScheduleDate.date == date_filter,
+                    Order.received_date == date_filter,
+                    Order.as_received_date == date_filter,
+                    Order.as_completed_date == date_filter
+                )
+            )
+        query = query.distinct()
+
+    orders = query.order_by(Order.id.desc()).limit(limit).all()
+
+    if dashboard == 'measurement':
+        from services.erp_display import self_measurement_four_checks_done
+        orders = [o for o in orders if not self_measurement_four_checks_done(o)]
+
+    return orders
+
+
+def _extract_map_order_display(order):
+    customer_name = order.customer_name
+    phone = order.phone
+    address_to_use = order.address
+    product = order.product
+    measurement_date = order.measurement_date
+    scheduled_date = order.scheduled_date
+    manager_name = order.manager_name or '-'
+
+    if order.is_erp_beta and order.structured_data:
+        sd = order.structured_data
+        erp_customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
+        if erp_customer_name:
+            customer_name = erp_customer_name
+
+        erp_phone = ((sd.get('parties') or {}).get('customer') or {}).get('phone')
+        if erp_phone:
+            phone = erp_phone
+
+        erp_address_full = (sd.get('site') or {}).get('address_full')
+        erp_address_main = (sd.get('site') or {}).get('address_main')
+        erp_address_detail = (sd.get('site') or {}).get('address_detail')
+
+        if erp_address_full and erp_address_full.strip() and erp_address_full != '-':
+            address_to_use = erp_address_full.strip()
+        elif erp_address_main and erp_address_main.strip():
+            if erp_address_detail and erp_address_detail.strip() and erp_address_detail != '-':
+                address_to_use = f"{erp_address_main.strip()} {erp_address_detail.strip()}"
+            else:
+                address_to_use = erp_address_main.strip()
+
+        items = sd.get('items') or []
+        if items and len(items) > 0:
+            first_item = items[0]
+            product_name = first_item.get('product_name') or first_item.get('name')
+            if product_name:
+                if len(items) > 1:
+                    product = f"{product_name} 외 {len(items) - 1}개"
+                else:
+                    product = product_name
+
+        erp_measurement_date = (((sd.get('schedule') or {}).get('measurement') or {}).get('date'))
+        if erp_measurement_date:
+            measurement_date = erp_measurement_date
+
+        erp_scheduled_date = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
+        if erp_scheduled_date:
+            scheduled_date = erp_scheduled_date
+
+        erp_manager_name = ((sd.get('parties') or {}).get('manager') or {}).get('name')
+        if erp_manager_name:
+            manager_name = erp_manager_name
+
+    return {
+        'customer_name': customer_name,
+        'phone': phone,
+        'address': address_to_use,
+        'product': product,
+        'measurement_date': measurement_date,
+        'scheduled_date': scheduled_date,
+        'manager_name': manager_name,
+    }
+
+
+def _order_matches_map_filters(order, display, *, manager_filter='', search_query=''):
+    if manager_filter:
+        manager_name_str = str(display['manager_name'] or '')
+        if manager_filter.lower() not in manager_name_str.lower():
+            return False
+
+    if not search_query:
+        return True
+
+    search_lower = _normalize_for_search(search_query).lower()
+    searchable_parts = [
+        str(order.id),
+        display['address'],
+        order.address,
+        display['customer_name'],
+        display['product'],
+        order.notes,
+        display['manager_name'],
+    ]
+    if order.is_erp_beta and order.structured_data:
+        site = (order.structured_data.get('site') or {})
+        searchable_parts.extend([
+            site.get('address_full'),
+            site.get('address_main'),
+            site.get('address_detail'),
+            site.get('address_note'),
+        ])
+
+    searchable = _normalize_for_search(' '.join(
+        str(p).strip() for p in searchable_parts if p
+    )).lower()
+    return bool(searchable and search_lower in searchable)
+
+
+def _build_map_payload(orders, *, manager_filter='', search_query='', enqueue_missing=False, result_limit=None):
+    from services.geocode_helpers import extract_address_from_order
+
+    map_data = []
+    orders_list = []
+    skipped_no_coords = 0
+    to_geocode = []
+
+    for order in orders:
+        display = _extract_map_order_display(order)
+        if not _order_matches_map_filters(
+            order,
+            display,
+            manager_filter=manager_filter,
+            search_query=search_query,
+        ):
+            continue
+        if result_limit and len(orders_list) >= result_limit:
+            break
+
+        lat = getattr(order, 'lat', None)
+        lng = getattr(order, 'lng', None)
+        stored_geocode_status = getattr(order, 'geocode_status', None)
+        has_coords = lat is not None and lng is not None
+
+        # lat/lng를 단일 진실 소스로 사용 (stored_geocode_status와 불일치 시 좌표 우선)
+        if has_coords:
+            geocode_failed = False
+            geocode_status = 'success'
+        else:
+            geocode_failed = True
+            skipped_no_coords += 1
+            address_for_geocode = extract_address_from_order(order)
+            if (
+                enqueue_missing
+                and address_for_geocode
+                and address_for_geocode.strip()
+                and address_for_geocode.strip() != '-'
+                and not stored_geocode_status
+            ):
+                geocode_status = 'pending'
+                to_geocode.append(order)
+            else:
+                geocode_status = stored_geocode_status or 'failed'
+
+        orders_list.append({
+            'id': order.id,
+            'customer_name': display['customer_name'],
+            'phone': display['phone'],
+            'address': display['address'],
+            'product': display['product'],
+            'status': order.status,
+            'received_date': _format_map_date(order.received_date),
+            'measurement_date': _format_map_date(display['measurement_date']),
+            'scheduled_date': _format_map_date(display['scheduled_date']),
+            'completion_date': _format_map_date(order.completion_date),
+            'manager_name': display['manager_name'],
+            'notes': order.notes or '-',
+            'geocode_failed': geocode_failed,
+            'conversion_status': geocode_status,
+        })
+
+        if lat is not None and lng is not None:
+            map_data.append({
+                'id': order.id,
+                'customer_name': display['customer_name'],
+                'phone': display['phone'],
+                'address': display['address'],
+                'product': display['product'],
+                'status': order.status,
+                'received_date': _format_map_date(order.received_date),
+                'latitude': float(lat),
+                'longitude': float(lng),
+                'conversion_status': geocode_status,
+            })
+
+    return {
+        'map_data': map_data,
+        'orders': orders_list,
+        'skipped_no_coords': skipped_no_coords,
+        'to_geocode': to_geocode,
+    }
+
+
 @erp_map_bp.route('/map_view')
 @login_required
 def map_view():
@@ -72,10 +333,14 @@ def api_map_data():
     try:
         date_filter = request.args.get('date')
         status_filter = request.args.get('status')
-        limit = _resolve_map_limit(request.args.get('limit'), default_limit=100)
         dashboard = request.args.get('dashboard')
         manager_filter = (request.args.get('manager') or '').strip()
         search_query = (request.args.get('q') or request.args.get('search') or '').strip()
+        limit = _resolve_map_limit(
+            request.args.get('limit'),
+            default_limit=300 if dashboard == 'measurement' else 200
+        )
+        scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
 
         # measurement 모드: map_snapshot 사용, 전체 주문 반환 (2026-03-15)
         if dashboard == 'measurement' and date_filter:
@@ -97,120 +362,28 @@ def api_map_data():
 
         scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
         db = get_db()
-        query = db.query(Order).filter(Order.active_filter())
-
-        # 자가실측·지방실측 제외(진짜 실측 필요한 것만)
-        if dashboard == 'measurement':
-            query = query.filter(
-                or_(
-                    and_(
-                        Order.is_regional != True,
-                        ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
-                    ),
-                    Order.is_self_measurement == True
-                )
-            )
-        else:
-            query = query.filter(
-                Order.is_regional != True,
-                ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
-            )
-
-        if status_filter and status_filter != 'ALL':
-            query = query.filter(Order.status == status_filter)
-
-        from models import OrderScheduleDate
-        if date_filter:
-            # Join OrderScheduleDate based on the dashboard context
-            query = query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
-            if dashboard == 'measurement':
-                query = query.filter(
-                    OrderScheduleDate.kind == 'measurement',
-                    OrderScheduleDate.date == date_filter
-                )
-            else:
-                # General map dashboard filters by ANY common dates being matched
-                # Alternatively, we just check if it's explicitly matched in OrderScheduleDate OR received_date/as_dates
-                query = query.filter(
-                    or_(
-                        OrderScheduleDate.date == date_filter,
-                        Order.received_date == date_filter,
-                        Order.as_received_date == date_filter,
-                        Order.as_completed_date == date_filter
-                    )
-                )
-            query = query.distinct()
-
-        orders = query.order_by(Order.id.desc()).limit(limit).all()
-
-        if dashboard == 'measurement':
-            from services.erp_display import self_measurement_four_checks_done
-            orders = [o for o in orders if not self_measurement_four_checks_done(o)]
-
-        map_data = []
-        skipped_no_coords = 0
-        for order in orders:
-            customer_name = order.customer_name
-            phone = order.phone
-            address_to_use = order.address
-            product = order.product
-
-            if order.is_erp_beta and order.structured_data:
-                sd = order.structured_data
-                erp_customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
-                if erp_customer_name:
-                    customer_name = erp_customer_name
-
-                erp_phone = ((sd.get('parties') or {}).get('customer') or {}).get('phone')
-                if erp_phone:
-                    phone = erp_phone
-
-                erp_address_full = (sd.get('site') or {}).get('address_full')
-                erp_address_main = (sd.get('site') or {}).get('address_main')
-                erp_address_detail = (sd.get('site') or {}).get('address_detail')
-
-                if erp_address_full and erp_address_full.strip() and erp_address_full != '-':
-                    address_to_use = erp_address_full.strip()
-                elif erp_address_main and erp_address_main.strip():
-                    if erp_address_detail and erp_address_detail.strip() and erp_address_detail != '-':
-                        address_to_use = f"{erp_address_main.strip()} {erp_address_detail.strip()}"
-                    else:
-                        address_to_use = erp_address_main.strip()
-
-                items = sd.get('items') or []
-                if items and len(items) > 0:
-                    first_item = items[0]
-                    product_name = first_item.get('product_name') or first_item.get('name')
-                    if product_name:
-                        if len(items) > 1:
-                            product = f"{product_name} 외 {len(items) - 1}개"
-                        else:
-                            product = product_name
-
-            lat = getattr(order, 'lat', None)
-            lng = getattr(order, 'lng', None)
-            if lat is not None and lng is not None:
-                map_data.append({
-                    'id': order.id,
-                    'customer_name': customer_name,
-                    'phone': phone,
-                    'address': address_to_use,
-                    'product': product,
-                    'status': order.status,
-                    'received_date': order.received_date,
-                    'latitude': float(lat),
-                    'longitude': float(lng),
-                    'conversion_status': getattr(order, 'geocode_status', None) or 'success'
-                })
-            else:
-                skipped_no_coords += 1
+        orders = _query_map_orders(
+            db,
+            date_filter=date_filter,
+            status_filter=status_filter,
+            dashboard=dashboard,
+            limit=scan_limit,
+        )
+        payload = _build_map_payload(
+            orders,
+            manager_filter=manager_filter,
+            search_query=search_query,
+            enqueue_missing=False,
+            result_limit=limit,
+        )
 
         return jsonify({
             'success': True,
-            'data': map_data,
-            'total_orders': len(orders),
-            'converted_orders': len(map_data),
-            'skipped_no_coords': skipped_no_coords
+            'data': payload['map_data'],
+            'orders': payload['orders'],
+            'total_orders': len(payload['orders']),
+            'converted_orders': len(payload['map_data']),
+            'skipped_no_coords': payload['skipped_no_coords'],
         })
     except Exception as e:
         return jsonify({
@@ -243,11 +416,15 @@ def api_generate_map():
     try:
         date_filter = request.args.get('date')
         status_filter = request.args.get('status')
+        dashboard = request.args.get('dashboard')
         manager_filter = (request.args.get('manager') or '').strip()
         search_query = (request.args.get('q') or request.args.get('search') or '').strip()
         title = request.args.get('title', '주문 위치 지도')
-        limit = _resolve_map_limit(request.args.get('limit'), default_limit=200)
-        dashboard = request.args.get('dashboard')
+        limit = _resolve_map_limit(
+            request.args.get('limit'),
+            default_limit=300 if dashboard == 'measurement' else 200
+        )
+        scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
 
         # measurement 모드: shared query builder 사용 (2026-03-15)
         if dashboard == 'measurement' and date_filter:
@@ -302,218 +479,58 @@ def api_generate_map():
             })
 
         db = get_db()
-        query = db.query(Order).filter(Order.active_filter())
+        orders = _query_map_orders(
+            db,
+            date_filter=date_filter,
+            status_filter=status_filter,
+            dashboard=dashboard,
+            limit=scan_limit,
+        )
+        payload = _build_map_payload(
+            orders,
+            manager_filter=manager_filter,
+            search_query=search_query,
+            enqueue_missing=True,
+            result_limit=limit,
+        )
 
-        # 자가실측·지방실측 제외(진짜 실측 필요한 것만)
-        if dashboard == 'measurement':
-            query = query.filter(
-                or_(
-                    and_(
-                        Order.is_regional != True,
-                        ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
-                    ),
-                    Order.is_self_measurement == True
-                )
-            )
-        else:
-            query = query.filter(
-                Order.is_regional != True,
-                ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
-            )
-
-        if status_filter and status_filter != 'ALL':
-            query = query.filter(Order.status == status_filter)
-
-        from models import OrderScheduleDate
-        if date_filter:
-            # Join OrderScheduleDate based on the dashboard context
-            query = query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
-            if dashboard == 'measurement':
-                query = query.filter(
-                    OrderScheduleDate.kind == 'measurement',
-                    OrderScheduleDate.date == date_filter
-                )
-            else:
-                # General map dashboard filters by ANY common dates being matched
-                query = query.filter(
-                    or_(
-                        OrderScheduleDate.date == date_filter,
-                        Order.received_date == date_filter,
-                        Order.as_received_date == date_filter,
-                        Order.as_completed_date == date_filter
-                    )
-                )
-            query = query.distinct()
-
-        orders = query.order_by(Order.id.desc()).limit(limit).all()
-
-        if dashboard == 'measurement':
-            from services.erp_display import self_measurement_four_checks_done
-            orders = [o for o in orders if not self_measurement_four_checks_done(o)]
-
-        def format_date(date_value):
-            if date_value is None:
-                return None
-            if isinstance(date_value, str):
-                return date_value
-            if hasattr(date_value, 'strftime'):
-                return date_value.strftime('%Y-%m-%d')
-            return str(date_value)
-
-        map_data = []
-        orders_list = []
-        to_geocode = []  # (order, address, order_ctx) for sync parallel geocode
-
-        for order in orders:
-            customer_name = order.customer_name
-            phone = order.phone
-            address_to_use = order.address
-            product = order.product
-            measurement_date = order.measurement_date
-            scheduled_date = order.scheduled_date
-            manager_name = order.manager_name or '-'
-
-            if order.is_erp_beta and order.structured_data:
-                sd = order.structured_data
-                erp_customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
-                if erp_customer_name:
-                    customer_name = erp_customer_name
-                erp_phone = ((sd.get('parties') or {}).get('customer') or {}).get('phone')
-                if erp_phone:
-                    phone = erp_phone
-
-                erp_address_full = (sd.get('site') or {}).get('address_full')
-                erp_address_main = (sd.get('site') or {}).get('address_main')
-                erp_address_detail = (sd.get('site') or {}).get('address_detail')
-
-                if erp_address_full and erp_address_full.strip() and erp_address_full != '-':
-                    address_to_use = erp_address_full.strip()
-                elif erp_address_main and erp_address_main.strip():
-                    if erp_address_detail and erp_address_detail.strip() and erp_address_detail != '-':
-                        address_to_use = f"{erp_address_main.strip()} {erp_address_detail.strip()}"
-                    else:
-                        address_to_use = erp_address_main.strip()
-
-                items = sd.get('items') or []
-                if items and len(items) > 0:
-                    first_item = items[0]
-                    product_name = first_item.get('product_name') or first_item.get('name')
-                    if product_name:
-                        if len(items) > 1:
-                            product = f"{product_name} 외 {len(items) - 1}개"
-                        else:
-                            product = product_name
-
-                erp_measurement_date = (((sd.get('schedule') or {}).get('measurement') or {}).get('date'))
-                if erp_measurement_date:
-                    measurement_date = erp_measurement_date
-
-                erp_scheduled_date = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
-                if erp_scheduled_date:
-                    scheduled_date = erp_scheduled_date
-
-                erp_manager_name = ((sd.get('parties') or {}).get('manager') or {}).get('name')
-                if erp_manager_name:
-                    manager_name = erp_manager_name
-
-            if manager_filter:
-                manager_name_str = str(manager_name or '')
-                if manager_filter.lower() not in manager_name_str.lower():
-                    continue
-
-            if search_query:
-                search_lower = _normalize_for_search(search_query).lower()
-                searchable_parts = [
-                    address_to_use,
-                    order.address,
-                    customer_name,
-                    product,
-                    order.notes,
-                    manager_name,
-                ]
-                if order.is_erp_beta and order.structured_data:
-                    sd = order.structured_data
-                    site = sd.get('site') or {}
-                    searchable_parts.extend([
-                        site.get('address_full'),
-                        site.get('address_main'),
-                        site.get('address_detail'),
-                        site.get('address_note'),
-                    ])
-                searchable = _normalize_for_search(' '.join(
-                    str(p).strip() for p in searchable_parts if p
-                )).lower()
-                if not searchable or search_lower not in searchable:
-                    continue
-
-            lat = getattr(order, 'lat', None)
-            lng = getattr(order, 'lng', None)
-            raw_status = getattr(order, 'geocode_status', None)
-            # DB 신뢰: success|pending|failed 3상태만 사용, 임의 추론 제거 (2026-03-15)
-            if raw_status in ('success', 'pending', 'failed'):
-                geocode_status = raw_status
-            elif lat is not None and lng is not None:
-                geocode_status = 'success'
-            else:
-                geocode_status = 'failed'  # to_geocode 추가 시 아래에서 pending으로 덮어씀
-
-            # 지도 진입 시 즉시 변환: lat/lng 없고 주소 있으면 to_geocode에 수집 (2026-02-22)
-            if lat is None or lng is None:
-                from services.geocode_helpers import extract_address_from_order
-                addr = extract_address_from_order(order)
-                if addr and addr.strip() and addr.strip() != '-':
-                    geocode_status = 'pending'
-                    order_ctx = {
-                        'customer_name': customer_name, 'phone': phone,
-                        'address_to_use': address_to_use, 'product': product,
-                        'status': order.status, 'received_date': order.received_date,
-                        'measurement_date': measurement_date, 'scheduled_date': scheduled_date,
-                    }
-                    to_geocode.append((order, addr.strip(), order_ctx))
-
-            order_list_item = {
-                'id': order.id,
-                'customer_name': customer_name,
-                'phone': phone,
-                'address': address_to_use,
-                'product': product,
-                'status': order.status,
-                'received_date': format_date(order.received_date),
-                'measurement_date': format_date(measurement_date),
-                'scheduled_date': format_date(scheduled_date),
-                'completion_date': format_date(order.completion_date),
-                'manager_name': manager_name,
-                'notes': order.notes or '-',
-                'conversion_status': geocode_status,
-                'latitude': float(lat) if lat is not None else None,
-                'longitude': float(lng) if lng is not None else None,
-            }
-            orders_list.append(order_list_item)
-
-            if lat is not None and lng is not None:
-                map_data.append({
-                    'id': order.id,
-                    'customer_name': customer_name,
-                    'phone': phone,
-                    'address': address_to_use,
-                    'product': product,
-                    'status': order.status,
-                    'received_date': order.received_date,
-                    'latitude': lat,
-                    'longitude': lng
-                })
-
-        for order, addr, ctx in to_geocode:
-            if getattr(order, 'geocode_status', None) != 'pending':
+        queued_orders = []
+        used_sync_fallback = False
+        for order in payload['to_geocode']:
+            queued = enqueue_geocode_order_address(order.id)
+            if queued:
                 order.geocode_status = 'pending'
-                enqueue_geocode_order_address(order.id)
-        if to_geocode:
+                queued_orders.append(order)
+            else:
+                from services.jobs.tasks import geocode_order_address
+                try:
+                    geocode_order_address(order.id)
+                    used_sync_fallback = True
+                except Exception as e:
+                    print(f"Fallback geocode error: {e}")
+        if queued_orders:
             db.commit()
+        if used_sync_fallback:
+            db.expire_all()
+            orders = _query_map_orders(
+                db,
+                date_filter=date_filter,
+                status_filter=status_filter,
+                dashboard=dashboard,
+                limit=scan_limit,
+            )
+            payload = _build_map_payload(
+                orders,
+                manager_filter=manager_filter,
+                search_query=search_query,
+                enqueue_missing=False,
+                result_limit=limit,
+            )
 
         map_generator = FOMSMapGenerator()
 
-        if map_data:
-            folium_map = map_generator.create_map(map_data, title)
+        if payload['map_data']:
+            folium_map = map_generator.create_map(payload['map_data'], title)
             if folium_map:
                 map_html = folium_map._repr_html_()
             else:
@@ -522,8 +539,10 @@ def api_generate_map():
             return jsonify({
                 'success': True,
                 'map_html': map_html,
-                'total_orders': len(map_data),
-                'orders': orders_list
+                'total_orders': len(payload['orders']),
+                'converted_orders': len(payload['map_data']),
+                'skipped_no_coords': payload['skipped_no_coords'],
+                'orders': payload['orders'],
             })
 
         empty_map = map_generator.create_empty_map(title)
@@ -532,9 +551,11 @@ def api_generate_map():
             return jsonify({
                 'success': True,
                 'map_html': map_html,
-                'total_orders': len(orders_list),
-                'orders': orders_list,
-                'message': f'{title} 지도에 표시할 마커가 없습니다. 우측 목록에서 주소 오류를 확인하세요.' if orders_list else f'{title}에 해당하는 주문이 없습니다.'
+                'total_orders': len(payload['orders']),
+                'converted_orders': 0,
+                'skipped_no_coords': payload['skipped_no_coords'],
+                'orders': payload['orders'],
+                'message': f'{title} 지도에 표시할 마커가 없습니다. 우측 목록에서 주소 오류를 확인하세요.' if payload['orders'] else f'{title}에 해당하는 주문이 없습니다.'
             })
 
         return jsonify({'success': False, 'error': '지도를 생성할 수 없습니다.'})
@@ -644,9 +665,10 @@ def api_update_order_address(order_id):
                 geocode_order_address(order_id)
             except Exception as e:
                 print(f"Fallback geocode error: {e}")
-            
-            # DB 변경사항 다시 읽어오기
-            db.refresh(order)
+
+            # geocode_order_address가 db_session.remove() 호출로 세션을 정리하므로
+            # refresh 대신 재조회로 최신 lat/lng 반영 (Root Cause Fix)
+            order = db.query(Order).filter(Order.id == order_id).first()
             return jsonify({
                 'success': True,
                 'address': new_address,
