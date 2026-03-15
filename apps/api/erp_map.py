@@ -602,9 +602,10 @@ def api_update_order_address(order_id):
                 geocode_order_address(order_id)
             except Exception as e:
                 print(f"Fallback geocode error: {e}")
-            
-            # DB 변경사항 다시 읽어오기
-            db.refresh(order)
+
+            # geocode_order_address가 db_session.remove() 호출로 세션을 정리하므로
+            # refresh 대신 재조회로 최신 lat/lng 반영 (Root Cause Fix)
+            order = db.query(Order).filter(Order.id == order_id).first()
             return jsonify({
                 'success': True,
                 'address': new_address,

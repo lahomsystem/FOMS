@@ -902,6 +902,13 @@
         const GEOCODE_POLL_INTERVAL_MS = 15000;  // 15초 간격 (이전: 6초)
         const GEOCODE_POLL_MAX_RETRIES = 5;       // 최대 5회 (이전: 10회)
 
+        function isOrderGeocodeFailed(order) {
+            if (!order) return false;
+            if (order.geocode_failed === true) return true;
+            if (order.geocode_failed === false) return false;
+            return order.conversion_status === 'failed' || order.conversion_status === 'pending';
+        }
+
         function normalizeStatusFilter(status) {
             const normalized = String(status || 'ALL').trim().toUpperCase();
             const aliases = {
@@ -1198,11 +1205,12 @@
             orders.forEach(order => {
                 const statusClass = `status-${order.status}`;
                 const statusText = getStatusText(order.status);
-                const failedClass = order.geocode_failed ? 'geocode-failed' : '';
+                const isGeocodeFailed = isOrderGeocodeFailed(order);
+                const failedClass = isGeocodeFailed ? 'geocode-failed' : '';
 
                 // 수정 버튼 스타일: 실패한 경우 빨간색, 정상인 경우 회색
-                const editBtnClass = order.geocode_failed ? 'btn-outline-danger' : 'btn-outline-secondary';
-                const editBtnTitle = order.geocode_failed ? '주소 오류 - 수정 필요' : '주소 수정';
+                const editBtnClass = isGeocodeFailed ? 'btn-outline-danger' : 'btn-outline-secondary';
+                const editBtnTitle = isGeocodeFailed ? '주소 오류 - 수정 필요' : '주소 수정';
 
                 html += `
                     <div class="order-item ${failedClass} ${selectedOrderId === order.id ? 'selected' : ''}" 
@@ -1210,7 +1218,7 @@
                          data-order-id="${order.id}">
                         <div class="order-item-header">
                             <span class="order-id">#${order.id}</span>
-                            ${order.geocode_failed ? '<span class="geocode-failed-badge"><i class="fas fa-exclamation-triangle"></i> 주소오류</span>' : ''}
+                            ${isGeocodeFailed ? '<span class="geocode-failed-badge"><i class="fas fa-exclamation-triangle"></i> 주소오류</span>' : ''}
                             <span class="order-status status-badge ${statusClass}">${statusText}</span>
                         </div>
                         <div class="order-info">
@@ -1467,7 +1475,7 @@
 
             // 해당 주문 찾기
             const order = currentOrders.find(o => o.id == orderId);
-            const isGeocodeFailure = order && order.geocode_failed;
+            const isGeocodeFailure = isOrderGeocodeFailed(order);
 
             selectedModalAddress = '';
             document.getElementById('map-address-edit-order-id').value = orderId;
