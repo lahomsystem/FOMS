@@ -72,3 +72,5 @@ config/local*
 # 훅 payload 디버그 (CURSOR_HOOK_DEBUG=1 시 생성)
 docs/context/HOOK_PAYLOAD_DEBUG.jsonl
 docs/context/.hook_debug_once
+docs/context/HOOK_RAW_DUMP.txt
+docs/context/.hook_raw_once
