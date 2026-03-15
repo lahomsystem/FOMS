@@ -25,7 +25,7 @@ from services.map_snapshot import build_measurement_map_query, build_measurement
 erp_map_bp = Blueprint('erp_map', __name__)
 _converter_instance = None
 _converter_lock = threading.Lock()
-_MAP_MAX_LIMIT_DEFAULT = 300  # measurement 실측일 100건 초과 시 미표시 방지 (2026-03-15)
+_MAP_MAX_LIMIT_DEFAULT = 500  # measurement 실측일 limit 잘림 완화 (#2662 등, 2026-03-15)
 
 
 def _read_int_env(name, default_value, min_value):
@@ -338,7 +338,7 @@ def api_map_data():
         search_query = (request.args.get('q') or request.args.get('search') or '').strip()
         limit = _resolve_map_limit(
             request.args.get('limit'),
-            default_limit=300 if dashboard == 'measurement' else 200
+            default_limit=500 if dashboard == 'measurement' else 200
         )
         scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
 
@@ -422,7 +422,7 @@ def api_generate_map():
         title = request.args.get('title', '주문 위치 지도')
         limit = _resolve_map_limit(
             request.args.get('limit'),
-            default_limit=300 if dashboard == 'measurement' else 200
+            default_limit=500 if dashboard == 'measurement' else 200
         )
         scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
 
