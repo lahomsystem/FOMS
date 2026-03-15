@@ -67,6 +67,8 @@ def geocode_order_address(order_id):
 
             address = extract_address_from_order(order)
             if not address:
+                order.lat = None
+                order.lng = None
                 order.geocode_status = 'failed'
                 order.geocoded_at = datetime.datetime.now()
                 db.commit()
@@ -87,6 +89,8 @@ def geocode_order_address(order_id):
                 order.lng = float(lng)
                 order.geocode_status = 'success'
             else:
+                order.lat = None
+                order.lng = None
                 order.geocode_status = 'failed'
 
             db.commit()

@@ -426,8 +426,29 @@
             background-color: #007bff;
         }
 
+        .status-MEASURE,
         .status-MEASURED {
             background-color: #28a745;
+        }
+
+        .status-DRAWING {
+            background-color: #6f42c1;
+        }
+
+        .status-CONFIRM {
+            background-color: #0d6efd;
+        }
+
+        .status-PRODUCTION {
+            background-color: #fd7e14;
+        }
+
+        .status-CONSTRUCTION {
+            background-color: #20c997;
+        }
+
+        .status-CS {
+            background-color: #dc3545;
         }
 
         .status-SCHEDULED {
@@ -715,7 +736,12 @@
                         <select id="status-filter" class="form-select-sm">
                             <option value="ALL">모든 상태</option>
                             <option value="RECEIVED">접수</option>
-                            <option value="MEASURED">실측</option>
+                            <option value="MEASURE">실측</option>
+                            <option value="DRAWING">도면</option>
+                            <option value="CONFIRM">고객컨펌</option>
+                            <option value="PRODUCTION">생산</option>
+                            <option value="CONSTRUCTION">시공</option>
+                            <option value="CS">CS</option>
                             <option value="SCHEDULED">설치 예정</option>
                             <option value="SHIPPED_PENDING">출고 예정</option>
                             <option value="COMPLETED">완료</option>
@@ -876,13 +902,41 @@
         const GEOCODE_POLL_INTERVAL_MS = 15000;  // 15초 간격 (이전: 6초)
         const GEOCODE_POLL_MAX_RETRIES = 5;       // 최대 5회 (이전: 10회)
 
+        function normalizeStatusFilter(status) {
+            const normalized = String(status || 'ALL').trim().toUpperCase();
+            const aliases = {
+                'MEASURED': 'MEASURE',
+            };
+            return aliases[normalized] || normalized || 'ALL';
+        }
+
+        function getActiveStatusFilter() {
+            if (dashboardParam === 'measurement') {
+                return 'MEASURE';
+            }
+            return normalizeStatusFilter(document.getElementById('status-filter').value || 'ALL');
+        }
+
+        function configureStatusFilter() {
+            const statusSelect = document.getElementById('status-filter');
+            if (dashboardParam === 'measurement') {
+                statusSelect.innerHTML = '<option value="MEASURE">실측</option>';
+                statusSelect.value = 'MEASURE';
+                statusSelect.disabled = true;
+                return;
+            }
+            statusSelect.disabled = false;
+        }
+
         // URL 파라미터에서 초기값 가져오기
         const urlParams = new URLSearchParams(window.location.search);
         const initialDate = urlParams.get('date') || new Date().toISOString().split('T')[0];
-        const initialStatus = urlParams.get('status') || 'ALL';
+        const dashboardParam = urlParams.get('dashboard') || '';
+        const initialStatus = dashboardParam === 'measurement'
+            ? 'MEASURE'
+            : normalizeStatusFilter(urlParams.get('status') || 'ALL');
         const initialManager = urlParams.get('manager') || '';
         const initialSearch = urlParams.get('q') || urlParams.get('search') || '';
-        const dashboardParam = urlParams.get('dashboard') || '';
 
         // 초기값 설정
         document.getElementById('date-filter').value = initialDate;
@@ -900,6 +954,7 @@
                 return;
             }
 
+            configureStatusFilter();
             loadMap();
 
             const managerInput = document.getElementById('manager-filter');
@@ -984,7 +1039,7 @@
             }
 
             const dateFilter = document.getElementById('date-filter').value;
-            const statusFilter = document.getElementById('status-filter').value;
+            const statusFilter = getActiveStatusFilter();
             const managerFilter = (document.getElementById('manager-filter').value || '').trim();
             const searchQuery = (document.getElementById('map-search-input').value || '').trim();
 
@@ -996,26 +1051,32 @@
                 if (managerFilter) pollParams.set('manager', managerFilter);
                 if (searchQuery) pollParams.set('q', searchQuery);
                 if (dashboardParam) pollParams.set('dashboard', dashboardParam);
+                const pendingBefore = new Set(
+                    currentOrders
+                        .filter(function (o) { return o.geocode_failed && o.conversion_status === 'pending'; })
+                        .map(function (o) { return o.id; })
+                );
                 fetch('/api/map_data?' + pollParams)
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
                         if (!data.success) { clearGeocodePoll(); return; }
-                        // 새로 geocode 완료된 건만 currentOrders에 반영
-                        const newCoords = {};
-                        (data.data || []).forEach(function (d) {
-                            newCoords[d.id] = { lat: d.latitude, lng: d.longitude };
+                        const polledOrders = Array.isArray(data.orders) ? data.orders : currentOrders;
+                        const resolvedPending = polledOrders.some(function (o) {
+                            return pendingBefore.has(o.id) && !o.geocode_failed;
                         });
-                        let anyResolved = false;
-                        currentOrders = currentOrders.map(function (o) {
-                            if (o.geocode_failed && newCoords[o.id]) {
-                                anyResolved = true;
-                                return Object.assign({}, o, { geocode_failed: false, conversion_status: 'success' });
-                            }
-                            return o;
+                        currentOrders = polledOrders;
+                        document.getElementById('order-count-badge').textContent = currentOrders.length;
+
+                        if (resolvedPending) {
+                            clearGeocodePoll();
+                            loadMap();
+                            return;
+                        }
+
+                        updateOrderList(currentOrders);
+                        const stillPending = currentOrders.some(function (o) {
+                            return o.geocode_failed && o.conversion_status === 'pending';
                         });
-                        if (anyResolved) updateOrderList(currentOrders);
-                        // 아직 pending 있으면 계속 poll
-                        const stillPending = currentOrders.some(function (o) { return o.geocode_failed; });
                         const banner = document.getElementById('geocode-poll-banner');
                         const pollText = document.getElementById('geocode-poll-text');
                         if (stillPending && geocodePollRetries < GEOCODE_POLL_MAX_RETRIES) {
@@ -1088,7 +1149,13 @@
             const statusNames = {
                 'ALL': '모든 상태',
                 'RECEIVED': '접수',
+                'MEASURE': '실측',
                 'MEASURED': '실측',
+                'DRAWING': '도면',
+                'CONFIRM': '고객컨펌',
+                'PRODUCTION': '생산',
+                'CONSTRUCTION': '시공',
+                'CS': 'CS',
                 'SCHEDULED': '설치 예정',
                 'SHIPPED_PENDING': '출고 예정',
                 'COMPLETED': '완료',
@@ -1340,7 +1407,13 @@
         function getStatusText(status) {
             const statusMap = {
                 'RECEIVED': '접수',
+                'MEASURE': '실측',
                 'MEASURED': '실측',
+                'DRAWING': '도면',
+                'CONFIRM': '고객컨펌',
+                'PRODUCTION': '생산',
+                'CONSTRUCTION': '시공',
+                'CS': 'CS',
                 'SCHEDULED': '설치 예정',
                 'SHIPPED_PENDING': '출고 예정',
                 'COMPLETED': '완료',

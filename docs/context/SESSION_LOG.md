@@ -13,8 +13,8 @@
 ### Session: 6a2cbf0d
 - **시작**: 2026-03-13 08:26:54
 - **상태**: completed
-- **편집 파일**: `scripts/run_map_check.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-480198ef-241e-45d9-b1a4-7f5007766726.png`, `scripts/check_map_orders_2670_2662.sql`, `docs/evolution/MAP_ORDERS_2670_2662_ANALYSIS_2026-03-15.md`, `apps/api/erp_map.py`, `commit_msg.txt`, `docs/evolution/VERIFICATION_CHECKLIST_2026-03-15.md`, `docs/evolution/FINAL_GDM_AUDIT_2026-03-15.md`, `apps/api/erp_orders_revision.py`, `docs/evolution/PHASE_D_GDM_AUDIT_2026-03-15.md`
-- **종료**: 2026-03-15 17:34:20
+- **편집 파일**: `apps/api/erp_map.py`, `templates/map_view.html`, `apps/erp_measurement_dashboard.py`, `foms_map_generator.py`, `services/jobs/tasks.py`, `apps/api/erp_measurement.py`, `scripts/debug_order_2629.py`, `scripts/debug_flask_2629.py`, `commit_msg.txt`, `scripts/run_map_check.py`
+- **종료**: 2026-03-15 19:35:46
 
 ### Session: 700dcd20
 - **시작**: 2026-03-09 09:45:23
@@ -386,3 +386,19 @@
 | 2026-03-15 17:28:50 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-15 17:34:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 17:37:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 18:33:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 18:36:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 18:51:01 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 19:24:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 19:27:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 19:32:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 19:35:46 | END (Claude Code) | 수정: (없음) |

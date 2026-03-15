@@ -4,6 +4,11 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-15 | 세션 자동 기록 | erp_map.py, map_view.html, erp_measurement_dashboard.py 외 2개 | d0f6b76 |
+| 2026-03-15 | 세션 자동 기록 | map_view.html, erp_map.py, erp_measurement_dashboard.py 외 2개 | d0f6b76 |
+| 2026-03-15 | 세션 자동 기록 | erp_map.py, foms_map_generator.py, map_view.html 외 2개 | d0f6b76 |
+| 2026-03-15 | 세션 자동 기록 | debug_order_2629.py, debug_flask_2629.py, commit_msg.txt 외 2개 | d0f6b76 |
+| 2026-03-15 | 세션 자동 기록 | commit_msg.txt, run_map_check.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-480198ef-241e-45d9-b1a4-7f5007766726.png 외 2개 | d0f6b76 |
 | 2026-03-15 | 세션 자동 기록 | run_map_check.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-480198ef-241e-45d9-b1a4-7f5007766726.png, check_map_orders_2670_2662.sql 외 2개 | 7d14c5e |
 | 2026-03-15 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-480198ef-241e-45d9-b1a4-7f5007766726.png, check_map_orders_2670_2662.sql, erp_map.py 외 2개 | 7d14c5e |
 | 2026-03-15 | 세션 자동 기록 | check_map_orders_2670_2662.sql, erp_map.py, commit_msg.txt 외 2개 | 7d14c5e |
@@ -19,8 +24,3 @@
 | 2026-03-15 | 찌꺼기 파일 정리 (hook debug, 미참조 partial, 미사용 모듈 6건) | .gitignore, 삭제 6건 | - |
 | 2026-03-15 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html | 6522aa0 |
 | 2026-03-15 | 세션 자동 기록 | erp_beta_js.html, commit_msg.txt | 483a040 |
-| 2026-03-13 | 채널톡 푸쉬: 저장 없이 푸쉬 가능 (draft+자동저장 후 푸쉬) | erp_beta_js.html | - |
-| 2026-03-13 | 세션 자동 기록 | commit_msg.txt, erp_shipment_page.py | 8b3bd37 |
-| 2026-03-12 | 세션 자동 기록 | commit_msg.txt, erp_shipment_page.py | 8b3bd37 |
-| 2026-03-12 | 세션 자동 기록 | erp_shipment_page.py | 04d9257 |
-| 2026-03-11 | 세션 자동 기록 | commit_msg.txt, erp_dashboard_grid.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-3b8f06c5-bbe4-46f4-9fb8-292b25faecc5.png 외 2개 | 15a377e |
