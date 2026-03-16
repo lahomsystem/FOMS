@@ -1981,27 +1981,48 @@ ${list.map(renderCard).join('')}
                 const badges = [];
                 if (item.is_holiday) badges.push('<span class="badge bg-danger">휴일</span>');
                 else if (item.is_weekend) badges.push('<span class="badge bg-warning text-dark">주말</span>');
-                html += '<div class="' + klasses.join(' ') + '" data-date="' + escapeHtml(item.date) + '" role="button">';
-                html += '<div class="d-flex align-items-center justify-content-between gap-1 w-100 flex-nowrap">';
+                html += '<div class="' + klasses.join(' ') + '" data-date="' + escapeHtml(item.date) + '">';
+                html += '<div class="measurement-item-header d-flex align-items-center justify-content-between gap-1 w-100 flex-nowrap" role="button">';
                 html += '<span class="measurement-panel-date">' + escapeHtml(item.date) + '</span>';
                 html += '<span class="measurement-panel-day">(' + escapeHtml(item.day_label) + ')</span>';
                 html += badges.join('');
                 html += '<span class="badge badge-count ms-auto">' + item.count + '</span>';
-                html += '</div></div>';
+                html += '</div>';
+                
+                if (item.cases && item.cases.length > 0) {
+                    html += '<div class="measurement-cases-list d-none mt-2 pt-2 border-top">';
+                    item.cases.forEach(function(c) {
+                        const t = escapeHtml(c.time || '');
+                        const n = escapeHtml(c.customer_name || '이름없음');
+                        const a = escapeHtml(c.address || '-');
+                        const timeBadge = t ? `<span class="badge bg-secondary me-1" style="font-size:0.7rem;">${t}</span>` : '';
+                        html += `<div class="small mb-1 text-muted"><div class="fw-semibold text-dark">${timeBadge}${n}</div><div style="padding-left:0.5rem; font-size:0.8rem; line-height:1.2;">- ${a}</div></div>`;
+                    });
+                    html += '</div>';
+                }
+                
+                html += '</div>';
             });
             panel.innerHTML = html;
             panel.classList.add('measurement-panel-list');
             panel.querySelectorAll('.measurement-panel-item').forEach(function (el) {
-                el.addEventListener('click', function () {
-                    const dateStr = el.dataset.date;
-                    if (!dateStr) return;
-                    panel.querySelectorAll('.measurement-panel-item').forEach(function (x) { x.classList.remove('is-selected'); });
-                    el.classList.add('is-selected');
-                    panel.dataset.selectedDate = dateStr;
-                    if (window._erpMeasurementDatePicker) {
-                        window._erpMeasurementDatePicker.setDate([dateStr], true);
-                    }
-                });
+                const header = el.querySelector('.measurement-item-header');
+                if (header) {
+                    header.addEventListener('click', function (e) {
+                        const dateStr = el.dataset.date;
+                        if (!dateStr) return;
+                        panel.querySelectorAll('.measurement-panel-item').forEach(function (x) { x.classList.remove('is-selected'); });
+                        el.classList.add('is-selected');
+                        panel.dataset.selectedDate = dateStr;
+                        if (window._erpMeasurementDatePicker) {
+                            window._erpMeasurementDatePicker.setDate([dateStr], true);
+                        }
+                        const casesList = el.querySelector('.measurement-cases-list');
+                        if (casesList) {
+                            casesList.classList.toggle('d-none');
+                        }
+                    });
+                }
             });
         } catch (e) {
             console.error('loadMeasurementPanel:', e);
