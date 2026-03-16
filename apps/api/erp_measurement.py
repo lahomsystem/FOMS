@@ -66,11 +66,34 @@ def api_erp_measurement_summary():
     for y in years:
         holiday_dates |= _load_holidays_for_year(y)
 
-    measurement_counts = {}
+    measurement_info = {}
     for order in panel_orders:
         if self_measurement_four_checks_done(order):
             continue
         all_dates = extract_all_measurement_dates(order)
+        
+        # ERP Beta 주소 및 고객명 추출
+        address_to_use = order.address
+        customer_name = order.customer_name
+        
+        if order.is_erp_beta and order.structured_data:
+            sd = order.structured_data
+            erp_address_full = (sd.get('site') or {}).get('address_full')
+            erp_address_main = (sd.get('site') or {}).get('address_main')
+            erp_address_detail = (sd.get('site') or {}).get('address_detail')
+
+            if erp_address_full and erp_address_full.strip() and erp_address_full != '-':
+                address_to_use = erp_address_full.strip()
+            elif erp_address_main and erp_address_main.strip():
+                if erp_address_detail and erp_address_detail.strip() and erp_address_detail != '-':
+                    address_to_use = f"{erp_address_main.strip()} {erp_address_detail.strip()}"
+                else:
+                    address_to_use = erp_address_main.strip()
+
+            erp_customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
+            if erp_customer_name:
+                customer_name = erp_customer_name
+                
         for date_value in all_dates:
             try:
                 d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
@@ -79,7 +102,15 @@ def api_erp_measurement_summary():
             if d < range_start or d > range_end:
                 continue
             key = d.strftime('%Y-%m-%d')
-            measurement_counts[key] = measurement_counts.get(key, 0) + 1
+            if key not in measurement_info:
+                measurement_info[key] = []
+                
+            measurement_info[key].append({
+                'id': order.id,
+                'customer_name': customer_name or '이름없음',
+                'address': address_to_use or '-',
+                'time': order.measurement_time or ''
+            })
 
     day_labels = ['월', '화', '수', '목', '금', '토', '일']
     today_str = today_kst.strftime('%Y-%m-%d')
@@ -89,10 +120,14 @@ def api_erp_measurement_summary():
         date_str = current.strftime('%Y-%m-%d')
         is_weekend = current.weekday() >= 5
         is_holiday = date_str in holiday_dates
+        cases = measurement_info.get(date_str, [])
+        cases.sort(key=lambda x: str(x.get('time') or '')) # 시간순으로 정렬
+        
         panel_dates.append({
             'date': date_str,
             'day_label': day_labels[current.weekday()],
-            'count': measurement_counts.get(date_str, 0),
+            'count': len(cases),
+            'cases': cases,
             'is_weekend': is_weekend,
             'is_holiday': is_holiday,
             'is_today': date_str == today_str,

@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-16 | 세션 자동 기록 | commit_msg.txt, erp_display.py, erp_as_dashboard.html 외 2개 | 13fc566 |
 | 2026-03-16 | 세션 자동 기록 | erp_display.py, erp_as_dashboard.html, erp_orders_as.py 외 2개 | a1531b4 |
 | 2026-03-16 | 세션 자동 기록 | channel_integration.py, erp_orders_structured.py, erp_beta_js.html 외 2개 | a1531b4 |
 | 2026-03-16 | 세션 자동 기록 | erp_orders_structured.py, erp_beta_js.html, order_attachment_thumbnail.py 외 2개 | a1531b4 |
@@ -23,4 +24,3 @@
 | 2026-03-15 | 세션 자동 기록 | map_view.html, erp_map.py, erp_measurement.py 외 2개 | 12c2f6d |
 | 2026-03-15 | 실측 지도 재구현 Spec Phase 1~6 + reset_order_geocode 확대 적용 | erp_map.py, erp_measurement.py, erp_orders_structured.py, order_edit.py, map_view.html, map_snapshot.py, order_geocode.py | - |
 | 2026-03-15 | 세션 자동 기록 | erp_orders_revision.py, erp_dashboard_scripts_core.html, erp_dashboard_styles.html 외 2개 | 1284e2b |
-| 2026-03-15 | Phase C 완료: soft-delete 통일, C-1/C-2 인덱스 마이그레이션 | models.py, apps/* 25+, migrations | - |
