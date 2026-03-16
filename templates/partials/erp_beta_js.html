@@ -2011,12 +2011,16 @@ ${list.map(renderCard).join('')}
                     header.addEventListener('click', function (e) {
                         const dateStr = el.dataset.date;
                         if (!dateStr) return;
-                        panel.querySelectorAll('.measurement-panel-item').forEach(function (x) { x.classList.remove('is-selected'); });
-                        el.classList.add('is-selected');
-                        panel.dataset.selectedDate = dateStr;
-                        if (window._erpMeasurementDatePicker) {
-                            window._erpMeasurementDatePicker.setDate([dateStr], true);
+                        
+                        // 날짜 스타일 토글 여부는 주소 목록을 토글하는 것으로 대체, 
+                        // 하지만 시각적으로 어느 것을 눌렀는지 표시하기 위해 active 상태 토글 추가
+                        if (el.classList.contains('is-selected')) {
+                            el.classList.remove('is-selected');
+                        } else {
+                            panel.querySelectorAll('.measurement-panel-item').forEach(function (x) { x.classList.remove('is-selected'); });
+                            el.classList.add('is-selected');
                         }
+                        
                         const casesList = el.querySelector('.measurement-cases-list');
                         if (casesList) {
                             casesList.classList.toggle('d-none');
