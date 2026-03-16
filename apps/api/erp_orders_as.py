@@ -263,11 +263,11 @@ def api_as_schedule(order_id):
         sd['as_info'] = as_info
 
         schedule = sd.get('schedule') or {}
-        construction = schedule.get('construction') or {}
-        construction['date'] = visit_date
-        construction['time'] = visit_time
-        construction['type'] = 'AS'
-        schedule['construction'] = construction
+        as_visit = schedule.get('as_visit') or {}
+        as_visit['date'] = visit_date
+        as_visit['time'] = visit_time
+        as_visit['type'] = 'AS'
+        schedule['as_visit'] = as_visit
         sd['schedule'] = schedule
 
         wf = sd.get('workflow') or {}

@@ -28,3 +28,9 @@ stdin_len: 710
 stdin: '{"conversation_id":"6a2cbf0d-1c0b-460c-a24a-61103d411da7","generation_id":"8342199d-8d7c-401a-aa0d-2f641acabdc0","model":"gemini-2.5-flash","trigger":"auto","context_usage_percent":103.7795,"context_tokens":207559,"context_window_size":200000,"message_count":182,"messages_to_compact":180,"is_first_compaction":false,"hook_event_name":"preCompact","cursor_version":"2.6.19","workspace_roots":["/c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS"],"user_email":"lahomsystem@gmail.com","transcript_path":"c:\\\\Users\\\\USER\\\\.cursor\\\\projects\\\\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\\\\agent-transcripts\\\\6a2cbf0d-1c0b-460c-a24a-61103d411da7\\\\6a2cbf0d-1c0b-460c-a24a-61103d411da7.jsonl"}'
 cursor_payload_env: ''
 
+--- session_start.py @ 2026-03-16T09:32:21.469014 ---
+args: ['.cursor/hooks/session_start.py']
+stdin_len: 406
+stdin: '{"conversation_id":"c8e94973-12c6-4212-89c5-fbc59051e222","generation_id":"","model":"composer-1.5","session_id":"c8e94973-12c6-4212-89c5-fbc59051e222","is_background_agent":false,"composer_mode":"agent","hook_event_name":"sessionStart","cursor_version":"2.6.19","workspace_roots":["/c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS"],"user_email":"lahomsystem@gmail.com","transcript_path":null}'
+cursor_payload_env: ''
+

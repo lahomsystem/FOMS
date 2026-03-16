@@ -149,8 +149,16 @@ def apply_erp_display_fields(order):
     construction = schedule.get('construction') or {}
     construction_date_raw = construction.get('date')
     construction_date = _normalize_date_to_yyyymmdd(construction_date_raw) if construction_date_raw else None
-    if is_erp_beta and construction_date and getattr(order, 'status', None) not in ('AS_RECEIVED', 'AS_COMPLETED'):
+    if is_erp_beta and construction_date:
         order.scheduled_date = construction_date
+
+    # AS 방문일: ERP Beta / 레거시 공통으로 structured_data의 schedule.as_visit.date 조회
+    as_visit = schedule.get('as_visit') or {}
+    as_visit_date_raw = as_visit.get('date')
+    if as_visit_date_raw:
+        order.as_visit_date = _normalize_date_to_yyyymmdd(as_visit_date_raw)
+    else:
+        order.as_visit_date = None
 
     # 기존 주문(실측일 컬럼): ERP Beta가 아니거나 schedule.measurement.date 없을 때 DB measurement_date 정규화만
     if not (is_erp_beta and measurement_date) and getattr(order, 'measurement_date', None):

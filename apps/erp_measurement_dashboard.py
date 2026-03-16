@@ -260,7 +260,7 @@ def erp_measurement_dashboard():
 
     if open_map:
         # 실측 대시보드 지도는 항상 실측 주문만 표시한다.
-        return redirect(url_for('erp_map.map_view', date=selected_date, status='MEASURE', dashboard='measurement', q=search_q))
+        return redirect(url_for('erp_map.map_view', date=selected_date, status='ALL', dashboard='measurement', q=search_q))
 
     return render_template(
         'erp_measurement_dashboard.html',

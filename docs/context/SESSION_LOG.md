@@ -4,17 +4,23 @@
 
 ## 최근 세션
 
+### Session: c8e94973
+- **시작**: 2026-03-16 09:32:21
+- **상태**: completed
+- **편집 파일**: `services/erp_display.py`, `templates/erp_as_dashboard.html`, `apps/api/erp_orders_as.py`, `apps/api/orders.py`, `apps/api/erp_orders_structured.py`, `apps/api/channel_integration.py`, `docs/plans/2026-03-16-FOMS-GOOGLE-SHEET-DUAL-PUSH-SPEC.md`, `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md`, `docs/evolution/ERP_BETA_SAVE_FLOW_GDM_AUDIT_2026-03-16.md`, `templates/partials/erp_beta_js.html`
+- **종료**: 2026-03-16 13:00:52
+
 ### Session: 38bb1d6b
 - **시작**: 2026-03-13 09:03:40
-- **상태**: unknown
-- **편집 파일**: `commit_msg.txt`, `apps/erp_shipment_page.py`
-- **종료**: 2026-03-13 09:03:54
+- **상태**: completed
+- **편집 파일**: `docs/evolution/ERP_BETA_SAVE_FLOW_GDM_AUDIT_2026-03-16.md`, `apps/api/erp_orders_structured.py`, `templates/partials/erp_beta_js.html`, `services/order_attachment_thumbnail.py`, `docs/evolution/2026-03-16-FILTER-2-MISSING-ANALYSIS-REPORT.md`, `commit_msg.txt`, `services/map_snapshot.py`, `scripts/diagnose_measurement_date_missing.py`, `services/order_date_sync.py`, `apps/api/erp_map.py`
+- **종료**: 2026-03-16 09:09:46
 
 ### Session: 6a2cbf0d
 - **시작**: 2026-03-13 08:26:54
-- **상태**: completed
-- **편집 파일**: `apps/api/erp_map.py`, `templates/map_view.html`, `apps/erp_measurement_dashboard.py`, `foms_map_generator.py`, `services/jobs/tasks.py`, `apps/api/erp_measurement.py`, `scripts/debug_order_2629.py`, `scripts/debug_flask_2629.py`, `commit_msg.txt`, `scripts/run_map_check.py`
-- **종료**: 2026-03-15 19:35:46
+- **상태**: unknown
+- **편집 파일**: `docs/evolution/ERP_BETA_SAVE_FLOW_GDM_AUDIT_2026-03-16.md`, `apps/api/erp_orders_structured.py`, `templates/partials/erp_beta_js.html`, `services/order_attachment_thumbnail.py`, `docs/evolution/2026-03-16-FILTER-2-MISSING-ANALYSIS-REPORT.md`, `commit_msg.txt`, `services/map_snapshot.py`, `scripts/diagnose_measurement_date_missing.py`, `services/order_date_sync.py`, `apps/api/erp_map.py`
+- **종료**: 2026-03-16 09:32:20
 
 ### Session: 700dcd20
 - **시작**: 2026-03-09 09:45:23
@@ -402,3 +408,71 @@
 | 2026-03-15 19:32:12 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-15 19:35:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 22:22:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 22:23:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 22:24:24 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 22:27:40 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 22:29:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 22:31:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 22:32:56 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 22:38:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 22:39:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 22:40:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 22:43:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 22:48:10 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 22:56:44 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 22:58:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 23:01:06 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 23:03:25 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 23:05:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 23:07:04 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 23:08:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-15 23:14:15 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-16 08:11:26 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-16 08:25:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-16 08:59:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-16 09:05:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-16 09:09:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-16 09:19:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-16 09:36:32 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-16 09:42:58 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-16 09:50:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-16 09:52:33 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-16 10:48:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-16 10:58:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-16 12:51:27 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-16 13:00:52 | END (Claude Code) | 수정: (없음) |
