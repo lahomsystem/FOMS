@@ -196,12 +196,12 @@
                 {% endif %}
               </td>
               <td>{{ r.as_received_date or '-' }}</td>
-              <td class="erp-as-visit-cell {% if r.scheduled_date %}erp-as-visit-cell--set{% endif %}">
+              <td class="erp-as-visit-cell {% if r.as_visit_date %}erp-as-visit-cell--set{% endif %}">
                 <div class="erp-as-visit-cell-wrap">
-                  <input type="date" class="erp-pro-input editable-date-as" value="{{ r.scheduled_date or '' }}"
+                  <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
                     data-order-id="{{ r.id }}" data-field="as_visit_date" style="width: 100%;">
                 </div>
-                {% if r.scheduled_date %}
+                {% if r.as_visit_date %}
                 <button type="button" class="erp-as-pending-btn as-pending-btn" data-order-id="{{ r.id }}"
                   title="미결 표시">미결</button>
                 {% endif %}
@@ -297,13 +297,13 @@
               <span class="erp-pro-order-card__value">{{ r.as_received_date or '-' }}</span>
             </div>
             <div
-              class="erp-pro-order-card__row erp-as-visit-cell {% if r.scheduled_date %}erp-as-visit-row--set{% endif %}">
+              class="erp-pro-order-card__row erp-as-visit-cell {% if r.as_visit_date %}erp-as-visit-row--set{% endif %}">
               <span class="erp-pro-order-card__label">AS 방문일</span>
               <div class="erp-as-visit-cell-wrap">
-                <input type="date" class="erp-pro-input editable-date-as" value="{{ r.scheduled_date or '' }}"
+                <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
                   data-order-id="{{ r.id }}" data-field="as_visit_date">
               </div>
-              {% if r.scheduled_date %}
+              {% if r.as_visit_date %}
               <button type="button" class="erp-as-pending-btn as-pending-btn" data-order-id="{{ r.id }}"
                 title="미결 표시">미결</button>
               {% endif %}

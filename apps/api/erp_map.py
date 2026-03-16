@@ -2,13 +2,12 @@
 ERP 지도·주소·유저 API. (Phase 4-4)
 erp.py에서 분리: map_data, erp users 목록, generate_map, update_address.
 """
-import copy
 import datetime
 import os
 import threading
 
 
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify, render_template, current_app
 from sqlalchemy import or_, and_
 
 from db import get_db
@@ -126,7 +125,7 @@ def _query_map_orders(db, *, date_filter=None, status_filter=None, dashboard=Non
                     Order.as_completed_date == date_filter
                 )
             )
-        query = query.distinct()
+        query = query.distinct(Order.id)
 
     orders = query.order_by(Order.id.desc()).limit(limit).all()
 
@@ -262,10 +261,8 @@ def _build_map_payload(orders, *, manager_filter='', search_query='', enqueue_mi
 
         # lat/lng를 단일 진실 소스로 사용 (stored_geocode_status와 불일치 시 좌표 우선)
         if has_coords:
-            geocode_failed = False
             geocode_status = 'success'
         else:
-            geocode_failed = True
             skipped_no_coords += 1
             address_for_geocode = extract_address_from_order(order)
             if (
@@ -293,7 +290,6 @@ def _build_map_payload(orders, *, manager_filter='', search_query='', enqueue_mi
             'completion_date': _format_map_date(order.completion_date),
             'manager_name': display['manager_name'],
             'notes': order.notes or '-',
-            'geocode_failed': geocode_failed,
             'conversion_status': geocode_status,
         })
 
@@ -326,12 +322,28 @@ def map_view():
     return render_template('map_view.html')
 
 
+def _normalize_map_date(value):
+    """날짜를 YYYY-MM-DD로 정규화. 빈/잘못된 값은 None."""
+    if value is None:
+        return None
+    s = (value or '').strip()
+    if not s:
+        return None
+    if len(s) >= 10 and s[4] == '-' and s[7] == '-':
+        try:
+            datetime.datetime.strptime(s[:10], '%Y-%m-%d')
+            return s[:10]
+        except ValueError:
+            pass
+    return None
+
+
 @erp_map_bp.route('/api/map_data')
 @login_required
 def api_map_data():
     """지도 표시용 주문 데이터 API"""
     try:
-        date_filter = request.args.get('date')
+        date_filter = _normalize_map_date(request.args.get('date'))
         status_filter = request.args.get('status')
         dashboard = request.args.get('dashboard')
         manager_filter = (request.args.get('manager') or '').strip()
@@ -340,7 +352,6 @@ def api_map_data():
             request.args.get('limit'),
             default_limit=500 if dashboard == 'measurement' else 200
         )
-        scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
 
         # measurement 모드: map_snapshot 사용, 전체 주문 반환 (2026-03-15)
         if dashboard == 'measurement' and date_filter:
@@ -414,7 +425,7 @@ def api_erp_users_list():
 def api_generate_map():
     """지도 HTML 생성 API"""
     try:
-        date_filter = request.args.get('date')
+        date_filter = _normalize_map_date(request.args.get('date'))
         status_filter = request.args.get('status')
         dashboard = request.args.get('dashboard')
         manager_filter = (request.args.get('manager') or '').strip()
@@ -507,7 +518,12 @@ def api_generate_map():
                     geocode_order_address(order.id)
                     used_sync_fallback = True
                 except Exception as e:
-                    print(f"Fallback geocode error: {e}")
+                    current_app.logger.warning(
+                        "generate_map fallback geocode failed for order_id=%s: %s",
+                        order.id,
+                        e,
+                        exc_info=True,
+                    )
         if queued_orders:
             db.commit()
         if used_sync_fallback:
@@ -561,9 +577,7 @@ def api_generate_map():
         return jsonify({'success': False, 'error': '지도를 생성할 수 없습니다.'})
 
     except Exception as e:
-        import traceback
-        print(f"ERROR: generate_map 에러 발생: {e}")
-        print(traceback.format_exc())
+        current_app.logger.error("generate_map error: %s", e, exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -664,7 +678,12 @@ def api_update_order_address(order_id):
             try:
                 geocode_order_address(order_id)
             except Exception as e:
-                print(f"Fallback geocode error: {e}")
+                current_app.logger.warning(
+                    "update_address fallback geocode failed for order_id=%s: %s",
+                    order_id,
+                    e,
+                    exc_info=True,
+                )
 
             # geocode_order_address가 db_session.remove() 호출로 세션을 정리하므로
             # refresh 대신 재조회로 최신 lat/lng 반영 (Root Cause Fix)
@@ -689,7 +708,10 @@ def api_update_order_address(order_id):
         })
 
     except Exception as e:
-        import traceback
-        print(f"ERROR: update_address 에러 발생: {e}")
-        print(traceback.format_exc())
+        current_app.logger.error(
+            "update_address error for order_id=%s: %s",
+            order_id,
+            e,
+            exc_info=True,
+        )
         return jsonify({'success': False, 'message': str(e)}), 500

@@ -6,6 +6,7 @@ import math
 from sqlalchemy import or_, and_, cast, String, func
 
 from models import Order
+from services.geocode_helpers import extract_address_from_order
 
 
 def _measurement_date_variants(yyyy_mm_dd):
@@ -31,8 +32,6 @@ def _measurement_date_variants(yyyy_mm_dd):
         f"{y}/{m}/{d}",     # 2026/3/16
     ]
     return list(dict.fromkeys(variants))
-from services.erp_display import self_measurement_four_checks_done
-from services.geocode_helpers import extract_address_from_order
 
 
 def _measurement_search_filter(query, q):
@@ -90,6 +89,18 @@ def build_measurement_map_query(db, date, q, manager, dashboard, limit=500):
         query = query.filter(
             Order.is_regional != True,
             ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
+        )
+
+    if manager and manager.strip():
+        manager_term = f'%{manager.strip()}%'
+        query = query.filter(
+            or_(
+                Order.manager_name.ilike(manager_term),
+                and_(
+                    Order.is_erp_beta == True,
+                    cast(Order.structured_data, String).ilike(manager_term)
+                )
+            )
         )
 
     # measurement 모드: status는 ALL 고정
@@ -255,9 +266,6 @@ def build_measurement_snapshot(orders, manager_filter=None):
             mn = str(ctx['manager_name'] or '')
             if manager_filter.lower() not in mn.lower():
                 continue
-
-        if self_measurement_four_checks_done(order):
-            continue
 
         if status == 'pending':
             pending_count += 1

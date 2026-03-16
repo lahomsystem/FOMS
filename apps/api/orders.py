@@ -674,7 +674,7 @@ def update_order_field():
     try:
         old_value = getattr(order, field, None)
         if field == 'as_visit_date':
-            order.scheduled_date = value
+            pass
         elif field == 'as_content' or field == 'as_pending':
             # as_content, as_pending는 모델 필드가 아니므로 건너뜀 (structured_data에서 처리)
             pass
@@ -748,11 +748,9 @@ def update_order_field():
                 site['address_full'] = value
                 flag_modified(order, 'structured_data')
             elif field == 'as_visit_date':
-                # as_visit_date는 scheduled_date 필드와 동기화
                 schedule = ensure_path(sd, 'schedule')
-                construction = ensure_path(schedule, 'construction')
-                construction['date'] = value
-                order.scheduled_date = value
+                as_visit = ensure_path(schedule, 'as_visit')
+                as_visit['date'] = value
                 flag_modified(order, 'structured_data')
             elif field == 'as_content':
                 # as_content는 structured_data.shipment.as_content에 저장

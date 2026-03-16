@@ -102,8 +102,12 @@ def _handle_stage_transition(
         return
     if new_stage in STATUS:
         setattr(order, 'status', new_stage)
+        if new_stage == 'AS_RECEIVED' and not getattr(order, 'as_received_date', None):
+            setattr(order, 'as_received_date', datetime.date.today().strftime('%Y-%m-%d'))
     elif new_stage == 'AS':
         setattr(order, 'status', 'AS')
+        if not getattr(order, 'as_received_date', None):
+            setattr(order, 'as_received_date', datetime.date.today().strftime('%Y-%m-%d'))
     is_quest_complete, missing_teams = check_quest_approvals_complete(old_sd, old_stage)
     if not is_quest_complete and missing_teams:
         stage_label = STAGE_LABELS.get(old_stage, old_stage) if old_stage else '알 수 없음'

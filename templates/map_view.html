@@ -933,35 +933,11 @@
         const GEOCODE_POLL_INTERVAL_MS = 15000;  // 15초 간격 (이전: 6초)
         const GEOCODE_POLL_MAX_RETRIES = 5;       // 최대 5회 (이전: 10회)
 
-        /** geocode 실패 여부: geocode_failed 우선, 없으면 conversion_status로 판별 */
-        function isOrderGeocodeFailed(order) {
-            if (!order) return false;
-            if (order.geocode_failed === true) return true;
-            if (order.geocode_failed === false) return false;
-            if (order.conversion_status === 'success') return false;
-            return order.conversion_status === 'failed' || order.conversion_status === 'pending';
-        }
-
-        function normalizeStatusFilter(status) {
-            const normalized = String(status || 'ALL').trim().toUpperCase();
-            const aliases = {
-                'MEASURED': 'MEASURE',
-            };
-            return aliases[normalized] || normalized || 'ALL';
-        }
-
-        function getActiveStatusFilter() {
-            if (dashboardParam === 'measurement') {
-                return 'MEASURE';
-            }
-            return normalizeStatusFilter(document.getElementById('status-filter').value || 'ALL');
-        }
-
         function configureStatusFilter() {
             const statusSelect = document.getElementById('status-filter');
             if (dashboardParam === 'measurement') {
-                statusSelect.innerHTML = '<option value="MEASURE">실측</option>';
-                statusSelect.value = 'MEASURE';
+                statusSelect.innerHTML = '<option value="ALL">전체</option>';
+                statusSelect.value = 'ALL';
                 statusSelect.disabled = true;
                 return;
             }

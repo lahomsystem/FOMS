@@ -3,3 +3,4 @@ guard_shell.py
 post_task_quality_check.py
 session_stop.py
 pre_compact.py
+session_start.py

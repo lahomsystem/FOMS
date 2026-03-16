@@ -32,8 +32,10 @@ def _generate_order_attachment_thumbnail_background(attachment_id, storage_key):
             attachment = attachment_db.query(OrderAttachment).filter(
                 OrderAttachment.id == attachment_id
             ).first()
-            if attachment and not attachment.thumbnail_key:
-                attachment.thumbnail_key = thumbnail_key
+            if attachment is not None:
+                key = getattr(attachment, 'thumbnail_key', None)
+                if key is None or key == '':
+                    attachment.thumbnail_key = thumbnail_key
                 attachment_db.commit()
         finally:
             attachment_db.close()
