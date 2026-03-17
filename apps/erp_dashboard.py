@@ -80,20 +80,7 @@ def erp_dashboard():
         if conds:
             _q = _q.filter(or_(*conds))
 
-    if f_stage:
-        req_stage = f_stage.strip()
-        if req_stage == 'AS처리':
-            _q = _q.filter(cast(Order.structured_data['workflow']['stage'], String).in_(['"AS접수"', '"AS처리"', '"AS완료"']))
-        else:
-            req_code = STAGE_NAME_TO_CODE.get(req_stage, req_stage)
-            req_label = STAGE_LABELS.get(req_code, req_stage)
-            _q = _q.filter(
-                or_(
-                    cast(Order.structured_data['workflow']['stage'], String).ilike(f'"{req_stage}"'),
-                    cast(Order.structured_data['workflow']['stage'], String).ilike(f'"{req_code}"'),
-                    cast(Order.structured_data['workflow']['stage'], String).ilike(f'"{req_label}"')
-                )
-            )
+    # f_stage 필터링은 파이프라인 단계별 모두 카운트(0 표시 방지)를 위해 인메모리에서 수행합니다.
 
     # 순수 DB 정렬: 생성일순
     _q = _q.order_by(Order.created_at.desc())
@@ -320,6 +307,11 @@ def erp_dashboard():
 
     filtered = []
     for r in enriched:
+        if f_stage:
+            bucket = 'AS처리' if r.get('stage') in ('AS접수', 'AS처리', 'AS완료') else r.get('stage')
+            if bucket != f_stage:
+                continue
+        
         if f_urgent == '1' and not (r.get('alerts') or {}).get('urgent'):
             continue
         if f_has_alert == '1':
