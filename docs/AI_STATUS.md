@@ -1,19 +1,16 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-03-17 | 마지막 작업: Phase C 쿼리 기준/인덱스 정렬 완료
+> 자동 업데이트: 2026-03-17 | 마지막 작업: Phase 2 성증 개선 최적화 (DB 검색 전환 및 페이지네이션)
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 최근 완료 (최대 5개)
+- [2026-03-17] Phase 1~2 성능 개선 블루프린트 완료 (psycogreen 패치, 불필요한 system_build_step DB 호출 제거, Timeout 대기 제거)
+- [2026-03-17] 대시보드(ERP 메인/AS/생산) Python 루프 필터를 DB 검색으로 전환 & 서버 페이지네이션 적용 (체감 성능 비약적 단축)
 - [2026-03-15] 실측 지도 재구현 Spec Phase 1~6 완료: map_snapshot, order_geocode, conversion_status 단일화, geocode_failed 제거
 - [2026-03-15] Phase C 완료: soft-delete 기준 통일(Order.active_filter), C-1/C-2 인덱스 마이그레이션 작성
 - [2026-03-15] Phase A/B 완료: JSONB flag_modified, User N+1 제거, Promise.all 병렬화, 정렬 중복 제거
-- [2026-03-09] 성능 개선 Phase 0-4 완료 (OrderScheduleDate 전환, 달력/지도/근접검색 최적화, Partial Index 적용)
-- [2026-03-02] 긴급 알림 시스템 구축 (브리핑 보드 배너, 1:1 긴급 멘션 UI/API, Socket.IO 연동)
-- [2026-03-02] 브리핑 보드 erpbeta 표시 오류 및 404 딥링크(생산/시공/공지) 경로 전수 수정
-- [2026-02-28] AI 자동 메모리 시스템 구축 (Hook+Workflow, AI_STATUS/CHANGELOG 자동 갱신)
-- [2026-02-27] 지도 auto-poll iframe 재로드 제거 (15s /api/map_data 경량 폴링)
 
 
 ## 진행 중
