@@ -52,11 +52,59 @@ def erp_dashboard():
     f_q = (request.args.get('q') or '').strip()
     f_team = (request.args.get('team') or '').strip()
 
-    _q = db.query(Order).filter(Order.active_filter(), Order.is_erp_beta.is_(True)).order_by(Order.created_at.desc())
-    # 검색어 있을 때는 전체 대상, 없을 때는 최신 300건만 로드
-    orders = _q.all() if f_q else _q.limit(300).all()
+    _q = db.query(Order).filter(Order.active_filter(), Order.is_erp_beta.is_(True))
+
+    from sqlalchemy import or_, and_, cast, String
+    if f_q:
+        search_term = f"%{f_q}%"
+        _q = _q.filter(
+            or_(
+                Order.id.cast(String).ilike(search_term),
+                Order.customer_name.ilike(search_term),
+                Order.phone.ilike(search_term),
+                Order.address.ilike(search_term),
+                Order.manager_name.ilike(search_term)
+            )
+        )
+
     if request.args.get('mine') == '1' and current_user:
-        orders = [o for o in orders if is_order_mine_for_user(o, current_user)]
+        u_name = (current_user.name or '').strip()
+        u_username = (current_user.username or '').strip()
+        conds = []
+        if u_name:
+            conds.append(Order.manager_name.ilike(f"%{u_name}%"))
+            conds.append(cast(Order.structured_data, String).ilike(f'%"{u_name}"%'))
+        if u_username:
+            conds.append(Order.manager_name.ilike(f"%{u_username}%"))
+            conds.append(cast(Order.structured_data, String).ilike(f'%"{u_username}"%'))
+        if conds:
+            _q = _q.filter(or_(*conds))
+
+    if f_stage:
+        req_stage = f_stage.strip()
+        if req_stage == 'AS처리':
+            _q = _q.filter(cast(Order.structured_data['workflow']['stage'], String).in_(['"AS접수"', '"AS처리"', '"AS완료"']))
+        else:
+            req_code = STAGE_NAME_TO_CODE.get(req_stage, req_stage)
+            req_label = STAGE_LABELS.get(req_code, req_stage)
+            _q = _q.filter(
+                or_(
+                    cast(Order.structured_data['workflow']['stage'], String).ilike(f'"{req_stage}"'),
+                    cast(Order.structured_data['workflow']['stage'], String).ilike(f'"{req_code}"'),
+                    cast(Order.structured_data['workflow']['stage'], String).ilike(f'"{req_label}"')
+                )
+            )
+
+    # 순수 DB 정렬: 생성일순, 그리고 실측/시공은 DB 레벨 정렬 복잡하므로 여기선 기본 정렬
+    _q = _q.order_by(Order.created_at.desc())
+
+    page = request.args.get('page', 1, type=int)
+    if page < 1: page = 1
+    per_page = 50
+
+    total_orders = _q.count()
+    total_pages = (total_orders + per_page - 1) // per_page
+    orders = _q.offset((page - 1) * per_page).limit(per_page).all()
 
     att_counts = {}
     if orders:
@@ -279,19 +327,6 @@ def erp_dashboard():
 
     filtered = []
     for r in enriched:
-        if f_stage:
-            row_stage = (r.get('stage') or '').strip()
-            req_stage = f_stage.strip()
-            if req_stage == 'AS처리':
-                if row_stage not in AS_STAGE_GROUP:
-                    continue
-            else:
-                row_code = STAGE_NAME_TO_CODE.get(row_stage, row_stage)
-                req_code = STAGE_NAME_TO_CODE.get(req_stage, req_stage)
-                row_label = STAGE_LABELS.get(row_code, row_stage)
-                req_label = STAGE_LABELS.get(req_code, req_stage)
-                if req_stage not in {row_stage, row_code, row_label} and req_code not in {row_stage, row_code, row_label} and req_label not in {row_stage, row_code, row_label}:
-                    continue
         if f_urgent == '1' and not (r.get('alerts') or {}).get('urgent'):
             continue
         if f_has_alert == '1':
@@ -307,16 +342,6 @@ def erp_dashboard():
             elif f_alert_type == 'construction_d3' and not a.get('construction_d3'):
                 continue
             elif f_alert_type == 'production_d2' and not a.get('production_d2'):
-                continue
-        if f_q:
-            hay = ' '.join([
-                str(r.get('id') or ''),
-                str(r.get('customer_name') or ''),
-                str(r.get('phone') or ''),
-                str(r.get('address') or ''),
-                str(r.get('manager_name') or ''),
-            ]).lower()
-            if f_q.lower() not in hay:
                 continue
         if f_team and not is_admin:
             quest = r.get('current_quest')
@@ -390,4 +415,7 @@ def erp_dashboard():
         is_admin=is_admin,
         can_edit_erp=can_edit_erp_flag,
         status_choices=list(BULK_ACTION_STATUS.items()) + [('DELETED', '삭제(휴지통)')],
+        page=page,
+        total_pages=total_pages,
+        total_orders=total_orders,
     )

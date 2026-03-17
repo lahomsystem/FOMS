@@ -83,19 +83,40 @@ def erp_as_dashboard():
 
     query = _erp_order_search_filter(query, search_q)
 
-    # 기본 정렬: 접수일(as_received_date) 내림차순(최신 접수 맨 위), 동일 시 id 내림차순
     sort_dir = (request.args.get('sort_dir') or 'desc').strip().lower()
     if sort_dir != 'asc':
         sort_dir = 'desc'
     order_col = Order.as_received_date
     if sort_dir == 'desc':
-        rows = query.order_by(order_col.desc().nullslast(), Order.id.desc()).limit(300).all()
+        query = query.order_by(order_col.desc().nullslast(), Order.id.desc())
     else:
-        rows = query.order_by(order_col.asc().nullsfirst(), Order.id.desc()).limit(300).all()
+        query = query.order_by(order_col.asc().nullsfirst(), Order.id.desc())
+
+    # "내 것만 보기" 적용 여부 (DB 레벨 필터 전환)
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     erp_mine_only = request.args.get('mine') == '1'
     if erp_mine_only and current_user:
-        rows = [r for r in rows if is_order_mine_for_user(r, current_user)]
+        u_name = (current_user.name or '').strip()
+        u_username = (current_user.username or '').strip()
+        conds = []
+        if u_name:
+            conds.append(Order.manager_name.ilike(f"%{u_name}%"))
+            conds.append(and_(Order.is_erp_beta == True, cast(Order.structured_data, String).ilike(f'%"{u_name}"%')))
+        if u_username:
+            conds.append(Order.manager_name.ilike(f"%{u_username}%"))
+            conds.append(and_(Order.is_erp_beta == True, cast(Order.structured_data, String).ilike(f'%"{u_username}"%')))
+        if conds:
+            query = query.filter(or_(*conds))
+
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    if page < 1:
+        page = 1
+    per_page = 100
+    total_orders = query.count()
+    total_pages = (total_orders + per_page - 1) // per_page
+
+    rows = query.offset((page - 1) * per_page).limit(per_page).all()
 
     for r in rows:
         r.structured_data = _ensure_dict(r.structured_data)
@@ -125,4 +146,7 @@ def erp_as_dashboard():
         can_view_as_photos=can_view_as_photos,
         sort_dir=sort_dir,
         as_tab=tab,
+        page=page,
+        total_pages=total_pages,
+        total_orders=total_orders,
     )
