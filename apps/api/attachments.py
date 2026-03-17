@@ -159,6 +159,11 @@ def api_upload_session():
         if not filename or not isinstance(size, (int, float)) or size <= 0 or not folder:
             return jsonify({'success': False, 'message': 'filename, size, folder 필수가 필요합니다.'}), 400
 
+        if not isinstance(folder, str):
+            folder = str(folder)
+        if not isinstance(filename, str):
+            filename = str(filename)
+
         if '..' in folder or folder.startswith('/'):
             return jsonify({'success': False, 'message': '유효하지 않은 folder 경로입니다.'}), 400
 
@@ -225,6 +230,8 @@ def api_upload_session_batch():
         if not files or not isinstance(files, list):
             return jsonify({'success': False, 'message': 'files 리스트가 필요합니다.'}), 400
 
+        if not isinstance(folder, str):
+            folder = str(folder)
         if not folder or '..' in folder or folder.startswith('/'):
             return jsonify({'success': False, 'message': '유효하지 않은 folder 경로입니다.'}), 400
 
@@ -303,6 +310,11 @@ def api_order_attachments_complete(order_id):
 
         if not key or not filename:
             return jsonify({'success': False, 'message': 'key, filename 필수가 필요합니다.'}), 400
+
+        if not isinstance(key, str):
+            key = str(key)
+        if not isinstance(filename, str):
+            filename = str(filename)
 
         if f'orders/{order_id}/' not in key or '..' in key:
             return jsonify({'success': False, 'message': '유효하지 않은 key 경로입니다.'}), 400
@@ -448,9 +460,9 @@ def api_order_attachments_upload(order_id):
         if not allowed_erp_attachment_file(file.filename, category):
             allowed_exts = set(ERP_MEDIA_ALLOWED_EXTENSIONS)
             if category == 'drawing':
-                allowed_exts.update(DRAWING_ATTACHMENT_EXTRA_EXTENSIONS)
-            allowed_exts = ', '.join(sorted(allowed_exts))
-            return jsonify({'success': False, 'message': f'허용되지 않은 파일 형식입니다. 지원 형식: {allowed_exts}'}), 400
+                allowed_exts |= DRAWING_ATTACHMENT_EXTRA_EXTENSIONS
+            allowed_exts_str = ', '.join(sorted(allowed_exts))
+            return jsonify({'success': False, 'message': f'허용되지 않은 파일 형식입니다. 지원 형식: {allowed_exts_str}'}), 400
 
         file.seek(0, os.SEEK_END)
         file_size = file.tell()

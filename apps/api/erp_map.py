@@ -388,13 +388,16 @@ def api_map_data():
             result_limit=limit,
         )
 
+        map_data_list = payload.get('map_data', [])
+        orders_list = payload.get('orders', [])
+
         return jsonify({
             'success': True,
-            'data': payload['map_data'],
-            'orders': payload['orders'],
-            'total_orders': len(payload['orders']),
-            'converted_orders': len(payload['map_data']),
-            'skipped_no_coords': payload['skipped_no_coords'],
+            'data': map_data_list,
+            'orders': orders_list,
+            'total_orders': len(orders_list),
+            'converted_orders': len(map_data_list),
+            'skipped_no_coords': payload.get('skipped_no_coords', 0),
         })
     except Exception as e:
         return jsonify({
@@ -545,8 +548,12 @@ def api_generate_map():
 
         map_generator = FOMSMapGenerator()
 
-        if payload['map_data']:
-            folium_map = map_generator.create_map(payload['map_data'], title)
+        map_data_list = payload.get('map_data', [])
+        orders_list = payload.get('orders', [])
+        skipped_no_coords = payload.get('skipped_no_coords', 0)
+
+        if map_data_list:
+            folium_map = map_generator.create_map(map_data_list, title)
             if folium_map:
                 map_html = folium_map._repr_html_()
             else:
@@ -555,10 +562,10 @@ def api_generate_map():
             return jsonify({
                 'success': True,
                 'map_html': map_html,
-                'total_orders': len(payload['orders']),
-                'converted_orders': len(payload['map_data']),
-                'skipped_no_coords': payload['skipped_no_coords'],
-                'orders': payload['orders'],
+                'total_orders': len(orders_list),
+                'converted_orders': len(map_data_list),
+                'skipped_no_coords': skipped_no_coords,
+                'orders': orders_list,
             })
 
         empty_map = map_generator.create_empty_map(title)
@@ -567,11 +574,11 @@ def api_generate_map():
             return jsonify({
                 'success': True,
                 'map_html': map_html,
-                'total_orders': len(payload['orders']),
+                'total_orders': len(orders_list),
                 'converted_orders': 0,
-                'skipped_no_coords': payload['skipped_no_coords'],
-                'orders': payload['orders'],
-                'message': f'{title} 지도에 표시할 마커가 없습니다. 우측 목록에서 주소 오류를 확인하세요.' if payload['orders'] else f'{title}에 해당하는 주문이 없습니다.'
+                'skipped_no_coords': skipped_no_coords,
+                'orders': orders_list,
+                'message': f'{title} 지도에 표시할 마커가 없습니다. 우측 목록에서 주소 오류를 확인하세요.' if orders_list else f'{title}에 해당하는 주문이 없습니다.'
             })
 
         return jsonify({'success': False, 'error': '지도를 생성할 수 없습니다.'})

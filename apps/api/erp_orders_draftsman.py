@@ -34,7 +34,7 @@ def api_orders_batch_assign_draftsman():
         order_ids = data.get('order_ids', [])
         user_ids = data.get('user_ids', [])
         emergency_override = data.get('emergency_override', False)
-        override_reason = data.get('override_reason', '').strip()
+        override_reason = str(data.get('override_reason', '') or '').strip()
 
         if not order_ids:
             return jsonify({'success': False, 'message': '주문을 선택해주세요.'}), 400
@@ -157,7 +157,7 @@ def api_order_assign_draftsman(order_id):
         data = request.get_json() or {}
         user_ids = data.get('user_ids', [])
         emergency_override = data.get('emergency_override', False)
-        override_reason = data.get('override_reason', '').strip()
+        override_reason = str(data.get('override_reason', '') or '').strip()
 
         if not user_ids:
             return jsonify({'success': False, 'message': '담당자를 선택해주세요.'}), 400
@@ -201,15 +201,19 @@ def api_order_assign_draftsman(order_id):
 
         old_assignees = s_data.get('drawing_assignees', [])
         old_names = [a.get('name', '') for a in old_assignees if isinstance(a, dict)]
-        old_ids = ((s_data.get('assignments') or {}).get('drawing_assignee_user_ids') or [])
+        
+        assignments_dict = s_data.get('assignments', {})
+        old_ids = assignments_dict.get('drawing_assignee_user_ids', []) if isinstance(assignments_dict, dict) else []
 
-        if 'assignments' not in s_data:
+        if not isinstance(s_data.get('assignments'), dict):
             s_data['assignments'] = {}
         s_data['assignments']['drawing_assignee_user_ids'] = user_ids
 
         s_data['drawing_assignees'] = assignee_list
 
-        shipment = s_data.get('shipment') or {}
+        shipment = s_data.get('shipment', {})
+        if not isinstance(shipment, dict):
+            shipment = {}
         shipment['drawing_managers'] = [u.name for u in assigned_users]
         s_data['shipment'] = shipment
 
@@ -268,7 +272,7 @@ def api_order_confirm_drawing_receipt(order_id):
     try:
         data = request.get_json(silent=True) or {}
         emergency_override = data.get('emergency_override', False)
-        override_reason = data.get('override_reason', '').strip()
+        override_reason = str(data.get('override_reason', '') or '').strip()
 
         db = get_db()
         order = db.query(Order).filter(Order.id == order_id).first()
