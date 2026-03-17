@@ -1993,8 +1993,8 @@ ${list.map(renderCard).join('')}
                         const t = escapeHtml(c.time || '');
                         const n = escapeHtml(c.customer_name || '이름없음');
                         const a = escapeHtml(c.address || '-');
-                        const timeBadge = t ? `<span class="badge bg-secondary me-1" style="font-size:0.7rem;">${t}</span>` : '';
-                        html += `<div class="small mb-1 text-muted"><div class="fw-semibold text-dark">${timeBadge}${n}</div><div style="padding-left:0.5rem; font-size:0.8rem; line-height:1.2;">- ${a}</div></div>`;
+                        const timeBadge = t ? `<span class="badge bg-secondary me-1" style="font-size:0.7rem;">${t}</span>` : `<span class="badge bg-light text-secondary border me-1" style="font-size:0.7rem;">시간미정</span>`;
+                        html += `<div class="small mb-1 text-muted"><div class="fw-semibold text-dark d-flex align-items-center">${timeBadge} ${n}</div><div style="padding-left:0.5rem; font-size:0.8rem; line-height:1.2;">- ${a}</div></div>`;
                     });
                     html += '</div>';
                 }
