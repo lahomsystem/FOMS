@@ -23,6 +23,31 @@ from services.order_geocode import reset_order_geocode_on_address_change
 # 실측 패널 집계용: erp_measurement_dashboard 로직 재사용
 from apps.erp_measurement_dashboard import extract_all_measurement_dates, _load_holidays_for_year
 
+def normalize_address_for_sort(address):
+    if not address or not str(address).strip():
+        return ""
+    addr = str(address).strip()
+    replacements = {
+        "서울특별시": "서울", "서울시": "서울",
+        "경기도": "경기",
+        "인천광역시": "인천", "인천시": "인천",
+        "부산광역시": "부산", "부산시": "부산",
+        "대구광역시": "대구", "대구시": "대구",
+        "대전광역시": "대전", "대전시": "대전",
+        "광주광역시": "광주", "광주시": "광주",
+        "울산광역시": "울산", "울산시": "울산",
+        "제주특별자치도": "제주", "제주시": "제주",
+        "세종특별자치시": "세종", "세종시": "세종",
+        "강원특별자치도": "강원", "강원도": "강원",
+        "충청북도": "충북", "충청남도": "충남",
+        "전라북도": "전북", "전라남도": "전남",
+        "경상북도": "경북", "경상남도": "경남"
+    }
+    parts = addr.split(' ', 2)
+    if parts and parts[0] in replacements:
+        parts[0] = replacements[parts[0]]
+    return " ".join(parts)
+
 erp_measurement_bp = Blueprint(
     'erp_measurement',
     __name__,
@@ -75,6 +100,7 @@ def api_erp_measurement_summary():
         # ERP Beta 주소 및 고객명 추출
         address_to_use = order.address
         customer_name = order.customer_name
+        time_to_use = order.measurement_time or ''
         
         if order.is_erp_beta and order.structured_data:
             sd = order.structured_data
@@ -94,6 +120,10 @@ def api_erp_measurement_summary():
             if erp_customer_name:
                 customer_name = erp_customer_name
                 
+            erp_time = ((sd.get('schedule') or {}).get('measurement') or {}).get('time')
+            if erp_time:
+                time_to_use = erp_time
+                
         for date_value in all_dates:
             try:
                 d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
@@ -109,7 +139,7 @@ def api_erp_measurement_summary():
                 'id': order.id,
                 'customer_name': customer_name or '이름없음',
                 'address': address_to_use or '-',
-                'time': order.measurement_time or ''
+                'time': time_to_use
             })
 
     day_labels = ['월', '화', '수', '목', '금', '토', '일']
@@ -121,7 +151,9 @@ def api_erp_measurement_summary():
         is_weekend = current.weekday() >= 5
         is_holiday = date_str in holiday_dates
         cases = measurement_info.get(date_str, [])
-        cases.sort(key=lambda x: str(x.get('time') or '')) # 시간순으로 정렬
+        # 가까운 주소 끼리 정렬(시, 군, 구) 후 시간순 정렬
+        cases.sort(key=lambda x: (normalize_address_for_sort(x.get('address')), str(x.get('time') or '')))
+        
         
         panel_dates.append({
             'date': date_str,
