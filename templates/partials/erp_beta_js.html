@@ -769,16 +769,14 @@
             erpSetStatus(doRedirect ? '저장 완료! 이동합니다...' : '저장 완료');
 
             if (doRedirect) {
-                setTimeout(() => {
-                    if (window.__ERP_BETA_DRAFT_MODE) {
-                        window.location.href = '/erp/dashboard';
-                    } else {
-                        const referrerInput = document.querySelector('input[name="referrer"]');
-                        let targetUrl = referrerInput ? referrerInput.value : document.referrer;
-                        if (!targetUrl || targetUrl.includes(window.location.pathname)) targetUrl = '/erp/dashboard';
-                        window.location.href = targetUrl;
-                    }
-                }, 500);
+                if (window.__ERP_BETA_DRAFT_MODE) {
+                    window.location.href = '/erp/dashboard';
+                } else {
+                    const referrerInput = document.querySelector('input[name="referrer"]');
+                    let targetUrl = referrerInput ? referrerInput.value : document.referrer;
+                    if (!targetUrl || targetUrl.includes(window.location.pathname)) targetUrl = '/erp/dashboard';
+                    window.location.href = targetUrl;
+                }
             }
             return { success: true };
         } catch (e) {

@@ -4,6 +4,12 @@
 
 ## 최근 세션
 
+### Session: 0d00b4d0
+- **시작**: 2026-03-17 08:07:07
+- **상태**: completed
+- **편집 파일**: `commit_msg.txt`, `services/erp_display.py`, `templates/erp_as_dashboard.html`, `apps/api/erp_orders_as.py`, `apps/api/orders.py`, `apps/api/erp_orders_structured.py`, `apps/api/channel_integration.py`, `docs/plans/2026-03-16-FOMS-GOOGLE-SHEET-DUAL-PUSH-SPEC.md`, `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md`, `docs/evolution/ERP_BETA_SAVE_FLOW_GDM_AUDIT_2026-03-16.md`
+- **종료**: 2026-03-17 08:11:49
+
 ### Session: c8e94973
 - **시작**: 2026-03-16 09:32:21
 - **상태**: completed
@@ -478,3 +484,15 @@
 | 2026-03-16 13:00:52 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-16 13:35:18 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-17 08:11:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-17 08:44:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-17 08:50:54 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-17 10:56:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-17 11:09:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-17 11:25:11 | END (Claude Code) | 수정: (없음) |

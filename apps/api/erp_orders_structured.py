@@ -6,6 +6,7 @@ import copy
 import datetime
 import json
 import logging
+import time
 from typing import Any, Optional
 
 from flask import Blueprint, request, jsonify, session
@@ -36,59 +37,6 @@ TEAM_LABELS = {
 }
 
 erp_orders_structured_bp = Blueprint('erp_orders_structured', __name__, url_prefix='/api')
-
-
-def _ensure_system_build_steps_table(db):
-    """B안: 진행상태는 DB 테이블에만 기록. 테이블이 없으면 생성."""
-    db.execute(text("""
-    CREATE TABLE IF NOT EXISTS system_build_steps (
-        step_key VARCHAR(100) PRIMARY KEY,
-        status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
-        started_at TIMESTAMP NULL,
-        completed_at TIMESTAMP NULL,
-        message TEXT NULL,
-        meta JSONB NULL
-    );
-    """))
-    db.commit()
-
-
-def _record_build_step(db, step_key, status, message=None, meta=None):
-    """빌드 체크포인트 기록. 실패해도 API 자체는 죽지 않게 함."""
-    try:
-        _ensure_system_build_steps_table(db)
-        meta_json = json.dumps(meta, ensure_ascii=False) if isinstance(meta, (dict, list)) else None
-        now = datetime.datetime.now()
-        db.execute(
-            text("""
-            INSERT INTO system_build_steps (step_key, status, started_at, completed_at, message, meta)
-            VALUES (:k, :s, :started, :completed, :m, CAST(:meta AS JSONB))
-            ON CONFLICT (step_key)
-            DO UPDATE SET
-                status = EXCLUDED.status,
-                started_at = COALESCE(system_build_steps.started_at, EXCLUDED.started_at),
-                completed_at = CASE WHEN EXCLUDED.status IN ('COMPLETED','FAILED') THEN EXCLUDED.completed_at ELSE system_build_steps.completed_at END,
-                message = EXCLUDED.message,
-                meta = COALESCE(EXCLUDED.meta, system_build_steps.meta);
-            """),
-            {
-                "k": step_key,
-                "s": status,
-                "started": now if status == "RUNNING" else None,
-                "completed": now if status in ["COMPLETED", "FAILED"] else None,
-                "m": message,
-                "meta": meta_json,
-            }
-        )
-        db.commit()
-    except Exception as e:
-        try:
-            db.rollback()
-        except Exception as rb_err:
-            logger.warning("build-step: rollback failed: %s", rb_err, exc_info=True)
-        logger.warning("[ERP_BETA] build-step log: %s", e, exc_info=True)
-
-
 def _handle_stage_transition(
     db: Session,
     order: Order,
@@ -258,13 +206,14 @@ def api_get_order_structured(order_id):
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def api_put_order_structured(order_id):
     """구조화 데이터 저장(전사 공용)."""
+    start_time = time.perf_counter()
     db = get_db()
-    step_key = f"ERP_BETA_API_SAVE_{order_id}"
-    _record_build_step(db, step_key, "RUNNING", message="Saving structured data")
     try:
         order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+        query_time = (time.perf_counter() - start_time) * 1000
+        logger.info(f"save latency - query_order: {query_time:.1f}ms")
+        
         if not order:
-            _record_build_step(db, step_key, "FAILED", message="Order not found")
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         payload = request.get_json(silent=True) or {}
@@ -280,7 +229,6 @@ def api_put_order_structured(order_id):
         draft_cleared = False
 
         if structured_data is not None and not isinstance(structured_data, dict):
-            _record_build_step(db, step_key, "FAILED", message="structured_data must be an object")
             return jsonify({'success': False, 'message': 'structured_data는 JSON 객체여야 합니다.'}), 400
 
         _sd_raw: Any = order.structured_data
@@ -309,8 +257,12 @@ def api_put_order_structured(order_id):
             except Exception as e:
                 logger.warning("단계 전환 검증 오류: %s", e, exc_info=True)
 
+            t0 = time.perf_counter()
             _record_structured_events(db, order, old_sd, structured_data)
             _apply_structured_side_effects(db, order.id, structured_data)
+            side_effect_time = (time.perf_counter() - t0) * 1000
+            logger.info(f"save latency - side_effects: {side_effect_time:.1f}ms")
+            
             draft_cleared = _finalize_draft_state(order, structured_data, now)
 
             order.structured_data = copy.deepcopy(structured_data)
@@ -328,18 +280,20 @@ def api_put_order_structured(order_id):
                 reset_order_geocode_on_address_change(order, new_addr)
 
         db.commit()
+        commit_time = (time.perf_counter() - start_time) * 1000
+        logger.info(f"save latency - main_commit: {commit_time:.1f}ms")
 
         if address_changed:
             enqueue_geocode_order_address(order_id)
         if structured_data is not None:
             enqueue_channeltalk_push(order_id, "update")
 
-        _record_build_step(db, step_key, "COMPLETED", message="Saved structured data")
+        total_time = (time.perf_counter() - start_time) * 1000
+        logger.info(f"save latency - TOTAL: {total_time:.1f}ms")
         return jsonify({'success': True, 'draft_cleared': draft_cleared})
     except Exception as e:
         db.rollback()
         logger.exception("[ERP_BETA] structured PUT 오류: %s", e)
-        _record_build_step(db, step_key, "FAILED", message=str(e))
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -348,21 +302,20 @@ def api_put_order_structured(order_id):
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def api_parse_order_text():
     """텍스트 붙여넣기 → 구조화 파싱(미리보기용). 저장은 하지 않음."""
-    db = get_db()
-    _record_build_step(db, "ERP_BETA_API_PARSE_TEXT", "RUNNING", message="Parsing order text")
+    start_time = time.perf_counter()
     try:
         payload = request.get_json(silent=True) or {}
         raw_text = (payload.get('raw_text') or '').strip()
         if not raw_text:
-            _record_build_step(db, "ERP_BETA_API_PARSE_TEXT", "FAILED", message="raw_text is empty")
             return jsonify({'success': False, 'message': 'raw_text가 필요합니다.'}), 400
 
         structured = parse_order_text(raw_text)
-        _record_build_step(db, "ERP_BETA_API_PARSE_TEXT", "COMPLETED", message="Parsed order text")
+        
+        total_time = (time.perf_counter() - start_time) * 1000
+        logger.info(f"parse-text latency - TOTAL: {total_time:.1f}ms")
         return jsonify({'success': True, 'structured_data': structured})
     except Exception as e:
         logger.exception("[ERP_BETA] parse-text 오류: %s", e)
-        _record_build_step(db, "ERP_BETA_API_PARSE_TEXT", "FAILED", message=str(e))
         return jsonify({'success': False, 'message': str(e)}), 500
 
 

@@ -867,7 +867,7 @@ def bulk_update_order_status():
                 setattr(order, 'status', 'DELETED')
                 setattr(order, 'original_status', old_status_val or 'RECEIVED')
                 setattr(order, 'deleted_at', deleted_at_str)
-                log_access(f"주문 #{order.id} 휴지통 이동 (bulk): {old_status_val} → DELETED", user_id)
+                log_access(f"주문 #{order.id} 휴지통 이동 (bulk): {old_status_val} → DELETED", user_id, auto_commit=False)
                 updated += 1
                 continue
             setattr(order, 'status', new_status)
@@ -896,7 +896,7 @@ def bulk_update_order_status():
                     payload={'from': old_stage, 'to': new_status, 'manual': True, 'bulk': True},
                     created_by_user_id=user_id
                 ))
-            log_access(f"주문 #{order.id} 상태 변경: {old_status_val} → {new_status}", user_id)
+            log_access(f"주문 #{order.id} 상태 변경: {old_status_val} → {new_status}", user_id, auto_commit=False)
             updated += 1
         db.commit()
         return jsonify({
