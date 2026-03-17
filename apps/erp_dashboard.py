@@ -63,7 +63,8 @@ def erp_dashboard():
                 Order.customer_name.ilike(search_term),
                 Order.phone.ilike(search_term),
                 Order.address.ilike(search_term),
-                Order.manager_name.ilike(search_term)
+                Order.manager_name.ilike(search_term),
+                cast(Order.structured_data, String).ilike(search_term)
             )
         )
 
@@ -312,21 +313,24 @@ def erp_dashboard():
             if bucket != f_stage:
                 continue
         
-        if f_urgent == '1' and not (r.get('alerts') or {}).get('urgent'):
-            continue
+        if f_urgent == '1':
+            alerts_data = r.get('alerts')
+            if not isinstance(alerts_data, dict) or not alerts_data.get('urgent'):
+                continue
         if f_has_alert == '1':
-            a = r.get('alerts') or {}
-            if not (a.get('urgent') or a.get('drawing_overdue') or a.get('measurement_d4') or a.get('construction_d3') or a.get('production_d2')):
+            a = r.get('alerts')
+            if not isinstance(a, dict) or not (a.get('urgent') or a.get('drawing_overdue') or a.get('measurement_d4') or a.get('construction_d3') or a.get('production_d2')):
                 continue
         if f_alert_type:
-            a = r.get('alerts') or {}
-            if f_alert_type == 'urgent' and not a.get('urgent'):
+            a = r.get('alerts')
+            a_dict = a if isinstance(a, dict) else {}
+            if f_alert_type == 'urgent' and not a_dict.get('urgent'):
                 continue
-            elif f_alert_type == 'measurement_d4' and not a.get('measurement_d4'):
+            elif f_alert_type == 'measurement_d4' and not a_dict.get('measurement_d4'):
                 continue
-            elif f_alert_type == 'construction_d3' and not a.get('construction_d3'):
+            elif f_alert_type == 'construction_d3' and not a_dict.get('construction_d3'):
                 continue
-            elif f_alert_type == 'production_d2' and not a.get('production_d2'):
+            elif f_alert_type == 'production_d2' and not a_dict.get('production_d2'):
                 continue
         if f_team and not is_admin:
             quest = r.get('current_quest')
@@ -350,23 +354,24 @@ def erp_dashboard():
         '주문접수', '실측', '도면', '고객컨펌', '생산', '시공', 'CS', '완료', 'AS처리'
     ]}
     for r in enriched:
-        alerts = r.get('alerts') or {}
+        alerts = r.get('alerts')
+        alerts_dict = alerts if isinstance(alerts, dict) else {}
         stage = r.get('stage')
-        if alerts.get('urgent'):
+        if alerts_dict.get('urgent'):
             kpis['urgent_count'] += 1
-        if alerts.get('measurement_d4'):
+        if alerts_dict.get('measurement_d4'):
             kpis['measurement_d4_count'] += 1
-        if alerts.get('construction_d3'):
+        if alerts_dict.get('construction_d3'):
             kpis['construction_d3_count'] += 1
-        if alerts.get('production_d2'):
+        if alerts_dict.get('production_d2'):
             kpis['production_d2_count'] += 1
         # AS 파이프라인: AS접수·AS처리·AS완료 모두 'AS처리' 한 칸에 집계
         bucket = 'AS처리' if stage in ('AS접수', 'AS처리', 'AS완료') else stage
         if bucket in step_stats:
             step_stats[bucket]['count'] += 1
-            if alerts.get('drawing_overdue'):
+            if alerts_dict.get('drawing_overdue'):
                 step_stats[bucket]['overdue'] += 1
-            if alerts.get('measurement_d4') or alerts.get('construction_d3') or alerts.get('production_d2'):
+            if alerts_dict.get('measurement_d4') or alerts_dict.get('construction_d3') or alerts_dict.get('production_d2'):
                 step_stats[bucket]['imminent'] += 1
 
     process_steps = [

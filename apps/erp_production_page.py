@@ -69,7 +69,8 @@ def erp_production_dashboard():
             or_(
                 Order.customer_name.ilike(search_term),
                 Order.phone.ilike(search_term),
-                Order.address.ilike(search_term)
+                Order.address.ilike(search_term),
+                cast(Order.structured_data, String).ilike(search_term)
             )
         )
 
@@ -180,8 +181,8 @@ def erp_production_dashboard():
     ]
 
     kpis = {
-        'urgent_count': sum(1 for r in enriched if (r.get('alerts') or {}).get('urgent')),
-        'production_d2_count': sum(1 for r in enriched if (r.get('alerts') or {}).get('production_d2')),
+        'urgent_count': sum(1 for r in enriched if isinstance(r.get('alerts'), dict) and r.get('alerts').get('urgent')),
+        'production_d2_count': sum(1 for r in enriched if isinstance(r.get('alerts'), dict) and r.get('alerts').get('production_d2')),
         'measurement_d4_count': 0,
         'construction_d3_count': 0,
     }
