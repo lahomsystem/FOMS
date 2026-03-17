@@ -4,7 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-12 00:16:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py && git commit -F commit_msg.txt && rm commit_msg.txt && git push ` |
 | 2026-03-12 00:28:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp, _get_order_schedule_date, _build_candidate` |
 | 2026-03-12 00:28:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py && git commit -F commit_msg.txt && rm commit_msg.txt && git push ` |
 | 2026-03-12 00:31:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c " import os, sys sys.path.insert(0, '.') from app import app with app.app_context(` |
@@ -304,3 +303,4 @@
 | 2026-03-16 09:05:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "from app import app; print('APP_OK')"` |
 | 2026-03-16 09:08:54 | allow | `-` | `wc -l "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\partials\erp_beta_js.html" 2>nul || powershell -Command "(Get-Content 'c:\Users\USE` |
 | 2026-03-16 09:08:58 | allow | `-` | `powershell -Command "(Get-Content 'c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\partials\erp_beta_js.html').Count"` |
+| 2026-03-17 08:08:43 | allow | `-` | `cat Procfile` |

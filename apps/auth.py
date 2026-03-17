@@ -35,12 +35,13 @@ TEAMS = {
     'SHIPMENT': '출고팀'
 }
 
-def log_access(action, user_id=None, additional_data=None):
+def log_access(action, user_id=None, additional_data=None, auto_commit=True):
     try:
         db = get_db()
         log = SecurityLog(user_id=user_id, message=action)
         db.add(log)
-        db.commit()
+        if auto_commit:
+            db.commit()
     except Exception as e:
         print(f"[LOG ERROR] Failed to log access: {e}")
         try:

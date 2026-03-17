@@ -3,6 +3,9 @@ Redis Queue (RQ) 연결 및 enqueue 헬퍼.
 REDIS_URL 있으면 enqueue 가능. (USE_RQ_WORKER는 start.sh 전용, enqueue와 분리)
 """
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 _rq_queue = None
 
@@ -22,7 +25,7 @@ def get_rq_queue():
         _rq_queue = Queue('default', connection=conn)
         return _rq_queue
     except Exception as e:
-        print(f"[RQ] get_queue failed: {e}")
+        logger.warning(f"[RQ] get_queue failed: {e}", exc_info=True)
         return None
 
 
@@ -43,7 +46,7 @@ def enqueue_thumbnail_generation(attachment_id, storage_key):
         )
         return True
     except Exception as e:
-        print(f"[RQ] enqueue_thumbnail error: {e}")
+        logger.error(f"[RQ] enqueue_thumbnail error: {e}", exc_info=True)
         return False
 
 
@@ -63,7 +66,7 @@ def enqueue_geocode_order_address(order_id):
         )
         return True
     except Exception as e:
-        print(f"[RQ] enqueue_geocode_order_address error: {e}")
+        logger.error(f"[RQ] enqueue_geocode_order_address error: {e}", exc_info=True)
         return False
 
 
@@ -90,5 +93,5 @@ def enqueue_channeltalk_push(order_id, event_type="update"):
         )
         return True
     except Exception as e:
-        print(f"[RQ] enqueue_channeltalk_push error: {e}")
+        logger.error(f"[RQ] enqueue_channeltalk_push error: {e}", exc_info=True)
         return False

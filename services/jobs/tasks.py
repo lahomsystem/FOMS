@@ -4,6 +4,9 @@ worker 프로세스에서 실행되며, Flask 앱 컨텍스트 없이 동작.
 """
 import os
 import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 # 프로젝트 루트를 path에 추가 (worker 단독 실행 시)
 if os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) not in sys.path:
@@ -40,7 +43,7 @@ def create_thumbnail_for_attachment(attachment_id, storage_key):
             db.close()
             db_session.remove()
     except Exception as e:
-        print(f"[RQ] create_thumbnail_for_attachment error: {e}")
+        logger.error(f"[RQ] create_thumbnail_for_attachment error: {e}", exc_info=True)
         raise
 
 
@@ -98,7 +101,7 @@ def geocode_order_address(order_id):
             db.close()
             db_session.remove()
     except Exception as e:
-        print(f"[RQ] geocode_order_address error: {e}")
+        logger.error(f"[RQ] geocode_order_address error: {e}", exc_info=True)
         raise
 
 
@@ -125,7 +128,7 @@ def push_order_to_channeltalk(order_id, event_type="update"):
         )
 
         if not is_configured():
-            print("[채널톡] 환경변수 미설정 - 푸시 건너뜀")
+            logger.info("[채널톡] 환경변수 미설정 - 푸시 건너뜀")
             return
 
         from db import db_session
@@ -188,5 +191,5 @@ def push_order_to_channeltalk(order_id, event_type="update"):
             db.close()
             db_session.remove()
     except Exception as e:
-        print(f"[RQ] push_order_to_channeltalk error: {e}")
+        logger.error(f"[RQ] push_order_to_channeltalk error: {e}", exc_info=True)
         raise

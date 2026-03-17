@@ -6,6 +6,12 @@ if os.environ.get('SERVER_SOFTWARE', '').startswith('gunicorn') or os.environ.ge
     try:
         import gevent.monkey  # type: ignore[import-untyped]
         _ = gevent.monkey.patch_all()
+        try:
+            import psycogreen.gevent
+            psycogreen.gevent.patch_psycopg()
+            print("[INFO] psycogreen patch 적용 완료 (PostgreSQL 비동기 활성화)")
+        except ImportError:
+            print("[WARN] psycogreen not installed. PostgreSQL queries may block gevent workers.")
         print("[INFO] gevent monkey patch 적용 완료 (비동기 IO 활성화)")
     except ImportError:
         pass
