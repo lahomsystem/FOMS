@@ -88,14 +88,7 @@ def erp_production_dashboard():
             _q = _q.filter(or_(*conds))
 
     _q = _q.order_by(Order.created_at.desc())
-
-    page = request.args.get('page', 1, type=int)
-    if page < 1: page = 1
-    per_page = 50
-
-    total_orders = _q.count()
-    total_pages = (total_orders + per_page - 1) // per_page
-    orders = _q.offset((page - 1) * per_page).limit(per_page).all()
+    orders = _q.limit(1000).all()
 
     att_counts = {}
     if orders:
@@ -194,9 +187,17 @@ def erp_production_dashboard():
     }
 
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+
+    page = request.args.get('page', 1, type=int)
+    if page < 1: page = 1
+    per_page = 50
+    total_orders = len(enriched)
+    total_pages = (total_orders + per_page - 1) // per_page
+    paginated_orders = enriched[(page - 1) * per_page : page * per_page]
+
     return render_template(
         'erp_production_dashboard.html',
-        orders=enriched,
+        orders=paginated_orders,
         kpis=kpis,
         process_steps=process_steps,
         filters={'stage': f_stage, 'q': f_q},

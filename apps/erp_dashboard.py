@@ -95,16 +95,9 @@ def erp_dashboard():
                 )
             )
 
-    # 순수 DB 정렬: 생성일순, 그리고 실측/시공은 DB 레벨 정렬 복잡하므로 여기선 기본 정렬
+    # 순수 DB 정렬: 생성일순
     _q = _q.order_by(Order.created_at.desc())
-
-    page = request.args.get('page', 1, type=int)
-    if page < 1: page = 1
-    per_page = 50
-
-    total_orders = _q.count()
-    total_pages = (total_orders + per_page - 1) // per_page
-    orders = _q.offset((page - 1) * per_page).limit(per_page).all()
+    orders = _q.limit(1000).all()
 
     att_counts = {}
     if orders:
@@ -396,9 +389,16 @@ def erp_dashboard():
         {'label': 'AS처리', **step_stats['AS처리']},
     ]
 
+    page = request.args.get('page', 1, type=int)
+    if page < 1: page = 1
+    per_page = 50
+    total_orders = len(filtered)
+    total_pages = (total_orders + per_page - 1) // per_page
+    paginated_orders = filtered[(page - 1) * per_page : page * per_page]
+
     return render_template(
         'erp_dashboard.html',
-        orders=filtered,
+        orders=paginated_orders,
         kpis=kpis,
         process_steps=process_steps,
         filters={
