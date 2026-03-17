@@ -47,16 +47,55 @@ def erp_production_dashboard():
     f_stage = (request.args.get('stage') or '').strip()
     f_q = (request.args.get('q') or '').strip()
 
-    orders = (
-        db.query(Order)
-        .filter(Order.active_filter(), Order.is_erp_beta.is_(True))
-        .order_by(Order.created_at.desc())
-        .limit(300)
-        .all()
-    )
+    from sqlalchemy import and_, or_, cast, String
+    _q = db.query(Order).filter(Order.active_filter(), Order.is_erp_beta.is_(True))
+
+    # Base stage filter for production dashboard
+    stage_col = cast(Order.structured_data['workflow']['stage'], String)
+    base_stages = ['"고객컨펌"', '"생산"', '"시공"', '"CONFIRM"', '"PRODUCTION"', '"CONSTRUCTION"']
+    _q = _q.filter(stage_col.in_(base_stages))
+
+    if f_stage:
+        if f_stage == '제작대기':
+            _q = _q.filter(stage_col.in_(['"고객컨펌"', '"CONFIRM"']))
+        elif f_stage == '제작중':
+            _q = _q.filter(stage_col.in_(['"생산"', '"PRODUCTION"']))
+        elif f_stage == '제작완료':
+            _q = _q.filter(stage_col.in_(['"시공"', '"CONSTRUCTION"']))
+
+    if f_q:
+        search_term = f"%{f_q}%"
+        _q = _q.filter(
+            or_(
+                Order.customer_name.ilike(search_term),
+                Order.phone.ilike(search_term),
+                Order.address.ilike(search_term)
+            )
+        )
+
     erp_mine_only = request.args.get('mine') == '1'
     if erp_mine_only and user:
-        orders = [o for o in orders if is_order_mine_for_user(o, user)]
+        u_name = (user.name or '').strip()
+        u_username = (user.username or '').strip()
+        conds = []
+        if u_name:
+            conds.append(Order.manager_name.ilike(f"%{u_name}%"))
+            conds.append(cast(Order.structured_data, String).ilike(f'%"{u_name}"%'))
+        if u_username:
+            conds.append(Order.manager_name.ilike(f"%{u_username}%"))
+            conds.append(cast(Order.structured_data, String).ilike(f'%"{u_username}"%'))
+        if conds:
+            _q = _q.filter(or_(*conds))
+
+    _q = _q.order_by(Order.created_at.desc())
+
+    page = request.args.get('page', 1, type=int)
+    if page < 1: page = 1
+    per_page = 50
+
+    total_orders = _q.count()
+    total_pages = (total_orders + per_page - 1) // per_page
+    orders = _q.offset((page - 1) * per_page).limit(per_page).all()
 
     att_counts = {}
     if orders:
@@ -114,18 +153,6 @@ def erp_production_dashboard():
                     else:
                         is_sales_approved = bool(sales_val)
 
-        if f_stage and stage_label != f_stage:
-            continue
-
-        if f_q:
-            hay = ' '.join([
-                str((((sd.get('parties') or {}).get('customer') or {}).get('name')) or ''),
-                str((((sd.get('parties') or {}).get('customer') or {}).get('phone')) or ''),
-                str((((sd.get('site') or {}).get('address_full')) or ((sd.get('site') or {}).get('address_main'))) or ''),
-            ]).lower()
-            if f_q.lower() not in hay:
-                continue
-
         alerts = _erp_alerts(o, sd, att_counts.get(o.id, 0))
 
         if stage_label in step_stats:
@@ -178,4 +205,7 @@ def erp_production_dashboard():
         is_admin=is_admin,
         can_edit_erp=can_edit_erp(current_user),
         erp_mine_only=erp_mine_only,
+        page=page,
+        total_pages=total_pages,
+        total_orders=total_orders,
     )
