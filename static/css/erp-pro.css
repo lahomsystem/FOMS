@@ -2486,8 +2486,8 @@
 
 /* Custom AI Generated Payment Icons */
 .erp-custom-payment-icon {
-    width: 20px;
-    height: 20px;
+    width: 40px;
+    height: 40px;
     object-fit: contain;
     transition: transform 0.1s ease-in-out, filter 0.2s ease-in-out;
     vertical-align: middle;
