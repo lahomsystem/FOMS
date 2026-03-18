@@ -861,52 +861,53 @@
     document.addEventListener('DOMContentLoaded', function () {
         if (!ERP_BETA_ENABLED) return;
 
-        document.querySelectorAll('.erp-payment-confirm-btn').forEach(btn => {
-            btn.addEventListener('click', async function() {
-                if (_paymentTogglePending) return;
-                
-                let targetId = parseInt(String(ORDER_ID || '0'), 10) || 0;
-                if (!targetId) {
-                    const cardEl = document.querySelector('.card[data-erp-order-id]') || document.querySelector('.card[data-order-id]');
-                    if (cardEl) {
-                        const idVal = cardEl.dataset.erpOrderId || cardEl.dataset.orderId || '0';
-                        targetId = parseInt(String(idVal), 10) || 0;
-                    }
+        document.addEventListener('click', async function(e) {
+            const btn = e.target.closest('.erp-payment-confirm-btn');
+            if (!btn) return;
+            
+            if (_paymentTogglePending) return;
+            
+            let targetId = parseInt(String(ORDER_ID || '0'), 10) || 0;
+            if (!targetId) {
+                const cardEl = document.querySelector('.card[data-erp-order-id]') || document.querySelector('.card[data-order-id]');
+                if (cardEl) {
+                    const idVal = cardEl.dataset.erpOrderId || cardEl.dataset.orderId || '0';
+                    targetId = parseInt(String(idVal), 10) || 0;
                 }
-                if (targetId <= 0) {
-                    alert('주문을 먼저 저장해야 합니다.');
-                    return;
-                }
+            }
+            if (targetId <= 0) {
+                alert('주문을 먼저 저장해야 합니다.');
+                return;
+            }
 
-                _paymentTogglePending = true;
-                const pType = this.dataset.paymentType;
-                const isConfirmedNow = this.dataset.confirmed === '1';
-                
-                try {
-                    const res = await fetch(`/api/orders/${targetId}/payment-confirm`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            type: pType,
-                            confirmed: !isConfirmedNow
-                        })
-                    });
-                    const data = await res.json();
-                    if (data.success && data.payment) {
-                        const p = _erpNormalizePaymentData({ payment: data.payment });
-                        if (!window.__erpLastStructuredData) window.__erpLastStructuredData = {};
-                        window.__erpLastStructuredData.payment = p;
-                        _erpUpdatePaymentConfirmUI(pType, p);
-                    } else {
-                        alert(data.message || '상태 변경에 실패했습니다.');
-                    }
-                } catch (e) {
-                    console.error(e);
-                    alert('오류가 발생했습니다.');
-                } finally {
-                    _paymentTogglePending = false;
+            _paymentTogglePending = true;
+            const pType = btn.dataset.paymentType;
+            const isConfirmedNow = btn.dataset.confirmed === '1';
+            
+            try {
+                const res = await fetch(`/api/orders/${targetId}/payment-confirm`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: pType,
+                        confirmed: !isConfirmedNow
+                    })
+                });
+                const data = await res.json();
+                if (data.success && data.payment) {
+                    const p = _erpNormalizePaymentData({ payment: data.payment });
+                    if (!window.__erpLastStructuredData) window.__erpLastStructuredData = {};
+                    window.__erpLastStructuredData.payment = p;
+                    _erpUpdatePaymentConfirmUI(pType, p);
+                } else {
+                    alert(data.message || '상태 변경에 실패했습니다.');
                 }
-            });
+            } catch (err) {
+                console.error(err);
+                alert('오류가 발생했습니다.');
+            } finally {
+                _paymentTogglePending = false;
+            }
         });
 
         // ERP Beta: 발주사 드롭다운 + 직접입력 토글

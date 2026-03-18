@@ -300,11 +300,20 @@
                       </span>
                       {% if o.is_erp_beta %}
                       {% set payment = o.structured_data.get('payment', {}) if o.structured_data else {} %}
+                      {% set deposit = payment.get('deposit', 0) %}
+                      {% if not deposit %}
+                        {% set payments = o.structured_data.get('payments', {}) if o.structured_data else {} %}
+                        {% set dep_obj = payments.get('deposit') or {} %}
+                        {% set deposit = dep_obj.get('amount', 0) if dep_obj is mapping else 0 %}
+                      {% endif %}
+                      {% set deposit_val = deposit|string|replace(',', '')|int|default(0, true) %}
                       <span class="erp-payment-badge-row">
-                        {% if payment.get('deposit_confirmed') %}
-                        <i class="fas fa-coins erp-payment-badge-icon erp-payment-confirmed" title="예약금 확인됨"></i>
-                        {% else %}
-                        <i class="fas fa-coins erp-payment-badge-icon erp-payment-unconfirmed" title="예약금 미확인"></i>
+                        {% if deposit_val > 0 %}
+                          {% if payment.get('deposit_confirmed') %}
+                          <i class="fas fa-coins erp-payment-badge-icon erp-payment-confirmed" title="예약금 확인됨"></i>
+                          {% else %}
+                          <i class="fas fa-coins erp-payment-badge-icon erp-payment-unconfirmed" title="예약금 미확인"></i>
+                          {% endif %}
                         {% endif %}
                         {% if payment.get('balance_confirmed') %}
                         <i class="fas fa-money-bill-wave erp-payment-badge-icon erp-payment-confirmed" title="잔금 확인됨"></i>
