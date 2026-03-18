@@ -39,27 +39,21 @@
     function _erpUpdatePaymentConfirmUI(type, paymentData) {
         const btn = document.querySelector(`.erp-payment-confirm-btn[data-payment-type="${type}"]`);
         if (!btn) return;
-        const icon = btn.querySelector('i');
+        const icon = btn.querySelector('img.erp-custom-payment-icon');
         if (!icon) return;
         const isConfirmed = type === 'deposit' ? paymentData.deposit_confirmed : paymentData.balance_confirmed;
         
         btn.dataset.confirmed = isConfirmed ? '1' : '0';
         
-        icon.className = type === 'deposit' ? 'fas fa-coins' : 'fas fa-money-bill-wave';
-        icon.style.fontSize = '1.15rem';
-        icon.style.transition = 'transform 0.1s';
-
         if (isConfirmed) {
-            icon.classList.add('erp-payment-icon-checked');
-            icon.classList.remove('erp-payment-icon-unchecked');
-            icon.style.color = '#2563EB'; // !important blue override
+            icon.classList.add('erp-custom-payment-confirmed');
+            icon.classList.remove('erp-custom-payment-unconfirmed');
             const byName = type === 'deposit' ? paymentData.deposit_confirmed_by : paymentData.balance_confirmed_by;
             const at = type === 'deposit' ? paymentData.deposit_confirmed_at : paymentData.balance_confirmed_at;
             btn.title = `확인됨 (${byName} / ${at ? at.substring(0, 16).replace('T', ' ') : '-'}) - 클릭하여 취소`;
         } else {
-            icon.classList.add('erp-payment-icon-unchecked');
-            icon.classList.remove('erp-payment-icon-checked');
-            icon.style.color = '#EF4444'; // !important red override
+            icon.classList.add('erp-custom-payment-unconfirmed');
+            icon.classList.remove('erp-custom-payment-confirmed');
             btn.title = `미확인 - 클릭하여 확인 완료 처리`;
         }
     }
