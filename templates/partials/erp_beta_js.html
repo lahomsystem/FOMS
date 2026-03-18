@@ -889,6 +889,28 @@
 
         _paymentTogglePending = true;
         const isConfirmedNow = btn.dataset.confirmed === '1';
+        const targetConfirmed = !isConfirmedNow;
+        
+        // ================= Optimistic UI Update ================= //
+        const originalPaymentData = window.__erpLastStructuredData && window.__erpLastStructuredData.payment 
+            ? { ...window.__erpLastStructuredData.payment } 
+            : _erpNormalizePaymentData({});
+        
+        const optimisticPaymentData = { ...originalPaymentData };
+        if (pType === 'deposit') {
+            optimisticPaymentData.deposit_confirmed = targetConfirmed;
+            optimisticPaymentData.deposit_confirmed_by = '처리 중...';
+            optimisticPaymentData.deposit_confirmed_at = new Date().toISOString();
+        } else {
+            optimisticPaymentData.balance_confirmed = targetConfirmed;
+            optimisticPaymentData.balance_confirmed_by = '처리 중...';
+            optimisticPaymentData.balance_confirmed_at = new Date().toISOString();
+        }
+        
+        if (!window.__erpLastStructuredData) window.__erpLastStructuredData = {};
+        window.__erpLastStructuredData.payment = optimisticPaymentData;
+        _erpUpdatePaymentConfirmUI(pType, optimisticPaymentData);
+        // ======================================================= //
         
         try {
             const res = await fetch(`/api/orders/${targetId}/payment-confirm`, {
@@ -896,21 +918,23 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     type: pType,
-                    confirmed: !isConfirmedNow
+                    confirmed: targetConfirmed
                 })
             });
             const data = await res.json();
             if (data.success && data.payment) {
                 const p = _erpNormalizePaymentData({ payment: data.payment });
-                if (!window.__erpLastStructuredData) window.__erpLastStructuredData = {};
                 window.__erpLastStructuredData.payment = p;
                 _erpUpdatePaymentConfirmUI(pType, p);
             } else {
                 alert(data.message || '상태 변경에 실패했습니다.');
+                throw new Error(data.message || '상태 변경 처리 실패');
             }
         } catch (err) {
             console.error(err);
-            alert('오류가 발생했습니다.');
+            // Rollback on error
+            window.__erpLastStructuredData.payment = originalPaymentData;
+            _erpUpdatePaymentConfirmUI(pType, originalPaymentData);
         } finally {
             _paymentTogglePending = false;
         }
