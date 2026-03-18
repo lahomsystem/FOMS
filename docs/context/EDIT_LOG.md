@@ -1,57 +1,7 @@
 # Edit Log
 
-> 이 파일은 Cursor Hooks에 의해 자동 관리됩니다.
-> 최근 50개 편집 기록만 유지합니다.
+> Claude Code Hook(`PostToolUse:Edit|Write`)가 자동 기록합니다.
 
-## 최근 파일 편집
-
-- `commit_msg.txt` <- 1 edit(s), ~324 chars (2026-03-16 13:34:53)
-- `services/erp_display.py` <- 1 edit(s), ~0 chars (2026-03-16 13:00:00)
-- `templates/erp_as_dashboard.html` <- 3 edit(s), ~268 chars (2026-03-16 12:59:40)
-- `templates/erp_as_dashboard.html` <- 3 edit(s), ~253 chars (2026-03-16 12:59:16)
-- `services/erp_display.py` <- 2 edit(s), ~594 chars (2026-03-16 12:59:07)
-- `apps/api/erp_orders_as.py` <- 1 edit(s), ~197 chars (2026-03-16 12:58:52)
-- `apps/api/orders.py` <- 2 edit(s), ~101 chars (2026-03-16 12:58:36)
-- `apps/api/orders.py` <- 1 edit(s), ~16 chars (2026-03-16 12:58:23)
-- `apps/api/erp_orders_structured.py` <- 2 edit(s), ~325 chars (2026-03-16 12:58:08)
-- `apps/api/channel_integration.py` <- 1 edit(s), ~0 chars (2026-03-16 09:52:29)
-- `apps/api/channel_integration.py` <- 1 edit(s), ~0 chars (2026-03-16 09:52:28)
-- `docs/plans/2026-03-16-FOMS-GOOGLE-SHEET-DUAL-PUSH-SPEC.md` <- 1 edit(s), ~1920 chars (2026-03-16 09:50:50)
-- `apps/api/channel_integration.py` <- 1 edit(s), ~539 chars (2026-03-16 09:50:39)
-- `apps/api/channel_integration.py` <- 1 edit(s), ~15 chars (2026-03-16 09:50:35)
-- `docs/plans/2026-03-16-FOMS-GOOGLE-SHEET-DUAL-PUSH-SPEC.md` <- 1 edit(s), ~4771 chars (2026-03-16 09:50:23)
-- `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md` <- 5 edit(s), ~516 chars (2026-03-16 09:42:50)
-- `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md` <- 2 edit(s), ~702 chars (2026-03-16 09:42:44)
-- `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md` <- 2 edit(s), ~744 chars (2026-03-16 09:42:34)
-- `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md` <- 1 edit(s), ~164 chars (2026-03-16 09:42:29)
-- `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md` <- 1 edit(s), ~334 chars (2026-03-16 09:42:25)
-- `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md` <- 2 edit(s), ~1664 chars (2026-03-16 09:42:20)
-- `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md` <- 4 edit(s), ~701 chars (2026-03-16 09:42:12)
-- `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md` <- 1 edit(s), ~2759 chars (2026-03-16 09:36:26)
-- `docs/evolution/ERP_BETA_SAVE_FLOW_GDM_AUDIT_2026-03-16.md` <- 1 edit(s), ~5402 chars (2026-03-16 09:09:30)
-- `apps/api/erp_orders_structured.py` <- 2 edit(s), ~86 chars (2026-03-16 09:07:47)
-- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~81 chars (2026-03-16 09:07:45)
-- `apps/api/erp_orders_structured.py` <- 6 edit(s), ~393 chars (2026-03-16 09:07:43)
-- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~24 chars (2026-03-16 09:07:40)
-- `apps/api/erp_orders_structured.py` <- 2 edit(s), ~102 chars (2026-03-16 09:05:01)
-- `apps/api/erp_orders_structured.py` <- 6 edit(s), ~598 chars (2026-03-16 09:04:54)
-- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~0 chars (2026-03-16 09:04:45)
-- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~24 chars (2026-03-16 09:04:44)
-- `services/order_attachment_thumbnail.py` <- 1 edit(s), ~209 chars (2026-03-16 08:59:24)
-- `services/order_attachment_thumbnail.py` <- 1 edit(s), ~111 chars (2026-03-16 08:59:16)
-- `services/order_attachment_thumbnail.py` <- 1 edit(s), ~99 chars (2026-03-16 08:59:10)
-- `docs/evolution/2026-03-16-FILTER-2-MISSING-ANALYSIS-REPORT.md` <- 1 edit(s), ~3607 chars (2026-03-16 08:11:07)
-- `commit_msg.txt` <- 1 edit(s), ~163 chars (2026-03-15 23:13:46)
-- `services/map_snapshot.py` <- 1 edit(s), ~0 chars (2026-03-15 23:08:26)
-- `services/map_snapshot.py` <- 1 edit(s), ~11 chars (2026-03-15 23:08:23)
-- `services/map_snapshot.py` <- 1 edit(s), ~845 chars (2026-03-15 23:08:20)
-- `services/map_snapshot.py` <- 1 edit(s), ~112 chars (2026-03-15 23:08:15)
-- `scripts/diagnose_measurement_date_missing.py` <- 1 edit(s), ~118 chars (2026-03-15 23:06:52)
-- `scripts/diagnose_measurement_date_missing.py` <- 1 edit(s), ~51 chars (2026-03-15 23:06:49)
-- `scripts/diagnose_measurement_date_missing.py` <- 1 edit(s), ~834 chars (2026-03-15 23:06:45)
-- `scripts/diagnose_measurement_date_missing.py` <- 2 edit(s), ~1108 chars (2026-03-15 23:05:23)
-- `scripts/diagnose_measurement_date_missing.py` <- 1 edit(s), ~163 chars (2026-03-15 23:03:19)
-- `scripts/diagnose_measurement_date_missing.py` <- 2 edit(s), ~1072 chars (2026-03-15 23:03:09)
-- `scripts/diagnose_measurement_date_missing.py` <- 1 edit(s), ~90 chars (2026-03-15 23:02:49)
-- `scripts/diagnose_measurement_date_missing.py` <- 3 edit(s), ~283 chars (2026-03-15 23:02:47)
-- `services/map_snapshot.py` <- 4 edit(s), ~410 chars (2026-03-15 23:00:42)
+| Time | File | Tool |
+|------|------|------|
+| 2026-03-18 09:31:01 | `../../../../../../.claude/plans/eager-brewing-charm.md` | Write |

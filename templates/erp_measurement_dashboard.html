@@ -511,9 +511,24 @@
                     <span class="text-muted small">(권한없음)</span>
                     {% endif %}
                   </td>
-                  <td data-label="고객" style="border-right: 1px solid #e0e0e0;">
-                    <span class="d-inline-flex align-items-center">
+                  <td data-label="고객" style="border-right: 1px solid #e0e0e0; min-width: 140px;">
+                    <span class="d-inline-flex align-items-center flex-wrap gap-1">
                       {{ customer or '-' }}
+                      {% if r.is_erp_beta %}
+                      {% set payment = r.structured_data.get('payment', {}) if r.structured_data else {} %}
+                      <span class="erp-payment-badge-row ms-1">
+                        {% if payment.get('deposit_confirmed') %}
+                        <i class="fas fa-coins erp-payment-badge-icon erp-payment-confirmed" title="예약금 확인됨"></i>
+                        {% else %}
+                        <i class="fas fa-coins erp-payment-badge-icon erp-payment-unconfirmed" title="예약금 미확인"></i>
+                        {% endif %}
+                        {% if payment.get('balance_confirmed') %}
+                        <i class="fas fa-money-bill-wave erp-payment-badge-icon erp-payment-confirmed" title="잔금 확인됨"></i>
+                        {% else %}
+                        <i class="fas fa-money-bill-wave erp-payment-badge-icon erp-payment-unconfirmed" title="잔금 미확인"></i>
+                        {% endif %}
+                      </span>
+                      {% endif %}
                       {% if r.is_self_measurement|default(false) %}
                       <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i>
                         자가실측</span>

@@ -11,6 +11,52 @@
     // ============================================================
 
     // helpers (define only if missing to avoid collisions)
+    let _paymentTogglePending = false;
+
+    function _erpNormalizePaymentData(sd) {
+        if (!sd) sd = {};
+        const pay = sd.payment || {};
+        
+        let deposit_amount = Number(pay.deposit) || 0;
+        // parser fallback
+        if (!deposit_amount && sd.payments && sd.payments.deposit && sd.payments.deposit.amount) {
+            deposit_amount = Number(sd.payments.deposit.amount) || 0;
+        }
+
+        return {
+            deposit: Math.max(0, deposit_amount),
+            deposit_confirmed: pay.deposit_confirmed || false,
+            deposit_confirmed_at: pay.deposit_confirmed_at || null,
+            deposit_confirmed_by: pay.deposit_confirmed_by || null,
+            deposit_confirmed_by_user_id: pay.deposit_confirmed_by_user_id || null,
+            balance_confirmed: pay.balance_confirmed || false,
+            balance_confirmed_at: pay.balance_confirmed_at || null,
+            balance_confirmed_by: pay.balance_confirmed_by || null,
+            balance_confirmed_by_user_id: pay.balance_confirmed_by_user_id || null
+        };
+    }
+
+    function _erpUpdatePaymentConfirmUI(type, paymentData) {
+        const btn = document.querySelector(`.erp-payment-confirm-btn[data-payment-type="${type}"]`);
+        if (!btn) return;
+        const icon = btn.querySelector('i');
+        if (!icon) return;
+        const isConfirmed = type === 'deposit' ? paymentData.deposit_confirmed : paymentData.balance_confirmed;
+        
+        btn.dataset.confirmed = isConfirmed ? '1' : '0';
+        
+        icon.className = type === 'deposit' ? 'fas fa-coins' : 'fas fa-money-bill-wave';
+        if (isConfirmed) {
+            icon.classList.add('erp-payment-icon-checked');
+            const byName = type === 'deposit' ? paymentData.deposit_confirmed_by : paymentData.balance_confirmed_by;
+            const at = type === 'deposit' ? paymentData.deposit_confirmed_at : paymentData.balance_confirmed_at;
+            btn.title = `확인됨 (${byName} / ${at ? at.substring(0, 16).replace('T', ' ') : '-'}) - 클릭하여 취소`;
+        } else {
+            icon.classList.add('erp-payment-icon-unchecked');
+            btn.title = `미확인 - 클릭하여 확인 완료 처리`;
+        }
+    }
+
     if (typeof escapeHtml !== 'function') {
         function escapeHtml(text) {
             if (!text) return '';
@@ -558,15 +604,17 @@
         erpRefreshItemRowIndices();
 
         erpSetStatus(`불러오기 완료 (confidence: ${data.structured_confidence || sd.confidence || '-'})`);
+        const paymentData = _erpNormalizePaymentData(sd);
+        sd.payment = paymentData;
         window.__erpLastStructuredData = sd;
         erpRecalcItemsTotal();
         const depositEl = document.getElementById('erp-deposit-amount');
         if (depositEl) {
-            const d = sd?.payment?.deposit;
-            const num = (d != null && Number.isFinite(Number(d))) ? Number(d) : 0;
-            depositEl.value = erpFormatDepositDisplay(num);
+            depositEl.value = erpFormatDepositDisplay(paymentData.deposit);
         }
         erpCalculateRemaining();
+        _erpUpdatePaymentConfirmUI('deposit', paymentData);
+        _erpUpdatePaymentConfirmUI('balance', paymentData);
 
         // 첨부파일도 함께 로드
         if (typeof erpLoadAttachments === 'function') {
@@ -677,7 +725,18 @@
             payment: (function () {
                 const raw = getVal('erp-deposit-amount');
                 const deposit = raw ? parseInt(String(raw).replace(/[^0-9]/g, ''), 10) : 0;
-                return { deposit: Number.isFinite(deposit) ? deposit : 0 };
+                const prev = window.__erpLastStructuredData ? _erpNormalizePaymentData(window.__erpLastStructuredData) : _erpNormalizePaymentData({});
+                return {
+                    deposit: Number.isFinite(deposit) ? deposit : 0,
+                    deposit_confirmed: prev.deposit_confirmed || false,
+                    deposit_confirmed_at: prev.deposit_confirmed_at || null,
+                    deposit_confirmed_by: prev.deposit_confirmed_by || null,
+                    deposit_confirmed_by_user_id: prev.deposit_confirmed_by_user_id || null,
+                    balance_confirmed: prev.balance_confirmed || false,
+                    balance_confirmed_at: prev.balance_confirmed_at || null,
+                    balance_confirmed_by: prev.balance_confirmed_by || null,
+                    balance_confirmed_by_user_id: prev.balance_confirmed_by_user_id || null
+                };
             })(),
             items
         };
@@ -692,6 +751,17 @@
     async function erpSaveStructured(opts = {}) {
         const doRedirect = opts.redirect !== false;
         if (!ERP_BETA_ENABLED) return { success: false, message: 'ERP Beta 비활성' };
+
+        if (_paymentTogglePending) {
+            await new Promise(resolve => {
+                const iv = setInterval(() => {
+                    if (!_paymentTogglePending) {
+                        clearInterval(iv);
+                        resolve();
+                    }
+                }, 50);
+            });
+        }
 
         // ORDER_ID 안전하게 확보
         let targetId = parseInt(String(ORDER_ID || '0'), 10) || 0;
@@ -790,6 +860,54 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         if (!ERP_BETA_ENABLED) return;
+
+        document.querySelectorAll('.erp-payment-confirm-btn').forEach(btn => {
+            btn.addEventListener('click', async function() {
+                if (_paymentTogglePending) return;
+                
+                let targetId = parseInt(String(ORDER_ID || '0'), 10) || 0;
+                if (!targetId) {
+                    const cardEl = document.querySelector('.card[data-erp-order-id]') || document.querySelector('.card[data-order-id]');
+                    if (cardEl) {
+                        const idVal = cardEl.dataset.erpOrderId || cardEl.dataset.orderId || '0';
+                        targetId = parseInt(String(idVal), 10) || 0;
+                    }
+                }
+                if (targetId <= 0) {
+                    alert('주문을 먼저 저장해야 합니다.');
+                    return;
+                }
+
+                _paymentTogglePending = true;
+                const pType = this.dataset.paymentType;
+                const isConfirmedNow = this.dataset.confirmed === '1';
+                
+                try {
+                    const res = await fetch(`/api/orders/${targetId}/payment-confirm`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: pType,
+                            confirmed: !isConfirmedNow
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.success && data.payment) {
+                        const p = _erpNormalizePaymentData({ payment: data.payment });
+                        if (!window.__erpLastStructuredData) window.__erpLastStructuredData = {};
+                        window.__erpLastStructuredData.payment = p;
+                        _erpUpdatePaymentConfirmUI(pType, p);
+                    } else {
+                        alert(data.message || '상태 변경에 실패했습니다.');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('오류가 발생했습니다.');
+                } finally {
+                    _paymentTogglePending = false;
+                }
+            });
+        });
 
         // ERP Beta: 발주사 드롭다운 + 직접입력 토글
         document.getElementById('erp-orderer-direct')?.addEventListener('change', function () {
