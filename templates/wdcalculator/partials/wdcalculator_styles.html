@@ -1,4 +1,85 @@
 <style>
+    /* WDCalculator: 좌측 저장 견적 고정, 우측 메인 영역만 스크롤 */
+    .wdcalculator-container {
+        --wdcalculator-shell-height: auto;
+    }
+
+    body > .container-fluid,
+    body > .container-fluid > .container-fluid,
+    .wdcalculator-container {
+        overflow: visible !important;
+    }
+
+    @media (min-width: 992px) {
+        .wdcalculator-shell {
+            display: flex;
+            flex-wrap: nowrap;
+            align-items: stretch;
+            height: var(--wdcalculator-shell-height);
+            min-height: var(--wdcalculator-shell-height);
+            max-height: var(--wdcalculator-shell-height);
+            overflow: hidden;
+        }
+
+        .saved-estimates-sidebar,
+        .wdcalculator-main-column {
+            height: 100%;
+            margin-bottom: 0 !important;
+        }
+
+        .saved-estimates-sidebar {
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            top: auto;
+        }
+
+        .saved-estimates-sidebar .saved-estimates-card {
+            flex: 1 1 auto;
+            height: 100%;
+            max-height: none !important;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .saved-estimates-sidebar .card-body {
+            min-height: 0;
+        }
+
+        .wdcalculator-main-column {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .wdcalculator-main-scroll {
+            flex: 1 1 auto;
+            min-height: 0;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 0.5rem;
+            scrollbar-gutter: stable;
+            overscroll-behavior: contain;
+        }
+
+        .saved-estimates-sidebar #savedEstimatesListContainer {
+            overscroll-behavior: contain;
+        }
+    }
+
+    @media (max-width: 991.98px) {
+        .saved-estimates-sidebar,
+        .wdcalculator-main-column {
+            height: auto;
+        }
+
+        .wdcalculator-main-scroll {
+            height: auto;
+            overflow: visible;
+            padding-right: 0;
+        }
+    }
     /* 참조 파일 스타일 반영 */
     .card-header button:hover {
         transform: translateY(-1px);

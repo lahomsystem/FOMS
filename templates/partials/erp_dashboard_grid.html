@@ -3,10 +3,28 @@
     <div class="erp-dashboard-workqueue">
       <div class="card">
         <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-              <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-table text-primary"></i> 작업 큐</h5>
-              <small class="text-muted">주문 처리 및 퀘스트 관리</small>
+          <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-3">
+            <div class="d-flex align-items-start gap-3 flex-wrap">
+              <div>
+                <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-table text-primary"></i> 작업 큐</h5>
+                <small class="text-muted">주문 처리 및 퀘스트 관리</small>
+              </div>
+              {% if can_edit_erp and status_choices is defined %}
+              <div id="erp-grid-bulk-bar" class="d-none align-items-center gap-2 flex-wrap">
+                <span class="text-secondary">선택: <strong id="erp-grid-selected-count">0</strong>건</span>
+                <span class="text-secondary">→</span>
+                <label class="mb-0 d-flex align-items-center gap-1">
+                  <span class="text-secondary small">상태</span>
+                  <select id="erp-grid-bulk-status" class="form-select form-select-sm" style="width: auto; min-width: 8rem;">
+                    <option value="">선택</option>
+                    {% for code, label in status_choices %}
+                    <option value="{{ code }}">{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+                <button type="button" class="btn btn-sm btn-primary" id="erp-grid-bulk-apply"><i class="fas fa-check me-1"></i>적용</button>
+              </div>
+              {% endif %}
             </div>
             <div class="d-flex align-items-center gap-2">
               <button type="button" class="btn btn-outline-secondary btn-sm" id="erp-grid-reset-column-widths">
@@ -17,22 +35,6 @@
           </div>
           <!-- 스크롤 영역: 일괄 적용 바 sticky가 이 컨테이너 기준으로 동작하도록 함 -->
           <div class="erp-grid-scroll-wrap">
-          {% if can_edit_erp and status_choices is defined %}
-          <div id="erp-grid-bulk-bar" class="d-none align-items-center gap-2 mb-2 flex-wrap">
-            <span class="text-secondary">선택: <strong id="erp-grid-selected-count">0</strong>건</span>
-            <span class="text-secondary">→</span>
-            <label class="mb-0 d-flex align-items-center gap-1">
-              <span class="text-secondary small">상태</span>
-              <select id="erp-grid-bulk-status" class="form-select form-select-sm" style="width: auto; min-width: 8rem;">
-                <option value="">선택</option>
-                {% for code, label in status_choices %}
-                <option value="{{ code }}">{{ label }}</option>
-                {% endfor %}
-              </select>
-            </label>
-            <button type="button" class="btn btn-sm btn-primary" id="erp-grid-bulk-apply"><i class="fas fa-check me-1"></i>적용</button>
-          </div>
-          {% endif %}
           <div class="table-responsive">
             <table class="table table-sm table-hover align-middle erp-dashboard-grid-resizable" id="erp-grid">
               <thead>

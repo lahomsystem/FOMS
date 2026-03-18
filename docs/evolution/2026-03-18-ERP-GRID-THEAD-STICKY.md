@@ -34,5 +34,33 @@ ERP 프로세스 대시보드, 생산 대시보드, 시공 대시보드의 작�
 - 모바일: ✅ @media (max-width: 992px) 내 thead display:none 유지
 - 중복/충돌: ✅ 기본 sticky와 @media (min-width:993px) sticky 동일 방향, 충돌 없음
 
+## 근본 원인 수정 (2026-03-18 후속)
+
+### 문제
+- `table-responsive`의 `overflow-x: auto`가 sticky의 스크롤 컨테이너로 사용됨
+- `position: sticky`는 가장 가까운 overflow 조상을 기준으로 동작
+- `table-responsive`는 가로 스크롤만 있고 세로 스크롤은 `erp-grid-scroll-wrap`에서 발생 → sticky 미동작
+
+### 해결 (방안 A)
+1. `erp-grid-scroll-wrap`: `overflow-y: auto; overflow-x: hidden` → `overflow: auto` (가로·세로 모두 처리)
+2. `.erp-grid-scroll-wrap .table-responsive { overflow: visible !important; }` 추가
+3. `erp-grid-scroll-wrap`이 유일한 스크롤 컨테이너가 되어 thead sticky 정상 동작
+
+### 적용 파일
+- `erp_dashboard_styles.html`, `erp_production_styles.html`, `erp_construction_styles.html`
+
+## 추가 근본 원인 (2026-03-18 후속 2)
+
+### 문제
+- `static/css/style-pro-max.css`의 `.card { overflow: hidden }` (L106-112)가 작업 큐 카드에 적용됨
+- 조상의 `overflow: hidden`이 sticky의 containing block/clipping context를 만들어 thead sticky 차단
+
+### 해결
+- `.erp-dashboard-workqueue .card { overflow: visible !important; }` 추가
+- 작업 큐 카드만 대상, `erp-grid-scroll-wrap`가 스크롤 담당하므로 안전
+
+### 적용 파일
+- `erp_dashboard_styles.html`, `erp_production_styles.html`, `erp_construction_styles.html`
+
 ## 권장 후속 (low)
 - thead th 인라인 스타일 → CSS 클래스로 이전 (Phase D-8 연계)

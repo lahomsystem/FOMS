@@ -6,12 +6,18 @@
       background: rgba(13, 110, 253, .08) !important;
     }
 
-    /* 작업 큐 그리드 스크롤 영역: thead sticky 동작 */
+    /* style-pro-max.css의 .card { overflow: hidden }이 thead sticky를 차단 → 작업 큐 카드만 overflow 제거 */
+    .erp-dashboard-workqueue .card {
+      overflow: visible !important;
+    }
+    /* 작업 큐 그리드 스크롤 영역: 유일한 스크롤 컨테이너 → thead sticky 동작 */
     .erp-grid-scroll-wrap {
       max-height: min(calc(100vh - 280px), 72vh);
-      overflow-y: auto;
-      overflow-x: hidden;
+      overflow: auto;
       -webkit-overflow-scrolling: touch;
+    }
+    .erp-grid-scroll-wrap .table-responsive {
+      overflow: visible !important;
     }
 
     .erp-detail-panel {

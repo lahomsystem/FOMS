@@ -1,8 +1,8 @@
 <div class="container-fluid py-4 wdcalculator-container">
-    <div class="row">
+    <div class="row wdcalculator-shell">
         <!-- [LEFT] 저장된 견적 목록 사이드바 -->
-        <div class="col-lg-3 mb-4 saved-estimates-sidebar">
-            <div class="card shadow-sm sticky-top" style="top: 20px; max-height: calc(100vh - 40px); display: flex; flex-direction: column;">
+        <div class="col-lg-3 mb-4 mb-lg-0 saved-estimates-sidebar">
+            <div class="card shadow-sm saved-estimates-card" style="max-height: calc(100vh - 40px); display: flex; flex-direction: column;">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
                     <h5 class="mb-0 fw-bold"><i class="fas fa-history text-info"></i> 저장된 견적</h5>
                     <button class="btn btn-sm btn-outline-primary" id="refreshEstimatesBtn" title="새로고침">
@@ -38,7 +38,8 @@
         </div>
 
         <!-- [RIGHT] 계산기 메인 영역 -->
-        <div class="col-lg-9">
+        <div class="col-lg-9 wdcalculator-main-column">
+    <div class="wdcalculator-main-scroll">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0"><i class="fas fa-calculator text-info"></i> 가구 견적 계산기</h1>
         <div>
@@ -202,12 +203,10 @@
                     </div>
                 </div>
             </div> <!-- 메인 컨텐츠 내부 row 종료 -->
-        </div> <!-- col-lg-9 종료 -->
-    </div> <!-- 최상위 row 종료 -->
     
     <!-- 쿠폰가 설정 (단독 카테고리) -->
     <div class="row mt-4">
-        <div class="col-lg-9 offset-lg-3">
+        <div class="col-12">
             <div class="card shadow border-left-info">
                 <div class="card-header py-3 header-info">
                     <h6 class="m-0 font-weight-bold">
@@ -229,7 +228,7 @@
     
     <!-- 배송비 설정 (쿠폰가 설정 아래에 추가) -->
     <div class="row mt-4">
-        <div class="col-lg-9 offset-lg-3">
+        <div class="col-12">
             <div class="card shadow border-left-warning">
                 <div class="card-header py-3 header-warning">
                     <h6 class="m-0 font-weight-bold">
@@ -259,6 +258,9 @@
             </div>
         </div>
     </div>
+    </div> <!-- wdcalculator-main-scroll -->
+        </div> <!-- col-lg-9 종료 -->
+    </div> <!-- 최상위 row 종료 -->
 </div> <!-- container-fluid 종료 -->
 
 <div id="wdcalculator-config" class="d-none"

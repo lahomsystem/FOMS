@@ -5,6 +5,15 @@
 
 ## 최근 파일 편집
 
+- `docs/evolution/2026-03-18-ERP-GRID-THEAD-STICKY.md` <- 1 edit(s), ~450 chars (2026-03-18 15:47:34)
+- `templates/partials/erp_construction_styles.html` <- 1 edit(s), ~175 chars (2026-03-18 15:47:29)
+- `templates/partials/erp_production_styles.html` <- 1 edit(s), ~175 chars (2026-03-18 15:47:29)
+- `templates/partials/erp_dashboard_styles.html` <- 1 edit(s), ~175 chars (2026-03-18 15:47:28)
+- `docs/evolution/2026-03-18-ERP-GRID-THEAD-STICKY.md` <- 1 edit(s), ~594 chars (2026-03-18 15:42:28)
+- `templates/partials/erp_construction_styles.html` <- 3 edit(s), ~165 chars (2026-03-18 15:42:12)
+- `templates/partials/erp_production_styles.html` <- 3 edit(s), ~165 chars (2026-03-18 15:42:11)
+- `templates/partials/erp_dashboard_styles.html` <- 3 edit(s), ~273 chars (2026-03-18 15:42:09)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b50d9b50-3aac-4d6b-9df5-5e88fc246295.png` <- 1 edit(s), ~0 chars (2026-03-18 15:40:21)
 - `commit_msg.txt` <- 1 edit(s), ~250 chars (2026-03-18 15:32:48)
 - `commit_msg.txt` <- 1 edit(s), ~380 chars (2026-03-18 15:27:28)
 - `docs/AI_STATUS.md` <- 1 edit(s), ~69 chars (2026-03-18 15:27:22)
