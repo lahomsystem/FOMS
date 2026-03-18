@@ -1,18 +1,9 @@
 # Shell Guard Log
 
-> Claude Code Hook(`PreToolUse:Bash`)가 자동 기록합니다.
+> Cursor Hook(`beforeShellExecution`)가 자동 기록합니다.
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-12 00:31:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c " import os, sys sys.path.insert(0, '.') from app import app with app.app_context(` |
-| 2026-03-12 00:31:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c " import os, sys sys.path.insert(0, '.') from app import app with app.app_context(` |
-| 2026-03-12 00:38:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp; print('APP_OK')" 2>&1 | tail -1` |
-| 2026-03-12 00:38:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py && git commit -F commit_msg.txt && rm commit_msg.txt && git push ` |
-| 2026-03-12 00:48:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp, _SEARCH_RADII_KM; print('OK', _SEARCH_RADI` |
-| 2026-03-12 00:49:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py && git commit -F commit_msg.txt && rm commit_msg.txt && git push ` |
-| 2026-03-12 01:01:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp; print('OK')" 2>&1 | tail -1` |
-| 2026-03-12 01:01:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py && git commit -F commit_msg.txt && rm commit_msg.txt && git push ` |
-| 2026-03-12 08:08:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp, _SEARCH_RADII_KM; print('OK', _SEARCH_RADI` |
 | 2026-03-12 08:15:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py && git commit -F commit_msg.txt && rm commit_msg.txt && git push ` |
 | 2026-03-12 08:27:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.api.orders import orders_bp; print('OK')" 2>&1 | tail -1` |
 | 2026-03-12 08:27:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py && git commit -F commit_msg.txt && rm commit_msg.txt && git push ` |
@@ -304,3 +295,12 @@
 | 2026-03-17 08:08:43 | allow | `-` | `cat Procfile` |
 | 2026-03-18 09:24:57 | allow | `-` | `wc -l "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/css/erp-pro.css"` |
 | 2026-03-18 09:33:23 | allow | `-` | `ls c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/docs/plans/` |
+| 2026-03-18 15:19:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-18 15:26:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-18 15:27:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-18 15:27:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_construction_filters_grid.html templates/partials/erp_construct` |
+| 2026-03-18 15:27:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
+| 2026-03-18 15:27:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-18 15:32:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-18 15:32:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
+| 2026-03-18 15:32:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status` |
