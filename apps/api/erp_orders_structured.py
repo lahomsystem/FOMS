@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
-from models import Order, OrderEvent
+from models import Order, OrderEvent, User
 from constants import STATUS, ERP_DRAFT_PLACEHOLDER_CUSTOMER, ERP_DRAFT_PLACEHOLDER_PHONE, ERP_DRAFT_PLACEHOLDER_PRODUCT
 from apps.auth import login_required, role_required
 from services.erp_policy import (
@@ -316,6 +316,69 @@ def api_parse_order_text():
         return jsonify({'success': True, 'structured_data': structured})
     except Exception as e:
         logger.exception("[ERP_BETA] parse-text 오류: %s", e)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_orders_structured_bp.route('/orders/<int:order_id>/payment-confirm', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_payment_confirm(order_id):
+    """예약금/잔금 확인 토글 API."""
+    db = get_db()
+    try:
+        order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        payload = request.get_json(silent=True) or {}
+        payment_type = payload.get('type')
+        confirmed = payload.get('confirmed', False)
+
+        if payment_type not in ['deposit', 'balance']:
+            return jsonify({'success': False, 'message': '잘못된 결제 타입입니다.'}), 400
+
+        structured_data = copy.deepcopy(order.structured_data) if isinstance(order.structured_data, dict) else {}
+        if 'payment' not in structured_data or not isinstance(structured_data['payment'], dict):
+            structured_data['payment'] = {}
+        
+        payment_obj = structured_data['payment']
+        now_str = datetime.datetime.now().isoformat()
+        
+        user_id = session.get('user_id')
+        user = db.query(User).filter(User.id == user_id).first() if user_id else None
+        user_name = user.name if user and hasattr(user, 'name') else (session.get('username') or 'SYSTEM')
+
+        if payment_type == 'deposit':
+            payment_obj['deposit_confirmed'] = confirmed
+            payment_obj['deposit_confirmed_at'] = now_str if confirmed else None
+            payment_obj['deposit_confirmed_by'] = user_name if confirmed else None
+            payment_obj['deposit_confirmed_by_user_id'] = user_id if confirmed else None
+        else:
+            payment_obj['balance_confirmed'] = confirmed
+            payment_obj['balance_confirmed_at'] = now_str if confirmed else None
+            payment_obj['balance_confirmed_by'] = user_name if confirmed else None
+            payment_obj['balance_confirmed_by_user_id'] = user_id if confirmed else None
+
+        order.structured_data = structured_data
+        flag_modified(order, 'structured_data')
+        db.commit()
+
+        ret_payment = {
+            'deposit': payment_obj.get('deposit', 0),
+            'deposit_confirmed': payment_obj.get('deposit_confirmed', False),
+            'deposit_confirmed_at': payment_obj.get('deposit_confirmed_at'),
+            'deposit_confirmed_by': payment_obj.get('deposit_confirmed_by'),
+            'deposit_confirmed_by_user_id': payment_obj.get('deposit_confirmed_by_user_id'),
+            'balance_confirmed': payment_obj.get('balance_confirmed', False),
+            'balance_confirmed_at': payment_obj.get('balance_confirmed_at'),
+            'balance_confirmed_by': payment_obj.get('balance_confirmed_by'),
+            'balance_confirmed_by_user_id': payment_obj.get('balance_confirmed_by_user_id'),
+        }
+
+        return jsonify({'success': True, 'payment': ret_payment})
+    except Exception as e:
+        db.rollback()
+        logger.exception("[ERP_BETA] payment-confirm 오류: %s", e)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 

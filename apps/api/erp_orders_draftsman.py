@@ -75,7 +75,7 @@ def api_orders_batch_assign_draftsman():
 
         for order in orders:
             try:
-                s_data = _ensure_dict(order.structured_data)
+                s_data: dict = _ensure_dict(order.structured_data)
 
                 if 'assignments' not in s_data:
                     s_data['assignments'] = {}
@@ -83,12 +83,12 @@ def api_orders_batch_assign_draftsman():
 
                 s_data['drawing_assignees'] = assignee_list
 
-                shipment = s_data.get('shipment') or {}
+                shipment: dict = s_data.get('shipment') or {}
                 shipment['drawing_managers'] = [u.name for u in assigned_users]
                 s_data['shipment'] = shipment
 
-                wf = s_data.get('workflow') or {}
-                hist = wf.get('history') or []
+                wf: dict = s_data.get('workflow') or {}
+                hist: list = wf.get('history') or []
                 hist.append({
                     'stage': wf.get('stage', 'DRAWING'),
                     'updated_at': datetime.now().isoformat(),
@@ -197,7 +197,7 @@ def api_order_assign_draftsman(order_id):
 
         assignee_list = [{'id': u.id, 'name': u.name, 'team': u.team} for u in assigned_users]
 
-        s_data = _ensure_dict(order.structured_data)
+        s_data: dict = _ensure_dict(order.structured_data)
 
         old_assignees = s_data.get('drawing_assignees', [])
         old_names = [a.get('name', '') for a in old_assignees if isinstance(a, dict)]
@@ -211,14 +211,14 @@ def api_order_assign_draftsman(order_id):
 
         s_data['drawing_assignees'] = assignee_list
 
-        shipment = s_data.get('shipment', {})
+        shipment: dict = s_data.get('shipment', {})
         if not isinstance(shipment, dict):
             shipment = {}
         shipment['drawing_managers'] = [u.name for u in assigned_users]
         s_data['shipment'] = shipment
 
-        wf = s_data.get('workflow') or {}
-        hist = wf.get('history') or []
+        wf: dict = s_data.get('workflow') or {}
+        hist: list = wf.get('history') or []
         names = ", ".join([u.name for u in assigned_users])
         hist.append({
             'stage': wf.get('stage', 'DRAWING'),
@@ -279,7 +279,7 @@ def api_order_confirm_drawing_receipt(order_id):
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
-        s_data = _ensure_dict(order.structured_data)
+        s_data: dict = _ensure_dict(order.structured_data)
 
         current_user = get_user_by_id(session.get('user_id'))
         if not current_user:
@@ -326,13 +326,13 @@ def api_order_confirm_drawing_receipt(order_id):
 
         next_stage = 'CONFIRM'
 
-        wf = s_data.get('workflow') or {}
+        wf: dict = s_data.get('workflow') or {}
         old_stage = wf.get('stage', 'DRAWING')
         wf['stage'] = next_stage
         wf['stage_updated_at'] = datetime.now().isoformat()
         wf['stage_updated_by'] = current_user.name
 
-        hist = wf.get('history') or []
+        hist: list = wf.get('history') or []
         hist.append({
             'stage': next_stage,
             'updated_at': wf['stage_updated_at'],
