@@ -6,6 +6,14 @@
       background: rgba(13, 110, 253, .08) !important;
     }
 
+    /* 작업 큐 그리드 스크롤 영역: thead sticky 동작 */
+    .erp-grid-scroll-wrap {
+      max-height: min(calc(100vh - 280px), 72vh);
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
     .erp-detail-panel {
       position: sticky;
       top: 76px;
@@ -166,7 +174,10 @@
     }
 
     #erp-grid thead th {
-      background-color: #f8f9fa;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background-color: #e9ecef;
       font-weight: 600;
       color: #495057;
       border-bottom: 2px solid #dee2e6;
