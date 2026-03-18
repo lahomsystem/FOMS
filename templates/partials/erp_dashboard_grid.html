@@ -310,15 +310,15 @@
                       <span class="erp-payment-badge-row">
                         {% if deposit_val > 0 %}
                           {% if payment.get('deposit_confirmed') %}
-                          <i class="fas fa-coins erp-payment-badge-icon erp-payment-confirmed" title="예약금 확인됨"></i>
+                          <i class="fas fa-coins erp-payment-badge-icon erp-payment-confirmed" title="예약금 확인됨" style="color: #2563EB;"></i>
                           {% else %}
-                          <i class="fas fa-coins erp-payment-badge-icon erp-payment-unconfirmed" title="예약금 미확인"></i>
+                          <i class="fas fa-coins erp-payment-badge-icon erp-payment-unconfirmed" title="예약금 미확인" style="color: #EF4444;"></i>
                           {% endif %}
                         {% endif %}
                         {% if payment.get('balance_confirmed') %}
-                        <i class="fas fa-money-bill-wave erp-payment-badge-icon erp-payment-confirmed" title="잔금 확인됨"></i>
+                        <i class="fas fa-money-bill-wave erp-payment-badge-icon erp-payment-confirmed" title="잔금 확인됨" style="color: #2563EB;"></i>
                         {% else %}
-                        <i class="fas fa-money-bill-wave erp-payment-badge-icon erp-payment-unconfirmed" title="잔금 미확인"></i>
+                        <i class="fas fa-money-bill-wave erp-payment-badge-icon erp-payment-unconfirmed" title="잔금 미확인" style="color: #EF4444;"></i>
                         {% endif %}
                       </span>
                       {% endif %}

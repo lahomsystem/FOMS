@@ -46,13 +46,20 @@
         btn.dataset.confirmed = isConfirmed ? '1' : '0';
         
         icon.className = type === 'deposit' ? 'fas fa-coins' : 'fas fa-money-bill-wave';
+        icon.style.fontSize = '1.15rem';
+        icon.style.transition = 'transform 0.1s';
+
         if (isConfirmed) {
             icon.classList.add('erp-payment-icon-checked');
+            icon.classList.remove('erp-payment-icon-unchecked');
+            icon.style.color = '#2563EB'; // !important blue override
             const byName = type === 'deposit' ? paymentData.deposit_confirmed_by : paymentData.balance_confirmed_by;
             const at = type === 'deposit' ? paymentData.deposit_confirmed_at : paymentData.balance_confirmed_at;
             btn.title = `확인됨 (${byName} / ${at ? at.substring(0, 16).replace('T', ' ') : '-'}) - 클릭하여 취소`;
         } else {
             icon.classList.add('erp-payment-icon-unchecked');
+            icon.classList.remove('erp-payment-icon-checked');
+            icon.style.color = '#EF4444'; // !important red override
             btn.title = `미확인 - 클릭하여 확인 완료 처리`;
         }
     }
@@ -861,54 +868,53 @@
     document.addEventListener('DOMContentLoaded', function () {
         if (!ERP_BETA_ENABLED) return;
 
-        document.addEventListener('click', async function(e) {
-            const btn = e.target.closest('.erp-payment-confirm-btn');
-            if (!btn) return;
-            
-            if (_paymentTogglePending) return;
-            
-            let targetId = parseInt(String(ORDER_ID || '0'), 10) || 0;
-            if (!targetId) {
-                const cardEl = document.querySelector('.card[data-erp-order-id]') || document.querySelector('.card[data-order-id]');
-                if (cardEl) {
-                    const idVal = cardEl.dataset.erpOrderId || cardEl.dataset.orderId || '0';
-                    targetId = parseInt(String(idVal), 10) || 0;
-                }
+    window.erpTogglePayment = async function(btn, pType) {
+        if (_paymentTogglePending) return;
+        
+        let targetId = 0;
+        if (typeof ORDER_ID !== 'undefined') {
+            targetId = parseInt(String(ORDER_ID), 10) || 0;
+        }
+        if (!targetId) {
+            const cardEl = document.querySelector('.card[data-erp-order-id]') || document.querySelector('.card[data-order-id]');
+            if (cardEl) {
+                const idVal = cardEl.dataset.erpOrderId || cardEl.dataset.orderId || '0';
+                targetId = parseInt(String(idVal), 10) || 0;
             }
-            if (targetId <= 0) {
-                alert('주문을 먼저 저장해야 합니다.');
-                return;
-            }
+        }
+        if (targetId <= 0) {
+            alert('주문을 먼저 저장해야 합니다.');
+            return;
+        }
 
-            _paymentTogglePending = true;
-            const pType = btn.dataset.paymentType;
-            const isConfirmedNow = btn.dataset.confirmed === '1';
-            
-            try {
-                const res = await fetch(`/api/orders/${targetId}/payment-confirm`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: pType,
-                        confirmed: !isConfirmedNow
-                    })
-                });
-                const data = await res.json();
-                if (data.success && data.payment) {
-                    const p = _erpNormalizePaymentData({ payment: data.payment });
-                    if (!window.__erpLastStructuredData) window.__erpLastStructuredData = {};
-                    window.__erpLastStructuredData.payment = p;
-                    _erpUpdatePaymentConfirmUI(pType, p);
-                } else {
-                    alert(data.message || '상태 변경에 실패했습니다.');
-                }
-            } catch (err) {
-                console.error(err);
-                alert('오류가 발생했습니다.');
-            } finally {
-                _paymentTogglePending = false;
+        _paymentTogglePending = true;
+        const isConfirmedNow = btn.dataset.confirmed === '1';
+        
+        try {
+            const res = await fetch(`/api/orders/${targetId}/payment-confirm`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: pType,
+                    confirmed: !isConfirmedNow
+                })
+            });
+            const data = await res.json();
+            if (data.success && data.payment) {
+                const p = _erpNormalizePaymentData({ payment: data.payment });
+                if (!window.__erpLastStructuredData) window.__erpLastStructuredData = {};
+                window.__erpLastStructuredData.payment = p;
+                _erpUpdatePaymentConfirmUI(pType, p);
+            } else {
+                alert(data.message || '상태 변경에 실패했습니다.');
             }
-        });
+        } catch (err) {
+            console.error(err);
+            alert('오류가 발생했습니다.');
+        } finally {
+            _paymentTogglePending = false;
+        }
+    };
 
         // ERP Beta: 발주사 드롭다운 + 직접입력 토글
         document.getElementById('erp-orderer-direct')?.addEventListener('change', function () {
