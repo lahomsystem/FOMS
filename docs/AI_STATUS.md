@@ -6,6 +6,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 최근 완료 (최대 5개)
+- [2026-03-18] ERP 작업 큐 thead sticky 구현 (대시보드/생산/시공 - 스크롤 시 헤더 상단 고정)
 - [2026-03-18] ERP 프로세스 및 실측 대시보드에 예약금/잔금 입금 확인 토글 뱃지 기능 추가 
 - [2026-03-17] Phase 1~2 성능 개선 블루프린트 완료 (psycogreen 패치, 불필요한 system_build_step DB 호출 제거, Timeout 대기 제거)
 - [2026-03-17] 대시보드(ERP 메인/AS/생산) Python 루프 필터를 DB 검색으로 전환 & 서버 페이지네이션 적용 (체감 성능 비약적 단축)
@@ -18,7 +19,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 ## 검증 필요
 - [ ] 실측 지도 E2E: /erp/measurement?open_map=1 → 지도 진입, pending/failed/success UI, poll 전체 재구성 확인
 - [ ] Legacy 정리: `python scripts/fix_geocode_status_inconsistency.py` 1회 실행 (배포 전)
-- [ ] Phase C 마이그레이션: Railway/운영에서 `alembic upgrade head` 실행 (CONCURRENTLY 트랜잭션 검증)
+- [x] Phase C 마이그레이션: Railway/운영에서 인덱스 2개 적용 완료 확인 (2026-03-18 check_phase_c_indexes.py로 검증)
 - [ ] 시공팀 접근 제한 + mine 필터 수동 테스트
 - [ ] 출고 대시보드 시공자 그룹 파스텔 색상 확인
 - [ ] 성능 최적화(Phase) 전반 체감 속도 향상 확인 (달력, 지도, 실측, 출고 대시보드 등)
