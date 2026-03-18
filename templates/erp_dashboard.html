@@ -110,15 +110,15 @@
         {% endfor %}
       </div>
     </div>
+    <!-- New single row filter attached directly to the process map card -->
+    {% include 'partials/erp_dashboard_filters.html' %}
   </div>
 
   <!-- 3-Panel Layout -->
   {% include 'partials/erp_dashboard_styles.html' %}
 
   <div class="erp-dashboard-layout">
-    {% include 'partials/erp_dashboard_filters.html' %}
     {% include 'partials/erp_dashboard_grid.html' %}
-
   </div>
 
   {% include 'partials/erp_dashboard_modals.html' %}

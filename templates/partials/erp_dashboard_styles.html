@@ -102,10 +102,7 @@
 
     /* erp-dashboard-layout은 전체 너비 사용, 내부 요소에 padding 적용 */
     .erp-dashboard-layout {
-      display: grid;
-      grid-template-columns: 280px minmax(0, 1fr);
-      gap: 16px;
-      align-items: start;
+      display: block;
       width: 100% !important;
       max-width: 100% !important;
       min-width: 0 !important;
@@ -134,15 +131,9 @@
     }
 
     @media (max-width: 1400px) {
-      .erp-dashboard-layout {
-        grid-template-columns: 240px minmax(0, 1fr);
-      }
     }
 
     @media (max-width: 1200px) {
-      .erp-dashboard-layout {
-        grid-template-columns: 220px minmax(0, 1fr);
-      }
     }
 
     @media (max-width: 992px) {
@@ -161,10 +152,9 @@
       }
 
       .erp-dashboard-layout {
-        grid-template-columns: 1fr;
+        display: block;
         width: 100%;
         max-width: 100%;
-        gap: 12px;
       }
 
       .erp-dashboard-workqueue {
