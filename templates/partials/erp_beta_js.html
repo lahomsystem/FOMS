@@ -876,9 +876,17 @@
                 targetId = parseInt(String(idVal), 10) || 0;
             }
         }
+        // 신규 주문(draft) 모드: ID가 0이면 draft 자동 생성 후 결제 확인 진행 (저장 버튼 없이 클릭 가능)
         if (targetId <= 0) {
-            alert('주문을 먼저 저장해야 합니다.');
-            return;
+            if (window.__ERP_BETA_DRAFT_MODE) {
+                const id = await erpRequireOrderIdOrWarn('결제:');
+                if (!id) return;
+                targetId = parseInt(String(id), 10) || 0;
+            }
+            if (targetId <= 0) {
+                alert('주문을 먼저 저장해야 합니다.');
+                return;
+            }
         }
 
         _paymentTogglePending = true;

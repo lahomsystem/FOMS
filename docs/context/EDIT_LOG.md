@@ -5,6 +5,11 @@
 
 ## 최근 파일 편집
 
+- `commit_msg.txt` <- 1 edit(s), ~169 chars (2026-03-19 08:33:32)
+- `docs/specs/2026-03-18-erp-beta-clean-code-fixes.md` <- 1 edit(s), ~4174 chars (2026-03-19 08:31:27)
+- `docs/evolution/2026-03-18-PAYMENT-ICON-SAVE-FREE-CLICK.md` <- 1 edit(s), ~1019 chars (2026-03-19 08:29:45)
+- `templates/partials/erp_beta_js.html` <- 2 edit(s), ~406 chars (2026-03-19 08:29:33)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f444795b-9351-4044-81c6-2199ea5d6941.png` <- 1 edit(s), ~0 chars (2026-03-19 08:28:03)
 - `docs/evolution/2026-03-18-ERP-GRID-THEAD-STICKY.md` <- 1 edit(s), ~450 chars (2026-03-18 15:47:34)
 - `templates/partials/erp_construction_styles.html` <- 1 edit(s), ~175 chars (2026-03-18 15:47:29)
 - `templates/partials/erp_production_styles.html` <- 1 edit(s), ~175 chars (2026-03-18 15:47:29)

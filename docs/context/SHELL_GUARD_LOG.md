@@ -4,13 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-12 08:50:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from apps.erp_dashboard import erp_dashboard_bp; print('OK')" 2>&1 | tail -1` |
-| 2026-03-12 08:50:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/erp_dashboard.py && git commit -F commit_msg.txt && rm commit_msg.txt && git pu` |
-| 2026-03-12 09:13:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import app; print('APP_OK')" 2>&1` |
-| 2026-03-12 09:14:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c " from apps.api.orders import _SEARCH_RADII_KM, _MAX_RESULTS, _haversine_km print(` |
-| 2026-03-12 09:22:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -3` |
-| 2026-03-12 09:22:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c " from apps.api.orders import _SEARCH_RADII_KM print('諛섍꼍:', _SEARCH_RADII_KM) # f` |
-| 2026-03-12 09:24:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status --short` |
 | 2026-03-12 09:24:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py templates/erp_as_dashboard.html && git status --short` |
 | 2026-03-12 09:29:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git push origin deploy && git log --oneline -3` |
 | 2026-03-12 09:29:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
@@ -304,3 +297,10 @@
 | 2026-03-18 15:47:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
 | 2026-03-18 15:53:40 | allow | `-` | `wc -l "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\static\css\style.css" "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\static\css` |
 | 2026-03-18 15:53:45 | allow | `-` | `Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\static\css\style.css" | Measure-Object -Line; Get-Content "c:\Users\USER\OneDrive\Deskt` |
+| 2026-03-19 08:29:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-19 08:30:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; (Get-Content "templates\partials\erp_beta_js.html" | Measure-Object -Line).Lines` |
+| 2026-03-19 08:33:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-19 08:33:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
+| 2026-03-19 08:33:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status` |
+| 2026-03-19 08:33:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --name-only` |
+| 2026-03-19 08:33:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
