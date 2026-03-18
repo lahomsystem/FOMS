@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-18 | 세션 자동 기록 | commit_msg.txt, erp_construction_styles.html, erp_production_styles.html 외 2개 | 3345589 |
 | 2026-03-18 | ERP 작업 큐 thead sticky 구현 (스크롤 시 헤더 고정) | erp_production_filters_grid.html, erp_construction_filters_grid.html, erp_*_styles.html | - |
 | 2026-03-18 | 세션 자동 기록 | erp_construction_dashboard.html, erp_production_dashboard.html, erp_dashboard.html 외 1개 | 4ea79cb |
 | 2026-03-18 | 예약금/잔금 입금 확인 뱃지 시스템 추가 | erp-pro.css, erp_orders_structured.py, erp_beta_tab.html, erp_beta_js.html, erp_measurement_dashboard.html, erp_dashboard_grid.html | - |
@@ -23,5 +24,3 @@
 | 2026-03-15 | 세션 자동 기록 | map_snapshot.py, erp_map.py, commit_msg.txt 외 2개 | 131cda5 |
 | 2026-03-15 | 세션 자동 기록 | commit_msg.txt, map_snapshot.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e20e6e15-5c5c-40b2-9910-a8af78fbf7cc.png 외 2개 | 131cda5 |
 | 2026-03-15 | 세션 자동 기록 | map_snapshot.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e20e6e15-5c5c-40b2-9910-a8af78fbf7cc.png, map_view.html 외 2개 | 12c2f6d |
-| 2026-03-15 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e20e6e15-5c5c-40b2-9910-a8af78fbf7cc.png, map_view.html, erp_map.py 외 2개 | 12c2f6d |
-| 2026-03-15 | 세션 자동 기록 | map_view.html, erp_map.py, erp_measurement.py 외 2개 | 12c2f6d |

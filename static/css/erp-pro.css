@@ -510,6 +510,20 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* 프로세스 맵 카드 컴팩트 레이아웃 - 헤더/파이프라인/필터 간 여백 최소화 */
+.erp-pro-card--process-map .erp-pro-card__body {
+  padding: var(--erp-space-sm) var(--erp-space-lg);
+}
+
+.erp-pro-card--process-map .erp-pro-pipeline {
+  padding: var(--erp-space-sm) var(--erp-space-md);
+  margin-bottom: 0;
+}
+
+.erp-pro-card--process-map .erp-dashboard-filters {
+  padding: 0.5rem 1rem !important;
+}
+
 .erp-pro-pipeline::-webkit-scrollbar {
   height: 6px;
 }
