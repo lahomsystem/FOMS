@@ -41,22 +41,28 @@
       background: rgba(13, 110, 253, .08) !important;
     }
 
-    /* 작업 큐 그리드 스크롤 영역: 이 컨테이너 안에서만 스크롤 → sticky가 확실히 동작 */
+    /* style-pro-max.css의 .card { overflow: hidden }이 thead sticky를 차단 → 작업 큐 카드만 overflow 제거 */
+    .erp-dashboard-workqueue .card {
+      overflow: visible !important;
+    }
+    /* 작업 큐 그리드 스크롤 영역: 이 컨테이너가 유일한 스크롤 컨테이너 → thead sticky 동작 */
     .erp-grid-scroll-wrap {
       max-height: min(calc(100vh - 280px), 72vh);
-      overflow-y: auto;
-      overflow-x: hidden;
+      overflow: auto;
       -webkit-overflow-scrolling: touch;
+    }
+    /* table-responsive가 overflow를 가지면 sticky가 그 기준을 따름 → erp-grid-scroll-wrap 내부에서만 overflow 제거 */
+    .erp-grid-scroll-wrap .table-responsive {
+      overflow: visible !important;
     }
     /* 일괄 적용 바: 위 스크롤 영역 기준 상단 고정(선택 건 상태 변경 시 하단 주문도 적용 가능) */
     #erp-grid-bulk-bar {
-      position: sticky;
-      top: 0;
-      z-index: 1020;
-      background: var(--bs-body-bg, #fff);
-      padding: 0.5rem 0;
-      margin: 0 -0.25rem 0.5rem;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+      flex: 0 1 auto;
+      align-self: center;
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      box-shadow: none;
     }
 
     .erp-detail-panel {
@@ -310,11 +316,17 @@
       font-size: 1rem;
     }
 
+    #erp-grid thead {
+      position: relative;
+      z-index: 11;
+    }
+
     #erp-grid thead th {
-      position: sticky;
+      position: sticky !important;
       top: 0;
-      z-index: 10;
-      background-color: #e9ecef;
+      z-index: 12;
+      background: #f8f9fa !important;
+      background-clip: padding-box;
       font-weight: 600;
       color: #495057;
       border-bottom: 2px solid #dee2e6;
@@ -322,6 +334,7 @@
       padding: 1rem 0.75rem;
       white-space: nowrap;
       font-size: 1rem;
+      box-shadow: inset 0 -1px 0 #dee2e6, 0 2px 6px rgba(15, 23, 42, 0.06);
     }
 
     #erp-grid thead th:last-child {
@@ -483,10 +496,12 @@
 
       #erp-grid thead th {
         border-right: 1px solid #e9ecef;
-        position: sticky;
+        position: sticky !important;
         top: 0;
-        background-color: #f8f9fa;
-        z-index: 10;
+        background: #f8f9fa !important;
+        background-clip: padding-box;
+        z-index: 12;
+        box-shadow: inset 0 -1px 0 #dee2e6, 0 2px 6px rgba(15, 23, 42, 0.06);
       }
 
       #erp-grid thead th:last-child {

@@ -13,6 +13,30 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentDatabaseEstimateId = null; // DB에 저장된 견적 ID (수정 시 사용)
     const DEFAULT_COUPON_VALUE = 11000; // 기본 쿠폰 금액
 
+    function syncWdCalculatorViewportLayout() {
+        const container = document.querySelector('.wdcalculator-container');
+        const shell = document.querySelector('.wdcalculator-shell');
+        if (!container || !shell) return;
+
+        if (window.innerWidth < 992) {
+            container.style.removeProperty('--wdcalculator-shell-height');
+            return;
+        }
+
+        const shellTop = shell.getBoundingClientRect().top;
+        const bottomGap = 16;
+        const availableHeight = Math.max(520, Math.floor(window.innerHeight - shellTop - bottomGap));
+        container.style.setProperty('--wdcalculator-shell-height', `${availableHeight}px`);
+    }
+
+    function requestWdCalculatorLayoutSync() {
+        window.requestAnimationFrame(syncWdCalculatorViewportLayout);
+    }
+
+    window.addEventListener('resize', requestWdCalculatorLayoutSync);
+    window.addEventListener('load', requestWdCalculatorLayoutSync);
+    requestWdCalculatorLayoutSync();
+
     // ==================== 복합 기본견적(Base Components) ====================
     // 10원 단위 올림
     function ceilToTens(value) {

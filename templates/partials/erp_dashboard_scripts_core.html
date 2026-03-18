@@ -78,8 +78,6 @@
               // 이미 리사이저가 있으면 스킵
               if (th.querySelector('.erp-col-resizer')) return;
               
-              th.style.position = 'relative';
-              
               const resizer = document.createElement('div');
               resizer.className = 'erp-col-resizer';
               resizer.addEventListener('mousedown', (e) => startResize(e, th, index));
