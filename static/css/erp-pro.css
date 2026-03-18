@@ -2493,9 +2493,8 @@
     vertical-align: middle;
 }
 .erp-custom-payment-unconfirmed {
-    /* 밝기를 모두 날리는 대신 흑백(grayscale) 변환 후 붉은색(sepia+hue-rotate)으로 틴팅하여 내부 디테일을 보존합니다 */
-    filter: grayscale(100%) sepia(100%) hue-rotate(315deg) saturate(400%) contrast(1.1) !important;
-    opacity: 0.8 !important;
+    filter: grayscale(100%) !important;
+    opacity: 0.5 !important;
 }
 .erp-custom-payment-confirmed {
     filter: none !important;
