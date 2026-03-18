@@ -1,5 +1,5 @@
 <div class="erp-dashboard-filters w-100 bg-white" style="border-top: 1px solid #e9ecef; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; padding: 0.75rem 1.25rem;">
-  <form method="get" action="{{ url_for('erp_dashboard.erp_dashboard') }}" class="d-flex align-items-center flex-wrap gap-3 m-0 w-100" id="erp-filters-form">
+  <form method="get" action="{{ url_for('erp_production_page.erp_production_dashboard') }}" class="d-flex align-items-center flex-wrap gap-3 m-0 w-100" id="erp-filters-form">
     {% if filters.get('alert_type') %}
     <input type="hidden" name="alert_type" value="{{ filters.get('alert_type') }}">
     {% endif %}
@@ -28,6 +28,9 @@
       <option value="고객컨펌" {% if filters.get('stage')=='고객컨펌' %}selected{% endif %}>고객컨펌</option>
       <option value="생산" {% if filters.get('stage')=='생산' %}selected{% endif %}>생산</option>
       <option value="시공" {% if filters.get('stage')=='시공' %}selected{% endif %}>시공</option>
+      <option value="시공대기" {% if filters.get('stage')=='시공대기' %}selected{% endif %}>시공대기</option>
+      <option value="시공중" {% if filters.get('stage')=='시공중' %}selected{% endif %}>시공중</option>
+      <option value="시공완료" {% if filters.get('stage')=='시공완료' %}selected{% endif %}>시공완료</option>
       <option value="AS처리" {% if filters.get('stage')=='AS처리' %}selected{% endif %}>AS처리</option>
     </select>
 
@@ -54,7 +57,7 @@
     </div>
 
     <!-- Reset -->
-    <a class="btn btn-outline-secondary btn-sm fw-semibold ms-auto" href="{{ url_for('erp_dashboard.erp_dashboard') }}">
+    <a class="btn btn-outline-secondary btn-sm fw-semibold ms-auto" href="{{ url_for('erp_production_page.erp_production_dashboard') }}">
       <i class="fas fa-redo me-1"></i> <span class="d-none d-md-inline">초기화</span>
     </a>
   </form>
