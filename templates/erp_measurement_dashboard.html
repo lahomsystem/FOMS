@@ -526,15 +526,15 @@
                       <span class="erp-payment-badge-row ms-1">
                         {% if deposit_val > 0 %}
                           {% if payment.get('deposit_confirmed') %}
-                          <i class="fas fa-coins erp-payment-badge-icon erp-payment-confirmed" title="예약금 확인됨" style="color: #2563EB;"></i>
+                          <img src="{{ url_for('static', filename='images/pay-coin.png') }}" class="erp-custom-payment-icon erp-custom-payment-confirmed" title="예약금 확인됨" alt="예약금">
                           {% else %}
-                          <i class="fas fa-coins erp-payment-badge-icon erp-payment-unconfirmed" title="예약금 미확인" style="color: #EF4444;"></i>
+                          <img src="{{ url_for('static', filename='images/pay-coin.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" title="예약금 미확인" alt="예약금">
                           {% endif %}
                         {% endif %}
                         {% if payment.get('balance_confirmed') %}
-                        <i class="fas fa-money-bill-wave erp-payment-badge-icon erp-payment-confirmed" title="잔금 확인됨" style="color: #2563EB;"></i>
+                        <img src="{{ url_for('static', filename='images/pay-bill.png') }}" class="erp-custom-payment-icon erp-custom-payment-confirmed" title="잔금 확인됨" alt="잔금">
                         {% else %}
-                        <i class="fas fa-money-bill-wave erp-payment-badge-icon erp-payment-unconfirmed" title="잔금 미확인" style="color: #EF4444;"></i>
+                        <img src="{{ url_for('static', filename='images/pay-bill.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" title="잔금 미확인" alt="잔금">
                         {% endif %}
                       </span>
                       {% endif %}

@@ -2483,3 +2483,18 @@
     min-height: 44px;
   }
 }
+
+/* Custom AI Generated Payment Icons */
+.erp-custom-payment-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    transition: transform 0.1s ease-in-out, filter 0.2s ease-in-out;
+    vertical-align: middle;
+}
+.erp-custom-payment-unconfirmed {
+    filter: brightness(0) saturate(100%) invert(42%) sepia(21%) saturate(7183%) hue-rotate(331deg) brightness(96%) contrast(93%) !important;
+}
+.erp-custom-payment-confirmed {
+    filter: none !important;
+}
