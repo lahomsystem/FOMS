@@ -4,6 +4,9 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-19 | 세션 자동 기록 | erp_as_page.py, erp_dashboard.py, commit_msg.txt 외 2개 | 336b61a |
+| 2026-03-19 | 세션 자동 기록 | erp_dashboard.py, commit_msg.txt, erp_beta_js.html 외 2개 | 336b61a |
+| 2026-03-19 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f444795b-9351-4044-81c6-2199ea5d6941.png 외 2개 | 336b61a |
 | 2026-03-19 | 세션 자동 기록 | erp_beta_js.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f444795b-9351-4044-81c6-2199ea5d6941.png, erp_construction_styles.html 외 2개 | 1bf23df |
 | 2026-03-18 | 세션 자동 기록 | erp_construction_styles.html, erp_production_styles.html, erp_dashboard_styles.html 외 2개 | 6fa8737 |
 | 2026-03-18 | 세션 자동 기록 | commit_msg.txt, erp_construction_styles.html, erp_production_styles.html 외 2개 | 3345589 |
@@ -21,6 +24,3 @@
 | 2026-03-15 | 세션 자동 기록 | map_snapshot.py, diagnose_measurement_date_missing.py, commit_msg.txt 외 2개 | 6c44185 |
 | 2026-03-15 | 세션 자동 기록 | commit_msg.txt, order_date_sync.py, map_snapshot.py 외 2개 | 6c44185 |
 | 2026-03-15 | 세션 자동 기록 | order_date_sync.py, map_snapshot.py, erp_map.py 외 2개 | df0563e |
-| 2026-03-15 | 세션 자동 기록 | diagnose_order_2662_map.py, commit_msg.txt, map_snapshot.py 외 2개 | df0563e |
-| 2026-03-15 | 세션 자동 기록 | commit_msg.txt, map_snapshot.py, erp_map.py 외 2개 | df0563e |
-| 2026-03-15 | 세션 자동 기록 | map_snapshot.py, erp_map.py, commit_msg.txt 외 2개 | 131cda5 |

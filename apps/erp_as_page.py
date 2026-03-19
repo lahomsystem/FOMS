@@ -44,8 +44,14 @@ def erp_as_dashboard():
     search_q = (request.args.get('q') or request.args.get('manager') or '').strip()
     selected_date = request.args.get('date')
     open_map = request.args.get('open_map') == '1'
-    tab = (request.args.get('tab') or 'incomplete').strip()  # incomplete | completed
-    if tab not in ('incomplete', 'completed'):
+    # 사용자가 폼에서 '조회'를 눌렀을 때(status나 q가 url에 포함됨) tab 파라미터가 없다면,
+    # '전체' 탭(all)으로 간주하여 전체 검색이 되도록 함.
+    if 'tab' not in request.args and ('status' in request.args or 'q' in request.args):
+        tab = 'all'
+    else:
+        tab = (request.args.get('tab') or 'incomplete').strip()
+    
+    if tab not in ('incomplete', 'completed', 'all'):
         tab = 'incomplete'
 
     if open_map:
@@ -56,13 +62,15 @@ def erp_as_dashboard():
     query = db.query(Order).filter(Order.active_filter())
     query = query.filter(Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']))
 
-    # 하단 탭: 완료 안된 건 vs 완료 된 건
+    # 하단 탭: 완료 안된 건 vs 완료 된 건 vs 전체
     if tab == 'completed':
         query = query.filter(
             Order.status == 'AS_COMPLETED',
             Order.as_completed_date.isnot(None),
             Order.as_completed_date != ''
         )
+    elif tab == 'all':
+        pass # 전체 조회이므로 추가 필터 없음
     else:
         # 완료 안된 건: AS 접수 또는 AS 완료이지만 완료일 미지정
         query = query.filter(

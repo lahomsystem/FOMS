@@ -84,6 +84,14 @@
       max-width: 100%;
     }
   }
+
+  /* AS 내용 에디터 툴바 기본 숨김 (UI 최적화) - 포커스 시에만 노출 */
+  .as-rich-toolbar {
+    display: none !important;
+  }
+  .as-rich-editor:focus-within .as-rich-toolbar {
+    display: flex !important;
+  }
 </style>
 <div class="erp-pro">
   <!-- Modern Header -->
@@ -113,6 +121,13 @@
   <div class="erp-pro-card">
     <div class="erp-as-top-tabs border-bottom mb-3">
       <ul class="nav nav-tabs nav-fill border-bottom-0">
+        <li class="nav-item">
+          <a class="nav-link {{ 'active' if as_tab == 'all' else '' }}"
+            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='all', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+            title="전체">
+            <i class="fas fa-list text-secondary fs-5"></i>
+          </a>
+        </li>
         <li class="nav-item">
           <a class="nav-link {{ 'active' if as_tab == 'incomplete' else '' }}"
             href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
@@ -241,8 +256,19 @@
                 {% endif %}
               </td>
               <td>
-                <textarea class="erp-pro-input as-content-input" placeholder="내용 입력..." data-order-id="{{ r.id }}"
-                  style="width: 100%; min-height: 40px; height: auto; padding-top: 8px; padding-bottom: 8px; resize: vertical;">{{ (r.structured_data.get('shipment', {}).get('as_content', '')) if r.structured_data else '' }}</textarea>
+                <div class="as-rich-editor" style="border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; background: #fff;">
+                  <div class="as-rich-toolbar" style="background: #f8f9fa; border-bottom: 1px solid #ced4da; padding: 2px 4px; display: flex; gap: 4px;">
+                    <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('bold', false, null);" title="굵게" style="min-width: 28px; font-weight: bold;">B</button>
+                    <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('foreColor', false, 'red');" title="빨간색" style="min-width: 28px; color: red; font-weight: bold;">A</button>
+                    <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('foreColor', false, 'blue');" title="파란색" style="min-width: 28px; color: blue; font-weight: bold;">A</button>
+                    <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('removeFormat', false, null); document.execCommand('foreColor', false, 'black');" title="서식 초기화" style="min-width: 28px; color: black;">
+                      <i class="fas fa-eraser"></i>
+                    </button>
+                  </div>
+                  <div class="erp-pro-input as-content-input" contenteditable="true" data-order-id="{{ r.id }}"
+                    style="width: 100%; min-height: 60px; max-height: 250px; overflow-y: auto; padding: 8px; border: none; outline: none; white-space: pre-wrap; font-size: 14px;"
+                    data-placeholder="내용 입력...">{{ r.structured_data.get('shipment', {}).get('as_content', '') | safe if r.structured_data else '' }}</div>
+                </div>
               </td>
               <td class="erp-as-status-cell" data-order-id="{{ r.id }}">
                 <span
@@ -339,8 +365,19 @@
             {% endif %}
             <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
               <span class="erp-pro-order-card__label">AS 내용</span>
-              <textarea class="erp-pro-input as-content-input mt-1" placeholder="내용 입력..." data-order-id="{{ r.id }}"
-                style="min-height: 80px; resize: vertical;">{{ (r.structured_data.get('shipment', {}).get('as_content', '')) if r.structured_data else '' }}</textarea>
+              <div class="as-rich-editor mt-1" style="border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; background: #fff; width: 100%;">
+                <div class="as-rich-toolbar" style="background: #f8f9fa; border-bottom: 1px solid #ced4da; padding: 2px 4px; display: flex; gap: 4px;">
+                  <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('bold', false, null);" title="굵게" style="min-width: 28px; font-weight: bold;">B</button>
+                  <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('foreColor', false, 'red');" title="빨간색" style="min-width: 28px; color: red; font-weight: bold;">A</button>
+                  <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('foreColor', false, 'blue');" title="파란색" style="min-width: 28px; color: blue; font-weight: bold;">A</button>
+                  <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('removeFormat', false, null); document.execCommand('foreColor', false, 'black');" title="서식 초기화" style="min-width: 28px; color: black;">
+                    <i class="fas fa-eraser"></i>
+                  </button>
+                </div>
+                <div class="erp-pro-input as-content-input" contenteditable="true" data-order-id="{{ r.id }}"
+                  style="width: 100%; min-height: 80px; max-height: 250px; overflow-y: auto; padding: 8px; border: none; outline: none; white-space: pre-wrap; font-size: 14px;"
+                  data-placeholder="내용 입력...">{{ r.structured_data.get('shipment', {}).get('as_content', '') | safe if r.structured_data else '' }}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -1119,14 +1156,15 @@
 
     // AS 내용 자동 저장 (Blur 시 + 디바운스 자동 저장으로 새로고침 시에도 유지)
     document.querySelectorAll('.as-content-input').forEach(input => {
-      let originalValue = input.value;
+      let originalValue = input.hasAttribute('contenteditable') ? input.innerHTML.trim() : input.value;
       let saveTimeout = null;
       const DEBOUNCE_MS = 1800;
 
       function saveAsContent(el) {
         const orderId = el.dataset.orderId;
-        const value = (el.value || '').trim();
-        if (el.value === originalValue) return;
+        const isEditable = el.hasAttribute('contenteditable');
+        const value = isEditable ? (el.innerHTML || '').trim() : (el.value || '').trim();
+        if (value === originalValue) return;
         el.style.backgroundColor = '#fff3cd';
         fetch('/api/update_order_field', {
           method: 'POST',
@@ -1155,18 +1193,20 @@
 
       input.addEventListener('blur', function () {
         if (saveTimeout) clearTimeout(saveTimeout);
-        if (this.value === originalValue) return;
+        const val = this.hasAttribute('contenteditable') ? this.innerHTML.trim() : this.value;
+        if (val === originalValue) return;
         saveAsContent(this);
       });
 
       input.addEventListener('input', function () {
         if (saveTimeout) clearTimeout(saveTimeout);
-        if (this.value === originalValue) return;
+        const val = this.hasAttribute('contenteditable') ? this.innerHTML.trim() : this.value;
+        if (val === originalValue) return;
         saveTimeout = setTimeout(() => saveAsContent(this), DEBOUNCE_MS);
       });
 
       input.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter' && !e.shiftKey && this.tagName !== 'TEXTAREA') this.blur();
+        if (e.key === 'Enter' && !e.shiftKey && this.tagName !== 'TEXTAREA' && !this.hasAttribute('contenteditable')) this.blur();
       });
 
       // Textarea 자동 높이 조절 (선택 사항)
