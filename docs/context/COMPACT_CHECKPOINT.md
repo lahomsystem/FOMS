@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-19 08:31:28
-> 세션: 9425c068
+> 생성 시각: 2026-03-19 11:50:25
+> 세션: 0d00b4d0
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
+- `commit_msg.txt` <- 1 edit(s), ~136 chars (2026-03-19 11:50:09)
+- `apps/erp_shipment_page.py` <- 1 edit(s), ~16079 chars (2026-03-19 11:49:48)
+- `commit_msg.txt` <- 1 edit(s), ~272 chars (2026-03-19 09:48:22)
+- `apps/erp_as_page.py` <- 1 edit(s), ~5844 chars (2026-03-19 09:32:48)
+- `apps/erp_as_page.py` <- 1 edit(s), ~6177 chars (2026-03-19 09:32:10)
+- `apps/erp_as_page.py` <- 1 edit(s), ~5948 chars (2026-03-19 09:31:44)
+- `apps/erp_dashboard.py` <- 1 edit(s), ~19833 chars (2026-03-19 09:13:59)
+- `apps/erp_dashboard.py` <- 1 edit(s), ~19729 chars (2026-03-19 09:13:52)
+- `commit_msg.txt` <- 1 edit(s), ~169 chars (2026-03-19 08:33:32)
 - `docs/specs/2026-03-18-erp-beta-clean-code-fixes.md` <- 1 edit(s), ~4174 chars (2026-03-19 08:31:27)
-- `docs/evolution/2026-03-18-PAYMENT-ICON-SAVE-FREE-CLICK.md` <- 1 edit(s), ~1019 chars (2026-03-19 08:29:45)
-- `templates/partials/erp_beta_js.html` <- 2 edit(s), ~406 chars (2026-03-19 08:29:33)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f444795b-9351-4044-81c6-2199ea5d6941.png` <- 1 edit(s), ~0 chars (2026-03-19 08:28:03)
-- `docs/evolution/2026-03-18-ERP-GRID-THEAD-STICKY.md` <- 1 edit(s), ~450 chars (2026-03-18 15:47:34)
-- `templates/partials/erp_construction_styles.html` <- 1 edit(s), ~175 chars (2026-03-18 15:47:29)
-- `templates/partials/erp_production_styles.html` <- 1 edit(s), ~175 chars (2026-03-18 15:47:29)
-- `templates/partials/erp_dashboard_styles.html` <- 1 edit(s), ~175 chars (2026-03-18 15:47:28)
-- `docs/evolution/2026-03-18-ERP-GRID-THEAD-STICKY.md` <- 1 edit(s), ~594 chars (2026-03-18 15:42:28)
-- `templates/partials/erp_construction_styles.html` <- 3 edit(s), ~165 chars (2026-03-18 15:42:12)
 
 ### 진행 중이던 작업
 (없음)
