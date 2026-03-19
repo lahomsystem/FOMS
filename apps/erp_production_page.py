@@ -89,14 +89,55 @@ def erp_production_dashboard():
             _q = _q.filter(or_(*conds))
 
     _q = _q.order_by(Order.created_at.desc())
-    orders = _q.limit(1000).all()
+    # SQL GROUP BY: step_stats 카운트 (DB 레벨 집계, Python 루프 불필요)
+    from sqlalchemy import func, case as sql_case
+    stage_bucket_expr = sql_case(
+        (stage_col.in_(['"고객컨펌"', '"CONFIRM"']), '제작대기'),
+        (stage_col.in_(['"생산"', '"PRODUCTION"']), '제작중'),
+        (stage_col.in_(['"시공"', '"CONSTRUCTION"']), '제작완료'),
+        else_='기타'
+    )
+    stats_rows = (
+        _q.order_by(None)
+        .with_entities(stage_bucket_expr.label('bucket'), func.count(Order.id).label('cnt'))
+        .group_by(stage_bucket_expr)
+        .all()
+    )
+    step_stats = {
+        '제작대기': {'count': 0, 'overdue': 0, 'imminent': 0},
+        '제작중':   {'count': 0, 'overdue': 0, 'imminent': 0},
+        '제작완료': {'count': 0, 'overdue': 0, 'imminent': 0},
+    }
+    for row in stats_rows:
+        if row.bucket in step_stats:
+            step_stats[row.bucket]['count'] = row.cnt
 
+    # SQL COUNT: 전체 건수 (페이지네이션용)
+    total_orders = _q.order_by(None).count()
+
+    # SQL OFFSET/LIMIT: 현재 페이지 50건만 로드
+    page = request.args.get('page', 1, type=int)
+    if page < 1:
+        page = 1
+    per_page = 50
+    total_pages = (total_orders + per_page - 1) // per_page
+    page_rows = (
+        _q
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    # 50건만 attachment 배치 조회
     att_counts = {}
-    if orders:
+    if page_rows:
         try:
             from sqlalchemy import bindparam
-            order_ids = [o.id for o in orders]
-            stmt = text("SELECT order_id, COUNT(*) AS cnt FROM order_attachments WHERE order_id = ANY(:order_ids) GROUP BY order_id")
+            order_ids = [o.id for o in page_rows]
+            stmt = text(
+                "SELECT order_id, COUNT(*) AS cnt FROM order_attachments "
+                "WHERE order_id = ANY(:order_ids) GROUP BY order_id"
+            )
             stmt = stmt.bindparams(bindparam('order_ids', value=order_ids))
             rows = db.execute(stmt).fetchall()
             for r in rows:
@@ -104,14 +145,9 @@ def erp_production_dashboard():
         except Exception:
             att_counts = {}
 
-    step_stats = {
-        '제작대기': {'count': 0, 'overdue': 0, 'imminent': 0},
-        '제작중': {'count': 0, 'overdue': 0, 'imminent': 0},
-        '제작완료': {'count': 0, 'overdue': 0, 'imminent': 0},
-    }
-
+    # 50건만 enrichment (1000건 → 50건)
     enriched = []
-    for o in orders:
+    for o in page_rows:
         sd = _ensure_dict(o.structured_data)
         stage = _erp_get_stage(o, sd)
 
@@ -149,10 +185,9 @@ def erp_production_dashboard():
 
         alerts = _erp_alerts(o, sd, att_counts.get(o.id, 0))
 
-        if stage_label in step_stats:
-            step_stats[stage_label]['count'] += 1
-            if alerts.get('production_d2'):
-                step_stats[stage_label]['imminent'] += 1
+        # step_stats imminent: 현재 페이지 기준 (page-level)
+        if stage_label in step_stats and alerts.get('production_d2'):
+            step_stats[stage_label]['imminent'] += 1
 
         enriched.append({
             'id': o.id,
@@ -180,20 +215,18 @@ def erp_production_dashboard():
         {'label': '제작중', 'display': '제작중', **step_stats['제작중']},
     ]
 
-    kpis = {
-        'urgent_count': sum(1 for r in enriched if isinstance(r.get('alerts'), dict) and r.get('alerts').get('urgent')),
-        'production_d2_count': sum(1 for r in enriched if isinstance(r.get('alerts'), dict) and r.get('alerts').get('production_d2')),
-        'measurement_d4_count': 0,
-        'construction_d3_count': 0,
-    }
+    # kpis: lightweight pass — structured_data만 조회해 전체 건수 계산
+    kpi_rows = _q.order_by(None).with_entities(Order.id, Order.structured_data).all()
+    kpis = {'urgent_count': 0, 'production_d2_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0}
+    for kpi_row in kpi_rows:
+        kpi_sd = _ensure_dict(kpi_row.structured_data)
+        kpi_alerts = _erp_alerts(None, kpi_sd, 0)
+        if kpi_alerts.get('urgent'):
+            kpis['urgent_count'] += 1
+        if kpi_alerts.get('production_d2'):
+            kpis['production_d2_count'] += 1
 
-    page = request.args.get('page', 1, type=int)
-    if page < 1: page = 1
-    per_page = 50
-    total_orders = len(enriched)
-    total_pages = (total_orders + per_page - 1) // per_page
-    paginated_orders = enriched[(page - 1) * per_page : page * per_page]
-    attach_order_detail_payloads(db, paginated_orders)
+    attach_order_detail_payloads(db, enriched)
 
     return render_template(
         'erp_production_dashboard.html',

@@ -59,20 +59,41 @@ def is_business_day(d: datetime.date) -> bool:
 
 def business_days_between(start: datetime.date, end: datetime.date) -> int:
     """
-    start -> end 사이 영업일 수(양수/0/음수)
+    start -> end 사이 영업일 수(양수/0/음수).
     - end가 start 이후면: start 다음날부터 end까지(포함) 카운트
     - end가 start 이전이면: 음수
+    O(H) 구현: H = 범위 내 공휴일 수(연 최대 ~20개), 날짜별 O(N) 순회 대비 최대 20배 빠름
     """
     if start == end:
         return 0
+
     step = 1 if end > start else -1
-    cur = start
-    count = 0
-    while cur != end:
-        cur = cur + datetime.timedelta(days=step)
-        if is_business_day(cur):
-            count += step
-    return count
+    lo, hi = (start, end) if step == 1 else (end, start)
+    # 범위: (lo, hi] — lo 다음날부터 hi까지 (원본 로직과 동일)
+
+    total_days = (hi - lo).days  # 항상 양수
+
+    # 주말 수를 수학적으로 계산
+    full_weeks = total_days // 7
+    remainder = total_days % 7
+    lo_weekday = lo.weekday()  # 0=월 ~ 6=일
+
+    weekend_in_remainder = 0
+    for k in range(1, remainder + 1):
+        if (lo_weekday + k) % 7 >= 5:  # 5=토, 6=일
+            weekend_in_remainder += 1
+
+    weekday_count = total_days - full_weeks * 2 - weekend_in_remainder
+
+    # 범위 내 평일 공휴일 수 차감 (O(H), H ≤ ~20/년)
+    holiday_deduction = 0
+    for year in range(lo.year, hi.year + 1):
+        for h_str in get_holidays_kr(year):
+            h = datetime.date.fromisoformat(h_str)
+            if lo < h <= hi and h.weekday() < 5:
+                holiday_deduction += 1
+
+    return step * (weekday_count - holiday_deduction)
 
 
 def business_days_until(target_date_str: str, today: Optional[datetime.date] = None) -> Optional[int]:
