@@ -12,6 +12,10 @@ import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from foms_address_converter import FOMSAddressConverter
 from services.jobs.queue import enqueue_geocode_order_address
+from services.as_content_safety import (
+    load_structured_data_dict_or_raise,
+    sanitize_as_content_html,
+)
 
 orders_bp = Blueprint('orders', __name__, url_prefix='/api')
 
@@ -20,6 +24,57 @@ def ensure_path(parent, key):
     if key not in parent or not isinstance(parent.get(key), dict):
         parent[key] = {}
     return parent[key]
+
+
+def _coerce_bool_value(value):
+    """JSON/폼 기반 boolean 값을 일관되게 해석."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in ('1', 'true', 'yes', 'y', 'on')
+
+
+def _load_order_structured_data_for_update(order):
+    """주문 structured_data를 무손실로 로드. 안전하지 않으면 저장 중단."""
+    try:
+        return load_structured_data_dict_or_raise(getattr(order, 'structured_data', None))
+    except ValueError as exc:
+        raise ValueError(
+            f'structured_data를 안전하게 불러올 수 없어 저장을 중단했습니다: {exc}'
+        ) from exc
+
+
+def _build_order_update_response(order, field, fallback_value, structured_data=None):
+    """프론트 동기화용 저장 결과 페이로드."""
+    sd = structured_data if isinstance(structured_data, dict) else None
+    shipment = (sd.get('shipment') or {}) if sd else {}
+    schedule = (sd.get('schedule') or {}) if sd else {}
+    as_visit = (schedule.get('as_visit') or {}) if isinstance(schedule, dict) else {}
+
+    if field == 'as_content':
+        normalized_value = shipment.get('as_content') or ''
+    elif field == 'as_pending':
+        normalized_value = shipment.get('as_pending') is True
+    elif field == 'sales_delivery':
+        normalized_value = shipment.get('sales_delivery') is True
+    elif field == 'as_visit_date':
+        normalized_value = as_visit.get('date') or ''
+    else:
+        normalized_value = getattr(order, field, fallback_value)
+
+    status = getattr(order, 'status', None)
+    return {
+        'success': True,
+        'message': '정보가 업데이트되었습니다.',
+        'normalized_value': normalized_value if normalized_value is not None else '',
+        'status': status,
+        'status_label': STATUS.get(status, status),
+        'as_completed_date': getattr(order, 'as_completed_date', None) or '',
+        'as_visit_date': getattr(order, 'as_visit_date', None) or '',
+        'as_pending': shipment.get('as_pending') is True,
+        'sales_delivery': shipment.get('sales_delivery') is True,
+    }
 
 
 def _schedule_date_has_on_or_after(d_date_str, ref_date):
@@ -630,12 +685,12 @@ def update_regional_memo():
 def update_order_field():
     """주문 필드 업데이트 (수도권 및 지방 대시보드용). 실측일/시공일은 can_edit_erp 권한으로도 허용."""
     db = get_db()
-    data = request.get_json()
+    data = request.get_json() or {}
     
     order_id = data.get('order_id')
     # 두 가지 파라미터명 지원: field/value (수도권), field_name/new_value (지방)
-    field = data.get('field') or data.get('field_name')
-    value = data.get('value') or data.get('new_value')
+    field = data['field'] if 'field' in data else data.get('field_name')
+    value = data['value'] if 'value' in data else data.get('new_value')
 
     order = db.query(Order).filter_by(id=order_id).first()
 
@@ -662,7 +717,7 @@ def update_order_field():
         'regional_blueprint_sent', 'regional_order_upload',
         'regional_cargo_sent', 'regional_construction_info_sent',
         'as_received_date', 'as_completed_date',  # AS 관련 날짜 필드들
-        'as_visit_date', 'as_content', 'as_pending',  # AS 방문일·내용·미결 플래그
+        'as_visit_date', 'as_content', 'as_pending', 'sales_delivery',  # AS 방문일·내용·미결·영업/전달
         'measurement_date',  # 실측일 필드
         'regional_memo',  # 메모 필드 허용 (수납장 대시보드 등)
         'is_cabinet', 'cabinet_status',  # 수납장 관련
@@ -672,91 +727,103 @@ def update_order_field():
         return jsonify({'success': False, 'message': f'허용되지 않은 필드입니다: {field}'}), 400
 
     try:
+        if field == 'as_content':
+            value = sanitize_as_content_html(value)
+
+        _is_beta = getattr(order, 'is_erp_beta', False)
+        structured_sync_fields = {
+            'manager_name', 'measurement_date', 'scheduled_date',
+            'customer_name', 'phone', 'address',
+            'as_visit_date', 'as_content', 'as_pending', 'sales_delivery',
+        }
+        structured_data = None
+        structured_changed = False
+        if field == 'as_completed_date' or _is_beta or field in structured_sync_fields:
+            structured_data = _load_order_structured_data_for_update(order)
+
         old_value = getattr(order, field, None)
         if field == 'as_visit_date':
             pass
-        elif field == 'as_content' or field == 'as_pending':
-            # as_content, as_pending는 모델 필드가 아니므로 건너뜀 (structured_data에서 처리)
+        elif field in ('as_content', 'as_pending', 'sales_delivery'):
+            # structured_data 전용 필드는 모델 컬럼 건너뜀
             pass
         else:
             setattr(order, field, value)
 
         # AS 완료일 입력 시 ERP 프로세스 AS 처리 카테고리 > 완료로 처리 (기존/Beta 동일), 미결 해제
-        if field == 'as_completed_date' and value:
-            setattr(order, 'status', 'AS_COMPLETED')
-            if getattr(order, 'is_erp_beta', False):
-                sd = getattr(order, 'structured_data', None) or {}
-                if isinstance(sd, dict):
-                    wf = sd.get('workflow') or {}
-                    wf = dict(wf)
+        if field == 'as_completed_date':
+            shipment = ensure_path(structured_data, 'shipment') if isinstance(structured_data, dict) else {}
+            if value:
+                setattr(order, 'status', 'AS_COMPLETED')
+                if _is_beta and isinstance(structured_data, dict):
+                    wf = ensure_path(structured_data, 'workflow')
                     wf['stage'] = 'AS_COMPLETED'
                     wf['stage_updated_at'] = datetime.datetime.now().isoformat()
-                    sd['workflow'] = wf
-                    setattr(order, 'structured_data', sd)
-                    flag_modified(order, 'structured_data')
-            sd = getattr(order, 'structured_data', None) or {}
-            if isinstance(sd, dict):
-                shipment = sd.get('shipment')
-                if isinstance(shipment, dict) and shipment.get('as_pending'):
+                    structured_changed = True
+                if shipment.get('as_pending'):
                     shipment['as_pending'] = False
-                    setattr(order, 'structured_data', sd)
-                    flag_modified(order, 'structured_data')
+                    structured_changed = True
+            else:
+                setattr(order, 'status', 'AS_RECEIVED')
+                if _is_beta and isinstance(structured_data, dict):
+                    wf = ensure_path(structured_data, 'workflow')
+                    wf['stage'] = 'AS_RECEIVED'
+                    wf['stage_updated_at'] = datetime.datetime.now().isoformat()
+                    structured_changed = True
 
         # ERP Beta 주문이거나 structured_data 연동이 필요한 필드(as_content, as_pending 등)인 경우
-        _is_beta = getattr(order, 'is_erp_beta', False)
-        if _is_beta or field == 'as_content' or field == 'as_visit_date' or field == 'as_pending':
-            # structured_data가 None이면 빈 딕셔너리로 초기화 (JSONB 필드 대응)
-            sd = getattr(order, 'structured_data', None)
-            if sd is None:
-                setattr(order, 'structured_data', {})
-                sd = {}
-            elif not isinstance(sd, dict):
-                sd = {}
-
+        if _is_beta or field in ('as_content', 'as_visit_date', 'as_pending', 'sales_delivery'):
             if field == 'as_pending':
-                shipment = ensure_path(sd, 'shipment')
-                shipment['as_pending'] = str(value).lower() in ('1', 'true', 'yes')
-                setattr(order, 'structured_data', sd)
-                flag_modified(order, 'structured_data')
+                shipment = ensure_path(structured_data, 'shipment')
+                shipment['as_pending'] = _coerce_bool_value(value)
+                structured_changed = True
+            elif field == 'sales_delivery':
+                shipment = ensure_path(structured_data, 'shipment')
+                shipment['sales_delivery'] = _coerce_bool_value(value)
+                structured_changed = True
             elif field == 'manager_name':
-                parties = ensure_path(sd, 'parties')
+                parties = ensure_path(structured_data, 'parties')
                 manager = ensure_path(parties, 'manager')
                 manager['name'] = value
-                flag_modified(order, 'structured_data')
+                structured_changed = True
             elif field == 'measurement_date':
-                schedule = ensure_path(sd, 'schedule')
+                schedule = ensure_path(structured_data, 'schedule')
                 measurement = ensure_path(schedule, 'measurement')
                 measurement['date'] = value
-                flag_modified(order, 'structured_data')
+                structured_changed = True
             elif field == 'scheduled_date':
-                schedule = ensure_path(sd, 'schedule')
+                schedule = ensure_path(structured_data, 'schedule')
                 construction = ensure_path(schedule, 'construction')
                 construction['date'] = value
-                flag_modified(order, 'structured_data')
+                structured_changed = True
             elif field == 'customer_name':
-                parties = ensure_path(sd, 'parties')
+                parties = ensure_path(structured_data, 'parties')
                 customer = ensure_path(parties, 'customer')
                 customer['name'] = value
-                flag_modified(order, 'structured_data')
+                structured_changed = True
             elif field == 'phone':
-                parties = ensure_path(sd, 'parties')
+                parties = ensure_path(structured_data, 'parties')
                 customer = ensure_path(parties, 'customer')
                 customer['phone'] = value
-                flag_modified(order, 'structured_data')
+                structured_changed = True
             elif field == 'address':
-                site = ensure_path(sd, 'site')
+                site = ensure_path(structured_data, 'site')
                 site['address_full'] = value
-                flag_modified(order, 'structured_data')
+                structured_changed = True
             elif field == 'as_visit_date':
-                schedule = ensure_path(sd, 'schedule')
+                schedule = ensure_path(structured_data, 'schedule')
                 as_visit = ensure_path(schedule, 'as_visit')
                 as_visit['date'] = value
-                flag_modified(order, 'structured_data')
+                structured_changed = True
             elif field == 'as_content':
                 # as_content는 structured_data.shipment.as_content에 저장
-                shipment = ensure_path(sd, 'shipment')
+                shipment = ensure_path(structured_data, 'shipment')
                 shipment['as_content'] = value
-                flag_modified(order, 'structured_data')
+                structured_changed = True
+
+        if structured_changed and isinstance(structured_data, dict):
+            setattr(order, 'structured_data', structured_data)
+            flag_modified(order, 'structured_data')
 
         db.commit()
 
@@ -769,7 +836,11 @@ def update_order_field():
         else:
             log_access(f"주문 #{order.id}의 '{field}' 필드를 '{value}'(으)로 변경", session['user_id'])
         
-        return jsonify({'success': True, 'message': '정보가 업데이트되었습니다.'})
+        return jsonify(_build_order_update_response(order, field, value, structured_data))
+    except ValueError as e:
+        db.rollback()
+        current_app.logger.warning(f"주문 #{order_id} 필드 업데이트 중단: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 409
     except Exception as e:
         db.rollback()
         current_app.logger.error(f"주문 #{order_id} 필드 업데이트 실패: {str(e)}")

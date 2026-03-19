@@ -2,7 +2,6 @@
 ERP 주문 AS(설치) API. (Phase 4-5h)
 erp.py에서 분리: as/start, as/complete, as/schedule.
 """
-import copy
 import datetime
 
 from flask import Blueprint, request, jsonify, session
@@ -13,14 +12,27 @@ from db import get_db
 from models import Order, OrderEvent, SecurityLog
 from apps.auth import login_required, get_user_by_id
 from services.erp_permissions import erp_edit_required, erp_construction_edit_required
-from apps.erp import _ensure_dict
 from services.erp_utils import ensure_path
+from services.as_content_safety import (
+    load_structured_data_dict_or_raise,
+    sanitize_as_content_html,
+)
 
 erp_orders_as_bp = Blueprint(
     'erp_orders_as',
     __name__,
     url_prefix='/api/orders',
 )
+
+
+def _load_order_structured_data_for_update(order):
+    """structured_data가 안전할 때만 AS 쓰기 작업 진행."""
+    try:
+        return load_structured_data_dict_or_raise(getattr(order, 'structured_data', None))
+    except ValueError as exc:
+        raise ValueError(
+            f'structured_data를 안전하게 불러올 수 없어 저장을 중단했습니다: {exc}'
+        ) from exc
 
 
 @erp_orders_as_bp.route('/<int:order_id>/as/start', methods=['POST'])
@@ -41,7 +53,7 @@ def api_as_start(order_id):
         user_id = session.get('user_id')
         user = get_user_by_id(user_id)
 
-        sd = _ensure_dict(order.structured_data)
+        sd = _load_order_structured_data_for_update(order)
         wf = sd.get('workflow') or {}
 
         as_info = sd.get('as_info') or []
@@ -72,7 +84,7 @@ def api_as_start(order_id):
         wf['history'] = hist
         sd['workflow'] = wf
 
-        order.structured_data = copy.deepcopy(sd)
+        order.structured_data = sd
         flag_modified(order, "structured_data")
         order.status = 'AS'
 
@@ -103,6 +115,9 @@ def api_as_start(order_id):
             'new_status': 'AS',
             'as_id': as_entry['id']
         })
+    except ValueError as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 409
     except Exception as e:
         db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -126,7 +141,7 @@ def api_as_complete(order_id):
         user_id = session.get('user_id')
         user = get_user_by_id(user_id)
 
-        sd = _ensure_dict(order.structured_data)
+        sd = _load_order_structured_data_for_update(order)
         wf = sd.get('workflow') or {}
 
         as_info = sd.get('as_info') or []
@@ -154,7 +169,7 @@ def api_as_complete(order_id):
         wf['history'] = hist
         sd['workflow'] = wf
 
-        order.structured_data = copy.deepcopy(sd)
+        order.structured_data = sd
         flag_modified(order, "structured_data")
         order.status = 'CS'
 
@@ -180,6 +195,9 @@ def api_as_complete(order_id):
         db.commit()
 
         return jsonify({'success': True, 'message': 'AS가 완료되었습니다.', 'new_status': 'CS'})
+    except ValueError as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 409
     except Exception as e:
         db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -197,22 +215,25 @@ def api_as_register(order_id):
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         data = request.get_json(silent=True) or {}
-        as_content = (data.get('as_content') or '').strip()
+        as_content = sanitize_as_content_html(data.get('as_content'))
 
         today = datetime.datetime.now().strftime('%Y-%m-%d')
-        sd = _ensure_dict(order.structured_data)
+        user_id = session.get('user_id')
+        user = get_user_by_id(user_id)
+        sd = _load_order_structured_data_for_update(order)
         shipment = ensure_path(sd, 'shipment')
         shipment['as_content'] = as_content
         wf = sd.get('workflow') or {}
         wf['stage'] = 'AS_RECEIVED'
+        wf['stage_updated_at'] = datetime.datetime.now().isoformat()
+        wf['stage_updated_by'] = user.name if user else 'Unknown'
         sd['workflow'] = wf
-        order.structured_data = copy.deepcopy(sd)
+        order.structured_data = sd
         flag_modified(order, 'structured_data')
 
         order.as_received_date = today
         order.status = 'AS_RECEIVED'
 
-        user_id = session.get('user_id')
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 접수 등록 (접수일: {today})"))
         db.commit()
 
@@ -222,6 +243,9 @@ def api_as_register(order_id):
             'as_received_date': today,
             'new_status': 'AS_RECEIVED',
         })
+    except ValueError as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 409
     except Exception as e:
         db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -249,7 +273,7 @@ def api_as_schedule(order_id):
         user_id = session.get('user_id')
         user = get_user_by_id(user_id)
 
-        sd = _ensure_dict(order.structured_data)
+        sd = _load_order_structured_data_for_update(order)
 
         as_info = sd.get('as_info') or []
         for entry in as_info:
@@ -281,7 +305,7 @@ def api_as_schedule(order_id):
         wf['history'] = hist
         sd['workflow'] = wf
 
-        order.structured_data = copy.deepcopy(sd)
+        order.structured_data = sd
         flag_modified(order, "structured_data")
 
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 방문일 확정: {visit_date}"))
@@ -292,6 +316,9 @@ def api_as_schedule(order_id):
             'message': f'AS 방문일이 {visit_date}로 확정되었습니다.',
             'visit_date': visit_date
         })
+    except ValueError as e:
+        db.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 409
     except Exception as e:
         db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
