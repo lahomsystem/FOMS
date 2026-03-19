@@ -2,35 +2,22 @@
 ERP 실측 대시보드 페이지 (ERP-SLIM-6)
 erp.py에서 분리: /erp/measurement
 """
-from flask import Blueprint, render_template, request, session, redirect, url_for
+from flask import Blueprint, render_template, request, redirect, url_for, g
 from db import get_db
-from models import Order
-from apps.auth import login_required, get_user_by_id
+from models import Order, OrderScheduleDate
+from apps.auth import login_required
 import datetime
-import json
-import os
-from sqlalchemy import or_, and_, func, cast, String
+from sqlalchemy import or_, and_, cast, String
+from sqlalchemy.orm import load_only, selectinload
 
-from services.erp_permissions import can_edit_erp
+from services.business_calendar import get_holidays_kr
+from services.erp_permissions import can_edit_erp, build_mine_sql_filter
 from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst, self_measurement_four_checks_done
-from sqlalchemy.orm import load_only
-from services.erp_shipment_settings import is_order_mine_for_user
 from services.erp_product_items import build_product_items_for_order, build_product_items_for_orders
 
 erp_measurement_dashboard_bp = Blueprint(
     'erp_measurement_dashboard', __name__, url_prefix='/erp'
 )
-
-
-def _load_holidays_for_year(year):
-    """해당 연도 휴일 집합 반환 (실측 패널용)."""
-    try:
-        file_path = os.path.join('data', f'holidays_kr_{year}.json')
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        return set(data.get('dates', []))
-    except Exception:
-        return set()
 
 
 def _erp_order_search_filter(query, q):
@@ -133,7 +120,6 @@ def erp_measurement_dashboard():
     range_start_str = range_start.strftime('%Y-%m-%d')
     range_end_str = range_end.strftime('%Y-%m-%d')
 
-    from models import OrderScheduleDate
     if use_range or use_single_day:
         query = query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
         query = query.filter(OrderScheduleDate.kind == 'measurement')
@@ -146,13 +132,16 @@ def erp_measurement_dashboard():
         # Due to one-to-many join, distinct is required to prevent duplicate order rows
         query = query.distinct()
 
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    current_user = getattr(g, 'current_user', None)
     mine_filter_active = request.args.get('mine') == '1' and current_user
 
-    from sqlalchemy.orm import selectinload
-    all_rows = query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(500).all()
+    # mine 필터를 SQL WHERE로 적용 (Python 루프 대신)
     if mine_filter_active:
-        all_rows = [r for r in all_rows if is_order_mine_for_user(r, current_user)]
+        mine_conds = build_mine_sql_filter(current_user)
+        if mine_conds:
+            query = query.filter(or_(*mine_conds))
+
+    all_rows = query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(500).all()
 
     for r in all_rows:
         r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
@@ -164,6 +153,10 @@ def erp_measurement_dashboard():
         OrderScheduleDate.date >= range_start_str,
         OrderScheduleDate.date <= range_end_str,
     ).distinct()
+    if mine_filter_active:
+        p_mine_conds = build_mine_sql_filter(current_user)
+        if p_mine_conds:
+            panel_query = panel_query.filter(or_(*p_mine_conds))
     panel_orders = panel_query.options(
         load_only(
             Order.id, Order.measurement_date, Order.structured_data, 
@@ -173,8 +166,6 @@ def erp_measurement_dashboard():
         ),
         selectinload(Order.schedule_dates)
     ).order_by(Order.id.desc()).all()
-    if mine_filter_active:
-        panel_orders = [o for o in panel_orders if is_order_mine_for_user(o, current_user)]
         
     for o in panel_orders:
         o.structured_data = _ensure_dict(o.structured_data)  # type: ignore[assignment]
@@ -182,7 +173,7 @@ def erp_measurement_dashboard():
     years = {range_start.year, range_end.year}
     holiday_dates = set()
     for y in years:
-        holiday_dates |= _load_holidays_for_year(y)
+        holiday_dates |= get_holidays_kr(y)
 
     measurement_counts = {}
     for order in panel_orders:
@@ -220,27 +211,13 @@ def erp_measurement_dashboard():
         if self_measurement_four_checks_done(order):
             continue
         if use_single_day and selected_date:
-            should_include = selected_date in extract_all_measurement_dates(order)
-            if should_include:
-                rows.append(order)
+            # SQL WHERE OrderScheduleDate.date == selected_date 로 이미 필터됨
+            # extract_all_measurement_dates 재호출은 불필요 중복 — 직접 포함
+            rows.append(order)
         elif use_range and date_from and date_to:
-            try:
-                d_from = datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
-                d_to = datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
-            except (ValueError, TypeError):
-                d_from = d_to = None
-            if d_from is not None and d_to is not None:
-                all_meas = extract_all_measurement_dates(order)
-                for d_str in all_meas:
-                    try:
-                        d = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
-                        if d_from <= d <= d_to:
-                            rows.append(order)
-                            break
-                    except (ValueError, TypeError):
-                        pass
-            else:
-                rows.append(order)
+            # SQL WHERE OrderScheduleDate.date BETWEEN date_from AND date_to 로 이미 필터됨
+            # Python 날짜 재검증은 불필요 중복
+            rows.append(order)
         else:
             rows.append(order)
 

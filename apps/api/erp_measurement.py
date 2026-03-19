@@ -4,15 +4,18 @@ erp.py에서 분리: 실측 대시보드 업데이트, 실측 동선 추천.
 """
 import copy
 import datetime
+import logging
 import math
 
-from flask import Blueprint, request, jsonify, session
+logger = logging.getLogger(__name__)
+
+from flask import Blueprint, request, jsonify, g
 from sqlalchemy import or_, and_, cast, String
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from models import Order
-from apps.auth import login_required, role_required, get_user_by_id
+from apps.auth import login_required, role_required
 from services.erp_permissions import erp_edit_required
 from services.erp_display import get_today_kst, self_measurement_four_checks_done
 from services.erp_shipment_settings import is_order_mine_for_user
@@ -21,7 +24,8 @@ from services.jobs.queue import enqueue_geocode_order_address
 from services.order_geocode import reset_order_geocode_on_address_change
 
 # 실측 패널 집계용: erp_measurement_dashboard 로직 재사용
-from apps.erp_measurement_dashboard import extract_all_measurement_dates, _load_holidays_for_year
+from apps.erp_measurement_dashboard import extract_all_measurement_dates
+from services.business_calendar import get_holidays_kr
 
 def normalize_address_for_sort(address):
     if not address or not str(address).strip():
@@ -78,7 +82,7 @@ def api_erp_measurement_summary():
         )
     )
 
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    current_user = getattr(g, 'current_user', None)
     mine_filter_active = request.args.get('mine') == '1' and current_user
 
     from sqlalchemy.orm import selectinload
@@ -89,7 +93,7 @@ def api_erp_measurement_summary():
     years = {range_start.year, range_end.year}
     holiday_dates = set()
     for y in years:
-        holiday_dates |= _load_holidays_for_year(y)
+        holiday_dates |= get_holidays_kr(y)
 
     measurement_info = {}
     for order in panel_orders:
@@ -235,9 +239,7 @@ def api_erp_measurement_update(order_id):
         return jsonify({'success': True})
     except Exception as e:
         db.rollback()
-        import traceback
-        print(f"[ERP_MEASUREMENT] 업데이트 오류: {e}")
-        print(traceback.format_exc())
+        logger.exception("[ERP_MEASUREMENT] 업데이트 오류: %s", e)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 

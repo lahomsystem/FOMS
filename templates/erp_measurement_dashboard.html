@@ -564,7 +564,7 @@
                     style="border-right: 1px solid #e0e0e0;">{{ (product or
                     '-')|strip_product_w or '-' }}</td>
                   <td class="editable-cell manager-cell" data-field="manager" data-label="담당자"
-                    style="background-color: {{ manager_bg_color }}; color: {{ text_color }};">
+                    data-bg="{{ manager_bg_color }}" data-color="{{ text_color }}">
                     {{ manager or '-' }}
                   </td>
                 </tr>
@@ -690,7 +690,7 @@
                                 data-download-url="{{ photo.download_url }}" data-filename="{{ photo.filename }}"
                                 data-key="{{ photo.key }}"
                                 onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))">
-                                <img src="{{ photo.view_url }}" alt="{{ photo.filename }}">
+                                <img data-src="{{ photo.view_url }}" alt="{{ photo.filename }}" class="lazy-detail-img">
                               </div>
                               <div class="dw-attach-name">{{ photo.filename }}</div>
                             </div>

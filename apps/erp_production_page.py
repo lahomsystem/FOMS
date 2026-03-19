@@ -2,10 +2,10 @@
 ERP 생산 대시보드 페이지 (ERP-SLIM-9)
 erp.py에서 분리: /erp/production/dashboard
 """
-from flask import Blueprint, render_template, request, session
+from flask import Blueprint, render_template, request, g
 from db import get_db
 from models import Order
-from apps.auth import login_required, get_user_by_id
+from apps.auth import login_required
 from sqlalchemy import text
 
 from services.erp_permissions import can_edit_erp
@@ -41,8 +41,7 @@ def erp_production_dashboard():
     """생산 대시보드"""
     db = get_db()
 
-    user_id = session.get('user_id')
-    user = get_user_by_id(user_id) if user_id else None
+    user = getattr(g, 'current_user', None)
     is_admin = user and user.role == 'ADMIN'
 
     f_stage = (request.args.get('stage') or '').strip()
@@ -188,8 +187,6 @@ def erp_production_dashboard():
         'construction_d3_count': 0,
     }
 
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
-
     page = request.args.get('page', 1, type=int)
     if page < 1: page = 1
     per_page = 50
@@ -207,7 +204,7 @@ def erp_production_dashboard():
         team_labels=TEAM_LABELS,
         stage_labels=STAGE_LABELS,
         is_admin=is_admin,
-        can_edit_erp=can_edit_erp(current_user),
+        can_edit_erp=can_edit_erp(user),
         erp_mine_only=erp_mine_only,
         page=page,
         total_pages=total_pages,

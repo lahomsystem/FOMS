@@ -2,15 +2,15 @@
 ERP 시공 대시보드 페이지 (ERP-SLIM-10)
 erp.py에서 분리: /erp/construction/dashboard
 """
-from flask import Blueprint, render_template, request, session
+import logging
+from flask import Blueprint, render_template, request, g
 from db import get_db
 from models import Order
-from apps.auth import login_required, get_user_by_id
-from sqlalchemy import text
+from apps.auth import login_required
+from sqlalchemy import text, bindparam, cast, String, or_
 
-from services.erp_permissions import can_edit_erp
+from services.erp_permissions import can_edit_erp, build_mine_sql_filter
 from services.erp_policy import STAGE_LABELS
-from services.erp_shipment_settings import is_order_mine_for_user
 from services.erp_display import (
     _ensure_dict,
     _erp_get_stage,
@@ -41,8 +41,7 @@ TEAM_LABELS = {
 def erp_construction_dashboard():
     """시공 대시보드"""
     db = get_db()
-    user_id = session.get('user_id')
-    user = get_user_by_id(user_id) if user_id else None
+    user = getattr(g, 'current_user', None)
     is_admin = user and user.role == 'ADMIN'
 
     f_stage = (request.args.get('stage') or '').strip()
@@ -50,27 +49,30 @@ def erp_construction_dashboard():
     is_construction = user and getattr(user, 'team', None) == 'CONSTRUCTION'
     mine_only = is_construction or (request.args.get('mine') == '1')
 
-    orders = (
+    query = (
         db.query(Order)
         .filter(Order.active_filter(), Order.is_erp_beta.is_(True))
-        .order_by(Order.created_at.desc())
-        .limit(300)
-        .all()
     )
+
+    # mine 필터를 SQL WHERE로 적용 — Python 루프보다 선행하여 limit 누락 방지
     if mine_only and user:
-        orders = [o for o in orders if is_order_mine_for_user(o, user)]
+        mine_conds = build_mine_sql_filter(user)
+        if mine_conds:
+            query = query.filter(or_(*mine_conds))
+
+    orders = query.order_by(Order.created_at.desc()).limit(300).all()
 
     att_counts = {}
     if orders:
         try:
-            from sqlalchemy import bindparam
             order_ids = [o.id for o in orders]
             stmt = text("SELECT order_id, COUNT(*) AS cnt FROM order_attachments WHERE order_id = ANY(:order_ids) GROUP BY order_id")
             stmt = stmt.bindparams(bindparam('order_ids', value=order_ids))
             rows = db.execute(stmt).fetchall()
             for r in rows:
                 att_counts[int(r.order_id)] = int(r.cnt)
-        except Exception:
+        except Exception as e:
+            logging.getLogger(__name__).warning("att_counts query failed: %s", e)
             att_counts = {}
 
     step_stats = {
@@ -160,18 +162,29 @@ def erp_construction_dashboard():
         'measurement_d4_count': 0,
         'production_d2_count': 0,
     }
-    attach_order_detail_payloads(db, enriched)
 
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    # 페이지네이션: payload는 현재 페이지 표시 건수에만 주입 (전체 enriched 대신)
+    page = request.args.get('page', 1, type=int)
+    if page < 1:
+        page = 1
+    per_page = 50
+    total_orders = len(enriched)
+    total_pages = (total_orders + per_page - 1) // per_page
+    paginated_orders = enriched[(page - 1) * per_page: page * per_page]
+    attach_order_detail_payloads(db, paginated_orders)
+
     return render_template(
         'erp_construction_dashboard.html',
-        orders=enriched,
+        orders=paginated_orders,
         kpis=kpis,
         process_steps=process_steps,
         filters={'stage': f_stage, 'q': f_q},
         team_labels=TEAM_LABELS,
         stage_labels=STAGE_LABELS,
         is_admin=is_admin,
-        can_edit_erp=can_edit_erp(current_user),
+        can_edit_erp=can_edit_erp(user),
         erp_mine_only=mine_only,
+        page=page,
+        total_pages=total_pages,
+        total_orders=total_orders,
     )

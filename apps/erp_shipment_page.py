@@ -2,15 +2,14 @@
 ERP 출고 대시보드 페이지 (ERP-SLIM-7)
 erp.py에서 분리: /erp/shipment
 """
-from flask import Blueprint, render_template, request, session, redirect, url_for, g
+from flask import Blueprint, render_template, request, redirect, url_for, g
 from db import get_db
 from models import Order
-from apps.auth import login_required, get_user_by_id
+from apps.auth import login_required
 import datetime
-import json
-import os
 from sqlalchemy import or_, and_, cast, String
 from sqlalchemy.orm import load_only
+from services.business_calendar import get_holidays_kr
 from services.erp_permissions import can_edit_erp
 from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from services.erp_template_filters import item_spec_w300_value
@@ -28,17 +27,6 @@ AS_SHIPMENT_STATUSES = ('AS', 'AS_RECEIVED', 'AS_COMPLETED')
 erp_shipment_page_bp = Blueprint(
     'erp_shipment_page', __name__, url_prefix='/erp'
 )
-
-
-def _load_holidays_for_year(year):
-    """해당 연도 휴일 집합 반환."""
-    try:
-        file_path = os.path.join('data', f'holidays_kr_{year}.json')
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        return set(data.get('dates', []))
-    except Exception:
-        return set()
 
 
 def _normalize_worker_name(name):
@@ -242,7 +230,7 @@ def erp_shipment_dashboard():
     years = {range_start.year, range_end.year}
     holiday_dates = set()
     for y in years:
-        holiday_dates |= _load_holidays_for_year(y)
+        holiday_dates |= get_holidays_kr(y)
 
     construction_counts = {}
     assigned_workers_by_date = {}

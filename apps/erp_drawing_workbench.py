@@ -2,10 +2,10 @@
 ERP 도면 작업실 (ERP-SLIM-5)
 erp.py에서 분리: /erp/drawing-workbench, /erp/drawing-workbench/<id>
 """
-from flask import Blueprint, render_template, request, session, url_for, redirect, flash
+from flask import Blueprint, render_template, request, url_for, redirect, flash, g
 from db import get_db
 from models import Order, User, OrderAttachment
-from apps.auth import login_required, get_user_by_id
+from apps.auth import login_required
 from services.erp_permissions import can_edit_erp
 from services.erp_policy import STAGE_NAME_TO_CODE, get_assignee_ids
 from services.erp_display import (
@@ -27,7 +27,7 @@ erp_drawing_workbench_bp = Blueprint('erp_drawing_workbench', __name__, url_pref
 def erp_drawing_workbench_dashboard():
     """도면 작업실 대시보드: 도면 단계 협업 전용 화면(목록형)"""
     db = get_db()
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    current_user = getattr(g, 'current_user', None)
     q_raw = (request.args.get('q') or '').strip()
     q = q_raw.lower()
     status_filter = (request.args.get('status') or '').strip().upper()
@@ -53,7 +53,7 @@ def erp_drawing_workbench_dashboard():
     for o in orders:
         sd = _ensure_dict(o.structured_data)
         stage_raw = _erp_get_stage(o, sd)
-        stage_code = STAGE_NAME_TO_CODE.get(stage_raw, stage_raw)
+        stage_code = STAGE_NAME_TO_CODE.get(stage_raw or '', stage_raw or '')
         drawing_obj = sd.get('drawing') or {}
         drawing_status = (drawing_obj.get('status') or sd.get('drawing_status') or 'PENDING').upper()
         is_drawing_stage = (stage_code == 'DRAWING')
@@ -91,7 +91,8 @@ def erp_drawing_workbench_dashboard():
         for h in history:
             if not isinstance(h, dict) or h.get('action') != 'REQUEST_REVISION':
                 continue
-            review = h.get('review_check') if isinstance(h.get('review_check'), dict) else {}
+            review_raw = h.get('review_check')
+            review = review_raw if isinstance(review_raw, dict) else {}
             if not bool(review.get('checked')):
                 unchecked_requests += 1
         if unread_only and unchecked_requests <= 0:
@@ -115,7 +116,8 @@ def erp_drawing_workbench_dashboard():
         for h in reversed(history):
             if isinstance(h, dict) and h.get('action') == 'REQUEST_REVISION':
                 try:
-                    latest_request_no = int(h.get('target_drawing_number'))
+                    target_no_raw = h.get('target_drawing_number')
+                    latest_request_no = int(target_no_raw) if target_no_raw is not None else None
                 except Exception:
                     pass
                 break
@@ -206,7 +208,7 @@ def erp_drawing_workbench_dashboard():
 def erp_drawing_workbench_detail(order_id):
     """도면 작업실 상세: 도면팀↔주문담당 협업 실행판."""
     db = get_db()
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    current_user = getattr(g, 'current_user', None)
     order = db.query(Order).filter(Order.id == order_id, Order.active_filter(), Order.is_erp_beta.is_(True)).first()
     if not order:
         flash('주문을 찾을 수 없습니다.', 'warning')
@@ -238,7 +240,8 @@ def erp_drawing_workbench_detail(order_id):
     revision_requests.reverse()
     unread_count = 0
     for h in revision_requests:
-        review = h.get('review_check') if isinstance(h.get('review_check'), dict) else {}
+        review_raw = h.get('review_check')
+        review = review_raw if isinstance(review_raw, dict) else {}
         if not bool(review.get('checked')):
             unread_count += 1
     transfer_events = [h for h in history if h.get('action') == 'TRANSFER']
@@ -279,13 +282,18 @@ def erp_drawing_workbench_detail(order_id):
     can_confirm_receipt = bool(can_sales_domain and drawing_status == 'TRANSFERRED')
     can_cancel_transfer = False
     if latest_transfer:
-        if current_user and current_user.role == 'ADMIN':
+        if current_user is not None and current_user.role == 'ADMIN':
             can_cancel_transfer = True
         elif can_transfer:
             can_cancel_transfer = True
         else:
             try:
-                can_cancel_transfer = int(latest_transfer.get('by_user_id')) == int(current_user_id)
+                by_user_raw = latest_transfer.get('by_user_id')
+                can_cancel_transfer = (
+                    by_user_raw is not None
+                    and current_user_id is not None
+                    and int(by_user_raw) == int(current_user_id)
+                )
             except Exception:
                 pass
 
@@ -294,7 +302,7 @@ def erp_drawing_workbench_detail(order_id):
     assignee_names = []
     for uid in draw_assignee_ids:
         u = db.query(User).filter(User.id == uid).first()
-        if u and u.name:
+        if u is not None and u.name is not None:
             assignee_names.append(u.name)
     assignee_text = ', '.join(assignee_names) if assignee_names else '미지정'
     next_action = _drawing_next_action_text(drawing_status, has_assignee)

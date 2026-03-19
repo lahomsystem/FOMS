@@ -276,9 +276,7 @@
                 word-break: break-word;
               }
 
-              .shipment-table .shipment-product-cell {
-                /* width/min-width/max-width → colgroup + shipment-dashboard-columns.css 에서 관리 */
-              }
+              /* .shipment-table .shipment-product-cell: width/min-width/max-width → colgroup + shipment-dashboard-columns.css 에서 관리 */
 
               .shipment-address-block {
                 max-width: 100%;
@@ -1802,6 +1800,10 @@
   </script>
   {% endif %}
 </div><!-- end erp-pro -->
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="{{ url_for('static', filename='js/shipment-image-export.js') }}"></script>
 <script src="{{ url_for('static', filename='js/shipment-dashboard-columns.js') }}"></script>
 {% endblock %}

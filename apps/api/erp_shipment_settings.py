@@ -5,12 +5,12 @@ erp.py에서 분리. 서비스는 services/erp_shipment_settings 사용.
 import datetime
 import logging
 
-from flask import Blueprint, request, jsonify, session, render_template
+from flask import Blueprint, request, jsonify, render_template, g
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from models import Order
-from apps.auth import login_required, role_required, get_user_by_id
+from apps.auth import login_required, role_required
 from services.erp_permissions import can_edit_erp, erp_edit_required
 from services.erp_shipment_settings import (
     load_erp_shipment_settings,
@@ -28,7 +28,7 @@ erp_shipment_bp = Blueprint('erp_shipment', __name__)
 def erp_shipment_settings():
     """ERP 출고 설정 페이지."""
     settings = load_erp_shipment_settings()
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    current_user = getattr(g, 'current_user', None)
     return render_template(
         'erp_shipment_settings.html',
         settings=settings,
@@ -82,7 +82,7 @@ def api_erp_shipment_settings_save():
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def api_erp_shipment_update(order_id):
     """출고 대시보드 업데이트. 시공팀은 수정 불가(조회만)."""
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    current_user = getattr(g, 'current_user', None)
     if current_user and getattr(current_user, 'team', None) == 'CONSTRUCTION':
         return jsonify({'success': False, 'message': '시공팀은 출고 데이터를 수정할 수 없습니다.'}), 403
     try:
