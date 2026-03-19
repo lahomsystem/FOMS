@@ -16,6 +16,7 @@ from services.erp_display import (
     _erp_has_media,
     _erp_alerts,
 )
+from services.erp_order_detail import attach_order_detail_payloads
 from services.erp_shipment_settings import is_order_mine_for_user
 
 
@@ -195,6 +196,7 @@ def erp_production_dashboard():
     total_orders = len(enriched)
     total_pages = (total_orders + per_page - 1) // per_page
     paginated_orders = enriched[(page - 1) * per_page : page * per_page]
+    attach_order_detail_payloads(db, paginated_orders)
 
     return render_template(
         'erp_production_dashboard.html',

@@ -18,6 +18,7 @@ from services.erp_display import (
     _erp_alerts,
     self_measurement_four_checks_done,
 )
+from services.erp_order_detail import attach_order_detail_payloads
 
 
 erp_construction_page_bp = Blueprint(
@@ -159,6 +160,7 @@ def erp_construction_dashboard():
         'measurement_d4_count': 0,
         'production_d2_count': 0,
     }
+    attach_order_detail_payloads(db, enriched)
 
     current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
     return render_template(

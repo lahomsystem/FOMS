@@ -156,9 +156,8 @@
                     <div class="collapse" id="order-detail-collapse-{{ o.id }}">
                       <div class="card card-body border-0 bg-light">
                         <div class="fw-bold mb-3 erp-order-detail-title"><i class="fas fa-info-circle"></i> 주문 상세</div>
-                        <div id="order-detail-content-{{ o.id }}" class="order-detail-content">
-                          <div class="text-muted small">로딩 중...</div>
-                        </div>
+                        <div id="order-detail-content-{{ o.id }}" class="order-detail-content"></div>
+                        <script type="application/json" id="order-detail-preload-{{ o.id }}">{{ o.detail_payload|tojson }}</script>
                       </div>
                     </div>
                   </td>

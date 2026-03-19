@@ -643,17 +643,49 @@
       }
     }
 
+    const __orderDetailPayloadCache = {};
+
+    function getPreloadedOrderDetailPayload(orderId) {
+      if (__orderDetailPayloadCache[orderId]) {
+        return __orderDetailPayloadCache[orderId];
+      }
+
+      const payloadEl = document.getElementById(`order-detail-preload-${orderId}`);
+      if (!payloadEl) {
+        return null;
+      }
+
+      try {
+        const payload = JSON.parse(payloadEl.textContent || '{}');
+        __orderDetailPayloadCache[orderId] = payload;
+        return payload;
+      } catch (e) {
+        console.warn('Order detail preload parse error:', orderId, e);
+        return null;
+      }
+    }
+
     async function loadOrderDetail(orderId) {
       const container = document.getElementById(`order-detail-content-${orderId}`);
       if (!container) return;
+      if (container.dataset.loaded === '1') return;
 
       try {
-        container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
+        const preloaded = getPreloadedOrderDetailPayload(orderId);
+        let structured = null;
+        let attachments = null;
 
-        const [structured, attachments] = await Promise.all([
-          safeJsonFetch(`/api/orders/${orderId}/structured`, { success: false, structured_data: {} }),
-          safeJsonFetch(`/api/orders/${orderId}/attachments`, { success: false, attachments: [] }),
-        ]);
+        if (preloaded && preloaded.success) {
+          structured = preloaded;
+          attachments = { success: true, attachments: preloaded.attachments || [] };
+        } else {
+          container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
+
+          [structured, attachments] = await Promise.all([
+            safeJsonFetch(`/api/orders/${orderId}/structured`, { success: false, structured_data: {} }),
+            safeJsonFetch(`/api/orders/${orderId}/attachments`, { success: false, attachments: [] }),
+          ]);
+        }
 
         const sd = (structured && structured.structured_data) || {};
         const customer = (((sd.parties || {}).customer || {}).name) || '-';
@@ -923,6 +955,7 @@
             </div>
           </div>
         `;
+        container.dataset.loaded = '1';
 
       } catch (err) {
         console.error('주문 상세 로드 실패:', err);
