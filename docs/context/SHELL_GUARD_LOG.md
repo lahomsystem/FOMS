@@ -4,7 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-12 09:39:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && grep -r "bootstrap.*5\|cdn.*bootstrap" templates/base.html 2>/dev/null | head -3` |
 | 2026-03-12 09:40:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
 | 2026-03-12 09:56:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -1` |
 | 2026-03-12 09:58:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
@@ -304,3 +303,4 @@
 | 2026-03-19 08:34:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash pop` |
 | 2026-03-19 09:14:29 | allow | `-` | `python -m py_compile apps/erp_dashboard.py` |
 | 2026-03-19 09:32:55 | allow | `-` | `python -m py_compile apps/erp_as_page.py` |
+| 2026-03-19 11:49:58 | allow | `-` | `python -m py_compile apps/erp_shipment_page.py` |

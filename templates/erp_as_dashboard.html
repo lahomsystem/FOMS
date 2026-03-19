@@ -1,5 +1,22 @@
 {% extends "layout.html" %}
 
+{% macro render_as_rich_toolbar(order_id, is_sales_delivery) -%}
+<div class="as-rich-toolbar" style="background: #f8f9fa; border-bottom: 1px solid #ced4da; padding: 2px 4px; display: flex; gap: 4px;">
+  <button type="button"
+    class="btn btn-sm p-1 as-sales-delivery-btn {{ 'btn-warning' if is_sales_delivery else 'btn-outline-warning' }}"
+    data-order-id="{{ order_id }}"
+    data-sales-delivery-active="{{ '1' if is_sales_delivery else '0' }}"
+    title="영업/전달 분류 토글 후 탭 이동"
+    style="font-size: 0.75rem; font-weight: 600;">{{ '☑' if is_sales_delivery else '☐' }} 영업/전달</button>
+  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="bold" title="굵게" style="min-width: 28px; font-weight: bold;">B</button>
+  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="foreColor" data-rich-value="red" title="빨간색" style="min-width: 28px; color: red; font-weight: bold;">A</button>
+  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="foreColor" data-rich-value="blue" title="파란색" style="min-width: 28px; color: blue; font-weight: bold;">A</button>
+  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="clear-format" title="서식 초기화" style="min-width: 28px; color: black;">
+    <i class="fas fa-eraser"></i>
+  </button>
+</div>
+{%- endmacro %}
+
 {% block content %}
 <style>
   /* AS 방문일이 정해진 주문 셀: 옅은 연분홍 파스텔 */
@@ -92,6 +109,13 @@
   .as-rich-editor:focus-within .as-rich-toolbar {
     display: flex !important;
   }
+
+  mark.as-search-highlight {
+    background-color: #fff3a0;
+    color: inherit;
+    padding: 0 1px;
+    border-radius: 2px;
+  }
 </style>
 <div class="erp-pro">
   <!-- Modern Header -->
@@ -122,10 +146,11 @@
     <div class="erp-as-top-tabs border-bottom mb-3">
       <ul class="nav nav-tabs nav-fill border-bottom-0">
         <li class="nav-item">
-          <a class="nav-link {{ 'active' if as_tab == 'all' else '' }}"
-            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='all', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
-            title="전체">
-            <i class="fas fa-list text-secondary fs-5"></i>
+          <a class="nav-link {{ 'active' if as_tab == 'sales_delivery' else '' }}"
+            href="{{ url_for('erp_as_page.erp_as_dashboard', tab='sales_delivery', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+            title="영업/택배">
+            <i class="fas fa-truck text-secondary fs-5"></i>
+            <span class="ms-1">영업/택배</span>
           </a>
         </li>
         <li class="nav-item">
@@ -146,7 +171,11 @@
     </div>
     <div class="erp-pro-card__header erp-pro-card__header--filter pt-0">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
+        <input type="hidden" name="tab" value="{{ as_tab or 'incomplete' }}">
         <input type="hidden" name="sort_dir" value="{{ sort_dir or 'desc' }}">
+        {% if erp_mine_only %}
+        <input type="hidden" name="mine" value="1">
+        {% endif %}
         <div class="erp-pro-filter-group">
           <label class="erp-pro-filter-label">AS 상태</label>
           <select class="erp-pro-select" name="status">
@@ -157,7 +186,7 @@
         </div>
         <div class="erp-pro-filter-group">
           <label class="erp-pro-filter-label">검색</label>
-          <input type="text" class="erp-pro-input" name="q" value="{{ search_q or '' }}" placeholder="고객명·담당자·주소·메모 등">
+          <input type="text" class="erp-pro-input" name="q" value="{{ search_q or '' }}" placeholder="고객명·담당자·주소·AS 내용 등">
         </div>
         <div class="erp-pro-filter-actions">
           <button class="erp-pro-btn erp-pro-btn--primary" type="submit">
@@ -166,7 +195,7 @@
           </button>
           {% if selected_date %}
           <a class="erp-pro-btn erp-pro-btn--secondary"
-            href="/erp/as?date={{ selected_date }}&status={{ status_filter }}&q={{ search_q | urlencode }}&open_map=1">
+            href="{{ url_for('erp_as_page.erp_as_dashboard', date=selected_date, tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '', open_map='1') }}">
             <i class="fas fa-map"></i>
             <span class="d-none d-sm-inline">지도</span>
           </a>
@@ -182,7 +211,7 @@
             <tr>
               <th style="width: 90px;">주문</th>
               <th style="width: 120px;" class="erp-as-sort-th">
-                <a href="?status={{ status_filter or '' }}&q={{ search_q or '' | urlencode }}&sort_dir={{ 'asc' if sort_dir == 'desc' else 'desc' }}"
+                <a href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir='asc' if sort_dir == 'desc' else 'desc', mine='1' if erp_mine_only else '') }}"
                   class="text-decoration-none text-dark" title="클릭 시 접수일 정렬 방향 변경">
                   AS 접수일 {% if sort_dir == 'desc' %}<i class="fas fa-sort-down ms-1"></i>{% else %}<i
                     class="fas fa-sort-up ms-1"></i>{% endif %}
@@ -257,17 +286,10 @@
               </td>
               <td>
                 <div class="as-rich-editor" style="border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; background: #fff;">
-                  <div class="as-rich-toolbar" style="background: #f8f9fa; border-bottom: 1px solid #ced4da; padding: 2px 4px; display: flex; gap: 4px;">
-                    <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('bold', false, null);" title="굵게" style="min-width: 28px; font-weight: bold;">B</button>
-                    <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('foreColor', false, 'red');" title="빨간색" style="min-width: 28px; color: red; font-weight: bold;">A</button>
-                    <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('foreColor', false, 'blue');" title="파란색" style="min-width: 28px; color: blue; font-weight: bold;">A</button>
-                    <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('removeFormat', false, null); document.execCommand('foreColor', false, 'black');" title="서식 초기화" style="min-width: 28px; color: black;">
-                      <i class="fas fa-eraser"></i>
-                    </button>
-                  </div>
+                  {{ render_as_rich_toolbar(r.id, r.is_sales_delivery) }}
                   <div class="erp-pro-input as-content-input" contenteditable="true" data-order-id="{{ r.id }}"
                     style="width: 100%; min-height: 60px; max-height: 250px; overflow-y: auto; padding: 8px; border: none; outline: none; white-space: pre-wrap; font-size: 14px;"
-                    data-placeholder="내용 입력...">{{ r.structured_data.get('shipment', {}).get('as_content', '') | safe if r.structured_data else '' }}</div>
+                    data-placeholder="내용 입력...">{{ r.as_content_html | safe }}</div>
                 </div>
               </td>
               <td class="erp-as-status-cell" data-order-id="{{ r.id }}">
@@ -365,18 +387,11 @@
             {% endif %}
             <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
               <span class="erp-pro-order-card__label">AS 내용</span>
-              <div class="as-rich-editor mt-1" style="border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; background: #fff; width: 100%;">
-                <div class="as-rich-toolbar" style="background: #f8f9fa; border-bottom: 1px solid #ced4da; padding: 2px 4px; display: flex; gap: 4px;">
-                  <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('bold', false, null);" title="굵게" style="min-width: 28px; font-weight: bold;">B</button>
-                  <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('foreColor', false, 'red');" title="빨간색" style="min-width: 28px; color: red; font-weight: bold;">A</button>
-                  <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('foreColor', false, 'blue');" title="파란색" style="min-width: 28px; color: blue; font-weight: bold;">A</button>
-                  <button type="button" class="btn btn-sm btn-light p-1" onmousedown="event.preventDefault(); document.execCommand('removeFormat', false, null); document.execCommand('foreColor', false, 'black');" title="서식 초기화" style="min-width: 28px; color: black;">
-                    <i class="fas fa-eraser"></i>
-                  </button>
-                </div>
+                <div class="as-rich-editor mt-1" style="border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; background: #fff; width: 100%;">
+                  {{ render_as_rich_toolbar(r.id, r.is_sales_delivery) }}
                 <div class="erp-pro-input as-content-input" contenteditable="true" data-order-id="{{ r.id }}"
                   style="width: 100%; min-height: 80px; max-height: 250px; overflow-y: auto; padding: 8px; border: none; outline: none; white-space: pre-wrap; font-size: 14px;"
-                  data-placeholder="내용 입력...">{{ r.structured_data.get('shipment', {}).get('as_content', '') | safe if r.structured_data else '' }}</div>
+                  data-placeholder="내용 입력...">{{ r.as_content_html | safe }}</div>
               </div>
             </div>
           </div>
@@ -554,6 +569,686 @@
     const toastEl = document.getElementById('saveToast');
     const toast = new bootstrap.Toast(toastEl, { delay: 2000 });
     const toastMsg = document.getElementById('toastMessage');
+    const searchQueryCompact = {{ (compact_search_q or '')|tojson }};
+    const currentAsTab = {{ (as_tab or 'incomplete')|tojson }};
+    const asContentHtmlCache = new WeakMap();
+    const asContentSaveState = new Map();
+    const dateFieldSaveState = new Map();
+
+    function normalizeAsHtmlValue(value) {
+      return String(value == null ? '' : value).trim();
+    }
+
+    function getOrderIdFromElement(el) {
+      return el && el.dataset && el.dataset.orderId ? String(el.dataset.orderId) : '';
+    }
+
+    function getAsContentInputsForOrder(orderId) {
+      if (!orderId) return [];
+      return Array.from(document.querySelectorAll(`.as-content-input[data-order-id="${orderId}"]`));
+    }
+
+    function getDateInputsForOrder(orderId, field) {
+      if (!orderId || !field) return [];
+      return Array.from(document.querySelectorAll(`.editable-date-as[data-order-id="${orderId}"][data-field="${field}"]`));
+    }
+
+    function getTableRowForOrder(orderId) {
+      return orderId ? document.querySelector(`tr[data-order-id="${orderId}"]`) : null;
+    }
+
+    function getCardForOrder(orderId) {
+      return orderId ? document.querySelector(`.erp-pro-order-card[data-order-id="${orderId}"]`) : null;
+    }
+
+    function getAsEditorContext(sourceEl) {
+      const row = sourceEl ? sourceEl.closest('tr') : null;
+      const card = sourceEl ? sourceEl.closest('.erp-pro-order-card') : null;
+      return {
+        row: row,
+        card: card,
+        contextRoot: row || card || document,
+      };
+    }
+
+    function buildAsDashboardUrl(overrides = {}) {
+      const currentParams = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams();
+      ['tab', 'focus_order', 'sort_dir', 'mine', 'status', 'q', 'date'].forEach((key) => {
+        const value = currentParams.get(key);
+        if (value) {
+          params.set(key, value);
+        }
+      });
+      Object.entries(overrides).forEach(([key, value]) => {
+        if (value == null || value === '') {
+          params.delete(key);
+        } else {
+          params.set(key, String(value));
+        }
+      });
+      params.delete('page');
+      const queryString = params.toString();
+      return queryString ? `/erp/as?${queryString}` : '/erp/as';
+    }
+
+    function getAsContentRawHtml(el) {
+      if (!el) return '';
+      return asContentHtmlCache.has(el) ? (asContentHtmlCache.get(el) || '') : (el.innerHTML || '');
+    }
+
+    function setAsContentRawHtml(el, html) {
+      if (!el) return;
+      asContentHtmlCache.set(el, html || '');
+    }
+
+    function clearAsContentHighlight(el) {
+      if (!el || !el.hasAttribute('contenteditable')) return;
+      const rawHtml = getAsContentRawHtml(el);
+      const hasHighlightMarkup = el.dataset.highlightApplied === '1' || !!el.querySelector('mark.as-search-highlight');
+      if (hasHighlightMarkup && el.innerHTML !== rawHtml) {
+        el.innerHTML = rawHtml;
+      }
+      el.dataset.highlightApplied = '0';
+    }
+
+    function prepareAsContentEditing(el) {
+      if (!el || !el.hasAttribute('contenteditable')) return;
+      if (el.dataset.highlightApplied === '1') {
+        clearAsContentHighlight(el);
+      }
+    }
+
+    function collectHighlightTextNodes(root) {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const nodes = [];
+      let absoluteStart = 0;
+      let currentNode = walker.nextNode();
+      while (currentNode) {
+        const text = currentNode.nodeValue || '';
+        const length = text.length;
+        nodes.push({
+          node: currentNode,
+          text: text,
+          start: absoluteStart,
+          end: absoluteStart + length,
+        });
+        absoluteStart += length;
+        currentNode = walker.nextNode();
+      }
+      return nodes;
+    }
+
+    function findCompactMatchesInWholeText(text, compactNeedle) {
+      const source = String(text || '');
+      if (!source || !compactNeedle) return [];
+      const compactChars = [];
+      const indexMap = [];
+      for (let i = 0; i < source.length; i += 1) {
+        const ch = source[i];
+        if (/\s/.test(ch)) continue;
+        compactChars.push(ch.toLowerCase());
+        indexMap.push(i);
+      }
+      const compactSource = compactChars.join('');
+      if (!compactSource) return [];
+      const matches = [];
+      let startAt = 0;
+      while (startAt < compactSource.length) {
+        const hit = compactSource.indexOf(compactNeedle, startAt);
+        if (hit === -1) break;
+        const start = indexMap[hit];
+        const end = indexMap[hit + compactNeedle.length - 1] + 1;
+        matches.push([start, end]);
+        startAt = hit + compactNeedle.length;
+      }
+      return matches;
+    }
+
+    function mergeHighlightRanges(ranges) {
+      if (!ranges.length) return [];
+      const sorted = ranges
+        .map(([start, end]) => [start, end])
+        .sort((a, b) => a[0] - b[0]);
+      const merged = [sorted[0]];
+      for (let i = 1; i < sorted.length; i += 1) {
+        const current = sorted[i];
+        const prev = merged[merged.length - 1];
+        if (current[0] <= prev[1]) {
+          prev[1] = Math.max(prev[1], current[1]);
+        } else {
+          merged.push(current);
+        }
+      }
+      return merged;
+    }
+
+    function replaceNodeWithHighlightRanges(textNode, text, ranges) {
+      if (!textNode || !ranges.length) return false;
+      const mergedRanges = mergeHighlightRanges(ranges);
+      const frag = document.createDocumentFragment();
+      let cursor = 0;
+      mergedRanges.forEach(([start, end]) => {
+        if (start > cursor) {
+          frag.appendChild(document.createTextNode(text.slice(cursor, start)));
+        }
+        const mark = document.createElement('mark');
+        mark.className = 'as-search-highlight';
+        mark.textContent = text.slice(start, end);
+        frag.appendChild(mark);
+        cursor = end;
+      });
+      if (cursor < text.length) {
+        frag.appendChild(document.createTextNode(text.slice(cursor)));
+      }
+      textNode.parentNode.replaceChild(frag, textNode);
+      return true;
+    }
+
+    function applyAsContentHighlight(el) {
+      if (!el || !el.hasAttribute('contenteditable')) return;
+      if (!searchQueryCompact) return;
+      if (el.offsetParent === null) return;
+      clearAsContentHighlight(el);
+      const wholeText = el.textContent || '';
+      const matchRanges = findCompactMatchesInWholeText(wholeText, searchQueryCompact);
+      if (!matchRanges.length) {
+        el.dataset.highlightApplied = '0';
+        return;
+      }
+      const textNodes = collectHighlightTextNodes(el);
+      let applied = false;
+      textNodes.forEach((item) => {
+        if (!item.text) return;
+        const localRanges = [];
+        matchRanges.forEach(([start, end]) => {
+          const overlapStart = Math.max(start, item.start);
+          const overlapEnd = Math.min(end, item.end);
+          if (overlapStart < overlapEnd) {
+            localRanges.push([overlapStart - item.start, overlapEnd - item.start]);
+          }
+        });
+        if (replaceNodeWithHighlightRanges(item.node, item.text, localRanges)) {
+          applied = true;
+        }
+      });
+      el.dataset.highlightApplied = applied ? '1' : '0';
+    }
+
+    function maybeApplyAsContentHighlight(el) {
+      if (!el || !searchQueryCompact) return;
+      if (document.activeElement === el) return;
+      if (el.offsetParent === null) return;
+      applyAsContentHighlight(el);
+    }
+
+    function getAsContentSaveState(target) {
+      const orderId = typeof target === 'string' ? target : getOrderIdFromElement(target);
+      if (!orderId) {
+        throw new Error('AS 내용 저장 대상을 찾지 못했습니다.');
+      }
+      let state = asContentSaveState.get(orderId);
+      if (!state) {
+        const firstInput = typeof target === 'string'
+          ? getAsContentInputsForOrder(orderId)[0]
+          : target;
+        const initialValue = normalizeAsHtmlValue(getAsContentRawHtml(firstInput));
+        state = {
+          savedHtml: initialValue,
+          draftHtml: initialValue,
+          saveTimeout: null,
+          pendingValue: null,
+          pendingSavePromise: null,
+          requestSeq: 0,
+        };
+        asContentSaveState.set(orderId, state);
+      }
+      return state;
+    }
+
+    function syncAsContentEditors(orderId, html, options = {}) {
+      const sourceEl = options.sourceEl || null;
+      const forceValue = normalizeAsHtmlValue(html);
+      getAsContentInputsForOrder(orderId).forEach((input) => {
+        setAsContentRawHtml(input, forceValue);
+        if (input === sourceEl) {
+          return;
+        }
+        if (document.activeElement !== input || options.forceDom === true) {
+          input.innerHTML = forceValue;
+          input.dataset.highlightApplied = '0';
+          maybeApplyAsContentHighlight(input);
+        }
+      });
+    }
+
+    function updateAsContentDraft(el, html) {
+      const orderId = getOrderIdFromElement(el);
+      if (!orderId) return;
+      const state = getAsContentSaveState(orderId);
+      const normalized = normalizeAsHtmlValue(html);
+      state.draftHtml = normalized;
+      setAsContentRawHtml(el, normalized);
+      syncAsContentEditors(orderId, normalized, { sourceEl: el });
+    }
+
+    function hasPendingAsContentChange(el) {
+      if (!el) return false;
+      const state = getAsContentSaveState(el);
+      return state.draftHtml !== state.savedHtml;
+    }
+
+    async function saveOrderFieldDirect(orderId, fieldName, newValue) {
+      const res = await fetch('/api/update_order_field', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: orderId,
+          field_name: fieldName,
+          new_value: newValue
+        })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.message || '주문 정보 저장 실패');
+      }
+      return data;
+    }
+
+    async function saveAsContent(el, options = {}) {
+      const silent = options.silent === true;
+      const isEditable = el && el.hasAttribute('contenteditable');
+      const orderId = getOrderIdFromElement(el);
+      const state = getAsContentSaveState(el);
+      if (state.saveTimeout) {
+        clearTimeout(state.saveTimeout);
+        state.saveTimeout = null;
+      }
+      const value = isEditable ? normalizeAsHtmlValue(getAsContentRawHtml(el)) : normalizeAsHtmlValue(el.value || '');
+      state.draftHtml = value;
+      if (value === state.savedHtml) {
+        if (isEditable) maybeApplyAsContentHighlight(el);
+        return { success: true, skipped: true };
+      }
+      if (state.pendingSavePromise && state.pendingValue === value) {
+        return state.pendingSavePromise;
+      }
+      const requestSeq = state.requestSeq + 1;
+      state.requestSeq = requestSeq;
+      state.pendingValue = value;
+      el.style.backgroundColor = '#fff3cd';
+      const requestPromise = fetch('/api/update_order_field', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: el.dataset.orderId,
+          field_name: 'as_content',
+          new_value: value
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (!data.success) {
+            throw new Error(data.message || 'AS 내용 저장 실패');
+          }
+          const normalizedValue = normalizeAsHtmlValue(
+            Object.prototype.hasOwnProperty.call(data, 'normalized_value') ? data.normalized_value : value
+          );
+          const isLatestResponse = requestSeq === state.requestSeq;
+          if (isLatestResponse) {
+            state.savedHtml = normalizedValue;
+            if (state.draftHtml === value || state.draftHtml === normalizedValue) {
+              state.draftHtml = normalizedValue;
+              syncAsContentEditors(orderId, normalizedValue, { forceDom: true });
+            }
+          }
+          if (isEditable && state.draftHtml === state.savedHtml) {
+            maybeApplyAsContentHighlight(el);
+          }
+          if (!silent && isLatestResponse) {
+            showFeedback('AS 내용이 저장되었습니다.');
+          }
+          return Object.assign({}, data, { normalized_value: normalizedValue });
+        })
+        .catch(err => {
+          if (isEditable) maybeApplyAsContentHighlight(el);
+          if (!silent) {
+            const msg = err && err.message ? err.message : '네트워크 오류가 발생했습니다.';
+            showFeedback('저장 실패: ' + msg, true);
+          }
+          throw err;
+        })
+        .finally(() => {
+          el.style.backgroundColor = '';
+          if (state.pendingSavePromise === requestPromise) {
+            state.pendingSavePromise = null;
+            if (state.pendingValue === value) {
+              state.pendingValue = null;
+            }
+          }
+        });
+      state.pendingSavePromise = requestPromise;
+      return requestPromise;
+    }
+
+    function scheduleAsContentSave(el) {
+      const state = getAsContentSaveState(el);
+      if (state.saveTimeout) {
+        clearTimeout(state.saveTimeout);
+      }
+      if (!hasPendingAsContentChange(el)) return;
+      state.saveTimeout = setTimeout(() => {
+        saveAsContent(el).catch(() => {});
+      }, 1800);
+    }
+
+    async function flushAsContentIfNeeded(el, options = {}) {
+      if (!el) return null;
+      const state = getAsContentSaveState(el);
+      if (state.saveTimeout) {
+        clearTimeout(state.saveTimeout);
+        state.saveTimeout = null;
+      }
+      if (!hasPendingAsContentChange(el)) {
+        if (el.hasAttribute('contenteditable')) maybeApplyAsContentHighlight(el);
+        return null;
+      }
+      return saveAsContent(el, options);
+    }
+
+    function getDateFieldSaveState(input) {
+      const key = `${input.dataset.orderId}:${input.dataset.field}`;
+      let state = dateFieldSaveState.get(key);
+      if (!state) {
+        state = {
+          savedValue: input.value || '',
+          pendingValue: null,
+          pendingSavePromise: null,
+        };
+        dateFieldSaveState.set(key, state);
+      }
+      return state;
+    }
+
+    function hasPendingDateFieldChange(input) {
+      if (!input) return false;
+      const state = getDateFieldSaveState(input);
+      return (input.value || '') !== state.savedValue;
+    }
+
+    function setSalesDeliveryButtons(orderId, isActive) {
+      document.querySelectorAll(`.as-sales-delivery-btn[data-order-id="${orderId}"]`).forEach((btn) => {
+        btn.dataset.salesDeliveryActive = isActive ? '1' : '0';
+        btn.textContent = `${isActive ? '☑' : '☐'} 영업/전달`;
+        btn.classList.toggle('btn-warning', !!isActive);
+        btn.classList.toggle('btn-outline-warning', !isActive);
+      });
+    }
+
+    function syncVisitPendingButtons(orderId, hasVisitDate) {
+      [getTableRowForOrder(orderId), getCardForOrder(orderId)].forEach((container) => {
+        if (!container) return;
+        const visitContainer = container.querySelector('.erp-as-visit-cell');
+        if (!visitContainer) return;
+        const existingBtn = visitContainer.querySelector('.as-pending-btn');
+        if (hasVisitDate && !existingBtn) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'erp-as-pending-btn as-pending-btn';
+          btn.dataset.orderId = orderId;
+          btn.title = '미결 표시';
+          btn.textContent = '미결';
+          visitContainer.appendChild(btn);
+        }
+        if (!hasVisitDate && existingBtn) {
+          existingBtn.remove();
+        }
+      });
+    }
+
+    function syncDateFieldVisuals(orderId, field, value) {
+      const hasValue = !!value;
+      getDateInputsForOrder(orderId, field).forEach((input) => {
+        const cell = input.closest('td');
+        const cardRow = input.closest('.erp-pro-order-card__row');
+        if (field === 'as_visit_date') {
+          if (cell) cell.classList.toggle('erp-as-visit-cell--set', hasValue);
+          if (cardRow) cardRow.classList.toggle('erp-as-visit-row--set', hasValue);
+        }
+        if (field === 'as_completed_date') {
+          if (cell) cell.classList.toggle('erp-as-complete-cell--set', hasValue);
+          if (cardRow) cardRow.classList.toggle('erp-as-complete-row--set', hasValue);
+        }
+      });
+      if (field === 'as_visit_date') {
+        syncVisitPendingButtons(orderId, hasValue);
+      }
+    }
+
+    function syncDateFieldInputs(orderId, field, value) {
+      const normalizedValue = value || '';
+      getDateInputsForOrder(orderId, field).forEach((input) => {
+        input.value = normalizedValue;
+        const state = getDateFieldSaveState(input);
+        state.savedValue = normalizedValue;
+        if (state.pendingValue === normalizedValue) {
+          state.pendingValue = null;
+        }
+      });
+      syncDateFieldVisuals(orderId, field, normalizedValue);
+    }
+
+    function applyOrderUiFromResponse(orderId, data = {}) {
+      const row = getTableRowForOrder(orderId);
+      const card = getCardForOrder(orderId);
+      const asPending = data.as_pending === true;
+      const status = data.status || 'AS_RECEIVED';
+      const statusLabel = data.status_label || (status === 'AS_COMPLETED' ? 'AS 완료' : 'AS 접수');
+      const badgeClass = asPending
+        ? 'erp-pro-badge erp-pro-badge--pending'
+        : (status === 'AS_COMPLETED' ? 'erp-pro-badge erp-pro-badge--success' : 'erp-pro-badge erp-pro-badge--info');
+      const badgeText = asPending ? '미결' : statusLabel;
+
+      const rowBadge = row ? row.querySelector('.erp-as-status-cell .erp-pro-badge') : null;
+      const cardBadge = card ? card.querySelector('.erp-as-status-badge') : null;
+      if (rowBadge) {
+        rowBadge.textContent = badgeText;
+        rowBadge.className = badgeClass;
+      }
+      if (cardBadge) {
+        cardBadge.textContent = badgeText;
+        cardBadge.className = `erp-pro-badge erp-as-status-badge ${badgeClass.replace('erp-pro-badge ', '')}`;
+      }
+
+      if (row) {
+        const customerTd = row.querySelector('td:nth-child(6)');
+        if (customerTd) customerTd.classList.toggle('erp-as-customer-cell--pending', asPending);
+      }
+      if (card) {
+        const customerRow = card.querySelector('.erp-pro-order-card__body .erp-pro-order-card__row');
+        if (customerRow) customerRow.classList.toggle('erp-as-customer-row--pending', asPending);
+      }
+
+      if (Object.prototype.hasOwnProperty.call(data, 'as_visit_date')) {
+        syncDateFieldVisuals(orderId, 'as_visit_date', data.as_visit_date || '');
+      }
+      if (Object.prototype.hasOwnProperty.call(data, 'as_completed_date')) {
+        syncDateFieldVisuals(orderId, 'as_completed_date', data.as_completed_date || '');
+      }
+      if (Object.prototype.hasOwnProperty.call(data, 'sales_delivery')) {
+        setSalesDeliveryButtons(orderId, data.sales_delivery === true);
+      }
+    }
+
+    async function saveDateField(input, options = {}) {
+      const silent = options.silent === true;
+      const redirectAfterComplete = options.redirectAfterComplete === true;
+      const orderId = input.dataset.orderId;
+      const fieldName = input.dataset.field;
+      const state = getDateFieldSaveState(input);
+      const value = input.value || '';
+      if (value === state.savedValue) {
+        return { success: true, skipped: true };
+      }
+      if (state.pendingSavePromise && state.pendingValue === value) {
+        return state.pendingSavePromise;
+      }
+      input.style.backgroundColor = '#fff3cd';
+      const requestPromise = fetch('/api/update_order_field', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: orderId,
+          field_name: fieldName,
+          new_value: value
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (!data.success) {
+            throw new Error(data.message || '날짜 저장 실패');
+          }
+          syncDateFieldInputs(orderId, fieldName, value);
+          applyOrderUiFromResponse(orderId, data);
+          if (!silent) {
+            showFeedback(fieldName === 'as_completed_date' ? '완료일이 저장되었습니다.' : '방문일이 저장되었습니다.');
+          }
+          if (redirectAfterComplete && fieldName === 'as_completed_date') {
+            if (value && currentAsTab === 'sales_delivery') {
+              window.location.href = buildAsDashboardUrl({
+                tab: 'completed',
+                status: 'AS_COMPLETED',
+                focus_order: orderId,
+              });
+            } else if (!value && currentAsTab === 'completed') {
+              window.location.href = buildAsDashboardUrl({
+                tab: 'incomplete',
+                status: 'AS_RECEIVED',
+                focus_order: orderId,
+              });
+            }
+          }
+          return data;
+        })
+        .catch(err => {
+          if (!silent) {
+            const msg = err && err.message ? err.message : '네트워크 오류가 발생했습니다.';
+            showFeedback('저장 실패: ' + msg, true);
+          }
+          throw err;
+        })
+        .finally(() => {
+          input.style.backgroundColor = '';
+          if (state.pendingSavePromise === requestPromise) {
+            state.pendingSavePromise = null;
+            state.pendingValue = null;
+          }
+        });
+      state.pendingValue = value;
+      state.pendingSavePromise = requestPromise;
+      return requestPromise;
+    }
+
+    async function flushDateFieldIfNeeded(input, options = {}) {
+      if (!input || !hasPendingDateFieldChange(input)) {
+        return null;
+      }
+      return saveDateField(input, options);
+    }
+
+    function syncVisibleAsContentHighlights() {
+      if (!searchQueryCompact) return;
+      document.querySelectorAll('.as-content-input[contenteditable="true"]').forEach((input) => {
+        if (input.offsetParent === null) {
+          clearAsContentHighlight(input);
+          return;
+        }
+        maybeApplyAsContentHighlight(input);
+      });
+    }
+
+      document.querySelectorAll('.as-content-input[contenteditable="true"]').forEach((input) => {
+      setAsContentRawHtml(input, input.innerHTML || '');
+      getAsContentSaveState(input);
+      input.dataset.highlightApplied = '0';
+      input.addEventListener('mousedown', function () {
+        prepareAsContentEditing(this);
+      });
+      input.addEventListener('beforeinput', function () {
+        prepareAsContentEditing(this);
+      });
+    });
+    syncVisibleAsContentHighlights();
+    let asHighlightResizeTimer = null;
+    window.addEventListener('resize', function () {
+      if (!searchQueryCompact) return;
+      if (asHighlightResizeTimer) clearTimeout(asHighlightResizeTimer);
+      asHighlightResizeTimer = setTimeout(syncVisibleAsContentHighlights, 120);
+    });
+
+    document.addEventListener('mousedown', function (e) {
+      const btn = e.target.closest('.as-rich-toolbar button');
+      if (!btn) return;
+      e.preventDefault();
+    });
+
+    document.addEventListener('click', function (e) {
+      const btn = e.target.closest('.as-rich-command-btn');
+      if (!btn) return;
+      e.preventDefault();
+      const editor = btn.closest('.as-rich-editor');
+      const input = editor ? editor.querySelector('.as-content-input[contenteditable="true"]') : null;
+      if (!input) return;
+      prepareAsContentEditing(input);
+      input.focus();
+      const command = btn.dataset.richCommand || '';
+      if (command === 'clear-format') {
+        document.execCommand('removeFormat', false, null);
+        document.execCommand('foreColor', false, 'black');
+      } else if (command) {
+        document.execCommand(command, false, btn.dataset.richValue || null);
+      }
+      updateAsContentDraft(input, input.innerHTML || '');
+      scheduleAsContentSave(input);
+    });
+
+    document.addEventListener('click', async function (e) {
+      const btn = e.target.closest('.as-sales-delivery-btn');
+      if (!btn) return;
+      e.preventDefault();
+
+      const editor = btn.closest('.as-rich-editor');
+      const input = editor ? editor.querySelector('.as-content-input[contenteditable="true"]') : null;
+      const orderId = input ? input.dataset.orderId : '';
+      if (!input || !orderId) {
+        showFeedback('영업/택배 분류 대상을 찾지 못했습니다.', true);
+        return;
+      }
+
+      const prevDisabled = btn.disabled;
+      const wasActive = btn.dataset.salesDeliveryActive === '1';
+      const context = getAsEditorContext(input);
+      const contextRoot = context.contextRoot;
+      const completedInput = contextRoot.querySelector('.editable-date-as[data-field="as_completed_date"]');
+      btn.disabled = true;
+      try {
+        await flushAsContentIfNeeded(input, { silent: true });
+        await flushDateFieldIfNeeded(completedInput, { silent: true, redirectAfterComplete: false });
+        const baseTab = completedInput && completedInput.value ? 'completed' : 'incomplete';
+        const nextActive = !wasActive;
+        const targetTab = nextActive ? (baseTab === 'completed' ? 'completed' : 'sales_delivery') : baseTab;
+        const data = await saveOrderFieldDirect(orderId, 'sales_delivery', nextActive);
+        applyOrderUiFromResponse(orderId, data);
+        window.location.href = buildAsDashboardUrl({
+          tab: targetTab,
+          status: targetTab === 'completed' ? 'AS_COMPLETED' : null,
+          focus_order: orderId,
+        });
+      } catch (err) {
+        btn.disabled = prevDisabled;
+        showFeedback(String(err?.message || err || '영업/택배 분류 중 오류가 발생했습니다.'), true);
+      }
+    });
 
     // ───────── 가까운 일정 찾기 ─────────
     (function () {
@@ -880,229 +1575,222 @@
           this.value = '';
           if (!orderId || files.length === 0) return;
           asUploadBtn.disabled = true;
+          var ok = 0;
+          try {
+            // --- Optimistic UI Start ---
+            var galleryEl = document.getElementById('erp-attachments-category-gallery');
+            if (galleryEl) {
+                const emptyText = galleryEl.querySelector('.text-muted');
+                if (emptyText && emptyText.textContent.includes('없습니다')) {
+                    const emptyPanel = emptyText.closest('.col-12');
+                    if (emptyPanel) emptyPanel.remove();
+                }
 
-          // --- Optimistic UI Start ---
-          var galleryEl = document.getElementById('erp-attachments-category-gallery');
-          if (galleryEl) {
-              const emptyText = galleryEl.querySelector('.text-muted');
-              if (emptyText && emptyText.textContent.includes('없습니다')) {
-                  const emptyPanel = emptyText.closest('.col-12');
-                  if (emptyPanel) emptyPanel.remove();
-              }
+                files.forEach((f, fi) => {
+                    const uniqueId = 'opt-ul-as-' + Date.now() + '-' + fi;
+                    f._optId = uniqueId;
+                    const name = typeof escapeHtml === 'function' ? escapeHtml(f.name) : f.name;
+                    let previewUrl = '';
+                    try {
+                      previewUrl = URL.createObjectURL(f);
+                    } catch (e) {
+                      console.warn('AS 첨부 미리보기 URL 생성 실패', e);
+                    }
+                    const previewHtml = previewUrl
+                      ? `<img src="${previewUrl}" class="rounded mb-2" style="width:100%;height:100px;object-fit:cover;filter:grayscale(80%);">`
+                      : `<div class="w-100 rounded mb-2 d-flex align-items-center justify-content-center bg-white border" style="height:100px; color:#6c757d; font-size:0.8rem;">미리보기 없음</div>`;
 
-              files.forEach((f, fi) => {
-                  const uniqueId = 'opt-ul-as-' + Date.now() + '-' + fi;
-                  f._optId = uniqueId;
-                  const name = typeof escapeHtml === 'function' ? escapeHtml(f.name) : f.name;
-                  let previewUrl = '';
-                  try { previewUrl = URL.createObjectURL(f); } catch (e) { }
-
-                  const placeholderHtml = `
+                    const placeholderHtml = `
   <div id="${uniqueId}" class="col-md-4 col-sm-6 col-12 opacity-75">
       <div class="card h-100 bg-light border-dashed">
           <div class="card-body p-2 d-flex flex-column align-items-center justify-content-center position-relative" style="height: 180px;">
-              <img src="${previewUrl}" class="rounded mb-2" style="width:100%;height:100px;object-fit:cover;filter:grayscale(80%);">
+              ${previewHtml}
               <div class="spinner-border text-primary position-absolute" style="top:50%;left:50%;margin-top:-1rem;margin-left:-1rem;" role="status"></div>
               <div class="small text-truncate w-100 text-center" title="${name}">${name}</div>
               <div class="small text-primary fw-bold mt-1 opt-pct">0%</div>
           </div>
       </div>
   </div>`;
-                  galleryEl.insertAdjacentHTML('afterbegin', placeholderHtml);
-              });
-          }
-          // --- Optimistic UI End ---
+                    galleryEl.insertAdjacentHTML('afterbegin', placeholderHtml);
+                });
+            }
+            // --- Optimistic UI End ---
 
-          if (asUploadStatus) {
-            asUploadStatus.style.display = 'block';
-            asUploadStatus.textContent = '업로드 중... (0/' + files.length + ')';
-          }
-          
-          var ok = 0;
-          var category = 'as';
-          var folder = 'orders/' + orderId + '/attachments';
+            if (asUploadStatus) {
+              asUploadStatus.style.display = 'block';
+              asUploadStatus.textContent = '업로드 중... (0/' + files.length + ')';
+            }
+            
+            var category = 'as';
+            var folder = 'orders/' + orderId + '/attachments';
+            let sessionMap = {};
 
-          let sessionMap = {};
-          try {
-              const bRes = await fetch('/api/upload/session/batch', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                      files: files.map(f => ({ filename: f.name, size: f.size })),
-                      folder: folder,
-                      category: category
-                  })
-              });
-              const bData = await bRes.json();
-              if (bData.success && bData.sessions) {
-                  for (let s of bData.sessions) s.success = true;
-                  for (let s of bData.sessions) sessionMap[s.filename] = s;
+            const fallbackFormUpload = async function (file) {
+              try {
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('category', category);
+                const res = await fetch(`/api/orders/${orderId}/attachments`, { method: 'POST', body: fd });
+                const data = await res.json();
+                return data && data.success ? { success: true } : (data || { success: false, message: '첨부 업로드 실패' });
+              } catch (err) {
+                return { success: false, message: err && err.message ? err.message : '첨부 업로드 실패' };
               }
-          } catch (e) { }
+            };
 
-          const CONCURRENCY = 10;
-          for (let start = 0; start < files.length; start += CONCURRENCY) {
-              const chunk = files.slice(start, start + CONCURRENCY);
-              const results = await Promise.all(chunk.map(async function (originalFile) {
-                  let file = originalFile;
-                  if (typeof window.compressImageFile === 'function') {
-                      try { file = await window.compressImageFile(originalFile, { quality: 0.8 }); } catch (e) { }
-                  }
+            try {
+                const bRes = await fetch('/api/upload/session/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        files: files.map(f => ({ filename: f.name, size: f.size })),
+                        folder: folder,
+                        category: category
+                    })
+                });
+                if (!bRes.ok) {
+                    throw new Error('HTTP ' + bRes.status);
+                }
+                const bData = await bRes.json();
+                if (bData.success && bData.sessions) {
+                    for (let s of bData.sessions) s.success = true;
+                    for (let s of bData.sessions) sessionMap[s.filename] = s;
+                } else {
+                    console.warn('AS 첨부 batch 세션 응답 비정상', bData);
+                }
+            } catch (e) {
+                console.warn('AS 첨부 batch 세션 생성 실패', e);
+            }
 
-                  let sess = sessionMap[file.name];
-                  if (!sess || !sess.success || !sess.upload_url) {
-                      const sessRes = await fetch('/api/upload/session', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ filename: file.name, size: file.size, folder: folder, category: category })
-                      });
-                      sess = await sessRes.json();
-                  }
+            const CONCURRENCY = 10;
+            for (let start = 0; start < files.length; start += CONCURRENCY) {
+                const chunk = files.slice(start, start + CONCURRENCY);
+                const results = await Promise.all(chunk.map(async function (originalFile) {
+                    let file = originalFile;
+                    try {
+                        if (typeof window.compressImageFile === 'function') {
+                            try {
+                                file = await window.compressImageFile(originalFile, { quality: 0.8 });
+                            } catch (e) {
+                                console.warn('AS 첨부 이미지 압축 실패, 원본으로 진행', e);
+                            }
+                        }
 
-                  const fallbackForm = async () => {
-                      const fd = new FormData();
-                      fd.append('file', file);
-                      fd.append('category', category);
-                      const res = await fetch(`/api/orders/${orderId}/attachments`, { method: 'POST', body: fd });
-                      const d = await res.json();
-                      return d.success ? { success: true } : d;
-                  };
+                        let sess = sessionMap[file.name];
+                        if (!sess || !sess.success || !sess.upload_url) {
+                            const sessRes = await fetch('/api/upload/session', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ filename: file.name, size: file.size, folder: folder, category: category })
+                            });
+                            if (!sessRes.ok) {
+                                console.warn('AS 첨부 개별 세션 생성 실패', file.name, sessRes.status);
+                                return await fallbackFormUpload(file);
+                            }
+                            sess = await sessRes.json();
+                        }
 
-                  if (!sess || !sess.upload_url) return await fallbackForm();
+                        if (!sess || !sess.upload_url) {
+                            return await fallbackFormUpload(file);
+                        }
 
-                  let putRes;
-                  try {
-                      putRes = await fetch(sess.upload_url, {
-                          method: 'PUT',
-                          headers: { 'Content-Type': file.type || 'application/octet-stream' },
-                          body: file
-                      });
-                  } catch (_) { return await fallbackForm(); }
-                  
-                  if (!putRes.ok) return await fallbackForm();
-                  
-                  const completeRes = await fetch(`/api/orders/${orderId}/attachments/complete`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ key: sess.key, filename: file.name, category: category, size: file.size })
+                        let putRes;
+                        try {
+                            putRes = await fetch(sess.upload_url, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                                body: file
+                            });
+                        } catch (err) {
+                            console.warn('AS 첨부 presigned 업로드 실패, fallback 사용', file.name, err);
+                            return await fallbackFormUpload(file);
+                        }
+                        
+                        if (!putRes.ok) {
+                            console.warn('AS 첨부 presigned 업로드 응답 비정상, fallback 사용', file.name, putRes.status);
+                            return await fallbackFormUpload(file);
+                        }
+                        
+                        const completeRes = await fetch(`/api/orders/${orderId}/attachments/complete`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key: sess.key, filename: file.name, category: category, size: file.size })
+                        });
+                        if (!completeRes.ok) {
+                            console.warn('AS 첨부 complete 처리 실패', file.name, completeRes.status);
+                            return { success: false, message: '첨부 등록 완료 처리 실패' };
+                        }
+                        return await completeRes.json();
+                    } catch (err) {
+                        console.warn('AS 첨부 업로드 실패', originalFile.name, err);
+                        return { success: false, message: err && err.message ? err.message : '업로드 실패' };
+                    }
+                }));
+
+                for (let i = 0; i < results.length; i++) {
+                    if (results[i] && results[i].success) ok++;
+                }
+                
+                const done = Math.min(start + chunk.length, files.length);
+                if (asUploadStatus) asUploadStatus.textContent = '업로드 중... (' + done + '/' + files.length + ')';
+                
+                chunk.forEach((f, index) => {
+                    const el = document.getElementById(f._optId);
+                    const result = results[index] || { success: false };
+                    if (!el) return;
+                    el.classList.remove('opacity-75');
+                    const spinner = el.querySelector('.spinner-border');
+                    if (spinner) spinner.remove();
+                    const pctSpan = el.querySelector('.opt-pct');
+                    if (pctSpan) {
+                      pctSpan.textContent = result.success ? '완료' : '실패';
+                      pctSpan.classList.toggle('text-primary', !!result.success);
+                      pctSpan.classList.toggle('text-danger', !result.success);
+                    }
+                    const card = el.querySelector('.card');
+                    if (card) {
+                      card.classList.toggle('border-danger', !result.success);
+                    }
+                    if (!result.success && result.message) {
+                      el.title = result.message;
+                    }
                   });
-                  return await completeRes.json();
-              }));
+            }
 
-              for (let i = 0; i < results.length; i++) {
-                  if (results[i] && results[i].success) ok++;
+            if (asUploadStatus) {
+              asUploadStatus.textContent = ok === files.length ? '업로드 완료.' : '업로드 완료 (' + ok + '/' + files.length + ').';
+              setTimeout(function () { asUploadStatus.style.display = 'none'; }, 2000);
+            }
+            if (ok > 0) {
+              try {
+                await refreshAsModalAttachments();
+              } catch (refreshErr) {
+                console.warn('AS 첨부 목록 새로고침 실패', refreshErr);
               }
-              
-              const done = Math.min(start + chunk.length, files.length);
-              if (asUploadStatus) asUploadStatus.textContent = '업로드 중... (' + done + '/' + files.length + ')';
-              
-              chunk.forEach(f => {
-                  const el = document.getElementById(f._optId);
-                  if (el) {
-                      const pctSpan = el.querySelector('.opt-pct');
-                      if (pctSpan) pctSpan.textContent = '완료';
-                  }
-              });
+              showFeedback('AS 사진 ' + ok + '개가 추가되었습니다.');
+            } else {
+              showFeedback('AS 사진 업로드에 실패했습니다.', true);
+            }
+          } catch (err) {
+            console.error(err);
+            if (asUploadStatus) {
+              asUploadStatus.style.display = 'block';
+              asUploadStatus.textContent = '업로드 중 오류가 발생했습니다.';
+              setTimeout(function () { asUploadStatus.style.display = 'none'; }, 2500);
+            }
+            showFeedback(err && err.message ? err.message : 'AS 사진 업로드 중 오류가 발생했습니다.', true);
+          } finally {
+            asUploadBtn.disabled = false;
           }
-
-          if (asUploadStatus) {
-            asUploadStatus.textContent = ok === files.length ? '업로드 완료.' : '업로드 완료 (' + ok + '/' + files.length + ').';
-            setTimeout(function () { asUploadStatus.style.display = 'none'; }, 2000);
-          }
-          asUploadBtn.disabled = false;
-          if (ok > 0) await refreshAsModalAttachments();
-          if (ok > 0) showFeedback('AS 사진 ' + ok + '개가 추가되었습니다.');
         });
       }
     })();
 
-    // AS 방문일 자동 저장
+    // AS 방문일/완료일 자동 저장
     document.querySelectorAll('.editable-date-as').forEach(input => {
+      getDateFieldSaveState(input);
       input.addEventListener('change', function () {
-        const orderId = this.dataset.orderId;
-        const field = this.dataset.field;
-        const value = this.value;
-
-        this.style.backgroundColor = '#fff3cd';
-
-        fetch('/api/update_order_field', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            order_id: orderId,
-            field_name: field,
-            new_value: value
-          })
-        })
-          .then(res => res.json())
-          .then(data => {
-            this.style.backgroundColor = '';
-            if (data.success) {
-              const cell = this.closest('td');
-              const cardRow = this.closest('.erp-pro-order-card__row');
-              const isVisit = (field === 'as_visit_date');
-              const isComplete = (field === 'as_completed_date');
-              if (value) {
-                if (isVisit) {
-                  if (cell) cell.classList.add('erp-as-visit-cell--set');
-                  if (cardRow) cardRow.classList.add('erp-as-visit-row--set');
-                  var container = this.closest('.erp-as-visit-cell');
-                  if (container && !container.querySelector('.as-pending-btn')) {
-                    var btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'erp-as-pending-btn as-pending-btn';
-                    btn.dataset.orderId = orderId;
-                    btn.title = '미결 표시';
-                    btn.textContent = '미결';
-                    container.appendChild(btn);
-                  }
-                } else if (isComplete) {
-                  if (cell) cell.classList.add('erp-as-complete-cell--set');
-                  if (cardRow) cardRow.classList.add('erp-as-complete-row--set');
-                }
-                if (isComplete) {
-                  const row = this.closest('tr');
-                  const card = this.closest('.erp-pro-order-card');
-                  const badge = row ? row.querySelector('.erp-pro-badge') : (card ? card.querySelector('.erp-pro-badge') : null);
-                  if (badge) {
-                    badge.textContent = 'AS 완료';
-                    badge.className = 'erp-pro-badge erp-pro-badge--success';
-                  }
-                  if (row) {
-                    const customerTd = row.querySelector('td:nth-child(6)');
-                    if (customerTd) customerTd.classList.remove('erp-as-customer-cell--pending');
-                  }
-                  if (card) {
-                    const customerRow = card.querySelector('.erp-pro-order-card__body .erp-pro-order-card__row');
-                    if (customerRow) customerRow.classList.remove('erp-as-customer-row--pending');
-                  }
-                }
-              } else {
-                if (cell) {
-                  cell.classList.remove('erp-as-visit-cell--set');
-                  cell.classList.remove('erp-as-complete-cell--set');
-                }
-                if (cardRow) {
-                  cardRow.classList.remove('erp-as-visit-row--set');
-                  cardRow.classList.remove('erp-as-complete-row--set');
-                }
-                if (isVisit) {
-                  var container = this.closest('.erp-as-visit-cell');
-                  if (container) {
-                    var pendingBtn = container.querySelector('.as-pending-btn');
-                    if (pendingBtn) pendingBtn.remove();
-                  }
-                }
-              }
-              showFeedback(isComplete ? '완료일이 저장되었습니다.' : '방문일이 저장되었습니다.');
-            } else {
-              showFeedback('저장 실패: ' + data.message, true);
-            }
-          })
-          .catch(err => {
-            this.style.backgroundColor = '';
-            showFeedback('네트워크 오류가 발생했습니다.', true);
-          });
+        saveDateField(this, { redirectAfterComplete: true }).catch(() => {});
       });
     });
 
@@ -1122,27 +1810,7 @@
         .then(function (data) {
           btn.disabled = false;
           if (data.success) {
-            var row = document.querySelector('tr td.erp-as-status-cell[data-order-id="' + orderId + '"]');
-            var card = document.querySelector('.erp-pro-order-card .erp-as-status-badge[data-order-id="' + orderId + '"]');
-            if (row) {
-              var tr = row.closest('tr');
-              var customerTd = tr.querySelector('td:nth-child(6)');
-              if (customerTd) customerTd.classList.add('erp-as-customer-cell--pending');
-              var badge = row.querySelector('.erp-pro-badge');
-              if (badge) {
-                badge.textContent = '미결';
-                badge.className = 'erp-pro-badge erp-pro-badge--pending';
-              }
-            }
-            if (card) {
-              card.textContent = '미결';
-              card.className = 'erp-pro-badge erp-as-status-badge erp-pro-badge--pending';
-              var cardEl = card.closest('.erp-pro-order-card');
-              if (cardEl) {
-                var customerRow = cardEl.querySelector('.erp-pro-order-card__body .erp-pro-order-card__row');
-                if (customerRow) customerRow.classList.add('erp-as-customer-row--pending');
-              }
-            }
+            applyOrderUiFromResponse(orderId, data);
             showFeedback('미결로 표시했습니다.');
           } else {
             showFeedback('저장 실패: ' + (data.message || ''), true);
@@ -1156,53 +1824,14 @@
 
     // AS 내용 자동 저장 (Blur 시 + 디바운스 자동 저장으로 새로고침 시에도 유지)
     document.querySelectorAll('.as-content-input').forEach(input => {
-      let originalValue = input.hasAttribute('contenteditable') ? input.innerHTML.trim() : input.value;
-      let saveTimeout = null;
-      const DEBOUNCE_MS = 1800;
-
-      function saveAsContent(el) {
-        const orderId = el.dataset.orderId;
-        const isEditable = el.hasAttribute('contenteditable');
-        const value = isEditable ? (el.innerHTML || '').trim() : (el.value || '').trim();
-        if (value === originalValue) return;
-        el.style.backgroundColor = '#fff3cd';
-        fetch('/api/update_order_field', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            order_id: orderId,
-            field_name: 'as_content',
-            new_value: value
-          })
-        })
-          .then(res => res.json())
-          .then(data => {
-            el.style.backgroundColor = '';
-            if (data.success) {
-              originalValue = value;
-              showFeedback('AS 내용이 저장되었습니다.');
-            } else {
-              showFeedback('저장 실패: ' + data.message, true);
-            }
-          })
-          .catch(err => {
-            el.style.backgroundColor = '';
-            showFeedback('네트워크 오류가 발생했습니다.', true);
-          });
-      }
-
+      getAsContentSaveState(input);
       input.addEventListener('blur', function () {
-        if (saveTimeout) clearTimeout(saveTimeout);
-        const val = this.hasAttribute('contenteditable') ? this.innerHTML.trim() : this.value;
-        if (val === originalValue) return;
-        saveAsContent(this);
+        flushAsContentIfNeeded(this).catch(() => {});
       });
 
       input.addEventListener('input', function () {
-        if (saveTimeout) clearTimeout(saveTimeout);
-        const val = this.hasAttribute('contenteditable') ? this.innerHTML.trim() : this.value;
-        if (val === originalValue) return;
-        saveTimeout = setTimeout(() => saveAsContent(this), DEBOUNCE_MS);
+        updateAsContentDraft(this, this.innerHTML || '');
+        scheduleAsContentSave(this);
       });
 
       input.addEventListener('keypress', function (e) {

@@ -5,6 +5,8 @@
 
 ## 최근 파일 편집
 
+- `commit_msg.txt` <- 1 edit(s), ~136 chars (2026-03-19 11:50:09)
+- `apps/erp_shipment_page.py` <- 1 edit(s), ~16079 chars (2026-03-19 11:49:48)
 - `commit_msg.txt` <- 1 edit(s), ~272 chars (2026-03-19 09:48:22)
 - `apps/erp_as_page.py` <- 1 edit(s), ~5844 chars (2026-03-19 09:32:48)
 - `apps/erp_as_page.py` <- 1 edit(s), ~6177 chars (2026-03-19 09:32:10)

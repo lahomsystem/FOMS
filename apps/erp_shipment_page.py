@@ -246,7 +246,7 @@ def erp_shipment_dashboard():
     if search_q and not use_range and (not req_date or req_date == today_date):
         dates_with_counts = [d for d, c in construction_counts.items() if c > 0]
         if dates_with_counts:
-            today_d = today_kst.date()
+            today_d = today_kst
             future_or_today = [
                 d for d in dates_with_counts
                 if datetime.datetime.strptime(d, '%Y-%m-%d').date() >= today_d
