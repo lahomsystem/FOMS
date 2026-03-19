@@ -2,10 +2,10 @@
 ERP 메인 대시보드 (ERP-SLIM-4)
 erp.py에서 분리: /erp/dashboard
 """
-from flask import Blueprint, render_template, request, session
+from flask import Blueprint, render_template, request, g
 from db import get_db
 from models import Order, User
-from apps.auth import login_required, get_user_by_id
+from apps.auth import login_required
 from sqlalchemy import text
 from services.erp_permissions import can_edit_erp
 from services.erp_policy import (
@@ -38,7 +38,7 @@ def erp_dashboard():
     """ERP 프로세스 대시보드(MVP)"""
     db = get_db()
     is_admin = False
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    current_user = getattr(g, 'current_user', None)
     if current_user and current_user.role == 'ADMIN':
         is_admin = True
     can_edit_erp_flag = can_edit_erp(current_user)

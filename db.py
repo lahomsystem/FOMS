@@ -1,9 +1,9 @@
 import os
+from typing import Any
 from flask import g
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.orm import scoped_session, sessionmaker, declarative_base
 
 
 def _normalize_postgres_url(url: str):
@@ -36,12 +36,13 @@ def _resolve_database_target():
                 return _normalize_postgres_url(candidate)
 
     if all([host, port, user, password, database]):
+        port_int: int | None = int(port) if port and str(port).isdigit() else None
         return URL.create(
             drivername='postgresql+psycopg2',
             username=user,
             password=password,
             host=host,
-            port=int(port) if str(port).isdigit() else port,
+            port=port_int,
             database=database,
         )
 
@@ -52,16 +53,17 @@ def _resolve_database_target():
 
 DB_URL = _resolve_database_target()
 
-engine_args = {
+engine_args: dict[str, Any] = {
     'pool_pre_ping': True,
     'echo': False,
 }
 
 if 'sqlite' not in str(DB_URL):
     engine_args.update({
-        'pool_size': 20,
-        'max_overflow': 20,
+        'pool_size': 5,       # Gunicorn 2 worker 기준 (20 → 5, 최대 커넥션 40 → 10)
+        'max_overflow': 5,    # 최대 총 커넥션: 10 (Railway 소규모 플랜 적정)
         'pool_recycle': 1800,
+        'pool_timeout': 10,   # gevent 환경: 30s 기본 대기 대신 10s 빠른 실패
     })
 
 engine = create_engine(DB_URL, **engine_args)

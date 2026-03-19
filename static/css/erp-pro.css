@@ -693,6 +693,14 @@
   white-space: nowrap;
 }
 
+/* 작업 큐 테이블 헤더 공통 스타일 (인라인 스타일 대체) */
+.erp-grid-th {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #495057;
+  background-color: #e9ecef;
+}
+
 .erp-pro-table tbody tr {
   border-bottom: 1px solid var(--erp-border-light);
   transition: background var(--erp-transition-fast);
@@ -1512,11 +1520,7 @@
 }
 
 /* ===== Dark Mode Support (future) ===== */
-@media (prefers-color-scheme: dark) {
-  .erp-pro[data-theme="auto"] {
-    /* Dark mode variables would go here */
-  }
-}
+/* @media (prefers-color-scheme: dark) 룰셋은 구현 시점에 추가 예정 (tech-debt Sprint 6) */
 
 /* ===== Utility Classes ===== */
 .erp-pro-text-primary { color: var(--erp-text-primary) !important; }
@@ -2056,9 +2060,7 @@
 }
 
 /* 필터 버튼 셀 (작업 컬럼): 옆 필터 셀과 동일한 패딩·높이, 내용만 비움 */
-.order-list-table-container .filter-buttons-cell {
-  /* display 미지정 → 일반 th와 동일한 블록 흐름, 패딩/높이는 위 .column-filter-row th 와 동일 */
-}
+/* .order-list-table-container .filter-buttons-cell 은 상위 .column-filter-row th 스타일을 그대로 상속 */
 
 .order-list-table-container .filter-buttons-cell button,
 .order-list-table-container .filter-buttons-cell a {

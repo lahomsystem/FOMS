@@ -31,7 +31,15 @@
             if (!tbody) return;
             const mainRows = Array.from(tbody.querySelectorAll('tr.measurement-row'));
             if (!mainRows.length) return;
-            // 주문 행과 그 다음 상세 행(measurement-detail-row)을 쌍으로 유지해 정렬 (상세가 아래로 가도록)
+            // data-bg / data-color(서버 렌더링 값)를 초기 색상으로 먼저 적용 (JS 정렬 전 깜빡임 방지)
+            mainRows.forEach(function (tr) {
+                const cell = tr.querySelector('td.manager-cell');
+                if (!cell) return;
+                const bg = cell.dataset.bg;
+                const color = cell.dataset.color;
+                if (bg) cell.style.setProperty('background-color', bg, 'important');
+                if (color) cell.style.setProperty('color', color, 'important');
+            });
             const pairs = mainRows.map(function (tr) {
                 const orderId = tr.dataset.orderId || '';
                 const next = tr.nextElementSibling;
@@ -102,6 +110,11 @@
                     detailRow.setAttribute('aria-hidden', 'false');
                     this.setAttribute('aria-expanded', 'true');
                     this.classList.add('is-open');
+                    // lazy-load: data-src → src 변환
+                    detailRow.querySelectorAll('img.lazy-detail-img[data-src]').forEach(function (img) {
+                        img.src = img.dataset.src;
+                        img.removeAttribute('data-src');
+                    });
                 }
             });
         });

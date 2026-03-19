@@ -1,8 +1,8 @@
 import os
 import json
+from typing import Any
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
 from flask import g
 
 def _normalize_postgres_url(url: str) -> str:
@@ -37,7 +37,7 @@ else:
     _wd_connect_args = {"options": f"-c search_path={WD_CALCULATOR_SCHEMA},public"}
 
 # SQLAlchemy 엔진 생성
-engine_args = {
+engine_args: dict[str, Any] = {
     "pool_pre_ping": True,
     "echo": False,
     "json_serializer": lambda obj: json.dumps(obj, ensure_ascii=False)

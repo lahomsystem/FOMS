@@ -7,7 +7,7 @@ if os.environ.get('SERVER_SOFTWARE', '').startswith('gunicorn') or os.environ.ge
         import gevent.monkey  # type: ignore[import-untyped]
         _ = gevent.monkey.patch_all()
         try:
-            import psycogreen.gevent
+            import psycogreen.gevent  # type: ignore[import-untyped]
             psycogreen.gevent.patch_psycopg()
             print("[INFO] psycogreen patch 적용 완료 (PostgreSQL 비동기 활성화)")
         except ImportError:
@@ -17,16 +17,14 @@ if os.environ.get('SERVER_SOFTWARE', '').startswith('gunicorn') or os.environ.ge
         pass
 
 import sys
-import warnings
 import hashlib
 import datetime
 import json
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, g, session, send_from_directory, current_app
+from flask import Flask, render_template, request, redirect, url_for, jsonify, g, session, current_app
 from flask_compress import Compress
 from whitenoise import WhiteNoise
 from werkzeug import security as _werkzeug_security
-import sys
 # Python 3.12+: hmac.new() requires digestmod=; older Werkzeug passes method as 3rd pos arg.
 # pbkdf2/scrypt는 원래 구현(pbkdf2_hmac 등)을 사용해야 하므로 위임하고, 나머지만 HMAC 패치 적용.
 if sys.version_info >= (3, 12) and hasattr(_werkzeug_security, '_hash_internal'):
@@ -43,11 +41,7 @@ if sys.version_info >= (3, 12) and hasattr(_werkzeug_security, '_hash_internal')
         return _hmac.new(key, msg, digestmod=digestmod).hexdigest(), method
     _werkzeug_security._hash_internal = _hash_internal_py312
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import or_, and_, text, func, String
-from sqlalchemy.orm.attributes import flag_modified
-import copy
-import json
-import threading
+from sqlalchemy import text
 from datetime import date, timedelta
 
 # 데이터베이스 관련 임포트
@@ -102,7 +96,10 @@ Compress(app)
 
 # 2. WhiteNoise (Fast Static File Serving & Caching)
 # Railway/Heroku 배포 시 필수 최적화
-_is_production = (os.environ.get('FLASK_ENV') == 'production')
+_is_production = (
+    os.environ.get('FLASK_ENV') == 'production'
+    or os.environ.get('RAILWAY_ENVIRONMENT') == 'production'
+)
 app.wsgi_app = WhiteNoise(
     app.wsgi_app,
     root='static/',
@@ -116,7 +113,7 @@ app.wsgi_app = WhiteNoise(
 app.secret_key = os.environ.get('SECRET_KEY')
 if not app.secret_key:
     # Development fallback (MUST set SECRET_KEY in production!)
-    if os.environ.get('FLASK_ENV') == 'production':
+    if _is_production:
         raise ValueError("SECRET_KEY environment variable must be set in production!")
     app.secret_key = 'dev-secret-key-CHANGE-IN-PRODUCTION'
     print("[WARN] Using development secret key. Set SECRET_KEY environment variable for production!")
@@ -302,7 +299,7 @@ app.register_blueprint(debug_bp)
 def internal_error(error):
     import traceback
     # Only show detailed errors in development
-    if app.debug or os.environ.get('FLASK_ENV') != 'production':
+    if app.debug or not _is_production:
         return f"<pre>500 Error: {str(error)}\n\n{traceback.format_exc()}</pre>", 500
     else:
         # Production: Log error but show generic message
@@ -428,7 +425,6 @@ app.config['TEMPLATES_AUTO_RELOAD'] = not (_is_production or _is_railway)
 # Extensions config moved to constants.py
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-from flask import Response
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB (Restore video support for Pro Plan)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 

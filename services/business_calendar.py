@@ -1,6 +1,7 @@
 import json
 import os
 import datetime
+from functools import lru_cache
 from typing import Iterable, Set, Optional
 
 # 프로젝트 루트의 data/ 폴더 (기존 data/holidays_kr_*.json 유지)
@@ -28,7 +29,7 @@ def _generate_holidays_kr(year: int) -> Set[str]:
     except Exception as e:
         raise RuntimeError("holidays 패키지가 필요합니다. requirements.txt에 포함되어야 합니다.") from e
 
-    kr = holidays.KR(years=[year])
+    kr = holidays.country_holidays('KR', years=[year])
     dates = sorted([d.isoformat() for d in kr.keys()])
 
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -39,8 +40,9 @@ def _generate_holidays_kr(year: int) -> Set[str]:
     return set(dates)
 
 
+@lru_cache(maxsize=None)
 def get_holidays_kr(year: int) -> Set[str]:
-    """공휴일(YYYY-MM-DD 문자열 집합)"""
+    """공휴일(YYYY-MM-DD 문자열 집합) — lru_cache로 프로세스 재시작 전까지 메모리 캐시 (thread-safe)."""
     loaded = _load_holidays_json(year)
     if loaded is not None:
         return loaded

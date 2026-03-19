@@ -7,8 +7,8 @@
 ### Session: 49caab9a
 - **시작**: 2026-03-19 13:37:16
 - **상태**: completed
-- **편집 파일**: `templates/partials/erp_construction_scripts.html`, `templates/partials/erp_production_scripts.html`, `templates/partials/erp_dashboard_scripts_detail_dom.html`, `templates/partials/erp_construction_filters_grid.html`, `templates/partials/erp_production_filters_grid.html`, `templates/partials/erp_dashboard_grid.html`, `apps/erp_construction_page.py`, `apps/erp_production_page.py`, `apps/erp_dashboard.py`, `services/erp_order_detail.py`
-- **종료**: 2026-03-19 15:59:33
+- **편집 파일**: `templates/erp_shipment_dashboard.html`, `static/js/erp/measurement.js`, `templates/erp_measurement_dashboard.html`, `static/css/erp-pro.css`, `services/business_calendar.py`, `apps/erp_drawing_workbench.py`, `docs/plans/2026-03-19-tech-debt-master-plan.md`, `app.py`, `apps/erp_as_page.py`, `wdcalculator_db.py`
+- **종료**: 2026-03-19 23:32:38
 
 ### Session: 9425c068
 - **시작**: 2026-03-17 12:45:58
@@ -574,3 +574,49 @@
 | 2026-03-19 16:02:25 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-19 16:02:31 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 16:03:06 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 16:03:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 16:04:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 16:14:53 | END (Claude Code) | 수정: apps/api/notifications.py, apps/erp_shipment_page.py, apps/auth.py |
+
+| 2026-03-19 16:16:05 | END (Claude Code) | 수정: apps/api/notifications.py, apps/erp_shipment_page.py, apps/auth.py |
+
+| 2026-03-19 16:20:15 | END (Claude Code) | 수정: apps/erp_shipment_page.py, apps/api/notifications.py, apps/auth.py |
+
+| 2026-03-19 16:44:20 | END (Claude Code) | 수정: apps/erp_shipment_page.py, apps/api/notifications.py, apps/auth.py |
+
+| 2026-03-19 16:54:37 | END (Claude Code) | 수정: apps/erp_shipment_page.py, apps/api/notifications.py, apps/auth.py |
+
+| 2026-03-19 17:00:22 | END (Claude Code) | 수정: apps/erp_shipment_page.py, apps/api/notifications.py, apps/auth.py |
+
+| 2026-03-19 17:00:30 | END (Claude Code) | 수정: apps/erp_shipment_page.py, apps/api/notifications.py, apps/auth.py |
+
+| 2026-03-19 17:01:20 | END (Claude Code) | 수정: apps/erp_shipment_page.py, apps/api/notifications.py, apps/auth.py |
+
+| 2026-03-19 17:01:25 | END (Claude Code) | 수정: apps/erp_shipment_page.py, apps/api/notifications.py, apps/auth.py |
+
+| 2026-03-19 17:02:30 | END (Claude Code) | 수정: apps/erp_shipment_page.py, apps/api/notifications.py, apps/auth.py |
+
+| 2026-03-19 17:13:17 | END (Claude Code) | 수정: apps/erp_shipment_page.py, apps/api/notifications.py, apps/auth.py |
+
+| 2026-03-19 22:27:27 | END (Claude Code) | 수정: db.py, app.py, apps/erp_construction_page.py, apps/erp_production_page.py, services/business_calendar.py, apps/erp_shipment_page.py, apps/api/erp_measurement.py, apps/api/erp_shipment_settings.py, apps/erp_drawing_workbench.py, apps/erp_as_page.py |
+
+| 2026-03-19 22:29:54 | END (Claude Code) | 수정: db.py, app.py, apps/erp_construction_page.py, apps/erp_production_page.py, services/business_calendar.py, apps/erp_shipment_page.py, apps/api/erp_measurement.py, apps/api/erp_shipment_settings.py, apps/erp_drawing_workbench.py, apps/erp_as_page.py |
+
+| 2026-03-19 22:42:21 | END (Claude Code) | 수정: db.py, app.py, apps/erp_construction_page.py, apps/erp_production_page.py, services/business_calendar.py, apps/erp_shipment_page.py, apps/api/erp_measurement.py, apps/api/erp_shipment_settings.py, apps/erp_drawing_workbench.py, apps/erp_as_page.py |
+
+| 2026-03-19 22:52:44 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 23:01:13 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 23:10:13 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 23:18:51 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 23:27:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 23:32:38 | END (Claude Code) | 수정: (없음) |

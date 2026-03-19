@@ -2,10 +2,10 @@
 ERP AS 대시보드 페이지 (ERP-SLIM-8)
 erp.py에서 분리: /erp/as
 """
-from flask import Blueprint, render_template, request, session, redirect, url_for
+from flask import Blueprint, render_template, request, redirect, url_for, g
 from db import get_db
 from models import Order, OrderAttachment
-from apps.auth import login_required, get_user_by_id
+from apps.auth import login_required
 from sqlalchemy import or_, and_, cast, String, func, case
 import datetime
 
@@ -204,7 +204,7 @@ def erp_as_dashboard():
     if status_filter:
         base_query = base_query.filter(Order.status == status_filter)
 
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    current_user = getattr(g, 'current_user', None)
     erp_mine_only = request.args.get('mine') == '1'
     if erp_mine_only and current_user:
         u_name = (current_user.name or '').strip()
@@ -247,7 +247,7 @@ def erp_as_dashboard():
         if (
             len(name_match_rows) == 1
             and len(filtered_preview_rows) == 1
-            and name_match_rows[0].id == filtered_preview_rows[0].id
+            and int(name_match_rows[0].id) == int(filtered_preview_rows[0].id)  # type: ignore[arg-type]
         ):
             only_order = name_match_rows[0]
             target_tab = _erp_as_tab_for_order(only_order)
@@ -311,7 +311,7 @@ def erp_as_dashboard():
     rows = query.offset((page - 1) * per_page).limit(per_page).all()
 
     for r in rows:
-        r.structured_data = _ensure_dict(r.structured_data)
+        r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
     apply_erp_display_fields_to_orders(rows)
     # AS 카테고리 첨부가 있는 주문 ID 집합 (버튼 색상: 있음=파란색, 없음=분홍 파스텔)
     order_ids = [r.id for r in rows]
