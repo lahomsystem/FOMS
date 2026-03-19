@@ -107,6 +107,18 @@ def _is_sales_delivery_search(compact_q):
     return (compact_q or '').replace('/', '') == '영업택배'
 
 
+def _sales_delivery_true_filter(sales_delivery_expr):
+    """영업/택배 체크된 주문 필터."""
+    return func.lower(cast(sales_delivery_expr, String)).in_(['true', '1', 'yes'])
+
+
+def _order_is_sales_delivery(order):
+    """주문이 영업/택배 탭 소속인지 판별."""
+    sd = _ensure_dict(getattr(order, 'structured_data', None))
+    shipment = sd.get('shipment') or {}
+    return shipment.get('sales_delivery') is True
+
+
 def _erp_order_search_filter(query, q, *, dialect_name='', use_postgres_regex=False):
     """고객명·전화·주소·내용 전체 검색 (공백 무시 + AS 내용 포함)."""
     compact_q = _compact_search_text(q)
@@ -139,6 +151,8 @@ def _erp_as_tab_for_order(order):
     """주문이 기본적으로 속해야 하는 AS 상태 탭 계산."""
     if order.status == 'AS_COMPLETED' and order.as_completed_date not in (None, ''):
         return 'completed'
+    if _order_is_sales_delivery(order):
+        return 'sales_delivery'
     return 'incomplete'
 
 
@@ -181,6 +195,7 @@ def erp_as_dashboard():
     dialect_name = ((bind.dialect.name or '') if bind and bind.dialect else '').lower()
     use_postgres = dialect_name == 'postgresql'
     sales_delivery = _sales_delivery_expr(dialect_name=dialect_name)
+    sales_delivery_true = _sales_delivery_true_filter(sales_delivery)
     customer_name_expr = _display_customer_name_expr(dialect_name=dialect_name)
 
     base_query = db.query(Order).filter(Order.active_filter())
@@ -256,11 +271,11 @@ def erp_as_dashboard():
         )
     elif tab == 'sales_delivery':
         query = _erp_as_incomplete_filter(query).filter(
-            func.lower(cast(sales_delivery, String)).in_(['true', '1', 'yes'])
+            sales_delivery_true
         )
     else:
-        # 완료 안된 건: AS 접수 또는 AS 완료이지만 완료일 미지정
-        query = _erp_as_incomplete_filter(query)
+        # 완료 안된 건(X): AS 미완료 중 영업/택배로 분류되지 않은 주문만 표시
+        query = _erp_as_incomplete_filter(query).filter(~sales_delivery_true)
 
     query = _erp_order_search_filter(
         query,

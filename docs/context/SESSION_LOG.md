@@ -4,6 +4,12 @@
 
 ## 최근 세션
 
+### Session: 49caab9a
+- **시작**: 2026-03-19 13:37:16
+- **상태**: completed
+- **편집 파일**: `scripts/_tmp_apply_selected_schedule_dates.py`, `commit_msg.txt`, `task_plan.md`, `findings.md`, `progress.md`, `services/as_content_safety.py`, `tests/test_shipment_dashboard_regression.py`, `templates/erp_shipment_dashboard.html`, `apps/erp_shipment_page.py`, `services/order_date_sync.py`
+- **종료**: 2026-03-19 14:55:39
+
 ### Session: 9425c068
 - **시작**: 2026-03-17 12:45:58
 - **상태**: completed
@@ -546,3 +552,13 @@
 | 2026-03-19 11:46:11 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-19 11:51:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 13:47:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 14:07:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 14:33:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 14:38:18 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 14:55:39 | END (Claude Code) | 수정: (없음) |

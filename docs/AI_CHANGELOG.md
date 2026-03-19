@@ -4,6 +4,10 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-19 | 세션 자동 기록 | _tmp_apply_selected_schedule_dates.py, commit_msg.txt, task_plan.md 외 2개 | 7a56f65 |
+| 2026-03-19 | 세션 자동 기록 | task_plan.md, findings.md, progress.md 외 2개 | 3647773 |
+| 2026-03-19 | 세션 자동 기록 | task_plan.md, progress.md, as_content_safety.py 외 2개 | 3647773 |
+| 2026-03-19 | 세션 자동 기록 | progress.md, task_plan.md, findings.md 외 2개 | 3647773 |
 | 2026-03-19 | 세션 자동 기록 | commit_msg.txt, erp_shipment_page.py, erp_as_page.py 외 2개 | eca82ca |
 | 2026-03-19 | 세션 자동 기록 | commit_msg.txt, erp_as_page.py, erp_dashboard.py 외 2개 | e679904 |
 | 2026-03-19 | 세션 자동 기록 | erp_as_page.py, erp_dashboard.py, commit_msg.txt 외 2개 | 336b61a |
@@ -20,7 +24,3 @@
 | 2026-03-17 | [Phase 2.1] ERP AS / Main / Production 페이지네이션 구조 적용 (Python->DB) | apps/erp_as_page.py, templates/erp_as_dashboard.html, apps/erp_dashboard.py 등 | - |
 | 2026-03-17 | [Phase 1.2] 실측 패널 자동입력 롤백 및 측정 지연시간 분석 로깅 추가 | templates/partials/erp_beta_tab.html, templates/partials/erp_beta_js.html, apps/api/erp_orders_structured.py | - |
 | 2026-03-17 | [Phase 1.1] Save 병목 및 DB Lock 제거 (psycogreen 패치, system_build_step 불필요 쿼리 통합) | app.py, requirements.txt, apps/api/erp_orders_structured.py, apps/api/orders.py, apps/auth.py | - |
-| 2026-03-17 | 세션 자동 기록 | commit_msg.txt, erp_display.py, erp_as_dashboard.html 외 2개 | c82a3fc |
-| 2026-03-16 | 세션 자동 기록 | commit_msg.txt, erp_display.py, erp_as_dashboard.html 외 2개 | 13fc566 |
-| 2026-03-15 | 세션 자동 기록 | diagnose_measurement_date_missing.py, map_snapshot.py, commit_msg.txt 외 2개 | 6c44185 |
-| 2026-03-15 | 세션 자동 기록 | map_snapshot.py, diagnose_measurement_date_missing.py, commit_msg.txt 외 2개 | 6c44185 |

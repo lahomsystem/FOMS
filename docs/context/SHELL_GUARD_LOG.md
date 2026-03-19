@@ -4,70 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-12 09:40:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
-| 2026-03-12 09:56:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -1` |
-| 2026-03-12 09:58:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
-| 2026-03-12 10:02:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
-| 2026-03-12 10:14:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -1` |
-| 2026-03-12 10:16:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
-| 2026-03-12 10:23:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -1` |
-| 2026-03-12 10:23:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
-| 2026-03-12 13:29:42 | allow | `-` | `python -c "import app; print('APP_OK')" 2>&1` |
-| 2026-03-12 13:32:23 | allow | `-` | `python -c "import app; print('APP_OK')" 2>&1 | tail -1` |
-| 2026-03-12 13:49:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; from apps.erp_shipment_page import erp_shipment_dashboard; print('OK')"` |
-| 2026-03-12 13:58:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-12 13:58:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
-| 2026-03-12 13:59:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add apps/erp_shipment_page.py; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
-| 2026-03-12 13:59:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-13 09:54:32 | allow | `-` | `find . -name "*.py" | xargs grep -l "channel" 2>/dev/null | head -20` |
-| 2026-03-13 09:56:40 | allow | `-` | `curl -s "https://developers.channel.io/docs/native-functions" -H "Accept: text/html" --max-time 15 2>&1 | head -200` |
-| 2026-03-13 09:56:43 | allow | `-` | `curl -s "https://developers.channel.io/reference/introduction" -H "Accept: text/html" --max-time 15 2>&1 | head -100` |
-| 2026-03-13 09:56:49 | allow | `-` | `curl -s "https://api.channel.io/doc/app-store" --max-time 15 -H "Accept: application/json" 2>&1 | head -50` |
-| 2026-03-13 09:56:51 | allow | `-` | `curl -s "https://app-store-api.channel.io/openapi/v3/native-functions" --max-time 15 -H "Accept: application/json" 2>&1 | head -50` |
-| 2026-03-13 09:56:58 | allow | `-` | `curl -s -L "https://app-store-api.channel.io/openapi/v3/native-functions/issueToken" --max-time 15 2>&1 | head -100 && echo "---" && curl -s -L "https://app-sto` |
-| 2026-03-13 09:56:59 | allow | `-` | `curl -s "https://developers.channel.io/docs/openapi/app-store" -A "Mozilla/5.0" --max-time 15 2>&1 | python3 -c "import sys,re; html=sys.stdin.read(); texts=re.` |
-| 2026-03-13 09:57:07 | allow | `-` | `curl -s "https://developers.channel.io/docs/openapi/app-store" -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0` |
-| 2026-03-13 09:57:08 | allow | `-` | `curl -s "https://developers.channel.io/reference/native-function-issue-token" -A "Mozilla/5.0" --max-time 15 2>&1 | head -50 && echo "====" && curl -s "https://` |
-| 2026-03-13 09:57:16 | allow | `-` | `curl -s "https://developers.channel.io/_next/data/EpIouXxZwB9d6xwJaA7wQ/docs/native-functions.json" --max-time 15 2>&1 | head -100` |
-| 2026-03-13 09:57:19 | allow | `-` | `curl -s "https://app-store-api.channel.io/general/v1/search?q=issueToken" --max-time 15 -H "Accept: application/json" 2>&1 | head -50 && echo "===" && curl -s "` |
-| 2026-03-13 09:57:28 | allow | `-` | `curl -s "https://web.archive.org/web/2024/https://developers.channel.io/docs/native-functions" --max-time 20 -A "Mozilla/5.0" 2>&1 | python3 -c " import sys, re` |
-| 2026-03-13 09:57:36 | allow | `-` | `curl -s "https://api.channel.io/app-store/v1/functions" --max-time 10 -H "Content-Type: application/json" 2>&1 | head -20` |
-| 2026-03-13 09:57:42 | allow | `-` | `curl -s "https://api.channel.io/app-store/v1/native-functions/issueToken" --max-time 10 -X POST -H "Content-Type: application/json" -d '{"method":"issueToken","` |
-| 2026-03-13 09:57:45 | allow | `-` | `pip show channeltalk 2>&1; pip show channel-io 2>&1; pip index versions channel-io 2>&1 | head -5` |
-| 2026-03-13 09:57:55 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/channel-talk-example/main/README.md" --max-time 10 2>&1 | head -100 && echo "===" && curl -s "https://raw.` |
-| 2026-03-13 09:57:58 | allow | `-` | `curl -s "https://api.github.com/search/repositories?q=channel.io+native+function&sort=stars" --max-time 10 -H "Accept: application/vnd.github.v3+json" 2>&1 | py` |
-| 2026-03-13 09:58:03 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/bezier-react/main/README.md" --max-time 10 2>&1 | head -30` |
-| 2026-03-13 09:58:21 | allow | `-` | `curl -s "https://api.github.com/orgs/channel-io/repos?per_page=50&sort=updated" --max-time 15 -H "Accept: application/vnd.github.v3+json" 2>&1 | python3 -c " im` |
-| 2026-03-13 09:58:27 | allow | `-` | `curl -s "https://api.github.com/orgs/channel-io/repos?per_page=50&sort=updated" --max-time 15 2>&1 | python3 -c " import sys,json,re raw = sys.stdin.read() # ex` |
-| 2026-03-13 09:58:36 | allow | `-` | `curl -s "https://api.github.com/orgs/channel-io/repos?per_page=50&sort=updated" --max-time 20 -o /tmp/channeltalk_repos.json && python3 /tmp/channeltalk_repos.j` |
-| 2026-03-13 09:58:42 | allow | `-` | `curl -s "https://api.github.com/orgs/channel-io/repos?per_page=50&sort=updated" --max-time 20 > /tmp/channeltalk_repos.json && echo "Downloaded" && wc -c /tmp/c` |
-| 2026-03-13 09:58:48 | allow | `-` | `python3 -c " import json with open('/tmp/channeltalk_repos.json') as f: data = json.load(f) for r in data: print(r['full_name'], '-', r.get('description','')) "` |
-| 2026-03-13 09:58:55 | allow | `-` | `curl -s "https://api.github.com/orgs/channel-io/repos?per_page=50&sort=updated" --max-time 20 > "C:/Users/USER/AppData/Local/Temp/channeltalk_repos.json" && ech` |
-| 2026-03-13 09:59:03 | allow | `-` | `python3 -c " import json with open('C:/Users/USER/AppData/Local/Temp/channeltalk_repos.json') as f: data = json.load(f) for r in data: name = r.get('full_name',` |
-| 2026-03-13 09:59:08 | allow | `-` | `cd "C:/Users/USER/AppData/Local/Temp" && python3 -c " import json with open('channeltalk_repos.json') as f: data = json.load(f) for r in data: name = r.get('ful` |
-| 2026-03-13 09:59:15 | allow | `-` | `cd /c/Users/USER/AppData/Local/Temp && ls channeltalk_repos.json && python3 -c " import json with open('channeltalk_repos.json') as f: data = json.load(f) for r` |
-| 2026-03-13 09:59:26 | allow | `-` | `curl -s "https://api.github.com/search/repositories?q=org:channel-io+native+function&sort=stars" --max-time 15 > "C:/Users/USER/AppData/Local/Temp/channeltalk_s` |
-| 2026-03-13 09:59:30 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/channel-web-sdk-loader/main/README.md" --max-time 10 2>&1 | head -80 && echo "===" && curl -s "https://raw` |
-| 2026-03-13 09:59:37 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-sdk/contents/" --max-time 10 2>&1 | head -50 && echo "===" && curl -s "https://api.github.com/search/reposi` |
-| 2026-03-13 09:59:44 | allow | `-` | `curl -s "https://api.github.com/search/code?q=issueToken+org:channel-io" --max-time 15 -H "Accept: application/vnd.github.v3+json" 2>&1 | head -80` |
-| 2026-03-13 10:00:04 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/README.md" --max-time 10 && echo "===" && curl -s "https://raw.githubusercontent.com/cha` |
-| 2026-03-13 10:00:11 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/contents/" --max-time 10 -H "Accept: application/vnd.github.v3+json" 2>&1 | grep '"name"' | head -` |
-| 2026-03-13 10:00:13 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/git/trees/main?recursive=1" --max-time 10 -H "Accept: application/vnd.github.v3+json" 2>&1 | grep ` |
-| 2026-03-13 10:00:19 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/appstore/infra/app_store_client.go" --max-time 10 2>&1` |
-| 2026-03-13 10:00:22 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/appstore/infra/dto/write_message_dto.go" --max-time 10 2>&1 && echo "===" && cu` |
-| 2026-03-13 10:00:29 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/git/trees/main?recursive=1" --max-time 10 -H "Accept: application/vnd.github.v3+json" 2>&1 | grep ` |
-| 2026-03-13 10:00:31 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/appstore/svc/app_store_svc.go" --max-time 10 2>&1 && echo "===" && curl -s "htt` |
-| 2026-03-13 10:00:39 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/auth/infra/auth_client.go" --max-time 10 2>&1 && echo "===" && curl -s "https:/` |
-| 2026-03-13 10:00:40 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/auth/svc/auth_svc.go" --max-time 10 2>&1 && echo "===" && curl -s "https://raw.` |
-| 2026-03-13 10:00:48 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/native/dto/native_function_dto.go" --max-time 10 2>&1 && echo "===" && curl -s ` |
-| 2026-03-13 10:00:49 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/auth/repo/auth_repo.go" --max-time 10 2>&1 && echo "===" && curl -s "https://ra` |
-| 2026-03-13 10:00:57 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/git/trees/main?recursive=1" --max-time 10 -H "Accept: application/vnd.github.v3+json" 2>&1 | grep ` |
-| 2026-03-13 10:00:59 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/native/dto/native_function_dto.go" --max-time 10 2>&1` |
-| 2026-03-13 10:01:03 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/http/server.go" --max-time 10 2>&1 && echo "===" && curl -s "https://raw.github` |
-| 2026-03-13 10:01:04 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/git/trees/main?recursive=1" --max-time 10 2>&1 | grep '"path"' | head -60` |
-| 2026-03-13 10:01:11 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/api/public/route/function/dto/function_dto.go" --max-time 10 2>&1 && echo "===" && curl ` |
-| 2026-03-13 10:01:13 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/git/trees/main?recursive=1" --max-time 10 2>&1 | grep '"path"' | tail -30` |
-| 2026-03-13 10:01:21 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/internal/config/config.go" --max-time 10 2>&1` |
 | 2026-03-13 10:01:23 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/wam/src/utils/wam.ts" --max-time 10 2>&1 && echo "===" && curl -s "https://raw.githubuse` |
 | 2026-03-13 10:01:33 | allow | `-` | `curl -s "https://developers.channel.io/docs/app-store-verification" -A "Mozilla/5.0" --max-time 15 2>&1 | grep -oP '"text":"[^"]{10,}"' | head -50` |
 | 2026-03-13 10:01:35 | allow | `-` | `curl -s "https://developers.channel.io/docs/app-store-authentication" -A "Mozilla/5.0" --max-time 15 2>&1 | grep -oP '"content":"[^"]{20,}"' | head -50` |
@@ -304,3 +240,67 @@
 | 2026-03-19 09:14:29 | allow | `-` | `python -m py_compile apps/erp_dashboard.py` |
 | 2026-03-19 09:32:55 | allow | `-` | `python -m py_compile apps/erp_as_page.py` |
 | 2026-03-19 11:49:58 | allow | `-` | `python -m py_compile apps/erp_shipment_page.py` |
+| 2026-03-19 13:42:22 | allow | `-` | `git blame -L 44,92 -- "apps/erp_shipment_page.py"` |
+| 2026-03-19 13:42:24 | allow | `-` | `git blame -L 84,139 -- "services/order_date_sync.py"` |
+| 2026-03-19 13:42:25 | allow | `-` | `git blame -L 858,864 -- "templates/erp_shipment_dashboard.html"` |
+| 2026-03-19 13:42:32 | allow | `-` | `git blame -L 15,18 -- "apps/api/orders.py"` |
+| 2026-03-19 13:42:34 | allow | `-` | `git blame -L 730,732 -- "apps/api/orders.py"` |
+| 2026-03-19 13:42:36 | allow | `-` | `git blame -L 217,225 -- "apps/api/erp_orders_as.py"` |
+| 2026-03-19 13:42:37 | allow | `-` | `git blame -L 858,864 -- templates/erp_shipment_dashboard.html` |
+| 2026-03-19 13:42:38 | allow | `-` | `git blame -L 56,96 -- "services/as_content_safety.py"` |
+| 2026-03-19 13:43:02 | allow | `-` | `git blame -L 166,189 -- "apps/erp_shipment_page.py"` |
+| 2026-03-19 13:43:04 | allow | `-` | `git blame -L 317,336 -- "apps/erp_shipment_page.py"` |
+| 2026-03-19 13:43:06 | allow | `-` | `git blame -L 155,161 -- "services/erp_display.py"` |
+| 2026-03-19 13:43:08 | allow | `-` | `git blame -L 289,295 -- "apps/api/erp_orders_as.py"` |
+| 2026-03-19 13:58:10 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order, OrderScheduleDate; from sqlalchemy import func; from sqlalchemy.sql import and_` |
+| 2026-03-19 13:58:21 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order, OrderScheduleDate; from sqlalchemy import func; app.app_context().push(); db=ge` |
+| 2026-03-19 13:58:30 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order, OrderScheduleDate; from sqlalchemy import func; app.app_context().push(); db=ge` |
+| 2026-03-19 13:59:30 | allow | `-` | `python -c "from models import Order; o=Order(received_date='2026-03-19', customer_name='x', phone='x', address='x', product='x'); import sys; print(type(o.sched` |
+| 2026-03-19 13:59:39 | allow | `-` | `python -c "from models import Order; from apps.api.orders import _build_order_update_response; o=Order(received_date='2026-03-19', customer_name='x', phone='x',` |
+| 2026-03-19 13:59:48 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order; from sqlalchemy import or_, func; app.app_context().push(); db=get_db(); base=d` |
+| 2026-03-19 14:01:47 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order; app.app_context().push(); db=get_db(); rows=db.query(Order).filter(Order.status` |
+| 2026-03-19 14:02:59 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order; from sqlalchemy import or_, and_, func; app.app_context().push(); db=get_db(); ` |
+| 2026-03-19 14:20:57 | allow | `-` | `pytest "tests/test_shipment_dashboard_regression.py" -q` |
+| 2026-03-19 14:23:10 | allow | `-` | `pytest "tests/test_shipment_dashboard_regression.py" -q` |
+| 2026-03-19 14:23:34 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-19 14:25:09 | allow | `-` | `python -c "from services.as_content_safety import as_content_html_to_text; print(repr(as_content_html_to_text('<div><b>경첩</b> 교체</div><div><font color=\'red\'>긴` |
+| 2026-03-19 14:25:16 | allow | `-` | `python -c "from services.as_content_safety import as_content_html_to_text; print(repr(as_content_html_to_text('<div><b>hinge</b> replace</div><div><font color=\` |
+| 2026-03-19 14:26:01 | allow | `-` | `pytest "tests/test_shipment_dashboard_regression.py" -q` |
+| 2026-03-19 14:28:34 | allow | `-` | `pytest "tests/test_shipment_dashboard_regression.py" -q` |
+| 2026-03-19 14:29:16 | allow | `-` | `pytest "tests/test_shipment_dashboard_regression.py" -q` |
+| 2026-03-19 14:30:45 | allow | `-` | `pytest tests/test_shipment_dashboard_regression.py -q` |
+| 2026-03-19 14:35:36 | allow | `-` | `python -c 'from app import app; from db import get_db; from models import Order; from sqlalchemy.orm import selectinload; import json; statuses=("AS","AS_RECEIV` |
+| 2026-03-19 14:35:51 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order; from sqlalchemy.orm import selectinload; import json; statuses=('AS','AS_RECEIV` |
+| 2026-03-19 14:36:02 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order, OrderScheduleDate; app.app_context().push(); db=get_db(); import json; statuses` |
+| 2026-03-19 14:36:09 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order, OrderScheduleDate; import json; app.app_context().push(); db=get_db(); statuses` |
+| 2026-03-19 14:36:34 | allow | `-` | `python "scripts/backup_order_schedule_dates.py"` |
+| 2026-03-19 14:36:45 | allow | `-` | `python "scripts/restore_order_schedule_dates.py" --input "backups/order_schedule_dates-20260319-143638.json" --dry-run` |
+| 2026-03-19 14:36:55 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order; import json; app.app_context().push(); db=get_db(); rows=[{'id':o.id,'status':o` |
+| 2026-03-19 14:37:08 | allow | `-` | `python "scripts/backfill_phase4_dates.py" --dry-run --order-id 1083 --verbose` |
+| 2026-03-19 14:41:26 | allow | `-` | `railway status` |
+| 2026-03-19 14:42:09 | allow | `-` | `railway run python -c "from app import app; from db import get_db; from models import Order, OrderScheduleDate; import json; app.app_context().push(); db=get_db` |
+| 2026-03-19 14:42:49 | allow | `-` | `Start-Sleep -Seconds 10` |
+| 2026-03-19 14:43:13 | allow | `-` | `railway run python "scripts/backup_order_schedule_dates.py" --output "backups/remote-production-order_schedule_dates-20260319-remote.json"` |
+| 2026-03-19 14:43:50 | allow | `-` | `Start-Sleep -Seconds 8` |
+| 2026-03-19 14:44:05 | allow | `-` | `railway run python "scripts/backfill_phase4_dates.py" --dry-run --order-id 1798 --verbose` |
+| 2026-03-19 14:44:43 | allow | `-` | `railway run python "scripts/backfill_phase4_dates.py" --verbose` |
+| 2026-03-19 14:45:22 | allow | `-` | `Start-Sleep -Seconds 10` |
+| 2026-03-19 14:45:39 | allow | `-` | `Start-Sleep -Seconds 15` |
+| 2026-03-19 14:46:03 | allow | `-` | `Start-Sleep -Seconds 20` |
+| 2026-03-19 14:46:35 | allow | `-` | `Start-Sleep -Seconds 30` |
+| 2026-03-19 14:47:16 | allow | `-` | `railway run python -c "from app import app; from db import get_db; from models import OrderScheduleDate; import json; app.app_context().push(); db=get_db(); cou` |
+| 2026-03-19 14:47:44 | allow | `-` | `railway run python -c "from app import app; from db import get_db; from models import OrderScheduleDate; from sqlalchemy import func; import json; app.app_conte` |
+| 2026-03-19 14:48:22 | allow | `-` | `railway run python -c "from app import app; from db import get_db; from models import OrderScheduleDate; from sqlalchemy import func; import json; app.app_conte` |
+| 2026-03-19 14:49:09 | allow | `-` | `Stop-Process -Id 430492` |
+| 2026-03-19 14:49:15 | allow | `-` | `railway run python "scripts/backfill_phase4_dates.py" --order-id 1798 --verbose` |
+| 2026-03-19 14:49:46 | allow | `-` | `railway run python -c "from app import app; from db import get_db; from models import Order; import json; app.app_context().push(); db=get_db(); statuses=('AS',` |
+| 2026-03-19 14:50:22 | allow | `-` | `Start-Sleep -Seconds 10` |
+| 2026-03-19 14:50:56 | allow | `-` | `railway run python "scripts/_tmp_apply_selected_schedule_dates.py" --order-ids 1776 2636 2475 2070 2364 2623 2587 2382 2186 2440 2259 2508 2487 2497 2572 2191 2` |
+| 2026-03-19 14:52:02 | allow | `-` | `Start-Sleep -Seconds 10` |
+| 2026-03-19 14:52:20 | allow | `-` | `railway run python -c "from app import app; from db import get_db; from models import OrderScheduleDate; from sqlalchemy import func; import json; app.app_conte` |
+| 2026-03-19 14:52:51 | allow | `-` | `Start-Sleep -Seconds 10` |
+| 2026-03-19 14:53:07 | allow | `-` | `railway run python -c "from app import app; from db import get_db; from models import Order, OrderScheduleDate; from sqlalchemy import func; import json; app.ap` |
+| 2026-03-19 14:53:44 | allow | `-` | `Start-Sleep -Seconds 10` |
+| 2026-03-19 14:54:08 | allow | `-` | `railway run python "scripts/restore_order_schedule_dates.py" --input "backups/remote-production-order_schedule_dates-20260319-remote.json" --dry-run` |
+| 2026-03-19 14:54:44 | allow | `-` | `Start-Sleep -Seconds 10` |
+| 2026-03-19 15:03:56 | allow | `-` | `python -m py_compile "apps/erp_as_page.py" ; python -c "import app; print('APP_OK')"` |
