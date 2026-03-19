@@ -303,13 +303,20 @@ def erp_dashboard():
             'current_quest': quest_payload,
         })
 
-    # AS 파이프라인: 'AS처리' 클릭 시 AS접수·AS처리·AS완료 모두 표시
-    AS_STAGE_GROUP = ('AS접수', 'AS처리', 'AS완료')
+    # AS 파이프라인: 'AS처리' 클릭 시 AS접수·AS처리 표시 ('AS완료'는 '완료' 타일로 이동)
+    AS_STAGE_GROUP = ('AS접수', 'AS처리')
 
     filtered = []
     for r in enriched:
         if f_stage:
-            bucket = 'AS처리' if r.get('stage') in ('AS접수', 'AS처리', 'AS완료') else r.get('stage')
+            stage_val = r.get('stage')
+            if stage_val in ('AS접수', 'AS처리'):
+                bucket = 'AS처리'
+            elif stage_val == 'AS완료':
+                bucket = '완료'
+            else:
+                bucket = stage_val
+                
             if bucket != f_stage:
                 continue
         
@@ -365,8 +372,13 @@ def erp_dashboard():
             kpis['construction_d3_count'] += 1
         if alerts_dict.get('production_d2'):
             kpis['production_d2_count'] += 1
-        # AS 파이프라인: AS접수·AS처리·AS완료 모두 'AS처리' 한 칸에 집계
-        bucket = 'AS처리' if stage in ('AS접수', 'AS처리', 'AS완료') else stage
+        # AS 파이프라인: AS접수·AS처리는 'AS처리' 한 칸에 집계, AS완료는 '완료' 한 칸에 집계
+        if stage in ('AS접수', 'AS처리'):
+            bucket = 'AS처리'
+        elif stage == 'AS완료':
+            bucket = '완료'
+        else:
+            bucket = stage
         if bucket in step_stats:
             step_stats[bucket]['count'] += 1
             if alerts_dict.get('drawing_overdue'):

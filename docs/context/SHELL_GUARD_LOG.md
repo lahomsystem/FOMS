@@ -4,10 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-12 09:24:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/orders.py templates/erp_as_dashboard.html && git status --short` |
-| 2026-03-12 09:29:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git push origin deploy && git log --oneline -3` |
-| 2026-03-12 09:29:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
-| 2026-03-12 09:29:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout deploy && git log --oneline -3` |
 | 2026-03-12 09:39:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && grep -r "bootstrap.*5\|cdn.*bootstrap" templates/base.html 2>/dev/null | head -3` |
 | 2026-03-12 09:40:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge deploy --no-ff -m "Merge branch 'deploy' into productio` |
 | 2026-03-12 09:56:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -1` |
@@ -304,3 +300,7 @@
 | 2026-03-19 08:33:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status` |
 | 2026-03-19 08:33:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --name-only` |
 | 2026-03-19 08:33:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
+| 2026-03-19 08:34:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
+| 2026-03-19 08:34:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash pop` |
+| 2026-03-19 09:14:29 | allow | `-` | `python -m py_compile apps/erp_dashboard.py` |
+| 2026-03-19 09:32:55 | allow | `-` | `python -m py_compile apps/erp_as_page.py` |
