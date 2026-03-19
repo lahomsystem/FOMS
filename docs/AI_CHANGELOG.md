@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-19 | 세션 자동 기록 | commit_msg.txt, erp_shipment_page.py, erp_as_page.py 외 2개 | eca82ca |
 | 2026-03-19 | 세션 자동 기록 | commit_msg.txt, erp_as_page.py, erp_dashboard.py 외 2개 | e679904 |
 | 2026-03-19 | 세션 자동 기록 | erp_as_page.py, erp_dashboard.py, commit_msg.txt 외 2개 | 336b61a |
 | 2026-03-19 | 세션 자동 기록 | erp_dashboard.py, commit_msg.txt, erp_beta_js.html 외 2개 | 336b61a |
@@ -23,4 +24,3 @@
 | 2026-03-16 | 세션 자동 기록 | commit_msg.txt, erp_display.py, erp_as_dashboard.html 외 2개 | 13fc566 |
 | 2026-03-15 | 세션 자동 기록 | diagnose_measurement_date_missing.py, map_snapshot.py, commit_msg.txt 외 2개 | 6c44185 |
 | 2026-03-15 | 세션 자동 기록 | map_snapshot.py, diagnose_measurement_date_missing.py, commit_msg.txt 외 2개 | 6c44185 |
-| 2026-03-15 | 세션 자동 기록 | commit_msg.txt, order_date_sync.py, map_snapshot.py 외 2개 | 6c44185 |
