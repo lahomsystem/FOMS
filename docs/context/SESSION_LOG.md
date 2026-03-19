@@ -7,8 +7,8 @@
 ### Session: 49caab9a
 - **시작**: 2026-03-19 13:37:16
 - **상태**: completed
-- **편집 파일**: `scripts/_tmp_apply_selected_schedule_dates.py`, `commit_msg.txt`, `task_plan.md`, `findings.md`, `progress.md`, `services/as_content_safety.py`, `tests/test_shipment_dashboard_regression.py`, `templates/erp_shipment_dashboard.html`, `apps/erp_shipment_page.py`, `services/order_date_sync.py`
-- **종료**: 2026-03-19 14:55:39
+- **편집 파일**: `templates/partials/erp_construction_scripts.html`, `templates/partials/erp_production_scripts.html`, `templates/partials/erp_dashboard_scripts_detail_dom.html`, `templates/partials/erp_construction_filters_grid.html`, `templates/partials/erp_production_filters_grid.html`, `templates/partials/erp_dashboard_grid.html`, `apps/erp_construction_page.py`, `apps/erp_production_page.py`, `apps/erp_dashboard.py`, `services/erp_order_detail.py`
+- **종료**: 2026-03-19 15:59:33
 
 ### Session: 9425c068
 - **시작**: 2026-03-17 12:45:58
@@ -562,3 +562,15 @@
 | 2026-03-19 14:38:18 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-19 14:55:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 15:06:11 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 15:39:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 15:59:32 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 16:00:57 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 16:02:25 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 16:02:31 | END (Claude Code) | 수정: (없음) |

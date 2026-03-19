@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-19 14:43:44
+> 생성 시각: 2026-03-19 15:58:20
 > 세션: 49caab9a
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `commit_msg.txt` <- 1 edit(s), ~257 chars (2026-03-19 14:40:49)
-- `task_plan.md` <- 3 edit(s), ~83 chars (2026-03-19 14:37:55)
-- `findings.md` <- 2 edit(s), ~272 chars (2026-03-19 14:37:48)
-- `progress.md` <- 4 edit(s), ~1084 chars (2026-03-19 14:37:37)
-- `task_plan.md` <- 4 edit(s), ~222 chars (2026-03-19 14:33:32)
-- `progress.md` <- 4 edit(s), ~1244 chars (2026-03-19 14:33:26)
-- `services/as_content_safety.py` <- 3 edit(s), ~425 chars (2026-03-19 14:29:10)
-- `tests/test_shipment_dashboard_regression.py` <- 3 edit(s), ~542 chars (2026-03-19 14:28:30)
-- `templates/erp_shipment_dashboard.html` <- 4 edit(s), ~375 chars (2026-03-19 14:23:04)
-- `apps/erp_shipment_page.py` <- 12 edit(s), ~2373 chars (2026-03-19 14:22:57)
+- `templates/partials/erp_construction_scripts.html` <- 5 edit(s), ~1292 chars (2026-03-19 15:55:52)
+- `templates/partials/erp_production_scripts.html` <- 1 edit(s), ~39 chars (2026-03-19 15:55:41)
+- `templates/partials/erp_production_scripts.html` <- 5 edit(s), ~1356 chars (2026-03-19 15:55:36)
+- `templates/partials/erp_dashboard_scripts_detail_dom.html` <- 6 edit(s), ~1527 chars (2026-03-19 15:54:20)
+- `templates/partials/erp_construction_filters_grid.html` <- 1 edit(s), ~233 chars (2026-03-19 15:52:19)
+- `templates/partials/erp_production_filters_grid.html` <- 1 edit(s), ~233 chars (2026-03-19 15:52:11)
+- `templates/partials/erp_dashboard_grid.html` <- 1 edit(s), ~233 chars (2026-03-19 15:52:05)
+- `apps/erp_construction_page.py` <- 2 edit(s), ~112 chars (2026-03-19 15:51:59)
+- `apps/erp_production_page.py` <- 2 edit(s), ~120 chars (2026-03-19 15:51:53)
+- `apps/erp_dashboard.py` <- 2 edit(s), ~120 chars (2026-03-19 15:51:47)
 
 ### 진행 중이던 작업
 (없음)

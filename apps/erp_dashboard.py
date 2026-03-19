@@ -24,6 +24,7 @@ from services.erp_display import (
     _erp_alerts,
     _erp_has_media,
 )
+from services.erp_order_detail import attach_order_detail_payloads
 from services.erp_shipment_settings import is_order_mine_for_user
 from constants import BULK_ACTION_STATUS
 
@@ -404,6 +405,7 @@ def erp_dashboard():
     total_orders = len(filtered)
     total_pages = (total_orders + per_page - 1) // per_page
     paginated_orders = filtered[(page - 1) * per_page : page * per_page]
+    attach_order_detail_payloads(db, paginated_orders)
 
     return render_template(
         'erp_dashboard.html',

@@ -4,10 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-13 10:01:23 | allow | `-` | `curl -s "https://raw.githubusercontent.com/channel-io/app-tutorial/main/wam/src/utils/wam.ts" --max-time 10 2>&1 && echo "===" && curl -s "https://raw.githubuse` |
-| 2026-03-13 10:01:33 | allow | `-` | `curl -s "https://developers.channel.io/docs/app-store-verification" -A "Mozilla/5.0" --max-time 15 2>&1 | grep -oP '"text":"[^"]{10,}"' | head -50` |
-| 2026-03-13 10:01:35 | allow | `-` | `curl -s "https://developers.channel.io/docs/app-store-authentication" -A "Mozilla/5.0" --max-time 15 2>&1 | grep -oP '"content":"[^"]{20,}"' | head -50` |
-| 2026-03-13 10:01:40 | allow | `-` | `curl -s "https://developers.channel.io/docs/app-store-verification" -A "Mozilla/5.0" --max-time 15 > "C:/Users/USER/AppData/Local/Temp/channeltalk_verification.` |
 | 2026-03-13 10:01:49 | allow | `-` | `curl -s "https://registry.npmjs.org/@channel.io/app-store-api" --max-time 10 2>&1 | head -100` |
 | 2026-03-13 10:01:57 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-store-webhook-python/contents/" --max-time 10 2>&1 | grep '"name"' && echo "===" && curl -s "https://api.gi` |
 | 2026-03-13 10:02:02 | allow | `-` | `curl -s "https://api.github.com/repos/channel-io/app-tutorial/git/trees/main?recursive=1" --max-time 10 2>&1 | grep -E '"path"' | grep -v ".gz"` |
@@ -304,3 +300,7 @@
 | 2026-03-19 14:54:08 | allow | `-` | `railway run python "scripts/restore_order_schedule_dates.py" --input "backups/remote-production-order_schedule_dates-20260319-remote.json" --dry-run` |
 | 2026-03-19 14:54:44 | allow | `-` | `Start-Sleep -Seconds 10` |
 | 2026-03-19 15:03:56 | allow | `-` | `python -m py_compile "apps/erp_as_page.py" ; python -c "import app; print('APP_OK')"` |
+| 2026-03-19 15:04:56 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-19 15:50:51 | allow | `-` | `pytest "tests/test_erp_order_detail_preload.py" -q` |
+| 2026-03-19 15:58:36 | allow | `-` | `pytest "tests/test_erp_order_detail_preload.py" -q` |
+| 2026-03-19 15:58:54 | allow | `-` | `python -c "import app; print('APP_OK')"` |

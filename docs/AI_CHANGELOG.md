@@ -4,6 +4,8 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-19 | 세션 자동 기록 | erp_construction_scripts.html, erp_production_scripts.html, erp_dashboard_scripts_detail_dom.html 외 2개 | 74f19b9 |
+| 2026-03-19 | 세션 자동 기록 | commit_msg.txt, _tmp_apply_selected_schedule_dates.py, task_plan.md 외 2개 | 74f19b9 |
 | 2026-03-19 | 세션 자동 기록 | _tmp_apply_selected_schedule_dates.py, commit_msg.txt, task_plan.md 외 2개 | 7a56f65 |
 | 2026-03-19 | 세션 자동 기록 | task_plan.md, findings.md, progress.md 외 2개 | 3647773 |
 | 2026-03-19 | 세션 자동 기록 | task_plan.md, progress.md, as_content_safety.py 외 2개 | 3647773 |
@@ -22,5 +24,3 @@
 | 2026-03-18 | 세션 자동 기록 | commit_msg.txt, erp_display.py, erp_as_dashboard.html 외 2개 | 681d2a8 |
 | 2026-03-17 | [Phase 2.2] ERP 대시보드 및 생산 대시보드 파이썬 필터를 DB 검색으로 전환 (`.limit` 복원 페이지네이션 포함) | apps/erp_dashboard.py, apps/erp_production_page.py, templates/partials/erp_production_filters_grid.html | - |
 | 2026-03-17 | [Phase 2.1] ERP AS / Main / Production 페이지네이션 구조 적용 (Python->DB) | apps/erp_as_page.py, templates/erp_as_dashboard.html, apps/erp_dashboard.py 등 | - |
-| 2026-03-17 | [Phase 1.2] 실측 패널 자동입력 롤백 및 측정 지연시간 분석 로깅 추가 | templates/partials/erp_beta_tab.html, templates/partials/erp_beta_js.html, apps/api/erp_orders_structured.py | - |
-| 2026-03-17 | [Phase 1.1] Save 병목 및 DB Lock 제거 (psycogreen 패치, system_build_step 불필요 쿼리 통합) | app.py, requirements.txt, apps/api/erp_orders_structured.py, apps/api/orders.py, apps/auth.py | - |

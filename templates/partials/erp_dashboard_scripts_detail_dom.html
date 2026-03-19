@@ -16,17 +16,49 @@
           }
         }
 
+        const __orderDetailPayloadCache = {};
+
+        function getPreloadedOrderDetailPayload(orderId) {
+          if (__orderDetailPayloadCache[orderId]) {
+            return __orderDetailPayloadCache[orderId];
+          }
+
+          const payloadEl = document.getElementById(`order-detail-preload-${orderId}`);
+          if (!payloadEl) {
+            return null;
+          }
+
+          try {
+            const payload = JSON.parse(payloadEl.textContent || '{}');
+            __orderDetailPayloadCache[orderId] = payload;
+            return payload;
+          } catch (e) {
+            console.warn('Order detail preload parse error:', orderId, e);
+            return null;
+          }
+        }
+
         async function loadOrderDetail(orderId) {
           const container = document.getElementById(`order-detail-content-${orderId}`);
           if (!container) return;
+          if (container.dataset.loaded === '1') return;
 
           try {
-            container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
+            const preloaded = getPreloadedOrderDetailPayload(orderId);
+            let structured = null;
+            let attachments = null;
 
-            const [structured, attachments] = await Promise.all([
-              safeJsonFetch(`/api/orders/${orderId}/structured`, { success: false, structured_data: {} }),
-              safeJsonFetch(`/api/orders/${orderId}/attachments`, { success: false, attachments: [] }),
-            ]);
+            if (preloaded && preloaded.success) {
+              structured = preloaded;
+              attachments = { success: true, attachments: preloaded.attachments || [] };
+            } else {
+              container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
+
+              [structured, attachments] = await Promise.all([
+                safeJsonFetch(`/api/orders/${orderId}/structured`, { success: false, structured_data: {} }),
+                safeJsonFetch(`/api/orders/${orderId}/attachments`, { success: false, attachments: [] }),
+              ]);
+            }
 
             if (!structured || !structured.success) {
               container.innerHTML = '<div class="text-warning small">상세 정보를 불러올 수 없습니다. 새로고침 후 다시 시도하세요.</div>';
@@ -550,6 +582,7 @@
             </div>
           </div>
         `;
+            container.dataset.loaded = '1';
             // 이미지 뷰어용 그룹 등록 (openDrawingGatewayImageViewer에서 사용)
             if (typeof __drawingGatewayImageGroups !== 'undefined' && window.__orderDetailImageGroups && window.__orderDetailImageGroups[orderId]) {
               (window.__orderDetailImageGroups[orderId] || []).forEach((imageFiles, idx) => {
