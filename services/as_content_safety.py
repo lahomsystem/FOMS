@@ -96,6 +96,28 @@ def sanitize_as_content_html(value):
     return ''.join(str(child) for child in root.contents).strip()
 
 
+def as_content_html_to_text(value):
+    """출고 대시보드용 AS 내용 plain text 요약."""
+    sanitized = sanitize_as_content_html(value)
+    if not sanitized:
+        return ''
+
+    soup = BeautifulSoup(sanitized, 'html.parser')
+    for br in soup.find_all('br'):
+        br.replace_with('\n')
+    for tag_name in ('div', 'p', 'li'):
+        for tag in soup.find_all(tag_name):
+            tag.insert_after('\n')
+
+    raw_text = soup.get_text('', strip=False)
+    lines = []
+    for line in raw_text.splitlines():
+        normalized = re.sub(r'\s+', ' ', line).strip()
+        if normalized:
+            lines.append(normalized)
+    return '\n'.join(lines)
+
+
 def load_structured_data_dict_or_raise(raw_value):
     """기존 structured_data를 무손실로 dict로 로드. 불가하면 예외."""
     if raw_value is None:
