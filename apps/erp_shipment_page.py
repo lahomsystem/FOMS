@@ -19,6 +19,10 @@ from services.erp_shipment_settings import (
     normalize_erp_shipment_workers,
     is_order_mine_for_user,
 )
+from services.as_content_safety import as_content_html_to_text
+
+
+AS_SHIPMENT_STATUSES = ('AS', 'AS_RECEIVED', 'AS_COMPLETED')
 
 
 erp_shipment_page_bp = Blueprint(
@@ -44,15 +48,7 @@ def _normalize_worker_name(name):
 def _get_order_construction_date(order):
     """출고 대시보드용 시공일 결정 로직."""
     date_value = None
-    if order.status in ('AS_RECEIVED', 'AS_COMPLETED'):
-        if order.scheduled_date:
-            date_value = str(order.scheduled_date)
-        elif order.as_received_date and str(order.as_received_date) != '':
-            date_value = str(order.as_received_date)
-        elif not date_value and order.as_completed_date:
-            date_value = str(order.as_completed_date)
-
-    if not date_value and order.is_erp_beta and order.structured_data:
+    if order.is_erp_beta and order.structured_data:
         sd = order.structured_data
         cons = (sd.get('schedule') or {}).get('construction') or {}
         cons_date = cons.get('date')
@@ -63,6 +59,35 @@ def _get_order_construction_date(order):
     if not date_value and order.scheduled_date:
         date_value = str(order.scheduled_date)
     return date_value
+
+
+def is_as_order(order):
+    return getattr(order, 'status', None) in AS_SHIPMENT_STATUSES
+
+
+def extract_as_visit_dates(order):
+    dates = set()
+    if getattr(order, 'schedule_dates', None) is not None:
+        for d in order.schedule_dates:
+            if d.kind == 'as_visit' and d.date:
+                dates.add(str(d.date))
+        if dates:
+            return dates
+
+    structured_data = getattr(order, 'structured_data', None)
+    if isinstance(structured_data, dict):
+        schedule = structured_data.get('schedule') or {}
+        visit = (schedule.get('as_visit') or {}).get('date') or ''
+        for d in str(visit).split(','):
+            if d.strip():
+                dates.add(d.strip())
+    return dates
+
+
+def extract_dashboard_target_dates(order):
+    if is_as_order(order):
+        return extract_as_visit_dates(order)
+    return extract_all_construction_dates(order)
 
 
 def extract_all_construction_dates(order):
@@ -170,7 +195,7 @@ def erp_shipment_dashboard():
     panel_query = base_query.filter(
         or_(
             Order.is_erp_beta == True,
-            Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
+            Order.status.in_(AS_SHIPMENT_STATUSES),
             and_(
                 Order.is_erp_beta == False,
                 Order.scheduled_date != None,
@@ -183,7 +208,10 @@ def erp_shipment_dashboard():
     panel_range_end = (today_kst + datetime.timedelta(days=14)).strftime('%Y-%m-%d')
     panel_query = panel_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
     panel_query = panel_query.filter(
-        OrderScheduleDate.kind == 'construction',
+        or_(
+            and_(Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'as_visit'),
+            and_(~Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'construction'),
+        ),
         OrderScheduleDate.date >= panel_range_start,
         OrderScheduleDate.date <= panel_range_end,
     ).distinct()
@@ -218,8 +246,8 @@ def erp_shipment_dashboard():
     assigned_workers_by_date = {}
     spec_units_by_date = {}
     for order in panel_orders:
-        all_dates = extract_all_construction_dates(order)
-        for date_value in all_dates:
+        target_dates = extract_dashboard_target_dates(order)
+        for date_value in target_dates:
             try:
                 d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
             except Exception:
@@ -228,6 +256,19 @@ def erp_shipment_dashboard():
                 continue
             key = d.strftime('%Y-%m-%d')
             construction_counts[key] = construction_counts.get(key, 0) + 1
+
+        if is_as_order(order):
+            continue
+
+        all_construction_dates = extract_all_construction_dates(order)
+        for date_value in all_construction_dates:
+            try:
+                d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
+            except Exception:
+                continue
+            if d < range_start or d > range_end:
+                continue
+            key = d.strftime('%Y-%m-%d')
 
             shipment = {}
             if order.structured_data and isinstance(order.structured_data, dict):  # type: ignore
@@ -318,7 +359,7 @@ def erp_shipment_dashboard():
     rows_query = base_query.filter(
         or_(
             Order.is_erp_beta == True,
-            Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']),
+            Order.status.in_(AS_SHIPMENT_STATUSES),
             and_(
                 Order.is_erp_beta == False,
                 Order.scheduled_date != None,
@@ -329,7 +370,12 @@ def erp_shipment_dashboard():
     
     if use_range or use_single_day:
         rows_query = rows_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
-        rows_query = rows_query.filter(OrderScheduleDate.kind == 'construction')
+        rows_query = rows_query.filter(
+            or_(
+                and_(Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'as_visit'),
+                and_(~Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'construction'),
+            )
+        )
         if use_range:
             rows_query = rows_query.filter(OrderScheduleDate.date >= date_from, OrderScheduleDate.date <= date_to)
         elif use_single_day:
@@ -354,6 +400,8 @@ def erp_shipment_dashboard():
     for r in rows:
         r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
         sd = r.structured_data
+        shipment = (sd.get('shipment') or {}) if isinstance(sd, dict) else {}
+        r.as_content_text = as_content_html_to_text(shipment.get('as_content') or '')
 
         r.is_production_approved = False
         quests = sd.get('quests') or []
@@ -394,9 +442,6 @@ def erp_shipment_dashboard():
             if w_str:
                 return w_str
         return ''
-
-    def is_as_order(order):
-        return order.status in ('AS_RECEIVED', 'AS_COMPLETED')
 
     rows.sort(key=lambda o: (
         1 if is_as_order(o) else 0,

@@ -832,7 +832,7 @@
                 {% set product_display = r.product or '-' %}
 
                 <tr data-order-id="{{ r.id }}" class="shipment-row"
-                  data-as="{{ 1 if r.status in ('AS_RECEIVED', 'AS_COMPLETED') else 0 }}"
+                  data-as="{{ 1 if r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') else 0 }}"
                   data-manager="{{ (r.manager_name or '')|e }}">
                   <td data-label="상세" style="border-right: 1px solid #e0e0e0;">
                     {% if can_edit_shipment %}
@@ -856,11 +856,9 @@
                     {{ orderer or '-' }}
                   </td>
                   <td class="cell-wrap shipment-product-cell" data-label="제품" style="border-right: 1px solid #e0e0e0;">
-                    {% if r.status in ('AS_RECEIVED', 'AS_COMPLETED') %}
-                    {% set as_content = (r.structured_data.get('shipment', {}).get('as_content', '')) if
-                    r.structured_data else '' %}
+                    {% if r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') %}
                     <div class="small bg-light-danger p-2 rounded border border-danger-subtle cell-wrap">
-                      <div style="white-space: pre-wrap;">{{ as_content if as_content else 'AS 내용 없음' }}</div>
+                      <div style="white-space: pre-wrap;">{{ r.as_content_text if r.as_content_text else 'AS 내용 없음' }}</div>
                     </div>
                     {% else %}
                     <div class="d-flex flex-column gap-1 shipment-product-list">
@@ -876,7 +874,7 @@
                     {% endif %}
                   </td>
                   <td class="cell-wrap" data-label="규격(W/300)" style="border-right: 1px solid #e0e0e0;">
-                    {% if r.status in ('AS_RECEIVED', 'AS_COMPLETED') %}
+                    {% if r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') %}
                     <span class="badge bg-danger mb-1">AS</span>
                     {% else %}
                     <div class="d-flex flex-column gap-1 shipment-spec-list">

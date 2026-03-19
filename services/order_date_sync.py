@@ -81,6 +81,26 @@ def collect_order_schedule_date_specs(order):
                                 })
                                 m_dates.add(nd)
 
+    # 1.5 AS Visit Dates
+    as_visit_dates = set()
+    if isinstance(getattr(order, 'structured_data', None), dict):
+        sd = order.structured_data
+        schedule = sd.get('schedule') or {}
+        as_visit = schedule.get('as_visit') or {}
+        visit_date = (as_visit.get('date') or '').strip() if isinstance(as_visit, dict) else ''
+        if visit_date:
+            for d in visit_date.split(','):
+                if d.strip():
+                    nd = _normalize_date_str(d.strip())
+                    if nd not in as_visit_dates:
+                        specs.append({
+                            'kind': 'as_visit',
+                            'date': nd,
+                            'source': 'structured_schedule',
+                            'item_index': None,
+                        })
+                        as_visit_dates.add(nd)
+
     # 2. Construction Dates
     c_dates = set()
     legacy_c = getattr(order, 'scheduled_date', None)
