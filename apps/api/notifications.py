@@ -8,7 +8,7 @@ import time
 import datetime as dt_mod
 from urllib.parse import quote
 
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session, g
 from sqlalchemy import or_, func
 
 from db import get_db
@@ -219,7 +219,7 @@ def api_notifications_list():
     try:
         db = get_db()
         user_id = session.get('user_id')
-        user = db.query(User).filter(User.id == user_id).first()
+        user = getattr(g, 'current_user', None)
 
         if not user:
             return jsonify({'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}), 404
@@ -287,11 +287,11 @@ def api_notifications_badge():
         if cached is not None and cached[1] > now_ts:
             return jsonify({'success': True, 'count': cached[0]})
 
-        db = get_db()
-        user = db.query(User).filter(User.id == user_id).first()
+        user = getattr(g, 'current_user', None)
         if not user:
             return jsonify({'success': True, 'count': 0})
 
+        db = get_db()
         query = db.query(Notification).filter(Notification.is_read == False)
         conds = _build_user_notification_filter(user, user_id)
 
@@ -340,7 +340,7 @@ def api_notifications_mark_all_read():
     try:
         db = get_db()
         user_id = session.get('user_id')
-        user = db.query(User).filter(User.id == user_id).first()
+        user = getattr(g, 'current_user', None)
 
         if not user:
             return jsonify({'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}), 404
@@ -373,7 +373,7 @@ def api_notifications_delete_all():
     try:
         db = get_db()
         user_id = session.get('user_id')
-        user = db.query(User).filter(User.id == user_id).first()
+        user = getattr(g, 'current_user', None)
 
         if not user:
             return jsonify({'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}), 404
@@ -437,7 +437,7 @@ def api_notifications_send():
     try:
         db = get_db()
         user_id = session.get('user_id')
-        user = db.query(User).filter(User.id == user_id).first()
+        user = getattr(g, 'current_user', None)
         if not user or user.role not in ('ADMIN', 'MANAGER'):
             return jsonify({'success': False, 'message': '권한이 없습니다.'}), 403
 

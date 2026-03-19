@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g
 from functools import wraps
 from datetime import datetime
 from sqlalchemy import text
@@ -98,7 +98,9 @@ def _normalize_next_url(raw_next):
     return fallback
 
 def login_required(f):
-    """Decorator to require login for routes"""
+    """Decorator to require login for routes.
+    g.current_user는 app.before_request(_set_current_user)에서 이미 설정됨 → 중복 DB 쿼리 제거.
+    """
     @wraps(f)
     def decorated_function(*args, **kwargs):
         user_id = session.get('user_id')
@@ -106,12 +108,8 @@ def login_required(f):
             flash('로그인이 필요합니다.', 'error')
             return redirect(url_for('auth.login', next=_build_next_param()))
 
-        try:
-            user = get_user_by_id(user_id)
-        except Exception:
-            session.clear()
-            flash('세션 확인 중 오류가 발생했습니다. 다시 로그인해주세요.', 'error')
-            return redirect(url_for('auth.login', next=_build_next_param()))
+        # g.current_user 재사용 (before_request에서 이미 DB 조회 완료)
+        user = getattr(g, 'current_user', None)
 
         if not user or not user.is_active:
             session.clear()
@@ -236,6 +234,9 @@ def switch_user(target_user_id):
     session['role'] = target.role
     log_access(f"관리자(ID:{admin_id})가 사용자로 전환: {target.username} (ID:{target.id})", admin_id)
     flash(f'{target.name}({target.username})님으로 전환되었습니다.', 'success')
+    # 시공팀 전환 시 출고 대시보드로 직접 이동 (이중 리다이렉트 방지)
+    if target.team == 'CONSTRUCTION':
+        return redirect(url_for('erp_shipment_page.erp_shipment_dashboard'))
     return redirect(request.referrer or url_for('order_pages.index'))
 
 

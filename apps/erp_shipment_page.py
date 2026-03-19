@@ -2,7 +2,7 @@
 ERP 출고 대시보드 페이지 (ERP-SLIM-7)
 erp.py에서 분리: /erp/shipment
 """
-from flask import Blueprint, render_template, request, session, redirect, url_for
+from flask import Blueprint, render_template, request, session, redirect, url_for, g
 from db import get_db
 from models import Order
 from apps.auth import login_required, get_user_by_id
@@ -154,7 +154,7 @@ def _erp_order_search_filter(query, q):
 def erp_shipment_dashboard():
     """ERP Beta - 출고 대시보드 (날짜별 시공 건수, AS 포함, 출고일지 스타일)"""
     db = get_db()
-    current_user = get_user_by_id(session.get('user_id')) if session.get('user_id') else None
+    current_user = getattr(g, 'current_user', None)
     today_kst = get_today_kst()
     today_date = today_kst.strftime('%Y-%m-%d')
     today_dt = today_kst
@@ -219,7 +219,9 @@ def erp_shipment_dashboard():
     panel_orders = panel_query.options(
         load_only(
             Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
-            Order.structured_data, Order.status, Order.is_erp_beta
+            Order.structured_data, Order.status, Order.is_erp_beta,
+            Order.customer_name, Order.manager_name, Order.phone, Order.address,
+            Order.order_number, Order.measurement_date,
         ),
         selectinload(Order.schedule_dates)
     ).order_by(Order.id.desc()).all()
@@ -355,46 +357,59 @@ def erp_shipment_dashboard():
         })
         current += datetime.timedelta(days=1)
 
-    # SQL 레벨에서 날짜 필터링 (최적화 + Limit으로 인한 누락 방지)
-    rows_query = base_query.filter(
-        or_(
-            Order.is_erp_beta == True,
-            Order.status.in_(AS_SHIPMENT_STATUSES),
-            and_(
-                Order.is_erp_beta == False,
-                Order.scheduled_date != None,
-                Order.scheduled_date != ''
-            )
-        )
-    )
-    
-    if use_range or use_single_day:
-        rows_query = rows_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
-        rows_query = rows_query.filter(
-            or_(
-                and_(Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'as_visit'),
-                and_(~Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'construction'),
-            )
-        )
-        if use_range:
-            rows_query = rows_query.filter(OrderScheduleDate.date >= date_from, OrderScheduleDate.date <= date_to)
-        elif use_single_day:
-            rows_query = rows_query.filter(OrderScheduleDate.date == selected_date)
-            
-        rows_query = rows_query.distinct()
-        has_limit = False
+    # 패널 데이터에서 rows 추출 (쿼리 2회→1회 통합: panel_orders가 이미 14일치 + mine_only 필터 적용됨)
+    _derive_from_panel = False
+    if use_single_day and panel_range_start <= selected_date <= panel_range_end:
+        _derive_from_panel = True
+    elif use_range and date_from >= panel_range_start and date_to <= panel_range_end:
+        _derive_from_panel = True
+
+    if _derive_from_panel:
+        if use_single_day:
+            rows = [o for o in panel_orders
+                    if selected_date in {str(d) for d in extract_dashboard_target_dates(o)}]
+        else:
+            rows = [o for o in panel_orders
+                    if any(date_from <= str(d) <= date_to
+                           for d in extract_dashboard_target_dates(o))]
     else:
-        has_limit = True
-
-    rows_query = rows_query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc())
-    if has_limit:
-        rows_query = rows_query.limit(500)
-    
-    rows = rows_query.all()
-
-    # 시공팀 또는 mine=1일 때만 당일 목록(rows)도 담당 주문으로 제한
-    if mine_only and current_user:
-        rows = [r for r in rows if is_order_mine_for_user(r, current_user)]
+        # Edge case: 패널 범위(14일) 밖 날짜 → 별도 쿼리 (fallback)
+        rows_query = base_query.filter(
+            or_(
+                Order.is_erp_beta == True,
+                Order.status.in_(AS_SHIPMENT_STATUSES),
+                and_(
+                    Order.is_erp_beta == False,
+                    Order.scheduled_date != None,
+                    Order.scheduled_date != ''
+                )
+            )
+        )
+        if use_range or use_single_day:
+            rows_query = rows_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
+            rows_query = rows_query.filter(
+                or_(
+                    and_(Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'as_visit'),
+                    and_(~Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'construction'),
+                )
+            )
+            if use_range:
+                rows_query = rows_query.filter(OrderScheduleDate.date >= date_from, OrderScheduleDate.date <= date_to)
+            elif use_single_day:
+                rows_query = rows_query.filter(OrderScheduleDate.date == selected_date)
+            rows_query = rows_query.distinct()
+        rows_query = rows_query.options(
+            load_only(
+                Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
+                Order.structured_data, Order.status, Order.is_erp_beta,
+                Order.customer_name, Order.manager_name, Order.phone, Order.address,
+                Order.order_number, Order.measurement_date,
+            ),
+            selectinload(Order.schedule_dates)
+        ).order_by(Order.id.desc()).limit(500)
+        rows = rows_query.all()
+        if mine_only and current_user:
+            rows = [r for r in rows if is_order_mine_for_user(r, current_user)]
     rows = rows[:300]
 
     for r in rows:
