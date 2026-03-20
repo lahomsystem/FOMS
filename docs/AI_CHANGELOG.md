@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-20 | 세션 자동 기록 | commit_msg.txt, verify_phase_b.py, backfill_erp_date_columns.py 외 2개 | cf36ceb |
 | 2026-03-20 | 세션 자동 기록 | commit_msg.txt, verify_phase_a3.py, erp_construction_page.py 외 2개 | 5e50c42 |
 | 2026-03-20 | 세션 자동 기록 | erp_dashboard.py | 6bdf36b |
 | 2026-03-20 | 세션 자동 기록 | commit_msg.txt, erp_shipment_dashboard.html, measurement.js 외 2개 | 75ef5bd |
@@ -23,4 +24,3 @@
 | 2026-03-19 | 세션 자동 기록 | progress.md, task_plan.md, findings.md 외 2개 | 3647773 |
 | 2026-03-19 | 세션 자동 기록 | commit_msg.txt, erp_shipment_page.py, erp_as_page.py 외 2개 | eca82ca |
 | 2026-03-19 | 세션 자동 기록 | commit_msg.txt, erp_as_page.py, erp_dashboard.py 외 2개 | e679904 |
-| 2026-03-19 | 세션 자동 기록 | erp_as_page.py, erp_dashboard.py, commit_msg.txt 외 2개 | 336b61a |

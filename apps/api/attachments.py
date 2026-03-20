@@ -631,3 +631,89 @@ def api_order_attachments_delete(order_id, attachment_id):
         print(f"주문 첨부 삭제 오류: {e}")
         print(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@attachments_bp.route('/search', methods=['GET'])
+@login_required
+def api_search_attachments():
+    """Phase M: 전체 첨부/멀티미디어 메타데이터 검색 API.
+    query 파라미터:
+    - q: filename 검색어
+    - category: 카테고리 (measurement, drawing, construction, as)
+    - file_type: 파일 유형 (image, video, pdf 등)
+    - order_id: 특정 주문번호만
+    - page: 페이지 번호
+    - per_page: 페이지당 개수
+    """
+    try:
+        db = get_db()
+        q = request.args.get('q', '').strip()
+        category = request.args.get('category', '').strip()
+        file_type = request.args.get('file_type', '').strip()
+        order_id_str = request.args.get('order_id', '').strip()
+        
+        page = request.args.get('page', 1, type=int)
+        if page < 1: page = 1
+        per_page = request.args.get('per_page', 50, type=int)
+        if per_page > 100: per_page = 100
+        
+        query = db.query(OrderAttachment).join(Order, OrderAttachment.order_id == Order.id)
+        
+        # 활성 주문만
+        query = query.filter(Order.status != 'DELETED', Order.deleted_at.is_(None))
+        
+        if q:
+            query = query.filter(OrderAttachment.filename.ilike(f"%{q}%"))
+        
+        if category:
+            query = query.filter(OrderAttachment.category == category)
+            
+        if file_type:
+            query = query.filter(OrderAttachment.file_type == file_type)
+            
+        if order_id_str and order_id_str.isdigit():
+            query = query.filter(OrderAttachment.order_id == int(order_id_str))
+            
+        total_count = query.count()
+        
+        attachments = query.order_by(OrderAttachment.created_at.desc()) \
+                           .offset((page - 1) * per_page) \
+                           .limit(per_page) \
+                           .all()
+                           
+        results = []
+        for att in attachments:
+            storage_key = str(att.storage_key or "")
+            thumbnail_key = str(att.thumbnail_key) if att.thumbnail_key is not None else ""
+            results.append({
+                "id": att.id,
+                "order_id": att.order_id,
+                "filename": att.filename,
+                "file_type": att.file_type,
+                "category": att.category or "measurement",
+                "item_index": att.item_index,
+                "file_size": att.file_size,
+                "storage_key": storage_key,
+                "key": storage_key,
+                "thumbnail_key": thumbnail_key or None,
+                "view_url": build_file_view_url(storage_key) if storage_key else "",
+                "download_url": build_file_download_url(storage_key) if storage_key else "",
+                "thumbnail_view_url": build_file_view_url(thumbnail_key) if thumbnail_key else None,
+                "created_at": att.created_at.strftime("%Y-%m-%d %H:%M:%S") if att.created_at is not None else None,
+                "user_id": att.user_id,
+            })
+            
+        return jsonify({
+            'success': True,
+            'total_count': total_count,
+            'page': page,
+            'per_page': per_page,
+            'total_pages': (total_count + per_page - 1) // per_page,
+            'attachments': results
+        })
+    except Exception as e:
+        import traceback
+        print(f"첨부 검색 오류: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
+

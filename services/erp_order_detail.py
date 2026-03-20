@@ -1,9 +1,7 @@
 """ERP 작업 큐 상세 preload payload helpers."""
 
 import logging
-from collections import defaultdict
 
-from apps.api.files import build_file_download_url, build_file_view_url
 from models import OrderAttachment
 from services.erp_display import _ensure_dict
 
@@ -33,36 +31,6 @@ def _slim_structured_data(sd: dict) -> dict:
         'site': sd.get('site', {}),
         'quests': sd.get('quests', []),
         'assignments': sd.get('assignments', {}),
-    }
-
-
-def _serialize_attachment(attachment: OrderAttachment) -> dict:
-    """OrderAttachment ORM 인스턴스를 JSON 직렬화 가능한 dict로 변환한다.
-
-    Args:
-        attachment: OrderAttachment ORM 인스턴스
-
-    Returns:
-        첨부파일 정보 dict
-    """
-    storage_key = str(attachment.storage_key or "")
-    thumbnail_key = str(attachment.thumbnail_key) if attachment.thumbnail_key is not None else ""
-    return {
-        "id": attachment.id,
-        "order_id": attachment.order_id,
-        "filename": attachment.filename,
-        "file_type": attachment.file_type,
-        "category": attachment.category or "measurement",
-        "item_index": attachment.item_index,
-        "file_size": attachment.file_size,
-        "storage_key": storage_key,
-        "key": storage_key,
-        "thumbnail_key": thumbnail_key or None,
-        "view_url": build_file_view_url(storage_key) if storage_key else "",
-        "download_url": build_file_download_url(storage_key) if storage_key else "",
-        "thumbnail_view_url": build_file_view_url(thumbnail_key) if thumbnail_key else None,
-        "created_at": attachment.created_at.strftime("%Y-%m-%d %H:%M:%S") if attachment.created_at is not None else None,
-        "user_id": attachment.user_id,
     }
 
 
@@ -105,22 +73,10 @@ def build_order_detail_payload_map(db, rows):
     if not order_ids:
         return {}
 
-    attachments_map = defaultdict(list)
-    attachments = (
-        db.query(OrderAttachment)
-        .filter(OrderAttachment.order_id.in_(order_ids))
-        .order_by(OrderAttachment.order_id.asc(), OrderAttachment.created_at.desc())
-        .all()
-    )
-
-    for attachment in attachments:
-        attachments_map[attachment.order_id].append(_serialize_attachment(attachment))
-
     return {
         order_id: {
             "success": True,
             "structured_data": _slim_structured_data(structured_map.get(order_id, {})),
-            "attachments": attachments_map.get(order_id, []),
         }
         for order_id in order_ids
     }

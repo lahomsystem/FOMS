@@ -4,10 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-15 14:28:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL = "postgresql://postgres:XMuhzNDZDeBlQStbmUQymJTGQvgIKAVq@yamanote.proxy.rlw` |
-| 2026-03-15 14:28:53 | allow | `-` | `alembic upgrade head` |
-| 2026-03-15 14:29:06 | allow | `-` | `alembic current` |
-| 2026-03-15 14:34:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
 | 2026-03-15 14:35:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c "import app; print('APP_OK')"` |
 | 2026-03-15 14:36:27 | allow | `-` | `python -c "import app; print('APP_OK')"` |
 | 2026-03-15 14:48:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
@@ -304,3 +300,7 @@
 | 2026-03-20 10:58:14 | allow | `-` | `python apply_migration.py` |
 | 2026-03-20 10:58:38 | allow | `-` | `python scripts/backfill_erp_date_columns.py` |
 | 2026-03-20 10:59:20 | allow | `-` | `python verify_phase_b.py` |
+| 2026-03-20 11:00:07 | allow | `-` | `git rm apply_migration.py check_urgent.py commit_msg.txt verify_phase_a.py verify_phase_a3.py verify_phase_b.py ; git commit --trailer "Made-with: Cursor" -m "c` |
+| 2026-03-20 11:00:26 | allow | `-` | `git rm apply_migration.py check_urgent.py verify_phase_a.py verify_phase_a3.py verify_phase_b.py ; git commit --trailer "Made-with: Cursor" -m "chore: remove te` |
+| 2026-03-20 11:05:01 | allow | `-` | `grep -rn "detail_payload.attachments" templates/` |
+| 2026-03-20 11:10:27 | allow | `-` | `python -c "import app; print('APP_OK')"` |
