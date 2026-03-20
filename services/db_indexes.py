@@ -51,3 +51,17 @@ def apply_phase2_indexes() -> None:
     except Exception as e:
         db.rollback()
         _log.warning("[AUTO-INIT] Warning: Could not create OrderScheduleDate partial indexes: %s", e, exc_info=True)
+
+def ensure_erp_date_columns():
+    """Phase B: D-day 필터용 정규화 날짜 컬럼(erp_measurement_date, erp_construction_date) 추가."""
+    db = get_db()
+    try:
+        db.execute(text('ALTER TABLE orders ADD COLUMN IF NOT EXISTS erp_measurement_date VARCHAR(10)'))
+        db.execute(text('ALTER TABLE orders ADD COLUMN IF NOT EXISTS erp_construction_date VARCHAR(10)'))
+        db.execute(text('CREATE INDEX IF NOT EXISTS ix_orders_erp_measurement_date ON orders (erp_measurement_date)'))
+        db.execute(text('CREATE INDEX IF NOT EXISTS ix_orders_erp_construction_date ON orders (erp_construction_date)'))
+        db.commit()
+        _log.info("[AUTO-INIT] erp_measurement_date and erp_construction_date columns verified.")
+    except Exception as e:
+        db.rollback()
+        _log.warning("[AUTO-INIT] Failed to add erp_date columns: %s", e)
