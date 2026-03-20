@@ -12,6 +12,7 @@ from services.erp_policy import (
     STAGE_NAME_TO_CODE,
     DEFAULT_OWNER_TEAM_BY_STAGE,
     STAGE_LABELS,
+    STAGE_SQL_FILTER_MAP,
     get_quest_template_for_stage,
     create_quest_from_template,
     get_required_approval_teams_for_stage,
@@ -82,7 +83,30 @@ def erp_dashboard():
         if conds:
             _q = _q.filter(or_(*conds))
 
-    # f_stage 필터링은 파이프라인 단계별 모두 카운트(0 표시 방지)를 위해 인메모리에서 수행합니다.
+    # --- 분기 시점: 집계용 base query 복제 (f_stage, f_urgent 적용 전) ---
+    _q_stats = _q.order_by(None)
+
+    # A-1. f_stage SQL 필터
+    if f_stage:
+        stage_col = cast(Order.structured_data['workflow']['stage'], String)
+        target_stages = STAGE_SQL_FILTER_MAP.get(f_stage, [])
+        if target_stages:
+            # target_stages 에는 ['"고객컨펌"', '"CONFIRM"'] 형태로 들어있음
+            # in_() 사용 시 그대로 넘겨준다
+            # 단, AS단계 등 여러 값이 섞일 수 있으므로 펼쳐서 in_ 적용
+            flattened = []
+            for s in target_stages:
+                flattened.append(s.strip('"\'').strip())
+            
+            # JSONB의 문자열 값과 매칭하기 위해서는 `'"값"'` 형태이거나 JSONB 타입에 맞춰야 하지만
+            # 기존 레퍼런스(erp_production_page.py) 에서는 stage_col.in_(['"고객컨펌"', '"CONFIRM"']) 처럼 사용함
+            # STAGE_SQL_FILTER_MAP에도 그렇게 되어 있으므로 그대로 사용
+            _q = _q.filter(stage_col.in_(target_stages))
+
+    # A-2. f_urgent SQL 필터
+    if f_urgent == '1':
+        urgent_col = cast(Order.structured_data['flags']['urgent'], String)
+        _q = _q.filter(urgent_col == 'true')
 
     # 순수 DB 정렬: 생성일순
     _q = _q.order_by(Order.created_at.desc())
@@ -134,22 +158,6 @@ def erp_dashboard():
 
     filtered = []
     for r in light_enriched:
-        if f_stage:
-            stage_val = r.get('stage')
-            if stage_val in ('AS접수', 'AS처리'):
-                bucket = 'AS처리'
-            elif stage_val == 'AS완료':
-                bucket = '완료'
-            else:
-                bucket = stage_val
-
-            if bucket != f_stage:
-                continue
-
-        if f_urgent == '1':
-            alerts_data = r.get('alerts')
-            if not isinstance(alerts_data, dict) or not alerts_data.get('urgent'):
-                continue
         if f_has_alert == '1':
             a = r.get('alerts')
             if not isinstance(a, dict) or not (a.get('urgent') or a.get('drawing_overdue') or a.get('measurement_d4') or a.get('construction_d3') or a.get('production_d2')):
@@ -181,33 +189,64 @@ def erp_dashboard():
         elif _req_code == 'CONSTRUCTION':
             filtered.sort(key=lambda r: r.get('construction_date') or '', reverse=True)
 
+    # --- A-0. kpis / step_stats 집계 (limit 무관하게 _q_stats에서 산출) ---
     kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0}
     step_stats = {k: {'count': 0, 'overdue': 0, 'imminent': 0} for k in [
         '주문접수', '실측', '도면', '고객컨펌', '생산', '시공', 'CS', '완료', 'AS처리'
     ]}
-    for r in light_enriched:
-        alerts = r.get('alerts')
-        alerts_dict = alerts if isinstance(alerts, dict) else {}
-        stage = r.get('stage')
-        if alerts_dict.get('urgent'):
+
+    from sqlalchemy import func, case as sql_case
+    stage_col_stats = cast(Order.structured_data['workflow']['stage'], String)
+    stage_bucket_expr = sql_case(
+        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('주문접수', [])), '주문접수'),
+        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('실측', [])), '실측'),
+        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('도면', [])), '도면'),
+        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('고객컨펌', [])), '고객컨펌'),
+        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('생산', [])), '생산'),
+        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('시공', [])), '시공'),
+        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('CS', [])), 'CS'),
+        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('완료', [])), '완료'),
+        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('AS처리', [])), 'AS처리'),
+        else_='기타'
+    )
+    
+    stats_rows = (
+        _q_stats
+        .with_entities(stage_bucket_expr.label('bucket'), func.count(Order.id).label('cnt'))
+        .group_by(stage_bucket_expr)
+        .all()
+    )
+    for row in stats_rows:
+        if row.bucket in step_stats:
+            step_stats[row.bucket]['count'] = row.cnt
+
+    # KPI 및 overdue/imminent 집계
+    kpi_rows = _q_stats.with_entities(Order.id, Order.structured_data).all()
+    for row in kpi_rows:
+        sd = _ensure_dict(row.structured_data)
+        alerts = _erp_alerts(None, sd, 0)
+        stage = _erp_get_stage(None, sd)
+        
+        if alerts.get('urgent'):
             kpis['urgent_count'] += 1
-        if alerts_dict.get('measurement_d4'):
+        if alerts.get('measurement_d4'):
             kpis['measurement_d4_count'] += 1
-        if alerts_dict.get('construction_d3'):
+        if alerts.get('construction_d3'):
             kpis['construction_d3_count'] += 1
-        if alerts_dict.get('production_d2'):
+        if alerts.get('production_d2'):
             kpis['production_d2_count'] += 1
+            
         if stage in ('AS접수', 'AS처리'):
             bucket = 'AS처리'
         elif stage == 'AS완료':
             bucket = '완료'
         else:
             bucket = stage
+
         if bucket in step_stats:
-            step_stats[bucket]['count'] += 1
-            if alerts_dict.get('drawing_overdue'):
+            if alerts.get('drawing_overdue'):
                 step_stats[bucket]['overdue'] += 1
-            if alerts_dict.get('measurement_d4') or alerts_dict.get('construction_d3') or alerts_dict.get('production_d2'):
+            if alerts.get('measurement_d4') or alerts.get('construction_d3') or alerts.get('production_d2'):
                 step_stats[bucket]['imminent'] += 1
 
     process_steps = [
@@ -225,7 +264,15 @@ def erp_dashboard():
     page = request.args.get('page', 1, type=int)
     if page < 1: page = 1
     per_page = 50
-    total_orders = len(filtered)
+    
+    # A-0: In-memory 필터가 없을 때는 _q.order_by(None).count()를 사용하여 
+    # f_stage/f_urgent가 반영된 전체 건수를 정확하게 표시 (limit 1000 무관)
+    # in-memory 필터가 있으면 filtered 길이로 표시 (페이지네이션 깨짐 방지)
+    if not (f_has_alert == '1' or f_alert_type or f_team):
+        total_orders = _q.order_by(None).count()
+    else:
+        total_orders = len(filtered)
+        
     total_pages = (total_orders + per_page - 1) // per_page
     page_slice = filtered[(page - 1) * per_page : page * per_page]
 
@@ -250,11 +297,12 @@ def erp_dashboard():
             att_counts = {}
 
     # user_map: 50건 assignee만 조회 (원래 1000건 전체 → 50건으로 절감)
-    all_assignee_ids = set()
+    all_assignee_ids: set[int] = set()
     for o in page_orders:
         sd = page_sds[o.id]
         stage = _erp_get_stage(o, sd)
-        stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
+        stage_key = stage if isinstance(stage, str) else ''
+        stage_code = STAGE_NAME_TO_CODE.get(stage_key, stage_key)
         if stage_code in ('MEASURE', 'DRAWING', 'CONFIRM'):
             assignments = sd.get('assignments') or {}
             if stage_code in ('MEASURE', 'CONFIRM'):
@@ -270,10 +318,14 @@ def erp_dashboard():
                     all_assignee_ids.add(int(uid))
                 except (TypeError, ValueError):
                     pass
-    user_map = {}
+    user_map: dict[int, str] = {}
     if all_assignee_ids:
         users = db.query(User).filter(User.id.in_(all_assignee_ids)).all()
-        user_map = {u.id: (u.name or '') for u in users if u.name}
+        for u in users:
+            user_id = getattr(u, 'id', None)
+            user_name = getattr(u, 'name', None)
+            if isinstance(user_id, int) and isinstance(user_name, str) and user_name:
+                user_map[user_id] = user_name
 
     # Full enrichment: 50건만 (quest_payload, assignee_names, can_modify_domain 등 표시 필드)
     enriched = []
@@ -361,7 +413,8 @@ def erp_dashboard():
                     missing_teams = [t for t in required_teams if not team_approvals.get(t, False)]
                     all_approved = (len(missing_teams) == 0)
 
-        stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
+        stage_key = stage if isinstance(stage, str) else ''
+        stage_code = STAGE_NAME_TO_CODE.get(stage_key, stage_key)
         responsible_team = DEFAULT_OWNER_TEAM_BY_STAGE.get(stage_code, None)
         if stage_code in ("MEASURE", "CONFIRM"):
             orderer_check = (((sd.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
@@ -385,7 +438,11 @@ def erp_dashboard():
                                 user_ids.append(a['id'])
                 user_ids = [int(uid) for uid in user_ids if isinstance(uid, (int, str)) and str(uid).isdigit()]
                 if user_ids:
-                    assignee_display_names = [user_map.get(uid, '') for uid in user_ids if user_map.get(uid)]
+                    assignee_display_names = []
+                    for uid in user_ids:
+                        mapped_name = user_map.get(uid)
+                        if isinstance(mapped_name, str) and mapped_name:
+                            assignee_display_names.append(mapped_name)
                 elif stage_code in ('MEASURE', 'CONFIRM'):
                     mgr = (((sd.get('parties') or {}).get('manager') or {}).get('name')) or o.manager_name or current_quest.get('owner_person') or ''
                     if str(mgr).strip():
