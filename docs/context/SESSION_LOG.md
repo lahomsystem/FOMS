@@ -6,9 +6,9 @@
 
 ### Session: a161e6ee
 - **시작**: 2026-03-20 10:33:57
-- **상태**: completed
-- **편집 파일**: `commit_msg.txt`, `verify_phase_b.py`, `scripts/backfill_erp_date_columns.py`, `apply_migration.py`, `migrations/versions/add_erp_date_columns_phase_b.py`, `migrations/env.py`, `apps/api/erp_orders_construction.py`, `apps/api/erp_orders_structured.py`, `services/erp_sync_columns.py`, `models.py`
-- **종료**: 2026-03-20 11:01:01
+- **상태**: aborted
+- **편집 파일**: `commit_msg.txt`, `tests/test_erp_order_detail_preload.py`, `services/app_init.py`, `services/db_indexes.py`, `verify_phase_c_override.py`, `verify_phase_c.py`, `services/erp_order_detail.py`, `verify_phase_b.py`, `scripts/backfill_erp_date_columns.py`, `apply_migration.py`
+- **종료**: 2026-03-20 11:51:26
 
 ### Session: 88c6415f
 - **시작**: 2026-03-20 08:39:40
@@ -684,3 +684,13 @@
 | 2026-03-20 10:47:47 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-20 11:01:01 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 11:12:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 11:29:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 11:35:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 11:46:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 11:51:26 | END (Claude Code) | 수정: (없음) |

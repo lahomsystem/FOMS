@@ -1,7 +1,7 @@
 
 from flask import Blueprint, jsonify, request, session, current_app
 from apps.auth import login_required, role_required, log_access, get_user_by_id
-from services.erp_sync_columns import sync_erp_date_columns
+from services.erp_sync_columns import sync_erp_flat_columns
 from db import get_db
 from services.erp_permissions import can_edit_erp
 from models import Order, OrderEvent
@@ -825,7 +825,7 @@ def update_order_field():
         if structured_changed and isinstance(structured_data, dict):
             setattr(order, 'structured_data', structured_data)
             flag_modified(order, 'structured_data')
-            sync_erp_date_columns(order, structured_data)
+            sync_erp_flat_columns(order, structured_data)
 
         db.commit()
 
