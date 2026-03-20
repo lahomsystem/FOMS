@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-20 | 세션 자동 기록 | commit_msg.txt, verify_phase_d.py, backfill_erp_flat_columns.py 외 2개 | 07e04e7b |
 | 2026-03-20 | 세션 자동 기록 | commit_msg.txt, test_erp_order_detail_preload.py, app_init.py 외 2개 | d9268de7 |
 | 2026-03-20 | 세션 자동 기록 | commit_msg.txt, app_init.py, db_indexes.py 외 2개 | 9319df7f |
 | 2026-03-20 | 세션 자동 기록 | commit_msg.txt, verify_phase_c_override.py, verify_phase_c.py 외 2개 | 2df87d98 |
@@ -23,4 +24,3 @@
 | 2026-03-19 | 세션 자동 기록 | erp_construction_scripts.html, erp_production_scripts.html, erp_dashboard_scripts_detail_dom.html 외 2개 | 74f19b9 |
 | 2026-03-19 | 세션 자동 기록 | commit_msg.txt, _tmp_apply_selected_schedule_dates.py, task_plan.md 외 2개 | 74f19b9 |
 | 2026-03-19 | 세션 자동 기록 | _tmp_apply_selected_schedule_dates.py, commit_msg.txt, task_plan.md 외 2개 | 7a56f65 |
-| 2026-03-19 | 세션 자동 기록 | task_plan.md, findings.md, progress.md 외 2개 | 3647773 |

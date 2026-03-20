@@ -4,11 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-15 17:32:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway status` |
-| 2026-03-15 17:32:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway connect Postgres` |
-| 2026-03-15 17:32:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; echo "python scripts/run_map_check.py" | railway shell` |
-| 2026-03-15 17:33:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; pip show psycopg 2>$null; pip show psycopg2 2>$null` |
-| 2026-03-15 17:33:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/run_map_check.py` |
 | 2026-03-15 17:33:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python -c "import os; k=[k for k in os.environ if 'DATABASE' in k or 'PG' in k]; p` |
 | 2026-03-15 17:34:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/run_map_check.py` |
 | 2026-03-15 17:35:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short` |
@@ -304,3 +299,8 @@
 | 2026-03-20 11:59:25 | allow | `-` | `python verify_phase_d.py` |
 | 2026-03-20 11:59:30 | allow | `-` | `pytest tests/test_erp_order_detail_preload.py` |
 | 2026-03-20 12:00:14 | allow | `-` | `python verify_phase_d.py` |
+| 2026-03-20 12:31:08 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-20 12:43:14 | allow | `-` | `python verify_phase_h.py` |
+| 2026-03-20 12:43:37 | allow | `-` | `python test_cutoff.py` |
+| 2026-03-20 12:44:17 | allow | `-` | `python -c "import app; print('APP_OK')" && pytest tests/test_erp_order_detail_preload.py` |
+| 2026-03-20 12:44:25 | allow | `-` | `python -c "import app; print('APP_OK')" ; pytest tests/test_erp_order_detail_preload.py` |

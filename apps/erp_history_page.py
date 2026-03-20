@@ -1,0 +1,82 @@
+from flask import Blueprint, render_template, request, g
+from db import get_db
+from models import Order
+from apps.auth import login_required
+from sqlalchemy import or_, and_, cast, String, text
+
+erp_history_bp = Blueprint('erp_history', __name__, url_prefix='/erp/history')
+
+@erp_history_bp.route('/')
+@login_required
+def history_dashboard():
+    """ERP 과거 이력 조회 화면 (Inquiry)"""
+    db = get_db()
+    
+    # 1. 필수 필터 여부 확인 (무차별 Full Scan 방지)
+    f_q = (request.args.get('q') or '').strip()
+    f_stage = (request.args.get('stage') or '').strip()
+    f_date_from = (request.args.get('date_from') or '').strip()
+    f_date_to = (request.args.get('date_to') or '').strip()
+    
+    has_filter = bool(f_q or f_stage or f_date_from or f_date_to)
+    
+    # 기본은 ERP Beta 건 + soft-delete 안 된 것
+    _q = db.query(Order).filter(Order.active_filter(), Order.is_erp_beta.is_(True))
+    
+    if f_q:
+        search_term = f"%{f_q}%"
+        _q = _q.filter(
+            or_(
+                Order.id.cast(String).ilike(search_term),
+                Order.customer_name.ilike(search_term),
+                Order.phone.ilike(search_term),
+                Order.address.ilike(search_term),
+                Order.manager_name.ilike(search_term),
+                cast(Order.structured_data, String).ilike(search_term)
+            )
+        )
+        
+    if f_stage:
+        _q = _q.filter(Order.erp_stage_code == f_stage)
+        
+    if f_date_from:
+        _q = _q.filter(Order.created_at >= f"{f_date_from} 00:00:00")
+        
+    if f_date_to:
+        _q = _q.filter(Order.created_at <= f"{f_date_to} 23:59:59")
+        
+    page = request.args.get('page', 1, type=int)
+    if page < 1: page = 1
+    per_page = 50
+    
+    total_orders = 0
+    orders = []
+    
+    if has_filter:
+        total_orders = _q.count()
+        orders = _q.order_by(Order.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
+        
+    total_pages = (total_orders + per_page - 1) // per_page
+    
+    from services.erp_display import _ensure_dict, _erp_get_stage
+    
+    enriched = []
+    for o in orders:
+        sd = _ensure_dict(o.structured_data)
+        stage = _erp_get_stage(o, sd)
+        
+        enriched.append({
+            '_order': o,
+            '_sd': sd,
+            'stage': stage,
+        })
+        
+    return render_template(
+        'erp_history_dashboard.html',
+        orders=enriched,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages,
+        total_orders=total_orders,
+        has_filter=has_filter
+    )
