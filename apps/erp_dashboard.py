@@ -88,19 +88,6 @@ def erp_dashboard():
     _q = _q.order_by(Order.created_at.desc())
     orders = _q.limit(1000).all()
 
-    att_counts = {}
-    if orders:
-        try:
-            from sqlalchemy import bindparam
-            order_ids = [o.id for o in orders]
-            stmt = text("SELECT order_id, COUNT(*) AS cnt FROM order_attachments WHERE order_id = ANY(:order_ids) GROUP BY order_id")
-            stmt = stmt.bindparams(bindparam('order_ids', value=order_ids))
-            rows = db.execute(stmt).fetchall()
-            for r in rows:
-                att_counts[int(r.order_id)] = int(r.cnt)
-        except Exception:
-            att_counts = {}
-
     TEAM_LABELS = {
         'CS': '라홈팀',
         'SALES': '영업팀',
@@ -110,10 +97,160 @@ def erp_dashboard():
         'CONSTRUCTION': '시공팀',
     }
 
-    # B-2: 루프 전 모든 assignee user_id 수집 → 단일 IN 조회로 user_map 생성
-    all_assignee_ids = set()
+    # 경량 패스: 모든 주문의 stage + alerts만 계산
+    # user_map/quest_payload/att_counts 없음 → Python 필터 + kpis/step_stats에 사용
+    light_enriched = []
     for o in orders:
         sd = _ensure_dict(o.structured_data)
+        stage = _erp_get_stage(o, sd)
+        alerts = _erp_alerts(o, sd, 0)  # cnt=0: 날짜 기반 alerts만 필요, 첨부파일 불필요
+
+        # f_team 필터용 quest 존재 여부 (bool) — CONSTRUCTION/DRAWING은 메인에서 quest 없음
+        quest_exists = False
+        if stage:
+            stage_code_lt = STAGE_NAME_TO_CODE.get(stage, stage)
+            if stage_code_lt not in ('CONSTRUCTION', 'DRAWING'):
+                quests_lt = (sd.get('quests') or []) if isinstance(sd, dict) else []
+                stage_label_lt = STAGE_LABELS.get(stage_code_lt, stage)
+                possible_stages_lt = {stage, stage_code_lt, stage_label_lt}
+                matching_lt = [q for q in quests_lt if isinstance(q, dict) and q.get('stage') in possible_stages_lt]
+                if matching_lt:
+                    quest_exists = True
+                else:
+                    quest_exists = bool(get_quest_template_for_stage(stage))
+
+        light_enriched.append({
+            '_order': o,
+            '_sd': sd,
+            'stage': stage,
+            'alerts': alerts,
+            'current_quest': quest_exists,
+            'measurement_date': ((sd.get('schedule') or {}).get('measurement') or {}).get('date'),
+            'construction_date': ((sd.get('schedule') or {}).get('construction') or {}).get('date'),
+        })
+
+    # AS 파이프라인: 'AS처리' 클릭 시 AS접수·AS처리 표시 ('AS완료'는 '완료' 타일로 이동)
+    AS_STAGE_GROUP = ('AS접수', 'AS처리')
+
+    filtered = []
+    for r in light_enriched:
+        if f_stage:
+            stage_val = r.get('stage')
+            if stage_val in ('AS접수', 'AS처리'):
+                bucket = 'AS처리'
+            elif stage_val == 'AS완료':
+                bucket = '완료'
+            else:
+                bucket = stage_val
+
+            if bucket != f_stage:
+                continue
+
+        if f_urgent == '1':
+            alerts_data = r.get('alerts')
+            if not isinstance(alerts_data, dict) or not alerts_data.get('urgent'):
+                continue
+        if f_has_alert == '1':
+            a = r.get('alerts')
+            if not isinstance(a, dict) or not (a.get('urgent') or a.get('drawing_overdue') or a.get('measurement_d4') or a.get('construction_d3') or a.get('production_d2')):
+                continue
+        if f_alert_type:
+            a = r.get('alerts')
+            a_dict = a if isinstance(a, dict) else {}
+            if f_alert_type == 'urgent' and not a_dict.get('urgent'):
+                continue
+            elif f_alert_type == 'measurement_d4' and not a_dict.get('measurement_d4'):
+                continue
+            elif f_alert_type == 'construction_d3' and not a_dict.get('construction_d3'):
+                continue
+            elif f_alert_type == 'production_d2' and not a_dict.get('production_d2'):
+                continue
+        if f_team and not is_admin:
+            quest = r.get('current_quest')
+            if not quest:
+                continue
+            if f_team not in get_required_approval_teams_for_stage(r.get('stage')):
+                continue
+        filtered.append(r)
+
+    # 실측/시공 단계 진입 시: 해당 날짜 내림차순(먼 미래 순) 정렬
+    if f_stage:
+        _req_code = STAGE_NAME_TO_CODE.get(f_stage, f_stage)
+        if _req_code == 'MEASURE':
+            filtered.sort(key=lambda r: r.get('measurement_date') or '', reverse=True)
+        elif _req_code == 'CONSTRUCTION':
+            filtered.sort(key=lambda r: r.get('construction_date') or '', reverse=True)
+
+    kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0}
+    step_stats = {k: {'count': 0, 'overdue': 0, 'imminent': 0} for k in [
+        '주문접수', '실측', '도면', '고객컨펌', '생산', '시공', 'CS', '완료', 'AS처리'
+    ]}
+    for r in light_enriched:
+        alerts = r.get('alerts')
+        alerts_dict = alerts if isinstance(alerts, dict) else {}
+        stage = r.get('stage')
+        if alerts_dict.get('urgent'):
+            kpis['urgent_count'] += 1
+        if alerts_dict.get('measurement_d4'):
+            kpis['measurement_d4_count'] += 1
+        if alerts_dict.get('construction_d3'):
+            kpis['construction_d3_count'] += 1
+        if alerts_dict.get('production_d2'):
+            kpis['production_d2_count'] += 1
+        if stage in ('AS접수', 'AS처리'):
+            bucket = 'AS처리'
+        elif stage == 'AS완료':
+            bucket = '완료'
+        else:
+            bucket = stage
+        if bucket in step_stats:
+            step_stats[bucket]['count'] += 1
+            if alerts_dict.get('drawing_overdue'):
+                step_stats[bucket]['overdue'] += 1
+            if alerts_dict.get('measurement_d4') or alerts_dict.get('construction_d3') or alerts_dict.get('production_d2'):
+                step_stats[bucket]['imminent'] += 1
+
+    process_steps = [
+        {'label': '주문접수', **step_stats['주문접수']},
+        {'label': '실측', **step_stats['실측']},
+        {'label': '도면', **step_stats['도면']},
+        {'label': '고객컨펌', **step_stats['고객컨펌']},
+        {'label': '생산', **step_stats['생산']},
+        {'label': '시공', **step_stats['시공']},
+        {'label': '완료', **step_stats['완료']},
+        {'label': 'CS', **step_stats['CS']},
+        {'label': 'AS처리', **step_stats['AS처리']},
+    ]
+
+    page = request.args.get('page', 1, type=int)
+    if page < 1: page = 1
+    per_page = 50
+    total_orders = len(filtered)
+    total_pages = (total_orders + per_page - 1) // per_page
+    page_slice = filtered[(page - 1) * per_page : page * per_page]
+
+    # 표시용 50건: Order 객체 참조로 full enrichment
+    page_orders = [item['_order'] for item in page_slice]
+    page_sds = {item['_order'].id: item['_sd'] for item in page_slice}
+
+    # att_counts: 50건만 배치 조회 (원래 1000건 → 50건)
+    att_counts = {}
+    if page_orders:
+        try:
+            from sqlalchemy import bindparam
+            order_ids = [o.id for o in page_orders]
+            stmt = text("SELECT order_id, COUNT(*) AS cnt FROM order_attachments WHERE order_id = ANY(:order_ids) GROUP BY order_id")
+            stmt = stmt.bindparams(bindparam('order_ids', value=order_ids))
+            rows = db.execute(stmt).fetchall()
+            for r in rows:
+                att_counts[int(r.order_id)] = int(r.cnt)
+        except Exception:
+            att_counts = {}
+
+    # user_map: 50건 assignee만 조회 (원래 1000건 전체 → 50건으로 절감)
+    all_assignee_ids = set()
+    for o in page_orders:
+        sd = page_sds[o.id]
         stage = _erp_get_stage(o, sd)
         stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
         if stage_code in ('MEASURE', 'DRAWING', 'CONFIRM'):
@@ -136,9 +273,10 @@ def erp_dashboard():
         users = db.query(User).filter(User.id.in_(all_assignee_ids)).all()
         user_map = {u.id: (u.name or '') for u in users if u.name}
 
+    # Full enrichment: 50건만 (quest_payload, assignee_names, can_modify_domain 등 표시 필드)
     enriched = []
-    for o in orders:
-        sd = _ensure_dict(o.structured_data)
+    for o in page_orders:
+        sd = page_sds[o.id]
         cnt = att_counts.get(o.id, 0)
         stage = _erp_get_stage(o, sd)
         alerts = _erp_alerts(o, sd, cnt)
@@ -149,7 +287,7 @@ def erp_dashboard():
             stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
             stage_label_from_code = STAGE_LABELS.get(stage_code, stage)
             if stage_code == 'CONSTRUCTION':
-                pass  # 시공 단계 퀘스트는 시공 대시보드에서만 처리 (메인 대시보드에서는 미표시)
+                pass  # 시공 단계 퀘스트는 시공 대시보드에서만 처리
             elif stage_code != 'DRAWING':
                 possible_stages = {stage, stage_code, stage_label_from_code}
                 if stage in STAGE_NAME_TO_CODE:
@@ -304,107 +442,7 @@ def erp_dashboard():
             'current_quest': quest_payload,
         })
 
-    # AS 파이프라인: 'AS처리' 클릭 시 AS접수·AS처리 표시 ('AS완료'는 '완료' 타일로 이동)
-    AS_STAGE_GROUP = ('AS접수', 'AS처리')
-
-    filtered = []
-    for r in enriched:
-        if f_stage:
-            stage_val = r.get('stage')
-            if stage_val in ('AS접수', 'AS처리'):
-                bucket = 'AS처리'
-            elif stage_val == 'AS완료':
-                bucket = '완료'
-            else:
-                bucket = stage_val
-                
-            if bucket != f_stage:
-                continue
-        
-        if f_urgent == '1':
-            alerts_data = r.get('alerts')
-            if not isinstance(alerts_data, dict) or not alerts_data.get('urgent'):
-                continue
-        if f_has_alert == '1':
-            a = r.get('alerts')
-            if not isinstance(a, dict) or not (a.get('urgent') or a.get('drawing_overdue') or a.get('measurement_d4') or a.get('construction_d3') or a.get('production_d2')):
-                continue
-        if f_alert_type:
-            a = r.get('alerts')
-            a_dict = a if isinstance(a, dict) else {}
-            if f_alert_type == 'urgent' and not a_dict.get('urgent'):
-                continue
-            elif f_alert_type == 'measurement_d4' and not a_dict.get('measurement_d4'):
-                continue
-            elif f_alert_type == 'construction_d3' and not a_dict.get('construction_d3'):
-                continue
-            elif f_alert_type == 'production_d2' and not a_dict.get('production_d2'):
-                continue
-        if f_team and not is_admin:
-            quest = r.get('current_quest')
-            if not quest:
-                continue
-            if f_team not in get_required_approval_teams_for_stage(r.get('stage')):
-                continue
-        filtered.append(r)
-
-    # 실측/시공 단계 진입 시: 해당 날짜 내림차순(먼 미래 순) 정렬
-    # YYYY-MM-DD 문자열 비교로 정렬, 날짜 없는 항목은 맨 아래
-    if f_stage:
-        _req_code = STAGE_NAME_TO_CODE.get(f_stage, f_stage)
-        if _req_code == 'MEASURE':
-            filtered.sort(key=lambda r: r.get('measurement_date') or '', reverse=True)
-        elif _req_code == 'CONSTRUCTION':
-            filtered.sort(key=lambda r: r.get('construction_date') or '', reverse=True)
-
-    kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0}
-    step_stats = {k: {'count': 0, 'overdue': 0, 'imminent': 0} for k in [
-        '주문접수', '실측', '도면', '고객컨펌', '생산', '시공', 'CS', '완료', 'AS처리'
-    ]}
-    for r in enriched:
-        alerts = r.get('alerts')
-        alerts_dict = alerts if isinstance(alerts, dict) else {}
-        stage = r.get('stage')
-        if alerts_dict.get('urgent'):
-            kpis['urgent_count'] += 1
-        if alerts_dict.get('measurement_d4'):
-            kpis['measurement_d4_count'] += 1
-        if alerts_dict.get('construction_d3'):
-            kpis['construction_d3_count'] += 1
-        if alerts_dict.get('production_d2'):
-            kpis['production_d2_count'] += 1
-        # AS 파이프라인: AS접수·AS처리는 'AS처리' 한 칸에 집계, AS완료는 '완료' 한 칸에 집계
-        if stage in ('AS접수', 'AS처리'):
-            bucket = 'AS처리'
-        elif stage == 'AS완료':
-            bucket = '완료'
-        else:
-            bucket = stage
-        if bucket in step_stats:
-            step_stats[bucket]['count'] += 1
-            if alerts_dict.get('drawing_overdue'):
-                step_stats[bucket]['overdue'] += 1
-            if alerts_dict.get('measurement_d4') or alerts_dict.get('construction_d3') or alerts_dict.get('production_d2'):
-                step_stats[bucket]['imminent'] += 1
-
-    process_steps = [
-        {'label': '주문접수', **step_stats['주문접수']},
-        {'label': '실측', **step_stats['실측']},
-        {'label': '도면', **step_stats['도면']},
-        {'label': '고객컨펌', **step_stats['고객컨펌']},
-        {'label': '생산', **step_stats['생산']},
-        {'label': '시공', **step_stats['시공']},
-        {'label': '완료', **step_stats['완료']},
-        {'label': 'CS', **step_stats['CS']},
-        {'label': 'AS처리', **step_stats['AS처리']},
-    ]
-
-    page = request.args.get('page', 1, type=int)
-    if page < 1: page = 1
-    per_page = 50
-    total_orders = len(filtered)
-    total_pages = (total_orders + per_page - 1) // per_page
-    paginated_orders = filtered[(page - 1) * per_page : page * per_page]
+    paginated_orders = enriched
     attach_order_detail_payloads(db, paginated_orders)
 
     return render_template(
