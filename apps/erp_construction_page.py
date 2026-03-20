@@ -60,25 +60,18 @@ def erp_construction_dashboard():
         if mine_conds:
             query = query.filter(or_(*mine_conds))
 
-    orders = query.order_by(Order.created_at.desc()).limit(300).all()
-
-    att_counts = {}
-    if orders:
-        try:
-            order_ids = [o.id for o in orders]
-            stmt = text("SELECT order_id, COUNT(*) AS cnt FROM order_attachments WHERE order_id = ANY(:order_ids) GROUP BY order_id")
-            stmt = stmt.bindparams(bindparam('order_ids', value=order_ids))
-            rows = db.execute(stmt).fetchall()
-            for r in rows:
-                att_counts[int(r.order_id)] = int(r.cnt)
-        except Exception as e:
-            logging.getLogger(__name__).warning("att_counts query failed: %s", e)
-            att_counts = {}
-
+    # --- A-3: 타일/KPI 집계 쿼리 분리 (limit 300 적용 전 전체 데이터 기준) ---
+    kpi_rows = query.order_by(None).with_entities(Order.id, Order.structured_data, Order.is_self_measurement).all()
     step_stats = {
         '시공대기': {'count': 0, 'overdue': 0, 'imminent': 0},
         '시공중': {'count': 0, 'overdue': 0, 'imminent': 0},
         '시공완료': {'count': 0, 'overdue': 0, 'imminent': 0},
+    }
+    kpis = {
+        'urgent_count': 0,
+        'construction_d3_count': 0,
+        'measurement_d4_count': 0,
+        'production_d2_count': 0,
     }
 
     def _display_stage_for_order(o, sd):
@@ -93,18 +86,50 @@ def erp_construction_dashboard():
             return '시공중'
         return None
 
-    # 1) 타일 건수: 필터 없이 전체 주문 기준으로 항상 집계 (각 타일 클릭 없이도 건수 표시)
-    for o in orders:
-        if getattr(o, 'is_self_measurement', False) and not self_measurement_four_checks_done(o):
+    for r in kpi_rows:
+        if r.is_self_measurement and not self_measurement_four_checks_done(r):
             continue
-        sd = _ensure_dict(o.structured_data)
-        display_stage = _display_stage_for_order(o, sd)
-        if not display_stage or display_stage not in step_stats:
+        sd = _ensure_dict(r.structured_data)
+        display_stage = _display_stage_for_order(r, sd)
+        if not display_stage:
             continue
-        alerts = _erp_alerts(o, sd, att_counts.get(o.id, 0))
-        step_stats[display_stage]['count'] += 1
+        
+        alerts = _erp_alerts(r, sd, 0)
+        
+        if display_stage in step_stats:
+            step_stats[display_stage]['count'] += 1
+            if alerts.get('construction_d3'):
+                step_stats[display_stage]['imminent'] += 1
+                
+        if alerts.get('urgent'):
+            kpis['urgent_count'] += 1
         if alerts.get('construction_d3'):
-            step_stats[display_stage]['imminent'] += 1
+            kpis['construction_d3_count'] += 1
+
+    # --- SQL 필터 선적용 ---
+    # f_stage 최적화: 시공대기/시공중은 CONSTRUCTION 단계, 시공완료는 COMPLETED/CS 등
+    if f_stage:
+        stage_col = cast(Order.structured_data['workflow']['stage'], String)
+        if f_stage in ('시공대기', '시공중'):
+            query = query.filter(stage_col.in_(['"CONSTRUCTION"', '"시공"', '"CONSTRUCTING"']))
+        elif f_stage == '시공완료':
+            query = query.filter(stage_col.in_(['"COMPLETED"', '"완료"', '"AS_WAIT"', '"CS"']))
+
+    # SQL 정렬 및 300건 제한
+    orders = query.order_by(Order.created_at.desc()).limit(300).all()
+
+    att_counts = {}
+    if orders:
+        try:
+            order_ids = [o.id for o in orders]
+            stmt = text("SELECT order_id, COUNT(*) AS cnt FROM order_attachments WHERE order_id = ANY(:order_ids) GROUP BY order_id")
+            stmt = stmt.bindparams(bindparam('order_ids', value=order_ids))
+            rows = db.execute(stmt).fetchall()
+            for r in rows:
+                att_counts[int(r.order_id)] = int(r.cnt)
+        except Exception as e:
+            logging.getLogger(__name__).warning("att_counts query failed: %s", e)
+            att_counts = {}
 
     # 2) 목록: f_stage / f_q 적용하여 표시할 주문만 enriched에 추가
     enriched = []
@@ -155,13 +180,6 @@ def erp_construction_dashboard():
         {'label': '시공중', 'display': '시공중', **step_stats['시공중']},
         {'label': '시공완료', 'display': '시공완료', **step_stats['시공완료']},
     ]
-
-    kpis = {
-        'urgent_count': sum(1 for r in enriched if (r.get('alerts') or {}).get('urgent')),
-        'construction_d3_count': sum(1 for r in enriched if (r.get('alerts') or {}).get('construction_d3')),
-        'measurement_d4_count': 0,
-        'production_d2_count': 0,
-    }
 
     # 페이지네이션: payload는 현재 페이지 표시 건수에만 주입 (전체 enriched 대신)
     page = request.args.get('page', 1, type=int)
