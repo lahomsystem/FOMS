@@ -244,7 +244,9 @@ def erp_dashboard():
             rows = db.execute(stmt).fetchall()
             for r in rows:
                 att_counts[int(r.order_id)] = int(r.cnt)
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("att_counts query failed: %s", e)
             att_counts = {}
 
     # user_map: 50건 assignee만 조회 (원래 1000건 전체 → 50건으로 절감)
