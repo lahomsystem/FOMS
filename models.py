@@ -84,6 +84,12 @@ class Order(Base):
     erp_measurement_date = Column(String(10), nullable=True, index=True)   # YYYY-MM-DD
     erp_construction_date = Column(String(10), nullable=True, index=True)  # YYYY-MM-DD
 
+    # Phase D 플랫 컬럼 (DB 레벨 쿼리/페이지네이션 최적화)
+    erp_stage_code = Column(String(30), nullable=True, index=True)         # workflow.stage (ex: "RECEIVED", "MEASURE")
+    erp_urgent = Column(Boolean, nullable=False, default=False, server_default='false', index=True)  # flags.urgent
+    erp_drawing_updated_at = Column(DateTime, nullable=True)               # workflow.stage_updated_at (DRAWING/CONFIRM용)
+    erp_owner_team_code = Column(String(20), nullable=True, index=True)    # assignments.owner_team
+
     
     # Phase 4: 정규화된 날짜 테이블 (1:N)
     schedule_dates = relationship('OrderScheduleDate', backref='order', cascade='all, delete-orphan')

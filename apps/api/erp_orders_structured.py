@@ -25,7 +25,7 @@ from services.erp_policy import (
     check_quest_approvals_complete,
     create_quest_from_template,
 )
-from services.erp_sync_columns import sync_erp_date_columns
+from services.erp_sync_columns import sync_erp_flat_columns
 from erp_automation import apply_auto_tasks
 from erp_order_text_parser import parse_order_text
 from services.geocode_helpers import extract_address_from_structured_data
@@ -269,7 +269,7 @@ def api_put_order_structured(order_id):
             order.structured_data = copy.deepcopy(structured_data)
             flag_modified(order, 'structured_data')
             
-            sync_erp_date_columns(order, structured_data)
+            sync_erp_flat_columns(order, structured_data)
             
         setattr(order, 'structured_schema_version', int(schema_version) if schema_version else 1)
         setattr(order, 'structured_confidence', confidence or (structured_data.get('confidence') if structured_data else None))

@@ -4,21 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-15 14:35:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c "import app; print('APP_OK')"` |
-| 2026-03-15 14:36:27 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-03-15 14:48:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-15 14:49:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status --short` |
-| 2026-03-15 14:57:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
-| 2026-03-15 14:57:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash pop` |
-| 2026-03-15 15:19:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -1 -p -- apps/api/erp_map.py` |
-| 2026-03-15 17:29:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run psql $env:DATABASE_URL -f scripts/check_map_orders_2670_2662.sql` |
-| 2026-03-15 17:30:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/run_map_check.py` |
-| 2026-03-15 17:30:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:PYTHONIOENCODING='utf-8'; railway run python scripts/run_map_check.py` |
-| 2026-03-15 17:31:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/run_map_check.py` |
-| 2026-03-15 17:31:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/run_map_check.py` |
-| 2026-03-15 17:31:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway --help` |
-| 2026-03-15 17:32:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway connect --help` |
-| 2026-03-15 17:32:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway connect` |
 | 2026-03-15 17:32:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway status` |
 | 2026-03-15 17:32:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway connect Postgres` |
 | 2026-03-15 17:32:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; echo "python scripts/run_map_check.py" | railway shell` |
@@ -304,3 +289,18 @@
 | 2026-03-20 11:00:26 | allow | `-` | `git rm apply_migration.py check_urgent.py verify_phase_a.py verify_phase_a3.py verify_phase_b.py ; git commit --trailer "Made-with: Cursor" -m "chore: remove te` |
 | 2026-03-20 11:05:01 | allow | `-` | `grep -rn "detail_payload.attachments" templates/` |
 | 2026-03-20 11:10:27 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-20 11:23:43 | allow | `-` | `python -c "import apps.erp_dashboard"` |
+| 2026-03-20 11:24:00 | allow | `-` | `python verify_phase_c.py` |
+| 2026-03-20 11:25:35 | allow | `-` | `python -c "import apps.erp_dashboard"` |
+| 2026-03-20 11:27:37 | allow | `-` | `python verify_phase_c_override.py` |
+| 2026-03-20 11:34:52 | allow | `-` | `python -c "import app"` |
+| 2026-03-20 11:44:56 | allow | `-` | `pytest tests/test_erp_order_detail_preload.py` |
+| 2026-03-20 11:45:13 | allow | `-` | `pytest` |
+| 2026-03-20 11:51:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pyright apps/erp_dashboard.py services/erp_order_detail.py services/db_indexes.py se` |
+| 2026-03-20 11:54:43 | allow | `-` | `git mv scripts/backfill_erp_date_columns.py scripts/backfill_erp_flat_columns.py` |
+| 2026-03-20 11:58:31 | allow | `-` | `python -c " from app import app from services.db_indexes import ensure_erp_date_columns with app.app_context(): ensure_erp_date_columns() "` |
+| 2026-03-20 11:58:51 | allow | `-` | `python -c " from app import app from services.db_indexes import ensure_erp_date_columns with app.app_context(): ensure_erp_date_columns() "` |
+| 2026-03-20 11:59:01 | allow | `-` | `python scripts/backfill_erp_flat_columns.py` |
+| 2026-03-20 11:59:25 | allow | `-` | `python verify_phase_d.py` |
+| 2026-03-20 11:59:30 | allow | `-` | `pytest tests/test_erp_order_detail_preload.py` |
+| 2026-03-20 12:00:14 | allow | `-` | `python verify_phase_d.py` |

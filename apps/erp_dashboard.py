@@ -93,38 +93,27 @@ def erp_dashboard():
                 from sqlalchemy import false
                 _q = _q.filter(false())
             else:
-                stage_col_team = cast(Order.structured_data['workflow']['stage'], String)
-                _q = _q.filter(stage_col_team.in_(team_stages))
+                # Phase D: 플랫 컬럼 사용 (따옴표 제거된 정규화 코드 배열로 변환)
+                flat_target_stages = [s.strip('"\'') for s in team_stages]
+                _q = _q.filter(Order.erp_stage_code.in_(flat_target_stages))
 
     # --- 분기 시점: 집계용 base query 복제 (f_stage, f_urgent 적용 전) ---
     _q_stats = _q.order_by(None)
 
     # A-1. f_stage SQL 필터
     if f_stage:
-        stage_col = cast(Order.structured_data['workflow']['stage'], String)
         target_stages = STAGE_SQL_FILTER_MAP.get(f_stage, [])
         if target_stages:
-            # target_stages 에는 ['"고객컨펌"', '"CONFIRM"'] 형태로 들어있음
-            # in_() 사용 시 그대로 넘겨준다
-            # 단, AS단계 등 여러 값이 섞일 수 있으므로 펼쳐서 in_ 적용
-            flattened = []
-            for s in target_stages:
-                flattened.append(s.strip('"\'').strip())
-            
-            # JSONB의 문자열 값과 매칭하기 위해서는 `'"값"'` 형태이거나 JSONB 타입에 맞춰야 하지만
-            # 기존 레퍼런스(erp_production_page.py) 에서는 stage_col.in_(['"고객컨펌"', '"CONFIRM"']) 처럼 사용함
-            # STAGE_SQL_FILTER_MAP에도 그렇게 되어 있으므로 그대로 사용
-            _q = _q.filter(stage_col.in_(target_stages))
+            flat_target_stages = [s.strip('"\'') for s in target_stages]
+            _q = _q.filter(Order.erp_stage_code.in_(flat_target_stages))
 
     # A-2. f_urgent SQL 필터
     if f_urgent == '1':
-        urgent_col = cast(Order.structured_data['flags']['urgent'], String)
-        _q = _q.filter(urgent_col == 'true')
+        _q = _q.filter(Order.erp_urgent == True)
 
     # B-4. D-day SQL 후보군 필터 (1차)
     if f_alert_type in ('measurement_d4', 'construction_d3', 'production_d2'):
         today_date = datetime.date.today()
-        stage_col = cast(Order.structured_data['workflow']['stage'], String)
         
         if f_alert_type == 'measurement_d4':
             cutoff = (today_date + datetime.timedelta(days=12)).isoformat()
@@ -146,12 +135,32 @@ def erp_dashboard():
                 Order.erp_construction_date.isnot(None),
                 Order.erp_construction_date >= today_date.isoformat(),
                 Order.erp_construction_date <= cutoff,
-                stage_col.notin_(['"CONSTRUCTION"'])
+                Order.erp_stage_code != 'CONSTRUCTION'
             )
 
-    # 순수 DB 정렬: 생성일순
-    _q = _q.order_by(Order.created_at.desc())
-    orders = _q.limit(1000).all()
+    # 순수 DB 정렬: 실측/시공 단계 진입 시 해당 날짜 내림차순 정렬 우선
+    if f_stage:
+        _req_code = STAGE_NAME_TO_CODE.get(f_stage, f_stage)
+        if _req_code == 'MEASURE':
+            _q = _q.order_by(Order.erp_measurement_date.desc().nullslast(), Order.created_at.desc())
+        elif _req_code == 'CONSTRUCTION':
+            _q = _q.order_by(Order.erp_construction_date.desc().nullslast(), Order.created_at.desc())
+        else:
+            _q = _q.order_by(Order.created_at.desc())
+    else:
+        _q = _q.order_by(Order.created_at.desc())
+
+    # Phase D: DB 레벨 페이지네이션
+    page = request.args.get('page', 1, type=int)
+    if page < 1: page = 1
+    per_page = 50
+
+    # f_has_alert, f_alert_type 등의 메모리 필터가 완벽하지 않으므로 (SQL 후보군),
+    # count는 SQL count를 그대로 사용 (약간의 오차 허용)
+    total_orders = _q.count()
+    total_pages = (total_orders + per_page - 1) // per_page
+
+    orders = _q.offset((page - 1) * per_page).limit(per_page).all()
 
     TEAM_LABELS = {
         'CS': '라홈팀',
@@ -162,49 +171,35 @@ def erp_dashboard():
         'CONSTRUCTION': '시공팀',
     }
 
-    # 경량 패스: 모든 주문의 stage + alerts만 계산
-    # user_map/quest_payload/att_counts 없음 → Python 필터 + kpis/step_stats에 사용
-    light_enriched = []
-    for o in orders:
-        sd = _ensure_dict(o.structured_data)
-        stage = _erp_get_stage(o, sd)
-        alerts = _erp_alerts(o, sd, 0)  # cnt=0: 날짜 기반 alerts만 필요, 첨부파일 불필요
-
-        light_enriched.append({
-            '_order': o,
-            '_sd': sd,
-            'stage': stage,
-            'alerts': alerts,
-            'measurement_date': ((sd.get('schedule') or {}).get('measurement') or {}).get('date'),
-            'construction_date': ((sd.get('schedule') or {}).get('construction') or {}).get('date'),
-        })
-
     # AS 파이프라인: 'AS처리' 클릭 시 AS접수·AS처리 표시 ('AS완료'는 '완료' 타일로 이동)
     AS_STAGE_GROUP = ('AS접수', 'AS처리')
 
+    # 페이징된 50건에 대해서만 파이썬 필터(CS 오버라이드 및 정확한 alert 체크) 수행
+    # 단, DB 페이지네이션을 썼으므로 필터링 후 50건이 안 될 수 있음.
     filtered = []
-    for r in light_enriched:
+    for o in orders:
+        sd = _ensure_dict(o.structured_data)
+        stage = _erp_get_stage(o, sd)
+        alerts = _erp_alerts(o, sd, 0)
+        
         if f_has_alert == '1':
-            a = r.get('alerts')
-            if not isinstance(a, dict) or not (a.get('urgent') or a.get('drawing_overdue') or a.get('measurement_d4') or a.get('construction_d3') or a.get('production_d2')):
+            if not (alerts.get('urgent') or alerts.get('drawing_overdue') or alerts.get('measurement_d4') or alerts.get('construction_d3') or alerts.get('production_d2')):
                 continue
         if f_alert_type:
-            a = r.get('alerts')
-            a_dict = a if isinstance(a, dict) else {}
-            if f_alert_type == 'urgent' and not a_dict.get('urgent'):
+            if f_alert_type == 'urgent' and not alerts.get('urgent'):
                 continue
-            elif f_alert_type == 'measurement_d4' and not a_dict.get('measurement_d4'):
+            elif f_alert_type == 'measurement_d4' and not alerts.get('measurement_d4'):
                 continue
-            elif f_alert_type == 'construction_d3' and not a_dict.get('construction_d3'):
+            elif f_alert_type == 'construction_d3' and not alerts.get('construction_d3'):
                 continue
-            elif f_alert_type == 'production_d2' and not a_dict.get('production_d2'):
+            elif f_alert_type == 'production_d2' and not alerts.get('production_d2'):
                 continue
         
         # --- C: f_team 인메모리 2차 확인 (CS 오버라이드 보완) ---
         if f_team and not is_admin:
-            stage_code = STAGE_NAME_TO_CODE.get(r.get('stage'), r.get('stage'))
+            stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
             if stage_code in ('MEASURE', 'CONFIRM'):
-                orderer_name = (((r.get('_sd') or {}).get("parties") or {}).get("orderer") or {}).get("name") or ""
+                orderer_name = (((sd or {}).get("parties") or {}).get("orderer") or {}).get("name") or ""
                 is_lahom = "라홈" in orderer_name.strip()
                 if is_lahom:
                     if f_team not in ('CS', 'MEASURE'):
@@ -213,15 +208,12 @@ def erp_dashboard():
                     if f_team not in ('SALES', 'MEASURE'):
                         continue
 
-        filtered.append(r)
-
-    # 실측/시공 단계 진입 시: 해당 날짜 내림차순(먼 미래 순) 정렬
-    if f_stage:
-        _req_code = STAGE_NAME_TO_CODE.get(f_stage, f_stage)
-        if _req_code == 'MEASURE':
-            filtered.sort(key=lambda r: r.get('measurement_date') or '', reverse=True)
-        elif _req_code == 'CONSTRUCTION':
-            filtered.sort(key=lambda r: r.get('construction_date') or '', reverse=True)
+        filtered.append({
+            '_order': o,
+            '_sd': sd,
+            'stage': stage,
+            'alerts': alerts,
+        })
 
     # --- A-0. kpis / step_stats 집계 (limit 무관하게 _q_stats에서 산출) ---
     kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0}
@@ -230,17 +222,18 @@ def erp_dashboard():
     ]}
 
     from sqlalchemy import func, case as sql_case
-    stage_col_stats = cast(Order.structured_data['workflow']['stage'], String)
+    
+    # Phase D: 플랫 컬럼을 활용한 집계
     stage_bucket_expr = sql_case(
-        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('주문접수', [])), '주문접수'),
-        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('실측', [])), '실측'),
-        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('도면', [])), '도면'),
-        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('고객컨펌', [])), '고객컨펌'),
-        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('생산', [])), '생산'),
-        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('시공', [])), '시공'),
-        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('CS', [])), 'CS'),
-        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('완료', [])), '완료'),
-        (stage_col_stats.in_(STAGE_SQL_FILTER_MAP.get('AS처리', [])), 'AS처리'),
+        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('주문접수', [])]), '주문접수'),
+        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('실측', [])]), '실측'),
+        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('도면', [])]), '도면'),
+        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('고객컨펌', [])]), '고객컨펌'),
+        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('생산', [])]), '생산'),
+        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('시공', [])]), '시공'),
+        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('CS', [])]), 'CS'),
+        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('완료', [])]), '완료'),
+        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('AS처리', [])]), 'AS처리'),
         else_='기타'
     )
     
@@ -254,15 +247,39 @@ def erp_dashboard():
         if row.bucket in step_stats:
             step_stats[row.bucket]['count'] = row.cnt
 
-    # KPI 및 overdue/imminent 집계
-    kpi_rows = _q_stats.with_entities(Order.id, Order.structured_data).all()
-    for row in kpi_rows:
-        sd = _ensure_dict(row.structured_data)
+    # KPI 집계 (SQL 활용 및 타겟 대상만 파이썬 연산)
+    kpis['urgent_count'] = _q_stats.filter(Order.erp_urgent == True).count()
+
+    today_date = datetime.date.today()
+    
+    # measurement_d4 candidates
+    m_cutoff = (today_date + datetime.timedelta(days=12)).isoformat()
+    m_cands = _q_stats.filter(
+        Order.erp_measurement_date.isnot(None),
+        Order.erp_measurement_date >= today_date.isoformat(),
+        Order.erp_measurement_date <= m_cutoff
+    ).with_entities(Order.id, Order.structured_data).all()
+    
+    # construction_d3 & production_d2 candidates
+    c_cutoff = (today_date + datetime.timedelta(days=10)).isoformat()
+    c_cands = _q_stats.filter(
+        Order.erp_construction_date.isnot(None),
+        Order.erp_construction_date >= today_date.isoformat(),
+        Order.erp_construction_date <= c_cutoff
+    ).with_entities(Order.id, Order.structured_data).all()
+    
+    # drawing overdue candidates (stage DRAWING/CONFIRM)
+    d_cands = _q_stats.filter(
+        Order.erp_stage_code.in_(['DRAWING', 'CONFIRM'])
+    ).with_entities(Order.id, Order.structured_data).all()
+
+    # 합집합 후보군에 대해서만 alerts 연산
+    cand_dict = {row.id: row.structured_data for row in m_cands + c_cands + d_cands}
+    for oid, sd in cand_dict.items():
+        sd = _ensure_dict(sd)
         alerts = _erp_alerts(None, sd, 0)
         stage = _erp_get_stage(None, sd)
         
-        if alerts.get('urgent'):
-            kpis['urgent_count'] += 1
         if alerts.get('measurement_d4'):
             kpis['measurement_d4_count'] += 1
         if alerts.get('construction_d3'):
@@ -295,20 +312,7 @@ def erp_dashboard():
         {'label': 'AS처리', **step_stats['AS처리']},
     ]
 
-    page = request.args.get('page', 1, type=int)
-    if page < 1: page = 1
-    per_page = 50
-    
-    # A-0: In-memory 필터가 없을 때는 _q.order_by(None).count()를 사용하여 
-    # f_stage/f_urgent가 반영된 전체 건수를 정확하게 표시 (limit 1000 무관)
-    # in-memory 필터가 있으면 filtered 길이로 표시 (페이지네이션 깨짐 방지)
-    if not (f_has_alert == '1' or f_alert_type or f_team):
-        total_orders = _q.order_by(None).count()
-    else:
-        total_orders = len(filtered)
-        
-    total_pages = (total_orders + per_page - 1) // per_page
-    page_slice = filtered[(page - 1) * per_page : page * per_page]
+    page_slice = filtered
 
     # 표시용 50건: Order 객체 참조로 full enrichment
     page_orders = [item['_order'] for item in page_slice]

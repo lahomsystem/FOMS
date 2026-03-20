@@ -53,15 +53,27 @@ def apply_phase2_indexes() -> None:
         _log.warning("[AUTO-INIT] Warning: Could not create OrderScheduleDate partial indexes: %s", e, exc_info=True)
 
 def ensure_erp_date_columns():
-    """Phase B: D-day 필터용 정규화 날짜 컬럼(erp_measurement_date, erp_construction_date) 추가."""
+    """Phase B & D: 대용량 데이터 필터/페이징을 위한 정규화 컬럼 추가."""
     db = get_db()
     try:
+        # Phase B columns
         db.execute(text('ALTER TABLE orders ADD COLUMN IF NOT EXISTS erp_measurement_date VARCHAR(10)'))
         db.execute(text('ALTER TABLE orders ADD COLUMN IF NOT EXISTS erp_construction_date VARCHAR(10)'))
         db.execute(text('CREATE INDEX IF NOT EXISTS ix_orders_erp_measurement_date ON orders (erp_measurement_date)'))
         db.execute(text('CREATE INDEX IF NOT EXISTS ix_orders_erp_construction_date ON orders (erp_construction_date)'))
+        
+        # Phase D flat columns
+        db.execute(text('ALTER TABLE orders ADD COLUMN IF NOT EXISTS erp_stage_code VARCHAR(30)'))
+        db.execute(text('ALTER TABLE orders ADD COLUMN IF NOT EXISTS erp_urgent BOOLEAN DEFAULT FALSE NOT NULL'))
+        db.execute(text('ALTER TABLE orders ADD COLUMN IF NOT EXISTS erp_drawing_updated_at TIMESTAMP'))
+        db.execute(text('ALTER TABLE orders ADD COLUMN IF NOT EXISTS erp_owner_team_code VARCHAR(20)'))
+        
+        db.execute(text('CREATE INDEX IF NOT EXISTS ix_orders_erp_stage_code ON orders (erp_stage_code)'))
+        db.execute(text('CREATE INDEX IF NOT EXISTS ix_orders_erp_urgent ON orders (erp_urgent)'))
+        db.execute(text('CREATE INDEX IF NOT EXISTS ix_orders_erp_owner_team_code ON orders (erp_owner_team_code)'))
+        
         db.commit()
-        _log.info("[AUTO-INIT] erp_measurement_date and erp_construction_date columns verified.")
+        _log.info("[AUTO-INIT] Phase B & D flat columns verified.")
     except Exception as e:
         db.rollback()
-        _log.warning("[AUTO-INIT] Failed to add erp_date columns: %s", e)
+        _log.warning("[AUTO-INIT] Failed to add erp_date/flat columns: %s", e)

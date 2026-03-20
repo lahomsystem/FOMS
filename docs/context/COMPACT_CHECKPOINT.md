@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-20 10:50:16
+> 생성 시각: 2026-03-20 11:56:33
 > 세션: a161e6ee
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~19247 chars (2026-03-20 10:50:15)
-- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~19163 chars (2026-03-20 10:49:58)
-- `services/erp_sync_columns.py` <- 1 edit(s), ~743 chars (2026-03-20 10:49:33)
-- `models.py` <- 1 edit(s), ~19896 chars (2026-03-20 10:49:26)
-- `commit_msg.txt` <- 1 edit(s), ~499 chars (2026-03-20 10:47:11)
-- `verify_phase_a3.py` <- 1 edit(s), ~717 chars (2026-03-20 10:46:36)
-- `apps/erp_construction_page.py` <- 1 edit(s), ~7938 chars (2026-03-20 10:46:20)
-- `apps/erp_construction_page.py` <- 1 edit(s), ~8227 chars (2026-03-20 10:45:33)
-- `apps/erp_construction_page.py` <- 1 edit(s), ~7649 chars (2026-03-20 10:45:25)
-- `verify_phase_a.py` <- 1 edit(s), ~903 chars (2026-03-20 10:44:35)
+- `scripts/backfill_erp_flat_columns.py` <- 1 edit(s), ~762 chars (2026-03-20 11:54:52)
+- `scripts/backfill_erp_flat_columns.py` <- 1 edit(s), ~762 chars (2026-03-20 11:54:51)
+- `apps/api/erp_orders_construction.py` <- 1 edit(s), ~7838 chars (2026-03-20 11:54:13)
+- `apps/api/erp_orders_construction.py` <- 1 edit(s), ~7838 chars (2026-03-20 11:54:12)
+- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~19247 chars (2026-03-20 11:53:54)
+- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~19247 chars (2026-03-20 11:53:53)
+- `services/erp_sync_columns.py` <- 1 edit(s), ~1651 chars (2026-03-20 11:53:37)
+- `services/db_indexes.py` <- 1 edit(s), ~3880 chars (2026-03-20 11:53:13)
+- `models.py` <- 1 edit(s), ~20397 chars (2026-03-20 11:52:51)
+- `commit_msg.txt` <- 1 edit(s), ~359 chars (2026-03-20 11:45:40)
 
 ### 진행 중이던 작업
 (없음)
