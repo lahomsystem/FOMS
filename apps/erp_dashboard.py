@@ -318,11 +318,12 @@ def erp_dashboard():
     att_counts = {}
     if page_orders:
         try:
-            from sqlalchemy import bindparam
+            from models import OrderAttachment
+            from sqlalchemy import func
             order_ids = [o.id for o in page_orders]
-            stmt = text("SELECT order_id, COUNT(*) AS cnt FROM order_attachments WHERE order_id = ANY(:order_ids) GROUP BY order_id")
-            stmt = stmt.bindparams(bindparam('order_ids', value=order_ids))
-            rows = db.execute(stmt).fetchall()
+            rows = db.query(OrderAttachment.order_id, func.count(OrderAttachment.id).label('cnt')) \
+                     .filter(OrderAttachment.order_id.in_(order_ids)) \
+                     .group_by(OrderAttachment.order_id).all()
             for r in rows:
                 att_counts[int(r.order_id)] = int(r.cnt)
         except Exception as e:

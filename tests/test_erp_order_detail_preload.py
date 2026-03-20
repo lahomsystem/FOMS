@@ -67,10 +67,7 @@ def test_build_order_detail_payload_map_includes_attachment_urls(app):
 
     assert payload["success"] is True
     assert payload["structured_data"]["workflow"]["stage"] == "DRAWING"
-    assert payload["attachments"][0]["filename"] == "measure-photo.jpg"
-    assert payload["attachments"][0]["view_url"] == "/api/files/view/orders/test/measure-photo.jpg"
-    assert payload["attachments"][0]["download_url"] == "/api/files/download/orders/test/measure-photo.jpg"
-    assert payload["attachments"][0]["thumbnail_view_url"] == "/api/files/view/orders/test/thumb-measure-photo.jpg"
+    assert "attachments" not in payload  # Lazy loading in Phase M
 
 
 def test_erp_dashboard_includes_preloaded_order_detail_payload(login):
@@ -104,4 +101,4 @@ def test_erp_dashboard_includes_preloaded_order_detail_payload(login):
 
     assert payload["success"] is True
     assert payload["structured_data"]["workflow"]["stage"] == "DRAWING"
-    assert payload["attachments"][0]["filename"] == "drawing.pdf"
+    assert "attachments" not in payload  # Lazy loading in Phase M
