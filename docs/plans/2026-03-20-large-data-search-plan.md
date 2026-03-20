@@ -19,7 +19,7 @@
 
 ### 0.2 이번 코드 대조로 확인된 핵심 사실
 
-- `apps/erp_dashboard.py`의 문제는 목록 필터뿐 아니라 `kpis`, `step_stats`, `total_orders`, `total_pages`도 `limit(1000)` 이후 데이터 기준이라는 점이다.
+- `apps/erp_dashboard.py`의 문제는 목록 필터뿐 아니라, `kpis`/`step_stats`는 `light_enriched`(= limit 1000 전체) 기준, `total_orders`/`total_pages`는 `filtered`(= 인메모리 필터 적용 후) 기준이므로 모두 `limit(1000)` 이후 데이터에 제약된다는 점이다.
 - `apps/erp_measurement_dashboard.py`(`limit(500)`), `apps/erp_construction_page.py`(`limit(300)`)도 같은 클래스의 리스크를 가진다.
 - `apps/erp_production_page.py`는 이미 SQL stage filter, SQL count, OFFSET/LIMIT를 사용하므로 선행 레퍼런스로 삼을 수 있다.
 - 첨부/멀티미디어는 `order_id` 기준 별도 조회/열람 경로가 있어 **주문만 찾으면 열람은 가능**하다. 그러나 **미디어 자체 검색**은 현재 없고, 초안에도 포함되지 않았다.
@@ -71,14 +71,16 @@ Python 필터·정렬·페이지네이션은 이미 잘린 1000건 기준으로�
 
 ### 1.3 추가 확인: 상단 타일/KPI도 이미 잘린 데이터 기준
 
-`apps/erp_dashboard.py`에서 `kpis`, `step_stats`, `total_orders`, `total_pages`는 모두
-`orders = _q.limit(1000).all()` 이후 만들어진 `light_enriched`/`filtered` 기준이다.
+`apps/erp_dashboard.py`에서:
+- `kpis`/`step_stats`는 `light_enriched`(= `_q.limit(1000).all()` 전체) 기준으로 집계된다.
+- `total_orders`/`total_pages`는 `filtered`(= `light_enriched`에서 f_stage/f_urgent 등 인메모리 필터 적용 후) 기준이다.
+- `page_slice`는 `filtered[(page-1)*50:page*50]` Python 슬라이싱이다.
 
 즉 현재 구조의 문제는 단순히 **"필터 결과가 잘린다"**가 아니라,
 
-- 단계 타일이 전체 활성 ERP Beta 건수를 반영하지 못하고
-- KPI 뱃지가 최근 1000건 샘플 기준으로 왜곡되며
-- 페이지 수도 전체 결과가 아니라 잘린 결과 기준으로 계산된다는 점이다.
+- 단계 타일(`step_stats`)이 limit 1000 이내 주문만 반영하여 전체 활성 ERP Beta 건수를 반영하지 못하고
+- KPI 뱃지(`kpis`)가 limit 1000 이내 샘플 기준으로 왜곡되며
+- 페이지 수(`total_pages`)도 limit + 인메모리 필터 후 결과 기준으로 계산된다는 점이다.
 
 따라서 `f_stage`/`f_urgent` SQL화만으로는 절반만 해결된다. 집계 쿼리 분리가 즉시 필요하다.
 
@@ -94,7 +96,7 @@ Python 필터·정렬·페이지네이션은 이미 잘린 1000건 기준으로�
 f_q           → 이미 SQL WHERE (safe)
 mine          → 이미 SQL WHERE (safe)
 f_stage       → 인메모리: structured_data['workflow']['stage'] 읽기
-f_urgent      → 인메모리: structured_data['flags']['urgent'] 읽기
+f_urgent      → 인메모리: _erp_alerts() 결과의 alerts['urgent'] 읽기 (내부적으로 structured_data['flags']['urgent'] 기반)
 f_has_alert   → 인메모리: urgent OR drawing_overdue OR D-day 중 하나
 f_alert_type  → 인메모리: measurement_d4 / construction_d3 / production_d2
 f_team        → 인메모리: get_required_approval_teams_for_stage() 호출
@@ -167,6 +169,7 @@ STAGE_SQL_FILTER_MAP: dict[str, list[str]] = {
     'CS':      ['"CS"'],
     '완료':    ['"완료"', '"COMPLETED"', '"AS완료"', '"AS_COMPLETED"'],
     'AS처리':  ['"AS접수"', '"AS처리"', '"AS_RECEIVED"', '"AS"'],
+    # HAPPYCALL은 현재 erp_policy.py/quest_templates에 미정의 단계이므로 의도적으로 제외
 }
 ```
 
@@ -242,6 +245,10 @@ PostgreSQL JSONB에서 boolean은 `'true'` 문자열로 캐스팅된다.
 2. 메인 대시보드와 동일하게 SQL 필터 선적용 + 집계 분리 + 페이지네이션 전환 필요 여부 판단
 3. 메인 대시보드 개편 후에도 사용자가 체감하는 "과거 주문 안 보임" 문제가 다른 화면에서 재발하지 않게 한다
 
+**참고 (감리 결과 반영)**:
+- `erp_measurement_dashboard.py`는 `OrderScheduleDate` 테이블 JOIN으로 날짜 기반 SQL 필터가 이미 적용되어 있으며, 기본 진입 시 "당일 주문만" 로드한다. 따라서 limit(500)의 실질적 영향은 메인 대시보드보다 제한적이다. 점검 시 우선순위 하향 고려.
+- `erp_construction_page.py`는 limit(300)이며 메인 대시보드와 유사한 구조로 점검 우선순위가 더 높다.
+
 **산출물**:
 - 각 화면별 현재 한계와 개선 필요 여부를 표로 정리
 - 메인 대시보드 개편과 같은 스프린트에 포함할지, 별도 Phase로 뺄지 결정
@@ -313,15 +320,19 @@ def sync_erp_date_columns(order, structured_data: dict) -> None:
     schedule = (structured_data.get('schedule') or {})
     meas_raw = (schedule.get('measurement') or {}).get('date')
     cons_raw = (schedule.get('construction') or {}).get('date')
-    order.erp_measurement_date = _normalize_to_yyyymmdd(meas_raw)
-    order.erp_construction_date = _normalize_to_yyyymmdd(cons_raw)
+    order.erp_measurement_date = _normalize_date_to_yyyymmdd(meas_raw)
+    order.erp_construction_date = _normalize_date_to_yyyymmdd(cons_raw)
 ```
 
-기존 `_normalize_date_to_yyyymmdd()`(`services/erp_display.py`)를 import해서 재사용.
+기존 `_normalize_date_to_yyyymmdd()`(`services/erp_display.py:49`)를 import해서 재사용:
+`from services.erp_display import _normalize_date_to_yyyymmdd`
 
 #### B-4. D-day SQL 필터 (2단계)
 
 ```python
+# 선행 정의 필수 (A-1에서 이미 정의된 경우 재사용)
+stage_col = cast(Order.structured_data['workflow']['stage'], String)
+
 # Phase 1: DB 후보군 추출 (달력일 근사치, 연휴 안전 마진 포함)
 if f_alert_type == 'measurement_d4':
     cutoff = (today_kst + datetime.timedelta(days=12)).isoformat()  # 영업일 4일 → 달력일 12일 (추석/설 연휴 대비)
@@ -539,8 +550,11 @@ def on_structured_data_set(target, value, oldvalue, initiator):
         sync_erp_flat_columns(target, value)
 ```
 
-단, ORM event는 `flag_modified()` 패턴과 충돌 가능성이 있으므로
-명시적 함수 호출 방식이 더 안전하다.
+**⚠️ ORM event 방식은 채택 불가 (감리 결과 반영)**:
+FOMS의 JSONB 수정 패턴은 `copy.deepcopy + flag_modified()`를 사용한다.
+SQLAlchemy `set` 이벤트는 직접 할당(`order.structured_data = sd`) 시에만 트리거되며,
+`flag_modified(order, 'structured_data')` 경로에서는 이벤트가 발생하지 않는다.
+따라서 기존 수정 경로를 커버할 수 없으므로, **명시적 함수 호출 방식만 채택**한다.
 
 #### D-6. tsvector 전문 검색 (선택적)
 
@@ -708,14 +722,34 @@ assert sql_result == memory_result, f"불일치: SQL={sql_result}, Memory={memor
 ```
 
 **주의**:
-- 실제 검증은 `_erp_get_stage()`의 원시 단계값이 아니라 대시보드의 **버킷 규칙**
-  (`AS접수`/`AS처리` → `AS처리`, `AS완료` → `완료`)까지 반영해야 한다.
-- 즉 검증 코드도 대시보드와 동일한 stage bucket 함수를 공유하는 방식이 가장 안전하다.
+- 위 예시는 단순 '실측' 단계 검증이다. AS 버킷 병합이 관련된 단계(`AS접수`/`AS처리` → `AS처리`, `AS완료` → `완료`)를 검증할 때는 `STAGE_SQL_FILTER_MAP`의 배열과 대시보드 버킷 로직을 동일하게 적용해야 한다.
+- 검증 코드도 대시보드와 동일한 stage bucket 함수를 공유하는 방식이 가장 안전하다.
+- AS 단계를 포함한 전체 검증 시에는 `STAGE_SQL_FILTER_MAP`의 모든 키에 대해 루프 검증을 수행한다.
 
 ### 5.2 Phase B 검증
 
+**⚠️ 주의 (감리 결과 반영)**: JSONB raw 값(`"2025-3-5"`, `"2025-03-05T10:00:00"`)과
+정규화 후 값(`"2025-03-05"`)은 형태가 다를 수 있다.
+SQL 직접 `!=` 비교 시 거짓 불일치(false positive)가 발생할 수 있으므로,
+Python 스크립트에서 `_normalize_date_to_yyyymmdd()` 결과와 비교하는 방식이 더 정확하다.
+
+**방법 A (Python 스크립트 — 권장)**:
 ```python
-# 백필 후 일관성 확인
+# 백필 후 일관성 확인 (Python에서 정규화 후 비교)
+from services.erp_display import _normalize_date_to_yyyymmdd
+orders = db.query(Order).filter(Order.active_filter(), Order.is_erp_beta.is_(True)).all()
+mismatches = []
+for o in orders:
+    sd = o.structured_data or {}
+    expected_meas = _normalize_date_to_yyyymmdd(((sd.get('schedule') or {}).get('measurement') or {}).get('date'))
+    expected_cons = _normalize_date_to_yyyymmdd(((sd.get('schedule') or {}).get('construction') or {}).get('date'))
+    if o.erp_measurement_date != expected_meas or o.erp_construction_date != expected_cons:
+        mismatches.append(o.id)
+assert len(mismatches) == 0, f"동기화 불일치 {len(mismatches)}건: {mismatches[:10]}"
+```
+
+**방법 B (SQL 근사 확인 — 참고용, 정규화 차이로 오탐 가능)**:
+```python
 inconsistent = db.execute(text("""
     SELECT id,
            structured_data->'schedule'->'measurement'->>'date' AS sd_meas,
