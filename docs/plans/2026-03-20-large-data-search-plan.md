@@ -130,10 +130,10 @@ D-day 계산(`measurement_d4`, `construction_d3`, `production_d2`)은
 **대상 파일**: `apps/erp_dashboard.py`
 
 **수정 방향**:
-1. 목록 쿼리와 별도로 집계용 base query를 둔다.
-2. 단계별 카운트는 SQL `GROUP BY` 또는 최소한 `order_by(None)` 기반 별도 집계 쿼리로 분리한다.
-3. KPI(`urgent`, `measurement_d4`, `construction_d3`, `production_d2`)는 집계 전용 경로로 계산한다.
-4. `apps/erp_production_page.py`의 SQL count / OFFSET-LIMIT 구조를 레퍼런스로 사용한다.
+1. 목록 쿼리와 별도로 집계용 base query를 둔다. **분기 시점: `_q` 빌드 완료 후, `f_stage`/`f_urgent` 등 인메모리 필터 적용 전**에 집계용 base query를 복제(`_q_stats = _q.order_by(None)`)한다.
+2. 단계별 카운트(`step_stats`)는 SQL `GROUP BY`로 분리한다. `apps/erp_production_page.py`의 `stage_bucket_expr` + `sql_case` 패턴을 레퍼런스로 사용한다. (**주의**: production_page의 `kpis` 집계는 인메모리 루프 방식이므로 kpis 레퍼런스로는 사용하지 않는다.)
+3. KPI(`urgent`, `measurement_d4`, `construction_d3`, `production_d2`)는 집계 전용 경로로 계산한다. D-day 관련 KPI는 SQL 근사치가 어려우므로 `_q_stats.with_entities(Order.id, Order.structured_data).all()` + `_erp_alerts(None, sd, 0)` 경량 패스를 사용한다.
+4. `total_orders`/`total_pages`는 `_q_stats`에 f_stage/f_urgent SQL 필터를 적용한 후 `.count()` 로 계산한다.
 
 **기대 효과**:
 - 데이터 1000건 초과 시에도 타일/KPI가 전체 기준으로 정확해진다.
@@ -354,7 +354,10 @@ elif f_alert_type == 'production_d2':
         Order.erp_construction_date.isnot(None),
         Order.erp_construction_date >= today_kst.isoformat(),
         Order.erp_construction_date <= cutoff,
-        stage_col.notin_(['"CONSTRUCTION"', '"시공"'])  # production_d2 조건: 시공 단계 제외
+        stage_col.notin_(['"CONSTRUCTION"'])  # production_d2 조건: 시공 단계 제외
+        # ⚠️ 감리 결과 반영: Python _erp_alerts()는 stage not in ('CONSTRUCTION',) 으로
+        # 영문 코드만 제외한다. SQL 1단계가 Python 2단계보다 엄격하면 누락 복구 불가이므로,
+        # SQL은 '"CONSTRUCTION"'만 제외하고 '"시공"'은 제외하지 않는다 (넓은 후보군 → Python 보정)
     )
 
 # Phase 2: Python 정밀 필터 (인메모리, 후보군이 소규모)
@@ -422,9 +425,9 @@ if f_team and not is_admin:
 # ⚠️ 감리 결과 반영: erp_quest_templates.json 실제 엔트리 기준으로 수정
 STAGES_REQUIRING_TEAM: dict[str, list[str]] = {
     'SALES':       ['"실측"', '"MEASURE"', '"고객컨펌"', '"CONFIRM"'],
-    'DRAWING':     ['"도면"', '"DRAWING"'],         # ⚠️ 아래 주의사항 참고
+    'DRAWING':     ['"도면"', '"DRAWING"'],         # ⚠️ 현재 quest_exists=False 강제 → f_team에서 항상 제외됨. 제품 의도 확정 전까지 이 항목은 사용하지 않음
     'PRODUCTION':  ['"생산"', '"PRODUCTION"'],
-    'CONSTRUCTION': ['"시공"', '"CONSTRUCTION"'],    # ⚠️ 아래 주의사항 참고
+    'CONSTRUCTION': ['"시공"', '"CONSTRUCTION"'],    # ⚠️ 현재 quest_exists=False 강제 → f_team에서 항상 제외됨. 제품 의도 확정 전까지 이 항목은 사용하지 않음
     'CS':          ['"주문접수"', '"RECEIVED"', '"CS"', '"완료"', '"COMPLETED"', '"AS"'],
     # ❌ AS_RECEIVED, AS_COMPLETED는 erp_quest_templates.json에 엔트리 없음
     #    → get_required_approval_teams_for_stage() 가 [] 반환
