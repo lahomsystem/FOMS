@@ -21,8 +21,9 @@ def run_auto_init(app):
             ensure_order_attachments_user_id_column()
             init_wdcalculator_db()
             # Phase 2 Indexes
-            from services.db_indexes import apply_phase2_indexes
+            from services.db_indexes import apply_phase2_indexes, ensure_erp_date_columns
             apply_phase2_indexes()
+            ensure_erp_date_columns()
             
             # Phase 4 Date Normalization Event Sync Setup
             from services.order_date_sync import register_date_sync_listener
