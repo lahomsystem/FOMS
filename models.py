@@ -107,6 +107,32 @@ class Order(Base):
         from sqlalchemy import and_
         return and_(cls.status != 'DELETED', cls.deleted_at.is_(None))
 
+    @classmethod
+    def dashboard_active_filter(cls, days=60):
+        """
+        Phase H: 운영 대시보드 전용 필터.
+        기본 active_filter를 포함하며, 완료('COMPLETED', 'AS_COMPLETED')된 지 
+        지정된 기간(기본 60일)이 지난 과거 데이터는 제외한다.
+        """
+        from sqlalchemy import and_, or_, not_
+        import datetime
+        
+        cutoff_date = datetime.datetime.now() - datetime.timedelta(days=days)
+        completed_stages = ['COMPLETED', 'AS_COMPLETED', '"COMPLETED"', '"AS_COMPLETED"', '완료', 'AS완료', '"완료"', '"AS완료"']
+        
+        return and_(
+            cls.active_filter(),
+            not_(
+                and_(
+                    cls.erp_stage_code.in_(completed_stages),
+                    or_(
+                        and_(cls.structured_updated_at.isnot(None), cls.structured_updated_at < cutoff_date),
+                        and_(cls.structured_updated_at.is_(None), cls.created_at < cutoff_date)
+                    )
+                )
+            )
+        )
+
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 

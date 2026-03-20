@@ -1,0 +1,154 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container-fluid erp-dashboard erp-pro">
+  <!-- Modern Header -->
+  <header class="erp-pro-header">
+    <h1 class="erp-pro-header__title">
+      <i class="fas fa-history"></i>
+      <span>과거 이력 검색 (Inquiry)</span>
+    </h1>
+    <div class="erp-pro-header__actions">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('order_pages.index') }}">
+        <i class="fas fa-home"></i>
+        <span class="d-none d-md-inline">홈</span>
+      </a>
+    </div>
+  </header>
+  
+  {% set erp_sub_nav_active = 'history' %}
+  {% include 'partials/erp_sub_nav.html' %}
+
+  <!-- Filters -->
+  <div class="erp-pro-card erp-pro-card--filters">
+    <div class="erp-pro-card__body">
+      <form method="GET" action="{{ url_for('erp_history.history_dashboard') }}" class="erp-pro-filters-form">
+        <div class="row gx-3 gy-2 align-items-center">
+          <div class="col-12 col-md-3">
+            <label class="erp-pro-filters__label">검색어 (고객명, 전화번호, 주소 등)</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text"><i class="fas fa-search"></i></span>
+              <input type="text" name="q" class="form-control" placeholder="전체 검색" value="{{ request.args.get('q', '') }}">
+            </div>
+          </div>
+          <div class="col-12 col-md-2">
+            <label class="erp-pro-filters__label">단계</label>
+            <select name="stage" class="form-select form-select-sm">
+              <option value="">전체 단계</option>
+              <option value="RECEIVED" {% if request.args.get('stage') == 'RECEIVED' %}selected{% endif %}>주문접수</option>
+              <option value="MEASURE" {% if request.args.get('stage') == 'MEASURE' %}selected{% endif %}>실측</option>
+              <option value="DRAWING" {% if request.args.get('stage') == 'DRAWING' %}selected{% endif %}>도면</option>
+              <option value="CONFIRM" {% if request.args.get('stage') == 'CONFIRM' %}selected{% endif %}>고객컨펌</option>
+              <option value="PRODUCTION" {% if request.args.get('stage') == 'PRODUCTION' %}selected{% endif %}>생산</option>
+              <option value="CONSTRUCTION" {% if request.args.get('stage') == 'CONSTRUCTION' %}selected{% endif %}>시공</option>
+              <option value="COMPLETED" {% if request.args.get('stage') == 'COMPLETED' %}selected{% endif %}>완료</option>
+              <option value="AS_RECEIVED" {% if request.args.get('stage') == 'AS_RECEIVED' %}selected{% endif %}>AS접수</option>
+              <option value="AS" {% if request.args.get('stage') == 'AS' %}selected{% endif %}>AS처리</option>
+              <option value="AS_COMPLETED" {% if request.args.get('stage') == 'AS_COMPLETED' %}selected{% endif %}>AS완료</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="erp-pro-filters__label">기간 (생성일 기준)</label>
+            <div class="input-group input-group-sm">
+              <input type="date" name="date_from" class="form-control" value="{{ request.args.get('date_from', '') }}">
+              <span class="input-group-text">~</span>
+              <input type="date" name="date_to" class="form-control" value="{{ request.args.get('date_to', '') }}">
+            </div>
+          </div>
+          <div class="col-12 col-md-3 d-flex align-items-end mt-4 mt-md-0">
+            <button type="submit" class="erp-pro-btn erp-pro-btn--primary w-100">
+              <i class="fas fa-search"></i> 검색
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if not has_filter %}
+  <div class="erp-pro-empty">
+    <i class="fas fa-search erp-pro-empty__icon"></i>
+    <p class="erp-pro-empty__text">위 필터를 설정하여 조회를 시작하세요.</p>
+    <p class="text-muted small">과거 이력은 데이터가 방대하므로 조건 없이 전체 조회를 지원하지 않습니다.</p>
+  </div>
+  {% elif not orders %}
+  <div class="erp-pro-empty">
+    <i class="fas fa-inbox erp-pro-empty__icon"></i>
+    <p class="erp-pro-empty__text">조건에 맞는 이력이 없습니다.</p>
+  </div>
+  {% else %}
+  <div class="erp-pro-card mt-3">
+    <div class="erp-pro-card__header">
+      <h3 class="erp-pro-card__title">
+        <i class="fas fa-list"></i> 검색 결과 (총 {{ total_orders }}건)
+      </h3>
+    </div>
+    <div class="erp-pro-card__body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover erp-pro-table mb-0">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>단계</th>
+              <th>고객명</th>
+              <th>전화번호</th>
+              <th>주소</th>
+              <th>제품</th>
+              <th>생성일</th>
+              <th>상세</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in orders %}
+            {% set o = item._order %}
+            <tr>
+              <td>{{ o.id }}</td>
+              <td>
+                <span class="erp-pro-badge erp-pro-badge--{{ item.stage|replace(' ', '-') }}">{{ item.stage }}</span>
+              </td>
+              <td>{{ o.customer_name }}</td>
+              <td>{{ o.phone }}</td>
+              <td class="text-truncate" style="max-width: 200px;" title="{{ o.address }}">{{ o.address }}</td>
+              <td class="text-truncate" style="max-width: 150px;" title="{{ o.product }}">{{ o.product }}</td>
+              <td>{{ o.created_at.strftime('%Y-%m-%d') if o.created_at else '-' }}</td>
+              <td>
+                <a href="{{ url_for('order_pages.view_order', order_id=o.id) }}" class="btn btn-sm btn-outline-secondary" target="_blank">
+                  상세보기
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    {% if total_pages > 1 %}
+    <div class="erp-pro-card__footer d-flex justify-content-center">
+      <nav aria-label="Page navigation">
+        <ul class="pagination pagination-sm mb-0">
+          <li class="page-item {% if page == 1 %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ page - 1 }}&q={{ request.args.get('q', '') }}&stage={{ request.args.get('stage', '') }}&date_from={{ request.args.get('date_from', '') }}&date_to={{ request.args.get('date_to', '') }}">이전</a>
+          </li>
+          
+          {% set start_page = page - 2 if page > 2 else 1 %}
+          {% set end_page = start_page + 4 if start_page + 4 <= total_pages else total_pages %}
+          {% set start_page = end_page - 4 if end_page - 4 > 0 else 1 %}
+          
+          {% for p in range(start_page, end_page + 1) %}
+          <li class="page-item {% if p == page %}active{% endif %}">
+            <a class="page-link" href="?page={{ p }}&q={{ request.args.get('q', '') }}&stage={{ request.args.get('stage', '') }}&date_from={{ request.args.get('date_from', '') }}&date_to={{ request.args.get('date_to', '') }}">{{ p }}</a>
+          </li>
+          {% endfor %}
+          
+          <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ page + 1 }}&q={{ request.args.get('q', '') }}&stage={{ request.args.get('stage', '') }}&date_from={{ request.args.get('date_from', '') }}&date_to={{ request.args.get('date_to', '') }}">다음</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

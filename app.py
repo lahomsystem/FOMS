@@ -193,6 +193,9 @@ from services.erp_permissions import can_edit_erp
 app.register_blueprint(erp_bp)
 from apps.erp_dashboard import erp_dashboard_bp
 app.register_blueprint(erp_dashboard_bp)
+
+from apps.erp_history_page import erp_history_bp
+app.register_blueprint(erp_history_bp)
 from apps.erp_drawing_workbench import erp_drawing_workbench_bp
 app.register_blueprint(erp_drawing_workbench_bp)
 from apps.erp_measurement_dashboard import erp_measurement_dashboard_bp

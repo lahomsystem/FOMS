@@ -47,4 +47,9 @@
     <i class="fas fa-clipboard-check"></i>
     <span>시공 완료</span>
   </a>
+  <a class="erp-pro-nav-item {% if _active == 'history' %}active{% endif %}"
+    href="{{ url_for('erp_history.history_dashboard') }}">
+    <i class="fas fa-history"></i>
+    <span>과거 이력 검색</span>
+  </a>
 </nav>

@@ -56,7 +56,8 @@ def erp_dashboard():
     f_q = (request.args.get('q') or '').strip()
     f_team = (request.args.get('team') or '').strip()
 
-    _q = db.query(Order).filter(Order.active_filter(), Order.is_erp_beta.is_(True))
+    # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
+    _q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_beta.is_(True))
 
     from sqlalchemy import or_, and_, cast, String
     if f_q:

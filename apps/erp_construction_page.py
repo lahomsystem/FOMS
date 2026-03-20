@@ -51,7 +51,7 @@ def erp_construction_dashboard():
 
     query = (
         db.query(Order)
-        .filter(Order.active_filter(), Order.is_erp_beta.is_(True))
+        .filter(Order.dashboard_active_filter(days=60), Order.is_erp_beta.is_(True))
     )
 
     # mine 필터를 SQL WHERE로 적용 — Python 루프보다 선행하여 limit 누락 방지
