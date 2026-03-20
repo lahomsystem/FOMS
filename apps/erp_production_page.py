@@ -142,7 +142,9 @@ def erp_production_dashboard():
             rows = db.execute(stmt).fetchall()
             for r in rows:
                 att_counts[int(r.order_id)] = int(r.cnt)
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("att_counts query failed: %s", e)
             att_counts = {}
 
     # 50건만 enrichment (1000건 → 50건)
@@ -185,9 +187,12 @@ def erp_production_dashboard():
 
         alerts = _erp_alerts(o, sd, att_counts.get(o.id, 0))
 
-        # step_stats imminent: 현재 페이지 기준 (page-level)
-        if stage_label in step_stats and alerts.get('production_d2'):
-            step_stats[stage_label]['imminent'] += 1
+        # step_stats imminent/overdue: 현재 페이지 기준 (page-level)
+        if stage_label in step_stats:
+            if alerts.get('production_d2'):
+                step_stats[stage_label]['imminent'] += 1
+            if alerts.get('drawing_overdue'):
+                step_stats[stage_label]['overdue'] += 1
 
         enriched.append({
             'id': o.id,
