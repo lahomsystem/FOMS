@@ -677,7 +677,11 @@
 
         if (preloaded && preloaded.success) {
           structured = preloaded;
-          attachments = { success: true, attachments: preloaded.attachments || [] };
+          if (preloaded.attachments === undefined) {
+            attachments = await safeJsonFetch(`/api/orders/${orderId}/attachments`, { success: false, attachments: [] });
+          } else {
+            attachments = { success: true, attachments: preloaded.attachments || [] };
+          }
         } else {
           container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
 

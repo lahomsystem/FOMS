@@ -5,6 +5,10 @@
 
 ## 최근 파일 편집
 
+- `services/erp_order_detail.py` <- 1 edit(s), ~2992 chars (2026-03-20 11:07:25)
+- `services/erp_order_detail.py` <- 1 edit(s), ~2255 chars (2026-03-20 11:06:55)
+- `services/erp_order_detail.py` <- 1 edit(s), ~4212 chars (2026-03-20 11:06:24)
+- `services/erp_order_detail.py` <- 1 edit(s), ~4320 chars (2026-03-20 11:05:46)
 - `commit_msg.txt` <- 1 edit(s), ~570 chars (2026-03-20 10:59:44)
 - `verify_phase_b.py` <- 1 edit(s), ~3732 chars (2026-03-20 10:59:09)
 - `scripts/backfill_erp_date_columns.py` <- 1 edit(s), ~762 chars (2026-03-20 10:58:29)
