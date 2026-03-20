@@ -112,7 +112,7 @@
               <td class="text-truncate" style="max-width: 150px;" title="{{ o.product }}">{{ o.product }}</td>
               <td>{{ o.created_at.strftime('%Y-%m-%d') if o.created_at else '-' }}</td>
               <td>
-                <a href="{{ url_for('order_pages.view_order', order_id=o.id) }}" class="btn btn-sm btn-outline-secondary" target="_blank">
+                <a href="{{ url_for('order_edit.edit_order', order_id=o.id) }}?open=erp-beta" class="btn btn-sm btn-outline-secondary" target="_blank">
                   상세보기
                 </a>
               </td>
