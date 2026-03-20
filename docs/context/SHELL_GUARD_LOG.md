@@ -4,38 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-15 17:33:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python -c "import os; k=[k for k in os.environ if 'DATABASE' in k or 'PG' in k]; p` |
-| 2026-03-15 17:34:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/run_map_check.py` |
-| 2026-03-15 17:35:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short` |
-| 2026-03-15 17:35:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
-| 2026-03-15 17:36:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add apps/api/erp_map.py docs/ docs/evolution/MAP_ORDERS_2670_2662_ANALYSIS_2026-03-15.md; ` |
-| 2026-03-15 17:36:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-15 17:36:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
-| 2026-03-15 17:36:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-15 17:36:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy -m "Merge deploy: 실측 지도 #2670 #2662 미표시 해결"; git pus` |
-| 2026-03-15 17:36:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git stash; git checkout production; git merge deploy -m "Merge deploy: 실측 지도 2670 2662 미표시 해결"` |
-| 2026-03-15 18:15:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
-| 2026-03-15 18:15:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
-| 2026-03-15 18:15:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; grep -n -C 5 "address" apps/api/erp_map.py` |
-| 2026-03-15 18:16:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; grep -n -C 5 "def self_measurement_four_checks_done" services/erp_display.py` |
-| 2026-03-15 18:17:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
-| 2026-03-15 18:18:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
-| 2026-03-15 18:19:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
-| 2026-03-15 18:19:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_flask_2629.py` |
-| 2026-03-15 18:21:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_flask_2629.py` |
-| 2026-03-15 18:23:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
-| 2026-03-15 18:23:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
-| 2026-03-15 18:24:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
-| 2026-03-15 18:25:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_flask_2629.py` |
-| 2026-03-15 18:26:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_flask_2629.py` |
-| 2026-03-15 18:26:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
-| 2026-03-15 18:27:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
-| 2026-03-15 18:27:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
-| 2026-03-15 18:28:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
-| 2026-03-15 18:30:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
-| 2026-03-15 18:32:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python scripts/debug_order_2629.py` |
-| 2026-03-15 19:13:05 | allow | `-` | `python -m py_compile "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\apps\api\erp_map.py" "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\F` |
-| 2026-03-15 19:18:52 | allow | `-` | `python -m py_compile "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\apps\api\erp_map.py" "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\F` |
 | 2026-03-15 19:19:44 | allow | `-` | `python -c "from app import app; print('APP_OK')"` |
 | 2026-03-15 19:26:56 | allow | `-` | `python -m py_compile "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\apps\api\erp_map.py" "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\F` |
 | 2026-03-15 19:39:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git status` |
@@ -304,3 +272,35 @@
 | 2026-03-20 12:43:37 | allow | `-` | `python test_cutoff.py` |
 | 2026-03-20 12:44:17 | allow | `-` | `python -c "import app; print('APP_OK')" && pytest tests/test_erp_order_detail_preload.py` |
 | 2026-03-20 12:44:25 | allow | `-` | `python -c "import app; print('APP_OK')" ; pytest tests/test_erp_order_detail_preload.py` |
+| 2026-03-20 13:01:25 | allow | `-` | `python test_history_error.py` |
+| 2026-03-20 13:02:06 | allow | `-` | `python test_history_error.py` |
+| 2026-03-20 13:03:24 | allow | `-` | `railway --help` |
+| 2026-03-20 13:03:35 | allow | `-` | `railway logs -n 50` |
+| 2026-03-20 13:04:00 | allow | `-` | `railway service` |
+| 2026-03-20 13:04:09 | allow | `-` | `railway status` |
+| 2026-03-20 13:04:57 | allow | `-` | `python test_jinja_error.py` |
+| 2026-03-20 13:05:16 | allow | `-` | `python test_jinja_error.py` |
+| 2026-03-20 13:05:37 | allow | `-` | `python test_jinja_error.py` |
+| 2026-03-20 13:05:52 | allow | `-` | `python -c "from jinja2 import Template; print(Template('{{ stage|replace(\" \", \"-\") }}').render(stage=None))"` |
+| 2026-03-20 13:06:28 | allow | `-` | `python test_jinja_replace.py` |
+| 2026-03-20 13:07:32 | allow | `-` | `railway list` |
+| 2026-03-20 13:08:06 | allow | `-` | `railway service` |
+| 2026-03-20 13:08:26 | allow | `-` | `ls -l railway.json` |
+| 2026-03-20 13:08:40 | allow | `-` | `railway service web` |
+| 2026-03-20 13:09:09 | allow | `-` | `railway logs -n 100` |
+| 2026-03-20 13:09:53 | allow | `-` | `railway logs | Select-String "Traceback" -Context 0,20` |
+| 2026-03-20 13:10:03 | allow | `-` | `railway logs | Select-String "500" -Context 5,5` |
+| 2026-03-20 13:12:02 | allow | `-` | `railway logs | Select-String "Exception" -Context 3,10` |
+| 2026-03-20 13:12:15 | allow | `-` | `railway logs -n 500 > logs.txt` |
+| 2026-03-20 13:12:59 | allow | `-` | `python -c " from app import app from db import get_db from models import Order from sqlalchemy import or_, cast, String with app.app_context(): db = get_db() _q` |
+| 2026-03-20 13:13:38 | allow | `-` | `python -c " from app import app from db import get_db from models import Order from sqlalchemy import or_, cast, String from sqlalchemy.dialects import postgres` |
+| 2026-03-20 13:14:25 | allow | `-` | `railway variables` |
+| 2026-03-20 13:14:43 | allow | `-` | `railway environment dev` |
+| 2026-03-20 13:16:06 | allow | `-` | `python test_jinja_error.py` |
+| 2026-03-20 13:16:57 | allow | `-` | `rm commit_msg.txt test_history_error.py test_jinja_error.py test_jinja_replace.py logs.txt` |
+| 2026-03-20 15:11:42 | allow | `-` | `& "C:\Program Files\PostgreSQL\17\bin\pg_restore.exe" --help 2>&1 | Select-String -Pattern "exclude"` |
+| 2026-03-20 15:11:45 | allow | `-` | `& "C:\Program Files\PostgreSQL\17\bin\pg_restore.exe" --help` |
+| 2026-03-20 15:54:10 | allow | `-` | `& "C:\Program Files\PostgreSQL\17\bin\pg_restore.exe" --section=data --section=post-data 2>&1` |
+| 2026-03-20 16:34:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "from copy import deepcopy; from models import Order; from services.erp_display impo` |
+| 2026-03-20 16:36:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
+| 2026-03-20 16:36:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add apps/erp_history_page.py templates/erp_history_dashboard.html templates/index.html app` |

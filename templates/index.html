@@ -1091,256 +1091,335 @@
             }
         }
 
-        // 테이블의 모든 전화번호 셀에 포맷팅 적용
-        $('td.th-phone').each(function () {
-            const phoneNumber = $(this).text().trim();
+        // 테이블의 모든 전화번호 셀에 포맷팅 적용 (jQuery 미사용: layout에 $ 없음)
+        document.querySelectorAll('td.th-phone').forEach(function (td) {
+            const phoneNumber = td.textContent.trim();
             if (phoneNumber) {
-                $(this).text(formatKoreanPhoneNumber(phoneNumber));
+                td.textContent = formatKoreanPhoneNumber(phoneNumber);
             }
         });
 
         // 일괄 작업 관련
-        $('#select-all').on('click', function () {
-            var isChecked = this.checked;
-            $('.order-checkbox').prop('checked', isChecked);
+        var selectAllEl = document.getElementById('select-all');
+        if (selectAllEl) {
+            selectAllEl.addEventListener('click', function () {
+                var isChecked = this.checked;
+                document.querySelectorAll('.order-checkbox').forEach(function (cb) {
+                    cb.checked = isChecked;
+                });
+                document.querySelectorAll('tbody tr').forEach(function (tr) {
+                    tr.classList.toggle('selected', isChecked);
+                });
+            });
+        }
 
-            // 모든 행의 선택 상태 시각적 표시
-            $('tbody tr').toggleClass('selected', isChecked);
-        });
+        var bulkActionForm = document.getElementById('bulk-action-form');
+        if (bulkActionForm) {
+            bulkActionForm.addEventListener('submit', function (event) {
+                const selectedOrders = bulkActionForm.querySelectorAll('.order-checkbox:checked');
+                const actionSelect = bulkActionForm.querySelector('select[name="action"]');
+                const statusSelect = document.getElementById('status-select');
+                const measurementDateInput = document.getElementById('measurement-date-input');
+                const managerNameInput = document.getElementById('manager-name-input');
 
-        $('#bulk-action-form').on('submit', function (event) {
-            const selectedOrders = $(this).find('.order-checkbox:checked');
-            const actionSelect = $(this).find('select[name="action"]');
-            const statusSelect = $('#status-select');
-            const measurementDateInput = $('#measurement-date-input');
-            const managerNameInput = $('#manager-name-input');
+                if (selectedOrders.length === 0) {
+                    alert('작업할 주문을 선택해주세요.');
+                    event.preventDefault();
+                    return;
+                }
+                if (!actionSelect || actionSelect.value === '') {
+                    alert('수행할 작업을 선택해주세요.');
+                    event.preventDefault();
+                    return;
+                }
+                if (actionSelect.value === 'change_status' && statusSelect && statusSelect.value === '') {
+                    alert('변경할 상태를 선택해주세요.');
+                    event.preventDefault();
+                    return;
+                }
+                if (actionSelect.value === 'change_measurement_date' && measurementDateInput && measurementDateInput.value === '') {
+                    alert('변경할 실측일을 선택해주세요.');
+                    event.preventDefault();
+                    return;
+                }
+                if (actionSelect.value === 'change_manager' && managerNameInput && managerNameInput.value.trim() === '') {
+                    alert('변경할 담당자 이름을 입력해주세요.');
+                    event.preventDefault();
+                    return;
+                }
+                if (actionSelect.value === 'delete' && !confirm('선택한 주문을 휴지통으로 이동하시겠습니까?')) {
+                    event.preventDefault();
+                    return;
+                }
+            });
+        }
 
-            if (selectedOrders.length === 0) {
-                alert('작업할 주문을 선택해주세요.');
-                event.preventDefault();
-                return;
-            }
-            if (actionSelect.val() === '') {
-                alert('수행할 작업을 선택해주세요.');
-                event.preventDefault();
-                return;
-            }
-            if (actionSelect.val() === 'change_status' && statusSelect.val() === '') {
-                alert('변경할 상태를 선택해주세요.');
-                event.preventDefault();
-                return;
-            }
-            if (actionSelect.val() === 'change_measurement_date' && measurementDateInput.val() === '') {
-                alert('변경할 실측일을 선택해주세요.');
-                event.preventDefault();
-                return;
-            }
-            if (actionSelect.val() === 'change_manager' && managerNameInput.val().trim() === '') {
-                alert('변경할 담당자 이름을 입력해주세요.');
-                event.preventDefault();
-                return;
-            }
-            if (actionSelect.val() === 'delete' && !confirm('선택한 주문을 휴지통으로 이동하시겠습니까?')) {
-                event.preventDefault();
-                return;
-            }
-        });
+        var bulkActionEl = document.getElementById('bulk-action');
+        if (bulkActionEl) {
+            bulkActionEl.addEventListener('change', function () {
+                ['status-select', 'measurement-date-input', 'manager-name-input'].forEach(function (id) {
+                    var el = document.getElementById(id);
+                    if (el) el.classList.add('d-none');
+                });
+                if (bulkActionEl.value === 'change_status') {
+                    var ss = document.getElementById('status-select');
+                    if (ss) ss.classList.remove('d-none');
+                } else if (bulkActionEl.value === 'change_measurement_date') {
+                    var md = document.getElementById('measurement-date-input');
+                    if (md) md.classList.remove('d-none');
+                } else if (bulkActionEl.value === 'change_manager') {
+                    var mn = document.getElementById('manager-name-input');
+                    if (mn) mn.classList.remove('d-none');
+                }
+            });
+        }
 
-        $('#bulk-action').on('change', function () {
-            const actionSelect = $(this);
-            $('#status-select, #measurement-date-input, #manager-name-input').addClass('d-none');
+        function jqToggleDisplay(el) {
+            if (!el) return;
+            if (window.getComputedStyle(el).display === 'none') {
+                if (el.classList.contains('notes-summary')) {
+                    el.style.display = 'block';
+                } else if (el.classList.contains('options-summary')) {
+                    el.style.display = 'inline';
+                } else {
+                    el.style.display = 'block';
+                }
+            } else {
+                el.style.display = 'none';
+            }
+        }
 
-            if (actionSelect.val() === 'change_status') $('#status-select').removeClass('d-none');
-            else if (actionSelect.val() === 'change_measurement_date') $('#measurement-date-input').removeClass('d-none');
-            else if (actionSelect.val() === 'change_manager') $('#manager-name-input').removeClass('d-none');
-        });
+        function isElVisible(el) {
+            return el && window.getComputedStyle(el).display !== 'none';
+        }
 
         // 옵션 토글 버튼 이벤트 (동적 바인딩)
-        $(document).on('click', '.toggle-options', function (e) {
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.toggle-options');
+            if (!btn) return;
             e.preventDefault();
             e.stopPropagation();
 
-            var $button = $(this);
-            var $cell = $button.closest('.options-cell');
-            var $summaryText = $cell.find('.options-summary');
-            var $fullContent = $cell.find('.options-full-content');
+            var cell = btn.closest('.options-cell');
+            if (!cell) return;
+            var summaryText = cell.querySelector('.options-summary');
+            var fullContent = cell.querySelector('.options-full-content');
+            if (summaryText) jqToggleDisplay(summaryText);
+            if (fullContent) jqToggleDisplay(fullContent);
 
-            // 요약 텍스트와 상세 내용 토글 (버튼은 남김)
-            $summaryText.toggle();
-            $fullContent.toggle();
+            var fullVis = fullContent && isElVisible(fullContent);
+            cell.classList.toggle('expanded', !!fullVis);
 
-            // 셀에 expanded 클래스 토글
-            $cell.toggleClass('expanded', $fullContent.is(':visible'));
-
-            // 아이콘 토글 (간소화)
-            $button.find('i').toggleClass('fa-plus fa-minus');
-            $button.attr('aria-expanded', $fullContent.is(':visible')); // 접근성 속성 추가
+            var optIcon = btn.querySelector('i');
+            if (optIcon) {
+                optIcon.classList.toggle('fa-plus');
+                optIcon.classList.toggle('fa-minus');
+            }
+            btn.setAttribute('aria-expanded', fullVis ? 'true' : 'false');
 
             updateToggleAllOptionsButtonState();
         });
 
         // 비고 토글 버튼 이벤트 (동적 바인딩)
-        $(document).on('click', '.toggle-notes', function (e) {
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.toggle-notes');
+            if (!btn) return;
             e.preventDefault();
             e.stopPropagation();
 
-            var $button = $(this);
-            var $cell = $button.closest('.notes-cell');
-            var $summaryText = $cell.find('.notes-summary');
-            var $fullContent = $cell.find('.notes-full-content');
+            var cell = btn.closest('.notes-cell');
+            if (!cell) return;
+            var summaryText = cell.querySelector('.notes-summary');
+            var fullContent = cell.querySelector('.notes-full-content');
+            if (summaryText) jqToggleDisplay(summaryText);
+            if (fullContent) jqToggleDisplay(fullContent);
 
-            // 요약 텍스트와 상세 내용 토글 (버튼은 남김)
-            $summaryText.toggle();
-            $fullContent.toggle();
+            var fullVis = fullContent && isElVisible(fullContent);
+            cell.classList.toggle('expanded', !!fullVis);
 
-            // 셀에 expanded 클래스 토글
-            $cell.toggleClass('expanded', $fullContent.is(':visible'));
-
-            // 아이콘 토글 (chevron으로 변경)
-            $button.find('i').toggleClass('fa-chevron-down fa-chevron-up');
-            $button.attr('aria-expanded', $fullContent.is(':visible'));
+            var noteIcon = btn.querySelector('i');
+            if (noteIcon) {
+                noteIcon.classList.toggle('fa-chevron-down');
+                noteIcon.classList.toggle('fa-chevron-up');
+            }
+            btn.setAttribute('aria-expanded', fullVis ? 'true' : 'false');
 
             updateToggleAllNotesButtonState();
         });
 
         // 옵션 전체 토글 버튼
-        $('#toggle-all-options').on('click', function () {
-            var $button = $(this);
-            var $icon = $button.find('i');
-            var expanding = $icon.hasClass('fa-plus');
-
-            $icon.toggleClass('fa-plus fa-minus');
-            $button.attr('aria-expanded', expanding); // 접근성 속성 추가
-
-            $('.options-cell').each(function () {
-                var $cell = $(this);
-                var $individualButton = $cell.find('.toggle-options');
-                if (!$individualButton.length) return;
-
-                var $summaryText = $cell.find('.options-summary');
-                var $fullContent = $cell.find('.options-full-content');
-                var isCurrentlyExpanded = $fullContent.is(':visible');
-
-                if (expanding && !isCurrentlyExpanded) { // 확장
-                    $summaryText.hide();
-                    $fullContent.show();
-                    $cell.addClass('expanded');
-                    $individualButton.find('i').removeClass('fa-plus').addClass('fa-minus');
-                    $individualButton.attr('aria-expanded', true);
-                } else if (!expanding && isCurrentlyExpanded) { // 축소
-                    $summaryText.show();
-                    $fullContent.hide();
-                    $cell.removeClass('expanded');
-                    $individualButton.find('i').removeClass('fa-minus').addClass('fa-plus');
-                    $individualButton.attr('aria-expanded', false);
+        var toggleAllOpts = document.getElementById('toggle-all-options');
+        if (toggleAllOpts) {
+            toggleAllOpts.addEventListener('click', function () {
+                var icon = toggleAllOpts.querySelector('i');
+                var expanding = icon && icon.classList.contains('fa-plus');
+                if (icon) {
+                    icon.classList.toggle('fa-plus');
+                    icon.classList.toggle('fa-minus');
                 }
+                toggleAllOpts.setAttribute('aria-expanded', expanding ? 'true' : 'false');
+
+                document.querySelectorAll('.options-cell').forEach(function (cell) {
+                    var individualButton = cell.querySelector('.toggle-options');
+                    if (!individualButton) return;
+
+                    var summaryText = cell.querySelector('.options-summary');
+                    var fullContent = cell.querySelector('.options-full-content');
+                    var isCurrentlyExpanded = fullContent && isElVisible(fullContent);
+
+                    if (expanding && !isCurrentlyExpanded) {
+                        if (summaryText) summaryText.style.display = 'none';
+                        if (fullContent) fullContent.style.display = 'block';
+                        cell.classList.add('expanded');
+                        var ib = individualButton.querySelector('i');
+                        if (ib) {
+                            ib.classList.remove('fa-plus');
+                            ib.classList.add('fa-minus');
+                        }
+                        individualButton.setAttribute('aria-expanded', 'true');
+                    } else if (!expanding && isCurrentlyExpanded) {
+                        if (summaryText) summaryText.style.display = '';
+                        if (fullContent) fullContent.style.display = 'none';
+                        cell.classList.remove('expanded');
+                        var ib2 = individualButton.querySelector('i');
+                        if (ib2) {
+                            ib2.classList.remove('fa-minus');
+                            ib2.classList.add('fa-plus');
+                        }
+                        individualButton.setAttribute('aria-expanded', 'false');
+                    }
+                });
             });
-        });
+        }
 
         // 비고 전체 토글 버튼
-        $('#toggle-all-notes').on('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
+        var toggleAllNotesBtn = document.getElementById('toggle-all-notes');
+        if (toggleAllNotesBtn) {
+            toggleAllNotesBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
 
-            var $button = $(this);
-            var $icon = $button.find('i');
-            var expanding = $icon.hasClass('fa-chevron-down');
-
-            // 아이콘 변경
-            $icon.toggleClass('fa-chevron-down fa-chevron-up');
-
-            $('.notes-cell').each(function () {
-                var $cell = $(this);
-                var $individualButton = $cell.find('.toggle-notes');
-                if (!$individualButton.length) return;
-
-                var $summaryText = $cell.find('.notes-summary');
-                var $fullContent = $cell.find('.notes-full-content');
-                var isCurrentlyExpanded = $fullContent.is(':visible');
-
-                if (expanding && !isCurrentlyExpanded) { // 확장
-                    $summaryText.hide();
-                    $fullContent.show();
-                    $cell.addClass('expanded');
-                    $individualButton.find('i').removeClass('fa-chevron-down').addClass('fa-chevron-up');
-                    $individualButton.attr('aria-expanded', true);
-                } else if (!expanding && isCurrentlyExpanded) { // 축소
-                    $summaryText.show();
-                    $fullContent.hide();
-                    $cell.removeClass('expanded');
-                    $individualButton.find('i').removeClass('fa-chevron-up').addClass('fa-chevron-down');
-                    $individualButton.attr('aria-expanded', false);
+                var icon = toggleAllNotesBtn.querySelector('i');
+                var expanding = icon && icon.classList.contains('fa-chevron-down');
+                if (icon) {
+                    icon.classList.toggle('fa-chevron-down');
+                    icon.classList.toggle('fa-chevron-up');
                 }
+
+                document.querySelectorAll('.notes-cell').forEach(function (cell) {
+                    var individualButton = cell.querySelector('.toggle-notes');
+                    if (!individualButton) return;
+
+                    var summaryText = cell.querySelector('.notes-summary');
+                    var fullContent = cell.querySelector('.notes-full-content');
+                    var isCurrentlyExpanded = fullContent && isElVisible(fullContent);
+
+                    if (expanding && !isCurrentlyExpanded) {
+                        if (summaryText) summaryText.style.display = 'none';
+                        if (fullContent) fullContent.style.display = 'block';
+                        cell.classList.add('expanded');
+                        var ib = individualButton.querySelector('i');
+                        if (ib) {
+                            ib.classList.remove('fa-chevron-down');
+                            ib.classList.add('fa-chevron-up');
+                        }
+                        individualButton.setAttribute('aria-expanded', 'true');
+                    } else if (!expanding && isCurrentlyExpanded) {
+                        if (summaryText) summaryText.style.display = '';
+                        if (fullContent) fullContent.style.display = 'none';
+                        cell.classList.remove('expanded');
+                        var ib2 = individualButton.querySelector('i');
+                        if (ib2) {
+                            ib2.classList.remove('fa-chevron-up');
+                            ib2.classList.add('fa-chevron-down');
+                        }
+                        individualButton.setAttribute('aria-expanded', 'false');
+                    }
+                });
             });
-        });
+        }
 
         // 전체 토글 버튼 상태 업데이트 (최적화)
         function updateToggleAllOptionsButtonState() {
-            var $toggleAllButton = $('#toggle-all-options');
-            var $toggleAllIcon = $toggleAllButton.find('i');
-            var $toggleButtons = $('.toggle-options');
+            var toggleAllButton = document.getElementById('toggle-all-options');
+            if (!toggleAllButton) return;
+            var toggleAllIcon = toggleAllButton.querySelector('i');
+            var toggleButtons = document.querySelectorAll('.toggle-options');
 
-            // 옵션이 없는 경우 처리
-            if ($toggleButtons.length === 0) return;
+            if (toggleButtons.length === 0) return;
 
-            // 모든 상세 내용 표시 상태 확인
-            var expandedCount = $('.options-full-content:visible').length;
-            var allExpanded = expandedCount === $toggleButtons.length;
-            var allCollapsed = expandedCount === 0;
+            var expandedCount = 0;
+            document.querySelectorAll('.options-full-content').forEach(function (el) {
+                if (isElVisible(el)) expandedCount++;
+            });
+            var allExpanded = expandedCount === toggleButtons.length;
 
-            if (allExpanded) {
-                $toggleAllIcon.removeClass('fa-plus').addClass('fa-minus');
-                $toggleAllButton.attr('aria-expanded', true);
-            } else {
-                $toggleAllIcon.removeClass('fa-minus').addClass('fa-plus');
-                $toggleAllButton.attr('aria-expanded', false);
+            if (toggleAllIcon) {
+                if (allExpanded) {
+                    toggleAllIcon.classList.remove('fa-plus');
+                    toggleAllIcon.classList.add('fa-minus');
+                } else {
+                    toggleAllIcon.classList.remove('fa-minus');
+                    toggleAllIcon.classList.add('fa-plus');
+                }
             }
+            toggleAllButton.setAttribute('aria-expanded', allExpanded ? 'true' : 'false');
         }
 
         // 비고 전체 토글 버튼 상태 업데이트
         function updateToggleAllNotesButtonState() {
-            var $toggleAllButton = $('#toggle-all-notes');
-            var $toggleAllIcon = $toggleAllButton.find('i');
-            var $toggleButtons = $('.toggle-notes');
+            var toggleAllButton = document.getElementById('toggle-all-notes');
+            if (!toggleAllButton) return;
+            var toggleAllIcon = toggleAllButton.querySelector('i');
+            var toggleButtons = document.querySelectorAll('.toggle-notes');
 
-            // 비고가 없는 경우 처리
-            if ($toggleButtons.length === 0) return;
+            if (toggleButtons.length === 0) return;
 
-            // 모든 상세 내용 표시 상태 확인
-            var expandedCount = $('.notes-full-content:visible').length;
-            var allExpanded = expandedCount === $toggleButtons.length;
+            var expandedCount = 0;
+            document.querySelectorAll('.notes-full-content').forEach(function (el) {
+                if (isElVisible(el)) expandedCount++;
+            });
+            var allExpanded = expandedCount === toggleButtons.length;
 
-            if (allExpanded) {
-                $toggleAllIcon.removeClass('fa-chevron-down').addClass('fa-chevron-up');
-                $toggleAllButton.attr('aria-expanded', true);
-            } else {
-                $toggleAllIcon.removeClass('fa-chevron-up').addClass('fa-chevron-down');
-                $toggleAllButton.attr('aria-expanded', false);
+            if (toggleAllIcon) {
+                if (allExpanded) {
+                    toggleAllIcon.classList.remove('fa-chevron-down');
+                    toggleAllIcon.classList.add('fa-chevron-up');
+                } else {
+                    toggleAllIcon.classList.remove('fa-chevron-up');
+                    toggleAllIcon.classList.add('fa-chevron-down');
+                }
             }
+            toggleAllButton.setAttribute('aria-expanded', allExpanded ? 'true' : 'false');
         }
 
         // 컬럼 필터 폼 제출
-        $('#apply-column-filters-btn').on('click', function () {
-            // 모든 필터 값을 메인 폼에 추가
-            $('.column-filter').each(function () {
-                var $filter = $(this);
-                if ($filter.val()) {
-                    $('<input>').attr({
-                        type: 'hidden',
-                        name: $filter.attr('name'),
-                        value: $filter.val()
-                    }).appendTo('#main-filter-form');
-                }
+        var applyColBtn = document.getElementById('apply-column-filters-btn');
+        if (applyColBtn) {
+            applyColBtn.addEventListener('click', function () {
+                var mainForm = document.getElementById('main-filter-form');
+                if (!mainForm) return;
+                document.querySelectorAll('.column-filter').forEach(function (filter) {
+                    if (filter.value) {
+                        var input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = filter.getAttribute('name');
+                        input.value = filter.value;
+                        mainForm.appendChild(input);
+                    }
+                });
+                mainForm.submit();
             });
-            $('#main-filter-form').submit();
-        });
+        }
 
         // 컬럼 필터에서 Enter 키 사용
-        $('.column-filter').on('keydown', function (event) {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                $('#apply-column-filters-btn').trigger('click');
-            }
+        document.querySelectorAll('.column-filter').forEach(function (el) {
+            el.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    if (applyColBtn) applyColBtn.click();
+                }
+            });
         });
 
         // 컬럼 자동 너비 조정 로직
@@ -1495,59 +1574,56 @@
 
         // 행 클릭으로 체크박스 선택 기능
         function setupRowClickToSelect() {
-            $('tbody tr').off('click.rowSelect').on('click.rowSelect', function (e) {
-                // 특정 요소들은 행 클릭 이벤트에서 제외
-                if ($(e.target).is('input[type="checkbox"], a, button, .btn, .toggle-options, .toggle-notes') ||
-                    $(e.target).closest('a, button, .btn, .toggle-options, .toggle-notes').length > 0) {
-                    return;
-                }
-
-                // 해당 행의 체크박스 찾기
-                var $checkbox = $(this).find('input.order-checkbox');
-                if ($checkbox.length > 0) {
-                    // 체크박스 상태 토글
-                    $checkbox.prop('checked', !$checkbox.prop('checked'));
-
-                    // 행 선택 상태 시각적 표시
-                    $(this).toggleClass('selected', $checkbox.prop('checked'));
-
-                    // 전체 선택 체크박스 상태 업데이트
-                    updateSelectAllCheckbox();
-                }
+            document.querySelectorAll('tbody tr').forEach(function (tr) {
+                tr.addEventListener('click', function (e) {
+                    if (e.target.matches('input[type="checkbox"], a, button, .btn, .toggle-options, .toggle-notes') ||
+                        e.target.closest('a, button, .btn, .toggle-options, .toggle-notes')) {
+                        return;
+                    }
+                    var checkbox = tr.querySelector('input.order-checkbox');
+                    if (checkbox) {
+                        checkbox.checked = !checkbox.checked;
+                        tr.classList.toggle('selected', checkbox.checked);
+                        updateSelectAllCheckbox();
+                    }
+                });
+                tr.style.cursor = 'pointer';
             });
-
-            // 행에 클릭 가능함을 시각적으로 표시
-            $('tbody tr').css('cursor', 'pointer');
         }
 
-        // 전체 선택 체크박스 상태 업데이트 함수
         function updateSelectAllCheckbox() {
-            var $allCheckboxes = $('input.order-checkbox');
-            var $checkedBoxes = $allCheckboxes.filter(':checked');
-            var $selectAllCheckbox = $('#select-all');
+            var allCheckboxes = document.querySelectorAll('input.order-checkbox');
+            var checkedCount = 0;
+            allCheckboxes.forEach(function (cb) {
+                if (cb.checked) checkedCount++;
+            });
+            var selectAllCheckbox = document.getElementById('select-all');
+            if (!selectAllCheckbox) return;
 
-            if ($checkedBoxes.length === 0) {
-                $selectAllCheckbox.prop('checked', false).prop('indeterminate', false);
-            } else if ($checkedBoxes.length === $allCheckboxes.length) {
-                $selectAllCheckbox.prop('checked', true).prop('indeterminate', false);
+            if (checkedCount === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (checkedCount === allCheckboxes.length) {
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
             } else {
-                $selectAllCheckbox.prop('checked', false).prop('indeterminate', true);
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
             }
         }
 
-        // 개별 체크박스 변경 시에도 전체 선택 상태 업데이트
-        $(document).on('change', 'input.order-checkbox', function () {
-            // 해당 행의 선택 상태 시각적 표시
-            $(this).closest('tr').toggleClass('selected', $(this).prop('checked'));
+        document.addEventListener('change', function (e) {
+            if (!e.target.matches('input.order-checkbox')) return;
+            var tr = e.target.closest('tr');
+            if (tr) tr.classList.toggle('selected', e.target.checked);
             updateSelectAllCheckbox();
         });
 
-        // 초기화
         setupRowClickToSelect();
 
-        // 페이지 로드 시 이미 체크된 항목들의 선택 상태 시각적 표시
-        $('.order-checkbox:checked').each(function () {
-            $(this).closest('tr').addClass('selected');
+        document.querySelectorAll('.order-checkbox:checked').forEach(function (cb) {
+            var tr = cb.closest('tr');
+            if (tr) tr.classList.add('selected');
         });
 
         // 초기 로드 시 전체 토글 버튼 상태 업데이트

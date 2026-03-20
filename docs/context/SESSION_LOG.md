@@ -4,17 +4,29 @@
 
 ## 최근 세션
 
+### Session: a8cf2973
+- **시작**: 2026-03-20 14:49:06
+- **상태**: completed
+- **편집 파일**: `templates/erp_history_dashboard.html`, `apps/erp_history_page.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-40e1148b-0f94-4faa-9223-ed9356d48c26.png`, `templates/index.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fcd1cdab-2c2c-4219-85f2-b959296ad7d0.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-aa3062d0-d7e4-49e4-a72e-ec6497cf1227.png`, `apps/order_pages.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-4712da55-f58e-459b-a7e8-664917e42c1a.png`, `scripts/clone_prod_to_deploy.ps1`, `commit_msg.txt`
+- **종료**: 2026-03-20 16:35:01
+
+### Session: 939e5cf4
+- **시작**: 2026-03-20 14:33:02
+- **상태**: unknown
+- **편집 파일**: `commit_msg.txt`, `templates/erp_history_dashboard.html`, `test_jinja_replace.py`, `test_jinja_error.py`, `test_history_error.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-66006689-07e5-41c2-88ea-a0ff0b0e3c09.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-bea6c117-5c3d-481b-9f7a-fdf421ee48c0.png`, `models.py`, `test_cutoff.py`, `verify_phase_h.py`
+- **종료**: 2026-03-20 14:33:41
+
 ### Session: a161e6ee
 - **시작**: 2026-03-20 10:33:57
-- **상태**: completed
-- **편집 파일**: `commit_msg.txt`, `verify_phase_d.py`, `scripts/backfill_erp_flat_columns.py`, `apps/api/erp_orders_construction.py`, `apps/api/erp_orders_structured.py`, `services/erp_sync_columns.py`, `services/db_indexes.py`, `models.py`, `tests/test_erp_order_detail_preload.py`, `services/app_init.py`
-- **종료**: 2026-03-20 12:31:47
+- **상태**: unknown
+- **편집 파일**: `commit_msg.txt`, `templates/erp_history_dashboard.html`, `test_jinja_replace.py`, `test_jinja_error.py`, `test_history_error.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-66006689-07e5-41c2-88ea-a0ff0b0e3c09.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-bea6c117-5c3d-481b-9f7a-fdf421ee48c0.png`, `models.py`, `test_cutoff.py`, `verify_phase_h.py`
+- **종료**: 2026-03-20 14:48:22
 
 ### Session: 88c6415f
 - **시작**: 2026-03-20 08:39:40
 - **상태**: unknown
-- **편집 파일**: `apps/erp_dashboard.py`, `docs/plans/2026-03-20-large-data-search-plan.md`
-- **종료**: 2026-03-20 10:29:02
+- **편집 파일**: `commit_msg.txt`, `templates/erp_history_dashboard.html`, `test_jinja_replace.py`, `test_jinja_error.py`, `test_history_error.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-66006689-07e5-41c2-88ea-a0ff0b0e3c09.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-bea6c117-5c3d-481b-9f7a-fdf421ee48c0.png`, `models.py`, `test_cutoff.py`, `verify_phase_h.py`
+- **종료**: 2026-03-20 14:33:35
 
 ### Session: 49caab9a
 - **시작**: 2026-03-19 13:37:16
@@ -696,3 +708,45 @@
 | 2026-03-20 11:51:26 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-20 12:31:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 12:45:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 13:17:44 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 14:51:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 14:53:26 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 15:01:01 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 15:10:52 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 15:12:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 15:37:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 15:40:54 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 15:45:33 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 15:45:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 15:54:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 15:55:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 16:02:01 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 16:05:06 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 16:10:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 16:10:54 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 16:27:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 16:31:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 16:32:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 16:35:01 | END (Claude Code) | 수정: (없음) |
