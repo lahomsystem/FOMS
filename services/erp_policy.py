@@ -76,6 +76,15 @@ STAGE_SQL_FILTER_MAP: Dict[str, List[str]] = {
     'AS처리':  ['"AS접수"', '"AS처리"', '"AS_RECEIVED"', '"AS"'],
 }
 
+STAGES_REQUIRING_TEAM: Dict[str, List[str]] = {
+    'CS':          ['"주문접수"', '"RECEIVED"', '"CS"', '"완료"', '"COMPLETED"', '"AS접수"', '"AS처리"', '"AS_RECEIVED"', '"AS"', '"실측"', '"MEASURE"', '"고객컨펌"', '"CONFIRM"'],
+    'SALES':       ['"실측"', '"MEASURE"', '"고객컨펌"', '"CONFIRM"'],
+    'MEASURE':     ['"실측"', '"MEASURE"'],
+    'DRAWING':     [],
+    'PRODUCTION':  ['"생산"', '"PRODUCTION"'],
+    'CONSTRUCTION': [],
+}
+
 
 # 프로젝트 루트의 data/ 폴더 (기존 data/erp_policy.json 등 유지)
 _DATA_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
