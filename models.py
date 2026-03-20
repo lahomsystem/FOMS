@@ -80,6 +80,11 @@ class Order(Base):
     structured_confidence = Column(String(20), nullable=True)  # high/medium/low
     structured_updated_at = Column(DateTime, nullable=True)
     
+    # ERP Beta 실측·시공 일정 정규화 컬럼 (D-day SQL 필터용)
+    erp_measurement_date = Column(String(10), nullable=True, index=True)   # YYYY-MM-DD
+    erp_construction_date = Column(String(10), nullable=True, index=True)  # YYYY-MM-DD
+
+    
     # Phase 4: 정규화된 날짜 테이블 (1:N)
     schedule_dates = relationship('OrderScheduleDate', backref='order', cascade='all, delete-orphan')
 

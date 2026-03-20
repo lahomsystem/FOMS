@@ -4,6 +4,10 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-20 | 세션 자동 기록 | commit_msg.txt, verify_phase_a3.py, erp_construction_page.py 외 2개 | 5e50c42 |
+| 2026-03-20 | 세션 자동 기록 | erp_dashboard.py | 6bdf36b |
+| 2026-03-20 | 세션 자동 기록 | commit_msg.txt, erp_shipment_dashboard.html, measurement.js 외 2개 | 75ef5bd |
+| 2026-03-19 | 세션 자동 기록 | commit_msg.txt, erp_shipment_dashboard.html, measurement.js 외 2개 | 75ef5bd |
 | 2026-03-19 | 세션 자동 기록 | erp_shipment_dashboard.html, measurement.js, erp_measurement_dashboard.html 외 2개 | c10ea5d |
 | 2026-03-19 | 세션 자동 기록 | app.py, erp_as_page.py, wdcalculator_db.py 외 2개 | c10ea5d |
 | 2026-03-19 | 세션 자동 기록 | erp_order_detail.py, erp_measurement_dashboard.py, erp_permissions.py 외 2개 | c10ea5d |
@@ -20,7 +24,3 @@
 | 2026-03-19 | 세션 자동 기록 | commit_msg.txt, erp_shipment_page.py, erp_as_page.py 외 2개 | eca82ca |
 | 2026-03-19 | 세션 자동 기록 | commit_msg.txt, erp_as_page.py, erp_dashboard.py 외 2개 | e679904 |
 | 2026-03-19 | 세션 자동 기록 | erp_as_page.py, erp_dashboard.py, commit_msg.txt 외 2개 | 336b61a |
-| 2026-03-19 | 세션 자동 기록 | erp_dashboard.py, commit_msg.txt, erp_beta_js.html 외 2개 | 336b61a |
-| 2026-03-19 | 세션 자동 기록 | commit_msg.txt, erp_beta_js.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f444795b-9351-4044-81c6-2199ea5d6941.png 외 2개 | 336b61a |
-| 2026-03-19 | 세션 자동 기록 | erp_beta_js.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f444795b-9351-4044-81c6-2199ea5d6941.png, erp_construction_styles.html 외 2개 | 1bf23df |
-| 2026-03-18 | 세션 자동 기록 | erp_construction_styles.html, erp_production_styles.html, erp_dashboard_styles.html 외 2개 | 6fa8737 |
