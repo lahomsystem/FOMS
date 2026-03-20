@@ -1,8 +1,11 @@
+from copy import deepcopy
+
 from flask import Blueprint, render_template, request, g
 from db import get_db
 from models import Order
 from apps.auth import login_required
-from sqlalchemy import or_, and_, cast, String, text
+from constants import STATUS
+from sqlalchemy import or_, cast, String
 
 erp_history_bp = Blueprint('erp_history', __name__, url_prefix='/erp/history')
 
@@ -19,9 +22,11 @@ def history_dashboard():
     f_date_to = (request.args.get('date_to') or '').strip()
     
     has_filter = bool(f_q or f_stage or f_date_from or f_date_to)
-    
-    # 기본은 ERP Beta 건 + soft-delete 안 된 것
-    _q = db.query(Order).filter(Order.active_filter(), Order.is_erp_beta.is_(True))
+
+    # soft-delete 제외한 활성 주문 전체 (레거시 + ERP Beta).
+    # ERP Beta는 DB 컬럼이 초안 플레이스홀더('ERP Beta', 000-…)인 채로 두고 실제 값이 structured_data에만
+    # 있는 경우가 많음 → 목록 표시 시 apply_erp_display_fields로 동기화(메인 주문 목록과 동일).
+    _q = db.query(Order).filter(Order.active_filter())
     
     if f_q:
         search_term = f"%{f_q}%"
@@ -37,7 +42,14 @@ def history_dashboard():
         )
         
     if f_stage:
-        _q = _q.filter(Order.erp_stage_code == f_stage)
+        # ERP: erp_stage_code / 레거시: status (값이 MEASURE·MEASURED 등으로 다를 수 있음)
+        stage_or = [
+            Order.erp_stage_code == f_stage,
+            Order.status == f_stage,
+        ]
+        if f_stage == "MEASURE":
+            stage_or.append(Order.status.in_(("MEASURE", "MEASURED", "REGIONAL_MEASURED")))
+        _q = _q.filter(or_(*stage_or))
         
     if f_date_from:
         _q = _q.filter(Order.created_at >= f"{f_date_from} 00:00:00")
@@ -58,17 +70,27 @@ def history_dashboard():
         
     total_pages = (total_orders + per_page - 1) // per_page
     
-    from services.erp_display import _ensure_dict, _erp_get_stage
-    
+    from services.erp_display import _ensure_dict, _erp_get_stage, apply_erp_display_fields
+
     enriched = []
     for o in orders:
         sd = _ensure_dict(o.structured_data)
-        stage = _erp_get_stage(o, sd)
-        
+        if getattr(o, "is_erp_beta", False):
+            stage = _erp_get_stage(o, sd)
+        else:
+            stage = STATUS.get(o.status, o.status or "-")
+
+        # ERP Beta: Order 행 컬럼이 플레이스홀더인 경우 structured_data 기준으로 표시용 복제
+        display_o = o
+        if getattr(o, "is_erp_beta", False) and o.structured_data:
+            display_o = deepcopy(o)
+            apply_erp_display_fields(display_o)
+
         enriched.append({
             '_order': o,
             '_sd': sd,
             'stage': stage,
+            'display_o': display_o,
         })
         
     return render_template(

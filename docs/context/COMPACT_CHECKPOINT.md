@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-20 11:56:33
-> 세션: a161e6ee
+> 생성 시각: 2026-03-20 16:32:52
+> 세션: a8cf2973
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `scripts/backfill_erp_flat_columns.py` <- 1 edit(s), ~762 chars (2026-03-20 11:54:52)
-- `scripts/backfill_erp_flat_columns.py` <- 1 edit(s), ~762 chars (2026-03-20 11:54:51)
-- `apps/api/erp_orders_construction.py` <- 1 edit(s), ~7838 chars (2026-03-20 11:54:13)
-- `apps/api/erp_orders_construction.py` <- 1 edit(s), ~7838 chars (2026-03-20 11:54:12)
-- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~19247 chars (2026-03-20 11:53:54)
-- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~19247 chars (2026-03-20 11:53:53)
-- `services/erp_sync_columns.py` <- 1 edit(s), ~1651 chars (2026-03-20 11:53:37)
-- `services/db_indexes.py` <- 1 edit(s), ~3880 chars (2026-03-20 11:53:13)
-- `models.py` <- 1 edit(s), ~20397 chars (2026-03-20 11:52:51)
-- `commit_msg.txt` <- 1 edit(s), ~359 chars (2026-03-20 11:45:40)
+- `apps/erp_history_page.py` <- 1 edit(s), ~159 chars (2026-03-20 16:32:51)
+- `apps/erp_history_page.py` <- 1 edit(s), ~28 chars (2026-03-20 16:32:51)
+- `templates/erp_history_dashboard.html` <- 1 edit(s), ~184 chars (2026-03-20 16:32:38)
+- `templates/erp_history_dashboard.html` <- 1 edit(s), ~101 chars (2026-03-20 16:32:37)
+- `apps/erp_history_page.py` <- 1 edit(s), ~354 chars (2026-03-20 16:32:33)
+- `apps/erp_history_page.py` <- 2 edit(s), ~184 chars (2026-03-20 16:32:32)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-40e1148b-0f94-4faa-9223-ed9356d48c26.png` <- 1 edit(s), ~0 chars (2026-03-20 16:31:27)
+- `templates/index.html` <- 1 edit(s), ~214 chars (2026-03-20 16:30:57)
+- `templates/index.html` <- 1 edit(s), ~197 chars (2026-03-20 16:30:56)
+- `templates/index.html` <- 9 edit(s), ~1974 chars (2026-03-20 16:30:50)
 
 ### 진행 중이던 작업
 (없음)

@@ -69,7 +69,7 @@
   <div class="erp-pro-empty">
     <i class="fas fa-search erp-pro-empty__icon"></i>
     <p class="erp-pro-empty__text">위 필터를 설정하여 조회를 시작하세요.</p>
-    <p class="text-muted small">과거 이력은 데이터가 방대하므로 조건 없이 전체 조회를 지원하지 않습니다.</p>
+    <p class="text-muted small">과거 이력은 데이터가 방대하므로 조건 없이 전체 조회를 지원하지 않습니다. (레거시·ERP Beta 모두 검색 대상)</p>
   </div>
   {% elif not orders %}
   <div class="erp-pro-empty">
@@ -101,18 +101,19 @@
           <tbody>
             {% for item in orders %}
             {% set o = item._order %}
+            {% set d = item.display_o %}
             <tr>
               <td>{{ o.id }}</td>
               <td>
                 <span class="erp-pro-badge erp-pro-badge--{{ item.stage|replace(' ', '-') }}">{{ item.stage }}</span>
               </td>
-              <td>{{ o.customer_name }}</td>
-              <td>{{ o.phone }}</td>
-              <td class="text-truncate" style="max-width: 200px;" title="{{ o.address }}">{{ o.address }}</td>
-              <td class="text-truncate" style="max-width: 150px;" title="{{ o.product }}">{{ o.product }}</td>
+              <td>{{ d.customer_name }}</td>
+              <td>{{ d.phone }}</td>
+              <td class="text-truncate" style="max-width: 200px;" title="{{ d.address }}">{{ d.address }}</td>
+              <td class="text-truncate" style="max-width: 150px;" title="{{ d.product }}">{{ d.product }}</td>
               <td>{{ o.created_at.strftime('%Y-%m-%d') if o.created_at else '-' }}</td>
               <td>
-                <a href="{{ url_for('order_edit.edit_order', order_id=o.id) }}?open=erp-beta" class="btn btn-sm btn-outline-secondary" target="_blank">
+                <a href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_beta %}?open=erp-beta{% endif %}" class="btn btn-sm btn-outline-secondary" target="_blank">
                   상세보기
                 </a>
               </td>

@@ -185,6 +185,10 @@ def index():
         )
     except Exception as e:
         print(f"Index 페이지 로딩 중 오류: {str(e)}")
+        try:
+            current_app.logger.exception("Index 페이지 로딩 실패: %s", e)
+        except Exception:
+            pass
         if 'user_id' in session:
             # 인증/세션 불일치 상태에서 / <-> /login 루프를 방지한다.
             session.clear()
