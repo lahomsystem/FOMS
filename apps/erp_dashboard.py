@@ -14,6 +14,7 @@ from services.erp_policy import (
     DEFAULT_OWNER_TEAM_BY_STAGE,
     STAGE_LABELS,
     STAGE_SQL_FILTER_MAP,
+    STAGES_REQUIRING_TEAM,
     get_quest_template_for_stage,
     create_quest_from_template,
     get_required_approval_teams_for_stage,
@@ -83,6 +84,17 @@ def erp_dashboard():
             conds.append(cast(Order.structured_data, String).ilike(f'%"{u_username}"%'))
         if conds:
             _q = _q.filter(or_(*conds))
+
+    # C. f_team SQL 필터
+    if f_team and not is_admin:
+        team_stages = STAGES_REQUIRING_TEAM.get(f_team)
+        if team_stages is not None:
+            if not team_stages:
+                from sqlalchemy import false
+                _q = _q.filter(false())
+            else:
+                stage_col_team = cast(Order.structured_data['workflow']['stage'], String)
+                _q = _q.filter(stage_col_team.in_(team_stages))
 
     # --- 분기 시점: 집계용 base query 복제 (f_stage, f_urgent 적용 전) ---
     _q_stats = _q.order_by(None)
@@ -158,26 +170,11 @@ def erp_dashboard():
         stage = _erp_get_stage(o, sd)
         alerts = _erp_alerts(o, sd, 0)  # cnt=0: 날짜 기반 alerts만 필요, 첨부파일 불필요
 
-        # f_team 필터용 quest 존재 여부 (bool) — CONSTRUCTION/DRAWING은 메인에서 quest 없음
-        quest_exists = False
-        if stage:
-            stage_code_lt = STAGE_NAME_TO_CODE.get(stage, stage)
-            if stage_code_lt not in ('CONSTRUCTION', 'DRAWING'):
-                quests_lt = (sd.get('quests') or []) if isinstance(sd, dict) else []
-                stage_label_lt = STAGE_LABELS.get(stage_code_lt, stage)
-                possible_stages_lt = {stage, stage_code_lt, stage_label_lt}
-                matching_lt = [q for q in quests_lt if isinstance(q, dict) and q.get('stage') in possible_stages_lt]
-                if matching_lt:
-                    quest_exists = True
-                else:
-                    quest_exists = bool(get_quest_template_for_stage(stage))
-
         light_enriched.append({
             '_order': o,
             '_sd': sd,
             'stage': stage,
             'alerts': alerts,
-            'current_quest': quest_exists,
             'measurement_date': ((sd.get('schedule') or {}).get('measurement') or {}).get('date'),
             'construction_date': ((sd.get('schedule') or {}).get('construction') or {}).get('date'),
         })
@@ -202,12 +199,20 @@ def erp_dashboard():
                 continue
             elif f_alert_type == 'production_d2' and not a_dict.get('production_d2'):
                 continue
+        
+        # --- C: f_team 인메모리 2차 확인 (CS 오버라이드 보완) ---
         if f_team and not is_admin:
-            quest = r.get('current_quest')
-            if not quest:
-                continue
-            if f_team not in get_required_approval_teams_for_stage(r.get('stage')):
-                continue
+            stage_code = STAGE_NAME_TO_CODE.get(r.get('stage'), r.get('stage'))
+            if stage_code in ('MEASURE', 'CONFIRM'):
+                orderer_name = (((r.get('_sd') or {}).get("parties") or {}).get("orderer") or {}).get("name") or ""
+                is_lahom = "라홈" in orderer_name.strip()
+                if is_lahom:
+                    if f_team not in ('CS', 'MEASURE'):
+                        continue
+                else:
+                    if f_team not in ('SALES', 'MEASURE'):
+                        continue
+
         filtered.append(r)
 
     # 실측/시공 단계 진입 시: 해당 날짜 내림차순(먼 미래 순) 정렬
