@@ -13,6 +13,7 @@ from db import get_db
 from models import Order, OrderEvent, SecurityLog
 from apps.auth import login_required, get_user_by_id
 from services.erp_permissions import erp_construction_edit_required
+from services.erp_sync_columns import sync_erp_date_columns
 from apps.erp import _ensure_dict
 
 erp_orders_construction_bp = Blueprint(
@@ -207,6 +208,7 @@ def api_construction_fail(order_id):
 
         order.structured_data = copy.deepcopy(sd)
         flag_modified(order, "structured_data")
+        sync_erp_date_columns(order, sd)
         order.status = new_stage
 
         db.add(SecurityLog(

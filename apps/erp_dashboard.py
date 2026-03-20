@@ -2,6 +2,7 @@
 ERP 메인 대시보드 (ERP-SLIM-4)
 erp.py에서 분리: /erp/dashboard
 """
+import datetime
 from flask import Blueprint, render_template, request, g
 from db import get_db
 from models import Order, User
@@ -107,6 +108,34 @@ def erp_dashboard():
     if f_urgent == '1':
         urgent_col = cast(Order.structured_data['flags']['urgent'], String)
         _q = _q.filter(urgent_col == 'true')
+
+    # B-4. D-day SQL 후보군 필터 (1차)
+    if f_alert_type in ('measurement_d4', 'construction_d3', 'production_d2'):
+        today_date = datetime.date.today()
+        stage_col = cast(Order.structured_data['workflow']['stage'], String)
+        
+        if f_alert_type == 'measurement_d4':
+            cutoff = (today_date + datetime.timedelta(days=12)).isoformat()
+            _q = _q.filter(
+                Order.erp_measurement_date.isnot(None),
+                Order.erp_measurement_date >= today_date.isoformat(),
+                Order.erp_measurement_date <= cutoff
+            )
+        elif f_alert_type == 'construction_d3':
+            cutoff = (today_date + datetime.timedelta(days=10)).isoformat()
+            _q = _q.filter(
+                Order.erp_construction_date.isnot(None),
+                Order.erp_construction_date >= today_date.isoformat(),
+                Order.erp_construction_date <= cutoff
+            )
+        elif f_alert_type == 'production_d2':
+            cutoff = (today_date + datetime.timedelta(days=8)).isoformat()
+            _q = _q.filter(
+                Order.erp_construction_date.isnot(None),
+                Order.erp_construction_date >= today_date.isoformat(),
+                Order.erp_construction_date <= cutoff,
+                stage_col.notin_(['"CONSTRUCTION"'])
+            )
 
     # 순수 DB 정렬: 생성일순
     _q = _q.order_by(Order.created_at.desc())

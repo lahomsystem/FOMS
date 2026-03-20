@@ -4,40 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-15 12:29:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-15 12:30:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-15 12:30:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_beta_js.html docs/AI_CHANGELOG.md; git commit --trailer "Made-w` |
-| 2026-03-15 12:30:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-15 12:53:48 | allow | `-` | `wc -l "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\partials\erp_beta_js.html" 2>nul || powershell -Command "(Get-Content 'c:\Users\USE` |
-| 2026-03-15 12:53:51 | allow | `-` | `powershell -Command "(Get-Content 'c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\partials\erp_beta_js.html').Count"` |
-| 2026-03-15 12:54:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-15 12:57:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-15 12:57:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -3` |
-| 2026-03-15 12:57:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show HEAD:check_orders.py` |
-| 2026-03-15 12:57:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show HEAD:r2_storage.py` |
-| 2026-03-15 12:57:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show HEAD:templates/partials/_erp_amount_block.html` |
-| 2026-03-15 12:57:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show HEAD:templates/partials/chat_scripts.html` |
-| 2026-03-15 13:31:20 | allow | `-` | `grep -n "function escapeHtml\|const escapeHtml\|escapeHtml =" templates/**/*.html static/**/*.js 2>/dev/null | wc -l` |
-| 2026-03-15 13:37:35 | allow | `-` | `grep -rn "function escapeHtml" templates/ 2>/dev/null | cut -d: -f1 | sort | uniq -c` |
-| 2026-03-15 13:55:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch` |
-| 2026-03-15 13:55:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status` |
-| 2026-03-15 13:56:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash pop` |
-| 2026-03-15 13:56:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-15 14:03:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-15 14:03:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest -q 2>&1 | head -80` |
-| 2026-03-15 14:04:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest -q 2>&1` |
-| 2026-03-15 14:05:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest -q 2>&1` |
-| 2026-03-15 14:07:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-15 14:07:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest -q 2>&1` |
-| 2026-03-15 14:13:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-15 14:13:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; alembic current` |
-| 2026-03-15 14:15:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-15 14:19:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL = "postgresql://postgres:jDkSuQDkQZkGZCFmPMOnFoDaXNJebidd@maglev.proxy.rlwy.` |
-| 2026-03-15 14:19:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL = "postgresql://postgres:jDkSuQDkQZkGZCFmPMOnFoDaXNJebidd@maglev.proxy.rlwy.` |
-| 2026-03-15 14:19:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL = "postgresql://postgres:jDkSuQDkQZkGZCFmPMOnFoDaXNJebidd@maglev.proxy.rlwy.` |
-| 2026-03-15 14:19:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL = "postgresql://postgres:jDkSuQDkQZkGZCFmPMOnFoDaXNJebidd@maglev.proxy.rlwy.` |
-| 2026-03-15 14:20:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL = "postgresql://postgres:jDkSuQDkQZkGZCFmPMOnFoDaXNJebidd@maglev.proxy.rlwy.` |
-| 2026-03-15 14:20:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL = "postgresql://postgres:jDkSuQDkQZkGZCFmPMOnFoDaXNJebidd@maglev.proxy.rlwy.` |
 | 2026-03-15 14:28:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL = "postgresql://postgres:XMuhzNDZDeBlQStbmUQymJTGQvgIKAVq@yamanote.proxy.rlw` |
 | 2026-03-15 14:28:53 | allow | `-` | `alembic upgrade head` |
 | 2026-03-15 14:29:06 | allow | `-` | `alembic current` |
@@ -304,3 +270,37 @@
 | 2026-03-19 23:35:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
 | 2026-03-19 23:35:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash drop; git status` |
 | 2026-03-19 23:35:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/context/SHELL_GUARD_LOG.md; git commit --trailer "Made-with: Cursor" -m "chore: S` |
+| 2026-03-19 23:41:18 | allow | `-` | `curl -sI "https://lahom-production.up.railway.app/static/css/erp-pro.css" 2>&1 | Select-String -Pattern "cache|Cache|max-age|content-type|status|HTTP"` |
+| 2026-03-19 23:41:24 | allow | `-` | `Invoke-WebRequest -Uri "https://lahom-production.up.railway.app/static/css/erp-pro.css" -Method Head | Select-Object -ExpandProperty Headers` |
+| 2026-03-19 23:41:31 | allow | `-` | `$r = Invoke-WebRequest -Uri "https://lahom-production.up.railway.app/static/css/erp-pro.css" -Method Head -UseBasicParsing; $r.StatusCode; $r.Headers | Format-T` |
+| 2026-03-19 23:41:40 | allow | `-` | `$start = Get-Date; $r = Invoke-WebRequest -Uri "https://lahom-production.up.railway.app/" -UseBasicParsing 2>&1; $elapsed = (Get-Date) - $start; "StatusCode: $(` |
+| 2026-03-19 23:41:50 | allow | `-` | `$urls = @( "https://lahom-production.up.railway.app/erp", "https://lahom-production.up.railway.app/erp/construction", "https://lahom-production.up.railway.app/e` |
+| 2026-03-20 08:42:39 | allow | `-` | `python -c "from services.business_calendar import business_days_between; import datetime; print(business_days_between(datetime.date(2025,1,1), datetime.date(202` |
+| 2026-03-20 08:45:40 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "from apps.erp_production_page import erp_production_page_bp; print('IMPORT_OK')"` |
+| 2026-03-20 08:46:24 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1` |
+| 2026-03-20 08:46:59 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff --stat` |
+| 2026-03-20 08:54:11 | allow | `-` | `ls /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/` |
+| 2026-03-20 08:54:59 | allow | `-` | `mkdir -p /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/docs/plans` |
+| 2026-03-20 09:03:58 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-20 09:06:12 | allow | `-` | `cd c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS && python -c "import app; print('APP_OK')" 2>&1` |
+| 2026-03-20 09:10:41 | allow | `-` | `cd c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS && cat docs/plans/2026-03-20-large-data-search-plan.md 2>/dev/null | head -80` |
+| 2026-03-20 09:10:48 | allow | `-` | `cd c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS && git log --oneline -6` |
+| 2026-03-20 09:16:36 | allow | `-` | `cd c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS && python -c "import app; print('APP_OK')" 2>&1 | tail -3` |
+| 2026-03-20 09:19:09 | allow | `-` | `cd c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS && python -c "import app; print('APP_OK')" 2>&1 | tail -3` |
+| 2026-03-20 10:16:28 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-20 10:40:34 | allow | `-` | `python -c "from app import create_app; from db import get_db; from models import Order; from sqlalchemy import text; app = create_app(); with app.app_context():` |
+| 2026-03-20 10:40:51 | allow | `-` | `python check_urgent.py` |
+| 2026-03-20 10:41:17 | allow | `-` | `python check_urgent.py` |
+| 2026-03-20 10:44:42 | allow | `-` | `python verify_phase_a.py` |
+| 2026-03-20 10:46:42 | allow | `-` | `python verify_phase_a3.py` |
+| 2026-03-20 10:50:24 | allow | `-` | `grep -rn "structured_data = " apps/api/` |
+| 2026-03-20 10:54:15 | allow | `-` | `alembic revision --autogenerate -m "add erp_measurement_date and erp_construction_date columns"` |
+| 2026-03-20 10:54:26 | allow | `-` | `flask db migrate -m "add erp_measurement_date and erp_construction_date columns"` |
+| 2026-03-20 10:54:48 | allow | `-` | `$env:PYTHONUTF8=1; alembic revision --autogenerate -m "add erp_measurement_date and erp_construction_date columns"` |
+| 2026-03-20 10:55:38 | allow | `-` | `python -X utf8 -m alembic revision --autogenerate -m "add erp_measurement_date and erp_construction_date columns"` |
+| 2026-03-20 10:56:15 | allow | `-` | `alembic revision --autogenerate -m "add erp_measurement_date and erp_construction_date columns"` |
+| 2026-03-20 10:56:46 | allow | `-` | `ls migrations/versions` |
+| 2026-03-20 10:57:48 | allow | `-` | `python -c "from app import app; from db import db_session; db_session.execute('ALTER TABLE orders ADD COLUMN IF NOT EXISTS erp_measurement_date VARCHAR(10)'); d` |
+| 2026-03-20 10:58:14 | allow | `-` | `python apply_migration.py` |
+| 2026-03-20 10:58:38 | allow | `-` | `python scripts/backfill_erp_date_columns.py` |
+| 2026-03-20 10:59:20 | allow | `-` | `python verify_phase_b.py` |

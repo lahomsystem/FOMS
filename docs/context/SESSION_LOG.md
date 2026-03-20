@@ -4,29 +4,41 @@
 
 ## 최근 세션
 
+### Session: a161e6ee
+- **시작**: 2026-03-20 10:33:57
+- **상태**: completed
+- **편집 파일**: `commit_msg.txt`, `verify_phase_a3.py`, `apps/erp_construction_page.py`, `verify_phase_a.py`, `apps/erp_dashboard.py`, `check_urgent.py`, `docs/plans/2026-03-20-large-data-search-plan.md`
+- **종료**: 2026-03-20 10:47:47
+
+### Session: 88c6415f
+- **시작**: 2026-03-20 08:39:40
+- **상태**: unknown
+- **편집 파일**: `apps/erp_dashboard.py`, `docs/plans/2026-03-20-large-data-search-plan.md`
+- **종료**: 2026-03-20 10:29:02
+
 ### Session: 49caab9a
 - **시작**: 2026-03-19 13:37:16
-- **상태**: completed
-- **편집 파일**: `templates/erp_shipment_dashboard.html`, `static/js/erp/measurement.js`, `templates/erp_measurement_dashboard.html`, `static/css/erp-pro.css`, `services/business_calendar.py`, `apps/erp_drawing_workbench.py`, `docs/plans/2026-03-19-tech-debt-master-plan.md`, `app.py`, `apps/erp_as_page.py`, `wdcalculator_db.py`
-- **종료**: 2026-03-19 23:32:38
+- **상태**: unknown
+- **편집 파일**: (없음)
+- **종료**: 2026-03-20 08:42:36
 
 ### Session: 9425c068
 - **시작**: 2026-03-17 12:45:58
-- **상태**: completed
-- **편집 파일**: `commit_msg.txt`, `docs/specs/2026-03-18-erp-beta-clean-code-fixes.md`, `docs/evolution/2026-03-18-PAYMENT-ICON-SAVE-FREE-CLICK.md`, `templates/partials/erp_beta_js.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f444795b-9351-4044-81c6-2199ea5d6941.png`, `docs/evolution/2026-03-18-ERP-GRID-THEAD-STICKY.md`, `templates/partials/erp_construction_styles.html`, `templates/partials/erp_production_styles.html`, `templates/partials/erp_dashboard_styles.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b50d9b50-3aac-4d6b-9df5-5e88fc246295.png`
-- **종료**: 2026-03-19 08:34:33
+- **상태**: unknown
+- **편집 파일**: `commit_msg.txt`, `templates/erp_shipment_dashboard.html`, `static/js/erp/measurement.js`, `templates/erp_measurement_dashboard.html`, `static/css/erp-pro.css`, `services/business_calendar.py`, `apps/erp_drawing_workbench.py`, `docs/plans/2026-03-19-tech-debt-master-plan.md`, `app.py`, `apps/erp_as_page.py`
+- **종료**: 2026-03-20 08:36:44
 
 ### Session: 0d00b4d0
 - **시작**: 2026-03-17 08:07:07
-- **상태**: completed
-- **편집 파일**: `commit_msg.txt`, `apps/erp_shipment_page.py`, `apps/erp_as_page.py`, `apps/erp_dashboard.py`, `docs/specs/2026-03-18-erp-beta-clean-code-fixes.md`, `docs/evolution/2026-03-18-PAYMENT-ICON-SAVE-FREE-CLICK.md`, `templates/partials/erp_beta_js.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f444795b-9351-4044-81c6-2199ea5d6941.png`, `docs/evolution/2026-03-18-ERP-GRID-THEAD-STICKY.md`, `templates/partials/erp_construction_styles.html`
-- **종료**: 2026-03-19 11:51:14
+- **상태**: unknown
+- **편집 파일**: `commit_msg.txt`, `templates/erp_shipment_dashboard.html`, `static/js/erp/measurement.js`, `templates/erp_measurement_dashboard.html`, `static/css/erp-pro.css`, `services/business_calendar.py`, `apps/erp_drawing_workbench.py`, `docs/plans/2026-03-19-tech-debt-master-plan.md`, `app.py`, `apps/erp_as_page.py`
+- **종료**: 2026-03-20 08:36:44
 
 ### Session: c8e94973
 - **시작**: 2026-03-16 09:32:21
-- **상태**: completed
-- **편집 파일**: `commit_msg.txt`, `services/erp_display.py`, `templates/erp_as_dashboard.html`, `apps/api/erp_orders_as.py`, `apps/api/orders.py`, `apps/api/erp_orders_structured.py`, `apps/api/channel_integration.py`, `docs/plans/2026-03-16-FOMS-GOOGLE-SHEET-DUAL-PUSH-SPEC.md`, `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md`, `docs/evolution/ERP_BETA_SAVE_FLOW_GDM_AUDIT_2026-03-16.md`
-- **종료**: 2026-03-16 13:35:18
+- **상태**: unknown
+- **편집 파일**: `commit_msg.txt`, `templates/erp_shipment_dashboard.html`, `static/js/erp/measurement.js`, `templates/erp_measurement_dashboard.html`, `static/css/erp-pro.css`, `services/business_calendar.py`, `apps/erp_drawing_workbench.py`, `docs/plans/2026-03-19-tech-debt-master-plan.md`, `app.py`, `apps/erp_as_page.py`
+- **종료**: 2026-03-20 08:36:45
 
 ### Session: 38bb1d6b
 - **시작**: 2026-03-13 09:03:40
@@ -620,3 +632,53 @@
 | 2026-03-19 23:27:45 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-19 23:32:38 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 23:35:56 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 23:43:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 23:44:56 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-19 23:45:32 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 08:25:04 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 08:30:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 08:33:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 08:47:45 | END (Claude Code) | 수정: apps/erp_production_page.py, services/business_calendar.py |
+
+| 2026-03-20 08:49:37 | END (Claude Code) | 수정: apps/erp_production_page.py, services/business_calendar.py |
+
+| 2026-03-20 08:51:35 | END (Claude Code) | 수정: apps/erp_production_page.py, services/business_calendar.py |
+
+| 2026-03-20 08:54:11 | END (Claude Code) | 수정: apps/erp_production_page.py, services/business_calendar.py |
+
+| 2026-03-20 09:11:06 | END (Claude Code) | 수정: apps/erp_dashboard.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/docs/plans/2026-03-20-large-data-search-plan.md, apps/erp_production_page.py, services/business_calendar.py |
+
+| 2026-03-20 09:11:14 | END (Claude Code) | 수정: apps/erp_dashboard.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/docs/plans/2026-03-20-large-data-search-plan.md, apps/erp_production_page.py, services/business_calendar.py |
+
+| 2026-03-20 09:17:03 | END (Claude Code) | 수정: apps/erp_production_page.py, apps/erp_dashboard.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/docs/plans/2026-03-20-large-data-search-plan.md, services/business_calendar.py |
+
+| 2026-03-20 09:20:17 | END (Claude Code) | 수정: apps/erp_dashboard.py, apps/erp_production_page.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/docs/plans/2026-03-20-large-data-search-plan.md, services/business_calendar.py |
+
+| 2026-03-20 09:39:20 | END (Claude Code) | 수정: apps/erp_dashboard.py, apps/erp_production_page.py, ../../../../../../../../c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/docs/plans/2026-03-20-large-data-search-plan.md, services/business_calendar.py |
+
+| 2026-03-20 09:51:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 09:52:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 09:55:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 10:02:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 10:11:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 10:16:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 10:25:25 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 10:31:26 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-20 10:47:47 | END (Claude Code) | 수정: (없음) |
