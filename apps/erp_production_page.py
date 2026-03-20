@@ -227,6 +227,7 @@ def erp_production_dashboard():
             kpis['production_d2_count'] += 1
 
     attach_order_detail_payloads(db, enriched)
+    paginated_orders = enriched
 
     return render_template(
         'erp_production_dashboard.html',
