@@ -71,8 +71,10 @@ def history_dashboard():
     total_pages = (total_orders + per_page - 1) // per_page
     
     from services.erp_display import _ensure_dict, _erp_get_stage, apply_erp_display_fields
+    from services.erp_product_items import build_product_items_for_orders
 
     enriched = []
+    display_orders = []
     for o in orders:
         sd = _ensure_dict(o.structured_data)
         if getattr(o, "is_erp_beta", False):
@@ -85,6 +87,8 @@ def history_dashboard():
         if getattr(o, "is_erp_beta", False) and o.structured_data:
             display_o = deepcopy(o)
             apply_erp_display_fields(display_o)
+        
+        display_orders.append(display_o)
 
         enriched.append({
             '_order': o,
@@ -92,7 +96,10 @@ def history_dashboard():
             'stage': stage,
             'display_o': display_o,
         })
-        
+    
+    # N+1 방지를 위해 1번의 쿼리로 전체 표시 주문들의 첨부/제품 항목 매핑
+    build_product_items_for_orders(db, display_orders)
+
     return render_template(
         'erp_history_dashboard.html',
         orders=enriched,
