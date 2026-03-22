@@ -7,8 +7,8 @@
 ### Session: a8cf2973
 - **시작**: 2026-03-20 14:49:06
 - **상태**: completed
-- **편집 파일**: `commit_msg_history_slide.txt`, `templates/erp_history_dashboard.html`, `apps/erp_history_page.py`, `docs/plans/2026-03-20-history-slide-ui-plan.md`, `commit_msg_deploy.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-40e1148b-0f94-4faa-9223-ed9356d48c26.png`, `templates/index.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fcd1cdab-2c2c-4219-85f2-b959296ad7d0.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-aa3062d0-d7e4-49e4-a72e-ec6497cf1227.png`, `apps/order_pages.py`
-- **종료**: 2026-03-22 10:21:21
+- **편집 파일**: `commit_msg_production_header.txt`, `docs/plans/2026-03-20-production-dashboard-sticky-header.md`, `templates/partials/erp_production_filters_grid.html`, `templates/partials/erp_production_styles.html`, `commit_msg_history_slide.txt`, `templates/erp_history_dashboard.html`, `apps/erp_history_page.py`, `docs/plans/2026-03-20-history-slide-ui-plan.md`, `commit_msg_deploy.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-40e1148b-0f94-4faa-9223-ed9356d48c26.png`
+- **종료**: 2026-03-22 10:46:39
 
 ### Session: 939e5cf4
 - **시작**: 2026-03-20 14:33:02
@@ -758,3 +758,5 @@
 | 2026-03-20 16:46:52 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-22 10:21:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-22 10:46:39 | END (Claude Code) | 수정: (없음) |

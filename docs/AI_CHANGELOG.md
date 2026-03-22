@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-22 | 세션 자동 기록 | commit_msg_production_header.txt, erp_production_filters_grid.html, erp_production_styles.html 외 2개 | d4200742 |
 | 2026-03-22 | 세션 자동 기록 | commit_msg_history_slide.txt, erp_history_dashboard.html, erp_history_page.py 외 2개 | 26d26894 |
 | 2026-03-20 | 세션 자동 기록 | commit_msg_deploy.txt, erp_history_dashboard.html, erp_history_page.py 외 2개 | 16ed530d |
 | 2026-03-20 | 세션 자동 기록 | erp_history_dashboard.html, erp_history_page.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-40e1148b-0f94-4faa-9223-ed9356d48c26.png 외 2개 | aa21574a |
@@ -23,4 +24,3 @@
 | 2026-03-20 | 세션 자동 기록 | commit_msg.txt, verify_phase_b.py, backfill_erp_date_columns.py 외 2개 | cf36ceb |
 | 2026-03-20 | 세션 자동 기록 | commit_msg.txt, verify_phase_a3.py, erp_construction_page.py 외 2개 | 5e50c42 |
 | 2026-03-20 | 세션 자동 기록 | erp_dashboard.py | 6bdf36b |
-| 2026-03-20 | 세션 자동 기록 | commit_msg.txt, erp_shipment_dashboard.html, measurement.js 외 2개 | 75ef5bd |
