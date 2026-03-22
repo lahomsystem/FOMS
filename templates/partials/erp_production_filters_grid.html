@@ -14,22 +14,22 @@
           </div>
           <div class="erp-grid-scroll-wrap">
           <div class="table-responsive">
-            <table class="table table-sm table-hover align-middle" id="erp-grid">
+            <table class="table table-sm table-hover align-middle erp-dashboard-grid-resizable" id="erp-grid">
               <thead>
                 <tr>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">경보</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">단계</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">퀘스트</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">고객</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">연락처</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">주소</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">제품</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">실측일</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">시공일</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">담당</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">첨부</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">상세</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;"></th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;"><div class="d-flex align-items-center gap-1 flex-nowrap">{% if can_edit_erp %}<input type="checkbox" class="form-check-input mt-0" id="erp-grid-select-all" title="전체 선택" aria-label="전체 선택">{% endif %}<span>경보</span></div><div class="erp-col-resizer"></div></th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">단계<div class="erp-col-resizer"></div></th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">퀘스트<div class="erp-col-resizer"></div></th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">고객<div class="erp-col-resizer"></div></th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">연락처<div class="erp-col-resizer"></div></th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">주소<div class="erp-col-resizer"></div></th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">제품<div class="erp-col-resizer"></div></th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">실측일<div class="erp-col-resizer"></div></th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">시공일<div class="erp-col-resizer"></div></th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">담당<div class="erp-col-resizer"></div></th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">첨부<div class="erp-col-resizer"></div></th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">상세<div class="erp-col-resizer"></div></th>
+                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;"><div class="erp-col-resizer"></div></th>
                 </tr>
               </thead>
               <tbody>
