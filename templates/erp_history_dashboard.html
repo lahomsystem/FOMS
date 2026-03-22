@@ -1,6 +1,81 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<style>
+  .history-chevron {
+    cursor: pointer;
+    opacity: 0.7;
+    user-select: none;
+    transition: transform 0.2s;
+  }
+  .history-chevron:hover {
+    opacity: 1;
+  }
+  .history-chevron.is-open {
+    transform: rotate(180deg);
+  }
+  .history-detail-row td {
+    padding: 12px;
+    background-color: #f8fbff;
+    border-bottom: 1px solid #e0e0e0;
+    vertical-align: top;
+  }
+  .history-detail-row .dw-product-main-card {
+    border: 1px solid #dfe7f3;
+    border-radius: 10px;
+    background: #fff;
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  .history-detail-row .dw-product-main-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .history-detail-row .dw-product-main-name {
+    font-size: 1.08rem;
+    font-weight: 700;
+    color: #0f2a52;
+  }
+  .history-detail-row .dw-product-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+  }
+  .history-detail-row .dw-attach-panel {
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 6px;
+    padding: 10px;
+  }
+  .history-detail-row .dw-attach-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+  }
+  .history-detail-row .dw-attach-thumb {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #e2e8f0;
+    border: 1px solid #cbd5e1;
+    cursor: pointer;
+  }
+  .history-detail-row .dw-attach-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  @media (max-width: 768px) {
+    .history-detail-row .dw-product-split {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
 <div class="container-fluid erp-dashboard erp-pro">
   <!-- Modern Header -->
   <header class="erp-pro-header">
@@ -103,7 +178,10 @@
             {% set o = item._order %}
             {% set d = item.display_o %}
             <tr>
-              <td>{{ o.id }}</td>
+              <td>
+                <i class="fas fa-chevron-down history-chevron me-2 text-primary" data-order-id="{{ o.id }}" role="button" aria-expanded="false" title="주문 상세 보기"></i>
+                {{ o.id }}
+              </td>
               <td>
                 <span class="erp-pro-badge erp-pro-badge--{{ item.stage|replace(' ', '-') }}">{{ item.stage }}</span>
               </td>
@@ -116,6 +194,69 @@
                 <a href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_beta %}?open=erp-beta{% endif %}" class="btn btn-sm btn-outline-secondary" target="_blank">
                   상세보기
                 </a>
+              </td>
+            </tr>
+            <tr class="history-detail-row" id="detail-{{ o.id }}" data-order-id="{{ o.id }}" style="display:none;" aria-hidden="true">
+              <td colspan="8">
+                {% set product_items_row = d.product_items if d.product_items is defined else [] %}
+                {% if product_items_row %}
+                  {% for prod_item in product_items_row %}
+                  <div class="dw-product-main-card">
+                    <div class="dw-product-main-head">
+                      <div class="dw-product-main-name">{{ prod_item.get('product_name') or ('제품 항목 ' ~ loop.index) }}</div>
+                      <div>
+                        {% if prod_item.get('quantity') %}<span class="badge bg-primary me-1">수량 {{ prod_item.get('quantity') }}</span>{% endif %}
+                        <span class="badge bg-light text-dark border">항목 {{ loop.index }}</span>
+                      </div>
+                    </div>
+                    <div class="dw-product-split">
+                      <div class="dw-product-info-form">
+                        <div class="row g-2">
+                          <div class="col-md-4">
+                            <label class="form-label mb-1 small text-primary">규격 W(폭)</label>
+                            <input class="form-control form-control-sm" value="{{ prod_item.get('width') or '' }}" readonly>
+                          </div>
+                          <div class="col-md-4">
+                            <label class="form-label mb-1 small text-primary">규격 D(깊이)</label>
+                            <input class="form-control form-control-sm" value="{{ prod_item.get('depth') or '' }}" readonly>
+                          </div>
+                          <div class="col-md-4">
+                            <label class="form-label mb-1 small text-primary">규격 H(높이)</label>
+                            <input class="form-control form-control-sm" value="{{ prod_item.get('height') or '' }}" readonly>
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label mb-1 small text-primary">색상</label>
+                            <input class="form-control form-control-sm" value="{{ prod_item.get('color') or '' }}" readonly>
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
+                            <input class="form-control form-control-sm" value="{{ prod_item.get('misc') or '' }}" readonly>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="dw-attach-panel">
+                        <div class="small fw-semibold text-muted mb-2"><i class="fas fa-image"></i> 첨부 파일 (실측/사진)</div>
+                        {% set measure_imgs = prod_item.get('measurement_images') or [] %}
+                        {% if measure_imgs %}
+                          <div class="dw-attach-grid">
+                            {% for photo in measure_imgs %}
+                            <div>
+                              <div class="dw-attach-thumb" data-group-key="history_{{ o.id }}_item_{{ loop.index0 }}" data-index="{{ loop.index0 }}" onclick="if(window.openDrawingGatewayImageViewer) { window.openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index)); } else { window.open('{{ photo.view_url }}', '_blank'); }">
+                                <img data-src="{{ photo.view_url }}" alt="{{ photo.filename }}" class="lazy-detail-img">
+                              </div>
+                            </div>
+                            {% endfor %}
+                          </div>
+                        {% else %}
+                          <div class="small text-muted">항목에 연결된 첨부 파일이 없습니다.</div>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                  {% endfor %}
+                {% else %}
+                  <div class="small text-muted p-2">등록된 제품 정보가 없습니다. (ERP Beta 이력이 아니거나 구조화된 데이터가 없음)</div>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}
@@ -152,4 +293,36 @@
   </div>
   {% endif %}
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.history-chevron').forEach(function(chevron) {
+    chevron.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var orderId = this.dataset.orderId;
+      var detailRow = orderId ? document.getElementById('detail-' + orderId) : null;
+      if (!detailRow) return;
+      
+      var isOpen = this.getAttribute('aria-expanded') === 'true';
+      if (isOpen) {
+        detailRow.style.display = 'none';
+        detailRow.setAttribute('aria-hidden', 'true');
+        this.setAttribute('aria-expanded', 'false');
+        this.classList.remove('is-open');
+      } else {
+        detailRow.style.display = 'table-row';
+        detailRow.setAttribute('aria-hidden', 'false');
+        this.setAttribute('aria-expanded', 'true');
+        this.classList.add('is-open');
+        // lazy-load: data-src -> src 변환
+        detailRow.querySelectorAll('img.lazy-detail-img[data-src]').forEach(function(img) {
+          img.src = img.dataset.src;
+          img.removeAttribute('data-src');
+        });
+      }
+    });
+  });
+});
+</script>
 {% endblock %}

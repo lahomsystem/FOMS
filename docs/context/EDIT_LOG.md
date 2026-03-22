@@ -5,6 +5,12 @@
 
 ## 최근 파일 편집
 
+- `commit_msg_history_slide.txt` <- 1 edit(s), ~374 chars (2026-03-22 10:20:54)
+- `templates/erp_history_dashboard.html` <- 1 edit(s), ~1161 chars (2026-03-22 10:20:18)
+- `templates/erp_history_dashboard.html` <- 3 edit(s), ~4419 chars (2026-03-22 10:20:10)
+- `templates/erp_history_dashboard.html` <- 1 edit(s), ~1703 chars (2026-03-22 10:19:56)
+- `apps/erp_history_page.py` <- 4 edit(s), ~253 chars (2026-03-22 10:19:26)
+- `docs/plans/2026-03-20-history-slide-ui-plan.md` <- 1 edit(s), ~1563 chars (2026-03-22 10:19:15)
 - `commit_msg_deploy.txt` <- 1 edit(s), ~318 chars (2026-03-20 16:36:14)
 - `templates/erp_history_dashboard.html` <- 2 edit(s), ~343 chars (2026-03-20 16:34:48)
 - `apps/erp_history_page.py` <- 3 edit(s), ~371 chars (2026-03-20 16:34:44)
@@ -49,9 +55,3 @@
 - `scripts/clone_prod_to_deploy.ps1` <- 1 edit(s), ~86 chars (2026-03-20 15:00:56)
 - `commit_msg.txt` <- 1 edit(s), ~254 chars (2026-03-20 13:16:39)
 - `templates/erp_history_dashboard.html` <- 1 edit(s), ~7289 chars (2026-03-20 13:15:54)
-- `test_jinja_replace.py` <- 1 edit(s), ~102 chars (2026-03-20 13:05:59)
-- `test_jinja_error.py` <- 1 edit(s), ~930 chars (2026-03-20 13:05:29)
-- `test_jinja_error.py` <- 1 edit(s), ~882 chars (2026-03-20 13:05:09)
-- `test_jinja_error.py` <- 1 edit(s), ~842 chars (2026-03-20 13:04:50)
-- `test_history_error.py` <- 1 edit(s), ~341 chars (2026-03-20 13:01:59)
-- `test_history_error.py` <- 1 edit(s), ~290 chars (2026-03-20 13:01:17)
