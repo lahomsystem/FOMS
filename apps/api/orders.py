@@ -1,4 +1,3 @@
-
 from flask import Blueprint, jsonify, request, session, current_app
 from apps.auth import login_required, role_required, log_access, get_user_by_id
 from services.erp_sync_columns import sync_erp_flat_columns
@@ -57,6 +56,8 @@ def _build_order_update_response(order, field, fallback_value, structured_data=N
         normalized_value = shipment.get('as_content') or ''
     elif field == 'as_pending':
         normalized_value = shipment.get('as_pending') is True
+    elif field == 'as_blueprint':
+        normalized_value = shipment.get('as_blueprint') is True
     elif field == 'sales_delivery':
         normalized_value = shipment.get('sales_delivery') is True
     elif field == 'as_visit_date':
@@ -74,6 +75,7 @@ def _build_order_update_response(order, field, fallback_value, structured_data=N
         'as_completed_date': getattr(order, 'as_completed_date', None) or '',
         'as_visit_date': getattr(order, 'as_visit_date', None) or '',
         'as_pending': shipment.get('as_pending') is True,
+        'as_blueprint': shipment.get('as_blueprint') is True,
         'sales_delivery': shipment.get('sales_delivery') is True,
     }
 
@@ -718,7 +720,7 @@ def update_order_field():
         'regional_blueprint_sent', 'regional_order_upload',
         'regional_cargo_sent', 'regional_construction_info_sent',
         'as_received_date', 'as_completed_date',  # AS 관련 날짜 필드들
-        'as_visit_date', 'as_content', 'as_pending', 'sales_delivery',  # AS 방문일·내용·미결·영업/전달
+        'as_visit_date', 'as_content', 'as_pending', 'as_blueprint', 'sales_delivery',  # AS 방문일·내용·미결·영업/전달
         'measurement_date',  # 실측일 필드
         'regional_memo',  # 메모 필드 허용 (수납장 대시보드 등)
         'is_cabinet', 'cabinet_status',  # 수납장 관련
@@ -735,7 +737,7 @@ def update_order_field():
         structured_sync_fields = {
             'manager_name', 'measurement_date', 'scheduled_date',
             'customer_name', 'phone', 'address',
-            'as_visit_date', 'as_content', 'as_pending', 'sales_delivery',
+            'as_visit_date', 'as_content', 'as_pending', 'as_blueprint', 'sales_delivery',
         }
         structured_data = None
         structured_changed = False
@@ -745,7 +747,7 @@ def update_order_field():
         old_value = getattr(order, field, None)
         if field == 'as_visit_date':
             pass
-        elif field in ('as_content', 'as_pending', 'sales_delivery'):
+        elif field in ('as_content', 'as_pending', 'as_blueprint', 'sales_delivery'):
             # structured_data 전용 필드는 모델 컬럼 건너뜀
             pass
         else:
@@ -773,10 +775,14 @@ def update_order_field():
                     structured_changed = True
 
         # ERP Beta 주문이거나 structured_data 연동이 필요한 필드(as_content, as_pending 등)인 경우
-        if _is_beta or field in ('as_content', 'as_visit_date', 'as_pending', 'sales_delivery'):
+        if _is_beta or field in ('as_content', 'as_visit_date', 'as_pending', 'as_blueprint', 'sales_delivery'):
             if field == 'as_pending':
                 shipment = ensure_path(structured_data, 'shipment')
                 shipment['as_pending'] = _coerce_bool_value(value)
+                structured_changed = True
+            elif field == 'as_blueprint':
+                shipment = ensure_path(structured_data, 'shipment')
+                shipment['as_blueprint'] = _coerce_bool_value(value)
                 structured_changed = True
             elif field == 'sales_delivery':
                 shipment = ensure_path(structured_data, 'shipment')
