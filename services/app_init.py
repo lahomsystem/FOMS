@@ -5,6 +5,31 @@ from models import User
 from werkzeug.security import generate_password_hash
 
 
+def _backfill_erp_flat_columns(app):
+    """Phase D: erp_stage_code가 NULL인 활성 ERP Beta 주문을 자동 백필."""
+    try:
+        from models import Order
+        from services.erp_sync_columns import sync_erp_flat_columns
+        db_session = get_db()
+        targets = (
+            db_session.query(Order)
+            .filter(Order.active_filter(), Order.is_erp_beta.is_(True), Order.erp_stage_code.is_(None))
+            .all()
+        )
+        if not targets:
+            return
+        count = 0
+        for order in targets:
+            if order.structured_data:
+                sync_erp_flat_columns(order, order.structured_data)
+                count += 1
+        if count:
+            db_session.commit()
+            print(f"[AUTO-INIT] Backfilled erp_stage_code for {count} orders.")
+    except Exception as e:
+        print(f"[AUTO-INIT] erp_stage_code backfill failed: {e}")
+
+
 def run_auto_init(app):
     """DB 테이블 및 admin 사용자 확인/생성. WSGI 서버(gunicorn 등)에서 app import 시 호출."""
     try:
@@ -25,6 +50,9 @@ def run_auto_init(app):
             apply_phase2_indexes()
             ensure_erp_date_columns()
             
+            # Phase D: erp_stage_code 등 플랫 컬럼 자동 백필 (NULL인 활성 ERP Beta 주문 보정)
+            _backfill_erp_flat_columns(app)
+
             # Phase 4 Date Normalization Event Sync Setup
             from services.order_date_sync import register_date_sync_listener
             register_date_sync_listener()

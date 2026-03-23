@@ -224,8 +224,9 @@ def erp_dashboard():
 
     from sqlalchemy import func, case as sql_case
     
-    # Phase D: 플랫 컬럼을 활용한 집계
+    # Phase D: 플랫 컬럼을 활용한 집계 (NULL은 주문접수로 기본 분류)
     stage_bucket_expr = sql_case(
+        (Order.erp_stage_code.is_(None), '주문접수'),
         (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('주문접수', [])]), '주문접수'),
         (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('실측', [])]), '실측'),
         (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('도면', [])]), '도면'),
