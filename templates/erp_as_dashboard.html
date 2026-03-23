@@ -223,6 +223,9 @@
               <th style="width: 120px;">고객</th>
               <th style="width: 450px;">주소</th>
               <th style="width: 60px;">첨부</th>
+              <th style="width: 56px;" class="text-center" title="AS도면">
+                <span class="d-inline-block small lh-sm">AS<br>도면</span>
+              </th>
               <th style="width: 450px;">AS 내용</th>
               <th style="width: 100px;">상태</th>
             </tr>
@@ -284,6 +287,10 @@
                 <span class="text-muted small">-</span>
                 {% endif %}
               </td>
+              <td class="text-center align-middle" style="width: 56px;">
+                <input type="checkbox" class="form-check-input as-blueprint-checkbox" data-order-id="{{ r.id }}"
+                  {% if r.has_as_blueprint %}checked{% endif %} aria-label="주문 #{{ r.id }} AS도면 여부">
+              </td>
               <td>
                 <div class="as-rich-editor" style="border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; background: #fff;">
                   {{ render_as_rich_toolbar(r.id, r.is_sales_delivery) }}
@@ -302,7 +309,7 @@
             {% endfor %}
             {% else %}
             <tr>
-              <td colspan="9" class="text-center text-muted py-4">데이터가 없습니다.</td>
+              <td colspan="10" class="text-center text-muted py-4">데이터가 없습니다.</td>
             </tr>
             {% endif %}
           </tbody>
@@ -385,6 +392,11 @@
               </button>
             </div>
             {% endif %}
+            <div class="erp-pro-order-card__row">
+              <span class="erp-pro-order-card__label">AS도면</span>
+              <input type="checkbox" class="form-check-input as-blueprint-checkbox" data-order-id="{{ r.id }}"
+                {% if r.has_as_blueprint %}checked{% endif %} aria-label="주문 #{{ r.id }} AS도면 여부">
+            </div>
             <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
               <span class="erp-pro-order-card__label">AS 내용</span>
                 <div class="as-rich-editor mt-1" style="border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; background: #fff; width: 100%;">
@@ -985,6 +997,12 @@
       });
     }
 
+    function setAsBlueprintCheckboxes(orderId, isChecked) {
+      document.querySelectorAll(`.as-blueprint-checkbox[data-order-id="${orderId}"]`).forEach((input) => {
+        input.checked = !!isChecked;
+      });
+    }
+
     function syncVisitPendingButtons(orderId, hasVisitDate) {
       [getTableRowForOrder(orderId), getCardForOrder(orderId)].forEach((container) => {
         if (!container) return;
@@ -1077,6 +1095,9 @@
       }
       if (Object.prototype.hasOwnProperty.call(data, 'sales_delivery')) {
         setSalesDeliveryButtons(orderId, data.sales_delivery === true);
+      }
+      if (Object.prototype.hasOwnProperty.call(data, 'as_blueprint')) {
+        setAsBlueprintCheckboxes(orderId, data.as_blueprint === true);
       }
     }
 
@@ -1819,6 +1840,48 @@
         .catch(function () {
           btn.disabled = false;
           showFeedback('네트워크 오류가 발생했습니다.', true);
+        });
+    });
+
+    document.addEventListener('change', function (e) {
+      const checkbox = e.target && e.target.closest('.as-blueprint-checkbox');
+      if (!checkbox || !checkbox.dataset.orderId) return;
+
+      const orderId = checkbox.dataset.orderId;
+      const nextChecked = checkbox.checked;
+      const relatedCheckboxes = document.querySelectorAll(`.as-blueprint-checkbox[data-order-id="${orderId}"]`);
+      const confirmed = window.confirm(
+        nextChecked
+          ? 'AS도면 확인으로 표시할까요?'
+          : 'AS도면 확인을 해제할까요?'
+      );
+      if (!confirmed) {
+        relatedCheckboxes.forEach((input) => {
+          input.checked = !nextChecked;
+        });
+        return;
+      }
+
+      relatedCheckboxes.forEach((input) => {
+        input.checked = nextChecked;
+        input.disabled = true;
+      });
+
+      saveOrderFieldDirect(orderId, 'as_blueprint', nextChecked)
+        .then((data) => {
+          applyOrderUiFromResponse(orderId, data);
+          showFeedback('AS도면 여부가 저장되었습니다.');
+        })
+        .catch((err) => {
+          relatedCheckboxes.forEach((input) => {
+            input.checked = !nextChecked;
+          });
+          showFeedback('저장 실패: ' + String(err?.message || err || ''), true);
+        })
+        .finally(() => {
+          relatedCheckboxes.forEach((input) => {
+            input.disabled = false;
+          });
         });
     });
 

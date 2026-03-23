@@ -326,6 +326,7 @@ def erp_as_dashboard():
         r.has_as_photos = r.id in as_photo_order_ids
         shipment = r.structured_data.get('shipment') or {}
         r.as_pending = shipment.get('as_pending') is True
+        r.has_as_blueprint = shipment.get('as_blueprint') is True
         r.is_sales_delivery = shipment.get('sales_delivery') is True
         r.as_content_html = sanitize_as_content_html(shipment.get('as_content'))
     # 시공자가 아닌 사용자만 AS 카테고리 사진 조회 가능 (관리자 등)
