@@ -122,13 +122,12 @@ class Order(Base):
         
         return and_(
             cls.active_filter(),
-            not_(
-                and_(
-                    cls.erp_stage_code.in_(completed_stages),
-                    or_(
-                        and_(cls.structured_updated_at.isnot(None), cls.structured_updated_at < cutoff_date),
-                        and_(cls.structured_updated_at.is_(None), cls.created_at < cutoff_date)
-                    )
+            or_(
+                cls.erp_stage_code.is_(None),
+                ~cls.erp_stage_code.in_(completed_stages),
+                or_(
+                    and_(cls.structured_updated_at.isnot(None), cls.structured_updated_at >= cutoff_date),
+                    and_(cls.structured_updated_at.is_(None), cls.created_at >= cutoff_date)
                 )
             )
         )
