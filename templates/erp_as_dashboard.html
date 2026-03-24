@@ -270,6 +270,8 @@
                   <button type="button" class="btn btn-sm btn-outline-secondary ms-1 find-schedule-btn p-0 px-1"
                     data-address="{{ r.address }}"
                     data-order-id="{{ r.id }}"
+                    data-lat="{{ r.lat or '' }}"
+                    data-lng="{{ r.lng or '' }}"
                     title="주변 일정 찾기" style="font-size: 0.75rem; line-height: 1.5;">
                     <i class="fas fa-map-marker-alt"></i> 일정
                   </button>
@@ -376,6 +378,8 @@
                 <button type="button" class="btn btn-sm btn-outline-secondary find-schedule-btn ms-2 p-0 px-2"
                   data-address="{{ r.address }}"
                   data-order-id="{{ r.id }}"
+                  data-lat="{{ r.lat or '' }}"
+                  data-lng="{{ r.lng or '' }}"
                   title="주변 일정 찾기" style="font-size: 0.75rem; white-space: nowrap;">
                   <i class="fas fa-map-marker-alt"></i> 일정
                 </button>
@@ -1350,6 +1354,8 @@
         if (!btn) return;
         const addr = btn.dataset.address;
         const orderId = btn.dataset.orderId;
+        const btnLat = btn.dataset.lat;
+        const btnLng = btn.dataset.lng;
         const modalEl = document.getElementById('scheduleSearchModal');
         if (!modalEl) { alert('페이지를 새로고침(F5) 해주세요.'); location.reload(); return; }
 
@@ -1371,6 +1377,7 @@
         try {
           const params = new URLSearchParams({ address: addr });
           if (orderId) params.append('exclude_id', orderId);
+          if (btnLat && btnLng) { params.append('lat', btnLat); params.append('lng', btnLng); }
           const res = await fetch(`/api/orders/nearby?${params.toString()}`);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
