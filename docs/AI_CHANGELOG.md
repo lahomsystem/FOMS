@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-24 | 세션 자동 기록 | .cursorrules, gdm.md, CLAUDE.md 외 1개 | e6d77af9 |
 | 2026-03-22 | 세션 자동 기록 | commit_msg.txt, commit_msg_production_header.txt, erp_production_filters_grid.html 외 2개 | d2f06cf8 |
 | 2026-03-22 | 세션 자동 기록 | commit_msg_production_header.txt, erp_production_filters_grid.html, erp_production_styles.html 외 2개 | d4200742 |
 | 2026-03-22 | 세션 자동 기록 | commit_msg_history_slide.txt, erp_history_dashboard.html, erp_history_page.py 외 2개 | 26d26894 |
@@ -23,4 +24,3 @@
 | 2026-03-20 | 세션 자동 기록 | commit_msg.txt, verify_phase_c_override.py, verify_phase_c.py 외 2개 | 2df87d98 |
 | 2026-03-20 | 세션 자동 기록 | erp_order_detail.py, commit_msg.txt, verify_phase_b.py 외 2개 | 6661ed22 |
 | 2026-03-20 | 세션 자동 기록 | commit_msg.txt, verify_phase_b.py, backfill_erp_date_columns.py 외 2개 | cf36ceb |
-| 2026-03-20 | 세션 자동 기록 | commit_msg.txt, verify_phase_a3.py, erp_construction_page.py 외 2개 | 5e50c42 |
