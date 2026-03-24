@@ -190,8 +190,8 @@ h6 {
 /* Badges */
 .badge {
     border-radius: 6px !important;
-    padding: 6px 10px !important;
-    font-weight: 600 !important;
+    padding: 6px 10px;
+    font-weight: 600;
     letter-spacing: 0.02em;
 }
 
