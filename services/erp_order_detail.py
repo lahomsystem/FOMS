@@ -24,6 +24,7 @@ def _slim_structured_data(sd: dict) -> dict:
         'parties': sd.get('parties', {}),
         'workflow': {
             'stage': workflow.get('stage'),
+            'stage_updated_at': workflow.get('stage_updated_at'),
             'history': workflow.get('history', []),
         },
         'checklist': sd.get('checklist', {}),
@@ -31,6 +32,11 @@ def _slim_structured_data(sd: dict) -> dict:
         'site': sd.get('site', {}),
         'quests': sd.get('quests', []),
         'assignments': sd.get('assignments', {}),
+        'notes': sd.get('notes', {}),
+        'flags': sd.get('flags', {}),
+        'drawing_status': sd.get('drawing_status'),
+        'drawing_assignees': sd.get('drawing_assignees', []),
+        'drawing_current_files': sd.get('drawing_current_files', []),
     }
 
 

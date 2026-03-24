@@ -333,10 +333,10 @@
             </div>`;
 
             const notesHtml = [
-              `<div class="mb-3"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">${escapeHtml(phoneNote) || '-'}</span></div>`,
-              `<div class="mb-3"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">${escapeHtml(addressNote) || '-'}</span></div>`,
-              `<div class="mb-3"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">${escapeHtml(measureNote) || '-'}</span></div>`
-            ].join('');
+              phoneNote && `<div class="mb-3"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">${escapeHtml(phoneNote)}</span></div>`,
+              addressNote && `<div class="mb-3"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">${escapeHtml(addressNote)}</span></div>`,
+              measureNote && `<div class="mb-3"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">${escapeHtml(measureNote)}</span></div>`
+            ].filter(Boolean).join('');
 
             const scheduleHtml = `
             <div class="${isMobile ? 'col-12' : 'col-md-6'}">
