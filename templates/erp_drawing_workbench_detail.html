@@ -524,6 +524,41 @@
           </a>
         </div>
 
+        {%- set sd = order.structured_data or {} %}
+        {%- set sd_notes = sd.get('notes', {}) %}
+        {%- set sd_schedule = sd.get('schedule', {}) %}
+        {%- set sd_orderer = sd.get('parties', {}).get('orderer', {}) %}
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-body">
+                <h5 class="card-title fw-bold"><i class="fas fa-info-circle text-primary"></i> 기본 정보</h5>
+                <div class="erp-detail-text">
+                  <div class="mb-3"><strong class="erp-detail-label">고객명:</strong> <span class="erp-detail-value">{{ customer_name or '-' }}</span></div>
+                  <div class="mb-3"><strong class="erp-detail-label">발주사:</strong> <span class="erp-detail-value">{{ sd_orderer.get('name') or '-' }}</span></div>
+                  <div class="mb-3"><strong class="erp-detail-label">연락처:</strong> <span class="erp-detail-value">{{ order.phone or '-' }}</span></div>
+                  <div class="mb-3"><strong class="erp-detail-label">주소:</strong> <span class="erp-detail-value">{{ order.address or '-' }}</span></div>
+                  <div class="mb-3"><strong class="erp-detail-label">담당자:</strong> <span class="erp-detail-value">{{ manager_name or '-' }}</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-body">
+                <h5 class="card-title fw-bold"><i class="fas fa-calendar text-primary"></i> 일정 및 특이사항</h5>
+                <div class="erp-detail-text">
+                  <div class="mb-3"><strong class="erp-detail-label">실측일:</strong> <span class="erp-detail-value">{{ sd_schedule.get('measurement', {}).get('date') or '-' }}</span></div>
+                  <div class="mb-3"><strong class="erp-detail-label">시공일:</strong> <span class="erp-detail-value">{{ sd_schedule.get('construction', {}).get('date') or '-' }}</span></div>
+                  <div class="mb-3"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">{{ sd_notes.get('phone_note') or '-' }}</span></div>
+                  <div class="mb-3"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">{{ sd_notes.get('address_note') or '-' }}</span></div>
+                  <div class="mb-3"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">{{ sd_notes.get('measurement_note') or '-' }}</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {% if product_items %}
         {% for item in product_items %}
         {% set item_idx = loop.index0 %}
