@@ -176,7 +176,7 @@ def _build_candidate_item(order, ref_date: str | None = None) -> dict:
     """주문 ORM 객체를 nearby 결과 아이템 dict로 변환 (시공일 기준)."""
     order_addr = _get_order_display_address(order)
     d_date = _get_order_schedule_date(order, ref_date)
-    return {
+    item = {
         'id': order.id,
         'customer_name': _get_order_display_customer_name(order),
         'address': order_addr,
@@ -184,6 +184,14 @@ def _build_candidate_item(order, ref_date: str | None = None) -> dict:
         'type': '시공',
         # status 필드 제거 — UI에 상태 표시 불필요
     }
+    # DB에 이미 지오코딩된 좌표가 있으면 캐시 — live API 호출 생략용
+    db_lat = getattr(order, 'lat', None)
+    db_lng = getattr(order, 'lng', None)
+    db_geocode_status = getattr(order, 'geocode_status', None)
+    if db_lat and db_lng and db_geocode_status == 'success':
+        item['_db_lat'] = float(db_lat)
+        item['_db_lng'] = float(db_lng)
+    return item
 
 
 @orders_bp.route('/orders/nearby')
@@ -227,7 +235,8 @@ def api_orders_nearby():
         .options(
             load_only(
                 Order.id, Order.address, Order.status, Order.shipping_scheduled_date,
-                Order.scheduled_date, Order.is_erp_beta, Order.structured_data, Order.customer_name
+                Order.scheduled_date, Order.is_erp_beta, Order.structured_data, Order.customer_name,
+                Order.lat, Order.lng, Order.geocode_status,  # DB 저장 좌표 — live geocoding 절약
             ),
             selectinload(Order.schedule_dates),
         )
@@ -284,7 +293,10 @@ def api_orders_nearby():
             raise ValueError("기준 주소 좌표 변환 실패")
 
         # 3-1. 전체 후보 좌표 병렬 변환
+        # DB에 geocode_status='success' 좌표가 저장된 경우 live API 호출 생략
         def geocode_item(item: dict):
+            if item.get('_db_lat') and item.get('_db_lng'):
+                return item, item['_db_lat'], item['_db_lng']
             addr = item['address']
             lat, lng, _, _ = converter.analyze_address(addr)
             # 지방 광역시도 없는 주소(예: "남양주시 화도읍 ...") 는 Kakao 실패 가능
