@@ -12,7 +12,11 @@ from models import Order
 from constants import STATUS
 from services.request_utils import get_preserved_filter_args
 from services.jobs.queue import enqueue_geocode_order_address
-from services.order_geocode import reset_order_geocode_on_address_change
+from services.order_geocode import (
+    apply_erp_beta_site_address_to_sd,
+    clear_order_geocode_coords,
+    reset_order_geocode_on_address_change,
+)
 
 order_edit_bp = Blueprint('order_edit', __name__, url_prefix='')
 
@@ -191,7 +195,8 @@ def edit_order(order_id):
             elif not is_cabinet_new:
                 setattr(order, 'cabinet_status', None)
             setattr(order, 'construction_type', construction_type_new)
-            # ERP Beta: 기존 주문 편집 폼에서 바꾼 실측일/시공일을 structured_data에도 반영 (실측 대시보드 등 표시가 structured_data 우선이므로)
+            # ERP Beta: 실측일/시공일 JSONB 반영 + Order.address ↔ site 주소 정합(AS·목록은 site 우선 표시)
+            site_address_jsonb_changed = False
             _sd = getattr(order, 'structured_data', None)
             if getattr(order, 'is_erp_beta', False) and _sd:
                 sd = _ensure_dict(_sd)
@@ -203,15 +208,19 @@ def edit_order(order_id):
                     if getattr(order, 'status', None) not in ('AS_RECEIVED', 'AS_COMPLETED'):
                         construction = schedule.setdefault('construction', {})
                         construction['date'] = scheduled_date or ''
+                    flat_addr = (getattr(order, 'address', None) or '').strip()
+                    site_address_jsonb_changed = apply_erp_beta_site_address_to_sd(sd, flat_addr)
                     setattr(order, 'structured_data', copy.deepcopy(sd))
                     flag_modified(order, 'structured_data')
+            if site_address_jsonb_changed and 'address' not in changes:
+                clear_order_geocode_coords(order)
             if bool(getattr(order, 'is_regional', False)):
                 for f in ['measurement_completed', 'regional_sales_order_upload', 'regional_blueprint_sent',
                           'regional_order_upload', 'regional_cargo_sent', 'regional_construction_info_sent']:
                     setattr(order, f, f in request.form)
             db.commit()
 
-            if 'address' in changes:
+            if 'address' in changes or site_address_jsonb_changed:
                 enqueue_geocode_order_address(order_id)
 
             field_labels = {
