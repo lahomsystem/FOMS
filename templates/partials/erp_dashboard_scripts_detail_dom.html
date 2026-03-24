@@ -743,11 +743,17 @@
             });
           }
 
-          // 주문 상세 collapse 오픈 시: 상세 로드 완료 후 navbar 바로 아래로 정렬
+          // 주문 상세 collapse: 애니메이션 시작과 동시에 DOM 빌드 → 로딩 지연 제거
           document.querySelectorAll('.collapse[id^="order-detail-collapse-"]').forEach(collapseEl => {
-            collapseEl.addEventListener('shown.bs.collapse', async function () {
+            // show 시점(애니메이션 시작)에 바로 DOM 빌드 — preloaded payload 사용 시 즉각 완료
+            collapseEl.addEventListener('show.bs.collapse', function () {
               const orderId = this.id.replace('order-detail-collapse-', '');
+              loadOrderDetail(parseInt(orderId, 10));
+            });
 
+            // shown 시점(애니메이션 완료)에 스크롤 정렬
+            collapseEl.addEventListener('shown.bs.collapse', function () {
+              const orderId = this.id.replace('order-detail-collapse-', '');
               const alignDetailUnderNavbar = () => {
                 const nav = document.querySelector('nav.navbar');
                 const navHeight = nav ? nav.offsetHeight : 56;
@@ -755,13 +761,7 @@
                 const targetTop = window.scrollY + titleEl.getBoundingClientRect().top - navHeight - 8;
                 window.scrollTo({ top: Math.max(0, targetTop), behavior: 'auto' });
               };
-
-              // 1차: collapse 오픈 직후 정렬
               alignDetailUnderNavbar();
-
-              // 2차: 상세 내용 렌더 완료 후 다시 정렬 (높이 변동 보정)
-              await loadOrderDetail(parseInt(orderId, 10));
-              requestAnimationFrame(alignDetailUnderNavbar);
               setTimeout(alignDetailUnderNavbar, 120);
             });
           });
