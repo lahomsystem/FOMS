@@ -582,6 +582,28 @@
           </div>
         `;
             container.dataset.loaded = '1';
+
+            // 출고가 / 예약금 / 잔금 금액 주입 (sd에서 계산)
+            (() => {
+              const pay = sd.payments || {};
+              const totals = sd.totals || {};
+              const itemsTotal = Number(totals.items_total) || items.reduce((s, it) => s + (Number(it.price) || 0), 0);
+              let depositAmt = Number(pay.deposit) || 0;
+              if (!depositAmt && pay.deposit && typeof pay.deposit === 'object') depositAmt = Number(pay.deposit.amount) || 0;
+              const remainAmt = Math.max(0, itemsTotal - depositAmt);
+              const fmtKRW = (n) => n > 0 ? n.toLocaleString('ko-KR') + '원' : '0원';
+              items.forEach((_, i) => {
+                const totalEl = document.getElementById(`erp-items-total-${orderId}-${i}`);
+                const depositEl = document.getElementById(`erp-deposit-amount-${orderId}-${i}`);
+                const remainEl = document.getElementById(`erp-remaining-amount-${orderId}-${i}`);
+                const remainSection = document.getElementById(`erp-remaining-section-${orderId}-${i}`);
+                if (totalEl) totalEl.textContent = fmtKRW(itemsTotal);
+                if (depositEl) depositEl.value = depositAmt > 0 ? fmtKRW(depositAmt) : '';
+                if (remainEl) remainEl.textContent = fmtKRW(remainAmt);
+                if (remainSection) remainSection.style.display = itemsTotal > 0 ? 'flex' : 'none';
+              });
+            })();
+
             // 이미지 뷰어용 그룹 등록 (openDrawingGatewayImageViewer에서 사용)
             if (typeof __drawingGatewayImageGroups !== 'undefined' && window.__orderDetailImageGroups && window.__orderDetailImageGroups[orderId]) {
               (window.__orderDetailImageGroups[orderId] || []).forEach((imageFiles, idx) => {

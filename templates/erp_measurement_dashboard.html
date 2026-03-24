@@ -577,6 +577,12 @@
                     {%- set rsd_notes = rsd.get('notes', {}) %}
                     {%- set rsd_schedule = rsd.get('schedule', {}) %}
                     {%- set rsd_orderer = rsd.get('parties', {}).get('orderer', {}) %}
+                    {%- set rsd_totals = rsd.get('totals', {}) %}
+                    {%- set rsd_payments = rsd.get('payments', {}) %}
+                    {%- set rsd_items_total = rsd_totals.get('items_total', 0) | int %}
+                    {%- set rsd_deposit_raw = rsd_payments.get('deposit', 0) %}
+                    {%- set rsd_deposit = (rsd_deposit_raw.get('amount', 0) if rsd_deposit_raw is mapping else rsd_deposit_raw) | int %}
+                    {%- set rsd_remain = [0, rsd_items_total - rsd_deposit] | max %}
                     <div class="row g-3 mb-3">
                       <div class="col-md-6">
                         <div class="card h-100">
@@ -692,7 +698,7 @@
                               class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
                               style="max-width: 16rem;">
                               <span class="fw-bold text-nowrap">출고가</span>
-                              <div class="badge bg-primary text-end erp-amount-value" id="erp-items-total">0원</div>
+                              <div class="badge bg-primary text-end erp-amount-value" id="erp-items-total">{% if rsd_items_total > 0 %}{{ "{:,}".format(rsd_items_total) }}원{% else %}0원{% endif %}</div>
                             </div>
                             <div id="erp-deposit-section"
                               class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
@@ -700,13 +706,14 @@
                               <label for="erp-deposit-amount"
                                 class="form-label mb-0 fw-bold text-nowrap">예약금(선금)</label>
                               <input type="text" id="erp-deposit-amount" inputmode="numeric" placeholder="0원"
-                                maxlength="24" readonly class="erp-amount-value erp-amount-value--deposit" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
+                                maxlength="24" readonly class="erp-amount-value erp-amount-value--deposit" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다."
+                                value="{% if rsd_deposit > 0 %}{{ "{:,}".format(rsd_deposit) }}원{% endif %}">
                             </div>
                             <div id="erp-remaining-section"
                               class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
-                              style="max-width: 16rem; display: none;">
+                              style="max-width: 16rem;{% if rsd_items_total <= 0 %} display: none;{% endif %}">
                               <label class="form-label mb-0 fw-bold text-nowrap">잔금</label>
-                              <div class="badge bg-primary text-end erp-amount-value" id="erp-remaining-amount">0원</div>
+                              <div class="badge bg-primary text-end erp-amount-value" id="erp-remaining-amount">{% if rsd_remain > 0 %}{{ "{:,}".format(rsd_remain) }}원{% else %}0원{% endif %}</div>
                             </div>
                           </div>
                         </div>
