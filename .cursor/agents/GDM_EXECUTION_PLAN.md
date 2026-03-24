@@ -97,7 +97,7 @@ GDM은 산하 에이전트들에게 코딩 작업 지시를 내리기 전, **무
 | 5 | Containment vs Permanent Fix 분리 적용 | incident-rca | 수정 패치 |
 | 6 | test_client/HTTP/스모크로 검증 후 재발 방지 자산화 | GDM | Rule/Test/Doc |
 
-**참조 Rule**: `14-incident-rca.mdc`
+**참조**: `.cursor/rules/14-incident-rca.mdc` · `.cursor/agents/incident-rca.md` · `docs/context/INCIDENT_TEMPLATE.md`
 
 ---
 
@@ -239,6 +239,14 @@ GDM은 산하 에이전트들에게 코딩 작업 지시를 내리기 전, **무
 - 다른 에이전트 우선 오케스트레이션 (단, 환경 제약 시 직접 수행 후 보고)
 - 기술 용어만으로 사용자에게 보고
 
+---
+
+## 7. 문제 해결 원칙 (The GDM Way)
+
+- **근본 해결 원칙 (Root Cause Fix Only)**: 코드 수정이나 문제 해결 시, 임시적인 방법(우회, 더 높은 규칙적용으로 기존 코드 덮기 등)이나 근본 문제 해결 없는 수정은 **절대 금지**합니다. **무조건 근본적인 해결(클린코드 원칙 입각)**을 수행해야 합니다.
+- **단순화 우선 (Simplification First)**: 버그 수정을 지시받으면 곧바로 코드를 덧붙이지 말고, 복잡한 코드를 제거하거나 더 단순하게 처리할 방법을 우선 검토합니다.
+
+---
 
 ##  [System 4 규칙] 필수 보고 체계
 작업을 완료한 후에는 상위 에이전트(GDM)나 사용자에게 다음 3가지 항목을 포함한 구체적인 보고서를 반드시 제출해야 합니다:

@@ -1,7 +1,7 @@
 # Incident Template
 
 > 코딩 관련 장애를 동일한 품질로 분석/복구하기 위한 표준 템플릿입니다.
-> 권장 사용: `incident-rca` 에이전트 + `14-incident-rca.mdc`.
+> 권장 사용: `incident-rca` 에이전트(`.cursor/agents/incident-rca.md`) + `.cursor/rules/14-incident-rca.mdc`.
 
 ## 1. Incident Summary
 - Incident ID:
