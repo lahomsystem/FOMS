@@ -285,9 +285,17 @@ def api_orders_nearby():
         valid_items.append(_build_candidate_item(order, ref_date))
 
     # 3. 카카오 API: 좌표 기반 점진적 반경 검색
+    # 호출 측이 DB 저장 좌표를 lat/lng 파라미터로 전달하면 Kakao 지오코딩 생략
+    _req_lat = request.args.get('lat', type=float)
+    _req_lng = request.args.get('lng', type=float)
+
     try:
         converter = FOMSAddressConverter()
-        start_lat, start_lng, _, _ = converter.analyze_address(target_address)
+
+        if _req_lat and _req_lng:
+            start_lat, start_lng = _req_lat, _req_lng
+        else:
+            start_lat, start_lng, _, _ = converter.analyze_address(target_address)
 
         if not start_lat or not start_lng:
             raise ValueError("기준 주소 좌표 변환 실패")
