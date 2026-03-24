@@ -524,15 +524,23 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <div class="alert alert-light border mb-2 d-flex justify-content-between align-items-start flex-wrap gap-2">
-          <div>
-            <small class="text-muted d-block mb-1">기준 주소</small>
-            <strong id="scheduleSearchAddr" class="text-dark"></strong>
+        <div class="mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <small class="text-muted">기준 주소 <span class="text-secondary">(수정 후 재검색 가능)</span></small>
+            <a id="scheduleMapLink" href="#" target="_blank" rel="noopener noreferrer"
+               class="btn btn-sm btn-outline-warning" style="display:none; white-space:nowrap;">
+              <i class="fas fa-map-marker-alt me-1"></i>카카오지도 보기
+            </a>
           </div>
-          <a id="scheduleMapLink" href="#" target="_blank" rel="noopener noreferrer"
-             class="btn btn-sm btn-outline-warning" style="display:none; white-space:nowrap;">
-            <i class="fas fa-map-marker-alt me-1"></i>카카오지도 보기
-          </a>
+          <div class="input-group input-group-sm">
+            <input type="text" id="scheduleSearchAddr" class="form-control" placeholder="주소 입력">
+            <button type="button" class="btn btn-primary" id="scheduleSearchRetryBtn">
+              <i class="fas fa-search"></i> 재검색
+            </button>
+          </div>
+          <div id="scheduleSearchFallbackAlert" class="alert alert-warning py-1 px-2 mt-2 small mb-0" style="display:none;">
+            <i class="fas fa-exclamation-triangle me-1"></i>주소를 지도에서 찾을 수 없어 날짜순으로 표시합니다. 주소를 수정 후 재검색하세요.
+          </div>
         </div>
         <div id="scheduleSearchRadiusBadge" class="text-muted small mb-2 px-1" style="display:none;">
           <i class="fas fa-circle-notch me-1"></i><span id="scheduleSearchRadiusText"></span>
@@ -1279,6 +1287,8 @@
     (function () {
       // 탭별 pre-computed 리스트 (백엔드에서 각각 계산해 내려줌)
       let _lists = { distance: [], date: [], combined: [] };
+      // 재검색 시 사용할 현재 주문 컨텍스트
+      let _searchState = { excludeId: null, lat: null, lng: null };
 
       function esc(s) {
         if (s == null) return '';
@@ -1341,26 +1351,8 @@
         });
       }
 
-      document.getElementById('scheduleSortTabs').addEventListener('click', function (e) {
-        const tab = e.target.closest('[data-sort]');
-        if (!tab) return;
-        this.querySelectorAll('.nav-link').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        renderResults(_lists[tab.dataset.sort] || [], tab.dataset.sort);
-      });
-
-      document.body.addEventListener('click', async function (e) {
-        const btn = e.target.closest('.find-schedule-btn');
-        if (!btn) return;
-        const addr = btn.dataset.address;
-        const orderId = btn.dataset.orderId;
-        const btnLat = btn.dataset.lat;
-        const btnLng = btn.dataset.lng;
-        const modalEl = document.getElementById('scheduleSearchModal');
-        if (!modalEl) { alert('페이지를 새로고침(F5) 해주세요.'); location.reload(); return; }
-
-        const addrEl = document.getElementById('scheduleSearchAddr');
-        if (addrEl) addrEl.textContent = addr;
+      // API 호출 + 결과 렌더링 — 버튼 클릭/재검색 공통 사용
+      async function runSearch(address, excludeId, lat, lng) {
         const tabs = document.getElementById('scheduleSortTabs');
         if (tabs) {
           tabs.style.display = 'none';
@@ -1370,14 +1362,15 @@
         if (radiusBadge) radiusBadge.style.display = 'none';
         const mapLink = document.getElementById('scheduleMapLink');
         if (mapLink) mapLink.style.display = 'none';
+        const fallbackAlert = document.getElementById('scheduleSearchFallbackAlert');
+        if (fallbackAlert) fallbackAlert.style.display = 'none';
         const resList = document.getElementById('scheduleSearchResults');
         if (resList) resList.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted small">주변 일정을 검색 중입니다...</div></div>';
-        new bootstrap.Modal(modalEl).show();
 
         try {
-          const params = new URLSearchParams({ address: addr });
-          if (orderId) params.append('exclude_id', orderId);
-          if (btnLat && btnLng) { params.append('lat', btnLat); params.append('lng', btnLng); }
+          const params = new URLSearchParams({ address });
+          if (excludeId) params.append('exclude_id', excludeId);
+          if (lat && lng) { params.append('lat', lat); params.append('lng', lng); }
           const res = await fetch(`/api/orders/nearby?${params.toString()}`);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
@@ -1402,6 +1395,10 @@
             combined: data.by_combined || [],
           };
 
+          // geocoding 실패(fallback) 시 경고 표시
+          if (fallbackAlert) {
+            fallbackAlert.style.display = data.search_radius_km ? 'none' : '';
+          }
           if (radiusBadge && data.search_radius_km) {
             document.getElementById('scheduleSearchRadiusText').textContent =
               `반경 ${data.search_radius_km}km 내 검색 결과`;
@@ -1409,8 +1406,8 @@
           }
           if (mapLink) {
             const kakaoUrl = (data.ref_lat && data.ref_lng)
-              ? `https://map.kakao.com/link/to/${encodeURIComponent(addr)},${data.ref_lat},${data.ref_lng}`
-              : `https://map.kakao.com/?q=${encodeURIComponent(addr)}`;
+              ? `https://map.kakao.com/link/to/${encodeURIComponent(address)},${data.ref_lat},${data.ref_lng}`
+              : `https://map.kakao.com/?q=${encodeURIComponent(address)}`;
             mapLink.href = kakaoUrl;
             mapLink.style.display = '';
           }
@@ -1420,7 +1417,44 @@
           console.error(err);
           if (resList) resList.innerHTML = '<div class="text-center py-3 text-danger">오류가 발생했습니다.</div>';
         }
+      }
+
+      document.getElementById('scheduleSortTabs').addEventListener('click', function (e) {
+        const tab = e.target.closest('[data-sort]');
+        if (!tab) return;
+        this.querySelectorAll('.nav-link').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        renderResults(_lists[tab.dataset.sort] || [], tab.dataset.sort);
       });
+
+      document.body.addEventListener('click', async function (e) {
+        const btn = e.target.closest('.find-schedule-btn');
+        if (!btn) return;
+        const addr = btn.dataset.address;
+        const orderId = btn.dataset.orderId;
+        const btnLat = btn.dataset.lat;
+        const btnLng = btn.dataset.lng;
+        const modalEl = document.getElementById('scheduleSearchModal');
+        if (!modalEl) { alert('페이지를 새로고침(F5) 해주세요.'); location.reload(); return; }
+
+        const addrEl = document.getElementById('scheduleSearchAddr');
+        if (addrEl) addrEl.value = addr;
+        _searchState = { excludeId: orderId, lat: btnLat, lng: btnLng };
+        new bootstrap.Modal(modalEl).show();
+        await runSearch(addr, orderId, btnLat, btnLng);
+      });
+
+      // 주소 수정 후 재검색 — 잘못된 주소 직접 고쳐서 다시 검색 가능
+      const retryBtn = document.getElementById('scheduleSearchRetryBtn');
+      if (retryBtn) {
+        retryBtn.addEventListener('click', async function () {
+          const addrEl = document.getElementById('scheduleSearchAddr');
+          const newAddr = addrEl ? addrEl.value.trim() : '';
+          if (!newAddr) return;
+          // 재검색 시 lat/lng는 초기화 (새 주소 기준 geocoding)
+          await runSearch(newAddr, _searchState.excludeId, null, null);
+        });
+      }
     })();
 
     function showFeedback(msg, isError = false) {
