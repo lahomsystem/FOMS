@@ -782,6 +782,14 @@
   box-sizing: border-box;
   flex-shrink: 0;
 }
+/* .badge와 함께 사용 시 style-pro-max.css의 .badge { font-weight:600 !important }를
+   특이성(0,2,0)으로 확실히 오버라이드 */
+.badge.erp-amount-value {
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  padding: 0 0.5rem !important;
+  line-height: 2rem !important;
+}
 .erp-amount-value--deposit {
   background: #FFB6C1;
   color: #000 !important;
