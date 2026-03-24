@@ -635,23 +635,20 @@
                 <div class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
                   style="max-width: 16rem;">
                   <span class="fw-bold text-nowrap">출고가</span>
-                  <div class="badge bg-primary flex-shrink-0 text-end" id="erp-items-total"
-                    style="font-size: 1rem; width: 9rem; padding: 0.5rem;">0원</div>
+                  <div class="badge bg-primary text-end erp-amount-value" id="erp-items-total">0원</div>
                 </div>
                 <div id="erp-deposit-section"
                   class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
                   style="max-width: 16rem;">
                   <label for="erp-deposit-amount" class="form-label mb-0 fw-bold text-nowrap">예약금(선금)</label>
                   <input type="text" id="erp-deposit-amount" inputmode="numeric" placeholder="0원" maxlength="24"
-                    readonly class="flex-shrink-0" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다."
-                    style="box-sizing:border-box; display:inline-block; font-size:1rem; font-weight:700; width:9rem; height:2rem; line-height:2rem; padding:0; margin:0; text-align:right; border:0; border-radius:0.25rem; background:#FFB6C1; color:#000;">
+                    readonly class="erp-amount-value erp-amount-value--deposit" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
                 </div>
                 <div id="erp-remaining-section"
                   class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
                   style="max-width: 16rem; display: none;">
                   <label class="form-label mb-0 fw-bold text-nowrap">잔금</label>
-                  <div class="badge bg-primary flex-shrink-0 text-end" id="erp-remaining-amount"
-                    style="font-size: 1rem; width: 9rem; padding: 0.5rem;">0원</div>
+                  <div class="badge bg-primary text-end erp-amount-value" id="erp-remaining-amount">0원</div>
                 </div>
               </div>
             </div>

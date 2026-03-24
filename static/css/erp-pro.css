@@ -768,12 +768,27 @@
   color: var(--erp-text-white);
 }
 
-/* ERP Beta 예약금 입력란: 외부 패딩 덮어쓰기 방지, placeholder 색상 */
-#erp-deposit-amount {
-  padding: 0 !important;
+/* 출고가 / 예약금 / 잔금 금액 박스 — 통일 높이 2rem */
+.erp-amount-value {
+  display: inline-block;
+  font-size: 1rem !important;
+  font-weight: 700;
+  width: 9rem;
+  height: 2rem;
+  line-height: 2rem !important;
+  padding: 0 0.5rem !important;
+  text-align: right;
+  border-radius: 0.25rem;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+.erp-amount-value--deposit {
+  background: #FFB6C1;
+  color: #000 !important;
+  border: 0 !important;
   margin: 0 !important;
 }
-#erp-deposit-amount::placeholder {
+.erp-amount-value--deposit::placeholder {
   color: rgba(0, 0, 0, 0.5);
 }
 
