@@ -284,10 +284,20 @@ def api_orders_nearby():
             continue
         valid_items.append(_build_candidate_item(order, ref_date))
 
-    # 3. 카카오 API: 좌표 기반 점진적 반경 검색
-    # 호출 측이 DB 저장 좌표를 lat/lng 파라미터로 전달하면 Kakao 지오코딩 생략
+    # 3. 좌표 결정 우선순위:
+    #   1) 프론트에서 넘긴 lat/lng 파라미터 (DB 저장값)
+    #   2) exclude_id 주문의 DB lat/lng 직접 조회 (AS 접수 전 geocoding 좌표)
+    #   3) Kakao API live geocoding (fallback)
     _req_lat = request.args.get('lat', type=float)
     _req_lng = request.args.get('lng', type=float)
+
+    # exclude_id 주문 DB 좌표 조회 — Kakao API 없이 target 좌표 확보
+    if not (_req_lat and _req_lng) and exclude_id:
+        _src_order = db.query(Order).options(
+            load_only(Order.id, Order.lat, Order.lng, Order.geocode_status)
+        ).filter(Order.id == exclude_id).first()
+        if _src_order and _src_order.lat and _src_order.lng:
+            _req_lat, _req_lng = float(_src_order.lat), float(_src_order.lng)
 
     try:
         converter = FOMSAddressConverter()
