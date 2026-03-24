@@ -682,7 +682,13 @@
             return el ? !!el.checked : false;
         };
 
-        return {
+        // PUT /structured 는 본문 전체로 JSONB를 교체함. 폼에 없는 최상위 키는 서버 스냅샷에서 유지 (AS as_content 등)
+        const prevSd = (window.__erpLastStructuredData && typeof window.__erpLastStructuredData === 'object')
+            ? window.__erpLastStructuredData
+            : {};
+        const preservedTopLevelKeys = ['shipment', 'assignments', 'quests', 'meta'];
+
+        const structured = {
             entity_type: 'order_structured',
             schema_version: 1,
             confidence: null,
@@ -743,6 +749,19 @@
             })(),
             items
         };
+
+        preservedTopLevelKeys.forEach(function (key) {
+            if (!Object.prototype.hasOwnProperty.call(prevSd, key) || prevSd[key] == null) {
+                return;
+            }
+            try {
+                structured[key] = JSON.parse(JSON.stringify(prevSd[key]));
+            } catch (e) {
+                structured[key] = prevSd[key];
+            }
+        });
+
+        return structured;
     }
 
     /**
