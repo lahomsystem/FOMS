@@ -573,6 +573,40 @@
                 <tr class="measurement-detail-row" id="detail-{{ r.id }}" data-order-id="{{ r.id }}"
                   style="display:none;" aria-hidden="true">
                   <td colspan="9">
+                    {%- set rsd = r.structured_data or {} %}
+                    {%- set rsd_notes = rsd.get('notes', {}) %}
+                    {%- set rsd_schedule = rsd.get('schedule', {}) %}
+                    {%- set rsd_orderer = rsd.get('parties', {}).get('orderer', {}) %}
+                    <div class="row g-3 mb-3">
+                      <div class="col-md-6">
+                        <div class="card h-100">
+                          <div class="card-body">
+                            <h5 class="card-title fw-bold"><i class="fas fa-info-circle text-primary"></i> 기본 정보</h5>
+                            <div class="erp-detail-text">
+                              <div class="mb-3"><strong class="erp-detail-label">고객명:</strong> <span class="erp-detail-value">{{ r.customer_name or '-' }}</span></div>
+                              <div class="mb-3"><strong class="erp-detail-label">발주사:</strong> <span class="erp-detail-value">{{ rsd_orderer.get('name') or r.orderer_name or '-' }}</span></div>
+                              <div class="mb-3"><strong class="erp-detail-label">연락처:</strong> <span class="erp-detail-value">{{ r.phone or '-' }}</span></div>
+                              <div class="mb-3"><strong class="erp-detail-label">주소:</strong> <span class="erp-detail-value">{{ r.address or '-' }}</span></div>
+                              <div class="mb-3"><strong class="erp-detail-label">담당자:</strong> <span class="erp-detail-value">{{ r.manager_name or '-' }}</span></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <div class="card h-100">
+                          <div class="card-body">
+                            <h5 class="card-title fw-bold"><i class="fas fa-calendar text-primary"></i> 일정 및 특이사항</h5>
+                            <div class="erp-detail-text">
+                              <div class="mb-3"><strong class="erp-detail-label">실측일:</strong> <span class="erp-detail-value">{{ rsd_schedule.get('measurement', {}).get('date') or '-' }}</span></div>
+                              <div class="mb-3"><strong class="erp-detail-label">시공일:</strong> <span class="erp-detail-value">{{ rsd_schedule.get('construction', {}).get('date') or '-' }}</span></div>
+                              <div class="mb-3"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">{{ rsd_notes.get('phone_note') or '-' }}</span></div>
+                              <div class="mb-3"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">{{ rsd_notes.get('address_note') or '-' }}</span></div>
+                              <div class="mb-3"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">{{ rsd_notes.get('measurement_note') or '-' }}</span></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                     {% set product_items_row = r.product_items if r.product_items is defined else [] %}
                     {% if product_items_row %}
                     {% for item in product_items_row %}
