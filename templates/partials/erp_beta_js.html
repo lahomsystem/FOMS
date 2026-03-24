@@ -510,6 +510,7 @@
         }
 
         erpSetStatus('불러오는 중...');
+        window.__erpStructuredLoadSucceeded = false;
         const res = await fetch(`/api/orders/${ORDER_ID}/structured`);
         const data = await res.json();
         if (!data.success) {
@@ -608,6 +609,7 @@
         const paymentData = _erpNormalizePaymentData(sd);
         sd.payment = paymentData;
         window.__erpLastStructuredData = sd;
+        window.__erpStructuredLoadSucceeded = true;
         erpRecalcItemsTotal();
         const depositEl = document.getElementById('erp-deposit-amount');
         if (depositEl) {
@@ -791,25 +793,34 @@
         try {
             const structured_data = erpCollectStructured();
 
-            // AS접수 선택 시: 기존 저장 중단, AS 접수 모달 표시
-            if (structured_data?.workflow?.stage === 'AS_RECEIVED') {
-                if (doRedirect) {
-                    window.__erpAsReceivePreviousStage = (window.__erpLastStructuredData?.workflow?.stage || '').trim();
-                    window.__erpAsReceiveTargetId = targetId;
-                    window.__erpAsReceiveSubmitted = false;
-                    const modalEl = document.getElementById('asReceiveModal');
-                    if (modalEl) {
-                        const contentEl = document.getElementById('as-receive-content');
-                        const filesEl = document.getElementById('as-receive-files');
-                        const previewEl = document.getElementById('as-receive-preview');
-                        if (contentEl) contentEl.value = (window.__erpLastStructuredData?.shipment?.as_content || '').trim();
-                        if (filesEl) filesEl.value = '';
-                        if (previewEl) previewEl.innerHTML = '';
-                        bootstrap.Modal.getOrCreateInstance(modalEl).show();
-                    }
-                    erpSetStatus('AS 접수 내용을 입력해주세요.');
+            // AS접수: 다른 단계 → AS접수로 "전환"한 직후에만 모달·저장 중단. 이미 서버에 AS접수면 일반 PUT 허용.
+            const nextStage = (structured_data?.workflow?.stage || '').trim();
+            const prevStage = (window.__erpLastStructuredData?.workflow?.stage || '').trim();
+            const transitioningIntoAsReceived =
+                nextStage === 'AS_RECEIVED' && prevStage !== 'AS_RECEIVED';
+            if (transitioningIntoAsReceived) {
+                const needServerSnapshot =
+                    !window.__ERP_BETA_DRAFT_MODE && targetId > 0;
+                if (needServerSnapshot && !window.__erpStructuredLoadSucceeded) {
+                    erpSetStatus('먼저 주문 정보를 불러온 뒤 저장해주세요.', true);
+                    return { success: false, message: '주문 정보를 불러온 뒤 다시 시도해주세요.' };
                 }
-                return { success: false, message: 'AS 접수 선택 시에는 저장 후 푸쉬해주세요.' };
+                // redirect: false(채널톡 자동 저장 등)에서도 모달을 띄워 저장 실패만 나오는 상황 방지
+                window.__erpAsReceivePreviousStage = prevStage;
+                window.__erpAsReceiveTargetId = targetId;
+                window.__erpAsReceiveSubmitted = false;
+                const modalEl = document.getElementById('asReceiveModal');
+                if (modalEl) {
+                    const contentEl = document.getElementById('as-receive-content');
+                    const filesEl = document.getElementById('as-receive-files');
+                    const previewEl = document.getElementById('as-receive-preview');
+                    if (contentEl) contentEl.value = (window.__erpLastStructuredData?.shipment?.as_content || '').trim();
+                    if (filesEl) filesEl.value = '';
+                    if (previewEl) previewEl.innerHTML = '';
+                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                }
+                erpSetStatus('AS 접수 내용을 입력해주세요.');
+                return { success: false, message: 'AS 접수 단계로 변경 시 내용 입력 후 접수를 완료해주세요.' };
             }
 
             const receivedDateEl = document.getElementById('erp-received-date');
