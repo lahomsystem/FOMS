@@ -30,8 +30,8 @@ def reset_order_geocode_on_address_change(order, new_address):
         sd['site']['address_main'] = addr
         order.structured_data = sd
         flag_modified(order, 'structured_data')
-    else:
-        order.address = addr
+
+    order.address = addr  # ERP Beta / 비 Beta 공통으로 DB 컬럼 동기화
 
     order.lat = None
     order.lng = None

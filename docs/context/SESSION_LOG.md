@@ -4,11 +4,17 @@
 
 ## 최근 세션
 
+### Session: ee7be12e
+- **시작**: 2026-03-24 14:26:54
+- **상태**: completed
+- **편집 파일**: `.cursor/agents/GDM_EXECUTION_PLAN.md`, `.cursorrules`, `.claude/commands/gdm.md`, `.cursor/agents/grand-develop-master.md`, `.cursor/rules/00-project-context.mdc`, `CLAUDE.md`, `AGENTS.md`
+- **종료**: 2026-03-24 14:32:03
+
 ### Session: a8cf2973
 - **시작**: 2026-03-20 14:49:06
-- **상태**: completed
-- **편집 파일**: `commit_msg.txt`, `commit_msg_production_header.txt`, `docs/plans/2026-03-20-production-dashboard-sticky-header.md`, `templates/partials/erp_production_filters_grid.html`, `templates/partials/erp_production_styles.html`, `commit_msg_history_slide.txt`, `templates/erp_history_dashboard.html`, `apps/erp_history_page.py`, `docs/plans/2026-03-20-history-slide-ui-plan.md`, `commit_msg_deploy.txt`
-- **종료**: 2026-03-22 10:50:03
+- **상태**: unknown
+- **편집 파일**: (없음)
+- **종료**: 2026-03-24 14:26:55
 
 ### Session: 939e5cf4
 - **시작**: 2026-03-20 14:33:02
@@ -772,3 +778,53 @@
 | 2026-03-24 09:13:37 | END (Claude Code) | 수정: templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html, templates/partials/erp_dashboard_scripts_detail_dom.html, apps/erp_dashboard.py, services/app_init.py, models.py |
 
 | 2026-03-24 09:26:39 | END (Claude Code) | 수정: templates/erp_drawing_workbench_detail.html, templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html, templates/partials/erp_dashboard_scripts_detail_dom.html, apps/erp_dashboard.py, services/app_init.py, models.py |
+
+| 2026-03-24 09:32:28 | END (Claude Code) | 수정: templates/erp_drawing_workbench_detail.html, templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html, templates/partials/erp_dashboard_scripts_detail_dom.html, apps/erp_dashboard.py, services/app_init.py, models.py |
+
+| 2026-03-24 09:47:03 | END (Claude Code) | 수정: templates/erp_measurement_dashboard.html, templates/erp_drawing_workbench_detail.html, templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html, templates/partials/erp_dashboard_scripts_detail_dom.html, apps/erp_dashboard.py, services/app_init.py, models.py |
+
+| 2026-03-24 10:43:48 | END (Claude Code) | 수정: services/app_init.py, templates/erp_measurement_dashboard.html, templates/erp_drawing_workbench_detail.html, templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html, templates/partials/erp_dashboard_scripts_detail_dom.html, apps/erp_dashboard.py, models.py |
+
+| 2026-03-24 11:14:33 | END (Claude Code) | 수정: services/app_init.py, templates/erp_measurement_dashboard.html, templates/erp_drawing_workbench_detail.html, templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html, templates/partials/erp_dashboard_scripts_detail_dom.html, apps/erp_dashboard.py, models.py |
+
+| 2026-03-24 13:01:45 | END (Claude Code) | 수정: commit_msg.txt, templates/erp_measurement_dashboard.html, templates/erp_drawing_workbench_detail.html, templates/partials/erp_dashboard_scripts_detail_dom.html, templates/partials/erp_beta_tab.html, static/css/erp-pro.css, services/app_init.py, templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html, apps/erp_dashboard.py |
+
+| 2026-03-24 13:30:54 | END (Claude Code) | 수정: commit_msg.txt, static/css/erp-pro.css, templates/layout.html, templates/erp_measurement_dashboard.html, templates/erp_drawing_workbench_detail.html, templates/partials/erp_dashboard_scripts_detail_dom.html, templates/partials/erp_beta_tab.html, services/app_init.py, templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html |
+
+| 2026-03-24 13:39:48 | END (Claude Code) | 수정: commit_msg.txt, templates/layout.html, static/css/erp-pro.css, templates/erp_measurement_dashboard.html, templates/erp_drawing_workbench_detail.html, templates/partials/erp_dashboard_scripts_detail_dom.html, templates/partials/erp_beta_tab.html, services/app_init.py, templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html |
+
+| 2026-03-24 13:53:01 | END (Claude Code) | 수정: commit_msg.txt, templates/erp_measurement_dashboard.html, templates/partials/erp_dashboard_scripts_detail_dom.html, templates/layout.html, static/css/erp-pro.css, templates/erp_drawing_workbench_detail.html, templates/partials/erp_beta_tab.html, services/app_init.py, templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html |
+
+| 2026-03-24 13:54:21 | END (Claude Code) | 수정: commit_msg.txt, templates/erp_measurement_dashboard.html, templates/partials/erp_dashboard_scripts_detail_dom.html, templates/layout.html, static/css/erp-pro.css, templates/erp_drawing_workbench_detail.html, templates/partials/erp_beta_tab.html, services/app_init.py, templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html |
+
+| 2026-03-24 13:55:43 | END (Claude Code) | 수정: commit_msg.txt, templates/erp_measurement_dashboard.html, templates/partials/erp_dashboard_scripts_detail_dom.html, templates/layout.html, static/css/erp-pro.css, templates/erp_drawing_workbench_detail.html, templates/partials/erp_beta_tab.html, services/app_init.py, templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html |
+
+| 2026-03-24 14:23:26 | END (Claude Code) | 수정: commit_msg.txt, templates/layout.html, static/css/erp-pro.css, templates/erp_measurement_dashboard.html, templates/partials/erp_dashboard_scripts_detail_dom.html, templates/erp_drawing_workbench_detail.html, templates/partials/erp_beta_tab.html, services/app_init.py, templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html |
+
+| 2026-03-24 14:26:46 | END (Claude Code) | 수정: commit_msg.txt, templates/layout.html, static/css/erp-pro.css, static/css/style-pro-max.css, templates/erp_measurement_dashboard.html, templates/partials/erp_dashboard_scripts_detail_dom.html, templates/erp_drawing_workbench_detail.html, templates/partials/erp_beta_tab.html, services/app_init.py, templates/partials/erp_construction_scripts.html |
+
+| 2026-03-24 14:32:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-24 14:49:44 | END (Claude Code) | 수정: commit_msg.txt, templates/partials/erp_dashboard_styles.html |
+
+| 2026-03-24 15:15:35 | END (Claude Code) | 수정: commit_msg.txt, templates/partials/erp_dashboard_styles.html |
+
+| 2026-03-24 15:39:47 | END (Claude Code) | 수정: templates/partials/erp_dashboard_styles.html, templates/partials/erp_dashboard_scripts_detail_dom.html, commit_msg.txt |
+
+| 2026-03-24 16:24:46 | END (Claude Code) | 수정: apps/api/orders.py, templates/partials/erp_dashboard_styles.html, templates/partials/erp_dashboard_scripts_detail_dom.html, commit_msg.txt |
+
+| 2026-03-24 16:24:56 | END (Claude Code) | 수정: apps/api/orders.py, templates/partials/erp_dashboard_styles.html, templates/partials/erp_dashboard_scripts_detail_dom.html, commit_msg.txt |
+
+| 2026-03-24 16:25:58 | END (Claude Code) | 수정: apps/api/orders.py, templates/partials/erp_dashboard_styles.html, templates/partials/erp_dashboard_scripts_detail_dom.html, commit_msg.txt |
+
+| 2026-03-24 16:43:11 | END (Claude Code) | 수정: apps/api/orders.py, templates/erp_as_dashboard.html, templates/partials/erp_dashboard_styles.html, templates/partials/erp_dashboard_scripts_detail_dom.html, commit_msg.txt |
+
+| 2026-03-24 17:00:38 | END (Claude Code) | 수정: apps/api/orders.py, templates/erp_as_dashboard.html, templates/partials/erp_dashboard_styles.html, templates/partials/erp_dashboard_scripts_detail_dom.html, commit_msg.txt |
+
+| 2026-03-24 22:08:00 | END (Claude Code) | 수정: ../../../../../../../../tmp/commit_msg.txt, templates/partials/erp_dashboard_scripts_detail_dom.html, services/erp_order_detail.py, apps/api/orders.py, templates/erp_as_dashboard.html, templates/partials/erp_dashboard_styles.html, commit_msg.txt |
+
+| 2026-03-24 22:10:22 | END (Claude Code) | 수정: ../../../../../../../../tmp/commit_msg.txt, templates/partials/erp_dashboard_scripts_detail_dom.html, services/erp_order_detail.py, apps/api/orders.py, templates/erp_as_dashboard.html, templates/partials/erp_dashboard_styles.html, commit_msg.txt |
+
+| 2026-03-24 22:19:37 | END (Claude Code) | 수정: ../../../../../../../../tmp/commit_msg.txt, templates/erp_as_dashboard.html, templates/partials/erp_dashboard_scripts_detail_dom.html, services/erp_order_detail.py, apps/api/orders.py, templates/partials/erp_dashboard_styles.html, commit_msg.txt |
+
+| 2026-03-24 22:29:28 | END (Claude Code) | 수정: services/order_geocode.py, ../../../../../../../../tmp/commit_msg.txt, templates/erp_as_dashboard.html, templates/partials/erp_dashboard_scripts_detail_dom.html, services/erp_order_detail.py, apps/api/orders.py, templates/partials/erp_dashboard_styles.html, commit_msg.txt |
