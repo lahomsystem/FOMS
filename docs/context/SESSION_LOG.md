@@ -7,8 +7,8 @@
 ### Session: a8cf2973
 - **시작**: 2026-03-20 14:49:06
 - **상태**: completed
-- **편집 파일**: `commit_msg_production_header.txt`, `docs/plans/2026-03-20-production-dashboard-sticky-header.md`, `templates/partials/erp_production_filters_grid.html`, `templates/partials/erp_production_styles.html`, `commit_msg_history_slide.txt`, `templates/erp_history_dashboard.html`, `apps/erp_history_page.py`, `docs/plans/2026-03-20-history-slide-ui-plan.md`, `commit_msg_deploy.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-40e1148b-0f94-4faa-9223-ed9356d48c26.png`
-- **종료**: 2026-03-22 10:46:39
+- **편집 파일**: `commit_msg.txt`, `commit_msg_production_header.txt`, `docs/plans/2026-03-20-production-dashboard-sticky-header.md`, `templates/partials/erp_production_filters_grid.html`, `templates/partials/erp_production_styles.html`, `commit_msg_history_slide.txt`, `templates/erp_history_dashboard.html`, `apps/erp_history_page.py`, `docs/plans/2026-03-20-history-slide-ui-plan.md`, `commit_msg_deploy.txt`
+- **종료**: 2026-03-22 10:50:03
 
 ### Session: 939e5cf4
 - **시작**: 2026-03-20 14:33:02
@@ -760,3 +760,15 @@
 | 2026-03-22 10:21:21 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-22 10:46:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-22 10:50:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-23 09:24:56 | END (Claude Code) | 수정: models.py |
+
+| 2026-03-23 09:26:31 | END (Claude Code) | 수정: models.py |
+
+| 2026-03-23 10:33:14 | END (Claude Code) | 수정: apps/erp_dashboard.py, services/app_init.py, models.py |
+
+| 2026-03-24 09:13:37 | END (Claude Code) | 수정: templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html, templates/partials/erp_dashboard_scripts_detail_dom.html, apps/erp_dashboard.py, services/app_init.py, models.py |
+
+| 2026-03-24 09:26:39 | END (Claude Code) | 수정: templates/erp_drawing_workbench_detail.html, templates/partials/erp_construction_scripts.html, templates/partials/erp_production_scripts.html, templates/partials/erp_dashboard_scripts_detail_dom.html, apps/erp_dashboard.py, services/app_init.py, models.py |

@@ -1,57 +1,13 @@
 # Edit Log
 
-> 이 파일은 Cursor Hooks에 의해 자동 관리됩니다.
-> 최근 50개 편집 기록만 유지합니다.
+> Claude Code Hook(`PostToolUse:Edit|Write`)가 자동 기록합니다.
 
-## 최근 파일 편집
-
-- `commit_msg_production_header.txt` <- 1 edit(s), ~386 chars (2026-03-22 10:46:17)
-- `docs/plans/2026-03-20-production-dashboard-sticky-header.md` <- 1 edit(s), ~1310 chars (2026-03-22 10:46:10)
-- `templates/partials/erp_production_filters_grid.html` <- 1 edit(s), ~150 chars (2026-03-22 10:45:53)
-- `templates/partials/erp_production_filters_grid.html` <- 2 edit(s), ~2168 chars (2026-03-22 10:45:18)
-- `templates/partials/erp_production_styles.html` <- 4 edit(s), ~258 chars (2026-03-22 10:45:04)
-- `commit_msg_history_slide.txt` <- 1 edit(s), ~374 chars (2026-03-22 10:20:54)
-- `templates/erp_history_dashboard.html` <- 1 edit(s), ~1161 chars (2026-03-22 10:20:18)
-- `templates/erp_history_dashboard.html` <- 3 edit(s), ~4419 chars (2026-03-22 10:20:10)
-- `templates/erp_history_dashboard.html` <- 1 edit(s), ~1703 chars (2026-03-22 10:19:56)
-- `apps/erp_history_page.py` <- 4 edit(s), ~253 chars (2026-03-22 10:19:26)
-- `docs/plans/2026-03-20-history-slide-ui-plan.md` <- 1 edit(s), ~1563 chars (2026-03-22 10:19:15)
-- `commit_msg_deploy.txt` <- 1 edit(s), ~318 chars (2026-03-20 16:36:14)
-- `templates/erp_history_dashboard.html` <- 2 edit(s), ~343 chars (2026-03-20 16:34:48)
-- `apps/erp_history_page.py` <- 3 edit(s), ~371 chars (2026-03-20 16:34:44)
-- `apps/erp_history_page.py` <- 1 edit(s), ~153 chars (2026-03-20 16:34:43)
-- `apps/erp_history_page.py` <- 2 edit(s), ~66 chars (2026-03-20 16:34:42)
-- `apps/erp_history_page.py` <- 1 edit(s), ~159 chars (2026-03-20 16:32:51)
-- `apps/erp_history_page.py` <- 1 edit(s), ~28 chars (2026-03-20 16:32:51)
-- `templates/erp_history_dashboard.html` <- 1 edit(s), ~184 chars (2026-03-20 16:32:38)
-- `templates/erp_history_dashboard.html` <- 1 edit(s), ~101 chars (2026-03-20 16:32:37)
-- `apps/erp_history_page.py` <- 1 edit(s), ~354 chars (2026-03-20 16:32:33)
-- `apps/erp_history_page.py` <- 2 edit(s), ~184 chars (2026-03-20 16:32:32)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-40e1148b-0f94-4faa-9223-ed9356d48c26.png` <- 1 edit(s), ~0 chars (2026-03-20 16:31:27)
-- `templates/index.html` <- 1 edit(s), ~214 chars (2026-03-20 16:30:57)
-- `templates/index.html` <- 1 edit(s), ~197 chars (2026-03-20 16:30:56)
-- `templates/index.html` <- 9 edit(s), ~1974 chars (2026-03-20 16:30:50)
-- `templates/index.html` <- 3 edit(s), ~1103 chars (2026-03-20 16:30:40)
-- `templates/index.html` <- 10 edit(s), ~2076 chars (2026-03-20 16:30:35)
-- `templates/index.html` <- 11 edit(s), ~4587 chars (2026-03-20 16:30:27)
-- `templates/index.html` <- 10 edit(s), ~1747 chars (2026-03-20 16:30:18)
-- `templates/index.html` <- 9 edit(s), ~4505 chars (2026-03-20 16:30:06)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fcd1cdab-2c2c-4219-85f2-b959296ad7d0.png` <- 1 edit(s), ~0 chars (2026-03-20 16:28:06)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-aa3062d0-d7e4-49e4-a72e-ec6497cf1227.png` <- 1 edit(s), ~0 chars (2026-03-20 16:28:06)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-aa3062d0-d7e4-49e4-a72e-ec6497cf1227.png` <- 1 edit(s), ~0 chars (2026-03-20 16:27:51)
-- `apps/order_pages.py` <- 1 edit(s), ~122 chars (2026-03-20 16:01:52)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-4712da55-f58e-459b-a7e8-664917e42c1a.png` <- 1 edit(s), ~0 chars (2026-03-20 16:01:06)
-- `scripts/clone_prod_to_deploy.ps1` <- 1 edit(s), ~121 chars (2026-03-20 15:55:02)
-- `scripts/clone_prod_to_deploy.ps1` <- 1 edit(s), ~88 chars (2026-03-20 15:54:24)
-- `scripts/clone_prod_to_deploy.ps1` <- 1 edit(s), ~87 chars (2026-03-20 15:54:23)
-- `scripts/clone_prod_to_deploy.ps1` <- 1 edit(s), ~102 chars (2026-03-20 15:54:22)
-- `scripts/clone_prod_to_deploy.ps1` <- 1 edit(s), ~79 chars (2026-03-20 15:54:22)
-- `scripts/clone_prod_to_deploy.ps1` <- 1 edit(s), ~115 chars (2026-03-20 15:54:21)
-- `scripts/clone_prod_to_deploy.ps1` <- 1 edit(s), ~106 chars (2026-03-20 15:54:20)
-- `scripts/clone_prod_to_deploy.ps1` <- 1 edit(s), ~97 chars (2026-03-20 15:54:19)
-- `scripts/clone_prod_to_deploy.ps1` <- 1 edit(s), ~94 chars (2026-03-20 15:54:19)
-- `scripts/clone_prod_to_deploy.ps1` <- 1 edit(s), ~80 chars (2026-03-20 15:54:18)
-- `scripts/clone_prod_to_deploy.ps1` <- 1 edit(s), ~115 chars (2026-03-20 15:54:17)
-- `scripts/clone_prod_to_deploy.ps1` <- 2 edit(s), ~275 chars (2026-03-20 15:54:15)
-- `scripts/clone_prod_to_deploy.ps1` <- 1 edit(s), ~88 chars (2026-03-20 15:54:08)
-- `scripts/clone_prod_to_deploy.ps1` <- 7 edit(s), ~1309 chars (2026-03-20 15:54:05)
+| Time | File | Tool |
+|------|------|------|
+| 2026-03-23 09:24:11 | `models.py` | Edit |
+| 2026-03-23 09:40:18 | `services/app_init.py` | Edit |
+| 2026-03-23 09:40:52 | `apps/erp_dashboard.py` | Edit |
+| 2026-03-24 09:12:57 | `templates/partials/erp_dashboard_scripts_detail_dom.html` | Edit |
+| 2026-03-24 09:13:08 | `templates/partials/erp_production_scripts.html` | Edit |
+| 2026-03-24 09:13:18 | `templates/partials/erp_construction_scripts.html` | Edit |
+| 2026-03-24 09:26:07 | `templates/erp_drawing_workbench_detail.html` | Edit |

@@ -1,36 +1,9 @@
 # Shell Guard Log
 
-> Cursor Hook(`beforeShellExecution`)가 자동 기록합니다.
+> Claude Code Hook(`PreToolUse:Bash`)가 자동 기록합니다.
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-15 22:22:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
-| 2026-03-15 22:22:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash pop` |
-| 2026-03-15 22:32:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-15 22:32:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add services/map_snapshot.py; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
-| 2026-03-15 22:32:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-15 22:32:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy -m "Merge deploy: geocode failed pink fix"; git push` |
-| 2026-03-15 22:32:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; del commit_msg.txt` |
-| 2026-03-15 22:38:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "from services.map_snapshot import build_measurement_map_query, _measurement_search_` |
-| 2026-03-15 22:39:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-15 22:39:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add apps/api/erp_map.py services/map_snapshot.py docs/evolution/ORDER_2662_MAP_MARKER_ROOT` |
-| 2026-03-15 22:39:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-15 22:39:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy -m "Merge deploy: map limit 500, order ID search"; g` |
-| 2026-03-15 22:39:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; del commit_msg.txt` |
-| 2026-03-15 22:54:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-15 22:56:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-15 22:56:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from services.map_snapshot import _measurement_date_variants assert _measurement_d` |
-| 2026-03-15 22:56:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from services.map_snapshot import _measurement_date_variants r = _measurement_date` |
-| 2026-03-15 22:56:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from services.map_snapshot import _measurement_date_variants assert _measurement_d` |
-| 2026-03-15 22:57:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-15 22:57:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add services/map_snapshot.py services/order_date_sync.py; git commit --trailer "Made-with:` |
-| 2026-03-15 22:57:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-15 22:57:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production; git merge deploy -m "Merge deploy: 3월 16일` |
-| 2026-03-15 22:57:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
-| 2026-03-15 23:00:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from services.map_snapshot import _measurement_date_variants v = _measurement_date` |
-| 2026-03-15 23:00:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from app import app with app.app_context(): from db import get_db from services.ma` |
-| 2026-03-15 23:03:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from sqlalchemy import create_engine, text engine = create_engine('sqlite:///:memo` |
-| 2026-03-15 23:08:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from app import app with app.app_context(): from db import get_db from services.ma` |
 | 2026-03-15 23:13:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
 | 2026-03-15 23:13:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add services/map_snapshot.py scripts/diagnose_measurement_date_missing.py; git commit --tr` |
 | 2026-03-15 23:13:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
@@ -304,3 +277,29 @@
 | 2026-03-22 10:46:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_production_styles.html templates/partials/erp_production_filter` |
 | 2026-03-22 10:49:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production; git merge deploy; git push origin product` |
 | 2026-03-22 10:49:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/context/SESSION_LOG.md docs/context/SHELL_GUARD_LOG.md; git ` |
+| 2026-03-22 10:49:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production; git merge deploy; git push origin product` |
+| 2026-03-22 10:49:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git stash; git checkout production; git pull origin production; git merge deploy; git push ori` |
+| 2026-03-22 10:49:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-23 09:18:41 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c " from db import get_db from models import Order from services.erp_policy import S` |
+| 2026-03-23 09:20:52 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c " from app import app from db import get_db from models import Order from services` |
+| 2026-03-23 09:21:58 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff 1b0521f0^..1b0521f0 -- apps/erp_dashboard.py models.py` |
+| 2026-03-23 09:22:01 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff 16ed530d^..16ed530d -- apps/erp_history_page.py apps/order_pages.py` |
+| 2026-03-23 09:24:19 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')"` |
+| 2026-03-23 09:25:39 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status && git diff models.py` |
+| 2026-03-23 09:25:43 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -3` |
+| 2026-03-23 09:26:00 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git push origin deploy` |
+| 2026-03-23 09:26:11 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout production && git pull origin production && git merge deploy --no-edit && git p` |
+| 2026-03-23 09:26:19 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout deploy` |
+| 2026-03-23 09:31:28 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python - <<'PYEOF' import sys sys.path.insert(0, '.') from app import app from db import db_` |
+| 2026-03-23 09:37:32 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python - <<'PYEOF' import sys sys.path.insert(0, '.') from app import app from db import db_` |
+| 2026-03-23 09:40:57 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')"` |
+| 2026-03-23 09:41:21 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git add models.py services/app_init.py apps/erp_dashboard.py && printf 'fix: erp_stage_code ` |
+| 2026-03-23 09:41:38 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git push origin deploy` |
+| 2026-03-23 09:41:46 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout production && git pull origin production && git merge deploy --no-edit && git p` |
+| 2026-03-23 09:52:15 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout production && git pull origin production && git merge deploy --no-edit && git p` |
+| 2026-03-23 09:52:24 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout deploy` |
+| 2026-03-24 09:22:20 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status && git diff --stat` |
+| 2026-03-24 09:25:46 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git push origin deploy` |
+| 2026-03-24 09:27:06 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status && git diff --stat` |
+| 2026-03-24 09:28:09 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff --stat app.py apps/api/erp_orders_structured.py apps/api/orders.py apps/order_pages` |
+| 2026-03-24 09:32:12 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff HEAD --stat` |
