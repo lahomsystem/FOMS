@@ -6,21 +6,28 @@ from werkzeug.security import generate_password_hash
 
 
 def _backfill_erp_flat_columns(app):
-    """Phase D: erp_stage_code가 NULL인 활성 ERP Beta 주문을 자동 백필."""
+    """Phase D: erp_stage_code가 NULL이거나 structured_data와 불일치하는 활성 ERP Beta 주문을 자동 백필.
+
+    NULL만 보정하던 이전 로직을 확장: sd.workflow.stage 값이 erp_stage_code와
+    다른 경우(스테일 데이터)도 재동기화.
+    """
     try:
         from models import Order
         from services.erp_sync_columns import sync_erp_flat_columns
         db_session = get_db()
         targets = (
             db_session.query(Order)
-            .filter(Order.active_filter(), Order.is_erp_beta.is_(True), Order.erp_stage_code.is_(None))
+            .filter(Order.active_filter(), Order.is_erp_beta.is_(True))
             .all()
         )
         if not targets:
             return
         count = 0
         for order in targets:
-            if order.structured_data:
+            if not order.structured_data:
+                continue
+            sd_stage = ((order.structured_data or {}).get('workflow') or {}).get('stage')
+            if order.erp_stage_code != sd_stage:
                 sync_erp_flat_columns(order, order.structured_data)
                 count += 1
         if count:
