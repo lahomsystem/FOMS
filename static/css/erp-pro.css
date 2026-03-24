@@ -772,7 +772,7 @@
 .erp-amount-value {
   display: inline-block;
   font-size: 1rem !important;
-  font-weight: 700;
+  font-weight: 700 !important;
   width: 9rem !important;
   height: 2rem !important;
   line-height: 2rem !important;
