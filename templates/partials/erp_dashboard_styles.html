@@ -430,7 +430,7 @@
       white-space: nowrap;
     }
 
-    #erp-grid tbody td:nth-child(1) .badge {
+    #erp-grid tbody td:nth-child(1) .badge:not(.erp-amount-value) {
       font-size: 0.7rem !important;
       padding: 0.2em 0.35em !important;
       margin: 0 2px 2px 0;
@@ -439,7 +439,7 @@
       line-height: 1.2;
     }
 
-    #erp-grid tbody td:nth-child(1) .badge:last-child {
+    #erp-grid tbody td:nth-child(1) .badge:not(.erp-amount-value):last-child {
       margin-right: 0;
     }
 
@@ -539,14 +539,14 @@
         vertical-align: middle;
       }
 
-      #erp-grid tbody td:nth-child(1) .badge {
+      #erp-grid tbody td:nth-child(1) .badge:not(.erp-amount-value) {
         display: inline-block;
         margin: 0 2px 2px 0;
         font-size: 0.7rem;
         padding: 0.2rem 0.35rem;
       }
 
-      #erp-grid tbody td:nth-child(1) .badge:last-child {
+      #erp-grid tbody td:nth-child(1) .badge:not(.erp-amount-value):last-child {
         margin-bottom: 0;
       }
 
@@ -1673,8 +1673,8 @@
       }
 
       /* 모바일: 경보/단계 배지 작게 */
-      #erp-grid tbody td:nth-child(1) .badge,
-      #erp-grid tbody td:nth-child(2) .badge {
+      #erp-grid tbody td:nth-child(1) .badge:not(.erp-amount-value),
+      #erp-grid tbody td:nth-child(2) .badge:not(.erp-amount-value) {
         font-size: 0.7rem !important;
         padding: 0.2em 0.45em !important;
         line-height: 1.1;
