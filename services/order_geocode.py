@@ -5,9 +5,12 @@ commit/queue는 caller가 성공 경계에서 처리.
 from __future__ import annotations
 
 import copy
-from typing import Any, MutableMapping
+from typing import TYPE_CHECKING, Any, MutableMapping
 
 from sqlalchemy.orm.attributes import flag_modified
+
+if TYPE_CHECKING:
+    from models import Order
 
 
 def apply_erp_beta_site_address_to_sd(sd: MutableMapping[str, Any], flat_address: str) -> bool:
@@ -53,7 +56,7 @@ def apply_erp_beta_site_address_to_sd(sd: MutableMapping[str, Any], flat_address
     return True
 
 
-def reset_order_geocode_on_address_change(order, new_address: str) -> str:
+def reset_order_geocode_on_address_change(order: Order, new_address: str) -> str:
     """
     주소 수정 시 lat/lng 초기화 및 geocode_status=pending 설정.
     빈 문자열(공백만 포함)도 유효한 변경으로 반영한다.
@@ -84,7 +87,7 @@ def reset_order_geocode_on_address_change(order, new_address: str) -> str:
     return addr
 
 
-def clear_order_geocode_coords(order) -> None:
+def clear_order_geocode_coords(order: Order) -> None:
     """지오코딩 재실행이 필요할 때 좌표·상태만 초기화 (JSONB는 건드리지 않음)."""
     order.lat = None
     order.lng = None

@@ -198,7 +198,8 @@ def edit_order(order_id):
             # ERP Beta: 실측일/시공일 JSONB 반영 + Order.address ↔ site 주소 정합(AS·목록은 site 우선 표시)
             site_address_jsonb_changed = False
             _sd = getattr(order, 'structured_data', None)
-            if getattr(order, 'is_erp_beta', False) and _sd:
+            # structured_data가 빈 dict여도 실측/시공·site 정합이 필요함 (and _sd는 {}에서 falsy로 전체 스킵됨)
+            if getattr(order, 'is_erp_beta', False) and _sd is not None:
                 sd = _ensure_dict(_sd)
                 if isinstance(sd, dict):
                     schedule = sd.setdefault('schedule', {})
