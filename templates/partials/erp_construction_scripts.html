@@ -1220,17 +1220,11 @@
         </div>
       </div>`;
 
-      const noteRows = [];
-      if (addressNote) {
-        noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">${esc(addressNote)}</span></div>`);
-      }
-      if (phoneNote) {
-        noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">${esc(phoneNote)}</span></div>`);
-      }
-      if (measureNote) {
-        noteRows.push(`<div class="mb-3"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">${esc(measureNote)}</span></div>`);
-      }
-      const notesHtml = noteRows.join('');
+      const notesHtml = [
+        `<div class="mb-3"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">${esc(phoneNote) || '-'}</span></div>`,
+        `<div class="mb-3"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">${esc(addressNote) || '-'}</span></div>`,
+        `<div class="mb-3"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">${esc(measureNote) || '-'}</span></div>`
+      ].join('');
 
       const scheduleHtml = `
       <div class="${isMobile ? 'col-12' : 'col-md-6'}">
