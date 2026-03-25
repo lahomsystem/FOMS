@@ -1,11 +1,9 @@
-
 (function () {
     document.addEventListener('DOMContentLoaded', function () {
         const container = document.querySelector('.erp-pro');
         if (!container) return;
 
         // measurement-manual-rows.js가 덮어씀 (로드 순서 대비 noop)
-        window.measurementManualRowsRemoveGaps = window.measurementManualRowsRemoveGaps || function () {};
         window.measurementManualRowsPersist = window.measurementManualRowsPersist || function () {};
         window.measurementManualRowsRecomputeAnchors = window.measurementManualRowsRecomputeAnchors || function () {};
 
@@ -41,7 +39,6 @@
             return parseInt(tr.dataset.orderId, 10) || 0;
         }
         function applyMeasurementManagerSortAndColors() {
-            window.measurementManualRowsRemoveGaps();
             const mainRows = Array.from(tbody.querySelectorAll('tr.measurement-row'));
             if (!mainRows.length) return;
             // 서버 렌더링 색 — 수동 행은 제외(JS만 적용)
@@ -243,6 +240,11 @@
                 }
 
                 cell.textContent = '저장 중...';
+                const saveTimeoutMs = 45000;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(function () {
+                    controller.abort();
+                }, saveTimeoutMs);
                 try {
                     let res;
                     if (field === 'manager' && !isErpBeta) {
@@ -250,6 +252,7 @@
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             credentials: 'same-origin',
+                            signal: controller.signal,
                             body: JSON.stringify({ order_id: parseInt(orderId, 10), field: 'manager_name', value: newValue })
                         });
                     } else {
@@ -257,6 +260,7 @@
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             credentials: 'same-origin',
+                            signal: controller.signal,
                             body: JSON.stringify({ field, value: newValue })
                         });
                     }
@@ -275,7 +279,13 @@
                     }
                 } catch (err) {
                     cell.innerHTML = originalContent;
-                    console.warn('담당자 저장 중 오류:', err);
+                    if (err && err.name === 'AbortError') {
+                        alert('저장 요청 시간이 초과되었습니다. 네트워크 또는 서버 상태를 확인해 주세요.');
+                    } else {
+                        console.warn('담당자 저장 중 오류:', err);
+                    }
+                } finally {
+                    clearTimeout(timeoutId);
                 }
             });
         });

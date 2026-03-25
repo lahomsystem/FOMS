@@ -2,13 +2,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const exportBtn = document.getElementById('btn-export-image');
     if (!exportBtn) return;
 
+    var WAIT_IMAGES_MS = 90000;
+    var HTML2CANVAS_MS = 180000;
+
     exportBtn.addEventListener('click', async function () {
         const originalText = exportBtn.innerHTML;
-
-        function resetBtn(restoreText) {
-            exportBtn.innerHTML = restoreText !== undefined ? restoreText : originalText;
-            exportBtn.disabled = false;
-        }
 
         try {
             // 버튼 로딩 상태
@@ -22,12 +20,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (!tableElement) {
                 alert('캡처할 배송 일정이 없습니다.');
-                resetBtn(originalText);
                 return;
             }
 
             if (typeof erpTableExportWaitForImages === 'function') {
-                await erpTableExportWaitForImages(tableElement);
+                var waitP = erpTableExportWaitForImages(tableElement);
+                if (typeof erpTableExportPromiseWithTimeout === 'function') {
+                    await erpTableExportPromiseWithTimeout(waitP, WAIT_IMAGES_MS, '이미지 로드');
+                } else {
+                    await waitP;
+                }
             }
 
             const captureScale =
@@ -41,7 +43,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // 테이블이 스크롤되어 일부만 보일 수 있으므로, 전체를 캡처하기 위해 windowWidth/Height 옵션 등을 고려하거나
             // onclone에서 스타일을 강제 조정해야 함.
 
-            const canvas = await html2canvas(tableElement, {
+            var canvasPromise = html2canvas(tableElement, {
                 scale: captureScale,
                 useCORS: true,
                 logging: false,
@@ -116,6 +118,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
 
+            const canvas =
+                typeof erpTableExportPromiseWithTimeout === 'function'
+                    ? await erpTableExportPromiseWithTimeout(canvasPromise, HTML2CANVAS_MS, 'PNG 생성')
+                    : await canvasPromise;
+
             // 4. 다운로드 (await 직후 처리로 Promise 체인 제거 → 콘솔 오류 방지)
             const link = document.createElement('a');
             link.download = `시공일정_${dateStr}.png`;
@@ -123,12 +130,12 @@ document.addEventListener('DOMContentLoaded', function () {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            resetBtn(originalText);
-
         } catch (err) {
             console.error('이미지 저장 실패:', err);
-            alert('이미지 저장 중 오류가 발생했습니다.\n' + err.message);
-            resetBtn(originalText);
+            alert('이미지 저장 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : String(err)));
+        } finally {
+            exportBtn.innerHTML = originalText;
+            exportBtn.disabled = false;
         }
     });
 });
