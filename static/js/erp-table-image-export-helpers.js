@@ -2,6 +2,7 @@
  * 실측/출고 일정표 html2canvas PNG 저장 공통 헬퍼.
  * 고해상도 아이콘(예: 640px)이 CSS 40px로 축소된 뒤 캡처되면 이중 샘플링으로 흐려지므로,
  * scale 상향 + 클론 DOM에서 결제 아이콘만 일시 확대해 원본에 가깝게 래스터화한다.
+ * 미확인 상태는 pay-*-gray.png 비트맵을 쓰므로 clone에서 filter를 적용하지 않는다.
  */
 (function (global) {
     'use strict';
@@ -41,13 +42,6 @@
             img.style.setProperty('height', px + 'px');
             img.style.setProperty('transition', 'none');
             img.style.setProperty('object-fit', 'contain');
-        });
-        clonedDoc.querySelectorAll('img.erp-custom-payment-unconfirmed').forEach(function (img) {
-            img.style.setProperty('filter', 'grayscale(1)');
-            img.style.setProperty('-webkit-filter', 'grayscale(1)');
-            img.style.setProperty('opacity', '0.5');
-        });
-        clonedDoc.querySelectorAll('img.erp-custom-payment-confirmed').forEach(function (img) {
             img.style.setProperty('filter', 'none');
             img.style.setProperty('opacity', '1');
         });

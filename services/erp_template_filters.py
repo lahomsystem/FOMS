@@ -130,6 +130,7 @@ def payment_confirmed_bool(val) -> bool:
     """structured_data.payment.*_confirmed 값을 엄격히 True만 확인.
 
     Jinja `{% if x %}`는 비어 있지 않은 문자열을 참으로 취급해 ``\"false\"``가 오탐될 수 있음.
+    프론트 `_erpBoolConfirmed`와 동일한 참/거짓 규칙을 유지할 것.
     """
     if val is True:
         return True
