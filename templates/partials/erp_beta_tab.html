@@ -263,7 +263,7 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                         <div id="erp-deposit-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem;">
                             <div class="d-flex align-items-center gap-1">
                                 <button type="button" class="erp-payment-confirm-btn" onclick="window.erpTogglePayment(this, 'deposit')" data-payment-type="deposit" data-confirmed="0" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;">
-                                    <img src="{{ url_for('static', filename='images/pay-coin.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" alt="예약금">
+                                    <img src="{{ url_for('static', filename='images/pay-coin-gray.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" alt="예약금">
                                 </button>
                                 <label for="erp-deposit-amount" class="form-label mb-0 fw-bold text-nowrap">예약금(선금)</label>
                             </div>
@@ -272,7 +272,7 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                         <div id="erp-remaining-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
                             <div class="d-flex align-items-center gap-1">
                                 <button type="button" class="erp-payment-confirm-btn" onclick="window.erpTogglePayment(this, 'balance')" data-payment-type="balance" data-confirmed="0" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;">
-                                    <img src="{{ url_for('static', filename='images/pay-bill.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" alt="잔금">
+                                    <img src="{{ url_for('static', filename='images/pay-bill-gray.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" alt="잔금">
                                 </button>
                                 <label class="form-label mb-0 fw-bold text-nowrap">잔금</label>
                             </div>

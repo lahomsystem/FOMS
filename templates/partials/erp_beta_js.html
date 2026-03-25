@@ -1,4 +1,11 @@
 <script>
+    window.__ERP_PAYMENT_ICON_URLS = {
+        depositConfirmed: "{{ url_for('static', filename='images/pay-coin.png') }}",
+        depositUnconfirmed: "{{ url_for('static', filename='images/pay-coin-gray.png') }}",
+        balanceConfirmed: "{{ url_for('static', filename='images/pay-bill.png') }}",
+        balanceUnconfirmed: "{{ url_for('static', filename='images/pay-bill-gray.png') }}"
+    };
+
     // ============================================================
     // ERP Beta JS (shared): edit_order + add_order
     //
@@ -22,6 +29,22 @@
             return s === 'true' || s === '1' || s === 'yes' || s === 'on';
         }
         return false;
+    }
+
+    /** 미확인=회색 PNG, 확인=컬러 PNG (CSS filter·html2canvas 불일치 방지). Flask가 주입한 URL 우선. */
+    function _erpPaymentIconSrc(type, isConfirmed) {
+        const u = window.__ERP_PAYMENT_ICON_URLS;
+        if (u && u.depositConfirmed && u.depositUnconfirmed && u.balanceConfirmed && u.balanceUnconfirmed) {
+            if (type === 'deposit') {
+                return isConfirmed ? u.depositConfirmed : u.depositUnconfirmed;
+            }
+            return isConfirmed ? u.balanceConfirmed : u.balanceUnconfirmed;
+        }
+        const base = '/static/images/';
+        if (type === 'deposit') {
+            return isConfirmed ? base + 'pay-coin.png' : base + 'pay-coin-gray.png';
+        }
+        return isConfirmed ? base + 'pay-bill.png' : base + 'pay-bill-gray.png';
     }
 
     function _erpNormalizePaymentData(sd) {
@@ -60,12 +83,14 @@
         if (isConfirmed) {
             icon.classList.add('erp-custom-payment-confirmed');
             icon.classList.remove('erp-custom-payment-unconfirmed');
+            icon.src = _erpPaymentIconSrc(type, true);
             const byName = type === 'deposit' ? paymentData.deposit_confirmed_by : paymentData.balance_confirmed_by;
             const at = type === 'deposit' ? paymentData.deposit_confirmed_at : paymentData.balance_confirmed_at;
             btn.title = `확인됨 (${byName} / ${at ? at.substring(0, 16).replace('T', ' ') : '-'}) - 클릭하여 취소`;
         } else {
             icon.classList.add('erp-custom-payment-unconfirmed');
             icon.classList.remove('erp-custom-payment-confirmed');
+            icon.src = _erpPaymentIconSrc(type, false);
             btn.title = `미확인 - 클릭하여 확인 완료 처리`;
         }
     }
