@@ -6,6 +6,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const exportBtn = document.getElementById('btn-export-image');
     if (!exportBtn) return;
 
+    var WAIT_IMAGES_MS = 90000;
+    var HTML2CANVAS_MS = 180000;
+
     /**
      * @param {string} isoDateStr - YYYY-MM-DD
      * @returns {string} YY-MM-DD
@@ -26,11 +29,6 @@ document.addEventListener('DOMContentLoaded', function () {
     exportBtn.addEventListener('click', async function () {
         const originalText = exportBtn.innerHTML;
 
-        function resetBtn(restoreText) {
-            exportBtn.innerHTML = restoreText !== undefined ? restoreText : originalText;
-            exportBtn.disabled = false;
-        }
-
         try {
             exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장 중...';
             exportBtn.disabled = true;
@@ -39,7 +37,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (!tableElement) {
                 alert('캡처할 실측 일정이 없습니다.');
-                resetBtn(originalText);
                 return;
             }
 
@@ -50,13 +47,18 @@ document.addEventListener('DOMContentLoaded', function () {
             const downloadBase = titleText;
 
             if (typeof erpTableExportWaitForImages === 'function') {
-                await erpTableExportWaitForImages(tableElement);
+                var waitP = erpTableExportWaitForImages(tableElement);
+                if (typeof erpTableExportPromiseWithTimeout === 'function') {
+                    await erpTableExportPromiseWithTimeout(waitP, WAIT_IMAGES_MS, '이미지 로드');
+                } else {
+                    await waitP;
+                }
             }
 
             const captureScale =
                 typeof erpTableExportCaptureScale === 'function' ? erpTableExportCaptureScale() : 3;
 
-            const canvas = await html2canvas(tableElement, {
+            var canvasPromise = html2canvas(tableElement, {
                 scale: captureScale,
                 useCORS: true,
                 logging: false,
@@ -95,17 +97,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
 
+            const canvas =
+                typeof erpTableExportPromiseWithTimeout === 'function'
+                    ? await erpTableExportPromiseWithTimeout(canvasPromise, HTML2CANVAS_MS, 'PNG 생성')
+                    : await canvasPromise;
+
             const link = document.createElement('a');
             link.download = downloadBase + '.png';
             link.href = canvas.toDataURL('image/png');
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            resetBtn(originalText);
         } catch (err) {
             console.error('이미지 저장 실패:', err);
-            alert('이미지 저장 중 오류가 발생했습니다.\n' + err.message);
-            resetBtn(originalText);
+            alert('이미지 저장 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : String(err)));
+        } finally {
+            exportBtn.innerHTML = originalText;
+            exportBtn.disabled = false;
         }
     });
 });

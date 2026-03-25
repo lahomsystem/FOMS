@@ -242,9 +242,6 @@
         tbodyRef = tbody;
         selectedDateRef = container.dataset.selectedDate || '';
 
-        window.measurementManualRowsRemoveGaps = function () {
-            removeGapRows(tbody);
-        };
         window.measurementManualRowsPersist = function () {
             persistManualRows();
         };
