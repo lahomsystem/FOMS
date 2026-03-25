@@ -414,8 +414,8 @@ def api_orders_nearby():
                 item['score_text'] = f"약 {item['_dist_km']:.1f}km"
             item['dist_km'] = round(item['_dist_km'], 2)
             item.pop('_dist_km', None)
-            item.pop('_lat', None)
-            item.pop('_lng', None)
+            item['lat'] = item.pop('_lat', None)
+            item['lng'] = item.pop('_lng', None)
             return item
 
         _seen_route: set[int] = set()

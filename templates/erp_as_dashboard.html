@@ -571,6 +571,30 @@
   </div>
 </div>
 
+<!-- Schedule Map Modal (가까운 일정 찾기 — 기준↔시공지 경로) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<div class="modal fade" id="scheduleMapModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-fullscreen-md-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-route"></i> 기준 ↔ 시공지 거리 측정
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div id="scheduleMapContainer" class="schedule-map-container"></div>
+        <div id="scheduleMapRouteInfo" class="p-3">
+          <div class="text-center text-muted py-3">
+            <div class="spinner-border spinner-border-sm me-2" role="status"></div>경로 계산 중...
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     // 브리핑 보드 등에서 focus_order 파라미터로 진입 시 해당 주문 행/카드로 스크롤 및 하이라이트
@@ -1289,6 +1313,24 @@
       let _lists = { distance: [], date: [], combined: [] };
       // 재검색 시 사용할 현재 주문 컨텍스트
       let _searchState = { excludeId: null, lat: null, lng: null };
+      // 일정찾기 성공 응답 기준 좌표 (지도 모달 출발점)
+      let _refLat = null;
+      let _refLng = null;
+      let _refAddress = '';
+      const _routeCache = new Map();
+      let _scheduleMapModalInstance = null;
+      let _scheduleMapLeaflet = null;
+      let _scheduleMapGen = 0;
+
+      function _routeCacheKey(lat1, lng1, lat2, lng2) {
+        return `${Number(lat1).toFixed(6)},${Number(lng1).toFixed(6)}-${Number(lat2).toFixed(6)},${Number(lng2).toFixed(6)}`;
+      }
+
+      function _truncateAddr(s, maxLen) {
+        const t = String(s || '').trim();
+        if (t.length <= maxLen) return t;
+        return t.slice(0, maxLen) + '…';
+      }
 
       function esc(s) {
         if (s == null) return '';
@@ -1329,6 +1371,16 @@
           } else if (sortType === 'combined') {
             extraBadge = `<span class="badge bg-secondary ms-1">거리+날짜 최적</span>`;
           }
+          const itemLat = Number(item.lat);
+          const itemLng = Number(item.lng);
+          const mapBtnHtml = (Number.isFinite(itemLat) && Number.isFinite(itemLng))
+            ? `<button type="button" class="btn btn-sm btn-outline-info schedule-map-btn"
+                data-lat="${itemLat}" data-lng="${itemLng}"
+                data-address="${esc(item.address)}" data-name="${esc(item.customer_name)}"
+                data-score-text="${esc(item.score_text || '')}">
+                <i class="fas fa-map"></i> 지도
+              </button>`
+            : '<span></span>';
           el.innerHTML = `
             <div class="d-flex w-100 justify-content-between align-items-center mb-2">
               <div>
@@ -1344,7 +1396,8 @@
               <i class="fas fa-map-marker-alt text-danger me-1"></i> ${esc(item.address)}
               ${item.score_text ? `<span class="badge bg-light text-dark border ms-2"><i class="fas fa-car-side me-1"></i>${esc(item.score_text)}</span>` : ''}
             </p>
-            <div class="d-flex justify-content-end align-items-end mt-1">
+            <div class="d-flex justify-content-between align-items-end mt-1">
+              ${mapBtnHtml}
               <small class="text-primary fw-bold"><i class="fas fa-external-link-alt"></i> 바로가기</small>
             </div>`;
           resList.appendChild(el);
@@ -1366,6 +1419,10 @@
         if (fallbackAlert) fallbackAlert.style.display = 'none';
         const resList = document.getElementById('scheduleSearchResults');
         if (resList) resList.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted small">주변 일정을 검색 중입니다...</div></div>';
+
+        _refLat = null;
+        _refLng = null;
+        _refAddress = '';
 
         try {
           const params = new URLSearchParams({ address });
@@ -1394,6 +1451,13 @@
             date:     data.by_date     || [],
             combined: data.by_combined || [],
           };
+
+          if (typeof data.ref_lat === 'number' && Number.isFinite(data.ref_lat) &&
+              typeof data.ref_lng === 'number' && Number.isFinite(data.ref_lng)) {
+            _refLat = data.ref_lat;
+            _refLng = data.ref_lng;
+            _refAddress = String(address || '');
+          }
 
           // geocoding 실패(fallback) 시 경고 표시
           if (fallbackAlert) {
@@ -1455,6 +1519,157 @@
           await runSearch(newAddr, _searchState.excludeId, null, null);
         });
       }
+
+      const scheduleMapModalEl = document.getElementById('scheduleMapModal');
+      if (scheduleMapModalEl) {
+        scheduleMapModalEl.addEventListener('hidden.bs.modal', function () {
+          if (_scheduleMapLeaflet) {
+            try {
+              _scheduleMapLeaflet.remove();
+            } catch (e) { /* ignore */ }
+            _scheduleMapLeaflet = null;
+          }
+        });
+      }
+
+      function openScheduleMap(refAddr, refLat, refLng, tgtLat, tgtLng, tgtAddr, tgtName, scoreText) {
+        const modalEl = document.getElementById('scheduleMapModal');
+        const routeInfoEl = document.getElementById('scheduleMapRouteInfo');
+        if (typeof L === 'undefined' || !modalEl || !routeInfoEl) return;
+
+        const myGen = ++_scheduleMapGen;
+        routeInfoEl.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2" role="status"></div>경로 계산 중...</div>';
+
+        if (!_scheduleMapModalInstance) {
+          _scheduleMapModalInstance = new bootstrap.Modal(modalEl);
+        }
+
+        const onShown = function () {
+          modalEl.removeEventListener('shown.bs.modal', onShown);
+          if (myGen !== _scheduleMapGen) return;
+
+          if (_scheduleMapLeaflet) {
+            try {
+              _scheduleMapLeaflet.remove();
+            } catch (e) { /* ignore */ }
+            _scheduleMapLeaflet = null;
+          }
+
+          const container = document.getElementById('scheduleMapContainer');
+          if (!container) return;
+          container.replaceChildren();
+
+          const map = L.map(container).setView([refLat, refLng], 11);
+          _scheduleMapLeaflet = map;
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a>'
+          }).addTo(map);
+
+          L.circleMarker([refLat, refLng], {
+            radius: 9,
+            color: '#c0392b',
+            weight: 2,
+            fillColor: '#ff6b6b',
+            fillOpacity: 0.95
+          }).addTo(map).bindPopup(esc(_truncateAddr(refAddr, 80)));
+
+          L.circleMarker([tgtLat, tgtLng], {
+            radius: 9,
+            color: '#2e7d32',
+            weight: 2,
+            fillColor: '#4caf50',
+            fillOpacity: 0.95
+          }).addTo(map).bindPopup('<strong>' + esc(tgtName) + '</strong><br>' + esc(tgtAddr));
+
+          map.fitBounds(L.latLngBounds([[refLat, refLng], [tgtLat, tgtLng]]), { padding: [50, 50], maxZoom: 14 });
+          setTimeout(function () { map.invalidateSize(); }, 150);
+
+          (async function loadRoute() {
+            const cacheKey = _routeCacheKey(refLat, refLng, tgtLat, tgtLng);
+            let routeJson = _routeCache.get(cacheKey);
+            try {
+              if (!routeJson) {
+                const res = await fetch(
+                  '/api/calculate_route?start_lat=' + encodeURIComponent(refLat) +
+                  '&start_lng=' + encodeURIComponent(refLng) +
+                  '&end_lat=' + encodeURIComponent(tgtLat) +
+                  '&end_lng=' + encodeURIComponent(tgtLng)
+                );
+                if (res.status === 429) {
+                  throw new Error('RATE_LIMIT');
+                }
+                routeJson = await res.json();
+                if (routeJson && routeJson.success) {
+                  _routeCache.set(cacheKey, routeJson);
+                }
+              }
+              if (myGen !== _scheduleMapGen || !_scheduleMapLeaflet || _scheduleMapLeaflet !== map) return;
+
+              if (routeJson && routeJson.success && routeJson.data &&
+                  routeJson.data.route_coords && routeJson.data.route_coords.length > 0) {
+                const routeData = routeJson.data;
+                const line = L.polyline(routeData.route_coords, {
+                  color: '#ff4757',
+                  weight: 5,
+                  opacity: 0.8
+                }).addTo(map);
+                try {
+                  map.fitBounds(line.getBounds(), { padding: [50, 50], maxZoom: 14 });
+                } catch (e) { /* ignore */ }
+
+                const summ = routeData.summary || {};
+                const distT = summ.distance_text != null ? summ.distance_text : (routeData.distance_km + 'km');
+                const durT = summ.duration_text != null ? summ.duration_text : ((routeData.duration_min || 0) + '분');
+                const tollT = summ.toll_text != null ? summ.toll_text : '—';
+                routeInfoEl.innerHTML =
+                  '<div class="schedule-map-route-info">' +
+                  '<h6><i class="fas fa-car-side me-1"></i> 경로 정보</h6>' +
+                  '<div class="mb-1"><strong>출발:</strong> ' + esc(refAddr) + '</div>' +
+                  '<div class="mb-1"><strong>도착:</strong> ' + esc(tgtAddr) + '</div>' +
+                  '<div class="mb-1"><strong>거리:</strong> ' + esc(distT) + '</div>' +
+                  '<div class="mb-1"><strong>소요시간:</strong> ' + esc(durT) + '</div>' +
+                  '<div><strong>통행료:</strong> ' + esc(tollT) + '</div>' +
+                  '</div>';
+              } else {
+                throw new Error((routeJson && routeJson.error) ? String(routeJson.error) : 'ROUTE_FAIL');
+              }
+            } catch (err) {
+              if (myGen !== _scheduleMapGen) return;
+              const msg = (err && err.message === 'RATE_LIMIT')
+                ? '요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.'
+                : '자동차 경로를 계산하지 못했습니다. 직선거리를 참고해 주세요.';
+              const hint = scoreText
+                ? ('<p class="mb-0 small mt-2">직선거리 참고: ' + esc(scoreText) + '</p>')
+                : '';
+              routeInfoEl.innerHTML =
+                '<div class="alert alert-warning mb-0" role="alert">' +
+                '<strong>경로 계산 실패</strong>' +
+                '<p class="mb-0 small">' + esc(msg) + '</p>' +
+                hint +
+                '</div>';
+            }
+          })();
+        };
+
+        modalEl.addEventListener('shown.bs.modal', onShown, { once: true });
+        _scheduleMapModalInstance.show();
+      }
+
+      document.body.addEventListener('click', function (e) {
+        const btn = e.target.closest('.schedule-map-btn');
+        if (!btn) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const targetLat = parseFloat(btn.dataset.lat);
+        const targetLng = parseFloat(btn.dataset.lng);
+        const targetAddress = btn.dataset.address || '';
+        const targetName = btn.dataset.name || '';
+        const scoreText = btn.dataset.scoreText || '';
+        if (!_refLat || !_refLng) return;
+        if (!Number.isFinite(targetLat) || !Number.isFinite(targetLng)) return;
+        openScheduleMap(_refAddress, _refLat, _refLng, targetLat, targetLng, targetAddress, targetName, scoreText);
+      });
     })();
 
     function showFeedback(msg, isError = false) {
