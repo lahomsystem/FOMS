@@ -11,6 +11,10 @@
       <span>실측 대시보드</span>
     </h1>
     <div class="erp-pro-header__actions">
+      <button id="btn-export-image" type="button" class="erp-pro-btn erp-pro-btn--primary me-2">
+        <i class="fas fa-file-image"></i>
+        <span class="d-none d-md-inline">이미지 저장</span>
+      </button>
       <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_dashboard.erp_dashboard') }}">
         <i class="fas fa-arrow-left"></i>
         <span class="d-none d-md-inline">ERP</span>
@@ -804,6 +808,8 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/erp/common_utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement.js') }}"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="{{ url_for('static', filename='js/measurement-image-export.js') }}"></script>
 <script>
   (function () {
     document.addEventListener('DOMContentLoaded', function () {
