@@ -47,8 +47,24 @@
 
 ---
 
-## 5. 검증 시나리오 (수동)
+## 5. Deploy vs Production — 스테이징만 PNG 정상 (GDM RCA)
+
+**증상**: deploy에서는 PNG 저장이 되는데 production만 `저장 중...` 무한.
+
+**우선 가설 (코드 동일 가정)**:
+
+1. **정적 JS 캐시 불일치** — 실측 대시보드 `<script>`에 쿼리 없이 `static/...js`만 쓰면 브라우저·CDN이 **구버전** `measurement-image-export.js` / `erp-table-image-export-helpers.js`를 유지하기 쉬움. 구버전은 `finally`·`Promise` 타임아웃이 없어 무한 로딩 재현 가능.
+2. **스테이징**은 캐시가 비어 최신을 받는 경우가 많고, **production**(커스텀 도메인·엣지)은 **옛 번들**이 남기 쉬움.
+
+**조치**: `erp_measurement_dashboard.html`에서 실측 관련 스크립트에 `?v=YYYYMMDD` 캐시 버스트. JS 수정 시 **v 상향** (레이아웃 `erp-pro.css?v=`와 동일 정책).
+
+**확인**: Production F12 → Network → `measurement-image-export.js` 응답에 **`finally`** 문자열 유무. 없으면 캐시 원인에 가깝다.
+
+---
+
+## 6. 검증 시나리오 (수동)
 
 1. Production 실측 대시보드에서 셀 편집 → 저장 후 값 반영 또는 실패 메시지.
 2. 개발자 도구 Network에서 **Slow 3G**로 지연 시뮬 → 45초 후 알림 + 셀 복구.
 3. PNG 저장 버튼 → 완료 또는 타임아웃 알림 후 버튼 라벨 복구.
+4. 배포 후 `measurement-image-export.js` 요청 URL에 **`?v=`** 포함 여부 확인.

@@ -806,12 +806,14 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/erp/common_utils.js') }}"></script>
-<script src="{{ url_for('static', filename='js/erp/measurement.js') }}"></script>
-<script src="{{ url_for('static', filename='js/erp/measurement-manual-rows.js') }}"></script>
-<script src="{{ url_for('static', filename='js/erp-table-image-export-helpers.js') }}"></script>
+{# 실측 PNG·헬퍼 수정 시 v 값을 올려 브라우저/CDN 캐시 무효화 (production만 구버전 JS 유지되는 현상 방지) #}
+{% set measurement_js_v = '20260326' %}
+<script src="{{ url_for('static', filename='js/erp/common_utils.js') }}?v={{ measurement_js_v }}"></script>
+<script src="{{ url_for('static', filename='js/erp/measurement.js') }}?v={{ measurement_js_v }}"></script>
+<script src="{{ url_for('static', filename='js/erp/measurement-manual-rows.js') }}?v={{ measurement_js_v }}"></script>
+<script src="{{ url_for('static', filename='js/erp-table-image-export-helpers.js') }}?v={{ measurement_js_v }}"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="{{ url_for('static', filename='js/measurement-image-export.js') }}"></script>
+<script src="{{ url_for('static', filename='js/measurement-image-export.js') }}?v={{ measurement_js_v }}"></script>
 <script>
   (function () {
     document.addEventListener('DOMContentLoaded', function () {
