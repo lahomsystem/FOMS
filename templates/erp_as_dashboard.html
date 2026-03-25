@@ -1583,7 +1583,19 @@
           }).addTo(map).bindPopup('<strong>' + esc(tgtName) + '</strong><br>' + esc(tgtAddr));
 
           map.fitBounds(L.latLngBounds([[refLat, refLng], [tgtLat, tgtLng]]), { padding: [50, 50], maxZoom: 14 });
-          setTimeout(function () { map.invalidateSize(); }, 150);
+
+          function bumpMapSize() {
+            if (myGen !== _scheduleMapGen || !_scheduleMapLeaflet || _scheduleMapLeaflet !== map) return;
+            try {
+              map.invalidateSize({ animate: false });
+            } catch (e) { /* ignore */ }
+          }
+          map.whenReady(bumpMapSize);
+          requestAnimationFrame(function () {
+            bumpMapSize();
+            setTimeout(bumpMapSize, 120);
+            setTimeout(bumpMapSize, 400);
+          });
 
           (async function loadRoute() {
             const cacheKey = _routeCacheKey(refLat, refLng, tgtLat, tgtLng);
@@ -1617,6 +1629,8 @@
                 try {
                   map.fitBounds(line.getBounds(), { padding: [50, 50], maxZoom: 14 });
                 } catch (e) { /* ignore */ }
+                bumpMapSize();
+                setTimeout(bumpMapSize, 200);
 
                 const summ = routeData.summary || {};
                 const distT = summ.distance_text != null ? summ.distance_text : (routeData.distance_km + 'km');

@@ -2531,10 +2531,18 @@
     filter: none !important;
 }
 
-/* AS 일정찾기 지도 모달 */
-.schedule-map-container {
+/* AS 일정찾기 지도 모달
+   Leaflet가 같은 div에 .leaflet-container를 붙이며, 타일 레이어 z-index(200) 등을 씀.
+   #scheduleMapModal .leaflet-pane 일괄 지정은 타일·오버레이 순서를 깨져 지도가 안 보이게 할 수 있어 사용하지 않음.
+   높이는 ID로 고정해 Leaflet 초기화 후에도 영역이 0이 되지 않게 함. */
+#scheduleMapModal #scheduleMapContainer.schedule-map-container,
+#scheduleMapModal #scheduleMapContainer.leaflet-container {
   height: 400px;
+  min-height: 280px;
   width: 100%;
+  position: relative;
+  z-index: 0;
+  background: #ddd;
 }
 
 .schedule-map-route-info {
@@ -2548,13 +2556,7 @@
   margin-bottom: 0.5rem;
 }
 
-/* Leaflet z-index가 Bootstrap 모달 내부에서 정상 작동하도록 보정 */
-#scheduleMapModal .leaflet-pane {
-  z-index: 400;
-}
-#scheduleMapModal .leaflet-control {
-  z-index: 800;
-}
-#scheduleMapModal .leaflet-popup {
-  z-index: 900;
+/* 모달(1055)보다 낮되, 타일·컨트롤은 Leaflet 기본 겹침 유지 */
+#scheduleMapModal .leaflet-control-container {
+  z-index: 1056;
 }
