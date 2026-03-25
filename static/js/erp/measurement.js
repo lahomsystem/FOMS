@@ -4,6 +4,11 @@
         const container = document.querySelector('.erp-pro');
         if (!container) return;
 
+        // measurement-manual-rows.js가 덮어씀 (로드 순서 대비 noop)
+        window.measurementManualRowsRemoveGaps = window.measurementManualRowsRemoveGaps || function () {};
+        window.measurementManualRowsPersist = window.measurementManualRowsPersist || function () {};
+        window.measurementManualRowsRecomputeAnchors = window.measurementManualRowsRecomputeAnchors || function () {};
+
         // Config from data attributes
         const erpActiveRaw = container.dataset.erpBetaActive ?? container.dataset.erpActive;
         const config = {
@@ -14,6 +19,9 @@
         };
 
         if (!config.erpBetaActive) return;
+
+        const tbody = document.querySelector('.measurement-table tbody');
+        if (!tbody) return;
 
         const MEASUREMENT_MANAGER_COLORS = ['#FF0000', '#0080FF', '#FFFF00', '#00FF00', '#FF00FF', '#00FFFF', '#FF8000', '#FF1493', '#00FF80', '#FF69B4'];
 
@@ -26,13 +34,19 @@
             if (!m || m === '-') return 'ZZZ';
             return m.toLowerCase();
         }
+        function rowTieBreak(tr) {
+            if (tr.classList.contains('measurement-row-manual')) {
+                return 100000000 + (parseInt(tr.dataset.manualSeq, 10) || 0);
+            }
+            return parseInt(tr.dataset.orderId, 10) || 0;
+        }
         function applyMeasurementManagerSortAndColors() {
-            const tbody = document.querySelector('.measurement-table tbody');
-            if (!tbody) return;
+            window.measurementManualRowsRemoveGaps();
             const mainRows = Array.from(tbody.querySelectorAll('tr.measurement-row'));
             if (!mainRows.length) return;
-            // data-bg / data-color(서버 렌더링 값)를 초기 색상으로 먼저 적용 (JS 정렬 전 깜빡임 방지)
+            // 서버 렌더링 색 — 수동 행은 제외(JS만 적용)
             mainRows.forEach(function (tr) {
+                if (tr.classList.contains('measurement-row-manual')) return;
                 const cell = tr.querySelector('td.manager-cell');
                 if (!cell) return;
                 const bg = cell.dataset.bg;
@@ -43,14 +57,22 @@
             const pairs = mainRows.map(function (tr) {
                 const orderId = tr.dataset.orderId || '';
                 const next = tr.nextElementSibling;
-                const detailRow = (next && next.classList && next.classList.contains('measurement-detail-row') && (next.dataset.orderId === orderId || next.id === 'detail-' + orderId)) ? next : null;
+                const isManual = tr.classList.contains('measurement-row-manual');
+                const detailRow =
+                    !isManual &&
+                    next &&
+                    next.classList &&
+                    next.classList.contains('measurement-detail-row') &&
+                    (next.dataset.orderId === orderId || next.id === 'detail-' + orderId)
+                        ? next
+                        : null;
                 return { main: tr, detail: detailRow };
             });
             pairs.sort(function (a, b) {
                 const mA = managerKeyForSort(a.main);
                 const mB = managerKeyForSort(b.main);
                 if (mA !== mB) return mA.localeCompare(mB);
-                return (parseInt(a.main.dataset.orderId, 10) || 0) - (parseInt(b.main.dataset.orderId, 10) || 0);
+                return rowTieBreak(a.main) - rowTieBreak(b.main);
             });
             pairs.forEach(function (p) {
                 tbody.appendChild(p.main);
@@ -75,23 +97,28 @@
                 cell.style.setProperty('color', '#000000', 'important');
                 tr.dataset.manager = m || '';
             });
+            window.measurementManualRowsRecomputeAnchors();
+            window.measurementManualRowsPersist();
         }
         function scheduleApplyMeasurementManagerSortAndColors() {
             setTimeout(applyMeasurementManagerSortAndColors, 0);
         }
 
+        window.applyMeasurementManagerSortAndColors = applyMeasurementManagerSortAndColors;
+        window.scheduleApplyMeasurementManagerSortAndColors = scheduleApplyMeasurementManagerSortAndColors;
+
         // 1. Scroll to today
-        const todayId = "date-" + config.todayDate;
+        const todayId = 'date-' + config.todayDate;
         const todayEl = document.getElementById(todayId);
         const panelList = document.querySelector('.measurement-panel-list');
         if (todayEl && panelList) {
             todayEl.scrollIntoView({ block: 'center' });
         }
 
-        // 2. Manager Cell Colors (초기 적용 후, 담당자 편집 시 scheduleApplyMeasurementManagerSortAndColors로 실시간 재정렬·재색상)
+        // 2. Manager Cell Colors
         applyMeasurementManagerSortAndColors();
 
-        // 2b. 주문 상세 chevron 토글 (v 꺽쇠 클릭 시 해당 행 아래 상세 슬라이드)
+        // 2b. 주문 상세 chevron 토글
         document.querySelectorAll('.measurement-chevron').forEach(function (chevron) {
             chevron.addEventListener('click', function (e) {
                 e.preventDefault();
@@ -110,7 +137,6 @@
                     detailRow.setAttribute('aria-hidden', 'false');
                     this.setAttribute('aria-expanded', 'true');
                     this.classList.add('is-open');
-                    // lazy-load: data-src → src 변환
                     detailRow.querySelectorAll('img.lazy-detail-img[data-src]').forEach(function (img) {
                         img.src = img.dataset.src;
                         img.removeAttribute('data-src');
@@ -172,73 +198,86 @@
             });
         }
 
-        // 4. Inline Edit (담당자: ERP Beta + 비-ERP 모두, 주소/전화: ERP Beta만)
-        const editableCells = document.querySelectorAll('.editable-cell');
-        editableCells.forEach(cell => {
-            cell.addEventListener('click', async function () {
-                const tr = this.closest('tr');
-                const orderId = tr.dataset.orderId;
-                const isErpBeta = tr.dataset.isErp === 'true';
-                const field = this.dataset.field;
-                const currentValue = this.textContent.trim();
+        // 4. Inline Edit (위임: 수동 행은 로컬만 저장)
+        tbody.addEventListener('click', function (e) {
+            const cell = e.target.closest('td.editable-cell');
+            if (!cell || !tbody.contains(cell)) return;
+            if (e.target.closest('input, button, a')) return;
+            const tr = cell.closest('tr');
+            if (!tr || !tr.classList.contains('measurement-row')) return;
+            if (cell.querySelector('input')) return;
 
-                if (!isErpBeta && field !== 'manager') return;
-                if (this.querySelector('input')) return;
+            const orderId = tr.dataset.orderId;
+            const isErpBeta = tr.dataset.isErp === 'true';
+            const isManual = tr.dataset.manualRow === 'true';
+            const field = cell.dataset.field;
+            const currentValue = cell.textContent.trim();
 
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.value = currentValue === '-' ? '' : currentValue;
-                input.className = 'form-control form-control-sm';
+            if (!isManual && !isErpBeta && field !== 'manager') return;
 
-                const originalContent = this.innerHTML;
-                this.innerHTML = '';
-                this.appendChild(input);
-                input.focus();
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentValue === '-' ? '' : currentValue;
+            input.className = 'form-control form-control-sm';
 
-                input.addEventListener('blur', async () => {
-                    const newValue = input.value.trim();
-                    if (newValue === (currentValue === '-' ? '' : currentValue)) {
-                        this.innerHTML = originalContent;
-                        return;
+            const originalContent = cell.innerHTML;
+            cell.innerHTML = '';
+            cell.appendChild(input);
+            input.focus();
+
+            input.addEventListener('blur', async function () {
+                const newValue = input.value.trim();
+                if (newValue === (currentValue === '-' ? '' : currentValue)) {
+                    cell.innerHTML = originalContent;
+                    return;
+                }
+
+                if (isManual) {
+                    cell.textContent = newValue || '-';
+                    window.measurementManualRowsPersist();
+                    if (field === 'manager') {
+                        tr.dataset.manager = newValue || '';
+                        scheduleApplyMeasurementManagerSortAndColors();
                     }
-                    this.textContent = '저장 중...';
-                    try {
-                        let res;
-                        if (field === 'manager' && !isErpBeta) {
-                            res = await fetch('/api/update_order_field', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                credentials: 'same-origin',
-                                body: JSON.stringify({ order_id: parseInt(orderId, 10), field: 'manager_name', value: newValue })
-                            });
-                        } else {
-                            res = await fetch(`/api/erp/measurement/update/${orderId}`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                credentials: 'same-origin',
-                                body: JSON.stringify({ field, value: newValue })
-                            });
-                        }
-                        const contentType = res.headers.get('Content-Type') || '';
-                        const data = contentType.includes('application/json') ? await res.json() : { success: false, error: res.status === 404 ? 'API 경로를 확인해 주세요.' : '저장 실패' };
-                        if (data.success) {
-                            this.textContent = newValue || '-';
-                            if (field === 'manager') {
-                                const tr = this.closest('tr');
-                                if (tr) tr.dataset.manager = newValue || '';
-                                scheduleApplyMeasurementManagerSortAndColors();
-                            }
-                        } else {
-                            this.textContent = currentValue || '-';
-                            if (data.message || data.error) console.warn('담당자 저장 실패:', data.message || data.error);
-                        }
-                    } catch (e) {
-                        this.innerHTML = originalContent;
-                        console.warn('담당자 저장 중 오류:', e);
+                    return;
+                }
+
+                cell.textContent = '저장 중...';
+                try {
+                    let res;
+                    if (field === 'manager' && !isErpBeta) {
+                        res = await fetch('/api/update_order_field', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ order_id: parseInt(orderId, 10), field: 'manager_name', value: newValue })
+                        });
+                    } else {
+                        res = await fetch(`/api/erp/measurement/update/${orderId}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ field, value: newValue })
+                        });
                     }
-                });
+                    const contentType = res.headers.get('Content-Type') || '';
+                    const data = contentType.includes('application/json') ? await res.json() : { success: false, error: res.status === 404 ? 'API 경로를 확인해 주세요.' : '저장 실패' };
+                    if (data.success) {
+                        cell.textContent = newValue || '-';
+                        if (field === 'manager') {
+                            const tr2 = cell.closest('tr');
+                            if (tr2) tr2.dataset.manager = newValue || '';
+                            scheduleApplyMeasurementManagerSortAndColors();
+                        }
+                    } else {
+                        cell.textContent = currentValue || '-';
+                        if (data.message || data.error) console.warn('담당자 저장 실패:', data.message || data.error);
+                    }
+                } catch (err) {
+                    cell.innerHTML = originalContent;
+                    console.warn('담당자 저장 중 오류:', err);
+                }
             });
         });
-
     });
 })();

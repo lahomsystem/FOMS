@@ -72,6 +72,10 @@ document.addEventListener('DOMContentLoaded', function () {
                         erpTableExportStylePaymentIconsInClone(clonedDoc, 80);
                     }
 
+                    clonedDoc.querySelectorAll('tr.measurement-gap-row').forEach(function (r) {
+                        r.remove();
+                    });
+
                     const thead = clonedTable.querySelector('thead');
                     if (!thead) return;
 
