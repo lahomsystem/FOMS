@@ -2515,7 +2515,7 @@
   }
 }
 
-/* 결제 아이콘: 확인=컬러 PNG, 미확인=pay-*-gray.png (CSS filter 대신 비트맵으로 구분) */
+/* 결제 아이콘: 확인=컬러 PNG, 미확인=pay-*-gray.png */
 .erp-custom-payment-icon {
     width: 40px;
     height: 40px;
@@ -2523,10 +2523,13 @@
     transition: transform 0.1s ease-in-out;
     vertical-align: middle;
 }
-.erp-custom-payment-confirmed,
-.erp-custom-payment-unconfirmed {
+.erp-custom-payment-confirmed {
     filter: none !important;
     opacity: 1 !important;
+}
+.erp-custom-payment-unconfirmed {
+    filter: none !important;
+    opacity: 0.4 !important;
 }
 
 /* AS 일정찾기 지도 모달

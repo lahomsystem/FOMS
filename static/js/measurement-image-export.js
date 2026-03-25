@@ -1,13 +1,10 @@
 /**
- * 실측 대시보드 일정표 PNG 저장 (출고 shipment-image-export.js와 동일 흐름).
+ * 실측 대시보드 일정표 PNG 저장.
  * 파일명·표 제목: YY-MM-DD 실측 일정
  */
 document.addEventListener('DOMContentLoaded', function () {
     const exportBtn = document.getElementById('btn-export-image');
     if (!exportBtn) return;
-
-    var WAIT_IMAGES_MS = 90000;
-    var HTML2CANVAS_MS = 180000;
 
     /**
      * @param {string} isoDateStr - YYYY-MM-DD
@@ -46,19 +43,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const titleText = labelYyMmDd + ' 실측 일정';
             const downloadBase = titleText;
 
-            if (typeof erpTableExportWaitForImages === 'function') {
-                var waitP = erpTableExportWaitForImages(tableElement);
-                if (typeof erpTableExportPromiseWithTimeout === 'function') {
-                    await erpTableExportPromiseWithTimeout(waitP, WAIT_IMAGES_MS, '이미지 로드');
-                } else {
-                    await waitP;
-                }
-            }
+            const captureScale = 2; // 적절한 화질과 속도를 위해 2배수로 고정
 
-            const captureScale =
-                typeof erpTableExportCaptureScale === 'function' ? erpTableExportCaptureScale() : 3;
-
-            var canvasPromise = html2canvas(tableElement, {
+            const canvas = await html2canvas(tableElement, {
                 scale: captureScale,
                 useCORS: true,
                 logging: false,
@@ -69,10 +56,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     clonedTable.style.width = 'auto';
                     clonedTable.style.minWidth = '1100px';
-
-                    if (typeof erpTableExportStylePaymentIconsInClone === 'function') {
-                        erpTableExportStylePaymentIconsInClone(clonedDoc, 80);
-                    }
 
                     clonedDoc.querySelectorAll('tr.measurement-gap-row').forEach(function (r) {
                         r.remove();
@@ -96,11 +79,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     thead.insertBefore(titleRow, thead.firstChild);
                 }
             });
-
-            const canvas =
-                typeof erpTableExportPromiseWithTimeout === 'function'
-                    ? await erpTableExportPromiseWithTimeout(canvasPromise, HTML2CANVAS_MS, 'PNG 생성')
-                    : await canvasPromise;
 
             const link = document.createElement('a');
             link.download = downloadBase + '.png';
