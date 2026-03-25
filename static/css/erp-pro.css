@@ -2530,3 +2530,31 @@
 .erp-custom-payment-confirmed {
     filter: none !important;
 }
+
+/* AS 일정찾기 지도 모달 */
+.schedule-map-container {
+  height: 400px;
+  width: 100%;
+}
+
+.schedule-map-route-info {
+  background: #d4edda;
+  padding: 15px;
+  border-radius: 5px;
+  border-left: 4px solid #28a745;
+}
+
+.schedule-map-route-info h6 {
+  margin-bottom: 0.5rem;
+}
+
+/* Leaflet z-index가 Bootstrap 모달 내부에서 정상 작동하도록 보정 */
+#scheduleMapModal .leaflet-pane {
+  z-index: 400;
+}
+#scheduleMapModal .leaflet-control {
+  z-index: 800;
+}
+#scheduleMapModal .leaflet-popup {
+  z-index: 900;
+}
