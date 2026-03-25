@@ -49,8 +49,15 @@ document.addEventListener('DOMContentLoaded', function () {
             const titleText = labelYyMmDd + ' 실측 일정';
             const downloadBase = titleText;
 
+            if (typeof erpTableExportWaitForImages === 'function') {
+                await erpTableExportWaitForImages(tableElement);
+            }
+
+            const captureScale =
+                typeof erpTableExportCaptureScale === 'function' ? erpTableExportCaptureScale() : 3;
+
             const canvas = await html2canvas(tableElement, {
-                scale: 2,
+                scale: captureScale,
                 useCORS: true,
                 logging: false,
                 backgroundColor: '#ffffff',
@@ -60,6 +67,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     clonedTable.style.width = 'auto';
                     clonedTable.style.minWidth = '1100px';
+
+                    if (typeof erpTableExportStylePaymentIconsInClone === 'function') {
+                        erpTableExportStylePaymentIconsInClone(clonedDoc, 80);
+                    }
 
                     const thead = clonedTable.querySelector('thead');
                     if (!thead) return;

@@ -529,13 +529,13 @@
                       {% set deposit_val = deposit|string|replace(',', '')|int|default(0, true) %}
                       <span class="erp-payment-badge-row ms-1">
                         {% if deposit_val > 0 %}
-                          {% if payment.get('deposit_confirmed') %}
+                          {% if payment.get('deposit_confirmed') | payment_confirmed_bool %}
                           <img src="{{ url_for('static', filename='images/pay-coin.png') }}" class="erp-custom-payment-icon erp-custom-payment-confirmed" title="예약금 확인됨" alt="예약금">
                           {% else %}
                           <img src="{{ url_for('static', filename='images/pay-coin.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" title="예약금 미확인" alt="예약금">
                           {% endif %}
                         {% endif %}
-                        {% if payment.get('balance_confirmed') %}
+                        {% if payment.get('balance_confirmed') | payment_confirmed_bool %}
                         <img src="{{ url_for('static', filename='images/pay-bill.png') }}" class="erp-custom-payment-icon erp-custom-payment-confirmed" title="잔금 확인됨" alt="잔금">
                         {% else %}
                         <img src="{{ url_for('static', filename='images/pay-bill.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" title="잔금 미확인" alt="잔금">
@@ -808,6 +808,7 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/erp/common_utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement.js') }}"></script>
+<script src="{{ url_for('static', filename='js/erp-table-image-export-helpers.js') }}"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="{{ url_for('static', filename='js/measurement-image-export.js') }}"></script>
 <script>
