@@ -126,8 +126,26 @@ def item_spec_w300_value(item):
     return spec_w300_value(w_raw)
 
 
+def payment_confirmed_bool(val) -> bool:
+    """structured_data.payment.*_confirmed 값을 엄격히 True만 확인.
+
+    Jinja `{% if x %}`는 비어 있지 않은 문자열을 참으로 취급해 ``\"false\"``가 오탐될 수 있음.
+    """
+    if val is True:
+        return True
+    if val is False or val is None:
+        return False
+    if isinstance(val, str):
+        s = val.strip().lower()
+        return s in ('true', '1', 'yes', 'on')
+    if isinstance(val, (int, float)):
+        return val == 1
+    return False
+
+
 def register_erp_template_filters(bp):
     """Blueprint에 ERP 템플릿 필터 등록 (Blueprint.add_app_template_filter 사용)"""
+    bp.add_app_template_filter(payment_confirmed_bool, 'payment_confirmed_bool')
     bp.add_app_template_filter(split_count_filter, 'split_count')
     bp.add_app_template_filter(split_list_filter, 'split_list')
     bp.add_app_template_filter(strip_product_w_filter, 'strip_product_w')

@@ -26,6 +26,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
+            if (typeof erpTableExportWaitForImages === 'function') {
+                await erpTableExportWaitForImages(tableElement);
+            }
+
+            const captureScale =
+                typeof erpTableExportCaptureScale === 'function' ? erpTableExportCaptureScale() : 3;
+
             // 2. 현재 날짜 정보 가져오기
             const dateInput = document.querySelector('input[name="date"]');
             const dateStr = dateInput ? dateInput.value : new Date().toISOString().split('T')[0];
@@ -35,13 +42,17 @@ document.addEventListener('DOMContentLoaded', function () {
             // onclone에서 스타일을 강제 조정해야 함.
 
             const canvas = await html2canvas(tableElement, {
-                scale: 2, // 고해상도
+                scale: captureScale,
                 useCORS: true,
                 logging: false,
                 backgroundColor: '#ffffff',
                 // 캡처 시점에만 적용될 스타일 및 DOM 조작
                 onclone: (clonedDoc) => {
                     const clonedTable = clonedDoc.querySelector('.shipment-table');
+
+                    if (typeof erpTableExportStylePaymentIconsInClone === 'function') {
+                        erpTableExportStylePaymentIconsInClone(clonedDoc, 80);
+                    }
 
                     // 부모 요소(responsive div 등)의 제약에서 벗어나게 스타일 조정
                     // (테이블 자체가 캡처 타겟이므로 부모 스타일링 영향 최소화)

@@ -13,6 +13,17 @@
     // helpers (define only if missing to avoid collisions)
     let _paymentTogglePending = false;
 
+    /** 서버/JSONB의 *_confirmed 값을 엄격히 불리언으로 (문자열 "false"는 JS에서 truthy) */
+    function _erpBoolConfirmed(v) {
+        if (v === true || v === 1) return true;
+        if (v === false || v === 0 || v == null) return false;
+        if (typeof v === 'string') {
+            const s = v.trim().toLowerCase();
+            return s === 'true' || s === '1' || s === 'yes' || s === 'on';
+        }
+        return false;
+    }
+
     function _erpNormalizePaymentData(sd) {
         if (!sd) sd = {};
         const pay = sd.payment || {};
@@ -25,11 +36,11 @@
 
         return {
             deposit: Math.max(0, deposit_amount),
-            deposit_confirmed: pay.deposit_confirmed || false,
+            deposit_confirmed: _erpBoolConfirmed(pay.deposit_confirmed),
             deposit_confirmed_at: pay.deposit_confirmed_at || null,
             deposit_confirmed_by: pay.deposit_confirmed_by || null,
             deposit_confirmed_by_user_id: pay.deposit_confirmed_by_user_id || null,
-            balance_confirmed: pay.balance_confirmed || false,
+            balance_confirmed: _erpBoolConfirmed(pay.balance_confirmed),
             balance_confirmed_at: pay.balance_confirmed_at || null,
             balance_confirmed_by: pay.balance_confirmed_by || null,
             balance_confirmed_by_user_id: pay.balance_confirmed_by_user_id || null
@@ -41,7 +52,8 @@
         if (!btn) return;
         const icon = btn.querySelector('img.erp-custom-payment-icon');
         if (!icon) return;
-        const isConfirmed = type === 'deposit' ? paymentData.deposit_confirmed : paymentData.balance_confirmed;
+        const raw = type === 'deposit' ? paymentData.deposit_confirmed : paymentData.balance_confirmed;
+        const isConfirmed = _erpBoolConfirmed(raw);
         
         btn.dataset.confirmed = isConfirmed ? '1' : '0';
         
@@ -737,11 +749,11 @@
                 const prev = window.__erpLastStructuredData ? _erpNormalizePaymentData(window.__erpLastStructuredData) : _erpNormalizePaymentData({});
                 return {
                     deposit: Number.isFinite(deposit) ? deposit : 0,
-                    deposit_confirmed: prev.deposit_confirmed || false,
+                    deposit_confirmed: _erpBoolConfirmed(prev.deposit_confirmed),
                     deposit_confirmed_at: prev.deposit_confirmed_at || null,
                     deposit_confirmed_by: prev.deposit_confirmed_by || null,
                     deposit_confirmed_by_user_id: prev.deposit_confirmed_by_user_id || null,
-                    balance_confirmed: prev.balance_confirmed || false,
+                    balance_confirmed: _erpBoolConfirmed(prev.balance_confirmed),
                     balance_confirmed_at: prev.balance_confirmed_at || null,
                     balance_confirmed_by: prev.balance_confirmed_by || null,
                     balance_confirmed_by_user_id: prev.balance_confirmed_by_user_id || null
