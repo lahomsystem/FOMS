@@ -16,7 +16,8 @@ from db import get_db
 from models import Order, OrderAttachment
 from apps.auth import login_required, role_required
 from services.storage import get_storage
-from services.channel_client import is_configured, send_group_message
+from services.channel_client import is_configured
+from services.channel_dispatch import dispatch_order_event
 from services.channel_delivery import get_delivery_metrics, get_queue_backlog, check_legacy_only_success_after_cutover
 from services.jobs.queue import get_rq_queue
 
@@ -95,12 +96,9 @@ def api_channel_push_manual():
         if not order:
             return jsonify({'success': False, 'message': f'주문 #{order_id}을 찾을 수 없습니다.'}), 404
 
-        # 이전 푸쉬 이력 확인 → 재전송이면 [수정] prefix 추가
-        # message_id 유무와 무관하게 pushed=True 플래그로 재전송 여부 판단
+        # 이전 푸쉬 이력 확인
         sd = copy.deepcopy(order.structured_data or {})
         prev_push = sd.get('channeltalk_push') or {}
-        if prev_push.get('pushed'):
-            text = f"[수정]\n{text}"
 
         # 현재 주문의 전체 첨부파일 (이미지 + 동영상, 업로드 순서대로)
         attachments = (
@@ -123,11 +121,19 @@ def api_channel_push_manual():
                     'mime': _infer_mime(att.filename or '', att.file_type or 'image'),
                 })
 
-        result = send_group_message(
-            group_id=group_id,
-            plain_text=text,
-            files=files,
-            raise_on_error=True,
+        # DispatchService를 통해 전송 (CT-A-04)
+        dispatch_data = {
+            'order_id': order.id,
+            'customer_name': order.customer_name,
+            'text': text,
+            'is_retry': bool(prev_push.get('pushed')),
+            'files': files
+        }
+        
+        result = dispatch_order_event(
+            event_type='manual',
+            data=dispatch_data,
+            raise_on_error=True
         )
 
         # 전송 성공 후 push 이력을 structured_data에 저장

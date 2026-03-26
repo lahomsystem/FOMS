@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-26 | 세션 자동 기록 | commit_msg.txt, test_channel_integration_smoke.py, test_migration.py 외 2개 | 73c8e186 |
 | 2026-03-26 | 세션 자동 기록 | commit_msg.txt, channel_webhooks.py, channel_wam.py 외 2개 | c8266069 |
 | 2026-03-26 | 세션 자동 기록 | commit_msg.txt, test_scripts.js, map_view.html 외 2개 | fa0d9532 |
 | 2026-03-26 | 세션 자동 기록 | test_scripts.js, map_view.html, erp_measurement_dashboard.html 외 2개 | bc95ceef |
@@ -23,4 +24,3 @@
 | 2026-03-25 | 세션 자동 기록 | commit_msg_deploy.txt, erp_template_filters.py, erp-table-image-export-helpers.js 외 2개 | 96d53cd2 |
 | 2026-03-25 | 세션 자동 기록 | erp_template_filters.py, erp-table-image-export-helpers.js, erp-pro.css 외 2개 | c8d5aec3 |
 | 2026-03-25 | 세션 자동 기록 | erp-pro.css, erp-table-image-export-helpers.js, erp_beta_tab.html 외 2개 | c8d5aec3 |
-| 2026-03-25 | 세션 자동 기록 | commit_msg_deploy.txt, shipment-image-export.js, measurement-image-export.js 외 2개 | c8d5aec3 |
