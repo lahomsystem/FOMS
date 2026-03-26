@@ -1,175 +1,9 @@
 # Shell Guard Log
 
-> Claude Code Hook(`PreToolUse:Bash`)가 자동 기록합니다.
+> Cursor Hook(`beforeShellExecution`)가 자동 기록합니다.
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-15 23:13:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-15 23:13:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add services/map_snapshot.py scripts/diagnose_measurement_date_missing.py; git commit --tr` |
-| 2026-03-15 23:13:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-15 23:14:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production; git merge deploy -m "Merge deploy: 동일 좌표 ` |
-| 2026-03-15 23:14:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
-| 2026-03-16 09:05:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "from app import app; print('APP_OK')"` |
-| 2026-03-16 09:08:54 | allow | `-` | `wc -l "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\partials\erp_beta_js.html" 2>nul || powershell -Command "(Get-Content 'c:\Users\USE` |
-| 2026-03-16 09:08:58 | allow | `-` | `powershell -Command "(Get-Content 'c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\partials\erp_beta_js.html').Count"` |
-| 2026-03-17 08:08:43 | allow | `-` | `cat Procfile` |
-| 2026-03-18 09:24:57 | allow | `-` | `wc -l "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/css/erp-pro.css"` |
-| 2026-03-18 09:33:23 | allow | `-` | `ls c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/docs/plans/` |
-| 2026-03-18 15:19:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-18 15:26:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-18 15:27:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-18 15:27:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_construction_filters_grid.html templates/partials/erp_construct` |
-| 2026-03-18 15:27:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
-| 2026-03-18 15:27:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-18 15:32:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-18 15:32:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
-| 2026-03-18 15:32:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status` |
-| 2026-03-18 15:32:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
-| 2026-03-18 15:33:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-18 15:42:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-18 15:47:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-18 15:53:40 | allow | `-` | `wc -l "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\static\css\style.css" "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\static\css` |
-| 2026-03-18 15:53:45 | allow | `-` | `Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\static\css\style.css" | Measure-Object -Line; Get-Content "c:\Users\USER\OneDrive\Deskt` |
-| 2026-03-19 08:29:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-19 08:30:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; (Get-Content "templates\partials\erp_beta_js.html" | Measure-Object -Line).Lines` |
-| 2026-03-19 08:33:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-19 08:33:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
-| 2026-03-19 08:33:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status` |
-| 2026-03-19 08:33:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --name-only` |
-| 2026-03-19 08:33:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
-| 2026-03-19 08:34:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
-| 2026-03-19 08:34:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash pop` |
-| 2026-03-19 09:14:29 | allow | `-` | `python -m py_compile apps/erp_dashboard.py` |
-| 2026-03-19 09:32:55 | allow | `-` | `python -m py_compile apps/erp_as_page.py` |
-| 2026-03-19 11:49:58 | allow | `-` | `python -m py_compile apps/erp_shipment_page.py` |
-| 2026-03-19 13:42:22 | allow | `-` | `git blame -L 44,92 -- "apps/erp_shipment_page.py"` |
-| 2026-03-19 13:42:24 | allow | `-` | `git blame -L 84,139 -- "services/order_date_sync.py"` |
-| 2026-03-19 13:42:25 | allow | `-` | `git blame -L 858,864 -- "templates/erp_shipment_dashboard.html"` |
-| 2026-03-19 13:42:32 | allow | `-` | `git blame -L 15,18 -- "apps/api/orders.py"` |
-| 2026-03-19 13:42:34 | allow | `-` | `git blame -L 730,732 -- "apps/api/orders.py"` |
-| 2026-03-19 13:42:36 | allow | `-` | `git blame -L 217,225 -- "apps/api/erp_orders_as.py"` |
-| 2026-03-19 13:42:37 | allow | `-` | `git blame -L 858,864 -- templates/erp_shipment_dashboard.html` |
-| 2026-03-19 13:42:38 | allow | `-` | `git blame -L 56,96 -- "services/as_content_safety.py"` |
-| 2026-03-19 13:43:02 | allow | `-` | `git blame -L 166,189 -- "apps/erp_shipment_page.py"` |
-| 2026-03-19 13:43:04 | allow | `-` | `git blame -L 317,336 -- "apps/erp_shipment_page.py"` |
-| 2026-03-19 13:43:06 | allow | `-` | `git blame -L 155,161 -- "services/erp_display.py"` |
-| 2026-03-19 13:43:08 | allow | `-` | `git blame -L 289,295 -- "apps/api/erp_orders_as.py"` |
-| 2026-03-19 13:58:10 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order, OrderScheduleDate; from sqlalchemy import func; from sqlalchemy.sql import and_` |
-| 2026-03-19 13:58:21 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order, OrderScheduleDate; from sqlalchemy import func; app.app_context().push(); db=ge` |
-| 2026-03-19 13:58:30 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order, OrderScheduleDate; from sqlalchemy import func; app.app_context().push(); db=ge` |
-| 2026-03-19 13:59:30 | allow | `-` | `python -c "from models import Order; o=Order(received_date='2026-03-19', customer_name='x', phone='x', address='x', product='x'); import sys; print(type(o.sched` |
-| 2026-03-19 13:59:39 | allow | `-` | `python -c "from models import Order; from apps.api.orders import _build_order_update_response; o=Order(received_date='2026-03-19', customer_name='x', phone='x',` |
-| 2026-03-19 13:59:48 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order; from sqlalchemy import or_, func; app.app_context().push(); db=get_db(); base=d` |
-| 2026-03-19 14:01:47 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order; app.app_context().push(); db=get_db(); rows=db.query(Order).filter(Order.status` |
-| 2026-03-19 14:02:59 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order; from sqlalchemy import or_, and_, func; app.app_context().push(); db=get_db(); ` |
-| 2026-03-19 14:20:57 | allow | `-` | `pytest "tests/test_shipment_dashboard_regression.py" -q` |
-| 2026-03-19 14:23:10 | allow | `-` | `pytest "tests/test_shipment_dashboard_regression.py" -q` |
-| 2026-03-19 14:23:34 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-03-19 14:25:09 | allow | `-` | `python -c "from services.as_content_safety import as_content_html_to_text; print(repr(as_content_html_to_text('<div><b>경첩</b> 교체</div><div><font color=\'red\'>긴` |
-| 2026-03-19 14:25:16 | allow | `-` | `python -c "from services.as_content_safety import as_content_html_to_text; print(repr(as_content_html_to_text('<div><b>hinge</b> replace</div><div><font color=\` |
-| 2026-03-19 14:26:01 | allow | `-` | `pytest "tests/test_shipment_dashboard_regression.py" -q` |
-| 2026-03-19 14:28:34 | allow | `-` | `pytest "tests/test_shipment_dashboard_regression.py" -q` |
-| 2026-03-19 14:29:16 | allow | `-` | `pytest "tests/test_shipment_dashboard_regression.py" -q` |
-| 2026-03-19 14:30:45 | allow | `-` | `pytest tests/test_shipment_dashboard_regression.py -q` |
-| 2026-03-19 14:35:36 | allow | `-` | `python -c 'from app import app; from db import get_db; from models import Order; from sqlalchemy.orm import selectinload; import json; statuses=("AS","AS_RECEIV` |
-| 2026-03-19 14:35:51 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order; from sqlalchemy.orm import selectinload; import json; statuses=('AS','AS_RECEIV` |
-| 2026-03-19 14:36:02 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order, OrderScheduleDate; app.app_context().push(); db=get_db(); import json; statuses` |
-| 2026-03-19 14:36:09 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order, OrderScheduleDate; import json; app.app_context().push(); db=get_db(); statuses` |
-| 2026-03-19 14:36:34 | allow | `-` | `python "scripts/backup_order_schedule_dates.py"` |
-| 2026-03-19 14:36:45 | allow | `-` | `python "scripts/restore_order_schedule_dates.py" --input "backups/order_schedule_dates-20260319-143638.json" --dry-run` |
-| 2026-03-19 14:36:55 | allow | `-` | `python -c "from app import app; from db import get_db; from models import Order; import json; app.app_context().push(); db=get_db(); rows=[{'id':o.id,'status':o` |
-| 2026-03-19 14:37:08 | allow | `-` | `python "scripts/backfill_phase4_dates.py" --dry-run --order-id 1083 --verbose` |
-| 2026-03-19 14:41:26 | allow | `-` | `railway status` |
-| 2026-03-19 14:42:09 | allow | `-` | `railway run python -c "from app import app; from db import get_db; from models import Order, OrderScheduleDate; import json; app.app_context().push(); db=get_db` |
-| 2026-03-19 14:42:49 | allow | `-` | `Start-Sleep -Seconds 10` |
-| 2026-03-19 14:43:13 | allow | `-` | `railway run python "scripts/backup_order_schedule_dates.py" --output "backups/remote-production-order_schedule_dates-20260319-remote.json"` |
-| 2026-03-19 14:43:50 | allow | `-` | `Start-Sleep -Seconds 8` |
-| 2026-03-19 14:44:05 | allow | `-` | `railway run python "scripts/backfill_phase4_dates.py" --dry-run --order-id 1798 --verbose` |
-| 2026-03-19 14:44:43 | allow | `-` | `railway run python "scripts/backfill_phase4_dates.py" --verbose` |
-| 2026-03-19 14:45:22 | allow | `-` | `Start-Sleep -Seconds 10` |
-| 2026-03-19 14:45:39 | allow | `-` | `Start-Sleep -Seconds 15` |
-| 2026-03-19 14:46:03 | allow | `-` | `Start-Sleep -Seconds 20` |
-| 2026-03-19 14:46:35 | allow | `-` | `Start-Sleep -Seconds 30` |
-| 2026-03-19 14:47:16 | allow | `-` | `railway run python -c "from app import app; from db import get_db; from models import OrderScheduleDate; import json; app.app_context().push(); db=get_db(); cou` |
-| 2026-03-19 14:47:44 | allow | `-` | `railway run python -c "from app import app; from db import get_db; from models import OrderScheduleDate; from sqlalchemy import func; import json; app.app_conte` |
-| 2026-03-19 14:48:22 | allow | `-` | `railway run python -c "from app import app; from db import get_db; from models import OrderScheduleDate; from sqlalchemy import func; import json; app.app_conte` |
-| 2026-03-19 14:49:09 | allow | `-` | `Stop-Process -Id 430492` |
-| 2026-03-19 14:49:15 | allow | `-` | `railway run python "scripts/backfill_phase4_dates.py" --order-id 1798 --verbose` |
-| 2026-03-19 14:49:46 | allow | `-` | `railway run python -c "from app import app; from db import get_db; from models import Order; import json; app.app_context().push(); db=get_db(); statuses=('AS',` |
-| 2026-03-19 14:50:22 | allow | `-` | `Start-Sleep -Seconds 10` |
-| 2026-03-19 14:50:56 | allow | `-` | `railway run python "scripts/_tmp_apply_selected_schedule_dates.py" --order-ids 1776 2636 2475 2070 2364 2623 2587 2382 2186 2440 2259 2508 2487 2497 2572 2191 2` |
-| 2026-03-19 14:52:02 | allow | `-` | `Start-Sleep -Seconds 10` |
-| 2026-03-19 14:52:20 | allow | `-` | `railway run python -c "from app import app; from db import get_db; from models import OrderScheduleDate; from sqlalchemy import func; import json; app.app_conte` |
-| 2026-03-19 14:52:51 | allow | `-` | `Start-Sleep -Seconds 10` |
-| 2026-03-19 14:53:07 | allow | `-` | `railway run python -c "from app import app; from db import get_db; from models import Order, OrderScheduleDate; from sqlalchemy import func; import json; app.ap` |
-| 2026-03-19 14:53:44 | allow | `-` | `Start-Sleep -Seconds 10` |
-| 2026-03-19 14:54:08 | allow | `-` | `railway run python "scripts/restore_order_schedule_dates.py" --input "backups/remote-production-order_schedule_dates-20260319-remote.json" --dry-run` |
-| 2026-03-19 14:54:44 | allow | `-` | `Start-Sleep -Seconds 10` |
-| 2026-03-19 15:03:56 | allow | `-` | `python -m py_compile "apps/erp_as_page.py" ; python -c "import app; print('APP_OK')"` |
-| 2026-03-19 15:04:56 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-03-19 15:50:51 | allow | `-` | `pytest "tests/test_erp_order_detail_preload.py" -q` |
-| 2026-03-19 15:58:36 | allow | `-` | `pytest "tests/test_erp_order_detail_preload.py" -q` |
-| 2026-03-19 15:58:54 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-03-19 16:14:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import app; print('APP_OK')" 2>&1` |
-| 2026-03-19 16:15:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status -u` |
-| 2026-03-19 16:15:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git diff --stat` |
-| 2026-03-19 16:15:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git log --oneline -5` |
-| 2026-03-19 16:15:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add apps/api/notifications.py apps/auth.py apps/erp_shipment_page.py && git commit -F /t` |
-| 2026-03-19 16:15:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git push origin deploy` |
-| 2026-03-19 16:15:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git push origin deploy:production` |
-| 2026-03-19 16:18:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -1` |
-| 2026-03-19 16:31:29 | allow | `-` | `Get-Command railway` |
-| 2026-03-19 16:31:38 | allow | `-` | `railway status` |
-| 2026-03-19 16:31:40 | allow | `-` | `railway environment` |
-| 2026-03-19 16:31:51 | allow | `-` | `railway service` |
-| 2026-03-19 16:31:53 | allow | `-` | `railway status --help` |
-| 2026-03-19 16:32:03 | allow | `-` | `railway status --json` |
-| 2026-03-19 16:41:34 | allow | `-` | `railway status` |
-| 2026-03-19 16:41:37 | allow | `-` | `railway domain` |
-| 2026-03-19 16:41:56 | allow | `-` | `$resp = Invoke-WebRequest -Uri "https://lahom-production.up.railway.app/static/css/erp-pro.css" -Method Head; Write-Output "STATUS=$($resp.StatusCode)"; Write-O` |
-| 2026-03-19 16:41:59 | allow | `-` | `$resp = Invoke-WebRequest -Uri "https://lahom-production.up.railway.app/erp/dashboard" -MaximumRedirection 0 -ErrorAction SilentlyContinue; if ($resp) { Write-O` |
-| 2026-03-19 16:50:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway variables 2>&1 | Select-String -Pattern "FLASK_ENV|RAILWAY_ENVIRONMENT|WHITENOISE"` |
-| 2026-03-19 22:11:05 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-03-19 22:11:37 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1` |
-| 2026-03-19 22:11:49 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && for f in apps/erp_dashboard.py apps/erp_production_page.py apps/erp_construction_page.py app` |
-| 2026-03-19 22:12:03 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && grep -n "from flask import" apps/erp_dashboard.py apps/erp_production_page.py apps/erp_const` |
-| 2026-03-19 22:12:12 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && grep -n "flash\|session\b" apps/api/erp_shipment_settings.py | head -10` |
-| 2026-03-19 22:14:11 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -3` |
-| 2026-03-19 22:21:28 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -3 && echo "---" && python -c "from serv` |
-| 2026-03-19 22:23:13 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -3` |
-| 2026-03-19 22:25:39 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -3` |
-| 2026-03-19 22:47:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-19 22:51:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-19 22:52:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-19 22:52:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-19 22:55:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat HEAD` |
-| 2026-03-19 22:55:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff HEAD -- apps/erp_construction_page.py` |
-| 2026-03-19 22:55:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff HEAD -- apps/erp_measurement_dashboard.py` |
-| 2026-03-19 22:55:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff HEAD -- services/erp_order_detail.py services/db_indexes.py` |
-| 2026-03-19 22:55:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff HEAD -- templates/layout.html templates/erp_shipment_dashboard.html static/js/erp/mea` |
-| 2026-03-19 22:55:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff HEAD -- templates/partials/erp_construction_filters_grid.html` |
-| 2026-03-19 22:57:25 | allow | `-` | `rg -n "block scripts" "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\layout.html"` |
-| 2026-03-19 22:59:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')" 2>&1` |
-| 2026-03-19 23:00:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat HEAD` |
-| 2026-03-19 23:03:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')" 2>&1` |
-| 2026-03-19 23:04:18 | allow | `-` | `Select-String -Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\erp_shipment_dashboard.html" -Pattern "endblock|block scripts|html2ca` |
-| 2026-03-19 23:04:26 | allow | `-` | `$content = Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\erp_shipment_dashboard.html" -Raw; $lines = $content -split "`n"; ` |
-| 2026-03-19 23:04:34 | allow | `-` | `$content = Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\partials\erp_construction_filters_grid.html" -Raw; $lines = $conte` |
-| 2026-03-19 23:05:00 | allow | `-` | `$content = Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\partials\erp_construction_filters_grid.html" -Raw; $lines = $conte` |
-| 2026-03-19 23:05:37 | allow | `-` | `$content = Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\layout.html" -Raw; $lines = $content -split "`n"; Write-Host "Tota` |
-| 2026-03-19 23:05:43 | allow | `-` | `Select-String -Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\layout.html" -Pattern "block scripts|flatpickr|Bootstrap" | Select-Ob` |
-| 2026-03-19 23:05:49 | allow | `-` | `$content = Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\layout.html"; $i = 0; foreach ($line in $content) { $i++; if ($lin` |
-| 2026-03-19 23:06:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import ast, sys files = [ 'apps/erp_measurement_dashboard.py', 'apps/erp_construct` |
-| 2026-03-19 23:08:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " with open('templates/layout.html', encoding='utf-8') as f: lines = f.readlines() f` |
-| 2026-03-19 23:09:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')" 2>&1` |
-| 2026-03-19 23:09:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat HEAD` |
-| 2026-03-19 23:17:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')" 2>&1` |
-| 2026-03-19 23:18:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat HEAD 2>&1` |
-| 2026-03-19 23:20:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m py_compile db.py app.py services/erp_permissions.py services/db_indexes.py services/` |
-| 2026-03-19 23:20:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pyflakes . 2>&1 | head -100` |
-| 2026-03-19 23:20:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import ast, os, sys errors = [] for root, dirs, files in os.walk('.'): dirs[:] = [` |
-| 2026-03-19 23:20:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pyflakes . 2>&1 | Select-Object -First 150` |
-| 2026-03-19 23:21:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import ast, os, sys # 미사용 import 및 undefined name 등 기본 분석 errors = [] warnings = [` |
 | 2026-03-19 23:21:43 | allow | `-` | `Get-ChildItem -Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" -Name "models.py" -Recurse 2>$null | Select-Object -First 3` |
 | 2026-03-19 23:21:44 | allow | `-` | `Get-ChildItem -Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" -Name "constants.py" -Recurse 2>$null | Select-Object -First 3` |
 | 2026-03-19 23:25:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')" 2>&1` |
@@ -303,3 +137,170 @@
 | 2026-03-24 09:27:06 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status && git diff --stat` |
 | 2026-03-24 09:28:09 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff --stat app.py apps/api/erp_orders_structured.py apps/api/orders.py apps/order_pages` |
 | 2026-03-24 09:32:12 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff HEAD --stat` |
+| 2026-03-24 09:45:27 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && wc -l templates/erp_measurement_dashboard.html` |
+| 2026-03-24 11:13:52 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status && git log --oneline -5` |
+| 2026-03-24 11:14:02 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline origin/production..origin/deploy` |
+| 2026-03-24 11:14:11 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout production && git merge origin/deploy --no-edit && git push origin production &` |
+| 2026-03-24 11:14:18 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git stash && git checkout production && git merge origin/deploy --no-edit && git push origin` |
+| 2026-03-24 11:30:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status && git diff --stat` |
+| 2026-03-24 13:01:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add static/css/erp-pro.css templates/erp_drawing_workbench_detail.html templates/erp_mea` |
+| 2026-03-24 13:01:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git push origin deploy` |
+| 2026-03-24 13:11:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add static/css/erp-pro.css templates/layout.html && git commit -F commit_msg.txt && rm c` |
+| 2026-03-24 13:37:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add static/css/erp-pro.css templates/layout.html && git commit -F commit_msg.txt && rm c` |
+| 2026-03-24 13:51:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add templates/partials/erp_dashboard_scripts_detail_dom.html templates/erp_measurement_d` |
+| 2026-03-24 13:55:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status && git log --oneline -3` |
+| 2026-03-24 14:13:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add static/css/erp-pro.css templates/layout.html && git commit -F commit_msg.txt && rm c` |
+| 2026-03-24 14:25:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add static/css/style-pro-max.css static/css/erp-pro.css templates/layout.html && git com` |
+| 2026-03-24 14:29:43 | allow | `-` | `ls -la .cursor/rules/` |
+| 2026-03-24 14:37:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add templates/partials/erp_dashboard_styles.html && git commit -F commit_msg.txt && rm c` |
+| 2026-03-24 14:53:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status && git log --oneline -5` |
+| 2026-03-24 14:55:47 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status --short` |
+| 2026-03-24 15:08:18 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git stash && git checkout production && git merge deploy --no-edit && git push origin produc` |
+| 2026-03-24 15:38:10 | allow | `-` | `grep -n "measurement-chevron\|detail-row\|toggleRow\|chevron" "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/erp/measurement.js" | head ` |
+| 2026-03-24 15:39:40 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git add templates/partials/erp_dashboard_scripts_detail_dom.html templates/partials/erp_dash` |
+| 2026-03-24 15:58:56 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -30 -- apps/api/ apps/erp_as*.py services/nearby*.py services/route*.py | ` |
+| 2026-03-24 15:59:07 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -- apps/api/erp_as_nearby*.py apps/api/as_schedule*.py services/nearby*.py` |
+| 2026-03-24 16:00:03 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -20 -- apps/api/orders.py` |
+| 2026-03-24 16:00:11 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 07e04e7b --stat | head -20 && echo "---" && git diff 07e04e7b~1 07e04e7b -- apps/ap` |
+| 2026-03-24 16:00:35 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -- apps/api/orders.py | head -5` |
+| 2026-03-24 16:00:48 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 9df3a376 --stat && echo "---" && git diff 9df3a376~1 9df3a376 -- apps/api/orders.py` |
+| 2026-03-24 16:00:55 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff 258e50dc~1 258e50dc -- apps/api/orders.py | grep "^[+-]" | grep -v "^---\|^+++" | h` |
+| 2026-03-24 16:01:05 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff -- apps/api/orders.py | head -100` |
+| 2026-03-24 16:01:12 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status --short` |
+| 2026-03-24 16:01:52 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -10 -- foms_address_converter.py` |
+| 2026-03-24 16:01:55 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -20 -- apps/api/erp_orders_structured.py` |
+| 2026-03-24 16:02:01 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff 6fedefe3~1 6fedefe3 -- foms_address_converter.py | grep "^[+-]" | grep -v "^---\|^+` |
+| 2026-03-24 16:02:05 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop\SY/program/lahomproject/FOMS" && git log --oneline --all -- apps/api/orders.py | head -5 && echo "---" && git show a1b54820 -` |
+| 2026-03-24 16:02:33 | allow | `-` | `grep -n "directions_url\|KAKAO_REST\|kakao.*api\|api\.kakao\|navi\|waypoints\|v1/future" "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/foms_addre` |
+| 2026-03-24 16:02:36 | allow | `-` | `grep -n "KAKAO_REST\|api_key\|Authorization\|headers" "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/foms_address_converter.py" | head -20` |
+| 2026-03-24 16:02:45 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 1402be16 --stat && echo "---" && git show 1402be16 -- foms_address_converter.py | h` |
+| 2026-03-24 16:03:29 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -10 -- templates/erp_as_dashboard.html` |
+| 2026-03-24 16:03:33 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 9df3a376 -- templates/erp_as_dashboard.html | grep "^[+-]" | grep -v "^---\|^+++" |` |
+| 2026-03-24 16:03:39 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff e6799042~1 e6799042 -- templates/erp_as_dashboard.html | grep "^[+-]" | grep -v "^-` |
+| 2026-03-24 16:03:45 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 3c80c0cb -- apps/api/orders.py | grep "^[+-]" | grep -v "^---\|^+++" | grep -i "sco` |
+| 2026-03-24 16:03:50 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show cc47e315 -- apps/api/orders.py | grep "score_text\|duration\|distance_km\|route_ite` |
+| 2026-03-24 16:04:16 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 6fedefe3 --stat` |
+| 2026-03-24 16:04:26 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 6fedefe3 -- apps/api/erp_map.py | grep "^[+-]" | grep -v "^---\|^+++" | grep -i "ca` |
+| 2026-03-24 16:04:32 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline --all -- foms_address_converter.py && echo "---" && git log --oneline --al` |
+| 2026-03-24 16:05:18 | allow | `-` | `grep -n "reset_order_geocode\|geocode_status\|lat.*=.*None\|lng.*=.*None" "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/erp_orders_struc` |
+| 2026-03-24 16:05:19 | allow | `-` | `grep -n "def reset_order_geocode\|reset_order_geocode" "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/order_geocode.py" | head -20` |
+| 2026-03-24 16:06:39 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 6fedefe3 -- apps/api/erp_orders_structured.py | grep "^[+-]" | grep -v "^---\|^+++"` |
+| 2026-03-24 16:17:16 | allow | `-` | `grep -n "lat\|lng\|geocode" "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/models.py" | grep -i "lat\|lng\|geocode" | head -20` |
+| 2026-03-24 16:17:49 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show e6799042 -- templates/erp_as_dashboard.html | grep "^[+-]" | grep -v "^---\|^+++" |` |
+| 2026-03-24 16:17:56 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 36570950 -- apps/api/orders.py | grep "^[+-]" | grep -v "^---\|^+++" | head -60` |
+| 2026-03-24 16:18:27 | allow | `-` | `grep -n "def.*as.*page\|address\|structured_data\|r\.address" "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/erp_as_page.py" | head -30` |
+| 2026-03-24 16:18:37 | allow | `-` | `grep -n "\.address\b\|address.*label\|display.*address\|r\.address" "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/erp_as_page.py" | tail -20` |
+| 2026-03-24 16:18:41 | allow | `-` | `grep -n "address\s*=\|\.address\s*=\|'address'" "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/erp_as_page.py" | grep -v "def \|_display\|add` |
+| 2026-03-24 16:18:48 | allow | `-` | `grep -n "def apply_erp_display_fields\|address" "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/services/erp_order_detail.py" | head -20` |
+| 2026-03-24 16:18:49 | allow | `-` | `grep -rn "def apply_erp_display_fields" "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/" 2>/dev/null | head -5` |
+| 2026-03-24 16:20:52 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && grep -rn "def apply_erp_display_fields" . 2>/dev/null | head -5` |
+| 2026-03-24 16:23:35 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -5` |
+| 2026-03-24 16:24:31 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git push origin deploy` |
+| 2026-03-24 16:25:47 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git stash && git checkout production && git merge deploy --no-edit && git push origin produc` |
+| 2026-03-24 16:37:49 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c " from app import app with app.app_context(): from foms_address_converter import F` |
+| 2026-03-24 16:39:29 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -3` |
+| 2026-03-24 16:41:22 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git push origin deploy && git stash && git checkout production && git merge deploy --no-edit` |
+| 2026-03-24 16:56:38 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -3` |
+| 2026-03-24 17:00:20 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git push origin deploy && git stash && git checkout production && git merge deploy --no-edit` |
+| 2026-03-24 17:14:04 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git add services/erp_order_detail.py templates/partials/erp_dashboard_scripts_detail_dom.htm` |
+| 2026-03-24 22:07:52 | allow | `-` | `rm "c:/tmp/commit_msg.txt"` |
+| 2026-03-24 22:19:26 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git add templates/erp_as_dashboard.html && git commit -F "c:/tmp/commit_msg.txt" && rm "c:/t` |
+| 2026-03-24 22:32:06 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status && git diff --stat` |
+| 2026-03-24 22:32:30 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -5` |
+| 2026-03-24 22:32:43 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff services/order_geocode.py` |
+| 2026-03-24 22:33:04 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git push origin deploy` |
+| 2026-03-24 22:33:17 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout production && git merge deploy --no-edit && git push origin production && git c` |
+| 2026-03-24 23:03:05 | allow | `-` | `powershell -NoProfile -Command "(Get-Content -Path 'c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\app.py' | Measure-Object -Line).Lines"` |
+| 2026-03-24 23:05:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-24 23:05:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add ".cursor/agents/grand-develop-master.md" ".cursor/agents/GDM_EXECUTION_PLAN.md" ".curs` |
+| 2026-03-24 23:06:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -f ".cursor/rules/14-incident-rca.mdc"; git status` |
+| 2026-03-24 23:06:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt; if (Test-Path commit_msg.txt) { Re` |
+| 2026-03-24 23:16:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK'); from services.order_geocode import apply_erp_beta_site` |
+| 2026-03-24 23:18:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import copy from types import SimpleNamespace from services.order_geocode import r` |
+| 2026-03-24 23:18:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-24 23:18:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git status -sb` |
+| 2026-03-24 23:18:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "apps/order_edit.py" "services/order_geocode.py"; git commit --trailer "Made-with: Cur` |
+| 2026-03-24 23:28:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; from services.order_geocode import reset_order_geocode_on_address_chang` |
+| 2026-03-24 23:28:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "apps/order_edit.py" "services/order_geocode.py"; git commit --trailer "Made-with: Cur` |
+| 2026-03-24 23:36:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-24 23:36:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "templates/partials/erp_beta_js.html" "docs/evolution/ERP_BETA_AS_RECEIVED_SAVE_TRANSI` |
+| 2026-03-25 08:14:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git branch -a; git log -1 --oneline deploy; git log -1 --oneline origin/prod` |
+| 2026-03-25 08:14:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -1 --oneline origin/production; git merge-base deploy origin/production; git rev-list ` |
+| 2026-03-25 08:14:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production` |
+| 2026-03-25 08:15:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git merge-base --is-ancestor production deploy; echo "exit=$LASTEXITCODE"` |
+| 2026-03-25 08:15:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git merge deploy --ff-only; git push origin production; if (Test-Path commit_msg.txt) { Remove` |
+| 2026-03-25 08:26:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git branch --show-current` |
+| 2026-03-25 08:49:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-25 08:50:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "templates/partials/erp_beta_js.html"; git commit --trailer "Made-with: Cursor" -F "_c` |
+| 2026-03-25 08:50:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-25 09:10:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git branch -a; git status -sb` |
+| 2026-03-25 09:10:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production` |
+| 2026-03-25 09:10:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git merge origin/deploy -m "merge: deploy -> production (ERP Beta shipment preserve 등)"` |
+| 2026-03-25 09:10:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
+| 2026-03-25 09:10:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git log -1 --oneline production` |
+| 2026-03-25 09:39:05 | allow | `-` | `ls "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/docs/plans/"` |
+| 2026-03-25 10:21:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-25 10:21:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "apps/api/orders.py" "static/css/erp-pro.css" "templates/erp_as_dashboard.html"; git c` |
+| 2026-03-25 10:30:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-25 10:31:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "static/css/erp-pro.css" "templates/erp_as_dashboard.html" "templates/layout.html"; gi` |
+| 2026-03-25 10:36:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git checkout production; git pull origin production; git merge origin/deploy` |
+| 2026-03-25 11:33:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-25 11:33:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "static/js/measurement-image-export.js" "templates/erp_measurement_dashboard.html"; gi` |
+| 2026-03-25 11:45:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-25 11:47:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "from PIL import Image; import os; p='static/images/pay-coin.png'; im=Image.open(p);` |
+| 2026-03-25 11:54:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
+| 2026-03-25 11:54:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add services/erp_template_filters.py static/js/erp-table-image-export-helpers.js static/js` |
+| 2026-03-25 11:54:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg_deploy.txt; Remove-Item commit_msg_depl` |
+| 2026-03-25 12:31:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from PIL import Image import os for base in ('pay-coin', 'pay-bill'): p = os.path.` |
+| 2026-03-25 12:32:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-25 12:33:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git diff --stat` |
+| 2026-03-25 12:34:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff static/css/erp-pro.css static/js/erp-table-image-export-helpers.js templates/erp_meas` |
+| 2026-03-25 12:34:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-25 12:36:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-25 12:36:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add services/erp_template_filters.py static/css/erp-pro.css static/js/erp-table-image-expo` |
+| 2026-03-25 12:41:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git branch -a; git log -1 --oneline deploy; git log -1 --oneline origin/prod` |
+| 2026-03-25 12:42:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production; git merge deploy -m "merge: deploy into p` |
+| 2026-03-25 12:51:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-25 12:59:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-25 13:01:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-25 13:04:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch -a` |
+| 2026-03-25 13:05:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "static/js/erp/measurement.js" "static/js/erp/measurement-manual-rows.js" "templates/e` |
+| 2026-03-25 13:05:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg_foms.txt` |
+| 2026-03-25 13:05:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git merge production -m "merge: production into deploy (실측 수동 행)"; git pu` |
+| 2026-03-25 13:27:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-25 13:29:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-25 13:30:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-25 13:31:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
+| 2026-03-25 13:31:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "static/js/erp-table-image-export-helpers.js" "static/js/erp/measurement-manual-rows.j` |
+| 2026-03-25 13:31:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git merge production; git push origin deploy; git checkout production; gi` |
+| 2026-03-25 14:05:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
+| 2026-03-25 14:05:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "templates/erp_measurement_dashboard.html" "docs/plans/2026-03-25-measurement-save-pro` |
+| 2026-03-25 14:05:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git merge production; git push origin deploy; git checkout production; gi` |
+| 2026-03-25 14:19:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff HEAD~1..HEAD static/js/measurement-image-export.js static/js/erp-table-image-export-h` |
+| 2026-03-25 14:19:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -3 --oneline` |
+| 2026-03-25 14:19:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show 72bd2c75 --stat` |
+| 2026-03-25 14:22:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; grep -rn "erp-table-image-export-helpers.js" templates/` |
+| 2026-03-25 14:23:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-25 14:23:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rm static/js/erp-table-image-export-helpers.js; git add static/css/erp-pro.css static/js/m` |
+| 2026-03-25 14:24:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git checkout deploy; git merge production; git push origin deploy;` |
+| 2026-03-25 14:25:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
+| 2026-03-26 08:52:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-26 09:37:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current; git remote -v` |
+| 2026-03-26 09:38:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a` |
+| 2026-03-26 09:38:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add services/erp_template_filters.py static/js/erp/common_utils.js templates/erp_drawing_w` |
+| 2026-03-26 09:39:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-26 09:39:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production; git merge deploy -m "merge: deploy -> pro` |
+| 2026-03-26 11:07:25 | allow | `-` | `wc -l c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/script.js c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/css/erp` |
+| 2026-03-26 11:07:31 | allow | `-` | `find c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/templates -name "*.html" | xargs wc -l 2>/dev/null | sort -rn | head -20` |
+| 2026-03-26 11:07:41 | allow | `-` | `wc -l c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/erp/*.js 2>/dev/null; echo "---"; wc -l c:/Users/USER/OneDrive/Desktop/SY/program/la` |
+| 2026-03-26 12:40:11 | allow | `-` | `flask db revision --autogenerate -m "Add ChannelTalk Phase 0 models"` |
+| 2026-03-26 12:40:35 | allow | `-` | `$env:FLASK_APP="app.py"; flask db revision --autogenerate -m "Add ChannelTalk Phase 0 models"` |
+| 2026-03-26 12:40:50 | allow | `-` | `alembic revision -m "Add ChannelTalk Phase 0 models"` |
+| 2026-03-26 12:41:47 | allow | `-` | `alembic upgrade head` |
+| 2026-03-26 12:42:32 | allow | `-` | `$env:FLASK_APP="app.py"; python -c "import app; print('APP_OK')"` |
+| 2026-03-26 12:44:32 | allow | `-` | `ls services/channel_delivery.py` |
+| 2026-03-26 12:49:24 | allow | `-` | `ls tests` |
+| 2026-03-26 12:49:38 | allow | `-` | `mkdir -p tests/fixtures/channeltalk` |
+| 2026-03-26 12:50:01 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-26 12:51:15 | allow | `-` | `python scripts\test_migration.py` |
+| 2026-03-26 12:51:48 | allow | `-` | `pytest tests/test_channel_integration_smoke.py` |

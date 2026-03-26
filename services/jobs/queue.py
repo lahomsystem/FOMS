@@ -1,6 +1,21 @@
 """
 Redis Queue (RQ) 연결 및 enqueue 헬퍼.
 REDIS_URL 있으면 enqueue 가능. (USE_RQ_WORKER는 start.sh 전용, enqueue와 분리)
+
+[ChannelTalk 연동 - Queue & Session Ownership Contract (CT-00-05)]
+1. Transaction Outbox:
+   - enqueue_channeltalk_push()는 반드시 db.commit() 직후에 호출해야 합니다.
+   - 큐 장애 시 ChannelDeliveryLog의 status('pending')를 기반으로 cron/admin에서 재시도할 수 있어야 합니다 (Outbox Pattern).
+   - Redis Queue 자체는 휘발될 수 있음을 가정하며, Source-of-Truth는 DB의 ChannelDeliveryLog 입니다.
+
+2. Session Ownership:
+   - Enqueue 하는 웹 프로세스: ChannelDeliveryLog Row를 'pending' 상태로 INSERT/UPDATE 하고 Commit.
+   - RQ Worker 프로세스: Enqueue된 job을 받아 ChannelDeliveryLog를 조회하고 채널톡 API 통신 후 결과를 DB에 반영.
+   - worker는 자신의 job id와 일치하는 row만 처리해야 하며 (optimistic lock), timeout 시 재시도 로직은 worker가 아닌 스케줄러가 통제합니다.
+
+3. Queue Cutover Rollback:
+   - 장애 발생 시 `CHANNEL_PUSH_ENABLED=false` 처리하면 큐는 그대로 통과(drain)하되, API 통신을 생략(ignored)하거나 
+     구버전 동기 전송(legacy_only_success_after_cutover) 로 롤백할 수 있도록 worker 코드가 설계되어야 합니다.
 """
 import os
 import logging

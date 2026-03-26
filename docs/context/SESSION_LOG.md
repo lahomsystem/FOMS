@@ -4,11 +4,29 @@
 
 ## 최근 세션
 
+### Session: 50f0a2d4
+- **시작**: 2026-03-26 12:35:30
+- **상태**: completed
+- **편집 파일**: `commit_msg.txt`, `docs/AI_STATUS.md`, `apps/api/channel_webhooks.py`, `apps/api/channel_wam.py`, `app.py`, `apps/api/channel_functions.py`, `migrations/versions/c762eed30396_add_channeltalk_phase_0_models.py`, `models.py`, `test_scripts.js`, `templates/map_view.html`
+- **종료**: 2026-03-26 12:43:46
+
+### Session: e5c0cdb3
+- **시작**: 2026-03-26 09:45:38
+- **상태**: unknown
+- **편집 파일**: `commit_msg.txt`, `test_scripts.js`, `templates/map_view.html`, `templates/erp_measurement_dashboard.html`, `templates/partials/erp_construction_scripts.html`, `templates/partials/erp_production_scripts.html`, `templates/erp_drawing_workbench_detail.html`, `templates/partials/erp_dashboard_scripts_detail_dom.html`, `templates/partials/erp_dashboard_scripts_core.html`, `templates/partials/erp_beta_js.html`
+- **종료**: 2026-03-26 12:35:22
+
+### Session: 273a0ffc
+- **시작**: 2026-03-26 08:57:45
+- **상태**: unknown
+- **편집 파일**: `test_scripts.js`, `templates/map_view.html`, `templates/erp_measurement_dashboard.html`, `templates/partials/erp_construction_scripts.html`, `templates/partials/erp_production_scripts.html`, `templates/erp_drawing_workbench_detail.html`, `templates/partials/erp_dashboard_scripts_detail_dom.html`, `templates/partials/erp_dashboard_scripts_core.html`, `templates/partials/erp_beta_js.html`, `templates/partials/erp_beta_tab.html`
+- **종료**: 2026-03-26 09:37:32
+
 ### Session: ee7be12e
 - **시작**: 2026-03-24 14:26:54
-- **상태**: completed
-- **편집 파일**: `.cursor/agents/GDM_EXECUTION_PLAN.md`, `.cursorrules`, `.claude/commands/gdm.md`, `.cursor/agents/grand-develop-master.md`, `.cursor/rules/00-project-context.mdc`, `CLAUDE.md`, `AGENTS.md`
-- **종료**: 2026-03-24 14:32:03
+- **상태**: unknown
+- **편집 파일**: `commit_msg.txt`, `test_scripts.js`, `templates/map_view.html`, `templates/erp_measurement_dashboard.html`, `templates/partials/erp_construction_scripts.html`, `templates/partials/erp_production_scripts.html`, `templates/erp_drawing_workbench_detail.html`, `templates/partials/erp_dashboard_scripts_detail_dom.html`, `templates/partials/erp_dashboard_scripts_core.html`, `templates/partials/erp_beta_js.html`
+- **종료**: 2026-03-26 12:35:29
 
 ### Session: a8cf2973
 - **시작**: 2026-03-20 14:49:06
@@ -828,3 +846,125 @@
 | 2026-03-24 22:19:37 | END (Claude Code) | 수정: ../../../../../../../../tmp/commit_msg.txt, templates/erp_as_dashboard.html, templates/partials/erp_dashboard_scripts_detail_dom.html, services/erp_order_detail.py, apps/api/orders.py, templates/partials/erp_dashboard_styles.html, commit_msg.txt |
 
 | 2026-03-24 22:29:28 | END (Claude Code) | 수정: services/order_geocode.py, ../../../../../../../../tmp/commit_msg.txt, templates/erp_as_dashboard.html, templates/partials/erp_dashboard_scripts_detail_dom.html, services/erp_order_detail.py, apps/api/orders.py, templates/partials/erp_dashboard_styles.html, commit_msg.txt |
+
+| 2026-03-24 22:33:31 | END (Claude Code) | 수정: services/order_geocode.py, ../../../../../../../../tmp/commit_msg.txt, templates/erp_as_dashboard.html, templates/partials/erp_dashboard_scripts_detail_dom.html, services/erp_order_detail.py, apps/api/orders.py, templates/partials/erp_dashboard_styles.html, commit_msg.txt |
+
+| 2026-03-24 23:02:05 | END (Claude Code) | 수정: services/order_geocode.py, ../../../../../../../../tmp/commit_msg.txt, templates/erp_as_dashboard.html, templates/partials/erp_dashboard_scripts_detail_dom.html, services/erp_order_detail.py, apps/api/orders.py, templates/partials/erp_dashboard_styles.html, commit_msg.txt |
+
+| 2026-03-24 23:03:42 | END (Claude Code) | 수정: services/order_geocode.py, ../../../../../../../../tmp/commit_msg.txt, templates/erp_as_dashboard.html, templates/partials/erp_dashboard_scripts_detail_dom.html, services/erp_order_detail.py, apps/api/orders.py, templates/partials/erp_dashboard_styles.html, commit_msg.txt |
+
+| 2026-03-24 23:06:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-24 23:10:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-24 23:18:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-24 23:28:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-24 23:30:25 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-24 23:32:31 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-24 23:37:06 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 08:16:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 08:26:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 08:43:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 08:51:01 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 09:10:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 09:26:31 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 09:28:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 09:31:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 09:38:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 09:45:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 10:21:57 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 10:31:38 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 10:37:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 11:29:29 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 11:34:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 11:45:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 11:49:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 11:55:11 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 12:33:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 12:35:06 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 12:36:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 12:42:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 12:51:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 12:59:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 13:00:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 13:01:31 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 13:05:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 13:27:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 13:29:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 13:30:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 13:56:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 14:04:50 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 14:05:56 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 14:24:32 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 14:25:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 14:29:04 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 14:48:57 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-25 14:54:33 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 08:52:38 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 09:02:15 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 09:09:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 09:40:02 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 09:47:13 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 10:38:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 10:38:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 10:40:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 10:40:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 10:41:29 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 10:44:53 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 11:01:22 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 12:43:46 | END (Claude Code) | 수정: (없음) |

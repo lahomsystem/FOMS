@@ -228,6 +228,9 @@ def api_erp_measurement_update(order_id):
         if field != 'address':
             flag_modified(order, 'structured_data')
 
+        from services.channel_delivery import mark_order_updated_for_channel
+        mark_order_updated_for_channel(order, "update")
+
         db.commit()
 
         if field == 'address':

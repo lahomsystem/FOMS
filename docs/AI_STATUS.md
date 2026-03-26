@@ -6,16 +6,11 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 최근 완료 (최대 5개)
+- [2026-03-26] 채널톡 연동 Phase 0 (CT-00-01~06, CT-00-CI): Observability API 구현, channel_source_seq 증가 규칙 적용, Bootstrap/Queue 세션 계약 명시, Webhook Payload 샘플 저장 및 CI 연동 스모크 테스트 완료
 - [2026-03-26] 채널톡 연동 Phase 0: 모델(ChannelDeliveryLog 등) 및 마이그레이션 생성, Blueprint(functions, webhooks, wam) 등록
-- [2026-03-18] ERP 작업 큐 thead sticky 구현 (대시보드/생산/시공 - 스크롤 시 헤더 상단 고정)
-- [2026-03-18] ERP 프로세스 및 실측 대시보드에 예약금/잔금 입금 확인 토글 뱃지 기능 추가 
-- [2026-03-17] Phase 1~2 성능 개선 블루프린트 완료 (psycogreen 패치, 불필요한 system_build_step DB 호출 제거, Timeout 대기 제거)
-- [2026-03-17] 대시보드(ERP 메인/AS/생산) Python 루프 필터를 DB 검색으로 전환 & 서버 페이지네이션 적용 (체감 성능 비약적 단축)
-- [2026-03-15] 실측 지도 재구현 Spec Phase 1~6 완료: map_snapshot, order_geocode, conversion_status 단일화, geocode_failed 제거
-- [2026-03-15] Phase C 완료: soft-delete 기준 통일(Order.active_filter), C-1/C-2 인덱스 마이그레이션 작성
 
 ## 진행 중
-- [2026-03-26] 채널톡 연동 (Phase 0 진행 중: CT-00-01, CT-00-02 완료)
+- [2026-03-26] 채널톡 연동 (Phase 0 완료, Phase A 진행 대기 중)
 
 ## 검증 필요
 - [ ] 실측 지도 E2E: /erp/measurement?open_map=1 → 지도 진입, pending/failed/success UI, poll 전체 재구성 확인

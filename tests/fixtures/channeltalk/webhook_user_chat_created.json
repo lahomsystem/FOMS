@@ -1,0 +1,16 @@
+{
+  "event": "userChat.created",
+  "type": "userChat",
+  "entity": {
+    "id": "12345",
+    "channelId": "1234",
+    "personType": "user",
+    "personId": "user123",
+    "state": "opened",
+    "createdAt": 1609459200000
+  },
+  "ref": {
+    "name": "userChat",
+    "id": "12345"
+  }
+}

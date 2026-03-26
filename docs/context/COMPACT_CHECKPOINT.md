@@ -1,25 +1,25 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-20 16:32:52
-> 세션: a8cf2973
+> 생성 시각: 2026-03-26 12:46:58
+> 세션: 50f0a2d4
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `apps/erp_history_page.py` <- 1 edit(s), ~159 chars (2026-03-20 16:32:51)
-- `apps/erp_history_page.py` <- 1 edit(s), ~28 chars (2026-03-20 16:32:51)
-- `templates/erp_history_dashboard.html` <- 1 edit(s), ~184 chars (2026-03-20 16:32:38)
-- `templates/erp_history_dashboard.html` <- 1 edit(s), ~101 chars (2026-03-20 16:32:37)
-- `apps/erp_history_page.py` <- 1 edit(s), ~354 chars (2026-03-20 16:32:33)
-- `apps/erp_history_page.py` <- 2 edit(s), ~184 chars (2026-03-20 16:32:32)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-40e1148b-0f94-4faa-9223-ed9356d48c26.png` <- 1 edit(s), ~0 chars (2026-03-20 16:31:27)
-- `templates/index.html` <- 1 edit(s), ~214 chars (2026-03-20 16:30:57)
-- `templates/index.html` <- 1 edit(s), ~197 chars (2026-03-20 16:30:56)
-- `templates/index.html` <- 9 edit(s), ~1974 chars (2026-03-20 16:30:50)
+- `apps/api/channel_integration.py` <- 1 edit(s), ~4441 chars (2026-03-26 12:45:25)
+- `apps/api/channel_integration.py` <- 1 edit(s), ~163 chars (2026-03-26 12:45:04)
+- `services/channel_delivery.py` <- 1 edit(s), ~3501 chars (2026-03-26 12:45:04)
+- `commit_msg.txt` <- 1 edit(s), ~274 chars (2026-03-26 12:43:12)
+- `docs/AI_STATUS.md` <- 1 edit(s), ~59 chars (2026-03-26 12:43:02)
+- `docs/AI_STATUS.md` <- 1 edit(s), ~107 chars (2026-03-26 12:43:00)
+- `apps/api/channel_webhooks.py` <- 1 edit(s), ~179 chars (2026-03-26 12:42:22)
+- `apps/api/channel_wam.py` <- 1 edit(s), ~190 chars (2026-03-26 12:42:22)
+- `app.py` <- 1 edit(s), ~325 chars (2026-03-26 12:42:22)
+- `apps/api/channel_functions.py` <- 1 edit(s), ~211 chars (2026-03-26 12:42:19)
 
 ### 진행 중이던 작업
-(없음)
+- [2026-03-26] 채널톡 연동 (Phase 0 진행 중: CT-00-01, CT-00-02 완료)
 
 ## 복원 지침
 
