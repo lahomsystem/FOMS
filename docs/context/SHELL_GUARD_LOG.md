@@ -4,8 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-19 23:41:40 | allow | `-` | `$start = Get-Date; $r = Invoke-WebRequest -Uri "https://lahom-production.up.railway.app/" -UseBasicParsing 2>&1; $elapsed = (Get-Date) - $start; "StatusCode: $(` |
-| 2026-03-19 23:41:50 | allow | `-` | `$urls = @( "https://lahom-production.up.railway.app/erp", "https://lahom-production.up.railway.app/erp/construction", "https://lahom-production.up.railway.app/e` |
 | 2026-03-20 08:42:39 | allow | `-` | `python -c "from services.business_calendar import business_days_between; import datetime; print(business_days_between(datetime.date(2025,1,1), datetime.date(202` |
 | 2026-03-20 08:45:40 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "from apps.erp_production_page import erp_production_page_bp; print('IMPORT_OK')"` |
 | 2026-03-20 08:46:24 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1` |
@@ -304,3 +302,5 @@
 | 2026-03-26 13:11:24 | allow | `-` | `pytest tests/test_channel_quick_actions.py -v` |
 | 2026-03-26 13:12:23 | allow | `-` | `pytest tests/test_channel_quick_actions.py -v` |
 | 2026-03-26 13:13:12 | allow | `-` | `pytest tests/test_channel_quick_actions.py -v` |
+| 2026-03-26 13:28:47 | allow | `-` | `pytest tests/test_channel_webhooks.py -v` |
+| 2026-03-26 13:29:22 | allow | `-` | `pytest tests/test_channel_webhooks.py -v` |
