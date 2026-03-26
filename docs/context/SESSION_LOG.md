@@ -7,8 +7,8 @@
 ### Session: 50f0a2d4
 - **시작**: 2026-03-26 12:35:30
 - **상태**: completed
-- **편집 파일**: `commit_msg.txt`, `docs/AI_STATUS.md`, `tests/test_channel_integration_smoke.py`, `scripts/test_migration.py`, `tests/fixtures/channeltalk/wam_launch_payload.json`, `tests/fixtures/channeltalk/function_command_foms.json`, `tests/fixtures/channeltalk/webhook_user_chat_created.json`, `apps/api/channel_wam.py`, `services/jobs/queue.py`, `apps/api/erp_shipment_settings.py`
-- **종료**: 2026-03-26 12:53:35
+- **편집 파일**: `commit_msg.txt`, `docs/AI_STATUS.md`, `services/jobs/tasks.py`, `services/channel_delivery.py`, `apps/api/channel_integration.py`, `services/channel_client.py`, `services/channel_dispatch.py`, `services/channel_policy.py`, `docs/plans/channeltalk_policy/alert-policy.md`, `docs/plans/channeltalk_policy/attachment-policy.md`
+- **종료**: 2026-03-26 13:00:28
 
 ### Session: e5c0cdb3
 - **시작**: 2026-03-26 09:45:38
@@ -970,3 +970,5 @@
 | 2026-03-26 12:43:46 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-26 12:53:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 13:00:28 | END (Claude Code) | 수정: (없음) |
