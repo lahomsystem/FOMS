@@ -140,6 +140,10 @@ def api_erp_shipment_update(order_id):
         order.structured_data = structured_data
         order.structured_updated_at = datetime.datetime.now()
         flag_modified(order, 'structured_data')
+        
+        from services.channel_delivery import mark_order_updated_for_channel
+        mark_order_updated_for_channel(order, "update")
+        
         db.commit()
         return jsonify({'success': True})
     except Exception as e:

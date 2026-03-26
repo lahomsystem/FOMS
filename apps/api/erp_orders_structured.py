@@ -275,6 +275,9 @@ def api_put_order_structured(order_id):
         setattr(order, 'structured_confidence', confidence or (structured_data.get('confidence') if structured_data else None))
         setattr(order, 'structured_updated_at', now)
 
+        from services.channel_delivery import mark_order_updated_for_channel
+        mark_order_updated_for_channel(order, "update")
+
         address_changed = False
         if structured_data is not None:
             old_addr = extract_address_from_structured_data(old_sd)
@@ -365,6 +368,10 @@ def api_payment_confirm(order_id):
 
         order.structured_data = structured_data
         flag_modified(order, 'structured_data')
+
+        from services.channel_delivery import mark_order_updated_for_channel
+        mark_order_updated_for_channel(order, "update")
+
         db.commit()
 
         ret_payment = {

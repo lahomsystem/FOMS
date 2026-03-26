@@ -1,0 +1,18 @@
+{
+  "manager": {
+    "id": "123",
+    "name": "John Doe",
+    "avatarUrl": "https://example.com/avatar.jpg"
+  },
+  "chat": {
+    "id": "12345",
+    "channelId": "1234"
+  },
+  "message": {
+    "id": "message123"
+  },
+  "context": {
+    "type": "userChat",
+    "id": "12345"
+  }
+}

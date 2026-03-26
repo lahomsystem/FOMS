@@ -4,23 +4,23 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
-| 2026-03-24 | 세션 자동 기록 | .cursorrules, gdm.md, CLAUDE.md 외 1개 | e6d77af9 |
-| 2026-03-22 | 세션 자동 기록 | commit_msg.txt, commit_msg_production_header.txt, erp_production_filters_grid.html 외 2개 | d2f06cf8 |
-| 2026-03-22 | 세션 자동 기록 | commit_msg_production_header.txt, erp_production_filters_grid.html, erp_production_styles.html 외 2개 | d4200742 |
-| 2026-03-22 | 세션 자동 기록 | commit_msg_history_slide.txt, erp_history_dashboard.html, erp_history_page.py 외 2개 | 26d26894 |
-| 2026-03-20 | 세션 자동 기록 | commit_msg_deploy.txt, erp_history_dashboard.html, erp_history_page.py 외 2개 | 16ed530d |
-| 2026-03-20 | 세션 자동 기록 | erp_history_dashboard.html, erp_history_page.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-40e1148b-0f94-4faa-9223-ed9356d48c26.png 외 2개 | aa21574a |
-| 2026-03-20 | 세션 자동 기록 | erp_history_page.py, erp_history_dashboard.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-40e1148b-0f94-4faa-9223-ed9356d48c26.png 외 2개 | aa21574a |
-| 2026-03-20 | 세션 자동 기록 | index.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fcd1cdab-2c2c-4219-85f2-b959296ad7d0.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-aa3062d0-d7e4-49e4-a72e-ec6497cf1227.png 외 2개 | aa21574a |
-| 2026-03-20 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-aa3062d0-d7e4-49e4-a72e-ec6497cf1227.png, order_pages.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-4712da55-f58e-459b-a7e8-664917e42c1a.png 외 2개 | aa21574a |
-| 2026-03-20 | 세션 자동 기록 | order_pages.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-4712da55-f58e-459b-a7e8-664917e42c1a.png, clone_prod_to_deploy.ps1 외 2개 | aa21574a |
-| 2026-03-20 | 세션 자동 기록 | clone_prod_to_deploy.ps1, commit_msg.txt, erp_history_dashboard.html 외 2개 | aa21574a |
-| 2026-03-20 | 세션 자동 기록 | commit_msg.txt, erp_history_dashboard.html, test_jinja_replace.py 외 2개 | aa21574a |
-| 2026-03-20 | 세션 자동 기록 | test_jinja_replace.py, test_jinja_error.py, test_history_error.py 외 2개 | 1b0521f0 |
-| 2026-03-20 | 세션 자동 기록 | commit_msg.txt, models.py, test_cutoff.py 외 2개 | 1b0521f0 |
-| 2026-03-20 | 세션 자동 기록 | commit_msg.txt, verify_phase_d.py, backfill_erp_flat_columns.py 외 2개 | 07e04e7b |
-| 2026-03-20 | 세션 자동 기록 | commit_msg.txt, test_erp_order_detail_preload.py, app_init.py 외 2개 | d9268de7 |
-| 2026-03-20 | 세션 자동 기록 | commit_msg.txt, app_init.py, db_indexes.py 외 2개 | 9319df7f |
-| 2026-03-20 | 세션 자동 기록 | commit_msg.txt, verify_phase_c_override.py, verify_phase_c.py 외 2개 | 2df87d98 |
-| 2026-03-20 | 세션 자동 기록 | erp_order_detail.py, commit_msg.txt, verify_phase_b.py 외 2개 | 6661ed22 |
-| 2026-03-20 | 세션 자동 기록 | commit_msg.txt, verify_phase_b.py, backfill_erp_date_columns.py 외 2개 | cf36ceb |
+| 2026-03-26 | 세션 자동 기록 | commit_msg.txt, channel_webhooks.py, channel_wam.py 외 2개 | c8266069 |
+| 2026-03-26 | 세션 자동 기록 | commit_msg.txt, test_scripts.js, map_view.html 외 2개 | fa0d9532 |
+| 2026-03-26 | 세션 자동 기록 | test_scripts.js, map_view.html, erp_measurement_dashboard.html 외 2개 | bc95ceef |
+| 2026-03-25 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-71ff081b-57a3-4212-8b96-673faa1c3500.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-5705b4d7-b854-4d45-9231-572f5ac4697f.png, commit_msg_foms.txt 외 2개 | bc95ceef |
+| 2026-03-25 | 세션 자동 기록 | commit_msg_foms.txt, erp_shipment_dashboard.html, erp_measurement_dashboard.html 외 2개 | bc95ceef |
+| 2026-03-25 | 세션 자동 기록 | commit_msg_foms.txt, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e9c8829b-5026-4dcd-98f6-3b56192062b7.png, erp_measurement_dashboard.html 외 2개 | 83b8c4f8 |
+| 2026-03-25 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e9c8829b-5026-4dcd-98f6-3b56192062b7.png, erp_measurement_dashboard.html, commit_msg_foms.txt 외 2개 | 72bd2c75 |
+| 2026-03-25 | 세션 자동 기록 | erp_measurement_dashboard.html, commit_msg_foms.txt, measurement-manual-rows.js 외 2개 | 72bd2c75 |
+| 2026-03-25 | 세션 자동 기록 | commit_msg_foms.txt, measurement-manual-rows.js, measurement.js 외 2개 | 72bd2c75 |
+| 2026-03-25 | 세션 자동 기록 | measurement-manual-rows.js, measurement.js, shipment-image-export.js 외 2개 | 72d70b76 |
+| 2026-03-25 | 세션 자동 기록 | measurement.js, shipment-image-export.js, measurement-image-export.js 외 2개 | 72d70b76 |
+| 2026-03-25 | 세션 자동 기록 | shipment-image-export.js, measurement-image-export.js, erp-table-image-export-helpers.js 외 2개 | 72d70b76 |
+| 2026-03-25 | 세션 자동 기록 | commit_msg_foms.txt, measurement.js, measurement-manual-rows.js 외 2개 | 72d70b76 |
+| 2026-03-25 | 세션 자동 기록 | measurement.js, measurement-manual-rows.js, erp_measurement_dashboard.html 외 2개 | 96d53cd2 |
+| 2026-03-25 | 세션 자동 기록 | erp_measurement_dashboard.html, measurement-manual-rows.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_26-03-04________2_-87d5c8bf-c7d4-4538-906c-d4c1b720b541.png 외 2개 | 96d53cd2 |
+| 2026-03-25 | 세션 자동 기록 | erp_measurement_dashboard.html, measurement-image-export.js, measurement-manual-rows.js 외 2개 | 96d53cd2 |
+| 2026-03-25 | 세션 자동 기록 | commit_msg_deploy.txt, erp_template_filters.py, erp-table-image-export-helpers.js 외 2개 | 96d53cd2 |
+| 2026-03-25 | 세션 자동 기록 | erp_template_filters.py, erp-table-image-export-helpers.js, erp-pro.css 외 2개 | c8d5aec3 |
+| 2026-03-25 | 세션 자동 기록 | erp-pro.css, erp-table-image-export-helpers.js, erp_beta_tab.html 외 2개 | c8d5aec3 |
+| 2026-03-25 | 세션 자동 기록 | commit_msg_deploy.txt, shipment-image-export.js, measurement-image-export.js 외 2개 | c8d5aec3 |

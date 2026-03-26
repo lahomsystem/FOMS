@@ -1,0 +1,17 @@
+{
+  "method": "foms",
+  "caller": {
+    "type": "manager",
+    "id": "manager123"
+  },
+  "channel": {
+    "id": "1234"
+  },
+  "params": {
+    "text": "123"
+  },
+  "context": {
+    "type": "userChat",
+    "id": "12345"
+  }
+}

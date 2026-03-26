@@ -1,20 +1,57 @@
 # Edit Log
 
-> Claude Code Hook(`PostToolUse:Edit|Write`)가 자동 기록합니다.
+> 이 파일은 Cursor Hooks에 의해 자동 관리됩니다.
+> 최근 50개 편집 기록만 유지합니다.
 
-| Time | File | Tool |
-|------|------|------|
-| 2026-03-24 14:37:13 | `templates/partials/erp_dashboard_styles.html` | Edit |
-| 2026-03-24 14:37:37 | `commit_msg.txt` | Write |
-| 2026-03-24 15:39:25 | `templates/partials/erp_dashboard_scripts_detail_dom.html` | Edit |
-| 2026-03-24 15:39:33 | `templates/partials/erp_dashboard_styles.html` | Edit |
-| 2026-03-24 16:23:09 | `apps/api/orders.py` | Edit |
-| 2026-03-24 16:38:55 | `templates/erp_as_dashboard.html` | Edit |
-| 2026-03-24 16:39:25 | `apps/api/orders.py` | Edit |
-| 2026-03-24 16:56:33 | `apps/api/orders.py` | Edit |
-| 2026-03-24 17:13:28 | `services/erp_order_detail.py` | Edit |
-| 2026-03-24 17:13:40 | `templates/partials/erp_dashboard_scripts_detail_dom.html` | Edit |
-| 2026-03-24 17:13:59 | `../../../../../../../../tmp/commit_msg.txt` | Write |
-| 2026-03-24 22:18:17 | `templates/erp_as_dashboard.html` | Edit |
-| 2026-03-24 22:19:22 | `../../../../../../../../tmp/commit_msg.txt` | Write |
-| 2026-03-24 22:29:22 | `services/order_geocode.py` | Edit |
+## 최근 파일 편집
+
+- `commit_msg.txt` <- 1 edit(s), ~329 chars (2026-03-26 12:52:55)
+- `docs/AI_STATUS.md` <- 3 edit(s), ~223 chars (2026-03-26 12:52:27)
+- `tests/test_channel_integration_smoke.py` <- 1 edit(s), ~657 chars (2026-03-26 12:51:39)
+- `scripts/test_migration.py` <- 1 edit(s), ~945 chars (2026-03-26 12:51:06)
+- `tests/fixtures/channeltalk/wam_launch_payload.json` <- 1 edit(s), ~278 chars (2026-03-26 12:49:49)
+- `tests/fixtures/channeltalk/function_command_foms.json` <- 1 edit(s), ~223 chars (2026-03-26 12:49:49)
+- `tests/fixtures/channeltalk/webhook_user_chat_created.json` <- 1 edit(s), ~283 chars (2026-03-26 12:49:48)
+- `apps/api/channel_wam.py` <- 1 edit(s), ~368 chars (2026-03-26 12:49:14)
+- `services/jobs/queue.py` <- 1 edit(s), ~840 chars (2026-03-26 12:48:59)
+- `apps/api/erp_shipment_settings.py` <- 1 edit(s), ~150 chars (2026-03-26 12:48:14)
+- `apps/api/erp_measurement.py` <- 1 edit(s), ~133 chars (2026-03-26 12:48:05)
+- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~134 chars (2026-03-26 12:47:55)
+- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~133 chars (2026-03-26 12:47:37)
+- `services/channel_delivery.py` <- 1 edit(s), ~482 chars (2026-03-26 12:47:27)
+- `apps/api/channel_integration.py` <- 1 edit(s), ~4441 chars (2026-03-26 12:45:25)
+- `apps/api/channel_integration.py` <- 1 edit(s), ~163 chars (2026-03-26 12:45:04)
+- `services/channel_delivery.py` <- 1 edit(s), ~3501 chars (2026-03-26 12:45:04)
+- `commit_msg.txt` <- 1 edit(s), ~274 chars (2026-03-26 12:43:12)
+- `docs/AI_STATUS.md` <- 1 edit(s), ~59 chars (2026-03-26 12:43:02)
+- `docs/AI_STATUS.md` <- 1 edit(s), ~107 chars (2026-03-26 12:43:00)
+- `apps/api/channel_webhooks.py` <- 1 edit(s), ~179 chars (2026-03-26 12:42:22)
+- `apps/api/channel_wam.py` <- 1 edit(s), ~190 chars (2026-03-26 12:42:22)
+- `app.py` <- 1 edit(s), ~325 chars (2026-03-26 12:42:22)
+- `apps/api/channel_functions.py` <- 1 edit(s), ~211 chars (2026-03-26 12:42:19)
+- `migrations/versions/c762eed30396_add_channeltalk_phase_0_models.py` <- 6 edit(s), ~8960 chars (2026-03-26 12:41:37)
+- `models.py` <- 1 edit(s), ~5342 chars (2026-03-26 12:40:01)
+- `models.py` <- 1 edit(s), ~221 chars (2026-03-26 12:39:17)
+- `commit_msg.txt` <- 1 edit(s), ~151 chars (2026-03-26 09:38:39)
+- `test_scripts.js` <- 1 edit(s), ~0 chars (2026-03-26 08:52:23)
+- `test_scripts.js` <- 1 edit(s), ~244 chars (2026-03-26 08:52:22)
+- `test_scripts.js` <- 1 edit(s), ~569 chars (2026-03-26 08:52:02)
+- `templates/map_view.html` <- 1 edit(s), ~774 chars (2026-03-26 08:52:01)
+- `templates/erp_measurement_dashboard.html` <- 1 edit(s), ~39 chars (2026-03-26 08:52:01)
+- `templates/map_view.html` <- 1 edit(s), ~97 chars (2026-03-26 08:51:57)
+- `templates/partials/erp_construction_scripts.html` <- 1 edit(s), ~373 chars (2026-03-26 08:51:53)
+- `templates/partials/erp_production_scripts.html` <- 1 edit(s), ~389 chars (2026-03-26 08:51:52)
+- `templates/partials/erp_production_scripts.html` <- 1 edit(s), ~268 chars (2026-03-26 08:51:49)
+- `templates/erp_drawing_workbench_detail.html` <- 1 edit(s), ~525 chars (2026-03-26 08:51:49)
+- `templates/partials/erp_construction_scripts.html` <- 1 edit(s), ~256 chars (2026-03-26 08:51:49)
+- `templates/erp_measurement_dashboard.html` <- 1 edit(s), ~553 chars (2026-03-26 08:51:48)
+- `templates/partials/erp_dashboard_scripts_detail_dom.html` <- 1 edit(s), ~421 chars (2026-03-26 08:51:44)
+- `templates/partials/erp_dashboard_scripts_core.html` <- 1 edit(s), ~363 chars (2026-03-26 08:51:42)
+- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~47 chars (2026-03-26 08:51:35)
+- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~412 chars (2026-03-26 08:51:34)
+- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~654 chars (2026-03-26 08:51:31)
+- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~701 chars (2026-03-26 08:51:29)
+- `templates/partials/erp_beta_js.html` <- 2 edit(s), ~988 chars (2026-03-26 08:51:27)
+- `templates/partials/erp_beta_tab.html` <- 1 edit(s), ~928 chars (2026-03-26 08:51:21)
+- `services/erp_template_filters.py` <- 1 edit(s), ~86 chars (2026-03-26 08:51:20)
+- `services/erp_template_filters.py` <- 1 edit(s), ~335 chars (2026-03-26 08:51:16)
