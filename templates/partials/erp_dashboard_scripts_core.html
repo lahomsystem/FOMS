@@ -6,6 +6,14 @@
           return div.innerHTML;
         }
 
+        /** ERP Beta 일정 카드: 날짜 + 선택 시간 (structured_data.schedule.*) */
+        function formatScheduleDateTimeDisplay(dateStr, timeStr) {
+          const d = dateStr != null ? String(dateStr).trim() : '';
+          const t = timeStr != null ? String(timeStr).trim() : '';
+          if (!d || d === '-') return '-';
+          return t ? `${d} ${t}` : d;
+        }
+
         function showErpToast(message, type = 'info') {
           const id = 'erp-toast-container';
           let container = document.getElementById(id);

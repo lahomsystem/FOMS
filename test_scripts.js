@@ -628,6 +628,13 @@ return fallback;
 }
 }
 
+function formatScheduleDateTimeDisplay(dateStr, timeStr) {
+  const d = dateStr != null ? String(dateStr).trim() : '';
+  const t = timeStr != null ? String(timeStr).trim() : '';
+  if (!d || d === '-') return '-';
+  return t ? d + ' ' + t : d;
+}
+
 async function loadOrderDetail(orderId) {
 const container = document.getElementById(`order-detail-content-${orderId}`);
 if (!container) return;
@@ -661,8 +668,14 @@ const notes = sd.notes || {};
 const addressNote = (notes.address_note || '').trim();
 const phoneNote = (notes.phone_note || '').trim();
 const measureNote = (notes.measurement_note || '').trim();
-const measure = (((sd.schedule || {}).measurement || {}).date) || '-';
-const construct = (((sd.schedule || {}).construction || {}).date) || '-';
+const measure = formatScheduleDateTimeDisplay(
+  (((sd.schedule || {}).measurement || {}).date) || '',
+  (((sd.schedule || {}).measurement || {}).time) || ''
+);
+const construct = formatScheduleDateTimeDisplay(
+  (((sd.schedule || {}).construction || {}).date) || '',
+  (((sd.schedule || {}).construction || {}).time) || ''
+);
 const manager = (((sd.parties || {}).manager || {}).name) || '-';
 const stage = (((sd.workflow || {}).stage)) || '-';
 const urgent = ((sd.flags || {}).urgent) || false;
