@@ -16,14 +16,13 @@ def verify_wam_token():
     CT-C-03: WAM 세션 독립화 및 토큰 검증
     모든 WAM API 및 페이지 요청은 유효한 launch_token 쿼리 파라미터를 요구합니다.
     """
-    token = request.args.get('token')
+    token = request.args.get('launch_token')
     if not token:
-        # TODO: HTML 페이지 요청인 경우 렌더링된 오류 페이지 반환 등 분기 필요
-        return jsonify({'error': 'unauthorized', 'message': 'Missing WAM token'}), 401
+        return render_template('channel_wam_error.html', message='토큰이 누락되었습니다 (Missing launch_token)'), 401
         
     payload = verify_wam_launch_token(token)
     if not payload:
-        return jsonify({'error': 'unauthorized', 'message': 'Invalid or expired WAM token'}), 401
+        return render_template('channel_wam_error.html', message='만료되거나 유효하지 않은 토큰입니다'), 401
         
     # request 객체에 검증된 payload 주입 (하위 라우트에서 사용)
     request.wam_payload = payload

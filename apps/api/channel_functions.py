@@ -19,7 +19,13 @@ def handle_function():
         from services.channel_quick_actions import process_foms_command
         params = payload.get('params', {})
         text = params.get('text', '')
-        response_data = process_foms_command(text)
+        
+        # Get manager_id from context.caller if available
+        context = payload.get('context', {})
+        caller = context.get('caller', {})
+        manager_id = caller.get('id') if caller.get('type') == 'manager' else None
+        
+        response_data = process_foms_command(text, manager_id)
         return jsonify(response_data)
         
     return jsonify({"error": {"message": "Unknown method"}}), 400

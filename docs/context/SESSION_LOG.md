@@ -6,9 +6,9 @@
 
 ### Session: 50f0a2d4
 - **시작**: 2026-03-26 12:35:30
-- **상태**: completed
-- **편집 파일**: `commit_msg.txt`, `docs/AI_STATUS.md`, `services/channel_quick_actions.py`, `tests/test_channel_quick_actions.py`, `templates/channel_wam_index.html`, `templates/channel_wam_error.html`, `apps/api/channel_wam.py`, `apps/api/channel_functions.py`, `docs/plans/channeltalk_policy/write-action-guardrails.md`, `docs/plans/channeltalk_policy/wam-information-architecture.md`
-- **종료**: 2026-03-26 13:14:44
+- **상태**: aborted
+- **편집 파일**: `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d2ed46ae-5b11-46a6-ad0e-3d7a22bcb32e.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-7c3dc48d-cff2-4e5e-9f2a-d1333eff922e.png`, `docs/AI_STATUS.md`, `services/jobs/tasks.py`, `services/channel_dispatch.py`, `services/channel_delivery.py`, `services/jobs/queue.py`, `apps/api/erp_orders_structured.py`, `services/channel_quick_actions.py`, `apps/api/channel_functions.py`
+- **종료**: 2026-03-26 13:54:45
 
 ### Session: e5c0cdb3
 - **시작**: 2026-03-26 09:45:38
@@ -976,3 +976,11 @@
 | 2026-03-26 13:06:46 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-26 13:14:44 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 13:30:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 13:39:34 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 13:49:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 13:54:45 | END (Claude Code) | 수정: (없음) |

@@ -60,6 +60,15 @@ def mark_delivery_status(db, delivery_id: int, status: str, error_msg: Optional[
             log.sent_at = log.updated_at
         db.add(log)
 
+def mark_api_failed(db, delivery_id: int, error_msg: str):
+    mark_delivery_status(db, delivery_id, 'api_failed', error_msg)
+
+def mark_api_rejected(db, delivery_id: int, error_msg: str):
+    mark_delivery_status(db, delivery_id, 'api_rejected', error_msg)
+
+def mark_token_rate_limited(db, delivery_id: int, error_msg: str):
+    mark_delivery_status(db, delivery_id, 'token_rate_limited', error_msg)
+
 def get_delivery_metrics(db) -> Dict[str, Any]:
     """
     최근 24시간(또는 N분) 기준 Delivery 실패율, 성공률 등 메트릭 조회
@@ -133,7 +142,7 @@ def check_legacy_only_success_after_cutover(db) -> int:
                 
     return drift_count
 
-def mark_order_updated_for_channel(order: Order, event_type: str = 'update'):
+def mark_order_updated_for_channel(order: Order, event_type: str = 'update') -> Optional[int]:
     """
     주문이 변경되어 ChannelTalk 동기화가 필요함을 마킹합니다.
     CT-00-04: channel_source_seq를 증가시켜 동시성 제어 및 메시지 순서 보장의 기반을 마련합니다.
@@ -147,9 +156,11 @@ def mark_order_updated_for_channel(order: Order, event_type: str = 'update'):
     try:
         db = db_session.object_session(order)
         if db:
-            create_pending_delivery(db, order.id, event_type)
+            log = create_pending_delivery(db, order.id, event_type)
+            return log.id
     except Exception as e:
         logger.error("[ChannelDelivery] Failed to create pending delivery: %s", e)
+    return None
 
 def mask_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     """

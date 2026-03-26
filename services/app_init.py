@@ -34,6 +34,8 @@ def _backfill_erp_flat_columns(app):
             db_session.commit()
             print(f"[AUTO-INIT] Backfilled erp_stage_code for {count} orders.")
     except Exception as e:
+        if 'db_session' in locals():
+            db_session.rollback()
         print(f"[AUTO-INIT] erp_stage_code backfill failed: {e}")
 
 

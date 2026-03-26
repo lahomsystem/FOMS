@@ -16,13 +16,17 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
-    # orders 테이블에 정규화 날짜 컬럼 2개 추가
-    op.add_column('orders', sa.Column('erp_measurement_date', sa.String(10), nullable=True))
-    op.add_column('orders', sa.Column('erp_construction_date', sa.String(10), nullable=True))
+    # Check if column exists to avoid DuplicateColumn error since app_init.py might have created it
+    bind = op.get_bind()
+    from sqlalchemy.engine.reflection import Inspector
+    inspector = Inspector.from_engine(bind)
+    has_erp_measurement_date = 'erp_measurement_date' in [c['name'] for c in inspector.get_columns('orders')]
     
-    # 인덱스 생성
-    op.create_index('ix_orders_erp_measurement_date', 'orders', ['erp_measurement_date'])
-    op.create_index('ix_orders_erp_construction_date', 'orders', ['erp_construction_date'])
+    if not has_erp_measurement_date:
+        op.add_column('orders', sa.Column('erp_measurement_date', sa.String(10), nullable=True))
+        op.add_column('orders', sa.Column('erp_construction_date', sa.String(10), nullable=True))
+        op.create_index('ix_orders_erp_measurement_date', 'orders', ['erp_measurement_date'])
+        op.create_index('ix_orders_erp_construction_date', 'orders', ['erp_construction_date'])
 
 def downgrade() -> None:
     # 인덱스 제거

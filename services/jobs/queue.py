@@ -85,30 +85,49 @@ def enqueue_geocode_order_address(order_id):
         return False
 
 
-def enqueue_channeltalk_push(order_id, event_type="update"):
+def enqueue_channeltalk_push(delivery_id: int):
     """
     채널톡 그룹 메시지 push job enqueue.
 
     Args:
-        order_id: Order.id
-        event_type: "new" / "update" / "save"
+        delivery_id: ChannelDeliveryLog.id
 
     Returns:
         큐 등록 성공 여부 (False이면 RQ 미활성화)
     """
     q = get_rq_queue()
     if not q:
+        from db import db_session
+        from services.channel_delivery import mark_delivery_status
+        session = db_session()
+        try:
+            mark_delivery_status(session, delivery_id, "queue_unavailable", "RQ is not configured")
+            session.commit()
+        except Exception:
+            pass
+        finally:
+            session.close()
         return False
+        
     try:
         q.enqueue(
             'services.jobs.tasks.push_order_to_channeltalk',
-            int(order_id),
-            event_type,
+            delivery_id,
             job_timeout='2m',
         )
         return True
     except Exception as e:
         logger.error(f"[RQ] enqueue_channeltalk_push error: {e}", exc_info=True)
+        from db import db_session
+        from services.channel_delivery import mark_delivery_status
+        session = db_session()
+        try:
+            mark_delivery_status(session, delivery_id, "queue_enqueue_failed", str(e))
+            session.commit()
+        except Exception:
+            pass
+        finally:
+            session.close()
         return False
 
 def enqueue_channeltalk_inbound(event_log_id: int):

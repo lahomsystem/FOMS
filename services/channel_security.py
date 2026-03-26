@@ -59,7 +59,7 @@ def require_channel_signature(f):
         raw_body = request.get_data()
         if not verify_channel_signature(raw_body, signature):
             logger.warning("[ChannelSecurity] Invalid x-signature")
-            return jsonify({'error': 'forbidden', 'message': 'Invalid signature'}), 403
+            return jsonify({'error': 'unauthorized', 'message': 'Invalid signature'}), 401
             
         # 3. Replay 방지 로직 (5분 윈도우)
         payload = request.get_json(silent=True) or {}
@@ -71,7 +71,10 @@ def require_channel_signature(f):
         if created_at_ms and isinstance(created_at_ms, (int, float)):
             now_ms = time.time() * 1000
             diff_ms = now_ms - created_at_ms
-            window_ms = int(os.environ.get('CHANNEL_REPLAY_WINDOW_SECONDS', 300)) * 1000
+            window_secs = int(os.environ.get('CHANNEL_REPLAY_WINDOW_SECONDS', 300))
+            if window_secs <= 0:
+                window_secs = 300
+            window_ms = window_secs * 1000
             
             # 과거 5분 초과 혹은 미래 시간(서버 시간 오차 고려 1분 허용)
             if diff_ms > window_ms or diff_ms < -60000:

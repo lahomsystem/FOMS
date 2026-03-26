@@ -66,3 +66,42 @@ def apply_attachment_policy(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]
     max_files = 10
     # 파일이 dict 리스트라고 가정 (url, fileName, mime 등 포함)
     return files[:max_files]
+
+def get_policy_version() -> str:
+    """CT-5.11: 정책 버전 반환"""
+    return "1.0.0"
+
+def resolve_push_policy(event_type: str, order_snapshot: Dict[str, Any], wave: str = None) -> Dict[str, Any]:
+    """CT-5.11: 이벤트 타입별 라우팅 및 처리 정책 반환"""
+    group_id = get_routing_group_id(event_type, order_snapshot)
+    
+    # 기본 Dedupe window 결정
+    dedupe_window = DEDUPE_WINDOWS.get('normal', 60)
+    if event_type in ['manual', 'urgent', 'as_urgent']:
+        dedupe_window = DEDUPE_WINDOWS.get(event_type, 0)
+        
+    return {
+        "group_id": group_id,
+        "dedupe_window": dedupe_window,
+        "template_key": event_type,
+        "max_attachments": 10
+    }
+
+def resolve_resend_policy(event_type: str, actor_role: str) -> Dict[str, Any]:
+    """CT-5.11: 운영자 재전송 승인 규칙 및 snapshot/latest 우선순위"""
+    # 기본적으로 ADMIN, MANAGER는 재전송 허용
+    allowed = actor_role in ['ADMIN', 'MANAGER']
+    return {
+        "allowed": allowed,
+        "default_mode": "snapshot" if event_type != 'manual' else "latest"
+    }
+
+def resolve_inbound_policy(group_id: str, template_key: str, create_enabled: bool) -> Dict[str, Any]:
+    """CT-5.11: Inbound Webhook 수신 허용 그룹 및 생성 정책"""
+    allowed_groups_str = os.environ.get('CHANNEL_ALLOWED_GROUP_IDS', '')
+    allowed_groups = [g.strip() for g in allowed_groups_str.split(',')] if allowed_groups_str else []
+    
+    return {
+        "is_allowed_group": not allowed_groups or group_id in allowed_groups,
+        "can_create": create_enabled
+    }

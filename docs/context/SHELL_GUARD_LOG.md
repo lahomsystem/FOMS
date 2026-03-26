@@ -4,34 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-20 08:42:39 | allow | `-` | `python -c "from services.business_calendar import business_days_between; import datetime; print(business_days_between(datetime.date(2025,1,1), datetime.date(202` |
-| 2026-03-20 08:45:40 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "from apps.erp_production_page import erp_production_page_bp; print('IMPORT_OK')"` |
-| 2026-03-20 08:46:24 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1` |
-| 2026-03-20 08:46:59 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff --stat` |
-| 2026-03-20 08:54:11 | allow | `-` | `ls /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/apps/api/` |
-| 2026-03-20 08:54:59 | allow | `-` | `mkdir -p /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/docs/plans` |
-| 2026-03-20 09:03:58 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-03-20 09:06:12 | allow | `-` | `cd c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS && python -c "import app; print('APP_OK')" 2>&1` |
-| 2026-03-20 09:10:41 | allow | `-` | `cd c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS && cat docs/plans/2026-03-20-large-data-search-plan.md 2>/dev/null | head -80` |
-| 2026-03-20 09:10:48 | allow | `-` | `cd c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS && git log --oneline -6` |
-| 2026-03-20 09:16:36 | allow | `-` | `cd c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS && python -c "import app; print('APP_OK')" 2>&1 | tail -3` |
-| 2026-03-20 09:19:09 | allow | `-` | `cd c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS && python -c "import app; print('APP_OK')" 2>&1 | tail -3` |
-| 2026-03-20 10:16:28 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-03-20 10:40:34 | allow | `-` | `python -c "from app import create_app; from db import get_db; from models import Order; from sqlalchemy import text; app = create_app(); with app.app_context():` |
-| 2026-03-20 10:40:51 | allow | `-` | `python check_urgent.py` |
-| 2026-03-20 10:41:17 | allow | `-` | `python check_urgent.py` |
-| 2026-03-20 10:44:42 | allow | `-` | `python verify_phase_a.py` |
-| 2026-03-20 10:46:42 | allow | `-` | `python verify_phase_a3.py` |
-| 2026-03-20 10:50:24 | allow | `-` | `grep -rn "structured_data = " apps/api/` |
-| 2026-03-20 10:54:15 | allow | `-` | `alembic revision --autogenerate -m "add erp_measurement_date and erp_construction_date columns"` |
-| 2026-03-20 10:54:26 | allow | `-` | `flask db migrate -m "add erp_measurement_date and erp_construction_date columns"` |
-| 2026-03-20 10:54:48 | allow | `-` | `$env:PYTHONUTF8=1; alembic revision --autogenerate -m "add erp_measurement_date and erp_construction_date columns"` |
-| 2026-03-20 10:55:38 | allow | `-` | `python -X utf8 -m alembic revision --autogenerate -m "add erp_measurement_date and erp_construction_date columns"` |
-| 2026-03-20 10:56:15 | allow | `-` | `alembic revision --autogenerate -m "add erp_measurement_date and erp_construction_date columns"` |
-| 2026-03-20 10:56:46 | allow | `-` | `ls migrations/versions` |
-| 2026-03-20 10:57:48 | allow | `-` | `python -c "from app import app; from db import db_session; db_session.execute('ALTER TABLE orders ADD COLUMN IF NOT EXISTS erp_measurement_date VARCHAR(10)'); d` |
-| 2026-03-20 10:58:14 | allow | `-` | `python apply_migration.py` |
-| 2026-03-20 10:58:38 | allow | `-` | `python scripts/backfill_erp_date_columns.py` |
 | 2026-03-20 10:59:20 | allow | `-` | `python verify_phase_b.py` |
 | 2026-03-20 11:00:07 | allow | `-` | `git rm apply_migration.py check_urgent.py commit_msg.txt verify_phase_a.py verify_phase_a3.py verify_phase_b.py ; git commit --trailer "Made-with: Cursor" -m "c` |
 | 2026-03-20 11:00:26 | allow | `-` | `git rm apply_migration.py check_urgent.py verify_phase_a.py verify_phase_a3.py verify_phase_b.py ; git commit --trailer "Made-with: Cursor" -m "chore: remove te` |
@@ -304,3 +276,31 @@
 | 2026-03-26 13:13:12 | allow | `-` | `pytest tests/test_channel_quick_actions.py -v` |
 | 2026-03-26 13:28:47 | allow | `-` | `pytest tests/test_channel_webhooks.py -v` |
 | 2026-03-26 13:29:22 | allow | `-` | `pytest tests/test_channel_webhooks.py -v` |
+| 2026-03-26 13:47:35 | allow | `-` | `pytest tests/test_channel_quick_actions.py` |
+| 2026-03-26 13:48:00 | allow | `-` | `pytest tests/test_channel_webhooks.py tests/test_channel_inbound.py` |
+| 2026-03-26 13:48:13 | allow | `-` | `pytest tests/test_channel_webhooks.py` |
+| 2026-03-26 13:48:27 | allow | `-` | `pytest tests/test_erp_orders_structured.py` |
+| 2026-03-26 13:50:12 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-26 13:50:48 | allow | `-` | `railway logs` |
+| 2026-03-26 13:51:04 | allow | `-` | `railway logs -n 50` |
+| 2026-03-26 13:51:17 | allow | `-` | `railway status` |
+| 2026-03-26 13:51:31 | allow | `-` | `railway environment` |
+| 2026-03-26 13:51:56 | allow | `-` | `railway environment list` |
+| 2026-03-26 13:52:12 | allow | `-` | `curl -I https://lahom-dev.up.railway.app/erp/dashboard` |
+| 2026-03-26 13:52:55 | allow | `-` | `alembic history` |
+| 2026-03-26 13:53:13 | allow | `-` | `railway -h` |
+| 2026-03-26 13:53:24 | allow | `-` | `railway env --help` |
+| 2026-03-26 13:53:41 | allow | `-` | `python -c "import urllib.request; print(urllib.request.urlopen('https://lahom-dev.up.railway.app/erp/dashboard').getcode())"` |
+| 2026-03-26 13:53:53 | allow | `-` | `curl -I https://lahom-dev.up.railway.app/erp/dashboard` |
+| 2026-03-26 13:55:52 | allow | `-` | `ls -la migrations/versions` |
+| 2026-03-26 13:56:02 | allow | `-` | `alembic upgrade head` |
+| 2026-03-26 13:56:23 | allow | `-` | `cat Procfile` |
+| 2026-03-26 13:57:19 | allow | `-` | `python -c "from db import get_engine; print(get_engine().url)"` |
+| 2026-03-26 13:57:30 | allow | `-` | `python -c "from db import engine; print(engine.url)"` |
+| 2026-03-26 13:57:40 | allow | `-` | `python -c "from db import engine; engine.connect()"` |
+| 2026-03-26 13:58:27 | allow | `-` | `alembic upgrade head` |
+| 2026-03-26 13:59:06 | allow | `-` | `alembic upgrade head` |
+| 2026-03-26 14:00:55 | allow | `-` | `alembic upgrade head` |
+| 2026-03-26 14:01:15 | allow | `-` | `alembic upgrade head` |
+| 2026-03-26 14:01:56 | allow | `-` | `alembic upgrade head` |
+| 2026-03-26 14:02:41 | allow | `-` | `python -c "import app; print('APP_OK')"` |
