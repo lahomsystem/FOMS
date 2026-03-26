@@ -6,14 +6,14 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 최근 완료 (최대 5개)
+- [2026-03-26] 채널톡 연동 Phase F (CT-F-01~04): `channel_delivery.py`에 Inbound parse 성공률 집계 추가, `admin.html`에 Phase F Wave 0 파일럿용 ChannelTalk 모니터링 대시보드 추가 (Push 성공률, 중복률, 파싱 성공률 등 지표 노출) 완료
 - [2026-03-26] 채널톡 연동 GDM 감리 부채 청산: `channel_identity.py` 매핑/권한 확인 추가, `queue.py` 및 `tasks.py`의 enqueue/dispatch 인터페이스 `delivery_id` 기반으로 리팩터링 및 상태 마킹 세분화 완료
 - [2026-03-26] 채널톡 연동 Phase E (CT-E-01~05): `/api/channel/webhooks` 수신기 구현, Dedupe/Creation Key 생성 로직 적용, 텍스트 파싱(`services/channel_inbound.py`) 및 RQ Worker 기반 Inbound 처리 구현 완료
 - [2026-03-26] 채널톡 연동 Phase D (CT-D-01~04): `/foms 주문`, `/foms 일정`, `/foms 담당` 명령어 파싱 및 응답 서비스 구현 (`channel_quick_actions.py`), WAM 주문 요약 렌더링 뷰 (읽기 전용) 작성 완료
 - [2026-03-26] 채널톡 연동 Phase C (CT-C-01~04): `X-Signature` 기반 HMAC 검증 로직 추가 및 Replay 방어(5분 윈도우) 적용, WAM 독립 세션용 JWT 발급/검증 토큰 생성, 보안 정책 문서 작성 완료
-- [2026-03-26] 채널톡 연동 Phase B & Phase A (CT-B-01~04, CT-A-01~07): 정책(템플릿/라우팅) 기반 `channel_dispatch.py` 구현, Outbox(`ChannelDeliveryLog`) 상태 전이 API 및 RQ Worker 재시도 로직 반영 완료
 
 ## 진행 중
-- [2026-03-26] 채널톡 연동 Phase F (파일럿 운영 및 관리 지표 검토) 진행 대기 중
+- [2026-03-26] 채널톡 연동 파일럿(Wave 0 ~ 5) 운영 모니터링 (실제 데이터 축적 대기 중)
 
 ## 검증 필요
 - [ ] 실측 지도 E2E: /erp/measurement?open_map=1 → 지도 진입, pending/failed/success UI, poll 전체 재구성 확인
