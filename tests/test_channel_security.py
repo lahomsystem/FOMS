@@ -88,8 +88,8 @@ def test_require_channel_signature_middleware_invalid_signature(test_app, monkey
     
     client = test_app.test_client()
     response = client.post('/test-webhook', data=b'{}', headers={'x-signature': 'bad'})
-    assert response.status_code == 403
-    assert response.json['error'] == 'forbidden'
+    assert response.status_code == 401
+    assert response.json['error'] == 'unauthorized'
 
 def test_replay_attack_prevention(test_app, monkeypatch):
     monkeypatch.setenv('CHANNEL_SIGNING_KEY', 'test-secret')
