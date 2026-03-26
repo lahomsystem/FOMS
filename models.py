@@ -90,6 +90,11 @@ class Order(Base):
     erp_drawing_updated_at = Column(DateTime, nullable=True)               # workflow.stage_updated_at (DRAWING/CONFIRM용)
     erp_owner_team_code = Column(String(20), nullable=True, index=True)    # assignments.owner_team
 
+    # ============================================
+    # ChannelTalk 연동 (Phase 0)
+    # ============================================
+    channel_source_seq = Column(Integer, nullable=False, default=0, server_default='0')
+
     
     # Phase 4: 정규화된 날짜 테이블 (1:N)
     schedule_dates = relationship('OrderScheduleDate', backref='order', cascade='all, delete-orphan')
@@ -490,3 +495,109 @@ class Notification(Base):
             'read_at': self.read_at.strftime('%Y-%m-%d %H:%M:%S') if self.read_at else None,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
         }
+
+# ============================================
+# ChannelTalk 연동 모델 (Phase 0)
+# ============================================
+
+class ChannelDeliveryLog(Base):
+    """FOMS -> ChannelTalk 전송 상태 영속화 (Outbox 겸용)"""
+    __tablename__ = 'channel_delivery_logs'
+    
+    id = Column(Integer, primary_key=True)
+    event_key = Column(String(200), nullable=False)
+    source_type = Column(String(50), nullable=False)
+    source_id = Column(Integer, nullable=False)
+    target_type = Column(String(50), nullable=False)
+    target_id = Column(String(200), nullable=False)
+    status = Column(String(50), nullable=False, default='pending')
+    retry_count = Column(Integer, nullable=False, default=0)
+    next_retry_at = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+    message_id = Column(String(200), nullable=True)
+    masked_request_payload = Column(JSONColumn, nullable=True)
+    masked_response_payload = Column(JSONColumn, nullable=True)
+    rendered_text_snapshot = Column(Text, nullable=True)
+    file_snapshot = Column(JSONColumn, nullable=True)
+    target_group_snapshot = Column(String(200), nullable=True)
+    template_key = Column(String(100), nullable=True)
+    template_version = Column(Integer, nullable=True)
+    source_version = Column(Integer, nullable=True)
+    parent_delivery_id = Column(Integer, ForeignKey('channel_delivery_logs.id'), nullable=True)
+    correlation_id = Column(String(100), nullable=True)
+    actor_type = Column(String(30), nullable=True)
+    actor_id = Column(Integer, nullable=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='SET NULL'), nullable=True)
+    wave = Column(String(20), nullable=True)
+    request_id = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    sent_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+    
+    order = relationship('Order', foreign_keys=[order_id])
+    
+    from sqlalchemy import Index, UniqueConstraint
+    __table_args__ = (
+        UniqueConstraint('event_key', 'target_type', 'target_id', name='uq_channel_delivery_event_target'),
+        Index('ix_channel_delivery_source_status', 'source_type', 'source_id', 'status'),
+        Index('ix_channel_delivery_retry', 'status', 'next_retry_at', postgresql_where=(status.in_(['pending', 'api_failed', 'token_issue_failed', 'token_rate_limited']))),
+        Index('ix_channel_delivery_order_created', 'order_id', 'created_at'),
+        Index('ix_channel_delivery_created_at', 'created_at'),
+    )
+
+
+class ChannelManagerLink(Base):
+    """ChannelTalk manager와 FOMS user 매핑"""
+    __tablename__ = 'channel_manager_links'
+    
+    id = Column(Integer, primary_key=True)
+    channel_manager_id = Column(String(200), nullable=False)
+    channel_manager_email = Column(String(200), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    linked_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    last_verified_at = Column(DateTime, nullable=True)
+    deactivated_at = Column(DateTime, nullable=True)
+    deactivated_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    
+    user = relationship('User', foreign_keys=[user_id])
+    
+    from sqlalchemy import Index
+    __table_args__ = (
+        Index('ix_channel_manager_link_active_id', 'channel_manager_id', postgresql_where=(is_active == True), unique=True),
+        Index('ix_channel_manager_link_user_active', 'user_id', 'is_active'),
+    )
+
+
+class ChannelInboundEventLog(Base):
+    """ChannelTalk webhook 원본과 파싱 결과 추적"""
+    __tablename__ = 'channel_inbound_event_logs'
+    
+    id = Column(Integer, primary_key=True)
+    provider_event_id = Column(String(200), nullable=True, index=True)
+    dedupe_key = Column(String(200), nullable=False, unique=True)
+    creation_key = Column(String(200), nullable=True, unique=True)
+    payload_hash = Column(String(64), nullable=False, index=True)
+    raw_payload = Column(JSONColumn, nullable=True)
+    chat_type = Column(String(50), nullable=True)
+    source_chat_id = Column(String(200), nullable=True, index=True)
+    status = Column(String(50), nullable=False, default='received')
+    parsed_result = Column(JSONColumn, nullable=True)
+    error_reason = Column(Text, nullable=True)
+    correlation_id = Column(String(100), nullable=True)
+    wave = Column(String(20), nullable=True)
+    source_manager_id = Column(String(200), nullable=True)
+    created_order_id = Column(Integer, ForeignKey('orders.id', ondelete='SET NULL'), nullable=True)
+    created_task_id = Column(Integer, ForeignKey('order_tasks.id', ondelete='SET NULL'), nullable=True)
+    created_order_ref = Column(String(100), nullable=True)
+    created_task_ref = Column(String(100), nullable=True)
+    received_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    processed_at = Column(DateTime, nullable=True)
+    
+    created_order = relationship('Order', foreign_keys=[created_order_id])
+    created_task = relationship('OrderTask', foreign_keys=[created_task_id])
+    
+    from sqlalchemy import Index
+    __table_args__ = (
+        Index('ix_channel_inbound_status_time', 'status', 'received_at'),
+    )
