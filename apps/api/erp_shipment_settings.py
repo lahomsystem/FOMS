@@ -17,6 +17,7 @@ from services.erp_shipment_settings import (
     save_erp_shipment_settings,
     normalize_erp_shipment_workers,
 )
+from services.jobs.queue import enqueue_channeltalk_push
 
 logger = logging.getLogger(__name__)
 erp_shipment_bp = Blueprint('erp_shipment', __name__)
@@ -142,9 +143,11 @@ def api_erp_shipment_update(order_id):
         flag_modified(order, 'structured_data')
         
         from services.channel_delivery import mark_order_updated_for_channel
-        mark_order_updated_for_channel(order, "update")
+        delivery_id = mark_order_updated_for_channel(order, "update")
         
         db.commit()
+        if delivery_id:
+            enqueue_channeltalk_push(delivery_id)
         return jsonify({'success': True})
     except Exception as e:
         db.rollback()
