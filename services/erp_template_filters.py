@@ -126,6 +126,15 @@ def item_spec_w300_value(item):
     return spec_w300_value(w_raw)
 
 
+def schedule_datetime_display(date_val, time_val=None):
+    """실측/시공 일정 한 줄 표시: 날짜 + 선택 시간 (Jinja와 JS formatScheduleDateTimeDisplay 규칙 동일)."""
+    d = str(date_val or '').strip()
+    t = str(time_val or '').strip() if time_val is not None else ''
+    if not d or d == '-':
+        return '-'
+    return f'{d} {t}'.strip() if t else d
+
+
 def payment_confirmed_bool(val) -> bool:
     """structured_data.payment.*_confirmed 값을 엄격히 True만 확인.
 
@@ -153,3 +162,4 @@ def register_erp_template_filters(bp):
     bp.add_app_template_filter(spec_w300_filter, 'spec_w300')
     bp.add_app_template_filter(format_phone_filter, 'format_phone')
     bp.add_app_template_filter(item_spec_w300_display, 'item_spec_w300')
+    bp.add_app_template_filter(schedule_datetime_display, 'schedule_datetime_display')

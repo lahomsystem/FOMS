@@ -37,3 +37,16 @@ window.ERPUtils.setText = function (id, text) {
     const el = document.getElementById(id);
     if (el) el.textContent = text || '';
 };
+
+/**
+ * ERP Beta 일정 표시: 날짜 + 선택적 시간 (structured_data.schedule.*).
+ * 날짜가 없으면 '-', 시간만 있는 경우는 날짜 없이 표시하지 않음.
+ */
+window.ERPUtils.formatScheduleDateTime = function (dateStr, timeStr) {
+    const d = dateStr != null ? String(dateStr).trim() : '';
+    const t = timeStr != null ? String(timeStr).trim() : '';
+    if (!d || d === '-') {
+        return '-';
+    }
+    return t ? d + ' ' + t : d;
+};

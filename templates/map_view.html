@@ -924,6 +924,7 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/erp/common_utils.js') }}?v=20260327"></script>
 
     <script>
         let currentOrders = [];
@@ -1315,8 +1316,20 @@
                 const addressNote = ((sd.site || {}).address_note) || '-';
                 const phoneNote = (((sd.parties || {}).customer || {}).phone_note) || '-';
                 const measureNote = (((sd.schedule || {}).measurement || {}).note) || '-';
-                const measure = (((sd.schedule || {}).measurement || {}).date) || '-';
-                const construct = (((sd.schedule || {}).construction || {}).date) || '-';
+                const fmtDt = (window.ERPUtils && window.ERPUtils.formatScheduleDateTime) || function (d, t) {
+                    const x = d != null ? String(d).trim() : '';
+                    const y = t != null ? String(t).trim() : '';
+                    if (!x || x === '-') return '-';
+                    return y ? x + ' ' + y : x;
+                };
+                const measure = fmtDt(
+                    (((sd.schedule || {}).measurement || {}).date) || '',
+                    (((sd.schedule || {}).measurement || {}).time) || ''
+                );
+                const construct = fmtDt(
+                    (((sd.schedule || {}).construction || {}).date) || '',
+                    (((sd.schedule || {}).construction || {}).time) || ''
+                );
                 const manager = (((sd.parties || {}).manager || {}).name) || '-';
 
                 // 제품 항목

@@ -6,6 +6,13 @@
       return div.innerHTML;
     }
 
+    function formatScheduleDateTimeDisplay(dateStr, timeStr) {
+      const d = dateStr != null ? String(dateStr).trim() : '';
+      const t = timeStr != null ? String(timeStr).trim() : '';
+      if (!d || d === '-') return '-';
+      return t ? d + ' ' + t : d;
+    }
+
     // === 표시용 한글 라벨(저장은 영문 코드 유지) ===
     function safeJsonParse(val, fb) { try { var s = String(val || '').trim(); if (!s) return fb || {}; var o = JSON.parse(s); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : (fb || {}); } catch (_) { return fb || {}; } }
     var _cfg = document.getElementById('erp-dashboard-config');
@@ -706,8 +713,14 @@
         const addressNote = (notes.address_note || '').trim();
         const phoneNote = (notes.phone_note || '').trim();
         const measureNote = (notes.measurement_note || '').trim();
-        const measure = (((sd.schedule || {}).measurement || {}).date) || '-';
-        const construct = (((sd.schedule || {}).construction || {}).date) || '-';
+        const measure = formatScheduleDateTimeDisplay(
+          (((sd.schedule || {}).measurement || {}).date) || '',
+          (((sd.schedule || {}).measurement || {}).time) || ''
+        );
+        const construct = formatScheduleDateTimeDisplay(
+          (((sd.schedule || {}).construction || {}).date) || '',
+          (((sd.schedule || {}).construction || {}).time) || ''
+        );
         const manager = (((sd.parties || {}).manager || {}).name) || '-';
         const stage = (((sd.workflow || {}).stage)) || '-';
         const urgent = ((sd.flags || {}).urgent) || false;

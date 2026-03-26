@@ -630,7 +630,24 @@
             const dates = constructionDateVal.split(',').map(s => s.trim()).filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s));
             if (dates.length) window._erpConstructionDatePicker.setDate(dates);
         }
-
+        const constructionTime = sd?.schedule?.construction?.time || '';
+        const erpConstructionTimeSelect = document.getElementById('erp-construction-time-select');
+        const erpConstructionTimeInput = document.getElementById('erp-construction-time');
+        if (erpConstructionTimeSelect) {
+            if (constructionTime === '오전' || constructionTime === '오후' || constructionTime === '종일') {
+                erpConstructionTimeSelect.value = constructionTime;
+                if (erpConstructionTimeInput) {
+                    erpConstructionTimeInput.value = '';
+                    erpConstructionTimeInput.style.display = 'none';
+                }
+            } else {
+                erpConstructionTimeSelect.value = '__direct__';
+                if (erpConstructionTimeInput) {
+                    erpConstructionTimeInput.value = constructionTime || '';
+                    erpConstructionTimeInput.style.display = 'block';
+                }
+            }
+        }
 
         const itemsWrap = document.getElementById('erp-items');
         itemsWrap.innerHTML = '';
@@ -756,7 +773,19 @@
                     }
                     return { date: getVal('erp-measurement-date'), time: timeValue };
                 })(),
-                construction: { raw: '', date: getVal('erp-construction-date') }
+                construction: (function () {
+                    const timeSelect = document.getElementById('erp-construction-time-select');
+                    const timeInput = document.getElementById('erp-construction-time');
+                    let timeValue = '';
+                    if (timeSelect) {
+                        if (timeSelect.value === '__direct__') {
+                            timeValue = timeInput ? timeInput.value : '';
+                        } else {
+                            timeValue = timeSelect.value;
+                        }
+                    }
+                    return { raw: '', date: getVal('erp-construction-date'), time: timeValue };
+                })()
             },
             notes: {
                 phone_note: getVal('erp-phone-note'),
@@ -1139,6 +1168,19 @@
                 } else {
                     erpMeasurementTimeInput.style.display = 'none';
                     erpMeasurementTimeInput.value = '';
+                }
+            });
+        }
+
+        const erpConstructionTimeSelect = document.getElementById('erp-construction-time-select');
+        const erpConstructionTimeInput = document.getElementById('erp-construction-time');
+        if (erpConstructionTimeSelect && erpConstructionTimeInput) {
+            erpConstructionTimeSelect.addEventListener('change', function () {
+                if (this.value === '__direct__') {
+                    erpConstructionTimeInput.style.display = 'block';
+                } else {
+                    erpConstructionTimeInput.style.display = 'none';
+                    erpConstructionTimeInput.value = '';
                 }
             });
         }
@@ -2044,6 +2086,16 @@ ${list.map(renderCard).join('')}
         if (!constructionDate) constructionDate = '상담'; // Default
         else constructionDate = formatDateToKorean(constructionDate);
 
+        let constructionTime = '';
+        const constructionTimeSelect = document.getElementById('erp-construction-time-select');
+        if (constructionTimeSelect) {
+            if (constructionTimeSelect.value === '__direct__') {
+                constructionTime = getVal('erp-construction-time');
+            } else {
+                constructionTime = constructionTimeSelect.value;
+            }
+        }
+
         const address = getVal('erp-address');
         const phone = getVal('erp-customer-phone');
 
@@ -2054,6 +2106,7 @@ ${list.map(renderCard).join('')}
         text += `고객명 : ${customerName}\n`;
         text += `발주사 : ${orderer}\n`;
         text += `시공일 : ${constructionDate}\n`;
+        text += `시공시간 : ${constructionTime}\n`;
         text += `주  소 : ${address}\n`;
         text += `연락처 : ${phone}\n`;
         text += `\n`;

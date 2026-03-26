@@ -19,6 +19,13 @@
     return String(s || '').replace(/'/g, "\\'");
   }
 
+  function formatScheduleDateTimeDisplay(dateStr, timeStr) {
+    const d = dateStr != null ? String(dateStr).trim() : '';
+    const t = timeStr != null ? String(timeStr).trim() : '';
+    if (!d || d === '-') return '-';
+    return t ? d + ' ' + t : d;
+  }
+
   function safeJsonParse(val, fb) {
     try {
       var s = String(val || '').trim();
@@ -1042,8 +1049,14 @@
       const addressNote = (notes.address_note || '').trim();
       const phoneNote = (notes.phone_note || '').trim();
       const measureNote = (notes.measurement_note || '').trim();
-      const measure = (((sd.schedule || {}).measurement || {}).date) || '-';
-      const construct = (((sd.schedule || {}).construction || {}).date) || '-';
+      const measure = formatScheduleDateTimeDisplay(
+        (((sd.schedule || {}).measurement || {}).date) || '',
+        (((sd.schedule || {}).measurement || {}).time) || ''
+      );
+      const construct = formatScheduleDateTimeDisplay(
+        (((sd.schedule || {}).construction || {}).date) || '',
+        (((sd.schedule || {}).construction || {}).time) || ''
+      );
       const manager = (((sd.parties || {}).manager || {}).name) || '-';
       const stage = (((sd.workflow || {}).stage)) || '-';
       const hist = (sd.workflow || {}).history || [];

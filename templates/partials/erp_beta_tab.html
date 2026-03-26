@@ -237,6 +237,18 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                                     <input type="text" class="form-control form-control-sm mt-2" id="erp-measurement-time"
                                         placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off" lang="ko">
                                 </div>
+                                <div class="col-md-6">
+                                    <label class="form-label mb-1">시공시간</label>
+                                    <select class="form-select form-select-sm" id="erp-construction-time-select"
+                                        autocomplete="off">
+                                        <option value="__direct__" selected>직접 입력</option>
+                                        <option value="오전">오전</option>
+                                        <option value="오후">오후</option>
+                                        <option value="종일">종일</option>
+                                    </select>
+                                    <input type="text" class="form-control form-control-sm mt-2" id="erp-construction-time"
+                                        placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off" lang="ko">
+                                </div>
                             </div>
                         </div>
                     </div>
