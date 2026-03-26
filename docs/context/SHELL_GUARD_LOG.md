@@ -4,9 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-19 23:21:43 | allow | `-` | `Get-ChildItem -Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" -Name "models.py" -Recurse 2>$null | Select-Object -First 3` |
-| 2026-03-19 23:21:44 | allow | `-` | `Get-ChildItem -Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" -Name "constants.py" -Recurse 2>$null | Select-Object -First 3` |
-| 2026-03-19 23:25:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')" 2>&1` |
 | 2026-03-19 23:32:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git log --oneline -5` |
 | 2026-03-19 23:33:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
 | 2026-03-19 23:35:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
@@ -304,3 +301,6 @@
 | 2026-03-26 12:50:01 | allow | `-` | `python -c "import app; print('APP_OK')"` |
 | 2026-03-26 12:51:15 | allow | `-` | `python scripts\test_migration.py` |
 | 2026-03-26 12:51:48 | allow | `-` | `pytest tests/test_channel_integration_smoke.py` |
+| 2026-03-26 12:54:31 | allow | `-` | `mkdir -p docs/plans/channeltalk_policy` |
+| 2026-03-26 12:59:10 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-26 12:59:25 | allow | `-` | `pytest tests/test_channel_integration_smoke.py` |

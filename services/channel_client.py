@@ -103,18 +103,8 @@ def format_order_message(
     event_type: str = "update",
 ) -> str:
     """
-    FOMS 주문 데이터를 채널톡 plainText 메시지로 변환.
-
-    Args:
-        customer_name: 고객명
-        status: 주문 상태 코드
-        address: 주소
-        order_id: 주문 ID
-        schedule: structured_data['schedule'] 딕셔너리
-        event_type: "new" (신규) / "update" (상태변경) / "save" (저장)
-
-    Returns:
-        채널톡 plainText 메시지 문자열
+    [DEPRECATED] 이 함수는 Phase A 진행에 따라 services/channel_policy.py 및 services/channel_dispatch.py 로 이전되었습니다.
+    기존 코드 호환성을 위해 당분간 유지합니다.
     """
     event_label = {
         "new": "신규 접수",

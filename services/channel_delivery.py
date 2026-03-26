@@ -3,15 +3,62 @@ ChannelTalk 연동 상태 영속화 및 배달(Outbox) 조회 서비스
 (CT-00-03 observability & admin query)
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import datetime
 from sqlalchemy import func
 from db import get_db
 from models import ChannelDeliveryLog, Order
 import os
 import logging
+import uuid
 
 logger = logging.getLogger(__name__)
+
+def create_pending_delivery(
+    db, 
+    order_id: int, 
+    event_type: str, 
+    source_type: str = 'order_event',
+    parent_delivery_id: Optional[int] = None
+) -> ChannelDeliveryLog:
+    """CT-A-02: Pending 상태의 DeliveryLog 생성"""
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise ValueError(f"Order {order_id} not found")
+
+    event_key = f"order_{order_id}_{event_type}_{order.channel_source_seq}"
+    
+    # 템플릿과 라우팅 정책 임시 적용
+    from services.channel_policy import get_routing_group_id
+    target_group_id = get_routing_group_id(event_type, {'order_id': order_id})
+    
+    log = ChannelDeliveryLog(
+        event_key=event_key,
+        source_type=source_type,
+        source_id=order_id,
+        target_type='group',
+        target_id=target_group_id,
+        status='pending',
+        order_id=order_id,
+        source_version=order.channel_source_seq,
+        parent_delivery_id=parent_delivery_id,
+        correlation_id=str(uuid.uuid4())
+    )
+    db.add(log)
+    return log
+
+def mark_delivery_status(db, delivery_id: int, status: str, error_msg: Optional[str] = None, message_id: Optional[str] = None):
+    """CT-A-02: DeliveryLog 상태 전이"""
+    log = db.query(ChannelDeliveryLog).filter(ChannelDeliveryLog.id == delivery_id).first()
+    if log:
+        log.status = status
+        log.updated_at = datetime.datetime.now()
+        if error_msg:
+            log.last_error = error_msg
+        if message_id:
+            log.message_id = message_id
+            log.sent_at = log.updated_at
+        db.add(log)
 
 def get_delivery_metrics(db) -> Dict[str, Any]:
     """
@@ -95,8 +142,14 @@ def mark_order_updated_for_channel(order: Order, event_type: str = 'update'):
         order.channel_source_seq = 0
     order.channel_source_seq += 1
     
-    # 향후 Phase A(CT-A-02)에서 이 위치에 ChannelDeliveryLog(상태=pending) row INSERT 로직이 추가됩니다.
-    # pending 로우를 추가한 뒤, 트랜잭션이 commit 되면 Redis queue에 enqueue 하는 구조입니다.
+    # CT-A-02: DB 세션(트랜잭션) 획득 및 Outbox (ChannelDeliveryLog) row 추가
+    from db import db_session
+    try:
+        db = db_session.object_session(order)
+        if db:
+            create_pending_delivery(db, order.id, event_type)
+    except Exception as e:
+        logger.error("[ChannelDelivery] Failed to create pending delivery: %s", e)
 
 def mask_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
