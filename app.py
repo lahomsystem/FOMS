@@ -294,6 +294,15 @@ from apps.wdplanner_page import wdplanner_bp
 app.register_blueprint(wdplanner_bp)
 from apps.api.channel_integration import channel_integration_bp
 app.register_blueprint(channel_integration_bp)
+
+# ChannelTalk 연동 확장 (Phase 0)
+from apps.api.channel_functions import channel_functions_bp
+app.register_blueprint(channel_functions_bp)
+from apps.api.channel_webhooks import channel_webhooks_bp
+app.register_blueprint(channel_webhooks_bp)
+from apps.api.channel_wam import channel_wam_bp
+app.register_blueprint(channel_wam_bp)
+
 from apps.api.debug import debug_bp
 app.register_blueprint(debug_bp)
 
