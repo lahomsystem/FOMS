@@ -112,8 +112,28 @@
         function loadChannelStats() {
             fetch('/api/channel/health')
             .then(function(response) {
-                if(!response.ok && response.status !== 503) throw new Error('Network response was not ok');
-                return response.json();
+                return response.text().then(function(text) {
+                    var data = null;
+
+                    if (text) {
+                        try {
+                            data = JSON.parse(text);
+                        } catch (parseError) {
+                            if (!response.ok) {
+                                throw new Error(text);
+                            }
+                            throw parseError;
+                        }
+                    }
+
+                    if (!response.ok && response.status !== 503) {
+                        throw new Error((data && (data.error || data.message)) || 'Network response was not ok');
+                    }
+                    if (!data) {
+                        throw new Error('Empty response');
+                    }
+                    return data;
+                });
             })
             .then(function(data) {
                 var metrics = data.metrics || {};
