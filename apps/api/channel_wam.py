@@ -28,4 +28,29 @@ def verify_wam_token():
     # request 객체에 검증된 payload 주입 (하위 라우트에서 사용)
     request.wam_payload = payload
 
-# TODO: CT-D-02 등에서 WAM 주문 요약 등 실질적 렌더링 로직 추가
+@channel_wam_bp.route('/')
+def wam_index():
+    """
+    CT-D-03: WAM 셸 및 read-only UI 1차 구축
+    주문 요약 및 첨부파일 목록 렌더링
+    """
+    payload = request.wam_payload
+    order_id = payload.get('order_id')
+    
+    if not order_id:
+        return render_template('channel_wam_error.html', message='주문 번호가 지정되지 않았습니다.'), 400
+        
+    from services.channel_quick_actions import get_order_summary_for_wam, get_order_attachments_for_wam
+    
+    summary = get_order_summary_for_wam(order_id)
+    if not summary:
+        return render_template('channel_wam_error.html', message='존재하지 않는 주문 번호이거나 조회 권한이 없습니다.'), 404
+        
+    attachments = get_order_attachments_for_wam(order_id)
+    
+    return render_template(
+        'channel_wam_index.html', 
+        summary=summary, 
+        attachments=attachments,
+        token=request.args.get('token')
+    )

@@ -4,11 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-19 23:35:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash drop; git status` |
-| 2026-03-19 23:35:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/context/SHELL_GUARD_LOG.md; git commit --trailer "Made-with: Cursor" -m "chore: S` |
-| 2026-03-19 23:41:18 | allow | `-` | `curl -sI "https://lahom-production.up.railway.app/static/css/erp-pro.css" 2>&1 | Select-String -Pattern "cache|Cache|max-age|content-type|status|HTTP"` |
-| 2026-03-19 23:41:24 | allow | `-` | `Invoke-WebRequest -Uri "https://lahom-production.up.railway.app/static/css/erp-pro.css" -Method Head | Select-Object -ExpandProperty Headers` |
-| 2026-03-19 23:41:31 | allow | `-` | `$r = Invoke-WebRequest -Uri "https://lahom-production.up.railway.app/static/css/erp-pro.css" -Method Head -UseBasicParsing; $r.StatusCode; $r.Headers | Format-T` |
 | 2026-03-19 23:41:40 | allow | `-` | `$start = Get-Date; $r = Invoke-WebRequest -Uri "https://lahom-production.up.railway.app/" -UseBasicParsing 2>&1; $elapsed = (Get-Date) - $start; "StatusCode: $(` |
 | 2026-03-19 23:41:50 | allow | `-` | `$urls = @( "https://lahom-production.up.railway.app/erp", "https://lahom-production.up.railway.app/erp/construction", "https://lahom-production.up.railway.app/e` |
 | 2026-03-20 08:42:39 | allow | `-` | `python -c "from services.business_calendar import business_days_between; import datetime; print(business_days_between(datetime.date(2025,1,1), datetime.date(202` |
@@ -304,3 +299,8 @@
 | 2026-03-26 13:03:50 | allow | `-` | `pytest tests/test_channel_security.py -v` |
 | 2026-03-26 13:04:27 | allow | `-` | `pytest tests/test_channel_security.py -v` |
 | 2026-03-26 13:04:42 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-26 13:10:15 | allow | `-` | `pytest tests/test_channel_quick_actions.py -v` |
+| 2026-03-26 13:10:59 | allow | `-` | `pytest tests/test_channel_quick_actions.py -v` |
+| 2026-03-26 13:11:24 | allow | `-` | `pytest tests/test_channel_quick_actions.py -v` |
+| 2026-03-26 13:12:23 | allow | `-` | `pytest tests/test_channel_quick_actions.py -v` |
+| 2026-03-26 13:13:12 | allow | `-` | `pytest tests/test_channel_quick_actions.py -v` |
