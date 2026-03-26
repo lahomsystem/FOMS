@@ -318,6 +318,10 @@ def internal_error(error):
         app.logger.error(f"Internal Server Error: {str(error)}\n{traceback.format_exc()}")
         return render_template('error_500.html'), 500
 
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('error_404.html'), 404
+
 
 @app.get('/__build')
 def build_info():
