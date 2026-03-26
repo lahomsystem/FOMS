@@ -4,9 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-19 23:32:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git log --oneline -5` |
-| 2026-03-19 23:33:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
-| 2026-03-19 23:35:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
 | 2026-03-19 23:35:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash drop; git status` |
 | 2026-03-19 23:35:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/context/SHELL_GUARD_LOG.md; git commit --trailer "Made-with: Cursor" -m "chore: S` |
 | 2026-03-19 23:41:18 | allow | `-` | `curl -sI "https://lahom-production.up.railway.app/static/css/erp-pro.css" 2>&1 | Select-String -Pattern "cache|Cache|max-age|content-type|status|HTTP"` |
@@ -304,3 +301,6 @@
 | 2026-03-26 12:54:31 | allow | `-` | `mkdir -p docs/plans/channeltalk_policy` |
 | 2026-03-26 12:59:10 | allow | `-` | `python -c "import app; print('APP_OK')"` |
 | 2026-03-26 12:59:25 | allow | `-` | `pytest tests/test_channel_integration_smoke.py` |
+| 2026-03-26 13:03:50 | allow | `-` | `pytest tests/test_channel_security.py -v` |
+| 2026-03-26 13:04:27 | allow | `-` | `pytest tests/test_channel_security.py -v` |
+| 2026-03-26 13:04:42 | allow | `-` | `python -c "import app; print('APP_OK')"` |
