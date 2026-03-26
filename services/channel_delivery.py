@@ -7,7 +7,7 @@ from typing import Dict, Any, List, Optional
 import datetime
 from sqlalchemy import func
 from db import get_db
-from models import ChannelDeliveryLog, Order
+from models import ChannelDeliveryLog, Order, ChannelInboundEventLog
 import os
 import logging
 import uuid
@@ -94,9 +94,23 @@ def get_delivery_metrics(db) -> Dict[str, Any]:
         .filter(ChannelDeliveryLog.created_at >= yesterday,
                 ChannelDeliveryLog.parent_delivery_id.isnot(None)).scalar() or 0
     
+    # Inbound metrics
+    inbound_total = db.query(func.count(ChannelInboundEventLog.id))\
+        .filter(ChannelInboundEventLog.received_at >= yesterday).scalar() or 0
+        
+    inbound_parsed = db.query(func.count(ChannelInboundEventLog.id))\
+        .filter(ChannelInboundEventLog.received_at >= yesterday,
+                ChannelInboundEventLog.status.in_(['parsed_and_enqueued', 'completed'])).scalar() or 0
+                
+    inbound_failed = db.query(func.count(ChannelInboundEventLog.id))\
+        .filter(ChannelInboundEventLog.received_at >= yesterday,
+                ChannelInboundEventLog.status == 'parse_failed').scalar() or 0
+
     success_rate = (sent_count / total_count * 100) if total_count > 0 else 100.0
     duplicate_rate = (duplicate_count / total_count * 100) if total_count > 0 else 0.0
     resend_rate = (resend_count / total_count * 100) if total_count > 0 else 0.0
+    
+    parse_success_rate = (inbound_parsed / inbound_total * 100) if inbound_total > 0 else 100.0
 
     return {
         "total_count_24h": total_count,
@@ -104,6 +118,8 @@ def get_delivery_metrics(db) -> Dict[str, Any]:
         "delivery_success_rate": round(success_rate, 2),
         "duplicate_rate": round(duplicate_rate, 2),
         "resend_rate": round(resend_rate, 2),
+        "inbound_total_24h": inbound_total,
+        "parse_success_rate": round(parse_success_rate, 2),
     }
 
 def get_queue_backlog(db) -> int:

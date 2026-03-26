@@ -14,6 +14,35 @@
                     <a href="{{ url_for('admin.admin_notifications') }}" class="btn btn-outline-danger"><i class="fas fa-bullhorn me-1"></i>공지/알림 발송</a>
                     <button id="backupBtn" class="btn btn-warning">🚨 시스템 백업 실행</button>
                 </div>
+                
+                <div class="card mb-4 border-info">
+                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">ChannelTalk Pilot 지표 (Phase F)</h6>
+                        <button class="btn btn-sm btn-light" id="refreshChannelStats">새로고침</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center" id="channelStatsRow">
+                            <div class="col">
+                                <h6 class="text-muted">Push 성공률</h6>
+                                <h4 id="statPushSuccess" class="mb-0">-</h4>
+                            </div>
+                            <div class="col">
+                                <h6 class="text-muted">중복 비율</h6>
+                                <h4 id="statDuplicate" class="mb-0">-</h4>
+                            </div>
+                            <div class="col">
+                                <h6 class="text-muted">Inbound 파싱 성공률</h6>
+                                <h4 id="statParseSuccess" class="mb-0">-</h4>
+                            </div>
+                            <div class="col">
+                                <h6 class="text-muted">대기 백로그</h6>
+                                <h4 id="statBacklog" class="mb-0">-</h4>
+                            </div>
+                        </div>
+                        <hr>
+                        <div id="channelAlerts" class="small text-danger"></div>
+                    </div>
+                </div>
 
                 <div id="backupStatusCard" class="alert alert-secondary mb-4" role="status" aria-live="polite">
                     <h6 class="alert-heading mb-2">백업 상태</h6>
@@ -73,6 +102,41 @@
         var backupStatusCard = document.getElementById('backupStatusCard');
         var backupStatusText = document.getElementById('backupStatusText');
         var backupStatusRefresh = document.getElementById('backupStatusRefresh');
+        
+        var btnRefreshChannel = document.getElementById('refreshChannelStats');
+        if (btnRefreshChannel) {
+            btnRefreshChannel.addEventListener('click', loadChannelStats);
+            loadChannelStats(); // load on init
+        }
+
+        function loadChannelStats() {
+            fetch('/api/channel/health')
+            .then(response => {
+                if(!response.ok && response.status !== 503) throw new Error('Network response was not ok');
+                return response.json();
+            })
+            .then(data => {
+                var metrics = data.metrics || {};
+                var queue = data.queue || {};
+                
+                document.getElementById('statPushSuccess').textContent = (metrics.delivery_success_rate !== undefined ? metrics.delivery_success_rate + '%' : '-');
+                document.getElementById('statDuplicate').textContent = (metrics.duplicate_rate !== undefined ? metrics.duplicate_rate + '%' : '-');
+                document.getElementById('statParseSuccess').textContent = (metrics.parse_success_rate !== undefined ? metrics.parse_success_rate + '%' : '-');
+                document.getElementById('statBacklog').textContent = (queue.backlog_count !== undefined ? queue.backlog_count + '건' : '-');
+                
+                var alerts = [];
+                if (metrics.delivery_success_rate < 95) alerts.push('⚠️ Push 성공률이 95% 미만입니다.');
+                if (metrics.duplicate_rate > 2) alerts.push('⚠️ 중복 비율이 2%를 초과했습니다.');
+                if (metrics.parse_success_rate < 90) alerts.push('⚠️ 파싱 성공률이 낮습니다.');
+                if (data.readiness === 'fail') alerts.push('⚠️ 시스템 상태가 fail입니다: ' + (data.flag_violations || []).join(', '));
+                
+                document.getElementById('channelAlerts').innerHTML = alerts.join('<br>');
+            })
+            .catch(error => {
+                console.error('Error fetching channel stats:', error);
+                document.getElementById('channelAlerts').textContent = '상태를 불러올 수 없습니다.';
+            });
+        }
 
         function renderBackupStatus(st) {
             if (!st || !st.success) {
