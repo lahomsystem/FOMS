@@ -41,17 +41,35 @@ def build_mine_sql_filter(user) -> List[Any]:
         테이블 크기가 증가하면 별도 JSONB 경로 인덱스 도입을 검토해야 한다.
     """
     from models import Order
+    from sqlalchemy import cast, String
     conds = []
+    
     u_name = (user.name or '').strip()
     u_username = (user.username or '').strip()
+    u_id_str = str(user.id) if getattr(user, 'id', None) else ''
+
     if u_name:
         safe_name = _escape_like(u_name)
         conds.append(Order.manager_name.ilike(f"%{safe_name}%", escape='\\'))
-        conds.append(cast(Order.structured_data, String).ilike(f'%"{safe_name}"%', escape='\\'))
+        conds.append(cast(Order.structured_data['parties']['manager']['name'], String).ilike(f"%{safe_name}%", escape='\\'))
+        conds.append(cast(Order.structured_data['workflow']['current_quest']['owner_person'], String).ilike(f"%{safe_name}%", escape='\\'))
+        conds.append(cast(Order.structured_data['shipment']['construction_workers'], String).ilike(f"%{safe_name}%", escape='\\'))
+        conds.append(cast(Order.structured_data['assignments']['drawing_assignees'], String).ilike(f"%{safe_name}%", escape='\\'))
+
     if u_username:
         safe_uname = _escape_like(u_username)
-        conds.append(Order.manager_name.ilike(f"%{safe_uname}%", escape='\\'))
-        conds.append(cast(Order.structured_data, String).ilike(f'%"{safe_uname}"%', escape='\\'))
+        # Avoid duplicate checks if name and username are identical
+        if safe_uname != _escape_like(u_name):
+            conds.append(Order.manager_name.ilike(f"%{safe_uname}%", escape='\\'))
+            conds.append(cast(Order.structured_data['parties']['manager']['name'], String).ilike(f"%{safe_uname}%", escape='\\'))
+            conds.append(cast(Order.structured_data['workflow']['current_quest']['owner_person'], String).ilike(f"%{safe_uname}%", escape='\\'))
+            conds.append(cast(Order.structured_data['shipment']['construction_workers'], String).ilike(f"%{safe_uname}%", escape='\\'))
+            conds.append(cast(Order.structured_data['assignments']['drawing_assignees'], String).ilike(f"%{safe_uname}%", escape='\\'))
+
+    if u_id_str:
+        conds.append(cast(Order.structured_data['assignments']['sales_assignee_user_ids'], String).ilike(f"%{u_id_str}%", escape='\\'))
+        conds.append(cast(Order.structured_data['assignments']['drawing_assignee_user_ids'], String).ilike(f"%{u_id_str}%", escape='\\'))
+
     return conds
 
 

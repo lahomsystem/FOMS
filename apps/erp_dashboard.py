@@ -74,17 +74,10 @@ def erp_dashboard():
         )
 
     if request.args.get('mine') == '1' and current_user:
-        u_name = (current_user.name or '').strip()
-        u_username = (current_user.username or '').strip()
-        conds = []
-        if u_name:
-            conds.append(Order.manager_name.ilike(f"%{u_name}%"))
-            conds.append(cast(Order.structured_data, String).ilike(f'%"{u_name}"%'))
-        if u_username:
-            conds.append(Order.manager_name.ilike(f"%{u_username}%"))
-            conds.append(cast(Order.structured_data, String).ilike(f'%"{u_username}"%'))
-        if conds:
-            _q = _q.filter(or_(*conds))
+        from services.erp_permissions import build_mine_sql_filter
+        mine_conds = build_mine_sql_filter(current_user)
+        if mine_conds:
+            _q = _q.filter(or_(*mine_conds))
 
     # C. f_team SQL 필터
     if f_team and not is_admin:
