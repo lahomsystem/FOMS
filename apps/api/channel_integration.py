@@ -19,7 +19,7 @@ from services.storage import get_storage
 from services.channel_client import is_configured
 from services.channel_dispatch import dispatch_order_event
 from services.channel_delivery import get_delivery_metrics, get_queue_backlog, check_legacy_only_success_after_cutover
-from services.jobs.queue import get_rq_queue
+from services.jobs.queue import get_rq_runtime_status
 
 logger = logging.getLogger(__name__)
 
@@ -170,15 +170,6 @@ def api_channel_health():
     ChannelTalk 연동 상태 헬스체크 및 readiness 판단. (CT-00-03)
     반환 상태: ready, degraded, fail
     """
-    db = get_db()
-    
-    # 1. 환경변수 체크
-    has_app_secret = bool(os.environ.get('CHANNEL_APP_SECRET'))
-    has_channel_id = bool(os.environ.get('CHANNEL_ID'))
-    has_signing_key = bool(os.environ.get('CHANNEL_SIGNING_KEY'))
-    has_foms_base_url = bool(os.environ.get('FOMS_BASE_URL'))
-    
-    # 2. Feature Flags
     flags = {
         'push': os.environ.get('CHANNEL_PUSH_ENABLED', 'false').lower() == 'true',
         'command': os.environ.get('CHANNEL_COMMAND_ENABLED', 'false').lower() == 'true',
@@ -187,62 +178,78 @@ def api_channel_health():
         'inbound_create': os.environ.get('CHANNEL_INBOUND_CREATE_ENABLED', 'false').lower() == 'true',
         'write_action': os.environ.get('CHANNEL_WRITE_ACTION_ENABLED', 'false').lower() == 'true',
     }
-    
-    # 3. Queue / Worker 상태
-    redis_url = os.environ.get('REDIS_URL')
-    q = get_rq_queue()
-    queue_state = 'reachable' if q else ('disabled' if not redis_url else 'unreachable')
-    rq_worker_count = len(q.registry.get_worker_ids()) if q else 0
-    
-    # backlog / drift
-    backlog_count = get_queue_backlog(db)
-    legacy_success_drift = check_legacy_only_success_after_cutover(db)
-    
-    # metrics
-    metrics = get_delivery_metrics(db)
-    
-    # 4. 의존 행렬 위반 점검
-    flag_violations = []
-    if flags['inbound_create'] and not flags['webhook']:
-        flag_violations.append('INBOUND_CREATE_REQUIRES_WEBHOOK')
-    if flags['write_action'] and not (flags['command'] or flags['wam']):
-        flag_violations.append('WRITE_ACTION_REQUIRES_COMMAND_OR_WAM')
-        
-    # Readiness 판정
-    # fail-closed 조건
-    if not has_foms_base_url:
-        readiness = 'fail'
-    elif (flags['push'] or flags['webhook']) and rq_worker_count < 1:
-        readiness = 'fail'
-    elif flag_violations:
-        readiness = 'fail'
-    elif legacy_success_drift > 0:
-        readiness = 'degraded'
-    else:
-        readiness = 'ready'
-        
-    return jsonify({
-        'readiness': readiness,
-        'environment': {
-            'CHANNEL_APP_SECRET': has_app_secret,
-            'CHANNEL_ID': has_channel_id,
-            'CHANNEL_SIGNING_KEY': has_signing_key,
-            'FOMS_BASE_URL': has_foms_base_url,
-        },
-        'flags': flags,
-        'flag_violations': flag_violations,
-        'queue': {
-            'state': queue_state,
-            'worker_count': rq_worker_count,
-            'backlog_count': backlog_count,
-        },
-        'metrics': metrics,
-        'security': {
-            'signature_verification': True,  # 향후 CT-C-01 적용 시 실제 상태 연동
-            'replay_window_seconds': int(os.environ.get('CHANNEL_REPLAY_WINDOW_SECONDS', 300))
-        },
-        'legacy_only_success_after_cutover': legacy_success_drift,
-    }), 200 if readiness != 'fail' else 503
+    environment = {
+        'CHANNEL_APP_SECRET': bool(os.environ.get('CHANNEL_APP_SECRET')),
+        'CHANNEL_ID': bool(os.environ.get('CHANNEL_ID')),
+        'CHANNEL_SIGNING_KEY': bool(os.environ.get('CHANNEL_SIGNING_KEY')),
+        'FOMS_BASE_URL': bool(os.environ.get('FOMS_BASE_URL')),
+    }
+    security = {
+        'signature_verification': True,
+        'replay_window_seconds': int(os.environ.get('CHANNEL_REPLAY_WINDOW_SECONDS', 300))
+    }
+
+    try:
+        db = get_db()
+        queue_runtime = get_rq_runtime_status()
+        queue_state = queue_runtime['state']
+        rq_worker_count = queue_runtime['worker_count']
+
+        backlog_count = get_queue_backlog(db)
+        legacy_success_drift = check_legacy_only_success_after_cutover(db)
+        metrics = get_delivery_metrics(db)
+
+        flag_violations = []
+        if flags['inbound_create'] and not flags['webhook']:
+            flag_violations.append('INBOUND_CREATE_REQUIRES_WEBHOOK')
+        if flags['write_action'] and not (flags['command'] or flags['wam']):
+            flag_violations.append('WRITE_ACTION_REQUIRES_COMMAND_OR_WAM')
+
+        if not environment['FOMS_BASE_URL']:
+            readiness = 'fail'
+        elif (flags['command'] or flags['webhook']) and not environment['CHANNEL_SIGNING_KEY']:
+            readiness = 'fail'
+            flag_violations.append('INBOUND_FEATURES_REQUIRE_SIGNING_KEY')
+        elif (flags['push'] or flags['webhook']) and rq_worker_count < 1:
+            readiness = 'fail'
+        elif flag_violations:
+            readiness = 'fail'
+        elif legacy_success_drift > 0:
+            readiness = 'degraded'
+        else:
+            readiness = 'ready'
+
+        return jsonify({
+            'readiness': readiness,
+            'environment': environment,
+            'flags': flags,
+            'flag_violations': flag_violations,
+            'queue': {
+                'state': queue_state,
+                'worker_count': rq_worker_count,
+                'backlog_count': backlog_count,
+            },
+            'metrics': metrics,
+            'security': security,
+            'legacy_only_success_after_cutover': legacy_success_drift,
+        }), 200 if readiness != 'fail' else 503
+    except Exception as e:
+        logger.error("[ChannelTalk Health] failed: %s\n%s", e, traceback.format_exc())
+        return jsonify({
+            'readiness': 'fail',
+            'environment': environment,
+            'flags': flags,
+            'flag_violations': ['CHANNEL_HEALTH_CHECK_FAILED'],
+            'queue': {
+                'state': 'unknown',
+                'worker_count': 0,
+                'backlog_count': 0,
+            },
+            'metrics': {},
+            'security': security,
+            'legacy_only_success_after_cutover': 0,
+            'error': str(e),
+        }), 503
 
 @channel_integration_bp.route('/admin/delivery-status', methods=['GET'])
 @login_required

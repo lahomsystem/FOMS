@@ -44,6 +44,58 @@ def get_rq_queue():
         return None
 
 
+def get_rq_worker_count(q=None):
+    """Return the live worker count for the default queue."""
+    q = q or get_rq_queue()
+    if not q:
+        return 0
+
+    try:
+        from rq import Worker
+        return int(Worker.count(connection=q.connection, queue=q))
+    except Exception as e:
+        logger.warning(f"[RQ] Worker.count failed: {e}", exc_info=True)
+
+    try:
+        from rq import Worker
+        workers = Worker.all(connection=q.connection, queue=q)
+        return len(workers)
+    except Exception as e:
+        logger.warning(f"[RQ] Worker.all fallback failed: {e}", exc_info=True)
+        return 0
+
+
+def get_rq_runtime_status():
+    """Inspect Redis reachability and live worker count for readiness checks."""
+    redis_url = os.environ.get('REDIS_URL')
+    if not redis_url:
+        return {
+            'state': 'disabled',
+            'worker_count': 0,
+        }
+
+    q = get_rq_queue()
+    if not q:
+        return {
+            'state': 'unreachable',
+            'worker_count': 0,
+        }
+
+    try:
+        q.connection.ping()
+    except Exception as e:
+        logger.warning(f"[RQ] ping failed: {e}", exc_info=True)
+        return {
+            'state': 'unreachable',
+            'worker_count': 0,
+        }
+
+    return {
+        'state': 'reachable',
+        'worker_count': get_rq_worker_count(q),
+    }
+
+
 def enqueue_thumbnail_generation(attachment_id, storage_key):
     """
     썸네일 생성 job enqueue.
