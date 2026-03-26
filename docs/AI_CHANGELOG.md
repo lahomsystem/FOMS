@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-26 | 세션 자동 기록 | commit_msg.txt, channel_quick_actions.py, test_channel_quick_actions.py 외 2개 | 0073e5c1 |
 | 2026-03-26 | 세션 자동 기록 | commit_msg.txt, test_channel_security.py, channel_wam.py 외 2개 | 33e6629f |
 | 2026-03-26 | 세션 자동 기록 | commit_msg.txt, tasks.py, channel_delivery.py 외 2개 | dade0263 |
 | 2026-03-26 | 세션 자동 기록 | commit_msg.txt, test_channel_integration_smoke.py, test_migration.py 외 2개 | 73c8e186 |
@@ -23,4 +24,3 @@
 | 2026-03-25 | 세션 자동 기록 | measurement.js, measurement-manual-rows.js, erp_measurement_dashboard.html 외 2개 | 96d53cd2 |
 | 2026-03-25 | 세션 자동 기록 | erp_measurement_dashboard.html, measurement-manual-rows.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_26-03-04________2_-87d5c8bf-c7d4-4538-906c-d4c1b720b541.png 외 2개 | 96d53cd2 |
 | 2026-03-25 | 세션 자동 기록 | erp_measurement_dashboard.html, measurement-image-export.js, measurement-manual-rows.js 외 2개 | 96d53cd2 |
-| 2026-03-25 | 세션 자동 기록 | commit_msg_deploy.txt, erp_template_filters.py, erp-table-image-export-helpers.js 외 2개 | 96d53cd2 |

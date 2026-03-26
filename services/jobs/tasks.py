@@ -263,3 +263,18 @@ def push_order_to_channeltalk(order_id, event_type="update"):
     except Exception as e:
         logger.error(f"[RQ] push_order_to_channeltalk error: {e}", exc_info=True)
         raise
+
+def process_channeltalk_inbound(event_log_id: int):
+    """
+    채널톡 인바운드 웹훅 파싱 및 도메인 생성 (CT-E-03).
+    RQ job으로 enqueue되어 worker에서 실행.
+    """
+    if not event_log_id:
+        return
+        
+    try:
+        from services.channel_inbound import process_inbound_job
+        process_inbound_job(event_log_id)
+    except Exception as e:
+        logger.error(f"[RQ] process_channeltalk_inbound error for log {event_log_id}: {e}", exc_info=True)
+        raise

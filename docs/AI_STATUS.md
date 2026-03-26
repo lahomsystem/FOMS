@@ -6,13 +6,14 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 최근 완료 (최대 5개)
+- [2026-03-26] 채널톡 연동 Phase E (CT-E-01~05): `/api/channel/webhooks` 수신기 구현, Dedupe/Creation Key 생성 로직 적용, 텍스트 파싱(`services/channel_inbound.py`) 및 RQ Worker 기반 Inbound 처리 구현 완료
 - [2026-03-26] 채널톡 연동 Phase D (CT-D-01~04): `/foms 주문`, `/foms 일정`, `/foms 담당` 명령어 파싱 및 응답 서비스 구현 (`channel_quick_actions.py`), WAM 주문 요약 렌더링 뷰 (읽기 전용) 작성 완료
 - [2026-03-26] 채널톡 연동 Phase C (CT-C-01~04): `X-Signature` 기반 HMAC 검증 로직 추가 및 Replay 방어(5분 윈도우) 적용, WAM 독립 세션용 JWT 발급/검증 토큰 생성, 보안 정책 문서 작성 완료
 - [2026-03-26] 채널톡 연동 Phase B & Phase A (CT-B-01~04, CT-A-01~07): 정책(템플릿/라우팅) 기반 `channel_dispatch.py` 구현, Outbox(`ChannelDeliveryLog`) 상태 전이 API 및 RQ Worker 재시도 로직 반영 완료
 - [2026-03-26] 채널톡 연동 Phase 0 (CT-00-01~06, CT-00-CI): Observability API 구현, channel_source_seq 증가 규칙 적용, Bootstrap/Queue 세션 계약 명시, Webhook Payload 샘플 저장 및 CI 연동 스모크 테스트 완료
 
 ## 진행 중
-- [2026-03-26] 채널톡 연동 (Phase D 완료. Phase E 진행 대기 중)
+- [2026-03-26] 채널톡 연동 (Phase E 완료. Phase F 진행 대기 중)
 
 ## 검증 필요
 - [ ] 실측 지도 E2E: /erp/measurement?open_map=1 → 지도 진입, pending/failed/success UI, poll 전체 재구성 확인

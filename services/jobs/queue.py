@@ -110,3 +110,22 @@ def enqueue_channeltalk_push(order_id, event_type="update"):
     except Exception as e:
         logger.error(f"[RQ] enqueue_channeltalk_push error: {e}", exc_info=True)
         return False
+
+def enqueue_channeltalk_inbound(event_log_id: int):
+    """
+    채널톡 인바운드 웹훅 파싱 및 처리 job enqueue (CT-E-05).
+    """
+    q = get_rq_queue()
+    if not q:
+        return False
+    try:
+        q.enqueue(
+            'services.jobs.tasks.process_channeltalk_inbound',
+            event_log_id,
+            job_timeout='5m',
+        )
+        return True
+    except Exception as e:
+        logger.error(f"[RQ] enqueue_channeltalk_inbound error: {e}", exc_info=True)
+        return False
+
