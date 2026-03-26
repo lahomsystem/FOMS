@@ -276,7 +276,7 @@ def api_put_order_structured(order_id):
         setattr(order, 'structured_updated_at', now)
 
         from services.channel_delivery import mark_order_updated_for_channel
-        mark_order_updated_for_channel(order, "update")
+        delivery_id = mark_order_updated_for_channel(order, "update")
 
         address_changed = False
         if structured_data is not None:
@@ -292,8 +292,8 @@ def api_put_order_structured(order_id):
 
         if address_changed:
             enqueue_geocode_order_address(order_id)
-        if structured_data is not None:
-            enqueue_channeltalk_push(order_id, "update")
+        if structured_data is not None and delivery_id:
+            enqueue_channeltalk_push(delivery_id)
 
         total_time = (time.perf_counter() - start_time) * 1000
         logger.info(f"save latency - TOTAL: {total_time:.1f}ms")

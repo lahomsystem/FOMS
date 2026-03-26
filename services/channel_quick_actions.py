@@ -103,10 +103,18 @@ def get_order_manager_text(order_id: str) -> str:
         logger.error("[QuickAction] get_order_manager error: %s", e)
         return "[오류] 담당자 정보를 불러오는 중 서버 오류가 발생했습니다."
 
-def process_foms_command(text: str) -> Dict[str, Any]:
+def process_foms_command(text: str, manager_id: str = None) -> Dict[str, Any]:
     """
     ChannelTalk Command (/foms) 파싱 및 응답 반환
     """
+    if manager_id:
+        from services.channel_identity import is_action_allowed_for_manager
+        if not is_action_allowed_for_manager(manager_id, 'read_order'):
+            return {
+                "type": "text",
+                "text": "❌ 권한이 없습니다. FOMS 계정 연동을 확인해주세요."
+            }
+
     cmd_type, order_num = parse_foms_command(text)
     
     if not cmd_type or not order_num.isdigit():
