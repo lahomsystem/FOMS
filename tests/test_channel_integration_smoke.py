@@ -1,7 +1,12 @@
 """Smoke tests for ChannelTalk Integration (Phase 0)."""
 
 from apps.api import channel_integration
+from apps.api import erp_orders_structured
+from db import db_session
+from models import ChannelDeliveryLog, Order, User
+from services.channel_delivery import mark_order_updated_for_channel
 from services.jobs import queue as queue_module
+from werkzeug.security import generate_password_hash
 
 
 def test_channel_health_endpoint_exists(client):
@@ -106,3 +111,70 @@ def test_rq_runtime_status_falls_back_to_worker_all(monkeypatch):
     status = queue_module.get_rq_runtime_status()
 
     assert status == {"state": "reachable", "worker_count": 2}
+
+
+def test_mark_order_updated_for_channel_returns_delivery_id(app):
+    order = Order(
+        received_date="2026-03-27",
+        customer_name="Tester",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    delivery_id = mark_order_updated_for_channel(order, "update")
+    db_session.commit()
+
+    assert delivery_id is not None
+    log = db_session.get(ChannelDeliveryLog, delivery_id)
+    assert log is not None
+    assert log.status == "pending"
+
+
+def test_payment_confirm_enqueues_channel_delivery(client, monkeypatch):
+    enqueued = []
+
+    def _capture_enqueue(delivery_id):
+        enqueued.append(delivery_id)
+        return True
+
+    monkeypatch.setattr(erp_orders_structured, "enqueue_channeltalk_push", _capture_enqueue)
+
+    user = User(
+        username="channel-admin",
+        password=generate_password_hash("admin"),
+        role="ADMIN",
+        name="Channel Admin",
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    login_response = client.post(
+        "/login",
+        data={"username": "channel-admin", "password": "admin"},
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+
+    order = Order(
+        received_date="2026-03-27",
+        customer_name="Tester",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    r = client.post(
+        f"/api/orders/{order.id}/payment-confirm",
+        json={"type": "deposit", "confirmed": True},
+    )
+
+    assert r.status_code == 200
+    assert len(enqueued) == 1
+    log = db_session.get(ChannelDeliveryLog, enqueued[0])
+    assert log is not None
+    assert log.status == "pending"

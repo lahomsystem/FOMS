@@ -45,6 +45,8 @@ def create_pending_delivery(
         correlation_id=str(uuid.uuid4())
     )
     db.add(log)
+    # Flush so callers can safely enqueue by primary key after their commit.
+    db.flush()
     return log
 
 def mark_delivery_status(db, delivery_id: int, status: str, error_msg: Optional[str] = None, message_id: Optional[str] = None):

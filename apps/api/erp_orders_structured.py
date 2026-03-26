@@ -370,9 +370,11 @@ def api_payment_confirm(order_id):
         flag_modified(order, 'structured_data')
 
         from services.channel_delivery import mark_order_updated_for_channel
-        mark_order_updated_for_channel(order, "update")
+        delivery_id = mark_order_updated_for_channel(order, "update")
 
         db.commit()
+        if delivery_id:
+            enqueue_channeltalk_push(delivery_id)
 
         ret_payment = {
             'deposit': payment_obj.get('deposit', 0),

@@ -20,7 +20,7 @@ from services.erp_permissions import erp_edit_required
 from services.erp_display import get_today_kst, self_measurement_four_checks_done
 from services.erp_shipment_settings import is_order_mine_for_user
 from foms_address_converter import FOMSAddressConverter
-from services.jobs.queue import enqueue_geocode_order_address
+from services.jobs.queue import enqueue_geocode_order_address, enqueue_channeltalk_push
 from services.order_geocode import reset_order_geocode_on_address_change
 
 # 실측 패널 집계용: erp_measurement_dashboard 로직 재사용
@@ -229,10 +229,12 @@ def api_erp_measurement_update(order_id):
             flag_modified(order, 'structured_data')
 
         from services.channel_delivery import mark_order_updated_for_channel
-        mark_order_updated_for_channel(order, "update")
+        delivery_id = mark_order_updated_for_channel(order, "update")
 
         db.commit()
 
+        if delivery_id:
+            enqueue_channeltalk_push(delivery_id)
         if field == 'address':
             queued = enqueue_geocode_order_address(order_id)
             if not queued:
