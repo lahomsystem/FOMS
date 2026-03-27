@@ -17,6 +17,7 @@ from services.erp_shipment_settings import (
     save_erp_shipment_settings,
     normalize_erp_shipment_workers,
 )
+from services.channel_event_payloads import build_shipment_update_payload
 from services.jobs.queue import enqueue_channeltalk_push
 
 logger = logging.getLogger(__name__)
@@ -97,6 +98,9 @@ def api_erp_shipment_update(order_id):
 
         payload = request.get_json(silent=True) or {}
         structured_data = dict(order.structured_data or {})
+        before_shipment = dict((structured_data.get('shipment') or {}))
+        actor = getattr(g, 'current_user', None)
+        actor_name = getattr(actor, 'name', None) or getattr(actor, 'username', None)
 
         if 'shipment' not in structured_data:
             structured_data['shipment'] = {}
@@ -143,7 +147,12 @@ def api_erp_shipment_update(order_id):
         flag_modified(order, 'structured_data')
         
         from services.channel_delivery import mark_order_updated_for_channel
-        delivery_id = mark_order_updated_for_channel(order, "update")
+        delivery_payload = build_shipment_update_payload(before_shipment, shipment, actor_name=actor_name)
+        delivery_id = mark_order_updated_for_channel(
+            order,
+            delivery_payload.get('event_type', 'shipment_updated'),
+            payload=delivery_payload,
+        )
         
         db.commit()
         if delivery_id:

@@ -19,7 +19,8 @@ def create_pending_delivery(
     order_id: int, 
     event_type: str, 
     source_type: str = 'order_event',
-    parent_delivery_id: Optional[int] = None
+    parent_delivery_id: Optional[int] = None,
+    payload: Optional[Dict[str, Any]] = None,
 ) -> ChannelDeliveryLog:
     """CT-A-02: Pending 상태의 DeliveryLog 생성"""
     order = db.query(Order).filter(Order.id == order_id).first()
@@ -38,11 +39,14 @@ def create_pending_delivery(
         source_id=order_id,
         target_type='group',
         target_id=target_group_id,
+        target_group_snapshot=target_group_id,
         status='pending',
         order_id=order_id,
         source_version=order.channel_source_seq,
         parent_delivery_id=parent_delivery_id,
-        correlation_id=str(uuid.uuid4())
+        correlation_id=str(uuid.uuid4()),
+        template_key=event_type,
+        masked_request_payload=mask_payload(payload),
     )
     db.add(log)
     # Flush so callers can safely enqueue by primary key after their commit.
@@ -160,7 +164,11 @@ def check_legacy_only_success_after_cutover(db) -> int:
                 
     return drift_count
 
-def mark_order_updated_for_channel(order: Order, event_type: str = 'update') -> Optional[int]:
+def mark_order_updated_for_channel(
+    order: Order,
+    event_type: str = 'update',
+    payload: Optional[Dict[str, Any]] = None,
+) -> Optional[int]:
     """
     주문이 변경되어 ChannelTalk 동기화가 필요함을 마킹합니다.
     CT-00-04: channel_source_seq를 증가시켜 동시성 제어 및 메시지 순서 보장의 기반을 마련합니다.
@@ -174,7 +182,7 @@ def mark_order_updated_for_channel(order: Order, event_type: str = 'update') -> 
     try:
         db = db_session.object_session(order)
         if db:
-            log = create_pending_delivery(db, order.id, event_type)
+            log = create_pending_delivery(db, order.id, event_type, payload=payload)
             return log.id
     except Exception as e:
         logger.error("[ChannelDelivery] Failed to create pending delivery: %s", e)

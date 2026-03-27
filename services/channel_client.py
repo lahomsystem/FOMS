@@ -131,7 +131,7 @@ def format_order_message(
     if construction_date:
         parts.append(f"시공일: {construction_date}")
 
-    parts.append(f"{FOMS_BASE_URL}/orders/{order_id}/erp")
+    parts.append(f"{FOMS_BASE_URL}/erp/orders/{order_id}")
 
     return "\n".join(parts)
 

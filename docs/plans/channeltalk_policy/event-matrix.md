@@ -1,22 +1,28 @@
 # Event Severity & Routing Matrix (CT-B-01)
 
-## 1. Severity Levels (긴급도 분류)
-이벤트는 시스템 부하와 수신자의 피로도를 관리하기 위해 3단계로 분류한다.
+## 1. Severity Levels
 
-| 레벨 (Severity) | 의미 | 예시 이벤트 | Dedupe Window | Broadcast 여부 |
+| Severity | 설명 | 예시 이벤트 | Dedupe Window | Broadcast |
 | --- | --- | --- | --- | --- |
-| **URGENT** (긴급) | 즉각적인 조치가 필요하거나 치명적인 일정 변경 | 긴급 AS 접수, 당일 실측 취소, 결제/계약 오류 | 0초 (즉시 발송) | 허용 (`@all`) |
-| **NORMAL** (일반) | 업무 진행을 위한 상태 변경 알림 | 실측 완료, 도면 확정, 시공 배정, 수동 푸시 | 60초 | 기본 미허용 (특정 담당자 멘션만) |
-| **INFO** (참고) | 참고용 정보, 당장 조치가 필요 없는 변경 | 고객 정보 수정, 배송 예정일 단순 변경 | 300초 | 미허용 (조용히 전달) |
+| `URGENT` | 즉시 확인이 필요한 건 | `urgent`, `as_urgent` | 0초 | 허용 (`@all`) |
+| `NORMAL` | 담당자 대응이 필요한 일반 변경 | `stage_changed`, `manager_changed`, `owner_team_changed`, `schedule_changed`, `shipment_updated`, `payment_confirmation_changed`, `manual` | 60초 | 기본 미사용 |
+| `INFO` | 참고성 변경 | `order_updated` | 300초 | 미사용 |
 
-## 2. Event Matrix & Routing (이벤트별 그룹 매핑)
-ChannelTalk 그룹(채널) 라우팅 정책 정의.
+## 2. Event Matrix & Routing
 
 | Event Key | Trigger 시점 | Severity | Target Group | Fallback Group | 비고 |
 | --- | --- | --- | --- | --- | --- |
-| `order.measurement_completed` | 실측 완료/보고서 업로드 시 | NORMAL | `MEASUREMENT_GROUP` | `GENERAL_GROUP` | |
-| `order.drawing_approved` | 고객 도면 확정 시 | NORMAL | `DRAWING_GROUP` | `GENERAL_GROUP` | |
-| `order.construction_assigned` | 시공 담당자 배정 시 | NORMAL | `CONSTRUCTION_GROUP` | `GENERAL_GROUP` | |
-| `order.as_urgent_received` | 긴급 AS 접수 시 | URGENT | `AS_GROUP` | `GENERAL_GROUP` | 전체 멘션 발송 |
-| `order.manual_push` | ERP Beta에서 수동 푸시 버튼 클릭 | NORMAL | `MEASUREMENT_GROUP` (임시) | `GENERAL_GROUP` | 사용자가 지정한 그룹으로 라우팅 확장 예정 |
-| `order.info_updated` | 주소/연락처 등 기본 정보 변경 시 | INFO | `GENERAL_GROUP` | - | |
+| `stage_changed` | workflow.stage 변경 | `NORMAL` | `MEASUREMENT_GROUP` | `GENERAL_GROUP` | 현재 runtime 구현 |
+| `manager_changed` | 실측 담당 변경 | `NORMAL` | `MEASUREMENT_GROUP` | `GENERAL_GROUP` | 현재 runtime 구현 |
+| `owner_team_changed` | owner team 변경 | `NORMAL` | `MEASUREMENT_GROUP` | `GENERAL_GROUP` | structured 저장 경로 |
+| `schedule_changed` | 실측일/시공일 변경 | `NORMAL` | `MEASUREMENT_GROUP` | `GENERAL_GROUP` | structured 저장 경로 |
+| `shipment_updated` | 출고/시공 설정 변경 | `NORMAL` | `MEASUREMENT_GROUP` | `GENERAL_GROUP` | 현재 runtime 구현 |
+| `payment_confirmation_changed` | 계약금/잔금 확인 변경 | `NORMAL` | `MEASUREMENT_GROUP` | `GENERAL_GROUP` | 현재 runtime 구현 |
+| `order_updated` | 주소/연락처 등 일반 정보 변경 | `INFO` | `MEASUREMENT_GROUP` | `GENERAL_GROUP` | 현재 runtime 구현 |
+| `urgent` | 긴급 플래그 on 또는 긴급 사유 알림 | `URGENT` | `MEASUREMENT_GROUP` | `GENERAL_GROUP` | 필요 시 `@all` |
+| `manual` | ERP Beta 수동 푸시 | `NORMAL` | `MEASUREMENT_GROUP` | `GENERAL_GROUP` | 운영자 입력 본문 사용 |
+
+## 3. 2026-03-27 구현 메모
+- 현재 runtime은 `template_key` + `masked_request_payload`를 기준으로 이벤트를 렌더링한다.
+- `event_key`는 dedupe/stale 판정용 식별자이며, 메시지 의미를 복원하는 1차 source는 아니다.
+- 라우팅은 아직 단일 기본 그룹(`CHANNEL_GROUP_MEASUREMENT`) 중심이며, event-specific 분기는 추후 확장 범위다.

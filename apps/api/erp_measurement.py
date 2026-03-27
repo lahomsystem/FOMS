@@ -18,6 +18,7 @@ from models import Order
 from apps.auth import login_required, role_required
 from services.erp_permissions import erp_edit_required
 from services.erp_display import get_today_kst, self_measurement_four_checks_done
+from services.channel_event_payloads import build_field_change_payload
 from services.erp_shipment_settings import is_order_mine_for_user
 from foms_address_converter import FOMSAddressConverter
 from services.jobs.queue import enqueue_geocode_order_address, enqueue_channeltalk_push
@@ -199,25 +200,55 @@ def api_erp_measurement_update(order_id):
             return jsonify({'success': False, 'message': '필드명이 필요합니다.'}), 400
 
         structured_data = copy.deepcopy(order.structured_data or {})
+        actor = getattr(g, 'current_user', None)
+        actor_name = getattr(actor, 'name', None) or getattr(actor, 'username', None)
+        delivery_payload = None
 
         if field == 'manager':
+            before_value = ((structured_data.get('parties') or {}).get('manager') or {}).get('name') or order.manager_name
             if 'parties' not in structured_data:
                 structured_data['parties'] = {}
             if 'manager' not in structured_data['parties']:
                 structured_data['parties']['manager'] = {}
             structured_data['parties']['manager']['name'] = value
             order.manager_name = value
+            delivery_payload = build_field_change_payload(
+                label='담당자',
+                before=before_value,
+                after=value,
+                event_type='manager_changed',
+                event_title='담당자 변경',
+                actor_name=actor_name,
+            )
 
         elif field == 'address':
+            before_value = order.address
             reset_order_geocode_on_address_change(order, value)
+            delivery_payload = build_field_change_payload(
+                label='주소',
+                before=before_value,
+                after=value,
+                event_type='order_updated',
+                event_title='정보 변경',
+                actor_name=actor_name,
+            )
 
         elif field == 'phone':
+            before_value = ((structured_data.get('parties') or {}).get('customer') or {}).get('phone') or order.phone
             if 'parties' not in structured_data:
                 structured_data['parties'] = {}
             if 'customer' not in structured_data['parties']:
                 structured_data['parties']['customer'] = {}
             structured_data['parties']['customer']['phone'] = value
             order.phone = value
+            delivery_payload = build_field_change_payload(
+                label='연락처',
+                before=before_value,
+                after=value,
+                event_type='order_updated',
+                event_title='정보 변경',
+                actor_name=actor_name,
+            )
 
         else:
             return jsonify({'success': False, 'message': f'지원하지 않는 필드: {field}'}), 400
@@ -229,7 +260,11 @@ def api_erp_measurement_update(order_id):
             flag_modified(order, 'structured_data')
 
         from services.channel_delivery import mark_order_updated_for_channel
-        delivery_id = mark_order_updated_for_channel(order, "update")
+        delivery_id = mark_order_updated_for_channel(
+            order,
+            (delivery_payload or {}).get('event_type', 'order_updated'),
+            payload=delivery_payload,
+        )
 
         db.commit()
 

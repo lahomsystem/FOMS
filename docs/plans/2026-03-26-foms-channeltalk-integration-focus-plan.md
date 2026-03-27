@@ -32,7 +32,7 @@
 | 영역 | 현재 상태 | 근거 파일 |
 |------|-----------|-----------|
 | 수동 푸시 | ERP Beta에서 ChannelTalk 수동 전송 가능 | `templates/partials/erp_beta_tab.html`, `templates/partials/erp_beta_js.html`, `apps/api/channel_integration.py` |
-| 자동 푸시 | 구조화 저장 후 queue 기반 enqueue 수행 | `apps/api/erp_orders_structured.py`, `services/jobs/queue.py`, `services/jobs/tasks.py` |
+| 자동 푸시 | 구조화 저장, 실측 수정, 출고 설정 수정, 결제 확인 변경은 diff payload와 함께 outbox enqueue 수행 | `apps/api/erp_orders_structured.py`, `apps/api/erp_measurement.py`, `apps/api/erp_shipment_settings.py`, `services/jobs/queue.py`, `services/jobs/tasks.py` |
 | Channel API 래퍼 | `issueToken`, `writeGroupMessage`, 상태별 그룹 라우팅 구현 | `services/channel_client.py` |
 | 앱 연결점 | ChannelTalk API용 blueprint 등록 완료 | `app.py`, `apps/api/channel_integration.py` |
 | 운영 분석 | Google Sheet/Webhook 충돌 분석 문서 존재 | `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md` |
@@ -55,6 +55,22 @@
 - `models.User`에는 ChannelTalk manager 식별자를 저장할 구조가 없다.
 
 이 공백 때문에 지금 연동은 "동작은 가능하지만 운영 보장과 관측성이 약한 상태"다.
+
+### 2.4 2026-03-27 구현 반영 메모
+- automatic push는 이제 outbox row 생성 시 `template_key`, `masked_request_payload`에 이벤트별 diff payload를 함께 저장한다.
+- worker는 `event_key`를 추측용 fallback으로만 쓰고, 기본적으로 저장된 `template_key`와 payload snapshot을 사용해 본문을 만든다.
+- 현재 diff-aware automatic push가 적용된 경로는 다음 4개다.
+  - structured 저장
+  - 실측 담당/주소/연락처 수정
+  - 출고/시공 설정 수정
+  - 결제 확인 변경
+- 주문 상세 링크 계약은 다음처럼 고정한다.
+  - primary: `/channel/wam/?launch_token=...`
+  - fallback: `/edit/{order_id}?open=erp-beta`
+  - legacy compatibility: `/erp/orders/{order_id}`는 Flask redirect로 유지
+- `services/channel_dispatch.py`와 `services/channel_policy.py`는 현재 runtime contract 기준으로 위 링크 계약과 change-lines 렌더링을 사용한다.
+
+이 메모는 2026-03-27 기준 구현 상태를 반영하며, 위 범위에 대해서는 기존 2.2~2.3의 미구현 서술보다 우선한다.
 
 ## 3. ChannelTalk 공식 문서 기반 제약
 
@@ -275,6 +291,13 @@
 - 큐 등록 실패와 API 전송 실패를 구분한다.
 - 최종 실패 건은 운영자가 재전송할 수 있어야 한다.
 - "성공 여부를 모르는 상태"를 없애는 것이 목표다.
+
+추가 구현 메모:
+- automatic push의 runtime payload는 최소 `event_type`, `event_title`, `change_lines`, `changed_by`, optional `reason`를 가진다.
+- worker는 `event_key` 문자열 파싱보다 `template_key`와 `masked_request_payload`를 우선 신뢰한다.
+- `rendered_text_snapshot`과 `target_group_snapshot`은 worker 전송 시점에 실제 발송 본문/그룹 기준으로 채운다.
+- 주문 상세 링크는 `WAM launch token URL`을 primary로 쓰고, 토큰 생성 실패 시 `/edit/{order_id}?open=erp-beta` fallback을 사용한다.
+- legacy 링크 호환을 위해 `/erp/orders/{order_id}`는 redirect route로 유지한다.
 
 ### 5.7 WAM 인증/부트스트랩 계약
 - `/channel/wam`은 raw query param의 `channel_manager_id`를 신뢰하지 않는다.
