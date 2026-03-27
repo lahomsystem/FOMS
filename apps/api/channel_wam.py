@@ -51,5 +51,5 @@ def wam_index():
         'channel_wam_index.html', 
         summary=summary, 
         attachments=attachments,
-        token=request.args.get('token')
+        token=request.args.get('launch_token')
     )
