@@ -1,45 +1,76 @@
 # Message Template Catalog (CT-B-02)
 
 ## 1. 템플릿 작성 규칙
-- **가독성 (Readability)**: 길고 복잡한 텍스트보다 불릿(Bullet) 위주의 간결한 요약.
-- **Prefix**: 모든 자동화 메시지는 `[시스템 알림]` 또는 `[긴급]`과 같은 Prefix를 달아 사람이 직접 보낸 메시지와 구분한다.
-- **링크 (Call-to-Action)**: 주문번호/고객명을 클릭하면 ERP의 해당 주문 상세 페이지로 이동하는 링크를 포함한다.
+- 가독성: 변경 핵심은 1~3줄 안에서 바로 보이게 한다.
+- Prefix: manual과 automatic을 구분한다.
+- Diff first: automatic push는 무엇이 어떻게 바뀌었는지 `이전 -> 이후` 형식으로 먼저 보여준다.
+- CTA: 주문 상세 링크는 아래 계약을 따른다.
+  - primary: `{erp_url}/channel/wam/?launch_token={launch_token}`
+  - fallback: `{erp_url}/edit/{order_id}?open=erp-beta`
+  - legacy compatibility: `{erp_url}/erp/orders/{order_id}`는 서버에서 redirect 처리
 
 ## 2. 기본 템플릿 목록
 
-### 2.1. 실측 완료 (`measurement_completed`)
+### 2.1 상태 변경 (`stage_changed`)
 ```text
-[실측완료] 주문 #{order_id} - {customer_name} 고객님
-실측이 완료되어 보고서가 업로드되었습니다.
-도면팀은 확인 후 도면 작업을 진행해 주세요.
+[알림] 주문 #{order_id} 상태 변경
 
-📍 주소: {address}
-⏰ 실측일: {measurement_date}
-🔗 주문 상세 보기: {erp_url}/erp/orders/{order_id}
+- 상태: {before_stage} -> {after_stage}
+
+변경자: {changed_by}
+
+🔗 주문 상세 보기: {erp_url}/channel/wam/?launch_token={launch_token}
 ```
 
-### 2.2. 도면 확정 (`drawing_approved`)
+### 2.2 담당자 변경 (`manager_changed`)
 ```text
-[도면확정] 주문 #{order_id} - {customer_name} 고객님
-도면이 최종 확정되었습니다. 생산/시공 일정을 확인해 주세요.
+[알림] 주문 #{order_id} 담당자 변경
 
-🔗 주문 상세 보기: {erp_url}/erp/orders/{order_id}
+- 담당자: {before_manager} -> {after_manager}
+
+변경자: {changed_by}
+
+🔗 주문 상세 보기: {erp_url}/channel/wam/?launch_token={launch_token}
 ```
 
-### 2.3. 긴급 알림 (`urgent_notice`)
+### 2.3 출고/시공 정보 변경 (`shipment_updated`)
 ```text
-🚨 [긴급] 주문 #{order_id} - {customer_name} 고객님
+[알림] 주문 #{order_id} 출고/시공 정보 변경
+
+- 시공시간: {before_time} -> {after_time}
+- 시공자: {before_workers} -> {after_workers}
+
+변경자: {changed_by}
+
+🔗 주문 상세 보기: {erp_url}/channel/wam/?launch_token={launch_token}
+```
+
+### 2.4 결제 확인 변경 (`payment_confirmation_changed`)
+```text
+[알림] 주문 #{order_id} 결제 확인 변경
+
+- 계약금 확인: 미확인 -> 확인
+
+변경자: {changed_by}
+
+🔗 주문 상세 보기: {erp_url}/channel/wam/?launch_token={launch_token}
+```
+
+### 2.5 긴급 알림 (`urgent`)
+```text
+🚨 [긴급] 주문 #{order_id} - {customer_name} 고객
 {urgent_reason}
 관련 담당자는 즉시 확인 바랍니다. @all
 
-🔗 주문 상세 보기: {erp_url}/erp/orders/{order_id}
+🔗 주문 상세 보기: {erp_url}/channel/wam/?launch_token={launch_token}
 ```
 
-### 2.4. 수동 푸시 (`manual_push`)
+### 2.6 수동 푸시 (`manual`)
 ```text
 [ERP 푸시] 주문 #{order_id} - {customer_name}
 {user_message}
 
-🔗 주문 상세 보기: {erp_url}/erp/orders/{order_id}
+🔗 주문 상세 보기: {erp_url}/channel/wam/?launch_token={launch_token}
 ```
-*(재전송 시 `[수정]` Prefix 추가됨)*
+
+재전송은 `[수정]` prefix를 사용한다.

@@ -31,6 +31,7 @@ from erp_order_text_parser import parse_order_text
 from services.geocode_helpers import extract_address_from_structured_data
 from services.jobs.queue import enqueue_geocode_order_address, enqueue_channeltalk_push
 from services.order_geocode import reset_order_geocode_on_address_change
+from services.channel_event_payloads import build_payment_confirmation_payload, build_structured_update_payload
 
 TEAM_LABELS = {
     'CS': '라홈팀', 'SALES': '영업팀', 'MEASURE': '실측팀',
@@ -38,6 +39,16 @@ TEAM_LABELS = {
 }
 
 erp_orders_structured_bp = Blueprint('erp_orders_structured', __name__, url_prefix='/api')
+
+
+def _get_actor_name(db: Session) -> Optional[str]:
+    user_id = session.get('user_id')
+    if not user_id:
+        return session.get('username')
+    user = db.query(User).filter(User.id == user_id).first()
+    return user.name if user and getattr(user, 'name', None) else (session.get('username') or None)
+
+
 def _handle_stage_transition(
     db: Session,
     order: Order,
@@ -276,7 +287,12 @@ def api_put_order_structured(order_id):
         setattr(order, 'structured_updated_at', now)
 
         from services.channel_delivery import mark_order_updated_for_channel
-        delivery_id = mark_order_updated_for_channel(order, "update")
+        delivery_payload = build_structured_update_payload(old_sd, structured_data or {}, _get_actor_name(db))
+        delivery_id = mark_order_updated_for_channel(
+            order,
+            delivery_payload.get('event_type', 'order_updated'),
+            payload=delivery_payload,
+        )
 
         address_changed = False
         if structured_data is not None:
@@ -349,6 +365,7 @@ def api_payment_confirm(order_id):
             structured_data['payment'] = {}
         
         payment_obj = structured_data['payment']
+        before_confirmed = bool(payment_obj.get(f'{payment_type}_confirmed'))
         now_str = datetime.datetime.now().isoformat()
         
         user_id = session.get('user_id')
@@ -370,7 +387,17 @@ def api_payment_confirm(order_id):
         flag_modified(order, 'structured_data')
 
         from services.channel_delivery import mark_order_updated_for_channel
-        delivery_id = mark_order_updated_for_channel(order, "update")
+        delivery_payload = build_payment_confirmation_payload(
+            payment_type=payment_type,
+            before_confirmed=before_confirmed,
+            after_confirmed=confirmed,
+            actor_name=user_name,
+        )
+        delivery_id = mark_order_updated_for_channel(
+            order,
+            delivery_payload.get('event_type', 'payment_confirmation_changed'),
+            payload=delivery_payload,
+        )
 
         db.commit()
         if delivery_id:

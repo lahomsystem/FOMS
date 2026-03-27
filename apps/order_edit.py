@@ -21,6 +21,14 @@ from services.order_geocode import (
 order_edit_bp = Blueprint('order_edit', __name__, url_prefix='')
 
 
+@order_edit_bp.route('/erp/orders/<int:order_id>')
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def redirect_legacy_erp_order_detail(order_id):
+    """Redirect legacy ChannelTalk order links to the actual ERP Beta detail page."""
+    return redirect(url_for('order_edit.edit_order', order_id=order_id, open='erp-beta'))
+
+
 @order_edit_bp.route('/edit/<int:order_id>', methods=['GET', 'POST'])
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
