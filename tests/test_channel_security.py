@@ -7,10 +7,12 @@ from flask import Flask
 import pytest
 
 from services.channel_security import (
+    generate_wam_short_link_token,
     verify_channel_signature,
     require_channel_signature,
     generate_wam_launch_token,
-    verify_wam_launch_token
+    verify_wam_launch_token,
+    verify_wam_short_link_token,
 )
 
 @pytest.fixture
@@ -131,4 +133,20 @@ def test_wam_token_expiration(monkeypatch):
     
     # max_age = -1 should immediately expire it
     payload = verify_wam_launch_token(token, max_age=-1)
+    assert payload is None
+
+
+def test_wam_short_link_generation_and_verification():
+    token = generate_wam_short_link_token(456)
+    assert token is not None
+
+    payload = verify_wam_short_link_token(token)
+    assert payload is not None
+    assert payload['order_id'] == 456
+
+
+def test_wam_short_link_expiration():
+    token = generate_wam_short_link_token(1)
+
+    payload = verify_wam_short_link_token(token, max_age=-1)
     assert payload is None

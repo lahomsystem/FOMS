@@ -300,7 +300,8 @@ from apps.api.channel_functions import channel_functions_bp
 app.register_blueprint(channel_functions_bp)
 from apps.api.channel_webhooks import channel_webhooks_bp
 app.register_blueprint(channel_webhooks_bp)
-from apps.api.channel_wam import channel_wam_bp
+from apps.api.channel_wam import channel_shortlink_bp, channel_wam_bp
+app.register_blueprint(channel_shortlink_bp)
 app.register_blueprint(channel_wam_bp)
 
 from apps.api.debug import debug_bp

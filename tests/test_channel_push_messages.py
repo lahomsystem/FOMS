@@ -28,7 +28,7 @@ def _login_admin(client, username="channel-admin", password="admin"):
 
 def test_build_message_template_renders_change_lines_and_wam_link(monkeypatch):
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
-    monkeypatch.setattr(channel_security, "generate_wam_launch_token", lambda manager_id, order_id=None: "launch-123")
+    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
 
     message = channel_policy.build_message_template(
         "stage_changed",
@@ -48,7 +48,7 @@ def test_build_message_template_renders_change_lines_and_wam_link(monkeypatch):
     assert "- 상태: 실측 -> 도면" in message
     assert "- 담당자: 이시영 -> 망고" in message
     assert "변경자: 관리자A" in message
-    assert "https://example.com/channel/wam/?launch_token=launch-123" in message
+    assert "https://example.com/w/short-123" in message
 
 
 def test_mark_order_updated_for_channel_stores_template_key_and_payload(app):
@@ -79,7 +79,7 @@ def test_mark_order_updated_for_channel_stores_template_key_and_payload(app):
 def test_dispatch_channel_push_uses_stored_payload_for_multiword_event(app, monkeypatch):
     monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "group-1")
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
-    monkeypatch.setattr(channel_security, "generate_wam_launch_token", lambda manager_id, order_id=None: "launch-123")
+    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
 
     captured = {}
 

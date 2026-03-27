@@ -20,6 +20,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-foms-secret-key-123')
 
 # WAM 세션용 토큰 생성기 (최대 1시간 유효)
 wam_serializer = URLSafeTimedSerializer(SECRET_KEY, salt='wam-launch-token')
+wam_shortlink_serializer = URLSafeTimedSerializer(SECRET_KEY, salt='wam-short-link')
 
 def verify_channel_signature(raw_body: bytes, signature: str) -> bool:
     """
@@ -95,6 +96,14 @@ def generate_wam_launch_token(manager_id: str, order_id: int = None) -> str:
     }
     return wam_serializer.dumps(payload)
 
+
+def generate_wam_short_link_token(order_id: int) -> str:
+    """
+    채널톡 메시지 노출용 짧은 링크 토큰.
+    실제 launch_token은 링크 클릭 시 재발급한다.
+    """
+    return wam_shortlink_serializer.dumps(int(order_id))
+
 def verify_wam_launch_token(token: str, max_age: int = 3600) -> dict:
     """
     WAM 토큰 검증. 최대 max_age 초 이내에만 유효.
@@ -106,4 +115,25 @@ def verify_wam_launch_token(token: str, max_age: int = 3600) -> dict:
         return None
     except BadSignature:
         logger.warning("[ChannelSecurity] Invalid WAM token")
+        return None
+
+
+def verify_wam_short_link_token(token: str, max_age: int = 30 * 24 * 3600) -> dict:
+    """
+    짧은 WAM 링크 토큰 검증.
+    채팅 이력에서 다시 열 수 있도록 launch_token보다 긴 기본 만료를 둔다.
+    """
+    try:
+        payload = wam_shortlink_serializer.loads(token, max_age=max_age)
+        if isinstance(payload, int):
+            return {'order_id': payload}
+        if isinstance(payload, str) and payload.isdigit():
+            return {'order_id': int(payload)}
+        logger.warning("[ChannelSecurity] Invalid WAM short link payload type")
+        return None
+    except SignatureExpired:
+        logger.warning("[ChannelSecurity] WAM short link expired")
+        return None
+    except BadSignature:
+        logger.warning("[ChannelSecurity] Invalid WAM short link token")
         return None

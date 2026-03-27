@@ -6,7 +6,7 @@ from services.channel_quick_actions import (
     parse_foms_command,
     process_foms_command,
 )
-from services.channel_security import generate_wam_launch_token
+from services.channel_security import generate_wam_launch_token, generate_wam_short_link_token
 
 
 ORDER_CMD = "\uc8fc\ubb38"
@@ -144,3 +144,42 @@ def test_channel_wam_page_renders_structured_summary(client, app):
     assert "Kitchen Set" in body
     assert "Mango" in body
     assert "2026-03-28" in body
+
+
+def test_short_wam_link_redirects_to_wam_page(client, app):
+    with app.app_context():
+        order = Order(
+            received_date="2026-03-27",
+            customer_name="ERP Beta",
+            phone="000-0000-0000",
+            address="-",
+            product="ERP Beta",
+            status="RECEIVED",
+            is_erp_beta=True,
+            structured_data={
+                "workflow": {"stage": "DRAWING"},
+                "parties": {
+                    "customer": {"name": "Real Customer", "phone": "010-1234-5678"},
+                    "manager": {"name": "Mango"},
+                },
+                "site": {"address_full": "Seoul Teheran-ro 123"},
+                "items": [{"product_name": "Kitchen Set"}],
+                "schedule": {
+                    "measurement": {"date": "2026-03-28"},
+                    "construction": {"date": "2026-04-01"},
+                },
+            },
+        )
+        db_session.add(order)
+        db_session.commit()
+        token = generate_wam_short_link_token(order.id)
+
+    response = client.get(f"/w/{token}", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert "/channel/wam/?launch_token=" in response.headers["Location"]
+
+    final_response = client.get(f"/w/{token}", follow_redirects=True)
+    body = final_response.get_data(as_text=True)
+    assert final_response.status_code == 200
+    assert "Real Customer" in body
