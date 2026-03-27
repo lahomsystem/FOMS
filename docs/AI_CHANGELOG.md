@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-27 | 세션 자동 기록 | commit_msg.txt, map_view.html, erp_map.py 외 2개 | c7029094 |
 | 2026-03-27 | 세션 자동 기록 | map_view.html, erp_map.py, map_snapshot.py 외 2개 | e7963f59 |
 | 2026-03-26 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-7029bb25-5f7f-449b-a3a4-271755a896aa.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-99043cae-32ee-4000-a106-6092ed16b89f.png, channel_integration.py 외 2개 | 00711fae |
 | 2026-03-26 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-99043cae-32ee-4000-a106-6092ed16b89f.png, channel_integration.py, admin.html 외 2개 | 00711fae |
@@ -23,4 +24,3 @@
 | 2026-03-26 | 세션 자동 기록 | commit_msg.txt, test_channel_integration_smoke.py, test_migration.py 외 2개 | 73c8e186 |
 | 2026-03-26 | 세션 자동 기록 | commit_msg.txt, channel_webhooks.py, channel_wam.py 외 2개 | c8266069 |
 | 2026-03-26 | 세션 자동 기록 | commit_msg.txt, test_scripts.js, map_view.html 외 2개 | fa0d9532 |
-| 2026-03-26 | 세션 자동 기록 | test_scripts.js, map_view.html, erp_measurement_dashboard.html 외 2개 | bc95ceef |
