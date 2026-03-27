@@ -1,61 +1,146 @@
-import pytest
+from db import db_session
+from models import Order
 from services.channel_quick_actions import (
+    STATUS_MAP,
+    get_order_summary_for_wam,
     parse_foms_command,
     process_foms_command,
-    get_order_summary_for_wam,
-    get_order_summary_text
 )
-from models import Order
-from db import db_session
+from services.channel_security import generate_wam_launch_token
+
+
+ORDER_CMD = "\uc8fc\ubb38"
+SCHEDULE_CMD = "\uc77c\uc815"
+
 
 def test_parse_foms_command():
-    cmd, param = parse_foms_command("주문 123")
-    assert cmd == "주문"
+    cmd, param = parse_foms_command(f"{ORDER_CMD} 123")
+    assert cmd == ORDER_CMD
     assert param == "123"
-    
-    cmd, param = parse_foms_command("일정 456")
-    assert cmd == "일정"
+
+    cmd, param = parse_foms_command(f"{SCHEDULE_CMD} 456")
+    assert cmd == SCHEDULE_CMD
     assert param == "456"
-    
-    cmd, param = parse_foms_command("잘못된입력")
+
+    cmd, param = parse_foms_command("invalid")
     assert cmd == ""
     assert param == ""
 
+
 def test_process_foms_command_invalid(app):
     with app.app_context():
-        res = process_foms_command("이상한명령 123")
-        assert "사용 가능한 명령어" in res["result"]["text"]
-        
-        res = process_foms_command("주문 abc")
-        assert "사용 가능한 명령어" in res["result"]["text"]
+        res = process_foms_command("unknown 123")
+        assert "/foms" in res["result"]["text"]
+
+        res = process_foms_command(f"{ORDER_CMD} abc")
+        assert "/foms" in res["result"]["text"]
+
 
 def test_process_foms_command_order_not_found(app):
     with app.app_context():
-        res = process_foms_command("주문 99999")
-        assert "[오류]" in res["result"]["text"]
+        res = process_foms_command(f"{ORDER_CMD} 99999")
         assert "99999" in res["result"]["text"]
+
 
 def test_process_foms_command_success(app):
     with app.app_context():
         order = Order(
             received_date="2026-03-26",
-            customer_name="퀵액션고객",
+            customer_name="Legacy Customer",
             phone="010-9999-8888",
-            address="서울시 강남구",
+            address="Seoul Gangnam-gu",
             status="RECEIVED",
-            product="테스트소파"
+            product="Legacy Product",
         )
         db_session.add(order)
         db_session.commit()
-        
-        res = process_foms_command(f"주문 {order.id}")
+
+        res = process_foms_command(f"{ORDER_CMD} {order.id}")
         text = res["result"]["text"]
-        assert "요약" in text
-        assert "퀵액션고객" in text
-        assert "테스트소파" in text
-        
-        # WAM 요약 테스트
+        assert "Legacy Customer" in text
+        assert "Legacy Product" in text
+
         wam_data = get_order_summary_for_wam(order.id)
         assert wam_data is not None
-        assert wam_data["customer_name"] == "퀵액션고객"
-        assert wam_data["status_kr"] == "접수"
+        assert wam_data["customer_name"] == "Legacy Customer"
+        assert wam_data["status_kr"] == STATUS_MAP["RECEIVED"]
+
+
+def test_get_order_summary_for_wam_uses_structured_data_for_erp_beta(app):
+    with app.app_context():
+        order = Order(
+            received_date="2026-03-27",
+            customer_name="ERP Beta",
+            phone="000-0000-0000",
+            address="-",
+            product="ERP Beta",
+            status="RECEIVED",
+            is_erp_beta=True,
+            structured_data={
+                "workflow": {"stage": "DRAWING"},
+                "parties": {
+                    "customer": {"name": "Real Customer", "phone": "010-1234-5678"},
+                    "manager": {"name": "Mango"},
+                },
+                "site": {"address_full": "Seoul Teheran-ro 123"},
+                "items": [{"product_name": "Kitchen Set"}],
+                "schedule": {
+                    "measurement": {"date": "2026-03-28"},
+                    "construction": {"date": "2026-04-01"},
+                },
+            },
+        )
+        db_session.add(order)
+        db_session.commit()
+
+        wam_data = get_order_summary_for_wam(order.id)
+
+        assert wam_data is not None
+        assert wam_data["customer_name"] == "Real Customer"
+        assert wam_data["phone"] == "010-1234-5678"
+        assert wam_data["address"] == "Seoul Teheran-ro 123"
+        assert wam_data["product"] == "Kitchen Set"
+        assert wam_data["measurement_date"] == "2026-03-28"
+        assert wam_data["construction_date"] == "2026-04-01"
+        assert wam_data["manager_name"] == "Mango"
+        assert wam_data["status_kr"] != "RECEIVED"
+
+
+def test_channel_wam_page_renders_structured_summary(client, app):
+    with app.app_context():
+        order = Order(
+            received_date="2026-03-27",
+            customer_name="ERP Beta",
+            phone="000-0000-0000",
+            address="-",
+            product="ERP Beta",
+            status="RECEIVED",
+            is_erp_beta=True,
+            structured_data={
+                "workflow": {"stage": "DRAWING"},
+                "parties": {
+                    "customer": {"name": "Real Customer", "phone": "010-1234-5678"},
+                    "manager": {"name": "Mango"},
+                },
+                "site": {"address_full": "Seoul Teheran-ro 123"},
+                "items": [{"product_name": "Kitchen Set"}],
+                "schedule": {
+                    "measurement": {"date": "2026-03-28"},
+                    "construction": {"date": "2026-04-01"},
+                },
+            },
+        )
+        db_session.add(order)
+        db_session.commit()
+        token = generate_wam_launch_token("wam_viewer", order.id)
+
+    response = client.get(f"/channel/wam/?launch_token={token}")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "Real Customer" in body
+    assert "010-1234-5678" in body
+    assert "Seoul Teheran-ro 123" in body
+    assert "Kitchen Set" in body
+    assert "Mango" in body
+    assert "2026-03-28" in body

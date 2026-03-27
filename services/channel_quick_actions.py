@@ -3,11 +3,13 @@ ChannelTalk Quick Actions Service (Phase D)
 - 읽기 전용 Quick Action: 명령어 처리 및 WAM 데이터 조회
 - 주문 요약, 일정 요약, 담당 요약, 첨부파일 목록 조회 지원
 """
+from copy import deepcopy
 import logging
 from typing import Dict, Any, Tuple
 from models import Order, OrderAttachment
 from services.storage import get_storage
 from db import get_db
+from services.erp_display import _ensure_dict, _erp_get_stage, apply_erp_display_fields
 
 logger = logging.getLogger(__name__)
 
@@ -148,20 +150,27 @@ def get_order_summary_for_wam(order_id: int) -> dict:
     if not order:
         return None
         
-    status_kr = STATUS_MAP.get(order.status, order.status)
-    sd = order.structured_data or {}
-    sched = sd.get('schedule', {})
+    sd = _ensure_dict(order.structured_data)
+    display_order = order
+    if getattr(order, 'is_erp_beta', False) and sd:
+        display_order = deepcopy(order)
+        apply_erp_display_fields(display_order)
+
+    if getattr(order, 'is_erp_beta', False):
+        status_kr = _erp_get_stage(order, sd)
+    else:
+        status_kr = STATUS_MAP.get(display_order.status, display_order.status)
     
     return {
-        'order_id': order.id,
-        'customer_name': order.customer_name,
-        'phone': order.phone,
-        'address': order.address,
+        'order_id': display_order.id,
+        'customer_name': display_order.customer_name,
+        'phone': display_order.phone,
+        'address': display_order.address,
         'status_kr': status_kr,
-        'product': order.product,
-        'measurement_date': sched.get('measurement', {}).get('date', order.measurement_date or '-'),
-        'construction_date': sched.get('construction', {}).get('date', order.scheduled_date or '-'),
-        'manager_name': order.manager_name or '-'
+        'product': display_order.product,
+        'measurement_date': display_order.measurement_date or '-',
+        'construction_date': display_order.scheduled_date or '-',
+        'manager_name': display_order.manager_name or '-'
     }
 
 def get_order_attachments_for_wam(order_id: int) -> list:
