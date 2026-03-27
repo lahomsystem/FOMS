@@ -142,6 +142,7 @@ def _extract_map_order_display(order):
     address_to_use = order.address
     product = order.product
     measurement_date = order.measurement_date
+    measurement_time = order.measurement_time
     scheduled_date = order.scheduled_date
     manager_name = order.manager_name or '-'
 
@@ -181,6 +182,10 @@ def _extract_map_order_display(order):
         if erp_measurement_date:
             measurement_date = erp_measurement_date
 
+        erp_measurement_time = (((sd.get('schedule') or {}).get('measurement') or {}).get('time'))
+        if erp_measurement_time:
+            measurement_time = erp_measurement_time
+
         erp_scheduled_date = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
         if erp_scheduled_date:
             scheduled_date = erp_scheduled_date
@@ -195,6 +200,7 @@ def _extract_map_order_display(order):
         'address': address_to_use,
         'product': product,
         'measurement_date': measurement_date,
+        'measurement_time': measurement_time,
         'scheduled_date': scheduled_date,
         'manager_name': manager_name,
     }
@@ -286,6 +292,7 @@ def _build_map_payload(orders, *, manager_filter='', search_query='', enqueue_mi
             'status': order.status,
             'received_date': _format_map_date(order.received_date),
             'measurement_date': _format_map_date(display['measurement_date']),
+            'measurement_time': display.get('measurement_time'),
             'scheduled_date': _format_map_date(display['scheduled_date']),
             'completion_date': _format_map_date(order.completion_date),
             'manager_name': display['manager_name'],
@@ -302,6 +309,7 @@ def _build_map_payload(orders, *, manager_filter='', search_query='', enqueue_mi
                 'product': display['product'],
                 'status': order.status,
                 'received_date': _format_map_date(order.received_date),
+                'measurement_time': display.get('measurement_time'),
                 'latitude': float(lat),
                 'longitude': float(lng),
                 'conversion_status': geocode_status,

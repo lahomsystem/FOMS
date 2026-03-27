@@ -1,8 +1,8 @@
 # FOMS <> ChannelTalk 연동 집중 계획서
 
 작성일: 2026-03-26
-상태: 감리완료 (v2)
-감리일: 2026-03-26
+상태: 감리완료 (v3)
+감리일: 2026-03-27
 관련 문서:
 - `docs/plans/2026-03-13-channeltalk-integration-plan.md`
 - `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md`
@@ -33,11 +33,11 @@
 |------|-----------|-----------|
 | 수동 푸시 | ERP Beta에서 ChannelTalk 수동 전송 가능 | `templates/partials/erp_beta_tab.html`, `templates/partials/erp_beta_js.html`, `apps/api/channel_integration.py` |
 | 자동 푸시 | 구조화 저장, 실측 수정, 출고 설정 수정, 결제 확인 변경은 diff payload와 함께 outbox enqueue 수행 | `apps/api/erp_orders_structured.py`, `apps/api/erp_measurement.py`, `apps/api/erp_shipment_settings.py`, `services/jobs/queue.py`, `services/jobs/tasks.py` |
-| Channel API 래퍼 | `issueToken`, `writeGroupMessage`, 상태별 그룹 라우팅 구현 | `services/channel_client.py` |
+| Channel API 래퍼 | `issueToken`, `writeGroupMessage`, short-link/WAM 보조 로직 존재. 현재 runtime 그룹 라우팅은 대부분 `CHANNEL_GROUP_MEASUREMENT` 중심 | `services/channel_client.py`, `services/channel_policy.py`, `services/channel_security.py` |
 | 앱 연결점 | ChannelTalk API용 blueprint 등록 완료 | `app.py`, `apps/api/channel_integration.py` |
 | 운영 분석 | Google Sheet/Webhook 충돌 분석 문서 존재 | `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md` |
 
-### 2.2 아직 없는 것
+### 2.2 2026-03-26 초안 시점 기준 아직 없던 것
 - Command 자동 등록 로직
 - Function Endpoint와 `X-Signature` 검증
 - WAM 앱 셸
@@ -65,12 +65,31 @@
   - 출고/시공 설정 수정
   - 결제 확인 변경
 - 주문 상세 링크 계약은 다음처럼 고정한다.
-  - primary: `/channel/wam/?launch_token=...`
-  - fallback: `/edit/{order_id}?open=erp-beta`
+  - 사용자에게 노출되는 primary: `/w/{token}`
+  - 내부 최종 도착지: `/channel/wam/?launch_token=...`
+  - 서버 fallback: `/edit/{order_id}?open=erp-beta`
   - legacy compatibility: `/erp/orders/{order_id}`는 Flask redirect로 유지
 - `services/channel_dispatch.py`와 `services/channel_policy.py`는 현재 runtime contract 기준으로 위 링크 계약과 change-lines 렌더링을 사용한다.
 
 이 메모는 2026-03-27 기준 구현 상태를 반영하며, 위 범위에 대해서는 기존 2.2~2.3의 미구현 서술보다 우선한다.
+
+### 2.4A 2026-03-27 현재 기준 아직 미구현/부분 구현
+- 개인 involved 알림 transport는 아직 미구현이다. 현재 runtime push는 사실상 공통 그룹 중심이다.
+- manager-user 매핑은 모델/서비스는 있으나 운영 UI와 파일럿용 완성 절차는 없다.
+- Command 자동 등록 bootstrap은 없다.
+- WAM은 read-only이며 write action은 없다.
+- 운영 지표 중 `parse_success_rate`는 참고용이며, rollout auto gate의 단일 source로 쓰기에는 아직 정합성 보강이 더 필요하다.
+- feature flag는 현재 대부분 readiness/운영 계약용이며, route hard-off switch를 완전히 대체하지는 않는다.
+- manual push는 여전히 admin/manual 직행 경로이며, automatic outbox/source-of-truth 전환 범위와 동일하게 취급하지 않는다.
+
+### 2.5 2026-03-27 목적 재정의 메모
+- ChannelTalk 연동의 1차 목적을 아래 두 가지로 다시 고정한다.
+  - `개인 involved 알림`: 각 담당자가 자기와 관련된 task / 일정 / 상태 변경을 모바일 백그라운드 알림으로 빠르게 인지한다.
+  - `빠른 주문 접근`: ChannelTalk 메시지 클릭으로 FOMS 주문 상세에 바로 들어간다.
+- 따라서 v2 계획의 기본 알림 구조는 `공통 그룹 단일 알림`이 아니라 `개인 알림 + 공통 notice + 필요 시 둘 다 발송`이다.
+- 개인 알림은 `담당자`, `drawing manager`, `construction worker`, `task assignee`, `owner team의 실제 수신자`를 우선 대상으로 한다.
+- 공통 notice는 `팀 전체가 알아야 하는 변경`, `긴급 이슈`, `일정 확정`, `운영 공지` 중심으로 좁힌다.
+- 이 재정의는 모바일 백그라운드 푸시 목적과 직접 연결된다. 그룹 일반 메시지만으로는 팀원 앱 설정에 따라 즉시 인지가 보장되지 않으므로, 개인 involved 메시지 경로를 별도 설계 대상으로 포함한다.
 
 ## 3. ChannelTalk 공식 문서 기반 제약
 
@@ -103,6 +122,26 @@
 - ChannelTalk는 전달/확인/빠른 액션 표면을 담당한다.
 - 운영자는 실패 건을 재전송하거나 보류 처리할 수 있어야 한다.
 - 알림이 많아져도 소음 제어 규칙이 먼저 있어야 한다.
+
+### 4.3 개인 알림 + 공통 알림 목표 모델
+- `개인 알림`
+  - 목적: "내가 지금 바로 봐야 하는 변경"을 놓치지 않게 한다.
+  - 채널: ChannelTalk 개인 DM 또는 개인 전용 chat 경로
+  - 예시: 내 task 상태 변경, 내 일정 변경, 내 담당 주문 변경, 내 확인 요청
+- `공통 notice`
+  - 목적: 팀 전체가 알아야 하는 내용을 공용 채널에서 공유한다.
+  - 채널: 기존 공용 그룹
+  - 예시: 긴급 건, 일정 확정, 시공 이슈, 운영 공지
+- `개인 + 공통 둘 다`
+  - 목적: involved person에게는 즉시 인지, 팀에는 맥락 공유를 동시에 보장한다.
+  - 예시: 긴급 일정 변경, 고객 클레임 급건, 마감 임박 중요 건
+- 사용자 경험 기준 최종 상태:
+  - 개인은 자기 일만 바로 받는다.
+  - 팀은 공통 이슈만 모아 받는다.
+  - 모든 메시지는 FOMS 주문 접근 링크를 포함한다.
+- 경계:
+  - 이 모델은 `목표 상태`다.
+  - 2026-03-27 현재 구현은 아직 `공통 그룹 중심 + 일부 read-only surface` 단계다.
 
 ## 5. 구현 방향
 
@@ -296,10 +335,73 @@
 - automatic push의 runtime payload는 최소 `event_type`, `event_title`, `change_lines`, `changed_by`, optional `reason`를 가진다.
 - worker는 `event_key` 문자열 파싱보다 `template_key`와 `masked_request_payload`를 우선 신뢰한다.
 - `rendered_text_snapshot`과 `target_group_snapshot`은 worker 전송 시점에 실제 발송 본문/그룹 기준으로 채운다.
-- 주문 상세 링크는 `WAM launch token URL`을 primary로 쓰고, 토큰 생성 실패 시 `/edit/{order_id}?open=erp-beta` fallback을 사용한다.
+- 주문 상세 링크는 사용자에게는 `/w/{token}` short link를 primary로 보여주고, 내부 최종 도착지는 `WAM launch token URL`을 사용한다. short-link 생성 실패 시 `/edit/{order_id}?open=erp-beta` fallback을 사용한다.
 - legacy 링크 호환을 위해 `/erp/orders/{order_id}`는 redirect route로 유지한다.
 
+### 5.6A 개인 알림 / 공통 알림 라우팅 계약
+- 전송 대상을 `target_type = group | manager | direct_chat` 관점으로 분리한다.
+- `group`
+  - 팀 전체가 알아야 하는 notice에만 사용한다.
+  - 현재의 `CHANNEL_GROUP_MEASUREMENT` 단일 경로를 임시 기본값으로 두되, 정책상 "기본 수신 채널"이지 "모든 이벤트의 최종 채널"로 설명하지 않는다.
+- `manager`
+  - ChannelTalk manager id가 FOMS user에 매핑되어 있고, 개인 involved 알림 정책에 포함되는 경우 사용한다.
+  - Native Function 기준으로는 `writeDirectChatMessageAsManager` 또는 동등한 개인 발송 경로를 우선 검토한다.
+- `direct_chat`
+  - 개인 DM과 manager direct chat를 동일 delivery 개념으로 다루기 위해 target_type에 별도 값을 허용한다.
+- canonical personal target identity는 기본적으로 `manager`로 고정한다.
+  - dedupe, resend, 지표 집계의 기준 키는 manager 단위다.
+  - `direct_chat`은 transport 선택 결과로만 사용하며, canonical identity를 대체하지 않는다.
+- 라우팅 정책 함수는 아래를 반환해야 한다.
+  - `delivery_targets`: 한 이벤트가 최종적으로 가야 할 대상 목록
+  - 각 target별 `target_type`, `target_id`, `template_key`, `priority`, `send_mode(personal|notice|both)`
+- 개인 알림은 아래 event class에 우선 적용한다.
+  - `task_assigned`
+  - `task_status_changed`
+  - `manager_changed`
+  - `owner_team_changed`
+  - `schedule_changed`
+  - `approval_requested`
+- 공통 notice는 아래 event class에 우선 적용한다.
+  - `urgent`
+  - `major_stage_changed`
+  - `construction_issue`
+  - `operations_notice`
+- `order_updated` 같은 포괄 이벤트는 개인/공통 아무 쪽에도 무차별 발송하지 않는다. 정책 함수가 diff 내용을 보고 개인/공통 대상 여부를 다시 판정해야 한다.
+- 하나의 변경이 개인과 공통 둘 다 대상이면 delivery row를 각각 생성한다. "한 row가 여러 채널을 대표"하지 않는다.
+- `mapping miss` 기본 정책은 `skip + 운영 로그`다.
+  - personal-only 이벤트를 notice로 자동 승격하지 않는다.
+  - notice 또는 both로 분류된 이벤트만 공통 그룹 row를 별도로 생성한다.
+- manual push는 이 라우팅 계약의 직접 대상이 아니다.
+  - manual push는 계속 admin/manual group-only 경로로 유지한다.
+- WAM/Command는 전달 transport가 아니라 read-only access surface다.
+  - personal routing 확장은 outbound push 경로에만 우선 적용한다.
+- webhook/inbound rollout은 이 계약과 분리된 별도 축이다.
+  - personal routing 확장이 webhook phase를 자동으로 당기지 않는다.
+
+### 5.6B 개인 알림 capability 계약
+- ChannelTalk 공식 Function 문서 기준으로 Native Function에는 `writeGroupMessage`, `writeUserChatMessage`, `writeDirectChatMessageAsManager` 계열이 존재한다.
+- v2 설계에서는 `개인 involved 알림`을 위해 group-only 설계에서 DM-capable 설계로 전환한다.
+- Phase B 정책 확정 전까지는 아래 capability spike를 선행한다.
+  - 어떤 함수가 현재 설치된 앱 권한과 운영 UX에 가장 맞는지
+  - manager direct chat와 user chat 중 어느 경로가 FOMS 운영 구조에 맞는지
+  - 모바일 푸시 도달률이 실제로 더 좋은 경로가 무엇인지
+- spike 결과가 나올 때까지는 `개인 알림 transport`를 추상화된 target_type 계약으로 먼저 설계하고, 구체 Native Function 선택은 실행 계획에서 고정한다.
+- P0 산출물은 최소 아래 5개를 포함해야 한다.
+  - `transport-decision.md`: 채택 Native Function, required scope/context, 실패 코드, fallback
+  - `mapping-readiness.md`: pilot 대상자 목록, active mapping coverage, 누락자, 운영 owner
+  - `mobile-push-test-matrix.md`: iOS/Android, foreground/background, 앱 설정 조합, 기대 결과
+  - `payload-fixture-proof.md`: 실제 callback/function payload, permission proof, sample response
+  - `routing-policy-table.md`: event class -> send_mode -> canonical target rule
+
 ### 5.7 WAM 인증/부트스트랩 계약
+- 아래는 `목표 계약`이다.
+- 2026-03-27 현재 구현은 `signed token 기반 read-only 접근 + launch token TTL 1시간 + single-use 미구현` 상태다.
+- 현재 short-link -> launch-token 경로는 manager mapping 선행을 강제하지 않는다. 아래 trust chain은 목표 계약이다.
+- short link `/w/{token}`는 사용자 노출 링크이며, bearer-link 성격이 있으므로 외부 공유에 주의해야 한다.
+- 현재 만료 기준:
+  - short link: 기본 30일
+  - WAM launch token: 기본 1시간
+  - 첨부 presigned URL: 기본 1시간
 - `/channel/wam`은 raw query param의 `channel_manager_id`를 신뢰하지 않는다.
 - v1 신뢰 체인:
   1. 검증된 function/command callback이 서버에 도달한다.
@@ -443,9 +545,10 @@ source_version 구체 설계:
 - `payload_hash` — 중복 payload 감지 보조
 
 ### 5.11 런타임 정책 source of truth 계약
-- `event-matrix.md`, `group-routing-table.md`, `message-template-catalog.md`는 사람 검토용 문서다.
+- `event-matrix.md`, `group-routing-table.md`, `routing-policy-table.md`, `message-template-catalog.md`는 사람 검토용 문서다.
 - 런타임에서 실제로 읽는 canonical policy는 `services/channel_policy.py` 또는 동등한 machine-readable 설정 파일이다.
 - Phase B 완료 기준은 "문서 승인"만이 아니라 "runtime policy 파일 반영 + 문서와 동기화"까지 포함한다.
+- `routing-policy-table.md`는 기존 `event-matrix.md`를 대체하는 것이 아니라, `personal | notice | both`와 canonical target rule을 덧입힌 확장 표로 관리한다.
 - DispatchService는 markdown 문서를 직접 읽지 않고 runtime policy 계층만 참조한다.
 - `services/channel_policy.py`는 최소 아래 인터페이스를 명시적으로 제공한다.
   - `get_policy_version()`
@@ -472,12 +575,18 @@ source_version 구체 설계:
 ### 5.12 토글과 source of truth 계약
 - feature flag는 최소 아래 단위로 나눈다.
   - `CHANNEL_PUSH_ENABLED`
+  - `CHANNEL_PERSONAL_PUSH_ENABLED`
+  - `CHANNEL_NOTICE_PUSH_ENABLED`
   - `CHANNEL_COMMAND_ENABLED`
   - `CHANNEL_WAM_ENABLED`
   - `CHANNEL_WEBHOOK_ENABLED`
   - `CHANNEL_INBOUND_CREATE_ENABLED`
   - `CHANNEL_WRITE_ACTION_ENABLED`
+  - `CHANNEL_MAPPING_REQUIRED`
+  - `CHANNEL_PERSONAL_FALLBACK_TO_NOTICE_ALLOWED`
 - 운영 토글은 "전체 on/off"만 두지 않고 `팀별`, `이벤트 유형별`, `wave별` 확장 포인트를 남긴다.
+- 2026-03-27 현재 `CHANNEL_*_ENABLED`는 대부분 readiness/운영 계약용이다.
+  - route hard-off switch는 후속 단계 목표로 보고, 현재는 health/rollout gate와 함께 해석한다.
 - FOMS 채팅은 유지하지만 이번 범위의 source of truth는 여전히 `FOMS 주문/일정/권한 데이터`다.
 - ChannelTalk message, command, webhook payload는 원본 데이터를 대체하지 않으며, 항상 FOMS 도메인 조회 후 최종 판단한다.
 - Google Sheet 연계가 남아 있는 동안 inbound 생성의 단일 source를 문서로 고정하고 이중 생성 경로를 허용하지 않는다.
@@ -491,6 +600,9 @@ Feature Flag 의존 행렬:
 | `CHANNEL_WRITE_ACTION_ENABLED` | `CHANNEL_COMMAND_ENABLED=true` 또는 `CHANNEL_WAM_ENABLED=true` 필수 | 쓰기 액션 표면 없이 활성화 방지 |
 | `CHANNEL_WAM_ENABLED` | `CHANNEL_COMMAND_ENABLED`와 독립 | 독립 동작 가능 |
 | `CHANNEL_COMMAND_ENABLED` | `CHANNEL_PUSH_ENABLED`와 독립 | command 응답은 push가 아닌 조회 |
+| `CHANNEL_PERSONAL_PUSH_ENABLED` | `CHANNEL_PUSH_ENABLED=true`, `CHANNEL_MAPPING_REQUIRED=true` 권장 | personal만 안전하게 끄고 notice는 유지 가능 |
+| `CHANNEL_NOTICE_PUSH_ENABLED` | `CHANNEL_PUSH_ENABLED=true` | notice만 유지/중단 가능 |
+| `CHANNEL_PERSONAL_FALLBACK_TO_NOTICE_ALLOWED` | 기본 `false` | personal-only 이벤트의 자동 group 승격은 기본 금지 |
 
 - `CHANNEL_PUSH_ENABLED=false`인 상태에서 command 응답으로 주문 정보를 반환하는 것은 push 우회가 아니라 조회로 분류한다. 단, command 응답에 알림성 메시지를 포함하면 push 정책 우회가 되므로 금지한다.
 
@@ -648,6 +760,17 @@ Phase F (파일럿 운영)
 - Phase D는 조회 중심 quick action 단계다. Phase C의 CT-C-01(X-Signature), CT-C-02(command), CT-C-03(manager mapping)이 선행이다.
 - Phase E는 가장 마지막에 여는 선택적 자동화 단계다. Phase C의 CT-C-01(X-Signature)과 Phase A의 CT-A-02(queue 영속화)가 선행이다.
 - Phase F는 wave별 운영 전환과 감리 단계다.
+
+### 6.0A 2026-03-27 재정렬된 실행 우선순위
+- 기존 `group 중심 push 운영화` 단계를 그대로 확장하지 않고, 아래 순서로 재정렬한다.
+1. 개인 알림 capability spike
+2. involved person 결정 규칙 고정
+3. 개인 알림 + 공통 notice 정책표 확정
+4. outbox를 multi-target delivery로 확장
+5. 관리자/팀 파일럿
+- 이유:
+  - 이번 목적은 단순 "채널톡에 메시지가 가는가"가 아니라 "각 개인이 자기 건을 모바일에서 즉시 인지하는가"이기 때문이다.
+  - 따라서 group-only 안정화만으로는 목표를 달성하지 못한다.
 
 ### 6.1 구현 티켓 묶음
 
@@ -1099,11 +1222,11 @@ pilot 순서:
 | 1 | 일일 push 성공률이 95% 미만 | health API `delivery_success_rate` 필드 | **자동** — health 응답에서 계산 |
 | 2 | duplicate push 비율이 2% 초과 | health API `duplicate_rate` 필드 | **자동** — delivery log 집계 |
 | 3 | 긴급 알림 오발송이 하루 3건 초과 | 운영자 신고 + 수동 집계 | **수동** — 오발송 판정이 도메인 지식 필요 |
-| 4 | inbound parse 실패가 10% 초과 | health API `parse_success_rate` 필드 | **자동** — inbound log 집계 |
+| 4 | inbound parse 실패가 10% 초과 | health API `parse_success_rate` 필드 + 운영 샘플 확인 | **수동 보조** — 현재는 참고 지표, 단독 auto gate로 사용 금지 |
 | 5 | 권한 검증 누락 또는 무단 쓰기 액션 1건 이상 | 보안 로그 + audit 집계 | **부분 자동** — audit log 기반 알림 가능 |
 | 6 | 운영자가 수동 재전송으로만 버티는 상태가 2일 이상 지속 | 수동 resend 비율 추이 관찰 | **수동** — 운영 판단 필요 |
 
-- 자동 감지 가능 항목(1, 2, 4)은 health 엔드포인트에서 수치를 반환하고, 임계값 초과 시 경고 표시한다.
+- 자동 감지 가능 항목은 현재 1, 2 중심으로 본다. 4는 health에 노출하되, metric 정합성 보강 전까지는 운영 샘플 확인을 함께 거친다.
 - 수동 판단 항목(3, 6)은 wave 회고 시 운영자가 확인한다.
 
 ### 7.6 운영자 실패 처리 절차
@@ -1215,16 +1338,20 @@ pilot 순서:
 1. `ChannelDeliveryLog` + `ChannelInboundEventLog` + `Order.channel_source_seq` 스키마 확정 (Phase 0)
 2. bootstrap 실행 범위 / queue cutover / Session 계약 확정 (Phase 0)
 3. **이벤트 정책/라우팅 표/템플릿 + runtime policy 확정 (Phase B)** ← 구현보다 정책이 선행
-4. DispatchService + delivery log 운영화 (Phase A)
-5. `X-Signature` 검증기와 provider JSON 오류 계약 확정 (Phase C)
-6. manager-user 매핑 방식과 WAM launch token 계약 결정 (Phase C)
-7. read-only quick action (Phase D)
-8. inbound pilot (Phase E)
+4. **personal routing P0 gate**: transport spike, mapping-readiness, mapping miss 정책, canonical target 규칙, task source-of-truth 범위 결정
+5. DispatchService + multi-target delivery + 최소 observability/requeue 운영화
+6. `X-Signature` 검증기와 provider JSON 오류 계약 확정 (Phase C)
+7. manager-user 매핑 구현 고도화와 WAM launch token 목표 계약 보강 (Phase C)
+8. read-only quick action (Phase D)
+9. inbound pilot (Phase E)
 
 이 순서가 맞는 이유:
 - 스키마와 기반 인프라(Phase 0)가 모든 후속 작업의 전제다.
 - bootstrap/cutover/session 계약이 없으면 병렬 구현 중 배포 순간에 바로 깨질 수 있다.
 - **정책 확정(Phase B)이 구현(Phase A)보다 선행해야 한다.** 그룹 라우팅, 템플릿, dedupe window가 없으면 DispatchService를 올바르게 구현할 수 없다.
+- personal routing은 group-only 안정화의 단순 연장이 아니라 `개인 transport와 매핑`이 먼저 닫혀야 하는 별도 gate가 있다.
+- `mapping miss`, `direct send fail`, `fallback used` 같은 개인 알림 관측성은 첫 실발송 전에 최소 수준이 먼저 있어야 한다.
+- task 이벤트는 `Order.channel_source_seq` 바깥의 별도 전송축이므로, source-of-truth 계약이 닫히기 전까지 초기 personal rollout 범위에 포함하지 않는다.
 - delivery 상태 저장과 보안 검증이 없으면 나머지 기능은 운영 위험만 키운다.
 - 읽기 액션이 쓰기 액션보다 먼저다.
 - inbound 자동화는 가장 마지막에 pilot로 연다.

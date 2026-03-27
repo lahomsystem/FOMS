@@ -1,25 +1,25 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-26 13:42:58
+> 생성 시각: 2026-03-26 22:55:15
 > 세션: 50f0a2d4
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `services/channel_policy.py` <- 1 edit(s), ~1470 chars (2026-03-26 13:38:46)
-- `services/channel_security.py` <- 1 edit(s), ~193 chars (2026-03-26 13:38:24)
-- `services/channel_security.py` <- 1 edit(s), ~90 chars (2026-03-26 13:38:11)
-- `apps/api/channel_wam.py` <- 3 edit(s), ~243 chars (2026-03-26 13:37:54)
-- `templates/channel_wam_index.html` <- 1 edit(s), ~28 chars (2026-03-26 13:37:33)
-- `commit_msg.txt` <- 1 edit(s), ~474 chars (2026-03-26 13:29:51)
-- `docs/AI_STATUS.md` <- 2 edit(s), ~226 chars (2026-03-26 13:29:39)
-- `services/channel_inbound.py` <- 1 edit(s), ~62 chars (2026-03-26 13:29:11)
-- `tests/test_channel_webhooks.py` <- 1 edit(s), ~5073 chars (2026-03-26 13:28:37)
-- `apps/api/channel_webhooks.py` <- 1 edit(s), ~388 chars (2026-03-26 13:28:16)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-7029bb25-5f7f-449b-a3a4-271755a896aa.png` <- 1 edit(s), ~0 chars (2026-03-26 22:53:59)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-99043cae-32ee-4000-a106-6092ed16b89f.png` <- 1 edit(s), ~0 chars (2026-03-26 22:47:20)
+- `apps/api/channel_integration.py` <- 1 edit(s), ~170 chars (2026-03-26 22:42:43)
+- `templates/admin.html` <- 3 edit(s), ~108 chars (2026-03-26 22:38:06)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-12bf0955-7576-465c-bb73-0eb0d0311e6a.png` <- 1 edit(s), ~0 chars (2026-03-26 22:37:15)
+- `templates/error_404.html` <- 1 edit(s), ~1896 chars (2026-03-26 22:29:36)
+- `app.py` <- 2 edit(s), ~100 chars (2026-03-26 22:29:06)
+- `services/channel_policy.py` <- 2 edit(s), ~607 chars (2026-03-26 22:27:37)
+- `templates/admin.html` <- 1 edit(s), ~37 chars (2026-03-26 22:25:23)
+- `templates/admin.html` <- 3 edit(s), ~539 chars (2026-03-26 22:25:10)
 
 ### 진행 중이던 작업
-- [2026-03-26] 채널톡 연동 (Phase E 완료. Phase F 진행 대기 중)
+- [2026-03-26] 채널톡 연동 파일럿(Wave 0 ~ 5) 운영 모니터링 (실제 데이터 축적 대기 중)
 
 ## 복원 지침
 

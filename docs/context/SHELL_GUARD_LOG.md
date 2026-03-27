@@ -4,29 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-20 10:59:20 | allow | `-` | `python verify_phase_b.py` |
-| 2026-03-20 11:00:07 | allow | `-` | `git rm apply_migration.py check_urgent.py commit_msg.txt verify_phase_a.py verify_phase_a3.py verify_phase_b.py ; git commit --trailer "Made-with: Cursor" -m "c` |
-| 2026-03-20 11:00:26 | allow | `-` | `git rm apply_migration.py check_urgent.py verify_phase_a.py verify_phase_a3.py verify_phase_b.py ; git commit --trailer "Made-with: Cursor" -m "chore: remove te` |
-| 2026-03-20 11:05:01 | allow | `-` | `grep -rn "detail_payload.attachments" templates/` |
-| 2026-03-20 11:10:27 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-03-20 11:23:43 | allow | `-` | `python -c "import apps.erp_dashboard"` |
-| 2026-03-20 11:24:00 | allow | `-` | `python verify_phase_c.py` |
-| 2026-03-20 11:25:35 | allow | `-` | `python -c "import apps.erp_dashboard"` |
-| 2026-03-20 11:27:37 | allow | `-` | `python verify_phase_c_override.py` |
-| 2026-03-20 11:34:52 | allow | `-` | `python -c "import app"` |
-| 2026-03-20 11:44:56 | allow | `-` | `pytest tests/test_erp_order_detail_preload.py` |
-| 2026-03-20 11:45:13 | allow | `-` | `pytest` |
-| 2026-03-20 11:51:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pyright apps/erp_dashboard.py services/erp_order_detail.py services/db_indexes.py se` |
-| 2026-03-20 11:54:43 | allow | `-` | `git mv scripts/backfill_erp_date_columns.py scripts/backfill_erp_flat_columns.py` |
-| 2026-03-20 11:58:31 | allow | `-` | `python -c " from app import app from services.db_indexes import ensure_erp_date_columns with app.app_context(): ensure_erp_date_columns() "` |
-| 2026-03-20 11:58:51 | allow | `-` | `python -c " from app import app from services.db_indexes import ensure_erp_date_columns with app.app_context(): ensure_erp_date_columns() "` |
-| 2026-03-20 11:59:01 | allow | `-` | `python scripts/backfill_erp_flat_columns.py` |
-| 2026-03-20 11:59:25 | allow | `-` | `python verify_phase_d.py` |
-| 2026-03-20 11:59:30 | allow | `-` | `pytest tests/test_erp_order_detail_preload.py` |
-| 2026-03-20 12:00:14 | allow | `-` | `python verify_phase_d.py` |
-| 2026-03-20 12:31:08 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-03-20 12:43:14 | allow | `-` | `python verify_phase_h.py` |
-| 2026-03-20 12:43:37 | allow | `-` | `python test_cutoff.py` |
 | 2026-03-20 12:44:17 | allow | `-` | `python -c "import app; print('APP_OK')" && pytest tests/test_erp_order_detail_preload.py` |
 | 2026-03-20 12:44:25 | allow | `-` | `python -c "import app; print('APP_OK')" ; pytest tests/test_erp_order_detail_preload.py` |
 | 2026-03-20 13:01:25 | allow | `-` | `python test_history_error.py` |
@@ -304,3 +281,26 @@
 | 2026-03-26 14:01:15 | allow | `-` | `alembic upgrade head` |
 | 2026-03-26 14:01:56 | allow | `-` | `alembic upgrade head` |
 | 2026-03-26 14:02:41 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-26 14:03:36 | allow | `-` | `railway logs -n 50` |
+| 2026-03-26 14:03:48 | allow | `-` | `railway status` |
+| 2026-03-26 14:04:00 | allow | `-` | `python -c "import urllib.request, urllib.error; try: print(urllib.request.urlopen('https://lahom-dev.up.railway.app/api/channel/health').getcode()) except urlli` |
+| 2026-03-26 14:04:10 | allow | `-` | `railway logs -n 50` |
+| 2026-03-26 14:04:22 | allow | `-` | `railway status` |
+| 2026-03-26 14:04:42 | allow | `-` | `python -c "import urllib.request, urllib.error; try: print(urllib.request.urlopen('https://lahom-dev.up.railway.app/erp/dashboard').getcode()) except urllib.err` |
+| 2026-03-26 14:27:11 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-03-26 14:27:24 | allow | `-` | `python -m pytest tests/test_channel_integration_smoke.py -v` |
+| 2026-03-26 14:28:11 | allow | `-` | `python -m pytest tests/test_channel_integration_smoke.py -v` |
+| 2026-03-26 14:40:49 | allow | `-` | `python -m pytest tests/test_channel_security.py -v` |
+| 2026-03-26 22:24:24 | allow | `-` | `curl -s -X GET "http://localhost:8080/api/channel/health"` |
+| 2026-03-26 22:24:32 | allow | `-` | `python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:5000/api/channel/health').read().decode())"` |
+| 2026-03-26 22:24:43 | allow | `-` | `python -c "import urllib.request; from urllib.error import HTTPError; try: print(urllib.request.urlopen('http://localhost:5000/api/channel/health').read().decod` |
+| 2026-03-26 22:24:54 | allow | `-` | `python -c "import urllib.request, json; from urllib.error import HTTPError; try: resp = urllib.request.urlopen('http://localhost:5000/api/channel/health') print` |
+| 2026-03-26 22:27:50 | allow | `-` | `python -m pytest tests/test_channel_quick_actions.py -v` |
+| 2026-03-26 22:42:58 | allow | `-` | `python -c "import os; os.environ['FOMS_BASE_URL'] = 'https://test'; os.environ['CHANNEL_PUSH_ENABLED'] = 'true'; os.environ['REDIS_URL'] = 'redis://'; import ap` |
+| 2026-03-26 22:43:19 | allow | `-` | `python -c "import os; os.environ['FOMS_BASE_URL'] = 'https://test'; os.environ['CHANNEL_PUSH_ENABLED'] = 'true'; os.environ['CHANNEL_COMMAND_ENABLED'] = 'true';` |
+| 2026-03-26 22:47:41 | allow | `-` | `python -c "import os; os.environ['FOMS_BASE_URL'] = 'https://test'; os.environ['CHANNEL_PUSH_ENABLED'] = 'true'; os.environ['REDIS_URL'] = 'redis://'; import ap` |
+| 2026-03-26 22:47:57 | allow | `-` | `python -c "import os; os.environ['FOMS_BASE_URL'] = 'https://test'; os.environ['CHANNEL_PUSH_ENABLED'] = 'true'; os.environ['CHANNEL_COMMAND_ENABLED'] = 'true';` |
+| 2026-03-26 22:55:34 | allow | `-` | `curl -s https://lahom-dev.up.railway.app/api/channel/health` |
+| 2026-03-26 22:56:27 | allow | `-` | `curl -m 10 -s https://lahom-dev.up.railway.app/api/channel/health` |
+| 2026-03-26 22:56:56 | allow | `-` | `curl.exe -m 10 -s https://lahom-dev.up.railway.app/api/channel/health` |
+| 2026-03-26 22:57:21 | allow | `-` | `curl.exe -m 10 -s https://lahom-dev.up.railway.app/api/channel/health | ConvertFrom-Json | ConvertTo-Json -Depth 5` |
