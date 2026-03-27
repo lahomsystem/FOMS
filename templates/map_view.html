@@ -1264,6 +1264,10 @@
                                 <span class="order-info-value">${escapeHtml(order.phone || '-')}</span>
                             </div>
                             <div class="order-info-row">
+                                <span class="order-info-label">실측 시간:</span>
+                                <span class="order-info-value fw-bold text-primary">${escapeHtml(order.measurement_time || '-')}</span>
+                            </div>
+                            <div class="order-info-row">
                                 <span class="order-info-label">주소:</span>
                                 <span class="order-info-value">${escapeHtml(order.address || '-')}</span>
                                 <button class="btn btn-sm ${editBtnClass} btn-edit-address" onclick="event.stopPropagation(); openAddressEdit(${order.id}, '${escapeForJsString(order.address || '')}');" title="${editBtnTitle}"><i class="fas fa-edit"></i></button>

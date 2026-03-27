@@ -4,13 +4,13 @@
 
 ## 최근 세션
 
-### Session: 50f0a2d4
-- **시작**: 2026-03-26 12:35:30
-- **상태**: aborted
-- **편집 파일**: `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d2ed46ae-5b11-46a6-ad0e-3d7a22bcb32e.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-7c3dc48d-cff2-4e5e-9f2a-d1333eff922e.png`, `docs/AI_STATUS.md`, `services/jobs/tasks.py`, `services/channel_dispatch.py`, `services/channel_delivery.py`, `services/jobs/queue.py`, `apps/api/erp_orders_structured.py`, `services/channel_quick_actions.py`, `apps/api/channel_functions.py`
-- **종료**: 2026-03-26 13:54:45
+### Session: e08a034e
+- **시작**: 2026-03-27 14:56:45
+- **상태**: completed
+- **편집 파일**: `templates/map_view.html`, `apps/api/erp_map.py`, `services/map_snapshot.py`, `docs/plans/2026-03-27-measurement-map-time-display.md`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-33c750cb-0cb2-49db-8a26-78c6805c2fd9.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-7029bb25-5f7f-449b-a3a4-271755a896aa.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-99043cae-32ee-4000-a106-6092ed16b89f.png`, `apps/api/channel_integration.py`, `templates/admin.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-12bf0955-7576-465c-bb73-0eb0d0311e6a.png`
+- **종료**: 2026-03-27 15:03:14
 
-### Session: e5c0cdb3
+ e5c0cdb3
 - **시작**: 2026-03-26 09:45:38
 - **상태**: unknown
 - **편집 파일**: `commit_msg.txt`, `test_scripts.js`, `templates/map_view.html`, `templates/erp_measurement_dashboard.html`, `templates/partials/erp_construction_scripts.html`, `templates/partials/erp_production_scripts.html`, `templates/erp_drawing_workbench_detail.html`, `templates/partials/erp_dashboard_scripts_detail_dom.html`, `templates/partials/erp_dashboard_scripts_core.html`, `templates/partials/erp_beta_js.html`
@@ -984,3 +984,25 @@
 | 2026-03-26 13:49:21 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-26 13:54:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 14:05:18 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 14:29:51 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 14:41:15 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 14:46:44 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 22:30:32 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 22:38:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 22:43:56 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 22:46:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 22:48:22 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-26 22:58:04 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-27 15:03:14 | END (Claude Code) | 수정: (없음) |

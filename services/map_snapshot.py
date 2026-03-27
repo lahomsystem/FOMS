@@ -136,6 +136,7 @@ def _extract_order_display_fields(order):
     address_to_use = order.address
     product = order.product
     measurement_date = order.measurement_date
+    measurement_time = order.measurement_time
     scheduled_date = order.scheduled_date
     manager_name = order.manager_name or '-'
 
@@ -167,6 +168,9 @@ def _extract_order_display_fields(order):
         erp_meas = (((sd.get('schedule') or {}).get('measurement') or {}).get('date'))
         if erp_meas:
             measurement_date = erp_meas
+        erp_meas_time = (((sd.get('schedule') or {}).get('measurement') or {}).get('time'))
+        if erp_meas_time:
+            measurement_time = erp_meas_time
         erp_sched = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
         if erp_sched:
             scheduled_date = erp_sched
@@ -180,6 +184,7 @@ def _extract_order_display_fields(order):
         'address_to_use': address_to_use,
         'product': product,
         'measurement_date': measurement_date,
+        'measurement_time': measurement_time,
         'scheduled_date': scheduled_date,
         'manager_name': manager_name,
     }
@@ -283,6 +288,7 @@ def build_measurement_snapshot(orders, manager_filter=None):
             'status': order.status,
             'received_date': _format_date(order.received_date),
             'measurement_date': _format_date(ctx['measurement_date']),
+            'measurement_time': ctx.get('measurement_time'),
             'scheduled_date': _format_date(ctx['scheduled_date']),
             'completion_date': _format_date(order.completion_date),
             'manager_name': ctx['manager_name'],
@@ -302,6 +308,7 @@ def build_measurement_snapshot(orders, manager_filter=None):
                 'product': ctx['product'],
                 'status': order.status,
                 'received_date': _format_date(order.received_date),
+                'measurement_time': ctx.get('measurement_time'),
                 'phone': ctx['phone'],
             })
 
