@@ -1,7 +1,12 @@
-from flask import Blueprint, request, jsonify, render_template, abort
-from services.channel_security import verify_wam_launch_token
+from flask import Blueprint, request, jsonify, render_template, abort, redirect, url_for
+from services.channel_security import (
+    generate_wam_launch_token,
+    verify_wam_launch_token,
+    verify_wam_short_link_token,
+)
 
 channel_wam_bp = Blueprint('channel_wam', __name__, url_prefix='/channel/wam')
+channel_shortlink_bp = Blueprint('channel_shortlink', __name__)
 
 # [ChannelTalk 연동 - Bootstrap 실행 범위 계약 (CT-00-05, CT-C-03)]
 # 1. WAM(Web App Messenger)은 ERP 내부 사용자가 아닌 외부 '고객'이 접속하는 환경입니다.
@@ -53,3 +58,21 @@ def wam_index():
         attachments=attachments,
         token=request.args.get('launch_token')
     )
+
+
+@channel_shortlink_bp.route('/w/<token>')
+def redirect_short_wam_link(token):
+    """
+    채널톡 메시지에는 짧은 링크만 노출하고,
+    클릭 시 실제 WAM launch_token을 재발급해 리다이렉트한다.
+    """
+    payload = verify_wam_short_link_token(token)
+    if not payload:
+        return render_template('channel_wam_error.html', message='만료되거나 유효하지 않은 링크입니다.'), 401
+
+    order_id = payload.get('order_id')
+    if not order_id:
+        return render_template('channel_wam_error.html', message='주문 번호가 지정되지 않았습니다.'), 400
+
+    launch_token = generate_wam_launch_token('wam_viewer', int(order_id))
+    return redirect(url_for('channel_wam.wam_index', launch_token=launch_token))

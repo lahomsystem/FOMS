@@ -131,7 +131,12 @@ def format_order_message(
     if construction_date:
         parts.append(f"시공일: {construction_date}")
 
-    parts.append(f"{FOMS_BASE_URL}/erp/orders/{order_id}")
+    try:
+        from services.channel_security import generate_wam_short_link_token
+
+        parts.append(f"{FOMS_BASE_URL.rstrip('/')}/w/{generate_wam_short_link_token(order_id)}")
+    except Exception:
+        parts.append(f"{FOMS_BASE_URL}/erp/orders/{order_id}")
 
     return "\n".join(parts)
 
