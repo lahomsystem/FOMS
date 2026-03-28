@@ -61,9 +61,11 @@ def test_channel_wam_html_shell_sets_session_cookie_after_shortlink_entry(client
     assert "핵심 요약" in body
     assert "읽기 전용 화면입니다." not in body
     assert "고객과 발주 관련 정보를 확인합니다." not in body
+    assert "현장 / 주소" not in body
     assert 'data-open-section="attachments"' in body
     assert "aria-label=\"FOMS 상세 화면 열기\"" in body
     assert "wam-sticky-bar" not in body
+    assert "wam-header__primary-action" not in body
 
 
 def test_channel_wam_bootstrap_api_returns_page_payload(client, app):
@@ -83,6 +85,8 @@ def test_channel_wam_bootstrap_api_returns_page_payload(client, app):
     assert payload["api"]["attachments_url"].endswith("/channel/wam/api/attachments")
     assert payload["page"]["order_id"] == order.id
     assert payload["page"]["sticky_action_bar"] is None
+    assert "actions" in payload["page"]["header"]
+    assert "site" not in [section["key"] for section in payload["page"]["sections"]]
 
 
 def test_channel_wam_attachments_api_groups_payload(client, app):

@@ -298,6 +298,7 @@ def test_wam_v1_fallback_renders_when_v2_flag_off_without_v2_template_lookup(cli
 
     assert response.status_code == 200
     assert rendered["template_name"] == "channel_wam_index.html"
+    assert rendered["context"]["summary"]["address"] == "Seoul Test-gu 123"
     assert body == "WAM Customer"
 
 

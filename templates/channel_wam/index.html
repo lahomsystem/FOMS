@@ -6,8 +6,6 @@
 {% macro render_section(section) -%}
   {% if section.key == 'customer' %}
     {% include 'channel_wam/sections/_customer.html' %}
-  {% elif section.key == 'site' %}
-    {% include 'channel_wam/sections/_site.html' %}
   {% elif section.key == 'schedule' %}
     {% include 'channel_wam/sections/_schedule.html' %}
   {% elif section.key == 'people' %}
