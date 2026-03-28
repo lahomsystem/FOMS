@@ -147,6 +147,29 @@ def test_wam_short_link_generation_and_verification():
     payload = verify_wam_short_link_token(token)
     assert payload is not None
     assert payload['order_id'] == 456
+    assert payload['manager_id'] == 'wam_viewer'
+
+
+def test_wam_short_link_uses_compact_default_payload():
+    default_token = generate_wam_short_link_token(456)
+    bound_token = generate_wam_short_link_token(456, manager_id="manager_123")
+
+    assert len(default_token) < len(bound_token)
+
+    payload = verify_wam_short_link_token(default_token)
+    assert payload is not None
+    assert payload["order_id"] == 456
+    assert payload["manager_id"] == "wam_viewer"
+
+
+def test_wam_short_link_custom_manager_round_trips():
+    token = generate_wam_short_link_token(456, manager_id="manager_123")
+
+    payload = verify_wam_short_link_token(token)
+
+    assert payload is not None
+    assert payload["order_id"] == 456
+    assert payload["manager_id"] == "manager_123"
 
 
 def test_wam_short_link_expiration():

@@ -301,6 +301,31 @@ def test_wam_v1_fallback_renders_when_v2_flag_off_without_v2_template_lookup(cli
     assert body == "WAM Customer"
 
 
+def test_wam_v1_fallback_hides_attachments_when_disabled(client, app, monkeypatch):
+    monkeypatch.setenv("CHANNEL_WAM_V2_ENABLED", "false")
+    monkeypatch.setenv("CHANNEL_WAM_ATTACHMENTS_ENABLED", "false")
+    rendered = {}
+
+    def _fake_render_template(template_name, **context):
+        rendered["template_name"] = template_name
+        rendered["context"] = context
+        return context["summary"]["customer_name"]
+
+    monkeypatch.setattr("apps.api.channel_wam.render_template", _fake_render_template)
+
+    with app.app_context():
+        order = _create_order()
+        attachment = _create_attachment(order.id)
+        assert attachment.id is not None
+    _set_wam_session_cookie(client, order.id)
+
+    response = client.get("/channel/wam/")
+
+    assert response.status_code == 200
+    assert rendered["template_name"] == "channel_wam_index.html"
+    assert rendered["context"]["attachments"] == []
+
+
 def test_wam_disabled_gate_blocks_html_and_api(client, app, monkeypatch):
     monkeypatch.setenv("CHANNEL_WAM_ENABLED", "false")
 

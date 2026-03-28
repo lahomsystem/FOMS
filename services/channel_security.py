@@ -226,13 +226,26 @@ def generate_wam_entry_token(manager_id: str, order_id: int = None, **extra_clai
 
 
 def generate_wam_short_link_token(order_id: int, manager_id: str = "wam_viewer", **extra_claims) -> str:
-    payload = _build_wam_token_payload(
-        manager_id,
-        order_id,
-        token_type="wam_shortlink",
-        source="short_link",
-        **extra_claims,
-    )
+    # Keep the default shareable link payload as small as possible because it is
+    # surfaced directly in ChannelTalk messages. Non-default manager bindings
+    # still use a compact dict so binding checks continue to work.
+    if manager_id == "wam_viewer" and not extra_claims:
+        return wam_shortlink_serializer.dumps(int(order_id))
+
+    payload = {"o": int(order_id)}
+    if manager_id != "wam_viewer":
+        payload["m"] = manager_id
+
+    claim_aliases = {
+        "scopes": "s",
+        "allowed_sections": "a",
+        "attachment_scope": "t",
+        "mapped_foms_user_id": "u",
+    }
+    for key, alias in claim_aliases.items():
+        value = extra_claims.get(key)
+        if value is not None:
+            payload[alias] = value
     return wam_shortlink_serializer.dumps(payload)
 
 
@@ -294,6 +307,17 @@ def verify_wam_short_link_token(token: str, max_age: int = 30 * 24 * 3600) -> di
                 "order_id": int(payload),
                 "token_type": "wam_shortlink",
                 "source": "short_link",
+            }
+        if isinstance(payload, dict) and "o" in payload:
+            payload = {
+                "manager_id": payload.get("m", "wam_viewer"),
+                "order_id": payload.get("o"),
+                "token_type": "wam_shortlink",
+                "source": "short_link",
+                "scopes": payload.get("s"),
+                "allowed_sections": payload.get("a"),
+                "attachment_scope": payload.get("t"),
+                "mapped_foms_user_id": payload.get("u"),
             }
 
         normalized = _normalize_wam_payload(payload)
