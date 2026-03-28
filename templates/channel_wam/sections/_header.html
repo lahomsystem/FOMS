@@ -21,15 +21,10 @@
 
     <div class="wam-header__action-row" aria-label="빠른 작업">
       <div class="wam-header__quick-actions">
-        {% for action in header.secondary_actions %}
-          {{ wam.action_button(action, 'secondary') }}
+        {% for action in header.actions %}
+          {{ wam.action_button(action, action.tone|default('secondary')) }}
         {% endfor %}
       </div>
-      {% if header.primary_action %}
-        <div class="wam-header__primary-action">
-          {{ wam.action_button(header.primary_action, 'primary') }}
-        </div>
-      {% endif %}
     </div>
   </div>
 </header>

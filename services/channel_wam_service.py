@@ -13,7 +13,6 @@ from services.channel_wam_view_models import (
     WamPageVM,
     WamRequestContext,
     WamSectionVM,
-    WamStickyActionBarVM,
 )
 
 
@@ -106,7 +105,7 @@ def _row(
     }
 
 
-def _build_header(read_model, action_bar: WamStickyActionBarVM) -> dict[str, Any]:
+def _build_header(read_model, actions: list[WamActionVM]) -> dict[str, Any]:
     badges = [{"label": "읽기 전용", "tone": "neutral"}]
     if read_model.owner_team not in (None, "", "-"):
         badges.append({"label": read_model.owner_team, "tone": "info"})
@@ -119,8 +118,7 @@ def _build_header(read_model, action_bar: WamStickyActionBarVM) -> dict[str, Any
         "status_tone": "danger" if read_model.urgent else "info",
         "customer_name": read_model.customer_name,
         "badges": badges,
-        "secondary_actions": action_bar.secondary_actions,
-        "primary_action": action_bar.primary_action,
+        "actions": actions,
     }
 
 
@@ -224,29 +222,6 @@ def _build_customer_section(read_model) -> WamSectionVM:
             ]
         },
     )
-
-
-def _build_site_section(read_model) -> WamSectionVM:
-    map_url = read_model.site.get("map_url")
-    return WamSectionVM(
-        key="site",
-        title="현장 / 주소",
-        payload={
-            "rows": [
-                _row("주소", read_model.site["address_full"], copy_value=read_model.site["address_full"]),
-                _row("상세주소", read_model.site["address_detail"]),
-                _row(
-                    "지도",
-                    "Google Maps",
-                    href=map_url,
-                    href_label="열기",
-                    external=True,
-                    muted=not bool(map_url),
-                ),
-            ]
-        },
-    )
-
 
 def _build_schedule_section(read_model) -> WamSectionVM:
     return WamSectionVM(
@@ -379,8 +354,8 @@ def _build_timeline_section(read_model, timeline_enabled: bool) -> WamSectionVM:
     )
 
 
-def _build_quick_actions(read_model) -> WamStickyActionBarVM:
-    secondary_actions = [
+def _build_header_actions(read_model) -> list[WamActionVM]:
+    actions = [
         WamActionVM(
             key="copy-address",
             label="주소 복사",
@@ -390,6 +365,7 @@ def _build_quick_actions(read_model) -> WamStickyActionBarVM:
             visible=read_model.address not in (None, "", "-"),
             icon="copy",
             icon_only=True,
+            tone="secondary",
         ),
         WamActionVM(
             key="open-attachments",
@@ -398,11 +374,12 @@ def _build_quick_actions(read_model) -> WamStickyActionBarVM:
             aria_label="첨부 섹션 열기",
             icon="attachment",
             icon_only=True,
+            tone="secondary",
         ),
     ]
 
     if read_model.phone not in (None, "", "-"):
-        secondary_actions.insert(
+        actions.insert(
             0,
             WamActionVM(
                 key="call-phone",
@@ -411,12 +388,13 @@ def _build_quick_actions(read_model) -> WamStickyActionBarVM:
                 aria_label="연락처로 전화 걸기",
                 icon="phone",
                 icon_only=True,
+                tone="secondary",
             ),
         )
 
     map_url = read_model.site.get("map_url")
     if map_url:
-        secondary_actions.append(
+        actions.append(
             WamActionVM(
                 key="open-map",
                 label="지도",
@@ -426,12 +404,12 @@ def _build_quick_actions(read_model) -> WamStickyActionBarVM:
                 aria_label="지도 열기",
                 icon="map",
                 icon_only=True,
+                tone="secondary",
             )
         )
 
-    return WamStickyActionBarVM(
-        state="visible",
-        primary_action=WamActionVM(
+    actions.append(
+        WamActionVM(
             key="open-foms",
             label="FOMS",
             href=url_for("order_edit.edit_order", order_id=read_model.order_id, open="erp-beta"),
@@ -439,9 +417,10 @@ def _build_quick_actions(read_model) -> WamStickyActionBarVM:
             external=True,
             aria_label="FOMS 상세 화면 열기",
             icon="external",
-        ),
-        secondary_actions=secondary_actions,
+            tone="primary",
+        )
     )
+    return actions
 
 
 def build_wam_page(context: WamRequestContext) -> WamPageVM | None:
@@ -450,10 +429,9 @@ def build_wam_page(context: WamRequestContext) -> WamPageVM | None:
         return None
 
     flags = get_wam_feature_flags()
-    quick_actions = _build_quick_actions(read_model)
+    header_actions = _build_header_actions(read_model)
     sections = [
         _build_customer_section(read_model),
-        _build_site_section(read_model),
         _build_schedule_section(read_model),
         _build_people_section(read_model),
         _build_items_section(read_model),
@@ -488,7 +466,7 @@ def build_wam_page(context: WamRequestContext) -> WamPageVM | None:
         page_state="ready",
         order_id=read_model.order_id,
         title=f"주문 #{read_model.order_id} | FOMS WAM",
-        header=_build_header(read_model, quick_actions),
+        header=_build_header(read_model, header_actions),
         summary_strip=_build_summary_strip(read_model),
         sections=sections,
         primary_sections=primary_sections,
@@ -561,11 +539,9 @@ def build_legacy_summary(page_vm: WamPageVM) -> dict[str, Any]:
         ),
         "address": next(
             (
-                row.get("value")
-                for section in page_vm.primary_sections
-                if section.key == "site"
-                for row in section.payload.get("rows", [])
-                if row.get("label") == "주소"
+                item.get("value")
+                for item in page_vm.summary_strip.get("items", [])
+                if item.get("key") == "address"
             ),
             "-",
         ),
