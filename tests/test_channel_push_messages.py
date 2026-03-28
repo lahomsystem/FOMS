@@ -51,6 +51,27 @@ def test_build_message_template_renders_change_lines_and_wam_link(monkeypatch):
     assert "https://example.com/w/short-123" in message
 
 
+def test_build_message_blocks_renders_labeled_link(monkeypatch):
+    monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
+    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
+
+    blocks = channel_policy.build_message_blocks(
+        "stage_changed",
+        {
+            "order_id": 2762,
+            "customer_name": "윤인선",
+            "event_title": "정보 변경",
+            "change_lines": ["상태: 실측 -> 도면"],
+            "changed_by": "이시영",
+        },
+    )
+
+    assert any(block.get("type") == "bullets" for block in blocks)
+    link_blocks = [block for block in blocks if block.get("type") == "text" and "주문 보기" in block.get("value", "")]
+    assert len(link_blocks) == 1
+    assert '<link type="url" value="https://example.com/w/short-123">주문 보기</link>' in link_blocks[0]["value"]
+
+
 def test_mark_order_updated_for_channel_stores_template_key_and_payload(app):
     order = Order(
         received_date="2026-03-27",
@@ -129,6 +150,7 @@ def test_dispatch_channel_push_uses_stored_payload_for_multiword_event(app, monk
     assert captured["group_id"] == "group-1"
     assert "- 상태: 실측 -> 도면" in captured["plain_text"]
     assert "변경자: 관리자A" in captured["plain_text"]
+    assert any(block.get("type") == "text" and "주문 보기" in block.get("value", "") for block in captured["blocks"])
     assert saved.status == "sent"
     assert "상태: 실측 -> 도면" in (saved.rendered_text_snapshot or "")
 

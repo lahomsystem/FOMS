@@ -199,6 +199,7 @@ def _get_access_token() -> str:
 def send_group_message(
     group_id: str,
     plain_text: str,
+    blocks: list = None,
     files: list = None,
     bot_name: str = "FOMS",
     raise_on_error: bool = False,
@@ -209,6 +210,7 @@ def send_group_message(
     Args:
         group_id: 대상 그룹 채팅방 ID
         plain_text: 텍스트 메시지 내용
+        blocks: ChannelTalk rich blocks
         files: 첨부파일 목록. 각 항목: {"fileName": str, "url": str, "mime": str}
         bot_name: 봇 발신자 표시명
         raise_on_error: True이면 전송 실패(API 오류 포함) 시 예외를 re-raise
@@ -232,6 +234,7 @@ def send_group_message(
                 "broadcast": False,
                 "dto": {
                     "plainText": plain_text,
+                    "blocks": blocks or [],
                     "botName": bot_name,
                     "files": files or [],
                 },
