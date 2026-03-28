@@ -364,7 +364,8 @@
         // 이전 버그로 ' (SK)' suffix가 중복 저장된 레거시 데이터 자동 정리
         let _colorRaw = String(item.color ?? '').trim();
         _colorRaw = _colorRaw.replace(/(\s+\(SK\))+$/g, '').trim();
-        const color = _colorRaw || '(SK)';
+        // const color = _colorRaw || '(SK)'; // (SK) 표시 안 되게 임시 주석 처리
+        const color = _colorRaw;
         const optionDetail = defaultConsult(item.option_detail);
         const handle = defaultConsult(item.handle);
         const misc = defaultConsult(item.misc);
@@ -2141,7 +2142,7 @@ ${list.map(renderCard).join('')}
             if (!internal) internal = '상담';
 
             let color = getRowVal('color');
-            if (!color) color = '(SK)';
+            // if (!color) color = '(SK)'; // (SK) 표시 안 되게 임시 주석 처리
 
             let option = getRowVal('option_detail');
             if (!option) option = '상담';
