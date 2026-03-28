@@ -7,12 +7,16 @@ from flask import Flask
 import pytest
 
 from services.channel_security import (
+    generate_wam_entry_token,
     generate_wam_short_link_token,
     verify_channel_signature,
     require_channel_signature,
     generate_wam_launch_token,
+    generate_wam_session_token,
+    verify_wam_entry_token,
     verify_wam_launch_token,
     verify_wam_short_link_token,
+    verify_wam_session_token,
 )
 
 @pytest.fixture
@@ -149,4 +153,47 @@ def test_wam_short_link_expiration():
     token = generate_wam_short_link_token(1)
 
     payload = verify_wam_short_link_token(token, max_age=-1)
+    assert payload is None
+
+
+def test_wam_entry_token_generation_and_single_use_verification():
+    token = generate_wam_entry_token("manager_123", 456, scopes=["page"])
+    assert token is not None
+
+    payload = verify_wam_entry_token(token)
+    assert payload is not None
+    assert payload["manager_id"] == "manager_123"
+    assert payload["order_id"] == 456
+    assert payload["token_type"] == "wam_entry"
+    assert payload["source"] == "entry_ticket"
+    assert payload["scopes"] == ["page"]
+
+    replay_payload = verify_wam_entry_token(token)
+    assert replay_payload is None
+
+
+def test_wam_entry_token_expiration():
+    token = generate_wam_entry_token("mgr", 1, scopes=["page"])
+
+    payload = verify_wam_entry_token(token, max_age=-1)
+    assert payload is None
+
+
+def test_wam_session_token_generation_and_verification():
+    token = generate_wam_session_token("manager_123", 456, scopes=["page"])
+    assert token is not None
+
+    payload = verify_wam_session_token(token)
+    assert payload is not None
+    assert payload["manager_id"] == "manager_123"
+    assert payload["order_id"] == 456
+    assert payload["token_type"] == "wam_session"
+    assert payload["source"] == "session_cookie"
+    assert payload["scopes"] == ["page"]
+
+
+def test_wam_session_token_expiration():
+    token = generate_wam_session_token("mgr", 1, scopes=["page"])
+
+    payload = verify_wam_session_token(token, max_age=-1)
     assert payload is None

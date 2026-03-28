@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko" class="{% block html_class %}wam-html{% endblock %}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  {% block meta %}{% endblock %}
+
+  <title>{% block title %}FOMS WAM{% endblock %}</title>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/erp-pro.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/wam/tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/wam/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/wam/layout.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/wam/components.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/wam/order-detail.css') }}">
+  {% block head_assets %}{% endblock %}
+</head>
+<body
+  class="{% block body_class %}wam-page wam-page--order-detail is-readonly{% endblock %}"
+  data-view-key="{% block body_view_key %}order-detail{% endblock %}"
+  data-page-state="{{ page_vm.page_state if page_vm is defined and page_vm else 'unknown' }}"
+>
+  <a class="wam-skip-link" href="#wam-main">본문으로 건너뛰기</a>
+
+  {% block body %}
+    <div class="wam-shell" id="wam-shell">
+      {% block shell %}{% endblock %}
+    </div>
+  {% endblock %}
+
+  {% block bootstrap_json %}
+    <script id="wam-bootstrap" type="application/json">
+      {{ bootstrap_payload|default({}, true)|tojson }}
+    </script>
+  {% endblock %}
+
+  <script defer src="{{ url_for('static', filename='js/wam/core.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/wam/telemetry.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/wam/attachments.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/wam/order-detail.js') }}"></script>
+  {% block page_scripts %}{% endblock %}
+</body>
+</html>

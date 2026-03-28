@@ -1,0 +1,5 @@
+{% import 'channel_wam/_macros.html' as wam with context %}
+
+<section class="wam-page-state wam-page-state--error">
+  {{ wam.error_block(state.title, state.message) }}
+</section>

@@ -1,0 +1,21 @@
+{% import 'channel_wam/_macros.html' as wam with context %}
+{% set header = page_vm.header %}
+
+<header class="wam-header" role="banner">
+  <div class="wam-header__surface">
+    <div class="wam-header__identity">
+      <p class="wam-header__eyebrow">주문 상세</p>
+      <div class="wam-header__title-row">
+        <h1 class="wam-header__title">{{ header.order_label }}</h1>
+        {{ wam.badge(header.status_label, header.status_tone|default('info')) }}
+      </div>
+      <p class="wam-header__customer">{{ header.customer_name }}</p>
+    </div>
+    <div class="wam-header__meta">
+      {% for badge in header.badges %}
+        {{ wam.badge(badge.label, badge.tone|default('neutral')) }}
+      {% endfor %}
+    </div>
+    <p class="wam-header__notice">{{ header.notice }}</p>
+  </div>
+</header>
