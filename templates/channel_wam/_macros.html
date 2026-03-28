@@ -1,0 +1,120 @@
+{% macro badge(label, tone='neutral', extra_class='') -%}
+  {% if label %}
+    <span class="wam-badge wam-badge--{{ tone }}{% if extra_class %} {{ extra_class }}{% endif %}">{{ label }}</span>
+  {% endif %}
+{%- endmacro %}
+
+{% macro kv_row(label, value, tone='default', href=None, href_label=None, copy_value=None, external=False, muted=False) -%}
+  <div class="wam-kv-row">
+    <dt class="wam-kv-row__label">{{ label }}</dt>
+    <dd class="wam-kv-row__value{% if muted %} is-muted{% endif %}{% if tone != 'default' %} is-{{ tone }}{% endif %}">
+      <span class="wam-kv-row__value-text">{{ value if value else '정보 없음' }}</span>
+      <span class="wam-kv-row__actions">
+        {% if href %}
+          <a
+            class="wam-inline-action"
+            href="{{ href }}"
+            {% if external %}target="_blank" rel="noopener noreferrer"{% endif %}
+          >{{ href_label if href_label else '열기' }}</a>
+        {% endif %}
+        {% if copy_value %}
+          <button
+            class="wam-inline-action wam-inline-action--button"
+            type="button"
+            data-copy-value="{{ copy_value }}"
+            data-copy-label="{{ label }}"
+          >복사</button>
+        {% endif %}
+      </span>
+    </dd>
+  </div>
+{%- endmacro %}
+
+{% macro action_button(action, kind='secondary') -%}
+  {% if action and action.visible|default(true) %}
+    {% set tag = 'a' if action.href else 'button' %}
+    <{{ tag }}
+      class="wam-action wam-action--{{ kind }}{% if action.icon_only %} is-icon-only{% endif %}"
+      {% if tag == 'a' %}
+        href="{{ action.href }}"
+        {% if action.external %}target="_blank" rel="noopener noreferrer"{% endif %}
+      {% else %}
+        type="button"
+      {% endif %}
+      {% if action.copy_value %}data-copy-value="{{ action.copy_value }}"{% endif %}
+      {% if action.copy_label %}data-copy-label="{{ action.copy_label }}"{% endif %}
+      {% if action.open_section %}data-open-section="{{ action.open_section }}"{% endif %}
+      {% if action.scroll_target %}data-scroll-target="{{ action.scroll_target }}"{% endif %}
+      {% if action.disabled %}disabled{% endif %}
+      aria-label="{{ action.aria_label if action.aria_label else action.label }}"
+    >
+      <span class="wam-action__label">{{ action.label }}</span>
+    </{{ tag }}>
+  {% endif %}
+{%- endmacro %}
+
+{% macro empty_block(title='데이터가 없습니다', message='아직 표시할 정보가 없습니다.') -%}
+  <div class="wam-empty-state" role="status">
+    <p class="wam-empty-state__eyebrow">빈 상태</p>
+    <h3 class="wam-empty-state__title">{{ title }}</h3>
+    <p class="wam-empty-state__body">{{ message }}</p>
+  </div>
+{%- endmacro %}
+
+{% macro error_block(title='정보를 불러오지 못했습니다', message='잠시 후 다시 시도해 주세요.') -%}
+  <div class="wam-error-state" role="alert">
+    <p class="wam-error-state__eyebrow">오류</p>
+    <h3 class="wam-error-state__title">{{ title }}</h3>
+    <p class="wam-error-state__body">{{ message }}</p>
+  </div>
+{%- endmacro %}
+
+{% macro section_shell(section, folded=False, content_id=None) -%}
+  {% set content_id = content_id if content_id else 'wam-section-' ~ section.key %}
+  {% set state = section.state|default('ready') %}
+  {% set expanded = section.expanded|default(not folded) %}
+  <section
+    class="wam-section wam-card{% if folded %} is-folded{% endif %}"
+    data-section-key="{{ section.key }}"
+    data-section-state="{{ state }}"
+    data-folded="{{ 'true' if folded else 'false' }}"
+    {% if section.group %}data-section-group="{{ section.group }}"{% endif %}
+  >
+    <header class="wam-section__header">
+      <div class="wam-section__header-copy">
+        {% if section.eyebrow %}<p class="wam-section__eyebrow">{{ section.eyebrow }}</p>{% endif %}
+        <h2 class="wam-section__title">{{ section.title }}</h2>
+        {% if section.description %}<p class="wam-section__description">{{ section.description }}</p>{% endif %}
+      </div>
+      <div class="wam-section__header-actions">
+        {% if section.badge_label %}
+          {{ badge(section.badge_label, section.badge_tone|default('neutral')) }}
+        {% endif %}
+        {% if folded %}
+          <button
+            class="wam-section__toggle"
+            type="button"
+            data-section-toggle="{{ section.key }}"
+            aria-expanded="{{ 'true' if expanded else 'false' }}"
+            aria-controls="{{ content_id }}"
+          >
+            <span class="wam-section__toggle-text">{{ '접기' if expanded else '열기' }}</span>
+          </button>
+        {% endif %}
+      </div>
+    </header>
+    <div
+      id="{{ content_id }}"
+      class="wam-section__body{% if folded and not expanded %} is-collapsed{% endif %}"
+      {% if folded and not expanded %}hidden{% endif %}
+    >
+      {% if state == 'empty' %}
+        {{ empty_block(section.empty_title|default('표시할 정보가 없습니다'), section.empty_message|default('아직 제공된 데이터가 없습니다.')) }}
+      {% elif state == 'error' %}
+        {{ error_block(section.error_title|default('정보를 불러오지 못했습니다'), section.error_message|default('잠시 후 다시 시도해 주세요.')) }}
+      {% else %}
+        {{ caller() }}
+      {% endif %}
+    </div>
+  </section>
+{%- endmacro %}

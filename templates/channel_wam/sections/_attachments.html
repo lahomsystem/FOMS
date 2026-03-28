@@ -1,0 +1,39 @@
+{% import 'channel_wam/_macros.html' as wam with context %}
+{% set payload = section.payload %}
+
+{% call wam.section_shell(section, section.folded|default(true)) %}
+  <div
+    class="wam-attachment-rail"
+    data-attachment-rail
+    data-attachment-loaded="false"
+    data-attachment-count="{{ payload.count }}"
+  >
+    {% if payload.count %}
+      <div class="wam-attachment-rail__preview-grid">
+        {% for item in payload.preview_items %}
+          <article class="wam-attachment-rail__preview">
+            <div class="wam-attachment-rail__thumb">
+              {% if item.thumbnail_url %}
+                <img src="{{ item.thumbnail_url }}" alt="{{ item.name if item.name else '첨부 미리보기' }}">
+              {% else %}
+                {{ item.kind_label if item.kind_label else 'FILE' }}
+              {% endif %}
+            </div>
+            <div class="wam-attachment-rail__copy">
+              <p class="wam-attachment-rail__name">{{ item.name if item.name else '첨부 파일' }}</p>
+              <p class="wam-attachment-rail__meta">{{ item.category if item.category else '미분류' }}</p>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+      <div class="wam-attachment-rail__list" data-attachment-list>
+        <div class="wam-attachment-rail__skeleton" data-attachment-skeleton>
+          <p class="wam-attachment-rail__count">첨부 {{ payload.count }}건</p>
+          <p class="wam-attachment-rail__hint">섹션을 열면 전체 첨부를 불러옵니다.</p>
+        </div>
+      </div>
+    {% else %}
+      {{ wam.empty_block(payload.empty_title, payload.empty_message) }}
+    {% endif %}
+  </div>
+{% endcall %}

@@ -1,115 +1,257 @@
 """
-ChannelTalk Inbound Security Verification (Phase C)
-- X-Signature 검증 (CT-C-01)
-- Replay Attack 방어 (CT-C-02)
-- WAM Token 관리 (CT-C-03)
+ChannelTalk inbound/WAM security helpers.
 """
-import hmac
 import hashlib
+import hmac
+import logging
 import os
 import time
-import logging
+import uuid
 from functools import wraps
-from flask import request, jsonify
-from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
+from threading import Lock
+
+from flask import jsonify, request
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 logger = logging.getLogger(__name__)
 
-CHANNEL_SIGNING_KEY = os.environ.get('CHANNEL_SIGNING_KEY', '')
-SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-foms-secret-key-123')
+CHANNEL_SIGNING_KEY = os.environ.get("CHANNEL_SIGNING_KEY", "")
+SECRET_KEY = os.environ.get("SECRET_KEY", "dev-foms-secret-key-123")
+WAM_DEFAULT_SCOPES = ("page", "attachments")
+WAM_DEFAULT_ALLOWED_SECTIONS = ("customer", "site", "schedule", "people", "items", "attachments")
 
-# WAM 세션용 토큰 생성기 (최대 1시간 유효)
-wam_serializer = URLSafeTimedSerializer(SECRET_KEY, salt='wam-launch-token')
-wam_shortlink_serializer = URLSafeTimedSerializer(SECRET_KEY, salt='wam-short-link')
+wam_serializer = URLSafeTimedSerializer(SECRET_KEY, salt="wam-launch-token")
+wam_entry_serializer = URLSafeTimedSerializer(SECRET_KEY, salt="wam-entry-token")
+wam_shortlink_serializer = URLSafeTimedSerializer(SECRET_KEY, salt="wam-short-link")
+wam_session_serializer = URLSafeTimedSerializer(SECRET_KEY, salt="wam-session-token")
+_used_entry_nonces: dict[str, float] = {}
+_used_entry_nonces_lock = Lock()
+
+
+def _get_nonce_store():
+    redis_url = os.environ.get("REDIS_URL")
+    if not redis_url:
+        return None
+
+    try:
+        from redis import Redis
+
+        return Redis.from_url(redis_url)
+    except Exception as exc:
+        logger.warning("[ChannelSecurity] Failed to initialize nonce store: %s", exc, exc_info=True)
+        return None
+
+
+def _consume_entry_nonce(nonce: str | None, ttl_seconds: int) -> bool:
+    if not nonce:
+        return False
+
+    ttl_seconds = max(int(ttl_seconds or 30), 1)
+    store = _get_nonce_store()
+    if store is not None:
+        try:
+            return bool(store.set(f"wam:entry-nonce:{nonce}", "1", ex=ttl_seconds, nx=True))
+        except Exception as exc:
+            logger.warning("[ChannelSecurity] Redis nonce consume failed: %s", exc, exc_info=True)
+
+    now = time.time()
+    with _used_entry_nonces_lock:
+        expired = [key for key, expires_at in _used_entry_nonces.items() if expires_at <= now]
+        for key in expired:
+            _used_entry_nonces.pop(key, None)
+
+        if nonce in _used_entry_nonces:
+            return False
+
+        _used_entry_nonces[nonce] = now + ttl_seconds
+        return True
+
+
+def _normalize_wam_payload(payload):
+    if not isinstance(payload, dict):
+        return None
+
+    normalized = dict(payload)
+    order_id = normalized.get("order_id")
+    if order_id in (None, ""):
+        return None
+
+    try:
+        normalized["order_id"] = int(order_id)
+    except (TypeError, ValueError):
+        return None
+
+    scopes = normalized.get("scopes")
+    if not scopes:
+        scopes = list(WAM_DEFAULT_SCOPES)
+    elif isinstance(scopes, str):
+        scopes = [scopes]
+    else:
+        scopes = [str(scope) for scope in scopes if scope]
+
+    normalized["scopes"] = scopes
+    allowed_sections = normalized.get("allowed_sections")
+    if not allowed_sections:
+        allowed_sections = list(WAM_DEFAULT_ALLOWED_SECTIONS)
+    elif isinstance(allowed_sections, str):
+        allowed_sections = [allowed_sections]
+    else:
+        allowed_sections = [str(section) for section in allowed_sections if section]
+
+    normalized["allowed_sections"] = allowed_sections
+    attachment_scope = normalized.get("attachment_scope")
+    if not attachment_scope:
+        attachment_scope = "order" if "attachments" in scopes else "none"
+    normalized["attachment_scope"] = str(attachment_scope)
+
+    mapped_user_id = normalized.get("mapped_foms_user_id")
+    if mapped_user_id in (None, ""):
+        normalized["mapped_foms_user_id"] = None
+    else:
+        try:
+            normalized["mapped_foms_user_id"] = int(mapped_user_id)
+        except (TypeError, ValueError):
+            normalized["mapped_foms_user_id"] = None
+
+    normalized["nonce"] = str(normalized["nonce"]) if normalized.get("nonce") else None
+    normalized.setdefault("token_type", "wam_launch")
+    normalized.setdefault("source", "launch_token")
+    return normalized
+
+
+def _build_wam_token_payload(manager_id: str, order_id: int = None, **extra_claims) -> dict:
+    payload = {
+        "manager_id": manager_id,
+        "order_id": order_id,
+        "iat": time.time(),
+        "scopes": list(WAM_DEFAULT_SCOPES),
+        "allowed_sections": list(WAM_DEFAULT_ALLOWED_SECTIONS),
+        "attachment_scope": "order",
+    }
+    for key, value in extra_claims.items():
+        if value is not None:
+            payload[key] = value
+    normalized = _normalize_wam_payload(payload)
+    if normalized is None:
+        raise ValueError("Invalid WAM token payload")
+    return normalized
+
 
 def verify_channel_signature(raw_body: bytes, signature: str) -> bool:
-    """
-    수신한 Body와 환경변수의 SIGNING_KEY를 이용해 X-Signature 검증.
-    """
     if not CHANNEL_SIGNING_KEY or not signature:
         return False
-    
+
     expected_hash = hmac.new(
-        CHANNEL_SIGNING_KEY.encode('utf-8'),
+        CHANNEL_SIGNING_KEY.encode("utf-8"),
         msg=raw_body,
-        digestmod=hashlib.sha256
+        digestmod=hashlib.sha256,
     ).hexdigest()
-    
     return hmac.compare_digest(expected_hash, signature)
 
+
 def require_channel_signature(f):
-    """
-    ChannelTalk Webhook 및 Function Endpoint 용 데코레이터.
-    - X-Signature 검증
-    - (선택적) Replay 방어를 위한 timestamp 검증
-    - HTML 리다이렉트 없이 순수 JSON 에러 반환
-    """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # 1. Feature Flag 점검 (수신을 전체 차단할지)
-        # 만약 Blueprint 레벨에서 끄려면 별도 before_request를 활용해도 무방함.
-        if os.environ.get('CHANNEL_INBOUND_ENABLED', 'true').lower() == 'false':
-            return jsonify({'error': 'inbound_disabled', 'message': 'Channel inbound is disabled via feature flag'}), 503
+        if os.environ.get("CHANNEL_INBOUND_ENABLED", "true").lower() == "false":
+            return (
+                jsonify(
+                    {
+                        "error": "inbound_disabled",
+                        "message": "Channel inbound is disabled via feature flag",
+                    }
+                ),
+                503,
+            )
 
-        # 2. X-Signature 검증
-        signature = request.headers.get('x-signature', '')
+        signature = request.headers.get("x-signature", "")
         if not signature:
             logger.warning("[ChannelSecurity] Missing x-signature header")
-            return jsonify({'error': 'unauthorized', 'message': 'Missing x-signature'}), 401
-            
+            return jsonify({"error": "unauthorized", "message": "Missing x-signature"}), 401
+
         raw_body = request.get_data()
         if not verify_channel_signature(raw_body, signature):
             logger.warning("[ChannelSecurity] Invalid x-signature")
-            return jsonify({'error': 'unauthorized', 'message': 'Invalid signature'}), 401
-            
-        # 3. Replay 방지 로직 (5분 윈도우)
+            return jsonify({"error": "unauthorized", "message": "Invalid signature"}), 401
+
         payload = request.get_json(silent=True) or {}
-        
-        # Webhook payload에 있는 createdAt (ms) 확인
-        created_at_ms = payload.get('entity', {}).get('createdAt')
-        
-        # Function payload의 경우 별도 규칙이 없다면 생략 (보통 x-signature로 충분)
+        created_at_ms = payload.get("entity", {}).get("createdAt")
         if created_at_ms and isinstance(created_at_ms, (int, float)):
             now_ms = time.time() * 1000
             diff_ms = now_ms - created_at_ms
-            window_secs = int(os.environ.get('CHANNEL_REPLAY_WINDOW_SECONDS', 300))
+            window_secs = int(os.environ.get("CHANNEL_REPLAY_WINDOW_SECONDS", 300))
             if window_secs <= 0:
                 window_secs = 300
             window_ms = window_secs * 1000
-            
-            # 과거 5분 초과 혹은 미래 시간(서버 시간 오차 고려 1분 허용)
             if diff_ms > window_ms or diff_ms < -60000:
-                logger.warning("[ChannelSecurity] Stale payload or Replay attack detected. Diff: %.1f ms", diff_ms)
-                return jsonify({'error': 'forbidden', 'message': 'Payload timestamp out of valid window'}), 403
-                
+                logger.warning(
+                    "[ChannelSecurity] Stale payload or Replay attack detected. Diff: %.1f ms",
+                    diff_ms,
+                )
+                return (
+                    jsonify(
+                        {
+                            "error": "forbidden",
+                            "message": "Payload timestamp out of valid window",
+                        }
+                    ),
+                    403,
+                )
+
         return f(*args, **kwargs)
+
     return decorated_function
 
-def generate_wam_launch_token(manager_id: str, order_id: int = None) -> str:
-    """
-    Web App Messenger 구동 시 클라이언트에 전달할 일회용/단기 토큰 생성.
-    """
-    payload = {
-        'manager_id': manager_id,
-        'order_id': order_id,
-        'iat': time.time()
-    }
+
+def generate_wam_launch_token(manager_id: str, order_id: int = None, **extra_claims) -> str:
+    payload = _build_wam_token_payload(
+        manager_id,
+        order_id,
+        token_type="wam_launch",
+        source="launch_token",
+        **extra_claims,
+    )
     return wam_serializer.dumps(payload)
 
 
-def generate_wam_short_link_token(order_id: int) -> str:
-    """
-    채널톡 메시지 노출용 짧은 링크 토큰.
-    실제 launch_token은 링크 클릭 시 재발급한다.
-    """
-    return wam_shortlink_serializer.dumps(int(order_id))
+def generate_wam_entry_token(manager_id: str, order_id: int = None, **extra_claims) -> str:
+    payload = _build_wam_token_payload(
+        manager_id,
+        order_id,
+        token_type="wam_entry",
+        source="entry_ticket",
+        nonce=extra_claims.pop("nonce", None) or uuid.uuid4().hex,
+        **extra_claims,
+    )
+    return wam_entry_serializer.dumps(payload)
+
+
+def generate_wam_short_link_token(order_id: int, manager_id: str = "wam_viewer", **extra_claims) -> str:
+    payload = _build_wam_token_payload(
+        manager_id,
+        order_id,
+        token_type="wam_shortlink",
+        source="short_link",
+        **extra_claims,
+    )
+    return wam_shortlink_serializer.dumps(payload)
+
+
+def generate_wam_session_token(manager_id: str, order_id: int = None, **extra_claims) -> str:
+    payload = _build_wam_token_payload(
+        manager_id,
+        order_id,
+        token_type="wam_session",
+        source="session_cookie",
+        nonce=extra_claims.pop("nonce", None) or uuid.uuid4().hex,
+        **extra_claims,
+    )
+    return wam_session_serializer.dumps(payload)
+
 
 def verify_wam_launch_token(token: str, max_age: int = 3600) -> dict:
-    """
-    WAM 토큰 검증. 최대 max_age 초 이내에만 유효.
-    """
     try:
-        return wam_serializer.loads(token, max_age=max_age)
+        payload = wam_serializer.loads(token, max_age=max_age)
+        return _normalize_wam_payload(payload)
     except SignatureExpired:
         logger.warning("[ChannelSecurity] WAM token expired")
         return None
@@ -118,17 +260,46 @@ def verify_wam_launch_token(token: str, max_age: int = 3600) -> dict:
         return None
 
 
+def verify_wam_entry_token(token: str, max_age: int = 30) -> dict:
+    try:
+        payload = wam_entry_serializer.loads(token, max_age=max_age)
+        normalized = _normalize_wam_payload(payload)
+        if not normalized:
+            return None
+        if not _consume_entry_nonce(normalized.get("nonce"), max_age):
+            logger.warning("[ChannelSecurity] Reused WAM entry token")
+            return None
+        return normalized
+    except SignatureExpired:
+        logger.warning("[ChannelSecurity] WAM entry token expired")
+        return None
+    except BadSignature:
+        logger.warning("[ChannelSecurity] Invalid WAM entry token")
+        return None
+
+
 def verify_wam_short_link_token(token: str, max_age: int = 30 * 24 * 3600) -> dict:
-    """
-    짧은 WAM 링크 토큰 검증.
-    채팅 이력에서 다시 열 수 있도록 launch_token보다 긴 기본 만료를 둔다.
-    """
     try:
         payload = wam_shortlink_serializer.loads(token, max_age=max_age)
         if isinstance(payload, int):
-            return {'order_id': payload}
+            payload = {
+                "manager_id": "wam_viewer",
+                "order_id": payload,
+                "token_type": "wam_shortlink",
+                "source": "short_link",
+            }
         if isinstance(payload, str) and payload.isdigit():
-            return {'order_id': int(payload)}
+            payload = {
+                "manager_id": "wam_viewer",
+                "order_id": int(payload),
+                "token_type": "wam_shortlink",
+                "source": "short_link",
+            }
+
+        normalized = _normalize_wam_payload(payload)
+        if normalized:
+            return normalized
+
         logger.warning("[ChannelSecurity] Invalid WAM short link payload type")
         return None
     except SignatureExpired:
@@ -136,4 +307,16 @@ def verify_wam_short_link_token(token: str, max_age: int = 30 * 24 * 3600) -> di
         return None
     except BadSignature:
         logger.warning("[ChannelSecurity] Invalid WAM short link token")
+        return None
+
+
+def verify_wam_session_token(token: str, max_age: int = 300) -> dict:
+    try:
+        payload = wam_session_serializer.loads(token, max_age=max_age)
+        return _normalize_wam_payload(payload)
+    except SignatureExpired:
+        logger.warning("[ChannelSecurity] WAM session token expired")
+        return None
+    except BadSignature:
+        logger.warning("[ChannelSecurity] Invalid WAM session token")
         return None

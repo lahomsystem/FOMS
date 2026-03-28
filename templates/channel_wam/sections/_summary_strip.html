@@ -1,0 +1,24 @@
+{% set strip = page_vm.summary_strip %}
+
+<section class="wam-summary-strip wam-card" aria-labelledby="wam-summary-strip-title">
+  <div class="wam-summary-strip__header">
+    <p class="wam-summary-strip__eyebrow">첫 화면 요약</p>
+    <h2 id="wam-summary-strip-title" class="wam-summary-strip__title">{{ strip['title'] }}</h2>
+  </div>
+  <div class="wam-summary-strip__grid">
+    {% for item in strip['items'] %}
+      <article class="wam-summary-strip__item">
+        <p class="wam-summary-strip__label">{{ item.label }}</p>
+        <p class="wam-summary-strip__value{% if item.tone %} is-{{ item.tone }}{% endif %}">{{ item.value }}</p>
+        <div class="wam-summary-strip__meta">
+          {% if item.href %}
+            <a href="{{ item.href }}" {% if item.external %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.href_label if item.href_label else '열기' }}</a>
+          {% endif %}
+          {% if item.copy_value %}
+            <button type="button" data-copy-value="{{ item.copy_value }}" data-copy-label="{{ item.label }}">복사</button>
+          {% endif %}
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+</section>

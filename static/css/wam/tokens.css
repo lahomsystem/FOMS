@@ -1,0 +1,214 @@
+/* ==========================================================================
+   WAM Tokens
+   File: static/css/wam/tokens.css
+   ========================================================================== */
+
+:root {
+  --wam-ref-neutral-0: #ffffff;
+  --wam-ref-neutral-50: #f7f9fc;
+  --wam-ref-neutral-100: #eef2f7;
+  --wam-ref-neutral-200: #e2e8f0;
+  --wam-ref-neutral-300: #cbd5e1;
+  --wam-ref-neutral-500: #64748b;
+  --wam-ref-neutral-700: #334155;
+  --wam-ref-neutral-900: #0f172a;
+
+  --wam-ref-brand-500: #2563eb;
+  --wam-ref-brand-600: #1d4ed8;
+  --wam-ref-brand-700: #1e40af;
+
+  --wam-ref-green-500: #16a34a;
+  --wam-ref-amber-500: #d97706;
+  --wam-ref-red-500: #dc2626;
+  --wam-ref-sky-500: #0284c7;
+
+  --wam-ref-overlay-glass: rgba(255, 255, 255, 0.92);
+  --wam-ref-backdrop-blur: blur(16px);
+
+  --wam-ref-status-info-bg: #eff6ff;
+  --wam-ref-status-info-fg: #1d4ed8;
+  --wam-ref-status-success-bg: #dcfce7;
+  --wam-ref-status-success-fg: #166534;
+  --wam-ref-status-warning-bg: #fef3c7;
+  --wam-ref-status-warning-fg: #92400e;
+  --wam-ref-status-danger-bg: #fee2e2;
+  --wam-ref-status-danger-fg: #991b1b;
+}
+
+:root {
+  --wam-ref-font-sans: "Segoe UI Variable Text", "Segoe UI", "Noto Sans KR", system-ui, sans-serif;
+
+  --wam-ref-text-xs: 0.75rem;
+  --wam-ref-text-sm: 0.8125rem;
+  --wam-ref-text-md: 0.875rem;
+  --wam-ref-text-lg: 1rem;
+  --wam-ref-text-xl: 1.25rem;
+  --wam-ref-text-2xl: 1.5rem;
+
+  --wam-ref-leading-xs: 1.3334;
+  --wam-ref-leading-sm: 1.3847;
+  --wam-ref-leading-md: 1.4286;
+  --wam-ref-leading-lg: 1.375;
+  --wam-ref-leading-xl: 1.4;
+  --wam-ref-leading-2xl: 1.3334;
+}
+
+:root {
+  --wam-ref-space-1: 0.25rem;
+  --wam-ref-space-2: 0.5rem;
+  --wam-ref-space-3: 0.75rem;
+  --wam-ref-space-4: 1rem;
+  --wam-ref-space-5: 1.25rem;
+  --wam-ref-space-6: 1.5rem;
+  --wam-ref-space-8: 2rem;
+  --wam-ref-space-10: 2.5rem;
+
+  --wam-ref-radius-sm: 0.625rem;
+  --wam-ref-radius-md: 0.875rem;
+  --wam-ref-radius-lg: 1.125rem;
+  --wam-ref-radius-xl: 1.5rem;
+  --wam-ref-radius-pill: 999px;
+
+  --wam-ref-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --wam-ref-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --wam-ref-shadow-lg: 0 20px 48px rgba(15, 23, 42, 0.12);
+}
+
+:root {
+  --wam-ref-size-action-height: 2.75rem;
+  --wam-ref-size-icon-button: 2.75rem;
+  --wam-ref-size-badge-height: 1.75rem;
+  --wam-ref-size-attachment-preview: 4.5rem;
+  --wam-ref-size-sticky-bar: 4.5rem;
+  --wam-ref-size-sticky-primary-min-width: 7.5rem;
+  --wam-ref-size-header-min: 5rem;
+  --wam-ref-size-content-max: 60rem;
+  --wam-ref-size-summary-column-min: 9rem;
+  --wam-ref-size-kv-label-width: 6rem;
+  --wam-ref-size-state-icon: 2.75rem;
+  --wam-ref-size-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+
+  --wam-ref-transition-fast: 140ms ease-out;
+  --wam-ref-transition-base: 220ms ease;
+  --wam-ref-transition-slow: 320ms ease;
+
+  --wam-ref-z-header: 20;
+  --wam-ref-z-sticky: 30;
+}
+
+:root {
+  --wam-sys-font-family: var(--wam-ref-font-sans);
+  --wam-sys-bg-page: var(--wam-ref-neutral-50);
+  --wam-sys-surface-card: var(--wam-ref-neutral-0);
+  --wam-sys-surface-subtle: var(--wam-ref-neutral-100);
+  --wam-sys-surface-overlay: var(--wam-ref-overlay-glass);
+
+  --wam-sys-border-subtle: var(--wam-ref-neutral-200);
+  --wam-sys-border-strong: var(--wam-ref-neutral-300);
+
+  --wam-sys-text-primary: var(--wam-ref-neutral-900);
+  --wam-sys-text-secondary: var(--wam-ref-neutral-700);
+  --wam-sys-text-tertiary: var(--wam-ref-neutral-500);
+
+  --wam-sys-action-primary: var(--wam-ref-brand-600);
+  --wam-sys-action-primary-hover: var(--wam-ref-brand-700);
+  --wam-sys-action-secondary: var(--wam-ref-neutral-100);
+  --wam-sys-action-disabled-bg: var(--wam-ref-neutral-100);
+  --wam-sys-action-disabled-fg: var(--wam-ref-neutral-500);
+
+  --wam-sys-status-info-bg: var(--wam-ref-status-info-bg);
+  --wam-sys-status-info-fg: var(--wam-ref-status-info-fg);
+  --wam-sys-status-success-bg: var(--wam-ref-status-success-bg);
+  --wam-sys-status-success-fg: var(--wam-ref-status-success-fg);
+  --wam-sys-status-warning-bg: var(--wam-ref-status-warning-bg);
+  --wam-sys-status-warning-fg: var(--wam-ref-status-warning-fg);
+  --wam-sys-status-danger-bg: var(--wam-ref-status-danger-bg);
+  --wam-sys-status-danger-fg: var(--wam-ref-status-danger-fg);
+
+  --wam-sys-state-error-bg: var(--wam-ref-status-danger-bg);
+  --wam-sys-state-error-border: var(--wam-ref-red-500);
+  --wam-sys-state-error-fg: var(--wam-ref-status-danger-fg);
+
+  --wam-sys-motion-fast: var(--wam-ref-transition-fast);
+  --wam-sys-motion-base: var(--wam-ref-transition-base);
+  --wam-sys-motion-slow: var(--wam-ref-transition-slow);
+
+  --wam-sys-z-header: var(--wam-ref-z-header);
+  --wam-sys-z-sticky: var(--wam-ref-z-sticky);
+}
+
+:root {
+  --wam-comp-header-bg: var(--wam-sys-surface-overlay);
+  --wam-comp-header-backdrop: var(--wam-ref-backdrop-blur);
+  --wam-comp-header-min-height: var(--wam-ref-size-header-min);
+  --wam-comp-header-padding-x: var(--wam-ref-space-5);
+  --wam-comp-header-padding-y: var(--wam-ref-space-4);
+  --wam-comp-header-gap: var(--wam-ref-space-3);
+  --wam-comp-header-shadow: var(--wam-ref-shadow-sm);
+  --wam-comp-header-title-size: var(--wam-ref-text-xl);
+  --wam-comp-header-meta-size: var(--wam-ref-text-sm);
+  --wam-comp-header-badge-gap: var(--wam-ref-space-2);
+
+  --wam-comp-summary-strip-bg: var(--wam-sys-surface-card);
+  --wam-comp-summary-strip-padding: var(--wam-ref-space-4);
+  --wam-comp-summary-grid-gap: var(--wam-ref-space-3);
+  --wam-comp-summary-column-min: var(--wam-ref-size-summary-column-min);
+  --wam-comp-summary-label-size: var(--wam-ref-text-xs);
+  --wam-comp-summary-value-size: var(--wam-ref-text-lg);
+  --wam-comp-summary-divider-inset: var(--wam-ref-space-2);
+
+  --wam-comp-card-padding: var(--wam-ref-space-5);
+  --wam-comp-card-gap: var(--wam-ref-space-4);
+  --wam-comp-card-radius: var(--wam-ref-radius-lg);
+  --wam-comp-card-shadow: var(--wam-ref-shadow-md);
+  --wam-comp-card-header-gap: var(--wam-ref-space-2);
+  --wam-comp-card-body-gap: var(--wam-ref-space-3);
+  --wam-comp-card-section-gap: var(--wam-ref-space-4);
+  --wam-comp-section-max-width: var(--wam-ref-size-content-max);
+
+  --wam-comp-badge-radius: var(--wam-ref-radius-pill);
+  --wam-comp-badge-height: var(--wam-ref-size-badge-height);
+  --wam-comp-badge-padding-x: var(--wam-ref-space-3);
+  --wam-comp-badge-gap: var(--wam-ref-space-2);
+  --wam-comp-badge-font-size: var(--wam-ref-text-xs);
+  --wam-comp-badge-icon-size: var(--wam-ref-text-xs);
+
+  --wam-comp-kv-row-padding-y: var(--wam-ref-space-3);
+  --wam-comp-kv-row-gap: var(--wam-ref-space-4);
+  --wam-comp-kv-label-width: var(--wam-ref-size-kv-label-width);
+  --wam-comp-kv-value-gap: var(--wam-ref-space-2);
+  --wam-comp-kv-divider-inset: var(--wam-ref-space-2);
+  --wam-comp-kv-stack-breakpoint: var(--wam-ref-size-content-max);
+
+  --wam-comp-attachment-preview-size: var(--wam-ref-size-attachment-preview);
+  --wam-comp-attachment-radius: var(--wam-ref-radius-md);
+  --wam-comp-attachment-gap: var(--wam-ref-space-3);
+  --wam-comp-attachment-rail-padding: var(--wam-ref-space-4);
+  --wam-comp-attachment-meta-gap: var(--wam-ref-space-1);
+  --wam-comp-attachment-count-badge-offset: var(--wam-ref-space-2);
+  --wam-comp-attachment-skeleton-size: var(--wam-ref-size-attachment-preview);
+
+  --wam-comp-sticky-bar-height: var(--wam-ref-size-sticky-bar);
+  --wam-comp-sticky-bar-padding-x: var(--wam-ref-space-4);
+  --wam-comp-sticky-bar-padding-y: var(--wam-ref-space-3);
+  --wam-comp-sticky-bar-gap: var(--wam-ref-space-2);
+  --wam-comp-sticky-bar-shadow: var(--wam-ref-shadow-lg);
+  --wam-comp-sticky-primary-min-width: var(--wam-ref-size-sticky-primary-min-width);
+  --wam-comp-sticky-icon-button-size: var(--wam-ref-size-icon-button);
+  --wam-comp-sticky-safe-area-bottom: var(--wam-ref-size-safe-area-bottom);
+
+  --wam-comp-state-padding: var(--wam-ref-space-6);
+  --wam-comp-state-gap: var(--wam-ref-space-3);
+  --wam-comp-state-icon-size: var(--wam-ref-size-state-icon);
+  --wam-comp-state-title-size: var(--wam-ref-text-lg);
+  --wam-comp-state-body-max-width: 32rem;
+  --wam-comp-state-action-gap: var(--wam-ref-space-2);
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --wam-comp-card-padding: var(--wam-ref-space-6);
+    --wam-comp-summary-strip-padding: var(--wam-ref-space-5);
+    --wam-comp-header-padding-x: var(--wam-ref-space-6);
+  }
+}

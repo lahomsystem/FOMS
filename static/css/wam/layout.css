@@ -1,0 +1,61 @@
+.wam-shell {
+  min-height: 100svh;
+  --wam-runtime-sticky-bar-height: var(--wam-comp-sticky-bar-height);
+}
+
+.wam-shell__viewport {
+  position: relative;
+  max-width: var(--wam-comp-section-max-width);
+  margin-inline: auto;
+  padding-block-end: calc(
+    var(--wam-runtime-sticky-bar-height) +
+    var(--wam-comp-sticky-safe-area-bottom) +
+    var(--wam-ref-space-8)
+  );
+}
+
+.wam-main {
+  display: grid;
+  gap: var(--wam-comp-card-gap);
+  padding:
+    var(--wam-ref-space-3)
+    var(--wam-ref-space-4)
+    var(--wam-ref-space-8);
+}
+
+.wam-section-stack {
+  display: grid;
+  gap: var(--wam-comp-card-gap);
+}
+
+.wam-page-state {
+  display: grid;
+  gap: var(--wam-comp-card-gap);
+}
+
+.wam-page[data-page-state='error'] .wam-shell__viewport,
+.wam-page[data-page-state='empty'] .wam-shell__viewport {
+  min-height: 100svh;
+}
+
+.wam-page[data-page-state='error'] .wam-main,
+.wam-page[data-page-state='empty'] .wam-main {
+  padding-block-start: var(--wam-ref-space-6);
+}
+
+@media (min-width: 48rem) {
+  .wam-main {
+    padding:
+      var(--wam-ref-space-4)
+      var(--wam-ref-space-5)
+      var(--wam-ref-space-10);
+  }
+
+  .wam-section-stack--primary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wam-section-stack--primary .wam-section[data-section-key='schedule'] {
+    grid-column: 1 / -1;
+  }
+}
