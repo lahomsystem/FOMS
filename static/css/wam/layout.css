@@ -1,17 +1,13 @@
 .wam-shell {
   min-height: 100svh;
-  --wam-runtime-sticky-bar-height: var(--wam-comp-sticky-bar-height);
+  --wam-runtime-sticky-bar-height: 0px;
 }
 
 .wam-shell__viewport {
   position: relative;
   max-width: var(--wam-comp-section-max-width);
   margin-inline: auto;
-  padding-block-end: calc(
-    var(--wam-runtime-sticky-bar-height) +
-    var(--wam-comp-sticky-safe-area-bottom) +
-    var(--wam-ref-space-8)
-  );
+  padding-block-end: var(--wam-ref-space-8);
 }
 
 .wam-main {

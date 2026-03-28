@@ -106,7 +106,7 @@ def _row(
     }
 
 
-def _build_header(read_model) -> dict[str, Any]:
+def _build_header(read_model, action_bar: WamStickyActionBarVM) -> dict[str, Any]:
     badges = [{"label": "읽기 전용", "tone": "neutral"}]
     if read_model.owner_team not in (None, "", "-"):
         badges.append({"label": read_model.owner_team, "tone": "info"})
@@ -119,7 +119,8 @@ def _build_header(read_model) -> dict[str, Any]:
         "status_tone": "danger" if read_model.urgent else "info",
         "customer_name": read_model.customer_name,
         "badges": badges,
-        "notice": (read_model.info_banner or {}).get("text") or "읽기 전용 화면입니다.",
+        "secondary_actions": action_bar.secondary_actions,
+        "primary_action": action_bar.primary_action,
     }
 
 
@@ -214,7 +215,6 @@ def _build_customer_section(read_model) -> WamSectionVM:
         key="customer",
         title="고객 / 발주",
         eyebrow="기본 정보",
-        description="고객과 발주 관련 정보를 확인합니다.",
         payload={
             "rows": [
                 _row("고객명", read_model.customer["customer_name"]),
@@ -231,7 +231,6 @@ def _build_site_section(read_model) -> WamSectionVM:
     return WamSectionVM(
         key="site",
         title="현장 / 주소",
-        description="주소와 현장 접근 정보를 확인합니다.",
         payload={
             "rows": [
                 _row("주소", read_model.site["address_full"], copy_value=read_model.site["address_full"]),
@@ -253,7 +252,6 @@ def _build_schedule_section(read_model) -> WamSectionVM:
     return WamSectionVM(
         key="schedule",
         title="일정",
-        description="실측, 시공, 출고 일정을 한 번에 봅니다.",
         payload={
             "rows": [
                 _row("접수일", read_model.schedule["received_date"]),
@@ -273,7 +271,6 @@ def _build_people_section(read_model) -> WamSectionVM:
     return WamSectionVM(
         key="people",
         title="담당 / 배정",
-        description="관련 담당자와 owner team을 확인합니다.",
         payload={
             "rows": [
                 _row("담당 매니저", read_model.people["manager_name"]),
@@ -308,7 +305,6 @@ def _build_items_section(read_model) -> WamSectionVM:
     return WamSectionVM(
         key="items",
         title="품목",
-        description="주문 품목과 옵션 상세입니다.",
         state="ready" if items else "empty",
         folded=True,
         group="heavy",
@@ -322,7 +318,6 @@ def _build_payment_section(read_model) -> WamSectionVM:
     return WamSectionVM(
         key="payment",
         title="결제 / 금액",
-        description="기본 금액 정보를 확인합니다.",
         payload={
             "rows": [
                 _row("결제금액", read_model.payment["total_label"]),
@@ -344,7 +339,6 @@ def _build_attachments_section(context: WamRequestContext, flags: dict[str, bool
     return WamSectionVM(
         key="attachments",
         title="첨부파일",
-        description="카테고리별 첨부를 펼쳐 확인합니다.",
         state="ready" if total_count else "empty",
         folded=True,
         group="heavy",
@@ -376,7 +370,6 @@ def _build_timeline_section(read_model, timeline_enabled: bool) -> WamSectionVM:
     return WamSectionVM(
         key="timeline",
         title="최근 변경",
-        description="최근 이벤트와 변경 이력을 확인합니다.",
         state="hidden" if not timeline_enabled else ("ready" if items else "empty"),
         folded=True,
         group="heavy",
@@ -386,7 +379,7 @@ def _build_timeline_section(read_model, timeline_enabled: bool) -> WamSectionVM:
     )
 
 
-def _build_sticky_action_bar(read_model) -> WamStickyActionBarVM:
+def _build_quick_actions(read_model) -> WamStickyActionBarVM:
     secondary_actions = [
         WamActionVM(
             key="copy-address",
@@ -395,12 +388,16 @@ def _build_sticky_action_bar(read_model) -> WamStickyActionBarVM:
             copy_label="주소",
             aria_label="주소 복사",
             visible=read_model.address not in (None, "", "-"),
+            icon="copy",
+            icon_only=True,
         ),
         WamActionVM(
             key="open-attachments",
             label="첨부 열기",
             open_section="attachments",
             aria_label="첨부 섹션 열기",
+            icon="attachment",
+            icon_only=True,
         ),
     ]
 
@@ -412,6 +409,8 @@ def _build_sticky_action_bar(read_model) -> WamStickyActionBarVM:
                 label="전화",
                 href=f"tel:{read_model.phone}",
                 aria_label="연락처로 전화 걸기",
+                icon="phone",
+                icon_only=True,
             ),
         )
 
@@ -425,6 +424,8 @@ def _build_sticky_action_bar(read_model) -> WamStickyActionBarVM:
                 external=True,
                 target="_blank",
                 aria_label="지도 열기",
+                icon="map",
+                icon_only=True,
             )
         )
 
@@ -432,11 +433,12 @@ def _build_sticky_action_bar(read_model) -> WamStickyActionBarVM:
         state="visible",
         primary_action=WamActionVM(
             key="open-foms",
-            label="FOMS 상세 열기",
+            label="FOMS",
             href=url_for("order_edit.edit_order", order_id=read_model.order_id, open="erp-beta"),
             target="_blank",
             external=True,
             aria_label="FOMS 상세 화면 열기",
+            icon="external",
         ),
         secondary_actions=secondary_actions,
     )
@@ -448,6 +450,7 @@ def build_wam_page(context: WamRequestContext) -> WamPageVM | None:
         return None
 
     flags = get_wam_feature_flags()
+    quick_actions = _build_quick_actions(read_model)
     sections = [
         _build_customer_section(read_model),
         _build_site_section(read_model),
@@ -485,12 +488,12 @@ def build_wam_page(context: WamRequestContext) -> WamPageVM | None:
         page_state="ready",
         order_id=read_model.order_id,
         title=f"주문 #{read_model.order_id} | FOMS WAM",
-        header=_build_header(read_model),
+        header=_build_header(read_model, quick_actions),
         summary_strip=_build_summary_strip(read_model),
         sections=sections,
         primary_sections=primary_sections,
         folded_sections=folded_sections,
-        sticky_action_bar=_build_sticky_action_bar(read_model),
+        sticky_action_bar=None,
         flags=flags,
         info_banner=read_model.info_banner,
         telemetry=telemetry,
@@ -525,16 +528,19 @@ def build_legacy_wam_context(context: WamRequestContext) -> dict[str, Any] | Non
     if not summary:
         return None
 
+    flags = get_wam_feature_flags()
     attachments = (
         get_order_attachments_for_wam(context.order_id)
-        if context.allows("attachments") and context.allows_attachment_order(context.order_id)
+        if flags.get("attachments_enabled", False)
+        and context.allows("attachments")
+        and context.allows_attachment_order(context.order_id)
         else []
     )
 
     return {
         "summary": summary,
         "attachments": attachments,
-        "flags": get_wam_feature_flags(),
+        "flags": flags,
     }
 
 

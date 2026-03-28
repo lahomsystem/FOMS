@@ -36,7 +36,7 @@
     return document.body.getAttribute("data-view-key") || "order-detail";
   }
 
-  function buildTelemetryContext(bootstrap, stickyBar) {
+  function buildTelemetryContext(bootstrap, quickActions) {
     var sections = getSections(bootstrap);
     return {
       viewKey: getViewKey(),
@@ -49,7 +49,7 @@
           })
           .filter(Boolean),
         attachment_count: getAttachmentCount(bootstrap),
-        sticky_bar_present: !!stickyBar
+        quick_actions_present: !!quickActions
       }
     };
   }
@@ -64,22 +64,12 @@
     }
 
     var bootstrap = core.parseBootstrap();
-    var stickyBar = core.qs(root, ".wam-sticky-bar");
+    var quickActions = core.qs(root, ".wam-header__action-row");
     var bootAt = window.performance && typeof window.performance.now === "function"
       ? window.performance.now()
       : 0;
     var sections = getSections(bootstrap);
-    var telemetryContext = buildTelemetryContext(bootstrap, stickyBar);
-
-    function syncStickyBarHeight() {
-      if (!stickyBar) {
-        return;
-      }
-      document.documentElement.style.setProperty(
-        "--wam-runtime-sticky-bar-height",
-        stickyBar.offsetHeight + "px"
-      );
-    }
+    var telemetryContext = buildTelemetryContext(bootstrap, quickActions);
 
     if (telemetry && typeof telemetry.configure === "function") {
       telemetry.configure(bootstrap, telemetryContext);
@@ -123,12 +113,6 @@
 
     core.bindSectionToggles(root);
     core.bindCopyButtons(root);
-    syncStickyBarHeight();
-
-    if (stickyBar && window.ResizeObserver) {
-      var observer = new ResizeObserver(syncStickyBarHeight);
-      observer.observe(stickyBar);
-    }
 
     core.on(root, "click", "[data-open-section]", function handleOpenSection(event, target) {
       event.preventDefault();
