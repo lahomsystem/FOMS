@@ -2,6 +2,7 @@
 ChannelTalk unified routing and message template policy.
 """
 
+import html
 import os
 from typing import Any, Dict, List
 
@@ -31,6 +32,120 @@ def _render_change_lines(change_lines: List[str]) -> str:
     if not lines:
         return ""
     return "\n".join(f"- {line}" for line in lines)
+
+
+def _text_block(value: str) -> dict[str, str]:
+    return {"type": "text", "value": html.escape(value, quote=True)}
+
+
+def _paragraph_blocks(lines: List[str]) -> list[dict[str, str]]:
+    blocks: list[dict[str, str]] = []
+    paragraph: list[str] = []
+    for line in lines:
+        if line.strip():
+            paragraph.append(line)
+            continue
+        if paragraph:
+            blocks.append(_text_block("\n".join(paragraph)))
+            paragraph = []
+    if paragraph:
+        blocks.append(_text_block("\n".join(paragraph)))
+    return blocks
+
+
+def build_message_blocks(event_type: str, data: Dict[str, Any]) -> list[dict[str, str]]:
+    """Render ChannelTalk rich blocks so links can be shown as a short label."""
+    order_id = data.get("order_id", "?")
+    customer_name = data.get("customer_name", "고객")
+    detail_url = data.get("detail_url") or _build_order_detail_link(order_id)
+
+    if event_type == "manual":
+        user_message = str(data.get("text", "")).strip()
+        is_retry = data.get("is_retry", False)
+        lines = [
+            "[수정]" if is_retry else "[ERP 푸시]",
+            f"주문 #{order_id} - {customer_name}",
+        ]
+        if user_message:
+            lines.extend(["", user_message])
+        blocks = _paragraph_blocks(lines)
+        blocks.append(
+            {
+                "type": "text",
+                "value": f"🔗 <link type=\"url\" value=\"{html.escape(detail_url, quote=True)}\">주문 보기</link>",
+            }
+        )
+        return blocks
+
+    if event_type == "measurement_completed":
+        address = data.get("address", "-")
+        date_str = data.get("measurement_date", "-")
+        blocks = _paragraph_blocks(
+            [
+                f"[실측완료] 주문 #{order_id} - {customer_name} 고객",
+                "실측이 완료되어 보고서가 등록되었습니다.",
+                "",
+                f"📍 주소: {address}",
+                f"📅 실측일: {date_str}",
+            ]
+        )
+        blocks.append(
+            {
+                "type": "text",
+                "value": f"🔗 <link type=\"url\" value=\"{html.escape(detail_url, quote=True)}\">주문 보기</link>",
+            }
+        )
+        return blocks
+
+    if event_type == "urgent":
+        reason = data.get("reason", "긴급 확인 필요")
+        blocks = _paragraph_blocks(
+            [
+                f"🚨 [긴급] 주문 #{order_id} - {customer_name} 고객",
+                str(reason),
+                "관련 담당자는 즉시 확인 바랍니다. @all",
+            ]
+        )
+        blocks.append(
+            {
+                "type": "text",
+                "value": f"🔗 <link type=\"url\" value=\"{html.escape(detail_url, quote=True)}\">주문 보기</link>",
+            }
+        )
+        return blocks
+
+    event_title = data.get("event_title") or {
+        "stage_changed": "상태 변경",
+        "manager_changed": "담당자 변경",
+        "owner_team_changed": "담당 팀 변경",
+        "schedule_changed": "일정 변경",
+        "shipment_updated": "출고/시공 정보 변경",
+        "payment_confirmation_changed": "결제 확인 변경",
+        "order_updated": "정보 변경",
+    }.get(event_type, "상태 변경")
+    change_lines = [str(line).strip() for line in (data.get("change_lines") or []) if str(line).strip()]
+    changed_by = str(data.get("changed_by") or "").strip()
+    reason = str(data.get("reason") or "").strip()
+
+    blocks = _paragraph_blocks([f"[알림] 주문 #{order_id} {event_title}"])
+    if change_lines:
+        blocks.append(
+            {
+                "type": "bullets",
+                "blocks": [{"type": "text", "value": html.escape(line, quote=True)} for line in change_lines],
+            }
+        )
+    if reason and event_type != "urgent":
+        blocks.extend(_paragraph_blocks([f"사유: {reason}"]))
+    if changed_by:
+        blocks.extend(_paragraph_blocks([f"변경자: {changed_by}"]))
+    blocks.append(
+        {
+            "type": "text",
+            "value": f"🔗 <link type=\"url\" value=\"{html.escape(detail_url, quote=True)}\">주문 보기</link>",
+        }
+    )
+    return blocks
 
 
 def get_routing_group_id(event_type: str, order_info: Dict[str, Any] = None) -> str:

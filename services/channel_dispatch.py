@@ -9,7 +9,12 @@ from typing import Any, Dict
 import requests
 
 from services.channel_client import get_attachment_category_for_status, send_group_message
-from services.channel_policy import apply_attachment_policy, build_message_template, get_routing_group_id
+from services.channel_policy import (
+    apply_attachment_policy,
+    build_message_blocks,
+    build_message_template,
+    get_routing_group_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +151,7 @@ def dispatch_channel_push(delivery_id: int):
             return
 
         plain_text = build_message_template(event_type, data)
+        blocks = build_message_blocks(event_type, data)
         files = apply_attachment_policy(files)
 
         log.template_key = event_type
@@ -157,6 +163,7 @@ def dispatch_channel_push(delivery_id: int):
             result = send_group_message(
                 group_id=group_id,
                 plain_text=plain_text,
+                blocks=blocks,
                 files=files,
                 bot_name="FOMS",
                 raise_on_error=True,
@@ -202,11 +209,13 @@ def dispatch_order_event(event_type: str, data: Dict[str, Any], raise_on_error: 
             return {"success": False, "message_id": None}
 
         plain_text = build_message_template(event_type, data)
+        blocks = build_message_blocks(event_type, data)
         files = apply_attachment_policy(data.get("files", []))
 
         return send_group_message(
             group_id=group_id,
             plain_text=plain_text,
+            blocks=blocks,
             files=files,
             bot_name="FOMS",
             raise_on_error=raise_on_error,
