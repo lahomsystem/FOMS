@@ -1,9 +1,24 @@
 {% import 'channel_wam/_macros.html' as wam with context %}
+{% set columns = section.payload.columns if section.payload.columns else [] %}
 
 {% call wam.section_shell(section, section.folded|default(false)) %}
-  <dl class="wam-kv-list">
-    {% for row in section.payload.rows %}
-      {{ wam.kv_row(row.label, row.value, row.tone|default('default'), row.href, row.href_label, row.copy_value, row.external|default(false), row.muted|default(false)) }}
-    {% endfor %}
-  </dl>
+  {% if columns %}
+    <div class="wam-split-card">
+      {% for column in columns %}
+        <div class="wam-split-card__column">
+          <dl class="wam-kv-list">
+            {% for row in column.rows %}
+              {{ wam.kv_row(row.label, row.value, row.tone|default('default'), row.href, row.href_label, row.copy_value, row.external|default(false), row.muted|default(false)) }}
+            {% endfor %}
+          </dl>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <dl class="wam-kv-list">
+      {% for row in section.payload.rows %}
+        {{ wam.kv_row(row.label, row.value, row.tone|default('default'), row.href, row.href_label, row.copy_value, row.external|default(false), row.muted|default(false)) }}
+      {% endfor %}
+    </dl>
+  {% endif %}
 {% endcall %}

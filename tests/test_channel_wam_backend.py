@@ -82,6 +82,29 @@ def test_wam_bootstrap_api_returns_page_vm(client, app):
     assert response.json["page"]["order_id"] == order.id
     assert response.json["page"]["header"]["customer_name"] == "WAM Customer"
     assert response.json["api"]["attachments_url"].endswith("/channel/wam/api/attachments")
+    section_keys = [section["key"] for section in response.json["page"]["sections"]]
+    assert "people" not in section_keys
+
+    customer_section = next(section for section in response.json["page"]["sections"] if section["key"] == "customer")
+    schedule_section = next(section for section in response.json["page"]["sections"] if section["key"] == "schedule")
+
+    assert [row["label"] for row in customer_section["payload"]["columns"][0]["rows"]] == [
+        "고객명",
+        "연락처",
+        "발주처",
+    ]
+    assert [row["label"] for row in customer_section["payload"]["columns"][1]["rows"]] == [
+        "담당 매니저",
+        "도면 담당",
+        "시공 담당",
+        "시공 구분",
+    ]
+    assert [row["label"] for row in schedule_section["payload"]["rows"]] == [
+        "접수일",
+        "실측일 / 실측시간",
+        "시공일 / 시공시간",
+        "AS 방문일",
+    ]
 
 
 def test_wam_attachments_api_returns_grouped_metadata(client, app):

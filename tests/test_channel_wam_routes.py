@@ -58,6 +58,9 @@ def test_channel_wam_html_shell_sets_session_cookie_after_shortlink_entry(client
 
     assert response.status_code == 200
     assert "Real Customer" in body
+    assert 'data-section-key="customer"' in body
+    assert 'data-section-key="people"' not in body
+    assert 'wam-split-card' in body
     assert "핵심 요약" in body
     assert "읽기 전용 화면입니다." not in body
     assert "고객과 발주 관련 정보를 확인합니다." not in body
@@ -87,6 +90,32 @@ def test_channel_wam_bootstrap_api_returns_page_payload(client, app):
     assert payload["page"]["sticky_action_bar"] is None
     assert "actions" in payload["page"]["header"]
     assert "site" not in [section["key"] for section in payload["page"]["sections"]]
+
+
+def test_channel_wam_html_renders_attachment_modal_and_clickable_preview(client, app):
+    with app.app_context():
+        order = _create_order()
+        db_session.add(
+            OrderAttachment(
+                order_id=order.id,
+                filename="preview.png",
+                file_type="image",
+                category="measurement",
+                file_size=10,
+                storage_key="wam/preview.png",
+            )
+        )
+        db_session.commit()
+    _set_wam_session_cookie(client, order.id)
+
+    response = client.get("/channel/wam/")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "wam-attachment-modal" in body
+    assert 'data-attachment-open="true"' in body
+    assert ">보기<" not in body
+    assert "다운로드" in body
 
 
 def test_channel_wam_attachments_api_groups_payload(client, app):
