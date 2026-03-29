@@ -265,13 +265,22 @@
   }
 
   .wam-split-card {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--wam-ref-space-3);
   }
 
   .wam-split-card__column + .wam-split-card__column {
-    padding-inline-start: 0;
-    border-inline-start: 0;
-    padding-block-start: var(--wam-ref-space-3);
-    border-top: 1px solid var(--wam-sys-border-subtle);
+    padding-inline-start: var(--wam-ref-space-3);
+    border-inline-start: 1px solid var(--wam-sys-border-subtle);
+    padding-block-start: 0;
+    border-top: 0;
+  }
+
+  .wam-split-card .wam-kv-row__label {
+    font-size: var(--wam-ref-text-xs);
+  }
+
+  .wam-split-card .wam-kv-row__value-text {
+    font-size: var(--wam-ref-text-sm);
   }
 }
