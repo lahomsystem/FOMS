@@ -105,6 +105,24 @@ def _row(
     }
 
 
+def _combine_date_time(date_value: Any, time_value: Any) -> str:
+    def _normalize(value: Any) -> str:
+        if value in (None, ""):
+            return "-"
+        return str(value)
+
+    date_text = _normalize(date_value)
+    time_text = _normalize(time_value)
+
+    if date_text == "-" and time_text == "-":
+        return "-"
+    if date_text == "-":
+        return time_text
+    if time_text == "-":
+        return date_text
+    return f"{date_text} / {time_text}"
+
+
 def _build_header(read_model, actions: list[WamActionVM]) -> dict[str, Any]:
     badges = [{"label": "읽기 전용", "tone": "neutral"}]
     if read_model.owner_team not in (None, "", "-"):
@@ -209,17 +227,30 @@ def _serialize_attachment_groups(context: WamRequestContext, enabled: bool) -> t
 
 
 def _build_customer_section(read_model) -> WamSectionVM:
+    left_rows = [
+        _row("고객명", read_model.customer["customer_name"]),
+        _row("연락처", read_model.customer["phone"], copy_value=read_model.customer["phone"]),
+        _row("발주처", read_model.customer["orderer_name"]),
+    ]
+    right_rows = [
+        _row("담당 매니저", read_model.customer["manager_name"]),
+        _row("도면 담당", read_model.people["drawing_manager"]),
+        _row(
+            "시공 담당",
+            ", ".join(read_model.people["construction_workers"]) if read_model.people["construction_workers"] else "-",
+        ),
+        _row("시공 구분", read_model.people["construction_type"]),
+    ]
     return WamSectionVM(
         key="customer",
         title="고객 / 발주",
         eyebrow="기본 정보",
         payload={
-            "rows": [
-                _row("고객명", read_model.customer["customer_name"]),
-                _row("연락처", read_model.customer["phone"], copy_value=read_model.customer["phone"]),
-                _row("발주처", read_model.customer["orderer_name"]),
-                _row("담당 매니저", read_model.customer["manager_name"]),
-            ]
+            "rows": left_rows + right_rows,
+            "columns": [
+                {"key": "customer", "rows": left_rows},
+                {"key": "people", "rows": right_rows},
+            ],
         },
     )
 
@@ -230,29 +261,21 @@ def _build_schedule_section(read_model) -> WamSectionVM:
         payload={
             "rows": [
                 _row("접수일", read_model.schedule["received_date"]),
-                _row("실측일", read_model.schedule["measurement_date"]),
-                _row("실측시간", read_model.schedule["measurement_time"]),
-                _row("시공일", read_model.schedule["construction_date"]),
-                _row("시공시간", read_model.schedule["construction_time"]),
-                _row("출고 예정일", read_model.schedule["shipping_scheduled_date"]),
+                _row(
+                    "실측일 / 실측시간",
+                    _combine_date_time(
+                        read_model.schedule["measurement_date"],
+                        read_model.schedule["measurement_time"],
+                    ),
+                ),
+                _row(
+                    "시공일 / 시공시간",
+                    _combine_date_time(
+                        read_model.schedule["construction_date"],
+                        read_model.schedule["construction_time"],
+                    ),
+                ),
                 _row("AS 방문일", read_model.schedule["as_visit_date"]),
-            ]
-        },
-    )
-
-
-def _build_people_section(read_model) -> WamSectionVM:
-    workers = ", ".join(read_model.people["construction_workers"]) if read_model.people["construction_workers"] else "-"
-    return WamSectionVM(
-        key="people",
-        title="담당 / 배정",
-        payload={
-            "rows": [
-                _row("담당 매니저", read_model.people["manager_name"]),
-                _row("도면 담당", read_model.people["drawing_manager"]),
-                _row("시공 담당", workers),
-                _row("Owner Team", read_model.people["owner_team"]),
-                _row("시공 구분", read_model.people["construction_type"]),
             ]
         },
     )
@@ -433,7 +456,6 @@ def build_wam_page(context: WamRequestContext) -> WamPageVM | None:
     sections = [
         _build_customer_section(read_model),
         _build_schedule_section(read_model),
-        _build_people_section(read_model),
         _build_items_section(read_model),
         _build_attachments_section(context, flags),
         _build_timeline_section(read_model, flags["timeline_enabled"]),

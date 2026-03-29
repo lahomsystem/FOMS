@@ -11,10 +11,25 @@
     {% if payload.count %}
       <div class="wam-attachment-rail__preview-grid">
         {% for item in payload.preview_items %}
-          <article class="wam-attachment-rail__preview">
-            <div class="wam-attachment-rail__thumb">
+          <article
+            class="wam-attachment-rail__preview wam-attachment-rail__preview--clickable"
+            tabindex="0"
+            role="button"
+            aria-label="{{ item.name if item.name else '첨부 미리보기' }}"
+            data-attachment-open="true"
+            data-attachment-id="{{ item.id }}"
+            data-attachment-view-url="{{ item.open_url }}"
+            data-attachment-download-url="{{ item.download_url }}"
+            data-attachment-filename="{{ item.name if item.name else '첨부 파일' }}"
+            data-attachment-file-type="{{ item.file_type }}"
+            data-attachment-category="{{ item.category|default('', true) }}"
+            data-attachment-thumbnail-url="{{ item.thumbnail_url|default('', true) }}"
+            data-attachment-size-label="{{ item.size_label|default('', true) }}"
+            data-attachment-created-at-label="{{ item.created_at_label|default('', true) }}"
+          >
+            <div class="wam-attachment-rail__thumb" aria-hidden="true">
               {% if item.thumbnail_url %}
-                <img src="{{ item.thumbnail_url }}" alt="{{ item.name if item.name else '첨부 미리보기' }}">
+                <img src="{{ item.thumbnail_url }}" alt="">
               {% else %}
                 {{ item.kind_label if item.kind_label else 'FILE' }}
               {% endif %}
@@ -29,7 +44,6 @@
       <div class="wam-attachment-rail__list" data-attachment-list>
         <div class="wam-attachment-rail__skeleton" data-attachment-skeleton>
           <p class="wam-attachment-rail__count">첨부 {{ payload.count }}건</p>
-          <p class="wam-attachment-rail__hint">섹션을 열면 전체 첨부를 불러옵니다.</p>
         </div>
       </div>
     {% else %}
