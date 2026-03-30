@@ -1,9 +1,6 @@
 /**
  * estimate-preview.js
  * 견적서(계약서) 프리뷰 탭 — ERP Beta 서브탭용
- *
- * 의존: ORDER_ID (global/const), ERP_BETA_ENABLED (global/const)
- * API : GET /api/orders/{ORDER_ID}/estimate-preview
  */
 (function () {
     'use strict';
@@ -13,7 +10,7 @@
     function _getOrderId() {
         if (typeof ORDER_ID !== 'undefined') return ORDER_ID;
         if (typeof window.ORDER_ID !== 'undefined') return window.ORDER_ID;
-        var el = document.querySelector('[data-erp-order-id]');
+        const el = document.querySelector('[data-erp-order-id]');
         return el ? parseInt(el.dataset.erpOrderId, 10) || 0 : 0;
     }
 
@@ -47,64 +44,98 @@
     }
 
     function _setText(id, text) {
-        var el = document.getElementById(id);
+        const el = document.getElementById(id);
         if (el) el.textContent = text || '-';
     }
 
+    function _showSection(id) {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('erp-est-hidden');
+    }
+
+    function _hideSection(id) {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('erp-est-hidden');
+    }
+
     function _renderItems(items) {
-        var tbody = document.getElementById('est-items-tbody');
-        var emptyRow = document.getElementById('est-items-empty');
+        const tbody = document.getElementById('est-items-tbody');
+        const emptyRow = document.getElementById('est-items-empty');
         if (!tbody) return;
 
         if (!items || items.length === 0) {
-            if (emptyRow) emptyRow.style.display = '';
+            if (emptyRow) emptyRow.classList.remove('erp-est-hidden');
             return;
         }
-        if (emptyRow) emptyRow.style.display = 'none';
+        if (emptyRow) emptyRow.classList.add('erp-est-hidden');
 
-        var existingRows = tbody.querySelectorAll('tr:not(#est-items-empty)');
-        existingRows.forEach(function (r) { r.remove(); });
+        tbody.querySelectorAll('tr:not(#est-items-empty)').forEach(function (r) { r.remove(); });
 
         items.forEach(function (item) {
-            var tr = document.createElement('tr');
+            const tr = document.createElement('tr');
 
-            var tdName = document.createElement('td');
+            const tdName = document.createElement('td');
             tdName.textContent = item.product_name || '-';
             tr.appendChild(tdName);
 
-            var tdSpec = document.createElement('td');
+            const tdSpec = document.createElement('td');
             tdSpec.textContent = item.spec || '-';
             tr.appendChild(tdSpec);
 
-            var tdColor = document.createElement('td');
+            const tdColor = document.createElement('td');
             tdColor.textContent = item.color || '-';
             tr.appendChild(tdColor);
 
-            var tdQty = document.createElement('td');
+            const tdQty = document.createElement('td');
             tdQty.textContent = item.quantity || 1;
             tr.appendChild(tdQty);
 
-            var tdAmount = document.createElement('td');
+            const tdAmount = document.createElement('td');
             tdAmount.textContent = _fmtMoney(item.amount || item.unit_price || 0);
-            tdAmount.className = 'text-right';
+            tdAmount.className = 'text-end';
             tr.appendChild(tdAmount);
 
             tbody.appendChild(tr);
         });
     }
 
-    function _showSection(id) {
-        var el = document.getElementById(id);
-        if (el) el.style.display = '';
+    function _applyCompanyInfo(ci) {
+        _setText('est-company-name', ci.name);
+        _setText('est-company-ceo', ci.ceo);
+        _setText('est-company-biznum', ci.business_number);
+        _setText('est-company-address', ci.address);
+        _setText('est-company-industry', ci.industry);
+        _setText('est-company-phone', ci.phone);
+        _setText('est-company-center', ci.customer_center);
     }
-    function _hideSection(id) {
-        var el = document.getElementById(id);
-        if (el) el.style.display = 'none';
+
+    function _applyCustomerInfo(d) {
+        _setText('est-customer-name', d.customer_name);
+        _setText('est-customer-phone', d.customer_phone);
+        _setText('est-site-address', d.site_address);
+        _setText('est-estimate-date', _fmtDate(_todayStr()));
+        _setText('est-construction-date', _fmtDate(d.construction_date));
+        _setText('est-manager-name', d.manager_name);
+        _setText('est-manager-phone', d.manager_phone);
+
+        const today = _todayStr();
+        _setText('est-estimate-number', today.replace(/-/g, '') + '_미리보기');
+        _setText('est-created-date', today);
+    }
+
+    function _applyPaymentInfo(d, pi) {
+        _setText('est-total-amount', _fmtMoney(d.total_amount));
+        _setText('est-balance-amount', _fmtMoney(d.balance_amount));
+        _setText('est-pay-bank', pi.bank);
+        _setText('est-pay-account', pi.account);
+        _setText('est-pay-holder', '예금주 : ' + (pi.holder || ''));
+        _setText('est-pay-notice', pi.notice);
+        _setText('est-legal-notice', d.legal_notice);
     }
 
     async function erpLoadEstimatePreview() {
         if (!_isErpEnabled()) return;
-        var orderId = _getOrderId();
+        const orderId = _getOrderId();
         if (!orderId || orderId === 0) {
             _hideSection('est-loading');
             _hideSection('est-document');
@@ -119,55 +150,28 @@
         _showSection('est-loading');
 
         try {
-            var res = await fetch('/api/orders/' + orderId + '/estimate-preview');
-            var data = await res.json();
-
+            const res = await fetch('/api/orders/' + orderId + '/estimate-preview');
             _hideSection('est-loading');
 
-            if (!data.success) {
+            if (!res.ok) {
                 _showSection('est-empty');
-                var emptyEl = document.getElementById('est-empty');
-                if (emptyEl) {
-                    emptyEl.textContent = data.error || '견적서 데이터를 불러올 수 없습니다.';
-                }
                 return;
             }
 
-            var d = data.data || {};
-            var ci = d.company_info || {};
-            var pi = d.payment_info || {};
+            const data = await res.json();
 
-            _setText('est-company-name', ci.name);
-            _setText('est-company-ceo', ci.ceo);
-            _setText('est-company-biznum', ci.business_number);
-            _setText('est-company-address', ci.address);
-            _setText('est-company-industry', ci.industry);
-            _setText('est-company-phone', ci.phone);
-            _setText('est-company-center', ci.customer_center);
+            if (!data.success) {
+                _showSection('est-empty');
+                const emptyEl = document.getElementById('est-empty');
+                if (emptyEl) emptyEl.textContent = data.error || '견적서 데이터를 불러올 수 없습니다.';
+                return;
+            }
 
-            _setText('est-customer-name', d.customer_name);
-            _setText('est-customer-phone', d.customer_phone);
-            _setText('est-site-address', d.site_address);
-            _setText('est-estimate-date', _fmtDate(_todayStr()));
-            _setText('est-construction-date', _fmtDate(d.construction_date));
-            _setText('est-manager-name', d.manager_name);
-            _setText('est-manager-phone', d.manager_phone);
-
-            var today = _todayStr();
-            var seq = today.replace(/-/g, '') + '_미리보기';
-            _setText('est-estimate-number', seq);
-
+            const d = data.data || {};
+            _applyCompanyInfo(d.company_info || {});
+            _applyCustomerInfo(d);
             _renderItems(d.items);
-
-            _setText('est-total-amount', _fmtMoney(d.total_amount));
-            _setText('est-balance-amount', _fmtMoney(d.balance_amount));
-
-            _setText('est-pay-bank', pi.bank);
-            _setText('est-pay-account', pi.account);
-            _setText('est-pay-holder', '예금주 : ' + (pi.holder || ''));
-            _setText('est-pay-notice', pi.notice);
-            _setText('est-legal-notice', d.legal_notice);
-            _setText('est-created-date', today);
+            _applyPaymentInfo(d, d.payment_info || {});
 
             _showSection('est-document');
             _estimateCacheLoaded = true;
@@ -184,7 +188,7 @@
     };
 
     function _init() {
-        var tab = document.getElementById('erp-estimate-tab');
+        const tab = document.getElementById('erp-estimate-tab');
         if (!tab) return;
 
         tab.addEventListener('shown.bs.tab', function () {
