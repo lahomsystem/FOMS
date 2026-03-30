@@ -175,6 +175,29 @@
     padding: 24px 0;
 }
 
+/* ── 규격 셀 다중 라인 ── */
+.erp-est-td-spec {
+    white-space: pre-line;
+    text-align: left;
+    line-height: 1.7;
+}
+
+/* ── 인감 도장 ── */
+.erp-est-ceo-cell {
+    position: relative;
+}
+.erp-est-stamp {
+    position: absolute;
+    right: -8px;
+    top: -38px;
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+    opacity: 0.88;
+    pointer-events: none;
+    z-index: 2;
+}
+
 /* ── 결제정보 + 합계 하단 박스 ── */
 .erp-est-pay-box {
     margin: 0 28px;
@@ -317,7 +340,11 @@
 
         <!-- 헤더: 로고 + 웹사이트 -->
         <div class="erp-est-header">
-            <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="LAHOM" class="erp-est-logo-img">
+            <img id="est-logo-img"
+                 src="{{ url_for('static', filename='images/lahom-logo.png') }}"
+                 data-lahom-src="{{ url_for('static', filename='images/lahom-logo.png') }}"
+                 data-haud-src="{{ url_for('static', filename='images/haud-logo.png') }}"
+                 alt="LAHOM" class="erp-est-logo-img">
             <div class="erp-est-website">www.haudsystem.com</div>
         </div>
 
@@ -333,7 +360,17 @@
                 <div class="erp-est-info-title">사업자 정보</div>
                 <table class="erp-est-info-tbl">
                     <tr><td class="erp-est-lbl">상호</td><td id="est-company-name">주식회사 하우드시스템</td></tr>
-                    <tr><td class="erp-est-lbl">대표자</td><td id="est-company-ceo">김성일</td></tr>
+                    <tr>
+                        <td class="erp-est-lbl">대표자</td>
+                        <td class="erp-est-ceo-cell">
+                            <span id="est-company-ceo">김성일</span>
+                            <img id="est-stamp-img"
+                                 src="{{ url_for('static', filename='images/company-stamp.png') }}"
+                                 alt="인감"
+                                 class="erp-est-stamp erp-est-hidden"
+                                 onerror="this.classList.add('erp-est-hidden')">
+                        </td>
+                    </tr>
                     <tr><td class="erp-est-lbl">등록번호</td><td id="est-company-biznum">503-88-02558</td></tr>
                     <tr><td class="erp-est-lbl">소재지</td><td id="est-company-address">경기도 김포시 대곶면 오니산로 153번길 82</td></tr>
                     <tr><td class="erp-est-lbl">업태</td><td id="est-company-industry">제조 도소매 / 목재 가구</td></tr>

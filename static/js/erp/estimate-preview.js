@@ -80,6 +80,7 @@
 
             const tdSpec = document.createElement('td');
             tdSpec.textContent = item.spec || '-';
+            tdSpec.className = 'erp-est-td-spec';
             tr.appendChild(tdSpec);
 
             const tdColor = document.createElement('td');
@@ -99,7 +100,7 @@
         });
     }
 
-    function _applyCompanyInfo(ci) {
+    function _applyCompanyInfo(ci, isLahom) {
         _setText('est-company-name', ci.name);
         _setText('est-company-ceo', ci.ceo);
         _setText('est-company-biznum', ci.business_number);
@@ -107,6 +108,18 @@
         _setText('est-company-industry', ci.industry);
         _setText('est-company-phone', ci.phone);
         _setText('est-company-center', ci.customer_center);
+
+        // 발주사별 로고: 라홈이면 라홈 로고, 그 외는 하우드 로고
+        const logoEl = document.getElementById('est-logo-img');
+        if (logoEl) {
+            const lahomSrc = logoEl.dataset.lahomSrc;
+            const haudSrc = logoEl.dataset.haudSrc;
+            logoEl.src = isLahom ? lahomSrc : (haudSrc || lahomSrc);
+        }
+
+        // 인감 도장 표시
+        const stampEl = document.getElementById('est-stamp-img');
+        if (stampEl) stampEl.classList.remove('erp-est-hidden');
     }
 
     function _applyCustomerInfo(d) {
@@ -168,7 +181,7 @@
             }
 
             const d = data.data || {};
-            _applyCompanyInfo(d.company_info || {});
+            _applyCompanyInfo(d.company_info || {}, !!d.is_lahom);
             _applyCustomerInfo(d);
             _renderItems(d.items);
             _applyPaymentInfo(d, d.payment_info || {});
@@ -191,9 +204,22 @@
         const tab = document.getElementById('erp-estimate-tab');
         if (!tab) return;
 
-        tab.addEventListener('shown.bs.tab', function () {
+        // 계약서 탭 활성화 시: 항상 최신 데이터 로드 (실시간 반영)
+        // ERP Beta 저장 후 견적서 탭으로 이동 시 최신 내용이 보임
+        tab.addEventListener('shown.bs.tab', async function () {
+            _estimateCacheLoaded = false;
+            // ORDER_ID가 유효한 기존 주문이면 자동 저장 후 로드 (실시간 반영)
+            const orderId = _getOrderId();
+            if (orderId && orderId > 0 && typeof window.erpSaveStructured === 'function') {
+                try {
+                    await window.erpSaveStructured({ redirect: false });
+                } catch (_e) {
+                    // 저장 실패 시 기존 서버 데이터로 폴백
+                }
+            }
             erpLoadEstimatePreview();
         });
+
         tab.addEventListener('click', function () {
             setTimeout(erpLoadEstimatePreview, 150);
         });
