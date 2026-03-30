@@ -842,8 +842,9 @@
 
         if (_paymentTogglePending) {
             await new Promise(resolve => {
+                const deadline = Date.now() + 3000; // 최대 3초 대기
                 const iv = setInterval(() => {
-                    if (!_paymentTogglePending) {
+                    if (!_paymentTogglePending || Date.now() >= deadline) {
                         clearInterval(iv);
                         resolve();
                     }

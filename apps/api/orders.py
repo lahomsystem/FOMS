@@ -863,16 +863,16 @@ def update_order_field():
             flag_modified(order, 'structured_data')
             sync_erp_flat_columns(order, structured_data)
 
+        # 로그를 commit 전에 세션에 추가 → 단일 트랜잭션으로 처리 (이중 커밋 제거)
+        if field == 'status':
+            log_access(f"자가실측 주문 #{order.id} 상태 변경: '{old_value}' → '{value}'", session['user_id'], auto_commit=False)
+        else:
+            log_access(f"주문 #{order.id}의 '{field}' 필드를 '{value}'(으)로 변경", session['user_id'], auto_commit=False)
+
         db.commit()
 
         if field == 'address':
             enqueue_geocode_order_address(order_id)
-        
-        # 상태 변경 시 특별한 로깅 (AS 접수로 바꿀 때도 scheduled_date/as_visit_date 자동 입력하지 않음)
-        if field == 'status':
-            log_access(f"자가실측 주문 #{order.id} 상태 변경: '{old_value}' → '{value}'", session['user_id'])
-        else:
-            log_access(f"주문 #{order.id}의 '{field}' 필드를 '{value}'(으)로 변경", session['user_id'])
         
         return jsonify(_build_order_update_response(order, field, value, structured_data))
     except ValueError as e:

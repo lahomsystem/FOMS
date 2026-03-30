@@ -21,9 +21,14 @@ def create_pending_delivery(
     source_type: str = 'order_event',
     parent_delivery_id: Optional[int] = None,
     payload: Optional[Dict[str, Any]] = None,
+    order: Optional['Order'] = None,
 ) -> ChannelDeliveryLog:
-    """CT-A-02: Pending 상태의 DeliveryLog 생성"""
-    order = db.query(Order).filter(Order.id == order_id).first()
+    """CT-A-02: Pending 상태의 DeliveryLog 생성.
+
+    order 인자가 제공되면 DB 재조회를 생략한다 (이미 세션에 로드된 경우).
+    """
+    if order is None:
+        order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise ValueError(f"Order {order_id} not found")
 
@@ -182,7 +187,7 @@ def mark_order_updated_for_channel(
     try:
         db = db_session.object_session(order)
         if db:
-            log = create_pending_delivery(db, order.id, event_type, payload=payload)
+            log = create_pending_delivery(db, order.id, event_type, payload=payload, order=order)
             return log.id
     except Exception as e:
         logger.error("[ChannelDelivery] Failed to create pending delivery: %s", e)
