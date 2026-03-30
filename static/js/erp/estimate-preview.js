@@ -76,21 +76,17 @@
             tdSpec.textContent = item.spec || '-';
             tr.appendChild(tdSpec);
 
-            var tdDetail = document.createElement('td');
-            var detailParts = [];
-            if (item.color) detailParts.push(item.color);
-            if (item.option_detail) detailParts.push(item.option_detail);
-            tdDetail.textContent = detailParts.join(' / ') || '-';
-            tr.appendChild(tdDetail);
+            var tdColor = document.createElement('td');
+            tdColor.textContent = item.color || '-';
+            tr.appendChild(tdColor);
 
             var tdQty = document.createElement('td');
             tdQty.textContent = item.quantity || 1;
-            tdQty.style.textAlign = 'center';
             tr.appendChild(tdQty);
 
             var tdAmount = document.createElement('td');
             tdAmount.textContent = _fmtMoney(item.amount || item.unit_price || 0);
-            tdAmount.style.textAlign = 'right';
+            tdAmount.className = 'text-right';
             tr.appendChild(tdAmount);
 
             tbody.appendChild(tr);
