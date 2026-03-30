@@ -94,7 +94,7 @@ def extract_estimate_data_from_order(order: Order) -> dict:
     manager = parties.get('manager', {})
     site = sd.get('site', {})
     schedule = sd.get('schedule', {})
-    payments = sd.get('payments', {})
+    payments = sd.get('payment', {}) or sd.get('payments', {})
 
     customer_name = customer.get('name') or order.customer_name or ''
     customer_phone = customer.get('phone') or order.phone or ''
