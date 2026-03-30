@@ -4,8 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-24 16:03:29 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -10 -- templates/erp_as_dashboard.html` |
-| 2026-03-24 16:03:33 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 9df3a376 -- templates/erp_as_dashboard.html | grep "^[+-]" | grep -v "^---\|^+++" |` |
 | 2026-03-24 16:03:39 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff e6799042~1 e6799042 -- templates/erp_as_dashboard.html | grep "^[+-]" | grep -v "^-` |
 | 2026-03-24 16:03:45 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 3c80c0cb -- apps/api/orders.py | grep "^[+-]" | grep -v "^---\|^+++" | grep -i "sco` |
 | 2026-03-24 16:03:50 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show cc47e315 -- apps/api/orders.py | grep "score_text\|duration\|distance_km\|route_ite` |
@@ -304,3 +302,5 @@
 | 2026-03-30 22:22:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add apps/api/orders.py services/channel_delivery.py templates/partials/erp_beta_js.html; $` |
 | 2026-03-30 22:23:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short; git log origin/deploy..HEAD --oneline` |
 | 2026-03-30 22:23:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; $msg = "docs: 세션 로그 갱신"; [System.IO.File]::WriteAllText("commit_msg.txt", $msg, [S` |
+| 2026-03-31 07:54:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy; git push origin production; git checkout deploy` |
+| 2026-03-31 07:54:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; $msg = "docs: 세션 로그 갱신"; [System.IO.File]::WriteAllText("commit_msg.txt", $msg, [S` |
