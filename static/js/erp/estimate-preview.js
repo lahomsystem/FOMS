@@ -2,13 +2,26 @@
  * estimate-preview.js
  * 견적서(계약서) 프리뷰 탭 — ERP Beta 서브탭용
  *
- * 의존: ORDER_ID (global), ERP_BETA_ENABLED (global)
+ * 의존: ORDER_ID (global/const), ERP_BETA_ENABLED (global/const)
  * API : GET /api/orders/{ORDER_ID}/estimate-preview
  */
 (function () {
     'use strict';
 
     let _estimateCacheLoaded = false;
+
+    function _getOrderId() {
+        if (typeof ORDER_ID !== 'undefined') return ORDER_ID;
+        if (typeof window.ORDER_ID !== 'undefined') return window.ORDER_ID;
+        var el = document.querySelector('[data-erp-order-id]');
+        return el ? parseInt(el.dataset.erpOrderId, 10) || 0 : 0;
+    }
+
+    function _isErpEnabled() {
+        if (typeof ERP_BETA_ENABLED !== 'undefined') return !!ERP_BETA_ENABLED;
+        if (typeof window.ERP_BETA_ENABLED !== 'undefined') return !!window.ERP_BETA_ENABLED;
+        return false;
+    }
 
     function _fmtMoney(num) {
         const n = Number(num);
@@ -94,8 +107,9 @@
     }
 
     async function erpLoadEstimatePreview() {
-        if (!window.ERP_BETA_ENABLED) return;
-        if (!window.ORDER_ID || window.ORDER_ID === 0) {
+        if (!_isErpEnabled()) return;
+        var orderId = _getOrderId();
+        if (!orderId || orderId === 0) {
             _hideSection('est-loading');
             _hideSection('est-document');
             _showSection('est-empty');
@@ -109,7 +123,7 @@
         _showSection('est-loading');
 
         try {
-            var res = await fetch('/api/orders/' + window.ORDER_ID + '/estimate-preview');
+            var res = await fetch('/api/orders/' + orderId + '/estimate-preview');
             var data = await res.json();
 
             _hideSection('est-loading');
@@ -179,6 +193,9 @@
 
         tab.addEventListener('shown.bs.tab', function () {
             erpLoadEstimatePreview();
+        });
+        tab.addEventListener('click', function () {
+            setTimeout(erpLoadEstimatePreview, 150);
         });
     }
 
