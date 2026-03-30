@@ -6,6 +6,7 @@
     'use strict';
 
     let _estimateCacheLoaded = false;
+    let _dirty = true; // 첫 진입 시 항상 새로 로드
 
     function _getOrderId() {
         if (typeof ORDER_ID !== 'undefined') return ORDER_ID;
@@ -207,6 +208,7 @@
 
             _showSection('est-document');
             _estimateCacheLoaded = true;
+            _dirty = false;
 
             // 저장 버튼 활성화 및 툴바 노출
             const toolbar = document.getElementById('est-toolbar');
@@ -223,6 +225,7 @@
 
     window.erpInvalidateEstimateCache = function () {
         _estimateCacheLoaded = false;
+        _dirty = true;
     };
 
     // ── 이미지 저장 (실측 대시보드와 동일 방식) ──────────────────────
@@ -276,13 +279,22 @@
 
         _bindExportBtn();
 
-        // 계약서 탭 활성화 시: 항상 최신 데이터 로드 (실시간 반영)
-        // ERP Beta 저장 후 견적서 탭으로 이동 시 최신 내용이 보임
+        // ERP Beta 폼 입력 시 dirty 플래그 설정 (캡처 페이즈로 모든 [data-erp] 입력 감지)
+        document.addEventListener('input', function (e) {
+            if (e.target && e.target.dataset && 'erp' in e.target.dataset) {
+                _dirty = true;
+            }
+        }, true);
+
+        // 계약서 탭 활성화 시: 변경 없고 캐시 유효하면 즉시 반환 (불필요한 네트워크 요청 차단)
         tab.addEventListener('shown.bs.tab', async function () {
+            if (!_dirty && _estimateCacheLoaded) return;
+
             _estimateCacheLoaded = false;
-            // ORDER_ID가 유효한 기존 주문이면 자동 저장 후 로드 (실시간 반영)
             const orderId = _getOrderId();
-            if (orderId && orderId > 0 && typeof window.erpSaveStructured === 'function') {
+
+            // 변경된 경우에만 자동 저장 (실시간 반영)
+            if (_dirty && orderId && orderId > 0 && typeof window.erpSaveStructured === 'function') {
                 try {
                     await window.erpSaveStructured({ redirect: false });
                 } catch (_e) {
