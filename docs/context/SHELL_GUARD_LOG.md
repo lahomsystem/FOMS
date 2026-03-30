@@ -4,10 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-24 13:55:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status && git log --oneline -3` |
-| 2026-03-24 14:13:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add static/css/erp-pro.css templates/layout.html && git commit -F commit_msg.txt && rm c` |
-| 2026-03-24 14:25:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add static/css/style-pro-max.css static/css/erp-pro.css templates/layout.html && git com` |
-| 2026-03-24 14:29:43 | allow | `-` | `ls -la .cursor/rules/` |
 | 2026-03-24 14:37:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add templates/partials/erp_dashboard_styles.html && git commit -F commit_msg.txt && rm c` |
 | 2026-03-24 14:53:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status && git log --oneline -5` |
 | 2026-03-24 14:55:47 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status --short` |
@@ -304,3 +300,7 @@
 | 2026-03-30 14:11:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" fix: 갈색 세로 bar 높이를 content 영역(padding 제외)에 맞게 조정 - border-left 방식 -> ::before 가상요소 방식` |
 | 2026-03-30 15:02:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -8; git status` |
 | 2026-03-30 15:02:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" # 1. docs 변경사항 커밋 $msg = @" docs: AI 세션 로그 갱신 "@ $msg | Out-File -FilePath commit_msg.txt -Enco` |
+| 2026-03-30 15:03:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; grep -n "저장\|save\|btn.*save\|savePdf\|print\|download" templates/erp_measurement_dashboard.ht` |
+| 2026-03-30 15:05:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" feat: 계약서 탭 이미지 저장 버튼 추가 (실측 대시보드와 동일 방식) - erp_estimate_pane.html: 툴바 + 이미지저장 버튼(btn` |
+| 2026-03-30 15:25:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git log --oneline -3` |
+| 2026-03-30 15:26:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" # docs 커밋 $msg = @" docs: AI 세션 로그 갱신 "@ $msg | Out-File -FilePath commit_msg.txt -Encoding utf` |
