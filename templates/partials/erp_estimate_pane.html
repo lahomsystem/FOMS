@@ -137,9 +137,23 @@
     font-size: 11.5px;
     text-align: center;
 }
-.erp-est-tbl td.text-right {
+.erp-est-tbl td.text-end {
     text-align: right;
 }
+.erp-est-th-name { width: 20%; }
+.erp-est-th-spec { width: 28%; }
+.erp-est-th-color { width: 18%; }
+.erp-est-th-qty { width: 8%; }
+.erp-est-th-amount { width: 26%; }
+.erp-est-empty-msg {
+    color: #999;
+    padding: 18px 0;
+}
+.erp-est-sep {
+    margin: 0 4px;
+    color: #999;
+}
+.erp-est-hidden { display: none; }
 
 /* === 결제정보 + 합계 === */
 .erp-est-pay-box {
@@ -236,18 +250,20 @@
 }
 </style>
 
-<div class="tab-pane fade" id="erp-estimate" role="tabpanel">
+<div class="tab-pane fade" id="erp-estimate" role="tabpanel" aria-labelledby="erp-estimate-tab">
 
-    <div id="est-loading" class="text-center py-4" style="display:none;">
-        <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+    <div id="est-loading" class="text-center py-4 erp-est-hidden">
+        <div class="spinner-border spinner-border-sm text-secondary" role="status">
+            <span class="visually-hidden">로딩 중</span>
+        </div>
         <span class="ms-2 text-muted">견적서를 불러오는 중...</span>
     </div>
 
-    <div id="est-empty" class="alert alert-warning py-2" style="display:none;">
+    <div id="est-empty" class="alert alert-warning py-2 erp-est-hidden">
         <i class="fas fa-exclamation-triangle"></i> 주문을 먼저 저장한 후 견적서를 확인할 수 있습니다.
     </div>
 
-    <div id="est-document" class="erp-est-doc" style="display:none;">
+    <div id="est-document" class="erp-est-doc erp-est-hidden">
 
         <!-- 상단 컬러 바 -->
         <div class="erp-est-topbar"></div>
@@ -303,16 +319,16 @@
             <table class="erp-est-tbl">
                 <thead>
                     <tr>
-                        <th style="width:20%">품명</th>
-                        <th style="width:28%">규격</th>
-                        <th style="width:18%">색상</th>
-                        <th style="width:8%">수량</th>
-                        <th style="width:26%">금액 <small>(VAT 포함)</small></th>
+                        <th class="erp-est-th-name">품명</th>
+                        <th class="erp-est-th-spec">규격</th>
+                        <th class="erp-est-th-color">색상</th>
+                        <th class="erp-est-th-qty">수량</th>
+                        <th class="erp-est-th-amount">금액 <small>(VAT 포함)</small></th>
                     </tr>
                 </thead>
                 <tbody id="est-items-tbody">
                     <tr id="est-items-empty">
-                        <td colspan="5" class="text-center" style="color:#999;padding:18px 0;">등록된 제품이 없습니다</td>
+                        <td colspan="5" class="text-center erp-est-empty-msg">등록된 제품이 없습니다</td>
                     </tr>
                 </tbody>
             </table>
@@ -324,7 +340,7 @@
                 <div class="erp-est-pay-title">결제정보</div>
                 <div class="erp-est-bank-line">
                     <span class="fw-bold" id="est-pay-bank">기업은행</span>
-                    <span style="margin:0 4px;color:#999;">|</span>
+                    <span class="erp-est-sep">|</span>
                     <span id="est-pay-account">461-082990-04-011</span>
                 </div>
                 <div class="erp-est-pay-holder" id="est-pay-holder">예금주 : 주식회사 하우드시스템</div>

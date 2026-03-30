@@ -66,10 +66,10 @@ def create_order_estimate(order_id: int):
         db.commit()
         return jsonify({'success': True, 'data': estimate.to_dict()}), 201
 
-    except Exception as e:
+    except Exception:
         db.rollback()
         logger.exception("견적서 생성 실패: order_id=%d", order_id)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': '견적서 생성 중 오류가 발생했습니다.'}), 500
 
 
 @erp_estimates_bp.route('/orders/<int:order_id>/estimates', methods=['GET'])
@@ -133,10 +133,10 @@ def update_estimate_api(estimate_id: int):
         update_estimate(db, estimate, payload)
         db.commit()
         return jsonify({'success': True, 'data': estimate.to_dict()})
-    except Exception as e:
+    except Exception:
         db.rollback()
         logger.exception("견적서 수정 실패: estimate_id=%d", estimate_id)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': '견적서 수정 중 오류가 발생했습니다.'}), 500
 
 
 @erp_estimates_bp.route('/estimates/<int:estimate_id>', methods=['DELETE'])
@@ -155,7 +155,7 @@ def delete_estimate(estimate_id: int):
             estimate.status = 'CANCELLED'
         db.commit()
         return jsonify({'success': True, 'message': '견적서가 삭제되었습니다.'})
-    except Exception as e:
+    except Exception:
         db.rollback()
         logger.exception("견적서 삭제 실패: estimate_id=%d", estimate_id)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': '견적서 삭제 중 오류가 발생했습니다.'}), 500
