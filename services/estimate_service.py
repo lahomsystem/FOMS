@@ -49,6 +49,34 @@ def generate_estimate_number(db: Session, date_str: str) -> str:
     return f'{date_prefix}_{max_seq + 1}'
 
 
+def _format_spec_rows(item: dict) -> str:
+    """spec_rows 배열에서 다중 규격 표시 문자열을 생성한다.
+
+    각 규격 행을 "폭x깊이x높이" 형식으로 변환하고 개행으로 연결한다.
+    spec_rows가 없으면 item['spec'] 그대로 반환한다.
+
+    Args:
+        item: structured_data.items의 단일 항목 딕셔너리
+
+    Returns:
+        "3000x620x2300\\n3100x620x2310" 같은 다중 라인 문자열
+    """
+    spec_rows = item.get('spec_rows') or []
+    if not spec_rows:
+        return item.get('spec') or ''
+
+    lines = []
+    for row in spec_rows:
+        w = str(row.get('spec_width') or row.get('w') or '').strip()
+        d = str(row.get('spec_depth') or row.get('d') or '').strip()
+        h = str(row.get('spec_height') or row.get('h') or '').strip()
+        parts = [p for p in [w, d, h] if p]
+        if parts:
+            lines.append('x'.join(parts))
+
+    return '\n'.join(lines) if lines else (item.get('spec') or '')
+
+
 def extract_estimate_data_from_order(order: Order) -> dict:
     """주문의 structured_data에서 견적서에 필요한 필드를 추출한다.
 
@@ -72,6 +100,10 @@ def extract_estimate_data_from_order(order: Order) -> dict:
     manager_name = manager.get('name') or order.manager_name or ''
     manager_phone = manager.get('phone') or ''
 
+    orderer = parties.get('orderer', {})
+    orderer_name = str(orderer.get('name') or '')
+    is_lahom = '라홈' in orderer_name
+
     raw_items = sd.get('items') or []
     estimate_items = []
     for item in raw_items:
@@ -79,7 +111,7 @@ def extract_estimate_data_from_order(order: Order) -> dict:
             continue
         estimate_items.append({
             'product_name': item.get('product_name') or '',
-            'spec': item.get('spec') or '',
+            'spec': _format_spec_rows(item),
             'color': item.get('color') or '',
             'option_detail': item.get('option_detail') or '',
             'quantity': int(item.get('quantity') or 1),
@@ -100,6 +132,7 @@ def extract_estimate_data_from_order(order: Order) -> dict:
         'construction_date': construction_date,
         'manager_name': manager_name,
         'manager_phone': manager_phone,
+        'is_lahom': is_lahom,
         'items': estimate_items,
         'total_amount': total_amount,
         'deposit_amount': int(deposit_amount or 0),
