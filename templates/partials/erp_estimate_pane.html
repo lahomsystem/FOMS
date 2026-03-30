@@ -40,8 +40,10 @@
 }
 .erp-est-logo-img {
     height: 44px;
+    max-width: 180px;
     width: auto;
     display: block;
+    object-fit: contain;
 }
 .erp-est-website {
     font-size: 10px;
@@ -91,22 +93,23 @@
     border-collapse: collapse;
 }
 .erp-est-info-tbl td {
-    padding: 2px 0;
+    padding: 3px 0;
     font-size: 11px;
     vertical-align: top;
-    line-height: 1.6;
+    line-height: 1.7;
     color: #333;
 }
 .erp-est-lbl {
     color: #555;
-    width: 56px;
-    min-width: 56px;
+    width: 68px;
+    min-width: 68px;
     white-space: nowrap;
     font-weight: 400;
+    padding-right: 10px;
 }
 .erp-est-info-right .erp-est-lbl {
-    width: 52px;
-    min-width: 52px;
+    width: 62px;
+    min-width: 62px;
 }
 .erp-est-spacer td {
     height: 8px;
@@ -124,6 +127,7 @@
 /* ── 계약 내용 테이블 ── */
 .erp-est-contract {
     margin: 0 28px;
+    min-height: 180px;
 }
 .erp-est-contract-title {
     text-align: center;
@@ -177,8 +181,8 @@
     border: 1px solid #aaa;
     border-top: none;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    min-height: 90px;
+    grid-template-columns: 55fr 45fr;
+    min-height: 100px;
 }
 .erp-est-pay-left {
     padding: 12px 16px;
