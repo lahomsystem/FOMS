@@ -4,6 +4,11 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-30 | 세션 자동 기록 | erp_estimate_pane.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d8b7cce4-9224-4274-8ebd-dafb27116630.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-63092909-f339-4856-8208-6889f92ef7de.png 외 2개 | 34577c36 |
+| 2026-03-30 | 세션 자동 기록 | erp_estimate_pane.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ed4cab1a-16ac-450a-9ba6-256896220797.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-10c614d3-ca4e-4306-894d-e7ed897fdbde.png 외 2개 | 45c0eccc |
+| 2026-03-30 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images___-1e9994d4-da21-465f-88ad-455f5044aa2e.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_YOUTUBE-b0bdb48e-97a6-47a6-801d-10c29f72d56d.png, estimate-preview.js 외 2개 | 7de1d0f0 |
+| 2026-03-30 | 세션 자동 기록 | estimate-preview.js, erp_estimate_pane.html, estimate_service.py 외 2개 | 815d877b |
+| 2026-03-30 | 세션 자동 기록 | commit_msg.txt, erp_estimate_pane.html, order_pages.py 외 2개 | 528a6da1 |
 | 2026-03-30 | 세션 자동 기록 | order_pages.py, erp_orders_structured.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images______-e6e2cf4a-3341-4a68-ae04-0b81b48ad175.png 외 2개 | 08fd7fbd |
 | 2026-03-30 | 세션 자동 기록 | commit_msg.txt, erp_estimate_pane.html, erp_estimates.py 외 2개 | 08fd7fbd |
 | 2026-03-30 | 세션 자동 기록 | commit_msg.txt, erp_estimates.py, estimate-preview.js 외 2개 | 1409f2a5 |
@@ -19,8 +24,3 @@
 | 2026-03-26 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-7029bb25-5f7f-449b-a3a4-271755a896aa.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-99043cae-32ee-4000-a106-6092ed16b89f.png, channel_integration.py 외 2개 | 00711fae |
 | 2026-03-26 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-99043cae-32ee-4000-a106-6092ed16b89f.png, channel_integration.py, admin.html 외 2개 | 00711fae |
 | 2026-03-26 | 세션 자동 기록 | channel_integration.py, admin.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-12bf0955-7576-465c-bb73-0eb0d0311e6a.png 외 2개 | 00711fae |
-| 2026-03-26 | 세션 자동 기록 | admin.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-12bf0955-7576-465c-bb73-0eb0d0311e6a.png, error_404.html 외 2개 | 00711fae |
-| 2026-03-26 | 세션 자동 기록 | error_404.html, app.py, channel_policy.py 외 2개 | b19e6796 |
-| 2026-03-26 | 세션 자동 기록 | test_channel_security.py, channel_delivery.py, admin.html 외 2개 | 421075f8 |
-| 2026-03-26 | 세션 자동 기록 | channel_delivery.py, admin.html, commit_msg.txt 외 2개 | d5d81ef4 |
-| 2026-03-26 | 세션 자동 기록 | commit_msg.txt, start.sh, c762eed30396_add_channeltalk_phase_0_models.py 외 2개 | ab68b928 |
