@@ -140,7 +140,8 @@
         _setText('est-manager-phone', d.manager_phone);
 
         const today = _todayStr();
-        _setText('est-estimate-number', today.replace(/-/g, '') + '_미리보기');
+        const phoneDigits = (d.customer_phone || '').replace(/\D/g, '');
+        _setText('est-estimate-number', today.replace(/-/g, '') + '_' + (phoneDigits || '미리보기'));
         _setText('est-created-date', today);
     }
 
