@@ -5,6 +5,14 @@
 
 ## 최근 파일 편집
 
+- `templates/partials/erp_estimate_pane.html` <- 4 edit(s), ~235 chars (2026-03-30 14:11:28)
+- `templates/partials/erp_estimate_pane.html` <- 3 edit(s), ~362 chars (2026-03-30 14:11:20)
+- `templates/partials/erp_estimate_pane.html` <- 3 edit(s), ~340 chars (2026-03-30 14:11:12)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-bbaf3856-9b52-405f-9b67-ea6bbc80b733.png` <- 1 edit(s), ~0 chars (2026-03-30 14:10:33)
+- `templates/partials/erp_estimate_pane.html` <- 1 edit(s), ~24 chars (2026-03-30 14:08:22)
+- `templates/partials/erp_estimate_pane.html` <- 5 edit(s), ~89 chars (2026-03-30 14:01:18)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fc4d0842-c708-4d23-8eec-ab25c889d474.png` <- 1 edit(s), ~0 chars (2026-03-30 14:00:38)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6e54a095-ba21-40ac-8a02-2d4fe5eeab2d.png` <- 1 edit(s), ~0 chars (2026-03-30 14:00:38)
 - `templates/partials/erp_estimate_pane.html` <- 8 edit(s), ~464 chars (2026-03-30 13:56:27)
 - `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d8b7cce4-9224-4274-8ebd-dafb27116630.png` <- 1 edit(s), ~0 chars (2026-03-30 13:54:50)
 - `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-63092909-f339-4856-8208-6889f92ef7de.png` <- 1 edit(s), ~0 chars (2026-03-30 13:54:50)
@@ -47,11 +55,3 @@
 - `templates/partials/erp_estimate_pane.html` <- 2 edit(s), ~45 chars (2026-03-30 11:55:02)
 - `apps/order_pages.py` <- 1 edit(s), ~65 chars (2026-03-30 11:50:00)
 - `apps/order_pages.py` <- 1 edit(s), ~59 chars (2026-03-30 11:49:55)
-- `apps/api/erp_orders_structured.py` <- 1 edit(s), ~67 chars (2026-03-30 11:49:39)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images______-e6e2cf4a-3341-4a68-ae04-0b81b48ad175.png` <- 1 edit(s), ~0 chars (2026-03-30 11:49:31)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-25ea4bf5-bedd-4100-a3fe-8fdd03fc7df0.png` <- 1 edit(s), ~0 chars (2026-03-30 11:49:31)
-- `apps/api/orders.py` <- 1 edit(s), ~52 chars (2026-03-30 11:49:31)
-- `apps/api/erp_orders_draftsman.py` <- 1 edit(s), ~44 chars (2026-03-30 11:49:04)
-- `apps/api/erp_orders_construction.py` <- 1 edit(s), ~40 chars (2026-03-30 11:49:00)
-- `apps/api/erp_orders_cs.py` <- 1 edit(s), ~40 chars (2026-03-30 11:48:55)
-- `apps/api/erp_orders_production.py` <- 1 edit(s), ~40 chars (2026-03-30 11:48:49)
