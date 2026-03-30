@@ -305,6 +305,9 @@ app.register_blueprint(channel_shortlink_bp)
 app.register_blueprint(channel_wam_bp)
 app.register_blueprint(channel_wam_api_bp)
 
+from apps.api.erp_estimates import erp_estimates_bp
+app.register_blueprint(erp_estimates_bp)
+
 from apps.api.debug import debug_bp
 app.register_blueprint(debug_bp)
 

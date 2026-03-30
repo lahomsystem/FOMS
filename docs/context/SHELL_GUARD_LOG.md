@@ -4,20 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-20 12:44:17 | allow | `-` | `python -c "import app; print('APP_OK')" && pytest tests/test_erp_order_detail_preload.py` |
-| 2026-03-20 12:44:25 | allow | `-` | `python -c "import app; print('APP_OK')" ; pytest tests/test_erp_order_detail_preload.py` |
-| 2026-03-20 13:01:25 | allow | `-` | `python test_history_error.py` |
-| 2026-03-20 13:02:06 | allow | `-` | `python test_history_error.py` |
-| 2026-03-20 13:03:24 | allow | `-` | `railway --help` |
-| 2026-03-20 13:03:35 | allow | `-` | `railway logs -n 50` |
-| 2026-03-20 13:04:00 | allow | `-` | `railway service` |
-| 2026-03-20 13:04:09 | allow | `-` | `railway status` |
-| 2026-03-20 13:04:57 | allow | `-` | `python test_jinja_error.py` |
-| 2026-03-20 13:05:16 | allow | `-` | `python test_jinja_error.py` |
-| 2026-03-20 13:05:37 | allow | `-` | `python test_jinja_error.py` |
-| 2026-03-20 13:05:52 | allow | `-` | `python -c "from jinja2 import Template; print(Template('{{ stage|replace(\" \", \"-\") }}').render(stage=None))"` |
-| 2026-03-20 13:06:28 | allow | `-` | `python test_jinja_replace.py` |
-| 2026-03-20 13:07:32 | allow | `-` | `railway list` |
 | 2026-03-20 13:08:06 | allow | `-` | `railway service` |
 | 2026-03-20 13:08:26 | allow | `-` | `ls -l railway.json` |
 | 2026-03-20 13:08:40 | allow | `-` | `railway service web` |
@@ -304,3 +290,17 @@
 | 2026-03-26 22:56:27 | allow | `-` | `curl -m 10 -s https://lahom-dev.up.railway.app/api/channel/health` |
 | 2026-03-26 22:56:56 | allow | `-` | `curl.exe -m 10 -s https://lahom-dev.up.railway.app/api/channel/health` |
 | 2026-03-26 22:57:21 | allow | `-` | `curl.exe -m 10 -s https://lahom-dev.up.railway.app/api/channel/health | ConvertFrom-Json | ConvertTo-Json -Depth 5` |
+| 2026-03-28 10:43:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
+| 2026-03-28 10:43:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; @" feat: 색상 필드 (SK) 기본값 자동 표시 비활성화 - erp_beta_js: 빈 색상 시 (SK) 대입 로직 주석 처리, 복구 가능 - add_order: ` |
+| 2026-03-30 09:07:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "from models import OrderEstimate; print('OrderEstimate loaded:', OrderEstimate.__ta` |
+| 2026-03-30 09:07:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-30 09:07:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m alembic revision --autogenerate -m "add order_estimates table for estimate/contract"` |
+| 2026-03-30 09:08:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "from db import get_db, engine; from sqlalchemy import inspect; insp = inspect(engin` |
+| 2026-03-30 09:08:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m alembic stamp 2fa571e611d9` |
+| 2026-03-30 09:08:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-30 09:17:45 | allow | `-` | `dir "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\static\images" 2>$null; if (-not $?) { echo "Directory not found" }` |
+| 2026-03-30 09:24:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-30 09:29:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-03-30 09:36:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-03-30 09:36:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -5` |
+| 2026-03-30 09:36:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A` |

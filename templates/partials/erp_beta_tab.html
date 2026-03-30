@@ -40,7 +40,12 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                         <i class="fas fa-pen"></i> 구조화 입력
                     </button>
                 </li>
-
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="erp-estimate-tab" data-bs-toggle="pill" data-bs-target="#erp-estimate"
+                        type="button" role="tab">
+                        <i class="fas fa-file-contract"></i> 계약서
+                    </button>
+                </li>
             </ul>
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="erp-form" role="tabpanel">
@@ -355,6 +360,7 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                     <div class="row g-2 mt-2" id="erp-attachments-gallery"></div>
                 </div>
 
+                {% include 'partials/erp_estimate_pane.html' %}
 
             </div>
             {% endif %}
