@@ -7,8 +7,8 @@
 ### Session: ccb7e11f
 - **시작**: 2026-03-30 11:41:09
 - **상태**: completed
-- **편집 파일**: `templates/partials/erp_beta_js.html`, `static/js/erp/estimate-preview.js`, `templates/partials/erp_estimate_pane.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-bbaf3856-9b52-405f-9b67-ea6bbc80b733.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fc4d0842-c708-4d23-8eec-ab25c889d474.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6e54a095-ba21-40ac-8a02-2d4fe5eeab2d.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d8b7cce4-9224-4274-8ebd-dafb27116630.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-63092909-f339-4856-8208-6889f92ef7de.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c0c0f0c1-a16f-401e-924d-267d37bc5e23.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b39864ee-0640-4bc9-bd07-1c1e7eeae0e5.png`
-- **종료**: 2026-03-30 15:06:12
+- **편집 파일**: `static/js/erp/estimate-preview.js`, `templates/partials/erp_estimate_pane.html`, `services/estimate_service.py`, `apps/api/erp_estimates.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6af2c93c-c04d-4842-aea6-58c1ff52bd1e.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-554d1962-74e4-4283-8097-6e620119e0e3.png`, `templates/partials/erp_beta_js.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-bbaf3856-9b52-405f-9b67-ea6bbc80b733.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fc4d0842-c708-4d23-8eec-ab25c889d474.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6e54a095-ba21-40ac-8a02-2d4fe5eeab2d.png`
+- **종료**: 2026-03-30 16:08:51
 
 ### Session: e08a034e
 - **시작**: 2026-03-27 14:56:45
@@ -1064,3 +1064,15 @@
 | 2026-03-30 15:02:33 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-30 15:06:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 15:26:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 15:30:09 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 15:55:34 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 15:55:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 16:00:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 16:08:51 | END (Claude Code) | 수정: (없음) |

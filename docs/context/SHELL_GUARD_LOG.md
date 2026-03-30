@@ -4,16 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-24 14:37:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add templates/partials/erp_dashboard_styles.html && git commit -F commit_msg.txt && rm c` |
-| 2026-03-24 14:53:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status && git log --oneline -5` |
-| 2026-03-24 14:55:47 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status --short` |
-| 2026-03-24 15:08:18 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git stash && git checkout production && git merge deploy --no-edit && git push origin produc` |
-| 2026-03-24 15:38:10 | allow | `-` | `grep -n "measurement-chevron\|detail-row\|toggleRow\|chevron" "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/erp/measurement.js" | head ` |
-| 2026-03-24 15:39:40 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git add templates/partials/erp_dashboard_scripts_detail_dom.html templates/partials/erp_dash` |
-| 2026-03-24 15:58:56 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -30 -- apps/api/ apps/erp_as*.py services/nearby*.py services/route*.py | ` |
-| 2026-03-24 15:59:07 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -- apps/api/erp_as_nearby*.py apps/api/as_schedule*.py services/nearby*.py` |
-| 2026-03-24 16:00:03 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -20 -- apps/api/orders.py` |
-| 2026-03-24 16:00:11 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 07e04e7b --stat | head -20 && echo "---" && git diff 07e04e7b~1 07e04e7b -- apps/ap` |
 | 2026-03-24 16:00:35 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -- apps/api/orders.py | head -5` |
 | 2026-03-24 16:00:48 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 9df3a376 --stat && echo "---" && git diff 9df3a376~1 9df3a376 -- apps/api/orders.py` |
 | 2026-03-24 16:00:55 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff 258e50dc~1 258e50dc -- apps/api/orders.py | grep "^[+-]" | grep -v "^---\|^+++" | h` |
@@ -304,3 +294,13 @@
 | 2026-03-30 15:05:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" feat: 계약서 탭 이미지 저장 버튼 추가 (실측 대시보드와 동일 방식) - erp_estimate_pane.html: 툴바 + 이미지저장 버튼(btn` |
 | 2026-03-30 15:25:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git log --oneline -3` |
 | 2026-03-30 15:26:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" # docs 커밋 $msg = @" docs: AI 세션 로그 갱신 "@ $msg | Out-File -FilePath commit_msg.txt -Encoding utf` |
+| 2026-03-30 15:28:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_estimate_pane.html static/js/erp/estimate-preview.js` |
+| 2026-03-30 15:29:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $msg = "feat: 견적서 계산에 예약금 행 추가 - 예약금 있을 때만 조건 표시, 잔금 = 합계 - 예약금 반영"; [System.IO.File]::WriteAl` |
+| 2026-03-30 15:29:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-30 15:29:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/js/erp/estimate-preview.js; $msg = "fix: 계약번호 형식 변경 - 미리보기 대신 고객 전화번호 사용 (YYYYM` |
+| 2026-03-30 15:55:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/js/erp/estimate-preview.js; $msg = "fix: 계약서 탭 진입 시 2중 로딩 제거 - click 리스너 중복 제거 ` |
+| 2026-03-30 15:55:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy --no-edit; git push origin production; git checkout ` |
+| 2026-03-30 16:00:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add services/estimate_service.py; $msg = "fix: 견적서 예약금 추출 버그 수정 - ERP Beta가 저장하는 flat 숫자 구` |
+| 2026-03-30 16:08:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add services/estimate_service.py apps/api/erp_estimates.py static/js/erp/estimate-preview.` |
+| 2026-03-30 16:09:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short; git log --oneline -3` |
+| 2026-03-30 16:09:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/context/COMPACT_CHECKPOINT.md docs/context/EDIT_LOG.md docs/` |
