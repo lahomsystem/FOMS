@@ -4,6 +4,9 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-30 | 세션 자동 기록 | estimate-preview.js, estimate_service.py, erp_estimates.py 외 2개 | bf0c6f11 |
+| 2026-03-30 | 세션 자동 기록 | estimate_service.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6af2c93c-c04d-4842-aea6-58c1ff52bd1e.png, estimate-preview.js 외 2개 | bf0c6f11 |
+| 2026-03-30 | 세션 자동 기록 | estimate-preview.js, erp_estimate_pane.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-554d1962-74e4-4283-8097-6e620119e0e3.png 외 2개 | 484c04cb |
 | 2026-03-30 | 세션 자동 기록 | erp_beta_js.html, estimate-preview.js, erp_estimate_pane.html 외 2개 | cb7b4807 |
 | 2026-03-30 | 세션 자동 기록 | erp_estimate_pane.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-bbaf3856-9b52-405f-9b67-ea6bbc80b733.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fc4d0842-c708-4d23-8eec-ab25c889d474.png 외 2개 | acc7c736 |
 | 2026-03-30 | 세션 자동 기록 | erp_estimate_pane.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fc4d0842-c708-4d23-8eec-ab25c889d474.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6e54a095-ba21-40ac-8a02-2d4fe5eeab2d.png 외 2개 | a39f50a8 |
@@ -21,6 +24,3 @@
 | 2026-03-30 | 세션 자동 기록 | commit_msg.txt, estimate-preview.js, erp_dashboard_styles.html 외 2개 | 9e538940 |
 | 2026-03-30 | 세션 자동 기록 | estimate-preview.js, erp_dashboard_styles.html, erp_beta_js.html 외 2개 | 6606628e |
 | 2026-03-30 | 세션 자동 기록 | 2fa571e611d9_add_order_estimates_table_for_estimate_.py, app.py, erp_estimates.py 외 2개 | 6606628e |
-| 2026-03-28 | 세션 자동 기록 | commit_msg.txt, map_view.html, erp_map.py 외 2개 | f4a5afd0 |
-| 2026-03-27 | 세션 자동 기록 | commit_msg.txt, map_view.html, erp_map.py 외 2개 | c7029094 |
-| 2026-03-27 | 세션 자동 기록 | map_view.html, erp_map.py, map_snapshot.py 외 2개 | e7963f59 |
