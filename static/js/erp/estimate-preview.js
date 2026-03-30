@@ -109,19 +109,19 @@
         _setText('est-company-phone', ci.phone);
         _setText('est-company-center', ci.customer_center);
 
-        // 발주사별 로고: 라홈이면 라홈 로고, 그 외는 하우드 로고
+        // 발주사별 로고: CSS 클래스로 크기 제어 (인라인 스타일 금지 원칙)
         const logoEl = document.getElementById('est-logo-img');
         if (logoEl) {
             const lahomSrc = logoEl.dataset.lahomSrc;
             const haudSrc = logoEl.dataset.haudSrc;
             if (isLahom) {
                 logoEl.src = lahomSrc;
-                logoEl.style.maxWidth = '180px';
-                logoEl.style.height = '44px';
+                logoEl.classList.remove('erp-est-logo--haud');
+                logoEl.classList.add('erp-est-logo--lahom');
             } else {
                 logoEl.src = haudSrc || lahomSrc;
-                logoEl.style.maxWidth = 'none';
-                logoEl.style.height = '44px';
+                logoEl.classList.remove('erp-est-logo--lahom');
+                logoEl.classList.add('erp-est-logo--haud');
             }
         }
 
@@ -134,12 +134,12 @@
         _setText('est-customer-name', d.customer_name);
         _setText('est-customer-phone', d.customer_phone);
         _setText('est-site-address', d.site_address);
-        _setText('est-estimate-date', _fmtDate(_todayStr()));
+        const today = _todayStr();
+        _setText('est-estimate-date', _fmtDate(today));
         _setText('est-construction-date', _fmtDate(d.construction_date));
         _setText('est-manager-name', d.manager_name);
         _setText('est-manager-phone', d.manager_phone);
 
-        const today = _todayStr();
         const phoneDigits = (d.customer_phone || '').replace(/\D/g, '');
         _setText('est-estimate-number', today.replace(/-/g, '') + '_' + (phoneDigits || '미리보기'));
         _setText('est-created-date', today);
@@ -194,8 +194,8 @@
 
             if (!data.success) {
                 _showSection('est-empty');
-                const emptyEl = document.getElementById('est-empty');
-                if (emptyEl) emptyEl.textContent = data.error || '견적서 데이터를 불러올 수 없습니다.';
+                const emptyMsg = document.getElementById('est-empty-msg');
+                if (emptyMsg) emptyMsg.textContent = data.error || '견적서 데이터를 불러올 수 없습니다.';
                 return;
             }
 
@@ -211,7 +211,7 @@
             // 저장 버튼 활성화 및 툴바 노출
             const toolbar = document.getElementById('est-toolbar');
             const exportBtn = document.getElementById('btn-est-export');
-            if (toolbar) toolbar.style.removeProperty('display');
+            if (toolbar) toolbar.classList.remove('erp-est-hidden');
             if (exportBtn) exportBtn.disabled = false;
 
         } catch (err) {
