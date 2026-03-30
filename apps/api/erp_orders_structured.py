@@ -464,6 +464,8 @@ def api_erp_create_draft():
             structured_updated_at=now,
         )
         db.add(order)
+        db.flush()
+        sync_erp_flat_columns(order, structured)
         db.commit()
         db.refresh(order)
 

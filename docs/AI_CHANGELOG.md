@@ -4,6 +4,13 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-30 | 세션 자동 기록 | order_pages.py, erp_orders_structured.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images______-e6e2cf4a-3341-4a68-ae04-0b81b48ad175.png 외 2개 | 08fd7fbd |
+| 2026-03-30 | 세션 자동 기록 | commit_msg.txt, erp_estimate_pane.html, erp_estimates.py 외 2개 | 08fd7fbd |
+| 2026-03-30 | 세션 자동 기록 | commit_msg.txt, erp_estimates.py, estimate-preview.js 외 2개 | 1409f2a5 |
+| 2026-03-30 | 세션 자동 기록 | commit_msg.txt, erp_dashboard_styles.html, estimate-preview.js 외 2개 | a34356f9 |
+| 2026-03-30 | 세션 자동 기록 | estimate-preview.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-0eb872e5-14ed-4688-8a5d-0778a5235915.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-8cb4afdd-086c-409b-968c-02f6629509ff.png 외 2개 | fddf1df4 |
+| 2026-03-30 | 세션 자동 기록 | estimate-preview.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-8cb4afdd-086c-409b-968c-02f6629509ff.png, commit_msg.txt 외 2개 | 96d225b2 |
+| 2026-03-30 | 세션 자동 기록 | commit_msg.txt, estimate-preview.js, erp_dashboard_styles.html 외 2개 | 9e538940 |
 | 2026-03-30 | 세션 자동 기록 | estimate-preview.js, erp_dashboard_styles.html, erp_beta_js.html 외 2개 | 6606628e |
 | 2026-03-30 | 세션 자동 기록 | 2fa571e611d9_add_order_estimates_table_for_estimate_.py, app.py, erp_estimates.py 외 2개 | 6606628e |
 | 2026-03-28 | 세션 자동 기록 | commit_msg.txt, map_view.html, erp_map.py 외 2개 | f4a5afd0 |
@@ -17,10 +24,3 @@
 | 2026-03-26 | 세션 자동 기록 | test_channel_security.py, channel_delivery.py, admin.html 외 2개 | 421075f8 |
 | 2026-03-26 | 세션 자동 기록 | channel_delivery.py, admin.html, commit_msg.txt 외 2개 | d5d81ef4 |
 | 2026-03-26 | 세션 자동 기록 | commit_msg.txt, start.sh, c762eed30396_add_channeltalk_phase_0_models.py 외 2개 | ab68b928 |
-| 2026-03-26 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d2ed46ae-5b11-46a6-ad0e-3d7a22bcb32e.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-7c3dc48d-cff2-4e5e-9f2a-d1333eff922e.png, tasks.py 외 2개 | c855b649 |
-| 2026-03-26 | 세션 자동 기록 | tasks.py, channel_dispatch.py, channel_delivery.py 외 2개 | c855b649 |
-| 2026-03-26 | 세션 자동 기록 | channel_policy.py, channel_security.py, channel_wam.py 외 2개 | c855b649 |
-| 2026-03-26 | 세션 자동 기록 | commit_msg.txt, channel_inbound.py, test_channel_webhooks.py 외 2개 | c855b649 |
-| 2026-03-26 | 세션 자동 기록 | commit_msg.txt, channel_quick_actions.py, test_channel_quick_actions.py 외 2개 | 0073e5c1 |
-| 2026-03-26 | 세션 자동 기록 | commit_msg.txt, test_channel_security.py, channel_wam.py 외 2개 | 33e6629f |
-| 2026-03-26 | 세션 자동 기록 | commit_msg.txt, tasks.py, channel_delivery.py 외 2개 | dade0263 |

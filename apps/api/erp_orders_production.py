@@ -13,6 +13,7 @@ from db import get_db
 from models import Order, OrderEvent, SecurityLog
 from apps.auth import login_required, get_user_by_id
 from services.erp_permissions import erp_edit_required
+from services.erp_sync_columns import sync_erp_flat_columns
 from apps.erp import _ensure_dict
 
 erp_orders_production_bp = Blueprint(
@@ -56,6 +57,7 @@ def api_production_start(order_id):
         order.structured_data = copy.deepcopy(sd)
         flag_modified(order, "structured_data")
         order.status = 'PRODUCTION'
+        sync_erp_flat_columns(order, sd)
 
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 제작 시작 (PRODUCTION)"))
         db.commit()
@@ -101,6 +103,7 @@ def api_production_complete(order_id):
         order.structured_data = copy.deepcopy(sd)
         flag_modified(order, "structured_data")
         order.status = 'CONSTRUCTION'
+        sync_erp_flat_columns(order, sd)
 
         event_payload = {
             'domain': 'PRODUCTION_DOMAIN',
