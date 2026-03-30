@@ -7,8 +7,8 @@
 ### Session: ccb7e11f
 - **시작**: 2026-03-30 11:41:09
 - **상태**: completed
-- **편집 파일**: `services/estimate_service.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-44fc03c9-0024-425a-8206-61e7dab2a928.png`
-- **종료**: 2026-03-30 16:26:48
+- **편집 파일**: `static/js/erp/estimate-preview.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fb4e8f31-5a42-4f75-a23e-023ce1c4d097.png`, `services/estimate_service.py`, `templates/partials/erp_beta_js.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-44fc03c9-0024-425a-8206-61e7dab2a928.png`
+- **종료**: 2026-03-30 17:00:58
 
 ### Session: e08a034e
 - **시작**: 2026-03-27 14:56:45
@@ -1084,3 +1084,9 @@
 | 2026-03-30 16:19:14 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-30 16:26:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 16:35:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 16:51:29 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 17:00:58 | END (Claude Code) | 수정: (없음) |
