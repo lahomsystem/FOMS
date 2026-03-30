@@ -4,11 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-24 16:00:35 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -- apps/api/orders.py | head -5` |
-| 2026-03-24 16:00:48 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 9df3a376 --stat && echo "---" && git diff 9df3a376~1 9df3a376 -- apps/api/orders.py` |
-| 2026-03-24 16:00:55 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff 258e50dc~1 258e50dc -- apps/api/orders.py | grep "^[+-]" | grep -v "^---\|^+++" | h` |
-| 2026-03-24 16:01:05 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff -- apps/api/orders.py | head -100` |
-| 2026-03-24 16:01:12 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status --short` |
 | 2026-03-24 16:01:52 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -10 -- foms_address_converter.py` |
 | 2026-03-24 16:01:55 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -20 -- apps/api/erp_orders_structured.py` |
 | 2026-03-24 16:02:01 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff 6fedefe3~1 6fedefe3 -- foms_address_converter.py | grep "^[+-]" | grep -v "^---\|^+` |
@@ -304,3 +299,8 @@
 | 2026-03-30 16:08:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add services/estimate_service.py apps/api/erp_estimates.py static/js/erp/estimate-preview.` |
 | 2026-03-30 16:09:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short; git log --oneline -3` |
 | 2026-03-30 16:09:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/context/COMPACT_CHECKPOINT.md docs/context/EDIT_LOG.md docs/` |
+| 2026-03-30 16:18:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add services/estimate_service.py; $msg = "fix: 견적서 예약금 미반영 근본 수정 - ERP Beta는 payment(단수)로 ` |
+| 2026-03-30 16:26:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy; git push origin production; git checkout deploy` |
+| 2026-03-30 16:26:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git stash; git checkout production; git merge deploy; git push origin production; git checkout` |
+| 2026-03-30 16:34:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short` |
+| 2026-03-30 16:35:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; $msg = "docs: 세션 로그 및 자동 생성 문서 갱신"; [System.IO.File]::WriteAllText("commit_msg.txt` |

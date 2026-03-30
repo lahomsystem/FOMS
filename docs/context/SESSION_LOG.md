@@ -7,8 +7,8 @@
 ### Session: ccb7e11f
 - **시작**: 2026-03-30 11:41:09
 - **상태**: completed
-- **편집 파일**: `static/js/erp/estimate-preview.js`, `templates/partials/erp_estimate_pane.html`, `services/estimate_service.py`, `apps/api/erp_estimates.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6af2c93c-c04d-4842-aea6-58c1ff52bd1e.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-554d1962-74e4-4283-8097-6e620119e0e3.png`, `templates/partials/erp_beta_js.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-bbaf3856-9b52-405f-9b67-ea6bbc80b733.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fc4d0842-c708-4d23-8eec-ab25c889d474.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6e54a095-ba21-40ac-8a02-2d4fe5eeab2d.png`
-- **종료**: 2026-03-30 16:08:51
+- **편집 파일**: `services/estimate_service.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-44fc03c9-0024-425a-8206-61e7dab2a928.png`
+- **종료**: 2026-03-30 16:26:48
 
 ### Session: e08a034e
 - **시작**: 2026-03-27 14:56:45
@@ -1076,3 +1076,11 @@
 | 2026-03-30 16:00:21 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-30 16:08:51 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 16:09:51 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 16:13:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 16:19:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 16:26:48 | END (Claude Code) | 수정: (없음) |
