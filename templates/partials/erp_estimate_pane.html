@@ -285,6 +285,14 @@
     font-size: 14px;
     color: #111;
 }
+.erp-est-sum-deposit {
+    color: #888;
+    font-size: 13px;
+}
+.erp-est-sum-deposit-val {
+    font-size: 13px;
+    color: #888;
+}
 .erp-est-sum-balance {
     border-top: 1px solid #ccc;
     margin-top: 8px;
@@ -477,6 +485,10 @@
                 <div class="erp-est-sum-row">
                     <span class="erp-est-sum-label">합계 :</span>
                     <span class="erp-est-sum-value" id="est-total-amount">₩0</span>
+                </div>
+                <div class="erp-est-sum-row erp-est-sum-deposit erp-est-hidden" id="est-deposit-row">
+                    <span class="erp-est-sum-label">예약금</span>
+                    <span class="erp-est-sum-value erp-est-sum-deposit-val" id="est-deposit-amount">₩0</span>
                 </div>
                 <div class="erp-est-sum-row erp-est-sum-balance">
                     <span class="erp-est-sum-label">잔금</span>

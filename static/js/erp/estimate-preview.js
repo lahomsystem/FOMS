@@ -146,6 +146,16 @@
 
     function _applyPaymentInfo(d, pi) {
         _setText('est-total-amount', _fmtMoney(d.total_amount));
+
+        // 예약금이 있을 때만 행 노출, 없으면 숨김
+        const depositRow = document.getElementById('est-deposit-row');
+        if (d.deposit_amount && d.deposit_amount > 0) {
+            _setText('est-deposit-amount', _fmtMoney(d.deposit_amount));
+            if (depositRow) depositRow.classList.remove('erp-est-hidden');
+        } else {
+            if (depositRow) depositRow.classList.add('erp-est-hidden');
+        }
+
         _setText('est-balance-amount', _fmtMoney(d.balance_amount));
         _setText('est-pay-bank', pi.bank);
         _setText('est-pay-account', pi.account);
