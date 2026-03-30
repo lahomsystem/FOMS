@@ -1,203 +1,229 @@
 {#
-견적서/계약서 프리뷰 탭 pane (erp_beta_tab.html 내부 서브탭)
+견적서/계약서 프리뷰 탭 pane
 - Bootstrap pill tab-pane: id="erp-estimate"
-- 데이터: /api/orders/{ORDER_ID}/estimate-preview 에서 GET
 - JS: static/js/erp/estimate-preview.js
-- CSS: 아래 <style> 블록에 자체 포함 (edit_order/add_order 양쪽에서 동작)
 #}
 <style>
+.erp-est-hidden { display: none !important; }
+
 .erp-est-doc {
     background: #fff;
-    border: 1px solid #ccc;
-    box-shadow: 0 2px 16px rgba(0,0,0,.07);
-    max-width: 720px;
-    margin: 0 auto;
-    font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+    border: 1px solid #bbb;
+    box-shadow: 0 1px 8px rgba(0,0,0,.06);
+    max-width: 700px;
+    margin: 12px auto;
+    font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif;
     font-size: 12px;
     color: #222;
+    line-height: 1.5;
     overflow: hidden;
+    position: relative;
 }
+
+/* ── 상단 무지개 바 ── */
 .erp-est-topbar {
-    height: 5px;
+    height: 4px;
     background: linear-gradient(90deg,
-        #e53935 0%, #e53935 14%,
-        #fb8c00 14%, #fb8c00 28%,
-        #fdd835 28%, #fdd835 42%,
-        #43a047 42%, #43a047 57%,
-        #1e88e5 57%, #1e88e5 71%,
-        #5e35b1 71%, #5e35b1 85%,
-        #795548 85%, #795548 100%);
+        #d32f2f 0%, #d32f2f 12.5%,
+        #f57c00 12.5%, #f57c00 25%,
+        #fbc02d 25%, #fbc02d 37.5%,
+        #388e3c 37.5%, #388e3c 50%,
+        #1976d2 50%, #1976d2 62.5%,
+        #512da8 62.5%, #512da8 75%,
+        #5d4037 75%, #5d4037 87.5%,
+        #616161 87.5%, #616161 100%);
 }
+
+/* ── 헤더: 로고 + 웹사이트 ── */
 .erp-est-header {
-    padding: 14px 24px 6px;
+    padding: 18px 28px 0;
 }
 .erp-est-logo-img {
-    height: 32px;
+    height: 44px;
     width: auto;
     display: block;
 }
 .erp-est-website {
-    font-size: 10.5px;
-    color: #777;
-    margin-top: 2px;
+    font-size: 10px;
+    color: #888;
+    margin-top: 3px;
+    letter-spacing: 0.3px;
 }
+
+/* ── 계약번호 줄 ── */
 .erp-est-num-row {
-    margin-top: 10px;
+    padding: 12px 28px 0;
     font-size: 12px;
 }
 .erp-est-num-label {
-    color: #555;
+    color: #444;
     font-weight: 600;
-    margin-right: 16px;
+    margin-right: 20px;
 }
 .erp-est-num-value {
     font-weight: 700;
+    color: #111;
 }
 
-/* === 사업자/고객 정보 그리드 === */
+/* ── 사업자/고객 정보 2단 박스 ── */
 .erp-est-info-box {
-    margin: 8px 24px 0;
-    border: 1px solid #999;
+    margin: 14px 28px 0;
+    border: 1px solid #aaa;
     display: grid;
     grid-template-columns: 1fr 1fr;
 }
 .erp-est-info-left {
-    padding: 10px 14px;
-    border-right: 1px solid #999;
+    padding: 12px 16px;
+    border-right: 1px solid #aaa;
 }
 .erp-est-info-right {
-    padding: 10px 14px;
+    padding: 12px 16px;
 }
 .erp-est-info-title {
     font-weight: 700;
     font-size: 12.5px;
-    margin-bottom: 6px;
+    color: #111;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
 }
 .erp-est-info-tbl {
     width: 100%;
     border-collapse: collapse;
 }
 .erp-est-info-tbl td {
-    padding: 1.5px 0;
-    font-size: 11.5px;
+    padding: 2px 0;
+    font-size: 11px;
     vertical-align: top;
-    line-height: 1.55;
+    line-height: 1.6;
+    color: #333;
 }
 .erp-est-lbl {
     color: #555;
-    width: 62px;
+    width: 56px;
+    min-width: 56px;
     white-space: nowrap;
     font-weight: 400;
 }
 .erp-est-info-right .erp-est-lbl {
-    width: 58px;
+    width: 52px;
+    min-width: 52px;
 }
 .erp-est-spacer td {
-    height: 6px;
+    height: 8px;
 }
 
-/* === 안내 문구 === */
+/* ── 안내 문구 ── */
 .erp-est-notice-text {
     text-align: center;
-    padding: 14px 24px 6px;
+    padding: 18px 28px 10px;
     font-size: 12px;
     color: #333;
+    letter-spacing: 0.3px;
 }
 
-/* === 계약 내용 테이블 === */
+/* ── 계약 내용 테이블 ── */
 .erp-est-contract {
-    margin: 0 24px;
+    margin: 0 28px;
 }
 .erp-est-contract-title {
     text-align: center;
     font-weight: 700;
     font-size: 13px;
-    background: #f0ece4;
-    padding: 7px 0;
-    border: 1px solid #999;
+    color: #222;
+    background: #ede8de;
+    padding: 8px 0;
+    border: 1px solid #aaa;
     border-bottom: none;
+    letter-spacing: 1px;
 }
 .erp-est-tbl {
     width: 100%;
     border-collapse: collapse;
-    border: 1px solid #999;
+    border: 1px solid #aaa;
 }
 .erp-est-tbl th {
-    background: #f8f5ef;
-    border: 1px solid #999;
-    padding: 6px 8px;
+    background: #f5f1ea;
+    border: 1px solid #aaa;
+    padding: 7px 10px;
     text-align: center;
     font-weight: 600;
-    font-size: 11.5px;
+    font-size: 11px;
     color: #333;
+    white-space: nowrap;
 }
 .erp-est-tbl td {
     border: 1px solid #bbb;
-    padding: 6px 8px;
-    font-size: 11.5px;
+    padding: 7px 10px;
+    font-size: 11px;
     text-align: center;
+    color: #333;
 }
 .erp-est-tbl td.text-end {
     text-align: right;
 }
-.erp-est-th-name { width: 20%; }
-.erp-est-th-spec { width: 28%; }
-.erp-est-th-color { width: 18%; }
-.erp-est-th-qty { width: 8%; }
-.erp-est-th-amount { width: 26%; }
+.erp-est-th-name  { width: 17%; }
+.erp-est-th-spec  { width: 30%; }
+.erp-est-th-color { width: 17%; }
+.erp-est-th-qty   { width: 8%; }
+.erp-est-th-amount { width: 28%; }
 .erp-est-empty-msg {
     color: #999;
-    padding: 18px 0;
+    padding: 24px 0;
 }
-.erp-est-sep {
-    margin: 0 4px;
-    color: #999;
-}
-.erp-est-hidden { display: none; }
 
-/* === 결제정보 + 합계 === */
+/* ── 결제정보 + 합계 하단 박스 ── */
 .erp-est-pay-box {
-    margin: 14px 24px 0;
-    border: 1px solid #999;
+    margin: 0 28px;
+    border: 1px solid #aaa;
+    border-top: none;
     display: grid;
     grid-template-columns: 1fr 1fr;
+    min-height: 90px;
 }
 .erp-est-pay-left {
-    padding: 10px 14px;
-    border-right: 1px solid #999;
+    padding: 12px 16px;
+    border-right: 1px solid #aaa;
 }
 .erp-est-pay-right {
-    padding: 10px 14px;
+    padding: 12px 16px;
     display: flex;
     flex-direction: column;
     justify-content: center;
 }
 .erp-est-pay-title {
     font-weight: 700;
-    font-size: 12.5px;
-    margin-bottom: 4px;
+    font-size: 12px;
+    color: #111;
+    margin-bottom: 6px;
 }
 .erp-est-bank-line {
-    font-size: 11.5px;
+    font-size: 11px;
+    color: #333;
     margin-top: 2px;
 }
 .erp-est-bank-line .fw-bold {
     font-weight: 700;
 }
 .erp-est-pay-holder {
-    font-size: 11px;
-    margin-top: 2px;
+    font-size: 10.5px;
+    color: #444;
+    margin-top: 3px;
 }
 .erp-est-pay-warn {
-    font-size: 10.5px;
+    font-size: 10px;
     color: #c62828;
-    margin-top: 4px;
+    margin-top: 6px;
+    font-weight: 500;
+}
+.erp-est-sep {
+    margin: 0 6px;
+    color: #999;
 }
 .erp-est-sum-row {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 3px 0;
+    align-items: baseline;
+    padding: 4px 0;
     font-size: 12.5px;
 }
 .erp-est-sum-label {
@@ -206,47 +232,64 @@
 }
 .erp-est-sum-value {
     font-weight: 700;
-    font-size: 13.5px;
+    font-size: 14px;
+    color: #111;
 }
 .erp-est-sum-balance {
     border-top: 1px solid #ccc;
-    margin-top: 6px;
-    padding-top: 6px;
+    margin-top: 8px;
+    padding-top: 8px;
+}
+.erp-est-sum-balance .erp-est-sum-value {
+    font-size: 15px;
+    font-weight: 800;
 }
 
-/* === 하단 푸터 === */
+/* ── 하단 푸터 ── */
 .erp-est-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 24px 14px;
+    padding: 12px 28px 16px;
     font-size: 11px;
     color: #555;
-    margin-top: 10px;
-    border-top: 1px solid #ddd;
+    margin-top: 14px;
+    border-top: 1px solid #ccc;
+}
+.erp-est-footer-date {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 .erp-est-footer-date .erp-est-lbl {
-    margin-right: 10px;
     font-weight: 600;
+    color: #444;
 }
 .erp-est-footer-legal {
-    font-size: 10.5px;
-    color: #777;
+    font-size: 10px;
+    color: #888;
 }
 
-/* === 반응형 === */
+/* ── 반응형 ── */
 @media (max-width: 576px) {
-    .erp-est-info-box, .erp-est-pay-box {
-        grid-template-columns: 1fr;
+    .erp-est-info-box,
+    .erp-est-pay-box { grid-template-columns: 1fr; }
+    .erp-est-info-left,
+    .erp-est-pay-left { border-right: none; border-bottom: 1px solid #aaa; }
+    .erp-est-header,
+    .erp-est-num-row { padding-left: 16px; padding-right: 16px; }
+    .erp-est-info-box,
+    .erp-est-contract,
+    .erp-est-pay-box { margin-left: 16px; margin-right: 16px; }
+    .erp-est-notice-text { padding: 12px 16px 6px; }
+    .erp-est-footer {
+        flex-direction: column;
+        gap: 6px;
+        text-align: center;
+        padding: 10px 16px 14px;
     }
-    .erp-est-info-left, .erp-est-pay-left {
-        border-right: none;
-        border-bottom: 1px solid #999;
-    }
-    .erp-est-header { padding: 10px 16px 4px; }
-    .erp-est-info-box, .erp-est-contract, .erp-est-pay-box { margin-left: 16px; margin-right: 16px; }
-    .erp-est-notice-text { padding: 10px 16px 4px; }
-    .erp-est-footer { flex-direction: column; gap: 6px; text-align: center; padding: 8px 16px 12px; }
+    .erp-est-tbl th,
+    .erp-est-tbl td { padding: 5px 4px; font-size: 10px; }
 }
 </style>
 
@@ -268,14 +311,16 @@
         <!-- 상단 컬러 바 -->
         <div class="erp-est-topbar"></div>
 
-        <!-- 헤더: 로고 + 웹사이트 + 계약번호 -->
+        <!-- 헤더: 로고 + 웹사이트 -->
         <div class="erp-est-header">
-            <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="HAUD" class="erp-est-logo-img">
+            <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="LAHOM" class="erp-est-logo-img">
             <div class="erp-est-website">www.haudsystem.com</div>
-            <div class="erp-est-num-row">
-                <span class="erp-est-num-label">계약번호</span>
-                <span class="erp-est-num-value" id="est-estimate-number">-</span>
-            </div>
+        </div>
+
+        <!-- 계약번호 -->
+        <div class="erp-est-num-row">
+            <span class="erp-est-num-label">계약번호</span>
+            <span class="erp-est-num-value" id="est-estimate-number">-</span>
         </div>
 
         <!-- 사업자 정보 + 고객 정보 -->
