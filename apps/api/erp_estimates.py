@@ -37,7 +37,12 @@ def get_estimate_preview(order_id: int):
     if not order:
         return jsonify({'success': False, 'error': '주문을 찾을 수 없습니다.'}), 404
 
-    data = extract_estimate_data_from_order(order)
+    try:
+        data = extract_estimate_data_from_order(order)
+    except Exception:
+        logger.exception("견적서 프리뷰 추출 실패: order_id=%d", order_id)
+        return jsonify({'success': False, 'error': '견적서 데이터를 불러오는 중 오류가 발생했습니다.'}), 500
+
     data['company_info'] = ESTIMATE_COMPANY_INFO
     data['payment_info'] = ESTIMATE_PAYMENT_INFO
     data['legal_notice'] = ESTIMATE_LEGAL_NOTICE

@@ -80,6 +80,9 @@ def _format_spec_rows(item: dict) -> str:
 def extract_estimate_data_from_order(order: Order) -> dict:
     """주문의 structured_data에서 견적서에 필요한 필드를 추출한다.
 
+    Args:
+        order: 데이터를 추출할 Order 인스턴스
+
     Returns:
         dict with keys: customer_name, customer_phone, site_address,
         construction_date, manager_name, manager_phone, items, total_amount,
@@ -179,7 +182,7 @@ def create_estimate(
             data['total_amount'] = sum(
                 int(it.get('amount') or 0) for it in data['items']
             )
-        if 'total_amount' in data or 'deposit_amount' in data:
+        if 'total_amount' in override_data or 'deposit_amount' in override_data:
             data['balance_amount'] = data.get('total_amount', 0) - data.get('deposit_amount', 0)
             if data['balance_amount'] < 0:
                 data['balance_amount'] = 0

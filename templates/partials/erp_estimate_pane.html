@@ -38,12 +38,18 @@
 .erp-est-header {
     padding: 18px 28px 0;
 }
+/* ── 로고 크기: 발주사별 CSS 클래스로 제어 ── */
 .erp-est-logo-img {
     height: 44px;
-    max-width: 180px;
     width: auto;
     display: block;
     object-fit: contain;
+}
+.erp-est-logo--lahom {
+    max-width: 180px;
+}
+.erp-est-logo--haud {
+    max-width: none;
 }
 .erp-est-website {
     font-size: 10px;
@@ -365,7 +371,7 @@
 <div class="tab-pane fade" id="erp-estimate" role="tabpanel" aria-labelledby="erp-estimate-tab">
 
     <!-- 툴바: 이미지 저장 버튼 -->
-    <div class="d-flex justify-content-end align-items-center px-2 pt-2 pb-1" id="est-toolbar" style="display:none!important">
+    <div class="d-flex justify-content-end align-items-center px-2 pt-2 pb-1 erp-est-hidden" id="est-toolbar">
         <button id="btn-est-export" type="button" class="erp-pro-btn erp-pro-btn--primary" disabled>
             <i class="fas fa-file-image"></i>
             <span class="d-none d-md-inline ms-1">이미지 저장</span>
@@ -380,7 +386,8 @@
     </div>
 
     <div id="est-empty" class="alert alert-warning py-2 erp-est-hidden">
-        <i class="fas fa-exclamation-triangle"></i> 주문을 먼저 저장한 후 견적서를 확인할 수 있습니다.
+        <i class="fas fa-exclamation-triangle"></i>
+        <span id="est-empty-msg">주문을 먼저 저장한 후 견적서를 확인할 수 있습니다.</span>
     </div>
 
     <div id="est-document" class="erp-est-doc erp-est-hidden">
@@ -409,17 +416,19 @@
             <div class="erp-est-info-left">
                 <div class="erp-est-info-title">사업자 정보</div>
                 <table class="erp-est-info-tbl">
-                    <tr><td class="erp-est-lbl">상호</td><td id="est-company-name">주식회사 하우드시스템</td></tr>
-                    <tr>
-                        <td class="erp-est-lbl">대표자</td>
-                        <td><span id="est-company-ceo">김성일</span></td>
-                    </tr>
-                    <tr><td class="erp-est-lbl">등록번호</td><td id="est-company-biznum">503-88-02558</td></tr>
-                    <tr><td class="erp-est-lbl">소재지</td><td id="est-company-address">경기도 김포시 대곶면 오니산로 153번길 82</td></tr>
-                    <tr><td class="erp-est-lbl">업태</td><td id="est-company-industry">제조 도소매 / 목재 가구</td></tr>
-                    <tr class="erp-est-spacer"><td colspan="2"></td></tr>
-                    <tr><td class="erp-est-lbl">전화번호</td><td id="est-company-phone">031-985-4261</td></tr>
-                    <tr><td class="erp-est-lbl">고객센터</td><td id="est-company-center">1566-0703</td></tr>
+                    <tbody>
+                        <tr><td class="erp-est-lbl">상호</td><td id="est-company-name">주식회사 하우드시스템</td></tr>
+                        <tr>
+                            <td class="erp-est-lbl">대표자</td>
+                            <td><span id="est-company-ceo">김성일</span></td>
+                        </tr>
+                        <tr><td class="erp-est-lbl">등록번호</td><td id="est-company-biznum">503-88-02558</td></tr>
+                        <tr><td class="erp-est-lbl">소재지</td><td id="est-company-address">경기도 김포시 대곶면 오니산로 153번길 82</td></tr>
+                        <tr><td class="erp-est-lbl">업태</td><td id="est-company-industry">제조 도소매 / 목재 가구</td></tr>
+                        <tr class="erp-est-spacer"><td colspan="2"></td></tr>
+                        <tr><td class="erp-est-lbl">전화번호</td><td id="est-company-phone">031-985-4261</td></tr>
+                        <tr><td class="erp-est-lbl">고객센터</td><td id="est-company-center">1566-0703</td></tr>
+                    </tbody>
                 </table>
                 <!-- 인감 도장: info-left 기준 절대위치 -->
                 <img id="est-stamp-img"
@@ -458,7 +467,7 @@
                         <th class="erp-est-th-spec">규격</th>
                         <th class="erp-est-th-color">색상</th>
                         <th class="erp-est-th-qty">수량</th>
-                        <th class="erp-est-th-amount">금액 <small>(VAT 포함)</small></th>
+                        <th class="erp-est-th-amount">금액 <span class="small">(VAT 포함)</span></th>
                     </tr>
                 </thead>
                 <tbody id="est-items-tbody">
