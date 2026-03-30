@@ -500,6 +500,79 @@ class Notification(Base):
 # ChannelTalk 연동 모델 (Phase 0)
 # ============================================
 
+# ============================================
+# 견적서/계약서 모델
+# ============================================
+
+class OrderEstimate(Base):
+    """견적서(계약서) — 주문별 N건 발급 가능.
+
+    견적번호 형식: YYYYMMDD_N  (해당 날짜의 순번)
+    items JSON 예시:
+        [{"product_name": "무몰딩 여닫이", "spec": "3090X700X2408",
+          "color": "포그그레이", "quantity": 1, "unit_price": 550000,
+          "amount": 550000}]
+    """
+    __tablename__ = 'order_estimates'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+
+    estimate_number = Column(String(50), nullable=False, unique=True)
+
+    customer_name = Column(String(100), nullable=False)
+    customer_phone = Column(String(50), nullable=True)
+    site_address = Column(Text, nullable=True)
+
+    estimate_date = Column(String(10), nullable=False)   # YYYY-MM-DD
+    construction_date = Column(String(10), nullable=True)
+
+    manager_name = Column(String(100), nullable=True)
+    manager_phone = Column(String(50), nullable=True)
+
+    items = Column(JSONColumn, nullable=False, default=list)
+
+    total_amount = Column(Integer, nullable=False, default=0)
+    deposit_amount = Column(Integer, nullable=True, default=0)
+    balance_amount = Column(Integer, nullable=True, default=0)
+
+    payment_info = Column(JSONColumn, nullable=True)
+
+    status = Column(String(20), nullable=False, default='DRAFT')
+    notes = Column(Text, nullable=True)
+
+    created_by_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+
+    order = relationship('Order', foreign_keys=[order_id])
+    created_by = relationship('User', foreign_keys=[created_by_user_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'estimate_number': self.estimate_number,
+            'customer_name': self.customer_name,
+            'customer_phone': self.customer_phone,
+            'site_address': self.site_address,
+            'estimate_date': self.estimate_date,
+            'construction_date': self.construction_date,
+            'manager_name': self.manager_name,
+            'manager_phone': self.manager_phone,
+            'items': self.items or [],
+            'total_amount': self.total_amount,
+            'deposit_amount': self.deposit_amount,
+            'balance_amount': self.balance_amount,
+            'payment_info': self.payment_info,
+            'status': self.status,
+            'notes': self.notes,
+            'created_by_user_id': self.created_by_user_id,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
+            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else None,
+        }
+
+
 class ChannelDeliveryLog(Base):
     """FOMS -> ChannelTalk 전송 상태 영속화 (Outbox 겸용)"""
     __tablename__ = 'channel_delivery_logs'

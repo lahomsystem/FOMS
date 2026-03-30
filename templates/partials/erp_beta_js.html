@@ -935,6 +935,9 @@
                 return { success: false, message: data.message || '저장 실패' };
             }
             erpSetStatus(doRedirect ? '저장 완료! 이동합니다...' : '저장 완료');
+            if (typeof window.erpInvalidateEstimateCache === 'function') {
+                window.erpInvalidateEstimateCache();
+            }
 
             if (doRedirect) {
                 if (window.__ERP_BETA_DRAFT_MODE) {
@@ -2675,3 +2678,4 @@ ${list.map(renderCard).join('')}
         document.getElementById('erp-quest-status-btn')?.addEventListener('click', erpUpdateQuestStatus);
     });
 </script>
+<script src="{{ url_for('static', filename='js/erp/estimate-preview.js') }}"></script>
