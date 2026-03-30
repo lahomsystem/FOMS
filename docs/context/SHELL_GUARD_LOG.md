@@ -4,11 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-24 13:01:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add static/css/erp-pro.css templates/erp_drawing_workbench_detail.html templates/erp_mea` |
-| 2026-03-24 13:01:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git push origin deploy` |
-| 2026-03-24 13:11:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add static/css/erp-pro.css templates/layout.html && git commit -F commit_msg.txt && rm c` |
-| 2026-03-24 13:37:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add static/css/erp-pro.css templates/layout.html && git commit -F commit_msg.txt && rm c` |
-| 2026-03-24 13:51:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add templates/partials/erp_dashboard_scripts_detail_dom.html templates/erp_measurement_d` |
 | 2026-03-24 13:55:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status && git log --oneline -3` |
 | 2026-03-24 14:13:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add static/css/erp-pro.css templates/layout.html && git commit -F commit_msg.txt && rm c` |
 | 2026-03-24 14:25:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add static/css/style-pro-max.css static/css/erp-pro.css templates/layout.html && git com` |
@@ -304,3 +299,8 @@
 | 2026-03-30 13:56:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" fix: 계약 내용 테이블 내부 테두리 PDF와 동일하게 수정 - 테두리 색상 회색(#aaa/#bbb) -> 따뜻한 베이지(#c5b9a6/#d4cbbe)` |
 | 2026-03-30 13:58:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git log --oneline -5` |
 | 2026-03-30 13:58:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" docs: AI 세션 로그 및 체크포인트 갱신 "@ $msg | Out-File -FilePath commit_msg.txt -Encoding utf8 ` |
+| 2026-03-30 14:01:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" fix: 계약 내용 테이블 테두리 전체 제거 + PDF 색상 일치 - contract-title, tbl 외곽 border 전부 제거 - th: bord` |
+| 2026-03-30 14:08:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" fix: 계약 내용 thead 배경색 연하게 변경 - 헤더와 확연히 구별 - th background: #f0ebe0 -> #faf8f4 (계약내용 #e` |
+| 2026-03-30 14:11:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" fix: 갈색 세로 bar 높이를 content 영역(padding 제외)에 맞게 조정 - border-left 방식 -> ::before 가상요소 방식` |
+| 2026-03-30 15:02:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -8; git status` |
+| 2026-03-30 15:02:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" # 1. docs 변경사항 커밋 $msg = @" docs: AI 세션 로그 갱신 "@ $msg | Out-File -FilePath commit_msg.txt -Enco` |
