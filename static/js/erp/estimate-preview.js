@@ -173,13 +173,19 @@
         _estimateCacheLoaded = false;
     };
 
-    document.addEventListener('DOMContentLoaded', function () {
+    function _init() {
         var tab = document.getElementById('erp-estimate-tab');
         if (!tab) return;
 
         tab.addEventListener('shown.bs.tab', function () {
             erpLoadEstimatePreview();
         });
-    });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', _init);
+    } else {
+        _init();
+    }
 
 })();
