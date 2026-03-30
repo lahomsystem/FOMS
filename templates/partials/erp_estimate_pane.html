@@ -138,18 +138,18 @@
     color: #222;
     background: #ede8de;
     padding: 8px 0;
-    border: 1px solid #c5b9a6;
-    border-bottom: none;
+    border: none;
     letter-spacing: 1px;
 }
 .erp-est-tbl {
     width: 100%;
     border-collapse: collapse;
-    border: 1px solid #c5b9a6;
+    border: none;
 }
 .erp-est-tbl th {
     background: #f0ebe0;
-    border: 1px solid #c5b9a6;
+    border: none;
+    border-bottom: 1px solid #c5b9a6;
     padding: 7px 10px;
     text-align: center;
     font-weight: 600;
@@ -157,7 +157,6 @@
     color: #333;
     white-space: nowrap;
 }
-/* 데이터 행: 수직 구분선 없이 하단 선만 */
 .erp-est-tbl td {
     border: none;
     border-bottom: 1px solid #d4cbbe;
@@ -166,9 +165,6 @@
     text-align: center;
     color: #333;
 }
-/* 첫 열 좌측 / 마지막 열 우측 테두리 유지 (외곽선) */
-.erp-est-tbl td:first-child { border-left: 1px solid #c5b9a6; }
-.erp-est-tbl td:last-child  { border-right: 1px solid #c5b9a6; }
 .erp-est-tbl td.text-end {
     text-align: right;
 }
