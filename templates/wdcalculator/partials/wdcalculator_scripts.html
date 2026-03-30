@@ -13,6 +13,14 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentDatabaseEstimateId = null; // DB에 저장된 견적 ID (수정 시 사용)
     const DEFAULT_COUPON_VALUE = 11000; // 기본 쿠폰 금액
 
+    // 미저장 데이터 보호: 견적 항목이 있을 때 이탈 시 경고
+    window.addEventListener('beforeunload', function (e) {
+        if (estimates.length > 0) {
+            e.preventDefault();
+            e.returnValue = '작성 중인 견적이 저장되지 않았습니다. 페이지를 떠나면 내용이 사라집니다.';
+        }
+    });
+
     function syncWdCalculatorViewportLayout() {
         const container = document.querySelector('.wdcalculator-container');
         const shell = document.querySelector('.wdcalculator-shell');
@@ -1418,7 +1426,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // 견적 저장 후 refresh 함수 (통합 관리)
-    function refreshAfterSave() {
+    // savedId: 방금 저장된 견적의 DB ID (사이드바 하이라이트용, 없으면 null)
+    function refreshAfterSave(savedId) {
         try {
             // 0. 저장된 견적을 estimates 배열에서 제거 (저장된 견적은 DB에 저장되었으므로 로컬 배열에서 제거)
             estimates = [];
@@ -1434,10 +1443,35 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error('Error in renderEstimatesList during refresh:', error);
                 }
                 
-                // 3. 사이드바 목록 새로고침 - 견적 목록 갱신 후 실행
+                // 3. 사이드바 목록 새로고침 후 저장 완료 하이라이트 표시
                 setTimeout(() => {
                     try {
-                        loadSidebarEstimates();
+                        loadSidebarEstimates().then(() => {
+                            if (!savedId) return;
+                            // 방금 저장된 항목에 "저장 완료" 배지 일시 표시 (3초)
+                            const sidebarList = document.getElementById('savedEstimatesList');
+                            if (!sidebarList) return;
+                            const savedItem = sidebarList.querySelector(`[data-id="${savedId}"], [data-estimate-id="${savedId}"]`);
+                            if (savedItem) {
+                                const card = savedItem.closest('.card') || savedItem.closest('li') || savedItem.parentElement;
+                                if (card) {
+                                    card.style.transition = 'box-shadow 0.3s, border-color 0.3s';
+                                    card.style.boxShadow = '0 0 0 3px #28a745aa';
+                                    card.style.borderColor = '#28a745';
+                                    const badge = document.createElement('span');
+                                    badge.className = 'badge bg-success ms-1';
+                                    badge.textContent = '저장 완료';
+                                    badge.style.cssText = 'font-size:0.7rem;vertical-align:middle;';
+                                    const nameEl = card.querySelector('.fw-bold, .card-title, strong') || card.firstElementChild;
+                                    if (nameEl) nameEl.appendChild(badge);
+                                    setTimeout(() => {
+                                        card.style.boxShadow = '';
+                                        card.style.borderColor = '';
+                                        badge.remove();
+                                    }, 3000);
+                                }
+                            }
+                        }).catch(() => loadSidebarEstimates());
                     } catch (error) {
                         console.error('Error in loadSidebarEstimates during refresh:', error);
                     }
@@ -2234,7 +2268,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (deleteBtn) {
             e.stopPropagation();
             e.preventDefault();
-            if (!confirm('이 견적을 삭제하시겠습니까?')) return;
+            if (!confirm('이 견적을 삭제하시겠습니까?\n\n⚠️ 삭제된 견적은 복구할 수 없습니다.')) return;
             
             const estimateId = normalizeId(deleteBtn.dataset.estimateId);
             
@@ -3102,7 +3136,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     
                     // 견적 저장 후 refresh (순서 중요)
-                    refreshAfterSave();
+                    // 저장 완료 시 사이드바를 갱신한 뒤 방금 저장된 견적을 하이라이트
+                    refreshAfterSave(data.estimate_id || currentDatabaseEstimateId);
             } else {
                 alert(data.message || '견적 저장 중 오류가 발생했습니다.');
             }
@@ -3146,7 +3181,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 목록 불러오기 함수
     function loadSidebarEstimates(searchQuery = '') {
-        if (!savedEstimatesList) return;
+        if (!savedEstimatesList) return Promise.resolve();
         
         savedEstimatesLoading.style.display = 'block';
         savedEstimatesList.innerHTML = '';
@@ -3158,7 +3193,7 @@ document.addEventListener('DOMContentLoaded', function() {
             url += `&customer_name=${encodeURIComponent(searchQuery)}`;
         }
         
-        fetch(url)
+        return fetch(url)
             .then(response => response.json())
             .then(data => {
                 savedEstimatesLoading.style.display = 'none';
@@ -3225,7 +3260,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const deleteBtn = item.querySelector('.delete-estimate-btn');
                         deleteBtn.addEventListener('click', (e) => {
                             e.stopPropagation();
-                            if (confirm(`정말로 '${est.customer_name}' 님의 견적을 삭제하시겠습니까?`)) {
+                            if (confirm(`'${est.customer_name}' 님의 견적을 삭제하시겠습니까?\n\n⚠️ 삭제된 견적은 복구할 수 없습니다.`)) {
                                 deleteEstimate(est.id);
                             }
                         });
