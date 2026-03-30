@@ -999,6 +999,7 @@ def bulk_update_order_status():
                     sd['workflow'] = wf
                     setattr(order, 'structured_data', sd)
                     flag_modified(order, 'structured_data')
+                    sync_erp_flat_columns(order, sd)
                 db.add(OrderEvent(
                     order_id=order.id,
                     event_type='STAGE_CHANGED',

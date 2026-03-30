@@ -12,6 +12,7 @@ from db import get_db
 from models import Order, OrderEvent, SecurityLog
 from apps.auth import login_required, get_user_by_id
 from services.erp_permissions import erp_edit_required, erp_construction_edit_required
+from services.erp_sync_columns import sync_erp_flat_columns
 from services.erp_utils import ensure_path
 from services.as_content_safety import (
     load_structured_data_dict_or_raise,
@@ -87,6 +88,7 @@ def api_as_start(order_id):
         order.structured_data = sd
         flag_modified(order, "structured_data")
         order.status = 'AS'
+        sync_erp_flat_columns(order, sd)
 
         event_payload = {
             'domain': 'AS_DOMAIN',
@@ -172,6 +174,7 @@ def api_as_complete(order_id):
         order.structured_data = sd
         flag_modified(order, "structured_data")
         order.status = 'CS'
+        sync_erp_flat_columns(order, sd)
 
         event_payload = {
             'domain': 'AS_DOMAIN',
@@ -233,6 +236,7 @@ def api_as_register(order_id):
 
         order.as_received_date = today
         order.status = 'AS_RECEIVED'
+        sync_erp_flat_columns(order, sd)
 
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 접수 등록 (접수일: {today})"))
         db.commit()

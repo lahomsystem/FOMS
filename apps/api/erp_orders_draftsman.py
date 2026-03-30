@@ -13,6 +13,7 @@ from db import get_db
 from models import Order, User, OrderAttachment, OrderEvent, SecurityLog
 from apps.auth import login_required, get_user_by_id
 from services.erp_permissions import erp_edit_required
+from services.erp_sync_columns import sync_erp_flat_columns
 from apps.erp import _ensure_dict
 from services.erp_policy import can_modify_domain, get_assignee_ids
 from services.storage import get_storage
@@ -345,6 +346,7 @@ def api_order_confirm_drawing_receipt(order_id):
         order.structured_data = copy.deepcopy(s_data)
         flag_modified(order, "structured_data")
         order.status = next_stage
+        sync_erp_flat_columns(order, s_data)
 
         event_payload = {
             'domain': 'SALES_DOMAIN',

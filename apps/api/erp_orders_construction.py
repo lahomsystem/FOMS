@@ -101,6 +101,7 @@ def api_construction_complete(order_id):
         order.structured_data = copy.deepcopy(sd)
         flag_modified(order, "structured_data")
         order.status = 'COMPLETED'
+        sync_erp_flat_columns(order, sd)
 
         event_payload = {
             'domain': 'CONSTRUCTION_DOMAIN',

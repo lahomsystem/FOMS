@@ -4,27 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-20 13:08:06 | allow | `-` | `railway service` |
-| 2026-03-20 13:08:26 | allow | `-` | `ls -l railway.json` |
-| 2026-03-20 13:08:40 | allow | `-` | `railway service web` |
-| 2026-03-20 13:09:09 | allow | `-` | `railway logs -n 100` |
-| 2026-03-20 13:09:53 | allow | `-` | `railway logs | Select-String "Traceback" -Context 0,20` |
-| 2026-03-20 13:10:03 | allow | `-` | `railway logs | Select-String "500" -Context 5,5` |
-| 2026-03-20 13:12:02 | allow | `-` | `railway logs | Select-String "Exception" -Context 3,10` |
-| 2026-03-20 13:12:15 | allow | `-` | `railway logs -n 500 > logs.txt` |
-| 2026-03-20 13:12:59 | allow | `-` | `python -c " from app import app from db import get_db from models import Order from sqlalchemy import or_, cast, String with app.app_context(): db = get_db() _q` |
-| 2026-03-20 13:13:38 | allow | `-` | `python -c " from app import app from db import get_db from models import Order from sqlalchemy import or_, cast, String from sqlalchemy.dialects import postgres` |
-| 2026-03-20 13:14:25 | allow | `-` | `railway variables` |
-| 2026-03-20 13:14:43 | allow | `-` | `railway environment dev` |
-| 2026-03-20 13:16:06 | allow | `-` | `python test_jinja_error.py` |
-| 2026-03-20 13:16:57 | allow | `-` | `rm commit_msg.txt test_history_error.py test_jinja_error.py test_jinja_replace.py logs.txt` |
-| 2026-03-20 15:11:42 | allow | `-` | `& "C:\Program Files\PostgreSQL\17\bin\pg_restore.exe" --help 2>&1 | Select-String -Pattern "exclude"` |
-| 2026-03-20 15:11:45 | allow | `-` | `& "C:\Program Files\PostgreSQL\17\bin\pg_restore.exe" --help` |
-| 2026-03-20 15:54:10 | allow | `-` | `& "C:\Program Files\PostgreSQL\17\bin\pg_restore.exe" --section=data --section=post-data 2>&1` |
-| 2026-03-20 16:34:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "from copy import deepcopy; from models import Order; from services.erp_display impo` |
-| 2026-03-20 16:36:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
-| 2026-03-20 16:36:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add apps/erp_history_page.py templates/erp_history_dashboard.html templates/index.html app` |
-| 2026-03-20 16:36:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg_deploy.txt; Remove-Item commit_msg_depl` |
 | 2026-03-20 16:36:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
 | 2026-03-22 10:20:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
 | 2026-03-22 10:20:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
@@ -304,3 +283,24 @@
 | 2026-03-30 09:36:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
 | 2026-03-30 09:36:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -5` |
 | 2026-03-30 09:36:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A` |
+| 2026-03-30 09:36:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
+| 2026-03-30 09:36:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-30 10:58:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/js/erp/estimate-preview.js; [System.IO.File]::WriteAllText("commit_msg.txt", "f` |
+| 2026-03-30 11:12:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/js/erp/estimate-preview.js; [System.IO.File]::WriteAllText("commit_msg.txt", "f` |
+| 2026-03-30 11:23:39 | allow | `-` | `Get-ChildItem -Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\static" -Recurse -Name | Select-String -Pattern "logo|haud|lahom" -SimpleMatch` |
+| 2026-03-30 11:23:45 | allow | `-` | `Get-ChildItem -Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\static" -Directory -Name` |
+| 2026-03-30 11:23:49 | allow | `-` | `Get-ChildItem -Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\static\images" -Name` |
+| 2026-03-30 11:24:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
+| 2026-03-30 11:24:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_estimate_pane.html templates/partials/erp_dashboard_styles.html` |
+| 2026-03-30 11:24:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
+| 2026-03-30 11:24:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-30 11:28:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_estimate_pane.html static/js/erp/estimate-preview.js apps/api/e` |
+| 2026-03-30 11:29:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt; git push origin deploy` |
+| 2026-03-30 11:39:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_estimate_pane.html` |
+| 2026-03-30 11:39:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt; git push origin deploy` |
+| 2026-03-30 11:50:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c "import app; print('APP_OK')"` |
+| 2026-03-30 11:51:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git status` |
+| 2026-03-30 11:51:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git diff --stat` |
+| 2026-03-30 11:51:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git log --oneline -5` |
+| 2026-03-30 11:51:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; [System.IO.File]::WriteAllText("commit_msg.txt", "fix: 퀘스트 승인 후 대시보드 파이프라인 타일 미이동 버그 수정`n`n근본` |
+| 2026-03-30 11:52:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git add apps/api/erp_orders_as.py apps/api/erp_orders_construction.py apps/api/erp_orders_cs.` |

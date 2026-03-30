@@ -12,6 +12,7 @@ from models import Order, User, OrderEvent
 from constants import STATUS
 from apps.auth import login_required, role_required
 from services.erp_permissions import can_edit_erp
+from services.erp_sync_columns import sync_erp_flat_columns
 from services.erp_policy import (
     get_stage,
     STAGE_LABELS,
@@ -415,6 +416,7 @@ def api_order_quest_approve(order_id):
         order.structured_data = sd
         flag_modified(order, "structured_data")
         order.updated_at = now
+        sync_erp_flat_columns(order, sd)
         db.commit()
 
         next_stage_for_response = None

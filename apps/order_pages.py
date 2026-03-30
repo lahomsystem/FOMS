@@ -13,6 +13,7 @@ from models import Order
 from constants import ERP_DRAFT_PLACEHOLDER_CUSTOMER, ERP_DRAFT_PLACEHOLDER_PHONE, ERP_DRAFT_PLACEHOLDER_PRODUCT, STATUS
 from services.order_display_utils import format_options_for_display, _ensure_dict
 from services.jobs.queue import enqueue_geocode_order_address
+from services.erp_sync_columns import sync_erp_flat_columns
 from services.request_utils import get_preserved_filter_args
 
 
@@ -260,6 +261,7 @@ def add_order():
                 )
                 db.add(new_order)
                 db.flush()
+                sync_erp_flat_columns(new_order, structured_data)
                 db.commit()
                 enqueue_geocode_order_address(new_order.id)
                 flash('ERP Beta 주문이 성공적으로 추가되었습니다.', 'success')
