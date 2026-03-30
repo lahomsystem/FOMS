@@ -291,10 +291,6 @@
             }
             erpLoadEstimatePreview();
         });
-
-        tab.addEventListener('click', function () {
-            setTimeout(erpLoadEstimatePreview, 150);
-        });
     }
 
     if (document.readyState === 'loading') {
