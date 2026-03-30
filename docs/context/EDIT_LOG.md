@@ -5,6 +5,11 @@
 
 ## 최근 파일 편집
 
+- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~99 chars (2026-03-30 15:05:45)
+- `static/js/erp/estimate-preview.js` <- 1 edit(s), ~26 chars (2026-03-30 15:05:27)
+- `static/js/erp/estimate-preview.js` <- 1 edit(s), ~1696 chars (2026-03-30 15:05:20)
+- `static/js/erp/estimate-preview.js` <- 1 edit(s), ~295 chars (2026-03-30 15:05:08)
+- `templates/partials/erp_estimate_pane.html` <- 1 edit(s), ~394 chars (2026-03-30 15:04:55)
 - `templates/partials/erp_estimate_pane.html` <- 4 edit(s), ~235 chars (2026-03-30 14:11:28)
 - `templates/partials/erp_estimate_pane.html` <- 3 edit(s), ~362 chars (2026-03-30 14:11:20)
 - `templates/partials/erp_estimate_pane.html` <- 3 edit(s), ~340 chars (2026-03-30 14:11:12)
@@ -50,8 +55,3 @@
 - `templates/partials/erp_estimate_pane.html` <- 2 edit(s), ~42 chars (2026-03-30 11:55:41)
 - `templates/partials/erp_estimate_pane.html` <- 1 edit(s), ~60 chars (2026-03-30 11:55:30)
 - `templates/partials/erp_estimate_pane.html` <- 1 edit(s), ~111 chars (2026-03-30 11:55:24)
-- `templates/partials/erp_estimate_pane.html` <- 2 edit(s), ~40 chars (2026-03-30 11:55:13)
-- `templates/partials/erp_estimate_pane.html` <- 3 edit(s), ~98 chars (2026-03-30 11:55:08)
-- `templates/partials/erp_estimate_pane.html` <- 2 edit(s), ~45 chars (2026-03-30 11:55:02)
-- `apps/order_pages.py` <- 1 edit(s), ~65 chars (2026-03-30 11:50:00)
-- `apps/order_pages.py` <- 1 edit(s), ~59 chars (2026-03-30 11:49:55)
