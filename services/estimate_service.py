@@ -120,8 +120,14 @@ def extract_estimate_data_from_order(order: Order) -> dict:
         })
 
     total_amount = sum(it['amount'] for it in estimate_items)
-    deposit_amount = (payments.get('deposit') or {}).get('amount') or 0
-    balance_amount = total_amount - int(deposit_amount or 0)
+    # ERP Beta는 payments.deposit을 평탄 숫자로 저장 (예: 100000).
+    # 구형 데이터는 dict({amount: ...}) 형태일 수 있으므로 양쪽 처리.
+    raw_deposit = payments.get('deposit') or 0
+    if isinstance(raw_deposit, dict):
+        deposit_amount = int(raw_deposit.get('amount') or 0)
+    else:
+        deposit_amount = int(raw_deposit or 0)
+    balance_amount = total_amount - deposit_amount
     if balance_amount < 0:
         balance_amount = 0
 
