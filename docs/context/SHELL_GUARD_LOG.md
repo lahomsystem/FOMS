@@ -4,46 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-20 16:36:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-22 10:20:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-03-22 10:20:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-22 10:21:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add apps/erp_history_page.py templates/erp_history_dashboard.html docs/plans/2026-03-20-hi` |
-| 2026-03-22 10:45:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-03-22 10:46:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_production_styles.html templates/partials/erp_production_filter` |
-| 2026-03-22 10:49:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production; git merge deploy; git push origin product` |
-| 2026-03-22 10:49:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/context/SESSION_LOG.md docs/context/SHELL_GUARD_LOG.md; git ` |
-| 2026-03-22 10:49:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production; git merge deploy; git push origin product` |
-| 2026-03-22 10:49:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git stash; git checkout production; git pull origin production; git merge deploy; git push ori` |
-| 2026-03-22 10:49:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-03-23 09:18:41 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c " from db import get_db from models import Order from services.erp_policy import S` |
-| 2026-03-23 09:20:52 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c " from app import app from db import get_db from models import Order from services` |
-| 2026-03-23 09:21:58 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff 1b0521f0^..1b0521f0 -- apps/erp_dashboard.py models.py` |
-| 2026-03-23 09:22:01 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff 16ed530d^..16ed530d -- apps/erp_history_page.py apps/order_pages.py` |
-| 2026-03-23 09:24:19 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')"` |
-| 2026-03-23 09:25:39 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status && git diff models.py` |
-| 2026-03-23 09:25:43 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -3` |
-| 2026-03-23 09:26:00 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git push origin deploy` |
-| 2026-03-23 09:26:11 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout production && git pull origin production && git merge deploy --no-edit && git p` |
-| 2026-03-23 09:26:19 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout deploy` |
-| 2026-03-23 09:31:28 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python - <<'PYEOF' import sys sys.path.insert(0, '.') from app import app from db import db_` |
-| 2026-03-23 09:37:32 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python - <<'PYEOF' import sys sys.path.insert(0, '.') from app import app from db import db_` |
-| 2026-03-23 09:40:57 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')"` |
-| 2026-03-23 09:41:21 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git add models.py services/app_init.py apps/erp_dashboard.py && printf 'fix: erp_stage_code ` |
-| 2026-03-23 09:41:38 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git push origin deploy` |
-| 2026-03-23 09:41:46 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout production && git pull origin production && git merge deploy --no-edit && git p` |
-| 2026-03-23 09:52:15 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout production && git pull origin production && git merge deploy --no-edit && git p` |
-| 2026-03-23 09:52:24 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout deploy` |
-| 2026-03-24 09:22:20 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status && git diff --stat` |
-| 2026-03-24 09:25:46 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git push origin deploy` |
-| 2026-03-24 09:27:06 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status && git diff --stat` |
-| 2026-03-24 09:28:09 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff --stat app.py apps/api/erp_orders_structured.py apps/api/orders.py apps/order_pages` |
-| 2026-03-24 09:32:12 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff HEAD --stat` |
-| 2026-03-24 09:45:27 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && wc -l templates/erp_measurement_dashboard.html` |
-| 2026-03-24 11:13:52 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status && git log --oneline -5` |
-| 2026-03-24 11:14:02 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline origin/production..origin/deploy` |
-| 2026-03-24 11:14:11 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout production && git merge origin/deploy --no-edit && git push origin production &` |
-| 2026-03-24 11:14:18 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git stash && git checkout production && git merge origin/deploy --no-edit && git push origin` |
-| 2026-03-24 11:30:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status && git diff --stat` |
 | 2026-03-24 13:01:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add static/css/erp-pro.css templates/erp_drawing_workbench_detail.html templates/erp_mea` |
 | 2026-03-24 13:01:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git push origin deploy` |
 | 2026-03-24 13:11:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add static/css/erp-pro.css templates/layout.html && git commit -F commit_msg.txt && rm c` |
@@ -304,3 +264,43 @@
 | 2026-03-30 11:51:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git log --oneline -5` |
 | 2026-03-30 11:51:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; [System.IO.File]::WriteAllText("commit_msg.txt", "fix: 퀘스트 승인 후 대시보드 파이프라인 타일 미이동 버그 수정`n`n근본` |
 | 2026-03-30 11:52:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git add apps/api/erp_orders_as.py apps/api/erp_orders_construction.py apps/api/erp_orders_cs.` |
+| 2026-03-30 11:52:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; git commit --trailer "Made-with: Cursor" -F commit_msg.txt` |
+| 2026-03-30 11:52:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; Remove-Item commit_msg.txt ; git push origin deploy` |
+| 2026-03-30 11:53:14 | allow | `-` | `ls "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\static\images\" 2>$null; if (-not $?) { echo "Directory not found" }` |
+| 2026-03-30 11:56:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
+| 2026-03-30 11:56:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff templates/partials/erp_estimate_pane.html` |
+| 2026-03-30 11:56:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/erp_estimate_pane.html` |
+| 2026-03-30 11:57:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg.txt; Remove-Item commit_msg.txt` |
+| 2026-03-30 11:57:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-30 12:40:38 | allow | `-` | `Copy-Item "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\assets\sign-e07d98d4-1326-409d-b2ee-3ceade236fe1.png" "c:\U` |
+| 2026-03-30 12:40:45 | allow | `-` | `Get-ChildItem -Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" -Recurse -Filter "sign-e07d98d4*.png" -ErrorAction SilentlyContinue | Select-O` |
+| 2026-03-30 12:40:53 | allow | `-` | `Test-Path "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\assets"; if (Test-Path "C:\Users\USER\.cursor\projects\c-Us` |
+| 2026-03-30 12:41:02 | allow | `-` | `Get-ChildItem "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\assets" -Filter "*sign*" -ErrorAction SilentlyContinue ` |
+| 2026-03-30 12:41:06 | allow | `-` | `Get-ChildItem "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS" -Name | Select-Object -First 30` |
+| 2026-03-30 12:41:09 | allow | `-` | `Get-ChildItem "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\assets" -Filter "*.png" | Select-Object Name` |
+| 2026-03-30 12:41:14 | allow | `-` | `Get-ChildItem "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\assets" -Recurse -Include "*.png" -ErrorAction Silently` |
+| 2026-03-30 12:41:34 | allow | `-` | `Get-ChildItem "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\assets\" -Recurse 2>$null | Select-Object Name, FullNam` |
+| 2026-03-30 12:41:45 | allow | `-` | `Get-ChildItem "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\" -Recurse -Filter "*.png" 2>$null | Select-Object Name` |
+| 2026-03-30 12:41:54 | allow | `-` | `Get-ChildItem "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\" -Recurse -Filter "sign*.png" 2>$null | Select-Object ` |
+| 2026-03-30 12:42:00 | allow | `-` | `Get-ChildItem "C:\Users\USER\AppData\Roaming\Cursor\User\workspaceStorage\" -Recurse -Filter "sign*.png" -ErrorAction SilentlyContinue | Select-Object -First 5 ` |
+| 2026-03-30 12:42:14 | allow | `-` | `Get-ChildItem "C:\Users\USER\AppData\Roaming\Cursor\User\workspaceStorage\533155fc540ce8fdfccbd97527acfc34\images\" -ErrorAction SilentlyContinue | Select-Objec` |
+| 2026-03-30 12:42:22 | allow | `-` | `Get-ChildItem "C:\Users\USER\AppData\Roaming\Cursor\User\" -Recurse -Filter "*sign*" -ErrorAction SilentlyContinue | Select-Object -First 10 Name, FullName` |
+| 2026-03-30 12:42:29 | allow | `-` | `Get-ChildItem "C:\Users\USER\AppData\Roaming\Cursor\User\" -Recurse -Filter "*e07d98d4*" -ErrorAction SilentlyContinue | Select-Object -First 10 Name, FullName` |
+| 2026-03-30 12:43:43 | allow | `-` | `Get-ChildItem "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\static\" -Recurse -Filter "*.png" | Select-Object Name, FullName; echo "---"; Get-Chi` |
+| 2026-03-30 12:43:50 | allow | `-` | `Get-ChildItem "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\" -Recurse -Include "*.png","*.jpg","*.svg","*.gif" -ErrorAction SilentlyContinue | S` |
+| 2026-03-30 12:45:36 | allow | `-` | `$path = "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\assets\c__Users_USER_AppData_Roaming_Cursor_User_workspaceSto` |
+| 2026-03-30 12:45:46 | allow | `-` | `Copy-Item "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\assets\c__Users_USER_AppData_Roaming_Cursor_User_workspaceS` |
+| 2026-03-30 12:45:51 | allow | `-` | `Get-ChildItem "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\static\images\"` |
+| 2026-03-30 12:48:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/images/company-stamp.png services/estimate_service.py templates/partials/erp_es` |
+| 2026-03-30 12:49:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $msg = @" feat: 견적서 4가지 기능 추가 1. 인감 도장: company-stamp.png를 대표자 옆에 오버레이 표시 2. 조건부 로고: 발주사가 라홈이면` |
+| 2026-03-30 12:49:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-03-30 12:51:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" # 하우드 로고 복사 Copy-Item "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-` |
+| 2026-03-30 12:51:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem "static\images\"` |
+| 2026-03-30 12:51:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/images/haud-logo.png static/images/company-stamp.png; $msg = "chore: 하우드 로고(hau` |
+| 2026-03-30 13:10:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" # 하우드 로고 최신 버전으로 교체 Copy-Item "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-` |
+| 2026-03-30 13:12:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" fix: 계약서 UI 4항목 수정 - 하우드 로고 최신 이미지로 교체 - 인감 도장 위치/크기 수정 (td→info-left 기준 absolute, 50` |
+| 2026-03-30 13:52:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" fix: 계약서 UI 세부 조정 - 세로 bar 컬러 #5d4037 -> #ede8de (계약내용 헤더 라이트브라운 동일 적용) - 세로 bar 두께 3` |
+| 2026-03-30 13:54:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" fix: 하우드 로고 max-width 제한 해제로 라홈 로고와 동일 높이 표시 - HAUD 로고 전환 시 max-width: none 적용 (가로 비율` |
+| 2026-03-30 13:56:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" fix: 계약 내용 테이블 내부 테두리 PDF와 동일하게 수정 - 테두리 색상 회색(#aaa/#bbb) -> 따뜻한 베이지(#c5b9a6/#d4cbbe)` |
+| 2026-03-30 13:58:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git log --oneline -5` |
+| 2026-03-30 13:58:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" docs: AI 세션 로그 및 체크포인트 갱신 "@ $msg | Out-File -FilePath commit_msg.txt -Encoding utf8 ` |

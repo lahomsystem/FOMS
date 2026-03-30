@@ -7,8 +7,8 @@
 ### Session: ccb7e11f
 - **시작**: 2026-03-30 11:41:09
 - **상태**: completed
-- **편집 파일**: `apps/order_pages.py`, `apps/api/erp_orders_structured.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images______-e6e2cf4a-3341-4a68-ae04-0b81b48ad175.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-25ea4bf5-bedd-4100-a3fe-8fdd03fc7df0.png`, `apps/api/orders.py`, `apps/api/erp_orders_draftsman.py`, `apps/api/erp_orders_construction.py`, `apps/api/erp_orders_cs.py`, `apps/api/erp_orders_production.py`, `apps/api/erp_orders_as.py`
-- **종료**: 2026-03-30 11:50:47
+- **편집 파일**: `templates/partials/erp_estimate_pane.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d8b7cce4-9224-4274-8ebd-dafb27116630.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-63092909-f339-4856-8208-6889f92ef7de.png`, `static/js/erp/estimate-preview.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c0c0f0c1-a16f-401e-924d-267d37bc5e23.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b39864ee-0640-4bc9-bd07-1c1e7eeae0e5.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ed4cab1a-16ac-450a-9ba6-256896220797.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-10c614d3-ca4e-4306-894d-e7ed897fdbde.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images______-acee38c5-4ce3-4b26-b36b-4eca8c1fed18.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images________page0_image-2280a8f4-00a0-479e-89f9-3cdd4b0cdcfa.png`
+- **종료**: 2026-03-30 13:56:51
 
 ### Session: e08a034e
 - **시작**: 2026-03-27 14:56:45
@@ -1040,3 +1040,15 @@
 | 2026-03-30 11:43:54 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-30 11:50:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 11:52:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 11:57:32 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 12:49:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 12:52:02 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 13:13:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-30 13:56:51 | END (Claude Code) | 수정: (없음) |
