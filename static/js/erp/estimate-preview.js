@@ -114,7 +114,15 @@
         if (logoEl) {
             const lahomSrc = logoEl.dataset.lahomSrc;
             const haudSrc = logoEl.dataset.haudSrc;
-            logoEl.src = isLahom ? lahomSrc : (haudSrc || lahomSrc);
+            if (isLahom) {
+                logoEl.src = lahomSrc;
+                logoEl.style.maxWidth = '180px';
+                logoEl.style.height = '44px';
+            } else {
+                logoEl.src = haudSrc || lahomSrc;
+                logoEl.style.maxWidth = 'none';
+                logoEl.style.height = '44px';
+            }
         }
 
         // 인감 도장 표시
