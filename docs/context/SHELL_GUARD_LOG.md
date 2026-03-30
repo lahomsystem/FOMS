@@ -4,9 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-24 16:02:33 | allow | `-` | `grep -n "directions_url\|KAKAO_REST\|kakao.*api\|api\.kakao\|navi\|waypoints\|v1/future" "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/foms_addre` |
-| 2026-03-24 16:02:36 | allow | `-` | `grep -n "KAKAO_REST\|api_key\|Authorization\|headers" "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/foms_address_converter.py" | head -20` |
-| 2026-03-24 16:02:45 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 1402be16 --stat && echo "---" && git show 1402be16 -- foms_address_converter.py | h` |
 | 2026-03-24 16:03:29 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git log --oneline -10 -- templates/erp_as_dashboard.html` |
 | 2026-03-24 16:03:33 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 9df3a376 -- templates/erp_as_dashboard.html | grep "^[+-]" | grep -v "^---\|^+++" |` |
 | 2026-03-24 16:03:39 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff e6799042~1 e6799042 -- templates/erp_as_dashboard.html | grep "^[+-]" | grep -v "^-` |
@@ -304,3 +301,6 @@
 | 2026-03-30 17:00:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/js/erp/estimate-preview.js; $msg = "perf: 계약서 탭 로딩 최적화 - dirty 플래그 도입으로 불필요한 저장` |
 | 2026-03-30 22:15:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short; git log origin/deploy..HEAD --oneline` |
 | 2026-03-30 22:15:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; $msg = "docs: 세션 로그 갱신"; [System.IO.File]::WriteAllText("commit_msg.txt", $msg, [S` |
+| 2026-03-30 22:22:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add apps/api/orders.py services/channel_delivery.py templates/partials/erp_beta_js.html; $` |
+| 2026-03-30 22:23:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short; git log origin/deploy..HEAD --oneline` |
+| 2026-03-30 22:23:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; $msg = "docs: 세션 로그 갱신"; [System.IO.File]::WriteAllText("commit_msg.txt", $msg, [S` |
