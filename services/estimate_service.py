@@ -115,7 +115,7 @@ def extract_estimate_data_from_order(order: Order) -> dict:
         estimate_items.append({
             'product_name': item.get('product_name') or '',
             'spec': _format_spec_rows(item),
-            'color': item.get('color') or '',
+            'color': item.get('color') or '상담',
             'option_detail': item.get('option_detail') or '',
             'quantity': int(item.get('quantity') or 1),
             'unit_price': int(item.get('price') or 0),
