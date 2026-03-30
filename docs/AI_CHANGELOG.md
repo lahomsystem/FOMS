@@ -4,6 +4,8 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-03-30 | 세션 자동 기록 | estimate-preview.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fb4e8f31-5a42-4f75-a23e-023ce1c4d097.png, estimate_service.py 외 2개 | 4f4b4e19 |
+| 2026-03-30 | 세션 자동 기록 | estimate_service.py, erp_beta_js.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-44fc03c9-0024-425a-8206-61e7dab2a928.png | 782aad9a |
 | 2026-03-30 | 세션 자동 기록 | estimate_service.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-44fc03c9-0024-425a-8206-61e7dab2a928.png | 8a0a7d03 |
 | 2026-03-30 | 세션 자동 기록 | estimate-preview.js, estimate_service.py, erp_estimates.py 외 2개 | bf0c6f11 |
 | 2026-03-30 | 세션 자동 기록 | estimate_service.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6af2c93c-c04d-4842-aea6-58c1ff52bd1e.png, estimate-preview.js 외 2개 | bf0c6f11 |
@@ -22,5 +24,3 @@
 | 2026-03-30 | 세션 자동 기록 | commit_msg.txt, erp_dashboard_styles.html, estimate-preview.js 외 2개 | a34356f9 |
 | 2026-03-30 | 세션 자동 기록 | estimate-preview.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-0eb872e5-14ed-4688-8a5d-0778a5235915.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-8cb4afdd-086c-409b-968c-02f6629509ff.png 외 2개 | fddf1df4 |
 | 2026-03-30 | 세션 자동 기록 | estimate-preview.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-8cb4afdd-086c-409b-968c-02f6629509ff.png, commit_msg.txt 외 2개 | 96d225b2 |
-| 2026-03-30 | 세션 자동 기록 | commit_msg.txt, estimate-preview.js, erp_dashboard_styles.html 외 2개 | 9e538940 |
-| 2026-03-30 | 세션 자동 기록 | estimate-preview.js, erp_dashboard_styles.html, erp_beta_js.html 외 2개 | 6606628e |
