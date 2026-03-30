@@ -356,6 +356,14 @@
 
 <div class="tab-pane fade" id="erp-estimate" role="tabpanel" aria-labelledby="erp-estimate-tab">
 
+    <!-- 툴바: 이미지 저장 버튼 -->
+    <div class="d-flex justify-content-end align-items-center px-2 pt-2 pb-1" id="est-toolbar" style="display:none!important">
+        <button id="btn-est-export" type="button" class="erp-pro-btn erp-pro-btn--primary" disabled>
+            <i class="fas fa-file-image"></i>
+            <span class="d-none d-md-inline ms-1">이미지 저장</span>
+        </button>
+    </div>
+
     <div id="est-loading" class="text-center py-4 erp-est-hidden">
         <div class="spinner-border spinner-border-sm text-secondary" role="status">
             <span class="visually-hidden">로딩 중</span>

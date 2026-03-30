@@ -197,6 +197,12 @@
             _showSection('est-document');
             _estimateCacheLoaded = true;
 
+            // 저장 버튼 활성화 및 툴바 노출
+            const toolbar = document.getElementById('est-toolbar');
+            const exportBtn = document.getElementById('btn-est-export');
+            if (toolbar) toolbar.style.removeProperty('display');
+            if (exportBtn) exportBtn.disabled = false;
+
         } catch (err) {
             _hideSection('est-loading');
             _showSection('est-empty');
@@ -208,9 +214,56 @@
         _estimateCacheLoaded = false;
     };
 
+    // ── 이미지 저장 (실측 대시보드와 동일 방식) ──────────────────────
+    function _bindExportBtn() {
+        const btn = document.getElementById('btn-est-export');
+        if (!btn) return;
+
+        btn.addEventListener('click', async function () {
+            const docEl = document.getElementById('est-document');
+            if (!docEl || docEl.classList.contains('erp-est-hidden')) {
+                alert('견적서가 로드되지 않았습니다.');
+                return;
+            }
+
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장 중...';
+            btn.disabled = true;
+
+            try {
+                const numEl = document.getElementById('est-estimate-number');
+                const numText = (numEl && numEl.textContent.trim()) || '견적서';
+                const filename = numText + '.png';
+
+                const canvas = await html2canvas(docEl, {
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: '#ffffff'
+                });
+
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = canvas.toDataURL('image/png');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+            } catch (err) {
+                console.error('[estimate-preview] 이미지 저장 실패:', err);
+                alert('이미지 저장 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : String(err)));
+            } finally {
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            }
+        });
+    }
+
     function _init() {
         const tab = document.getElementById('erp-estimate-tab');
         if (!tab) return;
+
+        _bindExportBtn();
 
         // 계약서 탭 활성화 시: 항상 최신 데이터 로드 (실시간 반영)
         // ERP Beta 저장 후 견적서 탭으로 이동 시 최신 내용이 보임
