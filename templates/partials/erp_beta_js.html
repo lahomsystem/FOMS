@@ -360,12 +360,11 @@
 </div>`;
         }).join('');
         const internal = defaultConsult(item.internal);
-        // 색상: 신규(빈 값)만 '(SK)' 기본. 저장된 값이 있으면 그대로 로드.
+        // 색상: 신규(빈 값)은 '상담' 기본. 저장된 값이 있으면 그대로 로드.
         // 이전 버그로 ' (SK)' suffix가 중복 저장된 레거시 데이터 자동 정리
         let _colorRaw = String(item.color ?? '').trim();
         _colorRaw = _colorRaw.replace(/(\s+\(SK\))+$/g, '').trim();
-        // const color = _colorRaw || '(SK)'; // (SK) 표시 안 되게 임시 주석 처리
-        const color = _colorRaw;
+        const color = _colorRaw || '상담';
         const optionDetail = defaultConsult(item.option_detail);
         const handle = defaultConsult(item.handle);
         const misc = defaultConsult(item.misc);
