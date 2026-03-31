@@ -1540,10 +1540,11 @@
             var div = document.createElement('div');
             div.id = 'map-manager-dropdown';
             div.className = 'dropdown-menu show';
-            div.style.cssText = 'position:fixed;z-index:9999;max-height:240px;overflow-y:auto;min-width:120px;';
+            div.style.cssText = 'position:fixed;z-index:99999;max-height:240px;overflow-y:auto;min-width:120px;';
 
             var rect = btnEl.getBoundingClientRect();
-            div.style.left = rect.left + 'px';
+            // 오른쪽 정렬: 드롭다운 우측을 버튼 우측에 맞춤 (패널 밖으로 넘치지 않도록)
+            div.style.right = (window.innerWidth - rect.right) + 'px';
             if (window.innerHeight - rect.bottom < 250) {
                 div.style.bottom = (window.innerHeight - rect.top + 2) + 'px';
             } else {
@@ -1556,7 +1557,8 @@
                 if (div.parentNode) div.remove();
             }
 
-            _mapManagerList.forEach(function (name) {
+            _mapManagerList.forEach(function (item) {
+                var name = typeof item === 'string' ? item : (item && item.name ? item.name : String(item));
                 var a = document.createElement('a');
                 a.className = 'dropdown-item';
                 a.href = '#';
