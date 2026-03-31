@@ -541,6 +541,62 @@
             margin-left: 6px;
         }
 
+        .map-manager-edit {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .map-manager-edit__input {
+            flex: 1 1 auto;
+            min-width: 0;
+            height: 26px;
+            padding: 2px 7px;
+            font-size: 0.78rem;
+            line-height: 1.2;
+        }
+
+        .map-manager-edit__button {
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            line-height: 1;
+        }
+
+        .map-manager-edit__button i {
+            pointer-events: none;
+        }
+
+        .map-manager-edit__button.is-disabled {
+            opacity: 0.55;
+            pointer-events: none;
+        }
+
+        .order-info-row--manager {
+            align-items: center;
+        }
+
+        .map-manager-dropdown {
+            position: fixed;
+            z-index: 99999;
+            max-height: 240px;
+            overflow-y: auto;
+            min-width: 120px;
+        }
+
+        .map-manager-dropdown .dropdown-item {
+            padding: 8px 14px;
+            font-size: 0.9rem;
+        }
+
         @media (max-width: 992px) {
             .map-container {
                 flex-direction: column;
@@ -636,6 +692,18 @@
                 min-width: 0;
                 padding: 3px 6px;
                 font-size: 0.78rem;
+            }
+
+            .map-manager-edit__input {
+                height: 24px;
+                padding: 2px 6px;
+                font-size: 0.74rem;
+            }
+
+            .map-manager-edit__button {
+                width: 22px;
+                height: 22px;
+                font-size: 0.66rem;
             }
         }
 
@@ -966,6 +1034,7 @@
         // ── 담당자 목록 (실측 담당자 지정용) ──
         var _mapManagerList = [];
         var _mapManagerLoaded = false;
+        var _activeMapManagerDropdown = null;
         fetch('/api/erp/shipment-settings')
             .then(function (r) { return r.json(); })
             .then(function (data) {
@@ -1271,7 +1340,7 @@
                             <span class="order-status status-badge ${statusClass}">${statusText}</span>
                         </div>
                         <div class="order-info">
-                            <div class="order-info-row">
+                            <div class="order-info-row order-info-row--manager">
                                 <span class="order-info-label">고객:</span>
                                 <span class="order-info-value">${escapeHtml(order.customer_name || '-')}</span>
                             </div>
@@ -1527,11 +1596,61 @@
         }
 
         // ── 지도 담당자 지정 (직접 입력 + 드롭다운 콤보) ──
+        function closeMapManagerDropdown() {
+            if (!_activeMapManagerDropdown) return;
+            if (_activeMapManagerDropdown.abortController) {
+                _activeMapManagerDropdown.abortController.abort();
+            }
+            if (_activeMapManagerDropdown.element && _activeMapManagerDropdown.element.parentNode) {
+                _activeMapManagerDropdown.element.remove();
+            }
+            _activeMapManagerDropdown = null;
+        }
+
+        function bindMapManagerActionButton(button, handler) {
+            let handledByPointer = false;
+
+            button.addEventListener('pointerdown', function (e) {
+                handledByPointer = true;
+                handler(e);
+            });
+            button.addEventListener('click', function (e) {
+                if (handledByPointer) {
+                    handledByPointer = false;
+                    return;
+                }
+                handler(e);
+            });
+        }
+
+        function applyMapManagerValue(orderId, managerName) {
+            const normalized = String(managerName || '').trim();
+            const displayValue = normalized || '-';
+
+            document.querySelectorAll('.map-manager-name[data-order-id="' + orderId + '"]').forEach(function (span) {
+                span.textContent = displayValue;
+            });
+
+            currentOrders = currentOrders.map(function (order) {
+                if (String(order.id) !== String(orderId)) return order;
+                return Object.assign({}, order, { manager_name: normalized });
+            });
+
+            if (selectedOrderId === orderId) {
+                const detailPanel = document.getElementById('order-detail-panel');
+                if (detailPanel && detailPanel.style.display !== 'none') {
+                    loadOrderDetail(orderId);
+                }
+            }
+        }
+
         function openMapManagerEdit(btnEl, orderId) {
             closeMapManagerEdit();
 
             var infoRow = btnEl.closest('.order-info-row');
             if (!infoRow) return;
+            infoRow.classList.add('order-info-row--manager');
+
             var nameSpan = infoRow.querySelector('.map-manager-name');
             if (!nameSpan) return;
             var currentName = nameSpan.textContent.trim();
@@ -1539,57 +1658,86 @@
 
             var wrap = document.createElement('div');
             wrap.id = 'map-manager-edit-wrap';
-            wrap.style.cssText = 'display:flex;gap:4px;align-items:center;flex:1;';
+            wrap.className = 'map-manager-edit';
 
             var input = document.createElement('input');
             input.type = 'text';
             input.value = currentName;
-            input.className = 'form-control form-control-sm';
-            input.style.cssText = 'flex:1;min-width:0;font-size:0.85rem;';
+            input.className = 'form-control form-control-sm map-manager-edit__input';
             input.placeholder = '담당자 입력';
             wrap.appendChild(input);
+
+            var clearBtn = document.createElement('button');
+            clearBtn.type = 'button';
+            clearBtn.className = 'btn btn-sm btn-outline-secondary map-manager-edit__button';
+            clearBtn.setAttribute('aria-label', '담당자 삭제');
+            clearBtn.title = '담당자 삭제';
+            clearBtn.setAttribute('data-map-manager-action', 'clear');
+            clearBtn.innerHTML = '<i class="fas fa-times"></i>';
+
+            function syncClearButtonState() {
+                const isEmpty = !input.value.trim();
+                clearBtn.classList.toggle('is-disabled', isEmpty);
+                clearBtn.disabled = isEmpty;
+            }
+
+            function submitCurrentValue() {
+                const nextValue = input.value.trim();
+                closeMapManagerEdit();
+                saveMapManager(orderId, nextValue);
+            }
+
+            bindMapManagerActionButton(clearBtn, function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                input.value = '';
+                syncClearButtonState();
+                submitCurrentValue();
+            });
+            wrap.appendChild(clearBtn);
 
             if (_mapManagerList.length) {
                 var listBtn = document.createElement('button');
                 listBtn.type = 'button';
-                listBtn.className = 'btn btn-sm btn-outline-secondary';
-                listBtn.style.cssText = 'flex-shrink:0;padding:4px 8px;font-size:0.85rem;';
+                listBtn.className = 'btn btn-sm btn-outline-secondary map-manager-edit__button';
+                listBtn.setAttribute('aria-label', '담당자 목록 열기');
                 listBtn.title = '저장된 담당자 목록';
+                listBtn.setAttribute('data-map-manager-action', 'list');
                 listBtn.innerHTML = '<i class="fas fa-list"></i>';
-                listBtn.addEventListener('click', function (e) {
+                bindMapManagerActionButton(listBtn, function (e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    showMapManagerDropdown(listBtn, orderId);
+                    showMapManagerDropdown(listBtn, orderId, input);
                 });
                 wrap.appendChild(listBtn);
             }
 
             var saveBtn = document.createElement('button');
             saveBtn.type = 'button';
-            saveBtn.className = 'btn btn-sm btn-primary';
-            saveBtn.style.cssText = 'flex-shrink:0;padding:4px 8px;font-size:0.85rem;';
+            saveBtn.className = 'btn btn-sm btn-primary map-manager-edit__button';
+            saveBtn.setAttribute('aria-label', '담당자 저장');
             saveBtn.title = '저장';
+            saveBtn.setAttribute('data-map-manager-action', 'save');
             saveBtn.innerHTML = '<i class="fas fa-check"></i>';
-            saveBtn.addEventListener('click', function (e) {
+            bindMapManagerActionButton(saveBtn, function (e) {
                 e.preventDefault();
                 e.stopPropagation();
-                var val = input.value.trim();
-                closeMapManagerEdit();
-                if (val) saveMapManager(orderId, val);
+                submitCurrentValue();
             });
             wrap.appendChild(saveBtn);
 
             nameSpan.style.display = 'none';
             btnEl.style.display = 'none';
             nameSpan.parentNode.insertBefore(wrap, nameSpan.nextSibling);
+            syncClearButtonState();
             input.focus();
+            input.select();
 
+            input.addEventListener('input', syncClearButtonState);
             input.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    var val = input.value.trim();
-                    closeMapManagerEdit();
-                    if (val) saveMapManager(orderId, val);
+                    submitCurrentValue();
                 } else if (e.key === 'Escape') {
                     closeMapManagerEdit();
                 }
@@ -1605,23 +1753,21 @@
                     var editBtn = infoRow.querySelector('.btn-map-assign-manager');
                     if (nameSpan) nameSpan.style.display = '';
                     if (editBtn) editBtn.style.display = '';
+                    infoRow.classList.remove('order-info-row--manager');
                 }
                 wrap.remove();
             }
-            var dd = document.getElementById('map-manager-dropdown');
-            if (dd) dd.remove();
+            closeMapManagerDropdown();
         }
 
-        function showMapManagerDropdown(anchorEl, orderId) {
-            var existing = document.getElementById('map-manager-dropdown');
-            if (existing) existing.remove();
+        function showMapManagerDropdown(anchorEl, orderId, inputEl) {
+            closeMapManagerDropdown();
 
             if (!_mapManagerList.length) return;
 
             var div = document.createElement('div');
             div.id = 'map-manager-dropdown';
-            div.className = 'dropdown-menu show';
-            div.style.cssText = 'position:fixed;z-index:99999;max-height:240px;overflow-y:auto;min-width:120px;';
+            div.className = 'dropdown-menu show map-manager-dropdown';
 
             var rect = anchorEl.getBoundingClientRect();
             div.style.right = (window.innerWidth - rect.right) + 'px';
@@ -1632,22 +1778,20 @@
             }
 
             var ac = new AbortController();
-            function removeDropdown() {
-                ac.abort();
-                if (div.parentNode) div.remove();
-            }
+            _activeMapManagerDropdown = {
+                element: div,
+                abortController: ac,
+            };
 
             _mapManagerList.forEach(function (item) {
                 var name = typeof item === 'string' ? item : (item && item.name ? item.name : String(item));
                 var a = document.createElement('a');
-                a.className = 'dropdown-item';
+                a.className = 'dropdown-item map-manager-dropdown__item';
                 a.href = '#';
-                a.style.cssText = 'padding:8px 16px;font-size:0.95rem;';
                 a.textContent = name;
                 a.addEventListener('click', function (e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    removeDropdown();
                     closeMapManagerEdit();
                     saveMapManager(orderId, name);
                 });
@@ -1655,12 +1799,15 @@
             });
 
             document.body.appendChild(div);
-            setTimeout(function () {
-                document.addEventListener('click', function (e) {
+            window.requestAnimationFrame(function () {
+                document.addEventListener('pointerdown', function (e) {
                     if (div.contains(e.target) || anchorEl.contains(e.target)) return;
-                    removeDropdown();
+                    closeMapManagerDropdown();
+                    if (inputEl && !inputEl.contains(e.target)) {
+                        inputEl.focus();
+                    }
                 }, { capture: true, signal: ac.signal });
-            }, 150);
+            });
         }
 
         function saveMapManager(orderId, managerName) {
@@ -1678,8 +1825,7 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (data.success) {
-                    var span = document.querySelector('.map-manager-name[data-order-id="' + orderId + '"]');
-                    if (span) span.textContent = cleanName;
+                    applyMapManagerValue(orderId, cleanName);
                 } else {
                     alert('담당자 저장 실패: ' + (data.message || ''));
                 }
