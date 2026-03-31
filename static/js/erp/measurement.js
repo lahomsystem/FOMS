@@ -27,6 +27,7 @@
         let _measurementManagerList = [];
         let _managerSortOrderMap = {};
         let _managerListLoaded = false;
+        let _activeManagerDropdown = null;
 
         // ── 공통 헬퍼 ──
 
@@ -114,7 +115,15 @@
             });
         }
 
-        function applyMeasurementManagerSortAndColors() {
+        function focusEditedMeasurementRow(tr) {
+            if (!tr || !tr.isConnected) return;
+            window.requestAnimationFrame(function () {
+                if (!tr.isConnected) return;
+                tr.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            });
+        }
+
+        function applyMeasurementManagerSortAndColors(options) {
             const mainRows = Array.from(tbody.querySelectorAll('tr.measurement-row'));
             if (!mainRows.length) return;
 
@@ -129,10 +138,16 @@
             applyManagerColors(mainRows, buildManagerIndex(mainRows));
             window.measurementManualRowsRecomputeAnchors();
             window.measurementManualRowsPersist();
+
+            if (options && options.focusRow) {
+                focusEditedMeasurementRow(options.focusRow);
+            }
         }
 
-        function scheduleApplyMeasurementManagerSortAndColors() {
-            setTimeout(applyMeasurementManagerSortAndColors, 0);
+        function scheduleApplyMeasurementManagerSortAndColors(options) {
+            setTimeout(function () {
+                applyMeasurementManagerSortAndColors(options);
+            }, 0);
         }
 
         window.applyMeasurementManagerSortAndColors = applyMeasurementManagerSortAndColors;
@@ -266,9 +281,24 @@
             }
         }
 
+        function closeManagerDropdown(options) {
+            const state = _activeManagerDropdown;
+            if (!state) return;
+
+            _activeManagerDropdown = null;
+            if (state.abortController) {
+                state.abortController.abort();
+            }
+            if (state.element && state.element.parentNode) {
+                state.element.remove();
+            }
+            if (options && options.invokeDismiss && typeof state.onDismiss === 'function') {
+                state.onDismiss();
+            }
+        }
+
         function showManagerDropdown(anchorEl, editingContainer, onSelect, onDismiss) {
-            const existing = document.getElementById('measurement-manager-dropdown');
-            if (existing) existing.remove();
+            closeManagerDropdown();
 
             if (!_measurementManagerList.length) {
                 if (_managerListLoaded) {
@@ -284,10 +314,11 @@
             positionDropdown(div, anchorEl);
 
             const ac = new AbortController();
-            function removeDropdown() {
-                ac.abort();
-                if (div.parentNode) div.remove();
-            }
+            _activeManagerDropdown = {
+                element: div,
+                abortController: ac,
+                onDismiss: onDismiss
+            };
 
             _measurementManagerList.forEach(function (item) {
                 var name = typeof item === 'string' ? item : (item && item.name ? item.name : String(item));
@@ -299,7 +330,7 @@
                 a.addEventListener('click', function (e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    removeDropdown();
+                    closeManagerDropdown();
                     onSelect(name);
                 });
                 div.appendChild(a);
@@ -307,15 +338,16 @@
 
             document.body.appendChild(div);
 
-            setTimeout(function () {
-                document.addEventListener('click', function (e) {
+            window.requestAnimationFrame(function () {
+                document.addEventListener('pointerdown', function (e) {
                     if (div.contains(e.target) || anchorEl.contains(e.target)) return;
-                    removeDropdown();
-                    if (editingContainer && !editingContainer.contains(e.target)) {
-                        if (onDismiss) onDismiss();
+                    const shouldDismiss = editingContainer && !editingContainer.contains(e.target);
+                    closeManagerDropdown();
+                    if (shouldDismiss && onDismiss) {
+                        onDismiss();
                     }
                 }, { capture: true, signal: ac.signal });
-            }, 150);
+            });
         }
 
         // ── 7. 셀 저장 API ──
@@ -333,12 +365,16 @@
             };
         }
 
+        function syncManagerDisplay(tr, newValue) {
+            tr.dataset.manager = newValue || '';
+        }
+
         function handleSaveResult(cell, tr, field, currentValue, newValue, data) {
             if (data.success) {
                 cell.textContent = newValue || '-';
                 if (field === 'manager') {
-                    tr.dataset.manager = newValue || '';
-                    scheduleApplyMeasurementManagerSortAndColors();
+                    syncManagerDisplay(tr, newValue);
+                    scheduleApplyMeasurementManagerSortAndColors({ focusRow: tr });
                 }
             } else {
                 cell.textContent = currentValue || '-';
@@ -355,8 +391,8 @@
                 cell.textContent = newValue || '-';
                 window.measurementManualRowsPersist();
                 if (field === 'manager') {
-                    tr.dataset.manager = newValue || '';
-                    scheduleApplyMeasurementManagerSortAndColors();
+                    syncManagerDisplay(tr, newValue);
+                    scheduleApplyMeasurementManagerSortAndColors({ focusRow: tr });
                 }
                 return;
             }
@@ -399,6 +435,53 @@
             input.style.minWidth = '0';
             wrap.appendChild(input);
 
+            function bindEditorActionButton(button, handler) {
+                let handledByPointer = false;
+
+                button.addEventListener('pointerdown', function (evt) {
+                    handledByPointer = true;
+                    handler(evt);
+                });
+                button.addEventListener('click', function (evt) {
+                    if (handledByPointer) {
+                        handledByPointer = false;
+                        return;
+                    }
+                    handler(evt);
+                });
+            }
+
+            const clearBtn = document.createElement('button');
+            clearBtn.type = 'button';
+            clearBtn.className = 'btn btn-sm btn-outline-secondary';
+            clearBtn.style.cssText = 'flex-shrink:0;padding:6px 10px;font-size:1rem;';
+            clearBtn.title = '\uB2F4\uB2F9\uC790 \uC9C0\uC6B0\uAE30';
+            clearBtn.setAttribute('data-manager-action', 'clear');
+            clearBtn.innerHTML = '<i class="fas fa-times"></i>';
+
+            function syncClearButtonState() {
+                clearBtn.disabled = !input.value.trim();
+            }
+
+            function commitExplicitValue(nextValue) {
+                if (blurState.timerId) {
+                    clearTimeout(blurState.timerId);
+                    blurState.timerId = null;
+                }
+                blurState.dropdownOpen = false;
+                input.value = nextValue;
+                doCommit(nextValue);
+            }
+
+            function clearCurrentManager(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                commitExplicitValue('');
+            }
+
+            bindEditorActionButton(clearBtn, clearCurrentManager);
+            wrap.appendChild(clearBtn);
+
             const loadBtn = document.createElement('button');
             loadBtn.type = 'button';
             loadBtn.className = 'btn btn-sm btn-outline-secondary';
@@ -413,18 +496,18 @@
                 blurState.dropdownOpen = true;
                 showManagerDropdown(loadBtn, wrap, function (name) {
                     blurState.dropdownOpen = false;
-                    input.value = name;
-                    doCommit(name);
+                    commitExplicitValue(name);
                 }, function () {
                     blurState.dropdownOpen = false;
                     if (!blurState.committed) doCommit(input.value.trim());
                 });
             }
-            loadBtn.addEventListener('mousedown', openDropdown);
-            loadBtn.addEventListener('touchstart', openDropdown, { passive: false });
+            bindEditorActionButton(loadBtn, openDropdown);
 
             wrap.appendChild(loadBtn);
             cell.appendChild(wrap);
+            syncClearButtonState();
+            input.addEventListener('input', syncClearButtonState);
         }
 
         // ── 9. 인라인 편집: tbody 위임 핸들러 ──
@@ -453,12 +536,24 @@
             cell.innerHTML = '';
             const blurState = { committed: false, timerId: null, dropdownOpen: false };
 
+            function cancelEdit() {
+                if (blurState.committed) return;
+                blurState.committed = true;
+                if (blurState.timerId) {
+                    clearTimeout(blurState.timerId);
+                    blurState.timerId = null;
+                }
+                blurState.dropdownOpen = false;
+                closeManagerDropdown();
+                cell.innerHTML = originalContent;
+            }
+
             function doCommit(val) {
                 if (blurState.committed) return;
                 blurState.committed = true;
                 if (blurState.timerId) { clearTimeout(blurState.timerId); blurState.timerId = null; }
-                const dropdown = document.getElementById('measurement-manager-dropdown');
-                if (dropdown) dropdown.remove();
+                blurState.dropdownOpen = false;
+                closeManagerDropdown();
                 commitCellValue(cell, tr, field, orderId, isErpBeta, isManual, currentValue, originalContent, val);
             }
 
@@ -468,6 +563,19 @@
                 cell.appendChild(input);
             }
             input.focus();
+            input.select();
+
+            input.addEventListener('keydown', function (evt) {
+                if (evt.key === 'Enter') {
+                    evt.preventDefault();
+                    doCommit(input.value.trim());
+                    return;
+                }
+                if (evt.key === 'Escape') {
+                    evt.preventDefault();
+                    cancelEdit();
+                }
+            });
 
             input.addEventListener('blur', function () {
                 blurState.timerId = setTimeout(function () {
