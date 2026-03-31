@@ -19,7 +19,8 @@ from services.erp_display import (
     get_today_kst,
     self_measurement_four_checks_done,
 )
-from services.erp_product_items import build_product_items_for_order, build_product_items_for_orders
+from services.erp_product_items import build_product_items_for_orders
+from services.erp_shipment_settings import load_erp_shipment_settings
 
 erp_measurement_dashboard_bp = Blueprint(
     'erp_measurement_dashboard', __name__, url_prefix='/erp'
@@ -356,7 +357,19 @@ def erp_measurement_dashboard():
                 return erp_manager
         return order.manager_name or ''
 
-    rows.sort(key=lambda o: (get_manager_name_for_sort(o) or 'ZZZ', o.id))
+    _settings = load_erp_shipment_settings()
+    _mm_sort_map = {}
+    for mm in (_settings.get('measurement_manager') or []):
+        if isinstance(mm, dict) and mm.get('name'):
+            _mm_sort_map[mm['name'].strip().lower()] = mm.get('sort_order', 999)
+
+    def _manager_sort_key(order):
+        name = get_manager_name_for_sort(order)
+        key = (name or '').strip().lower()
+        sort_order = _mm_sort_map.get(key, 999)
+        return (sort_order, name or 'ZZZ', order.id)
+
+    rows.sort(key=_manager_sort_key)
 
     if open_map:
         # 실측 대시보드 지도는 항상 실측 주문만 표시한다.

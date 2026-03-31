@@ -2557,6 +2557,12 @@
   margin-bottom: 0.5rem;
 }
 
+/* ===== 출고 설정: 정렬순서/자수 입력 너비 ===== */
+.setting-mm-sort,
+.setting-worker-capacity {
+  width: 70px;
+}
+
 /* 모달(1055)보다 낮되, 타일·컨트롤은 Leaflet 기본 겹침 유지 */
 #scheduleMapModal .leaflet-control-container {
   z-index: 1056;
