@@ -6,7 +6,7 @@
         window.measurementManualRowsPersist = window.measurementManualRowsPersist || function () {};
         window.measurementManualRowsRecomputeAnchors = window.measurementManualRowsRecomputeAnchors || function () {};
 
-        const erpActiveRaw = container.dataset.erpBetaActive ?? container.dataset.erpActive;
+        const erpActiveRaw = container.dataset.erpBetaActive || container.dataset.erpActive;
         const config = {
             erpBetaActive: erpActiveRaw === 'true',
             todayDate: container.dataset.todayDate,
@@ -178,7 +178,12 @@
 
         if (routeBtn && routeModalEl && typeof bootstrap !== 'undefined') {
             const routeModal = new bootstrap.Modal(routeModalEl);
-            const { escapeHtml, setVisible, setText } = window.ERPUtils;
+            const ERPUtils = window.ERPUtils || {
+                escapeHtml: function(t) { return t; },
+                setVisible: function() {},
+                setText: function() {}
+            };
+            const { escapeHtml, setVisible, setText } = ERPUtils;
 
             async function loadRoutePlan() {
                 setVisible('route-plan-error', false);

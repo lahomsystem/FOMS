@@ -239,6 +239,16 @@ class OrderTask(Base):
     owner_user = relationship('User', foreign_keys=[owner_user_id])
 
 
+class SystemSetting(Base):
+    """시스템 전역 설정값 저장용 (JSONB 지원)"""
+    __tablename__ = 'system_settings'
+    
+    setting_key = Column(String(100), primary_key=True)
+    setting_value = Column(JSONColumn, nullable=True)
+    description = Column(Text, nullable=True)
+    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now, nullable=False)
+
+
 class SystemBuildStep(Base):
     """빌드/마이그레이션 단계 진행상태 저장 (끊김 시 이어서 실행용)"""
     __tablename__ = 'system_build_steps'
