@@ -347,7 +347,7 @@
                     {% set _m = (o.measurement_date or '') %}
                     {% set _mparts = (_m.split(',')|map('trim')|list)|select|list %}
                     {% if _mparts|length > 1 %}
-                    <span class="badge bg-secondary">복합</span>
+                    <span style="line-height:1.6;">{% for d in _mparts %}<span class="badge bg-secondary d-block mb-1">{{ d }}</span>{% endfor %}</span>
                     {% elif _mparts|length == 1 %}
                     {% if can_edit_erp|default(false) %}
                     <input type="date" class="form-control form-control-sm erp-dashboard-date-input" style="font-size: 1rem; max-width: 10rem;"
@@ -368,7 +368,7 @@
                     {% set _c = (o.construction_date or '') %}
                     {% set _cparts = (_c.split(',')|map('trim')|list)|select|list %}
                     {% if _cparts|length > 1 %}
-                    <span class="badge bg-secondary">복합</span>
+                    <span style="line-height:1.6;">{% for d in _cparts %}<span class="badge bg-secondary d-block mb-1">{{ d }}</span>{% endfor %}</span>
                     {% elif _cparts|length == 1 %}
                     {% if can_edit_erp|default(false) %}
                     <input type="date" class="form-control form-control-sm erp-dashboard-date-input" style="font-size: 1rem; max-width: 10rem;"
