@@ -1,5 +1,5 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-03-31 | 마지막 작업: 예약금/잔금 입금 확인 뱃지 뷰 및 API (ERP Beta)
+> 자동 업데이트: 2026-04-01 | 마지막 작업: 예약금/잔금 입금 확인 뱃지 뷰 및 API (ERP Beta)
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)

@@ -4,6 +4,11 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-04-01 | 세션 자동 기록 | erp_beta_tab.html, measurement.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ae0f6285-c9e4-49cf-94fa-56b0ed6aca1e.png 외 2개 | 9b4115fe |
+| 2026-04-01 | 세션 자동 기록 | commit_msg.txt, measurement.js, 2502107448c0_add_systemsetting_table.py 외 2개 | 9b4115fe |
+| 2026-03-31 | 세션 자동 기록 | commit_msg.txt, measurement.js, 2502107448c0_add_systemsetting_table.py 외 2개 | 2944c109 |
+| 2026-03-31 | 세션 자동 기록 | 2502107448c0_add_systemsetting_table.py, erp_shipment_settings.py, db.py 외 2개 | 5c13b312 |
+| 2026-03-31 | 세션 자동 기록 | commit_msg.txt, _test_clean.py, map_view.html 외 2개 | 5c13b312 |
 | 2026-03-31 | 세션 자동 기록 | _test_clean.py, map_view.html, orders.py 외 2개 | 8b52b5b5 |
 | 2026-03-31 | 세션 자동 기록 | map_view.html, orders.py, erp_measurement.py 외 2개 | 8b52b5b5 |
 | 2026-03-31 | 세션 자동 기록 | commit_msg.txt, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fae807a6-a238-4ef7-9799-ec5b602bb6b1.png, erp_drawing_workbench_detail.html 외 1개 | 8b52b5b5 |
@@ -19,8 +24,3 @@
 | 2026-03-31 | 세션 자동 기록 | erp_measurement_dashboard.html, measurement.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-33a68b72-6a68-42bd-bb8f-6192a86ea78d.png 외 2개 | 4e13107b |
 | 2026-03-31 | 세션 자동 기록 | measurement.js, erp_shipment_settings.html, erp_measurement_dashboard.html 외 2개 | 4fbaf0f3 |
 | 2026-03-31 | 세션 자동 기록 | erp_measurement_dashboard.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-2bd3c9f0-e87c-4b85-a509-d33fee0eb78f.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c954be1b-e053-4cc7-94a6-02269cf0e3f5.png 외 2개 | 28b22477 |
-| 2026-03-31 | 세션 자동 기록 | measurement.js, erp_shipment_settings.py, erp_shipment_settings.json 외 2개 | c118823d |
-| 2026-03-31 | 세션 자동 기록 | erp_beta_js.html, estimate-preview.js, erp_orders_structured.py 외 2개 | 4ff61921 |
-| 2026-03-31 | 세션 자동 기록 | estimate-preview.js, erp_beta_js.html, wdcalculator_scripts.html 외 2개 | 96f1c393 |
-| 2026-03-31 | 세션 자동 기록 | wdcalculator_scripts.html, erp_beta_js.html, channel_delivery.py 외 2개 | fd3194c1 |
-| 2026-03-31 | 세션 자동 기록 | erp_beta_js.html, channel_delivery.py, orders.py 외 2개 | 2d65fdc4 |

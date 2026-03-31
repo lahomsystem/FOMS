@@ -4,17 +4,23 @@
 
 ## 최근 세션
 
-### Session: db05f075
-- **시작**: 2026-03-31 16:00:35
+### Session: 3554437e
+- **시작**: 2026-04-01 08:48:39
 - **상태**: completed
-- **편집 파일**: `_test_clean.py`, `templates/map_view.html`, `apps/api/orders.py`, `apps/api/erp_measurement.py`, `services/erp_display.py`, `templates/erp_measurement_dashboard.html`, `commit_msg.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fae807a6-a238-4ef7-9799-ec5b602bb6b1.png`, `templates/erp_drawing_workbench_detail.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c2e06c89-33d3-4206-a829-0274ce61251f.png`
-- **종료**: 2026-03-31 17:08:07
+- **편집 파일**: `templates/partials/erp_beta_tab.html`, `static/js/erp/measurement.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ae0f6285-c9e4-49cf-94fa-56b0ed6aca1e.png`, `commit_msg.txt`, `migrations/versions/2502107448c0_add_systemsetting_table.py`, `services/erp_shipment_settings.py`, `db.py`, `models.py`, `_test_clean.py`, `templates/map_view.html`
+- **종료**: 2026-04-01 08:49:24
 
-### Session: 81fe745f
-- **시작**: 2026-03-31 10:38:54
+### Session: e56041a5
+- **시작**: 2026-04-01 08:46:22
 - **상태**: completed
-- **편집 파일**: `commit_msg.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fae807a6-a238-4ef7-9799-ec5b602bb6b1.png`, `templates/erp_drawing_workbench_detail.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c2e06c89-33d3-4206-a829-0274ce61251f.png`
-- **종료**: 2026-03-31 16:54:29
+- **편집 파일**: `templates/partials/erp_beta_tab.html`, `static/js/erp/measurement.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ae0f6285-c9e4-49cf-94fa-56b0ed6aca1e.png`, `commit_msg.txt`, `migrations/versions/2502107448c0_add_systemsetting_table.py`, `services/erp_shipment_settings.py`, `db.py`, `models.py`, `_test_clean.py`, `templates/map_view.html`
+- **종료**: 2026-04-01 08:49:47
+
+ 81fe745f
+- **시작**: 2026-03-31 10:38:54
+- **상태**: unknown
+- **편집 파일**: `commit_msg.txt`, `static/js/erp/measurement.js`, `migrations/versions/2502107448c0_add_systemsetting_table.py`, `services/erp_shipment_settings.py`, `db.py`, `models.py`, `_test_clean.py`, `templates/map_view.html`, `apps/api/orders.py`, `apps/api/erp_measurement.py`
+- **종료**: 2026-04-01 08:46:05
 
  e08a034e
 - **시작**: 2026-03-27 14:56:45
@@ -1166,3 +1172,15 @@
 | 2026-03-31 17:04:29 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-31 17:08:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 19:43:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 22:10:13 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 22:15:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 22:26:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-01 08:49:24 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-01 08:49:47 | END (Claude Code) | 수정: (없음) |
