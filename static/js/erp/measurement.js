@@ -284,7 +284,8 @@
                 if (div.parentNode) div.remove();
             }
 
-            _measurementManagerList.forEach(function (name) {
+            _measurementManagerList.forEach(function (item) {
+                var name = typeof item === 'string' ? item : (item && item.name ? item.name : String(item));
                 const a = document.createElement('a');
                 a.className = 'dropdown-item';
                 a.href = '#';
