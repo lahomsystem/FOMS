@@ -1,15 +1,73 @@
 """휴지통/삭제 관련 Blueprint: delete_order, trash, restore, permanent_delete."""
+import copy
 import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from sqlalchemy import text
+from sqlalchemy import String, text
 
 from apps.auth import login_required, role_required, log_access, get_user_by_id
 from db import get_db
 from models import Order
+from services.erp_display import _ensure_dict, apply_erp_display_fields
+from services.order_display_utils import format_options_for_display
 from services.request_utils import get_preserved_filter_args
 from services.order_storage_cleanup import delete_storage_files_for_order
 
 order_trash_bp = Blueprint('order_trash', __name__, url_prefix='')
+
+
+def _build_erp_beta_options_summary(structured_data):
+    """ERP Beta item ?듭뀡??read-only ??쒖슜 ?붿빟 臾몄옄?대줈 蹂??"""
+    sd = _ensure_dict(structured_data)
+    raw_items = sd.get('items') or []
+    if isinstance(raw_items, dict):
+        raw_items = [raw_items]
+    if not isinstance(raw_items, list) or not raw_items:
+        return ""
+
+    first_item = raw_items[0]
+    if not isinstance(first_item, dict):
+        return ""
+
+    label_map = {
+        'standard': 'Spec',
+        'internal': 'Internal',
+        'color': 'Color',
+        'option_detail': 'Option',
+        'handle': 'Handle',
+        'misc': 'Misc',
+    }
+    summary_parts = []
+    for key, label in label_map.items():
+        value = first_item.get(key)
+        if isinstance(value, str):
+            value = value.strip()
+        if value:
+            summary_parts.append(f"{label}: {value}")
+    return ", ".join(summary_parts)
+
+
+def _build_trash_display_orders(orders):
+    """?댁???紐⑸줉 ??쒖슜 copy?먯뿉 ERP Beta display ?뺣낫瑜??덉쐞??踰붿쭏??⑸땲??"""
+    display_orders = []
+    for order in orders:
+        order_display = copy.deepcopy(order)
+        order_display.display_options = format_options_for_display(order.options)
+
+        if getattr(order, 'is_erp_beta', False) and getattr(order, 'structured_data', None):
+            order_display.structured_data = _ensure_dict(order.structured_data)
+            apply_erp_display_fields(order_display)
+
+            options_summary = _build_erp_beta_options_summary(order_display.structured_data)
+            if options_summary:
+                order_display.display_options = options_summary
+                order_display.options = options_summary
+            elif str(getattr(order_display, 'options', '') or '').strip() in {"''", '""', '-', 'ERP Beta'}:
+                order_display.options = ''
+        elif getattr(order_display, 'display_options', None):
+            order_display.options = order_display.display_options
+
+        display_orders.append(order_display)
+    return display_orders
 
 
 def reset_order_ids(db):
@@ -102,9 +160,10 @@ def trash():
             (Order.address.like(search_pattern)) |
             (Order.product.like(search_pattern)) |
             (Order.options.like(search_pattern)) |
-            (Order.notes.like(search_pattern))
+            (Order.notes.like(search_pattern)) |
+            (Order.structured_data.cast(String).like(search_pattern))
         )
-    orders = query.order_by(Order.deleted_at.desc()).all()
+    orders = _build_trash_display_orders(query.order_by(Order.deleted_at.desc()).all())
     return render_template('trash.html', orders=orders, search_term=search_term)
 
 

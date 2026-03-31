@@ -227,7 +227,7 @@
           '  </div>' +
           '</div>';
       } else {
-        li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input" data-key="' + key + '" value="" placeholder="' + (key === 'construction_time' ? '예: 10:00' : (key === 'site_extra' ? '추가 주소' : key === 'drawing_manager' ? '도면담당자' : '시공자')) + '">' +
+        li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input" data-key="' + key + '" value="" placeholder="' + (key === 'construction_time' ? '예: 10:00' : (key === 'site_extra' ? '추가 주소' : key === 'drawing_manager' ? '도면담당자' : key === 'measurement_manager' ? '실측담당자' : '시공자')) + '">' +
           '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>';
       }
       ul.appendChild(li);

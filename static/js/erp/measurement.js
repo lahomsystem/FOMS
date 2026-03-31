@@ -335,10 +335,12 @@
             const originalContent = cell.innerHTML;
             cell.innerHTML = '';
             let _committed = false;
+            let _blurTimerId = null;
 
             function doCommit(val) {
                 if (_committed) return;
                 _committed = true;
+                if (_blurTimerId) { clearTimeout(_blurTimerId); _blurTimerId = null; }
                 const dropdown = document.getElementById('measurement-manager-dropdown');
                 if (dropdown) dropdown.remove();
                 commitCellValue(cell, tr, field, orderId, isErpBeta, isManual, currentValue, originalContent, val);
@@ -360,6 +362,7 @@
                 loadBtn.addEventListener('mousedown', function (e) {
                     e.preventDefault();
                     e.stopPropagation();
+                    if (_blurTimerId) { clearTimeout(_blurTimerId); _blurTimerId = null; }
                     showManagerDropdown(loadBtn, function (name) {
                         input.value = name;
                         doCommit(name);
@@ -373,7 +376,8 @@
             input.focus();
 
             input.addEventListener('blur', function () {
-                setTimeout(function () {
+                _blurTimerId = setTimeout(function () {
+                    _blurTimerId = null;
                     if (_committed) return;
                     doCommit(input.value.trim());
                 }, 150);
