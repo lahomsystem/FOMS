@@ -76,6 +76,22 @@
         </div>
         <div class="col-12 col-lg-6 mb-4">
           <div class="card shadow-sm">
+            <div class="card-header bg-white fw-bold"><i class="fas fa-ruler-combined me-2"></i>실측담당자</div>
+            <div class="card-body">
+              <ul id="list-measurement_manager" class="list-group list-group-flush mb-2">
+                {% for v in (settings.measurement_manager or []) %}
+                <li class="list-group-item d-flex gap-2 align-items-center px-0">
+                  <input type="text" class="form-control form-control-sm setting-input" data-key="measurement_manager" value="{{ v }}" placeholder="실측담당자">
+                  <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
+                </li>
+                {% endfor %}
+              </ul>
+              <button type="button" class="btn btn-sm btn-outline-success btn-add-setting" data-key="measurement_manager"><i class="fas fa-plus me-1"></i>추가</button>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-lg-6 mb-4">
+          <div class="card shadow-sm">
             <div class="card-header bg-white fw-bold"><i class="fas fa-map-marker-alt me-2"></i>현장주소 추가 (저장 목록)</div>
             <div class="card-body">
               <ul id="list-site_extra" class="list-group list-group-flush mb-2">
@@ -149,8 +165,8 @@
 <script>
 (function() {
   function collectSettings() {
-    var out = { construction_time: [], drawing_manager: [], construction_workers: [], site_extra: [] };
-    ['construction_time', 'drawing_manager', 'site_extra'].forEach(function(key) {
+    var out = { construction_time: [], drawing_manager: [], measurement_manager: [], construction_workers: [], site_extra: [] };
+    ['construction_time', 'drawing_manager', 'measurement_manager', 'site_extra'].forEach(function(key) {
       var ul = document.getElementById('list-' + key);
       if (!ul) return;
       ul.querySelectorAll('input.setting-input').forEach(function(inp) {

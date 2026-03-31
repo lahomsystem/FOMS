@@ -55,7 +55,7 @@ def api_erp_shipment_settings_save():
     try:
         payload = request.get_json(silent=True) or {}
         current = load_erp_shipment_settings()
-        for key in ('construction_time', 'drawing_manager', 'construction_workers', 'site_extra'):
+        for key in ('construction_time', 'drawing_manager', 'measurement_manager', 'construction_workers', 'site_extra'):
             if key in payload and isinstance(payload[key], list):
                 if key == 'construction_workers':
                     current[key] = normalize_erp_shipment_workers(payload[key])

@@ -150,12 +150,12 @@
               /* 모바일: 제품 컬럼 가로 확장 → 행 높이 최소화, 가로 스크롤로 확인 */
               @media (max-width: 768px) {
                 .measurement-table .measurement-product-cell {
-                  min-width: 240px !important;
+                  min-width: 200px !important;
                   max-width: none !important;
                 }
 
                 .measurement-table {
-                  min-width: 100%;
+                  min-width: 980px;
                 }
               }
 
@@ -429,7 +429,7 @@
                 }
               }
 
-              /* 모바일: 카드 전환은 erp-pro.css .erp-mobile-card-table, 터치·레이아웃 */
+              /* 모바일: 카드 전환 대신 테이블 유지 + 가로 스크롤 */
               @media (max-width: 992px) {
                 .measurement-panel-item {
                   min-height: 44px;
@@ -441,9 +441,29 @@
                   flex: 0 0 100%;
                   max-width: 100%;
                 }
+
+                .measurement-table {
+                  min-width: 980px;
+                }
+
+                .measurement-table thead {
+                  display: table-header-group !important;
+                }
+
+                .measurement-table tbody tr {
+                  display: table-row !important;
+                }
+
+                .measurement-table tbody td {
+                  display: table-cell !important;
+                }
+
+                .measurement-table tbody td::before {
+                  display: none !important;
+                }
               }
             </style>
-            <table class="table table-sm table-hover align-middle measurement-table erp-mobile-card-table">
+            <table class="table table-sm table-hover align-middle measurement-table">
               <thead class="table-light">
                 <tr>
                   <th style="width: 70px; border-right: 1px solid #e0e0e0;">상세</th>
@@ -455,7 +475,7 @@
                   <th style="width: 90px; border-right: 1px solid #e0e0e0;">시간</th>
                   <th class="measurement-product-cell" style="max-width: 140px; border-right: 1px solid #e0e0e0;">제품
                   </th>
-                  <th style="width: 120px;">담당자</th>
+                  <th style="width: 160px;">담당자</th>
                 </tr>
               </thead>
               <tbody>
@@ -807,7 +827,7 @@
 
 {% block scripts %}
 {# 실측 PNG·헬퍼 수정 시 v 값을 올려 브라우저/CDN 캐시 무효화 (production만 구버전 JS 유지되는 현상 방지) #}
-{% set measurement_js_v = '20260331' %}
+{% set measurement_js_v = '20260331b' %}
 <script src="{{ url_for('static', filename='js/erp/common_utils.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement-manual-rows.js') }}?v={{ measurement_js_v }}"></script>
