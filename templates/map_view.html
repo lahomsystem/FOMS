@@ -963,6 +963,22 @@
         document.getElementById('manager-filter').value = initialManager;
         document.getElementById('map-search-input').value = initialSearch;
 
+        // ── 담당자 목록 (실측 담당자 지정용) ──
+        var _mapManagerList = [];
+        var _mapManagerLoaded = false;
+        fetch('/api/erp/shipment-settings')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data && data.success && data.settings && Array.isArray(data.settings.measurement_manager)) {
+                    data.settings.measurement_manager.forEach(function (item) {
+                        var name = typeof item === 'string' ? item : (item.name || '');
+                        if (name) _mapManagerList.push(name);
+                    });
+                }
+                _mapManagerLoaded = true;
+            })
+            .catch(function (err) { console.warn('지도 담당자 목록 로드 실패:', err); _mapManagerLoaded = true; });
+
         // 페이지 로드 시 로그인 상태 확인 및 지도 로드
         document.addEventListener('DOMContentLoaded', function () {
             if (window.location.pathname === '/login') {
@@ -1276,12 +1292,26 @@
                                 <span class="order-info-label">제품:</span>
                                 <span class="order-info-value">${escapeHtml(order.product || '-')}</span>
                             </div>
+                            <div class="order-info-row">
+                                <span class="order-info-label">담당자:</span>
+                                <span class="order-info-value map-manager-name" data-order-id="${order.id}">${escapeHtml(order.manager_name || '-')}</span>
+                                <button class="btn btn-sm btn-outline-primary btn-map-assign-manager" data-order-id="${order.id}" title="담당자 지정"><i class="fas fa-user-edit"></i></button>
+                            </div>
                         </div>
                     </div>
                 `;
             });
 
             container.innerHTML = html;
+
+            // 담당자 지정 버튼 이벤트 위임
+            container.querySelectorAll('.btn-map-assign-manager').forEach(function (btn) {
+                btn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    var oid = parseInt(btn.dataset.orderId, 10);
+                    openMapManagerDropdown(btn, oid);
+                });
+            });
         }
 
         function selectOrder(orderId) {
@@ -1495,6 +1525,79 @@
                 .replace(/'/g, "\\'")
                 .replace(/\n/g, '\\n')
                 .replace(/\r/g, '\\r');
+        }
+
+        // ── 지도 담당자 지정 드롭다운 ──
+        function openMapManagerDropdown(btnEl, orderId) {
+            var existing = document.getElementById('map-manager-dropdown');
+            if (existing) existing.remove();
+
+            if (!_mapManagerList.length) {
+                if (_mapManagerLoaded) alert('저장된 담당자 목록이 없습니다. 출고 설정에서 추가해 주세요.');
+                return;
+            }
+
+            var div = document.createElement('div');
+            div.id = 'map-manager-dropdown';
+            div.className = 'dropdown-menu show';
+            div.style.cssText = 'position:fixed;z-index:9999;max-height:240px;overflow-y:auto;min-width:120px;';
+
+            var rect = btnEl.getBoundingClientRect();
+            div.style.left = rect.left + 'px';
+            if (window.innerHeight - rect.bottom < 250) {
+                div.style.bottom = (window.innerHeight - rect.top + 2) + 'px';
+            } else {
+                div.style.top = (rect.bottom + 2) + 'px';
+            }
+
+            var ac = new AbortController();
+            function removeDropdown() {
+                ac.abort();
+                if (div.parentNode) div.remove();
+            }
+
+            _mapManagerList.forEach(function (name) {
+                var a = document.createElement('a');
+                a.className = 'dropdown-item';
+                a.href = '#';
+                a.style.cssText = 'padding:8px 16px;font-size:0.95rem;';
+                a.textContent = name;
+                a.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    removeDropdown();
+                    saveMapManager(orderId, name);
+                });
+                div.appendChild(a);
+            });
+
+            document.body.appendChild(div);
+            setTimeout(function () {
+                document.addEventListener('click', function (e) {
+                    if (div.contains(e.target) || btnEl.contains(e.target)) return;
+                    removeDropdown();
+                }, { capture: true, signal: ac.signal });
+            }, 150);
+        }
+
+        function saveMapManager(orderId, managerName) {
+            fetch('/api/erp/measurement/update/' + orderId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ field: 'manager', value: managerName })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.success) {
+                    var span = document.querySelector('.map-manager-name[data-order-id="' + orderId + '"]');
+                    if (span) span.textContent = managerName;
+                } else {
+                    alert('담당자 저장 실패: ' + (data.message || ''));
+                }
+            })
+            .catch(function (err) {
+                alert('담당자 저장 오류: ' + err.message);
+            });
         }
 
         // 키보드 단축키

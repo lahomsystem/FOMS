@@ -81,7 +81,8 @@
               <ul id="list-measurement_manager" class="list-group list-group-flush mb-2">
                 {% for v in (settings.measurement_manager or []) %}
                 <li class="list-group-item d-flex gap-2 align-items-center px-0">
-                  <input type="text" class="form-control form-control-sm setting-input" data-key="measurement_manager" value="{{ v }}" placeholder="실측담당자">
+                  <input type="text" class="form-control form-control-sm setting-input setting-mm-name" data-key="measurement_manager" value="{{ v.name if v is mapping else v }}" placeholder="실측담당자">
+                  <input type="number" class="form-control form-control-sm setting-mm-sort" value="{{ v.sort_order if v is mapping else '' }}" placeholder="순서" min="0" step="1" title="정렬순서 (숫자가 작을수록 위)">
                   <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
                 </li>
                 {% endfor %}
@@ -166,7 +167,7 @@
 (function() {
   function collectSettings() {
     var out = { construction_time: [], drawing_manager: [], measurement_manager: [], construction_workers: [], site_extra: [] };
-    ['construction_time', 'drawing_manager', 'measurement_manager', 'site_extra'].forEach(function(key) {
+    ['construction_time', 'drawing_manager', 'site_extra'].forEach(function(key) {
       var ul = document.getElementById('list-' + key);
       if (!ul) return;
       ul.querySelectorAll('input.setting-input').forEach(function(inp) {
@@ -174,6 +175,19 @@
         if (v) out[key].push(v);
       });
     });
+    // measurement_manager: {name, sort_order} 객체 배열로 수집
+    var mmUl = document.getElementById('list-measurement_manager');
+    if (mmUl) {
+      mmUl.querySelectorAll('li').forEach(function(li) {
+        var nameInp = li.querySelector('.setting-mm-name');
+        var sortInp = li.querySelector('.setting-mm-sort');
+        var nameVal = nameInp ? nameInp.value.trim() : '';
+        if (!nameVal) return;
+        var sortRaw = sortInp ? sortInp.value.trim() : '';
+        var sortVal = sortRaw !== '' ? (parseInt(sortRaw, 10) || 999) : 999;
+        out.measurement_manager.push({ name: nameVal, sort_order: sortVal });
+      });
+    }
     var workerUl = document.getElementById('list-construction_workers');
     if (workerUl) {
       workerUl.querySelectorAll('li').forEach(function(li) {
@@ -226,8 +240,12 @@
           '    <div class="small text-muted worker-off-count">휴무 0일</div>' +
           '  </div>' +
           '</div>';
+      } else if (key === 'measurement_manager') {
+        li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input setting-mm-name" data-key="measurement_manager" value="" placeholder="실측담당자">' +
+          '<input type="number" class="form-control form-control-sm setting-mm-sort" value="" placeholder="순서" min="0" step="1" title="정렬순서 (숫자가 작을수록 위)">' +
+          '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>';
       } else {
-        li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input" data-key="' + key + '" value="" placeholder="' + (key === 'construction_time' ? '예: 10:00' : (key === 'site_extra' ? '추가 주소' : key === 'drawing_manager' ? '도면담당자' : key === 'measurement_manager' ? '실측담당자' : '시공자')) + '">' +
+        li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input" data-key="' + key + '" value="" placeholder="' + (key === 'construction_time' ? '예: 10:00' : (key === 'site_extra' ? '추가 주소' : key === 'drawing_manager' ? '도면담당자' : '시공자')) + '">' +
           '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>';
       }
       ul.appendChild(li);

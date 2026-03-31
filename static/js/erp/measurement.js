@@ -35,8 +35,11 @@
             return (name && name !== '-') ? name.toLowerCase() : '';
         }
 
-        function managerKeyForSort(tr) {
-            return normalizeManagerKey(getManagerFromRow(tr)) || 'ZZZ';
+        function managerSortOrder(tr) {
+            var name = getManagerFromRow(tr);
+            var key = normalizeManagerKey(name);
+            if (!key) return 999;
+            return _managerSortOrderMap[key] != null ? _managerSortOrderMap[key] : 999;
         }
 
         function rowTieBreak(tr) {
@@ -71,9 +74,12 @@
                 return { main: tr, detail: detailRow };
             });
             pairs.sort(function (a, b) {
-                const mA = managerKeyForSort(a.main);
-                const mB = managerKeyForSort(b.main);
-                if (mA !== mB) return mA.localeCompare(mB);
+                var sA = managerSortOrder(a.main);
+                var sB = managerSortOrder(b.main);
+                if (sA !== sB) return sA - sB;
+                var nA = normalizeManagerKey(getManagerFromRow(a.main)) || 'zzz';
+                var nB = normalizeManagerKey(getManagerFromRow(b.main)) || 'zzz';
+                if (nA !== nB) return nA.localeCompare(nB);
                 return rowTieBreak(a.main) - rowTieBreak(b.main);
             });
             return pairs;
@@ -216,13 +222,25 @@
         // ── 5. 담당자 목록 로드 ──
 
         let _measurementManagerList = [];
+        let _managerSortOrderMap = {};
         let _managerListLoaded = false;
 
         fetch('/api/erp/shipment-settings')
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (data && data.success && data.settings && Array.isArray(data.settings.measurement_manager)) {
-                    _measurementManagerList = data.settings.measurement_manager;
+                    var rawList = data.settings.measurement_manager;
+                    _measurementManagerList = [];
+                    _managerSortOrderMap = {};
+                    rawList.forEach(function (item) {
+                        var name = typeof item === 'string' ? item : (item.name || '');
+                        var sortOrder = typeof item === 'object' && item.sort_order != null ? item.sort_order : 999;
+                        if (name) {
+                            _measurementManagerList.push(name);
+                            _managerSortOrderMap[name.toLowerCase()] = sortOrder;
+                        }
+                    });
+                    scheduleApplyMeasurementManagerSortAndColors();
                 }
                 _managerListLoaded = true;
             })

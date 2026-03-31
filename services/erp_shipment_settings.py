@@ -9,6 +9,29 @@ ERP_SHIPMENT_SETTINGS_PATH = os.path.join('data', 'erp_shipment_settings.json')
 DEFAULT_ERP_WORKER_CAPACITY = 10
 
 
+def normalize_measurement_managers(managers):
+    """실측 담당자 목록 정규화 (name, sort_order).
+
+    하위호환: 문자열 배열 ["이름"] → [{"name": "이름", "sort_order": 999}]
+    """
+    normalized = []
+    if not isinstance(managers, list):
+        return normalized
+    for idx, m in enumerate(managers):
+        if isinstance(m, dict):
+            name = str(m.get('name') or '').strip()
+            try:
+                sort_order = int(m.get('sort_order', 999))
+            except (ValueError, TypeError):
+                sort_order = 999
+        else:
+            name = str(m).strip()
+            sort_order = 999
+        if name:
+            normalized.append({'name': name, 'sort_order': sort_order})
+    return normalized
+
+
 def normalize_erp_shipment_workers(workers):
     """출고 설정 시공자 목록 정규화 (name, capacity, off_dates)."""
     normalized = []
@@ -104,7 +127,7 @@ def load_erp_shipment_settings():
                 return {
                     'construction_time': data.get('construction_time', []),
                     'drawing_manager': data.get('drawing_manager', []),
-                    'measurement_manager': data.get('measurement_manager', []),
+                    'measurement_manager': normalize_measurement_managers(data.get('measurement_manager', [])),
                     'construction_workers': normalize_erp_shipment_workers(data.get('construction_workers', [])),
                     'site_extra': data.get('site_extra', []),
                 }
