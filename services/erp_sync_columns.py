@@ -1,5 +1,5 @@
 from datetime import datetime
-from services.erp_display import _normalize_date_to_yyyymmdd
+from services.erp_display import _normalize_date_to_yyyymmdd, clean_dict_like_name
 
 def sync_erp_flat_columns(order, structured_data: dict) -> None:
     """Phase B & D: ERP Beta 주문의 정규화 플랫 컬럼을 structured_data와 동기화.
@@ -12,6 +12,10 @@ def sync_erp_flat_columns(order, structured_data: dict) -> None:
     """
     if not getattr(order, 'is_erp_beta', False):
         return
+
+    parties = (structured_data.get('parties') or {})
+    manager_name = clean_dict_like_name(((parties.get('manager') or {}).get('name')) or '')
+    order.manager_name = manager_name or ''
     
     # Phase B: Dates
     schedule = (structured_data.get('schedule') or {})

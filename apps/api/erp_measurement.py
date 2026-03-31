@@ -20,6 +20,7 @@ from services.erp_permissions import erp_edit_required
 from services.erp_display import get_today_kst, self_measurement_four_checks_done
 from services.channel_event_payloads import build_field_change_payload
 from services.erp_shipment_settings import is_order_mine_for_user
+from services.erp_sync_columns import sync_erp_flat_columns
 from foms_address_converter import FOMSAddressConverter
 from services.jobs.queue import enqueue_geocode_order_address, enqueue_channeltalk_push
 from services.order_geocode import reset_order_geocode_on_address_change
@@ -261,9 +262,12 @@ def api_erp_measurement_update(order_id):
 
         if field != 'address':
             order.structured_data = structured_data
-        order.structured_updated_at = datetime.datetime.now()
-        if field != 'address':
             flag_modified(order, 'structured_data')
+
+        if isinstance(order.structured_data, dict):
+            sync_erp_flat_columns(order, order.structured_data)
+
+        order.structured_updated_at = datetime.datetime.now()
 
         from services.channel_delivery import mark_order_updated_for_channel
         delivery_id = mark_order_updated_for_channel(
@@ -320,6 +324,7 @@ def api_erp_measurement_route():
         address_to_use = o.address
         customer_name = o.customer_name
         phone = o.phone
+        manager_name = o.manager_name
 
         if o.is_erp_beta and o.structured_data:
             sd = o.structured_data
@@ -343,6 +348,10 @@ def api_erp_measurement_route():
             if erp_phone:
                 phone = erp_phone
 
+            erp_manager_name = ((sd.get('parties') or {}).get('manager') or {}).get('name')
+            if erp_manager_name:
+                manager_name = erp_manager_name
+
         lat, lng, status = converter.convert_address(address_to_use)
         if lat is None or lng is None:
             continue
@@ -352,7 +361,7 @@ def api_erp_measurement_route():
             "phone": phone,
             "address": address_to_use,
             "measurement_time": o.measurement_time,
-            "manager_name": o.manager_name,
+            "manager_name": manager_name,
             "status": o.status,
             "lat": float(lat),
             "lng": float(lng),
