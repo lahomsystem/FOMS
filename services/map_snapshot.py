@@ -8,6 +8,8 @@ from sqlalchemy import or_, and_, cast, String, func
 from models import Order
 from services.geocode_helpers import extract_address_from_order
 
+_DUPLICATE_MARKER_OFFSET = 0.00015
+
 
 def _measurement_date_variants(yyyy_mm_dd):
     """
@@ -214,6 +216,79 @@ def _format_date(val):
     return str(val)
 
 
+def _normalize_location_key(value):
+    """Normalize grouping keys for duplicate metadata."""
+    if value is None:
+        return ''
+    text = str(value).strip()
+    if not text:
+        return ''
+    return ' '.join(text.split())
+
+
+def _duplicate_location_key(lat, lng):
+    if lat is None or lng is None:
+        return ''
+    try:
+        return f"{round(float(lat), 8):.8f},{round(float(lng), 8):.8f}"
+    except (TypeError, ValueError):
+        return ''
+
+
+def _annotate_duplicate_groups(items, *, key_fn, group_prefix, hint_field='marker_render_hint'):
+    """Attach duplicate-group metadata to snapshot rows."""
+    groups = {}
+    for index, item in enumerate(items):
+        group_key = _normalize_location_key(key_fn(item))
+        if not group_key:
+            continue
+        groups.setdefault(group_key, []).append(index)
+
+    for group_key, indices in groups.items():
+        group_size = len(indices)
+        for position, item_index in enumerate(indices, start=1):
+            item = items[item_index]
+            item[f'{group_prefix}_group_key'] = group_key
+            item[f'{group_prefix}_group_size'] = group_size
+            item[f'{group_prefix}_group_index'] = position
+            item[f'is_{group_prefix}'] = group_size > 1
+            if group_size > 1:
+                item[hint_field] = 'pastel_pink'
+            elif hint_field not in item:
+                item[hint_field] = 'status'
+
+
+def _annotate_marker_metadata(orders_list, markers):
+    """Attach duplicate location and duplicate address metadata."""
+    _annotate_duplicate_groups(
+        orders_list,
+        key_fn=lambda item: _duplicate_location_key(item.get('latitude'), item.get('longitude')),
+        group_prefix='duplicate_location',
+    )
+    _annotate_duplicate_groups(
+        markers,
+        key_fn=lambda item: _duplicate_location_key(item.get('latitude'), item.get('longitude')),
+        group_prefix='duplicate_location',
+    )
+
+    _annotate_duplicate_groups(
+        orders_list,
+        key_fn=lambda item: item.get('address'),
+        group_prefix='duplicate_address',
+    )
+    _annotate_duplicate_groups(
+        markers,
+        key_fn=lambda item: item.get('address'),
+        group_prefix='duplicate_address',
+    )
+
+    for item in list(orders_list) + list(markers):
+        if item.get('is_duplicate_location') or item.get('is_duplicate_address'):
+            item['marker_render_hint'] = 'pastel_pink'
+        else:
+            item.setdefault('marker_render_hint', 'status')
+
+
 def _apply_marker_offset_for_duplicates(markers):
     """
     동일 (lat,lng) 마커에 소량 오프셋 적용. 겹쳐서 1개만 보이던 2건 표시.
@@ -222,20 +297,28 @@ def _apply_marker_offset_for_duplicates(markers):
     if not markers:
         return
     # (lat, lng) → 해당 마커 인덱스 목록
+    def _duplicate_key(marker):
+        normalized_address = ' '.join(str(marker.get('address') or '').strip().lower().split())
+        return (
+            normalized_address,
+            round(marker['latitude'], 8),
+            round(marker['longitude'], 8),
+        )
+
     by_pos = {}
-    for i, m in enumerate(markers):
-        key = (round(m['latitude'], 8), round(m['longitude'], 8))
-        by_pos.setdefault(key, []).append(i)
-    offset = 0.00015
+    for i, marker in enumerate(markers):
+        by_pos.setdefault(_duplicate_key(marker), []).append(i)
     for indices in by_pos.values():
         if len(indices) <= 1:
             continue
+        origin_lat = markers[indices[0]]['latitude']
+        origin_lng = markers[indices[0]]['longitude']
         for k, i in enumerate(indices[1:], 1):
             # 나선형: 1→동, 2→남동, 3→남, 4→남서...
             angle = (k - 1) * 60
             rad = math.radians(angle)
-            markers[i]['latitude'] = markers[i]['latitude'] + offset * math.cos(rad)
-            markers[i]['longitude'] = markers[i]['longitude'] + offset * math.sin(rad)
+            markers[i]['latitude'] = origin_lat + _DUPLICATE_MARKER_OFFSET * math.cos(rad)
+            markers[i]['longitude'] = origin_lng + _DUPLICATE_MARKER_OFFSET * math.sin(rad)
 
 
 def build_measurement_snapshot(orders, manager_filter=None):
@@ -313,6 +396,7 @@ def build_measurement_snapshot(orders, manager_filter=None):
             })
 
     # 동일 좌표 마커 오프셋: 겹쳐서 1개만 보이던 문제 해결 (2662↔2655, 2670↔2650 등)
+    _annotate_marker_metadata(orders_list, markers)
     _apply_marker_offset_for_duplicates(markers)
 
     return {
