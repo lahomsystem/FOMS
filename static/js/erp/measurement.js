@@ -24,6 +24,10 @@
             '#00FFFF', '#FF8000', '#FF1493', '#00FF80', '#FF69B4'
         ];
 
+        let _measurementManagerList = [];
+        let _managerSortOrderMap = {};
+        let _managerListLoaded = false;
+
         // ── 공통 헬퍼 ──
 
         function getManagerFromRow(tr) {
@@ -225,10 +229,6 @@
         }
 
         // ── 5. 담당자 목록 로드 ──
-
-        let _measurementManagerList = [];
-        let _managerSortOrderMap = {};
-        let _managerListLoaded = false;
 
         fetch('/api/erp/shipment-settings')
             .then(function (r) { return r.json(); })
