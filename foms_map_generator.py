@@ -301,7 +301,24 @@ class FOMSMapGenerator:
 
             # Pro 디자인: pill 배지, 넉넉한 패딩/폰트, 그림자로 시인성 확보 (모바일 시인성)
             icon_html = f"""
-            <div class="foms-map-marker" style="
+            <div class="foms-map-marker"
+                data-marker-index="{idx}"
+                data-order-id="{order_id}"
+                data-lat="{lat}"
+                data-lng="{lng}"
+                data-base-background="{marker_bg}"
+                data-base-border="{marker_border}"
+                data-base-border-width="2px"
+                data-base-text="{marker_text}"
+                data-base-shadow="{marker_shadow}"
+                data-overlap-background="{OVERLAP_MARKER_COLOR}"
+                data-overlap-border="#e29ab7"
+                data-overlap-border-width="2px"
+                data-overlap-text="#6c2845"
+                data-overlap-shadow="rgba(232, 160, 186, 0.35)"
+                data-route-state="none"
+                data-visual-overlap="false"
+                style="
                 background: {marker_bg};
                 color: {marker_text};
                 border-radius: 9999px;
@@ -472,6 +489,7 @@ class FOMSMapGenerator:
         window.currentRouteLine = null;
         window.routeStatus = null;
         window.mapObject = null;
+        window.visualOverlapFrame = null;
         
         // 지도 객체 참조 설정 (DOM 로드 후)
         document.addEventListener('DOMContentLoaded', function() {
@@ -479,14 +497,172 @@ class FOMSMapGenerator:
             var mapKeys = Object.keys(window).filter(key => key.startsWith('map_'));
             if (mapKeys.length > 0) {
                 window.mapObject = window[mapKeys[0]];
+                if (window.mapObject) {
+                    window.mapObject.whenReady(function() {
+                        scheduleVisualOverlapRefresh();
+                    });
+                    window.mapObject.on('zoomend moveend resize', scheduleVisualOverlapRefresh);
+                    setTimeout(scheduleVisualOverlapRefresh, 300);
+                }
             }
         });
+
+        function getRenderedMarkerPills() {
+            return Array.from(document.querySelectorAll('.leaflet-marker-icon .foms-map-marker'));
+        }
+
+        function getMarkerPillByIndex(markerIndex) {
+            var markerPills = getRenderedMarkerPills();
+            return markerPills[markerIndex - 1] || null;
+        }
+
+        function applyMarkerTheme(markerPill, theme) {
+            if (!markerPill || !theme) {
+                return;
+            }
+            markerPill.style.background = theme.background;
+            markerPill.style.border = (theme.borderWidth || '2px') + ' solid ' + theme.border;
+            markerPill.style.color = theme.text;
+            markerPill.style.boxShadow = '0 2px 8px ' + theme.shadow;
+        }
+
+        function getBaseMarkerTheme(markerPill) {
+            return {
+                background: markerPill.dataset.baseBackground || '#007bff',
+                border: markerPill.dataset.baseBorder || '#ffffff',
+                borderWidth: markerPill.dataset.baseBorderWidth || '2px',
+                text: markerPill.dataset.baseText || '#ffffff',
+                shadow: markerPill.dataset.baseShadow || 'rgba(0,0,0,0.25)',
+            };
+        }
+
+        function getOverlapMarkerTheme(markerPill) {
+            return {
+                background: markerPill.dataset.overlapBackground || '#f8c8d8',
+                border: markerPill.dataset.overlapBorder || '#e29ab7',
+                borderWidth: markerPill.dataset.overlapBorderWidth || '2px',
+                text: markerPill.dataset.overlapText || '#6c2845',
+                shadow: markerPill.dataset.overlapShadow || 'rgba(232, 160, 186, 0.35)',
+            };
+        }
+
+        function restoreMarkerTheme(markerPill) {
+            if (!markerPill) {
+                return;
+            }
+            if ((markerPill.dataset.routeState || 'none') !== 'none') {
+                return;
+            }
+            if (markerPill.dataset.visualOverlap === 'true') {
+                applyMarkerTheme(markerPill, getOverlapMarkerTheme(markerPill));
+                return;
+            }
+            applyMarkerTheme(markerPill, getBaseMarkerTheme(markerPill));
+        }
+
+        function applyRouteMarkerTheme(markerPill, routeState) {
+            if (!markerPill) {
+                return;
+            }
+            markerPill.dataset.routeState = routeState || 'none';
+            if (routeState === 'start') {
+                applyMarkerTheme(markerPill, {
+                    background: '#ff6b6b',
+                    border: '#ff0000',
+                    borderWidth: '3px',
+                    text: '#ffffff',
+                    shadow: 'rgba(0,0,0,0.25)',
+                });
+                return;
+            }
+            if (routeState === 'end') {
+                applyMarkerTheme(markerPill, {
+                    background: '#4caf50',
+                    border: '#2e7d32',
+                    borderWidth: '3px',
+                    text: '#ffffff',
+                    shadow: 'rgba(0,0,0,0.25)',
+                });
+                return;
+            }
+            restoreMarkerTheme(markerPill);
+        }
+
+        function rectanglesOverlap(firstRect, secondRect, padding) {
+            var extra = padding || 0;
+            return !(
+                firstRect.right - extra <= secondRect.left + extra ||
+                firstRect.left + extra >= secondRect.right - extra ||
+                firstRect.bottom - extra <= secondRect.top + extra ||
+                firstRect.top + extra >= secondRect.bottom - extra
+            );
+        }
+
+        function refreshVisualOverlapMarkers() {
+            var markerPills = getRenderedMarkerPills();
+            if (!markerPills.length) {
+                return;
+            }
+
+            markerPills.forEach(function(markerPill) {
+                markerPill.dataset.visualOverlap = 'false';
+                restoreMarkerTheme(markerPill);
+            });
+
+            var visibleMarkers = markerPills
+                .map(function(markerPill) {
+                    return {
+                        pill: markerPill,
+                        rect: markerPill.getBoundingClientRect(),
+                    };
+                })
+                .filter(function(item) {
+                    return item.rect.width > 0 && item.rect.height > 0;
+                });
+
+            var overlappingMarkers = new Set();
+            for (var i = 0; i < visibleMarkers.length; i++) {
+                for (var j = i + 1; j < visibleMarkers.length; j++) {
+                    if (rectanglesOverlap(visibleMarkers[i].rect, visibleMarkers[j].rect, 6)) {
+                        overlappingMarkers.add(visibleMarkers[i].pill);
+                        overlappingMarkers.add(visibleMarkers[j].pill);
+                    }
+                }
+            }
+
+            overlappingMarkers.forEach(function(markerPill) {
+                markerPill.dataset.visualOverlap = 'true';
+                restoreMarkerTheme(markerPill);
+            });
+        }
+
+        function scheduleVisualOverlapRefresh() {
+            if (window.visualOverlapFrame) {
+                window.cancelAnimationFrame(window.visualOverlapFrame);
+            }
+            window.visualOverlapFrame = window.requestAnimationFrame(function() {
+                refreshVisualOverlapMarkers();
+                window.visualOverlapFrame = null;
+            });
+        }
+
+        function ensureRouteStatusPanel() {
+            if (window.routeStatus) {
+                return;
+            }
+            var statusDiv = document.createElement('div');
+            statusDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); font-family: \"Malgun Gothic\", sans-serif; min-width: 250px; max-width: 400px; z-index: 1000;';
+            statusDiv.innerHTML = '<h4 style=\"margin: 0 0 10px 0; color: #333;\">🚗 경로 계산</h4><p style=\"margin: 0; color: #666;\">주문 마커를 2개 선택하면 차량 이동 시간을 계산합니다.</p>';
+            document.body.appendChild(statusDiv);
+            window.routeStatus = statusDiv;
+        }
         
         // 마커 클릭 핸들러
         function handleMarkerClick(lat, lng, orderId, customerName, markerIndex) {
             if (!window.selectedMarkers) {
                 window.selectedMarkers = [];
             }
+            ensureRouteStatusPanel();
             
             // 상태 표시 영역 생성 (아직 없다면)
             if (!window.routeStatus) {
@@ -500,6 +676,7 @@ class FOMSMapGenerator:
             if (window.selectedMarkers.length === 0) {
                 // 첫 번째 마커 선택
                 window.selectedMarkers.push({lat: lat, lng: lng, orderId: orderId, name: customerName, index: markerIndex});
+                applyRouteMarkerTheme(getMarkerPillByIndex(markerIndex), 'start');
                 
                 // 마커 색상 변경 (빨간색 - 출발지)
                 var markers = document.querySelectorAll('.leaflet-marker-icon');
@@ -525,6 +702,7 @@ class FOMSMapGenerator:
                 // 두 번째 마커 선택
                 var end = {lat: lat, lng: lng, orderId: orderId, name: customerName, index: markerIndex};
                 window.selectedMarkers.push(end);
+                applyRouteMarkerTheme(getMarkerPillByIndex(markerIndex), 'end');
                 
                 // 마커 색상 변경 (초록색 - 도착지)
                 var markers = document.querySelectorAll('.leaflet-marker-icon');
@@ -590,6 +768,7 @@ class FOMSMapGenerator:
                             </div>
                         `;
                         window.routeStatus.innerHTML = resultHtml;
+                        scheduleVisualOverlapRefresh();
                         
                     } else {
                         window.routeStatus.innerHTML = `<div style="background: #f8d7da; padding: 10px; border-radius: 5px; color: #721c24;"><strong>오류:</strong> ${data.error}</div>`;
@@ -619,6 +798,12 @@ class FOMSMapGenerator:
                 });
             }
             
+            if (window.selectedMarkers && window.selectedMarkers.length > 0) {
+                window.selectedMarkers.forEach(function(selected) {
+                    applyRouteMarkerTheme(getMarkerPillByIndex(selected.index), 'none');
+                });
+            }
+
             window.selectedMarkers = [];
             
             // 경로 라인 제거
@@ -630,6 +815,7 @@ class FOMSMapGenerator:
             if (window.routeStatus) {
                 window.routeStatus.innerHTML = '<h4 style="margin: 0 0 10px 0; color: #333;">🚗 경로 계산</h4><p style="margin: 0; color: #666;">주문 마커를 2개 선택하면 차량 이동 시간을 계산합니다.</p>';
             }
+            scheduleVisualOverlapRefresh();
         }
         </script>
         """

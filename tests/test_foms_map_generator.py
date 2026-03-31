@@ -66,3 +66,36 @@ def test_unique_marker_keeps_status_color():
 
     assert "background: #007bff" in html
     assert "x2" not in html
+
+
+def test_map_html_includes_visual_overlap_detection_hooks():
+    html = _render_map_html(
+        [
+            {
+                "id": 21,
+                "customer_name": "Near A",
+                "address": "Seoul Nearby Address 1",
+                "product": "Desk",
+                "status": "MEASURE",
+                "received_date": "2026-03-31",
+                "latitude": 37.5001,
+                "longitude": 127.0001,
+            },
+            {
+                "id": 22,
+                "customer_name": "Near B",
+                "address": "Seoul Nearby Address 2",
+                "product": "Chair",
+                "status": "MEASURE",
+                "received_date": "2026-03-31",
+                "latitude": 37.5006,
+                "longitude": 127.0006,
+            },
+        ]
+    )
+
+    assert "scheduleVisualOverlapRefresh" in html
+    assert "refreshVisualOverlapMarkers" in html
+    assert "getBoundingClientRect()" in html
+    assert "data-route-state" in html
+    assert "data-overlap-background" in html
