@@ -162,7 +162,7 @@ def _finalize_draft_state(
     structured_data: Optional[dict],
     now: datetime.datetime,
 ) -> bool:
-    """draft 메타 정리 및 session 정리. draft_cleared 여부 반환."""
+    """draft 메타 정리, 플레이스홀더 → 실제 데이터로 flat 컬럼 동기화, session 정리. draft_cleared 여부 반환."""
     draft_cleared = False
     if structured_data:
         try:
@@ -172,6 +172,27 @@ def _finalize_draft_state(
                 meta['finalized_at'] = now.isoformat()
                 structured_data['meta'] = meta
                 draft_cleared = True
+
+                # Draft finalize 시 structured_data 의 실제 고객 정보를 flat 컬럼에 동기화
+                parties = (structured_data.get('parties') or {})
+                customer = (parties.get('customer') or {})
+                cust_name = (customer.get('name') or '').strip()
+                cust_phone = (customer.get('phone') or '').strip()
+                site = (structured_data.get('site') or {})
+                addr = (site.get('address_full') or site.get('address_main') or '').strip()
+                items = structured_data.get('items') or []
+                first_product = ''
+                if items and isinstance(items, list) and len(items) > 0:
+                    first_product = (items[0].get('product_name') or '').strip()
+
+                if cust_name and cust_name != 'ERP Beta':
+                    order.customer_name = cust_name
+                if cust_phone and cust_phone != '000-0000-0000':
+                    order.phone = cust_phone
+                if addr and addr != '-':
+                    order.address = addr
+                if first_product and first_product != 'ERP Beta':
+                    order.product = first_product
         except Exception as e:
             logger.warning("draft meta clear failed: %s", e, exc_info=True)
     try:
@@ -242,6 +263,27 @@ def api_put_order_structured(order_id):
 
         if structured_data is not None and not isinstance(structured_data, dict):
             return jsonify({'success': False, 'message': 'structured_data는 JSON 객체여야 합니다.'}), 400
+
+        # Draft가 아닌 저장 시 필수값 검증: 고객명, 전화번호가 빈 값이면 거부
+        if structured_data is not None:
+            _meta = (structured_data.get('meta') or {})
+            _is_draft = _meta.get('draft') is True
+            if not _is_draft:
+                _parties = (structured_data.get('parties') or {})
+                _customer = (_parties.get('customer') or {})
+                _cname = (_customer.get('name') or '').strip()
+                _cphone = (_customer.get('phone') or '').strip()
+                _missing = []
+                if not _cname or _cname == 'ERP Beta':
+                    _missing.append('고객명')
+                if not _cphone or _cphone == '000-0000-0000':
+                    _missing.append('전화번호')
+                if _missing:
+                    logger.warning(f"[ERP_BETA] 필수값 누락 저장 차단 order_id={order_id}: {_missing}")
+                    return jsonify({
+                        'success': False,
+                        'message': f"필수 항목을 입력해주세요: {', '.join(_missing)}"
+                    }), 400
 
         _sd_raw: Any = order.structured_data
         old_sd = _sd_raw if isinstance(_sd_raw, dict) else {}

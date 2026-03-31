@@ -205,6 +205,18 @@
             throw new Error((data && data.message) ? data.message : `Draft 생성 실패 (HTTP ${res.status})`);
         }
         erpSetOrderId(data.order_id);
+
+        // Draft 생성 후 페이지 이탈 시 미저장 경고 등록
+        if (!window.__erpDraftUnloadBound) {
+            window.__erpDraftUnloadBound = true;
+            window.addEventListener('beforeunload', function (e) {
+                if (window.__ERP_BETA_DRAFT_MODE && ORDER_ID && ORDER_ID > 0) {
+                    e.preventDefault();
+                    e.returnValue = '작성 중인 주문이 저장되지 않았습니다. 페이지를 떠나시겠습니까?';
+                }
+            });
+        }
+
         return ORDER_ID;
     }
 
@@ -968,6 +980,10 @@
                 return { success: false, message: data.message || '저장 실패' };
             }
             erpSetStatus(doRedirect ? '저장 완료! 이동합니다...' : '저장 완료');
+            // 저장 성공 후 Draft 모드 해제 → beforeunload 경고 비활성
+            if (window.__ERP_BETA_DRAFT_MODE) {
+                window.__ERP_BETA_DRAFT_MODE = false;
+            }
             if (typeof window.erpInvalidateEstimateCache === 'function') {
                 window.erpInvalidateEstimateCache();
             }
