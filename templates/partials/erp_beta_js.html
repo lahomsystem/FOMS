@@ -840,6 +840,39 @@
         const doRedirect = opts.redirect !== false;
         if (!ERP_BETA_ENABLED) return { success: false, message: 'ERP Beta 비활성' };
 
+        // 필수 입력값 검증 (사용자 직접 저장 시에만 적용, 자동 저장 예외)
+        if (opts._skipValidation !== true) {
+            const missing = [];
+            const nameVal = (document.getElementById('erp-customer-name')?.value || '').trim();
+            const phoneVal = (document.getElementById('erp-customer-phone')?.value || '').trim();
+            const addrVal = (document.getElementById('erp-address')?.value || '').trim();
+
+            if (!nameVal) missing.push('고객명');
+            if (!phoneVal) missing.push('전화번호');
+            if (!addrVal) missing.push('주소');
+
+            // 제품 항목 중 품명이 1개 이상 있는지 확인
+            const itemRows = document.querySelectorAll('#erp-items .erp-item-row');
+            const hasProductName = Array.from(itemRows).some(row => {
+                const nameInput = row.querySelector('[data-erp="product_name"]');
+                return nameInput && nameInput.value.trim() !== '';
+            });
+            if (!hasProductName) missing.push('제품명 (최소 1개)');
+
+            if (missing.length > 0) {
+                alert(`다음 필수 항목을 입력해주세요:\n\n• ${missing.join('\n• ')}`);
+                // 첫 번째 누락 필드에 포커스
+                if (!nameVal) document.getElementById('erp-customer-name')?.focus();
+                else if (!phoneVal) document.getElementById('erp-customer-phone')?.focus();
+                else if (!addrVal) document.getElementById('erp-address')?.focus();
+                else {
+                    const firstItem = document.querySelector('#erp-items .erp-item-row [data-erp="product_name"]');
+                    firstItem?.focus();
+                }
+                return { success: false, message: '필수 항목 미입력' };
+            }
+        }
+
         if (_paymentTogglePending) {
             await new Promise(resolve => {
                 const deadline = Date.now() + 3000; // 최대 3초 대기

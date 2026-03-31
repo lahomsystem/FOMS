@@ -293,10 +293,10 @@
             _estimateCacheLoaded = false;
             const orderId = _getOrderId();
 
-            // 변경된 경우에만 자동 저장 (실시간 반영)
+            // 변경된 경우에만 자동 저장 (실시간 반영) — 자동 저장이므로 필수값 검증 생략
             if (_dirty && orderId && orderId > 0 && typeof window.erpSaveStructured === 'function') {
                 try {
-                    await window.erpSaveStructured({ redirect: false });
+                    await window.erpSaveStructured({ redirect: false, _skipValidation: true });
                 } catch (_e) {
                     // 저장 실패 시 기존 서버 데이터로 폴백
                 }
