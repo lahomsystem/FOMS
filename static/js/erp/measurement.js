@@ -195,7 +195,122 @@
             });
         }
 
+        // 담당자 목록 설정: 서버에서 로드 → 드롭다운에 사용
+        let _measurementManagerList = [];
+        fetch('/api/erp/shipment-settings')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data && data.success && data.settings && Array.isArray(data.settings.measurement_manager)) {
+                    _measurementManagerList = data.settings.measurement_manager;
+                }
+            })
+            .catch(function (err) { console.warn('실측 담당자 목록 로드 실패:', err); });
+
+        function showManagerDropdown(anchorEl, onSelect) {
+            const existing = document.getElementById('measurement-manager-dropdown');
+            if (existing) existing.remove();
+
+            if (!_measurementManagerList.length) return;
+
+            const rect = anchorEl.getBoundingClientRect();
+            const div = document.createElement('div');
+            div.id = 'measurement-manager-dropdown';
+            div.className = 'dropdown-menu show';
+            div.style.cssText = 'position:fixed;z-index:9999;max-height:240px;overflow-y:auto;min-width:120px;';
+            div.style.left = rect.left + 'px';
+            div.style.top = (rect.bottom + 2) + 'px';
+
+            const ac = new AbortController();
+            function cleanup() {
+                ac.abort();
+                if (div.parentNode) div.remove();
+            }
+
+            _measurementManagerList.forEach(function (name) {
+                const a = document.createElement('a');
+                a.className = 'dropdown-item';
+                a.href = '#';
+                a.textContent = name;
+                a.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    cleanup();
+                    onSelect(name);
+                });
+                div.appendChild(a);
+            });
+
+            document.body.appendChild(div);
+
+            setTimeout(function () {
+                document.addEventListener('click', function (e) {
+                    if (!div.contains(e.target) && e.target !== anchorEl) {
+                        cleanup();
+                    }
+                }, { capture: true, signal: ac.signal });
+            }, 0);
+        }
+
         // 4. Inline Edit (위임: 수동 행은 로컬만 저장)
+        async function commitCellValue(cell, tr, field, orderId, isErpBeta, isManual, currentValue, originalContent, newValue) {
+            if (newValue === (currentValue === '-' ? '' : currentValue)) {
+                cell.innerHTML = originalContent;
+                return;
+            }
+            if (isManual) {
+                cell.textContent = newValue || '-';
+                window.measurementManualRowsPersist();
+                if (field === 'manager') {
+                    tr.dataset.manager = newValue || '';
+                    scheduleApplyMeasurementManagerSortAndColors();
+                }
+                return;
+            }
+            cell.textContent = '저장 중...';
+            const controller = new AbortController();
+            const timeoutId = setTimeout(function () { controller.abort(); }, 45000);
+            try {
+                let res;
+                if (field === 'manager' && !isErpBeta) {
+                    res = await fetch('/api/update_order_field', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        signal: controller.signal,
+                        body: JSON.stringify({ order_id: parseInt(orderId, 10), field: 'manager_name', value: newValue })
+                    });
+                } else {
+                    res = await fetch('/api/erp/measurement/update/' + orderId, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        signal: controller.signal,
+                        body: JSON.stringify({ field: field, value: newValue })
+                    });
+                }
+                const ct = res.headers.get('Content-Type') || '';
+                const data = ct.includes('application/json') ? await res.json() : { success: false, error: res.status === 404 ? 'API 경로를 확인해 주세요.' : '저장 실패' };
+                if (data.success) {
+                    cell.textContent = newValue || '-';
+                    if (field === 'manager') {
+                        tr.dataset.manager = newValue || '';
+                        scheduleApplyMeasurementManagerSortAndColors();
+                    }
+                } else {
+                    cell.textContent = currentValue || '-';
+                    if (data.message || data.error) console.warn('저장 실패:', data.message || data.error);
+                }
+            } catch (err) {
+                cell.innerHTML = originalContent;
+                if (err && err.name === 'AbortError') {
+                    alert('저장 요청 시간이 초과되었습니다. 네트워크 또는 서버 상태를 확인해 주세요.');
+                } else {
+                    console.warn('저장 중 오류:', err);
+                }
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        }
+
         tbody.addEventListener('click', function (e) {
             const cell = e.target.closest('td.editable-cell');
             if (!cell || !tbody.contains(cell)) return;
@@ -219,74 +334,46 @@
 
             const originalContent = cell.innerHTML;
             cell.innerHTML = '';
-            cell.appendChild(input);
+            let _committed = false;
+
+            function doCommit(val) {
+                if (_committed) return;
+                _committed = true;
+                const dropdown = document.getElementById('measurement-manager-dropdown');
+                if (dropdown) dropdown.remove();
+                commitCellValue(cell, tr, field, orderId, isErpBeta, isManual, currentValue, originalContent, val);
+            }
+
+            if (field === 'manager') {
+                const wrap = document.createElement('div');
+                wrap.style.cssText = 'display:flex;gap:4px;align-items:center;';
+                wrap.appendChild(input);
+
+                const loadBtn = document.createElement('button');
+                loadBtn.type = 'button';
+                loadBtn.className = 'btn btn-sm btn-outline-secondary';
+                loadBtn.title = '저장된 담당자 불러오기';
+                loadBtn.innerHTML = '<i class="fas fa-list"></i>';
+                loadBtn.addEventListener('mousedown', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showManagerDropdown(loadBtn, function (name) {
+                        input.value = name;
+                        doCommit(name);
+                    });
+                });
+                wrap.appendChild(loadBtn);
+                cell.appendChild(wrap);
+            } else {
+                cell.appendChild(input);
+            }
             input.focus();
 
-            input.addEventListener('blur', async function () {
-                const newValue = input.value.trim();
-                if (newValue === (currentValue === '-' ? '' : currentValue)) {
-                    cell.innerHTML = originalContent;
-                    return;
-                }
-
-                if (isManual) {
-                    cell.textContent = newValue || '-';
-                    window.measurementManualRowsPersist();
-                    if (field === 'manager') {
-                        tr.dataset.manager = newValue || '';
-                        scheduleApplyMeasurementManagerSortAndColors();
-                    }
-                    return;
-                }
-
-                cell.textContent = '저장 중...';
-                const saveTimeoutMs = 45000;
-                const controller = new AbortController();
-                const timeoutId = setTimeout(function () {
-                    controller.abort();
-                }, saveTimeoutMs);
-                try {
-                    let res;
-                    if (field === 'manager' && !isErpBeta) {
-                        res = await fetch('/api/update_order_field', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            credentials: 'same-origin',
-                            signal: controller.signal,
-                            body: JSON.stringify({ order_id: parseInt(orderId, 10), field: 'manager_name', value: newValue })
-                        });
-                    } else {
-                        res = await fetch(`/api/erp/measurement/update/${orderId}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            credentials: 'same-origin',
-                            signal: controller.signal,
-                            body: JSON.stringify({ field, value: newValue })
-                        });
-                    }
-                    const contentType = res.headers.get('Content-Type') || '';
-                    const data = contentType.includes('application/json') ? await res.json() : { success: false, error: res.status === 404 ? 'API 경로를 확인해 주세요.' : '저장 실패' };
-                    if (data.success) {
-                        cell.textContent = newValue || '-';
-                        if (field === 'manager') {
-                            const tr2 = cell.closest('tr');
-                            if (tr2) tr2.dataset.manager = newValue || '';
-                            scheduleApplyMeasurementManagerSortAndColors();
-                        }
-                    } else {
-                        cell.textContent = currentValue || '-';
-                        if (data.message || data.error) console.warn('담당자 저장 실패:', data.message || data.error);
-                    }
-                } catch (err) {
-                    cell.innerHTML = originalContent;
-                    if (err && err.name === 'AbortError') {
-                        alert('저장 요청 시간이 초과되었습니다. 네트워크 또는 서버 상태를 확인해 주세요.');
-                    } else {
-                        console.warn('담당자 저장 중 오류:', err);
-                    }
-                } finally {
-                    clearTimeout(timeoutId);
-                }
+            input.addEventListener('blur', function () {
+                setTimeout(function () {
+                    if (_committed) return;
+                    doCommit(input.value.trim());
+                }, 150);
             });
         });
     });
