@@ -80,6 +80,7 @@ def init_db():
             Order, User, AccessLog, SecurityLog,
             ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment,
             OrderAttachment, OrderEvent, OrderTask,
+            SystemSetting
         )
         Base.metadata.create_all(bind=engine)
         print('Database tables initialization completed')

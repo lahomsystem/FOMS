@@ -1,10 +1,14 @@
 """
-ERP 출고 설정: JSON 파일 기반 로드/저장 및 시공자 목록 정규화.
+ERP 출고 설정: DB 기반 로드/저장 및 시공자 목록 정규화.
 erp.py에서 분리 (Phase 4-2). shipment 대시보드·설정 페이지·API에서 공통 사용.
 """
 import os
 import json
 
+from db import db_session
+from models import SystemSetting
+
+ERP_SHIPMENT_SETTINGS_KEY = 'erp_shipment_settings'
 ERP_SHIPMENT_SETTINGS_PATH = os.path.join('data', 'erp_shipment_settings.json')
 DEFAULT_ERP_WORKER_CAPACITY = 10
 
@@ -119,11 +123,40 @@ def is_order_mine_for_user(order, user):
 
 
 def load_erp_shipment_settings():
-    """ERP 출고 설정(시공시간/도면담당자/시공자/현장주소) JSON 파일에서 로드."""
+    """ERP 출고 설정(시공시간/도면담당자/시공자/현장주소) DB에서 로드. (이전 JSON 파일 대체)"""
+    default_settings = {
+        'construction_time': [], 
+        'drawing_manager': [], 
+        'measurement_manager': [], 
+        'construction_workers': [], 
+        'site_extra': []
+    }
     try:
+        setting = db_session.query(SystemSetting).filter_by(setting_key=ERP_SHIPMENT_SETTINGS_KEY).first()
+        if setting and setting.setting_value:
+            data = setting.setting_value
+            return {
+                'construction_time': data.get('construction_time', []),
+                'drawing_manager': data.get('drawing_manager', []),
+                'measurement_manager': normalize_measurement_managers(data.get('measurement_manager', [])),
+                'construction_workers': normalize_erp_shipment_workers(data.get('construction_workers', [])),
+                'site_extra': data.get('site_extra', []),
+            }
+        
+        # Migration from JSON if DB is empty
         if os.path.exists(ERP_SHIPMENT_SETTINGS_PATH):
             with open(ERP_SHIPMENT_SETTINGS_PATH, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+                
+                # Migrate to DB immediately
+                new_setting = SystemSetting(
+                    setting_key=ERP_SHIPMENT_SETTINGS_KEY, 
+                    setting_value=data,
+                    description="ERP 출고/실측 등 제반 설정값"
+                )
+                db_session.add(new_setting)
+                db_session.commit()
+                
                 return {
                     'construction_time': data.get('construction_time', []),
                     'drawing_manager': data.get('drawing_manager', []),
@@ -131,19 +164,36 @@ def load_erp_shipment_settings():
                     'construction_workers': normalize_erp_shipment_workers(data.get('construction_workers', [])),
                     'site_extra': data.get('site_extra', []),
                 }
-        return {'construction_time': [], 'drawing_manager': [], 'measurement_manager': [], 'construction_workers': [], 'site_extra': []}
+                
+        return default_settings
     except Exception as e:
-        print(f"Error loading ERP shipment settings: {e}")
-        return {'construction_time': [], 'drawing_manager': [], 'measurement_manager': [], 'construction_workers': [], 'site_extra': []}
+        db_session.rollback()
+        print(f"Error loading ERP shipment settings from DB: {e}")
+        return default_settings
 
 
 def save_erp_shipment_settings(settings):
-    """ERP 출고 설정 저장."""
+    """ERP 출고 설정 DB에 저장."""
     try:
-        os.makedirs(os.path.dirname(ERP_SHIPMENT_SETTINGS_PATH), exist_ok=True)
-        with open(ERP_SHIPMENT_SETTINGS_PATH, 'w', encoding='utf-8') as f:
-            json.dump(settings, f, ensure_ascii=False, indent=2)
+        setting = db_session.query(SystemSetting).filter_by(setting_key=ERP_SHIPMENT_SETTINGS_KEY).first()
+        if not setting:
+            setting = SystemSetting(
+                setting_key=ERP_SHIPMENT_SETTINGS_KEY,
+                description="ERP 출고/실측 등 제반 설정값"
+            )
+            db_session.add(setting)
+        
+        # update setting value (copy to be safe with JSON mutations)
+        import copy
+        setting.setting_value = copy.deepcopy(settings)
+        
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(setting, "setting_value")
+        
+        db_session.commit()
         return True
     except Exception as e:
-        print(f"Error saving ERP shipment settings: {e}")
+        db_session.rollback()
+        print(f"Error saving ERP shipment settings to DB: {e}")
         return False
+
