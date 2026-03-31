@@ -104,13 +104,14 @@ def load_erp_shipment_settings():
                 return {
                     'construction_time': data.get('construction_time', []),
                     'drawing_manager': data.get('drawing_manager', []),
+                    'measurement_manager': data.get('measurement_manager', []),
                     'construction_workers': normalize_erp_shipment_workers(data.get('construction_workers', [])),
                     'site_extra': data.get('site_extra', []),
                 }
-        return {'construction_time': [], 'drawing_manager': [], 'construction_workers': [], 'site_extra': []}
+        return {'construction_time': [], 'drawing_manager': [], 'measurement_manager': [], 'construction_workers': [], 'site_extra': []}
     except Exception as e:
         print(f"Error loading ERP shipment settings: {e}")
-        return {'construction_time': [], 'drawing_manager': [], 'construction_workers': [], 'site_extra': []}
+        return {'construction_time': [], 'drawing_manager': [], 'measurement_manager': [], 'construction_workers': [], 'site_extra': []}
 
 
 def save_erp_shipment_settings(settings):
