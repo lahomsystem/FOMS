@@ -4,11 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-25 13:31:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git merge production; git push origin deploy; git checkout production; gi` |
-| 2026-03-25 14:05:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
-| 2026-03-25 14:05:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "templates/erp_measurement_dashboard.html" "docs/plans/2026-03-25-measurement-save-pro` |
-| 2026-03-25 14:05:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git merge production; git push origin deploy; git checkout production; gi` |
-| 2026-03-25 14:19:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff HEAD~1..HEAD static/js/measurement-image-export.js static/js/erp-table-image-export-h` |
 | 2026-03-25 14:19:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -3 --oneline` |
 | 2026-03-25 14:19:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show 72bd2c75 --stat` |
 | 2026-03-25 14:22:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; grep -rn "erp-table-image-export-helpers.js" templates/` |
@@ -304,3 +299,8 @@
 | 2026-04-01 08:49:21 | allow | `-` | `head -n 10 *.txt 2>$null` |
 | 2026-04-01 08:49:29 | allow | `-` | `Get-ChildItem *.txt | ForEach-Object { Write-Host "=== $($_.Name) ==="; Get-Content $_.FullName -TotalCount 10 }` |
 | 2026-04-01 08:51:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status` |
+| 2026-04-01 08:51:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $commitMsg = "고객명 입력란 placeholder에 ★ 추가"; [System.IO.File]::WriteAllText("commit_msg.txt", $co` |
+| 2026-04-01 08:51:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-04-01 08:51:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy; git push origin production; git checkout deploy` |
+| 2026-04-01 08:51:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git stash; git checkout production; git merge deploy; git push origin production; git checkout` |
+| 2026-04-01 08:52:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/js/erp/measurement.js; git status` |

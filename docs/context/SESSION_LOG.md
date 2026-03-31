@@ -8,7 +8,7 @@
 - **시작**: 2026-04-01 08:48:39
 - **상태**: completed
 - **편집 파일**: `templates/partials/erp_beta_tab.html`, `static/js/erp/measurement.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ae0f6285-c9e4-49cf-94fa-56b0ed6aca1e.png`, `commit_msg.txt`, `migrations/versions/2502107448c0_add_systemsetting_table.py`, `services/erp_shipment_settings.py`, `db.py`, `models.py`, `_test_clean.py`, `templates/map_view.html`
-- **종료**: 2026-04-01 08:49:24
+- **종료**: 2026-04-01 08:51:50
 
 ### Session: e56041a5
 - **시작**: 2026-04-01 08:46:22
@@ -1184,3 +1184,5 @@
 | 2026-04-01 08:49:24 | END (Claude Code) | 수정: (없음) |
 
 | 2026-04-01 08:49:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-01 08:51:50 | END (Claude Code) | 수정: (없음) |
