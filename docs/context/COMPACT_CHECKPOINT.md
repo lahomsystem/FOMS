@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-03-31 13:42:07
-> 세션: f164e856
+> 생성 시각: 2026-03-31 22:21:47
+> 세션: db05f075
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `templates/erp_measurement_dashboard.html` <- 1 edit(s), ~40 chars (2026-03-31 13:41:46)
-- `static/js/erp/measurement.js` <- 55 edit(s), ~9895 chars (2026-03-31 13:41:30)
-- `templates/erp_measurement_dashboard.html` <- 1 edit(s), ~40 chars (2026-03-31 13:33:05)
-- `static/js/erp/measurement.js` <- 4 edit(s), ~360 chars (2026-03-31 13:32:42)
-- `static/js/erp/measurement.js` <- 5 edit(s), ~423 chars (2026-03-31 13:32:32)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ba4632de-774c-4a05-bcec-763dedc4d61e.png` <- 1 edit(s), ~0 chars (2026-03-31 13:25:51)
-- `templates/erp_measurement_dashboard.html` <- 1 edit(s), ~40 chars (2026-03-31 13:08:42)
-- `static/js/erp/measurement.js` <- 1 edit(s), ~0 chars (2026-03-31 13:08:18)
-- `static/js/erp/measurement.js` <- 1 edit(s), ~38 chars (2026-03-31 13:08:08)
-- `static/js/erp/measurement.js` <- 2 edit(s), ~84 chars (2026-03-31 13:07:55)
+- `migrations/versions/2502107448c0_add_systemsetting_table.py` <- 2 edit(s), ~0 chars (2026-03-31 22:19:15)
+- `services/erp_shipment_settings.py` <- 11 edit(s), ~2403 chars (2026-03-31 22:18:44)
+- `db.py` <- 1 edit(s), ~25 chars (2026-03-31 22:18:20)
+- `models.py` <- 1 edit(s), ~376 chars (2026-03-31 22:18:12)
+- `commit_msg.txt` <- 1 edit(s), ~330 chars (2026-03-31 19:41:45)
+- `_test_clean.py` <- 1 edit(s), ~522 chars (2026-03-31 17:07:42)
+- `templates/map_view.html` <- 1 edit(s), ~0 chars (2026-03-31 17:07:23)
+- `templates/map_view.html` <- 2 edit(s), ~0 chars (2026-03-31 17:07:17)
+- `templates/map_view.html` <- 1 edit(s), ~60 chars (2026-03-31 17:07:08)
+- `templates/map_view.html` <- 1 edit(s), ~61 chars (2026-03-31 17:07:03)
 
 ### 진행 중이던 작업
 - [2026-03-26] 채널톡 연동 파일럿(Wave 0 ~ 5) 운영 모니터링 (실제 데이터 축적 대기 중)

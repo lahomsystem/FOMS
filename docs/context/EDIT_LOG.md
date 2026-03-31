@@ -5,6 +5,17 @@
 
 ## 최근 파일 편집
 
+- `templates/partials/erp_beta_tab.html` <- 1 edit(s), ~77 chars (2026-04-01 08:49:20)
+- `static/js/erp/measurement.js` <- 2 edit(s), ~263 chars (2026-04-01 08:48:15)
+- `static/js/erp/measurement.js` <- 2 edit(s), ~267 chars (2026-04-01 08:48:08)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ae0f6285-c9e4-49cf-94fa-56b0ed6aca1e.png` <- 1 edit(s), ~0 chars (2026-04-01 08:47:38)
+- `commit_msg.txt` <- 1 edit(s), ~427 chars (2026-03-31 22:25:14)
+- `static/js/erp/measurement.js` <- 1 edit(s), ~92 chars (2026-03-31 22:23:42)
+- `static/js/erp/measurement.js` <- 1 edit(s), ~267 chars (2026-03-31 22:23:35)
+- `migrations/versions/2502107448c0_add_systemsetting_table.py` <- 2 edit(s), ~0 chars (2026-03-31 22:19:15)
+- `services/erp_shipment_settings.py` <- 11 edit(s), ~2403 chars (2026-03-31 22:18:44)
+- `db.py` <- 1 edit(s), ~25 chars (2026-03-31 22:18:20)
+- `models.py` <- 1 edit(s), ~376 chars (2026-03-31 22:18:12)
 - `commit_msg.txt` <- 1 edit(s), ~330 chars (2026-03-31 19:41:45)
 - `_test_clean.py` <- 1 edit(s), ~522 chars (2026-03-31 17:07:42)
 - `templates/map_view.html` <- 1 edit(s), ~0 chars (2026-03-31 17:07:23)
