@@ -346,12 +346,15 @@
 
             if (field === 'manager') {
                 const wrap = document.createElement('div');
-                wrap.style.cssText = 'display:flex;gap:4px;align-items:center;';
+                wrap.style.cssText = 'display:flex;gap:4px;align-items:center;width:100%;';
+                input.style.flex = '1';
+                input.style.minWidth = '0';
                 wrap.appendChild(input);
 
                 const loadBtn = document.createElement('button');
                 loadBtn.type = 'button';
                 loadBtn.className = 'btn btn-sm btn-outline-secondary';
+                loadBtn.style.cssText = 'flex-shrink:0;padding:2px 6px;';
                 loadBtn.title = '저장된 담당자 불러오기';
                 loadBtn.innerHTML = '<i class="fas fa-list"></i>';
                 loadBtn.addEventListener('mousedown', function (e) {
