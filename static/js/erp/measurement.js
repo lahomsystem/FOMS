@@ -243,11 +243,11 @@
 
             setTimeout(function () {
                 document.addEventListener('click', function (e) {
-                    if (!div.contains(e.target) && e.target !== anchorEl) {
+                    if (!div.contains(e.target) && !anchorEl.contains(e.target)) {
                         cleanup();
                     }
                 }, { capture: true, signal: ac.signal });
-            }, 0);
+            }, 100);
         }
 
         // 4. Inline Edit (위임: 수동 행은 로컬만 저장)
