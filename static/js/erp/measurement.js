@@ -206,7 +206,7 @@
             })
             .catch(function (err) { console.warn('실측 담당자 목록 로드 실패:', err); });
 
-        function showManagerDropdown(anchorEl, onSelect, onClose) {
+        function showManagerDropdown(anchorEl, editingContainer, onSelect, onDismiss) {
             const existing = document.getElementById('measurement-manager-dropdown');
             if (existing) existing.remove();
 
@@ -227,10 +227,9 @@
             }
 
             const ac = new AbortController();
-            function cleanup() {
+            function removeDropdown() {
                 ac.abort();
                 if (div.parentNode) div.remove();
-                if (onClose) onClose();
             }
 
             _measurementManagerList.forEach(function (name) {
@@ -242,7 +241,7 @@
                 a.addEventListener('click', function (e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    cleanup();
+                    removeDropdown();
                     onSelect(name);
                 });
                 div.appendChild(a);
@@ -252,8 +251,10 @@
 
             setTimeout(function () {
                 document.addEventListener('click', function (e) {
-                    if (!div.contains(e.target) && !anchorEl.contains(e.target)) {
-                        cleanup();
+                    if (div.contains(e.target) || anchorEl.contains(e.target)) return;
+                    removeDropdown();
+                    if (editingContainer && !editingContainer.contains(e.target)) {
+                        if (onDismiss) onDismiss();
                     }
                 }, { capture: true, signal: ac.signal });
             }, 150);
@@ -369,20 +370,22 @@
                 loadBtn.style.cssText = 'flex-shrink:0;padding:6px 10px;font-size:1rem;';
                 loadBtn.title = '저장된 담당자 불러오기';
                 loadBtn.innerHTML = '<i class="fas fa-list"></i>';
-                loadBtn.addEventListener('click', function (e) {
+                function openDropdown(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     if (_blurTimerId) { clearTimeout(_blurTimerId); _blurTimerId = null; }
                     _dropdownOpen = true;
-                    showManagerDropdown(loadBtn, function (name) {
+                    showManagerDropdown(loadBtn, wrap, function (name) {
                         _dropdownOpen = false;
                         input.value = name;
                         doCommit(name);
                     }, function () {
                         _dropdownOpen = false;
-                        input.focus();
+                        if (!_committed) doCommit(input.value.trim());
                     });
-                });
+                }
+                loadBtn.addEventListener('mousedown', openDropdown);
+                loadBtn.addEventListener('touchstart', openDropdown, { passive: false });
                 wrap.appendChild(loadBtn);
                 cell.appendChild(wrap);
             } else {
