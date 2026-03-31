@@ -194,7 +194,11 @@ def api_erp_measurement_update(order_id):
 
         payload = request.get_json(silent=True) or {}
         field = payload.get('field')
-        value = payload.get('value', '').strip()
+        raw_value = payload.get('value', '')
+        # 방어: 객체가 들어오면 name 필드만 추출
+        if isinstance(raw_value, dict):
+            raw_value = raw_value.get('name', '')
+        value = str(raw_value).strip()
 
         if not field:
             return jsonify({'success': False, 'message': '필드명이 필요합니다.'}), 400

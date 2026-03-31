@@ -16,6 +16,7 @@ from services.erp_shipment_settings import (
     load_erp_shipment_settings,
     save_erp_shipment_settings,
     normalize_erp_shipment_workers,
+    normalize_measurement_managers,
 )
 from services.channel_event_payloads import build_shipment_update_payload
 from services.jobs.queue import enqueue_channeltalk_push
@@ -59,6 +60,8 @@ def api_erp_shipment_settings_save():
             if key in payload and isinstance(payload[key], list):
                 if key == 'construction_workers':
                     current[key] = normalize_erp_shipment_workers(payload[key])
+                elif key == 'measurement_manager':
+                    current[key] = normalize_measurement_managers(payload[key])
                 elif key == 'site_extra':
                     cleaned = []
                     for x in payload[key]:
