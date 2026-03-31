@@ -206,7 +206,7 @@
             })
             .catch(function (err) { console.warn('실측 담당자 목록 로드 실패:', err); });
 
-        function showManagerDropdown(anchorEl, onSelect) {
+        function showManagerDropdown(anchorEl, onSelect, onClose) {
             const existing = document.getElementById('measurement-manager-dropdown');
             if (existing) existing.remove();
 
@@ -230,6 +230,7 @@
             function cleanup() {
                 ac.abort();
                 if (div.parentNode) div.remove();
+                if (onClose) onClose();
             }
 
             _measurementManagerList.forEach(function (name) {
@@ -238,29 +239,24 @@
                 a.href = '#';
                 a.style.cssText = 'padding:8px 16px;font-size:0.95rem;';
                 a.textContent = name;
-                function handleItemSelect(e) {
+                a.addEventListener('click', function (e) {
                     e.preventDefault();
                     e.stopPropagation();
                     cleanup();
                     onSelect(name);
-                }
-                a.addEventListener('click', handleItemSelect);
-                a.addEventListener('touchend', handleItemSelect, { passive: false });
+                });
                 div.appendChild(a);
             });
 
             document.body.appendChild(div);
 
             setTimeout(function () {
-                function handleOutsideClose(e) {
+                document.addEventListener('click', function (e) {
                     if (!div.contains(e.target) && !anchorEl.contains(e.target)) {
                         cleanup();
                     }
-                }
-                document.addEventListener('click', handleOutsideClose, { capture: true, signal: ac.signal });
-                document.addEventListener('touchstart', handleOutsideClose, { capture: true, signal: ac.signal });
                 }, { capture: true, signal: ac.signal });
-            }, 100);
+            }, 150);
         }
 
         // 4. Inline Edit (위임: 수동 행은 로컬만 저장)
@@ -349,6 +345,7 @@
             cell.innerHTML = '';
             let _committed = false;
             let _blurTimerId = null;
+            let _dropdownOpen = false;
 
             function doCommit(val) {
                 if (_committed) return;
@@ -372,17 +369,20 @@
                 loadBtn.style.cssText = 'flex-shrink:0;padding:6px 10px;font-size:1rem;';
                 loadBtn.title = '저장된 담당자 불러오기';
                 loadBtn.innerHTML = '<i class="fas fa-list"></i>';
-                function handleLoadBtn(e) {
+                loadBtn.addEventListener('click', function (e) {
                     e.preventDefault();
                     e.stopPropagation();
                     if (_blurTimerId) { clearTimeout(_blurTimerId); _blurTimerId = null; }
+                    _dropdownOpen = true;
                     showManagerDropdown(loadBtn, function (name) {
+                        _dropdownOpen = false;
                         input.value = name;
                         doCommit(name);
+                    }, function () {
+                        _dropdownOpen = false;
+                        input.focus();
                     });
-                }
-                loadBtn.addEventListener('mousedown', handleLoadBtn);
-                loadBtn.addEventListener('touchstart', handleLoadBtn, { passive: false });
+                });
                 wrap.appendChild(loadBtn);
                 cell.appendChild(wrap);
             } else {
@@ -393,9 +393,9 @@
             input.addEventListener('blur', function () {
                 _blurTimerId = setTimeout(function () {
                     _blurTimerId = null;
-                    if (_committed) return;
+                    if (_committed || _dropdownOpen) return;
                     doCommit(input.value.trim());
-                }, 150);
+                }, 200);
             });
         });
     });
