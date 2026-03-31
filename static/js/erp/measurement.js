@@ -218,7 +218,13 @@
             div.className = 'dropdown-menu show';
             div.style.cssText = 'position:fixed;z-index:9999;max-height:240px;overflow-y:auto;min-width:120px;';
             div.style.left = rect.left + 'px';
-            div.style.top = (rect.bottom + 2) + 'px';
+
+            const spaceBelow = window.innerHeight - rect.bottom;
+            if (spaceBelow < 250) {
+                div.style.bottom = (window.innerHeight - rect.top + 2) + 'px';
+            } else {
+                div.style.top = (rect.bottom + 2) + 'px';
+            }
 
             const ac = new AbortController();
             function cleanup() {
