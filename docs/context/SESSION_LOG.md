@@ -4,13 +4,19 @@
 
 ## 최근 세션
 
-### Session: ccb7e11f
-- **시작**: 2026-03-30 11:41:09
+### Session: db05f075
+- **시작**: 2026-03-31 16:00:35
 - **상태**: completed
-- **편집 파일**: `templates/partials/erp_beta_js.html`, `services/channel_delivery.py`, `apps/api/orders.py`, `static/js/erp/estimate-preview.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fb4e8f31-5a42-4f75-a23e-023ce1c4d097.png`, `services/estimate_service.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-44fc03c9-0024-425a-8206-61e7dab2a928.png`
-- **종료**: 2026-03-30 22:23:23
+- **편집 파일**: `_test_clean.py`, `templates/map_view.html`, `apps/api/orders.py`, `apps/api/erp_measurement.py`, `services/erp_display.py`, `templates/erp_measurement_dashboard.html`, `commit_msg.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fae807a6-a238-4ef7-9799-ec5b602bb6b1.png`, `templates/erp_drawing_workbench_detail.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c2e06c89-33d3-4206-a829-0274ce61251f.png`
+- **종료**: 2026-03-31 17:08:07
 
-### Session: e08a034e
+### Session: 81fe745f
+- **시작**: 2026-03-31 10:38:54
+- **상태**: completed
+- **편집 파일**: `commit_msg.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fae807a6-a238-4ef7-9799-ec5b602bb6b1.png`, `templates/erp_drawing_workbench_detail.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c2e06c89-33d3-4206-a829-0274ce61251f.png`
+- **종료**: 2026-03-31 16:54:29
+
+ e08a034e
 - **시작**: 2026-03-27 14:56:45
 - **상태**: completed
 - **편집 파일**: `commit_msg.txt`, `templates/partials/erp_estimate_pane.html`, `apps/api/erp_estimates.py`, `static/js/erp/estimate-preview.js`, `templates/partials/erp_dashboard_styles.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-355da500-0324-43ae-bb6d-c17017760819.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-0eb872e5-14ed-4688-8a5d-0778a5235915.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-8cb4afdd-086c-409b-968c-02f6629509ff.png`, `templates/partials/erp_beta_js.html`, `templates/partials/erp_beta_tab.html`
@@ -1096,3 +1102,67 @@
 | 2026-03-30 22:22:35 | END (Claude Code) | 수정: (없음) |
 
 | 2026-03-30 22:23:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 07:54:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 08:40:40 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 08:53:38 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 08:58:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 09:00:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 10:23:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 10:23:57 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 10:37:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 10:47:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 11:00:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 11:18:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 11:19:06 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 11:21:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 11:34:09 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 11:55:04 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 13:03:06 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 13:33:43 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 13:37:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 13:44:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 14:16:50 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 14:19:24 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 14:19:34 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 14:21:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 14:29:25 | END (Claude Code) | 수정: templates/map_view.html, apps/erp_measurement_dashboard.py, static/js/erp/measurement.js, templates/erp_shipment_settings.html, services/erp_shipment_settings.py |
+
+| 2026-03-31 14:35:31 | END (Claude Code) | 수정: templates/erp_shipment_settings.html, static/css/erp-pro.css, templates/map_view.html, apps/erp_measurement_dashboard.py, static/js/erp/measurement.js, services/erp_shipment_settings.py |
+
+| 2026-03-31 15:12:35 | END (Claude Code) | 수정: templates/erp_shipment_settings.html, static/css/erp-pro.css, templates/map_view.html, apps/erp_measurement_dashboard.py, static/js/erp/measurement.js, services/erp_shipment_settings.py |
+
+| 2026-03-31 15:23:59 | END (Claude Code) | 수정: static/js/erp/measurement.js, templates/map_view.html, templates/erp_shipment_settings.html, static/css/erp-pro.css, apps/erp_measurement_dashboard.py, services/erp_shipment_settings.py |
+
+| 2026-03-31 15:39:27 | END (Claude Code) | 수정: apps/api/erp_measurement.py, apps/api/erp_shipment_settings.py, static/js/erp/measurement.js, templates/map_view.html, templates/erp_shipment_settings.html, static/css/erp-pro.css, apps/erp_measurement_dashboard.py, services/erp_shipment_settings.py |
+
+| 2026-03-31 16:01:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 16:54:29 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 17:04:29 | END (Claude Code) | 수정: (없음) |
+
+| 2026-03-31 17:08:07 | END (Claude Code) | 수정: (없음) |

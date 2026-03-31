@@ -1304,12 +1304,11 @@
 
             container.innerHTML = html;
 
-            // 담당자 지정 버튼 이벤트 위임
             container.querySelectorAll('.btn-map-assign-manager').forEach(function (btn) {
                 btn.addEventListener('click', function (e) {
                     e.stopPropagation();
                     var oid = parseInt(btn.dataset.orderId, 10);
-                    openMapManagerDropdown(btn, oid);
+                    openMapManagerEdit(btn, oid);
                 });
             });
         }
@@ -1527,23 +1526,104 @@
                 .replace(/\r/g, '\\r');
         }
 
-        // ── 지도 담당자 지정 드롭다운 ──
-        function openMapManagerDropdown(btnEl, orderId) {
+        // ── 지도 담당자 지정 (직접 입력 + 드롭다운 콤보) ──
+        function openMapManagerEdit(btnEl, orderId) {
+            closeMapManagerEdit();
+
+            var infoRow = btnEl.closest('.order-info-row');
+            if (!infoRow) return;
+            var nameSpan = infoRow.querySelector('.map-manager-name');
+            if (!nameSpan) return;
+            var currentName = nameSpan.textContent.trim();
+            if (currentName === '-') currentName = '';
+
+            var wrap = document.createElement('div');
+            wrap.id = 'map-manager-edit-wrap';
+            wrap.style.cssText = 'display:flex;gap:4px;align-items:center;flex:1;';
+
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentName;
+            input.className = 'form-control form-control-sm';
+            input.style.cssText = 'flex:1;min-width:0;font-size:0.85rem;';
+            input.placeholder = '담당자 입력';
+            wrap.appendChild(input);
+
+            if (_mapManagerList.length) {
+                var listBtn = document.createElement('button');
+                listBtn.type = 'button';
+                listBtn.className = 'btn btn-sm btn-outline-secondary';
+                listBtn.style.cssText = 'flex-shrink:0;padding:4px 8px;font-size:0.85rem;';
+                listBtn.title = '저장된 담당자 목록';
+                listBtn.innerHTML = '<i class="fas fa-list"></i>';
+                listBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showMapManagerDropdown(listBtn, orderId);
+                });
+                wrap.appendChild(listBtn);
+            }
+
+            var saveBtn = document.createElement('button');
+            saveBtn.type = 'button';
+            saveBtn.className = 'btn btn-sm btn-primary';
+            saveBtn.style.cssText = 'flex-shrink:0;padding:4px 8px;font-size:0.85rem;';
+            saveBtn.title = '저장';
+            saveBtn.innerHTML = '<i class="fas fa-check"></i>';
+            saveBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var val = input.value.trim();
+                closeMapManagerEdit();
+                if (val) saveMapManager(orderId, val);
+            });
+            wrap.appendChild(saveBtn);
+
+            nameSpan.style.display = 'none';
+            btnEl.style.display = 'none';
+            nameSpan.parentNode.insertBefore(wrap, nameSpan.nextSibling);
+            input.focus();
+
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    var val = input.value.trim();
+                    closeMapManagerEdit();
+                    if (val) saveMapManager(orderId, val);
+                } else if (e.key === 'Escape') {
+                    closeMapManagerEdit();
+                }
+            });
+        }
+
+        function closeMapManagerEdit() {
+            var wrap = document.getElementById('map-manager-edit-wrap');
+            if (wrap) {
+                var infoRow = wrap.closest('.order-info-row');
+                if (infoRow) {
+                    var nameSpan = infoRow.querySelector('.map-manager-name');
+                    var editBtn = infoRow.querySelector('.btn-map-assign-manager');
+                    if (nameSpan) nameSpan.style.display = '';
+                    if (editBtn) editBtn.style.display = '';
+                }
+                wrap.remove();
+            }
+            var dd = document.getElementById('map-manager-dropdown');
+            if (dd) dd.remove();
+        }
+
+        function showMapManagerDropdown(anchorEl, orderId) {
             var existing = document.getElementById('map-manager-dropdown');
             if (existing) existing.remove();
 
-            if (!_mapManagerList.length) {
-                if (_mapManagerLoaded) alert('저장된 담당자 목록이 없습니다. 출고 설정에서 추가해 주세요.');
-                return;
-            }
+            if (!_mapManagerList.length) return;
 
             var div = document.createElement('div');
             div.id = 'map-manager-dropdown';
             div.className = 'dropdown-menu show';
             div.style.cssText = 'position:fixed;z-index:99999;max-height:240px;overflow-y:auto;min-width:120px;';
 
-            var rect = btnEl.getBoundingClientRect();
-            // 오른쪽 정렬: 드롭다운 우측을 버튼 우측에 맞춤 (패널 밖으로 넘치지 않도록)
+            var rect = anchorEl.getBoundingClientRect();
             div.style.right = (window.innerWidth - rect.right) + 'px';
             if (window.innerHeight - rect.bottom < 250) {
                 div.style.bottom = (window.innerHeight - rect.top + 2) + 'px';
@@ -1568,6 +1648,7 @@
                     e.preventDefault();
                     e.stopPropagation();
                     removeDropdown();
+                    closeMapManagerEdit();
                     saveMapManager(orderId, name);
                 });
                 div.appendChild(a);
@@ -1576,23 +1657,29 @@
             document.body.appendChild(div);
             setTimeout(function () {
                 document.addEventListener('click', function (e) {
-                    if (div.contains(e.target) || btnEl.contains(e.target)) return;
+                    if (div.contains(e.target) || anchorEl.contains(e.target)) return;
                     removeDropdown();
                 }, { capture: true, signal: ac.signal });
             }, 150);
         }
 
         function saveMapManager(orderId, managerName) {
+            var cleanName = managerName;
+            if (typeof managerName === 'object' && managerName !== null) {
+                cleanName = managerName.name || String(managerName);
+            }
+            cleanName = String(cleanName).trim();
+
             fetch('/api/erp/measurement/update/' + orderId, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ field: 'manager', value: managerName })
+                body: JSON.stringify({ field: 'manager', value: cleanName })
             })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (data.success) {
                     var span = document.querySelector('.map-manager-name[data-order-id="' + orderId + '"]');
-                    if (span) span.textContent = managerName;
+                    if (span) span.textContent = cleanName;
                 } else {
                     alert('담당자 저장 실패: ' + (data.message || ''));
                 }
