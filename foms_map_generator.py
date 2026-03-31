@@ -6,6 +6,7 @@ from map_config import DEFAULT_CENTER
 
 # 지도 마커 이름 최대 표시 글자 수 (모바일 시인성 고려)
 MAP_MARKER_NAME_MAX_LEN = 8
+OVERLAP_MARKER_COLOR = "#f8c8d8"
 
 
 class FOMSMapGenerator:
@@ -85,6 +86,82 @@ class FOMSMapGenerator:
             'ON_HOLD': '#fd7e14'        # 주황색 - 보류
         }
         return status_colors.get(status, '#6c757d')
+
+    def _duplicate_group_key(self, order):
+        """중복 위치를 묶기 위한 안정적인 키를 만든다."""
+        if not isinstance(order, dict):
+            return None
+
+        explicit_key = order.get('duplicate_group_key')
+        if explicit_key:
+            return f"meta:{explicit_key}"
+
+        address = str(order.get('address') or '').strip()
+        if address and address not in {'-', '주소없음'}:
+            normalized_address = ' '.join(address.split()).lower()
+            return f"addr:{normalized_address}"
+
+        lat = order.get('latitude')
+        lng = order.get('longitude')
+        if lat is None or lng is None:
+            return None
+
+        try:
+            return f"coord:{round(float(lat), 6):.6f}:{round(float(lng), 6):.6f}"
+        except (TypeError, ValueError):
+            return None
+
+    def _prepare_marker_data(self, order_data):
+        """입력 마커를 복사하고 중복 위치 메타데이터를 부여한다."""
+        prepared = []
+        groups = {}
+
+        for order in order_data:
+            if not isinstance(order, dict):
+                continue
+            item = dict(order)
+            item['is_duplicate_location'] = bool(item.get('is_duplicate_location'))
+            item['duplicate_group_size'] = int(item.get('duplicate_group_size') or 0)
+            item['duplicate_group_index'] = int(item.get('duplicate_group_index') or 0)
+            key = self._duplicate_group_key(item)
+            if key:
+                groups.setdefault(key, []).append(item)
+                item['duplicate_group_key'] = key
+            prepared.append(item)
+
+        for group_items in groups.values():
+            if len(group_items) <= 1:
+                continue
+            group_size = len(group_items)
+            for index, item in enumerate(group_items, 1):
+                item['is_duplicate_location'] = True
+                item['duplicate_group_size'] = group_size
+                item['duplicate_group_index'] = index
+
+        return prepared
+
+    def _get_marker_theme(self, order):
+        """상태색 또는 중복 위치용 파스텔 핑크 테마를 반환한다."""
+        if order.get('is_duplicate_location') or int(order.get('duplicate_group_size') or 0) > 1:
+            return {
+                'background': OVERLAP_MARKER_COLOR,
+                'border': '#e29ab7',
+                'text': '#6c2845',
+                'shadow': 'rgba(232, 160, 186, 0.35)',
+                'badge_bg': '#f5b7cd',
+                'badge_text': '#5a1f38',
+                'label_prefix': '중복',
+            }
+
+        return {
+            'background': self._get_status_color(order.get('status')),
+            'border': '#ffffff',
+            'text': '#ffffff',
+            'shadow': 'rgba(0,0,0,0.25)',
+            'badge_bg': '#ffffff',
+            'badge_text': '#0d6efd',
+            'label_prefix': '',
+        }
     
     def create_map(self, order_data, title="주문 지도"):
         """
@@ -114,7 +191,7 @@ class FOMSMapGenerator:
                     continue
                     
                 if order.get('latitude') is not None and order.get('longitude') is not None:
-                    valid_data.append(order)
+                    valid_data.append(dict(order))
             except Exception as e:
                 print(f"ERROR: order[{i}] 처리 중 오류: {e}, 타입: {type(order)}")
                 continue
@@ -123,8 +200,9 @@ class FOMSMapGenerator:
             return None
         
         # 지도 중심점과 줌 레벨 계산
-        center = self._calculate_center(valid_data)
-        zoom_level = self._calculate_zoom_level(valid_data)
+        render_data = self._prepare_marker_data(valid_data)
+        center = self._calculate_center(render_data)
+        zoom_level = self._calculate_zoom_level(render_data)
         
         # 지도 생성 - OpenStreetMap 기본
         m = folium.Map(
@@ -150,7 +228,7 @@ class FOMSMapGenerator:
         m.add_child(minimap)
         
         # 마커 추가 (지도에는 주문 ID로 표기, 클릭/경로 계산은 idx로 DOM 참조)
-        for idx, order in enumerate(valid_data, 1):
+        for idx, order in enumerate(render_data, 1):
             lat = order['latitude']
             lng = order['longitude']
             order_id = order.get('id', idx)  # 지도 마커에 표시할 주문 ID
@@ -164,20 +242,53 @@ class FOMSMapGenerator:
             phone = order.get('phone', '연락처없음')
             
             # 상태별 색상
-            color = self._get_status_color(status)
+            status_color = self._get_status_color(status)
+            marker_theme = self._get_marker_theme(order)
+            marker_bg = marker_theme['background']
+            marker_border = marker_theme['border']
+            marker_text = marker_theme['text']
+            marker_shadow = marker_theme['shadow']
+            duplicate_group_size = int(order.get('duplicate_group_size') or 0)
+            is_duplicate = bool(order.get('is_duplicate_location') or duplicate_group_size > 1)
+            duplicate_badge_html = ''
+            if is_duplicate:
+                duplicate_badge_html = (
+                    f'<span style="display:inline-block;margin-left:8px;padding:2px 8px;'
+                    f'border-radius:9999px;background:{marker_theme["badge_bg"]};'
+                    f'color:{marker_theme["badge_text"]};font-size:12px;font-weight:700;">'
+                    f'중복 위치 x{duplicate_group_size}'
+                    f'</span>'
+                )
             
             # 팝업 텍스트 구성
+            duplicate_row = ''
+            if is_duplicate:
+                duplicate_marker_badge_html = (
+                    f'<span style="display:inline-flex;align-items:center;justify-content:center;'
+                    f'min-width:22px;height:22px;margin-left:8px;padding:0 7px;border-radius:9999px;'
+                    f'background:{marker_theme["badge_bg"]};color:{marker_theme["badge_text"]};'
+                    f'font-size:12px;font-weight:700;border:1px solid rgba(0,0,0,0.08);">'
+                    f'{duplicate_group_size}</span>'
+                )
+                duplicate_row = (
+                    f'<tr><td style="padding: 3px; font-weight: bold;">중복:</td>'
+                    f'<td style="padding: 3px; color: {marker_text};">{duplicate_group_size}건 같은 주소</td></tr>'
+                )
+            else:
+                duplicate_marker_badge_html = ''
+
             popup_html = f"""
             <div style="width: 300px; font-family: 'Malgun Gothic', sans-serif;">
-                <h4 style="margin: 0 0 10px 0; color: {color};">주문 #{order_id}</h4>
+                <h4 style="margin: 0 0 10px 0; color: {marker_text};">주문 #{order_id}{duplicate_badge_html}</h4>
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr><td style="padding: 3px; font-weight: bold;">고객명:</td><td style="padding: 3px;">{customer_name}</td></tr>
                     <tr><td style="padding: 3px; font-weight: bold;">연락처:</td><td style="padding: 3px;">{phone}</td></tr>
                     <tr><td style="padding: 3px; font-weight: bold;">주소:</td><td style="padding: 3px;">{address}</td></tr>
                     <tr><td style="padding: 3px; font-weight: bold;">제품:</td><td style="padding: 3px;">{product}</td></tr>
-                    <tr><td style="padding: 3px; font-weight: bold;">상태:</td><td style="padding: 3px; color: {color};">{status}</td></tr>
+                    <tr><td style="padding: 3px; font-weight: bold;">상태:</td><td style="padding: 3px; color: {status_color};">{status}</td></tr>
                     <tr><td style="padding: 3px; font-weight: bold;">접수일:</td><td style="padding: 3px;">{received_date}</td></tr>
                     <tr><td style="padding: 3px; font-weight: bold;">좌표:</td><td style="padding: 3px;">{lat:.6f}, {lng:.6f}</td></tr>
+                    {duplicate_row}
                 </table>
             </div>
             """
@@ -191,23 +302,25 @@ class FOMSMapGenerator:
             # Pro 디자인: pill 배지, 넉넉한 패딩/폰트, 그림자로 시인성 확보 (모바일 시인성)
             icon_html = f"""
             <div class="foms-map-marker" style="
-                background: {color};
-                color: #fff;
+                background: {marker_bg};
+                color: {marker_text};
                 border-radius: 9999px;
                 padding: 6px 12px;
                 font-weight: 600;
                 font-size: 14px;
                 line-height: 1.2;
+                display: inline-flex;
+                align-items: center;
                 white-space: nowrap;
                 max-width: 160px;
                 overflow: hidden;
                 text-overflow: ellipsis;
-                border: 2px solid #fff;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+                border: 2px solid {marker_border};
+                box-shadow: 0 2px 8px {marker_shadow};
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
-            ">{name_display_escaped}</div>
+            "><span>{name_display_escaped}</span>{duplicate_marker_badge_html}</div>
             """
-            icon_w = max(80, min(160, len(name_display) * 14 + 24))
+            icon_w = max(80, min(184, len(name_display) * 14 + 24 + (32 if is_duplicate else 0)))
             icon_h = 36
 
             # 마커 클릭 시 경로 계산 (선택 시에도 이름 배지 유지)
@@ -277,7 +390,7 @@ class FOMSMapGenerator:
             marker = folium.Marker(
                 location=[lat, lng],
                 popup=folium.Popup(popup_html, max_width=350),
-                tooltip=f"{customer_name} · {status}",
+                tooltip=f"{customer_name} · {('중복 위치 x' + str(duplicate_group_size) + ' · ' if is_duplicate else '')}{status}",
                 icon=folium.DivIcon(
                     html=icon_html,
                     icon_size=(icon_w, icon_h),
@@ -324,6 +437,7 @@ class FOMSMapGenerator:
             <div style="margin: 3px 0;"><span style="color: #6c757d;">●</span> 완료</div>
             <div style="margin: 3px 0;"><span style="color: #dc3545;">●</span> 취소</div>
             <div style="margin: 3px 0;"><span style="color: #fd7e14;">●</span> 보류</div>
+            <div style="margin: 3px 0;"><span style="color: {OVERLAP_MARKER_COLOR};">●</span> 동일 주소 중첩</div>
         </div>
         </div>
         """
