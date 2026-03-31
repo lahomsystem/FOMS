@@ -819,9 +819,12 @@ def update_order_field():
                 shipment['sales_delivery'] = _coerce_bool_value(value)
                 structured_changed = True
             elif field == 'manager_name':
+                from services.erp_display import clean_dict_like_name
+                clean_val = clean_dict_like_name(value)
+                order.manager_name = clean_val
                 parties = ensure_path(structured_data, 'parties')
                 manager = ensure_path(parties, 'manager')
-                manager['name'] = value
+                manager['name'] = clean_val
                 structured_changed = True
             elif field == 'measurement_date':
                 schedule = ensure_path(structured_data, 'schedule')

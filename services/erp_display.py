@@ -32,6 +32,23 @@ def self_measurement_four_checks_done(order):
     )
 
 
+def clean_dict_like_name(value):
+    """dict 문자열('{"name": "홍길동", ...}')에서 name만 추출. 정상 문자열은 그대로 반환."""
+    if not value or not isinstance(value, str):
+        return value or ''
+    s = value.strip()
+    if not (s.startswith('{') and 'name' in s):
+        return s
+    try:
+        import ast
+        parsed = ast.literal_eval(s)
+        if isinstance(parsed, dict) and parsed.get('name'):
+            return str(parsed['name']).strip()
+    except Exception:
+        pass
+    return s
+
+
 def _ensure_dict(data):
     """JSONB 필드가 문자열로 오인될 경우를 대비해 딕셔너리로 확실히 변환"""
     if not data:
@@ -101,9 +118,18 @@ def apply_erp_display_fields(order):
     phone = (parties.get('customer') or {}).get('phone')
     if phone:
         order.phone = phone
-    manager_name = (parties.get('manager') or {}).get('name')
-    if manager_name:
+    raw_manager = parties.get('manager')
+    manager_name = None
+    if isinstance(raw_manager, dict):
+        manager_name = raw_manager.get('name')
+    elif isinstance(raw_manager, str):
+        manager_name = raw_manager.strip()
+    if isinstance(manager_name, str) and manager_name:
         order.manager_name = manager_name
+    elif order.manager_name and isinstance(order.manager_name, str):
+        cleaned = clean_dict_like_name(order.manager_name)
+        if cleaned != order.manager_name:
+            order.manager_name = cleaned
     orderer = (parties.get('orderer') or {}).get('name')
     if orderer:
         order.orderer_name = orderer
