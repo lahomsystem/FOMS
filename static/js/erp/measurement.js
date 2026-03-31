@@ -236,22 +236,29 @@
                 const a = document.createElement('a');
                 a.className = 'dropdown-item';
                 a.href = '#';
+                a.style.cssText = 'padding:8px 16px;font-size:0.95rem;';
                 a.textContent = name;
-                a.addEventListener('click', function (e) {
+                function handleItemSelect(e) {
                     e.preventDefault();
+                    e.stopPropagation();
                     cleanup();
                     onSelect(name);
-                });
+                }
+                a.addEventListener('click', handleItemSelect);
+                a.addEventListener('touchend', handleItemSelect, { passive: false });
                 div.appendChild(a);
             });
 
             document.body.appendChild(div);
 
             setTimeout(function () {
-                document.addEventListener('click', function (e) {
+                function handleOutsideClose(e) {
                     if (!div.contains(e.target) && !anchorEl.contains(e.target)) {
                         cleanup();
                     }
+                }
+                document.addEventListener('click', handleOutsideClose, { capture: true, signal: ac.signal });
+                document.addEventListener('touchstart', handleOutsideClose, { capture: true, signal: ac.signal });
                 }, { capture: true, signal: ac.signal });
             }, 100);
         }
@@ -362,10 +369,10 @@
                 const loadBtn = document.createElement('button');
                 loadBtn.type = 'button';
                 loadBtn.className = 'btn btn-sm btn-outline-secondary';
-                loadBtn.style.cssText = 'flex-shrink:0;padding:2px 6px;';
+                loadBtn.style.cssText = 'flex-shrink:0;padding:6px 10px;font-size:1rem;';
                 loadBtn.title = '저장된 담당자 불러오기';
                 loadBtn.innerHTML = '<i class="fas fa-list"></i>';
-                loadBtn.addEventListener('mousedown', function (e) {
+                function handleLoadBtn(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     if (_blurTimerId) { clearTimeout(_blurTimerId); _blurTimerId = null; }
@@ -373,7 +380,9 @@
                         input.value = name;
                         doCommit(name);
                     });
-                });
+                }
+                loadBtn.addEventListener('mousedown', handleLoadBtn);
+                loadBtn.addEventListener('touchstart', handleLoadBtn, { passive: false });
                 wrap.appendChild(loadBtn);
                 cell.appendChild(wrap);
             } else {
