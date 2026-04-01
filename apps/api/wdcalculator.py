@@ -3,14 +3,21 @@
 페이지: /wdcalculator, /wdcalculator/product-settings
 API: /api/wdcalculator/*
 """
+import copy
 import os
 import json
 from flask import Blueprint, request, jsonify, render_template
+from sqlalchemy.exc import IntegrityError
 from db import get_db
 from models import Order
 from apps.auth import login_required
 from wdcalculator_db import get_wdcalculator_db
-from wdcalculator_models import Estimate, EstimateOrderMatch, EstimateHistory
+from wdcalculator_models import (
+    Estimate,
+    EstimateHistory,
+    EstimateOrderMatch,
+    WDCalculatorProductSettings,
+)
 
 # 프로젝트 루트 기준 데이터 경로
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -57,90 +64,197 @@ def clean_categories_data(categories):
     return cleaned
 
 
-def load_additional_option_categories():
-    """추가 옵션 카테고리 데이터를 JSON 파일에서 로드"""
+def _deepcopy_json(value, default):
+    """JSON 직렬화 가능한 값을 안전하게 복사"""
+    if value is None:
+        return copy.deepcopy(default)
+    return copy.deepcopy(value)
+
+
+def _load_json_file(path, wrapper_key):
+    """시드용 JSON 파일 로드"""
     try:
-        if os.path.exists(WD_ADDITIONAL_OPTIONS_PATH):
+        if os.path.exists(path):
             try:
-                with open(WD_ADDITIONAL_OPTIONS_PATH, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    return clean_categories_data(data.get('categories', []))
+                with open(path, 'r', encoding='utf-8') as f:
+                    return json.load(f).get(wrapper_key, [])
             except UnicodeDecodeError:
-                with open(WD_ADDITIONAL_OPTIONS_PATH, 'r', encoding='cp949') as f:
-                    data = json.load(f)
-                    return clean_categories_data(data.get('categories', []))
+                with open(path, 'r', encoding='cp949') as f:
+                    return json.load(f).get(wrapper_key, [])
         return []
+    except Exception as e:
+        print(f"Error loading JSON file {path}: {e}")
+        return []
+
+
+def _seed_products_from_file():
+    """초기 시드용 제품 목록 로드"""
+    return _load_json_file(WD_CALCULATOR_DATA_PATH, 'products')
+
+
+def _seed_additional_option_categories_from_file():
+    """초기 시드용 추가 옵션 카테고리 로드"""
+    return clean_categories_data(_load_json_file(WD_ADDITIONAL_OPTIONS_PATH, 'categories'))
+
+
+def _seed_notes_categories_from_file():
+    """초기 시드용 비고 카테고리 로드"""
+    return clean_categories_data(_load_json_file(WD_NOTES_CATEGORIES_PATH, 'categories'))
+
+
+def _build_settings_seed():
+    """WDCalculator 설정 초기값 생성"""
+    return {
+        'products': _seed_products_from_file(),
+        'additional_options': _seed_additional_option_categories_from_file(),
+        'notes_categories': _seed_notes_categories_from_file(),
+    }
+
+
+def _get_product_settings(db=None):
+    """저장된 WDCalculator 설정 싱글턴 조회"""
+    session = db or get_wdcalculator_db()
+    return session.query(WDCalculatorProductSettings).filter(WDCalculatorProductSettings.id == 1).first()
+
+
+def _build_settings_record():
+    """초기 시드 기반 설정 레코드 생성"""
+    seed = _build_settings_seed()
+    return WDCalculatorProductSettings(
+        id=1,
+        products=seed['products'],
+        additional_options=seed['additional_options'],
+        notes_categories=seed['notes_categories'],
+    )
+
+
+def _populate_missing_settings_fields(settings):
+    """부분 레코드의 누락 필드를 시드로 보강"""
+    seed = _build_settings_seed()
+    if settings.products is None:
+        settings.products = seed['products']
+    if settings.additional_options is None:
+        settings.additional_options = seed['additional_options']
+    if settings.notes_categories is None:
+        settings.notes_categories = seed['notes_categories']
+
+
+def load_additional_option_categories():
+    """추가 옵션 카테고리 데이터를 DB에서 로드"""
+    try:
+        settings = _get_product_settings()
+        if not settings or settings.additional_options is None:
+            return _seed_additional_option_categories_from_file()
+        return clean_categories_data(_deepcopy_json(settings.additional_options, []))
     except Exception as e:
         print(f"Error loading additional option categories: {e}")
         return []
 
 
 def save_additional_option_categories(categories):
-    """추가 옵션 카테고리 데이터를 JSON 파일에 저장"""
+    """추가 옵션 카테고리 데이터를 DB에 저장"""
     try:
-        os.makedirs(os.path.dirname(WD_ADDITIONAL_OPTIONS_PATH), exist_ok=True)
-        with open(WD_ADDITIONAL_OPTIONS_PATH, 'w', encoding='utf-8') as f:
-            json.dump({'categories': categories}, f, ensure_ascii=True, indent=2)
+        session = get_wdcalculator_db()
+        settings = _get_product_settings(session)
+        if not settings:
+            settings = _build_settings_record()
+            session.add(settings)
+        _populate_missing_settings_fields(settings)
+        settings.additional_options = clean_categories_data(categories or [])
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            settings = _get_product_settings(session)
+            if not settings:
+                raise
+            _populate_missing_settings_fields(settings)
+            settings.additional_options = clean_categories_data(categories or [])
+            session.commit()
         return True
     except Exception as e:
+        session = get_wdcalculator_db()
+        session.rollback()
         print(f"Error saving additional option categories: {e}")
         return False
 
 
 def load_notes_categories():
-    """비고 카테고리 데이터를 JSON 파일에서 로드"""
+    """비고 카테고리 데이터를 DB에서 로드"""
     try:
-        if os.path.exists(WD_NOTES_CATEGORIES_PATH):
-            try:
-                with open(WD_NOTES_CATEGORIES_PATH, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    return clean_categories_data(data.get('categories', []))
-            except UnicodeDecodeError:
-                with open(WD_NOTES_CATEGORIES_PATH, 'r', encoding='cp949') as f:
-                    data = json.load(f)
-                    return clean_categories_data(data.get('categories', []))
-        return []
+        settings = _get_product_settings()
+        if not settings or settings.notes_categories is None:
+            return _seed_notes_categories_from_file()
+        return clean_categories_data(_deepcopy_json(settings.notes_categories, []))
     except Exception as e:
         print(f"Error loading notes categories: {e}")
         return []
 
 
 def save_notes_categories(categories):
-    """비고 카테고리 데이터를 JSON 파일에 저장"""
+    """비고 카테고리 데이터를 DB에 저장"""
     try:
-        os.makedirs(os.path.dirname(WD_NOTES_CATEGORIES_PATH), exist_ok=True)
-        with open(WD_NOTES_CATEGORIES_PATH, 'w', encoding='utf-8') as f:
-            json.dump({'categories': categories}, f, ensure_ascii=True, indent=2)
+        session = get_wdcalculator_db()
+        settings = _get_product_settings(session)
+        if not settings:
+            settings = _build_settings_record()
+            session.add(settings)
+        _populate_missing_settings_fields(settings)
+        settings.notes_categories = clean_categories_data(categories or [])
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            settings = _get_product_settings(session)
+            if not settings:
+                raise
+            _populate_missing_settings_fields(settings)
+            settings.notes_categories = clean_categories_data(categories or [])
+            session.commit()
         return True
     except Exception as e:
+        session = get_wdcalculator_db()
+        session.rollback()
         print(f"Error saving notes categories: {e}")
         return False
 
 
 def load_products():
-    """제품 데이터를 JSON 파일에서 로드"""
+    """제품 데이터를 DB에서 로드"""
     try:
-        if os.path.exists(WD_CALCULATOR_DATA_PATH):
-            try:
-                with open(WD_CALCULATOR_DATA_PATH, 'r', encoding='utf-8') as f:
-                    return json.load(f).get('products', [])
-            except UnicodeDecodeError:
-                with open(WD_CALCULATOR_DATA_PATH, 'r', encoding='cp949') as f:
-                    return json.load(f).get('products', [])
-        return []
+        settings = _get_product_settings()
+        if not settings or settings.products is None:
+            return _seed_products_from_file()
+        return _deepcopy_json(settings.products, [])
     except Exception as e:
         print(f"Error loading products: {e}")
         return []
 
 
 def save_products(products):
-    """제품 데이터를 JSON 파일에 저장"""
+    """제품 데이터를 DB에 저장"""
     try:
-        os.makedirs(os.path.dirname(WD_CALCULATOR_DATA_PATH), exist_ok=True)
-        with open(WD_CALCULATOR_DATA_PATH, 'w', encoding='utf-8') as f:
-            json.dump({'products': products}, f, ensure_ascii=True, indent=2)
+        session = get_wdcalculator_db()
+        settings = _get_product_settings(session)
+        if not settings:
+            settings = _build_settings_record()
+            session.add(settings)
+        _populate_missing_settings_fields(settings)
+        settings.products = _deepcopy_json(products, [])
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            settings = _get_product_settings(session)
+            if not settings:
+                raise
+            _populate_missing_settings_fields(settings)
+            settings.products = _deepcopy_json(products, [])
+            session.commit()
         return True
     except Exception as e:
+        session = get_wdcalculator_db()
+        session.rollback()
         print(f"Error saving products: {e}")
         return False
 
