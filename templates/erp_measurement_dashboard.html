@@ -954,7 +954,7 @@
 
 {% block scripts %}
 {# 실측 PNG·헬퍼 수정 시 v 값을 올려 브라우저/CDN 캐시 무효화 (production만 구버전 JS 유지되는 현상 방지) #}
-{% set measurement_js_v = '20260401n' %}
+{% set measurement_js_v = '20260401o' %}
 <script src="{{ url_for('static', filename='js/erp/common_utils.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/column-resizer.js') }}?v={{ measurement_js_v }}"></script>
