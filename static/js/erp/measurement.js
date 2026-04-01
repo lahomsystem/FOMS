@@ -454,10 +454,10 @@
             const clearBtn = document.createElement('button');
             clearBtn.type = 'button';
             clearBtn.className = 'btn btn-outline-secondary';
-            clearBtn.style.cssText = 'flex-shrink:0;padding:2px 6px;font-size:0.75rem;line-height:1;opacity:0.65;';
+            clearBtn.style.cssText = 'flex-shrink:0;padding:2px 6px;font-size:0.75rem;line-height:1;opacity:0.65;min-height:unset;min-width:unset;height:auto;';
             clearBtn.title = '\uB2F4\uB2F9\uC790 \uC9C0\uC6B0\uAE30';
             clearBtn.setAttribute('data-manager-action', 'clear');
-            clearBtn.innerHTML = '<i class="fas fa-times" style="font-size:0.7rem;"></i>';
+            clearBtn.innerHTML = '<i class="fas fa-times" style="font-size:0.7rem;pointer-events:none;"></i>';
 
             function syncClearButtonState() {
                 clearBtn.disabled = !input.value.trim();
@@ -485,9 +485,9 @@
             const loadBtn = document.createElement('button');
             loadBtn.type = 'button';
             loadBtn.className = 'btn btn-outline-secondary';
-            loadBtn.style.cssText = 'flex-shrink:0;padding:2px 6px;font-size:0.75rem;line-height:1;opacity:0.65;';
+            loadBtn.style.cssText = 'flex-shrink:0;padding:2px 6px;font-size:0.75rem;line-height:1;opacity:0.65;min-height:unset;min-width:unset;height:auto;';
             loadBtn.title = '\uC800\uC7A5\uB41C \uB2F4\uB2F9\uC790 \uBD88\uB7EC\uC624\uAE30';
-            loadBtn.innerHTML = '<i class="fas fa-list" style="font-size:0.7rem;"></i>';
+            loadBtn.innerHTML = '<i class="fas fa-list" style="font-size:0.7rem;pointer-events:none;"></i>';
 
             function openDropdown(e) {
                 e.preventDefault();
