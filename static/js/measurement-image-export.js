@@ -5,18 +5,18 @@
 document.addEventListener('DOMContentLoaded', function () {
     const exportBtn = document.getElementById('btn-export-image');
     if (!exportBtn) return;
-    const EXPORT_TABLE_WIDTH = 1320;
-    const EXPORT_COLUMN_WIDTHS = {
-        detail: 52,
-        customer: 90,
-        orderer: 90,
-        address: 280,
-        phone: 130,
-        measurement_date: 110,
-        meas_time: 110,
-        product: 320,
-        manager: 138
+    const EXPORT_TABLE_WIDTH = 1500;
+    const EXPORT_MIN_COLUMN_WIDTHS = {
+        detail: 48,
+        customer: 86,
+        orderer: 86,
+        phone: 126,
+        meas_time: 94,
+        manager: 110
     };
+    const EXPORT_EXPANDED_COLUMNS = ['address', 'product'];
+    const EXPORT_GROUP_BORDER_COLOR = '#4b5563';
+    const EXPORT_GROUP_BORDER_WIDTH = '3px';
 
     /**
      * @param {string} isoDateStr - YYYY-MM-DD
@@ -69,6 +69,134 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /**
+     * @param {HTMLTableElement} tableEl
+     * @param {string} colKey
+     */
+    function removeExportColumn(tableEl, colKey) {
+        const headerRow = tableEl.querySelector('thead tr:last-child');
+        if (!headerRow) return;
+
+        const targetHeader = headerRow.querySelector('th[data-col-key="' + colKey + '"]');
+        if (!targetHeader) return;
+
+        const headerCells = Array.from(headerRow.children);
+        const columnIndex = headerCells.indexOf(targetHeader);
+        if (columnIndex < 0) return;
+
+        const targetCol = tableEl.querySelector('colgroup col[data-col-key="' + colKey + '"]');
+        if (targetCol) {
+            targetCol.remove();
+        }
+
+        targetHeader.remove();
+
+        tableEl.querySelectorAll('tbody tr').forEach(function (row) {
+            const cells = row.querySelectorAll('td');
+            if (cells[columnIndex]) {
+                cells[columnIndex].remove();
+            }
+        });
+    }
+
+    /**
+     * @returns {Record<string, number>}
+     */
+    function buildExportColumnWidths() {
+        let fixedWidth = 0;
+        Object.keys(EXPORT_MIN_COLUMN_WIDTHS).forEach(function (key) {
+            fixedWidth += EXPORT_MIN_COLUMN_WIDTHS[key];
+        });
+
+        const remainingWidth = Math.max(720, EXPORT_TABLE_WIDTH - fixedWidth);
+        const addressWidth = Math.round(remainingWidth * 0.46);
+        const productWidth = remainingWidth - addressWidth;
+
+        return {
+            detail: EXPORT_MIN_COLUMN_WIDTHS.detail,
+            customer: EXPORT_MIN_COLUMN_WIDTHS.customer,
+            orderer: EXPORT_MIN_COLUMN_WIDTHS.orderer,
+            address: addressWidth,
+            phone: EXPORT_MIN_COLUMN_WIDTHS.phone,
+            meas_time: EXPORT_MIN_COLUMN_WIDTHS.meas_time,
+            product: productWidth,
+            manager: EXPORT_MIN_COLUMN_WIDTHS.manager
+        };
+    }
+
+    /**
+     * @param {string} text
+     * @param {number} rowIndex
+     * @returns {string}
+     */
+    function normalizeManagerGroupKey(text, rowIndex) {
+        const value = String(text || '').trim();
+        if (!value || value === '-') {
+            return '__ungrouped_' + rowIndex;
+        }
+        return value.toLowerCase();
+    }
+
+    /**
+     * @param {HTMLTableElement} clonedTable
+     */
+    function applyManagerGroupStyles(clonedTable) {
+        const rows = Array.from(clonedTable.querySelectorAll('tbody tr'));
+        if (!rows.length) return;
+
+        let groupStart = 0;
+
+        function paintGroup(startIndex, endIndex) {
+            for (let rowIndex = startIndex; rowIndex <= endIndex; rowIndex += 1) {
+                const row = rows[rowIndex];
+                const cells = Array.from(row.querySelectorAll('td'));
+                if (!cells.length) continue;
+
+                const isFirstRow = rowIndex === startIndex;
+                const isLastRow = rowIndex === endIndex;
+                const firstCell = cells[0];
+                const lastCell = cells[cells.length - 1];
+
+                if (firstCell) {
+                    firstCell.style.borderLeftWidth = EXPORT_GROUP_BORDER_WIDTH;
+                    firstCell.style.borderLeftColor = EXPORT_GROUP_BORDER_COLOR;
+                }
+                if (lastCell) {
+                    lastCell.style.borderRightWidth = EXPORT_GROUP_BORDER_WIDTH;
+                    lastCell.style.borderRightColor = EXPORT_GROUP_BORDER_COLOR;
+                }
+
+                if (isFirstRow) {
+                    cells.forEach(function (cell) {
+                        cell.style.borderTopWidth = EXPORT_GROUP_BORDER_WIDTH;
+                        cell.style.borderTopColor = EXPORT_GROUP_BORDER_COLOR;
+                    });
+                }
+
+                if (isLastRow) {
+                    cells.forEach(function (cell) {
+                        cell.style.borderBottomWidth = EXPORT_GROUP_BORDER_WIDTH;
+                        cell.style.borderBottomColor = EXPORT_GROUP_BORDER_COLOR;
+                    });
+                }
+            }
+        }
+
+        for (let index = 1; index <= rows.length; index += 1) {
+            const prevRow = rows[index - 1];
+            const currentRow = rows[index];
+            const prevManagerCell = prevRow ? prevRow.querySelector('.manager-cell') : null;
+            const currentManagerCell = currentRow ? currentRow.querySelector('.manager-cell') : null;
+            const prevKey = normalizeManagerGroupKey(prevManagerCell ? prevManagerCell.textContent : '', index - 1);
+            const currentKey = currentRow ? normalizeManagerGroupKey(currentManagerCell ? currentManagerCell.textContent : '', index) : '';
+
+            if (!currentRow || currentKey !== prevKey) {
+                paintGroup(groupStart, index - 1);
+                groupStart = index;
+            }
+        }
+    }
+
+    /**
      * @param {Document} clonedDoc
      * @param {HTMLTableElement} clonedTable
      * @param {string} titleText
@@ -89,8 +217,11 @@ document.addEventListener('DOMContentLoaded', function () {
         clonedTable.style.fontSize = '15px';
         clonedTable.style.lineHeight = '1.35';
 
-        Object.keys(EXPORT_COLUMN_WIDTHS).forEach(function (key) {
-            setExportColumnWidth(clonedTable, key, EXPORT_COLUMN_WIDTHS[key]);
+        removeExportColumn(clonedTable, 'measurement_date');
+
+        const exportWidths = buildExportColumnWidths();
+        Object.keys(exportWidths).forEach(function (key) {
+            setExportColumnWidth(clonedTable, key, exportWidths[key]);
         });
 
         const thead = clonedTable.querySelector('thead');
@@ -168,17 +299,11 @@ document.addEventListener('DOMContentLoaded', function () {
             cell.style.lineHeight = '1.4';
         });
 
-        clonedTable.querySelectorAll('.measurement-date-cell').forEach(function (cell) {
-            cell.style.whiteSpace = 'normal';
-            cell.style.lineHeight = '1.35';
-        });
-
-        clonedTable.querySelectorAll('.measurement-date-cell .badge').forEach(function (badge) {
-            badge.style.display = 'inline-block';
-            badge.style.margin = '2px 4px 2px 0';
-            badge.style.padding = '4px 8px';
-            badge.style.fontSize = '13px';
-            badge.style.fontWeight = '700';
+        EXPORT_EXPANDED_COLUMNS.forEach(function (colKey) {
+            const header = clonedTable.querySelector('thead tr:last-child th[data-col-key="' + colKey + '"]');
+            if (header) {
+                header.style.textAlign = 'center';
+            }
         });
 
         clonedTable.querySelectorAll('.manager-cell').forEach(function (cell) {
@@ -191,6 +316,8 @@ document.addEventListener('DOMContentLoaded', function () {
             cell.style.fontWeight = '800';
             cell.style.letterSpacing = '0.02em';
         });
+
+        applyManagerGroupStyles(clonedTable);
     }
 
     exportBtn.addEventListener('click', async function () {
