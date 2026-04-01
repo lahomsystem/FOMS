@@ -3,6 +3,7 @@
 
   var TABLE_ID = 'measurement-dashboard-table';
   var DESKTOP_BREAKPOINT = 992;
+  var DESKTOP_POINTER_QUERY = '(hover: hover) and (pointer: fine)';
   var DESKTOP_STORAGE_KEY = 'foms.measurementDashboard.columnWidths.v2';
   var MOBILE_PRESET_STORAGE_KEY = 'foms.measurementDashboard.mobilePreset.v1';
   var DEFAULT_MOBILE_PRESET = 'default';
@@ -73,8 +74,10 @@
     return document.getElementById(TABLE_ID);
   }
 
-  function isDesktopViewport() {
-    return window.innerWidth > DESKTOP_BREAKPOINT;
+  function canUseDesktopResize() {
+    if (window.innerWidth <= DESKTOP_BREAKPOINT) return false;
+    if (typeof window.matchMedia !== 'function') return true;
+    return window.matchMedia(DESKTOP_POINTER_QUERY).matches;
   }
 
   function getColumnElements(table, colKey) {
@@ -302,7 +305,7 @@
     var table = getTable();
     if (!table) return;
 
-    var nextMode = isDesktopViewport() ? 'desktop' : 'mobile';
+    var nextMode = canUseDesktopResize() ? 'desktop' : 'mobile';
     if (!force && nextMode === lastViewportMode) return;
 
     lastViewportMode = nextMode;
