@@ -37,6 +37,12 @@
             return tr.querySelector('td.manager-cell');
         }
 
+        function shouldUseServerManagerColor(cell) {
+            if (!cell || !cell.dataset.bg) return false;
+            if (cell.dataset.bgSource === 'fallback') return false;
+            return true;
+        }
+
         function getManagerFromRow(tr) {
             const cell = getManagerCell(tr);
             return (cell && (cell.textContent || '').trim()) || '';
@@ -112,7 +118,7 @@
                 const cell = getManagerCell(tr);
                 if (!cell) return;
                 const key = normalizeManagerKey(getManagerFromRow(tr));
-                if (!key || !cell.dataset.bg || colorMap[key]) return;
+                if (!key || colorMap[key] || !shouldUseServerManagerColor(cell)) return;
 
                 colorMap[key] = {
                     background: cell.dataset.bg,

@@ -5,8 +5,6 @@
   var DESKTOP_BREAKPOINT = 992;
   var DESKTOP_POINTER_QUERY = '(hover: hover) and (pointer: fine)';
   var DESKTOP_STORAGE_KEY = 'foms.measurementDashboard.columnWidths.v2';
-  var MOBILE_PRESET_STORAGE_KEY = 'foms.measurementDashboard.mobilePreset.v1';
-  var DEFAULT_MOBILE_PRESET = 'default';
   var RESIZER_SESSION_KEY = TABLE_ID;
 
   var viewportTimer = null;
@@ -25,49 +23,6 @@
     meas_time:        { defaultWidth: 110, minWidth: 90 },
     product:          { defaultWidth: 190, minWidth: 150 },
     manager:          { defaultWidth: 200, minWidth: 150 }
-  };
-
-  function getSchemaDefaultWidths() {
-    var widths = {};
-    Object.keys(MEASUREMENT_COLUMN_SCHEMA).forEach(function (key) {
-      widths[key] = MEASUREMENT_COLUMN_SCHEMA[key].defaultWidth;
-    });
-    return widths;
-  }
-
-  function createMobilePreset(overrides) {
-    var widths = getSchemaDefaultWidths();
-    Object.keys(overrides || {}).forEach(function (key) {
-      if (MEASUREMENT_COLUMN_SCHEMA[key]) {
-        widths[key] = overrides[key];
-      }
-    });
-    return widths;
-  }
-
-  var MOBILE_PRESETS = {
-    compact: createMobilePreset({
-      detail: 60,
-      customer: 104,
-      orderer: 96,
-      address: 164,
-      phone: 120,
-      measurement_date: 92,
-      meas_time: 92,
-      product: 166,
-      manager: 170
-    }),
-    default: getSchemaDefaultWidths(),
-    wide: createMobilePreset({
-      customer: 124,
-      orderer: 116,
-      address: 228,
-      phone: 136,
-      measurement_date: 104,
-      meas_time: 116,
-      product: 240,
-      manager: 214
-    })
   };
 
   function getTable() {
@@ -166,21 +121,6 @@
     } catch (error) {}
   }
 
-  function loadMobilePreset() {
-    try {
-      var presetKey = localStorage.getItem(MOBILE_PRESET_STORAGE_KEY);
-      return MOBILE_PRESETS[presetKey] ? presetKey : DEFAULT_MOBILE_PRESET;
-    } catch (error) {
-      return DEFAULT_MOBILE_PRESET;
-    }
-  }
-
-  function saveMobilePreset(presetKey) {
-    try {
-      localStorage.setItem(MOBILE_PRESET_STORAGE_KEY, presetKey);
-    } catch (error) {}
-  }
-
   function clearLibrarySessionStore() {
     try {
       sessionStorage.removeItem(RESIZER_SESSION_KEY);
@@ -249,29 +189,13 @@
     initDesktopResizer(table);
     attachDesktopResizeListener();
     syncDesktopGripPositions();
-    updateMobilePresetButtons(loadMobilePreset());
   }
 
-  function applyMobilePresetWidths(table, presetKey) {
+  function applyStaticTableState(table) {
     detachDesktopResizeListener();
     normalizeTableInlineWidths(table);
-    applyWidthsToCols(table, MOBILE_PRESETS[presetKey] || MOBILE_PRESETS[DEFAULT_MOBILE_PRESET]);
-    updateMobilePresetButtons(presetKey);
-  }
-
-  function setMobilePreset(table, presetKey) {
-    var nextPreset = MOBILE_PRESETS[presetKey] ? presetKey : DEFAULT_MOBILE_PRESET;
-    saveMobilePreset(nextPreset);
-    applyMobilePresetWidths(table, nextPreset);
-  }
-
-  function updateMobilePresetButtons(activePreset) {
-    var buttons = document.querySelectorAll('[data-measurement-mobile-preset]');
-    buttons.forEach(function (button) {
-      var isActive = button.dataset.measurementMobilePreset === activePreset;
-      button.classList.toggle('is-active', isActive);
-      button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-    });
+    applyWidthsToCols(table, loadDesktopWidths());
+    applySchemaMinimums(table);
   }
 
   function bindResetButton(table) {
@@ -289,23 +213,11 @@
     });
   }
 
-  function bindMobilePresetButtons(table) {
-    var buttons = document.querySelectorAll('[data-measurement-mobile-preset]');
-    buttons.forEach(function (button) {
-      if (button.dataset.bound === '1') return;
-
-      button.dataset.bound = '1';
-      button.addEventListener('click', function () {
-        setMobilePreset(table, button.dataset.measurementMobilePreset);
-      });
-    });
-  }
-
   function syncViewportState(force) {
     var table = getTable();
     if (!table) return;
 
-    var nextMode = canUseDesktopResize() ? 'desktop' : 'mobile';
+    var nextMode = canUseDesktopResize() ? 'desktop' : 'static';
     if (!force && nextMode === lastViewportMode) return;
 
     lastViewportMode = nextMode;
@@ -314,7 +226,7 @@
       return;
     }
 
-    applyMobilePresetWidths(table, loadMobilePreset());
+    applyStaticTableState(table);
   }
 
   function init() {
@@ -322,7 +234,6 @@
     if (!table) return;
 
     bindResetButton(table);
-    bindMobilePresetButtons(table);
     syncViewportState(true);
 
     window.addEventListener('resize', function () {
