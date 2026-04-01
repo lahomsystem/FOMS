@@ -107,16 +107,66 @@
                 -webkit-overflow-scrolling: touch;
               }
 
+              .measurement-column-toolbar {
+                display: flex;
+                justify-content: flex-end;
+                align-items: center;
+                margin-bottom: 8px;
+              }
+
+              .measurement-column-reset-btn {
+                white-space: nowrap;
+              }
+
               .measurement-table {
                 width: 100%;
                 min-width: 1220px;
                 font-size: 0.875rem;
+                table-layout: fixed;
               }
 
               .measurement-table th,
               .measurement-table td {
                 white-space: nowrap;
                 font-size: 0.875rem;
+              }
+
+              .measurement-table th {
+                position: relative;
+              }
+
+              .measurement-table .col-resize-handle {
+                position: absolute;
+                top: 0;
+                right: -4px;
+                width: 8px;
+                height: 100%;
+                border: 0;
+                background: transparent;
+                cursor: col-resize;
+                z-index: 10;
+                padding: 0;
+                margin: 0;
+                display: block;
+              }
+
+              .measurement-table th:hover .col-resize-handle {
+                background: rgba(13, 110, 253, 0.12);
+                border-radius: 2px;
+              }
+
+              .measurement-table .col-resize-handle:focus {
+                outline: none;
+              }
+
+              .measurement-table.col-resizing,
+              .measurement-table.col-resizing * {
+                user-select: none;
+                -webkit-user-select: none;
+              }
+
+              body.col-resizing-active {
+                cursor: col-resize;
               }
 
               .measurement-table tbody tr {
@@ -141,13 +191,6 @@
 
               .measurement-table .measurement-address-cell {
                 font-size: 0.875rem;
-                min-width: 190px;
-                max-width: 190px;
-              }
-
-              .measurement-table .measurement-product-cell {
-                min-width: 190px;
-                max-width: 190px;
               }
 
               /* 모바일: 제품 컬럼 가로 확장 → 행 높이 최소화, 가로 스크롤로 확인 */
@@ -494,6 +537,14 @@
 
               /* 모바일: 카드 전환 대신 테이블 유지 + 가로 스크롤 */
               @media (max-width: 992px) {
+                .measurement-column-toolbar {
+                  display: none;
+                }
+
+                .measurement-table .col-resize-handle {
+                  display: none;
+                }
+
                 .measurement-panel-item {
                   min-height: 44px;
                   display: flex;
@@ -526,19 +577,47 @@
                 }
               }
             </style>
-            <table class="table table-sm table-hover align-middle measurement-table">
+            <div class="measurement-column-toolbar">
+              <button id="btn-reset-measurement-column-widths" type="button"
+                class="erp-pro-btn erp-pro-btn--outline measurement-column-reset-btn"
+                title="컬럼 폭을 기본값으로 초기화">
+                <i class="fas fa-undo"></i>
+                <span>폭 초기화</span>
+              </button>
+            </div>
+            <table class="table table-sm table-hover align-middle measurement-table" id="measurement-dashboard-table">
+              <colgroup>
+                <col data-col-key="detail" style="width: 70px;">
+                <col data-col-key="customer" style="width: 120px;">
+                <col data-col-key="orderer" style="width: 110px;">
+                <col data-col-key="address" style="width: 190px;">
+                <col data-col-key="phone" style="width: 130px;">
+                <col data-col-key="measurement_date" style="width: 100px;">
+                <col data-col-key="meas_time" style="width: 110px;">
+                <col data-col-key="product" style="width: 190px;">
+                <col data-col-key="manager" style="width: 200px;">
+              </colgroup>
               <thead class="table-light">
                 <tr>
-                  <th style="min-width: 70px; width: 70px; border-right: 1px solid #e0e0e0;">상세</th>
-                  <th style="min-width: 120px; width: 120px; border-right: 1px solid #e0e0e0;">고객</th>
-                  <th style="min-width: 110px; width: 110px; border-right: 1px solid #e0e0e0;">발주사</th>
-                  <th style="min-width: 190px; width: 190px; border-right: 1px solid #e0e0e0;">주소</th>
-                  <th style="min-width: 130px; width: 130px; border-right: 1px solid #e0e0e0;">전화번호</th>
-                  <th style="min-width: 100px; width: 100px; border-right: 1px solid #e0e0e0;">실측일</th>
-                  <th style="min-width: 110px; width: 110px; border-right: 1px solid #e0e0e0;">시간</th>
-                  <th class="measurement-product-cell" style="min-width: 190px; width: 190px; border-right: 1px solid #e0e0e0;">제품
+                  <th data-col-key="detail" style="border-right: 1px solid #e0e0e0;">상세<button class="col-resize-handle"
+                      type="button" aria-label="상세 컬럼 크기 조절"></button></th>
+                  <th data-col-key="customer" style="border-right: 1px solid #e0e0e0;">고객<button class="col-resize-handle"
+                      type="button" aria-label="고객 컬럼 크기 조절"></button></th>
+                  <th data-col-key="orderer" style="border-right: 1px solid #e0e0e0;">발주사<button class="col-resize-handle"
+                      type="button" aria-label="발주사 컬럼 크기 조절"></button></th>
+                  <th data-col-key="address" style="border-right: 1px solid #e0e0e0;">주소<button class="col-resize-handle"
+                      type="button" aria-label="주소 컬럼 크기 조절"></button></th>
+                  <th data-col-key="phone" style="border-right: 1px solid #e0e0e0;">전화번호<button class="col-resize-handle"
+                      type="button" aria-label="전화번호 컬럼 크기 조절"></button></th>
+                  <th data-col-key="measurement_date" style="border-right: 1px solid #e0e0e0;">실측일<button
+                      class="col-resize-handle" type="button" aria-label="실측일 컬럼 크기 조절"></button></th>
+                  <th data-col-key="meas_time" style="border-right: 1px solid #e0e0e0;">시간<button class="col-resize-handle"
+                      type="button" aria-label="시간 컬럼 크기 조절"></button></th>
+                  <th class="measurement-product-cell" data-col-key="product" style="border-right: 1px solid #e0e0e0;">제품<button
+                      class="col-resize-handle" type="button" aria-label="제품 컬럼 크기 조절"></button>
                   </th>
-                  <th style="min-width: 200px; width: 200px;">담당자</th>
+                  <th data-col-key="manager">담당자<button class="col-resize-handle" type="button"
+                      aria-label="담당자 컬럼 크기 조절"></button></th>
                 </tr>
               </thead>
               <tbody>
@@ -603,7 +682,7 @@
                     <span class="text-muted small">(권한없음)</span>
                     {% endif %}
                   </td>
-                  <td data-label="고객" style="border-right: 1px solid #e0e0e0; min-width: 140px;">
+                  <td data-label="고객" style="border-right: 1px solid #e0e0e0;">
                     <span class="d-inline-flex align-items-center flex-wrap gap-1">
                       {{ customer or '-' }}
                       {% if r.is_erp_beta %}
@@ -895,9 +974,10 @@
 
 {% block scripts %}
 {# 실측 PNG·헬퍼 수정 시 v 값을 올려 브라우저/CDN 캐시 무효화 (production만 구버전 JS 유지되는 현상 방지) #}
-{% set measurement_js_v = '20260401d' %}
+{% set measurement_js_v = '20260401e' %}
 <script src="{{ url_for('static', filename='js/erp/common_utils.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement.js') }}?v={{ measurement_js_v }}"></script>
+<script src="{{ url_for('static', filename='js/erp/measurement-dashboard-columns.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement-manual-rows.js') }}?v={{ measurement_js_v }}"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="{{ url_for('static', filename='js/measurement-image-export.js') }}?v={{ measurement_js_v }}"></script>
