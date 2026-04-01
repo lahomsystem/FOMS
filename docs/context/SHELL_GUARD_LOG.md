@@ -4,9 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-25 14:19:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -3 --oneline` |
-| 2026-03-25 14:19:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show 72bd2c75 --stat` |
-| 2026-03-25 14:22:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; grep -rn "erp-table-image-export-helpers.js" templates/` |
 | 2026-03-25 14:23:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
 | 2026-03-25 14:23:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rm static/js/erp-table-image-export-helpers.js; git add static/css/erp-pro.css static/js/m` |
 | 2026-03-25 14:24:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git checkout deploy; git merge production; git push origin deploy;` |
@@ -304,3 +301,6 @@
 | 2026-04-01 08:51:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy; git push origin production; git checkout deploy` |
 | 2026-04-01 08:51:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git stash; git checkout production; git merge deploy; git push origin production; git checkout` |
 | 2026-04-01 08:52:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/js/erp/measurement.js; git status` |
+| 2026-04-01 08:53:48 | allow | `-` | `$msg = "실측대시보드 담당자 편집 X/목록 버튼 크기 최소화 - 입력창 가시성 개선`n`n- clearBtn/loadBtn padding 6px 10px -> 2px 6px, font-size 1rem -> 0.75rem`n- opacity 0.65 추가로 존재감 축소, 입력창이 ` |
+| 2026-04-01 09:01:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff templates/erp_measurement_dashboard.html` |
+| 2026-04-01 09:07:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short; git log --oneline -3` |

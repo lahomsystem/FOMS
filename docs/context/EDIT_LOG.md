@@ -5,6 +5,10 @@
 
 ## 최근 파일 편집
 
+- `templates/erp_measurement_dashboard.html` <- 1 edit(s), ~40 chars (2026-04-01 09:01:52)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-eef2ce34-16ea-442f-880e-27f14c618874.png` <- 1 edit(s), ~0 chars (2026-04-01 09:00:58)
+- `templates/partials/erp_beta_js.html` <- 1 edit(s), ~96 chars (2026-04-01 08:57:37)
+- `templates/partials/erp_beta_tab.html` <- 1 edit(s), ~71 chars (2026-04-01 08:57:33)
 - `templates/partials/erp_beta_tab.html` <- 1 edit(s), ~77 chars (2026-04-01 08:49:20)
 - `static/js/erp/measurement.js` <- 2 edit(s), ~263 chars (2026-04-01 08:48:15)
 - `static/js/erp/measurement.js` <- 2 edit(s), ~267 chars (2026-04-01 08:48:08)

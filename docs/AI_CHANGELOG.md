@@ -4,6 +4,8 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-04-01 | 세션 자동 기록 | erp_measurement_dashboard.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-eef2ce34-16ea-442f-880e-27f14c618874.png, erp_beta_js.html 외 2개 | 6bc7114b |
+| 2026-04-01 | 세션 자동 기록 | erp_beta_js.html, erp_beta_tab.html, measurement.js 외 2개 | abc99de6 |
 | 2026-04-01 | 세션 자동 기록 | erp_beta_tab.html, measurement.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ae0f6285-c9e4-49cf-94fa-56b0ed6aca1e.png 외 2개 | 9b4115fe |
 | 2026-04-01 | 세션 자동 기록 | commit_msg.txt, measurement.js, 2502107448c0_add_systemsetting_table.py 외 2개 | 9b4115fe |
 | 2026-03-31 | 세션 자동 기록 | commit_msg.txt, measurement.js, 2502107448c0_add_systemsetting_table.py 외 2개 | 2944c109 |
@@ -22,5 +24,3 @@
 | 2026-03-31 | 세션 자동 기록 | erp_shipment_settings.json, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-de303cde-35cc-437f-96af-7ef4a88d5f21.png, erp_measurement_dashboard.html 외 2개 | 259cb08e |
 | 2026-03-31 | 세션 자동 기록 | erp_measurement_dashboard.html, measurement.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-cfcee50a-911f-4255-8de9-a0ce9e2469a3.png 외 2개 | 5a7d1852 |
 | 2026-03-31 | 세션 자동 기록 | erp_measurement_dashboard.html, measurement.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-33a68b72-6a68-42bd-bb8f-6192a86ea78d.png 외 2개 | 4e13107b |
-| 2026-03-31 | 세션 자동 기록 | measurement.js, erp_shipment_settings.html, erp_measurement_dashboard.html 외 2개 | 4fbaf0f3 |
-| 2026-03-31 | 세션 자동 기록 | erp_measurement_dashboard.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-2bd3c9f0-e87c-4b85-a509-d33fee0eb78f.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c954be1b-e053-4cc7-94a6-02269cf0e3f5.png 외 2개 | 28b22477 |
