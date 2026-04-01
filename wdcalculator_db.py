@@ -68,6 +68,8 @@ def ensure_wdcalculator_schema():
     """
     if WD_CALCULATOR_IS_SEPARATE_DB:
         return
+    if wd_calculator_engine.dialect.name != "postgresql":
+        return
     schema = WD_CALCULATOR_SCHEMA
     with wd_calculator_engine.begin() as conn:
         conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"'))
@@ -78,7 +80,12 @@ def init_wdcalculator_db():
         # 1. Ensure schema in single-DB mode
         ensure_wdcalculator_schema()
         # Import models inside function to prevent circular reference
-        from wdcalculator_models import Estimate, EstimateOrderMatch, EstimateHistory
+        from wdcalculator_models import (
+            Estimate,
+            EstimateHistory,
+            EstimateOrderMatch,
+            WDCalculatorProductSettings,
+        )
         WDCalculatorBase.metadata.create_all(bind=wd_calculator_engine)
         print("WDCalculator tables initialization completed")
     except Exception as e:

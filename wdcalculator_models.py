@@ -1,9 +1,23 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, JSON
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import JSONB
 from wdcalculator_db import WDCalculatorBase
 import json
+
+SETTINGS_JSON_TYPE = JSON().with_variant(JSONB(), 'postgresql')
+
+
+class WDCalculatorProductSettings(WDCalculatorBase):
+    __tablename__ = 'wdcalculator_product_settings'
+
+    id = Column(Integer, primary_key=True)
+    products = Column(SETTINGS_JSON_TYPE, nullable=False, default=list)
+    additional_options = Column(SETTINGS_JSON_TYPE, nullable=False, default=list)
+    notes_categories = Column(SETTINGS_JSON_TYPE, nullable=False, default=list)
+    created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now(), nullable=False)
+
 
 class Estimate(WDCalculatorBase):
     __tablename__ = 'estimates'
