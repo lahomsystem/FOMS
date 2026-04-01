@@ -572,7 +572,7 @@
         const receivedTimeEl = document.getElementById('erp-received-time');
         if (receivedDateEl) receivedDateEl.value = data.received_date || '';
         if (receivedTimeEl) receivedTimeEl.value = data.received_time || '';
-        document.getElementById('erp-customer-name').value = sd?.parties?.customer?.name || '';
+        document.getElementById('erp-customer-name').value = sd?.parties?.customer?.name || '★';
         document.getElementById('erp-customer-phone').value = sd?.parties?.customer?.phone || '';
         try {
             const erpManualPhone = document.getElementById('erp-manual-phone-input');
