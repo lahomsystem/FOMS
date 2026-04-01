@@ -164,6 +164,66 @@
                 text-align: center;
               }
 
+              .measurement-manager-editor {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto auto;
+                align-items: center;
+                gap: 4px;
+                width: 100%;
+              }
+
+              .measurement-manager-editor__input {
+                width: 100%;
+                min-width: 0;
+                min-height: 34px;
+                padding: 6px 10px;
+                border: 1px solid #cfd5e3;
+                border-radius: 10px;
+                background: #ffffff;
+                color: #212529;
+                font-size: 0.95rem;
+                line-height: 1.2;
+              }
+
+              .measurement-manager-editor__input:focus {
+                outline: none;
+                border-color: #4a7cff;
+                box-shadow: 0 0 0 3px rgba(74, 124, 255, 0.18);
+              }
+
+              .measurement-manager-editor__icon-btn {
+                width: 26px;
+                height: 26px;
+                min-width: 26px;
+                min-height: 26px;
+                padding: 0;
+                border: 1px solid #d7dbe3;
+                border-radius: 8px;
+                background: #f5f7fa;
+                color: #6b7280;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+              }
+
+              .measurement-manager-editor__icon-btn:hover:not(:disabled) {
+                background: #e9eef5;
+                border-color: #c4ccda;
+                color: #374151;
+              }
+
+              .measurement-manager-editor__icon-btn:disabled {
+                opacity: 0.4;
+                cursor: default;
+              }
+
+              .measurement-manager-editor__icon-btn i {
+                pointer-events: none;
+                font-size: 0.72rem;
+              }
+
               /* 다른 CSS 오버라이드 방지 */
               .manager-cell[style*="background-color"] {
                 color: #000000 !important;
@@ -475,7 +535,7 @@
                   <th style="min-width: 110px; width: 110px; border-right: 1px solid #e0e0e0;">시간</th>
                   <th class="measurement-product-cell" style="min-width: 220px; border-right: 1px solid #e0e0e0;">제품
                   </th>
-                  <th style="min-width: 160px; width: 160px;">담당자</th>
+                  <th style="min-width: 220px; width: 220px;">담당자</th>
                 </tr>
               </thead>
               <tbody>
@@ -832,7 +892,7 @@
 
 {% block scripts %}
 {# 실측 PNG·헬퍼 수정 시 v 값을 올려 브라우저/CDN 캐시 무효화 (production만 구버전 JS 유지되는 현상 방지) #}
-{% set measurement_js_v = '20260401b' %}
+{% set measurement_js_v = '20260401c' %}
 <script src="{{ url_for('static', filename='js/erp/common_utils.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement-manual-rows.js') }}?v={{ measurement_js_v }}"></script>
