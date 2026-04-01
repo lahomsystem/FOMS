@@ -110,62 +110,10 @@
               .measurement-column-toolbar {
                 display: flex;
                 align-items: center;
-                justify-content: space-between;
+                justify-content: flex-end;
                 gap: 12px;
                 flex-wrap: wrap;
                 margin-bottom: 8px;
-              }
-
-              .measurement-column-toolbar__desktop {
-                margin-left: auto;
-              }
-
-              .measurement-column-toolbar__mobile {
-                display: none;
-                align-items: center;
-                gap: 8px;
-                flex-wrap: wrap;
-              }
-
-              .measurement-column-toolbar__label {
-                font-size: 0.78rem;
-                font-weight: 700;
-                color: #6b7280;
-                white-space: nowrap;
-              }
-
-              .measurement-column-presets {
-                display: inline-flex;
-                align-items: center;
-                gap: 6px;
-                padding: 4px;
-                border: 1px solid #d9dfeb;
-                border-radius: 999px;
-                background: #f3f5f9;
-              }
-
-              .measurement-column-preset-btn {
-                border: 0;
-                border-radius: 999px;
-                background: transparent;
-                color: #4b5563;
-                font-size: 0.82rem;
-                font-weight: 600;
-                line-height: 1;
-                padding: 7px 12px;
-                white-space: nowrap;
-                transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-              }
-
-              .measurement-column-preset-btn:hover {
-                background: rgba(13, 110, 253, 0.08);
-                color: #1f2937;
-              }
-
-              .measurement-column-preset-btn.is-active {
-                background: #0d6efd;
-                color: #ffffff;
-                box-shadow: 0 6px 14px rgba(13, 110, 253, 0.22);
               }
 
               .measurement-column-reset-btn {
@@ -578,24 +526,7 @@
                 }
               }
 
-              /* 모바일/터치 기기: 프리셋만 사용하고 드래그 리사이즈는 숨김 */
-              @media (max-width: 992px), (hover: none) and (pointer: coarse) {
-                .measurement-column-toolbar {
-                  align-items: flex-start;
-                }
-
-                .measurement-column-toolbar__desktop {
-                  display: none;
-                }
-
-                .measurement-column-toolbar__mobile {
-                  display: flex;
-                }
-
-                .grip-container {
-                  display: none !important;
-                }
-
+              @media (max-width: 992px) {
                 .measurement-panel-item {
                   min-height: 44px;
                   display: flex;
@@ -608,7 +539,7 @@
                 }
 
                 .measurement-table {
-                  min-width: 1280px;
+                  min-width: 1220px;
                 }
 
                 .measurement-table thead {
@@ -627,27 +558,20 @@
                   display: none !important;
                 }
               }
+
+              @media (hover: none) and (pointer: coarse) {
+                .grip-container {
+                  display: none !important;
+                }
+              }
             </style>
             <div class="measurement-column-toolbar">
-              <div class="measurement-column-toolbar__mobile">
-                <span class="measurement-column-toolbar__label">모바일 폭</span>
-                <div class="measurement-column-presets" role="group" aria-label="모바일 컬럼 폭 프리셋">
-                  <button class="measurement-column-preset-btn" type="button" data-measurement-mobile-preset="compact"
-                    aria-pressed="false">압축</button>
-                  <button class="measurement-column-preset-btn" type="button" data-measurement-mobile-preset="default"
-                    aria-pressed="false">기본</button>
-                  <button class="measurement-column-preset-btn" type="button" data-measurement-mobile-preset="wide"
-                    aria-pressed="false">넓게</button>
-                </div>
-              </div>
-              <div class="measurement-column-toolbar__desktop">
-                <button id="btn-reset-measurement-column-widths" type="button"
-                  class="erp-pro-btn erp-pro-btn--outline measurement-column-reset-btn"
-                  title="컬럼 폭을 기본값으로 초기화">
-                  <i class="fas fa-undo"></i>
-                  <span>폭 초기화</span>
-                </button>
-              </div>
+              <button id="btn-reset-measurement-column-widths" type="button"
+                class="erp-pro-btn erp-pro-btn--outline measurement-column-reset-btn"
+                title="컬럼 폭을 기본값으로 초기화">
+                <i class="fas fa-undo"></i>
+                <span>폭 초기화</span>
+              </button>
             </div>
             <table class="table table-sm table-hover align-middle measurement-table" id="measurement-dashboard-table">
               <colgroup>
@@ -709,16 +633,18 @@
 
                 {# 담당자 색상 결정 (manager 변수가 최종 설정된 후) #}
                 {% set manager_key = (manager or '')|trim %}
-                {% set manager_index = -1 %}
+                {% set manager_ns = namespace(index=-1) %}
                 {% for m in manager_list %}
                 {% if m == manager_key %}
-                {% set manager_index = loop.index0 %}
+                {% set manager_ns.index = loop.index0 %}
                 {% endif %}
                 {% endfor %}
-                {% if manager_index >= 0 %}
-                {% set manager_bg_color = color_list[manager_index % color_list|length] %}
+                {% if manager_ns.index >= 0 %}
+                {% set manager_bg_color = color_list[manager_ns.index % color_list|length] %}
+                {% set manager_bg_source = 'palette' %}
                 {% else %}
                 {% set manager_bg_color = '#CCCCCC' %}
+                {% set manager_bg_source = 'fallback' %}
                 {% endif %}
 
                 {# 배경색에 따라 텍스트 색상 자동 결정 #}
@@ -791,7 +717,7 @@
                     style="border-right: 1px solid #e0e0e0;">{{ (product or
                     '-')|strip_product_w or '-' }}</td>
                   <td class="editable-cell manager-cell" data-field="manager" data-label="담당자"
-                    data-bg="{{ manager_bg_color }}" data-color="{{ text_color }}">
+                    data-bg="{{ manager_bg_color }}" data-bg-source="{{ manager_bg_source }}" data-color="{{ text_color }}">
                     {{ manager or '-' }}
                   </td>
                 </tr>
@@ -1028,7 +954,7 @@
 
 {% block scripts %}
 {# 실측 PNG·헬퍼 수정 시 v 값을 올려 브라우저/CDN 캐시 무효화 (production만 구버전 JS 유지되는 현상 방지) #}
-{% set measurement_js_v = '20260401h' %}
+{% set measurement_js_v = '20260401i' %}
 <script src="{{ url_for('static', filename='js/erp/common_utils.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/column-resizer.js') }}?v={{ measurement_js_v }}"></script>
