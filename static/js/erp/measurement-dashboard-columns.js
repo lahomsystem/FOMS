@@ -2,22 +2,71 @@
   'use strict';
 
   var TABLE_ID = 'measurement-dashboard-table';
-  var STORAGE_KEY = 'foms.measurementDashboard.columnWidths.v1';
   var DESKTOP_BREAKPOINT = 992;
-  var resizeState = null;
-  var lastDesktopState = null;
+  var DESKTOP_STORAGE_KEY = 'foms.measurementDashboard.columnWidths.v2';
+  var MOBILE_PRESET_STORAGE_KEY = 'foms.measurementDashboard.mobilePreset.v1';
+  var DEFAULT_MOBILE_PRESET = 'default';
+  var RESIZER_SESSION_KEY = TABLE_ID;
+
   var viewportTimer = null;
+  var lastViewportMode = null;
+  var desktopResizer = null;
+  var desktopResizeListener = null;
+  var isDesktopResizeListenerAttached = false;
 
   var MEASUREMENT_COLUMN_SCHEMA = {
-    detail:           { defaultWidth: 70,  minWidth: 56,  resizable: true },
-    customer:         { defaultWidth: 120, minWidth: 96,  resizable: true },
-    orderer:          { defaultWidth: 110, minWidth: 90,  resizable: true },
-    address:          { defaultWidth: 190, minWidth: 150, resizable: true },
-    phone:            { defaultWidth: 130, minWidth: 110, resizable: true },
-    measurement_date: { defaultWidth: 100, minWidth: 90,  resizable: true },
-    meas_time:        { defaultWidth: 110, minWidth: 90,  resizable: true },
-    product:          { defaultWidth: 190, minWidth: 150, resizable: true },
-    manager:          { defaultWidth: 200, minWidth: 150, resizable: true }
+    detail:           { defaultWidth: 70,  minWidth: 56 },
+    customer:         { defaultWidth: 120, minWidth: 96 },
+    orderer:          { defaultWidth: 110, minWidth: 90 },
+    address:          { defaultWidth: 190, minWidth: 150 },
+    phone:            { defaultWidth: 130, minWidth: 110 },
+    measurement_date: { defaultWidth: 100, minWidth: 90 },
+    meas_time:        { defaultWidth: 110, minWidth: 90 },
+    product:          { defaultWidth: 190, minWidth: 150 },
+    manager:          { defaultWidth: 200, minWidth: 150 }
+  };
+
+  function getSchemaDefaultWidths() {
+    var widths = {};
+    Object.keys(MEASUREMENT_COLUMN_SCHEMA).forEach(function (key) {
+      widths[key] = MEASUREMENT_COLUMN_SCHEMA[key].defaultWidth;
+    });
+    return widths;
+  }
+
+  function createMobilePreset(overrides) {
+    var widths = getSchemaDefaultWidths();
+    Object.keys(overrides || {}).forEach(function (key) {
+      if (MEASUREMENT_COLUMN_SCHEMA[key]) {
+        widths[key] = overrides[key];
+      }
+    });
+    return widths;
+  }
+
+  var MOBILE_PRESETS = {
+    compact: createMobilePreset({
+      detail: 60,
+      customer: 104,
+      orderer: 96,
+      address: 164,
+      phone: 120,
+      measurement_date: 92,
+      meas_time: 92,
+      product: 166,
+      manager: 170
+    }),
+    default: getSchemaDefaultWidths(),
+    wide: createMobilePreset({
+      customer: 124,
+      orderer: 116,
+      address: 228,
+      phone: 136,
+      measurement_date: 104,
+      meas_time: 116,
+      product: 240,
+      manager: 214
+    })
   };
 
   function getTable() {
@@ -28,35 +77,19 @@
     return window.innerWidth > DESKTOP_BREAKPOINT;
   }
 
-  function loadSavedWidths() {
-    try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return {};
-
-      var parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch (e) {
-      return {};
-    }
-  }
-
-  function saveWidths(widths) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(widths));
-    } catch (e) {}
-  }
-
-  function clearSavedWidths() {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch (e) {}
-  }
-
   function getColumnElements(table, colKey) {
     return {
       col: table.querySelector('colgroup col[data-col-key="' + colKey + '"]'),
       th: table.querySelector('thead th[data-col-key="' + colKey + '"]')
     };
+  }
+
+  function getColumnWidth(colEl, thEl) {
+    var styleWidth = colEl ? parseFloat(colEl.style.width) : NaN;
+    if (!isNaN(styleWidth)) return styleWidth;
+
+    var target = colEl || thEl;
+    return target ? target.getBoundingClientRect().width : NaN;
   }
 
   function setColumnWidth(table, colKey, widthPx) {
@@ -65,130 +98,176 @@
 
     var nextWidth = Math.max(schema.minWidth, Math.round(widthPx));
     var columnEls = getColumnElements(table, colKey);
-    if (!columnEls.col) return;
+    if (!columnEls.col || !columnEls.th) return;
 
     columnEls.col.style.width = nextWidth + 'px';
-    if (columnEls.th) {
-      columnEls.th.style.width = nextWidth + 'px';
-      columnEls.th.style.minWidth = nextWidth + 'px';
-      columnEls.th.style.maxWidth = nextWidth + 'px';
-    }
+    columnEls.th.style.width = nextWidth + 'px';
+    columnEls.th.style.minWidth = nextWidth + 'px';
+    columnEls.th.style.maxWidth = nextWidth + 'px';
   }
 
-  function applyWidthsToCols(table, savedWidths) {
-    var cols = table.querySelectorAll('colgroup col[data-col-key]');
-    cols.forEach(function (col) {
-      var key = col.dataset.colKey;
+  function applyWidthsToCols(table, widths) {
+    Object.keys(MEASUREMENT_COLUMN_SCHEMA).forEach(function (key) {
       var schema = MEASUREMENT_COLUMN_SCHEMA[key];
-      if (!schema) return;
-
-      var width = savedWidths[key] !== undefined ? savedWidths[key] : schema.defaultWidth;
-      setColumnWidth(table, key, width);
+      var nextWidth = widths && widths[key] !== undefined ? widths[key] : schema.defaultWidth;
+      setColumnWidth(table, key, nextWidth);
     });
   }
 
   function collectCurrentWidths(table) {
     var widths = {};
-    var cols = table.querySelectorAll('colgroup col[data-col-key]');
 
-    cols.forEach(function (col) {
-      var key = col.dataset.colKey;
-      var width = parseInt(col.style.width, 10);
+    Object.keys(MEASUREMENT_COLUMN_SCHEMA).forEach(function (key) {
+      var columnEls = getColumnElements(table, key);
+      var width = getColumnWidth(columnEls.col, columnEls.th);
       if (!isNaN(width)) {
-        widths[key] = width;
+        widths[key] = Math.round(width);
       }
     });
 
     return widths;
   }
 
-  function cleanupResize() {
-    if (!resizeState) return;
-
-    resizeState.table.classList.remove('col-resizing');
-    document.body.classList.remove('col-resizing-active');
-    document.removeEventListener('pointermove', onPointerMove);
-    document.removeEventListener('pointerup', onPointerUpOrCancel);
-    document.removeEventListener('pointercancel', onPointerUpOrCancel);
-    resizeState = null;
+  function applySchemaMinimums(table) {
+    Object.keys(MEASUREMENT_COLUMN_SCHEMA).forEach(function (key) {
+      var schema = MEASUREMENT_COLUMN_SCHEMA[key];
+      var columnEls = getColumnElements(table, key);
+      var currentWidth = getColumnWidth(columnEls.col, columnEls.th);
+      if (!isNaN(currentWidth) && currentWidth < schema.minWidth) {
+        setColumnWidth(table, key, schema.minWidth);
+      }
+    });
   }
 
-  function onPointerMove(event) {
-    if (!resizeState) return;
+  function loadDesktopWidths() {
+    try {
+      var raw = localStorage.getItem(DESKTOP_STORAGE_KEY);
+      if (!raw) return {};
 
-    var dx = event.clientX - resizeState.startX;
-    setColumnWidth(resizeState.table, resizeState.colKey, resizeState.startWidth + dx);
+      var parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      return {};
+    }
   }
 
-  function onPointerUpOrCancel() {
-    if (!resizeState) return;
-
-    saveWidths(collectCurrentWidths(resizeState.table));
-    cleanupResize();
+  function saveDesktopWidths(widths) {
+    try {
+      localStorage.setItem(DESKTOP_STORAGE_KEY, JSON.stringify(widths));
+    } catch (error) {}
   }
 
-  function startResize(event, table) {
-    if (!isDesktopViewport()) return;
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-
-    var handle = event.currentTarget;
-    var th = handle.closest('th[data-col-key]');
-    if (!th) return;
-
-    var colKey = th.dataset.colKey;
-    var schema = MEASUREMENT_COLUMN_SCHEMA[colKey];
-    if (!schema || !schema.resizable) return;
-
-    var columnEls = getColumnElements(table, colKey);
-    if (!columnEls.col) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    resizeState = {
-      table: table,
-      colKey: colKey,
-      startX: event.clientX,
-      startWidth: columnEls.col.offsetWidth || schema.defaultWidth
-    };
-
-    table.classList.add('col-resizing');
-    document.body.classList.add('col-resizing-active');
-    document.addEventListener('pointermove', onPointerMove);
-    document.addEventListener('pointerup', onPointerUpOrCancel);
-    document.addEventListener('pointercancel', onPointerUpOrCancel);
+  function clearDesktopWidths() {
+    try {
+      localStorage.removeItem(DESKTOP_STORAGE_KEY);
+    } catch (error) {}
   }
 
-  function bindResizeHandles(table) {
-    var handles = table.querySelectorAll('thead th[data-col-key] .col-resize-handle');
+  function loadMobilePreset() {
+    try {
+      var presetKey = localStorage.getItem(MOBILE_PRESET_STORAGE_KEY);
+      return MOBILE_PRESETS[presetKey] ? presetKey : DEFAULT_MOBILE_PRESET;
+    } catch (error) {
+      return DEFAULT_MOBILE_PRESET;
+    }
+  }
 
-    handles.forEach(function (handle) {
-      if (handle.dataset.bound === '1') return;
-      handle.dataset.bound = '1';
+  function saveMobilePreset(presetKey) {
+    try {
+      localStorage.setItem(MOBILE_PRESET_STORAGE_KEY, presetKey);
+    } catch (error) {}
+  }
 
-      handle.addEventListener('pointerdown', function (event) {
-        startResize(event, table);
-      });
+  function clearLibrarySessionStore() {
+    try {
+      sessionStorage.removeItem(RESIZER_SESSION_KEY);
+    } catch (error) {}
+  }
 
-      handle.addEventListener('click', function (event) {
-        event.preventDefault();
-        event.stopPropagation();
-      });
+  function normalizeTableInlineWidths(table) {
+    table.style.width = '';
+    table.style.minWidth = '';
+  }
 
-      handle.addEventListener('dblclick', function (event) {
-        event.preventDefault();
-        event.stopPropagation();
+  function getResizerConstructor() {
+    if (!window.ColumnResizer) return null;
+    return window.ColumnResizer.default || window.ColumnResizer;
+  }
 
-        var th = handle.closest('th[data-col-key]');
-        if (!th) return;
+  function syncDesktopGripPositions() {
+    if (!desktopResizer || typeof desktopResizer.onResize !== 'function') return;
+    desktopResizer.onResize();
+  }
 
-        var colKey = th.dataset.colKey;
-        var schema = MEASUREMENT_COLUMN_SCHEMA[colKey];
-        if (!schema) return;
+  function attachDesktopResizeListener() {
+    if (!desktopResizeListener || isDesktopResizeListenerAttached) return;
+    window.addEventListener('resize', desktopResizeListener);
+    isDesktopResizeListenerAttached = true;
+  }
 
-        setColumnWidth(table, colKey, schema.defaultWidth);
-        saveWidths(collectCurrentWidths(table));
-      });
+  function detachDesktopResizeListener() {
+    if (!desktopResizeListener || !isDesktopResizeListenerAttached) return;
+    window.removeEventListener('resize', desktopResizeListener);
+    isDesktopResizeListenerAttached = false;
+  }
+
+  function initDesktopResizer(table) {
+    if (desktopResizer) return;
+
+    var ResizerCtor = getResizerConstructor();
+    if (!ResizerCtor) return;
+
+    clearLibrarySessionStore();
+    desktopResizer = new ResizerCtor(table, {
+      resizeMode: 'overflow',
+      liveDrag: true,
+      minWidth: 56,
+      headerOnly: true,
+      removePadding: false,
+      serialize: false,
+      draggingClass: 'measurement-col-resizer-active',
+      gripInnerHtml: '<div class="measurement-col-resizer-grip"></div>',
+      onResize: function () {
+        applySchemaMinimums(table);
+        saveDesktopWidths(collectCurrentWidths(table));
+      }
+    });
+
+    desktopResizeListener = typeof desktopResizer.onResize === 'function' ? desktopResizer.onResize : null;
+    isDesktopResizeListenerAttached = !!desktopResizeListener;
+
+    applySchemaMinimums(table);
+    saveDesktopWidths(collectCurrentWidths(table));
+  }
+
+  function applyDesktopState(table) {
+    normalizeTableInlineWidths(table);
+    applyWidthsToCols(table, loadDesktopWidths());
+    initDesktopResizer(table);
+    attachDesktopResizeListener();
+    syncDesktopGripPositions();
+    updateMobilePresetButtons(loadMobilePreset());
+  }
+
+  function applyMobilePresetWidths(table, presetKey) {
+    detachDesktopResizeListener();
+    normalizeTableInlineWidths(table);
+    applyWidthsToCols(table, MOBILE_PRESETS[presetKey] || MOBILE_PRESETS[DEFAULT_MOBILE_PRESET]);
+    updateMobilePresetButtons(presetKey);
+  }
+
+  function setMobilePreset(table, presetKey) {
+    var nextPreset = MOBILE_PRESETS[presetKey] ? presetKey : DEFAULT_MOBILE_PRESET;
+    saveMobilePreset(nextPreset);
+    applyMobilePresetWidths(table, nextPreset);
+  }
+
+  function updateMobilePresetButtons(activePreset) {
+    var buttons = document.querySelectorAll('[data-measurement-mobile-preset]');
+    buttons.forEach(function (button) {
+      var isActive = button.dataset.measurementMobilePreset === activePreset;
+      button.classList.toggle('is-active', isActive);
+      button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
   }
 
@@ -198,38 +277,56 @@
 
     button.dataset.bound = '1';
     button.addEventListener('click', function () {
-      clearSavedWidths();
+      clearDesktopWidths();
+      normalizeTableInlineWidths(table);
       applyWidthsToCols(table, {});
+      applySchemaMinimums(table);
+      saveDesktopWidths(collectCurrentWidths(table));
+      syncDesktopGripPositions();
     });
   }
 
-  function syncViewportState() {
+  function bindMobilePresetButtons(table) {
+    var buttons = document.querySelectorAll('[data-measurement-mobile-preset]');
+    buttons.forEach(function (button) {
+      if (button.dataset.bound === '1') return;
+
+      button.dataset.bound = '1';
+      button.addEventListener('click', function () {
+        setMobilePreset(table, button.dataset.measurementMobilePreset);
+      });
+    });
+  }
+
+  function syncViewportState(force) {
     var table = getTable();
     if (!table) return;
 
-    var isDesktop = isDesktopViewport();
-    if (isDesktop === lastDesktopState) return;
+    var nextMode = isDesktopViewport() ? 'desktop' : 'mobile';
+    if (!force && nextMode === lastViewportMode) return;
 
-    lastDesktopState = isDesktop;
-    if (!isDesktop) {
-      cleanupResize();
+    lastViewportMode = nextMode;
+    if (nextMode === 'desktop') {
+      applyDesktopState(table);
+      return;
     }
 
-    applyWidthsToCols(table, isDesktop ? loadSavedWidths() : {});
+    applyMobilePresetWidths(table, loadMobilePreset());
   }
 
   function init() {
     var table = getTable();
     if (!table) return;
 
-    lastDesktopState = isDesktopViewport();
-    applyWidthsToCols(table, lastDesktopState ? loadSavedWidths() : {});
-    bindResizeHandles(table);
     bindResetButton(table);
+    bindMobilePresetButtons(table);
+    syncViewportState(true);
 
     window.addEventListener('resize', function () {
       clearTimeout(viewportTimer);
-      viewportTimer = window.setTimeout(syncViewportState, 120);
+      viewportTimer = window.setTimeout(function () {
+        syncViewportState(false);
+      }, 120);
     });
   }
 

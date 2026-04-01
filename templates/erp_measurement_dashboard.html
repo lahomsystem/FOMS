@@ -109,9 +109,63 @@
 
               .measurement-column-toolbar {
                 display: flex;
-                justify-content: flex-end;
                 align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                flex-wrap: wrap;
                 margin-bottom: 8px;
+              }
+
+              .measurement-column-toolbar__desktop {
+                margin-left: auto;
+              }
+
+              .measurement-column-toolbar__mobile {
+                display: none;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+              }
+
+              .measurement-column-toolbar__label {
+                font-size: 0.78rem;
+                font-weight: 700;
+                color: #6b7280;
+                white-space: nowrap;
+              }
+
+              .measurement-column-presets {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 4px;
+                border: 1px solid #d9dfeb;
+                border-radius: 999px;
+                background: #f3f5f9;
+              }
+
+              .measurement-column-preset-btn {
+                border: 0;
+                border-radius: 999px;
+                background: transparent;
+                color: #4b5563;
+                font-size: 0.82rem;
+                font-weight: 600;
+                line-height: 1;
+                padding: 7px 12px;
+                white-space: nowrap;
+                transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+              }
+
+              .measurement-column-preset-btn:hover {
+                background: rgba(13, 110, 253, 0.08);
+                color: #1f2937;
+              }
+
+              .measurement-column-preset-btn.is-active {
+                background: #0d6efd;
+                color: #ffffff;
+                box-shadow: 0 6px 14px rgba(13, 110, 253, 0.22);
               }
 
               .measurement-column-reset-btn {
@@ -135,38 +189,32 @@
                 position: relative;
               }
 
-              .measurement-table .col-resize-handle {
+              .grip-container {
+                z-index: 12;
+              }
+
+              .grip-handle {
+                z-index: 16 !important;
+              }
+
+              .grip-handle .measurement-col-resizer-grip {
                 position: absolute;
-                top: 0;
-                right: -4px;
-                width: 8px;
-                height: 100%;
-                border: 0;
-                background: transparent;
-                cursor: col-resize;
-                z-index: 10;
-                padding: 0;
-                margin: 0;
-                display: block;
+                top: 7px;
+                bottom: 7px;
+                left: 50%;
+                width: 2px;
+                transform: translateX(-50%);
+                border-radius: 999px;
+                background: rgba(13, 110, 253, 0.18);
+                opacity: 0;
+                transition: opacity 0.15s ease, background-color 0.15s ease;
+                pointer-events: none;
               }
 
-              .measurement-table th:hover .col-resize-handle {
-                background: rgba(13, 110, 253, 0.12);
-                border-radius: 2px;
-              }
-
-              .measurement-table .col-resize-handle:focus {
-                outline: none;
-              }
-
-              .measurement-table.col-resizing,
-              .measurement-table.col-resizing * {
-                user-select: none;
-                -webkit-user-select: none;
-              }
-
-              body.col-resizing-active {
-                cursor: col-resize;
+              .grip-handle:hover .measurement-col-resizer-grip,
+              .grip-handle.measurement-col-resizer-active .measurement-col-resizer-grip {
+                opacity: 1;
+                background: rgba(13, 110, 253, 0.56);
               }
 
               .measurement-table tbody tr {
@@ -193,13 +241,8 @@
                 font-size: 0.875rem;
               }
 
-              /* 모바일: 제품 컬럼 가로 확장 → 행 높이 최소화, 가로 스크롤로 확인 */
+              /* 모바일: 컬럼 폭은 프리셋이 담당, 화면은 가로 스크롤 기준으로 유지 */
               @media (max-width: 768px) {
-                .measurement-table .measurement-product-cell {
-                  min-width: 200px !important;
-                  max-width: none !important;
-                }
-
                 .measurement-table {
                   min-width: 1280px;
                 }
@@ -538,11 +581,19 @@
               /* 모바일: 카드 전환 대신 테이블 유지 + 가로 스크롤 */
               @media (max-width: 992px) {
                 .measurement-column-toolbar {
+                  align-items: flex-start;
+                }
+
+                .measurement-column-toolbar__desktop {
                   display: none;
                 }
 
-                .measurement-table .col-resize-handle {
-                  display: none;
+                .measurement-column-toolbar__mobile {
+                  display: flex;
+                }
+
+                .grip-container {
+                  display: none !important;
                 }
 
                 .measurement-panel-item {
@@ -578,12 +629,25 @@
               }
             </style>
             <div class="measurement-column-toolbar">
-              <button id="btn-reset-measurement-column-widths" type="button"
-                class="erp-pro-btn erp-pro-btn--outline measurement-column-reset-btn"
-                title="컬럼 폭을 기본값으로 초기화">
-                <i class="fas fa-undo"></i>
-                <span>폭 초기화</span>
-              </button>
+              <div class="measurement-column-toolbar__mobile">
+                <span class="measurement-column-toolbar__label">모바일 폭</span>
+                <div class="measurement-column-presets" role="group" aria-label="모바일 컬럼 폭 프리셋">
+                  <button class="measurement-column-preset-btn" type="button" data-measurement-mobile-preset="compact"
+                    aria-pressed="false">압축</button>
+                  <button class="measurement-column-preset-btn" type="button" data-measurement-mobile-preset="default"
+                    aria-pressed="false">기본</button>
+                  <button class="measurement-column-preset-btn" type="button" data-measurement-mobile-preset="wide"
+                    aria-pressed="false">넓게</button>
+                </div>
+              </div>
+              <div class="measurement-column-toolbar__desktop">
+                <button id="btn-reset-measurement-column-widths" type="button"
+                  class="erp-pro-btn erp-pro-btn--outline measurement-column-reset-btn"
+                  title="컬럼 폭을 기본값으로 초기화">
+                  <i class="fas fa-undo"></i>
+                  <span>폭 초기화</span>
+                </button>
+              </div>
             </div>
             <table class="table table-sm table-hover align-middle measurement-table" id="measurement-dashboard-table">
               <colgroup>
@@ -599,25 +663,15 @@
               </colgroup>
               <thead class="table-light">
                 <tr>
-                  <th data-col-key="detail" style="border-right: 1px solid #e0e0e0;">상세<button class="col-resize-handle"
-                      type="button" aria-label="상세 컬럼 크기 조절"></button></th>
-                  <th data-col-key="customer" style="border-right: 1px solid #e0e0e0;">고객<button class="col-resize-handle"
-                      type="button" aria-label="고객 컬럼 크기 조절"></button></th>
-                  <th data-col-key="orderer" style="border-right: 1px solid #e0e0e0;">발주사<button class="col-resize-handle"
-                      type="button" aria-label="발주사 컬럼 크기 조절"></button></th>
-                  <th data-col-key="address" style="border-right: 1px solid #e0e0e0;">주소<button class="col-resize-handle"
-                      type="button" aria-label="주소 컬럼 크기 조절"></button></th>
-                  <th data-col-key="phone" style="border-right: 1px solid #e0e0e0;">전화번호<button class="col-resize-handle"
-                      type="button" aria-label="전화번호 컬럼 크기 조절"></button></th>
-                  <th data-col-key="measurement_date" style="border-right: 1px solid #e0e0e0;">실측일<button
-                      class="col-resize-handle" type="button" aria-label="실측일 컬럼 크기 조절"></button></th>
-                  <th data-col-key="meas_time" style="border-right: 1px solid #e0e0e0;">시간<button class="col-resize-handle"
-                      type="button" aria-label="시간 컬럼 크기 조절"></button></th>
-                  <th class="measurement-product-cell" data-col-key="product" style="border-right: 1px solid #e0e0e0;">제품<button
-                      class="col-resize-handle" type="button" aria-label="제품 컬럼 크기 조절"></button>
-                  </th>
-                  <th data-col-key="manager">담당자<button class="col-resize-handle" type="button"
-                      aria-label="담당자 컬럼 크기 조절"></button></th>
+                  <th data-col-key="detail" style="border-right: 1px solid #e0e0e0;">상세</th>
+                  <th data-col-key="customer" style="border-right: 1px solid #e0e0e0;">고객</th>
+                  <th data-col-key="orderer" style="border-right: 1px solid #e0e0e0;">발주사</th>
+                  <th data-col-key="address" style="border-right: 1px solid #e0e0e0;">주소</th>
+                  <th data-col-key="phone" style="border-right: 1px solid #e0e0e0;">전화번호</th>
+                  <th data-col-key="measurement_date" style="border-right: 1px solid #e0e0e0;">실측일</th>
+                  <th data-col-key="meas_time" style="border-right: 1px solid #e0e0e0;">시간</th>
+                  <th class="measurement-product-cell" data-col-key="product" style="border-right: 1px solid #e0e0e0;">제품</th>
+                  <th data-col-key="manager">담당자</th>
                 </tr>
               </thead>
               <tbody>
@@ -974,9 +1028,10 @@
 
 {% block scripts %}
 {# 실측 PNG·헬퍼 수정 시 v 값을 올려 브라우저/CDN 캐시 무효화 (production만 구버전 JS 유지되는 현상 방지) #}
-{% set measurement_js_v = '20260401e' %}
+{% set measurement_js_v = '20260401g' %}
 <script src="{{ url_for('static', filename='js/erp/common_utils.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement.js') }}?v={{ measurement_js_v }}"></script>
+<script src="{{ url_for('static', filename='js/column-resizer.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement-dashboard-columns.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement-manual-rows.js') }}?v={{ measurement_js_v }}"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
