@@ -180,12 +180,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 row.remove();
             });
 
-        clonedTable.classList.remove('table-sm', 'table-hover');
+        /* Bootstrap .table 은 캔버스 래스터 시 인접 셀 테두리가 겹쳐 보이거나 흰 틈이 생길 수 있어 제거 */
+        clonedTable.classList.remove('table', 'table-sm', 'table-hover', 'align-middle');
         clonedTable.style.width = EXPORT_TABLE_WIDTH + 'px';
         clonedTable.style.minWidth = EXPORT_TABLE_WIDTH + 'px';
         clonedTable.style.maxWidth = EXPORT_TABLE_WIDTH + 'px';
         clonedTable.style.tableLayout = 'fixed';
         clonedTable.style.borderCollapse = 'collapse';
+        clonedTable.style.borderSpacing = '0';
         clonedTable.style.backgroundColor = '#ffffff';
         clonedTable.style.border = '2px solid #111827';
         clonedTable.style.fontSize = EXPORT_BODY_FONT_SIZE;
@@ -251,8 +253,18 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             exportDataRowIndex += 1;
             const cells = row.querySelectorAll('td');
-            cells.forEach(function (cell) {
-                cell.style.border = '1px solid #111827';
+            const lineColor = '#111827';
+            cells.forEach(function (cell, idx) {
+                /*
+                 * html2canvas 는 td 네 면에 border 를 주면 행 사이에 이중선·흰 간극처럼 보이는 경우가 많다.
+                 * 엑셀처럼 한 줄만 보이게: 가로는 bottom 만, 세로는 좌측열에 left + 각 셀 right 로 겹침 최소화.
+                 */
+                cell.style.border = 'none';
+                cell.style.borderBottom = '1px solid ' + lineColor;
+                cell.style.borderRight = '1px solid ' + lineColor;
+                if (idx === 0) {
+                    cell.style.borderLeft = '1px solid ' + lineColor;
+                }
                 cell.style.padding = '10px 8px';
                 cell.style.fontSize = EXPORT_BODY_FONT_SIZE;
                 cell.style.fontWeight = '600';
@@ -260,7 +272,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 cell.style.verticalAlign = 'middle';
                 cell.style.textAlign = 'center';
                 cell.style.whiteSpace = 'nowrap';
-                cell.style.backgroundClip = 'padding-box';
             });
 
             const detailCell = cells[0];
