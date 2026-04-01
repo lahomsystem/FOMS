@@ -676,10 +676,10 @@
               </thead>
               <tbody>
                 {% if rows %}
-                {# 담당자 목록 수집 및 색상 할당 (검정 글자가 잘 보이는 밝은 원색) #}
+                {# 담당자 목록 수집 및 색상 할당 (검정 글자가 잘 보이는 연한 파스텔톤) #}
                 {% set manager_list = [] %}
-                {% set color_list = ['#FF0000', '#0080FF', '#FFFF00', '#00FF00', '#FF00FF', '#00FFFF', '#FF8000',
-                '#FF1493', '#00FF80', '#FF69B4'] %}
+                {% set color_list = ['#FADADD', '#DCEBFF', '#FFF1BF', '#DDF4E4', '#E8DDF8', '#D9F3F0', '#FFE6CC',
+                '#F9D9EC', '#E5F5D2', '#FDE2E4'] %}
                 {% for r in rows %}
                 {% set temp_manager = r.manager_name %}
                 {% if r.is_erp_beta and r.structured_data and r.structured_data.parties is mapping and
