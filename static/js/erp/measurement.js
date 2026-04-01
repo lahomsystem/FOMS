@@ -271,13 +271,35 @@
 
         // ── 6. 담당자 드롭다운 ──
 
-        function positionDropdown(div, anchorEl) {
-            const rect = anchorEl.getBoundingClientRect();
-            div.style.left = rect.left + 'px';
-            if (window.innerHeight - rect.bottom < 250) {
-                div.style.bottom = (window.innerHeight - rect.top + 2) + 'px';
+        function positionDropdown(div, anchorEl, editingContainer) {
+            const viewportPadding = 8;
+            const anchorRect = anchorEl.getBoundingClientRect();
+            const containerRect = (editingContainer || anchorEl).getBoundingClientRect();
+            const viewportWidth = Math.max(window.innerWidth || 0, 320);
+            const viewportHeight = Math.max(window.innerHeight || 0, 320);
+            const preferredWidth = Math.max(Math.round(containerRect.width), 180);
+            const maxWidth = Math.max(180, viewportWidth - (viewportPadding * 2));
+
+            div.style.top = '';
+            div.style.bottom = '';
+            div.style.width = Math.min(preferredWidth, maxWidth) + 'px';
+            div.style.maxWidth = maxWidth + 'px';
+
+            const dropdownRect = div.getBoundingClientRect();
+            const clampedLeft = Math.max(
+                viewportPadding,
+                Math.min(containerRect.left, viewportWidth - dropdownRect.width - viewportPadding)
+            );
+            div.style.left = Math.round(clampedLeft) + 'px';
+
+            const dropdownHeight = Math.min(dropdownRect.height || 0, 240);
+            const spaceBelow = viewportHeight - anchorRect.bottom - viewportPadding;
+            const openUpward = spaceBelow < dropdownHeight && anchorRect.top > dropdownHeight;
+
+            if (openUpward) {
+                div.style.bottom = Math.round(viewportHeight - anchorRect.top + 2) + 'px';
             } else {
-                div.style.top = (rect.bottom + 2) + 'px';
+                div.style.top = Math.round(anchorRect.bottom + 2) + 'px';
             }
         }
 
@@ -310,8 +332,7 @@
             const div = document.createElement('div');
             div.id = 'measurement-manager-dropdown';
             div.className = 'dropdown-menu show';
-            div.style.cssText = 'position:fixed;z-index:9999;max-height:240px;overflow-y:auto;min-width:120px;';
-            positionDropdown(div, anchorEl);
+            div.style.cssText = 'position:fixed;z-index:9999;max-height:240px;overflow-y:auto;overflow-x:hidden;';
 
             const ac = new AbortController();
             _activeManagerDropdown = {
@@ -337,8 +358,16 @@
             });
 
             document.body.appendChild(div);
+            positionDropdown(div, anchorEl, editingContainer);
 
             window.requestAnimationFrame(function () {
+                const repositionDropdown = function () {
+                    if (!_activeManagerDropdown || _activeManagerDropdown.element !== div) return;
+                    positionDropdown(div, anchorEl, editingContainer);
+                };
+
+                window.addEventListener('resize', repositionDropdown, { signal: ac.signal });
+                window.addEventListener('scroll', repositionDropdown, { capture: true, passive: true, signal: ac.signal });
                 document.addEventListener('pointerdown', function (e) {
                     if (div.contains(e.target) || anchorEl.contains(e.target)) return;
                     const shouldDismiss = editingContainer && !editingContainer.contains(e.target);
