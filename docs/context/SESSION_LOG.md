@@ -14,7 +14,7 @@
 - **시작**: 2026-04-01 08:46:22
 - **상태**: completed
 - **편집 파일**: `templates/erp_measurement_dashboard.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-eef2ce34-16ea-442f-880e-27f14c618874.png`, `templates/partials/erp_beta_js.html`, `templates/partials/erp_beta_tab.html`, `static/js/erp/measurement.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ae0f6285-c9e4-49cf-94fa-56b0ed6aca1e.png`, `commit_msg.txt`, `migrations/versions/2502107448c0_add_systemsetting_table.py`, `services/erp_shipment_settings.py`, `db.py`
-- **종료**: 2026-04-01 09:02:33
+- **종료**: 2026-04-01 09:07:18
 
  81fe745f
 - **시작**: 2026-03-31 10:38:54
@@ -1192,3 +1192,5 @@
 | 2026-04-01 08:57:45 | END (Claude Code) | 수정: (없음) |
 
 | 2026-04-01 09:02:33 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-01 09:07:18 | END (Claude Code) | 수정: (없음) |

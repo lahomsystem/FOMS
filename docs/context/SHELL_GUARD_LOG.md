@@ -4,7 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-03-25 14:23:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
 | 2026-03-25 14:23:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rm static/js/erp-table-image-export-helpers.js; git add static/css/erp-pro.css static/js/m` |
 | 2026-03-25 14:24:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git checkout deploy; git merge production; git push origin deploy;` |
 | 2026-03-25 14:25:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
@@ -304,3 +303,4 @@
 | 2026-04-01 08:53:48 | allow | `-` | `$msg = "실측대시보드 담당자 편집 X/목록 버튼 크기 최소화 - 입력창 가시성 개선`n`n- clearBtn/loadBtn padding 6px 10px -> 2px 6px, font-size 1rem -> 0.75rem`n- opacity 0.65 추가로 존재감 축소, 입력창이 ` |
 | 2026-04-01 09:01:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff templates/erp_measurement_dashboard.html` |
 | 2026-04-01 09:07:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short; git log --oneline -3` |
+| 2026-04-01 09:09:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; $commitMsg = "고객명 입력란 기본값을 placeholder에서 실제 value=★로 변경"; [System.IO.File]::WriteA` |
