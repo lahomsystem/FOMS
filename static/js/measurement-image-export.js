@@ -238,6 +238,7 @@ document.addEventListener('DOMContentLoaded', function () {
             cell.style.whiteSpace = 'nowrap';
         });
 
+        const lineColor = '#111827';
         const bodyRows = Array.from(clonedTable.querySelectorAll('tbody tr'));
         var exportDataRowIndex = 0;
         bodyRows.forEach(function (row) {
@@ -246,6 +247,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     cell.style.height = EXPORT_ASSIGNEE_GROUP_GAP_HEIGHT;
                     cell.style.padding = '0';
                     cell.style.border = 'none';
+                    cell.style.borderBottom = '1px solid ' + lineColor;
                     cell.style.backgroundColor = '#ffffff';
                     cell.style.lineHeight = '0';
                 });
@@ -253,7 +255,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             exportDataRowIndex += 1;
             const cells = row.querySelectorAll('td');
-            const lineColor = '#111827';
             cells.forEach(function (cell, idx) {
                 /*
                  * html2canvas 는 td 네 면에 border 를 주면 행 사이에 이중선·흰 간극처럼 보이는 경우가 많다.
