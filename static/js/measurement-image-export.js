@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const EXPORT_TABLE_WIDTH = 1520;
     const EXPORT_TITLE_FONT_SIZE = '38px';
     const EXPORT_HEADER_FONT_SIZE = '15px';
-    const EXPORT_BODY_FONT_SIZE = '17px';
+    const EXPORT_BODY_FONT_SIZE = '20px';
     const EXPORT_MIN_COLUMN_WIDTHS = {
         detail: 40,
         customer: 72,
