@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const EXPORT_TABLE_WIDTH = 1520;
     const EXPORT_TITLE_FONT_SIZE = '38px';
     const EXPORT_HEADER_FONT_SIZE = '15px';
-    const EXPORT_BODY_FONT_SIZE = '15px';
+    const EXPORT_BODY_FONT_SIZE = '17px';
     const EXPORT_MIN_COLUMN_WIDTHS = {
         detail: 40,
         customer: 72,
@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', function () {
         clonedTable.style.borderCollapse = 'collapse';
         clonedTable.style.backgroundColor = '#ffffff';
         clonedTable.style.border = '2px solid #111827';
-        clonedTable.style.fontSize = '15px';
+        clonedTable.style.fontSize = EXPORT_BODY_FONT_SIZE;
         clonedTable.style.lineHeight = '1.35';
 
         removeExportColumn(clonedTable, 'measurement_date');
@@ -224,7 +224,7 @@ document.addEventListener('DOMContentLoaded', function () {
             cell.style.whiteSpace = 'nowrap';
             cell.style.wordBreak = 'normal';
             cell.style.lineHeight = '1.3';
-            cell.style.fontSize = '15px';
+            cell.style.fontSize = EXPORT_BODY_FONT_SIZE;
             cell.style.overflow = 'hidden';
         });
 
@@ -240,7 +240,7 @@ document.addEventListener('DOMContentLoaded', function () {
             cell.style.whiteSpace = 'normal';
             cell.style.wordBreak = 'keep-all';
             cell.style.lineHeight = '1.35';
-            cell.style.fontSize = '15px';
+            cell.style.fontSize = EXPORT_BODY_FONT_SIZE;
         });
 
         clonedTable.querySelectorAll('.manager-cell').forEach(function (cell) {
@@ -252,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             cell.style.fontWeight = '800';
             cell.style.letterSpacing = '0.02em';
-            cell.style.fontSize = '15px';
+            cell.style.fontSize = EXPORT_BODY_FONT_SIZE;
         });
     }
 
