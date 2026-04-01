@@ -163,9 +163,40 @@
             });
         }
 
+        /**
+         * 담당자 그룹이 바뀔 때만 얇은 간격 행을 둔다. 같은 담당자 연속 행 사이에는 삽입하지 않는다.
+         * 정렬/수동행 복원 후 DOM 순서에 맞춰 재계산한다.
+         */
+        function syncMeasurementManagerGroupGaps(tbodyEl) {
+            if (!tbodyEl) return;
+            tbodyEl.querySelectorAll('tr.measurement-manager-group-gap').forEach(function (r) {
+                r.remove();
+            });
+            var prevKey = null;
+            Array.from(tbodyEl.children).forEach(function (tr) {
+                if (!tr.classList || !tr.classList.contains('measurement-row')) return;
+                var key = normalizeManagerKey(getManagerFromRow(tr));
+                if (prevKey !== null && key !== prevKey) {
+                    var gap = document.createElement('tr');
+                    gap.className = 'measurement-manager-group-gap';
+                    gap.setAttribute('aria-hidden', 'true');
+                    var td = document.createElement('td');
+                    td.colSpan = 9;
+                    gap.appendChild(td);
+                    tbodyEl.insertBefore(gap, tr);
+                }
+                prevKey = key;
+            });
+        }
+
         function applyMeasurementManagerSortAndColors(options) {
             const mainRows = Array.from(tbody.querySelectorAll('tr.measurement-row'));
-            if (!mainRows.length) return;
+            if (!mainRows.length) {
+                tbody.querySelectorAll('tr.measurement-manager-group-gap').forEach(function (r) {
+                    r.remove();
+                });
+                return;
+            }
 
             restoreServerColors(mainRows);
 
@@ -180,6 +211,7 @@
             applyManagerColors(mainRows, managerColors);
             window.measurementManualRowsRecomputeAnchors();
             window.measurementManualRowsPersist();
+            syncMeasurementManagerGroupGaps(tbody);
 
             if (options && options.focusRow) {
                 focusEditedMeasurementRow(options.focusRow);

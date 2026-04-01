@@ -146,6 +146,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         removeExportColumn(clonedTable, 'measurement_date');
 
+        var headColCount =
+            clonedTable.querySelectorAll('thead tr:last-child th').length || 8;
+        clonedTable.querySelectorAll('tr.measurement-manager-group-gap td').forEach(function (td) {
+            td.colSpan = headColCount;
+        });
+
         const exportWidths = buildExportColumnWidths();
         Object.keys(exportWidths).forEach(function (key) {
             setExportColumnWidth(clonedTable, key, exportWidths[key]);
@@ -186,7 +192,19 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         const bodyRows = Array.from(clonedTable.querySelectorAll('tbody tr'));
-        bodyRows.forEach(function (row, index) {
+        var exportDataRowIndex = 0;
+        bodyRows.forEach(function (row) {
+            if (row.classList.contains('measurement-manager-group-gap')) {
+                row.querySelectorAll('td').forEach(function (cell) {
+                    cell.style.height = '8px';
+                    cell.style.padding = '0';
+                    cell.style.border = 'none';
+                    cell.style.backgroundColor = '#ffffff';
+                    cell.style.lineHeight = '0';
+                });
+                return;
+            }
+            exportDataRowIndex += 1;
             const cells = row.querySelectorAll('td');
             cells.forEach(function (cell) {
                 cell.style.border = '1px solid #111827';
@@ -202,7 +220,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const detailCell = cells[0];
             if (detailCell) {
-                detailCell.textContent = String(index + 1);
+                detailCell.textContent = String(exportDataRowIndex);
                 detailCell.style.fontWeight = '700';
             }
 

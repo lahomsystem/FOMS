@@ -185,6 +185,7 @@
         return Array.from(tbody.children).filter(function (tr) {
             if (tr.tagName !== 'TR') return false;
             if (tr.classList.contains('measurement-gap-row')) return false;
+            if (tr.classList.contains('measurement-manager-group-gap')) return false;
             if (tr.offsetParent === null) return false;
             return true;
         });
