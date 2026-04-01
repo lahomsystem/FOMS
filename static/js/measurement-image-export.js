@@ -5,16 +5,17 @@
 document.addEventListener('DOMContentLoaded', function () {
     const exportBtn = document.getElementById('btn-export-image');
     if (!exportBtn) return;
-    const EXPORT_TABLE_WIDTH = 1500;
+    const EXPORT_TABLE_WIDTH = 1800;
     const EXPORT_MIN_COLUMN_WIDTHS = {
-        detail: 48,
-        customer: 86,
-        orderer: 86,
-        phone: 126,
-        meas_time: 94,
-        manager: 110
+        detail: 42,
+        customer: 78,
+        orderer: 78,
+        phone: 118,
+        meas_time: 82,
+        product: 170,
+        manager: 96
     };
-    const EXPORT_EXPANDED_COLUMNS = ['address', 'product'];
+    const EXPORT_EXPANDED_COLUMNS = ['address'];
     const EXPORT_GROUP_BORDER_COLOR = '#4b5563';
     const EXPORT_GROUP_BORDER_WIDTH = '3px';
 
@@ -107,18 +108,16 @@ document.addEventListener('DOMContentLoaded', function () {
             fixedWidth += EXPORT_MIN_COLUMN_WIDTHS[key];
         });
 
-        const remainingWidth = Math.max(720, EXPORT_TABLE_WIDTH - fixedWidth);
-        const addressWidth = Math.round(remainingWidth * 0.46);
-        const productWidth = remainingWidth - addressWidth;
+        const remainingWidth = Math.max(760, EXPORT_TABLE_WIDTH - fixedWidth);
 
         return {
             detail: EXPORT_MIN_COLUMN_WIDTHS.detail,
             customer: EXPORT_MIN_COLUMN_WIDTHS.customer,
             orderer: EXPORT_MIN_COLUMN_WIDTHS.orderer,
-            address: addressWidth,
+            address: remainingWidth,
             phone: EXPORT_MIN_COLUMN_WIDTHS.phone,
             meas_time: EXPORT_MIN_COLUMN_WIDTHS.meas_time,
-            product: productWidth,
+            product: EXPORT_MIN_COLUMN_WIDTHS.product,
             manager: EXPORT_MIN_COLUMN_WIDTHS.manager
         };
     }
@@ -154,15 +153,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 const isFirstRow = rowIndex === startIndex;
                 const isLastRow = rowIndex === endIndex;
                 const firstCell = cells[0];
-                const lastCell = cells[cells.length - 1];
 
                 if (firstCell) {
                     firstCell.style.borderLeftWidth = EXPORT_GROUP_BORDER_WIDTH;
                     firstCell.style.borderLeftColor = EXPORT_GROUP_BORDER_COLOR;
-                }
-                if (lastCell) {
-                    lastCell.style.borderRightWidth = EXPORT_GROUP_BORDER_WIDTH;
-                    lastCell.style.borderRightColor = EXPORT_GROUP_BORDER_COLOR;
                 }
 
                 if (isFirstRow) {
@@ -193,6 +187,49 @@ document.addEventListener('DOMContentLoaded', function () {
                 paintGroup(groupStart, index - 1);
                 groupStart = index;
             }
+        }
+
+        let mergeStart = 0;
+        while (mergeStart < rows.length) {
+            const startRow = rows[mergeStart];
+            const startManagerCell = startRow ? startRow.querySelector('.manager-cell') : null;
+            const groupKey = normalizeManagerGroupKey(startManagerCell ? startManagerCell.textContent : '', mergeStart);
+            let mergeEnd = mergeStart;
+
+            while (mergeEnd + 1 < rows.length) {
+                const nextManagerCell = rows[mergeEnd + 1].querySelector('.manager-cell');
+                const nextKey = normalizeManagerGroupKey(nextManagerCell ? nextManagerCell.textContent : '', mergeEnd + 1);
+                if (nextKey !== groupKey) {
+                    break;
+                }
+                mergeEnd += 1;
+            }
+
+            const groupSize = mergeEnd - mergeStart + 1;
+            if (startManagerCell) {
+                startManagerCell.rowSpan = groupSize;
+                startManagerCell.style.verticalAlign = 'middle';
+                startManagerCell.style.textAlign = 'center';
+                startManagerCell.style.fontSize = '17px';
+                startManagerCell.style.fontWeight = '900';
+                startManagerCell.style.lineHeight = '1.5';
+                startManagerCell.style.padding = '0 8px';
+                startManagerCell.style.borderTopWidth = EXPORT_GROUP_BORDER_WIDTH;
+                startManagerCell.style.borderBottomWidth = EXPORT_GROUP_BORDER_WIDTH;
+                startManagerCell.style.borderRightWidth = EXPORT_GROUP_BORDER_WIDTH;
+                startManagerCell.style.borderTopColor = EXPORT_GROUP_BORDER_COLOR;
+                startManagerCell.style.borderBottomColor = EXPORT_GROUP_BORDER_COLOR;
+                startManagerCell.style.borderRightColor = EXPORT_GROUP_BORDER_COLOR;
+            }
+
+            for (let rowIndex = mergeStart + 1; rowIndex <= mergeEnd; rowIndex += 1) {
+                const mergedCell = rows[rowIndex].querySelector('.manager-cell');
+                if (mergedCell) {
+                    mergedCell.remove();
+                }
+            }
+
+            mergeStart = mergeEnd + 1;
         }
     }
 
@@ -292,11 +329,12 @@ document.addEventListener('DOMContentLoaded', function () {
             detailHeader.textContent = '번호';
         }
 
-        clonedTable.querySelectorAll('.measurement-address-cell, .measurement-product-cell').forEach(function (cell) {
+        clonedTable.querySelectorAll('.measurement-address-cell').forEach(function (cell) {
             cell.style.textAlign = 'left';
             cell.style.whiteSpace = 'normal';
             cell.style.wordBreak = 'keep-all';
             cell.style.lineHeight = '1.4';
+            cell.style.fontSize = '14px';
         });
 
         EXPORT_EXPANDED_COLUMNS.forEach(function (colKey) {
@@ -304,6 +342,14 @@ document.addEventListener('DOMContentLoaded', function () {
             if (header) {
                 header.style.textAlign = 'center';
             }
+        });
+
+        clonedTable.querySelectorAll('.measurement-product-cell').forEach(function (cell) {
+            cell.style.textAlign = 'left';
+            cell.style.whiteSpace = 'normal';
+            cell.style.wordBreak = 'keep-all';
+            cell.style.lineHeight = '1.35';
+            cell.style.fontSize = '14px';
         });
 
         clonedTable.querySelectorAll('.manager-cell').forEach(function (cell) {
