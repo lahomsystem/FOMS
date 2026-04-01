@@ -578,8 +578,8 @@
                 }
               }
 
-              /* 모바일: 카드 전환 대신 테이블 유지 + 가로 스크롤 */
-              @media (max-width: 992px) {
+              /* 모바일/터치 기기: 프리셋만 사용하고 드래그 리사이즈는 숨김 */
+              @media (max-width: 992px), (hover: none) and (pointer: coarse) {
                 .measurement-column-toolbar {
                   align-items: flex-start;
                 }
@@ -1028,7 +1028,7 @@
 
 {% block scripts %}
 {# 실측 PNG·헬퍼 수정 시 v 값을 올려 브라우저/CDN 캐시 무효화 (production만 구버전 JS 유지되는 현상 방지) #}
-{% set measurement_js_v = '20260401g' %}
+{% set measurement_js_v = '20260401h' %}
 <script src="{{ url_for('static', filename='js/erp/common_utils.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/erp/measurement.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/column-resizer.js') }}?v={{ measurement_js_v }}"></script>

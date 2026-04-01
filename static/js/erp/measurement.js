@@ -19,10 +19,12 @@
         const tbody = document.querySelector('.measurement-table tbody');
         if (!tbody) return;
 
-        const MANAGER_COLORS = [
-            '#FF0000', '#0080FF', '#FFFF00', '#00FF00', '#FF00FF',
-            '#00FFFF', '#FF8000', '#FF1493', '#00FF80', '#FF69B4'
+        const MANAGER_FALLBACK_COLORS = [
+            '#FADADD', '#DCEBFF', '#FFF1BF', '#DDF4E4', '#E8DDF8',
+            '#D9F3F0', '#FFE6CC', '#F9D9EC', '#E5F5D2', '#FDE2E4'
         ];
+        const DEFAULT_MANAGER_BG_COLOR = '#E5E7EB';
+        const DEFAULT_MANAGER_TEXT_COLOR = '#000000';
 
         let _measurementManagerList = [];
         let _managerSortOrderMap = {};
@@ -31,8 +33,12 @@
 
         // ── 공통 헬퍼 ──
 
+        function getManagerCell(tr) {
+            return tr.querySelector('td.manager-cell');
+        }
+
         function getManagerFromRow(tr) {
-            const cell = tr.querySelector('td.manager-cell');
+            const cell = getManagerCell(tr);
             return (cell && (cell.textContent || '').trim()) || '';
         }
 
@@ -59,7 +65,7 @@
         function restoreServerColors(rows) {
             rows.forEach(function (tr) {
                 if (tr.classList.contains('measurement-row-manual')) return;
-                const cell = tr.querySelector('td.manager-cell');
+                const cell = getManagerCell(tr);
                 if (!cell) return;
                 if (cell.dataset.bg) cell.style.setProperty('background-color', cell.dataset.bg, 'important');
                 if (cell.dataset.color) cell.style.setProperty('color', cell.dataset.color, 'important');
@@ -99,19 +105,47 @@
             return list;
         }
 
-        function applyManagerColors(rows, managerIndex) {
+        function buildManagerColorMap(rows, managerIndex) {
+            const colorMap = {};
+
             rows.forEach(function (tr) {
-                const cell = tr.querySelector('td.manager-cell');
+                const cell = getManagerCell(tr);
                 if (!cell) return;
-                const m = getManagerFromRow(tr);
-                const key = normalizeManagerKey(m);
-                const idx = key ? managerIndex.indexOf(key) : -1;
-                const color = idx >= 0 ? MANAGER_COLORS[idx % MANAGER_COLORS.length] : '#CCCCCC';
-                cell.setAttribute('data-manager-bg-color', color);
-                cell.style.setProperty('--manager-bg-color', color);
-                cell.style.setProperty('background-color', color, 'important');
-                cell.style.setProperty('color', '#000000', 'important');
-                tr.dataset.manager = m || '';
+                const key = normalizeManagerKey(getManagerFromRow(tr));
+                if (!key || !cell.dataset.bg || colorMap[key]) return;
+
+                colorMap[key] = {
+                    background: cell.dataset.bg,
+                    text: cell.dataset.color || DEFAULT_MANAGER_TEXT_COLOR
+                };
+            });
+
+            managerIndex.forEach(function (key, index) {
+                if (colorMap[key]) return;
+                colorMap[key] = {
+                    background: MANAGER_FALLBACK_COLORS[index % MANAGER_FALLBACK_COLORS.length],
+                    text: DEFAULT_MANAGER_TEXT_COLOR
+                };
+            });
+
+            return colorMap;
+        }
+
+        function applyManagerColors(rows, managerColors) {
+            rows.forEach(function (tr) {
+                const cell = getManagerCell(tr);
+                if (!cell) return;
+                const managerName = getManagerFromRow(tr);
+                const key = normalizeManagerKey(managerName);
+                const colorSet = key ? managerColors[key] : null;
+                const background = colorSet ? colorSet.background : DEFAULT_MANAGER_BG_COLOR;
+                const textColor = colorSet ? colorSet.text : DEFAULT_MANAGER_TEXT_COLOR;
+
+                cell.setAttribute('data-manager-bg-color', background);
+                cell.style.setProperty('--manager-bg-color', background);
+                cell.style.setProperty('background-color', background, 'important');
+                cell.style.setProperty('color', textColor, 'important');
+                tr.dataset.manager = managerName || '';
             });
         }
 
@@ -135,7 +169,9 @@
                 if (p.detail) tbody.appendChild(p.detail);
             });
 
-            applyManagerColors(mainRows, buildManagerIndex(mainRows));
+            const managerIndex = buildManagerIndex(mainRows);
+            const managerColors = buildManagerColorMap(mainRows, managerIndex);
+            applyManagerColors(mainRows, managerColors);
             window.measurementManualRowsRecomputeAnchors();
             window.measurementManualRowsPersist();
 
