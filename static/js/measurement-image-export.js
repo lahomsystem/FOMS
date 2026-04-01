@@ -5,19 +5,20 @@
 document.addEventListener('DOMContentLoaded', function () {
     const exportBtn = document.getElementById('btn-export-image');
     if (!exportBtn) return;
-    const EXPORT_TABLE_WIDTH = 1800;
+    const EXPORT_TABLE_WIDTH = 1520;
+    const EXPORT_TITLE_FONT_SIZE = '34px';
+    const EXPORT_HEADER_FONT_SIZE = '14px';
+    const EXPORT_BODY_FONT_SIZE = '14px';
     const EXPORT_MIN_COLUMN_WIDTHS = {
-        detail: 42,
-        customer: 78,
-        orderer: 78,
-        phone: 118,
-        meas_time: 82,
-        product: 170,
-        manager: 96
+        detail: 40,
+        customer: 72,
+        orderer: 72,
+        phone: 124,
+        meas_time: 86,
+        product: 180,
+        manager: 90
     };
     const EXPORT_EXPANDED_COLUMNS = ['address'];
-    const EXPORT_GROUP_BORDER_COLOR = '#4b5563';
-    const EXPORT_GROUP_BORDER_WIDTH = '3px';
 
     /**
      * @param {string} isoDateStr - YYYY-MM-DD
@@ -123,117 +124,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /**
-     * @param {string} text
-     * @param {number} rowIndex
-     * @returns {string}
-     */
-    function normalizeManagerGroupKey(text, rowIndex) {
-        const value = String(text || '').trim();
-        if (!value || value === '-') {
-            return '__ungrouped_' + rowIndex;
-        }
-        return value.toLowerCase();
-    }
-
-    /**
-     * @param {HTMLTableElement} clonedTable
-     */
-    function applyManagerGroupStyles(clonedTable) {
-        const rows = Array.from(clonedTable.querySelectorAll('tbody tr'));
-        if (!rows.length) return;
-
-        let groupStart = 0;
-
-        function paintGroup(startIndex, endIndex) {
-            for (let rowIndex = startIndex; rowIndex <= endIndex; rowIndex += 1) {
-                const row = rows[rowIndex];
-                const cells = Array.from(row.querySelectorAll('td'));
-                if (!cells.length) continue;
-
-                const isFirstRow = rowIndex === startIndex;
-                const isLastRow = rowIndex === endIndex;
-                const firstCell = cells[0];
-
-                if (firstCell) {
-                    firstCell.style.borderLeftWidth = EXPORT_GROUP_BORDER_WIDTH;
-                    firstCell.style.borderLeftColor = EXPORT_GROUP_BORDER_COLOR;
-                }
-
-                if (isFirstRow) {
-                    cells.forEach(function (cell) {
-                        cell.style.borderTopWidth = EXPORT_GROUP_BORDER_WIDTH;
-                        cell.style.borderTopColor = EXPORT_GROUP_BORDER_COLOR;
-                    });
-                }
-
-                if (isLastRow) {
-                    cells.forEach(function (cell) {
-                        cell.style.borderBottomWidth = EXPORT_GROUP_BORDER_WIDTH;
-                        cell.style.borderBottomColor = EXPORT_GROUP_BORDER_COLOR;
-                    });
-                }
-            }
-        }
-
-        for (let index = 1; index <= rows.length; index += 1) {
-            const prevRow = rows[index - 1];
-            const currentRow = rows[index];
-            const prevManagerCell = prevRow ? prevRow.querySelector('.manager-cell') : null;
-            const currentManagerCell = currentRow ? currentRow.querySelector('.manager-cell') : null;
-            const prevKey = normalizeManagerGroupKey(prevManagerCell ? prevManagerCell.textContent : '', index - 1);
-            const currentKey = currentRow ? normalizeManagerGroupKey(currentManagerCell ? currentManagerCell.textContent : '', index) : '';
-
-            if (!currentRow || currentKey !== prevKey) {
-                paintGroup(groupStart, index - 1);
-                groupStart = index;
-            }
-        }
-
-        let mergeStart = 0;
-        while (mergeStart < rows.length) {
-            const startRow = rows[mergeStart];
-            const startManagerCell = startRow ? startRow.querySelector('.manager-cell') : null;
-            const groupKey = normalizeManagerGroupKey(startManagerCell ? startManagerCell.textContent : '', mergeStart);
-            let mergeEnd = mergeStart;
-
-            while (mergeEnd + 1 < rows.length) {
-                const nextManagerCell = rows[mergeEnd + 1].querySelector('.manager-cell');
-                const nextKey = normalizeManagerGroupKey(nextManagerCell ? nextManagerCell.textContent : '', mergeEnd + 1);
-                if (nextKey !== groupKey) {
-                    break;
-                }
-                mergeEnd += 1;
-            }
-
-            const groupSize = mergeEnd - mergeStart + 1;
-            if (startManagerCell) {
-                startManagerCell.rowSpan = groupSize;
-                startManagerCell.style.verticalAlign = 'middle';
-                startManagerCell.style.textAlign = 'center';
-                startManagerCell.style.fontSize = '17px';
-                startManagerCell.style.fontWeight = '900';
-                startManagerCell.style.lineHeight = '1.5';
-                startManagerCell.style.padding = '0 8px';
-                startManagerCell.style.borderTopWidth = EXPORT_GROUP_BORDER_WIDTH;
-                startManagerCell.style.borderBottomWidth = EXPORT_GROUP_BORDER_WIDTH;
-                startManagerCell.style.borderRightWidth = EXPORT_GROUP_BORDER_WIDTH;
-                startManagerCell.style.borderTopColor = EXPORT_GROUP_BORDER_COLOR;
-                startManagerCell.style.borderBottomColor = EXPORT_GROUP_BORDER_COLOR;
-                startManagerCell.style.borderRightColor = EXPORT_GROUP_BORDER_COLOR;
-            }
-
-            for (let rowIndex = mergeStart + 1; rowIndex <= mergeEnd; rowIndex += 1) {
-                const mergedCell = rows[rowIndex].querySelector('.manager-cell');
-                if (mergedCell) {
-                    mergedCell.remove();
-                }
-            }
-
-            mergeStart = mergeEnd + 1;
-        }
-    }
-
-    /**
      * @param {Document} clonedDoc
      * @param {HTMLTableElement} clonedTable
      * @param {string} titleText
@@ -270,9 +160,9 @@ document.addEventListener('DOMContentLoaded', function () {
             titleCell.colSpan = colCount;
             titleCell.textContent = titleText;
             titleCell.style.padding = '18px 14px';
-            titleCell.style.fontSize = '32px';
-            titleCell.style.fontWeight = '800';
-            titleCell.style.letterSpacing = '0.18em';
+            titleCell.style.fontSize = EXPORT_TITLE_FONT_SIZE;
+            titleCell.style.fontWeight = '900';
+            titleCell.style.letterSpacing = '0.12em';
             titleCell.style.textAlign = 'center';
             titleCell.style.backgroundColor = '#ffffff';
             titleCell.style.border = '2px solid #111827';
@@ -287,7 +177,7 @@ document.addEventListener('DOMContentLoaded', function () {
             cell.style.backgroundColor = '#f3f4f6';
             cell.style.border = '1px solid #111827';
             cell.style.color = '#111827';
-            cell.style.fontSize = '15px';
+            cell.style.fontSize = EXPORT_HEADER_FONT_SIZE;
             cell.style.fontWeight = '800';
             cell.style.padding = '10px 8px';
             cell.style.textAlign = 'center';
@@ -301,7 +191,7 @@ document.addEventListener('DOMContentLoaded', function () {
             cells.forEach(function (cell) {
                 cell.style.border = '1px solid #111827';
                 cell.style.padding = '9px 8px';
-                cell.style.fontSize = '15px';
+                cell.style.fontSize = EXPORT_BODY_FONT_SIZE;
                 cell.style.fontWeight = '600';
                 cell.style.color = cell.style.color || '#111827';
                 cell.style.verticalAlign = 'middle';
@@ -331,10 +221,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         clonedTable.querySelectorAll('.measurement-address-cell').forEach(function (cell) {
             cell.style.textAlign = 'left';
-            cell.style.whiteSpace = 'normal';
-            cell.style.wordBreak = 'keep-all';
-            cell.style.lineHeight = '1.4';
-            cell.style.fontSize = '14px';
+            cell.style.whiteSpace = 'nowrap';
+            cell.style.wordBreak = 'normal';
+            cell.style.lineHeight = '1.3';
+            cell.style.fontSize = '13px';
+            cell.style.overflow = 'hidden';
         });
 
         EXPORT_EXPANDED_COLUMNS.forEach(function (colKey) {
@@ -349,7 +240,7 @@ document.addEventListener('DOMContentLoaded', function () {
             cell.style.whiteSpace = 'normal';
             cell.style.wordBreak = 'keep-all';
             cell.style.lineHeight = '1.35';
-            cell.style.fontSize = '14px';
+            cell.style.fontSize = '13px';
         });
 
         clonedTable.querySelectorAll('.manager-cell').forEach(function (cell) {
@@ -361,9 +252,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             cell.style.fontWeight = '800';
             cell.style.letterSpacing = '0.02em';
+            cell.style.fontSize = '13px';
         });
-
-        applyManagerGroupStyles(clonedTable);
     }
 
     exportBtn.addEventListener('click', async function () {
