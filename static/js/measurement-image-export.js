@@ -19,6 +19,49 @@ document.addEventListener('DOMContentLoaded', function () {
         manager: 90
     };
     const EXPORT_EXPANDED_COLUMNS = ['address'];
+    /** PNG 전용: 담당자 그룹 사이만 넣는 여백(같은 담당자 연속 행 사이에는 없음) */
+    const EXPORT_ASSIGNEE_GROUP_GAP_HEIGHT = '14px';
+
+    /**
+     * 클론된 행에서 담당자 비교용 키 (measurement.js 의 normalizeManagerKey 와 동일 규칙)
+     * @param {HTMLTableRowElement} tr
+     * @returns {string}
+     */
+    function normalizeExportManagerKey(tr) {
+        const cell = tr.querySelector('td.manager-cell');
+        const raw = cell ? String(cell.textContent || '').trim() : '';
+        if (!raw || raw === '-') return '';
+        return raw.toLowerCase();
+    }
+
+    /**
+     * 이미지 저장용: 담당자가 바뀔 때만 얇은 간격 행 삽입. 동일 담당자 사이에는 삽입하지 않음.
+     * @param {Document} clonedDoc
+     * @param {HTMLTableElement} tableEl
+     * @param {number} colSpan
+     */
+    function insertExportAssigneeGroupGaps(clonedDoc, tableEl, colSpan) {
+        const tbody = tableEl.querySelector('tbody');
+        if (!tbody) return;
+        tbody.querySelectorAll('tr.measurement-export-assignee-gap').forEach(function (r) {
+            r.remove();
+        });
+        const mainRows = Array.from(tbody.querySelectorAll('tr.measurement-row'));
+        let prevKey = null;
+        mainRows.forEach(function (tr) {
+            const key = normalizeExportManagerKey(tr);
+            if (prevKey !== null && key !== prevKey) {
+                const gap = clonedDoc.createElement('tr');
+                gap.className = 'measurement-export-assignee-gap';
+                gap.setAttribute('aria-hidden', 'true');
+                const td = clonedDoc.createElement('td');
+                td.colSpan = colSpan;
+                gap.appendChild(td);
+                tbody.insertBefore(gap, tr);
+            }
+            prevKey = key;
+        });
+    }
 
     /**
      * @param {string} isoDateStr - YYYY-MM-DD
@@ -129,9 +172,13 @@ document.addEventListener('DOMContentLoaded', function () {
      * @param {string} titleText
      */
     function prepareExportTable(clonedDoc, clonedTable, titleText) {
-        clonedDoc.querySelectorAll('tr.measurement-gap-row, tr.measurement-detail-row').forEach(function (row) {
-            row.remove();
-        });
+        clonedDoc
+            .querySelectorAll(
+                'tr.measurement-gap-row, tr.measurement-detail-row, tr.measurement-manager-group-gap'
+            )
+            .forEach(function (row) {
+                row.remove();
+            });
 
         clonedTable.classList.remove('table-sm', 'table-hover');
         clonedTable.style.width = EXPORT_TABLE_WIDTH + 'px';
@@ -148,9 +195,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         var headColCount =
             clonedTable.querySelectorAll('thead tr:last-child th').length || 8;
-        clonedTable.querySelectorAll('tr.measurement-manager-group-gap td').forEach(function (td) {
-            td.colSpan = headColCount;
-        });
+        insertExportAssigneeGroupGaps(clonedDoc, clonedTable, headColCount);
 
         const exportWidths = buildExportColumnWidths();
         Object.keys(exportWidths).forEach(function (key) {
@@ -194,9 +239,9 @@ document.addEventListener('DOMContentLoaded', function () {
         const bodyRows = Array.from(clonedTable.querySelectorAll('tbody tr'));
         var exportDataRowIndex = 0;
         bodyRows.forEach(function (row) {
-            if (row.classList.contains('measurement-manager-group-gap')) {
+            if (row.classList.contains('measurement-export-assignee-gap')) {
                 row.querySelectorAll('td').forEach(function (cell) {
-                    cell.style.height = '8px';
+                    cell.style.height = EXPORT_ASSIGNEE_GROUP_GAP_HEIGHT;
                     cell.style.padding = '0';
                     cell.style.border = 'none';
                     cell.style.backgroundColor = '#ffffff';
