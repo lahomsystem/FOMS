@@ -430,9 +430,7 @@
 
         function startManagerEdit(cell, input, doCommit, blurState) {
             const wrap = document.createElement('div');
-            wrap.style.cssText = 'display:flex;gap:4px;align-items:center;width:100%;';
-            input.style.flex = '1';
-            input.style.minWidth = '0';
+            wrap.className = 'measurement-manager-editor';
             wrap.appendChild(input);
 
             function bindEditorActionButton(button, handler) {
@@ -453,11 +451,10 @@
 
             const clearBtn = document.createElement('button');
             clearBtn.type = 'button';
-            clearBtn.className = 'btn btn-outline-secondary';
-            clearBtn.style.cssText = 'flex-shrink:0;padding:2px 6px;font-size:0.75rem;line-height:1;opacity:0.65;min-height:unset;min-width:unset;height:auto;';
+            clearBtn.className = 'measurement-manager-editor__icon-btn';
             clearBtn.title = '\uB2F4\uB2F9\uC790 \uC9C0\uC6B0\uAE30';
             clearBtn.setAttribute('data-manager-action', 'clear');
-            clearBtn.innerHTML = '<i class="fas fa-times" style="font-size:0.7rem;pointer-events:none;"></i>';
+            clearBtn.innerHTML = '<i class="fas fa-times"></i>';
 
             function syncClearButtonState() {
                 clearBtn.disabled = !input.value.trim();
@@ -484,10 +481,9 @@
 
             const loadBtn = document.createElement('button');
             loadBtn.type = 'button';
-            loadBtn.className = 'btn btn-outline-secondary';
-            loadBtn.style.cssText = 'flex-shrink:0;padding:2px 6px;font-size:0.75rem;line-height:1;opacity:0.65;min-height:unset;min-width:unset;height:auto;';
+            loadBtn.className = 'measurement-manager-editor__icon-btn';
             loadBtn.title = '\uC800\uC7A5\uB41C \uB2F4\uB2F9\uC790 \uBD88\uB7EC\uC624\uAE30';
-            loadBtn.innerHTML = '<i class="fas fa-list" style="font-size:0.7rem;pointer-events:none;"></i>';
+            loadBtn.innerHTML = '<i class="fas fa-list"></i>';
 
             function openDropdown(e) {
                 e.preventDefault();
@@ -530,7 +526,7 @@
             const input = document.createElement('input');
             input.type = 'text';
             input.value = currentValue === '-' ? '' : currentValue;
-            input.className = 'form-control form-control-sm';
+            input.className = 'measurement-manager-editor__input';
 
             const originalContent = cell.innerHTML;
             cell.innerHTML = '';
