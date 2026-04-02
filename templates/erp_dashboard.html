@@ -2,7 +2,12 @@
 
 {% block content %}
 {% set filters = filters or {} %}
-<div class="container-fluid erp-dashboard erp-pro" data-can-edit-erp="{{ 'true' if can_edit_erp|default(false) else 'false' }}">
+<div class="container-fluid erp-dashboard erp-pro erp-mobile-shell"
+  data-can-edit-erp="{{ 'true' if can_edit_erp|default(false) else 'false' }}"
+  data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  {% if erp_mobile_v2_enabled %}
+    {% include 'partials/erp_mobile_shell.html' %}
+  {% endif %}
   <script>
     const MY_ID = "{{ current_user.id }}";
     const MY_TEAM = "{{ current_user.team }}";
@@ -109,13 +114,21 @@
         {% endif %}
         {% endfor %}
       </div>
-    </div>
+  </div>
     <!-- New single row filter attached directly to the process map card -->
     {% include 'partials/erp_dashboard_filters.html' %}
   </div>
 
+  {% if erp_mobile_v2_enabled %}
+    {% include 'partials/erp_dashboard_mobile_filters.html' %}
+  {% endif %}
+
   <!-- 3-Panel Layout -->
   {% include 'partials/erp_dashboard_styles.html' %}
+
+  {% if erp_mobile_v2_enabled %}
+    {% include 'partials/erp_dashboard_mobile_queue.html' %}
+  {% endif %}
 
   <div class="erp-dashboard-layout">
     {% include 'partials/erp_dashboard_grid.html' %}

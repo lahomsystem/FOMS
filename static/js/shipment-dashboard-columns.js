@@ -85,7 +85,7 @@
 
   function onHandleMouseDown(e, table) {
     // 모바일/터치 환경 무시
-    if (window.innerWidth <= 768) return;
+    if (window.innerWidth <= 992) return;
 
     e.preventDefault();
     e.stopPropagation();
@@ -140,7 +140,7 @@
     if (!table) return;
 
     // 모바일에서는 저장된 폭 복원 무시 (프리셋 기본값만 사용)
-    var isMobile    = window.innerWidth <= 768;
+    var isMobile    = window.innerWidth <= 992;
     var savedWidths = isMobile ? {} : loadSavedWidths();
 
     applyWidthsToCols(table, savedWidths);

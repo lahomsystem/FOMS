@@ -117,7 +117,10 @@
     border-radius: 2px;
   }
 </style>
-<div class="erp-pro">
+<div class="erp-pro erp-mobile-shell erp-as-dashboard" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  {% if erp_mobile_v2_enabled %}
+    {% include 'partials/erp_mobile_shell.html' %}
+  {% endif %}
   <!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -143,7 +146,10 @@
   </div>
   {% else %}
   <div class="erp-pro-card">
-    <div class="erp-as-top-tabs border-bottom mb-3">
+    {% if erp_mobile_v2_enabled %}
+      {% include 'partials/erp_as_mobile_controls.html' %}
+    {% endif %}
+    <div class="erp-as-top-tabs erp-as-desktop-nav border-bottom mb-3">
       <ul class="nav nav-tabs nav-fill border-bottom-0">
         <li class="nav-item">
           <a class="nav-link {{ 'active' if as_tab == 'sales_delivery' else '' }}"
@@ -169,7 +175,7 @@
         </li>
       </ul>
     </div>
-    <div class="erp-pro-card__header erp-pro-card__header--filter pt-0">
+    <div class="erp-pro-card__header erp-pro-card__header--filter pt-0 erp-as-desktop-filters">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
         <input type="hidden" name="tab" value="{{ as_tab or 'incomplete' }}">
         <input type="hidden" name="sort_dir" value="{{ sort_dir or 'desc' }}">

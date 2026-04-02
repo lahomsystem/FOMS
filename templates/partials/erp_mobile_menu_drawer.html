@@ -1,0 +1,26 @@
+<div
+  class="offcanvas offcanvas-bottom erp-mobile-menu-drawer"
+  tabindex="-1"
+  id="erp-mobile-menu-drawer"
+  aria-labelledby="erp-mobile-menu-drawer-label">
+  <div class="offcanvas-header">
+    <div>
+      <h2 class="offcanvas-title erp-mobile-menu-drawer__title" id="erp-mobile-menu-drawer-label">ERP 메뉴</h2>
+      <p class="erp-mobile-menu-drawer__subtitle mb-0">{{ _eyebrow }}</p>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div class="erp-mobile-menu-drawer__grid">
+      {% for item in _drawer_items %}
+        <a
+          class="erp-mobile-menu-drawer__link {% if _active == item.id %}is-active{% endif %}"
+          href="{{ item.href }}"
+          aria-current="{% if _active == item.id %}page{% else %}false{% endif %}">
+          <span class="erp-mobile-menu-drawer__icon"><i class="{{ item.icon }}" aria-hidden="true"></i></span>
+          <span class="erp-mobile-menu-drawer__label">{{ item.label }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>

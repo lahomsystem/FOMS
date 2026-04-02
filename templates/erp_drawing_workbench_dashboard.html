@@ -40,7 +40,7 @@
     padding-right: 30px; /* 스크롤바 공간 확보 */
   }
   .erp-drawing-workbench-table-wrap table {
-    min-width: 1000px;
+    min-width: 62.5rem;
   }
   
   /* 대시보드 카드 바디 - 스크롤바 공간 */
@@ -85,13 +85,183 @@
     opacity: 0.45;
   }
   
-  /* Phase 3: 모바일 카드 레이아웃 */
+  /* Phase 5: 모바일 카드 레이아웃 */
+  .erp-drawing-mobile-list__summary {
+    display: none;
+  }
   .mobile-order-card {
     cursor: pointer;
     transition: box-shadow 0.2s ease;
   }
   .mobile-order-card:active {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+  .mobile-order-card:focus-visible,
+  .erp-drawing-mobile-card__action:focus-visible {
+    outline: 2px solid #0a6ed1;
+    outline-offset: 2px;
+  }
+  
+  @media (max-width: 991.98px) {
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-workbench-table-wrap {
+      display: none !important;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-list {
+      display: grid;
+      gap: 0.875rem;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-list__summary {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-list__eyebrow {
+      display: block;
+      margin-bottom: 0.125rem;
+      color: #556b82;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-list__title {
+      margin: 0;
+      color: #131e29;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-list__count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      background: #ebf8ff;
+      color: #0057d2;
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .mobile-order-card.erp-drawing-mobile-card {
+      margin-bottom: 0;
+      border: 1px solid #dfe7f3;
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 2px 12px rgba(17, 24, 39, 0.08);
+      overflow: hidden;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card .card-body {
+      padding: 1rem;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__topline {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.875rem;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__title {
+      color: #131e29;
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__sub {
+      margin-top: 0.25rem;
+      color: #556b82;
+      font-size: 0.8125rem;
+      line-height: 1.4;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0.125rem 0.625rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__meta {
+      display: grid;
+      gap: 0.625rem;
+      margin-bottom: 0.875rem;
+      font-size: 0.875rem;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__meta-row {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 0.625rem;
+      align-items: start;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__meta-row strong {
+      color: #556b82;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+      margin-bottom: 0.875rem;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0.125rem 0.625rem;
+      border-radius: 999px;
+      background: #f7f7f7;
+      color: #556b82;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.625rem;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__action {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.375rem;
+      padding: 0.625rem 0.875rem;
+      border-radius: 12px;
+      border: 1px solid #d9d9d9;
+      background: #fff;
+      color: #131e29;
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 700;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__action.is-primary {
+      border-color: rgba(0, 112, 242, 0.22);
+      background: #f7fbff;
+      color: #0057d2;
+    }
   }
   
   @media (max-width: 768px) {
@@ -111,7 +281,10 @@
 {% endblock %}
 
 {% block content %}
-<div class="erp-pro">
+<div class="erp-pro erp-mobile-shell" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  {% if erp_mobile_v2_enabled %}
+    {% include 'partials/erp_mobile_shell.html' %}
+  {% endif %}
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
       <i class="fas fa-drafting-compass"></i>
@@ -254,7 +427,7 @@
         </div>
       </div>
 
-      <div class="table-responsive d-none d-md-block erp-drawing-workbench-table-wrap">
+      <div class="table-responsive d-none d-lg-block erp-drawing-workbench-table-wrap">
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
@@ -419,16 +592,23 @@
       </nav>
       {% endif %}
       
-      <!-- Phase 3: 모바일 카드 레이아웃 -->
-      <div class="mobile-card-list d-md-none">
+      <!-- Phase 5: 모바일 카드 레이아웃 -->
+      <div class="mobile-card-list d-lg-none erp-drawing-mobile-list">
+        <div class="erp-drawing-mobile-list__summary">
+          <div>
+            <span class="erp-drawing-mobile-list__eyebrow">Drawing Queue</span>
+            <h2 class="erp-drawing-mobile-list__title">도면 작업 큐</h2>
+          </div>
+          <span class="erp-drawing-mobile-list__count">{{ rows|length }}건 / 전체 {{ pagination.total_count }}건</span>
+        </div>
         {% for r in rows %}
-        <div class="card mb-2 mobile-order-card" data-href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline">
+        <div class="card mb-2 mobile-order-card erp-drawing-mobile-card" data-href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" tabindex="0" role="link" aria-label="주문 {{ r.id }} 상세 열기">
           <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="erp-drawing-mobile-card__topline">
               <div>
-                <div class="fw-bold">{{ r.customer_name }}{% if r.is_self_measurement|default(false) %}
+                <div class="erp-drawing-mobile-card__title">{{ r.customer_name }}{% if r.is_self_measurement|default(false) %}
                   <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i> 자가실측</span>{% endif %}</div>
-                <div class="small text-muted">#{{ r.id }} · {{ r.manager_name }}</div>
+                <div class="erp-drawing-mobile-card__sub">#{{ r.id }} · 주문 담당 {{ r.manager_name }}</div>
               </div>
               <div>
                 {% set badge_cls = 'bg-secondary' %}
@@ -436,36 +616,57 @@
                 {% if r.drawing_status == 'TRANSFERRED' %}{% set badge_cls = 'bg-info text-dark' %}{% endif %}
                 {% if r.drawing_status == 'RETURNED' %}{% set badge_cls = 'bg-danger' %}{% endif %}
                 {% if r.drawing_status == 'CONFIRMED' %}{% set badge_cls = 'bg-success' %}{% endif %}
-                <span class="badge {{ badge_cls }}">{{ r.drawing_status_label }}</span>
+                <span class="badge {{ badge_cls }} erp-drawing-mobile-card__status">{{ r.drawing_status_label }}</span>
               </div>
             </div>
-            <div class="small mb-2">
-              <div><strong>담당:</strong> {{ r.assignee_text }}
-                <button type="button" class="btn btn-sm btn-outline-primary ms-1" onclick="event.preventDefault(); event.stopPropagation(); openSingleAssignModal({{ r.id }})" title="담당자 변경">
-                  <i class="fas fa-user-edit"></i>
-                </button>
+            <div class="erp-drawing-mobile-card__meta">
+              <div class="erp-drawing-mobile-card__meta-row">
+                <strong>담당</strong>
+                <div>{{ r.assignee_text }}</div>
               </div>
-              <div><strong>다음 액션:</strong> {{ r.next_action }}</div>
-              {% if r.latest_event_label != '-' %}
-              <div><strong>최근 이벤트:</strong> {{ r.latest_event_label }}</div>
+              <div class="erp-drawing-mobile-card__meta-row">
+                <strong>다음 액션</strong>
+                <div>{{ r.next_action }}</div>
+              </div>
+              <div class="erp-drawing-mobile-card__meta-row">
+                <strong>최근 이벤트</strong>
+                <div>
+                  {% if r.latest_event_label != '-' %}
+                  <div>{{ r.latest_event_label }}</div>
+                  {% if r.latest_event_at %}
+                  <div class="erp-drawing-mobile-card__sub">{{ r.latest_event_at }}</div>
+                  {% endif %}
+                  {% else %}
+                  <div class="text-muted">-</div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            <div class="erp-drawing-mobile-card__chips">
+              {% if r.target_no %}
+              <span class="erp-drawing-mobile-card__chip">대상 {{ r.target_no }}번</span>
+              {% endif %}
+              <span class="erp-drawing-mobile-card__chip">파일 {{ r.file_count }}건</span>
+              {% if r.unread_count > 0 %}
+              <span class="erp-drawing-mobile-card__chip">미확인 {{ r.unread_count }}건</span>
+              {% endif %}
+              {% if r.sla_level == '지연' %}
+              <span class="erp-drawing-mobile-card__chip">지연</span>
+              {% elif r.sla_level == '오늘 마감' %}
+              <span class="erp-drawing-mobile-card__chip">오늘 마감</span>
+              {% endif %}
+              {% if r.my_todo %}
+              <span class="erp-drawing-mobile-card__chip">내 할 일</span>
               {% endif %}
             </div>
-            <div class="d-flex justify-content-between align-items-center">
-              <div class="small text-muted">
-                {% if r.unread_count > 0 %}
-                <span class="badge bg-warning text-dark">미확인 {{ r.unread_count }}</span>
-                {% endif %}
-                {% if r.is_overdue %}
-                <span class="badge bg-danger">지연</span>
-                {% elif r.due_today %}
-                <span class="badge bg-warning text-dark">오늘 마감</span>
-                {% endif %}
-                {% if r.my_todo %}
-                <span class="badge bg-primary">내 할 일</span>
-                {% endif %}
-              </div>
-              <a href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" class="btn btn-sm btn-outline-primary">
-                <i class="fas fa-external-link-alt"></i> 열기
+            <div class="erp-drawing-mobile-card__actions">
+              <button type="button" class="erp-drawing-mobile-card__action" onclick="event.preventDefault(); event.stopPropagation(); openSingleAssignModal({{ r.id }})" title="담당자 변경">
+                <i class="fas fa-user-edit"></i>
+                <span>담당자</span>
+              </button>
+              <a href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" class="erp-drawing-mobile-card__action is-primary">
+                <i class="fas fa-external-link-alt"></i>
+                <span>작업 열기</span>
               </a>
             </div>
           </div>
@@ -727,11 +928,50 @@
   });
 
   document.addEventListener('click', function (e) {
+    const mobileCard = e.target.closest('.erp-drawing-mobile-card');
+    if (mobileCard) {
+      if (e.target.closest('a, button, input, select, label')) return;
+      const mobileHref = mobileCard.getAttribute('data-href');
+      if (mobileHref) window.location.href = mobileHref;
+      return;
+    }
+
     const row = e.target.closest('.erp-workbench-row');
     if (!row) return;
     if (e.target.closest('a, button, input, select, label')) return;
     const href = row.getAttribute('data-href');
     if (href) window.location.href = href;
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const mobileCard = e.target.closest('.erp-drawing-mobile-card');
+    if (!mobileCard) return;
+    if (e.target.closest('a, button, input, select, label')) return;
+    e.preventDefault();
+    const href = mobileCard.getAttribute('data-href');
+    if (href) window.location.href = href;
+  });
+
+  document.querySelectorAll('.mobile-order-card[data-href]').forEach(function (card) {
+    const navigateToCard = function () {
+      const href = card.getAttribute('data-href');
+      if (href) {
+        window.location.href = href;
+      }
+    };
+
+    card.addEventListener('click', function (e) {
+      if (e.target.closest('a, button, input, select, label')) return;
+      navigateToCard();
+    });
+
+    card.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (e.target.closest('a, button, input, select, label')) return;
+      e.preventDefault();
+      navigateToCard();
+    });
   });
   
   // Phase 3: URL 빌드 함수

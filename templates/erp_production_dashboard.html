@@ -2,7 +2,11 @@
 
 {% block content %}
 {% set filters = filters or {} %}
-<div class="container-fluid erp-dashboard erp-pro">
+<div class="container-fluid erp-dashboard erp-pro erp-mobile-shell"
+  data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  {% if erp_mobile_v2_enabled %}
+    {% include 'partials/erp_mobile_shell.html' %}
+  {% endif %}
   <!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -115,6 +119,10 @@
 
   <!-- 3-Panel Layout -->
   {% include 'partials/erp_production_styles.html' %}
+  {% if erp_mobile_v2_enabled %}
+    {% include 'partials/erp_production_mobile_filters.html' %}
+    {% include 'partials/erp_production_mobile_queue.html' %}
+  {% endif %}
   {% include 'partials/erp_production_filters_grid.html' %}
   {% include 'partials/erp_production_modals.html' %}
   {% include 'partials/erp_production_scripts.html' %}

@@ -56,6 +56,7 @@ def inject_status_list():
         ).order_by(User.name).all()
 
     erp_beta_enabled = str(os.getenv('ERP_BETA_ENABLED', 'true')).lower() in ['1', 'true', 'yes', 'y', 'on']
+    erp_mobile_v2_enabled = str(os.getenv('ERP_MOBILE_V2_ENABLED', 'false')).lower() in ['1', 'true', 'yes', 'y', 'on']
     use_direct_upload_env = str(os.getenv('USE_DIRECT_UPLOAD', '1')).lower() in ['1', 'true', 'yes', 'on']
     try:
         from services.storage import get_storage
@@ -72,6 +73,7 @@ def inject_status_list():
         admin_switch_users=admin_switch_users,
         impersonating_from_id=impersonating_from_id,
         erp_beta_enabled=erp_beta_enabled,
+        erp_mobile_v2_enabled=erp_mobile_v2_enabled,
         use_direct_upload=use_direct_upload
     )
 

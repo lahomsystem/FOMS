@@ -197,7 +197,9 @@
 
         // ── 1. Scroll to today ──
 
-        const todayEl = document.getElementById('date-' + config.todayDate);
+        const todayEl =
+            document.querySelector('[data-measurement-date-chip="' + config.todayDate + '"]') ||
+            document.getElementById('date-' + config.todayDate);
         if (todayEl) todayEl.scrollIntoView({ block: 'center' });
 
         // ── 2. 초기 색상 적용 ──
@@ -234,10 +236,14 @@
 
         // ── 4. Route Plan ──
 
-        const routeBtn = document.getElementById('btn-route-plan');
+        const routeTriggers = Array.from(
+            document.querySelectorAll('#btn-route-plan, [data-route-plan-trigger="measurement"]')
+        ).filter(function (element, index, list) {
+            return list.indexOf(element) === index;
+        });
         const routeModalEl = document.getElementById('routePlanModal');
 
-        if (routeBtn && routeModalEl && typeof bootstrap !== 'undefined') {
+        if (routeTriggers.length && routeModalEl && typeof bootstrap !== 'undefined') {
             const routeModal = new bootstrap.Modal(routeModalEl);
             const ERPUtils = window.ERPUtils || {
                 escapeHtml: function(t) { return t; },
@@ -279,9 +285,11 @@
                 }
             }
 
-            routeBtn.addEventListener('click', function () {
-                routeModal.show();
-                loadRoutePlan();
+            routeTriggers.forEach(function (trigger) {
+                trigger.addEventListener('click', function () {
+                    routeModal.show();
+                    loadRoutePlan();
+                });
             });
         }
 
@@ -435,6 +443,8 @@
                 body: { field: field, value: newValue }
             };
         }
+        window.MeasurementDashboardApi = window.MeasurementDashboardApi || {};
+        window.MeasurementDashboardApi.buildSavePayload = buildSavePayload;
 
         function syncManagerDisplay(tr, newValue) {
             tr.dataset.manager = newValue || '';
