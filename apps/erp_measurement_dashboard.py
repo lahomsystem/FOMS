@@ -358,10 +358,30 @@ def erp_measurement_dashboard():
         return order.manager_name or ''
 
     _settings = load_erp_shipment_settings()
-    _mm_sort_map = {}
+    measurement_manager_options = []
+    measurement_manager_seen = set()
     for mm in (_settings.get('measurement_manager') or []):
-        if isinstance(mm, dict) and mm.get('name'):
-            _mm_sort_map[mm['name'].strip().lower()] = mm.get('sort_order', 999)
+        if isinstance(mm, dict):
+            name = str(mm.get('name') or '').strip()
+            sort_order = mm.get('sort_order', 999)
+        else:
+            name = str(mm or '').strip()
+            sort_order = 999
+        if not name:
+            continue
+        key = name.lower()
+        if key in measurement_manager_seen:
+            continue
+        measurement_manager_seen.add(key)
+        measurement_manager_options.append({
+            'name': name,
+            'sort_order': sort_order,
+        })
+
+    _mm_sort_map = {
+        option['name'].strip().lower(): option.get('sort_order', 999)
+        for option in measurement_manager_options
+    }
 
     def _manager_sort_key(order):
         name = get_manager_name_for_sort(order)
@@ -384,6 +404,7 @@ def erp_measurement_dashboard():
         use_date_range=use_range,
         rows=rows,
         measurement_panel_dates=measurement_panel_dates,
+        measurement_manager_options=measurement_manager_options,
         today_date=today_date,
         can_edit_erp=can_edit_erp(current_user),
         erp_mine_only=mine_filter_active,

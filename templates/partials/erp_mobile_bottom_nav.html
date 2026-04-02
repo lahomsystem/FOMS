@@ -1,0 +1,21 @@
+<nav class="erp-mobile-bottom-nav" aria-label="ERP 주요 메뉴">
+  {% for item in _primary_items %}
+    <a
+      class="erp-mobile-bottom-nav__item {% if _active == item.id %}is-active{% endif %}"
+      href="{{ item.href }}"
+      aria-current="{% if _active == item.id %}page{% else %}false{% endif %}">
+      <i class="{{ item.icon }}" aria-hidden="true"></i>
+      <span>{{ item.label }}</span>
+    </a>
+  {% endfor %}
+  <button
+    class="erp-mobile-bottom-nav__item {% if _active not in _primary_ids %}is-active{% endif %}"
+    type="button"
+    data-bs-toggle="offcanvas"
+    data-bs-target="#erp-mobile-menu-drawer"
+    aria-controls="erp-mobile-menu-drawer"
+    aria-label="더보기 메뉴">
+    <i class="fas fa-ellipsis-h" aria-hidden="true"></i>
+    <span>더보기</span>
+  </button>
+</nav>

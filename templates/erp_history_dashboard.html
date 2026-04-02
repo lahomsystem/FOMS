@@ -69,14 +69,201 @@
     height: 100%;
     object-fit: cover;
   }
+  .erp-history-mobile-list {
+    display: none;
+  }
+  .erp-history-mobile-list__summary {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .erp-history-mobile-list__eyebrow {
+    display: block;
+    margin-bottom: 0.125rem;
+    color: #556b82;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .erp-history-mobile-list__title {
+    margin: 0;
+    color: #131e29;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+  .erp-history-mobile-list__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background: #ebf8ff;
+    color: #0057d2;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .erp-history-mobile-card {
+    border: 1px solid #dfe7f3;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(17, 24, 39, 0.08);
+    overflow: hidden;
+  }
+  .erp-history-mobile-card__toggle {
+    width: 100%;
+    padding: 1rem 1rem 0.75rem;
+    display: grid;
+    gap: 0.875rem;
+    border: 0;
+    background: transparent;
+    text-align: left;
+  }
+  .erp-history-mobile-card__topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .erp-history-mobile-card__badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0.125rem 0.625rem;
+    border-radius: 999px;
+    background: #ebf8ff;
+    color: #0057d2;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .erp-history-mobile-card__chevron {
+    color: #556b82;
+    transition: transform 0.2s ease;
+  }
+  .erp-history-mobile-card__toggle[aria-expanded="true"] .erp-history-mobile-card__chevron {
+    transform: rotate(180deg);
+  }
+  .erp-history-mobile-card__title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .erp-history-mobile-card__customer {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.35;
+    color: #131e29;
+    font-weight: 700;
+  }
+  .erp-history-mobile-card__order-id {
+    color: #556b82;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+  .erp-history-mobile-card__meta {
+    display: grid;
+    gap: 0.625rem;
+    margin: 0;
+    padding: 0 1rem 1rem;
+  }
+  .erp-history-mobile-card__meta-row {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 0.625rem;
+    align-items: start;
+  }
+  .erp-history-mobile-card__meta-row dt {
+    margin: 0;
+    color: #556b82;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .erp-history-mobile-card__meta-row dd {
+    margin: 0;
+    color: #131e29;
+    font-size: 0.875rem;
+    word-break: break-word;
+  }
+  .erp-history-mobile-card__actions {
+    padding: 0 1rem 1rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem;
+  }
+  .erp-history-mobile-card__action {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 12px;
+    border: 1px solid #d9d9d9;
+    background: #fff;
+    color: #131e29;
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+  .erp-history-mobile-card__action.is-primary {
+    border-color: rgba(0, 112, 242, 0.22);
+    background: #f7fbff;
+    color: #0057d2;
+  }
+  .erp-history-mobile-card__detail {
+    padding: 0 1rem 1rem;
+  }
+  .erp-history-mobile-card__detail-body {
+    padding-top: 0.875rem;
+    border-top: 1px solid #e5e7eb;
+  }
+  .erp-history-mobile-card.is-focused {
+    border-color: rgba(0, 112, 242, 0.4);
+    box-shadow: 0 0 0 3px rgba(0, 112, 242, 0.12), 0 8px 24px rgba(17, 24, 39, 0.12);
+  }
   @media (max-width: 768px) {
     .history-detail-row .dw-product-split {
       grid-template-columns: 1fr;
     }
   }
+  @media (max-width: 991.98px) {
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-history-mobile-list {
+      display: grid;
+      gap: 0.875rem;
+      padding: 0 1rem 1rem;
+    }
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-card--filters .erp-pro-card__body {
+      padding: 1rem;
+    }
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-card--filters .input-group,
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-card--filters .form-select,
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-card--filters .form-control,
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-card--filters .erp-pro-btn {
+      min-height: 44px;
+      font-size: 0.875rem;
+    }
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-history-mobile-card__detail .dw-product-main-card {
+      margin-bottom: 0.875rem;
+    }
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-history-mobile-card__detail .dw-product-split {
+      grid-template-columns: 1fr;
+      gap: 0.875rem;
+    }
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-history-mobile-card__detail .dw-attach-grid {
+      grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    }
+  }
 </style>
 
-<div class="container-fluid erp-dashboard erp-pro">
+<div class="container-fluid erp-dashboard erp-pro erp-mobile-shell erp-history-mobile-shell"
+  data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  {% if erp_mobile_v2_enabled %}
+    {% include 'partials/erp_mobile_shell.html' %}
+  {% endif %}
   <!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -159,7 +346,76 @@
       </h3>
     </div>
     <div class="erp-pro-card__body p-0">
-      <div class="table-responsive">
+      {% if erp_mobile_v2_enabled %}
+      <div class="erp-history-mobile-list d-lg-none">
+        <div class="erp-history-mobile-list__summary">
+          <div>
+            <span class="erp-history-mobile-list__eyebrow">History Queue</span>
+            <h3 class="erp-history-mobile-list__title">검색 결과</h3>
+          </div>
+          <span class="erp-history-mobile-list__count">{{ total_orders }}건</span>
+        </div>
+        {% for item in orders %}
+        {% set o = item._order %}
+        {% set d = item.display_o %}
+        {% set phone_href = (d.phone or '')|replace('-', '')|replace(' ', '') %}
+        {% set detail_id = 'history-mobile-detail-' ~ o.id %}
+        <article class="erp-history-mobile-card" data-history-mobile-card data-order-id="{{ o.id }}">
+          <button type="button" class="erp-history-mobile-card__toggle" data-history-toggle aria-expanded="false" aria-controls="{{ detail_id }}">
+            <span class="erp-history-mobile-card__topline">
+              <span class="erp-history-mobile-card__badge">{{ item.stage }}</span>
+              <i class="fas fa-chevron-down erp-history-mobile-card__chevron" aria-hidden="true"></i>
+            </span>
+            <span class="erp-history-mobile-card__title-row">
+              <span class="erp-history-mobile-card__customer">{{ d.customer_name }}</span>
+              <span class="erp-history-mobile-card__order-id">#{{ o.id }}</span>
+            </span>
+          </button>
+          <dl class="erp-history-mobile-card__meta">
+            <div class="erp-history-mobile-card__meta-row">
+              <dt>제품</dt>
+              <dd>{{ d.product }}</dd>
+            </div>
+            <div class="erp-history-mobile-card__meta-row">
+              <dt>전화</dt>
+              <dd>{{ d.phone }}</dd>
+            </div>
+            <div class="erp-history-mobile-card__meta-row">
+              <dt>주소</dt>
+              <dd>{{ d.address }}</dd>
+            </div>
+            <div class="erp-history-mobile-card__meta-row">
+              <dt>생성</dt>
+              <dd>{{ o.created_at.strftime('%Y-%m-%d') if o.created_at else '-' }}</dd>
+            </div>
+          </dl>
+          <div class="erp-history-mobile-card__actions">
+            {% if phone_href %}
+            <a class="erp-history-mobile-card__action" href="tel:{{ phone_href }}">
+              <i class="fas fa-phone"></i>
+              <span>전화</span>
+            </a>
+            {% else %}
+            <span class="erp-history-mobile-card__action text-muted" aria-disabled="true">
+              <i class="fas fa-phone-slash"></i>
+              <span>전화 없음</span>
+            </span>
+            {% endif %}
+            <a class="erp-history-mobile-card__action is-primary" href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_beta %}?open=erp-beta{% endif %}" target="_blank">
+              <i class="fas fa-up-right-from-square"></i>
+              <span>주문 상세</span>
+            </a>
+          </div>
+          <div class="erp-history-mobile-card__detail" id="{{ detail_id }}" hidden aria-hidden="true">
+            <div class="erp-history-mobile-card__detail-body">
+              {% include 'partials/erp_history_detail_content.html' %}
+            </div>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div class="table-responsive{% if erp_mobile_v2_enabled %} d-none d-lg-block{% endif %}">
         <table class="table table-hover erp-pro-table mb-0">
           <thead>
             <tr>
@@ -325,4 +581,5 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
+<script src="{{ url_for('static', filename='js/erp/history-mobile.js') }}?v=20260402a" defer></script>
 {% endblock %}

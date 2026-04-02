@@ -2,7 +2,10 @@
 
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/shipment-dashboard-columns.css') }}">
-<div class="erp-pro">
+<div class="erp-pro erp-mobile-shell" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  {% if erp_mobile_v2_enabled %}
+    {% include 'partials/erp_mobile_shell.html' %}
+  {% endif %}
   <!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -59,6 +62,29 @@
       </form>
     </div>
     <div class="card-body">
+      <div class="erp-shipment-mobile-summary d-lg-none" aria-label="출고 작업 요약">
+        <span class="erp-shipment-mobile-summary__eyebrow">Shipment Queue</span>
+        <div class="erp-shipment-mobile-summary__title-row">
+          <h2 class="erp-shipment-mobile-summary__title">출고 작업 큐</h2>
+          <span class="erp-shipment-mobile-summary__count">{{ rows|length }}건</span>
+        </div>
+        <div class="erp-shipment-mobile-summary__chips">
+          <span class="erp-shipment-mobile-summary__chip">
+            {% if use_date_range %}{{ date_from }} ~ {{ date_to }}{% else %}{{ selected_date }}{% endif %}
+          </span>
+          {% if search_q %}
+          <span class="erp-shipment-mobile-summary__chip">검색 {{ search_q }}</span>
+          {% endif %}
+          <a class="erp-shipment-mobile-summary__action" href="{{ url_for('erp_shipment_page.erp_shipment_dashboard', date=today_date, q=search_q or '') }}">
+            <i class="fas fa-calendar-day"></i>
+            <span>오늘</span>
+          </a>
+          <button type="button" class="erp-shipment-mobile-summary__action erp-shipment-mobile-summary__action--secondary js-shipment-export-trigger">
+            <i class="fas fa-file-image"></i>
+            <span>이미지 저장</span>
+          </button>
+        </div>
+      </div>
       <div class="row g-3">
         <div class="col-12 col-xl-2 col-lg-2">
           <div class="card border-0 shadow-sm">
@@ -142,6 +168,103 @@
                 background-color: #cfe2ff;
               }
 
+              .erp-shipment-mobile-summary {
+                display: none;
+              }
+
+              @media (max-width: 991.98px) {
+                .erp-mobile-shell[data-erp-mobile-v2='true'] #btn-reset-column-widths,
+                .erp-mobile-shell[data-erp-mobile-v2='true'] #btn-export-image {
+                  display: none !important;
+                }
+
+                .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-shipment-mobile-summary {
+                  display: grid;
+                  gap: 0.75rem;
+                  margin-bottom: 1rem;
+                  padding: 1rem;
+                  border: 1px solid #dfe7f3;
+                  border-radius: 16px;
+                  background: linear-gradient(180deg, #f7fbff 0%, #ffffff 100%);
+                  box-shadow: 0 2px 12px rgba(17, 24, 39, 0.08);
+                }
+
+                .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-shipment-mobile-summary__eyebrow {
+                  display: block;
+                  margin-bottom: 0.125rem;
+                  color: #556b82;
+                  font-size: 0.75rem;
+                  font-weight: 700;
+                  text-transform: uppercase;
+                  letter-spacing: 0.04em;
+                }
+
+                .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-shipment-mobile-summary__title-row {
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  gap: 0.75rem;
+                }
+
+                .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-shipment-mobile-summary__title {
+                  margin: 0;
+                  color: #131e29;
+                  font-size: 1rem;
+                  font-weight: 700;
+                }
+
+                .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-shipment-mobile-summary__count {
+                  display: inline-flex;
+                  align-items: center;
+                  justify-content: center;
+                  min-height: 32px;
+                  padding: 0.25rem 0.75rem;
+                  border-radius: 999px;
+                  background: #ebf8ff;
+                  color: #0057d2;
+                  font-size: 0.75rem;
+                  font-weight: 700;
+                  white-space: nowrap;
+                }
+
+                .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-shipment-mobile-summary__chips {
+                  display: flex;
+                  flex-wrap: wrap;
+                  gap: 0.5rem;
+                }
+
+                .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-shipment-mobile-summary__chip,
+                .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-shipment-mobile-summary__action {
+                  display: inline-flex;
+                  align-items: center;
+                  justify-content: center;
+                  min-height: 44px;
+                  padding: 0.5rem 0.875rem;
+                  border-radius: 12px;
+                  font-size: 0.875rem;
+                  font-weight: 700;
+                  text-decoration: none;
+                }
+
+                .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-shipment-mobile-summary__chip {
+                  background: #f3f6fb;
+                  color: #556b82;
+                }
+
+                .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-shipment-mobile-summary__action {
+                  gap: 0.375rem;
+                  border: 1px solid rgba(0, 112, 242, 0.2);
+                  background: #f7fbff;
+                  color: #0057d2;
+                }
+
+                .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-shipment-mobile-summary__action--secondary {
+                  border-color: #dfe7f3;
+                  background: #fff;
+                  color: #131e29;
+                }
+              }
+
               .measurement-panel-list {
                 max-height: 260px;
                 overflow-y: auto;
@@ -200,7 +323,7 @@
                 border-color: #198754;
               }
 
-              @media (max-width: 768px) {
+              @media (max-width: 991.98px) {
                 .measurement-panel-list {
                   max-height: 120px;
                 }
@@ -617,7 +740,7 @@
               }
 
               /* ???: ????/?????/??? ?? row ?? ?? ?? */
-              @media (max-width: 768px) {
+              @media (max-width: 991.98px) {
                 .shipment-edit-list {
                   --shipment-edit-action-size: 1.5rem;
                 }
@@ -633,9 +756,9 @@
                 }
 
                 .shipment-edit-list .shipment-text-input {
-                  padding: 2px 6px !important;
-                  min-height: 24px !important;
-                  height: 24px !important;
+                  padding: 0.5rem 0.625rem !important;
+                  min-height: 44px !important;
+                  height: 44px !important;
                 }
 
                 .shipment-edit-list .shipment-text-edit {
@@ -643,23 +766,27 @@
                 }
 
                 .shipment-edit-list {
-                  gap: 2px !important;
-                  min-height: 26px !important;
+                  gap: 0.375rem !important;
+                  min-height: 44px !important;
                   cursor: pointer;
                 }
 
                 .shipment-edit-list .shipment-text-view {
-                  padding: 2px 4px;
-                  line-height: 1.2;
+                  display: inline-flex;
+                  align-items: center;
+                  min-height: 44px;
+                  padding: 0.5rem 0.625rem;
+                  line-height: 1.4;
                 }
 
                 .shipment-edit-list .btn-add-shipment-text-row,
                 .shipment-edit-list .btn-remove-shipment-text-row,
                 .shipment-edit-list .shipment-btn-load-saved-text-row {
-                  padding: 2px 6px !important;
-                  font-size: 0.7rem !important;
-                  min-width: 22px !important;
-                  height: 22px !important;
+                  padding: 0.5rem 0.625rem !important;
+                  font-size: 0.75rem !important;
+                  min-width: 44px !important;
+                  min-height: 44px !important;
+                  height: 44px !important;
                 }
 
                 .shipment-edit-list .actions-on-hover {
@@ -679,7 +806,7 @@
               }
 
               /* 모바일: 현장주소 + 버튼 기본 숨김, 빈곳 클릭 시에만 표시 */
-              @media (max-width: 768px) {
+              @media (max-width: 991.98px) {
                 .shipment-address-block .address-row-actions {
                   opacity: 0 !important;
                   max-height: 0 !important;
@@ -1797,6 +1924,15 @@
         });
       });
     })();
+
+    document.querySelectorAll('.js-shipment-export-trigger').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var exportBtn = document.getElementById('btn-export-image');
+        if (exportBtn) {
+          exportBtn.click();
+        }
+      });
+    });
   </script>
   {% endif %}
 </div><!-- end erp-pro -->

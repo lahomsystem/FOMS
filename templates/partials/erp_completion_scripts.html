@@ -5,81 +5,163 @@
       var t = String(s);
       return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
+
     function escapeAttr(s) {
       if (s == null || s === '') return '';
       return escapeHtml(s).replace(/'/g, '&#39;');
     }
-    const listEl = document.getElementById('erp-completion-list');
+
+    function buildStatusLabel(status) {
+      if (status === 'COMPLETED') return '완료';
+      if (status === 'AS_RECEIVED') return 'AS 접수';
+      if (status === 'AS_COMPLETED') return 'AS 완료';
+      return escapeHtml(status || '-');
+    }
+
+    function buildGallery(orderId, photos, emptyHtml) {
+      if (!photos.length) {
+        return emptyHtml;
+      }
+
+      var galleryHtml = '<div class="erp-completion-gallery">';
+      var imageIndex = 0;
+      photos.forEach(function (photo) {
+        var isVideo = (photo.file_type || '').toLowerCase().indexOf('video') !== -1;
+        if (isVideo) {
+          galleryHtml += '<div class="erp-completion-media erp-completion-media--video" data-order-id="' + orderId + '" data-photo-index="' + imageIndex + '" title="동영상 재생" role="button" tabindex="0"><span class="erp-completion-media__icon"><i class="fas fa-video"></i></span><span class="erp-completion-media__label">동영상</span><span class="erp-completion-media__play"><i class="fas fa-play"></i></span></div>';
+        } else {
+          galleryHtml += '<img src="' + escapeAttr(photo.view_url || '#') + '" alt="' + escapeAttr(photo.filename || '') + '" data-order-id="' + orderId + '" data-photo-index="' + imageIndex + '" loading="lazy">';
+        }
+        imageIndex += 1;
+      });
+      galleryHtml += '</div>';
+      return galleryHtml;
+    }
+
+    function buildDesktopRow(order, galleryHtml, resultLabel, orderDetailHref) {
+      var safeManager = escapeHtml(order.manager_name || '-');
+      var safeCustomer = escapeHtml(order.customer_name || '-');
+      var safeProduct = escapeHtml(order.product_summary || '-');
+      var selfMeasBadge = order.is_self_measurement
+        ? ' <span class="badge bg-info text-white ms-1" title="자가 실측"><i class="fas fa-ruler-combined"></i> 자가 실측</span>'
+        : '';
+      var noteHtml = '';
+      if (order.completion_note && String(order.completion_note).trim()) {
+        noteHtml = '<div class="erp-completion-note text-muted small mt-2"><i class="fas fa-comment-dots"></i> ' + escapeHtml(String(order.completion_note).trim()) + '</div>';
+      }
+
+      var html = '<div class="erp-completion-row erp-completion-row--desktop" data-order-id="' + order.id + '">';
+      html += '<div class="erp-completion-summary d-flex flex-wrap align-items-center gap-2"><a href="' + escapeAttr(orderDetailHref) + '" class="fw-bold text-decoration-none" title="주문 상세">#' + order.id + '</a>';
+      html += '<span>' + escapeHtml(order.construction_date || '-') + '</span> | <span>' + safeManager + '</span> | <span>' + safeCustomer + selfMeasBadge + '</span> | <span class="text-truncate" style="max-width:180px">' + safeProduct + '</span> | <span class="badge bg-secondary">' + resultLabel + '</span>';
+      html += ' <button type="button" class="btn btn-sm btn-outline-warning" data-action="open-settlement-modal" data-order-id="' + order.id + '" title="비용 청구"><i class="fas fa-file-invoice-dollar"></i><span class="d-none d-md-inline ms-1">비용 청구</span></button></div>';
+      html += galleryHtml;
+      html += noteHtml;
+      html += '</div>';
+      return html;
+    }
+
+    function buildMobileCard(order, galleryHtml, resultLabel, orderDetailHref) {
+      var safeManager = escapeHtml(order.manager_name || '-');
+      var safeCustomer = escapeHtml(order.customer_name || '-');
+      var safeProduct = escapeHtml(order.product_summary || '-');
+      var noteHtml = '';
+      var asContentHtml = '';
+      var failHistoryHtml = '';
+      var selfMeasBadge = order.is_self_measurement
+        ? '<span class="badge bg-info text-white"><i class="fas fa-ruler-combined"></i> 자가 실측</span>'
+        : '';
+
+      if (order.as_content && String(order.as_content).trim()) {
+        asContentHtml = '<div class="erp-completion-mobile-card__note"><strong>AS 접수 내용</strong><span>' + escapeHtml(String(order.as_content).trim()) + '</span></div>';
+      }
+      if (order.completion_note && String(order.completion_note).trim()) {
+        noteHtml = '<div class="erp-completion-mobile-card__note"><strong>완료 메모</strong><span>' + escapeHtml(String(order.completion_note).trim()) + '</span></div>';
+      }
+      if (order.construction_fail_history && order.construction_fail_history.length) {
+        failHistoryHtml = '<div class="erp-completion-mobile-card__note"><strong>재시공 이력</strong><span>' + order.construction_fail_history.length + '건</span></div>';
+      }
+
+      var html = '<article class="erp-completion-mobile-card" data-order-id="' + order.id + '">';
+      html += '<div class="erp-completion-mobile-card__topline"><span class="erp-completion-mobile-card__status">' + resultLabel + '</span><a class="erp-completion-mobile-card__order-link" href="' + escapeAttr(orderDetailHref) + '">#' + order.id + '</a></div>';
+      html += '<div class="erp-completion-mobile-card__title-row"><h3 class="erp-completion-mobile-card__customer">' + safeCustomer + '</h3>' + selfMeasBadge + '</div>';
+      html += '<dl class="erp-completion-mobile-card__meta">';
+      html += '<div class="erp-completion-mobile-card__meta-row"><dt>시공일</dt><dd>' + escapeHtml(order.construction_date || '-') + '</dd></div>';
+      html += '<div class="erp-completion-mobile-card__meta-row"><dt>담당</dt><dd>' + safeManager + '</dd></div>';
+      html += '<div class="erp-completion-mobile-card__meta-row"><dt>품목</dt><dd>' + safeProduct + '</dd></div>';
+      html += '</dl>';
+      html += galleryHtml;
+      html += asContentHtml;
+      html += noteHtml;
+      html += failHistoryHtml;
+      html += '<div class="erp-completion-mobile-card__actions">';
+      html += '<a class="erp-completion-mobile-card__action" href="' + escapeAttr(orderDetailHref) + '"><i class="fas fa-up-right-from-square"></i><span>주문 상세</span></a>';
+      html += '<button type="button" class="erp-completion-mobile-card__action is-primary" data-action="open-settlement-modal" data-order-id="' + order.id + '"><i class="fas fa-file-invoice-dollar"></i><span>비용 청구</span></button>';
+      html += '</div>';
+      html += '</article>';
+      return html;
+    }
+
+    var listEl = document.getElementById('erp-completion-list');
     if (!listEl) return;
 
+    var rootEl = listEl.closest('.erp-completion');
+    var isMobileV2 = !!(rootEl && rootEl.dataset.erpMobileV2 === 'true');
+
     fetch('/api/orders/completion', { credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
+      .then(function (response) { return response.json(); })
       .then(function (data) {
         if (!data.success || !Array.isArray(data.orders)) {
           listEl.innerHTML = '<div class="alert alert-warning">목록을 불러올 수 없습니다.</div>';
           return;
         }
-        const orders = data.orders;
-        if (orders.length === 0) {
-          listEl.innerHTML = '<div class="text-center py-5 text-muted"><i class="far fa-folder-open fa-2x mb-2"></i><p class="mb-0">완료·AS 건이 없습니다.</p></div>';
+
+        var orders = data.orders;
+        if (!orders.length) {
+          listEl.innerHTML = '<div class="text-center py-5 text-muted"><i class="far fa-folder-open fa-2x mb-2"></i><p class="mb-0">완료 및 AS 건이 없습니다.</p></div>';
           return;
         }
-        let html = '';
-        orders.forEach(function (o) {
-          const date = escapeHtml(o.construction_date || '-');
-          const resultLabel = o.status === 'COMPLETED' ? '완료' : (o.status === 'AS_RECEIVED' ? 'AS접수' : (o.status === 'AS_COMPLETED' ? 'AS완료' : escapeHtml(o.status)));
-          const photos = o.construction_photos || [];
-          let galleryHtml = '';
-          if (photos.length) {
-            galleryHtml = '<div class="erp-completion-gallery">';
-            var imageIndex = 0;
-            photos.forEach(function (p, idx) {
-              var isVideo = (p.file_type || '').toLowerCase().indexOf('video') !== -1;
-              if (isVideo) {
-                galleryHtml += '<div class="erp-completion-media erp-completion-media--video" data-order-id="' + o.id + '" data-photo-index="' + imageIndex + '" title="동영상 재생" role="button" tabindex="0"><span class="erp-completion-media__icon"><i class="fas fa-video"></i></span><span class="erp-completion-media__label">동영상</span><span class="erp-completion-media__play"><i class="fas fa-play"></i></span></div>';
-                imageIndex += 1;
-              } else {
-                var url = (p.view_url || '#').replace(/"/g, '&quot;');
-                var alt = escapeAttr(p.filename || '');
-                galleryHtml += '<img src="' + url + '" alt="' + alt + '" data-order-id="' + o.id + '" data-photo-index="' + imageIndex + '" loading="lazy">';
-                imageIndex += 1;
-              }
-            });
-            galleryHtml += '</div>';
-          } else {
-            galleryHtml = '<div class="text-muted small">시공 사진 없음</div>';
+
+        var html = '';
+        orders.forEach(function (order) {
+          var resultLabel = buildStatusLabel(order.status);
+          var desktopGalleryHtml = buildGallery(
+            order.id,
+            order.construction_photos || [],
+            '<div class="text-muted small">시공 사진이 없습니다.</div>'
+          );
+          var mobileGalleryHtml = buildGallery(
+            order.id,
+            order.construction_photos || [],
+            '<div class="erp-completion-mobile-card__empty">시공 사진이 없습니다.</div>'
+          );
+          var orderDetailHref = '/edit/' + order.id + '?open=erp-beta';
+          html += buildDesktopRow(order, desktopGalleryHtml, resultLabel, orderDetailHref);
+          if (isMobileV2) {
+            html += buildMobileCard(order, mobileGalleryHtml, resultLabel, orderDetailHref);
           }
-          var safeManager = escapeHtml(o.manager_name || '-');
-          var safeCustomer = escapeHtml(o.customer_name || '-');
-          var safeProduct = escapeHtml(o.product_summary || '-');
-          var orderDetailHref = '/edit/' + o.id + '?open=erp-beta';
-          html += '<div class="erp-completion-row" data-order-id="' + o.id + '">';
-          html += '<div class="erp-completion-summary d-flex flex-wrap align-items-center gap-2"><a href="' + escapeAttr(orderDetailHref) + '" class="fw-bold text-decoration-none" title="주문 상세">#' + o.id + '</a>';
-          var selfMeasBadge = (o.is_self_measurement ? ' <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i> 자가실측</span>' : '');
-          html += '<span>' + date + '</span> | <span>' + safeManager + '</span> | <span>' + safeCustomer + selfMeasBadge + '</span> | <span class="text-truncate" style="max-width:180px">' + safeProduct + '</span> | <span class="badge bg-secondary">' + resultLabel + '</span>';
-          html += ' <button type="button" class="btn btn-sm btn-outline-warning" data-action="open-settlement-modal" data-order-id="' + o.id + '" title="비용 청구"><i class="fas fa-file-invoice-dollar"></i><span class="d-none d-md-inline ms-1">비용 청구</span></button></div>';
-          html += galleryHtml;
-          if (o.completion_note && String(o.completion_note).trim()) {
-            html += '<div class="erp-completion-note text-muted small mt-2"><i class="fas fa-comment-dots"></i> ' + escapeHtml(String(o.completion_note).trim()) + '</div>';
-          }
-          html += '</div>';
         });
         listEl.innerHTML = html;
 
-        // 브리핑 보드 등에서 focus_order 파라미터로 진입 시 해당 주문 행으로 스크롤 및 하이라이트
-        (function () {
-          var urlParams = new URLSearchParams(window.location.search);
-          var focusOrder = urlParams.get('focus_order');
-          if (focusOrder) {
-            setTimeout(function () {
-              var row = listEl.querySelector('.erp-completion-row[data-order-id="' + focusOrder + '"]');
-              if (row) {
-                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                row.classList.add('table-info');
-                setTimeout(function () { row.classList.remove('table-info'); }, 2500);
-              }
-            }, 300);
-          }
+        (function highlightFocusedOrder() {
+          var focusOrder = new URLSearchParams(window.location.search).get('focus_order');
+          if (!focusOrder) return;
+
+          window.setTimeout(function () {
+            var card = listEl.querySelector('.erp-completion-mobile-card[data-order-id="' + focusOrder + '"]');
+            var row = listEl.querySelector('.erp-completion-row[data-order-id="' + focusOrder + '"]');
+            var focusTarget = card || row;
+            if (!focusTarget) return;
+
+            focusTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (card) {
+              card.classList.add('is-focused');
+              window.setTimeout(function () { card.classList.remove('is-focused'); }, 2500);
+            }
+            if (row) {
+              row.classList.add('table-info');
+              window.setTimeout(function () { row.classList.remove('table-info'); }, 2500);
+            }
+          }, 300);
         })();
 
         var modalEl = document.getElementById('erp-settlement-modal');
@@ -100,15 +182,15 @@
 
         function loadTeamMembers(team, callback) {
           fetch('/erp/api/users?team=' + encodeURIComponent(team), { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-              if (chargeToSelect && data.success && Array.isArray(data.users)) {
+            .then(function (response) { return response.json(); })
+            .then(function (teamData) {
+              if (chargeToSelect && teamData.success && Array.isArray(teamData.users)) {
                 chargeToSelect.innerHTML = '<option value="">부서만</option>';
-                data.users.forEach(function (u) {
-                  var opt = document.createElement('option');
-                  opt.value = String(u.id);
-                  opt.textContent = u.name || ('#' + u.id);
-                  chargeToSelect.appendChild(opt);
+                teamData.users.forEach(function (user) {
+                  var option = document.createElement('option');
+                  option.value = String(user.id);
+                  option.textContent = user.name || ('#' + user.id);
+                  chargeToSelect.appendChild(option);
                 });
               }
               if (callback) callback();
@@ -121,10 +203,10 @@
 
         if (depSelect) {
           depSelect.addEventListener('change', function () {
-            var dep = (depSelect.value || '').trim();
-            if (DEPTS_WITH_MEMBERS.indexOf(dep) !== -1) {
+            var department = (depSelect.value || '').trim();
+            if (DEPTS_WITH_MEMBERS.indexOf(department) !== -1) {
               chargeToWrapper.classList.remove('d-none');
-              loadTeamMembers(dep);
+              loadTeamMembers(department);
             } else {
               resetChargeToUser();
             }
@@ -132,115 +214,125 @@
         }
 
         if (modalEl && orderIdInput && submitBtn) {
-          listEl.addEventListener('click', function (e) {
-            var btn = e.target.closest('[data-action="open-settlement-modal"]');
-            if (btn) {
-              var oid = btn.getAttribute('data-order-id');
-              if (oid) {
-                orderIdInput.value = oid;
-                if (depSelect) depSelect.value = '';
-                document.getElementById('erp-settlement-amount').value = '';
-                document.getElementById('erp-settlement-reason').value = '';
-                resetChargeToUser();
-                var modal = window.bootstrap && window.bootstrap.Modal ? new window.bootstrap.Modal(modalEl) : null;
-                if (modal) modal.show();
-              }
-              return;
+          listEl.addEventListener('click', function (event) {
+            var openBtn = event.target.closest('[data-action="open-settlement-modal"]');
+            if (!openBtn) return;
+
+            var orderId = openBtn.getAttribute('data-order-id');
+            if (!orderId) return;
+
+            orderIdInput.value = orderId;
+            if (depSelect) depSelect.value = '';
+            document.getElementById('erp-settlement-amount').value = '';
+            document.getElementById('erp-settlement-reason').value = '';
+            resetChargeToUser();
+            if (window.bootstrap && window.bootstrap.Modal) {
+              var modalInstance = window.bootstrap.Modal.getOrCreateInstance
+                ? window.bootstrap.Modal.getOrCreateInstance(modalEl)
+                : new window.bootstrap.Modal(modalEl);
+              modalInstance.show();
             }
           });
+
           submitBtn.addEventListener('click', function () {
-            var oid = orderIdInput.value;
-            var dep = depSelect ? depSelect.value : '';
+            var orderId = orderIdInput.value;
+            var department = depSelect ? depSelect.value : '';
             var amount = document.getElementById('erp-settlement-amount').value;
             var reason = document.getElementById('erp-settlement-reason').value.trim();
-            if (!oid || !dep || !amount || !reason) {
-              alert('귀속 대상·금액·사유를 모두 입력해주세요.');
+
+            if (!orderId || !department || !amount || !reason) {
+              alert('귀속 부서, 금액, 사유를 모두 입력해주세요.');
               return;
             }
-            var payload = { department: dep, amount: -Math.abs(parseInt(amount, 10) || 0), reason: reason };
+
+            var payload = {
+              department: department,
+              amount: -Math.abs(parseInt(amount, 10) || 0),
+              reason: reason
+            };
             var chargeVal = chargeToSelect ? chargeToSelect.value : '';
-            if (chargeVal && /^\d+$/.test(chargeVal)) payload.charge_to_user_id = parseInt(chargeVal, 10);
+            if (chargeVal && /^\d+$/.test(chargeVal)) {
+              payload.charge_to_user_id = parseInt(chargeVal, 10);
+            }
+
             submitBtn.disabled = true;
-            fetch('/api/orders/' + oid + '/settlement/issue', {
+            fetch('/api/orders/' + orderId + '/settlement/issue', {
               method: 'POST',
               credentials: 'same-origin',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
             })
-              .then(function (r) { return r.json(); })
-              .then(function (res) {
+              .then(function (response) { return response.json(); })
+              .then(function (result) {
                 submitBtn.disabled = false;
-                if (res.success) {
-                  if (window.bootstrap && modalEl) {
-                    var m = window.bootstrap.Modal.getInstance(modalEl);
-                    if (m) m.hide();
-                  }
-                  alert('비용 청구가 등록되었습니다.');
-                  orderIdInput.value = '';
-                } else {
-                  alert(res.message || '등록에 실패했습니다.');
+                if (!result.success) {
+                  alert(result.message || '등록에 실패했습니다.');
+                  return;
                 }
+
+                if (window.bootstrap && modalEl) {
+                  var modal = window.bootstrap.Modal.getInstance(modalEl);
+                  if (modal) modal.hide();
+                }
+                alert('비용 청구가 등록되었습니다.');
+                orderIdInput.value = '';
               })
-              .catch(function (err) {
+              .catch(function (error) {
                 submitBtn.disabled = false;
-                console.error(err);
+                console.error(error);
                 alert('요청 중 오류가 발생했습니다.');
               });
           });
         }
 
-        listEl.addEventListener('click', function (e) {
-          var videoEl = e.target.closest('.erp-completion-media--video[data-order-id]');
-          const img = e.target.closest('img[data-order-id][data-photo-index]');
+        listEl.addEventListener('click', function (event) {
+          var videoEl = event.target.closest('.erp-completion-media--video[data-order-id]');
+          var imageEl = event.target.closest('img[data-order-id][data-photo-index]');
+          var mediaEl = videoEl || imageEl;
+          if (!mediaEl || typeof window.GlobalImageViewer === 'undefined' || !window.GlobalImageViewer.open) return;
 
-          var targetEl = videoEl || img;
-          if (!targetEl || typeof window.GlobalImageViewer === 'undefined' || !window.GlobalImageViewer.open) return;
-
-          const orderId = parseInt(targetEl.getAttribute('data-order-id'), 10);
-          const photoIndex = parseInt(targetEl.getAttribute('data-photo-index'), 10);
-
-          const order = orders.find(function (o) { return o.id === orderId; });
+          var orderId = parseInt(mediaEl.getAttribute('data-order-id'), 10);
+          var photoIndex = parseInt(mediaEl.getAttribute('data-photo-index'), 10);
+          var order = orders.find(function (item) { return item.id === orderId; });
           if (!order || !order.construction_photos || !order.construction_photos.length) return;
 
-          // 동영상 및 이미지 모두 포함
-          var validPhotos = order.construction_photos;
-          if (!validPhotos.length) return;
-
-          const files = validPhotos.map(function (p) {
-            return { url: p.view_url, filename: p.filename, key: p.storage_key };
+          var files = order.construction_photos.map(function (photo) {
+            return { url: photo.view_url, filename: photo.filename, key: photo.storage_key };
           });
           window.GlobalImageViewer.open(files, photoIndex);
+
           var footer = document.getElementById('global-viewer-footer');
-          if (footer) {
-            var extra = document.getElementById('global-viewer-completion-extra');
-            if (extra) extra.remove();
-            var parts = [];
-            if (order.as_content) parts.push('AS: ' + order.as_content);
-            if (order.completion_note) parts.push(order.completion_note);
-            if (order.construction_fail_history && order.construction_fail_history.length) {
-              parts.push('시공 불가 이력: ' + order.construction_fail_history.length + '건');
-            }
-            if (parts.length) {
-              extra = document.createElement('div');
-              extra.id = 'global-viewer-completion-extra';
-              extra.className = 'global-viewer-completion-extra small text-muted mt-1';
-              extra.textContent = parts.join(' | ');
-              footer.appendChild(extra);
-            }
+          if (!footer) return;
+
+          var extra = document.getElementById('global-viewer-completion-extra');
+          if (extra) extra.remove();
+
+          var parts = [];
+          if (order.as_content) parts.push('AS: ' + order.as_content);
+          if (order.completion_note) parts.push(order.completion_note);
+          if (order.construction_fail_history && order.construction_fail_history.length) {
+            parts.push('재시공 이력: ' + order.construction_fail_history.length + '건');
           }
+
+          if (!parts.length) return;
+          extra = document.createElement('div');
+          extra.id = 'global-viewer-completion-extra';
+          extra.className = 'global-viewer-completion-extra small text-muted mt-1';
+          extra.textContent = parts.join(' | ');
+          footer.appendChild(extra);
         });
-        listEl.addEventListener('keydown', function (e) {
-          if (e.key !== 'Enter' && e.key !== ' ') return;
-          var videoEl = e.target.closest('.erp-completion-media--video[data-order-id]');
-          if (videoEl) {
-            e.preventDefault();
-            videoEl.click();
-          }
+
+        listEl.addEventListener('keydown', function (event) {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          var videoEl = event.target.closest('.erp-completion-media--video[data-order-id]');
+          if (!videoEl) return;
+          event.preventDefault();
+          videoEl.click();
         });
       })
-      .catch(function (err) {
-        console.error('Completion list load error:', err);
-        listEl.innerHTML = '<div class="alert alert-danger">목록 로드 중 오류가 발생했습니다.</div>';
+      .catch(function (error) {
+        console.error('Completion list load error:', error);
+        listEl.innerHTML = '<div class="alert alert-danger">목록을 불러오는 중 오류가 발생했습니다.</div>';
       });
   })();
 </script>

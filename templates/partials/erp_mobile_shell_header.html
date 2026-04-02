@@ -1,0 +1,20 @@
+<header class="erp-mobile-shell-header" aria-label="ERP 모바일 셸">
+  <div class="erp-mobile-shell-header__inner">
+    <a class="erp-mobile-shell-header__home" href="{{ _home_href }}" aria-label="ERP 홈으로 이동">
+      <i class="fas fa-cube"></i>
+    </a>
+    <div class="erp-mobile-shell-header__context">
+      <span class="erp-mobile-shell-header__eyebrow">{{ _eyebrow }}</span>
+      <strong class="erp-mobile-shell-header__title">{{ _current.item.label if _current.item else 'ERP' }}</strong>
+    </div>
+    <button
+      class="erp-mobile-shell-header__menu"
+      type="button"
+      data-bs-toggle="offcanvas"
+      data-bs-target="#erp-mobile-menu-drawer"
+      aria-controls="erp-mobile-menu-drawer"
+      aria-label="ERP 메뉴 열기">
+      <i class="fas fa-bars"></i>
+    </button>
+  </div>
+</header>

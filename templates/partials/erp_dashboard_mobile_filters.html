@@ -1,0 +1,114 @@
+<section class="erp-mobile-queue-filters" aria-label="대시보드 모바일 필터">
+  <form method="get" action="{{ url_for('erp_dashboard.erp_dashboard') }}" class="erp-mobile-queue-filters__search">
+    {% if filters.get('alert_type') %}
+      <input type="hidden" name="alert_type" value="{{ filters.get('alert_type') }}">
+    {% endif %}
+    {% if filters.get('mine') %}
+      <input type="hidden" name="mine" value="{{ filters.get('mine') }}">
+    {% endif %}
+    {% if filters.get('stage') %}
+      <input type="hidden" name="stage" value="{{ filters.get('stage') }}">
+    {% endif %}
+    {% if filters.get('team') %}
+      <input type="hidden" name="team" value="{{ filters.get('team') }}">
+    {% endif %}
+    {% if filters.get('urgent') %}
+      <input type="hidden" name="urgent" value="{{ filters.get('urgent') }}">
+    {% endif %}
+    {% if filters.get('has_alert') %}
+      <input type="hidden" name="has_alert" value="{{ filters.get('has_alert') }}">
+    {% endif %}
+    <label class="visually-hidden" for="erp-dashboard-mobile-search">검색</label>
+    <input
+      id="erp-dashboard-mobile-search"
+      type="text"
+      class="erp-mobile-queue-filters__input"
+      name="q"
+      placeholder="고객, 연락처, 주소, 담당자 검색"
+      value="{{ filters.get('q') or '' }}">
+    <button class="erp-mobile-queue-filters__submit" type="submit" aria-label="검색">
+      <i class="fas fa-search" aria-hidden="true"></i>
+    </button>
+    <button
+      class="erp-mobile-queue-filters__open"
+      type="button"
+      data-bs-toggle="offcanvas"
+      data-bs-target="#erp-dashboard-mobile-filter-drawer"
+      aria-controls="erp-dashboard-mobile-filter-drawer">
+      <i class="fas fa-sliders-h" aria-hidden="true"></i>
+      <span>필터</span>
+    </button>
+  </form>
+
+  <div
+    class="offcanvas offcanvas-bottom erp-mobile-queue-filters__drawer"
+    tabindex="-1"
+    id="erp-dashboard-mobile-filter-drawer"
+    aria-labelledby="erp-dashboard-mobile-filter-drawer-label">
+    <div class="offcanvas-header">
+      <div>
+        <h2 class="offcanvas-title" id="erp-dashboard-mobile-filter-drawer-label">대시보드 필터</h2>
+        <p class="mb-0 small text-muted">모바일 작업 큐 기준으로 좁혀 봅니다.</p>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+    </div>
+    <div class="offcanvas-body">
+      <form method="get" action="{{ url_for('erp_dashboard.erp_dashboard') }}" class="erp-mobile-queue-filters__form">
+        {% if filters.get('alert_type') %}
+          <input type="hidden" name="alert_type" value="{{ filters.get('alert_type') }}">
+        {% endif %}
+        <div class="erp-mobile-queue-filters__field">
+          <label for="erp-dashboard-mobile-search-drawer">검색어</label>
+          <input
+            id="erp-dashboard-mobile-search-drawer"
+            type="text"
+            name="q"
+            class="form-control"
+            value="{{ filters.get('q') or '' }}"
+            placeholder="고객, 연락처, 주소, 담당자">
+        </div>
+        <div class="erp-mobile-queue-filters__field">
+          <label for="erp-dashboard-mobile-stage">단계</label>
+          <select id="erp-dashboard-mobile-stage" class="form-select" name="stage">
+            <option value="">전체</option>
+            <option value="주문접수" {% if filters.get('stage') == '주문접수' %}selected{% endif %}>주문접수</option>
+            <option value="실측" {% if filters.get('stage') == '실측' %}selected{% endif %}>실측</option>
+            <option value="도면" {% if filters.get('stage') == '도면' %}selected{% endif %}>도면</option>
+            <option value="고객컨펌" {% if filters.get('stage') == '고객컨펌' %}selected{% endif %}>고객컨펌</option>
+            <option value="생산" {% if filters.get('stage') == '생산' %}selected{% endif %}>생산</option>
+            <option value="시공" {% if filters.get('stage') == '시공' %}selected{% endif %}>시공</option>
+            <option value="AS처리" {% if filters.get('stage') == 'AS처리' %}selected{% endif %}>AS처리</option>
+          </select>
+        </div>
+        <div class="erp-mobile-queue-filters__field">
+          <label for="erp-dashboard-mobile-team">팀</label>
+          <select id="erp-dashboard-mobile-team" class="form-select" name="team">
+            <option value="">전체</option>
+            <option value="CS" {% if filters.get('team') == 'CS' %}selected{% endif %}>라홈팀</option>
+            <option value="SALES" {% if filters.get('team') == 'SALES' %}selected{% endif %}>영업팀</option>
+            <option value="MEASURE" {% if filters.get('team') == 'MEASURE' %}selected{% endif %}>실측팀</option>
+            <option value="DRAWING" {% if filters.get('team') == 'DRAWING' %}selected{% endif %}>도면팀</option>
+            <option value="PRODUCTION" {% if filters.get('team') == 'PRODUCTION' %}selected{% endif %}>생산팀</option>
+            <option value="CONSTRUCTION" {% if filters.get('team') == 'CONSTRUCTION' %}selected{% endif %}>시공팀</option>
+          </select>
+        </div>
+        <label class="erp-mobile-queue-filters__check">
+          <input type="checkbox" name="urgent" value="1" {% if filters.get('urgent') == '1' %}checked{% endif %}>
+          <span>긴급만 보기</span>
+        </label>
+        <label class="erp-mobile-queue-filters__check">
+          <input type="checkbox" name="has_alert" value="1" {% if filters.get('has_alert') == '1' %}checked{% endif %}>
+          <span>경보 있는 주문만 보기</span>
+        </label>
+        <label class="erp-mobile-queue-filters__check">
+          <input type="checkbox" name="mine" value="1" {% if filters.get('mine') == '1' %}checked{% endif %}>
+          <span>내 작업만 보기</span>
+        </label>
+        <div class="erp-mobile-queue-filters__actions">
+          <a class="btn btn-outline-secondary" href="{{ url_for('erp_dashboard.erp_dashboard') }}">초기화</a>
+          <button class="btn btn-primary" type="submit">적용</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
