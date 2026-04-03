@@ -3362,16 +3362,20 @@
   }
 
   .erp-measurement-dashboard[data-erp-mobile-v2='true'] .erp-measurement-mobile-dates__track {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(88px, 1fr);
+    display: flex;
     gap: 0.625rem;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow-x: auto;
+    overflow-y: hidden;
     padding-bottom: 0.25rem;
     scroll-snap-type: x proximity;
   }
 
   .erp-measurement-dashboard[data-erp-mobile-v2='true'] .erp-measurement-mobile-date-chip {
+    flex: 0 0 88px;
+    min-width: 88px;
     min-height: 78px;
     padding: 0.75rem;
     border: 1px solid #d5e2f0;
