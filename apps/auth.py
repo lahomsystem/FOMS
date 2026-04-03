@@ -1,20 +1,22 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g
 from functools import wraps
 from datetime import datetime
-from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash, generate_password_hash
 
 # Import DB and Models - these are in the parent directory so we use absolute imports or relative imports
 # Given the project structure, we might need to adjust paths if app.py is the main entry point
 try:
     from db import get_db
-    from models import User, SecurityLog, OrderEvent, OrderTask, Notification, ChatRoomMember, ChatMessage, ChatRoom, AccessLog
+    from models import User, SecurityLog
+    from services.user_deletion import detach_user_references_for_delete
 except ImportError:
     import sys
     import os
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from db import get_db
-    from models import User, SecurityLog, OrderEvent, OrderTask, Notification, ChatRoomMember, ChatMessage, ChatRoom, AccessLog
+    from models import User, SecurityLog
+    from services.user_deletion import detach_user_references_for_delete
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -475,7 +477,7 @@ def edit_user(user_id):
     count_admin = db.query(User).filter(User.role == 'ADMIN').count()
     return render_template('edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=count_admin)
 
-@auth_bp.route('/admin/users/delete/<int:user_id>')
+@auth_bp.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 @login_required
 @role_required(['ADMIN'])
 def delete_user(user_id):
@@ -502,43 +504,22 @@ def delete_user(user_id):
             return redirect(url_for('auth.user_list'))
     
     try:
-        # Resolve foreign key constraints before deleting user
-        
-        # 1. Update Security Logs (Set user_id to NULL)
-        db.query(SecurityLog).filter(SecurityLog.user_id == user_id).update({SecurityLog.user_id: None}, synchronize_session=False)
-        
-        # 2. Update Order Events (Set created_by_user_id to NULL)
-        db.query(OrderEvent).filter(OrderEvent.created_by_user_id == user_id).update({OrderEvent.created_by_user_id: None}, synchronize_session=False)
-        
-        # 3. Update Order Tasks (Set owner_user_id to NULL)
-        db.query(OrderTask).filter(OrderTask.owner_user_id == user_id).update({OrderTask.owner_user_id: None}, synchronize_session=False)
-        
-        # 4. Update Notifications (Set created_by/read_by to NULL)
-        db.query(Notification).filter(Notification.created_by_user_id == user_id).update({Notification.created_by_user_id: None}, synchronize_session=False)
-        db.query(Notification).filter(Notification.read_by_user_id == user_id).update({Notification.read_by_user_id: None}, synchronize_session=False)
-        
-        # 4b. Access logs: set user_id to NULL so logs remain but no longer reference deleted user
-        db.query(AccessLog).filter(AccessLog.user_id == user_id).update({AccessLog.user_id: None}, synchronize_session=False)
-        
-        # 5. Delete chat messages by this user (removes FK from chat_messages to users)
-        db.query(ChatMessage).filter(ChatMessage.user_id == user_id).delete(synchronize_session=False)
-        
-        # 6. Delete chat rooms created by this user (CASCADE removes messages and members in those rooms)
-        db.query(ChatRoom).filter(ChatRoom.created_by == user_id).delete(synchronize_session=False)
-        
-        # 7. Remove from other chat rooms (membership only)
-        db.query(ChatRoomMember).filter(ChatRoomMember.user_id == user_id).delete(synchronize_session=False)
-        
-        # Delete user
+        cleanup_summary = detach_user_references_for_delete(db, user_id)
         db.delete(user)
         db.commit()
+        current_app.logger.info("Deleted user_id=%s cleanup=%s", user_id, cleanup_summary)
         
         # Log action
         log_access(f"사용자 #{user_id} 삭제", session.get('user_id'))
         
         flash('사용자가 성공적으로 삭제되었습니다.', 'success')
-    except Exception as e:
+    except IntegrityError:
         db.rollback()
-        flash(f'사용자 삭제 중 오류가 발생했습니다: {str(e)}', 'error')
+        current_app.logger.exception("User deletion blocked by remaining references: user_id=%s", user_id)
+        flash('사용자 삭제에 실패했습니다. 아직 정리되지 않은 참조 데이터가 있습니다.', 'error')
+    except Exception:
+        db.rollback()
+        current_app.logger.exception("Unexpected user deletion failure: user_id=%s", user_id)
+        flash('사용자 삭제 중 오류가 발생했습니다.', 'error')
     
     return redirect(url_for('auth.user_list'))

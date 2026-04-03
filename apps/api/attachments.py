@@ -13,6 +13,7 @@ from apps.auth import login_required, get_user_by_id
 from apps.api.files import build_file_view_url, build_file_download_url
 from services.storage import get_storage
 from services.order_attachment_thumbnail import schedule_order_attachment_thumbnail_generation
+from services.user_deletion import ensure_order_attachment_user_fk_set_null
 from constants import ERP_MEDIA_ALLOWED_EXTENSIONS, DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES
 
 DRAWING_ATTACHMENT_EXTRA_EXTENSIONS = {'pdf', 'zip', 'dwg', 'dxf'}
@@ -126,6 +127,7 @@ def ensure_order_attachments_user_id_column():
             "ALTER TABLE order_attachments "
             "ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
         ))
+        ensure_order_attachment_user_fk_set_null(db)
         db.commit()
         return True
     except Exception as e:
@@ -590,7 +592,12 @@ def api_order_attachments_patch(order_id, attachment_id):
 @attachments_bp.route('/orders/<int:order_id>/attachments/<int:attachment_id>', methods=['DELETE'])
 @login_required
 def api_order_attachments_delete(order_id, attachment_id):
-    """주문 첨부 삭제(ERP Beta). 관리자(ADMIN)는 모든 첨부 삭제 가능, 그 외는 본인 업로드만 삭제 가능(AS 재업로드 보호)."""
+    """주문 첨부 삭제(ERP Beta).
+
+    관리자(ADMIN)는 모든 첨부 삭제 가능.
+    일반 사용자는 본인이 업로드한 첨부만 삭제 가능하다.
+    업로더 정보가 없는 레거시 첨부는 관리자만 삭제할 수 있다.
+    """
     try:
         db = get_db()
         att = db.query(OrderAttachment).filter(
@@ -604,8 +611,9 @@ def api_order_attachments_delete(order_id, attachment_id):
         current_user_id = session.get('user_id')
         current_user = get_user_by_id(current_user_id) if current_user_id else None
         is_admin = current_user and getattr(current_user, 'role', None) == 'ADMIN'
-        if not is_admin and att_user_id is not None and current_user_id is not None and att_user_id != current_user_id:
-            return jsonify({'success': False, 'message': '다른 사용자가 업로드한 파일은 삭제할 수 없습니다.'}), 403
+        if not is_admin:
+            if current_user_id is None or att_user_id is None or att_user_id != current_user_id:
+                return jsonify({'success': False, 'message': '본인이 업로드한 파일만 삭제할 수 있습니다.'}), 403
 
         storage = get_storage()
         sk = _att_key(att, 'storage_key')
