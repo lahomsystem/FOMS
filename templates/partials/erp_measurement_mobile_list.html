@@ -185,6 +185,7 @@
               {% if product_items_row %}
                 <div class="erp-measurement-mobile-card__products">
                   {% for item in product_items_row %}
+                    {% set item_index = loop.index0 %}
                     {% set item_measurements = item.get('measurement_images') or [] %}
                     {% set spec_w = item.get('spec_width') or item.get('width') or '' %}
                     {% set spec_d = item.get('spec_depth') or item.get('depth') or '' %}
@@ -222,7 +223,7 @@
                             <button
                               type="button"
                               class="erp-measurement-mobile-attachment"
-                              data-group-key="measurement_mobile_{{ r.id }}_item_{{ loop.parent.index0 }}"
+                              data-group-key="measurement_mobile_{{ r.id }}_item_{{ item_index }}"
                               data-index="{{ loop.index0 }}"
                               data-view-url="{{ photo.view_url }}"
                               data-download-url="{{ photo.download_url }}"
