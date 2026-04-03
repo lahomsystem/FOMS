@@ -76,6 +76,10 @@
                 padding-top: 0.75rem;
                 padding-bottom: 0.75rem;
             }
+
+            body.erp-mobile-v2-layout .layout-global-nav {
+                display: none !important;
+            }
         }
 
         /* 모바일(휴대폰) 미니멀 정렬: 깔끔한 한 줄 헤더 */
@@ -900,6 +904,7 @@
 </head>
 
 <body
+    class="{% if erp_mobile_v2_enabled and request.path.startswith('/erp') %}erp-mobile-v2-layout{% endif %}"
     style="width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box;">
     <a class="skip-link" href="#main-content">본문 바로가기</a>
     <div class="container-fluid p-0"
@@ -1048,7 +1053,7 @@
         {% endif %}
 
         {% if current_user %}
-        <nav class="navbar navbar-expand-md navbar-light bg-light border-bottom px-2 px-lg-4" aria-label="메인 메뉴"
+        <nav class="layout-global-nav navbar navbar-expand-md navbar-light bg-light border-bottom px-2 px-lg-4" aria-label="메인 메뉴"
             style="position: sticky; top: 0; z-index: 1000; background-color: white !important;">
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
