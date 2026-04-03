@@ -25,7 +25,7 @@ def migrate_local():
             
             if not res:
                 print("'user_id' 컬럼 추가 중...")
-                conn.execute(text("ALTER TABLE order_attachments ADD COLUMN user_id INTEGER REFERENCES users(id);"))
+                conn.execute(text("ALTER TABLE order_attachments ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;"))
                 conn.commit()
                 print("✅ 로컬 DB 마이그레이션 완료!")
             else:

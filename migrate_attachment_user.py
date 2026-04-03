@@ -32,7 +32,7 @@ def migrate():
             
             if not res:
                 print("Adding 'user_id' column to 'order_attachments' table...")
-                conn.execute(text("ALTER TABLE order_attachments ADD COLUMN user_id INTEGER REFERENCES users(id);"))
+                conn.execute(text("ALTER TABLE order_attachments ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;"))
                 conn.commit()
                 print("✅ 마이그레이션 성공!")
             else:
