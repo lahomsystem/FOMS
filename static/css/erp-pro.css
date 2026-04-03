@@ -3212,6 +3212,10 @@
     margin-top: 0.875rem;
   }
 
+  .erp-measurement-dashboard[data-erp-mobile-v2='true'] .erp-measurement-mobile-dates {
+    overflow-x: hidden;
+  }
+
   .erp-measurement-dashboard[data-erp-mobile-v2='true'] .erp-measurement-mobile-filters__search {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
