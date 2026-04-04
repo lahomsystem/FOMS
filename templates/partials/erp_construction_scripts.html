@@ -1420,9 +1420,11 @@
       }
     });
 
-    // 알림 배지 초기 로드 + 60초 주기 갱신
-    loadNotificationBadge();
-    setInterval(loadNotificationBadge, 60000);
+    if (window.FOMSNotificationBadge && typeof window.FOMSNotificationBadge.subscribe === 'function') {
+      window.FOMSNotificationBadge.subscribe('erp-construction-page-badge', renderNotificationBadge);
+      window.FOMSNotificationBadge.startPolling();
+    }
+    loadNotificationBadge(true);
   });
 
   // ═══════════════════════════════════════════════════════════════
@@ -1431,24 +1433,20 @@
 
   let notificationPanelOpen = false;
 
-  async function loadNotificationBadge() {
-    try {
-      const res = await fetch('/erp/api/notifications/badge');
-      if (!res.ok) return;
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) return;
-      const data = await res.json();
-      const badge = document.getElementById('notification-badge');
-      if (badge) {
-        if (data.count > 0) {
-          badge.textContent = data.count > 99 ? '99+' : data.count;
-          badge.style.display = 'block';
-        } else {
-          badge.style.display = 'none';
-        }
-      }
-    } catch (e) {
-      console.error('Notification badge error:', e);
+  function renderNotificationBadge(count) {
+    const badge = document.getElementById('notification-badge');
+    if (!badge) return;
+    if (count > 0) {
+      badge.textContent = count > 99 ? '99+' : count;
+      badge.style.display = 'block';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  async function loadNotificationBadge(force) {
+    if (window.FOMSNotificationBadge && typeof window.FOMSNotificationBadge.refresh === 'function') {
+      return window.FOMSNotificationBadge.refresh({ force: !!force, reason: 'erp-construction' });
     }
   }
 
@@ -1514,7 +1512,7 @@
   async function handleNotificationClick(notificationId, orderId, notificationType, deepTab, deepEventId, deepTargetNo) {
     try {
       await fetch(`/erp/api/notifications/${notificationId}/read`, { method: 'POST' });
-      loadNotificationBadge();
+      loadNotificationBadge(true);
 
       if (orderId) {
         if (notificationType === 'DRAWING_TRANSFERRED' || notificationType === 'DRAWING_REVISION') {
@@ -1537,7 +1535,7 @@
       const res = await fetch('/erp/api/notifications/read-all', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        loadNotificationBadge();
+        loadNotificationBadge(true);
         loadNotifications();
       }
     } catch (e) {
