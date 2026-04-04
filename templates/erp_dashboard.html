@@ -457,24 +457,20 @@
         // 알림 시스템 JavaScript
         let notificationPanelOpen = false;
 
-        async function loadNotificationBadge() {
-          try {
-            const res = await fetch('/erp/api/notifications/badge');
-            if (!res.ok) return;
-            const contentType = res.headers.get('content-type') || '';
-            if (!contentType.includes('application/json')) return;
-            const data = await res.json();
-            const badge = document.getElementById('notification-badge');
-            if (badge) {
-              if (data.count > 0) {
-                badge.textContent = data.count > 99 ? '99+' : data.count;
-                badge.style.display = 'block';
-              } else {
-                badge.style.display = 'none';
-              }
-            }
-          } catch (e) {
-            console.error('Notification badge error:', e);
+        function renderNotificationBadge(count) {
+          const badge = document.getElementById('notification-badge');
+          if (!badge) return;
+          if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
+            badge.style.display = 'block';
+          } else {
+            badge.style.display = 'none';
+          }
+        }
+
+        async function loadNotificationBadge(force) {
+          if (window.FOMSNotificationBadge && typeof window.FOMSNotificationBadge.refresh === 'function') {
+            return window.FOMSNotificationBadge.refresh({ force: !!force, reason: 'erp-dashboard' });
           }
         }
 
@@ -535,7 +531,7 @@
           // 읽음 처리
           try {
             await fetch(`/erp/api/notifications/${notificationId}/read`, { method: 'POST' });
-            loadNotificationBadge();
+            loadNotificationBadge(true);
 
             // 해당 주문 상세로 이동
             if (orderId) {
@@ -559,7 +555,7 @@
             const res = await fetch('/erp/api/notifications/read-all', { method: 'POST' });
             const data = await res.json();
             if (data.success) {
-              loadNotificationBadge();
+              loadNotificationBadge(true);
               loadNotifications();
             }
           } catch (e) {
@@ -590,10 +586,11 @@
 
         // 페이지 로드 시 배지 업데이트
         document.addEventListener('DOMContentLoaded', function () {
-          loadNotificationBadge();
-
-          // 60초마다 배지 업데이트 (rate-limit 여유 확보)
-          setInterval(loadNotificationBadge, 60000);
+          if (window.FOMSNotificationBadge && typeof window.FOMSNotificationBadge.subscribe === 'function') {
+            window.FOMSNotificationBadge.subscribe('erp-dashboard-page-badge', renderNotificationBadge);
+            window.FOMSNotificationBadge.startPolling();
+          }
+          loadNotificationBadge(true);
         });
 
         // 패널 외부 클릭 시 닫기

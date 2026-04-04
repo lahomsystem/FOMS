@@ -341,6 +341,12 @@ redis_url = os.environ.get('REDIS_URL')
 from services.rate_limit import init_limiter
 limiter = init_limiter(app)
 
+# 알림 badge는 상시 polling/실시간 동기화 대상이라 일반 API 기본 제한과 분리한다.
+_notification_badge_limit = os.environ.get('ERP_NOTIFICATION_BADGE_RATE_LIMIT', '20000 per day,6000 per hour')
+_notification_badge_view = app.view_functions.get('notifications.api_notifications_badge')
+if _notification_badge_view is not None:
+    app.view_functions['notifications.api_notifications_badge'] = limiter.limit(_notification_badge_limit)(_notification_badge_view)
+
 # Socket.IO Redis URL helper
 def _mask_url_secret(raw_url: str) -> str:
     """로그 출력 시 URL의 인증정보를 마스킹."""

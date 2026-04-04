@@ -495,11 +495,15 @@
 
             // ERP 알림 수신 시 배지/목록을 즉시 동기화한다.
             function refreshErpNotificationUI() {
-                if (typeof loadGlobalNotificationBadge === 'function') {
-                    loadGlobalNotificationBadge();
-                }
-                if (typeof loadNotificationBadge === 'function') {
-                    loadNotificationBadge();
+                if (window.FOMSNotificationBadge && typeof window.FOMSNotificationBadge.refresh === 'function') {
+                    window.FOMSNotificationBadge.refresh({ force: true, reason: 'realtime' });
+                } else {
+                    if (typeof loadGlobalNotificationBadge === 'function') {
+                        loadGlobalNotificationBadge(true);
+                    }
+                    if (typeof loadNotificationBadge === 'function') {
+                        loadNotificationBadge(true);
+                    }
                 }
                 const panel = document.getElementById('global-notification-panel');
                 const isPanelVisible = panel && panel.style.display === 'block';
@@ -1976,13 +1980,130 @@
     <script>
         // Global Notification System
         let globalNotificationOpen = false;
+        const hasCurrentUser = "{{ 'true' if current_user else 'false' }}" === "true";
+
+        function renderGlobalNotificationBadge(count) {
+            const badge = document.getElementById('global-notification-badge');
+            const icon = document.getElementById('global-notification-icon');
+            if (!badge || !icon) return;
+
+            if (count > 0) {
+                badge.textContent = count > 99 ? '99+' : count;
+                badge.style.display = 'block';
+                icon.classList.add('bell-active');
+            } else {
+                badge.style.display = 'none';
+                icon.classList.remove('bell-active');
+                icon.style.color = '#6c757d';
+            }
+        }
+
+        window.FOMSNotificationBadge = window.FOMSNotificationBadge || (function () {
+            const subscribers = new Map();
+            const POLL_INTERVAL_MS = 60000;
+            const MIN_REFRESH_MS = 5000;
+            let count = 0;
+            let inFlight = null;
+            let lastResolvedAt = 0;
+            let pollTimer = null;
+            let started = false;
+
+            function emit() {
+                subscribers.forEach(function (callback) {
+                    try {
+                        callback(count);
+                    } catch (err) {
+                        console.error('Notification badge subscriber error:', err);
+                    }
+                });
+            }
+
+            function normalizeCount(value) {
+                const parsed = Number(value);
+                return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+            }
+
+            async function refresh(options) {
+                options = options || {};
+                const force = !!options.force;
+                const now = Date.now();
+
+                if (!hasCurrentUser) {
+                    count = 0;
+                    emit();
+                    return count;
+                }
+
+                if (inFlight) {
+                    return inFlight;
+                }
+
+                if (!force && lastResolvedAt && (now - lastResolvedAt) < MIN_REFRESH_MS) {
+                    emit();
+                    return count;
+                }
+
+                inFlight = fetch('/erp/api/notifications/badge', {
+                    headers: { 'Accept': 'application/json' }
+                })
+                    .then(async function (res) {
+                        if (!res.ok) {
+                            return count;
+                        }
+
+                        const contentType = res.headers.get('content-type') || '';
+                        if (!contentType.includes('application/json')) {
+                            return count;
+                        }
+
+                        const data = await res.json();
+                        count = normalizeCount(data.count);
+                        lastResolvedAt = Date.now();
+                        emit();
+                        return count;
+                    })
+                    .catch(function (err) {
+                        console.error('Notification badge error:', err);
+                        return count;
+                    })
+                    .finally(function () {
+                        inFlight = null;
+                    });
+
+                return inFlight;
+            }
+
+            function subscribe(key, callback) {
+                if (!key || typeof callback !== 'function') return function () { };
+                subscribers.set(key, callback);
+                callback(count);
+                return function () {
+                    subscribers.delete(key);
+                };
+            }
+
+            function startPolling() {
+                if (started || !hasCurrentUser) return;
+                started = true;
+                refresh({ force: true, reason: 'init' });
+                pollTimer = window.setInterval(function () {
+                    refresh({ reason: 'poll' });
+                }, POLL_INTERVAL_MS);
+            }
+
+            return {
+                refresh: refresh,
+                subscribe: subscribe,
+                startPolling: startPolling,
+                getCount: function () { return count; }
+            };
+        })();
 
         document.addEventListener('DOMContentLoaded', function () {
-            const hasCurrentUser = "{{ 'true' if current_user else 'false' }}";
-            if (hasCurrentUser === "true") {
-                loadGlobalNotificationBadge();
-                // Poll every 60 seconds (avoid hitting API rate-limit)
-                setInterval(loadGlobalNotificationBadge, 60000);
+            if (hasCurrentUser) {
+                window.FOMSNotificationBadge.subscribe('layout-global-badge', renderGlobalNotificationBadge);
+                window.FOMSNotificationBadge.startPolling();
+                loadGlobalNotificationBadge(true);
 
                 // Close panel when clicking outside
                 document.addEventListener('click', function (e) {
@@ -1997,31 +2118,9 @@
             }
         });
 
-        async function loadGlobalNotificationBadge() {
-            try {
-                const res = await fetch('/erp/api/notifications/badge');
-                if (!res.ok) return;
-                const contentType = res.headers.get('content-type') || '';
-                if (!contentType.includes('application/json')) return; // 로그인 리다이렉트 등 HTML 응답 시 파싱 스킵
-                const data = await res.json();
-
-                const badge = document.getElementById('global-notification-badge');
-                const icon = document.getElementById('global-notification-icon');
-
-                if (badge && icon) {
-                    if (data.count > 0) {
-                        badge.textContent = data.count > 99 ? '99+' : data.count;
-                        badge.style.display = 'block';
-                        icon.classList.add('bell-active');
-                    } else {
-                        badge.style.display = 'none';
-                        icon.classList.remove('bell-active');
-                        // Reset color
-                        icon.style.color = '#6c757d';
-                    }
-                }
-            } catch (e) {
-                console.error('Notification badge error:', e);
+        async function loadGlobalNotificationBadge(force) {
+            if (window.FOMSNotificationBadge && typeof window.FOMSNotificationBadge.refresh === 'function') {
+                return window.FOMSNotificationBadge.refresh({ force: !!force, reason: 'global' });
             }
         }
 
@@ -2133,7 +2232,7 @@
             try {
                 await fetch(`/erp/api/notifications/${id}/read`, { method: 'POST' });
                 // Refresh badge
-                loadGlobalNotificationBadge();
+                loadGlobalNotificationBadge(true);
 
                 // If orderId exists, navigate by notification type
                 if (orderId) {
@@ -2160,7 +2259,7 @@
             if (!confirm('모든 알림을 읽음 처리하시겠습니까?')) return;
             try {
                 await fetch('/erp/api/notifications/read-all', { method: 'POST' });
-                loadGlobalNotificationBadge();
+                loadGlobalNotificationBadge(true);
                 loadGlobalNotifications();
             } catch (e) {
                 console.error(e);
@@ -2173,7 +2272,7 @@
                 const res = await fetch('/erp/api/notifications/delete-all', { method: 'POST' });
                 const data = await res.json().catch(function () { return {}; });
                 if (data.success) {
-                    loadGlobalNotificationBadge();
+                    loadGlobalNotificationBadge(true);
                     loadGlobalNotifications();
                     if (data.count != null && data.count > 0) {
                         alert(data.message || data.count + '개 알림을 삭제했습니다.');
