@@ -27,6 +27,12 @@ def _login_erp_admin(client):
 def test_erp_pages_use_single_notification_badge_fetch(client):
     _login_erp_admin(client)
 
+    expected_badge_refresh_calls = {
+        "/erp/dashboard": 2,
+        "/erp/construction/dashboard": 2,
+        "/erp/production/dashboard": 2,
+    }
+
     for path in ("/erp/dashboard", "/erp/construction/dashboard", "/erp/production/dashboard"):
         response = client.get(path)
         assert response.status_code == 200
@@ -34,3 +40,6 @@ def test_erp_pages_use_single_notification_badge_fetch(client):
         assert body.count("/erp/api/notifications/badge") == 1
         assert "window.FOMSNotificationBadge" in body
         assert "setInterval(loadNotificationBadge, 60000)" not in body
+        assert body.count("loadNotificationBadge(true);") == expected_badge_refresh_calls[path]
+        assert "refreshErpNotificationUI({ reason: 'socket-connect' });" in body
+        assert "refreshErpNotificationUI({ force: true, reason: 'erp-notification' });" in body
