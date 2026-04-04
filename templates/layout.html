@@ -494,15 +494,18 @@
             }
 
             // ERP 알림 수신 시 배지/목록을 즉시 동기화한다.
-            function refreshErpNotificationUI() {
+            function refreshErpNotificationUI(options) {
+                options = options || {};
+                const force = !!options.force;
+                const reason = options.reason || 'realtime';
                 if (window.FOMSNotificationBadge && typeof window.FOMSNotificationBadge.refresh === 'function') {
-                    window.FOMSNotificationBadge.refresh({ force: true, reason: 'realtime' });
+                    window.FOMSNotificationBadge.refresh({ force: force, reason: reason });
                 } else {
                     if (typeof loadGlobalNotificationBadge === 'function') {
-                        loadGlobalNotificationBadge(true);
+                        loadGlobalNotificationBadge(force);
                     }
                     if (typeof loadNotificationBadge === 'function') {
-                        loadNotificationBadge(true);
+                        loadNotificationBadge(force);
                     }
                 }
                 const panel = document.getElementById('global-notification-panel');
@@ -521,7 +524,7 @@
                     if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 연결 성공');
                     if (window.FOMS_DEBUG) console.log('[Global Socket.IO] Socket ID:', globalSocket.id);
                     if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 연결 상태:', globalSocket.connected);
-                    refreshErpNotificationUI();
+                    refreshErpNotificationUI({ reason: 'socket-connect' });
                 },
                 onConnectError: function (error) {
                     console.error('[Global Socket.IO] ❌ 연결 오류:', error);
@@ -565,7 +568,7 @@
                 },
                 onErpNotification: function (data) {
                     if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ERP 알림 수신:', data);
-                    refreshErpNotificationUI();
+                    refreshErpNotificationUI({ force: true, reason: 'erp-notification' });
                     if (data && data.urgent) {
                         triggerUrgentBriefingAlert(data);
                     }
@@ -2103,7 +2106,6 @@
             if (hasCurrentUser) {
                 window.FOMSNotificationBadge.subscribe('layout-global-badge', renderGlobalNotificationBadge);
                 window.FOMSNotificationBadge.startPolling();
-                loadGlobalNotificationBadge(true);
 
                 // Close panel when clicking outside
                 document.addEventListener('click', function (e) {
