@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0.0",
+  "profile_kind": "foms_harness_profile",
+  "profile_name": "claude-harness",
+  "output_bundle_path": "docs/context/HARNESS_BUNDLE_CLAUDE_HARNESS.md",
+  "default_shell": "powershell",
+  "browser_mode": "delegate_web_to_cursor_browser_mcp",
+  "policy_priority": [
+    "agents_md",
+    "claude_md",
+    "rules_00_project_context",
+    "rules_50_win11_shell",
+    "workflow_verify_result",
+    "plan_harness_engineering_master"
+  ],
+  "source_ids": [
+    "agents_md",
+    "claude_md",
+    "rules_00_project_context",
+    "rules_50_win11_shell",
+    "workflow_verify_result",
+    "plan_harness_engineering_master"
+  ],
+  "runner_notes": {
+    "claude_code": "Use this expanded profile only for Claude-side harness work that needs both the Claude source policy and the full harness master plan in the same context.",
+    "browser": "Web exploration and manual QA still use Cursor browser MCP. Repeatable smoke/QA may route to generated gstack runtime assets after setup, but ad-hoc browsing remains Cursor-owned.",
+    "shell": "Repository shared docs use PowerShell for Win11. Claude Code bash snippets apply only in contexts explicitly marked Claude Code-only."
+  }
+}

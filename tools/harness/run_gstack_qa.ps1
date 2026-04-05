@@ -8,7 +8,10 @@ param(
 
     [switch]$DryRun,
     [string]$VendorRoot = ".agents/skills/gstack",
-    [string]$BundlePath = "docs/context/HARNESS_BUNDLE_CODEX.md"
+    [string]$BundlePath,
+    [string]$AdditionalPrompt,
+    [switch]$NonInteractive,
+    [switch]$AllowRiskyLevelOverride
 )
 
 Set-StrictMode -Version Latest
@@ -34,18 +37,71 @@ function Get-ToolPath {
     return $command.Source
 }
 
+function Get-CurrentPowerShellHostPath {
+    $process = Get-Process -Id $PID -ErrorAction SilentlyContinue
+    if ($null -eq $process -or [string]::IsNullOrWhiteSpace($process.Path)) {
+        return $null
+    }
+    return $process.Path
+}
+
+function Resolve-GitBashPath {
+    param([string]$GitPath)
+
+    if (-not [string]::IsNullOrWhiteSpace($GitPath)) {
+        $gitDir = Split-Path -Parent $GitPath
+        $gitRoot = Split-Path -Parent $gitDir
+        $candidates = @(
+            (Join-Path $gitRoot "bin\bash.exe"),
+            (Join-Path $gitRoot "usr\bin\bash.exe")
+        )
+
+        foreach ($candidate in $candidates) {
+            if (Test-Path $candidate) {
+                return $candidate
+            }
+        }
+    }
+
+    return (Get-ToolPath -Name "bash")
+}
+
+function Test-WslReady {
+    param([string]$WslPath)
+
+    if ([string]::IsNullOrWhiteSpace($WslPath)) {
+        return $false
+    }
+
+    $escapedWslPath = $WslPath.Replace('"', '""')
+    $null = & cmd.exe /c """$escapedWslPath"" -l -q >nul 2>nul"
+    return ($LASTEXITCODE -eq 0)
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $resolvedVendorRoot = Join-Path $repoRoot $VendorRoot
 $vendorManifest = Join-Path $resolvedVendorRoot "VENDOR.md"
 $snapshotManifest = Join-Path $resolvedVendorRoot "upstream\SNAPSHOT.md"
 $setupScript = Join-Path $PSScriptRoot "setup_gstack.ps1"
 $codexWrapper = Join-Path $PSScriptRoot "run_codex.ps1"
-$bundleResolved = if ([System.IO.Path]::IsPathRooted($BundlePath)) {
-    (Resolve-Path $BundlePath).Path
+$vendorQaSourcePath = Join-Path $resolvedVendorRoot "qa\SKILL.md"
+$effectiveBundlePath = if ([string]::IsNullOrWhiteSpace($BundlePath)) {
+    "docs/context/HARNESS_BUNDLE_CODEX.md"
 } else {
-    (Resolve-Path (Join-Path $repoRoot $BundlePath)).Path
+    $BundlePath
 }
+$bundleCandidate = if ([System.IO.Path]::IsPathRooted($effectiveBundlePath)) {
+    $effectiveBundlePath
+} else {
+    Join-Path $repoRoot $effectiveBundlePath
+}
+if (-not (Test-Path $bundleCandidate)) {
+    Write-Error "Bundle file is missing at '$bundleCandidate'. Regenerate harness bundles before running QA."
+}
+$bundleResolved = (Resolve-Path $bundleCandidate).Path
+$gitPath = Get-ToolPath -Name "git"
 $qaSkillCandidates = @(
+    ".agents/skills/gstack/qa/SKILL.md",
     ".agents/skills/gstack-qa/SKILL.md",
     ".agents/skills/qa/SKILL.md",
     ".agents/skills/gstack/.agents/skills/gstack-qa/SKILL.md",
@@ -58,6 +114,7 @@ foreach ($candidate in $qaSkillCandidates) {
         break
     }
 }
+$vendorQaSourceReady = Test-Path $vendorQaSourcePath
 
 if (-not (Test-HttpUrl -Value $Url)) {
     Write-Error "Url must be an absolute http/https URL."
@@ -69,9 +126,12 @@ if ([string]::IsNullOrWhiteSpace($Scenario)) {
 
 $nodePath = Get-ToolPath -Name "node"
 $bunPath = Get-ToolPath -Name "bun"
-$bashPath = Get-ToolPath -Name "bash"
-$wslPath = Get-ToolPath -Name "wsl"
+$bashPath = Resolve-GitBashPath -GitPath $gitPath
+$rawWslPath = Get-ToolPath -Name "wsl"
+$wslReady = Test-WslReady -WslPath $rawWslPath
+$wslPath = if ($wslReady) { $rawWslPath } else { $null }
 $codexPath = Get-ToolPath -Name "codex"
+$powerShellHostPath = Get-CurrentPowerShellHostPath
 $shellBridgeReady = ($null -ne $bashPath) -or ($null -ne $wslPath)
 
 $commandPreview = @(
@@ -82,6 +142,18 @@ $commandPreview = @(
     "-Url", $Url,
     "-Scenario", $Scenario
 )
+if (-not [string]::IsNullOrWhiteSpace($BundlePath)) {
+    $commandPreview += @("-BundlePath", $BundlePath)
+}
+if (-not [string]::IsNullOrWhiteSpace($AdditionalPrompt)) {
+    $commandPreview += @("-AdditionalPrompt", $AdditionalPrompt)
+}
+if ($NonInteractive) {
+    $commandPreview += "-NonInteractive"
+}
+if ($AllowRiskyLevelOverride) {
+    $commandPreview += "-AllowRiskyLevelOverride"
+}
 
 Write-Host "== FOMS gstack QA preflight =="
 Write-Host "Repo root : $repoRoot"
@@ -101,10 +173,13 @@ if ($DryRun) {
     Write-Host "- bun runtime  : $([bool]($null -ne $bunPath)) (setup/build time)"
     Write-Host "- shell bridge : $shellBridgeReady"
     Write-Host "- codex cli    : $([bool]($null -ne $codexPath))"
+    Write-Host "- qa source    : $vendorQaSourceReady"
     Write-Host "- qa skill     : $qaSkillReady"
+    Write-Host "- level policy : daily bundle by default; run_codex.ps1 may still promote risk/override-driven QA to harness context"
     Write-Host "- command      : $($commandPreview -join ' ')"
     Write-Host ""
-    Write-Host "DryRun only. Real execution uses Codex CLI plus repo-local gstack QA skills; it remains blocked until those prerequisites are present."
+    Write-Host "DryRun only. Real execution uses Codex CLI plus repo-local gstack QA skills."
+    Write-Host "If bun, codex, or the generated QA skill are missing, execution will stop with a preflight error."
     exit 0
 }
 
@@ -124,9 +199,38 @@ if ($null -eq $codexPath) {
     Write-Error "Codex CLI is not available on PATH. QA execution is driven through 'codex exec', not a standalone 'gstack qa' binary."
 }
 
+if ($null -eq $powerShellHostPath -or -not (Test-Path $powerShellHostPath)) {
+    Write-Error "Current PowerShell host path is unavailable, so the QA wrapper cannot launch the nested Codex wrapper process safely."
+}
+
 if (-not $qaSkillReady) {
     $candidateList = ($qaSkillCandidates -join ", ")
     Write-Error "Repo-local gstack QA skill is missing. Expected one of: $candidateList"
 }
 
-& $codexWrapper -Profile "qa" -Url $Url -Scenario $Scenario -BundlePath $BundlePath
+$codexArgs = @(
+    "-Profile", "qa",
+    "-Url", $Url,
+    "-Scenario", $Scenario
+)
+if (-not [string]::IsNullOrWhiteSpace($BundlePath)) {
+    $codexArgs += @("-BundlePath", $BundlePath)
+}
+if (-not [string]::IsNullOrWhiteSpace($AdditionalPrompt)) {
+    $codexArgs += @("-AdditionalPrompt", $AdditionalPrompt)
+}
+if ($NonInteractive) {
+    $codexArgs += "-NonInteractive"
+}
+if ($AllowRiskyLevelOverride) {
+    $codexArgs += "-AllowRiskyLevelOverride"
+}
+
+$nestedPowerShellArgs = @(
+    "-NoProfile",
+    "-File", $codexWrapper
+) + $codexArgs
+
+& $powerShellHostPath @nestedPowerShellArgs
+$wrapperExitCode = if ($null -ne $LASTEXITCODE) { $LASTEXITCODE } else { 0 }
+exit $wrapperExitCode

@@ -59,6 +59,14 @@ def extract_project_root(payload: dict) -> str:
 def hook_runtime_log(message: str, project_root: str | None = None, *, tag: str = "hook") -> None:
     """훅 런타임 로그( fail-open ). docs/context/HOOK_RUNTIME_LOG.txt 또는 temp 폴백. 예외 없음."""
     line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} [{tag}] {message}\n"
+
+    def _stderr_fallback(text: str) -> None:
+        """파일 로그가 모두 실패해도 최소한 stderr에는 남긴다."""
+        try:
+            os.write(2, text.encode("utf-8", errors="replace"))
+        except Exception:
+            return
+
     path: str | None = None
     try:
         root = project_root
@@ -73,11 +81,13 @@ def hook_runtime_log(message: str, project_root: str | None = None, *, tag: str 
         try:
             path = os.path.join(tempfile.gettempdir(), "foms_hook_runtime.log")
         except Exception:
+            _stderr_fallback(line)
             return
     try:
         with open(path, "a", encoding="utf-8") as f:
             f.write(line)
     except Exception:
+        _stderr_fallback(line)
         return
 
 

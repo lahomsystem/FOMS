@@ -65,7 +65,7 @@ def main():
     system1_message = (
         "[SYSTEM] 새 세션입니다.\n"
         "1. `docs/AI_STATUS.md`를 읽어 현재 상황을 파악하세요.\n"
-        "2. 새 기능/중대형 수정이면 반드시 조사(R)→계획(P)→실행(I) 순서를 따르세요.\n"
+        "2. 새 기능/중대형 수정, 또는 하네스 핵심 변경(Hooks/Rules/Agents/Verification)이면 반드시 조사(R)→계획(P)→실행(I) 순서를 따르세요.\n"
         "   - 조사: DECISIONS.md, ARCHIVE_INDEX.md에서 관련 과거 기록 검색\n"
         "   - 계획: docs/guides/SPEC_TEMPLATE.md 기반으로 Spec 작성 → 사용자 승인 대기\n"
         "   - 실행: 승인 후 코딩 시작\n"

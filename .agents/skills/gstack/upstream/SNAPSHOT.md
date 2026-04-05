@@ -3,7 +3,7 @@
 - Upstream repo: `https://github.com/garrytan/gstack`
 - Pinned commit: `04b709d91a3f10efa1c816c6ddb4c8cafa735da8`
 - Captured on: `2026-04-05`
-- Scope: Phase 2 pinned documentation snapshot plus setup/host-config source slice for FOMS harness integration
+- Scope: Phase 2 pinned documentation snapshot plus setup/host-config source slice, static runtime assets, and build/generated-skill source layer for FOMS harness integration; local Windows setup has now been verified against this pinned slice
 
 ## Included Files
 - `AGENTS.md` - upstream skill inventory and build conventions
@@ -12,15 +12,20 @@
 - `package.json` / `VERSION` - upstream build metadata pinned to the same commit
 - `hosts/*.ts` - upstream host registry/config slice
 - `scripts/host-config.ts` / `scripts/host-config-export.ts` - host-config support source
+- `ETHOS.md` - upstream runtime guidance referenced by skills
+- `review/*`, `qa/*`, `gstack-upgrade/*` - static runtime markdown/templates/migrations required by the next Codex-facing slice
+- `bin/*` (text scripts only), `browse/*`, `design/*` - source layer required before local Windows build/runtime enablement
+- `scripts/discover-skills.ts`, `scripts/gen-skill-docs.ts`, `scripts/resolvers/*` - generated-skill support source
+- `**/SKILL.md.tmpl` - upstream skill templates that drive generated SKILL docs
 - This `SNAPSHOT.md` - pinned commit, extracted architecture notes, and FOMS integration rules
 
 ## Intentionally Excluded For Now
-- Full upstream runtime source tree (`browse/`, `design/`, `bin/`, `review/`, `qa/`, `gstack-upgrade/`, skill directories)
-- Compiled binaries (`browse/dist/`, `design/dist/`)
-- Automatic `./setup` execution
-- Runtime enablement inside FOMS wrappers
+- Generated `.agents/skills` outputs for any host remain local setup artifacts, not pinned snapshot source
+- Generated per-host sidecar directories (`.agents/`, `.cursor/`, `.factory/`, `.kiro/`, `.openclaw/`, `.opencode/`, `.slate/`) remain local setup artifacts
+- Compiled binaries (`browse/dist/`, `design/dist/`, upstream compiled `bin/gstack-global-discover`) remain local setup artifacts, not pinned snapshot source
+- `node_modules/`, `bun.lock`, and linked root skill directories under `.agents/skills/gstack-*`
 
-Reason: Phase 2 is still validating a Windows-safe integration boundary. FOMS now pins both upstream intent and the exact setup entrypoint, but runtime activation still waits until the remaining runtime asset subset and local tool assumptions are verified.
+Reason: FOMS pins upstream intent, the exact setup entrypoint, the static runtime markdown/migration layer, and the build/generated-skill source layer in git. Setup-generated runtime outputs are reproducible local artifacts and should stay out of the pinned snapshot boundary.
 
 ## Extracted Notes From Upstream README
 - gstack positions itself as a repo-local skill/runtime pack for multiple AI coding agents, not Claude only.
@@ -49,4 +54,4 @@ Reason: Phase 2 is still validating a Windows-safe integration boundary. FOMS no
 - `tools/harness/setup_gstack.ps1` and `tools/harness/run_gstack_qa.ps1` must remain explicit about whether the repo only has a pinned snapshot or a runnable upstream runtime.
 
 ## Next Runtime Gate
-The next Phase 2 implementation step is to import the minimum runtime asset subset required for `bash .agents/skills/gstack/setup --host codex`, or deliberately switch to a full upstream subtree if that proves smaller and safer.
+The next implementation step after the successful local setup is Phase 3 runner UX integration: refresh generated bundles, document Cursor-installed Claude/Codex entrypoints, and keep setup-generated runtime outputs ignored while adding repeatable verification/drift controls.

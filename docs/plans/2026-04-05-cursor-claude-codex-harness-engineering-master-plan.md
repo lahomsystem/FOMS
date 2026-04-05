@@ -5,8 +5,9 @@
 > **Goal**: Cursor IDE 안에서 Cursor Agent, Claude, Codex CLI가 동일한 정책·컨텍스트·검증 루프를 공유하는 하네스 엔지니어링 체계를 구축한다.  
 > **Architecture**: gstack의 강점(브라우저 QA/릴리즈/문서 동기화/운영 하네스)과 FOMS의 강점(Root Cause Fix, RPI, Hooks, Context Docs, GDM 오케스트레이션)을 혼합한 Hybrid 구조를 채택한다.  
 > **Tech Stack**: Cursor IDE, Claude, Codex CLI, Python 3.12, PowerShell 5+/7, Git Bash(선택), Bun/Node(선택적 gstack 런타임), GitHub Actions  
-> **상태**: Phase 1 완료 / Phase 2 진행중 (runtime entrypoint pinned, runtime asset subset pending)
+> **상태**: Phase 5 완료 (runner UX, CI/drift, hook smoke, scripted verification baseline, operator handoff docs complete)
 > **권장안**: Option C - Hybrid gstack + FOMS harness
+> **후속 Spec**: `docs/specs/2026-04-05-harness-wave3-auto-level-routing_SPEC.md` (Wave 3 auto level routing / override / resource policy)
 
 ---
 
@@ -307,7 +308,10 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 - [x] gstack QA/benchmark/canary 전용 래퍼 스크립트 작성
 - [x] FOMS overlay 정책 문서화
 - [x] pinned upstream snapshot 기준으로 Windows 런타임 entrypoint 최종 고정
-- [ ] `setup --host codex` 실행에 필요한 runtime asset subset 최소 범위 확정 및 import
+- [x] raw fetch 가능한 static runtime subset (`ETHOS.md`, `review/*`, `qa/*`, `gstack-upgrade/*`) 확정 및 import
+- [x] `setup --host codex` 실행에 필요한 build/generated-skill source layer 최소 범위 확정 및 import
+- [x] `setup --host codex --no-prefix` 실행을 위한 generated Codex skills + `browse/dist` build path 검증
+- [x] Bun + Codex CLI 로컬 설치 및 Windows preflight 오탐(`wsl.exe`, `browse.exe`) 수정
 
 **대상 파일**
 
@@ -315,8 +319,12 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 - `.agents/skills/gstack/setup`
 - `.agents/skills/gstack/package.json`
 - `.agents/skills/gstack/VERSION`
+- `.agents/skills/gstack/bin/*`
+- `.agents/skills/gstack/browse/*`
+- `.agents/skills/gstack/design/*`
 - `.agents/skills/gstack/hosts/*`
 - `.agents/skills/gstack/scripts/*`
+- `.agents/skills/gstack/*/SKILL.md.tmpl`
 - `tools/harness/setup_gstack.ps1`
 - `tools/harness/import_gstack_source_slice.py`
 - `tools/harness/run_gstack_qa.ps1`
@@ -328,6 +336,8 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 - `powershell -NoProfile -File tools/harness/setup_gstack.ps1 -WhatIf`
 - `python tools/harness/import_gstack_source_slice.py --dry-run`
 - `powershell -NoProfile -File tools/harness/run_gstack_qa.ps1 -DryRun`
+- `codex login status`
+- `& "C:\Program Files\Git\bin\bash.exe" -lc "cd '/c/.../.agents/skills/gstack' && bash ./setup --host codex --no-prefix"`
 - `pwsh`가 설치된 환경에서는 동일 명령이 호환되는지 추가 확인
 
 ## Phase 3 — Cursor / Claude / Codex Runner Experience
@@ -336,10 +346,12 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 
 **핵심 작업**
 
-- [ ] Cursor profile 적용 규칙 작성
-- [ ] Claude in Cursor 전용 운영 섹션 정리
-- [ ] Codex CLI wrapper와 generated context 연결
-- [ ] GDM에서 runner별 실행 트랙 설명 가능하도록 보강
+- [x] Cursor profile 적용 규칙 작성
+- [x] Claude in Cursor 전용 운영 섹션 정리
+- [x] Codex CLI wrapper와 generated context 연결
+- [x] GDM에서 runner별 실행 트랙 설명 가능하도록 보강
+- [x] refreshed bundle 기준 runner dry-run 재검증
+- [x] Cursor/Claude extension presence 기준 동등 운영자 확인
 
 **대상 파일**
 
@@ -347,6 +359,7 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 - `.cursor/rules/*.mdc`
 - `.cursor/agents/grand-develop-master.md`
 - `tools/harness/run_codex.ps1`
+- `tools/harness/profiles/*.yaml`
 - `docs/context/HARNESS_BUNDLE_*.md`
 
 **검증**
@@ -354,6 +367,8 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 - Cursor chat dry run 1회
 - Claude dry run 1회
 - Codex CLI dry run 1회
+- `python tools/harness/build_context_bundle.py --all`
+- Cursor-installed Claude/Codex extension asset 존재 확인
 
 ## Phase 4 — Verification / CI / Drift Control
 
@@ -361,21 +376,27 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 
 **핵심 작업**
 
-- [ ] harness 전용 CI workflow 추가
-- [ ] generated bundle drift check 추가
-- [ ] 훅 단위 테스트 또는 smoke test 추가
-- [ ] verify-result를 스크립트화할지 결정
+- [x] harness 전용 CI workflow 추가
+- [x] generated bundle drift check 추가
+- [x] 훅 단위 테스트 또는 smoke test 추가
+- [x] verify-result를 스크립트화할지 결정
 
 **대상 파일**
 
 - `.github/workflows/harness-ci.yml`
+- `.gitattributes`
 - `tests/harness/*`
 - `.agents/workflows/verify-result.md`
 
 **검증**
 
+- `python -m compileall -q .cursor/hooks`
+- `python tools/harness/verify_result.py --json`
+- `python tools/harness/build_context_bundle.py --all`
+- `python -m pytest tests/harness -q`
+- `git diff --exit-code -- docs/context/HARNESS_BUNDLE_CURSOR.md docs/context/HARNESS_BUNDLE_CLAUDE.md docs/context/HARNESS_BUNDLE_CODEX.md`
+- `powershell -NoProfile -File "tools/harness/run_gstack_qa.ps1" -Url "https://example.com" -Scenario "erp-smoke" -DryRun`
 - GitHub Actions green
-- bundle regenerate diff clean
 
 ## Phase 5 — 운영 문서 / 팀 사용법 정착
 
@@ -383,10 +404,10 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 
 **핵심 작업**
 
-- [ ] 운영자 가이드 작성
-- [ ] runner별 시작 예시 추가
-- [ ] 장애 시 fallback 경로 정리
-- [ ] 새 계획/결정 파일 인덱싱 절차 반영
+- [x] 운영자 가이드 작성
+- [x] runner별 시작 예시 추가
+- [x] 장애 시 fallback 경로 정리
+- [x] 새 계획/결정 파일 인덱싱 절차 반영
 
 ---
 
@@ -428,6 +449,7 @@ Phase 1부터 subagent-driven으로 실행해 줘
 예정 사용 방식:
 
 1. `CLAUDE.md`와 generated bundle을 기준으로 세션을 시작한다.
+   - 주의: Cursor/확장이 이 파일들을 자동 로드하는 것은 아니므로, 사용자가 직접 열거나 참조한다.
 2. 다음처럼 요청한다.
 
 ```text

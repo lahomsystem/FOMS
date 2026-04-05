@@ -49,3 +49,9 @@
 | 2026-02-22-railway-multi-user-scalability-plan.md | Railway, 확장 | 다중 사용자 확장 계획 |
 | SDD.md | SDD, 방법론 | Spec Driven Development 요약 |
 | Alignment.md | RPI, Dumb Zone | AI 생산성/Alignment 방법론 |
+
+## 구현 스펙 (docs/specs/)
+| 파일 | 키워드 | 요약 |
+|------|--------|------|
+| 2026-04-05-harness-post-audit-hardening_SPEC.md | harness, audit, hardening, wrapper, verify-result, spec | 감리 후 발견된 종료코드·Spec 계약·문서 drift를 정리하는 후속 하드닝 배치 |
+| 2026-04-05-harness-wave3-auto-level-routing_SPEC.md | harness, wave3, routing, level, override, codex | 사용자 명령 자동 4단계 분류 및 하네스 자원/컨텍스트 라우팅 규칙 |

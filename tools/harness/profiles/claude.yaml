@@ -10,20 +10,18 @@
     "claude_md",
     "rules_00_project_context",
     "rules_50_win11_shell",
-    "workflow_verify_result",
-    "plan_harness_engineering_master"
+    "workflow_verify_result"
   ],
   "source_ids": [
     "agents_md",
     "claude_md",
     "rules_00_project_context",
     "rules_50_win11_shell",
-    "workflow_verify_result",
-    "plan_harness_engineering_master"
+    "workflow_verify_result"
   ],
   "runner_notes": {
-    "claude_code": "CLAUDE.md augments AGENTS.md; where CLAUDE.md mentions bash/Unix examples, treat them as Claude Code session-only unless repo docs say otherwise.",
-    "browser": "Web exploration and manual QA use Cursor browser MCP; repeatability via gstack browse remains a future integration per master plan.",
-    "shell": "Repository shared docs use PowerShell for Win11; Claude Code bash snippets apply only in contexts explicitly marked Claude Code-only."
+    "claude_code": "When Claude is used inside Cursor, start from HARNESS_BUNDLE_CLAUDE.md. For harness-internal architecture or policy work, switch to HARNESS_BUNDLE_CLAUDE_HARNESS.md. Open CLAUDE.md separately only when editing or validating Claude-specific source policy text.",
+    "browser": "Web exploration and manual QA still use Cursor browser MCP. Repeatable smoke/QA may route to generated gstack runtime assets after setup, but ad-hoc browsing remains Cursor-owned.",
+    "shell": "Repository shared docs use PowerShell for Win11. Claude Code bash snippets apply only in contexts explicitly marked Claude Code-only."
   }
 }

@@ -6,6 +6,36 @@
 
 ---
 
+### [2026-04-05] Post-audit harness hardening contract
+- **키워드**: harness, audit, hardening, exit-code, verify-result, spec, docs
+- **결정**: Wave 3 구현 이후 감리에서 드러난 신뢰성 이슈는 별도 hardening batch로 분리해 수정한다. 우선순위는 wrapper 종료 코드 전달, deterministic spec 선택/표시, invalid `--spec` 구조화 실패, RPI 문구 단일화, bundle 진입 표현 정정이다.
+- **이유**: 완료로 표시된 기능 위에 새 기능을 더하기 전에, CI와 운영자가 실패를 정확히 감지하고 문서가 실제 동작을 과장하지 않도록 신뢰 경계를 먼저 고정해야 한다.
+- **영향**: `tools/harness/run_codex.ps1`, `tools/harness/run_gstack_qa.ps1`, `tools/harness/verify_result.py`, `tools/harness/spec_utils.py`, `.cursor/hooks/post_task_quality_check.py`, `tests/harness/*`, `CLAUDE.md`, `.cursor/rules/00-project-context.mdc`, `.cursor/agents/grand-develop-master.md`, `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md`
+
+### [2026-04-05] Wave 3 Codex auto level routing
+- **키워드**: harness, wave3, codex, routing, level, override, qa
+- **결정**: `run_codex.ps1`는 `low / medium / high / top` 4단계로 작업을 자동 분류하고, 기본적으로 `low/medium`은 daily bundle, `high/top`은 `_HARNESS` bundle을 선택한다. 수동 override는 `-AdditionalPrompt`의 fixed tag / 자연어 형식을 지원한다.
+- **이유**: 고위험 하네스·코어 작업은 강한 컨텍스트와 검증이 필요하고, 일상 작업은 slim context를 유지해야 LLM 비용과 운영 복잡도를 함께 줄일 수 있다.
+- **영향**: `tools/harness/run_codex.ps1`, `tools/harness/run_gstack_qa.ps1`, `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md`, `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/00-project-context.mdc`, `.cursor/agents/grand-develop-master.md`, `tests/harness/test_run_codex_levels.py`
+
+### [2026-04-05] 하네스 일상 번들 슬림화
+- **키워드**: harness, bundle, token, Cursor, Claude, Codex
+- **결정**: 기본 운영 번들에서는 `plan_harness_engineering_master`를 제거하고, `CLAUDE.md`는 Claude 전용 번들에만 포함
+- **이유**: 마스터 플랜과 runner 비소유 문서를 상시 주입하면 토큰 비용이 커지고, 일상 작업에서는 필요성이 낮음
+- **영향**: `tools/harness/profiles/cursor.yaml`, `tools/harness/profiles/claude.yaml`, `tools/harness/profiles/codex.yaml`, `docs/context/HARNESS_BUNDLE_*.md`
+
+### [2026-04-05] 하네스 전용 확장 번들 분리
+- **키워드**: harness, bundle, profile, context, codex
+- **결정**: 일상 번들과 별도로 `_HARNESS` 확장 번들을 생성하고, `run_codex.ps1`는 하네스 관련 파일/계획을 감지하면 확장 번들을 자동 선택
+- **이유**: 일상 작업은 저비용 slim context를 유지하면서도, 하네스 내부 작업은 계획/정책 전체를 자동으로 확보해야 품질 저하가 없음
+- **영향**: `tools/harness/profiles/*-harness.yaml`, `tools/harness/run_codex.ps1`, `docs/context/HARNESS_BUNDLE_*_HARNESS.md`, `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md`
+
+### [2026-04-05] Spec 탐색 규칙 단일화
+- **키워드**: harness, spec, verify-result, hook, recursive
+- **결정**: 최신 Spec 탐색은 `tools/harness/spec_utils.py`의 재귀 탐색 함수 하나로 통일
+- **이유**: verify-result와 post-task hook이 서로 다른 Spec을 가리키면 검증 기준과 리마인더가 어긋남
+- **영향**: `tools/harness/spec_utils.py`, `tools/harness/verify_result.py`, `.cursor/hooks/post_task_quality_check.py`
+
 ### [2026-02-27] 도면 파일 생명주기 설계 확정
 - **키워드**: 도면, R2, 파일삭제, 생명주기
 - **결정**: 발송 시 R2 물리 삭제 금지, 수령 확정 시 일괄 정리

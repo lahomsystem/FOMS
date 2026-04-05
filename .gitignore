@@ -85,3 +85,20 @@ docs/context/.hook_raw_once
 docs/context/HOOK_RUNTIME_LOG.txt
 docs/context/.session_stop_idempotency.json
 docs/context/.post_task_qc_debounce.json
+
+# gstack setup/runtime generated artifacts
+.agents/skills/gstack-*/
+.agents/skills/gstack/.agents/
+.agents/skills/gstack/.cursor/
+.agents/skills/gstack/.factory/
+.agents/skills/gstack/.kiro/
+.agents/skills/gstack/.openclaw/
+.agents/skills/gstack/.opencode/
+.agents/skills/gstack/.slate/
+.agents/skills/gstack/node_modules/
+.agents/skills/gstack/bun.lock
+.agents/skills/gstack/SKILL.md
+.agents/skills/gstack/bin/*.exe
+.agents/skills/gstack/browse/dist/
+.agents/skills/gstack/design/dist/
+.cursor/hooks/__pycache__/

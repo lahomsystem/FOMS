@@ -4,13 +4,18 @@ description: 코딩 완료 후 결과물 품질을 검증하는 워크플로우
 
 # 결과 검증
 
+0. **자동 baseline 검증(권장)**: 가능하면 먼저 `python tools/harness/verify_result.py --json` 를 실행한다.
+   - Spec이 필수인 작업이면 `python tools/harness/verify_result.py --require-spec --json` 를 사용한다.
+   - 이 스크립트는 `APP_OK` import 기준, 최신 Spec 탐지, "4. 검증 기준" 항목 수집 결과를 구조화해서 보여준다.
+
 1. **앱 import 검증(표준 성공 문자열 `APP_OK`)**: `python -c "import app; print('APP_OK')"` 를 실행하여 import 오류가 없고 출력에 `APP_OK`가 포함되는지 확인한다. (`CLAUDE.md` 작업 완료 체크리스트와 동일한 기준)
 
-2. 현재 작업의 Spec 파일(`docs/specs/*_SPEC.md`)을 읽는다.
+2. 현재 작업의 Spec 파일(`docs/specs/*_SPEC.md`)이 있으면 읽는다.
 
-3. Spec의 "4. 검증 기준" 섹션의 항목을 하나씩 점검한다.
+3. Spec이 있는 경우, Spec의 "4. 검증 기준" 섹션의 항목을 하나씩 점검한다.
    - 통과하면 ✅ 표시
    - 실패하면 ❌ 표시 + 원인 기술
+   - Spec이 없으면 이 단계는 생략하고 4단계 기본 품질 점검으로 진행한다.
 
 4. 수정한 파일에 대해 기본 품질 점검:
    - 에러 처리(try-except): API 엔드포인트에 적절한 에러 처리가 있는가?
