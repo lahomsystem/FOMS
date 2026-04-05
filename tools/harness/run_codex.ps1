@@ -87,7 +87,7 @@ function Get-RepoRelativePath {
     }
 
     if ($ResolvedPath.StartsWith($RepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-        return $ResolvedPath.Substring($RepoRoot.Length).TrimStart('\').Replace('\', '/')
+        return $ResolvedPath.Substring($RepoRoot.Length).TrimStart('/', '\').Replace('\', '/')
     }
 
     return $ResolvedPath
