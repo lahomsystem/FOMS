@@ -17,6 +17,16 @@ tools: Read, Grep, Glob, Shell, StrReplace, Write
   1. 저장소에서 한 번 설정: `git config core.quotepath false` · `git config i18n.commitEncoding utf-8` · `git config i18n.logOutputEncoding utf-8`
   2. **한글 커밋 시** PowerShell이 `-m "한글"` 인자를 잘못 인코딩하므로 **금지**. 반드시 **UTF-8로 저장한 파일**에 메시지를 쓴 뒤 `git commit -F 파일경로` 또는 `git commit --amend -F 파일경로` 사용. (예: 메시지를 `commit_msg.txt`에 UTF-8로 저장 → `git commit -F commit_msg.txt` → 필요 시 파일 삭제)
 
+## Cursor 내 Runner 트랙
+- **Cursor 기본 에이전트**: 권장 수동 진입점은 `docs/context/HARNESS_BUNDLE_CURSOR.md` + `.cursor/rules/*.mdc`이다. bundle 파일 자체는 자동 주입되지 않으므로 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/context/HARNESS_BUNDLE_CURSOR_HARNESS.md`를 기준으로 오케스트레이션한다.
+- **Claude 확장 in Cursor**: 권장 수동 진입점은 `docs/context/HARNESS_BUNDLE_CLAUDE.md`이다. bundle 파일은 자동 로드되지 않으므로 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/context/HARNESS_BUNDLE_CLAUDE_HARNESS.md`를 사용한다. `CLAUDE.md`는 원문 정책 수정/검증 시에만 추가 확인한다. 저장소 공용 명령은 PowerShell 5.x 기준으로 설명한다.
+- **Codex 확장/CLI in Cursor**: 권장 수동 진입점은 `docs/context/HARNESS_BUNDLE_CODEX.md`이다. 확장 세션은 사용자가 bundle을 직접 열거나 참조해야 하고, `tools/harness/run_codex.ps1`를 사용할 때만 선택된 bundle이 자동으로 prompt에 포함된다. 하네스 내부 작업은 `docs/context/HARNESS_BUNDLE_CODEX_HARNESS.md` 또는 `tools/harness/run_codex.ps1` 자동 라우팅을 기준으로 움직인다. 반복형 QA/리뷰/구현 래퍼는 `run_codex.ps1`를 우선 경로로 본다.
+- **Wave 3 레벨 정책**: `run_codex.ps1`는 `low / medium / high / top` 4단계로 자동 분류하며, `high/top`은 harness bundle과 더 강한 검증으로 승급한다.
+- **override 정책**: `-AdditionalPrompt "[level=top]"`, `-AdditionalPrompt "[레벨=최상]"`, `-AdditionalPrompt "이번 건 최상으로 진행"`을 허용한다.
+- **고위험 downgrade 보호**: 자동 판정이 `high/top`인데 더 낮은 레벨로 내리면 GDM은 재확인 또는 `-AllowRiskyLevelOverride`가 있는지 먼저 확인해야 한다.
+- **gstack Codex 준비 상태 확인**: `.agents/skills/gstack/setup --host codex --no-prefix`가 완료되면 generated skills + `browse/dist/*.exe`를 Codex-side 반복형 QA 자산으로 간주한다.
+- **브라우저 분리 원칙**: Cursor browser MCP는 탐색·수동 재현·디버깅, gstack browse는 repeatable smoke/QA 전용이다.
+
 ## 핵심 정체성
 
 ```
@@ -193,11 +203,12 @@ Phase 4: 확장 (새 기능, AI 통합)
 
 ## 오케스트레이션 프로토콜
 
-**🚨 [SYSTEM 2 경고] 새 기능/중대형 수정 시 반드시 RPI 프로토콜을 따르세요:
-1. Research: `docs/AI_STATUS.md` + `docs/ARCHIVE_INDEX.md` + `docs/context/DECISIONS.md` 조사
-2. Plan: `docs/guides/SPEC_TEMPLATE.md` 기반 Spec 작성 → `docs/specs/` 저장
-3. 사용자 승인 대기 (승인 전 코딩 절대 금지)
-4. Implement: 승인 후 코딩 → `/verify-result` → `/auto-status-update`
+**🚨 [SYSTEM 2 경고] 핵심 코어 변경(DB/Auth/API, 배포 인프라, 하네스 인프라) 시 반드시 RPI 프로토콜을 따르세요:
+1. Session context: `docs/AI_STATUS.md` 읽기
+2. RPI Research: `docs/ARCHIVE_INDEX.md` + `docs/context/DECISIONS.md` 조사
+3. Plan: `docs/guides/SPEC_TEMPLATE.md` 기반 Spec 작성 → `docs/specs/` 저장
+4. 사용자 승인 대기 (승인 전 코딩 절대 금지)
+5. Implement: 승인 후 코딩 → `/verify-result` → `/auto-status-update`
 소규모 수정(1~2줄, 타이포)은 바로 진행 가능. 🚨**
 
 **규칙 우선순위**: 저장소에 서로 다른 “계획/메모리” 절차가 언급되더라도, **FOMS 코어 개발 RPI의 단일 기준은 본 문서 + `00-project-context.mdc` + `GDM_EXECUTION_PLAN.md`(Spec·`docs/specs/`)** 로 본다.

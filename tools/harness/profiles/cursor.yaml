@@ -9,20 +9,17 @@
     "agents_md",
     "rules_00_project_context",
     "rules_50_win11_shell",
-    "claude_md",
-    "workflow_verify_result",
-    "plan_harness_engineering_master"
+    "workflow_verify_result"
   ],
   "source_ids": [
     "agents_md",
     "rules_00_project_context",
     "rules_50_win11_shell",
-    "claude_md",
-    "workflow_verify_result",
-    "plan_harness_engineering_master"
+    "workflow_verify_result"
   ],
   "runner_notes": {
-    "cursor": "Primary IDE integration: .mdc rules apply natively; use Cursor browser MCP for manual web QA per project policy.",
+    "cursor": "Primary IDE integration: .mdc rules apply natively and Cursor browser MCP owns exploratory/manual web work.",
+    "runner_routing": "Inside Cursor, Claude and Codex extensions should reference HARNESS_BUNDLE_CLAUDE.md and HARNESS_BUNDLE_CODEX.md respectively; Cursor-native tasks continue to follow HARNESS_BUNDLE_CURSOR.md. For harness-internal architecture or policy work, switch to HARNESS_BUNDLE_CURSOR_HARNESS.md.",
     "shell": "Repo documentation defaults to PowerShell 5.x; use ; to chain commands on Windows.",
     "verification": "Align interactive work with .agents/workflows/verify-result.md and APP_OK import check when applicable."
   }

@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0.0",
+  "profile_kind": "foms_harness_profile",
+  "profile_name": "cursor-harness",
+  "output_bundle_path": "docs/context/HARNESS_BUNDLE_CURSOR_HARNESS.md",
+  "default_shell": "powershell",
+  "browser_mode": "cursor_ide_browser_mcp",
+  "policy_priority": [
+    "agents_md",
+    "rules_00_project_context",
+    "rules_50_win11_shell",
+    "workflow_verify_result",
+    "plan_harness_engineering_master"
+  ],
+  "source_ids": [
+    "agents_md",
+    "rules_00_project_context",
+    "rules_50_win11_shell",
+    "workflow_verify_result",
+    "plan_harness_engineering_master"
+  ],
+  "runner_notes": {
+    "cursor": "Use this expanded profile only for harness-internal architecture, policy, hook, or verification work inside Cursor.",
+    "runner_routing": "Daily Cursor work should stay on HARNESS_BUNDLE_CURSOR.md. Switch to HARNESS_BUNDLE_CURSOR_HARNESS.md only when the task itself changes harness behavior or requires the full harness master plan in-context.",
+    "shell": "Repo documentation defaults to PowerShell 5.x; use ; to chain commands on Windows.",
+    "verification": "Harness-internal work should still align with .agents/workflows/verify-result.md and APP_OK import check when applicable."
+  }
+}

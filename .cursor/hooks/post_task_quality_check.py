@@ -88,16 +88,31 @@ def _read_recent_edited_files(project_root, limit=5):
     return files
 
 
+def _load_find_latest_spec():
+    """Load the shared recursive Spec resolver from `tools/harness/`."""
+    try:
+        repo_root = Path(__file__).resolve().parents[2]
+        harness_dir = repo_root / "tools" / "harness"
+        if str(harness_dir) not in sys.path:
+            sys.path.insert(0, str(harness_dir))
+        from spec_utils import find_latest_spec  # type: ignore[import-not-found]
+
+        return find_latest_spec
+    except Exception as exc:
+        hook_runtime_log(f"spec_utils import fail-open: {exc}", tag="post_task_qc")
+        return None
+
+
 def _latest_spec_name(project_root: str) -> str | None:
-    spec_dir = Path(project_root) / "docs" / "specs"
-    if not spec_dir.exists():
+    find_latest_spec = _load_find_latest_spec()
+    if find_latest_spec is None:
         return None
-
-    spec_paths = [p for p in spec_dir.iterdir() if p.is_file() and p.suffix == ".md" and p.name.endswith("_SPEC.md") and not p.name.startswith(".")]
-    if not spec_paths:
+    project_root_path = Path(project_root)
+    latest_spec = find_latest_spec(project_root_path)
+    if latest_spec is None:
         return None
-
-    return max(spec_paths, key=lambda p: p.stat().st_mtime).name
+    specs_root = project_root_path / "docs" / "specs"
+    return latest_spec.resolve().relative_to(specs_root.resolve()).as_posix()
 
 def main():
     payload = get_payload()

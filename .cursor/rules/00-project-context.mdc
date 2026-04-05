@@ -11,7 +11,7 @@ alwaysApply: true
 - **Cursor(본 규칙)**: IDE 컨텍스트·워크플로 보강; **기준선과 모순되면 안 된다.**
 - **Claude Code**: `CLAUDE.md`가 세션 규칙. **bash/Unix 예시는 “Claude Code 전용”으로 명시된 경우에만** 적용한다.
 - **앱 import 검증 성공 문자열(표준)**: `APP_OK` — `python -c "import app; print('APP_OK')"` (`/verify-result`와 동일).
-- **브라우저**: 탐색·수동 재현·디버깅은 **Cursor browser MCP**. 반복 가능한 QA·릴리스 스모크는 **gstack browse** 런타임 도입 시 예약(현재 미도입).
+- **브라우저**: 탐색·수동 재현·디버깅은 **Cursor browser MCP**. 반복 가능한 QA·릴리스 스모크는 setup 완료된 **gstack browse** 런타임을 사용한다.
 - **훅 fail-open**: 세션 차단을 피하려면 **실패가 로그 등에 남는 경우에만** 허용. **묵시적 무시는 금지.**
 
 ## 프로젝트 개요
@@ -23,12 +23,21 @@ alwaysApply: true
 
 ## 새 세션 시작 시 + 작업 프로토콜 (RPI — 필수 준수)
 1. `docs/AI_STATUS.md` 읽기 → **50줄로 전체 상황 파악**
-2. **핵심 코어 변경(DB/Auth/API) 포함 작업** → RPI 프로토콜 필수:
+2. **핵심 코어 변경(DB/Auth/API, 배포 인프라, 하네스 인프라) 포함 작업** → RPI 프로토콜 필수:
    - Research: `docs/context/DECISIONS.md` + `docs/ARCHIVE_INDEX.md`에서 관련 과거 기록 조사
    - Plan: `docs/guides/SPEC_TEMPLATE.md` 기반 Spec 작성 → 사용자 승인 대기
    - Implement: 승인 후 코딩 → `/verify-result` → `/auto-status-update` 실행
 3. **단순 UI 변경/타이포** → 바로 코딩 허용
 4. **대화가 길어지면** → 핵심 요약 후 새 세션 권유 (Dumb Zone 회피)
+
+## Cursor 내 Runner 라우팅
+- **Cursor 기본 에이전트**: 권장 수동 진입점은 `docs/context/HARNESS_BUNDLE_CURSOR.md` + 본 `.mdc` 규칙이다. bundle 파일 자체는 Cursor가 자동 주입하지 않으므로, 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/context/HARNESS_BUNDLE_CURSOR_HARNESS.md`를 사용한다.
+- **Claude 확장 in Cursor**: 권장 수동 진입점은 `docs/context/HARNESS_BUNDLE_CLAUDE.md`이다. bundle 파일은 자동 로드되지 않으므로, 작업 시작 시 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/context/HARNESS_BUNDLE_CLAUDE_HARNESS.md`를 사용한다. `CLAUDE.md`는 Claude 전용 원문 정책을 수정/검증할 때만 추가로 연다.
+- **Codex 확장/CLI in Cursor**: 권장 수동 진입점은 `docs/context/HARNESS_BUNDLE_CODEX.md`이다. Codex 확장 세션은 사용자가 bundle을 직접 열거나 참조해야 하고, `tools/harness/run_codex.ps1`를 사용할 때만 선택된 bundle이 자동으로 prompt에 포함된다. 하네스 내부 작업은 `docs/context/HARNESS_BUNDLE_CODEX_HARNESS.md` 또는 `tools/harness/run_codex.ps1` 자동 라우팅을 사용한다. repo-local gstack generated skills가 준비된 경우 `run_codex.ps1` / `run_gstack_qa.ps1` 경로를 우선 사용한다.
+- **Wave 3 자동 레벨링**: `run_codex.ps1`는 `low / medium / high / top` 4단계로 자동 분류한다. 기본적으로 `low/medium`은 daily bundle, `high/top`은 harness bundle을 선택한다.
+- **override**: `-AdditionalPrompt "[level=top]"`, `-AdditionalPrompt "[레벨=최상]"`, `-AdditionalPrompt "이번 건 최상으로 진행"`을 지원한다.
+- **고위험 downgrade**: 자동 판정이 `high/top`인데 더 낮게 내리면 대화형 재확인 또는 `-AllowRiskyLevelOverride`가 필요하다.
+- **브라우저 역할**: Cursor browser MCP는 탐색·수동 재현·디버깅, gstack browse는 setup 완료 후 반복 가능한 smoke/QA 자동화 전용이다.
 
 ## 문제 해결 및 디버깅 원칙 (Occam's Razor & Clean Code) - 필수 준수
 프론트엔드(브라우저)에서 SyntaxError 등 라인 번호가 명시된 에러 발생을 포함한 모든 버그 해결 시:

@@ -10,8 +10,11 @@
 - **Cursor**: `.cursor/rules/`(특히 `00-project-context.mdc`)가 IDE 컨텍스트로 보강하며, **기준선과 충돌하면 안 된다.**
 - **Claude Code**: 루트 `CLAUDE.md`가 세션 규칙으로 보강한다. **Unix/bash 예시는 “Claude Code 전용”으로 명시된 경우에만** 따른다(저장소 문서 기본값은 아래 셸 규칙).
 - **앱 import 검증 성공 문자열(표준)**: `APP_OK` — `python -c "import app; print('APP_OK')"` 로 확인한다.
-- **브라우저**: 탐색·수동 재현·디버깅은 **Cursor browser MCP**. 반복 가능한 QA·릴리스 스모크용 **gstack browse** 런타임은 도입 시 별도 예약(현재 미도입).
+- **브라우저**: 탐색·수동 재현·디버깅은 **Cursor browser MCP**. 반복 가능한 QA·릴리스 스모크용 **gstack browse** 런타임은 로컬 setup가 완료된 경우 사용하고, setup 전에는 미도입으로 본다.
 - **훅 fail-open**: 세션을 막지 않기 위해 예외를 삼키는 방식은 **실패가 로그 등으로 남는 경우에만** 허용한다. **묵시적 무시(조용한 swallow)는 금지**한다.
+- **Wave 3 Codex wrapper**: `tools/harness/run_codex.ps1`는 작업을 `low / medium / high / top` 4단계로 자동 분류한다. 기본적으로 `low/medium`은 daily bundle, `high/top`은 `_HARNESS` bundle을 사용한다.
+- **수동 override**: `-AdditionalPrompt "[level=top]"`, `-AdditionalPrompt "[레벨=최상]"`, `-AdditionalPrompt "이번 건 최상으로 진행"` 같은 형식을 지원한다.
+- **고위험 downgrade 보호**: 자동 판정이 `high/top`인데 사용자가 더 낮은 레벨로 내리면, 대화형 확인이 필요하다. 비대화형 실행(CI 포함)은 `-AllowRiskyLevelOverride` 없이는 진행하지 않는다.
 
 ## 공통 실행 프로토콜 (핵심 코어 변경 시)
 

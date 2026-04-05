@@ -9,21 +9,18 @@
     "agents_md",
     "rules_00_project_context",
     "rules_50_win11_shell",
-    "workflow_verify_result",
-    "claude_md",
-    "plan_harness_engineering_master"
+    "workflow_verify_result"
   ],
   "source_ids": [
     "agents_md",
     "rules_00_project_context",
     "rules_50_win11_shell",
-    "workflow_verify_result",
-    "claude_md",
-    "plan_harness_engineering_master"
+    "workflow_verify_result"
   ],
   "runner_notes": {
-    "codex_cli": "Codex CLI should treat AGENTS.md as the portable baseline; include Cursor rules for parity with IDE agents.",
-    "browser": "Codex has no first-class browser tool in this harness; defer to Cursor browser MCP or manual steps documented in workflows.",
-    "verification": "Follow verify-result workflow expectations when claiming build or import verification complete."
+    "codex_cli": "In Cursor, the Codex extension and Codex CLI share the same baseline through HARNESS_BUNDLE_CODEX.md; AGENTS.md remains the portable policy root. For harness-internal architecture or policy work, switch to HARNESS_BUNDLE_CODEX_HARNESS.md or let `run_codex.ps1` auto-route when reviewing harness files/plans.",
+    "browser": "Codex has no first-class browser tool in this harness; use generated repo-local gstack QA skills for repeatable smoke checks and Cursor browser MCP for exploratory/manual web work.",
+    "runner_entry": "Prepare Codex-side generated skills with .agents/skills/gstack/setup --host codex --no-prefix. FOMS wrapper-driven runs use codex exec -s workspace-write.",
+    "verification": "Follow verify-result workflow expectations when claiming build, import, or runner setup verification complete. Read the harness master plan separately only for harness-internal work."
   }
 }
