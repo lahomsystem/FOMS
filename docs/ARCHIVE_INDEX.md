@@ -43,6 +43,7 @@
 ## 설계 계획 (docs/plans/)
 | 파일 | 키워드 | 요약 |
 |------|--------|------|
+| 2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md | harness, gstack, Cursor, Claude, Codex | Cursor/Claude/Codex 통합 하네스 엔지니어링 설계 및 단계별 도입 플랜 |
 | 2026-02-22-phase-c-map-design.md | 지도, geocode | Phase C 지도 geocode 설계 |
 | 2026-02-22-phase-d-direct-upload-design.md | R2, 업로드 | Phase D Direct R2 Upload 설계 |
 | 2026-02-22-railway-multi-user-scalability-plan.md | Railway, 확장 | 다중 사용자 확장 계획 |

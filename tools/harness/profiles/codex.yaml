@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0.0",
+  "profile_kind": "foms_harness_profile",
+  "profile_name": "codex",
+  "output_bundle_path": "docs/context/HARNESS_BUNDLE_CODEX.md",
+  "default_shell": "powershell",
+  "browser_mode": "no_embedded_browser_use_cursor_mcp",
+  "policy_priority": [
+    "agents_md",
+    "rules_00_project_context",
+    "rules_50_win11_shell",
+    "workflow_verify_result",
+    "claude_md",
+    "plan_harness_engineering_master"
+  ],
+  "source_ids": [
+    "agents_md",
+    "rules_00_project_context",
+    "rules_50_win11_shell",
+    "workflow_verify_result",
+    "claude_md",
+    "plan_harness_engineering_master"
+  ],
+  "runner_notes": {
+    "codex_cli": "Codex CLI should treat AGENTS.md as the portable baseline; include Cursor rules for parity with IDE agents.",
+    "browser": "Codex has no first-class browser tool in this harness; defer to Cursor browser MCP or manual steps documented in workflows.",
+    "verification": "Follow verify-result workflow expectations when claiming build or import verification complete."
+  }
+}

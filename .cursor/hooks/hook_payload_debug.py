@@ -1,12 +1,30 @@
 """
-훅 payload 디버그 기록. CURSOR_HOOK_DEBUG=1 일 때 docs/context/HOOK_PAYLOAD_DEBUG.jsonl 에 한 줄씩 기록.
-CURSOR_HOOK_DEBUG_ONCE=1 이면 훅별 1회만 기록(기본 권장).
-RAW dump: CURSOR_HOOK_RAW_DUMP=1 일 때만 docs/context/HOOK_RAW_DUMP.txt 에 append.
+훅 payload 디버그 기록.
+
+- payload 구조는 훅별 1회 자동 캡처: `docs/context/HOOK_PAYLOAD_DEBUG.jsonl`
+- raw 입력은 훅별 1회 자동 캡처: `docs/context/HOOK_RAW_DUMP.txt`
+- 디버그/파싱 실패는 fail-open 하되 런타임 로그 또는 stderr/fd2에 남긴다.
 """
 import json
 import os
 import sys
 import tempfile
+
+def _log_fail(context: str, exc: BaseException, project_root: str | None = None) -> None:
+    try:
+        d = os.path.dirname(os.path.abspath(__file__))
+        if d not in sys.path:
+            sys.path.insert(0, d)
+        from shared_utils import hook_runtime_log
+        hook_runtime_log(f"{context}: {type(exc).__name__}: {exc}", project_root=project_root, tag="payload_debug")
+    except Exception:
+        try:
+            sys.stderr.write(f"hook_payload_debug {context}: {exc}\n")
+        except Exception:
+            try:
+                os.write(2, f"hook_payload_debug {context}: {exc}\n".encode("utf-8", "replace"))
+            except Exception:
+                return
 
 def _normalize_win_path(path_str):
     """'/c:/...' → 'c:/...' Windows 경로 정규화."""
@@ -32,8 +50,8 @@ def _project_root_from_payload(payload):
 
 def maybe_log_payload(hook_name, payload, project_root=None):
     """훅별 1회씩 payload 구조를 자동 캡처 (환경변수 불필요)."""
+    root = project_root or _project_root_from_payload(payload)
     try:
-        root = project_root or _project_root_from_payload(payload)
         if not root:
             root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         log_path = os.path.join(root, "docs", "context", "HOOK_PAYLOAD_DEBUG.jsonl")
@@ -49,8 +67,8 @@ def maybe_log_payload(hook_name, payload, project_root=None):
             f.write(line)
         with open(once_file, "a", encoding="utf-8") as f:
             f.write(hook_name + "\n")
-    except Exception:
-        pass
+    except Exception as e:
+        _log_fail("maybe_log_payload", e, root)
 
 def _fallback_err_path(name: str) -> str:
     """에러 fallback 파일 경로: 프로젝트 docs/context 또는 temp 디렉터리."""
@@ -65,6 +83,7 @@ def _fallback_err_path(name: str) -> str:
 def get_payload():
     """Cursor 훅 payload: env CURSOR_PAYLOAD → stdin → argv 순으로 파싱."""
     raw_input_eval = ""
+    root_hint = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     try:
         if not sys.stdin.isatty():
             raw_bytes = sys.stdin.buffer.read()
@@ -73,12 +92,12 @@ def get_payload():
         try:
             with open(_fallback_err_path("hook_stdin_err.txt"), "a", encoding="utf-8") as errf:
                 errf.write(str(e) + "\n")
-        except Exception:
-            pass
+        except Exception as e2:
+            _log_fail("stdin_err_fallback", e2, root_hint)
 
     # RAW dump: 훅별 1회씩 raw 입력 캡처 (디스크 무한 증가 방지)
     try:
-        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        root = root_hint
         once_file = os.path.join(root, "docs", "context", ".hook_raw_once")
         hook_id = os.path.basename(sys.argv[0]) if sys.argv else "unknown"
         already_dumped = set()
@@ -97,34 +116,32 @@ def get_payload():
                 f.write(f"cursor_payload_env: {repr(os.environ.get('CURSOR_PAYLOAD', ''))[:500]}\n\n")
             with open(once_file, "a", encoding="utf-8") as f:
                 f.write(hook_id + "\n")
-    except Exception:
-        pass
+    except Exception as e:
+        _log_fail("raw_dump_block", e, root_hint)
 
-    # 2. Try parsing what we captured
     payload_str = os.environ.get("CURSOR_PAYLOAD")
     if payload_str:
         try:
             return json.loads(payload_str)
-        except Exception:
-            pass
+        except Exception as e:
+            _log_fail("json.loads CURSOR_PAYLOAD", e, root_hint)
 
     if raw_input_eval:
-        
         try:
             return json.loads(raw_input_eval)
-        except Exception:
-            pass
-    # 3. Try sys.argv
+        except Exception as e:
+            _log_fail("json.loads stdin", e, root_hint)
+
     if len(sys.argv) > 1:
         try:
             return json.loads(sys.argv[1])
-        except Exception:
-            pass
-        
+        except Exception as e:
+            _log_fail("json.loads argv[1]", e, root_hint)
+
         try:
             joined = " ".join(sys.argv[1:])
             return json.loads(joined)
-        except Exception:
-            pass
+        except Exception as e:
+            _log_fail("json.loads argv joined", e, root_hint)
 
     return {}

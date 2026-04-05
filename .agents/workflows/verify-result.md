@@ -4,9 +4,7 @@ description: 코딩 완료 후 결과물 품질을 검증하는 워크플로우
 
 # 결과 검증
 
-// turbo-all
-
-1. `python -c "import app; print('OK')"` 실행하여 import 오류가 없는지 확인한다.
+1. **앱 import 검증(표준 성공 문자열 `APP_OK`)**: `python -c "import app; print('APP_OK')"` 를 실행하여 import 오류가 없고 출력에 `APP_OK`가 포함되는지 확인한다. (`CLAUDE.md` 작업 완료 체크리스트와 동일한 기준)
 
 2. 현재 작업의 Spec 파일(`docs/specs/*_SPEC.md`)을 읽는다.
 

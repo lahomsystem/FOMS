@@ -43,7 +43,15 @@ static/uploads/*
 # IDE 파일
 .idea/
 .vscode/
-.cursor/
+!.cursor/
+.cursor/*
+!.cursor/hooks.json
+!.cursor/agents/
+!.cursor/agents/**
+!.cursor/hooks/
+!.cursor/hooks/**
+!.cursor/rules/
+!.cursor/rules/**
 *.swp
 *.swo
 
@@ -74,3 +82,6 @@ docs/context/HOOK_PAYLOAD_DEBUG.jsonl
 docs/context/.hook_debug_once
 docs/context/HOOK_RAW_DUMP.txt
 docs/context/.hook_raw_once
+docs/context/HOOK_RUNTIME_LOG.txt
+docs/context/.session_stop_idempotency.json
+docs/context/.post_task_qc_debounce.json

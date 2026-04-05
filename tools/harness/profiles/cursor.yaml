@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0.0",
+  "profile_kind": "foms_harness_profile",
+  "profile_name": "cursor",
+  "output_bundle_path": "docs/context/HARNESS_BUNDLE_CURSOR.md",
+  "default_shell": "powershell",
+  "browser_mode": "cursor_ide_browser_mcp",
+  "policy_priority": [
+    "agents_md",
+    "rules_00_project_context",
+    "rules_50_win11_shell",
+    "claude_md",
+    "workflow_verify_result",
+    "plan_harness_engineering_master"
+  ],
+  "source_ids": [
+    "agents_md",
+    "rules_00_project_context",
+    "rules_50_win11_shell",
+    "claude_md",
+    "workflow_verify_result",
+    "plan_harness_engineering_master"
+  ],
+  "runner_notes": {
+    "cursor": "Primary IDE integration: .mdc rules apply natively; use Cursor browser MCP for manual web QA per project policy.",
+    "shell": "Repo documentation defaults to PowerShell 5.x; use ; to chain commands on Windows.",
+    "verification": "Align interactive work with .agents/workflows/verify-result.md and APP_OK import check when applicable."
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0.0",
+  "manifest_kind": "foms_harness_manifest",
+  "title": "FOMS harness policy source registry and bundle defaults",
+  "description": "Phase 1 registry of canonical policy paths relative to the repository root. Values are JSON-compatible for tooling that parses with Python json.",
+  "bundle_defaults": {
+    "relative_to_repo_root": true,
+    "default_encoding": "utf-8",
+    "section_separator": "\n\n---\n\n",
+    "default_output_dir": "docs/context",
+    "default_bundle_extension": ".md",
+    "include_source_headers_in_bundle": true
+  },
+  "source_registry": {
+    "agents_md": {
+      "path": "AGENTS.md",
+      "kind": "policy",
+      "label": "Cross-tool agent baseline (AGENTS.md)"
+    },
+    "claude_md": {
+      "path": "CLAUDE.md",
+      "kind": "policy",
+      "label": "Claude Code session augmentation (CLAUDE.md)"
+    },
+    "rules_00_project_context": {
+      "path": ".cursor/rules/00-project-context.mdc",
+      "kind": "cursor_rule",
+      "label": "Cursor IDE project context rules"
+    },
+    "rules_50_win11_shell": {
+      "path": ".cursor/rules/50-win11-shell.mdc",
+      "kind": "cursor_rule",
+      "label": "Windows 11 / PowerShell shell conventions"
+    },
+    "workflow_verify_result": {
+      "path": ".agents/workflows/verify-result.md",
+      "kind": "workflow",
+      "label": "Shared verify-result workflow contract"
+    },
+    "plan_harness_engineering_master": {
+      "path": "docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md",
+      "kind": "plan",
+      "label": "Harness engineering master plan"
+    }
+  }
+}

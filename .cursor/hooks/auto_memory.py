@@ -110,33 +110,51 @@ def update_ai_changelog(project_root, edited_files):
 
     new_row = f"| {today} | 세션 자동 기록 | {files_str} | {commit_hash} |"
 
-    # 테이블 행 파싱
     lines = content.split("\n")
-    header_lines = []
-    table_rows = []
-    in_table = False
+    table_start = None
+    for i, line in enumerate(lines):
+        if line.strip().startswith("| 날짜"):
+            table_start = i
+            break
+    if table_start is None:
+        return
 
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("| 날짜") or stripped.startswith("|---"):
-            header_lines.append(line)
-            in_table = True
-            continue
-        if in_table and stripped.startswith("|"):
-            table_rows.append(line)
-        elif not in_table:
-            header_lines.append(line)
+    sep_idx = table_start + 1
+    if sep_idx >= len(lines) or not lines[sep_idx].strip().startswith("|-"):
+        return
+
+    prefix = lines[:table_start]
+    header_block = lines[table_start : sep_idx + 1]
+    row_idx = sep_idx + 1
+    table_rows: list[str] = []
+    j = row_idx
+    while j < len(lines):
+        stripped = lines[j].strip()
+        if stripped.startswith("|"):
+            table_rows.append(lines[j])
+            j += 1
+        else:
+            break
+    suffix = lines[j:]
 
     # 중복 방지: 오늘 날짜 + 동일 파일 조합이면 스킵
     for row in table_rows:
         if today in row and files_str in row:
             return
 
-    # 새 행 삽입 + 20개 FIFO
     table_rows.insert(0, new_row)
     table_rows = table_rows[:20]
 
-    result = "\n".join(header_lines) + "\n" + "\n".join(table_rows) + "\n"
+    parts: list[str] = []
+    if prefix:
+        parts.append("\n".join(prefix))
+    parts.append("\n".join(header_block))
+    parts.append("\n".join(table_rows))
+    if suffix:
+        parts.append("\n".join(suffix))
+    result = "\n".join(parts)
+    if not result.endswith("\n"):
+        result += "\n"
     write_file(changelog_path, result)
 
 
