@@ -13,6 +13,10 @@
 - Current hook implementations use broad exception swallowing in several places, which conflicts with FOMS root-cause-oriented policy.
 - `CLAUDE.md` currently treats `APP_OK` as the canonical success marker; the plan was updated to match it.
 - Windows baseline in FOMS is PowerShell 5.x compatibility, so `powershell -NoProfile -File ...` should be the default documented command form.
+- Upstream gstack `/qa` is a skill workflow, not a standalone `gstack qa` terminal subcommand.
+- Upstream host config includes `cursor`, but the current upstream `setup` entrypoint is clearly wired first for `claude`, `codex`, `kiro`, and `factory`; FOMS should pin Codex repo-local integration first instead of assuming Cursor install parity.
+- The exact upstream setup entrypoint can be pinned without a full subtree import by bringing in `setup`, `package.json`, `VERSION`, `hosts/*.ts`, and `scripts/host-config*.ts`.
+- For Windows shell bridges, the runnable form should normalize paths first and invoke `bash ./setup --host codex`, not raw `./setup` against a Windows-style path.
 
 ## Technical Decisions
 | Decision | Rationale |
@@ -24,6 +28,10 @@
 | Standardize shared repo commands on PowerShell 5.x, not `pwsh` | Matches workspace rules and user environment |
 | Use manifest + runner profiles + generated bundles as the Phase 1 harness core | Keeps source registry, runner intent, and consumable artifacts separate and deterministic |
 | Start Phase 2 with contract-first vendor boundary and dry-run scripts | Lets us validate Windows operator flow before importing upstream gstack runtime |
+| Pin a docs-first upstream snapshot before enabling runtime execution | Preserves upstream intent and license now, while keeping Windows runtime activation gated behind a separate verification step |
+| Treat Windows gstack runtime prerequisites as `node + bun + (Git Bash or WSL)` | Matches upstream guidance better than the earlier loose `node or bun` assumption and prevents false-readiness signals |
+| Route repeatable QA through `codex exec` + repo-local gstack QA skill | Fixes the incorrect assumption that upstream exposes a `gstack qa` CLI and aligns the wrapper layer with actual upstream host semantics |
+| Import a targeted upstream source slice before attempting full subtree vendorization | Materializes the exact `setup --host codex` contract while keeping Phase 2 smaller and easier to audit |
 
 ## Issues Encountered
 | Issue | Resolution |
@@ -33,6 +41,9 @@
 | Closing audit found residual policy drift (`AGENTS.md` RPI linkage, `verify-result` noise, spec sort, shell wording) | Fixed before closing Phase 0 |
 | Initial Phase 1 implementation used an external YAML parser and non-plan output paths | Reworked generator to use strict JSON syntax in `.yaml` files and aligned outputs to `docs/context/HARNESS_BUNDLE_*.md` |
 | Phase 2 needs real gstack vendor import before non-dry-run execution | Introduced `VENDOR.md` boundary and Win11-safe dry-run scripts first |
+| Full upstream runtime import would over-couple Phase 2 to Bun/Node/browser build assumptions too early | Imported a pinned upstream documentation snapshot first and kept wrapper scripts explicitly preflight-only |
+| Initial QA wrapper incorrectly assumed a global `gstack qa` executable | Replaced it with a Codex-driven wrapper model and documented that `/qa` is a skill flow |
+| Runtime entrypoint was documented but not materialized in the vendor zone | Added a repeatable importer and brought in the pinned `setup` + host-config source slice |
 
 ## Resources
 - `docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md`

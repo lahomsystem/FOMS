@@ -21,10 +21,10 @@ Phase 2
 - **Status:** complete
 
 ### Phase 2: gstack Adapter Layer
-- [ ] Add repo-local gstack vendor zone
-- [ ] Create Windows-safe setup and QA wrapper scripts
-- [ ] Define overlay policy boundaries
-- **Status:** in_progress
+- [x] Add repo-local gstack vendor zone
+- [x] Create Windows-safe setup and QA wrapper scripts
+- [x] Define overlay policy boundaries
+- **Status:** in_progress (runtime asset subset import + local tool availability pending)
 
 ### Phase 3: Runner UX Integration
 - [ ] Connect Cursor, Claude, and Codex runner flows
@@ -58,6 +58,9 @@ Phase 2
 | Use plan audits before execution | Lowers architectural drift before code changes |
 | Do not start Phase 1 until Phase 0 runtime checks pass | Matches the approved phase gate and avoids policy drift |
 | Use strict JSON syntax inside `.yaml` files for Phase 1 | Keeps planned filenames while avoiding a new YAML dependency |
+| Pin upstream commit `04b709d91a3f10efa1c816c6ddb4c8cafa735da8` as a docs-first snapshot for Phase 2 | Locks the upstream reference now without prematurely enabling Bun/Node/browser runtime paths on Windows |
+| Use `codex exec` as the generic non-interactive runner wrapper substrate | Official Codex CLI supports non-interactive execution and stdin prompts, which matches FOMS PowerShell wrapper needs |
+| Materialize the pinned `setup` contract via a targeted source slice before importing the full runtime tree | Keeps Phase 2 auditable while removing the abstract-entrypoint blocker |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

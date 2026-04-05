@@ -5,7 +5,7 @@
 > **Goal**: Cursor IDE 안에서 Cursor Agent, Claude, Codex CLI가 동일한 정책·컨텍스트·검증 루프를 공유하는 하네스 엔지니어링 체계를 구축한다.  
 > **Architecture**: gstack의 강점(브라우저 QA/릴리즈/문서 동기화/운영 하네스)과 FOMS의 강점(Root Cause Fix, RPI, Hooks, Context Docs, GDM 오케스트레이션)을 혼합한 Hybrid 구조를 채택한다.  
 > **Tech Stack**: Cursor IDE, Claude, Codex CLI, Python 3.12, PowerShell 5+/7, Git Bash(선택), Bun/Node(선택적 gstack 런타임), GitHub Actions  
-> **상태**: Phase 1 완료 / Phase 2 진행중  
+> **상태**: Phase 1 완료 / Phase 2 진행중 (runtime entrypoint pinned, runtime asset subset pending)
 > **권장안**: Option C - Hybrid gstack + FOMS harness
 
 ---
@@ -302,21 +302,31 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 
 **핵심 작업**
 
-- [ ] `.agents/skills/gstack/` repo-local vendor 도입
-- [ ] PowerShell에서 Git Bash/WSL을 안전하게 호출하는 `setup_gstack.ps1` 작성
-- [ ] gstack QA/benchmark/canary 전용 래퍼 스크립트 작성
-- [ ] FOMS overlay 정책 문서화
+- [x] `.agents/skills/gstack/` repo-local vendor 도입
+- [x] PowerShell에서 Git Bash/WSL을 안전하게 호출하는 `setup_gstack.ps1` 작성
+- [x] gstack QA/benchmark/canary 전용 래퍼 스크립트 작성
+- [x] FOMS overlay 정책 문서화
+- [x] pinned upstream snapshot 기준으로 Windows 런타임 entrypoint 최종 고정
+- [ ] `setup --host codex` 실행에 필요한 runtime asset subset 최소 범위 확정 및 import
 
 **대상 파일**
 
 - `.agents/skills/gstack/`
+- `.agents/skills/gstack/setup`
+- `.agents/skills/gstack/package.json`
+- `.agents/skills/gstack/VERSION`
+- `.agents/skills/gstack/hosts/*`
+- `.agents/skills/gstack/scripts/*`
 - `tools/harness/setup_gstack.ps1`
+- `tools/harness/import_gstack_source_slice.py`
 - `tools/harness/run_gstack_qa.ps1`
 - `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md`
+- `.agents/skills/gstack/upstream/*`
 
 **검증**
 
 - `powershell -NoProfile -File tools/harness/setup_gstack.ps1 -WhatIf`
+- `python tools/harness/import_gstack_source_slice.py --dry-run`
 - `powershell -NoProfile -File tools/harness/run_gstack_qa.ps1 -DryRun`
 - `pwsh`가 설치된 환경에서는 동일 명령이 호환되는지 추가 확인
 
