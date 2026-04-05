@@ -4,6 +4,9 @@ Cursor 훅 공용 유틸. find_key_recursive 등 payload 추출 로직 공유.
 from __future__ import annotations
 import os
 import re
+import tempfile
+import time
+from typing import Any
 
 
 def find_key_recursive(data: object, target_keys: list[str], default: str | None = "unknown") -> str | None:
@@ -51,3 +54,33 @@ def extract_project_root(payload: dict) -> str:
     if not root or root.lower() == "none" or root == "unknown":
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return root
+
+
+def hook_runtime_log(message: str, project_root: str | None = None, *, tag: str = "hook") -> None:
+    """훅 런타임 로그( fail-open ). docs/context/HOOK_RUNTIME_LOG.txt 또는 temp 폴백. 예외 없음."""
+    line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} [{tag}] {message}\n"
+    path: str | None = None
+    try:
+        root = project_root
+        if not root or not os.path.isdir(root):
+            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        ctx = os.path.join(root, "docs", "context")
+        os.makedirs(ctx, exist_ok=True)
+        path = os.path.join(ctx, "HOOK_RUNTIME_LOG.txt")
+    except Exception:
+        path = None
+    if not path:
+        try:
+            path = os.path.join(tempfile.gettempdir(), "foms_hook_runtime.log")
+        except Exception:
+            return
+    try:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(line)
+    except Exception:
+        return
+
+
+def safe_except_log(exc: BaseException, context: str, project_root: str | None = None) -> None:
+    """예외를 삼키되 HOOK_RUNTIME_LOG에 남김."""
+    hook_runtime_log(f"{context}: {type(exc).__name__}: {exc}", project_root=project_root, tag="except")

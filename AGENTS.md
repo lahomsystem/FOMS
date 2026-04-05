@@ -4,6 +4,23 @@
 
 ---
 
+## 하네스 정책 단일 기준 (Cursor · Claude · Codex 공통)
+
+- **이식 가능한 기준선**: 본 파일(`AGENTS.md`)이 모든 도구에서 공유하는 정책의 기준이다. Codex·기타 CLI는 여기를 우선한다.
+- **Cursor**: `.cursor/rules/`(특히 `00-project-context.mdc`)가 IDE 컨텍스트로 보강하며, **기준선과 충돌하면 안 된다.**
+- **Claude Code**: 루트 `CLAUDE.md`가 세션 규칙으로 보강한다. **Unix/bash 예시는 “Claude Code 전용”으로 명시된 경우에만** 따른다(저장소 문서 기본값은 아래 셸 규칙).
+- **앱 import 검증 성공 문자열(표준)**: `APP_OK` — `python -c "import app; print('APP_OK')"` 로 확인한다.
+- **브라우저**: 탐색·수동 재현·디버깅은 **Cursor browser MCP**. 반복 가능한 QA·릴리스 스모크용 **gstack browse** 런타임은 도입 시 별도 예약(현재 미도입).
+- **훅 fail-open**: 세션을 막지 않기 위해 예외를 삼키는 방식은 **실패가 로그 등으로 남는 경우에만** 허용한다. **묵시적 무시(조용한 swallow)는 금지**한다.
+
+## 공통 실행 프로토콜 (핵심 코어 변경 시)
+
+- **대상**: DB/Auth/API, 배포 인프라, 하네스 인프라(Hooks/Rules/Agents/검증 흐름) 같은 코어 변경
+- **Research**: `docs/context/DECISIONS.md` + `docs/ARCHIVE_INDEX.md`를 먼저 조사한다.
+- **Plan**: `docs/guides/SPEC_TEMPLATE.md` 기준으로 Spec 또는 실행 계획을 먼저 확정한다.
+- **Implement**: 승인 후 구현하고, 완료 전 `.agents/workflows/verify-result.md` 기준으로 검증한다.
+- **원칙**: 세부 절차는 도구별 문서(`CLAUDE.md`, `.cursor/rules/*.mdc`)가 보강할 수 있지만, 이 공통 프로토콜과 모순되면 안 된다.
+
 ## 절대 규칙: 문제 수정 정책
 
 ### 1. 근본 원인 파악 → 근본 수정 (Root Cause Fix Only)
@@ -13,7 +30,7 @@
 - 증상만 덮는 수정이나 "일단 돌아가게" 하는 임시 조치, 워크어라운드를 정식 수정으로 제출하지 않는다.
 
 ### 2. 금지 행위
-- **에러 숨기기 금지**: `try/except: pass`, 빈 catch, 경고 무시, lint 비활성화
+- **에러 숨기기 금지**: `try/except: pass`, 빈 catch, 경고 무시, lint 비활성화 (훅의 fail-open도 **로그 없는** 실패 삼킴은 동일하게 금지)
 - **증상 우회 금지**: 조건문으로 에러 경로만 회피, 하드코딩 값 삽입
 - **구시대 방식 적용 금지**: deprecated API 사용, 레거시 패턴 복사, 폴리필 남용
 - **미봉책 금지**: `# TODO: 나중에 고치기` 식의 주석으로 대체
@@ -34,5 +51,5 @@
 ## 프로젝트 기본 정보
 - **이름**: FOMS (Furniture Order Management System)
 - **스택**: Flask 2.3 + SQLAlchemy 2.0 + PostgreSQL + Jinja2 + Bootstrap 5 + Vanilla JS
-- **운영 환경**: Windows 11 (PowerShell)
+- **운영 환경**: Windows 11 — **저장소 문서·예시 명령의 기본 셸은 PowerShell 5.x**(`.cursor/rules/50-win11-shell.mdc` 참고). bash/`&&` 등은 **Claude Code 전용**으로 문서에 명시된 때만 적용한다.
 - **Git 커밋**: 한글, 무엇을 왜 수정했는지 명확히 기록

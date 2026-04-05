@@ -5,11 +5,20 @@ alwaysApply: true
 
 # FOMS 프로젝트 컨텍스트
 
+## 하네스 정책 단일 기준 (Cursor · Claude · Codex)
+
+- **공통 기준선**: 루트 `AGENTS.md`가 이식 가능한 단일 기준이다. Codex·기타 도구는 우선 `AGENTS.md`를 따른다.
+- **Cursor(본 규칙)**: IDE 컨텍스트·워크플로 보강; **기준선과 모순되면 안 된다.**
+- **Claude Code**: `CLAUDE.md`가 세션 규칙. **bash/Unix 예시는 “Claude Code 전용”으로 명시된 경우에만** 적용한다.
+- **앱 import 검증 성공 문자열(표준)**: `APP_OK` — `python -c "import app; print('APP_OK')"` (`/verify-result`와 동일).
+- **브라우저**: 탐색·수동 재현·디버깅은 **Cursor browser MCP**. 반복 가능한 QA·릴리스 스모크는 **gstack browse** 런타임 도입 시 예약(현재 미도입).
+- **훅 fail-open**: 세션 차단을 피하려면 **실패가 로그 등에 남는 경우에만** 허용. **묵시적 무시는 금지.**
+
 ## 프로젝트 개요
 - **이름**: FOMS (Furniture Order Management System) - 가구 주문 관리 ERP
 - **스택**: Flask 2.3 + SQLAlchemy 2.0 + PostgreSQL + Jinja2 + Bootstrap 5 + Vanilla JS
 - **배포**: Railway (PostgreSQL + R2 스토리지)
-- **운영 환경**: Windows 11 (PowerShell, `\` 경로, `;` 명령 구분)
+- **운영 환경**: Windows 11 (PowerShell 5.x, `\` 경로, `;` 명령 구분 — `.cursor/rules/50-win11-shell.mdc`)
 - **워크플로우**: RECEIVED → HAPPYCALL → MEASURE → DRAWING → CONFIRM → PRODUCTION → CONSTRUCTION → CS → COMPLETED
 
 ## 새 세션 시작 시 + 작업 프로토콜 (RPI — 필수 준수)
@@ -23,7 +32,7 @@ alwaysApply: true
 
 ## 문제 해결 및 디버깅 원칙 (Occam's Razor & Clean Code) - 필수 준수
 프론트엔드(브라우저)에서 SyntaxError 등 라인 번호가 명시된 에러 발생을 포함한 모든 버그 해결 시:
-1. **임시 방편 금지**: 코드 수정이나 문제 해결 시, 임시적인 방법(우회, 기존 코드 덮어쓰기 등)이나 근본 문제 해결 없는 수정은 절대 금지합니다.
+1. **임시 방편 금지**: 코드 수정이나 문제 해결 시, 임시적인 방법(우회, 기존 코드 덮어쓰기 등)이나 근본 문제 해결 없는 수정은 절대 금지합니다. (훅의 로그 없는 실패 삼킴 포함)
 2. **근본적 해결 (클린코드 입각)**: 무조건 근본적인 원인을 파악하고 클린코드 원칙에 입각하여 해결해야 합니다.
 3. **가설 기반 대규모 리팩토링 금지**: 원인이 100% 규명되기 전에 구조적 결함 등을 핑계로 대규모 리팩토링을 선행하지 마세요.
 4. **정확한 라인 매핑 우선**: 템플릿 렌더링 환경이라도 렌더링된 소스 확인, 스크립트 분리 테스트 등을 통해 에러가 지목한 정확한 코드 라인의 문자열(오타, 괄호 누락 등)을 반드시 먼저 확보하세요.

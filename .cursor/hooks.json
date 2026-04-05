@@ -8,12 +8,12 @@
     ],
     "sessionEnd": [
       {
-        "command": "python .cursor/hooks/session_stop.py"
+        "command": "python .cursor/hooks/session_stop.py sessionEnd"
       }
     ],
     "stop": [
       {
-        "command": "python .cursor/hooks/session_stop.py"
+        "command": "python .cursor/hooks/session_stop.py stop"
       }
     ],
     "afterFileEdit": [

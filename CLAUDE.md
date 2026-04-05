@@ -1,10 +1,18 @@
 # FOMS 프로젝트 - Claude Code 규칙
 
+## 하네스 정책 단일 기준 (Cursor · Claude · Codex)
+
+- **공통 기준선**: 루트 `AGENTS.md`가 모든 도구에 공유되는 정책이다. 본 파일은 Claude Code 세션 보강이며, 충돌 시 `AGENTS.md`가 우선한다.
+- **Cursor**: `.cursor/rules/00-project-context.mdc` 등 IDE 규칙이 추가로 적용된다.
+- **앱 import 검증 성공 문자열(표준)**: `APP_OK` — `python -c "import app; print('APP_OK')"` (워크플로 `/verify-result`와 동일).
+- **브라우저**: 수동 탐색·재현·디버깅은 **Cursor browser MCP**. 반복 가능한 QA·릴리스 스모크는 **gstack browse** 런타임 도입 시 예약(현재 미도입).
+- **훅 fail-open**: 허용은 **실패가 로그 등으로 기록될 때만**. 묵시적 무시는 금지(`AGENTS.md`와 동일).
+
 ## 프로젝트 개요
 - **이름**: FOMS (Furniture Order Management System) - 가구 주문 관리 ERP
 - **스택**: Flask 2.3 + SQLAlchemy 2.0 + PostgreSQL + Jinja2 + Bootstrap 5 + Vanilla JS
 - **배포**: Railway (PostgreSQL + Cloudflare R2 스토리지)
-- **운영 환경**: Windows 11 (Claude Code는 bash 셸 사용)
+- **운영 환경**: Windows 11 — **저장소 공유 문서의 기본 명령 예시는 PowerShell 5.x**. 아래 “셸 환경 (Claude Code 전용)”의 bash 예시는 **Claude Code 세션에서만** 해당한다.
 - **워크플로우**: RECEIVED → HAPPYCALL → MEASURE → DRAWING → CONFIRM → PRODUCTION → CONSTRUCTION → CS → COMPLETED
 
 ## 새 세션 시작 프로토콜
@@ -67,7 +75,7 @@
 - 증상만 덮는 수정 절대 금지
 
 ### 금지 행위
-- 에러 숨기기: `try/except: pass`, 빈 catch, 경고 무시
+- 에러 숨기기: `try/except: pass`, 빈 catch, 경고 무시 (훅에서 로그 없이 실패를 삼키는 것 포함)
 - 증상 우회: 조건문으로 에러 경로만 회피, 하드코딩 값 삽입
 - 구시대 방식: deprecated API 사용, 레거시 패턴 복사
 - 미봉책: `# TODO: 나중에 고치기` 식 주석
@@ -95,7 +103,7 @@
 - **브랜치 전략**: `deploy` (스테이징) → `production` (운영)
 
 ## 셸 환경 (Claude Code 전용)
-- Claude Code는 **bash 셸** 사용 (Unix 문법: `/dev/null`, `&&`, forward slash)
+- Claude Code는 **bash 셸** 사용 (Unix 문법: `/dev/null`, `&&`, forward slash). **이 절의 예시는 Claude Code에만 적용**; 저장소 README·규칙 문서에 적는 기본 예시는 PowerShell 5.x를 따른다.
 - 단, Git 커밋 메시지는 Win11 인코딩 이슈로 `-F` 방식 유지
 - `python` 명령은 시스템 PATH 기준
 
