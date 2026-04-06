@@ -559,7 +559,16 @@
                 margin-bottom: 2px;
               }
 
+              .shipment-site-extra-static .shipment-site-extra-static-icon {
+                flex: 0 0 auto;
+                font-size: 0.6em;
+                line-height: 1;
+                margin-top: 4px;
+              }
+
               .shipment-site-extra-static .shipment-site-extra-static-text {
+                flex: 1 1 auto;
+                min-width: 0;
                 line-height: 1.25;
                 padding: 1px 0;
                 white-space: pre-wrap;
@@ -1083,13 +1092,13 @@
                       <ul class="shipment-site-extra-list mb-0" data-order-id="{{ r.id }}" data-field="site_extra">
                         {# [GDM] ERP Items extra_input 자동 표시 (수정 불가, 저장 제외) #}
                         {% for it in erp_items %}
-                        {% set ei = (it.get('extra_input') or '')|string %}
-                        {% if ei|trim %}
+                        {% set ei = (it.get('extra_input') or '')|string|trim %}
+                        {% if ei %}
                         <li class="shipment-site-extra-static">
+                          <i class="fas fa-asterisk text-black-50 shipment-site-extra-static-icon"
+                            aria-hidden="true"></i>
                           <div class="site-extra-color-blue fw-semibold shipment-site-extra-static-text"
-                            title="항목 추가입력 연동">
-                            <i class="fas fa-asterisk fa-xs text-black-50 me-1" style="font-size:0.6em;"></i>{{ ei }}
-                          </div>
+                            title="항목 추가입력 연동">{{ ei }}</div>
                         </li>
                         {% endif %}
                         {% endfor %}
