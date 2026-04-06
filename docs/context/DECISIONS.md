@@ -6,6 +6,12 @@
 
 ---
 
+### [2026-04-05] Prompt-side harness auto-entry routing
+- **키워드**: harness, hook, beforeSubmitPrompt, wrapper, routing, cursor
+- **결정**: Cursor에서는 `beforeSubmitPrompt` 훅으로 사용자 프롬프트를 review / implement / qa / generic으로 분류하고, 해당할 때만 wrapper-first `agentMessage`를 자동 주입한다. 구현/하네스 코어 요청은 RPI와 `run_codex.ps1 -Profile implement -Plan ...` 경로를, QA 요청은 `run_gstack_qa.ps1` 경로를 우선 제시한다.
+- **이유**: Cursor 훅은 전체 bundle 자동 주입이나 숨은 wrapper 실행을 지원하지 않으므로, 과장 없는 방식으로 가장 강한 자동화는 prompt-submit 시점의 짧은 시스템 라우팅 메시지다.
+- **영향**: `.cursor/hooks.json`, `.cursor/hooks/before_submit_prompt.py`, `tools/harness/prompt_router.py`, `tests/harness/test_hooks_smoke.py`, `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md`
+
 ### [2026-04-05] Post-audit harness hardening contract
 - **키워드**: harness, audit, hardening, exit-code, verify-result, spec, docs
 - **결정**: Wave 3 구현 이후 감리에서 드러난 신뢰성 이슈는 별도 hardening batch로 분리해 수정한다. 우선순위는 wrapper 종료 코드 전달, deterministic spec 선택/표시, invalid `--spec` 구조화 실패, RPI 문구 단일화, bundle 진입 표현 정정이다.

@@ -43,6 +43,16 @@ These bundles are operator-facing reference artifacts. Cursor/Claude/Codex exten
 
 The daily bundles are intentionally slimmed for token efficiency. Use the `_HARNESS` variants only when the task itself edits harness architecture, hooks, rules, bundles, or verification flows.
 
+## Prompt Auto Entry In Cursor
+- Cursor now uses `.cursor/hooks/before_submit_prompt.py` on `beforeSubmitPrompt`.
+- The hook classifies prompt-side intent into `review`, `implement`, `qa`, or `generic`.
+- Matching prompts receive a short wrapper-first `agentMessage` automatically:
+  - review -> `tools/harness/run_codex.ps1 -Profile review -Target ...`
+  - implement -> `tools/harness/run_codex.ps1 -Profile implement -Plan ...`
+  - qa -> `tools/harness/run_gstack_qa.ps1 -Url ... -Scenario ...`
+- Harness/core/deploy implementation prompts also get an automatic RPI reminder because `-Profile implement` requires an approved plan/spec.
+- This is prompt-time routing guidance only. It does **not** secretly run wrappers, and it does **not** auto-inject the full bundle body. Full bundle injection still happens only inside `run_codex.ps1`.
+
 ## Wave 3 Auto Level Routing
 - `tools/harness/run_codex.ps1` classifies work into `low / medium / high / top`.
 - Default mapping:
