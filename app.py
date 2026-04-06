@@ -467,8 +467,8 @@ register_context_processors(app)
 # Routes
 @app.route('/favicon.ico')
 def favicon():
-    """favicon 요청 처리 (404 방지)"""
-    return '', 204  # No Content
+    """공용 favicon 자산을 반환한다."""
+    return current_app.send_static_file('favicon.svg')
 
 # WSGI 기동 시 DB 자동 초기화 (gunicorn 등). python app.py 시에는 run.py에서 처리
 if __name__ != '__main__':
