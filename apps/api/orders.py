@@ -52,8 +52,8 @@ def _build_order_update_response(order, field, fallback_value, structured_data=N
     schedule = (sd.get('schedule') or {}) if sd else {}
     as_visit = (schedule.get('as_visit') or {}) if isinstance(schedule, dict) else {}
 
-    if field == 'as_content':
-        normalized_value = shipment.get('as_content') or ''
+    if field in ('as_content', 'as_content_2'):
+        normalized_value = shipment.get(field) or ''
     elif field == 'as_pending':
         normalized_value = shipment.get('as_pending') is True
     elif field == 'as_blueprint':
@@ -750,7 +750,7 @@ def update_order_field():
         'regional_blueprint_sent', 'regional_order_upload',
         'regional_cargo_sent', 'regional_construction_info_sent',
         'as_received_date', 'as_completed_date',  # AS 관련 날짜 필드들
-        'as_visit_date', 'as_content', 'as_pending', 'as_blueprint', 'sales_delivery',  # AS 방문일·내용·미결·영업/전달
+        'as_visit_date', 'as_content', 'as_content_2', 'as_pending', 'as_blueprint', 'sales_delivery',  # AS 방문일·내용(1/2)·미결·영업/전달
         'measurement_date',  # 실측일 필드
         'regional_memo',  # 메모 필드 허용 (수납장 대시보드 등)
         'is_cabinet', 'cabinet_status',  # 수납장 관련
@@ -760,14 +760,14 @@ def update_order_field():
         return jsonify({'success': False, 'message': f'허용되지 않은 필드입니다: {field}'}), 400
 
     try:
-        if field == 'as_content':
+        if field in ('as_content', 'as_content_2'):
             value = sanitize_as_content_html(value)
 
         _is_beta = getattr(order, 'is_erp_beta', False)
         structured_sync_fields = {
             'manager_name', 'measurement_date', 'scheduled_date',
             'customer_name', 'phone', 'address',
-            'as_visit_date', 'as_content', 'as_pending', 'as_blueprint', 'sales_delivery',
+            'as_visit_date', 'as_content', 'as_content_2', 'as_pending', 'as_blueprint', 'sales_delivery',
         }
         structured_data = None
         structured_changed = False
@@ -777,7 +777,7 @@ def update_order_field():
         old_value = getattr(order, field, None)
         if field == 'as_visit_date':
             pass
-        elif field in ('as_content', 'as_pending', 'as_blueprint', 'sales_delivery'):
+        elif field in ('as_content', 'as_content_2', 'as_pending', 'as_blueprint', 'sales_delivery'):
             # structured_data 전용 필드는 모델 컬럼 건너뜀
             pass
         else:
@@ -805,7 +805,7 @@ def update_order_field():
                     structured_changed = True
 
         # ERP Beta 주문이거나 structured_data 연동이 필요한 필드(as_content, as_pending 등)인 경우
-        if _is_beta or field in ('as_content', 'as_visit_date', 'as_pending', 'as_blueprint', 'sales_delivery'):
+        if _is_beta or field in ('as_content', 'as_content_2', 'as_visit_date', 'as_pending', 'as_blueprint', 'sales_delivery'):
             if field == 'as_pending':
                 shipment = ensure_path(structured_data, 'shipment')
                 shipment['as_pending'] = _coerce_bool_value(value)
@@ -855,10 +855,10 @@ def update_order_field():
                 as_visit = ensure_path(schedule, 'as_visit')
                 as_visit['date'] = value
                 structured_changed = True
-            elif field == 'as_content':
-                # as_content는 structured_data.shipment.as_content에 저장
+            elif field in ('as_content', 'as_content_2'):
+                # as_content(1/2)는 structured_data.shipment에 저장
                 shipment = ensure_path(structured_data, 'shipment')
-                shipment['as_content'] = value
+                shipment[field] = value
                 structured_changed = True
 
         if structured_changed and isinstance(structured_data, dict):
