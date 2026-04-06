@@ -35,6 +35,7 @@ foms.dump
 
 # 로그 파일
 *.log
+.pytest_cache/
 
 # 업로드 폴더
 static/uploads/*
@@ -63,6 +64,9 @@ Thumbs.db
 *.tmp
 *.bak
 temp_*.html
+temp_script.js
+test_scripts.js
+test.html
 
 # 배포/커밋용 임시 메시지 파일 (푸시 후 삭제 규칙 - devops-deploy.md)
 commit_msg*.txt
@@ -85,6 +89,9 @@ docs/context/.hook_raw_once
 docs/context/HOOK_RUNTIME_LOG.txt
 docs/context/.session_stop_idempotency.json
 docs/context/.post_task_qc_debounce.json
+
+# 브라우저 감리 generated 산출물
+docs/analysis/browser_audit_*/
 
 # gstack setup/runtime generated artifacts
 .agents/skills/gstack-*/

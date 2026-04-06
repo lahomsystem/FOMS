@@ -6,6 +6,12 @@
 
 ---
 
+### [2026-04-06] Harness cleanup tracking boundary
+- **키워드**: harness, cleanup, gitignore, debug, scratch, context
+- **결정**: 저장소 정리는 raw hook debug 산출물(`HOOK_RAW_DUMP.txt`, `.hook_raw_once`)과 root scratch 파일(`temp_script.js`, `test_scripts.js`, `test.html`)만 제거하고, `AI_STATUS.md`, `AI_CHANGELOG.md`, `SESSION_LOG.md`, `EDIT_LOG.md`, `COMPACT_CHECKPOINT.md` 같은 컨텍스트 메모리 파일은 계속 추적한다.
+- **이유**: raw debug/scratch 파일은 런타임·빌드·테스트 계약과 무관하지만, 컨텍스트 메모리 파일은 현재 하네스가 세션 복원과 상태 파악에 직접 사용하므로 같은 “로그”로 묶어 제거하면 메모리 설계 자체가 바뀐다.
+- **영향**: `.gitignore`, `docs/specs/2026-04-06-harness-tracking-cleanup_SPEC.md`, `docs/context/HOOK_RAW_DUMP.txt`, `docs/context/.hook_raw_once`, `temp_script.js`, `test_scripts.js`, `test.html`
+
 ### [2026-04-05] Prompt-side harness auto-entry routing
 - **키워드**: harness, hook, beforeSubmitPrompt, wrapper, routing, cursor
 - **결정**: Cursor에서는 `beforeSubmitPrompt` 훅으로 사용자 프롬프트를 review / implement / qa / generic으로 분류하고, 해당할 때만 wrapper-first `agentMessage`를 자동 주입한다. 구현/하네스 코어 요청은 RPI와 `run_codex.ps1 -Profile implement -Plan ...` 경로를, QA 요청은 `run_gstack_qa.ps1` 경로를 우선 제시한다.
