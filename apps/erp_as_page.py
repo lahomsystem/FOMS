@@ -54,13 +54,28 @@ def _json_text_expr(*path_parts, dialect_name=''):
     return cast(Order.structured_data, String)
 
 
-def _as_content_expr(*, dialect_name='', use_postgres_regex=False):
-    """structured_data.shipment.as_content 추출 (검색/탭 판정용)."""
-    expr = _json_text_expr('shipment', 'as_content', dialect_name=dialect_name)
+def _as_content_expr(field_name='as_content', *, dialect_name='', use_postgres_regex=False):
+    """structured_data.shipment AS 내용 필드 추출 (검색/탭 판정용)."""
+    expr = _json_text_expr('shipment', field_name, dialect_name=dialect_name)
     expr = func.coalesce(cast(expr, String), '')
     if dialect_name == 'postgresql' and use_postgres_regex:
         expr = func.regexp_replace(expr, r'<[^>]+>', '', 'g')
     return expr
+
+
+def _combined_as_content_expr(*, dialect_name='', use_postgres_regex=False):
+    """AS 내용 1/2 탭을 합쳐 검색용 문자열로 반환."""
+    primary = _as_content_expr(
+        'as_content',
+        dialect_name=dialect_name,
+        use_postgres_regex=use_postgres_regex,
+    )
+    secondary = _as_content_expr(
+        'as_content_2',
+        dialect_name=dialect_name,
+        use_postgres_regex=use_postgres_regex,
+    )
+    return func.trim(primary + case((secondary != '', ' '), else_='') + secondary)
 
 
 def _sales_delivery_expr(*, dialect_name=''):
@@ -125,7 +140,7 @@ def _erp_order_search_filter(query, q, *, dialect_name='', use_postgres_regex=Fa
     if not compact_q:
         return query
     term = f'%{compact_q}%'
-    as_content = _as_content_expr(
+    as_content = _combined_as_content_expr(
         dialect_name=dialect_name,
         use_postgres_regex=use_postgres_regex,
     )
@@ -329,6 +344,11 @@ def erp_as_dashboard():
         r.has_as_blueprint = shipment.get('as_blueprint') is True
         r.is_sales_delivery = shipment.get('sales_delivery') is True
         r.as_content_html = sanitize_as_content_html(shipment.get('as_content'))
+        has_secondary_as_content = 'as_content_2' in shipment
+        secondary_as_content_html = sanitize_as_content_html(shipment.get('as_content_2'))
+        if not has_secondary_as_content and not secondary_as_content_html:
+            secondary_as_content_html = sanitize_as_content_html(getattr(r, 'notes', '') or '')
+        r.as_content_2_html = secondary_as_content_html
     # 시공자가 아닌 사용자만 AS 카테고리 사진 조회 가능 (관리자 등)
     can_view_as_photos = not (current_user and (current_user.team or '').strip() == 'CONSTRUCTION')
     return render_template(
