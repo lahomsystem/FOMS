@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from werkzeug.security import generate_password_hash
 
@@ -89,3 +89,51 @@ def test_shipment_mobile_markup_includes_colgroup_reset_override(client, monkeyp
     assert "#shipment-dashboard-table colgroup" in body
     assert "#shipment-dashboard-table tbody tr" in body
     assert "Shipment Queue" in body
+
+
+def test_shipment_dashboard_allows_past_date_search(client):
+    _login_erp_admin(client)
+
+    today = date.today()
+    yesterday = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+    order = Order(
+        received_date=today.strftime("%Y-%m-%d"),
+        customer_name="과거 출고 검색",
+        phone="010-7777-8888",
+        address="Busan",
+        product="수납장",
+        status="IN_CONSTRUCTION",
+        manager_name="Bob",
+        is_erp_beta=True,
+        scheduled_date=yesterday,
+        structured_data={
+            "items": [
+                {
+                    "product_name": "하부장",
+                    "spec_width": "900",
+                    "spec_depth": "600",
+                    "spec_height": "2300",
+                    "quantity": 1,
+                }
+            ],
+            "shipment": {},
+        },
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        OrderScheduleDate(
+            order_id=order.id,
+            kind="construction",
+            date=yesterday,
+            source="beta_schedule",
+        )
+    )
+    db_session.commit()
+
+    response = client.get(f"/erp/shipment?date={yesterday}")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'id="shipment-dashboard-table"' in body
+    assert "과거 출고 검색" in body
