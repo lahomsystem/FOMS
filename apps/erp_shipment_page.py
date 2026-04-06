@@ -391,7 +391,7 @@ def erp_shipment_dashboard():
                 Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
                 Order.structured_data, Order.status, Order.is_erp_beta,
                 Order.customer_name, Order.manager_name, Order.phone, Order.address,
-                Order.order_number, Order.measurement_date,
+                Order.measurement_date,
             ),
             selectinload(Order.schedule_dates)
         ).order_by(Order.id.desc()).limit(500)
