@@ -233,7 +233,7 @@
                 </tr>
                 <!-- Order Detail Slide -->
                 <tr>
-                  <td colspan="12" class="p-0">
+                  <td colspan="13" class="p-0">
                     <div class="collapse" id="order-detail-collapse-{{ o.id }}">
                       <div class="card card-body border-0 bg-light">
                         <div class="fw-bold mb-3 erp-order-detail-title"><i class="fas fa-info-circle"></i> 주문 상세</div>
@@ -246,6 +246,7 @@
                 {% endfor %}
               </tbody>
             </table>
+          </div>
           </div>
 
           {% if total_pages and total_pages > 1 %}
@@ -278,9 +279,8 @@
             <div class="text-muted small">총 {{ total_orders }}건 ({{ page }}/{{ total_pages }}페이지)</div>
           </div>
           {% endif %}
-
-          </div>
         </div>
       </div>
     </div>
+  </div>
 
