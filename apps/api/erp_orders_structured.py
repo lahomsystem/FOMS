@@ -25,6 +25,7 @@ from services.erp_policy import (
     check_quest_approvals_complete,
     create_quest_from_template,
 )
+from services.erp_display import get_today_kst
 from services.erp_sync_columns import sync_erp_flat_columns
 from erp_automation import apply_auto_tasks
 from erp_order_text_parser import parse_order_text
@@ -62,12 +63,9 @@ def _handle_stage_transition(
         return
     if new_stage in STATUS:
         setattr(order, 'status', new_stage)
-        if new_stage == 'AS_RECEIVED' and not getattr(order, 'as_received_date', None):
-            setattr(order, 'as_received_date', datetime.date.today().strftime('%Y-%m-%d'))
-    elif new_stage == 'AS':
-        setattr(order, 'status', 'AS')
-        if not getattr(order, 'as_received_date', None):
-            setattr(order, 'as_received_date', datetime.date.today().strftime('%Y-%m-%d'))
+        # Entering the AS lifecycle through either stage should stamp the first received date once.
+        if new_stage in ('AS', 'AS_RECEIVED') and not getattr(order, 'as_received_date', None):
+            setattr(order, 'as_received_date', get_today_kst().strftime('%Y-%m-%d'))
     is_quest_complete, missing_teams = check_quest_approvals_complete(old_sd, old_stage)
     if not is_quest_complete and missing_teams:
         stage_label = STAGE_LABELS.get(old_stage, old_stage) if old_stage else '알 수 없음'

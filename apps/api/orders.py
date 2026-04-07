@@ -12,6 +12,7 @@ import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from foms_address_converter import FOMSAddressConverter
 from services.jobs.queue import enqueue_geocode_order_address
+from services.erp_display import get_today_kst
 from services.as_content_safety import (
     load_structured_data_dict_or_raise,
     sanitize_as_content_html,
@@ -915,7 +916,7 @@ def update_order_status():
 
         # AS 접수 상태로 변경 시 접수일이 없으면 오늘 날짜 자동 설정
         if new_status == 'AS_RECEIVED' and not getattr(order, 'as_received_date', None):
-            setattr(order, 'as_received_date', datetime.date.today().strftime('%Y-%m-%d'))
+            setattr(order, 'as_received_date', get_today_kst().strftime('%Y-%m-%d'))
 
         db.commit()
         
@@ -985,7 +986,7 @@ def bulk_update_order_status():
             setattr(order, 'status', new_status)
             # AS 접수 상태로 변경 시 접수일이 없으면 오늘 날짜 자동 설정
             if new_status == 'AS_RECEIVED' and not getattr(order, 'as_received_date', None):
-                today_str = datetime.datetime.now().strftime('%Y-%m-%d')
+                today_str = get_today_kst().strftime('%Y-%m-%d')
                 setattr(order, 'as_received_date', today_str)
             sd_raw = getattr(order, 'structured_data', None)
             if getattr(order, 'is_erp_beta', False) and sd_raw:
