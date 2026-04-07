@@ -249,6 +249,8 @@ class FOMSMapGenerator:
             marker_text = marker_theme['text']
             marker_shadow = marker_theme['shadow']
             duplicate_group_size = int(order.get('duplicate_group_size') or 0)
+            duplicate_group_index = int(order.get('duplicate_group_index') or 0)
+            duplicate_group_key_attr = html.escape(str(order.get('duplicate_group_key') or ''), quote=True)
             is_duplicate = bool(order.get('is_duplicate_location') or duplicate_group_size > 1)
             duplicate_badge_html = ''
             if is_duplicate:
@@ -316,6 +318,9 @@ class FOMSMapGenerator:
                 data-overlap-border-width="2px"
                 data-overlap-text="#6c2845"
                 data-overlap-shadow="rgba(232, 160, 186, 0.35)"
+                data-duplicate-group-key="{duplicate_group_key_attr}"
+                data-duplicate-group-size="{duplicate_group_size}"
+                data-duplicate-group-index="{duplicate_group_index}"
                 data-route-state="none"
                 data-visual-overlap="false"
                 style="
@@ -335,6 +340,7 @@ class FOMSMapGenerator:
                 border: 2px solid {marker_border};
                 box-shadow: 0 2px 8px {marker_shadow};
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
+                transition: transform 0.12s ease-out;
             "><span>{name_display_escaped}</span>{duplicate_marker_badge_html}</div>
             """
             icon_w = max(80, min(184, len(name_display) * 14 + 24 + (32 if is_duplicate else 0)))
@@ -516,6 +522,97 @@ class FOMSMapGenerator:
             return markerPills[markerIndex - 1] || null;
         }
 
+        function clearMarkerVisualOffset(markerPill) {
+            if (!markerPill) {
+                return;
+            }
+            markerPill.style.transform = 'translate(0px, 0px)';
+            markerPill.style.zIndex = '';
+        }
+
+        function getDuplicateMarkerLayoutMeta(markerPill) {
+            if (!markerPill) {
+                return null;
+            }
+            var groupKey = markerPill.dataset.duplicateGroupKey || '';
+            var groupSize = parseInt(markerPill.dataset.duplicateGroupSize || '0', 10);
+            var groupIndex = parseInt(markerPill.dataset.duplicateGroupIndex || '0', 10);
+            if (!groupKey || groupSize <= 1 || groupIndex <= 0) {
+                return null;
+            }
+            return {
+                groupKey: groupKey,
+                groupSize: groupSize,
+                groupIndex: groupIndex,
+            };
+        }
+
+        function applyDuplicateMarkerLayout() {
+            var markerPills = getRenderedMarkerPills();
+            if (!markerPills.length) {
+                return;
+            }
+
+            var duplicateGroups = {};
+            markerPills.forEach(function(markerPill) {
+                clearMarkerVisualOffset(markerPill);
+                var meta = getDuplicateMarkerLayoutMeta(markerPill);
+                if (!meta) {
+                    return;
+                }
+                if (!duplicateGroups[meta.groupKey]) {
+                    duplicateGroups[meta.groupKey] = [];
+                }
+                duplicateGroups[meta.groupKey].push({
+                    pill: markerPill,
+                    groupIndex: meta.groupIndex,
+                });
+            });
+
+            Object.keys(duplicateGroups).forEach(function(groupKey) {
+                var groupItems = duplicateGroups[groupKey];
+                if (!groupItems || groupItems.length <= 1) {
+                    return;
+                }
+
+                groupItems.sort(function(first, second) {
+                    return first.groupIndex - second.groupIndex;
+                });
+
+                var maxWidth = 0;
+                var maxHeight = 0;
+                groupItems.forEach(function(groupItem) {
+                    var rect = groupItem.pill.getBoundingClientRect();
+                    maxWidth = Math.max(maxWidth, rect.width || 0);
+                    maxHeight = Math.max(maxHeight, rect.height || 0);
+                });
+
+                if (!maxWidth) {
+                    maxWidth = 120;
+                }
+                if (!maxHeight) {
+                    maxHeight = 36;
+                }
+
+                var columns = groupItems.length <= 4 ? groupItems.length : 3;
+                var spacingX = Math.min(240, Math.max(88, Math.round(maxWidth * 1.1)));
+                var spacingY = Math.max(52, Math.round(maxHeight * 1.35));
+
+                groupItems.forEach(function(groupItem, position) {
+                    var row = Math.floor(position / columns);
+                    var rowStart = row * columns;
+                    var rowCount = Math.min(columns, groupItems.length - rowStart);
+                    var column = position % columns;
+                    var rowCenter = (rowCount - 1) / 2;
+                    var dx = Math.round((column - rowCenter) * spacingX);
+                    var dy = -Math.round((row * spacingY) + (Math.abs(dx) * 0.16));
+
+                    groupItem.pill.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+                    groupItem.pill.style.zIndex = String(300 + position);
+                });
+            });
+        }
+
         function applyMarkerTheme(markerPill, theme) {
             if (!markerPill || !theme) {
                 return;
@@ -603,6 +700,8 @@ class FOMSMapGenerator:
             if (!markerPills.length) {
                 return;
             }
+
+            applyDuplicateMarkerLayout();
 
             markerPills.forEach(function(markerPill) {
                 markerPill.dataset.visualOverlap = 'false';
