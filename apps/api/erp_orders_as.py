@@ -14,6 +14,7 @@ from apps.auth import login_required, get_user_by_id
 from services.erp_permissions import erp_edit_required, erp_construction_edit_required
 from services.erp_sync_columns import sync_erp_flat_columns
 from services.erp_utils import ensure_path
+from services.erp_display import get_today_kst
 from services.as_content_safety import (
     load_structured_data_dict_or_raise,
     sanitize_as_content_html,
@@ -220,7 +221,7 @@ def api_as_register(order_id):
         data = request.get_json(silent=True) or {}
         as_content = sanitize_as_content_html(data.get('as_content'))
 
-        today = datetime.datetime.now().strftime('%Y-%m-%d')
+        today = get_today_kst().strftime('%Y-%m-%d')
         user_id = session.get('user_id')
         user = get_user_by_id(user_id)
         sd = _load_order_structured_data_for_update(order)
