@@ -23,7 +23,7 @@
             '#FADADD', '#DCEBFF', '#FFF1BF', '#DDF4E4', '#E8DDF8',
             '#D9F3F0', '#FFE6CC', '#F9D9EC', '#E5F5D2', '#FDE2E4'
         ];
-        const DEFAULT_MANAGER_BG_COLOR = '#E5E7EB';
+        const DEFAULT_MANAGER_BG_COLOR = '#CCCCCC';
         const DEFAULT_MANAGER_TEXT_COLOR = '#000000';
 
         let _measurementManagerList = [];

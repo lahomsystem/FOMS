@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -30,3 +31,12 @@ def test_map_manager_dropdown_cleanup_is_centralized():
 
     assert "function closeMapManagerDropdown()" in content
     assert "closeMapManagerDropdown();" in content
+
+
+def test_map_manager_save_reloads_map_for_marker_color_sync():
+    content = Path("templates/map_view.html").read_text(encoding="utf-8")
+
+    assert re.search(
+        r"if \(data\.success\) \{\s*applyMapManagerValue\(orderId, cleanName\);\s*loadMap\(\);",
+        content,
+    )

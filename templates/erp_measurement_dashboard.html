@@ -610,18 +610,6 @@
               </thead>
               <tbody>
                 {% if rows %}
-                {# 담당자 목록 수집 및 색상 할당 (검정 글자가 잘 보이는 연한 파스텔톤) #}
-                {% set manager_list = [] %}
-                {% set color_list = ['#FADADD', '#DCEBFF', '#FFF1BF', '#DDF4E4', '#E8DDF8', '#D9F3F0', '#FFE6CC',
-                '#F9D9EC', '#E5F5D2', '#FDE2E4'] %}
-                {% for r in rows %}
-                {% set temp_manager = r.manager_name %}
-                {% set temp_manager = (temp_manager or '')|trim %}
-                {% if temp_manager and temp_manager not in manager_list %}
-                {% set _ = manager_list.append(temp_manager) %}
-                {% endif %}
-                {% endfor %}
-
                 {% for r in rows %}
                 {% set customer = r.customer_name %}
                 {% set orderer = r.orderer_name or '-' %}
@@ -635,22 +623,16 @@
 
                 {# 담당자 색상 결정 (manager 변수가 최종 설정된 후) #}
                 {% set manager_key = (manager or '')|trim %}
-                {% set manager_ns = namespace(index=-1) %}
-                {% for m in manager_list %}
-                {% if m == manager_key %}
-                {% set manager_ns.index = loop.index0 %}
-                {% endif %}
-                {% endfor %}
-                {% if manager_ns.index >= 0 %}
-                {% set manager_bg_color = color_list[manager_ns.index % color_list|length] %}
+                {% set manager_color = measurement_manager_color_map.get(manager_key|lower) if measurement_manager_color_map else None %}
+                {% if manager_color %}
+                {% set manager_bg_color = manager_color.background %}
                 {% set manager_bg_source = 'palette' %}
+                {% set text_color = manager_color.text %}
                 {% else %}
                 {% set manager_bg_color = '#CCCCCC' %}
                 {% set manager_bg_source = 'fallback' %}
-                {% endif %}
-
-                {# 배경색에 따라 텍스트 색상 자동 결정 #}
                 {% set text_color = '#000000' %}
+                {% endif %}
 
                 <tr data-order-id="{{ r.id }}" data-is-erp="{{ 'true' if r.is_erp_beta else 'false' }}"
                   data-manager="{{ manager or '' }}" class="measurement-row">

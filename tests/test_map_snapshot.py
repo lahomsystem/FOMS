@@ -17,7 +17,7 @@ def _make_order(order_id, lat, lng, address, customer_name, manager_name="이시
         measurement_time="오전",
         scheduled_date="2026-04-01",
         completion_date=None,
-        manager_name="ERP Beta",
+        manager_name=manager_name,
         lat=lat,
         lng=lng,
         geocode_status=None,
@@ -54,12 +54,19 @@ def _make_order(order_id, lat, lng, address, customer_name, manager_name="이시
 
 def test_build_measurement_snapshot_marks_duplicate_locations_and_addresses():
     orders = [
-        _make_order(101, 37.5000001, 127.0000001, "서울시 강남구 테헤란로 1", "윤인선"),
-        _make_order(102, 37.5000001, 127.0000001, "서울시 강남구 테헤란로 1", "김나래"),
-        _make_order(103, 37.5005000, 127.0005000, "서울시 강남구 테헤란로 1", "박성준"),
+        _make_order(101, 37.5000001, 127.0000001, "서울시 강남구 테헤란로 1", "윤인선", manager_name="이성민(서서울)"),
+        _make_order(102, 37.5000001, 127.0000001, "서울시 강남구 테헤란로 1", "김나래", manager_name="최진호"),
+        _make_order(103, 37.5005000, 127.0005000, "서울시 강남구 테헤란로 1", "박성준", manager_name="안종훈"),
     ]
 
-    snapshot = build_measurement_snapshot(orders)
+    snapshot = build_measurement_snapshot(
+        orders,
+        measurement_manager_options=[
+            {"name": "이성민(서서울)", "sort_order": 1},
+            {"name": "최진호", "sort_order": 2},
+            {"name": "안종훈", "sort_order": 3},
+        ],
+    )
     markers = {item["id"]: item for item in snapshot["markers"]}
     rows = {item["id"]: item for item in snapshot["orders"]}
 
@@ -90,14 +97,19 @@ def test_build_measurement_snapshot_marks_duplicate_locations_and_addresses():
     assert markers[101]["customer_name"] == "윤인선"
     assert markers[102]["customer_name"] == "김나래"
     assert markers[103]["customer_name"] == "박성준"
+    assert markers[101]["manager_name"] == "이성민(서서울)"
+    assert markers[101]["manager_bg_color"] == "#FADADD"
+    assert markers[102]["manager_bg_color"] == "#DCEBFF"
+    assert rows[103]["manager_bg_color"] == "#FFF1BF"
+    assert rows[103]["manager_text_color"] == "#000000"
 
 
 def test_build_measurement_snapshot_keeps_non_duplicate_hint_stable():
     orders = [
-        _make_order(201, 37.6, 127.1, "서울시 송파구 올림픽로 1", "최수진"),
+        _make_order(201, 37.6, 127.1, "서울시 송파구 올림픽로 1", "최수진", manager_name=""),
     ]
 
-    snapshot = build_measurement_snapshot(orders)
+    snapshot = build_measurement_snapshot(orders, measurement_manager_options=[])
     marker = snapshot["markers"][0]
     row = snapshot["orders"][0]
 
@@ -105,3 +117,5 @@ def test_build_measurement_snapshot_keeps_non_duplicate_hint_stable():
     assert marker["is_duplicate_address"] is False
     assert marker["marker_render_hint"] == "status"
     assert row["marker_render_hint"] == "status"
+    assert marker["manager_bg_color"] == "#CCCCCC"
+    assert marker["manager_bg_source"] == "fallback"

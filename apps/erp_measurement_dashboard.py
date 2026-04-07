@@ -22,6 +22,7 @@ from services.erp_display import (
 )
 from services.erp_product_items import build_product_items_for_orders
 from services.erp_shipment_settings import load_erp_shipment_settings
+from services.measurement_manager_colors import build_measurement_manager_color_map
 
 erp_measurement_dashboard_bp = Blueprint(
     'erp_measurement_dashboard', __name__, url_prefix='/erp'
@@ -394,6 +395,16 @@ def erp_measurement_dashboard():
         return (sort_order, name or 'ZZZ', order.id)
 
     rows.sort(key=_manager_sort_key)
+    measurement_manager_color_map = build_measurement_manager_color_map(
+        [
+            {
+                'manager_name': get_manager_name_for_sort(order),
+                'order_id': order.id,
+            }
+            for order in rows
+        ],
+        measurement_manager_options,
+    )
 
     if open_map:
         # 실측 대시보드 지도는 항상 실측 주문만 표시한다.
@@ -409,6 +420,7 @@ def erp_measurement_dashboard():
         rows=rows,
         measurement_panel_dates=measurement_panel_dates,
         measurement_manager_options=measurement_manager_options,
+        measurement_manager_color_map=measurement_manager_color_map,
         today_date=today_date,
         can_edit_erp=can_edit_erp(current_user),
         erp_mine_only=mine_filter_active,

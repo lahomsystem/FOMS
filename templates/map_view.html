@@ -1855,6 +1855,7 @@
             .then(function (data) {
                 if (data.success) {
                     applyMapManagerValue(orderId, cleanName);
+                    loadMap();
                 } else {
                     alert('담당자 저장 실패: ' + (data.message || ''));
                 }
