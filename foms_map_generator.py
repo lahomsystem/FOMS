@@ -120,9 +120,27 @@ class FOMSMapGenerator:
             if not isinstance(order, dict):
                 continue
             item = dict(order)
-            item['is_duplicate_location'] = bool(item.get('is_duplicate_location'))
-            item['duplicate_group_size'] = int(item.get('duplicate_group_size') or 0)
-            item['duplicate_group_index'] = int(item.get('duplicate_group_index') or 0)
+            item['is_duplicate_location'] = bool(
+                item.get('is_duplicate_location')
+                or int(item.get('duplicate_location_group_size') or 0) > 1
+            )
+            item['duplicate_group_size'] = int(
+                item.get('duplicate_group_size')
+                or item.get('duplicate_location_group_size')
+                or 0
+            )
+            item['duplicate_group_index'] = int(
+                item.get('duplicate_group_index')
+                or item.get('duplicate_location_group_index')
+                or 0
+            )
+            existing_group_key = (
+                item.get('duplicate_group_key')
+                or item.get('duplicate_location_group_key')
+                or ''
+            )
+            if existing_group_key:
+                item['duplicate_group_key'] = existing_group_key
             key = self._duplicate_group_key(item)
             if key:
                 groups.setdefault(key, []).append(item)
