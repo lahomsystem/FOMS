@@ -85,3 +85,31 @@ def test_measurement_manager_delete_clears_erp_beta_fields(client):
     assert order is not None
     assert order.manager_name == ""
     assert ((order.structured_data or {}).get("parties") or {}).get("manager", {}).get("name") == ""
+
+
+def test_measurement_manager_update_resolves_numeric_user_id_to_name(client):
+    _login_erp_editor(client)
+    manager_user = User(
+        username="resolved_manager",
+        password=generate_password_hash("manager"),
+        role="STAFF",
+        team="CS",
+        name="복구 담당자",
+        is_active=True,
+    )
+    db_session.add(manager_user)
+    db_session.commit()
+    order_id = _create_erp_beta_order(manager_name="Alice")
+
+    response = client.post(
+        f"/api/erp/measurement/update/{order_id}",
+        json={"field": "manager", "value": str(manager_user.id)},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["success"] is True
+
+    order = db_session.query(Order).filter(Order.id == order_id).first()
+    assert order is not None
+    assert order.manager_name == "복구 담당자"
+    assert ((order.structured_data or {}).get("parties") or {}).get("manager", {}).get("name") == "복구 담당자"

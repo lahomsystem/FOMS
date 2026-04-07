@@ -17,6 +17,7 @@ from services.erp_display import (
     _normalize_date_to_yyyymmdd,
     apply_erp_display_fields_to_orders,
     get_today_kst,
+    normalize_manager_name,
     self_measurement_four_checks_done,
 )
 from services.erp_product_items import build_product_items_for_orders
@@ -352,7 +353,10 @@ def erp_measurement_dashboard():
     def get_manager_name_for_sort(order):
         if order.is_erp_beta and order.structured_data:
             sd = order.structured_data
-            erp_manager = (((sd.get('parties') or {}).get('manager') or {}).get('name'))
+            erp_manager = normalize_manager_name(
+                (sd.get('parties') or {}).get('manager'),
+                order.manager_name,
+            )
             if erp_manager:
                 return erp_manager
         return order.manager_name or ''

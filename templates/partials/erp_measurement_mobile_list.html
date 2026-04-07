@@ -17,9 +17,6 @@
     <div class="erp-measurement-mobile-cards">
       {% for r in rows %}
         {% set manager_name = r.manager_name %}
-        {% if r.is_erp_beta and r.structured_data and r.structured_data.parties is mapping and r.structured_data.parties.manager is mapping and r.structured_data.parties.manager.name %}
-          {% set manager_name = r.structured_data.parties.manager.name %}
-        {% endif %}
         {% set manager_name = (manager_name or '')|trim %}
         {% set product_text = ((r.product or '-')|strip_product_w) or '-' %}
         {% set measurement_dates = r.measurement_dates_display if r.measurement_dates_display is defined else [] %}

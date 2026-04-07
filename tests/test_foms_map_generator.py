@@ -177,3 +177,46 @@ def test_prepare_marker_data_promotes_snapshot_duplicate_location_metadata():
     assert prepared[1]["duplicate_group_index"] == 2
     assert prepared[0]["duplicate_group_key"] == "meta:37.50010000,127.00010000"
     assert prepared[1]["duplicate_group_key"] == "meta:37.50010000,127.00010000"
+
+
+def test_prepare_marker_data_falls_back_to_duplicate_address_metadata():
+    generator = FOMSMapGenerator()
+    prepared = generator._prepare_marker_data(
+        [
+            {
+                "id": 51,
+                "customer_name": "Address A",
+                "address": "서울시 강동구 고덕로 130",
+                "product": "Desk",
+                "status": "MEASURE",
+                "received_date": "2026-03-31",
+                "latitude": 37.5001,
+                "longitude": 127.0001,
+                "is_duplicate_location": True,
+                "duplicate_address_group_size": 2,
+                "duplicate_address_group_index": 1,
+                "duplicate_address_group_key": "addr:seoul-godeok",
+            },
+            {
+                "id": 52,
+                "customer_name": "Address B",
+                "address": "서울시 강동구 고덕로 130",
+                "product": "Chair",
+                "status": "MEASURE",
+                "received_date": "2026-03-31",
+                "latitude": 37.5003,
+                "longitude": 127.0003,
+                "is_duplicate_location": True,
+                "duplicate_address_group_size": 2,
+                "duplicate_address_group_index": 2,
+                "duplicate_address_group_key": "addr:seoul-godeok",
+            },
+        ]
+    )
+
+    assert prepared[0]["duplicate_group_size"] == 2
+    assert prepared[1]["duplicate_group_size"] == 2
+    assert prepared[0]["duplicate_group_index"] == 1
+    assert prepared[1]["duplicate_group_index"] == 2
+    assert prepared[0]["duplicate_group_key"] == "meta:addr:seoul-godeok"
+    assert prepared[1]["duplicate_group_key"] == "meta:addr:seoul-godeok"
