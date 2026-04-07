@@ -6,6 +6,7 @@ import math
 from sqlalchemy import or_, and_, cast, String, func
 
 from models import Order
+from services.erp_display import normalize_manager_name
 from services.geocode_helpers import extract_address_from_order
 
 _DUPLICATE_MARKER_OFFSET = 0.00015
@@ -176,7 +177,10 @@ def _extract_order_display_fields(order):
         erp_sched = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
         if erp_sched:
             scheduled_date = erp_sched
-        erp_manager = ((sd.get('parties') or {}).get('manager') or {}).get('name')
+        erp_manager = normalize_manager_name(
+            (sd.get('parties') or {}).get('manager'),
+            manager_name,
+        )
         if erp_manager:
             manager_name = erp_manager
 

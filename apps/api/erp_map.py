@@ -19,6 +19,7 @@ from foms_address_converter import FOMSAddressConverter
 from foms_map_generator import FOMSMapGenerator
 from services.jobs.queue import enqueue_geocode_order_address
 from services.order_geocode import reset_order_geocode_on_address_change
+from services.erp_display import normalize_manager_name
 from services.map_snapshot import build_measurement_map_query, build_measurement_snapshot
 
 erp_map_bp = Blueprint('erp_map', __name__)
@@ -190,7 +191,10 @@ def _extract_map_order_display(order):
         if erp_scheduled_date:
             scheduled_date = erp_scheduled_date
 
-        erp_manager_name = ((sd.get('parties') or {}).get('manager') or {}).get('name')
+        erp_manager_name = normalize_manager_name(
+            (sd.get('parties') or {}).get('manager'),
+            manager_name,
+        )
         if erp_manager_name:
             manager_name = erp_manager_name
 

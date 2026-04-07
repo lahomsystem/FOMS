@@ -32,21 +32,83 @@ def self_measurement_four_checks_done(order):
     )
 
 
-def clean_dict_like_name(value):
-    """dict 문자열('{"name": "홍길동", ...}')에서 name만 추출. 정상 문자열은 그대로 반환."""
-    if not value or not isinstance(value, str):
-        return value or ''
-    s = value.strip()
-    if not (s.startswith('{') and 'name' in s):
+def _extract_name_candidate(value):
+    """이름/ID 후보를 문자열로 정규화한다."""
+    if value is None:
+        return ''
+    if isinstance(value, dict):
+        for key in ('name', 'user_name', 'display_name', 'username', 'user_id', 'id'):
+            candidate = value.get(key)
+            if candidate not in (None, ''):
+                return _extract_name_candidate(candidate)
+        return ''
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return ''
+        if s.startswith('{') and 'name' in s:
+            try:
+                import ast
+                parsed = ast.literal_eval(s)
+                return _extract_name_candidate(parsed)
+            except Exception:
+                return s
         return s
+    return str(value).strip()
+
+
+def _manager_candidates(value):
+    """담당자 입력에서 표시명/ID 후보 목록을 수집한다."""
+    if value is None:
+        return []
+    if isinstance(value, dict):
+        candidates = []
+        for key in ('name', 'user_id', 'id', 'user_name', 'display_name', 'username'):
+            cleaned = _extract_name_candidate(value.get(key))
+            if cleaned and cleaned not in candidates:
+                candidates.append(cleaned)
+        return candidates
+    cleaned = _extract_name_candidate(value)
+    return [cleaned] if cleaned else []
+
+
+def _lookup_user_name_from_candidate(candidate_text):
+    """숫자형 담당자 ID 후보를 User.name으로 복구한다."""
+    if not candidate_text or not str(candidate_text).isdigit():
+        return ''
     try:
-        import ast
-        parsed = ast.literal_eval(s)
-        if isinstance(parsed, dict) and parsed.get('name'):
-            return str(parsed['name']).strip()
+        from db import db_session
+        from models import User
+
+        user = db_session.query(User).filter(User.id == int(candidate_text)).first()
+        if user and getattr(user, 'name', None):
+            return str(user.name).strip()
     except Exception:
-        pass
-    return s
+        return ''
+    return ''
+
+
+def normalize_manager_name(value, fallback=''):
+    """담당자 이름을 문자열 표시명으로 정규화한다."""
+    candidates = []
+    for raw in (value, fallback):
+        for cleaned in _manager_candidates(raw):
+            if cleaned not in candidates:
+                candidates.append(cleaned)
+
+    for candidate in candidates:
+        resolved = _lookup_user_name_from_candidate(candidate)
+        if resolved:
+            return resolved
+        if not candidate.isdigit():
+            return candidate
+
+    return candidates[0] if candidates else ''
+
+
+def clean_dict_like_name(value):
+    """dict 문자열/숫자형 ID를 담당자 표시명으로 정규화한다."""
+    return normalize_manager_name(value)
 
 
 def _ensure_dict(data):
@@ -119,12 +181,8 @@ def apply_erp_display_fields(order):
     if phone:
         order.phone = phone
     raw_manager = parties.get('manager')
-    manager_name = None
-    if isinstance(raw_manager, dict):
-        manager_name = raw_manager.get('name')
-    elif isinstance(raw_manager, str):
-        manager_name = raw_manager.strip()
-    if isinstance(manager_name, str) and manager_name:
+    manager_name = normalize_manager_name(raw_manager, getattr(order, 'manager_name', ''))
+    if manager_name:
         order.manager_name = manager_name
     elif order.manager_name and isinstance(order.manager_name, str):
         cleaned = clean_dict_like_name(order.manager_name)
