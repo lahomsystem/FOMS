@@ -1,3 +1,4 @@
+import re
 from datetime import date
 
 from werkzeug.security import generate_password_hash
@@ -81,3 +82,65 @@ def test_measurement_mobile_page_renders_item_attachment_group_keys(client, monk
     body = response.get_data(as_text=True)
     assert f'data-group-key="measurement_mobile_{order.id}_item_0"' in body
     assert "erp-measurement-mobile-attachment" in body
+
+
+def test_measurement_mobile_page_uses_normalized_manager_name(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    _login_erp_admin(client)
+    manager_user = User(
+        username="measurement_mobile_manager",
+        password=generate_password_hash("manager"),
+        role="STAFF",
+        team="CS",
+        name="Resolved Manager",
+        is_active=True,
+    )
+    db_session.add(manager_user)
+    db_session.commit()
+
+    today = date.today().strftime("%Y-%m-%d")
+    order = Order(
+        received_date=today,
+        customer_name="Mobile Manager Restore",
+        phone="010-1234-5678",
+        address="Seoul",
+        product="Cabinet",
+        status="MEASURE",
+        manager_name="Alice",
+        is_erp_beta=True,
+        structured_data={
+            "parties": {
+                "manager": {
+                    "name": manager_user.id,
+                }
+            },
+            "items": [
+                {
+                    "product_name": "Upper Cabinet",
+                }
+            ],
+        },
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        OrderScheduleDate(
+            order_id=order.id,
+            kind="measurement",
+            date=today,
+            source="beta_schedule",
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/erp/measurement")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    customer_idx = body.find("Mobile Manager Restore")
+    assert customer_idx != -1
+    snippet = body[customer_idx:customer_idx + 500]
+    match = re.search(r'data-measurement-mobile-manager>([^<]+)<', snippet)
+    assert match is not None
+    assert match.group(1).strip()
+    assert match.group(1).strip() != str(manager_user.id)
