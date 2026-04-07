@@ -134,3 +134,46 @@ def test_map_html_includes_duplicate_group_layout_hooks():
     assert "data-duplicate-group-size" in html
     assert html.count("data-duplicate-group-index") >= 2
     assert "data-duplicate-group-key" in html
+
+
+def test_prepare_marker_data_promotes_snapshot_duplicate_location_metadata():
+    generator = FOMSMapGenerator()
+    prepared = generator._prepare_marker_data(
+        [
+            {
+                "id": 41,
+                "customer_name": "Snapshot A",
+                "address": "서로 다른 원본 주소 A",
+                "product": "Desk",
+                "status": "MEASURE",
+                "received_date": "2026-03-31",
+                "latitude": 37.5001,
+                "longitude": 127.0001,
+                "is_duplicate_location": True,
+                "duplicate_location_group_size": 2,
+                "duplicate_location_group_index": 1,
+                "duplicate_location_group_key": "37.50010000,127.00010000",
+            },
+            {
+                "id": 42,
+                "customer_name": "Snapshot B",
+                "address": "서로 다른 원본 주소 B",
+                "product": "Chair",
+                "status": "MEASURE",
+                "received_date": "2026-03-31",
+                "latitude": 37.5002,
+                "longitude": 127.0002,
+                "is_duplicate_location": True,
+                "duplicate_location_group_size": 2,
+                "duplicate_location_group_index": 2,
+                "duplicate_location_group_key": "37.50010000,127.00010000",
+            },
+        ]
+    )
+
+    assert prepared[0]["duplicate_group_size"] == 2
+    assert prepared[1]["duplicate_group_size"] == 2
+    assert prepared[0]["duplicate_group_index"] == 1
+    assert prepared[1]["duplicate_group_index"] == 2
+    assert prepared[0]["duplicate_group_key"] == "meta:37.50010000,127.00010000"
+    assert prepared[1]["duplicate_group_key"] == "meta:37.50010000,127.00010000"
