@@ -68,6 +68,54 @@ def test_unique_marker_keeps_status_color():
     assert "x2" not in html
 
 
+def test_measurement_marker_prefers_manager_color_theme():
+    html = _render_map_html(
+        [
+            {
+                "id": 11,
+                "customer_name": "Manager Color",
+                "address": "Unique Address 11",
+                "product": "Desk",
+                "status": "MEASURE",
+                "received_date": "2026-03-31",
+                "latitude": 37.4902,
+                "longitude": 127.0211,
+                "manager_name": "이성민(서서울)",
+                "manager_bg_color": "#FADADD",
+                "manager_bg_source": "palette",
+                "manager_text_color": "#000000",
+            }
+        ]
+    )
+
+    assert "background: #FADADD" in html
+    assert "담당자:" in html
+    assert "이성민(서서울)" in html
+
+
+def test_fallback_manager_color_does_not_override_status_theme():
+    html = _render_map_html(
+        [
+            {
+                "id": 12,
+                "customer_name": "Fallback Manager",
+                "address": "Unique Address 12",
+                "product": "Desk",
+                "status": "RECEIVED",
+                "received_date": "2026-03-31",
+                "latitude": 37.4903,
+                "longitude": 127.0212,
+                "manager_name": "",
+                "manager_bg_color": "#CCCCCC",
+                "manager_bg_source": "fallback",
+                "manager_text_color": "#000000",
+            }
+        ]
+    )
+
+    assert "background: #007bff" in html
+
+
 def test_map_html_includes_visual_overlap_detection_hooks():
     html = _render_map_html(
         [
