@@ -1,6 +1,7 @@
 import re
 from datetime import date
 
+from apps import erp_measurement_dashboard
 from werkzeug.security import generate_password_hash
 
 from db import db_session
@@ -29,9 +30,11 @@ def _login_erp_admin(client):
 
 def test_measurement_mobile_page_renders_item_attachment_group_keys(client, monkeypatch):
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    fake_today = date(2026, 4, 8)
+    monkeypatch.setattr(erp_measurement_dashboard, "get_today_kst", lambda: fake_today)
     _login_erp_admin(client)
 
-    today = date.today().strftime("%Y-%m-%d")
+    today = fake_today.strftime("%Y-%m-%d")
     order = Order(
         received_date=today,
         customer_name="모바일 실측",
@@ -55,10 +58,11 @@ def test_measurement_mobile_page_renders_item_attachment_group_keys(client, monk
     )
     db_session.add(order)
     db_session.flush()
+    order_id = order.id
 
     db_session.add(
         OrderScheduleDate(
-            order_id=order.id,
+            order_id=order_id,
             kind="measurement",
             date=today,
             source="beta_schedule",
@@ -66,7 +70,7 @@ def test_measurement_mobile_page_renders_item_attachment_group_keys(client, monk
     )
     db_session.add(
         OrderAttachment(
-            order_id=order.id,
+            order_id=order_id,
             filename="measurement-1.jpg",
             file_type="image/jpeg",
             storage_key="tests/measurement-1.jpg",
@@ -80,12 +84,14 @@ def test_measurement_mobile_page_renders_item_attachment_group_keys(client, monk
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert f'data-group-key="measurement_mobile_{order.id}_item_0"' in body
+    assert f'data-group-key="measurement_mobile_{order_id}_item_0"' in body
     assert "erp-measurement-mobile-attachment" in body
 
 
 def test_measurement_mobile_page_uses_normalized_manager_name(client, monkeypatch):
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    fake_today = date(2026, 4, 8)
+    monkeypatch.setattr(erp_measurement_dashboard, "get_today_kst", lambda: fake_today)
     _login_erp_admin(client)
     manager_user = User(
         username="measurement_mobile_manager",
@@ -97,8 +103,9 @@ def test_measurement_mobile_page_uses_normalized_manager_name(client, monkeypatc
     )
     db_session.add(manager_user)
     db_session.commit()
+    manager_user_id = manager_user.id
 
-    today = date.today().strftime("%Y-%m-%d")
+    today = fake_today.strftime("%Y-%m-%d")
     order = Order(
         received_date=today,
         customer_name="Mobile Manager Restore",
@@ -123,9 +130,10 @@ def test_measurement_mobile_page_uses_normalized_manager_name(client, monkeypatc
     )
     db_session.add(order)
     db_session.flush()
+    order_id = order.id
     db_session.add(
         OrderScheduleDate(
-            order_id=order.id,
+            order_id=order_id,
             kind="measurement",
             date=today,
             source="beta_schedule",
@@ -143,4 +151,4 @@ def test_measurement_mobile_page_uses_normalized_manager_name(client, monkeypatc
     match = re.search(r'data-measurement-mobile-manager>([^<]+)<', snippet)
     assert match is not None
     assert match.group(1).strip()
-    assert match.group(1).strip() != str(manager_user.id)
+    assert match.group(1).strip() != str(manager_user_id)
