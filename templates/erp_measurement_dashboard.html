@@ -616,10 +616,6 @@
                 '#F9D9EC', '#E5F5D2', '#FDE2E4'] %}
                 {% for r in rows %}
                 {% set temp_manager = r.manager_name %}
-                {% if r.is_erp_beta and r.structured_data and r.structured_data.parties is mapping and
-                r.structured_data.parties.manager is mapping and r.structured_data.parties.manager.name %}
-                {% set temp_manager = r.structured_data.parties.manager.name %}
-                {% endif %}
                 {% set temp_manager = (temp_manager or '')|trim %}
                 {% if temp_manager and temp_manager not in manager_list %}
                 {% set _ = manager_list.append(temp_manager) %}
@@ -635,10 +631,6 @@
                 {% set meas_date = r.measurement_date %}
                 {% set product = r.product %}
                 {% set manager = r.manager_name %}
-                {% if r.is_erp_beta and r.structured_data and r.structured_data.parties is mapping and
-                r.structured_data.parties.manager is mapping and r.structured_data.parties.manager.name %}
-                {% set manager = r.structured_data.parties.manager.name %}
-                {% endif %}
                 {% set manager = (manager or '')|trim %}
 
                 {# 담당자 색상 결정 (manager 변수가 최종 설정된 후) #}
