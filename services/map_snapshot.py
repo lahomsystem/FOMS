@@ -2,14 +2,11 @@
 실측 지도 공통 Snapshot 및 Query Builder (2026-03-15).
 지도/대시보드 검색 규칙 통일, canonical DTO 조립.
 """
-import math
 from sqlalchemy import or_, and_, cast, String, func
 
 from models import Order
 from services.erp_display import normalize_manager_name
 from services.geocode_helpers import extract_address_from_order
-
-_DUPLICATE_MARKER_OFFSET = 0.00015
 
 
 def _measurement_date_variants(yyyy_mm_dd):
@@ -293,38 +290,6 @@ def _annotate_marker_metadata(orders_list, markers):
             item.setdefault('marker_render_hint', 'status')
 
 
-def _apply_marker_offset_for_duplicates(markers):
-    """
-    동일 (lat,lng) 마커에 소량 오프셋 적용. 겹쳐서 1개만 보이던 2건 표시.
-    ~0.00015도(약 15m)씩 나선형으로 분산.
-    """
-    if not markers:
-        return
-    # (lat, lng) → 해당 마커 인덱스 목록
-    def _duplicate_key(marker):
-        normalized_address = ' '.join(str(marker.get('address') or '').strip().lower().split())
-        return (
-            normalized_address,
-            round(marker['latitude'], 8),
-            round(marker['longitude'], 8),
-        )
-
-    by_pos = {}
-    for i, marker in enumerate(markers):
-        by_pos.setdefault(_duplicate_key(marker), []).append(i)
-    for indices in by_pos.values():
-        if len(indices) <= 1:
-            continue
-        origin_lat = markers[indices[0]]['latitude']
-        origin_lng = markers[indices[0]]['longitude']
-        for k, i in enumerate(indices[1:], 1):
-            # 나선형: 1→동, 2→남동, 3→남, 4→남서...
-            angle = (k - 1) * 60
-            rad = math.radians(angle)
-            markers[i]['latitude'] = origin_lat + _DUPLICATE_MARKER_OFFSET * math.cos(rad)
-            markers[i]['longitude'] = origin_lng + _DUPLICATE_MARKER_OFFSET * math.sin(rad)
-
-
 def build_measurement_snapshot(orders, manager_filter=None):
     """
     주문 리스트에서 canonical DTO 조립 (목록 + 마커 + 요약).
@@ -399,9 +364,8 @@ def build_measurement_snapshot(orders, manager_filter=None):
                 'phone': ctx['phone'],
             })
 
-    # 동일 좌표 마커 오프셋: 겹쳐서 1개만 보이던 문제 해결 (2662↔2655, 2670↔2650 등)
+    # 동일 주소/좌표 메타데이터만 부여하고, 실제 집계/분리 UX는 클라이언트 줌 상태에서 제어한다.
     _annotate_marker_metadata(orders_list, markers)
-    _apply_marker_offset_for_duplicates(markers)
 
     return {
         'orders': orders_list,

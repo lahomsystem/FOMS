@@ -1,5 +1,4 @@
 import html
-import json
 import folium
 from folium import plugins
 from map_config import DEFAULT_CENTER
@@ -198,27 +197,13 @@ class FOMSMapGenerator:
         if not order_data:
             return None
         
-        # 디버깅: 데이터 타입 확인
-        print(f"DEBUG create_map: order_data 타입: {type(order_data)}")
-        print(f"DEBUG create_map: order_data 길이: {len(order_data) if hasattr(order_data, '__len__') else 'N/A'}")
-        if order_data and len(order_data) > 0:
-            print(f"DEBUG create_map: 첫 번째 항목 타입: {type(order_data[0])}")
-            print(f"DEBUG create_map: 첫 번째 항목: {order_data[0]}")
-        
         # 성공한 좌표만 필터링
         valid_data = []
-        for i, order in enumerate(order_data):
-            try:
-                # 타입 체크
-                if not isinstance(order, dict):
-                    print(f"ERROR: order[{i}]는 딕셔너리가 아닙니다. 타입: {type(order)}, 값: {order}")
-                    continue
-                    
-                if order.get('latitude') is not None and order.get('longitude') is not None:
-                    valid_data.append(dict(order))
-            except Exception as e:
-                print(f"ERROR: order[{i}] 처리 중 오류: {e}, 타입: {type(order)}")
+        for order in order_data:
+            if not isinstance(order, dict):
                 continue
+            if order.get('latitude') is not None and order.get('longitude') is not None:
+                valid_data.append(dict(order))
         
         if not valid_data:
             return None
@@ -256,6 +241,9 @@ class FOMSMapGenerator:
             lat = order['latitude']
             lng = order['longitude']
             order_id = order.get('id', idx)  # 지도 마커에 표시할 주문 ID
+            order_id_text = str(order_id)
+            order_id_attr = html.escape(order_id_text, quote=True)
+            order_id_display = html.escape(order_id_text, quote=False)
 
             # 주문 정보
             customer_name = order.get('customer_name', '정보없음')
@@ -264,6 +252,12 @@ class FOMSMapGenerator:
             status = order.get('status', 'UNKNOWN')
             received_date = order.get('received_date', '날짜없음')
             phone = order.get('phone', '연락처없음')
+            customer_name_escaped = html.escape(str(customer_name), quote=True)
+            address_escaped = html.escape(str(address), quote=True)
+            product_escaped = html.escape(str(product), quote=True)
+            status_escaped = html.escape(str(status), quote=True)
+            received_date_escaped = html.escape(str(received_date), quote=True)
+            phone_escaped = html.escape(str(phone), quote=True)
             
             # 상태별 색상
             status_color = self._get_status_color(status)
@@ -305,14 +299,14 @@ class FOMSMapGenerator:
 
             popup_html = f"""
             <div style="width: 300px; font-family: 'Malgun Gothic', sans-serif;">
-                <h4 style="margin: 0 0 10px 0; color: {marker_text};">주문 #{order_id}{duplicate_badge_html}</h4>
+                <h4 style="margin: 0 0 10px 0; color: {marker_text};">주문 #{order_id_display}{duplicate_badge_html}</h4>
                 <table style="width: 100%; border-collapse: collapse;">
-                    <tr><td style="padding: 3px; font-weight: bold;">고객명:</td><td style="padding: 3px;">{customer_name}</td></tr>
-                    <tr><td style="padding: 3px; font-weight: bold;">연락처:</td><td style="padding: 3px;">{phone}</td></tr>
-                    <tr><td style="padding: 3px; font-weight: bold;">주소:</td><td style="padding: 3px;">{address}</td></tr>
-                    <tr><td style="padding: 3px; font-weight: bold;">제품:</td><td style="padding: 3px;">{product}</td></tr>
-                    <tr><td style="padding: 3px; font-weight: bold;">상태:</td><td style="padding: 3px; color: {status_color};">{status}</td></tr>
-                    <tr><td style="padding: 3px; font-weight: bold;">접수일:</td><td style="padding: 3px;">{received_date}</td></tr>
+                    <tr><td style="padding: 3px; font-weight: bold;">고객명:</td><td style="padding: 3px;">{customer_name_escaped}</td></tr>
+                    <tr><td style="padding: 3px; font-weight: bold;">연락처:</td><td style="padding: 3px;">{phone_escaped}</td></tr>
+                    <tr><td style="padding: 3px; font-weight: bold;">주소:</td><td style="padding: 3px;">{address_escaped}</td></tr>
+                    <tr><td style="padding: 3px; font-weight: bold;">제품:</td><td style="padding: 3px;">{product_escaped}</td></tr>
+                    <tr><td style="padding: 3px; font-weight: bold;">상태:</td><td style="padding: 3px; color: {status_color};">{status_escaped}</td></tr>
+                    <tr><td style="padding: 3px; font-weight: bold;">접수일:</td><td style="padding: 3px;">{received_date_escaped}</td></tr>
                     <tr><td style="padding: 3px; font-weight: bold;">좌표:</td><td style="padding: 3px;">{lat:.6f}, {lng:.6f}</td></tr>
                     {duplicate_row}
                 </table>
@@ -322,14 +316,13 @@ class FOMSMapGenerator:
             # 지도 마커: 고객명 표기 (Pro 스타일 · 모바일 시인성)
             name_display = (customer_name[:MAP_MARKER_NAME_MAX_LEN] + "…") if len(customer_name) > MAP_MARKER_NAME_MAX_LEN else customer_name
             name_display_escaped = html.escape(name_display)
-            customer_name_js = json.dumps(customer_name)  # JS 문자열 이스케이프
-            name_display_js = json.dumps(name_display)
 
             # Pro 디자인: pill 배지, 넉넉한 패딩/폰트, 그림자로 시인성 확보 (모바일 시인성)
             icon_html = f"""
             <div class="foms-map-marker"
                 data-marker-index="{idx}"
-                data-order-id="{order_id}"
+                data-order-id="{order_id_attr}"
+                data-customer-name="{customer_name_escaped}"
                 data-lat="{lat}"
                 data-lng="{lng}"
                 data-base-background="{marker_bg}"
@@ -369,75 +362,15 @@ class FOMSMapGenerator:
             """
             icon_w = max(80, min(184, len(name_display) * 14 + 24 + (32 if is_duplicate else 0)))
             icon_h = 36
-
-            # 마커 클릭 시 경로 계산 (선택 시에도 이름 배지 유지)
-            marker_click_js = f"""
-            function(e) {{
-                var marker = e.target;
-                var lat = {lat};
-                var lng = {lng};
-                var orderId = {order_id};
-                var customerName = {customer_name_js};
-                var nameDisplay = {name_display_js};
-                
-                if (window.selectedMarkers) {{
-                    if (window.selectedMarkers.length === 0) {{
-                        window.selectedMarkers.push({{lat: lat, lng: lng, orderId: orderId, name: customerName}});
-                        marker.setIcon(L.divIcon({{
-                            html: '<div style="background:#ef4444;color:#fff;border-radius:9999px;padding:6px 12px;font-weight:600;font-size:14px;line-height:1.2;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;border:2px solid #b91c1c;box-shadow:0 2px 8px rgba(0,0,0,0.25);font-family:-apple-system,BlinkMacSystemFont,\\'Segoe UI\\',Roboto,\\'Noto Sans KR\\',sans-serif;">' + nameDisplay + '</div>',
-                            iconSize: [{icon_w}, {icon_h}],
-                            iconAnchor: [{icon_w // 2}, {icon_h}]
-                        }}));
-                        window.routeStatus.innerHTML = '<div style="background: #e3f2fd; padding: 10px; border-radius: 5px; margin-bottom: 10px;"><strong>출발지 선택됨:</strong> ' + customerName + '<br><small>도착지를 선택해주세요.</small></div>';
-                    }} else if (window.selectedMarkers.length === 1) {{
-                        var start = window.selectedMarkers[0];
-                        var end = {{lat: lat, lng: lng, orderId: orderId, name: customerName}};
-                        if (start.orderId === end.orderId) {{
-                            alert('같은 주문을 선택했습니다. 다른 주문을 선택해주세요.');
-                            return;
-                        }}
-                        window.selectedMarkers.push(end);
-                        marker.setIcon(L.divIcon({{
-                            html: '<div style="background:#10b981;color:#fff;border-radius:9999px;padding:6px 12px;font-weight:600;font-size:14px;line-height:1.2;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;border:2px solid #059669;box-shadow:0 2px 8px rgba(0,0,0,0.25);font-family:-apple-system,BlinkMacSystemFont,\\'Segoe UI\\',Roboto,\\'Noto Sans KR\\',sans-serif;">' + nameDisplay + '</div>',
-                            iconSize: [{icon_w}, {icon_h}],
-                            iconAnchor: [{icon_w // 2}, {icon_h}]
-                        }}));
-                        
-                        // 경로 계산 시작
-                        calculateRoute(start, end);
-                    }} else {{
-                        // 초기화
-                        resetRouteCalculation();
-                    }}
-                }} else {{
-                    // 전역 변수 초기화
-                    window.selectedMarkers = [];
-                    window.currentRouteLine = null;
-                    
-                    // 상태 표시 영역 생성
-                    if (!window.routeStatus) {{
-                        var statusDiv = L.control({{position: 'topright'}});
-                        statusDiv.onAdd = function(map) {{
-                            var div = L.DomUtil.create('div', 'route-status');
-                            div.style.cssText = 'background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); font-family: "Malgun Gothic", sans-serif; min-width: 250px; max-width: 400px;';
-                            div.innerHTML = '<h4 style="margin: 0 0 10px 0; color: #333;">🚗 경로 계산</h4><p style="margin: 0; color: #666;">주문 마커를 2개 선택하면 차량 이동 시간을 계산합니다.</p>';
-                            return div;
-                        }};
-                        statusDiv.addTo(window.mapObject);
-                        window.routeStatus = statusDiv.getContainer().querySelector('.route-status');
-                    }}
-                    
-                    // 첫 번째 마커로 다시 시도
-                    this.click();
-                }}
-            }}
-            """
             
             # DivIcon: 고객명 pill 배지 (Pro · 모바일 시인성)
             marker = folium.Marker(
                 location=[lat, lng],
                 popup=folium.Popup(popup_html, max_width=350),
-                tooltip=f"{customer_name} · {('중복 위치 x' + str(duplicate_group_size) + ' · ' if is_duplicate else '')}{status}",
+                tooltip=html.escape(
+                    f"{customer_name} · {('중복 위치 x' + str(duplicate_group_size) + ' · ' if is_duplicate else '')}{status}",
+                    quote=True,
+                ),
                 icon=folium.DivIcon(
                     html=icon_html,
                     icon_size=(icon_w, icon_h),
@@ -446,34 +379,16 @@ class FOMSMapGenerator:
             )
             
             marker.add_to(m)
-            
-            # 마커에 클릭 이벤트 추가를 위한 JavaScript 코드
-            click_js = f"""
-            <script>
-            document.addEventListener('DOMContentLoaded', function() {{
-                setTimeout(function() {{
-                    var markers = document.querySelectorAll('.leaflet-marker-icon');
-                    markers.forEach(function(markerEl, index) {{
-                        if (index === {idx - 1}) {{ // 현재 마커 인덱스
-                            markerEl.addEventListener('click', function() {{
-                                handleMarkerClick({lat}, {lng}, {order_id}, "{customer_name}", {idx});
-                            }});
-                        }}
-                    }});
-                }}, 1000);
-            }});
-            </script>
-            """
-            getattr(m.get_root(), "html").add_child(folium.Element(click_js))
         
         # 범례 추가
+        title_escaped = html.escape(str(title), quote=False)
         legend_html = f"""
         <div style="position: fixed; 
                     bottom: 50px; left: 50px; width: 200px; height: auto; 
                     background-color: white; border:2px solid grey; z-index:9999; 
                     font-size:14px; padding: 10px; font-family: 'Malgun Gothic', sans-serif;
                     box-shadow: 0 2px 6px rgba(0,0,0,0.3); border-radius: 5px;">
-        <h4 style="margin-top: 0;">{title}</h4>
+        <h4 style="margin-top: 0;">{title_escaped}</h4>
         <p><strong>총 {len(valid_data)}개 주문</strong></p>
         <div style="margin-top: 10px;">
             <div style="margin: 3px 0;"><span style="color: #007bff;">●</span> 접수</div>
@@ -520,6 +435,7 @@ class FOMSMapGenerator:
         window.routeStatus = null;
         window.mapObject = null;
         window.visualOverlapFrame = null;
+        window.duplicateMarkerZoomThreshold = 14;
         
         // 지도 객체 참조 설정 (DOM 로드 후)
         document.addEventListener('DOMContentLoaded', function() {
@@ -554,6 +470,18 @@ class FOMSMapGenerator:
             markerPill.style.zIndex = '';
         }
 
+        function setRenderedMarkerVisibility(markerPill, visible) {
+            if (!markerPill) {
+                return;
+            }
+            var wrapper = markerPill.closest('.leaflet-marker-icon');
+            if (!wrapper) {
+                return;
+            }
+            wrapper.style.display = visible ? '' : 'none';
+            markerPill.style.pointerEvents = visible ? '' : 'none';
+        }
+
         function getDuplicateMarkerLayoutMeta(markerPill) {
             if (!markerPill) {
                 return null;
@@ -571,15 +499,9 @@ class FOMSMapGenerator:
             };
         }
 
-        function applyDuplicateMarkerLayout() {
-            var markerPills = getRenderedMarkerPills();
-            if (!markerPills.length) {
-                return;
-            }
-
+        function buildDuplicateMarkerGroups(markerPills) {
             var duplicateGroups = {};
             markerPills.forEach(function(markerPill) {
-                clearMarkerVisualOffset(markerPill);
                 var meta = getDuplicateMarkerLayoutMeta(markerPill);
                 if (!meta) {
                     return;
@@ -592,6 +514,29 @@ class FOMSMapGenerator:
                     groupIndex: meta.groupIndex,
                 });
             });
+            return duplicateGroups;
+        }
+
+        function isDuplicateMarkerExpandedView() {
+            if (!window.mapObject || typeof window.mapObject.getZoom !== 'function') {
+                return true;
+            }
+            return window.mapObject.getZoom() >= window.duplicateMarkerZoomThreshold;
+        }
+
+        function applyDuplicateMarkerLayout() {
+            var markerPills = getRenderedMarkerPills();
+            if (!markerPills.length) {
+                return;
+            }
+
+            markerPills.forEach(function(markerPill) {
+                clearMarkerVisualOffset(markerPill);
+                setRenderedMarkerVisibility(markerPill, true);
+            });
+
+            var duplicateGroups = buildDuplicateMarkerGroups(markerPills);
+            var expandedView = isDuplicateMarkerExpandedView();
 
             Object.keys(duplicateGroups).forEach(function(groupKey) {
                 var groupItems = duplicateGroups[groupKey];
@@ -602,6 +547,20 @@ class FOMSMapGenerator:
                 groupItems.sort(function(first, second) {
                     return first.groupIndex - second.groupIndex;
                 });
+
+                if (!expandedView) {
+                    groupItems.forEach(function(groupItem, position) {
+                        var routeState = groupItem.pill.dataset.routeState || 'none';
+                        var forceVisible = routeState !== 'none';
+                        var isRepresentative = position === 0;
+                        setRenderedMarkerVisibility(groupItem.pill, isRepresentative || forceVisible);
+                        clearMarkerVisualOffset(groupItem.pill);
+                        if (isRepresentative || forceVisible) {
+                            groupItem.pill.style.zIndex = String(300 + groupItems.length - position);
+                        }
+                    });
+                    return;
+                }
 
                 var maxWidth = 0;
                 var maxHeight = 0;
@@ -719,6 +678,10 @@ class FOMSMapGenerator:
             );
         }
 
+        function hasDuplicateMarkerGroup(markerPill) {
+            return !!getDuplicateMarkerLayoutMeta(markerPill);
+        }
+
         function refreshVisualOverlapMarkers() {
             var markerPills = getRenderedMarkerPills();
             if (!markerPills.length) {
@@ -747,8 +710,12 @@ class FOMSMapGenerator:
             for (var i = 0; i < visibleMarkers.length; i++) {
                 for (var j = i + 1; j < visibleMarkers.length; j++) {
                     if (rectanglesOverlap(visibleMarkers[i].rect, visibleMarkers[j].rect, 6)) {
-                        overlappingMarkers.add(visibleMarkers[i].pill);
-                        overlappingMarkers.add(visibleMarkers[j].pill);
+                        if (hasDuplicateMarkerGroup(visibleMarkers[i].pill)) {
+                            overlappingMarkers.add(visibleMarkers[i].pill);
+                        }
+                        if (hasDuplicateMarkerGroup(visibleMarkers[j].pill)) {
+                            overlappingMarkers.add(visibleMarkers[j].pill);
+                        }
                     }
                 }
             }
@@ -779,45 +746,56 @@ class FOMSMapGenerator:
             document.body.appendChild(statusDiv);
             window.routeStatus = statusDiv;
         }
+
+        function escapeHtml(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function bindMarkerClickDelegation() {
+            if (window.markerClickDelegationBound) {
+                return;
+            }
+            document.addEventListener('click', function(event) {
+                var markerPill = event.target.closest('.leaflet-marker-icon .foms-map-marker');
+                if (!markerPill) {
+                    return;
+                }
+                handleMarkerClick(
+                    parseFloat(markerPill.dataset.lat || '0'),
+                    parseFloat(markerPill.dataset.lng || '0'),
+                    markerPill.dataset.orderId || '',
+                    markerPill.dataset.customerName || '',
+                    parseInt(markerPill.dataset.markerIndex || '0', 10)
+                );
+            });
+            window.markerClickDelegationBound = true;
+        }
         
         // 마커 클릭 핸들러
         function handleMarkerClick(lat, lng, orderId, customerName, markerIndex) {
             if (!window.selectedMarkers) {
                 window.selectedMarkers = [];
             }
-            ensureRouteStatusPanel();
-            
-            // 상태 표시 영역 생성 (아직 없다면)
-            if (!window.routeStatus) {
-                var statusDiv = document.createElement('div');
-                statusDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); font-family: "Malgun Gothic", sans-serif; min-width: 250px; max-width: 400px; z-index: 1000;';
-                statusDiv.innerHTML = '<h4 style="margin: 0 0 10px 0; color: #333;">🚗 경로 계산</h4><p style="margin: 0; color: #666;">주문 마커를 2개 선택하면 차량 이동 시간을 계산합니다.</p>';
-                document.body.appendChild(statusDiv);
-                window.routeStatus = statusDiv;
+            if (!markerIndex) {
+                return;
             }
+            ensureRouteStatusPanel();
             
             if (window.selectedMarkers.length === 0) {
                 // 첫 번째 마커 선택
                 window.selectedMarkers.push({lat: lat, lng: lng, orderId: orderId, name: customerName, index: markerIndex});
                 applyRouteMarkerTheme(getMarkerPillByIndex(markerIndex), 'start');
-                
-                // 마커 색상 변경 (빨간색 - 출발지)
-                var markers = document.querySelectorAll('.leaflet-marker-icon');
-                if (markers[markerIndex - 1]) {
-                    var markerEl = markers[markerIndex - 1];
-                    var divEl = markerEl.querySelector('div');
-                    if (divEl) {
-                        divEl.style.background = '#ff6b6b';
-                        divEl.style.border = '3px solid #ff0000';
-                    }
-                }
-                
-                window.routeStatus.innerHTML = '<div style="background: #e3f2fd; padding: 10px; border-radius: 5px; margin-bottom: 10px;"><strong>출발지 선택됨:</strong> ' + customerName + '<br><small>도착지를 선택해주세요.</small></div>';
+                window.routeStatus.innerHTML = '<div style="background: #e3f2fd; padding: 10px; border-radius: 5px; margin-bottom: 10px;"><strong>출발지 선택됨:</strong> ' + escapeHtml(customerName) + '<br><small>도착지를 선택해주세요.</small></div>';
                 
             } else if (window.selectedMarkers.length === 1) {
                 var start = window.selectedMarkers[0];
                 
-                if (start.orderId === orderId) {
+                if (String(start.orderId) === String(orderId)) {
                     alert('같은 주문을 선택했습니다. 다른 주문을 선택해주세요.');
                     return;
                 }
@@ -826,18 +804,6 @@ class FOMSMapGenerator:
                 var end = {lat: lat, lng: lng, orderId: orderId, name: customerName, index: markerIndex};
                 window.selectedMarkers.push(end);
                 applyRouteMarkerTheme(getMarkerPillByIndex(markerIndex), 'end');
-                
-                // 마커 색상 변경 (초록색 - 도착지)
-                var markers = document.querySelectorAll('.leaflet-marker-icon');
-                if (markers[markerIndex - 1]) {
-                    var markerEl = markers[markerIndex - 1];
-                    var divEl = markerEl.querySelector('div');
-                    if (divEl) {
-                        divEl.style.background = '#4caf50';
-                        divEl.style.border = '3px solid #2e7d32';
-                    }
-                }
-                
                 // 경로 계산 시작
                 calculateRoute(start, end);
                 
@@ -852,11 +818,21 @@ class FOMSMapGenerator:
         function calculateRoute(start, end) {
             window.routeStatus.innerHTML = '<div style="background: #fff3cd; padding: 10px; border-radius: 5px;"><strong>경로 계산 중...</strong><br><small>잠시만 기다려주세요.</small></div>';
             
-            fetch(`/api/calculate_route?start_lat=${start.lat}&start_lng=${start.lng}&end_lat=${end.lat}&end_lng=${end.lng}`)
-                .then(response => response.json())
+            fetch(`/api/calculate_route?start_lat=${encodeURIComponent(start.lat)}&start_lng=${encodeURIComponent(start.lng)}&end_lat=${encodeURIComponent(end.lat)}&end_lng=${encodeURIComponent(end.lng)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.success) {
                         var routeData = data.data;
+                        var startName = escapeHtml(start.name);
+                        var endName = escapeHtml(end.name);
+                        var distanceText = escapeHtml(routeData.summary.distance_text);
+                        var durationText = escapeHtml(routeData.summary.duration_text);
+                        var tollText = escapeHtml(routeData.summary.toll_text);
                         
                         // 경로 라인 그리기
                         if (window.currentRouteLine) {
@@ -882,11 +858,11 @@ class FOMSMapGenerator:
                         var resultHtml = `
                             <div style="background: #d4edda; padding: 15px; border-radius: 5px; border-left: 4px solid #28a745;">
                                 <h4 style="margin: 0 0 10px 0; color: #155724;">🚗 경로 정보</h4>
-                                <div style="margin-bottom: 8px;"><strong>출발:</strong> ${start.name}</div>
-                                <div style="margin-bottom: 8px;"><strong>도착:</strong> ${end.name}</div>
-                                <div style="margin-bottom: 8px;"><strong>거리:</strong> ${routeData.summary.distance_text}</div>
-                                <div style="margin-bottom: 8px;"><strong>소요시간:</strong> ${routeData.summary.duration_text}</div>
-                                <div style="margin-bottom: 15px;"><strong>통행료:</strong> ${routeData.summary.toll_text}</div>
+                                <div style="margin-bottom: 8px;"><strong>출발:</strong> ${startName}</div>
+                                <div style="margin-bottom: 8px;"><strong>도착:</strong> ${endName}</div>
+                                <div style="margin-bottom: 8px;"><strong>거리:</strong> ${distanceText}</div>
+                                <div style="margin-bottom: 8px;"><strong>소요시간:</strong> ${durationText}</div>
+                                <div style="margin-bottom: 15px;"><strong>통행료:</strong> ${tollText}</div>
                                 <button onclick="resetRouteCalculation()" style="background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 12px;">초기화</button>
                             </div>
                         `;
@@ -894,7 +870,7 @@ class FOMSMapGenerator:
                         scheduleVisualOverlapRefresh();
                         
                     } else {
-                        window.routeStatus.innerHTML = `<div style="background: #f8d7da; padding: 10px; border-radius: 5px; color: #721c24;"><strong>오류:</strong> ${data.error}</div>`;
+                        window.routeStatus.innerHTML = `<div style="background: #f8d7da; padding: 10px; border-radius: 5px; color: #721c24;"><strong>오류:</strong> ${escapeHtml(data.error)}</div>`;
                     }
                 })
                 .catch(error => {
@@ -905,22 +881,6 @@ class FOMSMapGenerator:
         
         // 경로 계산 초기화
         function resetRouteCalculation() {
-            // 선택된 마커들의 색상 복원
-            if (window.selectedMarkers && window.selectedMarkers.length > 0) {
-                var markers = document.querySelectorAll('.leaflet-marker-icon');
-                window.selectedMarkers.forEach(function(selected) {
-                    if (markers[selected.index - 1]) {
-                        var markerEl = markers[selected.index - 1];
-                        var divEl = markerEl.querySelector('div');
-                        if (divEl) {
-                            // 원래 색상으로 복원 (기본 파란색)
-                            divEl.style.background = '#007bff';
-                            divEl.style.border = '2px solid white';
-                        }
-                    }
-                });
-            }
-            
             if (window.selectedMarkers && window.selectedMarkers.length > 0) {
                 window.selectedMarkers.forEach(function(selected) {
                     applyRouteMarkerTheme(getMarkerPillByIndex(selected.index), 'none');
@@ -940,6 +900,7 @@ class FOMSMapGenerator:
             }
             scheduleVisualOverlapRefresh();
         }
+        bindMarkerClickDelegation();
         </script>
         """
         
@@ -972,13 +933,14 @@ class FOMSMapGenerator:
         ).add_to(m)
         
         # 메시지 범례 추가
+        title_escaped = html.escape(str(title), quote=False)
         message_html = f"""
         <div style="position: fixed; 
                     bottom: 50px; left: 50px; width: 300px; height: auto; 
                     background-color: white; border:2px solid grey; z-index:9999; 
                     font-size:14px; padding: 20px; font-family: 'Malgun Gothic', sans-serif;
                     box-shadow: 0 2px 6px rgba(0,0,0,0.3); border-radius: 5px;">
-        <h4 style="margin-top: 0; color: #007bff;">{title}</h4>
+        <h4 style="margin-top: 0; color: #007bff;">{title_escaped}</h4>
         <p><strong>표시할 주문이 없습니다</strong></p>
         <p>선택한 날짜에 해당하는 주문이 없거나<br/>
         좌표 변환에 실패했습니다.</p>

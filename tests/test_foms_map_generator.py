@@ -96,6 +96,12 @@ def test_map_html_includes_visual_overlap_detection_hooks():
 
     assert "scheduleVisualOverlapRefresh" in html
     assert "refreshVisualOverlapMarkers" in html
+    assert "escapeHtml" in html
+    assert "bindMarkerClickDelegation" in html
+    assert "event.target.closest('.leaflet-marker-icon .foms-map-marker')" in html
+    assert "String(start.orderId) === String(orderId)" in html
+    assert "encodeURIComponent(start.lat)" in html
+    assert "!response.ok" in html
     assert "getBoundingClientRect()" in html
     assert "data-route-state" in html
     assert "data-overlap-background" in html
@@ -128,6 +134,10 @@ def test_map_html_includes_duplicate_group_layout_hooks():
     )
 
     assert "applyDuplicateMarkerLayout" in html
+    assert "window.duplicateMarkerZoomThreshold = 14" in html
+    assert "setRenderedMarkerVisibility" in html
+    assert "window.mapObject.getZoom() >= window.duplicateMarkerZoomThreshold" in html
+    assert "wrapper.style.display = visible ? '' : 'none'" in html
     assert "clearMarkerVisualOffset" in html
     assert "applyDuplicateMarkerLayout();" in html
     assert "style.transform = 'translate(" in html

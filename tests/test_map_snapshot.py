@@ -85,7 +85,8 @@ def test_build_measurement_snapshot_marks_duplicate_locations_and_addresses():
     assert rows[102]["marker_render_hint"] == "pastel_pink"
     assert rows[103]["marker_render_hint"] == "pastel_pink"
 
-    assert markers[101]["latitude"] != markers[102]["latitude"] or markers[101]["longitude"] != markers[102]["longitude"]
+    assert markers[101]["latitude"] == markers[102]["latitude"]
+    assert markers[101]["longitude"] == markers[102]["longitude"]
     assert markers[101]["customer_name"] == "윤인선"
     assert markers[102]["customer_name"] == "김나래"
     assert markers[103]["customer_name"] == "박성준"
