@@ -7,6 +7,11 @@ from sqlalchemy import or_, and_, cast, String, func
 from models import Order
 from services.erp_display import normalize_manager_name
 from services.geocode_helpers import extract_address_from_order
+from services.erp_shipment_settings import load_erp_shipment_settings
+from services.measurement_manager_colors import (
+    build_measurement_manager_color_map,
+    resolve_measurement_manager_color,
+)
 
 
 def _measurement_date_variants(yyyy_mm_dd):
@@ -290,13 +295,14 @@ def _annotate_marker_metadata(orders_list, markers):
             item.setdefault('marker_render_hint', 'status')
 
 
-def build_measurement_snapshot(orders, manager_filter=None):
+def build_measurement_snapshot(orders, manager_filter=None, measurement_manager_options=None):
     """
     주문 리스트에서 canonical DTO 조립 (목록 + 마커 + 요약).
 
     Args:
         orders: Order 객체 리스트 (self_measurement_four_checks_done 제외된 상태)
         manager_filter: 담당자 필터 (부분 일치, None이면 미적용)
+        measurement_manager_options: 실측 담당자 설정 목록 (테스트/호출자 주입용)
 
     Returns:
         {
@@ -305,6 +311,7 @@ def build_measurement_snapshot(orders, manager_filter=None):
             'summary': { total_orders, marker_count, pending_count, failed_count, success_count }
         }
     """
+    prepared_orders = []
     orders_list = []
     markers = []
     pending_count = 0
@@ -331,6 +338,41 @@ def build_measurement_snapshot(orders, manager_filter=None):
         else:
             success_count += 1
 
+        prepared_orders.append({
+            'order': order,
+            'ctx': ctx,
+            'lat': lat,
+            'lng': lng,
+            'conversion_status': status,
+        })
+
+    measurement_manager_options = (
+        measurement_manager_options
+        if measurement_manager_options is not None
+        else (load_erp_shipment_settings().get('measurement_manager') or [])
+    )
+    manager_color_map = build_measurement_manager_color_map(
+        [
+            {
+                'manager_name': item['ctx']['manager_name'],
+                'order_id': item['order'].id,
+            }
+            for item in prepared_orders
+        ],
+        measurement_manager_options,
+    )
+
+    for item in prepared_orders:
+        order = item['order']
+        ctx = item['ctx']
+        lat = item['lat']
+        lng = item['lng']
+        status = item['conversion_status']
+        manager_color = resolve_measurement_manager_color(
+            ctx['manager_name'],
+            manager_color_map,
+        )
+
         orders_list.append({
             'id': order.id,
             'customer_name': ctx['customer_name'],
@@ -348,6 +390,9 @@ def build_measurement_snapshot(orders, manager_filter=None):
             'conversion_status': status,
             'latitude': float(lat) if lat is not None else None,
             'longitude': float(lng) if lng is not None else None,
+            'manager_bg_color': manager_color['background'],
+            'manager_bg_source': manager_color['source'],
+            'manager_text_color': manager_color['text'],
         })
 
         if lat is not None and lng is not None:
@@ -362,6 +407,10 @@ def build_measurement_snapshot(orders, manager_filter=None):
                 'received_date': _format_date(order.received_date),
                 'measurement_time': ctx.get('measurement_time'),
                 'phone': ctx['phone'],
+                'manager_name': ctx['manager_name'],
+                'manager_bg_color': manager_color['background'],
+                'manager_bg_source': manager_color['source'],
+                'manager_text_color': manager_color['text'],
             })
 
     # 동일 주소/좌표 메타데이터만 부여하고, 실제 집계/분리 UX는 클라이언트 줌 상태에서 제어한다.

@@ -164,7 +164,21 @@ class FOMSMapGenerator:
         return prepared
 
     def _get_marker_theme(self, order):
-        """상태색 또는 중복 위치용 파스텔 핑크 테마를 반환한다."""
+        """실측 담당자색 또는 상태색 기반 마커 테마를 반환한다."""
+        manager_bg = str(order.get('manager_bg_color') or '').strip()
+        manager_bg_source = str(order.get('manager_bg_source') or '').strip()
+        manager_text = str(order.get('manager_text_color') or '#000000').strip() or '#000000'
+        if manager_bg and manager_bg_source == 'palette':
+            return {
+                'background': manager_bg,
+                'border': '#ffffff',
+                'text': manager_text,
+                'shadow': 'rgba(0, 0, 0, 0.18)',
+                'badge_bg': '#ffffff',
+                'badge_text': '#0f172a',
+                'label_prefix': '담당',
+            }
+
         if order.get('is_duplicate_location') or int(order.get('duplicate_group_size') or 0) > 1:
             return {
                 'background': OVERLAP_MARKER_COLOR,
@@ -252,12 +266,14 @@ class FOMSMapGenerator:
             status = order.get('status', 'UNKNOWN')
             received_date = order.get('received_date', '날짜없음')
             phone = order.get('phone', '연락처없음')
+            manager_name = order.get('manager_name') or '-'
             customer_name_escaped = html.escape(str(customer_name), quote=True)
             address_escaped = html.escape(str(address), quote=True)
             product_escaped = html.escape(str(product), quote=True)
             status_escaped = html.escape(str(status), quote=True)
             received_date_escaped = html.escape(str(received_date), quote=True)
             phone_escaped = html.escape(str(phone), quote=True)
+            manager_name_escaped = html.escape(str(manager_name), quote=True)
             
             # 상태별 색상
             status_color = self._get_status_color(status)
@@ -302,6 +318,7 @@ class FOMSMapGenerator:
                 <h4 style="margin: 0 0 10px 0; color: {marker_text};">주문 #{order_id_display}{duplicate_badge_html}</h4>
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr><td style="padding: 3px; font-weight: bold;">고객명:</td><td style="padding: 3px;">{customer_name_escaped}</td></tr>
+                    <tr><td style="padding: 3px; font-weight: bold;">담당자:</td><td style="padding: 3px;">{manager_name_escaped}</td></tr>
                     <tr><td style="padding: 3px; font-weight: bold;">연락처:</td><td style="padding: 3px;">{phone_escaped}</td></tr>
                     <tr><td style="padding: 3px; font-weight: bold;">주소:</td><td style="padding: 3px;">{address_escaped}</td></tr>
                     <tr><td style="padding: 3px; font-weight: bold;">제품:</td><td style="padding: 3px;">{product_escaped}</td></tr>
