@@ -468,7 +468,7 @@ register_context_processors(app)
 @app.route('/favicon.ico')
 def favicon():
     """공용 favicon 자산을 반환한다."""
-    return current_app.send_static_file('favicon.svg')
+    return current_app.send_static_file('favicon.png')
 
 # WSGI 기동 시 DB 자동 초기화 (gunicorn 등). python app.py 시에는 run.py에서 처리
 if __name__ != '__main__':
