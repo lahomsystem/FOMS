@@ -12,7 +12,7 @@ import datetime
 from apps.erp import _normalize_for_search
 from services.erp_permissions import can_edit_erp
 from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
-from foms.services.as_content_safety import sanitize_as_content_html
+from services.as_content_safety import sanitize_as_content_html
 
 
 erp_as_page_bp = Blueprint('erp_as_page', __name__, url_prefix='/erp')
