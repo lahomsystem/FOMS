@@ -196,6 +196,96 @@
     padding: 0 1px;
     border-radius: 2px;
   }
+
+  .erp-as-top-tabs .nav-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .erp-as-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.08);
+    color: #475569;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .erp-as-top-tabs .nav-link.active .erp-as-tab-count {
+    background: rgba(13, 110, 253, 0.12);
+    color: #0d6efd;
+  }
+
+  .erp-as-summary-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .erp-as-summary-pill {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    padding: 12px 14px;
+  }
+
+  .erp-as-summary-pill__label {
+    display: block;
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .erp-as-summary-pill__value {
+    display: block;
+    color: #0f172a;
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .erp-as-mobile-tabs__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.08);
+    color: inherit;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .erp-as-mobile-tabs__item.is-active .erp-as-mobile-tabs__count {
+    background: rgba(255, 255, 255, 0.22);
+    color: #fff;
+  }
+
+  @media (max-width: 992px) {
+    .erp-as-summary-strip {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .erp-as-summary-pill {
+      padding: 10px 12px;
+    }
+
+    .erp-as-summary-pill__value {
+      font-size: 1rem;
+    }
+  }
 </style>
 <div class="erp-pro erp-mobile-shell erp-as-dashboard" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -233,24 +323,35 @@
       <ul class="nav nav-tabs nav-fill border-bottom-0">
         <li class="nav-item">
           <a class="nav-link {{ 'active' if as_tab == 'sales_delivery' else '' }}"
+            data-as-tab-key="sales_delivery"
+            data-as-tab-count="{{ as_tab_counts.sales_delivery }}"
             href="{{ url_for('erp_as_page.erp_as_dashboard', tab='sales_delivery', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
             title="영업/택배">
             <i class="fas fa-truck text-secondary fs-5"></i>
             <span class="ms-1">영업/택배</span>
+            <span class="erp-as-tab-count">{{ as_tab_counts.sales_delivery }}</span>
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link {{ 'active' if as_tab == 'incomplete' else '' }}"
+            data-as-tab-key="incomplete"
+            data-as-tab-count="{{ as_tab_counts.incomplete }}"
             href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
             title="완료 안된 건">
             <i class="fas fa-times text-danger fs-5"></i>
+            <span class="ms-1">미완료</span>
+            <span class="erp-as-tab-count">{{ as_tab_counts.incomplete }}</span>
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link {{ 'active' if as_tab == 'completed' else '' }}"
+            data-as-tab-key="completed"
+            data-as-tab-count="{{ as_tab_counts.completed }}"
             href="{{ url_for('erp_as_page.erp_as_dashboard', tab='completed', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
             title="완료 된 건">
             <i class="far fa-circle text-primary fw-bold fs-5"></i>
+            <span class="ms-1">완료</span>
+            <span class="erp-as-tab-count">{{ as_tab_counts.completed }}</span>
           </a>
         </li>
       </ul>
@@ -290,6 +391,26 @@
       </form>
     </div>
     <div class="erp-pro-card__body">
+      {% if as_tab == 'incomplete' %}
+      <div class="erp-as-summary-strip" aria-label="AS 미완료 요약">
+        <div class="erp-as-summary-pill" data-as-incomplete-summary="total" data-count="{{ as_incomplete_summary.total }}">
+          <span class="erp-as-summary-pill__label">총 건수</span>
+          <span class="erp-as-summary-pill__value">{{ as_incomplete_summary.total }}건</span>
+        </div>
+        <div class="erp-as-summary-pill" data-as-incomplete-summary="visit_confirmed" data-count="{{ as_incomplete_summary.visit_confirmed }}">
+          <span class="erp-as-summary-pill__label">방문 확정</span>
+          <span class="erp-as-summary-pill__value">{{ as_incomplete_summary.visit_confirmed }}건</span>
+        </div>
+        <div class="erp-as-summary-pill" data-as-incomplete-summary="pending" data-count="{{ as_incomplete_summary.pending }}">
+          <span class="erp-as-summary-pill__label">미결</span>
+          <span class="erp-as-summary-pill__value">{{ as_incomplete_summary.pending }}건</span>
+        </div>
+        <div class="erp-as-summary-pill" data-as-incomplete-summary="unassigned" data-count="{{ as_incomplete_summary.unassigned }}">
+          <span class="erp-as-summary-pill__label">아직 미정</span>
+          <span class="erp-as-summary-pill__value">{{ as_incomplete_summary.unassigned }}건</span>
+        </div>
+      </div>
+      {% endif %}
       <!-- PC Table View -->
       <div class="erp-pro-table-wrapper d-none d-md-block">
         <table class="erp-pro-table">

@@ -12,7 +12,7 @@ import datetime
 from apps.erp import _normalize_for_search
 from services.erp_permissions import can_edit_erp
 from services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
-from services.as_content_safety import sanitize_as_content_html
+from foms.services.as_content_safety import sanitize_as_content_html
 
 
 erp_as_page_bp = Blueprint('erp_as_page', __name__, url_prefix='/erp')
@@ -127,6 +127,27 @@ def _sales_delivery_true_filter(sales_delivery_expr):
     return func.lower(cast(sales_delivery_expr, String)).in_(['true', '1', 'yes'])
 
 
+def _as_pending_expr(*, dialect_name=''):
+    """structured_data.shipment.as_pending 추출 (집계용)."""
+    return func.coalesce(
+        cast(_json_text_expr('shipment', 'as_pending', dialect_name=dialect_name), String),
+        'false'
+    )
+
+
+def _as_visit_date_expr(*, dialect_name=''):
+    """structured_data.schedule.as_visit.date 추출 (집계용)."""
+    return func.coalesce(
+        cast(_json_text_expr('schedule', 'as_visit', 'date', dialect_name=dialect_name), String),
+        ''
+    )
+
+
+def _has_text_value(expr):
+    """빈 문자열이 아닌 값 판정용 SQL 식."""
+    return func.trim(func.coalesce(cast(expr, String), '')) != ''
+
+
 def _order_is_sales_delivery(order):
     """주문이 영업/택배 탭 소속인지 판별."""
     sd = _ensure_dict(getattr(order, 'structured_data', None))
@@ -173,15 +194,40 @@ def _erp_as_tab_for_order(order):
 
 def _erp_as_incomplete_filter(query):
     """AS 미완료 탭 공통 필터."""
-    return query.filter(
-        or_(
-            Order.status == 'AS_RECEIVED',
-            and_(
-                Order.status == 'AS_COMPLETED',
-                or_(
-                    Order.as_completed_date.is_(None),
-                    Order.as_completed_date == ''
-                )
+    return query.filter(_erp_as_incomplete_condition())
+
+
+def _erp_as_completed_condition():
+    """AS 완료 탭 공통 조건."""
+    return and_(
+        Order.status == 'AS_COMPLETED',
+        Order.as_completed_date.isnot(None),
+        Order.as_completed_date != ''
+    )
+
+
+def _count_cases(query, *definitions):
+    """여러 조건의 집계를 한 번에 계산한다."""
+    columns = [
+        func.coalesce(func.sum(case((condition, 1), else_=0)), 0).label(name)
+        for name, condition in definitions
+    ]
+    row = query.with_entities(*columns).one()
+    return {
+        name: int(getattr(row, name) or 0)
+        for name, _condition in definitions
+    }
+
+
+def _erp_as_incomplete_condition():
+    """AS 미완료 탭 공통 조건."""
+    return or_(
+        Order.status == 'AS_RECEIVED',
+        and_(
+            Order.status == 'AS_COMPLETED',
+            or_(
+                Order.as_completed_date.is_(None),
+                Order.as_completed_date == ''
             )
         )
     )
@@ -211,6 +257,8 @@ def erp_as_dashboard():
     use_postgres = dialect_name == 'postgresql'
     sales_delivery = _sales_delivery_expr(dialect_name=dialect_name)
     sales_delivery_true = _sales_delivery_true_filter(sales_delivery)
+    as_pending_true = _sales_delivery_true_filter(_as_pending_expr(dialect_name=dialect_name))
+    as_visit_date_present = _has_text_value(_as_visit_date_expr(dialect_name=dialect_name))
     customer_name_expr = _display_customer_name_expr(dialect_name=dialect_name)
 
     base_query = db.query(Order).filter(Order.active_filter())
@@ -276,35 +324,52 @@ def erp_as_dashboard():
                 focus_order=only_order.id,
             ))
 
-    # 하단 탭: 완료 안된 건 vs 완료 된 건 vs 전체
-    query = base_query
-    if tab == 'completed':
-        query = query.filter(
-            Order.status == 'AS_COMPLETED',
-            Order.as_completed_date.isnot(None),
-            Order.as_completed_date != ''
-        )
-    elif tab == 'sales_delivery':
-        query = _erp_as_incomplete_filter(query).filter(
-            sales_delivery_true
-        )
-    else:
-        # 완료 안된 건(X): AS 미완료 중 영업/택배로 분류되지 않은 주문만 표시
-        query = _erp_as_incomplete_filter(query).filter(~sales_delivery_true)
-
-    query = _erp_order_search_filter(
-        query,
+    filtered_base_query = _erp_order_search_filter(
+        base_query,
         search_q,
         dialect_name=dialect_name,
         use_postgres_regex=use_postgres,
     )
+
+    incomplete_non_sales_condition = and_(
+        _erp_as_incomplete_condition(),
+        ~sales_delivery_true,
+    )
+    sales_delivery_condition = and_(
+        _erp_as_incomplete_condition(),
+        sales_delivery_true,
+    )
+
+    as_tab_counts = _count_cases(
+        filtered_base_query,
+        ('sales_delivery', sales_delivery_condition),
+        ('incomplete', incomplete_non_sales_condition),
+        ('completed', _erp_as_completed_condition()),
+    )
+    as_incomplete_summary = _count_cases(
+        filtered_base_query,
+        ('total', incomplete_non_sales_condition),
+        ('visit_confirmed', and_(incomplete_non_sales_condition, ~as_pending_true, as_visit_date_present)),
+        ('pending', and_(incomplete_non_sales_condition, as_pending_true)),
+        ('unassigned', and_(incomplete_non_sales_condition, ~as_pending_true, ~as_visit_date_present)),
+    )
+
+    # 하단 탭: 완료 안된 건 vs 완료 된 건 vs 전체
+    query = filtered_base_query
+    if tab == 'completed':
+        query = query.filter(_erp_as_completed_condition())
+    elif tab == 'sales_delivery':
+        query = query.filter(sales_delivery_condition)
+    else:
+        # 완료 안된 건(X): AS 미완료 중 영업/택배로 분류되지 않은 주문만 표시
+        query = query.filter(incomplete_non_sales_condition)
 
     sort_dir = (request.args.get('sort_dir') or 'desc').strip().lower()
     if sort_dir != 'asc':
         sort_dir = 'desc'
     order_col = Order.as_received_date
     focus_order_id = request.args.get('focus_order', type=int)
-    total_orders = query.order_by(None).count()
+    total_orders = int(as_tab_counts.get(tab, 0))
     sort_clauses = []
     if focus_order_id:
         sort_clauses.append(case((Order.id == focus_order_id, 0), else_=1))
@@ -362,6 +427,8 @@ def erp_as_dashboard():
         can_view_as_photos=can_view_as_photos,
         sort_dir=sort_dir,
         as_tab=tab,
+        as_tab_counts=as_tab_counts,
+        as_incomplete_summary=as_incomplete_summary,
         compact_search_q=compact_q,
         page=page,
         total_pages=total_pages,
