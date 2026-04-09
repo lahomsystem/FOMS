@@ -1,3 +1,4 @@
+import re
 from datetime import date
 
 from werkzeug.security import generate_password_hash
@@ -26,24 +27,40 @@ def _login_as_admin(client):
     return user
 
 
-def _create_as_order(*, notes=None, as_content_2="<div>2번 내용</div>"):
+def _create_as_order(
+    *,
+    notes=None,
+    as_content_2="<div>2번 내용</div>",
+    status="AS_RECEIVED",
+    as_completed_date=None,
+    shipment_extra=None,
+    schedule_extra=None,
+    customer_name="AS 탭 고객",
+):
     today = date.today().strftime("%Y-%m-%d")
     shipment = {
         "as_content": "<div>1번 내용</div>",
     }
     if as_content_2 is not None:
         shipment["as_content_2"] = as_content_2
+    if shipment_extra:
+        shipment.update(shipment_extra)
+    structured_data = {"shipment": shipment}
+    if schedule_extra:
+        structured_data["schedule"] = schedule_extra
     order = Order(
         received_date=today,
-        customer_name="AS 탭 고객",
+        customer_name=customer_name,
         phone="010-1234-5678",
         address="Seoul",
         product="붙박이장",
-        status="AS_RECEIVED",
+        status=status,
         manager_name="Alice",
+        as_received_date=today,
+        as_completed_date=as_completed_date,
         is_erp_beta=True,
         notes=notes,
-        structured_data={"shipment": shipment},
+        structured_data=structured_data,
     )
     db_session.add(order)
     db_session.commit()
@@ -112,3 +129,40 @@ def test_as_dashboard_does_not_restore_notes_after_secondary_tab_is_cleared(clie
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert "복구되면 안 되는 기존 메모" not in body
+
+
+def test_as_dashboard_renders_tab_counts_and_incomplete_summary(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    _login_as_admin(client)
+    today = date.today().strftime("%Y-%m-%d")
+
+    _create_as_order(
+        customer_name="방문 확정",
+        schedule_extra={"as_visit": {"date": today}},
+    )
+    _create_as_order(
+        customer_name="미결",
+        shipment_extra={"as_pending": True},
+    )
+    _create_as_order(customer_name="미정")
+    _create_as_order(
+        customer_name="영업택배",
+        shipment_extra={"sales_delivery": True},
+    )
+    _create_as_order(
+        customer_name="완료",
+        status="AS_COMPLETED",
+        as_completed_date=today,
+    )
+
+    response = client.get("/erp/as?tab=incomplete")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert re.search(r'data-as-tab-key="sales_delivery"[^>]*data-as-tab-count="1"', body)
+    assert re.search(r'data-as-tab-key="incomplete"[^>]*data-as-tab-count="3"', body)
+    assert re.search(r'data-as-tab-key="completed"[^>]*data-as-tab-count="1"', body)
+    assert re.search(r'data-as-incomplete-summary="total"[^>]*data-count="3"', body)
+    assert re.search(r'data-as-incomplete-summary="visit_confirmed"[^>]*data-count="1"', body)
+    assert re.search(r'data-as-incomplete-summary="pending"[^>]*data-count="1"', body)
+    assert re.search(r'data-as-incomplete-summary="unassigned"[^>]*data-count="1"', body)

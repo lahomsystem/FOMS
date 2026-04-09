@@ -17,21 +17,30 @@
   <nav class="erp-as-mobile-tabs" aria-label="AS 분류">
     <a
       class="erp-as-mobile-tabs__item{% if as_tab == 'sales_delivery' %} is-active{% endif %}"
+      data-as-tab-key="sales_delivery"
+      data-as-tab-count="{{ as_tab_counts.sales_delivery }}"
       href="{{ url_for('erp_as_page.erp_as_dashboard', tab='sales_delivery', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
       <i class="fas fa-truck"></i>
       <span>영업/배송</span>
+      <span class="erp-as-mobile-tabs__count">{{ as_tab_counts.sales_delivery }}</span>
     </a>
     <a
       class="erp-as-mobile-tabs__item{% if as_tab == 'incomplete' %} is-active{% endif %}"
+      data-as-tab-key="incomplete"
+      data-as-tab-count="{{ as_tab_counts.incomplete }}"
       href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
       <i class="fas fa-circle-exclamation"></i>
       <span>미완료</span>
+      <span class="erp-as-mobile-tabs__count">{{ as_tab_counts.incomplete }}</span>
     </a>
     <a
       class="erp-as-mobile-tabs__item{% if as_tab == 'completed' %} is-active{% endif %}"
+      data-as-tab-key="completed"
+      data-as-tab-count="{{ as_tab_counts.completed }}"
       href="{{ url_for('erp_as_page.erp_as_dashboard', tab='completed', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
       <i class="fas fa-circle-check"></i>
       <span>완료</span>
+      <span class="erp-as-mobile-tabs__count">{{ as_tab_counts.completed }}</span>
     </a>
   </nav>
 
