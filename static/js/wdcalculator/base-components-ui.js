@@ -13,9 +13,11 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
     var getCalculateEstimate = function () {
         return function () {};
     };
+    var documentRef = document;
+    var liveInteractionsBound = false;
 
     /**
-     * @param {{ getProducts?: () => Array<{id:number,name?:string}>, getCalculateEstimate?: () => function }} opts
+     * @param {{ getProducts?: () => Array<{id:number,name?:string}>, getCalculateEstimate?: () => function, documentRef?: Document }} opts
      */
     function configure(opts) {
         if (opts && typeof opts.getProducts === "function") {
@@ -23,6 +25,16 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
         }
         if (opts && typeof opts.getCalculateEstimate === "function") {
             getCalculateEstimate = opts.getCalculateEstimate;
+        }
+        if (opts && opts.documentRef) {
+            documentRef = opts.documentRef;
+        }
+    }
+
+    function triggerCalculateEstimate() {
+        var fn = getCalculateEstimate();
+        if (typeof fn === "function") {
+            fn();
         }
     }
 
@@ -106,7 +118,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
     }
 
     function ensureBaseComponentsUI(components = null) {
-        var container = document.getElementById("baseComponentsContainer");
+        var container = documentRef.getElementById("baseComponentsContainer");
         if (!container) return;
         container.innerHTML = "";
         var list =
@@ -129,7 +141,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
     }
 
     function readBaseComponentsFromUI() {
-        var container = document.getElementById("baseComponentsContainer");
+        var container = documentRef.getElementById("baseComponentsContainer");
         if (!container) return [];
         var rows = Array.from(container.querySelectorAll(".base-component-row"));
         return rows.map(function (rowEl) {
@@ -197,11 +209,143 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
 
     function updateBaseProductSelectOptions() {
         var optionHtml = getProductsOptionsHtml();
-        document.querySelectorAll(".base-component-row .base-product-select").forEach(function (sel) {
+        documentRef.querySelectorAll(".base-component-row .base-product-select").forEach(function (sel) {
             var prev = sel.value;
             sel.innerHTML = optionHtml;
             if (prev) sel.value = prev;
         });
+    }
+
+    function handleAddBaseComponentClick() {
+        var container = documentRef.getElementById("baseComponentsContainer");
+        if (!container) return;
+        container.insertAdjacentHTML("beforeend", renderBaseComponentRow({ mode: "select" }));
+        triggerCalculateEstimate();
+    }
+
+    function handleBaseComponentsContainerClick(e) {
+        var rowEl = e.target.closest(".base-component-row");
+
+        if (e.target.closest(".base-add-fee-btn")) {
+            if (!rowEl) return;
+            var feesList = rowEl.querySelector(".base-additional-fees-list");
+            if (feesList) {
+                var newItem = documentRef.createElement("div");
+                newItem.className = "row g-2 align-items-end mb-2 base-additional-fee-item";
+                newItem.innerHTML = `
+                    <div class="col-12 col-md-5">
+                        <input type="text" class="form-control form-control-sm base-additional-fee-name" placeholder="제품명 입력" value="">
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <input type="number" class="form-control form-control-sm base-additional-fee-amount" min="0" step="1" placeholder="금액 (원)" value="">
+                    </div>
+                    <div class="col-12 col-md-3 text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger base-remove-fee-btn" title="삭제">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `;
+                feesList.appendChild(newItem);
+                triggerCalculateEstimate();
+            }
+            return;
+        }
+
+        if (e.target.closest(".base-remove-fee-btn")) {
+            var feeItem = e.target.closest(".base-additional-fee-item");
+            if (feeItem) {
+                feeItem.remove();
+                triggerCalculateEstimate();
+            }
+            return;
+        }
+
+        if (!rowEl) return;
+
+        var modeBtn = e.target.closest(".base-mode-btn");
+        if (modeBtn) {
+            var newMode = modeBtn.dataset.mode;
+            rowEl.dataset.mode = newMode;
+            var selectArea = rowEl.querySelector(".base-select-area");
+            var manualArea = rowEl.querySelector(".base-manual-area");
+            if (selectArea) selectArea.style.display = newMode === "manual" ? "none" : "";
+            if (manualArea) manualArea.style.display = newMode === "manual" ? "" : "none";
+            rowEl.querySelectorAll(".base-mode-btn").forEach(function (btn) {
+                var mode = btn.dataset.mode;
+                btn.classList.remove("btn-info", "btn-outline-info", "btn-warning", "btn-outline-warning");
+                if (mode === "select") {
+                    btn.classList.add(mode === newMode ? "btn-info" : "btn-outline-info");
+                }
+                if (mode === "manual") {
+                    btn.classList.add(mode === newMode ? "btn-warning" : "btn-outline-warning");
+                }
+            });
+            triggerCalculateEstimate();
+            return;
+        }
+
+        var removeBtn = e.target.closest(".base-remove-btn");
+        if (removeBtn) {
+            var container = documentRef.getElementById("baseComponentsContainer");
+            var rows = container ? container.querySelectorAll(".base-component-row") : [];
+            if (rows.length <= 1) {
+                return;
+            }
+            rowEl.remove();
+            triggerCalculateEstimate();
+        }
+    }
+
+    function handleBaseComponentsContainerInput(e) {
+        var rowEl = e.target.closest(".base-component-row");
+        if (!rowEl) return;
+        if (e.target.classList.contains("base-manual-price30")) {
+            var price30 = Number(e.target.value) || 0;
+            var auto1 = computeAutoPrice1cmFrom30cm(price30);
+            var price1El = rowEl.querySelector(".base-manual-price1");
+            if (price1El) price1El.value = String(auto1);
+        }
+        triggerCalculateEstimate();
+    }
+
+    function handleBaseComponentsContainerChange(e) {
+        var rowEl = e.target.closest(".base-component-row");
+        if (!rowEl) return;
+        if (e.target.classList.contains("base-manual-pricing-type")) {
+            var pricingType = e.target.value || "30cm";
+            var col30 = rowEl.querySelector(".base-manual-30cm-col");
+            var col1 = rowEl.querySelector(".base-manual-1cm-col");
+            var col1m = rowEl.querySelector(".base-manual-1m-col");
+            if (pricingType === "1m") {
+                if (col30) col30.style.display = "none";
+                if (col1) col1.style.display = "none";
+                if (col1m) col1m.style.display = "";
+            } else {
+                if (col30) col30.style.display = "";
+                if (col1) col1.style.display = "";
+                if (col1m) col1m.style.display = "none";
+                var price30El = rowEl.querySelector(".base-manual-price30");
+                var auto1 = computeAutoPrice1cmFrom30cm(Number(price30El && price30El.value) || 0);
+                var price1El = rowEl.querySelector(".base-manual-price1");
+                if (price1El) price1El.value = String(auto1);
+            }
+        }
+        triggerCalculateEstimate();
+    }
+
+    function initBaseComponentsLiveInteractions() {
+        if (liveInteractionsBound) return;
+        var addBtn = documentRef.getElementById("addBaseComponentBtn");
+        var container = documentRef.getElementById("baseComponentsContainer");
+        if (addBtn) {
+            addBtn.addEventListener("click", handleAddBaseComponentClick);
+        }
+        if (container) {
+            container.addEventListener("click", handleBaseComponentsContainerClick);
+            container.addEventListener("input", handleBaseComponentsContainerInput);
+            container.addEventListener("change", handleBaseComponentsContainerChange);
+        }
+        liveInteractionsBound = true;
     }
 
     ns.configure = configure;
@@ -211,6 +355,11 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
     ns.readBaseComponentsFromUI = readBaseComponentsFromUI;
     ns.bindAdditionalFeeEvents = bindAdditionalFeeEvents;
     ns.updateBaseProductSelectOptions = updateBaseProductSelectOptions;
+    ns.initBaseComponentsLiveInteractions = initBaseComponentsLiveInteractions;
+    ns.handleAddBaseComponentClick = handleAddBaseComponentClick;
+    ns.handleBaseComponentsContainerClick = handleBaseComponentsContainerClick;
+    ns.handleBaseComponentsContainerInput = handleBaseComponentsContainerInput;
+    ns.handleBaseComponentsContainerChange = handleBaseComponentsContainerChange;
 })(WdCalculatorBaseComponentsUI);
 
 window.WdCalculatorBaseComponentsUI = WdCalculatorBaseComponentsUI;
