@@ -29,7 +29,7 @@ Cursor 세션에서 사용자가 review / implement / QA / harness-core 성격�
 | `tools/harness/prompt_router.py` | 사용자 프롬프트 분류 및 agentMessage 생성 로직 분리 |
 | `tests/harness/test_hooks_smoke.py` | 새 훅 smoke/메시지 계약 검증 추가 |
 | `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md` | auto-entry 동작과 한계 문서화 |
-| `task_plan.md`, `findings.md`, `progress.md`, `docs/ARCHIVE_INDEX.md`, `docs/context/DECISIONS.md` | 이번 변경 기록 동기화 |
+| `task_plan.md`, `findings.md`, `progress.md`, `docs/ARCHIVE_INDEX.md`, `docs/harness/policy/DECISIONS.md` | 이번 변경 기록 동기화 |
 
 ### 2.2 아키텍처 방향
 - 기존 hook 패턴(`session_start.py`, `post_task_quality_check.py`)을 그대로 따라 `continue + agentMessage` 계약을 유지한다.
@@ -56,6 +56,6 @@ Cursor 세션에서 사용자가 review / implement / QA / harness-core 성격�
 - [x] 일반 대화 prompt는 과도한 auto-entry 메시지 없이 통과함
 
 ## 5. 참고 자료
-- 관련 결정: `docs/context/DECISIONS.md`의 Wave 3 / post-audit hardening 항목
+- 관련 결정: `docs/harness/policy/DECISIONS.md`의 Wave 3 / post-audit hardening 항목
 - 관련 스펙: `docs/specs/2026-04-05-harness-wave3-auto-level-routing_SPEC.md`
 - 관련 가이드: `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md`

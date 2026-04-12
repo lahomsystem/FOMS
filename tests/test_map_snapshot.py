@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 
-from services.map_snapshot import build_measurement_snapshot
+from db import db_session
+from models import Order, OrderScheduleDate
+from foms.services.map_snapshot import build_measurement_snapshot
 
 
 def _make_order(order_id, lat, lng, address, customer_name, manager_name="이시영"):
@@ -119,3 +121,93 @@ def test_build_measurement_snapshot_keeps_non_duplicate_hint_stable():
     assert row["marker_render_hint"] == "status"
     assert marker["manager_bg_color"] == "#CCCCCC"
     assert marker["manager_bg_source"] == "fallback"
+
+
+def test_build_measurement_map_query_supports_sqlite_normalized_schedule_dates(app):
+    from foms.services.map_snapshot import build_measurement_map_query
+
+    order = Order(
+        received_date="2026-03-31",
+        customer_name="SQLite 지도 QA",
+        phone="010-0000-0000",
+        address="서울시 강남구 테헤란로 99",
+        product="붙박이장",
+        status="MEASURE",
+        manager_name="이시영",
+        measurement_date="2026-03-31",
+        is_erp_beta=True,
+        structured_data={
+            "parties": {
+                "customer": {"name": "SQLite 지도 QA", "phone": "010-0000-0000"},
+                "manager": {"name": "이시영"},
+            },
+            "site": {"address_full": "서울시 강남구 테헤란로 99"},
+            "schedule": {"measurement": {"date": "2026-03-31", "time": "오전"}},
+        },
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        OrderScheduleDate(
+            order_id=order.id,
+            kind="measurement",
+            date="2026 03 31",
+            source="sqlite_test",
+        )
+    )
+    db_session.commit()
+
+    rows = build_measurement_map_query(
+        db_session,
+        "2026-03-31",
+        "",
+        "",
+        "measurement",
+        limit=10,
+    ).all()
+
+    assert [item.id for item in rows] == [order.id]
+
+
+def test_measurement_map_api_supports_sqlite_normalized_schedule_dates(client, login):
+    order = Order(
+        received_date="2026-03-31",
+        customer_name="SQLite 지도 API",
+        phone="010-9999-0000",
+        address="서울시 강남구 테헤란로 100",
+        product="붙박이장",
+        status="MEASURE",
+        manager_name="이시영",
+        measurement_date="2026-03-31",
+        lat=37.501,
+        lng=127.039,
+        geocode_status="success",
+        is_erp_beta=True,
+        structured_data={
+            "parties": {
+                "customer": {"name": "SQLite 지도 API", "phone": "010-9999-0000"},
+                "manager": {"name": "이시영"},
+            },
+            "site": {"address_full": "서울시 강남구 테헤란로 100"},
+            "schedule": {"measurement": {"date": "2026-03-31", "time": "오후"}},
+        },
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        OrderScheduleDate(
+            order_id=order.id,
+            kind="measurement",
+            date="2026 03 31",
+            source="sqlite_api_test",
+        )
+    )
+    db_session.commit()
+
+    response = login.get("/api/map_data?dashboard=measurement&date=2026-03-31")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert [item["id"] for item in payload["orders"]] == [order.id]
+    assert [item["id"] for item in payload["markers"]] == [order.id]

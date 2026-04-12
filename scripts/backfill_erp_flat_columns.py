@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..'
 from app import app
 from db import get_db
 from models import Order
-from services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.erp_sync_columns import sync_erp_flat_columns
 
 def run_backfill():
     with app.app_context():

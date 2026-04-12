@@ -1,7 +1,7 @@
 """Claude Code PostToolUse hook: Edit/Write 후 변경 파일 추적.
 
 stdin으로 {"tool_name": "Edit", "tool_input": {"file_path": "..."}, ...} 형태를 받음.
-docs/context/EDIT_LOG.md에 변경 파일 기록.
+docs/harness/runtime/EDIT_LOG.md에 변경 파일 기록.
 """
 import os
 import sys
@@ -9,7 +9,7 @@ from datetime import datetime
 
 _dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _dir)
-from shared_utils import read_stdin_json, get_project_root  # type: ignore[import-not-found]
+from shared_utils import get_project_root, harness_runtime_path, read_stdin_json  # type: ignore[import-not-found]
 
 
 # 메타 파일은 추적 제외
@@ -41,7 +41,7 @@ def main():
         if rel_path.startswith(prefix):
             return
 
-    log_path = os.path.join(project_root, "docs", "context", "EDIT_LOG.md")
+    log_path = harness_runtime_path("EDIT_LOG.md")
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

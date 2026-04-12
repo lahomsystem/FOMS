@@ -24,16 +24,16 @@ alwaysApply: true
 ## 새 세션 시작 시 + 작업 프로토콜 (RPI — 필수 준수)
 1. `docs/AI_STATUS.md` 읽기 → **50줄로 전체 상황 파악**
 2. **핵심 코어 변경(DB/Auth/API, 배포 인프라, 하네스 인프라) 포함 작업** → RPI 프로토콜 필수:
-   - Research: `docs/context/DECISIONS.md` + `docs/ARCHIVE_INDEX.md`에서 관련 과거 기록 조사
+   - Research: `docs/harness/policy/DECISIONS.md` + `docs/ARCHIVE_INDEX.md`에서 관련 과거 기록 조사
    - Plan: `docs/guides/SPEC_TEMPLATE.md` 기반 Spec 작성 → 사용자 승인 대기
    - Implement: 승인 후 코딩 → `/verify-result` → `/auto-status-update` 실행
 3. **단순 UI 변경/타이포** → 바로 코딩 허용
 4. **대화가 길어지면** → 핵심 요약 후 새 세션 권유 (Dumb Zone 회피)
 
 ## Cursor 내 Runner 라우팅
-- **Cursor 기본 에이전트**: 권장 수동 진입점은 `docs/context/HARNESS_BUNDLE_CURSOR.md` + 본 `.mdc` 규칙이다. bundle 파일 자체는 Cursor가 자동 주입하지 않으므로, 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/context/HARNESS_BUNDLE_CURSOR_HARNESS.md`를 사용한다.
-- **Claude 확장 in Cursor**: 권장 수동 진입점은 `docs/context/HARNESS_BUNDLE_CLAUDE.md`이다. bundle 파일은 자동 로드되지 않으므로, 작업 시작 시 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/context/HARNESS_BUNDLE_CLAUDE_HARNESS.md`를 사용한다. `CLAUDE.md`는 Claude 전용 원문 정책을 수정/검증할 때만 추가로 연다.
-- **Codex 확장/CLI in Cursor**: 권장 수동 진입점은 `docs/context/HARNESS_BUNDLE_CODEX.md`이다. Codex 확장 세션은 사용자가 bundle을 직접 열거나 참조해야 하고, `tools/harness/run_codex.ps1`를 사용할 때만 선택된 bundle이 자동으로 prompt에 포함된다. 하네스 내부 작업은 `docs/context/HARNESS_BUNDLE_CODEX_HARNESS.md` 또는 `tools/harness/run_codex.ps1` 자동 라우팅을 사용한다. repo-local gstack generated skills가 준비된 경우 `run_codex.ps1` / `run_gstack_qa.ps1` 경로를 우선 사용한다.
+- **Cursor 기본 에이전트**: 권장 수동 진입점은 `docs/harness/bundles/HARNESS_BUNDLE_CURSOR.md` + 본 `.mdc` 규칙이다. bundle 파일 자체는 Cursor가 자동 주입하지 않으므로, 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/harness/bundles/HARNESS_BUNDLE_CURSOR_HARNESS.md`를 사용한다.
+- **Claude 확장 in Cursor**: 권장 수동 진입점은 `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE.md`이다. bundle 파일은 자동 로드되지 않으므로, 작업 시작 시 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md`를 사용한다. `CLAUDE.md`는 Claude 전용 원문 정책을 수정/검증할 때만 추가로 연다.
+- **Codex 확장/CLI in Cursor**: 권장 수동 진입점은 `docs/harness/bundles/HARNESS_BUNDLE_CODEX.md`이다. Codex 확장 세션은 사용자가 bundle을 직접 열거나 참조해야 하고, `tools/harness/run_codex.ps1`를 사용할 때만 선택된 bundle이 자동으로 prompt에 포함된다. 하네스 내부 작업은 `docs/harness/bundles/HARNESS_BUNDLE_CODEX_HARNESS.md` 또는 `tools/harness/run_codex.ps1` 자동 라우팅을 사용한다. repo-local gstack generated skills가 준비된 경우 `run_codex.ps1` / `run_gstack_qa.ps1` 경로를 우선 사용한다.
 - **Wave 3 자동 레벨링**: `run_codex.ps1`는 `low / medium / high / top` 4단계로 자동 분류한다. 기본적으로 `low/medium`은 daily bundle, `high/top`은 harness bundle을 선택한다.
 - **override**: `-AdditionalPrompt "[level=top]"`, `-AdditionalPrompt "[레벨=최상]"`, `-AdditionalPrompt "이번 건 최상으로 진행"`을 지원한다.
 - **고위험 downgrade**: 자동 판정이 `high/top`인데 더 낮게 내리면 대화형 재확인 또는 `-AllowRiskyLevelOverride`가 필요하다.

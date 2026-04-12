@@ -1,12 +1,12 @@
 from db import db_session
 from models import Order
-from services.channel_quick_actions import (
+from foms.services.channel_quick_actions import (
     STATUS_MAP,
     get_order_summary_for_wam,
     parse_foms_command,
     process_foms_command,
 )
-from services.channel_security import generate_wam_session_token, generate_wam_short_link_token
+from foms.services.channel_security import generate_wam_session_token, generate_wam_short_link_token
 
 
 ORDER_CMD = "\uc8fc\ubb38"
@@ -64,6 +64,19 @@ def test_process_foms_command_success(app):
         assert wam_data is not None
         assert wam_data["customer_name"] == "Legacy Customer"
         assert wam_data["status_kr"] == STATUS_MAP["RECEIVED"]
+
+
+def test_process_foms_command_uses_canonical_identity_import(monkeypatch, app):
+    with app.app_context():
+        monkeypatch.setattr(
+            "foms.services.channel_identity.is_action_allowed_for_manager",
+            lambda manager_id, action_type: False,
+        )
+
+        res = process_foms_command(f"{ORDER_CMD} 123", manager_id="mgr-1")
+
+        assert res["type"] == "text"
+        assert "권한이 없습니다" in res["text"]
 
 
 def test_get_order_summary_for_wam_uses_structured_data_for_erp_beta(app):

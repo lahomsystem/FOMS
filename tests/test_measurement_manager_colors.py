@@ -1,4 +1,4 @@
-from services.measurement_manager_colors import (
+from foms.services.measurement_manager_colors import (
     DEFAULT_MEASUREMENT_MANAGER_BG_COLOR,
     MEASUREMENT_MANAGER_PALETTE,
     build_measurement_manager_color_map,

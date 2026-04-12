@@ -1,6 +1,6 @@
 from db import db_session
 from models import Order, OrderAttachment
-from services.channel_security import (
+from foms.services.channel_security import (
     generate_wam_launch_token,
     generate_wam_session_token,
     generate_wam_short_link_token,
@@ -130,7 +130,7 @@ def test_wam_attachment_scope_blocks_cross_order_access(client, app, monkeypatch
         def get_download_url(self, key, expires_in=3600, response_content_disposition=None):
             return f"/signed/{key}"
 
-    monkeypatch.setattr("services.channel_wam_attachments.get_storage", lambda: DummyStorage())
+    monkeypatch.setattr("foms.services.channel_wam_attachments.get_storage", lambda: DummyStorage())
 
     with app.app_context():
         first_order = _create_order(customer_name="First")
@@ -150,7 +150,7 @@ def test_wam_attachment_download_scope_blocks_cross_order_access(client, app, mo
         def get_download_url(self, key, expires_in=3600, response_content_disposition=None):
             return f"/signed/{key}"
 
-    monkeypatch.setattr("services.channel_wam_attachments.get_storage", lambda: DummyStorage())
+    monkeypatch.setattr("foms.services.channel_wam_attachments.get_storage", lambda: DummyStorage())
 
     with app.app_context():
         first_order = _create_order(customer_name="First")
@@ -183,7 +183,7 @@ def test_wam_attachment_open_redirects_for_scoped_attachment(client, app, monkey
         def get_download_url(self, key, expires_in=3600, response_content_disposition=None):
             return f"/signed/{key}"
 
-    monkeypatch.setattr("services.channel_wam_attachments.get_storage", lambda: DummyStorage())
+    monkeypatch.setattr("foms.services.channel_wam_attachments.get_storage", lambda: DummyStorage())
 
     with app.app_context():
         order = _create_order()
@@ -274,7 +274,7 @@ def test_wam_attachment_routes_work_with_session_cookie_only(client, app, monkey
         def get_download_url(self, key, expires_in=3600, response_content_disposition=None):
             return f"/signed/{key}"
 
-    monkeypatch.setattr("services.channel_wam_attachments.get_storage", lambda: DummyStorage())
+    monkeypatch.setattr("foms.services.channel_wam_attachments.get_storage", lambda: DummyStorage())
 
     with app.app_context():
         order = _create_order()

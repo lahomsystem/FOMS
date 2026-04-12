@@ -1,7 +1,12 @@
 import pytest
 import os
 from unittest.mock import patch
-from services.channel_inbound import extract_keys, parse_order_text, receive_webhook, process_inbound_job
+from foms.services.channel_inbound import (
+    extract_keys,
+    parse_order_text,
+    process_inbound_job,
+    receive_webhook,
+)
 from models import ChannelInboundEventLog, Order
 from db import db_session
 
@@ -62,7 +67,7 @@ def test_parse_order_text():
     assert '연락처' in missing
     assert '주소' in missing
 
-@patch('services.channel_inbound.enqueue_channeltalk_inbound')
+@patch('foms.services.channel_inbound.enqueue_channeltalk_inbound')
 def test_receive_webhook_success(mock_enqueue, app):
     mock_enqueue.return_value = True
     payload = {
@@ -82,7 +87,7 @@ def test_receive_webhook_success(mock_enqueue, app):
         assert log.status == 'received'
         assert log.source_chat_id == 'group-1'
 
-@patch('services.channel_inbound.enqueue_channeltalk_inbound')
+@patch('foms.services.channel_inbound.enqueue_channeltalk_inbound')
 def test_receive_webhook_duplicate(mock_enqueue, app):
     mock_enqueue.return_value = True
     payload = {
@@ -102,7 +107,7 @@ def test_receive_webhook_duplicate(mock_enqueue, app):
         assert status_code == 200
         assert response['status'] == 'duplicate_ignored'
 
-@patch('services.channel_inbound.enqueue_channeltalk_inbound')
+@patch('foms.services.channel_inbound.enqueue_channeltalk_inbound')
 def test_process_inbound_job_dry_run(mock_enqueue, app, monkeypatch):
     monkeypatch.setenv("CHANNEL_INBOUND_CREATE_ENABLED", "false")
     
@@ -128,7 +133,7 @@ def test_process_inbound_job_dry_run(mock_enqueue, app, monkeypatch):
         assert log.created_order_id is None
         assert log.parsed_result['customer_name'] == '테**'
 
-@patch('services.channel_inbound.enqueue_channeltalk_inbound')
+@patch('foms.services.channel_inbound.enqueue_channeltalk_inbound')
 def test_process_inbound_job_create_enabled(mock_enqueue, app, monkeypatch):
     monkeypatch.setenv("CHANNEL_INBOUND_CREATE_ENABLED", "true")
     

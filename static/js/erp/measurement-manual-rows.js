@@ -1,3 +1,4 @@
+// Legacy shim: mirrors static/js/measurement/manual-rows.js
 /**
  * 실측 대시보드: 주문 행 사이 수동 입력 행(로컬 전용, DB 미저장).
  * 행 사이 클릭은 별도 갭 <tr> 없이 좌표로만 감지(표 간격 유지).

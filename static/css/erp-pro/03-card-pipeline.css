@@ -1,0 +1,377 @@
+
+/* ===== Card Component ===== */
+.erp-pro-card {
+  background: var(--erp-bg-card);
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow);
+  border: 1px solid var(--erp-border-light);
+  overflow: hidden;
+}
+
+.erp-pro-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--erp-space-md) var(--erp-space-lg);
+  border-bottom: 1px solid var(--erp-border-light);
+  background: var(--erp-bg-sidebar);
+}
+
+.erp-pro-card__header--with-alerts {
+  align-items: center;
+  gap: var(--erp-space-sm);
+  padding: 4px 12px;
+  min-height: 48px;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alerts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex: 1;
+  gap: 6px;
+  margin-bottom: 0;
+  margin-left: auto;
+  max-width: none;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-card__title {
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert {
+  min-height: 28px;
+  padding: 2px 8px;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 6px;
+  border-left-width: 2px;
+  box-shadow: none;
+  background: var(--erp-bg-card);
+  border: 1px solid var(--erp-border-light);
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert:hover {
+  transform: translateY(0);
+  background: var(--erp-bg-hover);
+  box-shadow: none;
+  border-color: var(--erp-border);
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert__icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: var(--erp-inline-alert-icon-size, 0.65rem);
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert__content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert__label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert__value {
+  font-size: 0.75rem;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--erp-text-primary);
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert--danger .erp-pro-alert__value {
+  background: rgba(220, 38, 38, 0.14);
+  color: #b91c1c;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert--warning .erp-pro-alert__value {
+  background: rgba(245, 158, 11, 0.18);
+  color: #92400e;
+}
+
+.erp-pro-card__header--with-alerts .erp-pro-alert--info .erp-pro-alert__value {
+  background: rgba(14, 165, 233, 0.16);
+  color: #0369a1;
+}
+
+@media (max-width: 1200px) {
+  .erp-pro-card__header--with-alerts {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px 12px;
+  }
+
+  .erp-pro-card__header--with-alerts .erp-pro-alerts {
+    grid-template-columns: repeat(4, minmax(110px, 1fr));
+    margin-left: 0;
+    max-width: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .erp-pro-card__header--with-alerts .erp-pro-alerts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.erp-pro-card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--erp-space-sm);
+  font-size: var(--erp-font-size-base);
+  font-weight: 600;
+  color: var(--erp-text-primary);
+  margin: 0;
+}
+
+.erp-pro-card__title i {
+  color: var(--erp-primary);
+}
+
+.erp-pro-card__body {
+  padding: var(--erp-space-lg);
+}
+
+.erp-pro-card__footer {
+  padding: var(--erp-space-md) var(--erp-space-lg);
+  border-top: 1px solid var(--erp-border-light);
+  background: var(--erp-bg-sidebar);
+}
+
+/* ===== Alert Cards (KPI Tiles) ===== */
+.erp-pro-alerts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--erp-space-md);
+  margin-bottom: var(--erp-space-lg);
+}
+
+@media (max-width: 1200px) {
+  .erp-pro-alerts {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 576px) {
+  .erp-pro-alerts {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--erp-space-sm);
+  }
+}
+
+.erp-pro-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--erp-space-md);
+  background: var(--erp-bg-card);
+  border-radius: var(--erp-radius-lg);
+  border: 1px solid var(--erp-border);
+  cursor: pointer;
+  transition: all var(--erp-transition);
+}
+
+.erp-pro-alert:hover {
+  box-shadow: var(--erp-shadow-md);
+}
+
+.erp-pro-alert--active {
+  border-color: var(--erp-primary);
+  background: var(--erp-primary-bg);
+}
+
+.erp-pro-alert--danger {
+  border-left: 4px solid var(--erp-danger);
+}
+
+.erp-pro-alert--warning {
+  border-left: 4px solid var(--erp-warning);
+}
+
+.erp-pro-alert--success {
+  border-left: 4px solid var(--erp-success);
+}
+
+.erp-pro-alert--info {
+  border-left: 4px solid var(--erp-info);
+}
+
+.erp-pro-alert__content {
+  display: flex;
+  align-items: center;
+  gap: var(--erp-space-sm);
+}
+
+.erp-pro-alert__icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--erp-radius);
+  font-size: 1rem;
+}
+
+.erp-pro-alert--danger .erp-pro-alert__icon {
+  background: var(--erp-danger-light);
+  color: var(--erp-danger);
+}
+
+.erp-pro-alert--warning .erp-pro-alert__icon {
+  background: var(--erp-warning-light);
+  color: var(--erp-warning-dark);
+}
+
+.erp-pro-alert--success .erp-pro-alert__icon {
+  background: var(--erp-success-light);
+  color: var(--erp-success);
+}
+
+.erp-pro-alert--info .erp-pro-alert__icon {
+  background: var(--erp-info-light);
+  color: var(--erp-info);
+}
+
+.erp-pro-alert__label {
+  font-size: var(--erp-font-size-sm);
+  font-weight: 500;
+  color: var(--erp-text-primary);
+}
+
+.erp-pro-alert__count {
+  font-size: var(--erp-font-size-lg);
+  font-weight: 700;
+  padding: var(--erp-space-xs) var(--erp-space-md);
+  border-radius: var(--erp-radius-full);
+  min-width: 40px;
+  text-align: center;
+}
+
+.erp-pro-alert--danger .erp-pro-alert__count {
+  background: var(--erp-danger);
+  color: var(--erp-text-white);
+}
+
+.erp-pro-alert--warning .erp-pro-alert__count {
+  background: var(--erp-warning);
+  color: var(--erp-text-primary);
+}
+
+.erp-pro-alert--success .erp-pro-alert__count {
+  background: var(--erp-success);
+  color: var(--erp-text-white);
+}
+
+.erp-pro-alert--info .erp-pro-alert__count {
+  background: var(--erp-info);
+  color: var(--erp-text-white);
+}
+
+/* ===== Process Map (Pipeline) ===== */
+.erp-pro-pipeline {
+  display: flex;
+  gap: var(--erp-space-sm);
+  padding: var(--erp-space-md);
+  background: var(--erp-bg-card);
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow);
+  margin-bottom: var(--erp-space-lg);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 프로세스 맵 카드 컴팩트 레이아웃 - 헤더/파이프라인/필터 간 여백 최소화 */
+.erp-pro-card--process-map .erp-pro-card__body {
+  padding: var(--erp-space-sm) var(--erp-space-lg);
+}
+
+.erp-pro-card--process-map .erp-pro-pipeline {
+  padding: var(--erp-space-sm) var(--erp-space-md);
+  margin-bottom: 0;
+}
+
+.erp-pro-card--process-map .erp-dashboard-filters {
+  padding: 0.5rem 1rem !important;
+}
+
+.erp-pro-pipeline::-webkit-scrollbar {
+  height: 6px;
+}
+
+.erp-pro-pipeline::-webkit-scrollbar-thumb {
+  background: var(--erp-border-dark);
+  border-radius: var(--erp-radius-full);
+}
+
+.erp-pro-pipeline__stage {
+  flex: 1;
+  min-width: 100px;
+  padding: var(--erp-space-md);
+  background: var(--erp-bg-sidebar);
+  border-radius: var(--erp-radius);
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--erp-transition-fast);
+  border: 2px solid transparent;
+  position: relative;
+}
+
+.erp-pro-pipeline__stage:hover {
+  background: var(--erp-bg-hover);
+}
+
+.erp-pro-pipeline__stage--active {
+  border-color: var(--erp-primary);
+  background: var(--erp-primary-bg);
+}
+
+.erp-pro-pipeline__count {
+  font-size: var(--erp-font-size-2xl);
+  font-weight: 700;
+  color: var(--erp-text-primary);
+  line-height: 1.2;
+}
+
+.erp-pro-pipeline__label {
+  font-size: var(--erp-font-size-sm);
+  color: var(--erp-text-secondary);
+  margin-top: var(--erp-space-xs);
+}
+
+.erp-pro-pipeline__badges {
+  display: flex;
+  justify-content: center;
+  gap: var(--erp-space-xs);
+  margin-top: var(--erp-space-sm);
+}
+
+.erp-pro-pipeline__badge {
+  font-size: var(--erp-font-size-xs);
+  padding: 2px 6px;
+  border-radius: var(--erp-radius-full);
+  font-weight: 600;
+}
+
+.erp-pro-pipeline__badge--danger {
+  background: var(--erp-danger);
+  color: var(--erp-text-white);
+}
+
+.erp-pro-pipeline__badge--warning {
+  background: var(--erp-warning);
+  color: var(--erp-text-primary);
+}
+

@@ -69,7 +69,7 @@ GDM은 산하 에이전트들에게 코딩 작업 지시를 내리기 전, **무
 | 3 | MCP 후보 시 → self_upgrade_manifest 검토 후 등록 | - | manifest 갱신 |
 | 4 | 생성 + 검증 (서버 기동, import 확인) | Write, Shell | 새 파일 |
 | 5 | docs/AI_STATUS.md 업데이트 | StrReplace | 상태 반영 |
-| 6 | docs/context/DECISIONS.md 기록 | StrReplace | 결정 사유 |
+| 6 | docs/harness/policy/DECISIONS.md 기록 | StrReplace | 결정 사유 |
 
 **거버넌스**: Rule(alwaysApply)·Hook·Agent·MCP 생성 시 사용자 승인 필수
 
@@ -97,7 +97,7 @@ GDM은 산하 에이전트들에게 코딩 작업 지시를 내리기 전, **무
 | 5 | Containment vs Permanent Fix 분리 적용 | incident-rca | 수정 패치 |
 | 6 | test_client/HTTP/스모크로 검증 후 재발 방지 자산화 | GDM | Rule/Test/Doc |
 
-**참조**: `.cursor/rules/14-incident-rca.mdc` · `.cursor/agents/incident-rca.md` · `docs/context/INCIDENT_TEMPLATE.md`
+**참조**: `.cursor/rules/14-incident-rca.mdc` · `.cursor/agents/incident-rca.md` · `docs/harness/policy/INCIDENT_TEMPLATE.md`
 
 ---
 

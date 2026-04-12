@@ -52,7 +52,7 @@ Wave 3 감리에서 드러난 하네스 운영 리스크를 정리하는 후속 
 | `docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md` | 세션 시작 예시 wording 보정 |
 | `docs/specs/2026-04-05-harness-wave3-auto-level-routing_SPEC.md` | 구현 완료 상태 및 체크리스트 동기화 |
 | `docs/ARCHIVE_INDEX.md` | 본 Spec 인덱싱 |
-| `docs/context/HARNESS_BUNDLE_*.md` | 원문 변경 반영 재생성 |
+| `docs/harness/bundles/HARNESS_BUNDLE_*.md` | 원문 변경 반영 재생성 |
 | `task_plan.md` / `findings.md` / `progress.md` | 후속 하드닝 추적 |
 
 ### 2.2 아키텍처 방향
@@ -85,7 +85,7 @@ Wave 3 감리에서 드러난 하네스 운영 리스크를 정리하는 후속 
 
 ## 5. 참고 자료
 - 관련 결정:
-  - `docs/context/DECISIONS.md` — Wave 3 Codex auto level routing
-  - `docs/context/DECISIONS.md` — Spec 탐색 규칙 단일화
+  - `docs/harness/policy/DECISIONS.md` — Wave 3 Codex auto level routing
+  - `docs/harness/policy/DECISIONS.md` — Spec 탐색 규칙 단일화
 - 관련 설계 계획: `docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md`
 - 관련 스펙: `docs/specs/2026-04-05-harness-wave3-auto-level-routing_SPEC.md`

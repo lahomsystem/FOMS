@@ -1,6 +1,6 @@
 from db import db_session
 from models import Order, OrderAttachment
-from services.channel_security import generate_wam_session_token, generate_wam_short_link_token
+from foms.services.channel_security import generate_wam_session_token, generate_wam_short_link_token
 
 
 def _create_order():

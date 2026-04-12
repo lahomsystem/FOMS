@@ -19,7 +19,7 @@ from models import (
     ChatMessage,
 )
 from apps.auth import login_required
-from services.erp_policy import DEFAULT_OWNER_TEAM_BY_STAGE, STAGE_LABELS
+from foms.services.erp_policy import DEFAULT_OWNER_TEAM_BY_STAGE, STAGE_LABELS
 
 personal_board_bp = Blueprint(
     'personal_board',
@@ -58,8 +58,8 @@ def _display_customer_name(customer_name, structured_data, order_id):
 
 def _order_card(order_id, customer_name, status, structured_data):
     """주문 한 건을 위젯에서 표시할 카드 딕셔너리로 변환."""
-    from services.erp_display import _erp_get_stage
-    from services.erp_policy import STAGE_NAME_TO_CODE
+    from foms.services.erp_display import _erp_get_stage
+    from foms.services.erp_policy import STAGE_NAME_TO_CODE
     
     sd = structured_data or {}
     stage = status or ''
@@ -340,10 +340,10 @@ def _schedule_today_tomorrow(db, user_id, user_team):
             
             stage = status or ''
             if str(stage).lower() == 'erpbeta':
-                from services.erp_display import _erp_get_stage
+                from foms.services.erp_display import _erp_get_stage
                 stage = _erp_get_stage(None, sd) or '주문접수'
             
-            from services.erp_policy import STAGE_NAME_TO_CODE, STAGE_LABELS
+            from foms.services.erp_policy import STAGE_NAME_TO_CODE, STAGE_LABELS
             stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
             stage_label = STAGE_LABELS.get(stage_code, stage)
 

@@ -3,9 +3,11 @@ from werkzeug.security import generate_password_hash
 from apps.api import erp_measurement
 from db import db_session
 from models import ChannelDeliveryLog, Order, User
-from services import channel_dispatch, channel_policy, channel_security
-from services.channel_delivery import mark_order_updated_for_channel
-from services.channel_event_payloads import build_structured_update_payload
+import foms.services.channel_dispatch as channel_dispatch
+import foms.services.channel_security as channel_security
+import foms.services.channel_policy as channel_policy
+from foms.services.channel_delivery import mark_order_updated_for_channel
+from foms.services.channel_event_payloads import build_structured_update_payload
 
 
 def _login_admin(client, username="channel-admin", password="admin"):

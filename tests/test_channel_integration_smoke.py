@@ -4,8 +4,8 @@ from apps.api import channel_integration
 from apps.api import erp_orders_structured
 from db import db_session
 from models import ChannelDeliveryLog, Order, User
-from services.channel_delivery import mark_order_updated_for_channel
-from services.jobs import queue as queue_module
+from foms.services.channel_delivery import mark_order_updated_for_channel
+from foms.services.jobs import queue as queue_module
 from werkzeug.security import generate_password_hash
 
 

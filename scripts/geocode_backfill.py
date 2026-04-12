@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from db import db_session
 from models import Order
-from services.geocode_helpers import extract_address_from_order
+from foms.services.geocode_helpers import extract_address_from_order
 
 
 def get_orders_needing_geocode(limit=None):
@@ -78,12 +78,13 @@ def main():
         return
 
     try:
-        from services.jobs.queue import enqueue_geocode_order_address
+        from importlib import import_module
+        from foms.services.jobs.queue import enqueue_geocode_order_address
     except ImportError as e:
         print(f"Import 실패: {e}")
         return
 
-    q = __import__('services.jobs.queue', fromlist=['get_rq_queue']).get_rq_queue()
+    q = import_module("foms.services.jobs.queue").get_rq_queue()
     if not q:
         print("RQ 비활성화 상태입니다. USE_RQ_WORKER=1, REDIS_URL을 설정한 뒤 실행하세요.")
         return

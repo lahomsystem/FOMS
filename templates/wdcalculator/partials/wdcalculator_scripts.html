@@ -1,10 +1,4 @@
 <script>
-    // Jinja2 템플릿 변수에서 직접 JavaScript 변수로 주입
-    var wdCalculatorCategories = {{ categories|default([])|tojson|safe }} || [];
-    var wdNotesCategories = {{ notes_categories|default([])|tojson|safe }} || [];
-    var notesCategories = wdNotesCategories || [];
-</script>
-<script>
 document.addEventListener('DOMContentLoaded', function() {
     let products = [];
     let additionalOptions = [];
@@ -21,679 +15,49 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    function syncWdCalculatorViewportLayout() {
-        const container = document.querySelector('.wdcalculator-container');
-        const shell = document.querySelector('.wdcalculator-shell');
-        if (!container || !shell) return;
-
-        if (window.innerWidth < 992) {
-            container.style.removeProperty('--wdcalculator-shell-height');
-            return;
-        }
-
-        const shellTop = shell.getBoundingClientRect().top;
-        const bottomGap = 16;
-        const availableHeight = Math.max(520, Math.floor(window.innerHeight - shellTop - bottomGap));
-        container.style.setProperty('--wdcalculator-shell-height', `${availableHeight}px`);
-    }
-
-    function requestWdCalculatorLayoutSync() {
-        window.requestAnimationFrame(syncWdCalculatorViewportLayout);
-    }
+    // shared helpers loaded from static/js/wdcalculator/shared.js
 
     window.addEventListener('resize', requestWdCalculatorLayoutSync);
     window.addEventListener('load', requestWdCalculatorLayoutSync);
     requestWdCalculatorLayoutSync();
 
-    // ==================== 복합 기본견적(Base Components) ====================
-    // 10원 단위 올림
-    function ceilToTens(value) {
-        const v = Number(value) || 0;
-        return Math.ceil(v / 10) * 10;
-    }
+    // 복합 기본견적(Base Components): static/js/wdcalculator/base-components-ui.js
+    WdCalculatorBaseComponentsUI.configure({
+        getProducts: () => products,
+        getCalculateEstimate: () => calculateEstimate,
+    });
+    WdCalculatorCouponDisplayHelpers.configure({
+        defaultCouponValue: DEFAULT_COUPON_VALUE,
+    });
+    WdCalculatorAdditionalOptionsUI.configure({
+        getCategories: () => wdCalculatorCategories,
+        getCalculateEstimate: () => calculateEstimate,
+    });
+    const {
+        getProductsOptionsHtml,
+        renderBaseComponentRow,
+        ensureBaseComponentsUI,
+        readBaseComponentsFromUI,
+        updateBaseProductSelectOptions,
+    } = WdCalculatorBaseComponentsUI;
+    const {
+        getCouponValue,
+        applyFinalPriceStyle,
+        applyCouponDiscountStyle,
+    } = WdCalculatorCouponDisplayHelpers;
+    const {
+        appendAdditionalOptionRow,
+        loadAdditionalOptionRows,
+        readAdditionalOptionRowsFromUI,
+    } = WdCalculatorAdditionalOptionsUI;
 
-    function computeAutoPrice1cmFrom30cm(price30) {
-        return ceilToTens((Number(price30) || 0) / 30);
-    }
-
-    function getProductsOptionsHtml() {
-        let html = '<option value="">제품을 선택하세요</option>';
-        (products || []).forEach(p => {
-            if (!p) return;
-            html += `<option value="${p.id}">${escapeHtml(p.name || '')}</option>`;
-        });
-        return html;
-    }
-
-    function renderBaseComponentRow(component = {}) {
-        const mode = component.mode || 'select'; // select | manual
-        const manualPricingType = component.manualPricing?.pricing_type || '30cm';
-        const widthMm = component.widthMm ?? '';
-        const productId = component.productId ?? '';
-        const price30 = component.manualPricing?.price_30cm ?? '';
-        const price1 = component.manualPricing?.price_1cm ?? (price30 ? computeAutoPrice1cmFrom30cm(price30) : 0);
-        const price1m = component.manualPricing?.price_1m ?? '';
-        // 추가금을 배열로 처리 (기존 단일 값과 호환)
-        const additionalFees = component.additionalFees || (component.additionalFee ? [{ name: '', amount: component.additionalFee }] : []);
-
-        return `
-            <div class="card mb-2 border-light base-component-row" data-mode="${mode}">
-                <div class="card-body py-2">
-                    <!-- 첫 번째 행: 방식, 제품/직접입력, 가로, 삭제 -->
-                    <div class="row g-2 align-items-end">
-                        <!-- 방식 -->
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small mb-1">방식</label>
-                            <div class="btn-group w-100" role="group">
-                                <button type="button" class="btn btn-sm ${mode === 'select' ? 'btn-info' : 'btn-outline-info'} base-mode-btn" data-mode="select">선택</button>
-                                <button type="button" class="btn btn-sm ${mode === 'manual' ? 'btn-warning' : 'btn-outline-warning'} base-mode-btn" data-mode="manual">직접</button>
-                            </div>
-                        </div>
-
-                        <!-- 선택/직접 상세 영역 (항상 같은 컬럼을 차지해서 남는 공간 제거) -->
-                        <div class="col-12 col-md-6 base-details-area">
-                            <!-- 제품(선택 모드) -->
-                            <div class="base-select-area" style="${mode === 'manual' ? 'display:none;' : ''}">
-                                <label class="form-label small mb-1">제품</label>
-                                <select class="form-select form-select-sm base-product-select">
-                                    ${getProductsOptionsHtml()}
-                                </select>
-                            </div>
-
-                            <!-- 직접입력(직접 모드) -->
-                            <div class="base-manual-area" style="${mode === 'manual' ? '' : 'display:none;'}">
-                                <div class="row g-2 align-items-end">
-                                    <div class="col-4">
-                                        <label class="form-label small mb-1">단가 방식</label>
-                                        <select class="form-select form-select-sm base-manual-pricing-type">
-                                            <option value="30cm" ${manualPricingType === '30cm' ? 'selected' : ''}>30cm/1cm</option>
-                                            <option value="1m" ${manualPricingType === '1m' ? 'selected' : ''}>1m</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-5 base-manual-30cm-col" style="${manualPricingType === '1m' ? 'display:none;' : ''}">
-                                        <label class="form-label small mb-1">30cm(원)</label>
-                                        <input type="number" class="form-control form-control-sm base-manual-price30" min="0" step="1" placeholder="예: 187000" value="${escapeHtml(String(price30))}">
-                                    </div>
-                                    <div class="col-3 base-manual-1cm-col" style="${manualPricingType === '1m' ? 'display:none;' : ''}">
-                                        <label class="form-label small mb-1">1cm(자동)</label>
-                                        <input type="number" class="form-control form-control-sm base-manual-price1" min="0" step="10" readonly value="${escapeHtml(String(price1))}">
-                                    </div>
-                                    <div class="col-8 base-manual-1m-col" style="${manualPricingType === '1m' ? '' : 'display:none;'}">
-                                        <label class="form-label small mb-1">1m(원)</label>
-                                        <input type="number" class="form-control form-control-sm base-manual-price1m" min="0" step="1" placeholder="예: 330000" value="${escapeHtml(String(price1m))}">
-                                    </div>
-                                </div>
-                                
-                            </div>
-                        </div>
-
-                        <!-- 가로 (직접: 마지막 / 선택: 제품 다음) -->
-                        <div class="col-6 col-md-3">
-                            <label class="form-label small mb-1">가로(mm)</label>
-                            <input type="number" class="form-control form-control-sm base-width-input" min="0" step="1" placeholder="예: 4470" value="${escapeHtml(String(widthMm))}">
-                        </div>
-
-                        <!-- 삭제 -->
-                        <div class="col-6 col-md-1 text-end">
-                            <button type="button" class="btn btn-sm btn-outline-danger base-remove-btn" title="삭제">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- 두 번째 행: 추가금 입력 (리스트 형태) -->
-                    <div class="mt-2">
-                        <label class="form-label small mb-2">추가금</label>
-                        <div class="base-additional-fees-list">
-                            ${additionalFees.map((fee, idx) => `
-                                <div class="row g-2 align-items-end mb-2 base-additional-fee-item">
-                                    <div class="col-12 col-md-5">
-                                        <input type="text" class="form-control form-control-sm base-additional-fee-name" placeholder="제품명 입력" value="${escapeHtml(fee.name || '')}">
-                                    </div>
-                        <div class="col-12 col-md-4">
-                                        <input type="number" class="form-control form-control-sm base-additional-fee-amount" min="0" step="1" placeholder="금액 (원)" value="${escapeHtml(String(fee.amount || ''))}">
-                        </div>
-                                    <div class="col-12 col-md-3 text-end">
-                                        <button type="button" class="btn btn-sm btn-outline-danger base-remove-fee-btn" title="삭제">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                        <div class="mt-2">
-                            <button type="button" class="btn btn-sm btn-outline-primary base-add-fee-btn">
-                                <i class="fas fa-plus"></i> 추가금 추가
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    function ensureBaseComponentsUI(components = null) {
-        const container = document.getElementById('baseComponentsContainer');
-        if (!container) return;
-        container.innerHTML = '';
-        const list = (components && Array.isArray(components) && components.length)
-            ? components
-            : [{ mode: 'select' }];
-            container.innerHTML = list.map(c => renderBaseComponentRow(c)).join('');
-        // 선택값 세팅 (렌더 뒤)
-            container.querySelectorAll('.base-component-row').forEach((rowEl, idx) => {
-                const comp = list[idx] || {};
-                const sel = rowEl.querySelector('.base-product-select');
-                if (sel && comp.productId) {
-                    sel.value = String(comp.productId);
-                }
-            });
-        
-        // 추가금 추가/삭제 버튼 이벤트 바인딩
-        bindAdditionalFeeEvents();
-    }
-
-    function readBaseComponentsFromUI() {
-        const container = document.getElementById('baseComponentsContainer');
-        if (!container) return [];
-        const rows = Array.from(container.querySelectorAll('.base-component-row'));
-        return rows.map(rowEl => {
-            const mode = rowEl.dataset.mode || 'select';
-            const widthMm = Number(rowEl.querySelector('.base-width-input')?.value) || 0;
-            
-            // 추가금 배열 읽기
-            const additionalFees = [];
-            rowEl.querySelectorAll('.base-additional-fee-item').forEach(itemEl => {
-                const name = itemEl.querySelector('.base-additional-fee-name')?.value?.trim() || '';
-                const amount = Number(itemEl.querySelector('.base-additional-fee-amount')?.value) || 0;
-                if (name || amount > 0) {
-                    additionalFees.push({ name, amount });
-                }
-            });
-            
-            if (mode === 'manual') {
-                const pricingType = rowEl.querySelector('.base-manual-pricing-type')?.value || '30cm';
-                if (pricingType === '1m') {
-                    const price1m = Number(rowEl.querySelector('.base-manual-price1m')?.value) || 0;
-                    return { mode, widthMm, additionalFees, manualPricing: { pricing_type: '1m', price_1m: price1m } };
-                }
-                const price30 = Number(rowEl.querySelector('.base-manual-price30')?.value) || 0;
-                const auto1 = computeAutoPrice1cmFrom30cm(price30);
-                // 항상 자동값으로 맞춤
-                const price1El = rowEl.querySelector('.base-manual-price1');
-                if (price1El) price1El.value = String(auto1);
-                return { mode, widthMm, additionalFees, manualPricing: { pricing_type: '30cm', price_30cm: price30, price_1cm: auto1 } };
-            }
-            const productId = Number(rowEl.querySelector('.base-product-select')?.value) || null;
-            return { mode, widthMm, additionalFees, productId };
-        });
-    }
-    
-    // 추가금 추가/삭제 버튼 이벤트 바인딩 함수
-    // 주의: 추가금 추가 버튼은 이벤트 위임 방식으로 처리되므로 여기서는 바인딩하지 않음
-    function bindAdditionalFeeEvents() {
-        const container = document.getElementById('baseComponentsContainer');
-        if (!container) return;
-        
-        // 추가금 삭제 버튼 (기존 항목에 대한 이벤트만 바인딩)
-        // 새로 추가되는 항목은 이벤트 위임으로 처리됨
-        container.querySelectorAll('.base-remove-fee-btn').forEach(btn => {
-            // 이미 이벤트가 바인딩되어 있는지 확인
-            if (!btn.hasAttribute('data-bound')) {
-                btn.addEventListener('click', function() {
-                    this.closest('.base-additional-fee-item').remove();
-                    calculateEstimate();
-                });
-                btn.setAttribute('data-bound', 'true');
-            }
-        });
-        
-        // 추가금 입력 시 자동 계산 (기존 항목에 대한 이벤트만 바인딩)
-        container.querySelectorAll('.base-additional-fee-name, .base-additional-fee-amount').forEach(input => {
-            // 이미 이벤트가 바인딩되어 있는지 확인
-            if (!input.hasAttribute('data-bound')) {
-                input.addEventListener('input', calculateEstimate);
-                input.setAttribute('data-bound', 'true');
-            }
-        });
-    }
-    
-    // 쿠폰 값을 가져오는 함수 (매번 DOM에서 직접 읽기 - 가장 확실한 방법)
-    function getCouponValue() {
-        const couponInput = document.getElementById('globalCouponValue');
-        if (!couponInput) {
-            console.warn('쿠폰 입력 필드를 찾을 수 없습니다. 기본값 사용:', DEFAULT_COUPON_VALUE);
-            return DEFAULT_COUPON_VALUE;
-        }
-        const value = couponInput.value;
-        if (!value || value === '') {
-            return DEFAULT_COUPON_VALUE;
-        }
-        const numValue = parseInt(value, 10);
-        if (isNaN(numValue) || numValue < 0) {
-            console.warn('잘못된 쿠폰 값:', value, '기본값 사용:', DEFAULT_COUPON_VALUE);
-            return DEFAULT_COUPON_VALUE;
-        }
-        return numValue;
-    }
-    
-    // 최종 견적 금액 스타일 적용 함수 (인라인 스타일 직접 적용)
-    function applyFinalPriceStyle(element) {
-        if (!element) return;
-        element.style.fontSize = '2.4rem';
-        element.style.fontWeight = '900';
-        element.style.color = '#0d6efd';
-        element.style.lineHeight = '1.1';
-        element.className = 'final-price-display mb-2';
-    }
-    
-    // 쿠폰 할인 정보 스타일 적용 함수
-    function applyCouponDiscountStyle(element, hasDiscount) {
-        if (!element) return;
-        if (hasDiscount) {
-            element.style.color = '#dc3545';
-            element.style.fontWeight = '700';
-            element.className = 'coupon-discount';
-        } else {
-            element.style.color = '#6c757d';
-            element.style.fontWeight = '400';
-            element.className = 'text-muted';
-        }
-    }
-
-    // 견적 ID 생성 함수 (통일된 형식)
-    function generateEstimateId() {
-        return 'est_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    }
-    
-    // ID 비교를 위한 헬퍼 함수
-    function isSameId(id1, id2) {
-        return String(id1) === String(id2);
-    }
-    
-    // ID를 문자열로 정규화
-    function normalizeId(id) {
-        if (!id) return null;
-        return String(id);
-    }
-    
-    // 가격 포맷팅 함수 (콤마 추가)
-    function formatPrice(value) {
-        if (!value) return '';
-        // 숫자만 추출
-        const numValue = value.toString().replace(/[^\d]/g, '');
-        if (!numValue) return '';
-        // 콤마 포맷팅
-        return parseInt(numValue, 10).toLocaleString('ko-KR');
-    }
-    
-    // 가격에서 콤마 제거 후 숫자로 변환
-    function parsePrice(value) {
-        if (!value) return 0;
-        // 콤마 제거 후 숫자로 변환
-        const numValue = value.toString().replace(/[^\d]/g, '');
-        return parseFloat(numValue) || 0;
-    }
-    
-    // XSS 방지를 위한 HTML 이스케이프 함수
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = String(text);
-        return div.innerHTML;
-    }
-    
     // 카테고리 데이터 확인
     if (!wdCalculatorCategories || wdCalculatorCategories.length === 0) {
         console.warn('카테고리 데이터가 없습니다. 제품 설정에서 추가 옵션을 등록해주세요.');
     }
     
-    // 비고 카테고리 로드
-    function loadNotesCategories() {
-        // 템플릿에서 전달된 비고 카테고리 사용
-        notesCategories = wdNotesCategories || [];
-    }
-    
-    // 비고 항목 표시 모드 헬퍼 함수 (추가 옵션과 일관성 유지)
-    function setNoteMode(selectEl, textareaEl, mode) {
-        if (mode === 'select') {
-            // select 표시
-            selectEl.style.setProperty('display', 'block', 'important');
-            selectEl.classList.remove('d-none');
-            // textarea 숨김
-            textareaEl.style.setProperty('display', 'none', 'important');
-            textareaEl.classList.add('d-none');
-        } else {
-            // select 숨김
-            selectEl.style.setProperty('display', 'none', 'important');
-            selectEl.classList.add('d-none');
-            // textarea 표시
-            textareaEl.style.setProperty('display', 'block', 'important');
-            textareaEl.classList.remove('d-none');
-        }
-    }
-    
-    // 비고 드롭다운 옵션 생성 (재사용 가능한 함수)
-    function createNotesSelectOptions() {
-        let optionsHtml = '<option value="">저장된 비고 선택</option>';
-        if (notesCategories && Array.isArray(notesCategories)) {
-            notesCategories.forEach(category => {
-                if (category && category.options && Array.isArray(category.options)) {
-                    category.options.forEach(option => {
-                        if (option && option.name) {
-                            const value = `${category.name} > ${option.name}`;
-                            // value 속성에는 원본 값 사용 (HTML 특수문자도 문제없음)
-                            // 표시 텍스트만 이스케이프 처리
-                            optionsHtml += `<option value="${value}">${escapeHtml(value)}</option>`;
-                        }
-                    });
-                }
-            });
-        }
-        return optionsHtml;
-    }
-    
-    // 비고 항목 추가
-    function addNoteItem(type = 'select') {
-        const index = notesList.length;
-        notesList.push({type: type, value: ''});
-        renderNoteItem(index);
-    }
-    
-    // 비고 항목 삭제
-    function removeNoteItem(index) {
-        if (notesList.length <= 1) {
-            // 최소 1개는 유지
-            return;
-        }
-        notesList.splice(index, 1);
-        renderAllNotes();
-    }
-    
-    // 비고 항목 타입 전환 (select <-> input)
-    function toggleNoteType(index) {
-        if (index >= 0 && index < notesList.length) {
-            const currentType = notesList[index].type;
-            const currentValue = notesList[index].value;
-            notesList[index].type = currentType === 'select' ? 'input' : 'select';
-            // 타입 전환 시 값 유지
-            notesList[index].value = currentValue;
-        renderNoteItem(index);
-        }
-    }
-    
-    // 비고 항목 렌더링 (간소화 및 최적화)
-    function renderNoteItem(index) {
-        const container = document.getElementById('notesContainer');
-        if (!container) return;
-        
-        const note = notesList[index];
-        if (!note) return;
-        
-        const noteId = `note-item-${index}`;
-        
-        // 기존 항목이 있으면 제거 후 재생성 (이벤트 리스너 정리)
-        let noteItem = document.getElementById(noteId);
-        if (noteItem) {
-            noteItem.remove();
-        }
-        
-        // 옵션 목록에 값이 있는지 사전 확인 (렌더링 전)
-        let optionValue = '';
-        if (note.value && note.type === 'select') {
-            // 옵션 목록에서 정확히 일치하는 값 찾기
-            if (wdNotesCategories && Array.isArray(wdNotesCategories)) {
-                for (const category of wdNotesCategories) {
-                    if (category && category.options && Array.isArray(category.options)) {
-                        for (const option of category.options) {
-                            if (option && option.name) {
-                                const fullValue = `${category.name} > ${option.name}`;
-                                if (fullValue === note.value) {
-                                    optionValue = fullValue;
-                                    break;
-                                }
-                            }
-                        }
-                        if (optionValue) break;
-                    }
-                }
-            }
-        }
-        
-        // 실제로 옵션이 아니면 타입을 input으로 변경
-        let finalIsSelect = note.type === 'select';
-        if (finalIsSelect && note.value && !optionValue) {
-            const isActuallyOption = checkIfOptionExists(note.value);
-            if (!isActuallyOption) {
-                notesList[index].type = 'input';
-                finalIsSelect = false;
-            }
-        }
-        
-        // 새 항목 생성
-            noteItem = document.createElement('div');
-            noteItem.className = 'note-item mb-2';
-            noteItem.id = noteId;
-            noteItem.setAttribute('data-note-index', index);
-        
-        noteItem.innerHTML = `
-            <div class="d-flex gap-2 align-items-start">
-                <button type="button" class="btn btn-sm btn-outline-secondary toggle-note-type" data-note-index="${index}" title="${finalIsSelect ? '직접입력' : '옵션 선택'}">
-                    <i class="fas ${finalIsSelect ? 'fa-keyboard' : 'fa-list'}"></i>
-                </button>
-                <select class="form-select flex-grow-1 note-select" data-note-index="${index}">
-                    ${createNotesSelectOptions()}
-                </select>
-                <textarea class="form-control note-input" rows="2" placeholder="비고를 직접 입력하세요" data-note-index="${index}"></textarea>
-                <button type="button" class="btn btn-sm btn-outline-danger remove-note" data-note-index="${index}" title="삭제" ${notesList.length <= 1 ? 'disabled' : ''}>
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-        `;
-        
-        container.appendChild(noteItem);
-        
-        // 요소 참조 가져오기
-        const select = noteItem.querySelector('.note-select');
-        const textarea = noteItem.querySelector('.note-input');
-        
-        // 표시 모드 설정
-        setNoteMode(select, textarea, finalIsSelect ? 'select' : 'input');
-        
-        // 값 설정
-        if (finalIsSelect && select) {
-            // 옵션 값이 있으면 설정, 없으면 빈 값
-            select.value = optionValue || '';
-        } else if (textarea) {
-            textarea.value = note.value || '';
-        }
-        
-        // 이벤트 리스너 등록 (효율적인 방식)
-        attachNoteItemEvents(noteItem, index);
-    }
-    
-    // 비고 항목 이벤트 리스너 등록 (개선된 버전 - cloneNode 제거)
-    function attachNoteItemEvents(noteItem, index) {
-        // 타입 전환 버튼
-        const toggleBtn = noteItem.querySelector('.toggle-note-type');
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                toggleNoteType(index);
-            });
-        }
-        
-        // 삭제 버튼
-        const removeBtn = noteItem.querySelector('.remove-note');
-        if (removeBtn) {
-            removeBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                removeNoteItem(index);
-            });
-        }
-        
-        // Select 변경
-        const select = noteItem.querySelector('.note-select');
-        if (select) {
-            select.addEventListener('change', function() {
-                if (index >= 0 && index < notesList.length) {
-                    notesList[index].value = this.value;
-                    notesList[index].type = 'select';
-                }
-            });
-        }
-        
-        // Textarea 변경 및 blur (숫자 포맷팅)
-        const textarea = noteItem.querySelector('.note-input');
-        if (textarea) {
-            textarea.addEventListener('input', function() {
-                if (index >= 0 && index < notesList.length) {
-                    notesList[index].value = this.value;
-                    notesList[index].type = 'input';
-                }
-            });
-            
-            textarea.addEventListener('blur', function() {
-                const formatted = formatNumbersInText(this.value);
-                if (formatted !== this.value) {
-                    this.value = formatted;
-                    if (index >= 0 && index < notesList.length) {
-                        notesList[index].value = formatted;
-                    }
-                }
-            });
-        }
-    }
-    
-    // 모든 비고 항목 렌더링
-    function renderAllNotes() {
-        const container = document.getElementById('notesContainer');
-        if (!container) return;
-        
-        container.innerHTML = '';
-        
-        if (notesList.length === 0) {
-            // 비고가 없으면 기본 1개 추가
-            addNoteItem('select');
-            return;
-        }
-        
-        notesList.forEach((note, index) => {
-            renderNoteItem(index);
-        });
-    }
-    
-    // 비고 수집 (문자열로 변환)
-    function collectNotes() {
-        return notesList
-            .map(item => item.value)
-            .filter(v => v && v.trim())
-            .join('\n');
-    }
-    
-    // 비고 로드 (문자열에서 파싱)
-    function loadNotes(notesString) {
-        if (!notesString || !notesString.trim()) {
-            notesList = [{type: 'select', value: ''}];
-            renderAllNotes();
-            return;
-        }
-        
-        // notesCategories가 로드되지 않았으면 재시도
-        if (!notesCategories || notesCategories.length === 0) {
-            loadNotesCategories();
-            // 그래도 없으면 잠시 후 재시도
-            if (!notesCategories || notesCategories.length === 0) {
-                setTimeout(() => {
-                    loadNotesCategories();
-                    if (notesCategories && notesCategories.length > 0) {
-                        loadNotes(notesString); // 재귀 호출
-                    }
-                }, 100);
-                return;
-            }
-        }
-        
-        // 줄바꿈으로 분리
-        const lines = notesString.split('\n').filter(v => v.trim());
-        
-        if (lines.length === 0) {
-            notesList = [{type: 'select', value: ''}];
-            renderAllNotes();
-            return;
-        }
-        
-        // 각 라인을 비고 항목으로 변환
-        notesList = lines.map(value => {
-            value = value.trim();
-            // 옵션 목록에 있는지 확인
-            const isOption = checkIfOptionExists(value);
-            return {
-                type: isOption ? 'select' : 'input',
-                value: value
-            };
-        });
-        
-        renderAllNotes();
-    }
-    
-    // 옵션 목록에 존재하는지 확인
-    function checkIfOptionExists(value) {
-        if (!value || !notesCategories) {
-            return false;
-        }
-        
-        for (const category of notesCategories) {
-            if (category && category.options && Array.isArray(category.options)) {
-                for (const option of category.options) {
-                    if (option && option.name) {
-                        const optionValue = `${category.name} > ${option.name}`;
-                        if (optionValue === value) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        return false;
-    }
-    
-    // 비고 숫자 콤마 포맷터
-    function formatNumbersInText(text) {
-        return text.replace(/\d{4,}/g, (match) => {
-            const num = Number(match);
-            return Number.isFinite(num) ? num.toLocaleString('ko-KR') : match;
-        });
-    }
-    
-    // 비고 텍스트 줄 정렬 정리 함수 (각 줄의 앞뒤 공백 제거)
-    function formatNotesText(notes) {
-        if (!notes || !notes.trim()) {
-            return '';
-        }
-        // 각 줄을 분리하고 앞뒤 공백 제거, 빈 줄은 유지
-        return notes
-            .split('\n')
-            .map(line => line.trim())
-            .join('\n');
-    }
-    
-    // 비고 추가 버튼 이벤트
-    const btnAddNote = document.getElementById('btnAddNote');
-    if (btnAddNote) {
-        btnAddNote.addEventListener('click', function() {
-            addNoteItem('select');
-        });
-    }
-    
-    // 비고 카테고리 로드 및 초기화
-    loadNotesCategories();
-    
-    // 초기 비고 항목 1개 추가
-    notesList = [{type: 'select', value: ''}];
-    renderAllNotes();
+    // 비고 UI는 static/js/wdcalculator/notes-ui.js (WdCalculatorNotesUI)
+    WdCalculatorNotesUI.initNotesUi();
     
     // 제품 목록 로드
     function loadProducts() {
@@ -732,16 +96,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 복합 기본견적 행들의 제품 드랍다운 옵션 업데이트
-    function updateBaseProductSelectOptions() {
-        const optionHtml = getProductsOptionsHtml();
-        document.querySelectorAll('.base-component-row .base-product-select').forEach(sel => {
-            const prev = sel.value;
-            sel.innerHTML = optionHtml;
-            if (prev) sel.value = prev;
-        });
-    }
-    
     // 제품 선택 이벤트 (레거시 - 호환성 유지)
     const productSelect = document.getElementById('productSelect');
     if (productSelect) {
@@ -804,147 +158,29 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // (구버전) 단일 가로넓이 입력(widthInput)은 복합 기본구성 도입으로 제거됨
     
-    // 추가 옵션 표시 모드 헬퍼 함수
-    function setOptionMode(selectEl, nameInputEl, mode) {
-        if (mode === 'select') {
-            // select 표시
-            selectEl.style.setProperty('display', 'block', 'important');
-            selectEl.classList.remove('d-none');
-            // nameInput 숨김
-            nameInputEl.style.setProperty('display', 'none', 'important');
-            nameInputEl.classList.add('d-none');
-        } else {
-            // select 숨김
-            selectEl.style.setProperty('display', 'none', 'important');
-            selectEl.classList.add('d-none');
-            // nameInput 표시
-            nameInputEl.style.setProperty('display', 'block', 'important');
-            nameInputEl.classList.remove('d-none');
-        }
-    }
-    
-    // 추가 옵션 추가 버튼 (심플한 재구현)
+    // 추가 옵션 추가 버튼
     const addOptionBtn = document.getElementById('addOptionBtn');
     if (addOptionBtn) {
         addOptionBtn.addEventListener('click', function() {
             const container = document.getElementById('additionalOptionsContainer');
-            const optionId = Date.now();
-
-            let allOptionsHtml = '<option value="">카테고리 > 옵션을 선택하세요</option>';
-            if (wdCalculatorCategories && Array.isArray(wdCalculatorCategories)) {
-                wdCalculatorCategories.forEach(category => {
-                    if (category?.options?.length) {
-                        category.options.forEach(option => {
-                            if (option && option.name && option.price !== undefined) {
-                                allOptionsHtml += `<option value="${category.name}|${option.name}|${option.price}">${category.name} > ${option.name} (${formatNumber(option.price)}원)</option>`;
-                            }
-                        });
-                    }
-                });
-            }
-
-            const optionHtml = `
-                <div class="additional-option-item" data-option-id="${optionId}">
-                    <div class="row gx-2 align-items-center">
-                        <div class="col-md-5">
-                            <label class="form-label small">카테고리 > 옵션 선택</label>
-                            <div class="d-flex gap-2 align-items-center">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle-direct-input title="직접입력">
-                                    <i class="fas fa-keyboard"></i>
-                                </button>
-                                <select class="form-select form-select-sm category-option-select flex-grow-1" data-category-option-select>
-                                    ${allOptionsHtml}
-                                </select>
-                                <input type="text" class="form-control form-control-sm option-name-input flex-grow-1" placeholder="또는 옵션명 직접 입력 (예: 화장대 > 화장대A)" data-option-name>
-                            </div>
-                        </div>
-                        <div class="col-md-3 price-col">
-                            <label class="form-label small">가격 (원)</label>
-                            <input type="text" class="form-control form-control-sm option-price-input" placeholder="가격을 입력하세요" data-option-price inputmode="numeric">
-                        </div>
-                        <div class="col-md-2 quantity-col">
-                            <label class="form-label small">수량</label>
-                            <input type="number" class="form-control form-control-sm option-quantity-input" placeholder="수량" min="1" step="1" value="1" data-option-quantity>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small" style="visibility: hidden;">작업</label>
-                            <button type="button" class="btn btn-sm btn-outline-danger remove-option-btn w-100" style="white-space: nowrap;">
-                                <i class="fas fa-times"></i> 삭제
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            container.insertAdjacentHTML('beforeend', optionHtml);
-
-            const item = container.querySelector(`[data-option-id="${optionId}"]`);
-            const select = item.querySelector('[data-category-option-select]');
-            const nameInput = item.querySelector('[data-option-name]');
-            const priceInput = item.querySelector('[data-option-price]');
-            const qtyInput = item.querySelector('[data-option-quantity]');
-            const toggleBtn = item.querySelector('[data-toggle-direct-input]');
-            const removeBtn = item.querySelector('.remove-option-btn');
-
-            // 초기: 드롭다운 모드
-            setOptionMode(select, nameInput, 'select');
-            // 강제로 다시 적용 (브라우저 렌더링 타이밍 이슈 방지)
-            setTimeout(() => {
-                setOptionMode(select, nameInput, 'select');
-            }, 0);
-            toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>';
-
-            // 토글
-            toggleBtn.addEventListener('click', () => {
-                const selectVisible = select.style.display !== 'none';
-                if (selectVisible) {
-                    setOptionMode(select, nameInput, 'input');
-                    select.value = '';
-                    nameInput.value = '';
-                    priceInput.value = '';
-                    toggleBtn.innerHTML = '<i class="fas fa-list"></i>';
-                } else {
-                    setOptionMode(select, nameInput, 'select');
-                    nameInput.value = '';
-                    priceInput.value = '';
-                    toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>';
-                }
-                calculateEstimate();
-            });
-
-            // 선택 시 자동 반영
-            select.addEventListener('change', function() {
-                if (this.value) {
-                    const [cat, opt, price] = this.value.split('|');
-                    nameInput.value = `${cat} > ${opt}`;
-                    priceInput.value = formatPrice(price);
-                    if (!qtyInput.value || qtyInput.value < 1) qtyInput.value = 1;
-                    setOptionMode(select, nameInput, 'select');
-                    toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>';
-                    calculateEstimate();
-                } else {
-                    nameInput.value = '';
-                    priceInput.value = '';
-                }
-            });
-
-            // 입력/수량 변경 시 계산
-            [priceInput, nameInput, qtyInput].forEach(el => el.addEventListener('input', calculateEstimate));
-
-            // 삭제
-            removeBtn.addEventListener('click', () => {
-                item.remove();
-                calculateEstimate();
+            appendAdditionalOptionRow(container, {
+                forceMode: 'select',
+                formatPriceOnInput: false,
             });
         });
     }
-    
-    // 추가 옵션 삭제
-    document.addEventListener('click', function(e) {
-        if (e.target.closest('.remove-option-btn')) {
-            e.target.closest('.additional-option-item').remove();
-            calculateEstimate();
+
+    /**
+     * Per-estimate pricing via static/js/wdcalculator/current-estimate-math.js.
+     * Throws a clear Error if the helper is missing (load-order regressions).
+     */
+    function resolveWdcCurrentEstimateMath(baseComponents, products, optionRows) {
+        var fn = window.wdcComputeCurrentEstimateMath;
+        if (typeof fn !== 'function') {
+            throw new Error('WDCalculator: current estimate math helper is not loaded (js/wdcalculator/current-estimate-math.js). Please reload the page.');
         }
-    });
+        return fn(baseComponents, products, optionRows);
+    }
     
     
     // 견적 계산 함수
@@ -962,130 +198,30 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // 기본 견적 계산
-        let basePrice = 0;
-        let baseEstimateDetail = '';
-        const detailLines = [];
-        for (const comp of baseComponents) {
-            const widthMm = Number(comp.widthMm) || 0;
-            const additionalFees = comp.additionalFees || []; // 추가금 배열 읽기
-            let compPrice = 0; // 이 구성의 가격
-            
-            if (widthMm > 0) {
-                if (comp.mode === 'manual') {
-                    const pricingType = comp.manualPricing?.pricing_type || '30cm';
-                    if (pricingType === '1m') {
-                        const price1m = Number(comp.manualPricing?.price_1m) || 0;
-                        if (price1m > 0) {
-                            const meters = widthMm / 1000;
-                            compPrice = meters * price1m;
-                            detailLines.push(`직접입력(1m) ${formatNumber(widthMm)}mm`);
-                        }
-                    } else {
-                        const price30 = Number(comp.manualPricing?.price_30cm) || 0;
-                        const price1 = Number(comp.manualPricing?.price_1cm) || 0;
-                        if (price30 > 0 && price1 > 0) {
-                            const units30cm = Math.floor(widthMm / 300);
-                            const remainderMm = widthMm % 300;
-                            const units1cm = Math.floor(remainderMm / 10);
-                            compPrice = (units30cm * price30) + (units1cm * price1);
-                            detailLines.push(`직접입력(30cm) ${formatNumber(widthMm)}mm`);
-                        }
-                    }
-                } else {
-                    const productId = Number(comp.productId) || 0;
-                    if (productId) {
-                        const product = products.find(p => p.id === productId);
-                        if (product) {
-                            if (product.pricing_type === '1m') {
-                                compPrice = (widthMm / 1000) * (product.price_1m || 0);
-                            } else if (product.pricing_type === '30cm') {
-                                const units30cm = Math.floor(widthMm / 300);
-                                const remainderMm = widthMm % 300;
-                                const units1cm = Math.floor(remainderMm / 10);
-                                compPrice = (units30cm * (product.price_30cm || 0)) + (units1cm * (product.price_1cm || 0));
-                            }
-                            detailLines.push(`${product.name} ${formatNumber(widthMm)}mm`);
-                        }
-                    }
-                }
-            }
-            
-            // 추가금 합산 (배열 처리)
-            additionalFees.forEach(fee => {
-                const amount = Number(fee.amount) || 0;
-                if (amount > 0) {
-                    compPrice += amount;
-                    const feeName = fee.name ? `${fee.name} ` : '';
-                    detailLines.push(`+ ${feeName}추가금 ${formatNumber(amount)}원`);
-            }
-            });
-            
-            basePrice += compPrice;
+        const optionRows = readAdditionalOptionRowsFromUI();
+        let math;
+        try {
+            math = resolveWdcCurrentEstimateMath(baseComponents, products, optionRows);
+        } catch (e) {
+            console.error(e);
+            alert(e.message || String(e));
+            return;
         }
-        baseEstimateDetail = detailLines.join(' / ');
+
+        const basePrice = math.basePriceCalculate;
+        const baseEstimateDetail = math.baseEstimateDetail;
         if (!baseEstimateDetail) {
             document.getElementById('baseEstimateSection').style.display = 'none';
             return;
         }
 
         document.getElementById('baseEstimateDetail').textContent = baseEstimateDetail;
+
+        const additionalPrice = math.additionalPrice;
+        const additionalOptionsDetail = math.additionalOptionsDetail || '';
+        document.getElementById('additionalOptionsDetail').textContent = additionalOptionsDetail;
         
-        // 추가 옵션 가격 합산
-        let additionalPrice = 0;
-        const additionalOptionsList = []; // 옵션명과 수량을 저장할 배열
-        
-        // 사용자가 선택/입력한 옵션만 계산 (수량 반영)
-        document.querySelectorAll('.additional-option-item').forEach(item => {
-            const priceInput = item.querySelector('[data-option-price]');
-            const nameInput = item.querySelector('[data-option-name]');
-            const quantityInput = item.querySelector('[data-option-quantity]');
-            const categoryOptionSelect = item.querySelector('[data-category-option-select]');
-            const price = parsePrice(priceInput.value);
-            const quantity = parseInt(quantityInput.value) || 1;
-            
-            // 카테고리 > 옵션 선택 또는 직접 입력한 경우
-            let name = '';
-            if (categoryOptionSelect && categoryOptionSelect.style.display !== 'none' && categoryOptionSelect.value && categoryOptionSelect.value !== '') {
-                // 드롭다운에서 선택한 경우
-                const parts = categoryOptionSelect.value.split('|');
-                if (parts.length >= 2) {
-                    name = `${parts[0]} > ${parts[1]}`;
-                }
-            } else if (nameInput && nameInput.style.display !== 'none' && nameInput.value) {
-                // 직접 입력한 경우
-                name = nameInput.value;
-            }
-            
-            // 옵션명과 가격이 모두 입력된 경우만 계산 (가격 * 수량)
-            if (name && price > 0) {
-                const amount = price * quantity;
-                additionalPrice += amount;
-                additionalOptionsList.push({
-                    name: name,
-                    quantity: quantity,
-                    amount: amount
-                });
-            }
-        });
-        
-        // 추가 옵션 상세 정보 생성: 옵션명 + 수량 + 금액 (같은 옵션이 여러 개면 합산)
-        const optionMap = new Map();
-        additionalOptionsList.forEach(option => {
-            if (optionMap.has(option.name)) {
-                const prev = optionMap.get(option.name);
-                optionMap.set(option.name, { quantity: prev.quantity + option.quantity, amount: prev.amount + option.amount });
-            } else {
-                optionMap.set(option.name, { quantity: option.quantity, amount: option.amount });
-            }
-        });
-        
-        const additionalOptionsDetail = Array.from(optionMap.entries())
-            .map(([name, v]) => `${name} × ${v.quantity} (${formatNumber(v.amount)}원)`)
-            .join(', ');
-        document.getElementById('additionalOptionsDetail').textContent = additionalOptionsDetail || '';
-        
-        const totalPrice = basePrice + additionalPrice;
+        const totalPrice = math.totalPriceCalculate;
         // 쿠폰 값은 매번 최신 값으로 읽기 (중요!)
         const couponValue = getCouponValue();
         const finalPrice = Math.max(0, totalPrice - couponValue);
@@ -1140,142 +276,25 @@ document.addEventListener('DOMContentLoaded', function() {
             return null;
         }
 
-        // 기본 견적 계산
-        let basePrice = 0;
-        const normalizedComponents = [];
-        const displayParts = [];
-        for (const comp of baseComponents) {
-            const widthMm = Number(comp.widthMm) || 0;
-            const additionalFees = comp.additionalFees || []; // 추가금 배열 읽기
-            let compPrice = 0; // 이 구성의 가격
-            let compData = {};
-            
-            if (widthMm > 0) {
-                if (comp.mode === 'manual') {
-                    const pricingType = comp.manualPricing?.pricing_type || '30cm';
-                    if (pricingType === '1m') {
-                        const price1m = Number(comp.manualPricing?.price_1m) || 0;
-                        if (price1m > 0) {
-                            compPrice = (widthMm / 1000) * price1m;
-                            compData = {
-                                mode: 'manual',
-                                widthMm,
-                                additionalFees, // 추가금 배열 저장
-                                manualPricing: { pricing_type: '1m', price_1m: price1m }
-                            };
-                            displayParts.push(`직접입력(1m) ${formatNumber(widthMm)}mm`);
-                        }
-                    } else {
-                        const price30 = Number(comp.manualPricing?.price_30cm) || 0;
-                        const price1 = Number(comp.manualPricing?.price_1cm) || 0;
-                        if (price30 > 0 && price1 > 0) {
-                            const units30cm = Math.floor(widthMm / 300);
-                            const remainderMm = widthMm % 300;
-                            const units1cm = Math.floor(remainderMm / 10);
-                            compPrice = (units30cm * price30) + (units1cm * price1);
-                            compData = {
-                                mode: 'manual',
-                                widthMm,
-                                additionalFees, // 추가금 배열 저장
-                                manualPricing: { pricing_type: '30cm', price_30cm: price30, price_1cm: price1 }
-                            };
-                            displayParts.push(`직접입력(30cm) ${formatNumber(widthMm)}mm`);
-                        }
-                    }
-                } else {
-                    const productId = Number(comp.productId) || 0;
-                    if (productId) {
-                        const product = products.find(p => p.id === productId);
-                        if (product) {
-                            if (product.pricing_type === '1m') {
-                                compPrice = (widthMm / 1000) * (product.price_1m || 0);
-                            } else if (product.pricing_type === '30cm') {
-                                const units30cm = Math.floor(widthMm / 300);
-                                const remainderMm = widthMm % 300;
-                                const units1cm = Math.floor(remainderMm / 10);
-                                compPrice = (units30cm * (product.price_30cm || 0)) + (units1cm * (product.price_1cm || 0));
-                            }
-                            compData = {
-                                mode: 'select',
-                                productId,
-                                widthMm,
-                                additionalFees // 추가금 배열 저장
-                            };
-                            displayParts.push(`${product.name} ${formatNumber(widthMm)}mm`);
-                        }
-                    }
-                }
-            }
-            
-            // 추가금만 있는 경우도 처리
-            const totalAdditionalFee = additionalFees.reduce((sum, fee) => sum + (Number(fee.amount) || 0), 0);
-            if (widthMm <= 0 && totalAdditionalFee > 0) {
-                compData = {
-                    mode: comp.mode || 'select',
-                    widthMm: 0,
-                    additionalFees,
-                    productId: comp.productId || null
-                };
-                additionalFees.forEach(fee => {
-                    const amount = Number(fee.amount) || 0;
-                    if (amount > 0) {
-                        const feeName = fee.name ? `${fee.name} ` : '';
-                        displayParts.push(`${feeName}추가금 ${formatNumber(amount)}원`);
-                    }
-                });
-            }
-            
-            // 추가금 합산 (배열 처리)
-            additionalFees.forEach(fee => {
-                const amount = Number(fee.amount) || 0;
-                if (amount > 0) {
-                    compPrice += amount;
-                    const feeName = fee.name ? `${fee.name} ` : '';
-                    if (widthMm > 0) {
-                        displayParts.push(`+ ${feeName}추가금 ${formatNumber(amount)}원`);
-            }
-                }
-            });
-            
-            if (Object.keys(compData).length > 0) {
-                basePrice += compPrice;
-                normalizedComponents.push(compData);
-            }
+        const optionRows = readAdditionalOptionRowsFromUI();
+        let math;
+        try {
+            math = resolveWdcCurrentEstimateMath(baseComponents, products, optionRows);
+        } catch (e) {
+            console.error(e);
+            alert(e.message || String(e));
+            return null;
         }
 
+        const normalizedComponents = math.normalizedComponents;
+        const displayParts = math.displayParts;
+
         if (!normalizedComponents.length) return null;
-        
-        // 추가 옵션 수집
-        const options = [];
-        document.querySelectorAll('.additional-option-item').forEach(item => {
-            const priceInput = item.querySelector('[data-option-price]');
-            const nameInput = item.querySelector('[data-option-name]');
-            const quantityInput = item.querySelector('[data-option-quantity]');
-            const categoryOptionSelect = item.querySelector('[data-category-option-select]');
-            const price = parsePrice(priceInput.value);
-            const quantity = parseInt(quantityInput.value) || 1;
-            
-            let name = '';
-            if (categoryOptionSelect && categoryOptionSelect.style.display !== 'none' && categoryOptionSelect.value && categoryOptionSelect.value !== '') {
-                const parts = categoryOptionSelect.value.split('|');
-                if (parts.length >= 2) {
-                    name = `${parts[0]} > ${parts[1]}`;
-                }
-            } else if (nameInput && nameInput.style.display !== 'none' && nameInput.value) {
-                name = nameInput.value;
-            }
-            
-            if (name && price > 0) {
-                options.push({
-                    name: name,
-                    price: price,
-                    quantity: quantity
-                });
-            }
-        });
-        
-        const additionalPrice = options.reduce((sum, opt) => sum + (opt.price * opt.quantity), 0);
-        const totalPrice = basePrice + additionalPrice;
+
+        const basePrice = math.basePriceCollect;
+        const options = math.options;
+        const additionalPrice = math.additionalPrice;
+        const totalPrice = math.totalPriceCollect;
         
         // 비고 정보 수집
         const notes = collectNotes();
@@ -1327,12 +346,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 4. 비고 초기화
             try {
-                notesList = [{type: 'select', value: ''}];
-                renderAllNotes();
+                WdCalculatorNotesUI.resetNotesToEmpty();
             } catch (error) {
                 console.error('Error resetting notes:', error);
-                // 비고 초기화 실패해도 계속 진행
-                notesList = [{type: 'select', value: ''}];
+                // 비고 초기화 실패해도 이후 리셋 흐름은 계속 진행
             }
             
             // 5. 견적 결과 표시 영역 초기화
@@ -1451,23 +468,27 @@ document.addEventListener('DOMContentLoaded', function() {
                             // 방금 저장된 항목에 "저장 완료" 배지 일시 표시 (3초)
                             const sidebarList = document.getElementById('savedEstimatesList');
                             if (!sidebarList) return;
-                            const savedItem = sidebarList.querySelector(`[data-id="${savedId}"], [data-estimate-id="${savedId}"]`);
-                            if (savedItem) {
-                                const card = savedItem.closest('.card') || savedItem.closest('li') || savedItem.parentElement;
-                                if (card) {
-                                    card.style.transition = 'box-shadow 0.3s, border-color 0.3s';
-                                    card.style.boxShadow = '0 0 0 3px #28a745aa';
-                                    card.style.borderColor = '#28a745';
-                                    const badge = document.createElement('span');
-                                    badge.className = 'badge bg-success ms-1';
-                                    badge.textContent = '저장 완료';
-                                    badge.style.cssText = 'font-size:0.7rem;vertical-align:middle;';
-                                    const nameEl = card.querySelector('.fw-bold, .card-title, strong') || card.firstElementChild;
-                                    if (nameEl) nameEl.appendChild(badge);
+                            const savedRow = sidebarList.querySelector(`.saved-estimate-row[data-estimate-id="${savedId}"]`);
+                            if (savedRow) {
+                                savedRow.style.transition = 'box-shadow 0.3s, border-color 0.3s';
+                                savedRow.style.boxShadow = '0 0 0 3px #28a745aa';
+                                savedRow.style.borderColor = '#28a745';
+                                const badge = document.createElement('span');
+                                badge.className = 'badge bg-success ms-1';
+                                badge.textContent = '저장 완료';
+                                badge.style.cssText = 'font-size:0.7rem;vertical-align:middle;';
+                                const nameEl = savedRow.querySelector('.saved-estimate-customer-name');
+                                if (nameEl) {
+                                    nameEl.appendChild(badge);
                                     setTimeout(() => {
-                                        card.style.boxShadow = '';
-                                        card.style.borderColor = '';
+                                        savedRow.style.boxShadow = '';
+                                        savedRow.style.borderColor = '';
                                         badge.remove();
+                                    }, 3000);
+                                } else {
+                                    setTimeout(() => {
+                                        savedRow.style.boxShadow = '';
+                                        savedRow.style.borderColor = '';
                                     }, 3000);
                                 }
                             }
@@ -1741,6 +762,18 @@ document.addEventListener('DOMContentLoaded', function() {
         // 전체 견적 합계 계산 및 표시
         calculateTotalEstimates();
     }
+
+    /**
+     * Aggregate totals via static/js/wdcalculator/estimate-totals.js.
+     * Throws a clear Error if the helper is missing (avoids opaque TypeError on load-order regressions).
+     */
+    function resolveWdcAggregateTotals(estimatesList, couponValue, shippingCost, shippingIncluded) {
+        var fn = window.wdcComputeAggregateTotals;
+        if (typeof fn !== 'function') {
+            throw new Error('WDCalculator: aggregate totals helper is not loaded (js/wdcalculator/estimate-totals.js). Please reload the page.');
+        }
+        return fn(estimatesList, couponValue, shippingCost, shippingIncluded);
+    }
     
     // 전체 견적 합계 계산 (쿠폰은 1번만 적용)
     function calculateTotalEstimates() {
@@ -1755,24 +788,25 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        const totalBasePrice = estimates.reduce((sum, est) => sum + est.basePrice, 0);
-        const totalAdditionalPrice = estimates.reduce((sum, est) => sum + est.additionalPrice, 0);
-        const totalPrice = totalBasePrice + totalAdditionalPrice;
-        
-        // 쿠폰 적용 (매번 최신 값으로 읽기 - 중요!)
+        // 쿠폰·배송 입력은 DOM에서 읽고, 합계 숫자만 공용 헬퍼로 계산 (정책 단일화)
         const couponValue = getCouponValue();
-        const totalEstimate = Math.max(0, totalPrice - couponValue);
-        
-        // 배송비 가져오기
         const shippingCostInput = document.getElementById('shippingCost');
         const shippingCost = shippingCostInput ? parseFloat(shippingCostInput.value) || 0 : 0;
-        
-        // 배송비 포함 여부 가져오기
         const shippingIncludedCheckbox = document.getElementById('shippingIncluded');
         const shippingIncluded = shippingIncludedCheckbox ? shippingIncludedCheckbox.checked : true;
-        
-        // 최종 금액 계산 (배송비 포함 여부에 따라)
-        const finalPrice = shippingIncluded ? totalEstimate + shippingCost : totalEstimate;
+
+        let agg;
+        try {
+            agg = resolveWdcAggregateTotals(estimates, couponValue, shippingCost, shippingIncluded);
+        } catch (e) {
+            console.error(e);
+            alert(e.message || String(e));
+            return;
+        }
+        const totalBasePrice = agg.totalBasePrice;
+        const totalAdditionalPrice = agg.totalAdditionalPrice;
+        const totalPrice = agg.totalPrice;
+        const finalPrice = agg.finalPrice;
         const couponInfoText = couponValue > 0 ? `${formatNumber(couponValue)}원 할인` : '쿠폰가 미적용';
         
         // 전체 견적 상세 정보 (추가 옵션: 수량 + 금액)
@@ -1983,11 +1017,10 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 4. 비고 초기화
         try {
-        notesList = [{type: 'select', value: ''}];
-        renderAllNotes();
+        WdCalculatorNotesUI.resetNotesToEmpty();
         } catch (error) {
             console.error('Error resetting notes:', error);
-            notesList = [{type: 'select', value: ''}];
+            // 비고 초기화 실패해도 이후 리셋 흐름은 계속 진행
         }
         
         // 5. 견적 결과 표시 영역 초기화
@@ -2342,8 +1375,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // 1. 폼 초기화
             document.getElementById('additionalOptionsContainer').innerHTML = '';
             // 비고 초기화
-            notesList = [{type: 'select', value: ''}];
-            renderAllNotes();
+            WdCalculatorNotesUI.resetNotesToEmpty();
             
             // 2. 기본 구성 UI 로드 (복합/단일 모두 처리)
             if (estimate.baseComponents && Array.isArray(estimate.baseComponents) && estimate.baseComponents.length > 0) {
@@ -2364,185 +1396,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 4. 추가 옵션 로드 (동기적으로 처리)
             const container = document.getElementById('additionalOptionsContainer');
-        
-        // 카테고리 옵션 목록 HTML 생성
-        let allOptionsHtml = '<option value="">카테고리 > 옵션을 선택하세요</option>';
-        if (wdCalculatorCategories && Array.isArray(wdCalculatorCategories)) {
-            wdCalculatorCategories.forEach(category => {
-                if (category && category.options && Array.isArray(category.options)) {
-                    category.options.forEach(option => {
-                        if (option && option.name && option.price !== undefined) {
-                            allOptionsHtml += `<option value="${category.name}|${option.name}|${option.price}">${category.name} > ${option.name} (${formatNumber(option.price)}원)</option>`;
-                        }
-                    });
-                }
+            loadAdditionalOptionRows(container, estimate.options, {
+                formatPriceOnInput: true,
             });
-        }
-        
-            // 각 옵션을 순회하며 DOM에 추가
-            if (estimate.options && Array.isArray(estimate.options) && estimate.options.length > 0) {
-            estimate.options.forEach((opt, optIdx) => {
-                if (!opt || !opt.name) return;
-                
-                const optionId = 'opt_' + Date.now() + '_' + optIdx;
-                const escapedName = escapeHtml(opt.name || '');
-                const optPrice = Math.max(0, parseFloat(opt.price) || 0);
-                const optQuantity = Math.max(1, parseInt(opt.quantity) || 1);
-                
-                // 사전에 등록된 옵션과 매칭 여부 확인
-                let matchedValue = '';
-                if (wdCalculatorCategories && Array.isArray(wdCalculatorCategories)) {
-                    wdCalculatorCategories.some(category => {
-                        if (!category || !category.options) return false;
-                        const found = category.options.find(o => o && o.name === opt.name && o.price !== undefined);
-                        if (found) {
-                            matchedValue = `${category.name}|${found.name}|${found.price}`;
-                            return true;
-                        }
-                        return false;
-                    });
-                }
-
-                const optionHtml = `
-                    <div class="additional-option-item" data-option-id="${optionId}">
-                        <div class="row gx-2 align-items-center">
-                            <div class="col-md-5">
-                                <label class="form-label small">카테고리 > 옵션 선택</label>
-                                <div class="d-flex gap-2 align-items-center">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle-direct-input title="직접입력">
-                                        <i class="fas fa-keyboard"></i>
-                                    </button>
-                                    <select class="form-select form-select-sm category-option-select flex-grow-1" data-category-option-select>
-                                        ${allOptionsHtml}
-                                    </select>
-                                    <input type="text" class="form-control form-control-sm option-name-input flex-grow-1" placeholder="또는 옵션명 직접 입력 (예: 화장대 > 화장대A)" data-option-name value="${escapedName}">
-                                </div>
-                            </div>
-                            <div class="col-md-3 price-col">
-                                <label class="form-label small">가격 (원)</label>
-                                <input type="text" class="form-control form-control-sm option-price-input" placeholder="가격을 입력하세요" data-option-price value="${formatPrice(optPrice)}" inputmode="numeric">
-                            </div>
-                            <div class="col-md-2 quantity-col">
-                                <label class="form-label small">수량</label>
-                                <input type="number" class="form-control form-control-sm option-quantity-input" placeholder="수량" min="1" step="1" value="${optQuantity}" data-option-quantity>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label small" style="visibility: hidden;">작업</label>
-                                <button type="button" class="btn btn-sm btn-outline-danger remove-option-btn w-100" style="white-space: nowrap;">
-                                    <i class="fas fa-times"></i> 삭제
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                container.insertAdjacentHTML('beforeend', optionHtml);
-                
-                // 즉시 이벤트 리스너 등록 (동기적으로)
-                const item = container.lastElementChild;
-                const select = item.querySelector('.category-option-select');
-                const nameInput = item.querySelector('.option-name-input');
-                const priceInput = item.querySelector('[data-option-price]');
-                const quantityInput = item.querySelector('[data-option-quantity]');
-                const toggleBtn = item.querySelector('[data-toggle-direct-input]');
-
-                // 초기 모드 설정 (setOptionMode 사용)
-                if (matchedValue) {
-                    select.value = matchedValue;
-                    setOptionMode(select, nameInput, 'select');
-                    // 강제로 다시 적용 (브라우저 렌더링 타이밍 이슈 방지)
-                    setTimeout(() => {
-                        setOptionMode(select, nameInput, 'select');
-                    }, 0);
-                    toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>'; // 직접입력 전환 아이콘
-                } else {
-                    select.value = '';
-                    setOptionMode(select, nameInput, 'input');
-                    // 강제로 다시 적용 (브라우저 렌더링 타이밍 이슈 방지)
-                    setTimeout(() => {
-                        setOptionMode(select, nameInput, 'input');
-                    }, 0);
-                    toggleBtn.innerHTML = '<i class="fas fa-list"></i>'; // 목록 전환 아이콘
-                }
-                
-                // 카테고리 선택 이벤트
-                select.addEventListener('change', function() {
-                    if (this.value && this.value !== '') {
-                        const [categoryName, optionName, price] = this.value.split('|');
-                        nameInput.value = `${categoryName} > ${optionName}`;
-                        priceInput.value = formatPrice(price);
-                        setOptionMode(select, nameInput, 'select');
-                        calculateEstimate();
-                    }
-                });
-                
-                // 직접입력 토글 이벤트
-                toggleBtn.addEventListener('click', function() {
-                    const selectVisible = select.style.display !== 'none';
-                    if (selectVisible) {
-                        setOptionMode(select, nameInput, 'input');
-                        select.value = '';
-                        nameInput.value = '';
-                        priceInput.value = '';
-                        this.innerHTML = '<i class="fas fa-list"></i>';
-                    } else {
-                        setOptionMode(select, nameInput, 'select');
-                        nameInput.value = '';
-                        priceInput.value = '';
-                        this.innerHTML = '<i class="fas fa-keyboard"></i>';
-                    }
-                    calculateEstimate();
-                });
-                
-                // 가격 입력 필드에 콤마 포맷팅 적용
-                priceInput.addEventListener('input', function() {
-                    const cursorPosition = this.selectionStart;
-                    const oldValue = this.value;
-                    const formattedValue = formatPrice(this.value);
-                    
-                    this.value = formattedValue;
-                    
-                    // 커서 위치 조정 (콤마 추가로 인한 위치 변화 보정)
-                    const diff = formattedValue.length - oldValue.length;
-                    const newPosition = Math.max(0, cursorPosition + diff);
-                    this.setSelectionRange(newPosition, newPosition);
-                    
-                    calculateEstimate();
-                });
-                
-                // 가격 입력 필드 포커스 아웃 시 포맷팅 확정
-                priceInput.addEventListener('blur', function() {
-                    if (this.value) {
-                        this.value = formatPrice(this.value);
-                    }
-                });
-                
-                // 입력 이벤트
-                nameInput.addEventListener('input', calculateEstimate);
-                quantityInput.addEventListener('input', calculateEstimate);
-                
-                // 옵션 이름이 카테고리 목록에 있는지 확인
-                let found = false;
-                Array.from(select.options).forEach(option => {
-                    const parts = option.value.split('|');
-                    if (parts.length >= 2) {
-                        const fullName = `${parts[0]} > ${parts[1]}`;
-                        if (fullName === opt.name) {
-                            select.value = option.value;
-                            found = true;
-                        }
-                    }
-                });
-                
-                // UI 업데이트 (setOptionMode 사용)
-                if (found) {
-                    setOptionMode(select, nameInput, 'select');
-                    toggleBtn.innerHTML = '<i class="fas fa-keyboard"></i>';
-                } else {
-                    setOptionMode(select, nameInput, 'input');
-                    toggleBtn.innerHTML = '<i class="fas fa-list"></i>';
-                }
-                });
-            }
             
             // 4.5. 비고 정보 로드 (개별 견적의 비고)
             loadNotes(estimate.notes || '');
@@ -2575,11 +1431,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // 견적 삭제는 이벤트 위임 패턴으로 estimatesListContainer에서 처리됨
-    
-    // 숫자 포맷팅 (천 단위 구분)
-    function formatNumber(num) {
-        return Math.round(num).toLocaleString('ko-KR');
-    }
     
     // 계산 버튼 (null 체크 추가)
     const calculateBtn = document.getElementById('calculateBtn');
@@ -2625,12 +1476,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 `;
                 feesList.appendChild(newItem);
-                
-                // 입력 시 자동 계산
-                newItem.querySelectorAll('input').forEach(input => {
-                    input.addEventListener('input', calculateEstimate);
-                });
-                
+
+                // 재계산은 baseComponentsContainer의 input 위임 핸들러가 담당한다.
                 calculateEstimate();
             }
             return;
@@ -2884,8 +1731,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // 비고 초기화 (저장된 견적 로드 시 비고는 로드하지 않음)
-        notesList = [{type: 'select', value: ''}];
-        renderAllNotes();
+        WdCalculatorNotesUI.resetNotesToEmpty();
         
         // 견적 목록 초기화
         estimates = [];
@@ -3074,20 +1920,24 @@ document.addEventListener('DOMContentLoaded', function() {
         // 비고 정보 수집
         const notes = collectNotes();
         
-        // 쿠폰 할인 금액 계산
         const couponValue = getCouponValue();
-        const totalBasePrice = estimatesToSave.reduce((sum, est) => sum + est.basePrice, 0);
-        const totalAdditionalPrice = estimatesToSave.reduce((sum, est) => sum + est.additionalPrice, 0);
-        const totalPrice = estimatesToSave.reduce((sum, est) => sum + est.totalPrice, 0);
-        const couponDiscount = couponValue > 0 ? couponValue : 0;
-        
-        // 배송비 값 가져오기
         const shippingCostInput = document.getElementById('shippingCost');
         const shippingCost = shippingCostInput ? parseFloat(shippingCostInput.value) || 0 : 0;
-        
-        // 배송비 포함 여부 가져오기
         const shippingIncludedCheckbox = document.getElementById('shippingIncluded');
         const shippingIncluded = shippingIncludedCheckbox ? shippingIncludedCheckbox.checked : true;
+
+        let aggSave;
+        try {
+            aggSave = resolveWdcAggregateTotals(estimatesToSave, couponValue, shippingCost, shippingIncluded);
+        } catch (e) {
+            console.error(e);
+            alert(e.message || String(e));
+            return;
+        }
+        const totalBasePrice = aggSave.totalBasePrice;
+        const totalAdditionalPrice = aggSave.totalAdditionalPrice;
+        const totalPrice = aggSave.totalPrice;
+        const couponDiscount = couponValue > 0 ? couponValue : 0;
         
         // 현재 견적 목록을 저장
         const estimateData = {
@@ -3171,205 +2021,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // === 사이드바 견적 목록 기능 ===
-    
-    const sidebarSearchInput = document.getElementById('sidebarSearchInput');
-    const sidebarSearchBtn = document.getElementById('sidebarSearchBtn');
-    const refreshEstimatesBtn = document.getElementById('refreshEstimatesBtn');
-    const savedEstimatesList = document.getElementById('savedEstimatesList');
-    const savedEstimatesLoading = document.getElementById('savedEstimatesLoading');
-    const noSavedEstimates = document.getElementById('noSavedEstimates');
-    
-    // 목록 불러오기 함수
-    function loadSidebarEstimates(searchQuery = '') {
-        if (!savedEstimatesList) return Promise.resolve();
-        
-        savedEstimatesLoading.style.display = 'block';
-        savedEstimatesList.innerHTML = '';
-        noSavedEstimates.style.display = 'none';
-        
-        // 캐시 방지용 타임스탬프 추가
-        let url = `/api/wdcalculator/search-estimates?_t=${Date.now()}`;
-        if (searchQuery) {
-            url += `&customer_name=${encodeURIComponent(searchQuery)}`;
-        }
-        
-        return fetch(url)
-            .then(response => response.json())
-            .then(data => {
-                savedEstimatesLoading.style.display = 'none';
-                
-                if (data.success && data.estimates.length > 0) {
-                    data.estimates.forEach(est => {
-                        const item = document.createElement('div');
-                        item.className = 'list-group-item list-group-item-action p-3 border-bottom';
-                        
-                        // 날짜 포맷팅
-                        const dateStr = est.created_at ? new Date(est.created_at).toLocaleDateString() : '';
-                        
-                        // 총 금액 계산 (데이터 구조에 따라 다름)
-                        let totalPrice = 0;
-                        let productNames = [];
-                        
-                        if (est.estimate_data) {
-                            if (est.estimate_data.totalPrice) {
-                                totalPrice = est.estimate_data.totalPrice;
-                            }
-                            
-                            // 포함된 제품명 요약
-                            if (est.estimate_data.estimates && Array.isArray(est.estimate_data.estimates)) {
-                                productNames = est.estimate_data.estimates.map(e => e.displayName || e.productName || (e.product ? e.product.name : '알 수 없음'));
-                            }
-                        }
-                        
-                        const productNameStr = productNames.length > 0 
-                            ? (productNames.length > 1 ? `${productNames[0]} 외 ${productNames.length - 1}건` : productNames[0])
-                            : '제품 정보 없음';
-                        
-                        item.innerHTML = `
-                            <div class="d-flex justify-content-between align-items-start mb-1">
-                                <h6 class="mb-0 fw-bold text-truncate" style="max-width: 140px;">${est.customer_name}</h6>
-                                <small class="text-muted">${dateStr}</small>
-                            </div>
-                            <p class="mb-1 small text-dark">${productNameStr}</p>
-                            <div class="d-flex justify-content-between align-items-center mt-2">
-                                <span class="fw-bold text-primary">${formatNumber(totalPrice)}원</span>
-                                <div class="d-flex gap-1">
-                                    <button class="btn btn-xs btn-outline-primary load-estimate-btn" data-id="${est.id}" title="불러오기">
-                                        <i class="fas fa-folder-open"></i>
-                                    </button>
-                                    <button class="btn btn-xs btn-outline-success match-order-btn" data-estimate-id="${est.id}" data-customer-name="${est.customer_name}" title="주문 매칭">
-                                        <i class="fas fa-link"></i>
-                                    </button>
-                                    <button class="btn btn-xs btn-outline-danger delete-estimate-btn" data-id="${est.id}" title="삭제">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        `;
-                        
-                        // 불러오기 버튼 이벤트
-                        const loadBtn = item.querySelector('.load-estimate-btn');
-                        loadBtn.addEventListener('click', (e) => {
-                            e.stopPropagation(); // 부모 클릭 방지
-                            if (confirm(`'${est.customer_name}' 님의 견적을 불러오시겠습니까?\n현재 작성 중인 내용은 사라질 수 있습니다.`)) {
-                                loadEstimateToForm(est);
-                            }
-                        });
-                        
-                        // 삭제 버튼 이벤트
-                        const deleteBtn = item.querySelector('.delete-estimate-btn');
-                        deleteBtn.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            if (confirm(`'${est.customer_name}' 님의 견적을 삭제하시겠습니까?\n\n⚠️ 삭제된 견적은 복구할 수 없습니다.`)) {
-                                deleteEstimate(est.id);
-                            }
-                        });
-                        
-                        savedEstimatesList.appendChild(item);
-                    });
-                    // 모바일(휴대폰): 기본 1건만 표시, 더보기/줄이기
-                    const listItems = savedEstimatesList.querySelectorAll('.list-group-item');
-                    const moreWrap = document.getElementById('savedEstimatesMoreWrap');
-                    const listContainer = document.getElementById('savedEstimatesListContainer');
-                    const MOBILE_BREAKPOINT = 576;
-                    const VISIBLE_COUNT_MOBILE = 1;
-                    const hiddenClass = 'saved-estimate-item--hidden-mobile';
-                    const expandedClass = 'saved-estimates-list--expanded';
-                    const collapseBarId = 'savedEstimatesCollapseBar';
-                    if (moreWrap) moreWrap.classList.add('d-none');
-                    savedEstimatesList.classList.remove(expandedClass);
-                    const oldCollapseBar = document.getElementById(collapseBarId);
-                    if (oldCollapseBar) oldCollapseBar.remove();
-                    if (listItems.length > VISIBLE_COUNT_MOBILE && moreWrap && listContainer) {
-                        const applyCollapse = function() {
-                            for (let i = VISIBLE_COUNT_MOBILE; i < listItems.length; i++) listItems[i].classList.add(hiddenClass);
-                            savedEstimatesList.classList.remove(expandedClass);
-                            const bar = document.getElementById(collapseBarId);
-                            if (bar) bar.remove();
-                            const btn = document.getElementById('savedEstimatesToggleBtn');
-                            if (btn) btn.textContent = '더보기 (' + (listItems.length - VISIBLE_COUNT_MOBILE) + '건)';
-                        };
-                        const applyExpand = function() {
-                            for (let i = VISIBLE_COUNT_MOBILE; i < listItems.length; i++) listItems[i].classList.remove(hiddenClass);
-                            savedEstimatesList.classList.add(expandedClass);
-                            const bar = document.createElement('div');
-                            bar.id = collapseBarId;
-                            bar.className = 'text-center py-2 border-bottom bg-light saved-estimates-collapse-bar';
-                            bar.innerHTML = '<button type="button" class="btn btn-sm btn-outline-secondary saved-estimates-more-btn" id="savedEstimatesCollapseBtn">줄이기</button>';
-                            listContainer.insertBefore(bar, savedEstimatesList);
-                            bar.querySelector('#savedEstimatesCollapseBtn').addEventListener('click', applyCollapse);
-                            const btn = document.getElementById('savedEstimatesToggleBtn');
-                            if (btn) btn.textContent = '줄이기';
-                        };
-                        if (window.matchMedia('(max-width: ' + MOBILE_BREAKPOINT + 'px)').matches) {
-                            applyCollapse();
-                            moreWrap.classList.remove('d-none');
-                            moreWrap.setAttribute('aria-hidden', 'false');
-                            moreWrap.innerHTML = '<button type="button" class="btn btn-sm btn-outline-secondary saved-estimates-more-btn" id="savedEstimatesToggleBtn">더보기 (' + (listItems.length - VISIBLE_COUNT_MOBILE) + '건)</button>';
-                            moreWrap.querySelector('#savedEstimatesToggleBtn').addEventListener('click', function() {
-                                if (savedEstimatesList.classList.contains(expandedClass)) {
-                                    applyCollapse();
-                                } else {
-                                    applyExpand();
-                                }
-                            });
-                        }
-                    }
-                } else {
-                    noSavedEstimates.style.display = 'block';
-                }
-            })
-            .catch(error => {
-                console.error('Error loading estimates:', error);
-                savedEstimatesLoading.style.display = 'none';
-                savedEstimatesList.innerHTML = '<div class="text-center text-danger py-3">목록을 불러오는 중 오류가 발생했습니다.</div>';
-            });
-    }
-    
-    // 견적 삭제 함수
-    function deleteEstimate(id) {
-        fetch(`/api/wdcalculator/estimate/${id}`, {
-            method: 'DELETE'
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // alert('삭제되었습니다.'); // 너무 잦은 알림 방지
-                loadSidebarEstimates(sidebarSearchInput.value); // 목록 새로고침
-            } else {
-                alert(data.message || '삭제 실패');
-            }
-        })
-        .catch(error => {
-            console.error('Error deleting estimate:', error);
-            alert('삭제 중 오류가 발생했습니다.');
-        });
-    }
-    
-    // 검색 이벤트
-    if (sidebarSearchBtn) {
-        sidebarSearchBtn.addEventListener('click', () => {
-            loadSidebarEstimates(sidebarSearchInput.value);
-        });
-    }
-    
-    if (sidebarSearchInput) {
-        sidebarSearchInput.addEventListener('keyup', (e) => {
-            if (e.key === 'Enter') {
-                loadSidebarEstimates(sidebarSearchInput.value);
-            }
-        });
-    }
-    
-    if (refreshEstimatesBtn) {
-        refreshEstimatesBtn.addEventListener('click', () => {
-            sidebarSearchInput.value = '';
-            loadSidebarEstimates();
-        });
-    }
-    
-    // 초기 목록 로드
-    loadSidebarEstimates();
+    const sidebarEstimatesApi = window.initWdCalculatorSidebarEstimates({
+        loadEstimateToForm,
+        formatNumber: window.formatNumber
+    });
+    const loadSidebarEstimates = sidebarEstimatesApi.loadSidebarEstimates;
     
     // URL 파라미터에서 estimate_id 읽기 및 자동 로드
     const urlParams = new URLSearchParams(window.location.search);

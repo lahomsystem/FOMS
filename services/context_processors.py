@@ -1,106 +1,21 @@
-"""Flask context processors 및 템플릿 필터 (app.py에서 분리)."""
-import json
-import os
-from flask import session, url_for, g
+"""Compatibility shim for the canonical `foms.services.context_processors` module."""
 
-from db import get_db
-from models import User
-from constants import STATUS, BULK_ACTION_STATUS
-from apps.auth import get_user_by_id, ROLES
-from services.menu_config import load_menu_config
+from foms.services.context_processors import (
+    inject_menu,
+    inject_status_list,
+    inject_statuses,
+    parse_json_string,
+    parse_json_string_filter,
+    register_context_processors,
+    utility_processor,
+)
 
-
-def parse_json_string_filter(value):
-    """템플릿 필터: value를 JSON으로 파싱, 실패 시 {} 반환."""
-    if not value:
-        return {}
-    if isinstance(value, dict):
-        return value
-    try:
-        return json.loads(value)
-    except (ValueError, TypeError):
-        return {}
-
-
-def parse_json_string(json_string):
-    """템플릿 유틸: json_string 파싱, 실패 시 None."""
-    if not json_string:
-        return None
-    try:
-        return json.loads(json_string)
-    except json.JSONDecodeError:
-        return None
-
-
-def inject_statuses():
-    """상태 상수 주입."""
-    return dict(
-        ALL_STATUS=STATUS,
-        BULK_ACTION_STATUS=BULK_ACTION_STATUS
-    )
-
-
-def inject_status_list():
-    """상태 목록과 현재 사용자 정보를 템플릿에 주입."""
-    display_status = {k: v for k, v in STATUS.items() if k != 'DELETED'}
-    bulk_action_status = {k: v for k, v in STATUS.items() if k != 'DELETED'}
-    current_user = getattr(g, 'current_user', None)
-
-    admin_switch_users = []
-    impersonating_from_id = session.get('impersonating_from')
-    if current_user and current_user.role == 'ADMIN':
-        db = get_db()
-        admin_switch_users = db.query(User).filter(
-            User.is_active == True,
-            User.id != current_user.id
-        ).order_by(User.name).all()
-
-    erp_beta_enabled = str(os.getenv('ERP_BETA_ENABLED', 'true')).lower() in ['1', 'true', 'yes', 'y', 'on']
-    erp_mobile_v2_enabled = str(os.getenv('ERP_MOBILE_V2_ENABLED', 'false')).lower() in ['1', 'true', 'yes', 'y', 'on']
-    use_direct_upload_env = str(os.getenv('USE_DIRECT_UPLOAD', '1')).lower() in ['1', 'true', 'yes', 'on']
-    try:
-        from services.storage import get_storage
-        storage = get_storage()
-        use_direct_upload = use_direct_upload_env and storage.storage_type in ('r2', 's3')
-    except Exception:
-        use_direct_upload = False
-    return dict(
-        STATUS=display_status,
-        BULK_ACTION_STATUS=bulk_action_status,
-        ALL_STATUS=STATUS,
-        ROLES=ROLES,
-        current_user=current_user,
-        admin_switch_users=admin_switch_users,
-        impersonating_from_id=impersonating_from_id,
-        erp_beta_enabled=erp_beta_enabled,
-        erp_mobile_v2_enabled=erp_mobile_v2_enabled,
-        use_direct_upload=use_direct_upload
-    )
-
-
-def utility_processor():
-    """parse_json_string 유틸 함수 주입."""
-    return dict(parse_json_string=parse_json_string)
-
-
-def inject_menu():
-    """메뉴 설정 주입. 시공팀(CONSTRUCTION)은 출고·시공 대시보드만 노출."""
-    menu = load_menu_config()
-    if isinstance(menu, dict):
-        user = getattr(g, 'current_user', None)
-        if user and getattr(user, 'team', None) == 'CONSTRUCTION':
-            menu = dict(menu)
-            menu['main_menu'] = [
-                {'id': 'shipment', 'name': '출고', 'url': url_for('erp_shipment_page.erp_shipment_dashboard')},
-                {'id': 'construction', 'name': '시공', 'url': url_for('erp_construction_page.erp_construction_dashboard')},
-            ]
-    return dict(menu=menu)
-
-
-def register_context_processors(app):
-    """app에 context processor 및 템플릿 필터 등록."""
-    app.add_template_filter(parse_json_string_filter, 'parse_json_string')
-    app.context_processor(inject_statuses)
-    app.context_processor(inject_status_list)
-    app.context_processor(utility_processor)
-    app.context_processor(inject_menu)
+__all__ = [
+    "parse_json_string_filter",
+    "parse_json_string",
+    "inject_statuses",
+    "inject_status_list",
+    "utility_processor",
+    "inject_menu",
+    "register_context_processors",
+]

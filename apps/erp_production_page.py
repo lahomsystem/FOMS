@@ -8,16 +8,16 @@ from models import Order
 from apps.auth import login_required
 from sqlalchemy import text
 
-from services.erp_permissions import can_edit_erp
-from services.erp_policy import STAGE_LABELS
-from services.erp_display import (
+from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_policy import STAGE_LABELS
+from foms.services.erp_display import (
     _ensure_dict,
     _erp_get_stage,
     _erp_has_media,
     _erp_alerts,
 )
-from services.erp_order_detail import attach_order_detail_payloads
-from services.erp_shipment_settings import is_order_mine_for_user
+from foms.services.erp_order_detail import attach_order_detail_payloads
+from foms.services.erp_shipment_settings import is_order_mine_for_user
 
 
 erp_production_page_bp = Blueprint(

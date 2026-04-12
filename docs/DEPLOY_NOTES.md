@@ -71,6 +71,7 @@
   `scripts/db_admin.py`에서 관리자(admin) 계정 기본 비밀번호를 **환경변수**로 바꿨습니다.
   - **환경변수**: `FOMS_ADMIN_DEFAULT_PASSWORD` (설정 안 하면 예전처럼 기본값 사용)
   - 프로덕션에서는 이 값을 꼭 설정해 두는 것을 권장합니다.
+  - 참고: 현재 WSGI startup auto-init 경로(`foms/services/app_init.py`)는 보안상 `FOMS_ADMIN_DEFAULT_PASSWORD`가 **명시된 경우에만** admin을 자동 생성합니다.
 
 ### 사용자 입장에서는?
 - **바뀐 거 없음.** 로그인·관리자 기능은 그대로입니다.

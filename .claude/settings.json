@@ -89,11 +89,8 @@
       ]
     },
     "markitdown": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "markitdown-mcp-npx"
-      ]
+      "command": "C:\\Users\\USER\\.cursor\\mcp-venvs\\markitdown\\Scripts\\markitdown-mcp.exe",
+      "args": []
     },
     "filesystem": {
       "command": "npx",

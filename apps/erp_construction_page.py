@@ -9,16 +9,16 @@ from models import Order
 from apps.auth import login_required
 from sqlalchemy import text, bindparam, cast, String, or_
 
-from services.erp_permissions import can_edit_erp, build_mine_sql_filter
-from services.erp_policy import STAGE_LABELS
-from services.erp_display import (
+from foms.services.erp_permissions import can_edit_erp, build_mine_sql_filter
+from foms.services.erp_policy import STAGE_LABELS
+from foms.services.erp_display import (
     _ensure_dict,
     _erp_get_stage,
     _erp_has_media,
     _erp_alerts,
     self_measurement_four_checks_done,
 )
-from services.erp_order_detail import attach_order_detail_payloads
+from foms.services.erp_order_detail import attach_order_detail_payloads
 
 
 erp_construction_page_bp = Blueprint(

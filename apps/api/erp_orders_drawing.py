@@ -19,10 +19,10 @@ from apps.api.notifications import (
     resolve_notification_recipient_user_ids,
     invalidate_badge_cache_for_user_ids,
 )
-from services.erp_permissions import erp_edit_required
-from services.erp_policy import can_modify_domain, get_assignee_ids
-from services.realtime_notifications import emit_erp_notification_to_users
-from services.storage import get_storage
+from foms.services.realtime_notifications import emit_erp_notification_to_users
+from foms.services.erp_permissions import erp_edit_required
+from foms.services.erp_policy import can_modify_domain, get_assignee_ids
+from foms.services.storage import get_storage
 from apps.api.files import build_file_view_url, build_file_download_url
 
 erp_orders_drawing_bp = Blueprint(

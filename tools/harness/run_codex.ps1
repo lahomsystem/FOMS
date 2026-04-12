@@ -120,7 +120,7 @@ function Test-HarnessContextPath {
         "progress.md",
         "docs/ARCHIVE_INDEX.md",
         ".agents/workflows/verify-result.md",
-        "docs/context/DECISIONS.md",
+        "docs/harness/policy/DECISIONS.md",
         "docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md",
         "docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md"
     )
@@ -134,7 +134,7 @@ function Test-HarnessContextPath {
         ".cursor/rules/",
         ".cursor/agents/",
         "docs/specs/",
-        "docs/context/HARNESS_BUNDLE_"
+        "docs/harness/bundles/HARNESS_BUNDLE_"
     )
     foreach ($prefix in $prefixes) {
         if ($normalized.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -573,18 +573,18 @@ function Resolve-CodexBundlePath {
     }
 
     if ($RequestedContextMode -eq "harness") {
-        return "docs/context/HARNESS_BUNDLE_CODEX_HARNESS.md"
+        return "docs/harness/bundles/HARNESS_BUNDLE_CODEX_HARNESS.md"
     }
 
     if ($RequestedContextMode -eq "daily") {
-        return "docs/context/HARNESS_BUNDLE_CODEX.md"
+        return "docs/harness/bundles/HARNESS_BUNDLE_CODEX.md"
     }
 
     if ((Get-LevelRank -Level $ResolvedLevel) -ge (Get-LevelRank -Level "high")) {
-        return "docs/context/HARNESS_BUNDLE_CODEX_HARNESS.md"
+        return "docs/harness/bundles/HARNESS_BUNDLE_CODEX_HARNESS.md"
     }
 
-    return "docs/context/HARNESS_BUNDLE_CODEX.md"
+    return "docs/harness/bundles/HARNESS_BUNDLE_CODEX.md"
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path

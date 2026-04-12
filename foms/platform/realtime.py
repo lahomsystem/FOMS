@@ -1,0 +1,145 @@
+"""Realtime and limiter bootstrap helpers for the root Flask app entrypoint."""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from typing import Any, Callable
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+from flask import Flask
+
+
+@dataclass(frozen=True)
+class RealtimeBindings:
+    """Runtime bindings produced by the realtime bootstrap."""
+
+    limiter: Any
+    socketio: Any
+
+
+def _mask_url_secret(raw_url: str) -> str:
+    """로그 출력 시 URL의 인증정보를 마스킹."""
+    try:
+        parsed = urlsplit(raw_url)
+        if not parsed.netloc or "@" not in parsed.netloc:
+            return raw_url
+        creds, hostpart = parsed.netloc.rsplit("@", 1)
+        if ":" in creds:
+            user, _ = creds.split(":", 1)
+            masked = f"{user}:***@{hostpart}"
+        else:
+            masked = f"***@{hostpart}"
+        return urlunsplit(
+            (parsed.scheme, masked, parsed.path, parsed.query, parsed.fragment)
+        )
+    except Exception:
+        return raw_url
+
+
+def _augment_redis_url_for_socketio(raw_url: str | None) -> str | None:
+    """Socket.IO Redis 매니저 연결 안정성을 위한 query 옵션 보강."""
+    if not raw_url:
+        return raw_url
+    try:
+        parsed = urlsplit(raw_url)
+        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        query.setdefault("health_check_interval", "30")
+        query.setdefault("socket_keepalive", "1")
+        query.setdefault("retry_on_timeout", "1")
+        return urlunsplit(
+            (
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                urlencode(query),
+                parsed.fragment,
+            )
+        )
+    except Exception:
+        return raw_url
+
+
+def init_realtime_bootstrap(
+    app: Flask,
+    *,
+    redis_url: str | None,
+    socketio_available: bool,
+    init_limiter: Callable[[Flask], Any],
+    register_chat_socketio_handlers: Callable[..., Any],
+) -> RealtimeBindings:
+    """Initialize the limiter, Socket.IO, and related app config in existing order."""
+    limiter = init_limiter(app)
+
+    notification_badge_limit = os.environ.get(
+        "ERP_NOTIFICATION_BADGE_RATE_LIMIT",
+        "20000 per day,6000 per hour",
+    )
+    notification_badge_view = app.view_functions.get("notifications.api_notifications_badge")
+    if notification_badge_view is not None:
+        app.view_functions["notifications.api_notifications_badge"] = limiter.limit(
+            notification_badge_limit
+        )(notification_badge_view)
+
+    socketio = None
+    if socketio_available:
+        try:
+            from flask_socketio import SocketIO as _SocketIO
+
+            allowed_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "*").split(",")
+            allowed_modes = ("threading", "eventlet", "gevent", "gevent_uwsgi")
+            override = (os.environ.get("SOCKETIO_ASYNC_MODE") or "").strip().lower() or None
+            mode_default = "gevent" if redis_url else "threading"
+            mode = override if override in allowed_modes else mode_default
+
+            socketio_kwargs = {
+                "cors_allowed_origins": allowed_origins,
+                "async_mode": mode,
+                "ping_interval": 25,
+                "ping_timeout": 60,
+            }
+
+            if redis_url:
+                socketio_redis_url = _augment_redis_url_for_socketio(redis_url) or redis_url
+                print(
+                    f"[INFO] Socket.IO connecting to Redis Message Queue: {_mask_url_secret(socketio_redis_url)}"
+                )
+                socketio = _SocketIO(
+                    app,
+                    message_queue=socketio_redis_url,
+                    **socketio_kwargs,
+                )
+                print(f"[INFO] Socket.IO initialized in {mode} mode with Redis.")
+            else:
+                print(
+                    "[WARN] REDIS_URL not found. Socket.IO running in single-worker mode (Memory). "
+                    "Procfile -w 2 사용 시 실시간 알림이 일부 사용자에게 미전달될 수 있음. REDIS_URL 설정 권장."
+                )
+                socketio = _SocketIO(
+                    app,
+                    **socketio_kwargs,
+                )
+                print(f"[INFO] Socket.IO initialized in {mode} mode (Universal Stable).")
+        except Exception as e:
+            print(f"[WARN] Socket.IO init failed: {e}")
+            from flask_socketio import SocketIO as _SocketIO
+
+            socketio = _SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+
+    if socketio_available and socketio:
+        register_chat_socketio_handlers(socketio)
+        app.config["SOCKETIO_AVAILABLE"] = True
+        app.config["_SOCKETIO_INSTANCE"] = socketio
+    else:
+        app.config["SOCKETIO_AVAILABLE"] = False
+        app.config["_SOCKETIO_INSTANCE"] = None
+
+    app.config["SOCKETIO_CLIENT_ENABLED"] = (
+        os.environ.get("SOCKETIO_CLIENT_ENABLED", "").lower() in ("true", "1", "yes")
+    )
+    app.config["SOCKETIO_ALLOW_POLLING_FALLBACK"] = (
+        os.environ.get("SOCKETIO_ALLOW_POLLING_FALLBACK", "").lower()
+        in ("true", "1", "yes")
+    )
+
+    return RealtimeBindings(limiter=limiter, socketio=socketio)

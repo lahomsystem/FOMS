@@ -4,23 +4,23 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
-| 2026-04-01 | 세션 자동 기록 | erp_measurement_dashboard.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-eef2ce34-16ea-442f-880e-27f14c618874.png, erp_beta_js.html 외 2개 | 6bc7114b |
-| 2026-04-01 | 세션 자동 기록 | erp_beta_js.html, erp_beta_tab.html, measurement.js 외 2개 | abc99de6 |
-| 2026-04-01 | 세션 자동 기록 | erp_beta_tab.html, measurement.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ae0f6285-c9e4-49cf-94fa-56b0ed6aca1e.png 외 2개 | 9b4115fe |
-| 2026-04-01 | 세션 자동 기록 | commit_msg.txt, measurement.js, 2502107448c0_add_systemsetting_table.py 외 2개 | 9b4115fe |
-| 2026-03-31 | 세션 자동 기록 | commit_msg.txt, measurement.js, 2502107448c0_add_systemsetting_table.py 외 2개 | 2944c109 |
-| 2026-03-31 | 세션 자동 기록 | 2502107448c0_add_systemsetting_table.py, erp_shipment_settings.py, db.py 외 2개 | 5c13b312 |
-| 2026-03-31 | 세션 자동 기록 | commit_msg.txt, _test_clean.py, map_view.html 외 2개 | 5c13b312 |
-| 2026-03-31 | 세션 자동 기록 | _test_clean.py, map_view.html, orders.py 외 2개 | 8b52b5b5 |
-| 2026-03-31 | 세션 자동 기록 | map_view.html, orders.py, erp_measurement.py 외 2개 | 8b52b5b5 |
-| 2026-03-31 | 세션 자동 기록 | commit_msg.txt, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fae807a6-a238-4ef7-9799-ec5b602bb6b1.png, erp_drawing_workbench_detail.html 외 1개 | 8b52b5b5 |
-| 2026-03-31 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-fae807a6-a238-4ef7-9799-ec5b602bb6b1.png, erp_drawing_workbench_detail.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c2e06c89-33d3-4206-a829-0274ce61251f.png | 96fab7a3 |
-| 2026-03-31 | 세션 자동 기록 | erp_drawing_workbench_detail.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c2e06c89-33d3-4206-a829-0274ce61251f.png | 96fab7a3 |
-| 2026-03-31 | 세션 자동 기록 | erp_measurement_dashboard.html, measurement.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ba4632de-774c-4a05-bcec-763dedc4d61e.png 외 2개 | 0b381791 |
-| 2026-03-31 | 세션 자동 기록 | erp_measurement_dashboard.html, measurement.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-cb0a5fbd-5430-457c-a23d-91c4cf90947a.png 외 2개 | f7d28c28 |
-| 2026-03-31 | 세션 자동 기록 | erp_measurement_dashboard.html, measurement.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f1074813-1e87-481b-b9ac-238df9ce74ee.png 외 2개 | adeb5621 |
-| 2026-03-31 | 세션 자동 기록 | erp_dashboard_grid.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f069427d-503a-4607-a581-6a8402da88f5.png, erp_measurement_dashboard.html 외 2개 | 84d0bdfe |
-| 2026-03-31 | 세션 자동 기록 | erp_measurement_dashboard.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-49c6b877-c6e5-4cb5-8b8c-bc217496e8cb.png, erp_shipment_settings.json 외 2개 | 6c4e790f |
-| 2026-03-31 | 세션 자동 기록 | erp_shipment_settings.json, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-de303cde-35cc-437f-96af-7ef4a88d5f21.png, erp_measurement_dashboard.html 외 2개 | 259cb08e |
-| 2026-03-31 | 세션 자동 기록 | erp_measurement_dashboard.html, measurement.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-cfcee50a-911f-4255-8de9-a0ce9e2469a3.png 외 2개 | 5a7d1852 |
-| 2026-03-31 | 세션 자동 기록 | erp_measurement_dashboard.html, measurement.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-33a68b72-6a68-42bd-bb8f-6192a86ea78d.png 외 2개 | 4e13107b |
+| 2026-04-12 | 세션 자동 기록 | test_wdcalculator_product_catalog_contract_node.py, test_wdcalculator_product_settings.py, wdcalculator_additional_options_contract_node_checks.js 외 2개 | eb01c5d7 |
+| 2026-04-12 | 세션 자동 기록 | wdcalculator_additional_options_contract_node_checks.js, wdcalculator_current_estimate_contract_node_checks.js, test_wdcalculator_product_settings.py 외 2개 | eb01c5d7 |
+| 2026-04-12 | 세션 자동 기록 | test_wdcalculator_product_settings.py, wdcalculator_scripts.html, wdcalculator_scripts_config.html 외 2개 | eb01c5d7 |
+| 2026-04-12 | 세션 자동 기록 | test_orders_boundary_contract.py, test_wdcalculator_product_settings.py, field_update.py 외 2개 | eb01c5d7 |
+| 2026-04-12 | 세션 자동 기록 | mutations.py, __init__.py, status.py 외 2개 | eb01c5d7 |
+| 2026-04-11 | 세션 자동 기록 | mutations.py, __init__.py, status.py 외 2개 | eb01c5d7 |
+| 2026-04-11 | 세션 자동 기록 | test_erp_permissions.py, erp_permissions.py, map_snapshot.py 외 2개 | eb01c5d7 |
+| 2026-04-11 | 세션 자동 기록 | test_measurement_legacy_shims.py, measurement-image-export.js, test_erp_orders_structured_put.py 외 2개 | eb01c5d7 |
+| 2026-04-11 | 세션 자동 기록 | app_init.py, test_app_init.py, erp-pro.css 외 2개 | eb01c5d7 |
+| 2026-04-11 | 세션 자동 기록 | erp-pro.css, erp_policy.py, permissions.py 외 2개 | eb01c5d7 |
+| 2026-04-11 | 세션 자동 기록 | context-manager.md, review.md, status.md 외 2개 | eb01c5d7 |
+| 2026-04-11 | 세션 자동 기록 | map_snapshot.py, measurement.py, measurement-image-export.js 외 2개 | eb01c5d7 |
+| 2026-04-10 | 세션 자동 기록 | app.py, http.py, blueprints.py 외 2개 | eb01c5d7 |
+| 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, erp_as_page.py, erp_shipment_settings.py 외 2개 | eb01c5d7 |
+| 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, erp_orders_construction.py, erp_shipment_settings.py 외 2개 | eb01c5d7 |
+| 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, geocode_backfill.py, order_edit.py 외 2개 | eb01c5d7 |
+| 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, personal_board.py, channel_event_payloads.py 외 2개 | eb01c5d7 |
+| 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, tasks.py, erp_orders_drawing.py 외 2개 | eb01c5d7 |
+| 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, channel_dispatch.py, context_processors.py 외 2개 | eb01c5d7 |
+| 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, order_date_sync_event.py, order_date_sync_event.py 외 2개 | eb01c5d7 |

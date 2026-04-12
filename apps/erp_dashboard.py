@@ -8,8 +8,8 @@ from db import get_db
 from models import Order, User
 from apps.auth import login_required
 from sqlalchemy import text
-from services.erp_permissions import can_edit_erp
-from services.erp_policy import (
+from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
     DEFAULT_OWNER_TEAM_BY_STAGE,
     STAGE_LABELS,
@@ -21,14 +21,14 @@ from services.erp_policy import (
     recommend_owner_team,
     can_modify_domain,
 )
-from services.erp_display import (
+from foms.services.erp_display import (
     _ensure_dict,
     _erp_get_stage,
     _erp_alerts,
     _erp_has_media,
 )
-from services.erp_order_detail import attach_order_detail_payloads
-from services.erp_shipment_settings import is_order_mine_for_user
+from foms.services.erp_order_detail import attach_order_detail_payloads
+from foms.services.erp_shipment_settings import is_order_mine_for_user
 from constants import BULK_ACTION_STATUS
 
 
@@ -74,7 +74,7 @@ def erp_dashboard():
         )
 
     if request.args.get('mine') == '1' and current_user:
-        from services.erp_permissions import build_mine_sql_filter
+        from foms.services.erp_permissions import build_mine_sql_filter
         mine_conds = build_mine_sql_filter(current_user)
         if mine_conds:
             _q = _q.filter(or_(*mine_conds))

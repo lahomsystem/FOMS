@@ -9,14 +9,14 @@ from werkzeug.security import check_password_hash, generate_password_hash
 try:
     from db import get_db
     from models import User, SecurityLog
-    from services.user_deletion import detach_user_references_for_delete
+    from foms.services.user_deletion import detach_user_references_for_delete
 except ImportError:
     import sys
     import os
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from db import get_db
     from models import User, SecurityLog
-    from services.user_deletion import detach_user_references_for_delete
+    from foms.services.user_deletion import detach_user_references_for_delete
 
 auth_bp = Blueprint('auth', __name__)
 

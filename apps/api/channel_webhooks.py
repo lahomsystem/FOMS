@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
-from services.channel_security import require_channel_signature
+
+from foms.services.channel_security import require_channel_signature
 
 channel_webhooks_bp = Blueprint('channel_webhooks', __name__, url_prefix='/api/channel/webhooks')
 
@@ -16,7 +17,7 @@ def handle_webhook():
     CT-E-01: 웹훅 수신, Receipt 로깅, Enqueue 처리
     CT-E-05: 2xx 반환은 Receipt DB 저장 + Async Enqueue 성공 이후에만
     """
-    from services.channel_inbound import receive_webhook
+    from foms.services.channel_inbound import receive_webhook
     payload = request.json or {}
     
     status_code, response_data = receive_webhook(payload)

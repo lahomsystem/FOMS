@@ -14,7 +14,7 @@ description: 새 작업 시작 시 RPI(조사→계획→실행) 순서를 강�
 
 1. `docs/AI_STATUS.md`를 읽어 현재 프로젝트 상태를 파악한다.
 
-2. `docs/context/DECISIONS.md`에서 이번 작업과 관련된 과거 결정이 있는지 검색한다.
+2. `docs/harness/policy/DECISIONS.md`에서 이번 작업과 관련된 과거 결정이 있는지 검색한다.
    - 관련 결정이 있으면: 그 결정의 이유와 영향 범위를 확인한다.
    - 없으면: 넘어간다.
 

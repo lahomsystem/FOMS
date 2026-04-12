@@ -6,9 +6,9 @@ from flask import Blueprint, render_template, request, url_for, redirect, flash,
 from db import get_db
 from models import Order, User, OrderAttachment
 from apps.auth import login_required
-from services.erp_permissions import can_edit_erp
-from services.erp_policy import STAGE_NAME_TO_CODE, get_assignee_ids
-from services.erp_display import (
+from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_policy import STAGE_NAME_TO_CODE, get_assignee_ids
+from foms.services.erp_display import (
     _ensure_dict,
     _erp_get_stage,
     _erp_alerts,
@@ -16,8 +16,8 @@ from services.erp_display import (
     _drawing_status_label,
     _drawing_next_action_text,
 )
-from services.erp_shipment_settings import is_order_mine_for_user
-from services.erp_product_items import build_product_items_for_order
+from foms.services.erp_shipment_settings import is_order_mine_for_user
+from foms.services.erp_product_items import build_product_items_for_order
 
 erp_drawing_workbench_bp = Blueprint('erp_drawing_workbench', __name__, url_prefix='/erp')
 

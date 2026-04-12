@@ -1,19 +1,86 @@
 """
+주문 첨부 API (ERP Beta 사진/동영상/도면) legacy wrapper.
+"""
+
+from foms.services.storage import get_storage
+
+from apps.api.attachments_internal.blueprint import (
+    ASYNC_ATTACHMENT_THUMBNAIL,
+    USE_DIRECT_UPLOAD,
+    attachments_bp,
+)
+from apps.api.attachments_internal.common import (
+    ATTACHMENT_CATEGORIES,
+    DRAWING_ATTACHMENT_EXTRA_EXTENSIONS,
+    _att_key,
+    allowed_erp_attachment_file,
+    get_erp_media_max_size,
+    normalize_attachment_category,
+    parse_attachment_item_index,
+    resolve_attachment_category,
+    serialize_attachment,
+)
+from apps.api.attachments_internal.direct_upload import (  # noqa: F401
+    api_order_attachments_complete,
+    api_upload_session,
+    api_upload_session_batch,
+)
+from apps.api.attachments_internal.legacy import (
+    ensure_order_attachments_category_column,
+    ensure_order_attachments_item_index_column,
+    ensure_order_attachments_user_id_column,
+)
+from apps.api.attachments_internal.order_routes import (  # noqa: F401
+    api_order_attachments_delete,
+    api_order_attachments_list,
+    api_order_attachments_patch,
+    api_order_attachments_upload,
+)
+from apps.api.attachments_internal.search import api_search_attachments  # noqa: F401
+
+
+__all__ = [
+    "ASYNC_ATTACHMENT_THUMBNAIL",
+    "ATTACHMENT_CATEGORIES",
+    "DRAWING_ATTACHMENT_EXTRA_EXTENSIONS",
+    "USE_DIRECT_UPLOAD",
+    "_att_key",
+    "allowed_erp_attachment_file",
+    "api_order_attachments_complete",
+    "api_order_attachments_delete",
+    "api_order_attachments_list",
+    "api_order_attachments_patch",
+    "api_order_attachments_upload",
+    "api_search_attachments",
+    "api_upload_session",
+    "api_upload_session_batch",
+    "attachments_bp",
+    "ensure_order_attachments_category_column",
+    "ensure_order_attachments_item_index_column",
+    "ensure_order_attachments_user_id_column",
+    "get_erp_media_max_size",
+    "get_storage",
+    "normalize_attachment_category",
+    "parse_attachment_item_index",
+    "resolve_attachment_category",
+    "serialize_attachment",
+]
+"""
 주문 첨부 API (ERP Beta 사진/동영상/도면).
 """
 
 import os
 from concurrent.futures import ThreadPoolExecutor
 from flask import Blueprint, request, jsonify, session
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 from db import get_db
 from models import Order, OrderAttachment
 from apps.auth import login_required, get_user_by_id
 from apps.api.files import build_file_view_url, build_file_download_url
-from services.storage import get_storage
-from services.order_attachment_thumbnail import schedule_order_attachment_thumbnail_generation
-from services.user_deletion import ensure_order_attachment_user_fk_set_null
+from foms.services.order_attachment_thumbnail import schedule_order_attachment_thumbnail_generation
+from foms.services.user_deletion import ensure_order_attachment_user_fk_set_null
+from foms.services.storage import get_storage
 from constants import ERP_MEDIA_ALLOWED_EXTENSIONS, DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES
 
 DRAWING_ATTACHMENT_EXTRA_EXTENSIONS = {'pdf', 'zip', 'dwg', 'dxf'}
@@ -76,15 +143,30 @@ def get_erp_media_max_size(filename):
     return 20 * 1024 * 1024
 
 
-def ensure_order_attachments_category_column():
-    """레거시 DB용: order_attachments.category 컬럼 존재 보장."""
+def _column_exists(db, table_name: str, column_name: str) -> bool:
+    """Return whether a table already has the target column."""
+    bind = db.get_bind()
+    inspector = inspect(bind)
+    return any(
+        column.get("name") == column_name
+        for column in inspector.get_columns(table_name)
+    )
+
+
+def _ensure_order_attachment_column(column_name: str, ddl_suffix: str) -> bool:
+    """Add an attachment column only when it does not already exist."""
     db = None
     try:
         db = get_db()
-        db.execute(text(
-            "ALTER TABLE order_attachments "
-            "ADD COLUMN IF NOT EXISTS category VARCHAR(50) NOT NULL DEFAULT 'measurement'"
-        ))
+        if _column_exists(db, "order_attachments", column_name):
+            return True
+
+        db.execute(
+            text(
+                "ALTER TABLE order_attachments "
+                f"ADD COLUMN {ddl_suffix}"
+            )
+        )
         db.commit()
         return True
     except Exception as e:
@@ -93,29 +175,24 @@ def ensure_order_attachments_category_column():
                 db.rollback()
         except Exception:
             pass
-        print(f"[AUTO-MIGRATION] Failed to ensure order_attachments.category: {e}")
+        print(f"[AUTO-MIGRATION] Failed to ensure order_attachments.{column_name}: {e}")
         return False
+
+
+def ensure_order_attachments_category_column():
+    """레거시 DB용: order_attachments.category 컬럼 존재 보장."""
+    return _ensure_order_attachment_column(
+        "category",
+        "category VARCHAR(50) NOT NULL DEFAULT 'measurement'",
+    )
 
 
 def ensure_order_attachments_item_index_column():
     """레거시 DB용: order_attachments.item_index 컬럼 존재 보장."""
-    db = None
-    try:
-        db = get_db()
-        db.execute(text(
-            "ALTER TABLE order_attachments "
-            "ADD COLUMN IF NOT EXISTS item_index INTEGER NULL"
-        ))
-        db.commit()
-        return True
-    except Exception as e:
-        try:
-            if db is not None:
-                db.rollback()
-        except Exception:
-            pass
-        print(f"[AUTO-MIGRATION] Failed to ensure order_attachments.item_index: {e}")
-        return False
+    return _ensure_order_attachment_column(
+        "item_index",
+        "item_index INTEGER NULL",
+    )
 
 
 def ensure_order_attachments_user_id_column():
@@ -123,10 +200,11 @@ def ensure_order_attachments_user_id_column():
     db = None
     try:
         db = get_db()
-        db.execute(text(
-            "ALTER TABLE order_attachments "
-            "ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
-        ))
+        if not _column_exists(db, "order_attachments", "user_id"):
+            db.execute(text(
+                "ALTER TABLE order_attachments "
+                "ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+            ))
         ensure_order_attachment_user_fk_set_null(db)
         db.commit()
         return True

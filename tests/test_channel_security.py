@@ -6,7 +6,8 @@ import os
 from flask import Flask
 import pytest
 
-from services.channel_security import (
+import foms.services.channel_security as channel_security
+from foms.services.channel_security import (
     generate_wam_entry_token,
     generate_wam_short_link_token,
     verify_channel_signature,
@@ -34,10 +35,7 @@ def test_app():
 
 def test_verify_channel_signature_success(monkeypatch):
     monkeypatch.setenv('CHANNEL_SIGNING_KEY', 'test-secret')
-    
-    # Reload module variable that was loaded at import time
-    import services.channel_security
-    monkeypatch.setattr(services.channel_security, 'CHANNEL_SIGNING_KEY', 'test-secret')
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY', 'test-secret')
     
     payload = b'{"hello":"world"}'
     
@@ -52,8 +50,7 @@ def test_verify_channel_signature_success(monkeypatch):
 
 def test_verify_channel_signature_failure(monkeypatch):
     monkeypatch.setenv('CHANNEL_SIGNING_KEY', 'test-secret')
-    import services.channel_security
-    monkeypatch.setattr(services.channel_security, 'CHANNEL_SIGNING_KEY', 'test-secret')
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY', 'test-secret')
     
     payload = b'{"hello":"world"}'
     invalid_signature = 'invalid1234'
@@ -62,8 +59,7 @@ def test_verify_channel_signature_failure(monkeypatch):
 
 def test_require_channel_signature_middleware_success(test_app, monkeypatch):
     monkeypatch.setenv('CHANNEL_SIGNING_KEY', 'test-secret')
-    import services.channel_security
-    monkeypatch.setattr(services.channel_security, 'CHANNEL_SIGNING_KEY', 'test-secret')
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY', 'test-secret')
     
     client = test_app.test_client()
     payload = b'{"hello":"world"}'
@@ -79,8 +75,7 @@ def test_require_channel_signature_middleware_success(test_app, monkeypatch):
 
 def test_require_channel_signature_middleware_missing_header(test_app, monkeypatch):
     monkeypatch.setenv('CHANNEL_SIGNING_KEY', 'test-secret')
-    import services.channel_security
-    monkeypatch.setattr(services.channel_security, 'CHANNEL_SIGNING_KEY', 'test-secret')
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY', 'test-secret')
     
     client = test_app.test_client()
     response = client.post('/test-webhook', data=b'{}')
@@ -89,8 +84,7 @@ def test_require_channel_signature_middleware_missing_header(test_app, monkeypat
 
 def test_require_channel_signature_middleware_invalid_signature(test_app, monkeypatch):
     monkeypatch.setenv('CHANNEL_SIGNING_KEY', 'test-secret')
-    import services.channel_security
-    monkeypatch.setattr(services.channel_security, 'CHANNEL_SIGNING_KEY', 'test-secret')
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY', 'test-secret')
     
     client = test_app.test_client()
     response = client.post('/test-webhook', data=b'{}', headers={'x-signature': 'bad'})
@@ -99,8 +93,7 @@ def test_require_channel_signature_middleware_invalid_signature(test_app, monkey
 
 def test_replay_attack_prevention(test_app, monkeypatch):
     monkeypatch.setenv('CHANNEL_SIGNING_KEY', 'test-secret')
-    import services.channel_security
-    monkeypatch.setattr(services.channel_security, 'CHANNEL_SIGNING_KEY', 'test-secret')
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY', 'test-secret')
     
     # Create payload with timestamp 10 minutes ago
     old_time_ms = (time.time() - 600) * 1000

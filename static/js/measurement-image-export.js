@@ -1,3 +1,4 @@
+// Legacy shim: mirrors static/js/measurement/image-export.js
 /**
  * 실측 대시보드 일정표 PNG 저장.
  * 파일명·표 제목: YY-MM-DD 실측 일정
