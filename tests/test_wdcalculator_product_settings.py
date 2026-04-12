@@ -144,6 +144,7 @@ def test_wdcalculator_page_renders_inline_config_contract(wdcalculator_settings_
     coupon_display_helpers_idx = body.index("js/wdcalculator/coupon-display-helpers.js")
     additional_options_ui_idx = body.index("js/wdcalculator/additional-options-ui.js")
     product_catalog_ui_idx = body.index("js/wdcalculator/product-catalog-ui.js")
+    search_results_load_idx = body.index("js/wdcalculator/search-results-load.js")
     order_match_ui_idx = body.index("js/wdcalculator/order-match-ui.js")
     coupon_shipping_wiring_idx = body.index("js/wdcalculator/coupon-shipping-wiring.js")
     dom_ready_idx = body.index("document.addEventListener('DOMContentLoaded'")
@@ -169,6 +170,7 @@ def test_wdcalculator_page_renders_inline_config_contract(wdcalculator_settings_
         < coupon_display_helpers_idx
         < additional_options_ui_idx
         < product_catalog_ui_idx
+        < search_results_load_idx
         < order_match_ui_idx
         < coupon_shipping_wiring_idx
         < dom_ready_idx
@@ -255,7 +257,12 @@ def test_wdcalculator_calculate_save_and_load_estimate_smoke(wdcalculator_settin
 def test_wdcalculator_search_and_delete_estimate_smoke(wdcalculator_settings_env, login):
     """Sidebar estimate APIs must preserve search -> delete behavior."""
     client = login
-    estimate_data = {"items": [{"product_id": 1, "width_mm": 300}]}
+    estimate_data = {
+        "items": [{"product_id": 1, "width_mm": 300}],
+        "basePrice": 1000,
+        "additionalPrice": 500,
+        "totalPrice": 1500,
+    }
 
     save_response = client.post(
         "/api/wdcalculator/save-estimate",
@@ -270,7 +277,12 @@ def test_wdcalculator_search_and_delete_estimate_smoke(wdcalculator_settings_env
     assert search_response.status_code == 200
     search_payload = search_response.get_json()
     assert search_payload["success"] is True
-    assert any(estimate["id"] == saved_id for estimate in search_payload["estimates"])
+    matched_estimate = next(
+        estimate for estimate in search_payload["estimates"] if estimate["id"] == saved_id
+    )
+    assert matched_estimate["customer_name"] == "WD Sidebar"
+    assert matched_estimate["estimate_data"] == estimate_data
+    assert matched_estimate["created_at"]
 
     delete_response = client.delete(f"/api/wdcalculator/estimate/{saved_id}")
 
