@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-04-12 | 세션 자동 기록 | wdcalculator_product_catalog_contract_node_checks.js, product-catalog-ui.js, test_wdcalculator_product_settings.py 외 2개 | 76b006ac |
 | 2026-04-12 | 세션 자동 기록 | test_wdcalculator_product_catalog_contract_node.py, test_wdcalculator_product_settings.py, wdcalculator_additional_options_contract_node_checks.js 외 2개 | eb01c5d7 |
 | 2026-04-12 | 세션 자동 기록 | wdcalculator_additional_options_contract_node_checks.js, wdcalculator_current_estimate_contract_node_checks.js, test_wdcalculator_product_settings.py 외 2개 | eb01c5d7 |
 | 2026-04-12 | 세션 자동 기록 | test_wdcalculator_product_settings.py, wdcalculator_scripts.html, wdcalculator_scripts_config.html 외 2개 | eb01c5d7 |
@@ -23,4 +24,3 @@
 | 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, personal_board.py, channel_event_payloads.py 외 2개 | eb01c5d7 |
 | 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, tasks.py, erp_orders_drawing.py 외 2개 | eb01c5d7 |
 | 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, channel_dispatch.py, context_processors.py 외 2개 | eb01c5d7 |
-| 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, order_date_sync_event.py, order_date_sync_event.py 외 2개 | eb01c5d7 |

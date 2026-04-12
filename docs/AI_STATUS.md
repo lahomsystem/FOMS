@@ -1,19 +1,19 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-04-12 | 마지막 작업: wdcalculator additional-options batch 완료 및 product-catalog legacy UI contract freeze 진입
+> 자동 업데이트: 2026-04-12 | 마지막 작업: wdcalculator product-catalog legacy UI batch 완료
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 최근 완료 (최대 5개)
+- [2026-04-12] wdcalculator product-catalog batch 완료: `loadProducts`, `updateProductSelect`, `showProductInfo`, `#productSelect` change 경로를 `static/js/wdcalculator/product-catalog-ui.js`로 분리하고, host giant script에는 `products` state 연결과 bootstrap만 남겼다. 선행으로 focused Node contract(`tests/test_wdcalculator_product_catalog_contract_node.py`)와 render/API shape smoke를 고정했고, extraction 중에는 Node DOM stub의 `textContent`/`escapeHtml` drift를 브라우저 동작과 맞춰 `showProductInfo()` escaping contract까지 안정화했다. 최종 검증은 focused pytest `3 passed`, 신규 lint 없음이었다.
 - [2026-04-12] wdcalculator additional-options batch 완료: 추가 옵션 row UI(`setOptionMode`, add/remove/toggle/select/read, loadEstimate restore 경로)를 `static/js/wdcalculator/additional-options-ui.js`로 분리하고, host giant script에는 `appendAdditionalOptionRow`, `loadAdditionalOptionRows`, `readAdditionalOptionRowsFromUI` bridge만 남겼다. 선행으로 focused Node contract(`tests/test_wdcalculator_additional_options_contract_node.py`)를 추가해 row DOM/schema, mode toggle, single remove recalc path, direct-input/select read contract를 고정했고, extraction 중에는 add path의 remove direct+delegated 중복 경로를 단일화했다. 최종 검증은 focused pytest `12 passed`, inline script syntax parse `WD_SCRIPTS_PARSE_OK`, `APP_OK`, 신규 lint 없음이었다.
 - [2026-04-12] wdcalculator coupon helper batch 완료: `getCouponValue()`, `applyFinalPriceStyle()`, `applyCouponDiscountStyle()`를 `static/js/wdcalculator/coupon-display-helpers.js`로 분리하고, host giant script는 `WdCalculatorCouponDisplayHelpers.configure({ defaultCouponValue })`와 계산 orchestration만 유지하도록 정리했다. 쿠폰 파싱/스타일 contract는 신규 Node regression(`tests/test_wdcalculator_coupon_display_contract_node.py`)으로 고정했고, `current-estimate` Node contract도 새 helper 경로를 따라가도록 보강했다. 최종 검증은 focused pytest `11 passed`, inline script syntax parse `WD_SCRIPTS_PARSE_OK`, `APP_OK`, 신규 lint 없음이었다.
 - [2026-04-12] wdcalculator base-components batch 완료: 복합 기본견적 행 렌더/읽기/UI helper를 `static/js/wdcalculator/base-components-ui.js`로 분리하고, host giant script는 pricing/save/load orchestration과 delegated 이벤트만 유지하도록 정리했다. 후속 감리에서 발견된 `calculateEstimate()` 이중 호출 경로와 host의 중복 선언(syntax-risk)도 같은 배치 안에서 정리해 base-components 상호작용을 단일 재계산 경로로 맞췄다. 최종 검증은 focused pytest `10 passed`, inline script syntax parse `WD_SCRIPTS_PARSE_OK`, `APP_OK`, 신규 lint 없음이었다.
 - [2026-04-12] wdcalculator notes-ui batch 완료: 비고 상태/렌더/이벤트 클러스터를 `static/js/wdcalculator/notes-ui.js`로 분리하고, host giant script에는 `WdCalculatorNotesUI.initNotesUi()` bootstrap과 reset/load/collect bridge만 남겼다. 이어 `notes-ui.js` load-order를 render contract에 포함시키고, `collectCurrentEstimate()`가 notes snapshot을 유지하는 계약까지 current-estimate Node test에 보강했다. 마지막으로 `notesCategories` 전역 초기화 타이밍과 `<option value>` escaping, notes reset catch 중복 호출까지 정리했으며 최종 검증은 focused pytest `9 passed`, `APP_OK`, 신규 lint 없음이었다.
-- [2026-04-12] wdcalculator current-estimate-math batch 완료: `calculateEstimate()`와 `collectCurrentEstimate()`에 중복되던 건별 가격 계산 코어를 `static/js/wdcalculator/current-estimate-math.js`로 분리하고, host script는 DOM 읽기/쓰기와 버튼/쿠폰 오케스트레이션만 유지하도록 정리했다. 추가로 `widthMm > 0`이지만 기본 단가가 비어 있고 추가금만 있는 row가 화면 합계와 저장 스냅샷에서 어긋나던 잠재 결함을 helper와 contract test에서 함께 수정해 display/save drift를 제거했다. 최종 검증은 focused pytest `8 passed`, `APP_OK`, 신규 lint 없음이었다.
 
 ## 진행 중
-- [2026-04-12] 구조 트랙 다음 단계: `wdcalculator` additional-options contract freeze + static UI batch까지 완료됐다. 다음 자동 배치는 `loadProducts`, `updateProductSelect`, `showProductInfo`, `#productSelect` change 경로의 products fetch shape / base-components sync 순서 / recalculation side effect contract를 먼저 고정한 뒤, `product-catalog-legacy-ui` static module batch로 이어가는 것이다.
+- [2026-04-12] 구조 트랙 다음 단계: `wdcalculator` product-catalog legacy UI까지 static module 경계로 빠졌다. 다음 자동 배치는 step6 large-file inventory 기준으로 남은 giant inline/orchestration cluster를 다시 전감리해 다음 focused contract freeze 후보를 확정하는 것이다.
 - [2026-03-26] 채널톡 연동 파일럿(Wave 0 ~ 5) 운영 모니터링 (실제 데이터 축적 대기 중)
 
 ## 검증 필요
@@ -26,7 +26,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [x] 성능 최적화(Phase) 전반 체감 속도 향상 확인 (temp QA 기준 `/erp/measurement`, `/map_view`, `/api/generate_map`, `/api/map_data` timing smoke 재확인)
 
 ## 알려진 이슈
-- 차단 이슈 없음. `wdcalculator` additional-options row UI는 static module 경계로 빠졌고, 남은 구조 트랙의 주요 리스크는 product catalog legacy UI가 `products` 배열 갱신, `#productSelect` change reset, `updateBaseProductSelectOptions()` / `ensureBaseComponentsUI()` 순서와 묶여 있어 다음 extraction에서 products state drift나 base-components sync 누락이 날 수 있다는 점이다.
+- 차단 이슈 없음. `wdcalculator` product-catalog legacy UI까지 static module 경계로 빠졌고, 다음 구조 트랙의 주요 리스크는 남은 giant inline orchestration이 `editingEstimateId`, save/load restore, sidebar refresh 타이밍과 더 촘촘히 결합돼 있어 preaudit 없이 바로 extraction하면 state drift가 날 수 있다는 점이다.
 
 ## 핵심 모듈 (최근 수정)
 | 파일 | 역할 |
@@ -37,9 +37,11 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 | `static/js/wdcalculator/notes-ui.js` | 비고 상태/렌더/이벤트와 `loadNotes`/`collectNotes` contract를 giant inline script 밖으로 분리한 notes UI module |
 | `static/js/wdcalculator/current-estimate-math.js` | 건별 base component + option 합산 정책과 normalized snapshot을 계산하는 current-estimate helper |
 | `static/js/wdcalculator/estimate-totals.js` | aggregate totals/coupon/shipping 정책을 giant inline script 밖으로 분리한 순수 helper |
+| `static/js/wdcalculator/product-catalog-ui.js` | products fetch/dropdown/product info/base-components sync를 giant inline script 밖으로 분리한 product catalog module |
 | `templates/wdcalculator/partials/wdcalculator_scripts_config.html` | Jinja config 주입 + `shared.js` load-order를 giant app script에서 분리한 새 thin partial |
 | `templates/wdcalculator/partials/wdcalculator_scripts.html` | giant inline WDCalculator app bootstrap을 유지하는 current app script boundary |
 | `tests/test_wdcalculator_product_settings.py` | wdcalculator render contract + calculate/save/load/search/delete smoke를 고정하는 focused regression test |
+| `tests/test_wdcalculator_product_catalog_contract_node.py` | product catalog legacy UI의 fetch/select/info/base-components sync contract를 Node로 검증하는 focused regression test |
 | `tests/test_wdcalculator_additional_options_contract_node.py` | additional-options row DOM/selectors, mode toggle, read/remove recalc contract를 Node로 검증하는 focused regression test |
 | `tests/test_wdcalculator_coupon_display_contract_node.py` | 쿠폰 입력 파싱과 final price/coupon style helper contract를 Node로 검증하는 focused regression test |
 | `tests/test_wdcalculator_base_components_contract_node.py` | base-components row DOM/selectors와 재계산 hook contract를 Node로 검증하는 focused regression test |

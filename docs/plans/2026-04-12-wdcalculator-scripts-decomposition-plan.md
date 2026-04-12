@@ -1,5 +1,5 @@
 # WDCalculator Scripts Decomposition Plan
-> 작성일: 2026-04-12 | 상태: additional-options batch 완료, product-catalog legacy UI next batch contract freeze in progress
+> 작성일: 2026-04-12 | 상태: product-catalog legacy UI batch 완료
 
 ## 1. What — 무엇을 만드는가
 
@@ -26,6 +26,7 @@
 | `templates/wdcalculator/partials/wdcalculator_scripts.html` | giant inline JS의 current runtime contract freeze 대상 |
 | `templates/wdcalculator/partials/wdcalculator_body.html` | DOM id/class/data-* contract 확인 대상 |
 | `static/js/wdcalculator/shared.js` | 이미 존재하는 전역 helper/runtime load order contract |
+| `static/js/wdcalculator/product-catalog-ui.js` | product fetch/select/info/base-components sync를 옮긴 static UI module |
 | `apps/api/wdcalculator.py` | `/wdcalculator` render + `/api/wdcalculator/*` fetch endpoint coupling 확인 |
 | `tests/test_wdcalculator_product_settings.py` | 기존 WDCalculator test baseline 참고 |
 | `tests/` 신규 contract tests | `/wdcalculator` render contract와 핵심 API smoke 고정 |
@@ -45,7 +46,8 @@
   7. `static/js/wdcalculator/base-components-ui.js`
   8. `static/js/wdcalculator/coupon-display-helpers.js`
   9. `static/js/wdcalculator/additional-options-ui.js`
-  10. giant `DOMContentLoaded` inline app script
+  10. `static/js/wdcalculator/product-catalog-ui.js`
+  11. giant `DOMContentLoaded` inline app script
 - 주요 fetch endpoint:
   - `GET /api/wdcalculator/products`
   - `GET /api/wdcalculator/search-estimates`
@@ -224,6 +226,16 @@
 - extraction 시 host에 남겨야 하는 핵심 coupling은 `products` 배열 단일 source, `updateBaseProductSelectOptions()`, `ensureBaseComponentsUI()`, `calculateEstimate()`, `additionalOptionsContainer` reset, `productInfo`/`productInfoContent`/`baseEstimateSection` DOM ids다.
 - 주요 회귀 포인트는 products fetch shape drift, load 직후 base-components sync 순서 누락, `#productSelect` 변경 시 추가 옵션 미초기화, 제품 해제 시 `baseEstimateSection`/`productInfo` 숨김 누락이다.
 
+### 2.4.21 Product catalog legacy UI contract freeze 결과
+- `tests/support/wdcalculator_product_catalog_contract_node_checks.js` + `tests/test_wdcalculator_product_catalog_contract_node.py`를 추가/정리해 `loadProducts`, `updateProductSelect`, `showProductInfo`, `#productSelect` change 경로의 fetch shape, base-components sync 순서, recalculation side effect contract를 Node VM + DOM stub으로 고정했다.
+- freeze 과정에서 Node DOM stub이 `textContent` setter 없이 동작해 `shared.js`의 `escapeHtml()`가 빈 문자열을 돌려주는 drift를 발견했고, stub을 브라우저 동작과 맞추고 helper shim도 고정해 `showProductInfo()` escaping contract를 안정화했다.
+- `/api/wdcalculator/products`의 legacy `{success, products}` payload shape와 script load order는 `tests/test_wdcalculator_product_settings.py`로 함께 묶어 고정했다.
+
+### 2.4.22 Batch 9 결과
+- `static/js/wdcalculator/product-catalog-ui.js`를 신설해 `loadProducts`, `updateProductSelect`, `showProductInfo`, `handleProductSelectChange`, `bindProductSelect`를 giant inline script 밖으로 분리했다.
+- `templates/wdcalculator/partials/wdcalculator_scripts_config.html`는 `product-catalog-ui.js`를 `additional-options-ui.js` 뒤, giant app script 앞에 로드하도록 갱신했고, host giant script는 `WdCalculatorProductCatalogUI.configure(...)` + thin destructuring bridge + `bindProductSelect()`만 남겼다.
+- focused regression은 product catalog Node contract + `/wdcalculator` render contract + `/api/wdcalculator/products` API shape smoke까지 묶어 `3 passed`로 검증했다.
+
 ## 3. Steps — 실행 단계
 - [x] Step 1: `/wdcalculator` render contract와 injected config/script order를 focused tests로 freeze한다.
 - [x] Step 2: WDCalculator giant script가 의존하는 핵심 `/api/wdcalculator/*` 성공 shape를 최소 smoke tests로 freeze한다.
@@ -241,8 +253,8 @@
 - [x] Step 14: additional-options rows UI(`setOptionMode`, add/remove row, `readAdditionalOptionRowsFromUI`) extraction boundary를 전감리한다.
 - [x] Step 15: additional-options rows DOM/selectors와 mode toggle → `calculateEstimate()` hook contract를 focused tests로 freeze한다.
 - [x] Step 16: additional-options rows UI를 static JS module로 분리하고 host script에는 save/load/bootstrap orchestration만 남긴다.
-- [ ] Step 17: product catalog legacy UI(`loadProducts`, `updateProductSelect`, `showProductInfo`, `#productSelect` change) contract를 focused tests로 freeze한다.
-- [ ] Step 18: product catalog legacy UI를 static JS module로 분리하고 host script에는 products state/bootstrap orchestration만 남긴다.
+- [x] Step 17: product catalog legacy UI(`loadProducts`, `updateProductSelect`, `showProductInfo`, `#productSelect` change) contract를 focused tests로 freeze한다.
+- [x] Step 18: product catalog legacy UI를 static JS module로 분리하고 host script에는 products state/bootstrap orchestration만 남긴다.
 
 ## 4. 검증 기준
 - [x] `GET /wdcalculator` render contract test 통과
@@ -256,6 +268,7 @@
 - [x] `base-components-ui.js` contract(Node) 통과
 - [x] `coupon-display-helpers.js` contract(Node) 통과
 - [x] `additional-options-ui.js` contract(Node) 통과
+- [x] `product-catalog-ui.js` contract(Node) 통과
 - [x] `wdcalculator_scripts.html` syntax parse smoke 통과
 - [x] 신규 lint 없음
 - [x] `python -c "import app; print('APP_OK')"` 통과
