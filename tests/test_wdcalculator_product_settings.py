@@ -5,6 +5,8 @@ import re
 import pytest
 
 import apps.api.wdcalculator as wd_module
+from db import db_session
+from models import Order
 from wdcalculator_db import init_wdcalculator_db, wd_calculator_engine, wd_calculator_session
 from wdcalculator_models import (
     Estimate,
@@ -16,6 +18,24 @@ from wdcalculator_models import (
 
 def _write_json(path, payload):
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def _create_order(**overrides) -> Order:
+    """Create a minimal FOMS order row for WDCalculator search/match contracts."""
+    payload = {
+        "received_date": "2026-04-12",
+        "customer_name": "WD Order Contract",
+        "phone": "010-2222-3333",
+        "address": "Seoul",
+        "product": "Wardrobe",
+        "status": "RECEIVED",
+        "structured_data": {},
+    }
+    payload.update(overrides)
+    order = Order(**payload)
+    db_session.add(order)
+    db_session.commit()
+    return order
 
 
 @pytest.fixture
@@ -124,6 +144,7 @@ def test_wdcalculator_page_renders_inline_config_contract(wdcalculator_settings_
     coupon_display_helpers_idx = body.index("js/wdcalculator/coupon-display-helpers.js")
     additional_options_ui_idx = body.index("js/wdcalculator/additional-options-ui.js")
     product_catalog_ui_idx = body.index("js/wdcalculator/product-catalog-ui.js")
+    order_match_ui_idx = body.index("js/wdcalculator/order-match-ui.js")
     dom_ready_idx = body.index("document.addEventListener('DOMContentLoaded'")
     categories_match = re.search(
         r"var wdCalculatorCategories = (.+?) \|\| \[\];",
@@ -147,6 +168,7 @@ def test_wdcalculator_page_renders_inline_config_contract(wdcalculator_settings_
         < coupon_display_helpers_idx
         < additional_options_ui_idx
         < product_catalog_ui_idx
+        < order_match_ui_idx
         < dom_ready_idx
     )
     assert notes_idx < shared_idx
@@ -258,6 +280,70 @@ def test_wdcalculator_search_and_delete_estimate_smoke(wdcalculator_settings_env
     post_delete_payload = post_delete_search.get_json()
     assert post_delete_payload["success"] is True
     assert all(estimate["id"] != saved_id for estimate in post_delete_payload["estimates"])
+
+
+def test_wdcalculator_search_orders_api_keeps_legacy_success_shape(
+    wdcalculator_settings_env, login
+):
+    """Order-match search must keep the legacy `{success, orders, count}` payload surface."""
+    client = login
+    order = _create_order(
+        customer_name="WD Match Customer",
+        phone="010-9876-5432",
+        address="Busan",
+        product="Kitchen",
+        status="DRAWING",
+    )
+
+    response = client.get("/api/wdcalculator/search-orders?customer_name=Match Customer")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["count"] == 1
+    assert isinstance(payload["orders"], list)
+    order_payload = payload["orders"][0]
+    assert order_payload["id"] == order.id
+    assert order_payload["customer_name"] == "WD Match Customer"
+    assert order_payload["phone"] == "010-9876-5432"
+    assert order_payload["address"] == "Busan"
+    assert order_payload["product"] == "Kitchen"
+    assert order_payload["status"] == "DRAWING"
+    assert order_payload["received_date"] == "2026-04-12"
+
+
+def test_wdcalculator_match_order_api_keeps_legacy_success_shape(
+    wdcalculator_settings_env, login
+):
+    """Order-match save path must keep the legacy success/message/match_id payload."""
+    client = login
+    order = _create_order(customer_name="WD Match Save")
+    order_id = order.id
+    save_response = client.post(
+        "/api/wdcalculator/save-estimate",
+        json={
+            "customer_name": "WD Match Save",
+            "estimate_data": {"items": [{"product_id": 1, "width_mm": 300}]},
+        },
+    )
+    estimate_id = save_response.get_json()["estimate_id"]
+
+    response = client.post(
+        "/api/wdcalculator/match-order",
+        json={"estimate_id": estimate_id, "order_id": order_id},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["message"] == "견적과 주문이 매칭되었습니다."
+    assert isinstance(payload["match_id"], int)
+    match_row = wd_calculator_session.query(EstimateOrderMatch).filter(
+        EstimateOrderMatch.id == payload["match_id"]
+    ).first()
+    assert match_row is not None
+    assert match_row.estimate_id == estimate_id
+    assert match_row.order_id == order_id
 
 
 def test_wdcalculator_products_persist_in_db_after_seed_file_changes(wdcalculator_settings_env, login):

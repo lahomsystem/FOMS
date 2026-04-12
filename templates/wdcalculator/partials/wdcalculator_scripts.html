@@ -65,8 +65,10 @@ document.addEventListener('DOMContentLoaded', function() {
         showProductInfo,
         bindProductSelect,
     } = WdCalculatorProductCatalogUI;
+    const { bindOrderMatchButtons } = WdCalculatorOrderMatchUI;
 
     bindProductSelect();
+    bindOrderMatchButtons();
 
     // 카테고리 데이터 확인
     if (!wdCalculatorCategories || wdCalculatorCategories.length === 0) {
@@ -1702,114 +1704,6 @@ document.addEventListener('DOMContentLoaded', function() {
             // 저장 버튼은 이미 표시되어 있음 (위에서 설정)
             // 수정 적용 버튼은 견적을 선택했을 때 표시됨
         }
-    }
-    
-    // 주문 매칭 기능
-    document.addEventListener('click', function(e) {
-        if (e.target.closest('.match-order-btn')) {
-            const estimateId = parseInt(e.target.closest('.match-order-btn').dataset.estimateId);
-            const customerName = e.target.closest('.match-order-btn').dataset.customerName;
-            
-            // FOMS 주문 검색
-            fetch(`/api/wdcalculator/search-orders?customer_name=${encodeURIComponent(customerName)}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        if (data.orders.length === 0) {
-                            alert('해당 고객명의 주문이 없습니다.');
-                            return;
-                        }
-                        
-                        if (data.orders.length === 1) {
-                            // 주문이 1개면 바로 매칭
-                            matchEstimateToOrder(estimateId, data.orders[0].id);
-                        } else {
-                            // 주문이 여러 개면 선택
-                            showOrderSelectionModal(estimateId, data.orders);
-                        }
-                    } else {
-                        alert(data.message || '주문 검색 중 오류가 발생했습니다.');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('주문 검색 중 오류가 발생했습니다.');
-                });
-        }
-    });
-    
-    // 주문 선택 모달 표시
-    function showOrderSelectionModal(estimateId, orders) {
-        let html = '<div class="modal fade" id="orderSelectionModal" tabindex="-1">';
-        html += '<div class="modal-dialog modal-lg modal-fullscreen-md-down"><div class="modal-content">';
-        html += '<div class="modal-header"><h5 class="modal-title">주문 선택</h5>';
-        html += '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>';
-        html += '<div class="modal-body"><div class="list-group">';
-        
-        orders.forEach(order => {
-            html += `
-                <button type="button" class="list-group-item list-group-item-action select-order-btn" 
-                        data-estimate-id="${estimateId}" data-order-id="${order.id}">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <strong>주문 #${order.id}</strong><br>
-                            <small>고객명: ${order.customer_name}</small><br>
-                            <small>전화번호: ${order.phone}</small><br>
-                            <small>제품: ${order.product}</small><br>
-                            <small>상태: ${order.status}</small>
-                        </div>
-                    </div>
-                </button>
-            `;
-        });
-        
-        html += '</div></div></div></div></div>';
-        
-        // 기존 모달 제거
-        const existingModal = document.getElementById('orderSelectionModal');
-        if (existingModal) {
-            existingModal.remove();
-        }
-        
-        document.body.insertAdjacentHTML('beforeend', html);
-        const modal = new bootstrap.Modal(document.getElementById('orderSelectionModal'));
-        modal.show();
-        
-        // 주문 선택 이벤트
-        document.querySelectorAll('.select-order-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const estId = parseInt(this.dataset.estimateId);
-                const ordId = parseInt(this.dataset.orderId);
-                matchEstimateToOrder(estId, ordId);
-                modal.hide();
-            });
-        });
-    }
-    
-    // 견적과 주문 매칭
-    function matchEstimateToOrder(estimateId, orderId) {
-        fetch('/api/wdcalculator/match-order', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                estimate_id: estimateId,
-                order_id: orderId
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('견적과 주문이 매칭되었습니다.');
-            } else {
-                alert(data.message || '매칭 중 오류가 발생했습니다.');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('매칭 중 오류가 발생했습니다.');
-        });
     }
     
     // 견적 저장 기능
