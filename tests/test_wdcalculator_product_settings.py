@@ -145,6 +145,7 @@ def test_wdcalculator_page_renders_inline_config_contract(wdcalculator_settings_
     additional_options_ui_idx = body.index("js/wdcalculator/additional-options-ui.js")
     product_catalog_ui_idx = body.index("js/wdcalculator/product-catalog-ui.js")
     order_match_ui_idx = body.index("js/wdcalculator/order-match-ui.js")
+    coupon_shipping_wiring_idx = body.index("js/wdcalculator/coupon-shipping-wiring.js")
     dom_ready_idx = body.index("document.addEventListener('DOMContentLoaded'")
     categories_match = re.search(
         r"var wdCalculatorCategories = (.+?) \|\| \[\];",
@@ -169,6 +170,7 @@ def test_wdcalculator_page_renders_inline_config_contract(wdcalculator_settings_
         < additional_options_ui_idx
         < product_catalog_ui_idx
         < order_match_ui_idx
+        < coupon_shipping_wiring_idx
         < dom_ready_idx
     )
     assert notes_idx < shared_idx

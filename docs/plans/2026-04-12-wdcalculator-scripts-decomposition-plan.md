@@ -1,5 +1,5 @@
 # WDCalculator Scripts Decomposition Plan
-> 작성일: 2026-04-12 | 상태: product-catalog legacy UI batch 완료, order-match UI batch 완료
+> 작성일: 2026-04-12 | 상태: product-catalog legacy UI batch 완료, order-match UI batch 완료, coupon/shipping wiring batch 완료
 
 ## 1. What — 무엇을 만드는가
 
@@ -254,6 +254,23 @@
 - order-match Node contract는 template inline source 대신 새 helper 파일을 직접 로드하도록 바꿔 extraction 이후에도 direct-match / modal selection / empty-result alert뿐 아니라 `search-orders` 실패 메시지, `match-order` 실패 메시지 분기까지 계속 검증하게 유지했다.
 - `/wdcalculator` render contract에는 `order-match-ui.js` load-order를 추가했고, focused pytest `10 passed`로 extraction 이후 baseline을 재검증했다.
 
+### 2.4.26 Coupon/shipping wiring batch preaudit 메모
+- order-match 이후 남은 giant inline cluster를 다시 비교한 결과, 가장 얇은 다음 구조 경계는 파일 하단의 global coupon/shipping listener wiring(`shippingCost`, `shippingIncluded`, `globalCouponValue`)이다.
+- 이 블록은 가격 정책 그 자체가 아니라 DOM 이벤트를 기존 `calculateEstimate()`, `calculateTotalEstimates()`, `getCouponValue()` helper 경로에 연결하는 얇은 wiring이므로, save/reset/list/url bootstrap cluster보다 state coupling이 작다.
+- extraction 시 host에 남겨야 하는 핵심 coupling은 `DEFAULT_COUPON_VALUE`, `estimates.length` guard, `calculateEstimate()`, `calculateTotalEstimates()`, `getCouponValue()`, 그리고 `#shippingCost` / `#shippingIncluded` / `#globalCouponValue` DOM ids다.
+- 주요 회귀 포인트는 (1) 이벤트 타입별 재계산 호출 수 drift, (2) 빈/0 쿠폰 입력의 초기값 보정, (3) estimates가 비어 있을 때 aggregate recalc skip 규칙, (4) coupon input의 delayed input path(`setTimeout 100ms`)와 initial load path(`setTimeout 500ms`) 보존이다.
+
+### 2.4.27 Coupon/shipping wiring contract freeze 결과
+- 신규 Node regression `tests/test_wdcalculator_coupon_shipping_wiring_contract_node.py` + `tests/support/wdcalculator_coupon_shipping_wiring_contract_node_checks.js`를 추가해 template 하단 listener source를 직접 VM에 올리고 shipping/coupon DOM event wiring contract를 고정했다.
+- freeze 범위는 `shippingCost` input/change, `shippingIncluded` change, `globalCouponValue` input/change/blur, empty/0 coupon 초기값 보정, initial load recalc, missing coupon input error branch까지 포함한다.
+- 관련 helper baseline(`coupon-display-helpers`, `estimate-totals`)과 함께 focused pytest `3 passed`로 재검증했다.
+
+### 2.4.28 Batch 12 결과
+- `static/js/wdcalculator/coupon-shipping-wiring.js`를 신설해 하단 global input listener(`shippingCost`, `shippingIncluded`, `globalCouponValue`) wiring을 giant inline script 밖으로 분리했다.
+- `templates/wdcalculator/partials/wdcalculator_scripts_config.html`는 `coupon-shipping-wiring.js`를 `order-match-ui.js` 뒤, giant app script 앞에 로드하도록 갱신했고, host giant script는 `WdCalculatorCouponShippingWiring.configure(...)` + `initCouponShippingWiring()` bootstrap만 남겼다.
+- wiring Node contract는 template source 추출이 아니라 새 helper 파일을 직접 로드하도록 바꿔 extraction 이후에도 shipping/coupon event surface와 delayed initial/input recalc path를 계속 고정하게 유지했다.
+- `/wdcalculator` render contract에는 `coupon-shipping-wiring.js` load-order를 추가했고, 관련 helper baseline과 함께 focused pytest `12 passed`로 extraction 이후 baseline을 재검증했다.
+
 ## 3. Steps — 실행 단계
 - [x] Step 1: `/wdcalculator` render contract와 injected config/script order를 focused tests로 freeze한다.
 - [x] Step 2: WDCalculator giant script가 의존하는 핵심 `/api/wdcalculator/*` 성공 shape를 최소 smoke tests로 freeze한다.
@@ -276,6 +293,9 @@
 - [x] Step 19: product-catalog 이후 남은 giant inline cluster를 재감리해 다음 structure-only 배치를 order matching UI로 확정한다.
 - [x] Step 20: order matching UI(`.match-order-btn`, `showOrderSelectionModal`, `matchEstimateToOrder`) contract를 focused tests로 freeze한다.
 - [x] Step 21: order matching UI를 static JS module로 분리하고 host script에는 search-result bridge와 bootstrap wiring만 남긴다.
+- [x] Step 22: order-match 이후 남은 giant inline cluster를 재감리해 다음 structure-only 배치를 coupon/shipping listener wiring으로 확정한다.
+- [x] Step 23: coupon/shipping global input listener의 DOM/event/recalc wiring contract를 focused tests로 freeze한다.
+- [x] Step 24: coupon/shipping recalculation listener wiring을 static JS module로 분리하고 host script에는 thin bootstrap만 남긴다.
 
 ## 4. 검증 기준
 - [x] `GET /wdcalculator` render contract test 통과

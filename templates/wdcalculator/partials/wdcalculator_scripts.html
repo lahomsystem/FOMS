@@ -59,6 +59,13 @@ document.addEventListener('DOMContentLoaded', function() {
         updateBaseProductSelectOptions,
         ensureBaseComponentsUI,
     });
+    WdCalculatorCouponShippingWiring.configure({
+        defaultCouponValue: DEFAULT_COUPON_VALUE,
+        getEstimates: () => estimates,
+        calculateEstimate,
+        calculateTotalEstimates,
+        getCouponValue,
+    });
     const {
         loadProducts,
         updateProductSelect,
@@ -66,9 +73,11 @@ document.addEventListener('DOMContentLoaded', function() {
         bindProductSelect,
     } = WdCalculatorProductCatalogUI;
     const { bindOrderMatchButtons } = WdCalculatorOrderMatchUI;
+    const { initCouponShippingWiring } = WdCalculatorCouponShippingWiring;
 
     bindProductSelect();
     bindOrderMatchButtons();
+    initCouponShippingWiring();
 
     // 카테고리 데이터 확인
     if (!wdCalculatorCategories || wdCalculatorCategories.length === 0) {
@@ -1935,95 +1944,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 초기 기본 구성 UI (제품 목록 로드 전이라도 기본 1행은 렌더)
     ensureBaseComponentsUI();
-
-    // 배송비 입력 필드 변경 시 자동 재계산
-    const shippingCostInputField = document.getElementById('shippingCost');
-    if (shippingCostInputField) {
-        shippingCostInputField.addEventListener('input', function() {
-            if (estimates.length > 0) {
-                calculateTotalEstimates(); // 전체 견적 재계산
-            }
-        });
-        shippingCostInputField.addEventListener('change', function() {
-            if (estimates.length > 0) {
-                calculateTotalEstimates(); // 전체 견적 재계산
-            }
-        });
-        console.log('배송비 입력 필드 이벤트 리스너 등록 완료');
-    }
-    
-    // 배송비 포함 여부 체크박스 변경 시 자동 재계산
-    const shippingIncludedCheckbox = document.getElementById('shippingIncluded');
-    if (shippingIncludedCheckbox) {
-        shippingIncludedCheckbox.addEventListener('change', function() {
-            if (estimates.length > 0) {
-                calculateTotalEstimates(); // 전체 견적 재계산
-            }
-        });
-        console.log('배송비 포함 여부 체크박스 이벤트 리스너 등록 완료');
-    }
-    
-    // 쿠폰 입력 필드 변경 시 자동 재계산 (강력한 이벤트 처리)
-    const couponInputField = document.getElementById('globalCouponValue');
-    if (couponInputField) {
-        // 초기값 확인 및 설정
-        if (!couponInputField.value || couponInputField.value === '0') {
-            couponInputField.value = DEFAULT_COUPON_VALUE;
-            console.log('쿠폰 입력 필드 초기값 설정:', DEFAULT_COUPON_VALUE);
-        }
-        
-        // input 이벤트: 타이핑 중에도 실시간 반영
-        couponInputField.addEventListener('input', function() {
-            const newValue = this.value;
-            console.log('쿠폰 값 변경됨 (input):', newValue);
-            // 약간의 지연을 두어 연속 입력 처리
-            setTimeout(() => {
-                const currentValue = getCouponValue();
-                console.log('재계산 실행 - 쿠폰 값:', currentValue);
-                calculateEstimate();
-                if (estimates.length > 0) {
-                    calculateTotalEstimates();
-                }
-            }, 100);
-        });
-        
-        // change 이벤트: 포커스 아웃 시 확정
-        couponInputField.addEventListener('change', function() {
-            const newValue = this.value;
-            console.log('쿠폰 값 확정됨 (change):', newValue);
-            const currentValue = getCouponValue();
-            console.log('재계산 실행 - 쿠폰 값:', currentValue);
-            calculateEstimate();
-            if (estimates.length > 0) {
-                calculateTotalEstimates();
-            }
-        });
-        
-        // blur 이벤트: 포커스를 잃을 때도 재계산
-        couponInputField.addEventListener('blur', function() {
-            const newValue = this.value;
-            console.log('쿠폰 입력 필드 포커스 아웃 (blur):', newValue);
-            const currentValue = getCouponValue();
-            console.log('재계산 실행 - 쿠폰 값:', currentValue);
-            calculateEstimate();
-            if (estimates.length > 0) {
-                calculateTotalEstimates();
-            }
-        });
-        
-        console.log('쿠폰 입력 필드 이벤트 리스너 등록 완료, 현재 값:', couponInputField.value);
-        
-        // 초기 로드 시 한 번 계산 실행 (스타일 적용 확인)
-        setTimeout(() => {
-            console.log('초기 로드 후 계산 실행');
-            calculateEstimate();
-            if (estimates.length > 0) {
-                calculateTotalEstimates();
-            }
-        }, 500);
-    } else {
-        console.error('쿠폰 입력 필드를 찾을 수 없습니다!');
-    }
 
 });
 </script>
