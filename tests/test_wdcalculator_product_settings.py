@@ -123,6 +123,7 @@ def test_wdcalculator_page_renders_inline_config_contract(wdcalculator_settings_
     base_components_ui_idx = body.index("js/wdcalculator/base-components-ui.js")
     coupon_display_helpers_idx = body.index("js/wdcalculator/coupon-display-helpers.js")
     additional_options_ui_idx = body.index("js/wdcalculator/additional-options-ui.js")
+    product_catalog_ui_idx = body.index("js/wdcalculator/product-catalog-ui.js")
     dom_ready_idx = body.index("document.addEventListener('DOMContentLoaded'")
     categories_match = re.search(
         r"var wdCalculatorCategories = (.+?) \|\| \[\];",
@@ -145,6 +146,7 @@ def test_wdcalculator_page_renders_inline_config_contract(wdcalculator_settings_
         < base_components_ui_idx
         < coupon_display_helpers_idx
         < additional_options_ui_idx
+        < product_catalog_ui_idx
         < dom_ready_idx
     )
     assert notes_idx < shared_idx

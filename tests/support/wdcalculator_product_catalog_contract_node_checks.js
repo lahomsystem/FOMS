@@ -1,8 +1,8 @@
 /**
- * Contract freeze: product catalog legacy UI cluster in wdcalculator_scripts.html
+ * Contract freeze: product catalog legacy UI cluster in static/js/wdcalculator/product-catalog-ui.js
  * (loadProducts, updateProductSelect, showProductInfo, productSelect change handler).
  *
- * Runs inline sources in a Node vm with DOM stubs so extraction can preserve:
+ * Runs the extracted helper in a Node vm with DOM stubs so the host-script extraction preserves:
  * - GET /api/wdcalculator/products payload shape assumptions
  * - products -> base-components sync order
  * - legacy productSelect change side effects
@@ -12,16 +12,16 @@ const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const templatePath = path.join(
+const helperPath = path.join(
     repoRoot,
-    "templates",
+    "static",
+    "js",
     "wdcalculator",
-    "partials",
-    "wdcalculator_scripts.html"
+    "product-catalog-ui.js"
 );
 const sharedPath = path.join(repoRoot, "static", "js", "wdcalculator", "shared.js");
 
-const templateSrc = fs.readFileSync(templatePath, "utf8");
+const helperSrc = fs.readFileSync(helperPath, "utf8");
 const sharedSrc = fs.readFileSync(sharedPath, "utf8");
 
 function assertEq(actual, expected, label) {
@@ -58,7 +58,7 @@ function escapeHtmlText(text) {
 }
 
 function extractFunctionSource(src, name, label) {
-    const sourceLabel = label || templatePath;
+    const sourceLabel = label || helperPath;
     const needle = `function ${name}(`;
     const start = src.indexOf(needle);
     if (start === -1) {
@@ -156,7 +156,7 @@ function extractFunctionSource(src, name, label) {
 }
 
 function extractStatementBlock(src, needle, label) {
-    const sourceLabel = label || templatePath;
+    const sourceLabel = label || helperPath;
     const start = src.indexOf(needle);
     if (start === -1) {
         throw new Error(`Needle ${needle} not found in ${sourceLabel}`);
@@ -286,10 +286,11 @@ function createDocumentMock(spec = {}) {
             this.children = [];
             this.parentEl = null;
             this.listeners = {};
-            this.textContent = opts.textContent || "";
             this._value = opts.value !== undefined ? String(opts.value) : "";
             this._innerHTML = opts.innerHTML || "";
+            this._textContent = "";
             this._innerText = "";
+            this.textContent = opts.textContent || "";
             if (this.id) ids[this.id] = this;
         }
 
@@ -323,13 +324,23 @@ function createDocumentMock(spec = {}) {
             }
         }
 
+        get textContent() {
+            return this._textContent;
+        }
+
+        set textContent(next) {
+            const value = next === undefined || next === null ? "" : String(next);
+            this._textContent = value;
+            this._innerText = value;
+            this._innerHTML = escapeHtmlText(value);
+        }
+
         get innerText() {
             return this._innerText;
         }
 
         set innerText(next) {
-            this._innerText = next === undefined || next === null ? "" : String(next);
-            this._innerHTML = escapeHtmlText(this._innerText);
+            this.textContent = next;
         }
 
         appendChild(child) {
@@ -521,26 +532,37 @@ function buildSandbox(spec = {}) {
     vm.runInContext(
         [
             "var products = this.products;",
-            "var updateBaseProductSelectOptions = this.updateBaseProductSelectOptions;",
-            "var ensureBaseComponentsUI = this.ensureBaseComponentsUI;",
             "var calculateEstimate = this.calculateEstimate;",
         ].join("\n"),
         sandbox
     );
     vm.runInContext(sharedSrc, sandbox, { filename: sharedPath });
+    sandbox.escapeHtml = escapeHtmlText;
+    sandbox.formatNumber = function (num) {
+        return Math.round(num).toLocaleString("ko-KR");
+    };
+    vm.runInContext(
+        helperSrc,
+        sandbox,
+        { filename: helperPath }
+    );
     vm.runInContext(
         [
-            extractFunctionSource(templateSrc, "loadProducts", templatePath),
-            extractFunctionSource(templateSrc, "updateProductSelect", templatePath),
-            extractFunctionSource(templateSrc, "showProductInfo", templatePath),
-            extractStatementBlock(
-                templateSrc,
-                "const productSelect = document.getElementById('productSelect');",
-                templatePath
-            ),
-        ].join("\n\n"),
+            "WdCalculatorProductCatalogUI.configure({",
+            "    getProducts: () => this.products,",
+            "    setProducts: (nextProducts) => { this.products = nextProducts; },",
+            "    getCalculateEstimate: () => this.calculateEstimate,",
+            "    updateBaseProductSelectOptions: () => this.updateBaseProductSelectOptions(),",
+            "    ensureBaseComponentsUI: () => this.ensureBaseComponentsUI(),",
+            "});",
+            "this.loadProducts = WdCalculatorProductCatalogUI.loadProducts;",
+            "this.updateProductSelect = WdCalculatorProductCatalogUI.updateProductSelect;",
+            "this.showProductInfo = WdCalculatorProductCatalogUI.showProductInfo;",
+            "this.bindProductSelect = WdCalculatorProductCatalogUI.bindProductSelect;",
+            "this.handleProductSelectChange = WdCalculatorProductCatalogUI.handleProductSelectChange;",
+        ].join("\n"),
         sandbox,
-        { filename: templatePath }
+        { filename: helperPath }
     );
 
     return { sandbox, ids, root, El, consoleMessages };
@@ -574,8 +596,8 @@ async function scenarioLoadProductsSyncsBaseComponentsWhenNoRows() {
         });
     };
 
-    const actualUpdateProductSelect = env.sandbox.updateProductSelect;
-    env.sandbox.updateProductSelect = function () {
+    const actualUpdateProductSelect = env.sandbox.WdCalculatorProductCatalogUI.updateProductSelect;
+    env.sandbox.WdCalculatorProductCatalogUI.updateProductSelect = function () {
         events.push({ type: "updateProductSelect" });
         return actualUpdateProductSelect.apply(this, arguments);
     };
@@ -591,12 +613,6 @@ async function scenarioLoadProductsSyncsBaseComponentsWhenNoRows() {
             products: clone(env.sandbox.products),
         });
     };
-    syncBindings(env.sandbox, [
-        "updateProductSelect",
-        "updateBaseProductSelectOptions",
-        "ensureBaseComponentsUI",
-    ]);
-
     env.sandbox.loadProducts();
     await flushPromises();
 
@@ -636,8 +652,8 @@ async function scenarioLoadProductsSkipsEnsureWhenRowsAlreadyExist() {
                 Promise.resolve({ success: true, products: [createProduct(5, "Existing Row Product")] }),
         });
 
-    const actualUpdateProductSelect = env.sandbox.updateProductSelect;
-    env.sandbox.updateProductSelect = function () {
+    const actualUpdateProductSelect = env.sandbox.WdCalculatorProductCatalogUI.updateProductSelect;
+    env.sandbox.WdCalculatorProductCatalogUI.updateProductSelect = function () {
         events.push({ type: "updateProductSelect" });
         return actualUpdateProductSelect.apply(this, arguments);
     };
@@ -647,12 +663,6 @@ async function scenarioLoadProductsSkipsEnsureWhenRowsAlreadyExist() {
     env.sandbox.ensureBaseComponentsUI = function () {
         events.push({ type: "ensureBaseComponentsUI" });
     };
-    syncBindings(env.sandbox, [
-        "updateProductSelect",
-        "updateBaseProductSelectOptions",
-        "ensureBaseComponentsUI",
-    ]);
-
     env.sandbox.loadProducts();
     await flushPromises();
 
@@ -675,8 +685,8 @@ async function scenarioLoadProductsIgnoresNonSuccessPayload() {
         },
     });
 
-    const actualUpdateProductSelect = env.sandbox.updateProductSelect;
-    env.sandbox.updateProductSelect = function () {
+    const actualUpdateProductSelect = env.sandbox.WdCalculatorProductCatalogUI.updateProductSelect;
+    env.sandbox.WdCalculatorProductCatalogUI.updateProductSelect = function () {
         events.push({ type: "updateProductSelect" });
         return actualUpdateProductSelect.apply(this, arguments);
     };
@@ -694,12 +704,6 @@ async function scenarioLoadProductsIgnoresNonSuccessPayload() {
                     products: [createProduct(12, "Ignored")],
                 }),
         });
-    syncBindings(env.sandbox, [
-        "updateProductSelect",
-        "updateBaseProductSelectOptions",
-        "ensureBaseComponentsUI",
-    ]);
-
     env.sandbox.loadProducts();
     await flushPromises();
 
@@ -750,28 +754,24 @@ function scenarioProductSelectChangeShowsInfoAndRecalculates() {
         },
     });
 
-    const actualShowProductInfo = env.sandbox.showProductInfo;
-    env.sandbox.showProductInfo = function (product) {
-        events.push({ type: "showProductInfo", productId: product.id });
-        return actualShowProductInfo.apply(this, arguments);
-    };
     env.sandbox.calculateEstimate = function () {
         events.push({
             type: "calculateEstimate",
             additionalOptionsInnerHTML: env.ids.additionalOptionsContainer.innerHTML,
             productInfoDisplay: env.ids.productInfo.style.display,
             baseEstimateDisplay: env.ids.baseEstimateSection.style.display,
+            productInfoHtml: env.ids.productInfoContent.innerHTML,
         });
     };
-    syncBindings(env.sandbox, ["showProductInfo", "calculateEstimate"]);
+    env.sandbox.bindProductSelect();
 
     env.ids.productSelect.value = "7";
     env.ids.productSelect.dispatchEvent({ type: "change" });
 
     assertDeepEqual(
         events.map((event) => event.type),
-        ["showProductInfo", "calculateEstimate"],
-        "valid product change runs showProductInfo before calculateEstimate"
+        ["calculateEstimate"],
+        "valid product change triggers a single recalculation"
     );
     assertEq(
         env.ids.additionalOptionsContainer.innerHTML,
@@ -780,27 +780,27 @@ function scenarioProductSelectChangeShowsInfoAndRecalculates() {
     );
     assertEq(env.ids.productInfo.style.display, "block", "showProductInfo reveals product info");
     assertEq(
-        events[1].additionalOptionsInnerHTML,
+        events[0].additionalOptionsInnerHTML,
         "",
         "calculateEstimate sees cleared additionalOptionsContainer"
     );
     assertEq(
-        events[1].productInfoDisplay,
+        events[0].productInfoDisplay,
         "block",
         "calculateEstimate runs after product info display update"
     );
     assertIncludes(
-        env.ids.productInfoContent.innerHTML,
+        events[0].productInfoHtml,
         "Desk &lt;Premium&gt;",
         "product info escapes product name"
     );
     assertIncludes(
-        env.ids.productInfoContent.innerHTML,
+        events[0].productInfoHtml,
         "1m 비용: 3,333원",
         "product info renders 1m price"
     );
     assertIncludes(
-        env.ids.productInfoContent.innerHTML,
+        events[0].productInfoHtml,
         "옵션 &lt;A&gt;: 1,234원",
         "product info renders escaped additional option names"
     );
@@ -820,11 +820,6 @@ function scenarioProductSelectChangeClearsLegacyPanelsWhenSelectionRemoved() {
         },
     });
 
-    const actualShowProductInfo = env.sandbox.showProductInfo;
-    env.sandbox.showProductInfo = function (product) {
-        events.push({ type: "showProductInfo", productId: product.id });
-        return actualShowProductInfo.apply(this, arguments);
-    };
     env.sandbox.calculateEstimate = function () {
         events.push({
             type: "calculateEstimate",
@@ -833,7 +828,7 @@ function scenarioProductSelectChangeClearsLegacyPanelsWhenSelectionRemoved() {
             additionalOptionsInnerHTML: env.ids.additionalOptionsContainer.innerHTML,
         });
     };
-    syncBindings(env.sandbox, ["showProductInfo", "calculateEstimate"]);
+    env.sandbox.bindProductSelect();
 
     env.ids.productSelect.value = "";
     env.ids.productSelect.dispatchEvent({ type: "change" });
@@ -841,7 +836,7 @@ function scenarioProductSelectChangeClearsLegacyPanelsWhenSelectionRemoved() {
     assertDeepEqual(
         events.map((event) => event.type),
         ["calculateEstimate"],
-        "empty legacy selection recalculates without calling showProductInfo"
+        "empty legacy selection recalculates once"
     );
     assertEq(env.ids.productInfo.style.display, "none", "empty selection hides product info");
     assertEq(

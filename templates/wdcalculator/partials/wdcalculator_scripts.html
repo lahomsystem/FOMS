@@ -50,6 +50,23 @@ document.addEventListener('DOMContentLoaded', function() {
         loadAdditionalOptionRows,
         readAdditionalOptionRowsFromUI,
     } = WdCalculatorAdditionalOptionsUI;
+    WdCalculatorProductCatalogUI.configure({
+        getProducts: () => products,
+        setProducts: (nextProducts) => {
+            products = nextProducts;
+        },
+        getCalculateEstimate: () => calculateEstimate,
+        updateBaseProductSelectOptions,
+        ensureBaseComponentsUI,
+    });
+    const {
+        loadProducts,
+        updateProductSelect,
+        showProductInfo,
+        bindProductSelect,
+    } = WdCalculatorProductCatalogUI;
+
+    bindProductSelect();
 
     // 카테고리 데이터 확인
     if (!wdCalculatorCategories || wdCalculatorCategories.length === 0) {
@@ -58,103 +75,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 비고 UI는 static/js/wdcalculator/notes-ui.js (WdCalculatorNotesUI)
     WdCalculatorNotesUI.initNotesUi();
-    
-    // 제품 목록 로드
-    function loadProducts() {
-        fetch('/api/wdcalculator/products')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    products = data.products;
-                    updateProductSelect();
-                    // 제품 로드 후 기본 구성 UI를 최신 옵션으로 갱신
-                    if (document.getElementById('baseComponentsContainer')) {
-                        // 기존 행의 선택값 보존하며 옵션만 업데이트
-                        updateBaseProductSelectOptions();
-                        // 초기 로드 시 행이 없으면 1개 생성
-                        if (document.querySelectorAll('.base-component-row').length === 0) {
-                            ensureBaseComponentsUI();
-                        }
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Error loading products:', error);
-            });
-    }
-    
-    // 제품 선택 드롭다운 업데이트 (레거시 - 호환성 유지)
-    function updateProductSelect() {
-        const select = document.getElementById('productSelect');
-        if (!select) return;
-        select.innerHTML = '<option value="">제품을 선택하세요</option>';
-        products.forEach(product => {
-            const option = document.createElement('option');
-            option.value = product.id;
-            option.textContent = product.name;
-            select.appendChild(option);
-        });
-    }
-
-    // 제품 선택 이벤트 (레거시 - 호환성 유지)
-    const productSelect = document.getElementById('productSelect');
-    if (productSelect) {
-        productSelect.addEventListener('change', function() {
-        const productId = parseInt(this.value);
-        const product = products.find(p => p.id === productId);
-        
-        // 기존 추가 옵션 목록 초기화
-        document.getElementById('additionalOptionsContainer').innerHTML = '';
-        
-        if (product) {
-            showProductInfo(product);
-            // 쿠폰가는 고정값(11,000원)으로 유지 - 제품 설정 무시
-        } else {
-            document.getElementById('productInfo').style.display = 'none';
-            document.getElementById('baseEstimateSection').style.display = 'none';
-        }
-        
-        calculateEstimate();
-    });
-    }
-    
-    // 제품 정보 표시
-    function showProductInfo(product) {
-        const infoDiv = document.getElementById('productInfo');
-        const contentDiv = document.getElementById('productInfoContent');
-        
-        if (!infoDiv || !contentDiv) {
-            console.warn('제품 정보 표시 요소를 찾을 수 없습니다.');
-            return;
-        }
-        
-        if (!product) {
-            console.warn('제품 정보가 없습니다.');
-            infoDiv.style.display = 'none';
-            return;
-        }
-        
-        let infoHtml = `<div><strong>${escapeHtml(product.name || '')}</strong></div>`;
-        infoHtml += `<div>가격 옵션: ${product.pricing_type === '1m' ? '1m' : '30cm'}</div>`;
-        
-        if (product.pricing_type === '1m') {
-            infoHtml += `<div>1m 비용: ${formatNumber(product.price_1m || 0)}원</div>`;
-        } else {
-            infoHtml += `<div>30cm 비용: ${formatNumber(product.price_30cm || 0)}원</div>`;
-            infoHtml += `<div>1cm 비용: ${formatNumber(product.price_1cm || 0)}원</div>`;
-        }
-        
-        if (product.additional_options && product.additional_options.length > 0) {
-            infoHtml += `<div class="mt-2"><strong>사용 가능한 추가 옵션:</strong></div>`;
-            product.additional_options.forEach(option => {
-                infoHtml += `<div>- ${escapeHtml(option.name || '')}: ${formatNumber(option.price || 0)}원</div>`;
-            });
-            infoHtml += `<div class="mt-1"><small class="text-muted">※ 견적 계산 시 드롭다운에서 선택하거나 직접 입력할 수 있습니다.</small></div>`;
-        }
-        
-        contentDiv.innerHTML = infoHtml;
-        infoDiv.style.display = 'block';
-    }
     
     // (구버전) 단일 가로넓이 입력(widthInput)은 복합 기본구성 도입으로 제거됨
     
