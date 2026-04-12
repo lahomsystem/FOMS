@@ -1,5 +1,5 @@
 # WDCalculator Scripts Decomposition Plan
-> 작성일: 2026-04-12 | 상태: product-catalog legacy UI batch 완료
+> 작성일: 2026-04-12 | 상태: product-catalog legacy UI batch 완료, order-match UI batch 완료
 
 ## 1. What — 무엇을 만드는가
 
@@ -236,6 +236,24 @@
 - `templates/wdcalculator/partials/wdcalculator_scripts_config.html`는 `product-catalog-ui.js`를 `additional-options-ui.js` 뒤, giant app script 앞에 로드하도록 갱신했고, host giant script는 `WdCalculatorProductCatalogUI.configure(...)` + thin destructuring bridge + `bindProductSelect()`만 남겼다.
 - focused regression은 product catalog Node contract + `/wdcalculator` render contract + `/api/wdcalculator/products` API shape smoke까지 묶어 `3 passed`로 검증했다.
 
+### 2.4.23 Batch 10 preaudit 메모
+- product-catalog 이후 남은 주요 giant inline cluster는 (1) reset/save refresh/list orchestration, (2) in-session estimates list/card delegation, (3) search results + load-to-form, (4) order matching modal + match API, (5) URL bootstrap/back-to-order, (6) shipping/coupon change listeners다.
+- 이 중 다음 structure-only 배치의 최우선 후보는 order matching UI cluster(`.match-order-btn` delegated click, `showOrderSelectionModal`, `matchEstimateToOrder`)다. 이 묶음은 `products`, `editingEstimateId`, `estimates` 배열, save payload 구성과 직접 결합하지 않고 `search-orders` / `match-order` API와 modal DOM으로 경계가 비교적 얇다.
+- extraction 시 host에 남겨야 하는 핵심 coupling은 `.match-order-btn`의 `data-estimate-id`/`data-customer-name`, `#orderSelectionModal`, `.select-order-btn`, `bootstrap.Modal`, 그리고 `GET /api/wdcalculator/search-orders`, `POST /api/wdcalculator/match-order` 호출 경로다.
+- 주요 회귀 포인트는 modal HTML string 조립 시 escaping drift, Bootstrap modal lifecycle(show/hide/remove), delegated click의 단일 등록 유지, `parseInt` ID 변환 일관성이다.
+- 반대로 `resetInputFormKeepCustomerName`, `refreshAfterSave`, `renderEstimatesList`, `loadEstimateToForm`, save 버튼 clone/replace cluster는 `editingEstimateId`, `currentDatabaseEstimateId`, `loadSidebarEstimates`, button state 전이와 얽혀 있어 지금 시점의 다음 안전 배치로는 더 위험하다.
+
+### 2.4.24 Order-match contract freeze 결과
+- Python smoke에 `/api/wdcalculator/search-orders`와 `/api/wdcalculator/match-order` shape를 추가해 `{success, orders, count}` / `{success, message, match_id}` legacy payload surface를 고정했다.
+- 신규 Node regression `tests/test_wdcalculator_order_match_contract_node.py` + `tests/support/wdcalculator_order_match_contract_node_checks.js`를 추가해 `.match-order-btn` delegated click, 단일 주문 direct-match branch, 다중 주문 `#orderSelectionModal` 생성 + `.select-order-btn` selection branch, 빈 결과 alert branch를 VM DOM stub로 고정했다.
+- 이 baseline으로 다음 extraction batch는 order matching UI를 static helper로 옮기되, host script에는 search-result bridge와 bootstrap wiring만 남기는 구조-only 변경만 허용한다.
+
+### 2.4.25 Batch 11 결과
+- `static/js/wdcalculator/order-match-ui.js`를 신설해 `.match-order-btn` delegated click, `showOrderSelectionModal`, `matchEstimateToOrder`, modal 내부 `.select-order-btn` wiring을 giant inline script 밖으로 분리했다.
+- `templates/wdcalculator/partials/wdcalculator_scripts_config.html`는 `order-match-ui.js`를 `product-catalog-ui.js` 뒤, giant app script 앞에 로드하도록 갱신했고, host giant script는 `bindOrderMatchButtons()` bootstrap만 남겼다.
+- order-match Node contract는 template inline source 대신 새 helper 파일을 직접 로드하도록 바꿔 extraction 이후에도 direct-match / modal selection / empty-result alert뿐 아니라 `search-orders` 실패 메시지, `match-order` 실패 메시지 분기까지 계속 검증하게 유지했다.
+- `/wdcalculator` render contract에는 `order-match-ui.js` load-order를 추가했고, focused pytest `10 passed`로 extraction 이후 baseline을 재검증했다.
+
 ## 3. Steps — 실행 단계
 - [x] Step 1: `/wdcalculator` render contract와 injected config/script order를 focused tests로 freeze한다.
 - [x] Step 2: WDCalculator giant script가 의존하는 핵심 `/api/wdcalculator/*` 성공 shape를 최소 smoke tests로 freeze한다.
@@ -255,6 +273,9 @@
 - [x] Step 16: additional-options rows UI를 static JS module로 분리하고 host script에는 save/load/bootstrap orchestration만 남긴다.
 - [x] Step 17: product catalog legacy UI(`loadProducts`, `updateProductSelect`, `showProductInfo`, `#productSelect` change) contract를 focused tests로 freeze한다.
 - [x] Step 18: product catalog legacy UI를 static JS module로 분리하고 host script에는 products state/bootstrap orchestration만 남긴다.
+- [x] Step 19: product-catalog 이후 남은 giant inline cluster를 재감리해 다음 structure-only 배치를 order matching UI로 확정한다.
+- [x] Step 20: order matching UI(`.match-order-btn`, `showOrderSelectionModal`, `matchEstimateToOrder`) contract를 focused tests로 freeze한다.
+- [x] Step 21: order matching UI를 static JS module로 분리하고 host script에는 search-result bridge와 bootstrap wiring만 남긴다.
 
 ## 4. 검증 기준
 - [x] `GET /wdcalculator` render contract test 통과
