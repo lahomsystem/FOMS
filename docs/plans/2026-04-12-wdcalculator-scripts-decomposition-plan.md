@@ -310,6 +310,21 @@
 - extraction 시 host에 남겨야 하는 핵심 coupling은 `calculateEstimate` 본체와 비-base-container orchestration이며, helper/module 쪽에는 `renderBaseComponentRow`, `computeAutoPrice1cmFrom30cm`, add/remove fee/mode/input/change listener wiring만 이동시키는 것이 안전하다.
 - 주요 회귀 포인트는 (1) listener 중복 등록, (2) `.base-add-fee-btn` / `.base-remove-fee-btn` / `.base-mode-btn` / `.base-remove-btn` delegated click surface, (3) input/change마다 `calculateEstimate()` 호출 횟수, (4) 30cm 수동가 변경 시 `base-manual-price1` auto-sync 규칙이다.
 
+### 2.4.36 Base live interactions contract freeze 결과
+- 신규 Node regression `tests/test_wdcalculator_base_live_events_contract_node.py` + `tests/support/wdcalculator_base_live_events_contract_node_checks.js`를 추가해 current inline `addBaseComponentBtn` 및 `#baseComponentsContainer` click/input/change delegation의 add row, fee add/remove, mode toggle, 최소 1행 guard, 30cm→1cm auto-sync, pricing-type change contract를 먼저 고정했다.
+- 이 baseline으로 다음 extraction batch는 live listener 4개만 기존 `base-components-ui.js` module 안으로 흡수하고, `calculateEstimate` 본체와 상위 state orchestration은 계속 host giant script에 남기는 구조-only 변경만 허용한다.
+
+### 2.4.37 Batch 15 결과
+- `static/js/wdcalculator/base-components-ui.js`를 확장해 `initBaseComponentsLiveInteractions()`와 add/click/input/change delegated handler를 포함시키고, host giant script에서는 해당 listener 4개를 제거한 뒤 bootstrap만 남겼다.
+- extraction 이후 Node contract는 template source 추출 대신 확장된 helper 파일을 직접 로드하도록 바꿔 add row, fee add/remove, mode toggle, 30cm auto-sync, pricing-type column toggle surface를 module 기준으로 계속 검증하게 유지했다.
+- base-components 기존 row render/read contract와 `/wdcalculator` render smoke를 함께 묶어 focused pytest `11 passed`와 `APP_OK`로 extraction 이후 baseline을 재검증했다.
+
+### 2.4.38 Post-base-live next preaudit 메모
+- base row live interactions까지 빠진 뒤 남은 inline cluster를 재감리한 결과, 다음 안전 후보는 URL/deep-link bootstrap(`order_id` back link, `estimate_id` URL load, product-ready polling/timeout)이다.
+- 이 묶음은 `loadEstimateToForm`, `loadSidebarEstimates`, `products.length` readiness, `URLSearchParams`, `setInterval`/`setTimeout` retry 흐름에 주로 묶여 있어 save/add/reset/list mutation cluster보다 상태 결합이 얇다.
+- extraction 시 host에 남겨야 하는 핵심 coupling은 `calculateEstimate`, `collectCurrentEstimate`, `calculateTotalEstimates`, `refreshAfterSave`, `loadEstimateToInputForm`, `editingEstimateId` semantics이며, helper 쪽에는 URL param 해석과 async bootstrap orchestration만 이동시키는 것이 안전하다.
+- 주요 회귀 포인트는 (1) product catalog readiness race, (2) `estimate_id` timeout/clearInterval 정리, (3) `order_id` back link 주입, (4) URL load 실패 시 console/error branch drift다.
+
 ## 3. Steps — 실행 단계
 - [x] Step 1: `/wdcalculator` render contract와 injected config/script order를 focused tests로 freeze한다.
 - [x] Step 2: WDCalculator giant script가 의존하는 핵심 `/api/wdcalculator/*` 성공 shape를 최소 smoke tests로 freeze한다.
@@ -342,6 +357,9 @@
 - [x] Step 29: renderEstimatesList view의 DOM/selectors/render completion contract를 focused tests로 freeze한다.
 - [x] Step 30: in-session estimates list view를 static JS module로 분리하고 host giant script에는 thin orchestration만 남긴다.
 - [x] Step 31: render list 이후 남은 giant inline cluster를 재감리해 다음 structure-only 배치를 `baseComponentsContainer` live interactions로 확정한다.
+- [x] Step 32: baseComponentsContainer live interactions의 DOM/selectors/recalc wiring contract를 focused tests로 freeze한다.
+- [x] Step 33: baseComponentsContainer live interactions를 existing `base-components-ui.js` module로 흡수하고 host giant script에는 thin bootstrap만 남긴다.
+- [x] Step 34: base live interactions 이후 남은 giant inline cluster를 재감리해 다음 structure-only 배치를 URL/deep-link bootstrap으로 확정한다.
 
 ## 4. 검증 기준
 - [x] `GET /wdcalculator` render contract test 통과
@@ -358,6 +376,7 @@
 - [x] `product-catalog-ui.js` contract(Node) 통과
 - [x] `search-results-load.js` contract(Node) 통과
 - [x] `render-estimates-list.js` contract(Node) 통과
+- [x] `base-components-ui.js` live interactions contract(Node) 통과
 - [x] `wdcalculator_scripts.html` syntax parse smoke 통과
 - [x] 신규 lint 없음
 - [x] `python -c "import app; print('APP_OK')"` 통과
@@ -377,6 +396,7 @@
 - additional-options row add/toggle/remove/read와 loadEstimate restore wiring이 module 경로로 유지됨
 - search results render와 `.load-estimate-btn` → `loadEstimateToForm` bridge가 module 경로로 유지됨
 - in-session estimates card render와 summary panel/style pass가 module 경로로 유지됨
+- baseComponentsContainer add row/click/input/change live interactions가 module 경로로 유지됨
 - `?estimate_id=` / `?order_id=` query param flow 정상
 
 ## 6. 참고 자료
