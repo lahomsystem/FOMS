@@ -1,6 +1,6 @@
 """
 ERP 출고 설정 페이지 및 API. (Phase 4-2)
-erp.py에서 분리. 서비스는 services/erp_shipment_settings 사용.
+erp.py에서 분리. 서비스는 foms/services/erp_shipment_settings 사용.
 """
 import datetime
 import logging
@@ -11,15 +11,15 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order
 from apps.auth import login_required, role_required
-from services.erp_permissions import can_edit_erp, erp_edit_required
-from services.erp_shipment_settings import (
+from foms.services.erp_permissions import can_edit_erp, erp_edit_required
+from foms.services.erp_shipment_settings import (
     load_erp_shipment_settings,
     save_erp_shipment_settings,
     normalize_erp_shipment_workers,
     normalize_measurement_managers,
 )
-from services.channel_event_payloads import build_shipment_update_payload
-from services.jobs.queue import enqueue_channeltalk_push
+from foms.services.channel_event_payloads import build_shipment_update_payload
+from foms.services.jobs.queue import enqueue_channeltalk_push
 
 logger = logging.getLogger(__name__)
 erp_shipment_bp = Blueprint('erp_shipment', __name__)
@@ -149,7 +149,7 @@ def api_erp_shipment_update(order_id):
         order.structured_updated_at = datetime.datetime.now()
         flag_modified(order, 'structured_data')
         
-        from services.channel_delivery import mark_order_updated_for_channel
+        from foms.services.channel_delivery import mark_order_updated_for_channel
         delivery_payload = build_shipment_update_payload(before_shipment, shipment, actor_name=actor_name)
         delivery_id = mark_order_updated_for_channel(
             order,

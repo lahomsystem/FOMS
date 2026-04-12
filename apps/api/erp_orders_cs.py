@@ -12,8 +12,8 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order, OrderEvent, SecurityLog
 from apps.auth import login_required, get_user_by_id
-from services.erp_permissions import erp_edit_required
-from services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.erp_permissions import erp_edit_required
+from foms.services.erp_sync_columns import sync_erp_flat_columns
 from apps.erp import _ensure_dict
 
 erp_orders_cs_bp = Blueprint(

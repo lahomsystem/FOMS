@@ -10,15 +10,11 @@ import pandas as pd
 from apps.auth import login_required, role_required, log_access
 from db import get_db
 from models import Order
-from constants import STATUS, UPLOAD_FOLDER, ALLOWED_EXTENSIONS
-from services.order_display_utils import format_options_for_display
+from constants import STATUS, UPLOAD_FOLDER
+from foms.services.file_utils import allowed_file
+from foms.services.order_display_utils import format_options_for_display
 
 excel_bp = Blueprint('excel', __name__, url_prefix='')
-
-
-def _allowed_file(filename):
-    """엑셀 파일 확장자 검사."""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 def _parse_time_from_row(raw_val):
@@ -67,7 +63,7 @@ def upload_excel():
             log_access("엑셀 업로드 실패: 빈 파일명", session.get('user_id'))
             return redirect(request.url)
 
-        if not file or not _allowed_file(file.filename):
+        if not file or not allowed_file(file.filename):
             flash('허용되지 않은 파일 형식입니다. .xlsx 또는 .xls 파일만 업로드 가능합니다.', 'error')
             log_access(f"엑셀 업로드 실패: 허용되지 않은 파일 형식 - {file.filename}", session.get('user_id'),
                       {"filename": file.filename})

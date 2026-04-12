@@ -7,6 +7,12 @@ import re
 from pathlib import Path
 from typing import Any
 
+from paths import (
+    HARNESS_BUNDLE_PREFIX,
+    HARNESS_CODEX_BUNDLE_PATH,
+    HARNESS_CODEX_HARNESS_BUNDLE_PATH,
+    HARNESS_DECISIONS_PATH,
+)
 from spec_utils import find_latest_spec
 
 
@@ -68,7 +74,7 @@ HARNESS_EXACT_MATCHES = {
     "progress.md",
     "docs/archive_index.md",
     ".agents/workflows/verify-result.md",
-    "docs/context/decisions.md",
+    HARNESS_DECISIONS_PATH.lower(),
     "docs/guides/harness_engineering_operator_guide.md",
     "docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md",
 }
@@ -78,7 +84,7 @@ HARNESS_PREFIXES = (
     ".cursor/rules/",
     ".cursor/agents/",
     "docs/specs/",
-    "docs/context/harness_bundle_",
+    HARNESS_BUNDLE_PREFIX.lower(),
 )
 CORE_EXACT_MATCHES = {"app.py", "db.py", "models.py"}
 CORE_PREFIXES = ("apps/api/", "migrations/", "services/auth/", "auth/")
@@ -375,7 +381,7 @@ def build_agent_message(route: PromptRoute) -> str | None:
         )
         if route.context_mode == "harness":
             lines.append(
-                "Because the scope touches harness/core/deploy files, prefer `docs/context/HARNESS_BUNDLE_CODEX_HARNESS.md` and strong verification."
+                f"Because the scope touches harness/core/deploy files, prefer `{HARNESS_CODEX_HARNESS_BUNDLE_PATH}` and strong verification."
             )
         return "\n".join(lines)
 
@@ -395,7 +401,7 @@ def build_agent_message(route: PromptRoute) -> str | None:
         if route.primary_path:
             lines.append(f'Scope hint: `{route.primary_path}`')
         if route.context_mode == "harness":
-            lines.append("Prefer harness context: `docs/context/HARNESS_BUNDLE_CODEX_HARNESS.md`.")
+            lines.append(f"Prefer harness context: `{HARNESS_CODEX_HARNESS_BUNDLE_PATH}`.")
         return "\n".join(lines)
 
     if route.kind == "qa":
@@ -406,7 +412,7 @@ def build_agent_message(route: PromptRoute) -> str | None:
                     '`powershell -NoProfile -File "tools/harness/run_gstack_qa.ps1" '
                     f'-Url "{route.url or "<http-url>"}" -Scenario "{route.scenario or "qa"}"`'
                 ),
-                "The QA wrapper keeps the daily bundle by default and lets `run_codex.ps1` promote risk when needed.",
+                f"The QA wrapper keeps the daily bundle (`{HARNESS_CODEX_BUNDLE_PATH}`) by default and lets `run_codex.ps1` promote risk when needed.",
             ]
         )
         return "\n".join(lines)

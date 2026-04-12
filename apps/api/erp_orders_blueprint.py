@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 from models import Order
 from apps.auth import login_required
 from apps.api.files import build_file_view_url
-from services.storage import get_storage
+from foms.services.storage import get_storage
 
 
 erp_orders_blueprint_bp = Blueprint('erp_orders_blueprint', __name__, url_prefix='/api')

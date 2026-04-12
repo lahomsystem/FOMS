@@ -1,0 +1,14 @@
+<script>
+    // Jinja2 템플릿 변수에서 직접 JavaScript 변수로 주입
+    var wdCalculatorCategories = {{ categories|default([])|tojson|safe }} || [];
+    var wdNotesCategories = {{ notes_categories|default([])|tojson|safe }} || [];
+    var notesCategories = wdNotesCategories || [];
+</script>
+<script src="{{ url_for('static', filename='js/wdcalculator/shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/wdcalculator/sidebar-estimates.js') }}"></script>
+<script src="{{ url_for('static', filename='js/wdcalculator/estimate-totals.js') }}"></script>
+<script src="{{ url_for('static', filename='js/wdcalculator/current-estimate-math.js') }}"></script>
+<script src="{{ url_for('static', filename='js/wdcalculator/notes-ui.js') }}"></script>
+<script src="{{ url_for('static', filename='js/wdcalculator/base-components-ui.js') }}"></script>
+<script src="{{ url_for('static', filename='js/wdcalculator/coupon-display-helpers.js') }}"></script>
+<script src="{{ url_for('static', filename='js/wdcalculator/additional-options-ui.js') }}"></script>

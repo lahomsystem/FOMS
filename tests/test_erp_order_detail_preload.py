@@ -2,7 +2,10 @@ import json
 
 from db import db_session
 from models import Order, OrderAttachment
-from services.erp_order_detail import build_order_detail_payload_map
+from foms.services.erp_order_detail import (
+    attach_order_detail_payloads,
+    build_order_detail_payload_map,
+)
 
 
 def make_erp_order():
@@ -40,7 +43,7 @@ def make_erp_order():
     )
 
 
-def test_build_order_detail_payload_map_includes_attachment_urls(app):
+def test_build_order_detail_payload_map_slims_structured_data_without_attachments(app):
     order = make_erp_order()
     db_session.add(order)
     db_session.commit()
@@ -68,6 +71,16 @@ def test_build_order_detail_payload_map_includes_attachment_urls(app):
     assert payload["success"] is True
     assert payload["structured_data"]["workflow"]["stage"] == "DRAWING"
     assert "attachments" not in payload  # Lazy loading in Phase M
+
+
+def test_attach_order_detail_payloads_fallback_matches_lazy_load_shape() -> None:
+    row = {"structured_data": {"workflow": {"stage": "MEASURE"}}}
+
+    attach_order_detail_payloads(None, [row])
+
+    assert row["detail_payload"]["success"] is True
+    assert row["detail_payload"]["structured_data"]["workflow"]["stage"] == "MEASURE"
+    assert "attachments" not in row["detail_payload"]
 
 
 def test_erp_dashboard_includes_preloaded_order_detail_payload(login):

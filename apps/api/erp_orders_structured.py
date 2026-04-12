@@ -20,19 +20,19 @@ from db import get_db
 from models import Order, OrderEvent, User
 from constants import STATUS, ERP_DRAFT_PLACEHOLDER_CUSTOMER, ERP_DRAFT_PLACEHOLDER_PHONE, ERP_DRAFT_PLACEHOLDER_PRODUCT
 from apps.auth import login_required, role_required
-from services.erp_policy import (
+from foms.services.erp_policy import (
     STAGE_LABELS,
     check_quest_approvals_complete,
     create_quest_from_template,
 )
-from services.erp_display import get_today_kst
-from services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.erp_display import get_today_kst
+from foms.services.erp_sync_columns import sync_erp_flat_columns
 from erp_automation import apply_auto_tasks
 from erp_order_text_parser import parse_order_text
-from services.geocode_helpers import extract_address_from_structured_data
-from services.jobs.queue import enqueue_geocode_order_address, enqueue_channeltalk_push
-from services.order_geocode import reset_order_geocode_on_address_change
-from services.channel_event_payloads import build_payment_confirmation_payload, build_structured_update_payload
+from foms.services.geocode_helpers import extract_address_from_structured_data
+from foms.services.jobs.queue import enqueue_geocode_order_address, enqueue_channeltalk_push
+from foms.services.order_geocode import reset_order_geocode_on_address_change
+from foms.services.channel_event_payloads import build_payment_confirmation_payload, build_structured_update_payload
 
 TEAM_LABELS = {
     'CS': '라홈팀', 'SALES': '영업팀', 'MEASURE': '실측팀',
@@ -326,19 +326,26 @@ def api_put_order_structured(order_id):
         setattr(order, 'structured_confidence', confidence or (structured_data.get('confidence') if structured_data else None))
         setattr(order, 'structured_updated_at', now)
 
-        from services.channel_delivery import mark_order_updated_for_channel
-        delivery_payload = build_structured_update_payload(old_sd, structured_data or {}, _get_actor_name(db))
-        delivery_id = mark_order_updated_for_channel(
-            order,
-            delivery_payload.get('event_type', 'order_updated'),
-            payload=delivery_payload,
-        )
+        delivery_id = None
+        if structured_data is not None:
+            from foms.services.channel_delivery import mark_order_updated_for_channel
+
+            delivery_payload = build_structured_update_payload(
+                old_sd,
+                structured_data,
+                _get_actor_name(db),
+            )
+            delivery_id = mark_order_updated_for_channel(
+                order,
+                delivery_payload.get('event_type', 'order_updated'),
+                payload=delivery_payload,
+            )
 
         address_changed = False
         if structured_data is not None:
-            old_addr = extract_address_from_structured_data(old_sd)
-            new_addr = extract_address_from_structured_data(structured_data)
-            if new_addr and old_addr != new_addr:
+            old_addr = (extract_address_from_structured_data(old_sd) or '').strip()
+            new_addr = (extract_address_from_structured_data(structured_data) or '').strip()
+            if old_addr != new_addr:
                 address_changed = True
                 reset_order_geocode_on_address_change(order, new_addr)
 
@@ -426,7 +433,7 @@ def api_payment_confirm(order_id):
         order.structured_data = structured_data
         flag_modified(order, 'structured_data')
 
-        from services.channel_delivery import mark_order_updated_for_channel
+        from foms.services.channel_delivery import mark_order_updated_for_channel
         delivery_payload = build_payment_confirmation_payload(
             payment_type=payment_type,
             before_confirmed=before_confirmed,

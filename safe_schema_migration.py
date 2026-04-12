@@ -6,7 +6,7 @@
 """
 
 import logging
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from db import get_db
 
 # 로깅 설정
@@ -41,16 +41,29 @@ class SafeSchemaMigration:
             ('structured_confidence', 'VARCHAR(20)'),
             ('structured_updated_at', 'TIMESTAMP')
         ]
+
+    def _get_bind(self, db):
+        """Return the active SQLAlchemy bind for the current session."""
+        try:
+            return db.get_bind()
+        except Exception:
+            return getattr(db, "bind", None)
+
+    def _normalized_column_type(self, db, column_type):
+        """Map legacy PostgreSQL-only column types to SQLite-safe types."""
+        bind = self._get_bind(db)
+        dialect_name = getattr(getattr(bind, "dialect", None), "name", "") or ""
+        if dialect_name == "sqlite" and column_type == "JSONB":
+            return "JSON"
+        return column_type
     
     def check_column_exists(self, db, column_name):
         """컬럼 존재 여부 확인"""
         try:
-            query = text("""
-                SELECT column_name FROM information_schema.columns 
-                WHERE table_name='orders' AND column_name=:column_name
-            """)
-            result = db.execute(query, {"column_name": column_name}).fetchone()
-            return result is not None
+            bind = self._get_bind(db)
+            inspector = inspect(bind)
+            columns = inspector.get_columns('orders')
+            return any(column.get('name') == column_name for column in columns)
         except Exception as e:
             logger.error(f"컬럼 존재 확인 중 오류 ({column_name}): {str(e)}")
             return False
@@ -62,7 +75,8 @@ class SafeSchemaMigration:
                 logger.info(f"[SKIP] 컬럼 '{column_name}' 이미 존재함 - 건너뜀")
                 return True
             
-            alter_query = text(f"ALTER TABLE orders ADD COLUMN {column_name} {column_type}")
+            resolved_type = self._normalized_column_type(db, column_type)
+            alter_query = text(f"ALTER TABLE orders ADD COLUMN {column_name} {resolved_type}")
             db.execute(alter_query)
             logger.info(f"[ADD] 컬럼 '{column_name}' 성공적으로 추가됨")
             return True

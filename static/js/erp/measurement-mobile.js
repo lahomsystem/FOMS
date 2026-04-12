@@ -1,3 +1,4 @@
+// Legacy shim: mirrors static/js/measurement/mobile.js
 (function () {
     'use strict';
 

@@ -12,7 +12,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order, SecurityLog
 from apps.auth import login_required, get_user_by_id
-from services.erp_permissions import erp_edit_required
+from foms.services.erp_permissions import erp_edit_required
 from apps.erp import _ensure_dict
 
 erp_orders_confirm_bp = Blueprint(

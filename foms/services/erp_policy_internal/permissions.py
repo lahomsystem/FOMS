@@ -1,0 +1,96 @@
+"""ERP domain permission helpers."""
+
+from __future__ import annotations
+
+from typing import List, Optional
+
+from .constants import DEFAULT_OWNER_TEAM_BY_STAGE
+
+
+def get_assignee_ids(order, domain: str) -> List[int]:
+    """주문의 특정 도메인에 대한 담당자 user_id 목록을 반환한다."""
+    if not order or not order.structured_data:
+        return []
+
+    assignments = order.structured_data.get("assignments") or {}
+
+    def _normalize_ids(values):
+        out = []
+        for value in values or []:
+            try:
+                out.append(int(value))
+            except (TypeError, ValueError):
+                continue
+        return out
+
+    if domain == "SALES_DOMAIN":
+        return _normalize_ids(assignments.get("sales_assignee_user_ids") or [])
+    if domain == "DRAWING_DOMAIN":
+        ids = _normalize_ids(assignments.get("drawing_assignee_user_ids"))
+        if ids:
+            return ids
+        legacy = assignments.get("drawing_assignees") or order.structured_data.get("drawing_assignees") or []
+        legacy_ids = []
+        for assignee in legacy:
+            if not isinstance(assignee, dict):
+                continue
+            user_id = assignee.get("user_id", assignee.get("id"))
+            try:
+                legacy_ids.append(int(user_id))
+            except (TypeError, ValueError):
+                continue
+        return legacy_ids
+    return []
+
+
+def can_modify_domain(
+    user,
+    order,
+    domain: str,
+    emergency_override: bool = False,
+    override_reason: Optional[str] = None,
+) -> bool:
+    """사용자가 주문의 특정 도메인을 수정할 수 있는지 검사한다."""
+    if not user:
+        return False
+    if user.role == "ADMIN":
+        return True
+    if domain in ("SALES_DOMAIN", "DRAWING_DOMAIN"):
+        allowed_ids = get_assignee_ids(order, domain)
+        if user.id in allowed_ids:
+            return True
+        if user.role == "MANAGER" and emergency_override and override_reason:
+            return True
+        return False
+    return can_modify_by_team_policy(user, order, domain, emergency_override, override_reason)
+
+
+def can_modify_by_team_policy(
+    user,
+    order,
+    domain: str,
+    emergency_override: bool = False,
+    override_reason: Optional[str] = None,
+) -> bool:
+    """팀 기반 권한 검사 (PRODUCTION, CONSTRUCTION, CS, AS 등)."""
+    if not user or not order:
+        return False
+    if user.role == "MANAGER" and emergency_override and override_reason:
+        return True
+    if not order.structured_data or not order.structured_data.get("workflow"):
+        return False
+
+    current_stage = order.structured_data["workflow"].get("stage")
+    if not current_stage:
+        return False
+    owner_team = DEFAULT_OWNER_TEAM_BY_STAGE.get(current_stage)
+    if not owner_team:
+        return False
+    return user.team == owner_team
+
+
+__all__ = [
+    "can_modify_by_team_policy",
+    "can_modify_domain",
+    "get_assignee_ids",
+]

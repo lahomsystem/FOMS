@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
-from services.channel_security import require_channel_signature
+
+from foms.services.channel_security import require_channel_signature
 
 channel_functions_bp = Blueprint('channel_functions', __name__, url_prefix='/api/channel/functions')
 
@@ -16,7 +17,7 @@ def handle_function():
     method = payload.get('method')
     
     if method == 'foms':
-        from services.channel_quick_actions import process_foms_command
+        from foms.services.channel_quick_actions import process_foms_command
         params = payload.get('params', {})
         text = params.get('text', '')
         

@@ -135,9 +135,9 @@ def test_post_task_quality_check_message_uses_nested_spec_path(tmp_path: Path) -
     nested_dir.mkdir(parents=True, exist_ok=True)
     (nested_dir / "2026-04-02_NESTED_SPEC.md").write_text("# Nested spec\n", encoding="utf-8")
 
-    context_dir = tmp_path / "docs" / "context"
-    context_dir.mkdir(parents=True, exist_ok=True)
-    (context_dir / "EDIT_LOG.md").write_text(
+    runtime_dir = tmp_path / "docs" / "harness" / "runtime"
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    (runtime_dir / "EDIT_LOG.md").write_text(
         "- `tools/harness/run_codex.ps1` <- updated\n",
         encoding="utf-8",
     )

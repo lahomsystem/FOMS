@@ -56,8 +56,36 @@ def extract_project_root(payload: dict) -> str:
     return root
 
 
+def _resolve_project_root(project_root: str | None = None) -> str:
+    """Return an existing project root or fall back to the repo root."""
+    root = project_root
+    if not root or not os.path.isdir(root):
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return root
+
+
+def harness_docs_path(project_root: str | None = None, *parts: str) -> str:
+    """Return an absolute path under `docs/harness/`."""
+    return os.path.join(_resolve_project_root(project_root), "docs", "harness", *parts)
+
+
+def harness_policy_path(project_root: str | None = None, *parts: str) -> str:
+    """Return an absolute path under `docs/harness/policy/`."""
+    return harness_docs_path(project_root, "policy", *parts)
+
+
+def harness_runtime_path(project_root: str | None = None, *parts: str) -> str:
+    """Return an absolute path under `docs/harness/runtime/`."""
+    return harness_docs_path(project_root, "runtime", *parts)
+
+
+def harness_log_path(project_root: str | None = None, *parts: str) -> str:
+    """Return an absolute path under `docs/harness/logs/`."""
+    return harness_docs_path(project_root, "logs", *parts)
+
+
 def hook_runtime_log(message: str, project_root: str | None = None, *, tag: str = "hook") -> None:
-    """훅 런타임 로그( fail-open ). docs/context/HOOK_RUNTIME_LOG.txt 또는 temp 폴백. 예외 없음."""
+    """훅 런타임 로그( fail-open ). `docs/harness/logs/HOOK_RUNTIME_LOG.txt` 또는 temp 폴백. 예외 없음."""
     line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} [{tag}] {message}\n"
 
     def _stderr_fallback(text: str) -> None:
@@ -69,12 +97,8 @@ def hook_runtime_log(message: str, project_root: str | None = None, *, tag: str 
 
     path: str | None = None
     try:
-        root = project_root
-        if not root or not os.path.isdir(root):
-            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        ctx = os.path.join(root, "docs", "context")
-        os.makedirs(ctx, exist_ok=True)
-        path = os.path.join(ctx, "HOOK_RUNTIME_LOG.txt")
+        path = harness_log_path(project_root, "HOOK_RUNTIME_LOG.txt")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
     except Exception:
         path = None
     if not path:

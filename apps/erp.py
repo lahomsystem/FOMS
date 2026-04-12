@@ -7,9 +7,9 @@ from flask import Blueprint
 import os
 import unicodedata
 
-from services.erp_permissions import can_edit_erp, erp_edit_required  # noqa: F401
-from services.erp_template_filters import register_erp_template_filters, spec_w300_value  # noqa: F401
-from services.erp_display import (  # noqa: F401
+from foms.services.erp_permissions import can_edit_erp, erp_edit_required  # noqa: F401
+from foms.services.erp_template_filters import register_erp_template_filters, spec_w300_value  # noqa: F401
+from foms.services.erp_display import (  # noqa: F401
     _ensure_dict,
     _erp_get_urgent_flag,
     _erp_get_stage,

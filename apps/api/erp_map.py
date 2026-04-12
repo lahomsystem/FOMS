@@ -13,15 +13,13 @@ from sqlalchemy import or_, and_
 from db import get_db
 from models import Order, User
 from apps.auth import login_required
-from services.erp_permissions import erp_edit_required
+from foms.services.erp_permissions import erp_edit_required
 from apps.erp import _normalize_for_search
 from foms_address_converter import FOMSAddressConverter
 from foms_map_generator import FOMSMapGenerator
-from services.jobs.queue import enqueue_geocode_order_address
-from services.order_geocode import reset_order_geocode_on_address_change
-from services.erp_display import normalize_manager_name
-from services.map_snapshot import build_measurement_map_query, build_measurement_snapshot
-
+from foms.services.jobs.queue import enqueue_geocode_order_address
+from foms.services.order_geocode import reset_order_geocode_on_address_change
+from foms.services.erp_display import normalize_manager_name
 erp_map_bp = Blueprint('erp_map', __name__)
 _converter_instance = None
 _converter_lock = threading.Lock()
@@ -131,7 +129,7 @@ def _query_map_orders(db, *, date_filter=None, status_filter=None, dashboard=Non
     orders = query.order_by(Order.id.desc()).limit(limit).all()
 
     if dashboard == 'measurement':
-        from services.erp_display import self_measurement_four_checks_done
+        from foms.services.erp_display import self_measurement_four_checks_done
         orders = [o for o in orders if not self_measurement_four_checks_done(o)]
 
     return orders
@@ -245,7 +243,7 @@ def _order_matches_map_filters(order, display, *, manager_filter='', search_quer
 
 
 def _build_map_payload(orders, *, manager_filter='', search_query='', enqueue_missing=False, result_limit=None):
-    from services.geocode_helpers import extract_address_from_order
+    from foms.services.geocode_helpers import extract_address_from_order
 
     map_data = []
     orders_list = []
@@ -367,21 +365,14 @@ def api_map_data():
 
         # measurement 모드: map_snapshot 사용, 전체 주문 반환 (2026-03-15)
         if dashboard == 'measurement' and date_filter:
-            db = get_db()
-            query = build_measurement_map_query(
-                db, date_filter, search_query, manager_filter, dashboard, limit
+            from foms.api.measurement_map import measurement_map_data_response
+            return measurement_map_data_response(
+                date_filter=date_filter,
+                search_query=search_query,
+                manager_filter=manager_filter,
+                dashboard=dashboard,
+                limit=limit,
             )
-            orders = query.all()
-            from services.erp_display import self_measurement_four_checks_done
-            orders = [o for o in orders if not self_measurement_four_checks_done(o)]
-            snapshot = build_measurement_snapshot(orders, manager_filter)
-            return jsonify({
-                'success': True,
-                'orders': snapshot['orders'],
-                'markers': snapshot['markers'],
-                'summary': snapshot['summary'],
-                'data': snapshot['markers'],
-            })
 
         scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
         db = get_db()
@@ -454,55 +445,15 @@ def api_generate_map():
 
         # measurement 모드: shared query builder 사용 (2026-03-15)
         if dashboard == 'measurement' and date_filter:
-            db = get_db()
-            query = build_measurement_map_query(
-                db, date_filter, search_query, manager_filter, dashboard, limit
+            from foms.api.measurement_map import measurement_generate_map_response
+            return measurement_generate_map_response(
+                date_filter=date_filter,
+                search_query=search_query,
+                manager_filter=manager_filter,
+                dashboard=dashboard,
+                limit=limit,
+                title=title,
             )
-            orders = query.all()
-            from services.erp_display import self_measurement_four_checks_done
-            orders = [o for o in orders if not self_measurement_four_checks_done(o)]
-
-            to_geocode = []
-            from services.geocode_helpers import extract_address_from_order
-            for order in orders:
-                lat = getattr(order, 'lat', None)
-                lng = getattr(order, 'lng', None)
-                if lat is None or lng is None:
-                    addr = extract_address_from_order(order)
-                    if addr and addr.strip() and addr.strip() != '-':
-                        if getattr(order, 'geocode_status', None) != 'pending':
-                            order.geocode_status = 'pending'
-                            to_geocode.append((order, addr.strip()))
-            for order, _ in to_geocode:
-                enqueue_geocode_order_address(order.id)
-            if to_geocode:
-                db.commit()
-
-            snapshot = build_measurement_snapshot(orders, manager_filter)
-            map_generator = FOMSMapGenerator()
-            map_data = snapshot['markers']
-            orders_list = snapshot['orders']
-
-            if map_data:
-                folium_map = map_generator.create_map(map_data, title)
-                map_html = folium_map._repr_html_() if folium_map else '<div class="error-message">지도를 생성할 수 없습니다.</div>'
-                return jsonify({
-                    'success': True,
-                    'map_html': map_html,
-                    'total_orders': len(orders_list),
-                    'orders': orders_list,
-                    'snapshot': snapshot,
-                })
-            empty_map = map_generator.create_empty_map(title)
-            map_html = empty_map._repr_html_() if empty_map else ''
-            return jsonify({
-                'success': True,
-                'map_html': map_html,
-                'total_orders': len(orders_list),
-                'orders': orders_list,
-                'snapshot': snapshot,
-                'message': f'{title} 지도에 표시할 마커가 없습니다. 우측 목록에서 주소 오류를 확인하세요.' if orders_list else f'{title}에 해당하는 주문이 없습니다.'
-            })
 
         db = get_db()
         orders = _query_map_orders(
@@ -528,7 +479,7 @@ def api_generate_map():
                 order.geocode_status = 'pending'
                 queued_orders.append(order)
             else:
-                from services.jobs.tasks import geocode_order_address
+                from foms.services.jobs.tasks import geocode_order_address
                 try:
                     geocode_order_address(order.id)
                     used_sync_fallback = True
@@ -693,7 +644,7 @@ def api_update_order_address(order_id):
         queued = enqueue_geocode_order_address(order_id)
         if not queued:
             # RQ worker 미사용(개발환경 등) 시 즉각 동기처리(Fallback)
-            from services.jobs.tasks import geocode_order_address
+            from foms.services.jobs.tasks import geocode_order_address
             try:
                 geocode_order_address(order_id)
             except Exception as e:

@@ -1,3 +1,4 @@
+// Legacy shim: mirrors static/js/measurement/dashboard.js
 (function () {
     document.addEventListener('DOMContentLoaded', function () {
         const container = document.querySelector('.erp-pro');

@@ -2,7 +2,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 from constants import CHAT_ALLOWED_EXTENSIONS
-from services.storage import get_storage
+from foms.services.storage import get_storage
 from db import db_session
 from models import ChatAttachment
 from apps.api.files import build_file_view_url

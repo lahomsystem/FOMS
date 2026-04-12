@@ -1,3 +1,4 @@
+// Legacy shim: mirrors static/js/measurement/dashboard-columns.js
 (function () {
   'use strict';
 

@@ -70,8 +70,8 @@ def history_dashboard():
         
     total_pages = (total_orders + per_page - 1) // per_page
     
-    from services.erp_display import _ensure_dict, _erp_get_stage, apply_erp_display_fields
-    from services.erp_product_items import build_product_items_for_orders
+    from foms.services.erp_display import _ensure_dict, _erp_get_stage, apply_erp_display_fields
+    from foms.services.erp_product_items import build_product_items_for_orders
 
     enriched = []
     display_orders = []

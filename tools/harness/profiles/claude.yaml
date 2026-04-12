@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "profile_kind": "foms_harness_profile",
   "profile_name": "claude",
-  "output_bundle_path": "docs/context/HARNESS_BUNDLE_CLAUDE.md",
+  "output_bundle_path": "docs/harness/bundles/HARNESS_BUNDLE_CLAUDE.md",
   "default_shell": "powershell",
   "browser_mode": "delegate_web_to_cursor_browser_mcp",
   "policy_priority": [

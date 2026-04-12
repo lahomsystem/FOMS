@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy import text
 
 from models import OrderTask
-from services.erp_policy import build_auto_tasks
+from foms.services.erp_policy import build_auto_tasks
 
 
 def ensure_auto_task(

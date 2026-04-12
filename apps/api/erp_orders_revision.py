@@ -17,10 +17,10 @@ from apps.api.notifications import (
     resolve_notification_recipient_user_ids,
     invalidate_badge_cache_for_user_ids,
 )
-from services.erp_permissions import erp_edit_required
+from foms.services.realtime_notifications import emit_erp_notification_to_users
+from foms.services.erp_permissions import erp_edit_required
 from apps.erp import _ensure_dict, _can_modify_sales_domain
-from services.erp_policy import can_modify_domain
-from services.realtime_notifications import emit_erp_notification_to_users
+from foms.services.erp_policy import can_modify_domain
 
 logger = logging.getLogger(__name__)
 erp_orders_revision_bp = Blueprint(

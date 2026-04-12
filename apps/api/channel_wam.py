@@ -2,27 +2,27 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, g, jsonify, make_response, redirect, render_template, request, url_for
 
-from services.channel_identity import get_user_by_manager_id
-from services.channel_security import (
+from foms.services.channel_identity import get_user_by_manager_id
+from foms.services.channel_security import (
     generate_wam_entry_token,
     generate_wam_session_token,
     verify_wam_entry_token,
     verify_wam_session_token,
     verify_wam_short_link_token,
 )
-from services.channel_wam_attachments import (
+from foms.services.channel_wam_attachments import (
     get_scoped_attachment,
     list_attachment_groups,
     resolve_attachment_redirect_url,
 )
-from services.channel_wam_service import (
+from foms.services.channel_wam_service import (
     build_legacy_wam_context,
     build_wam_bootstrap,
     build_wam_page,
     build_wam_request_context,
     get_wam_feature_flags,
 )
-from services.channel_wam_telemetry import record_wam_telemetry
+from foms.services.channel_wam_telemetry import record_wam_telemetry
 
 channel_wam_bp = Blueprint("channel_wam", __name__, url_prefix="/channel/wam")
 channel_wam_api_bp = Blueprint("channel_wam_api", __name__, url_prefix="/channel/wam/api")

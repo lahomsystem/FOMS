@@ -1,0 +1,129 @@
+
+/* ===== Base Styles ===== */
+.erp-pro {
+  font-family: var(--erp-font-family);
+  background-color: var(--erp-bg-main);
+  color: var(--erp-text-primary);
+  min-height: 100vh;
+}
+
+:where(a[href], button, [role="button"], input, select, textarea, .btn, .erp-pro-btn):focus-visible {
+  outline: 2px solid var(--erp-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+/* ===== Page Header ===== */
+.erp-pro-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--erp-space-md) var(--erp-space-lg);
+  background: var(--erp-bg-card);
+  border-bottom: 1px solid var(--erp-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.erp-pro-header__title {
+  display: flex;
+  align-items: center;
+  gap: var(--erp-space-sm);
+  font-size: var(--erp-font-size-lg);
+  font-weight: 600;
+  color: var(--erp-text-primary);
+  margin: 0;
+}
+
+.erp-pro-header__title svg,
+.erp-pro-header__title i {
+  color: var(--erp-primary);
+  font-size: 1.25rem;
+}
+
+.erp-pro-header__actions {
+  display: flex;
+  gap: var(--erp-space-sm);
+}
+
+/* ===== Sub Navigation (Tabs) ===== */
+.erp-pro-nav {
+  display: flex;
+  gap: var(--erp-space-xs);
+  padding: var(--erp-space-sm) var(--erp-space-lg);
+  background: var(--erp-bg-card);
+  border-bottom: 1px solid var(--erp-border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.erp-pro-nav::-webkit-scrollbar {
+  height: 4px;
+}
+
+.erp-pro-nav::-webkit-scrollbar-thumb {
+  background: var(--erp-border-dark);
+  border-radius: var(--erp-radius-full);
+}
+
+.erp-pro-nav-item,
+.erp-pro-nav__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--erp-space-xs);
+  padding: var(--erp-space-sm) var(--erp-space-md);
+  font-size: var(--erp-font-size-sm);
+  font-weight: 500;
+  color: var(--erp-text-secondary);
+  text-decoration: none;
+  border-radius: var(--erp-radius);
+  white-space: nowrap;
+  transition: all var(--erp-transition-fast);
+}
+
+.erp-pro-nav-item:hover,
+.erp-pro-nav__item:hover {
+  color: var(--erp-primary);
+  background: var(--erp-bg-hover);
+}
+
+.erp-pro-nav-item.active,
+.erp-pro-nav__item--active,
+.erp-pro-nav__item.active {
+  color: var(--erp-primary);
+  background: var(--erp-primary-bg);
+  font-weight: 600;
+}
+
+.erp-pro-nav-item i,
+.erp-pro-nav__item i {
+  font-size: 0.875rem;
+}
+
+/* ===== Main Content Layout ===== */
+.erp-pro-content {
+  padding: var(--erp-space-lg);
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* Two Column Layout (Sidebar + Main) */
+.erp-pro-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: var(--erp-space-lg);
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .erp-pro-layout {
+    grid-template-columns: 240px 1fr;
+  }
+}
+
+@media (max-width: 992px) {
+  .erp-pro-layout {
+    grid-template-columns: 1fr;
+  }
+}

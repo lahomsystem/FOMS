@@ -13,8 +13,8 @@ from werkzeug.utils import secure_filename
 from apps.auth import login_required, role_required, log_access, get_user_by_id
 from db import get_db
 from models import User
-from services.storage import get_storage
-from services.menu_config import invalidate_menu_config_cache
+from foms.services.storage import get_storage
+from foms.services.menu_config import invalidate_menu_config_cache
 
 admin_bp = Blueprint('admin', __name__, url_prefix='')
 

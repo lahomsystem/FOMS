@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app import app
 from db import get_db
 from models import Order
-from services.order_date_sync import collect_order_schedule_date_specs, sync_order_dates
+from foms.services.order_date_sync import collect_order_schedule_date_specs, sync_order_dates
 from sqlalchemy.orm import selectinload
 
 

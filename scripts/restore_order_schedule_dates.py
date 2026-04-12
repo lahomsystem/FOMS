@@ -5,7 +5,7 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from services.db_url_resolver import prepare_database_url_env
+from foms.services.db_url_resolver import prepare_database_url_env
 
 prepare_database_url_env()
 

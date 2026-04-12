@@ -15,11 +15,15 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order, OrderAttachment
 from apps.auth import login_required, role_required
-from services.storage import get_storage
-from services.channel_client import is_configured
-from services.channel_dispatch import dispatch_order_event
-from services.channel_delivery import get_delivery_metrics, get_queue_backlog, check_legacy_only_success_after_cutover
-from services.jobs.queue import get_rq_runtime_status
+from foms.services.channel_client import is_configured
+from foms.services.channel_dispatch import dispatch_order_event
+from foms.services.storage import get_storage
+from foms.services.channel_delivery import (
+    check_legacy_only_success_after_cutover,
+    get_delivery_metrics,
+    get_queue_backlog,
+)
+from foms.services.jobs.queue import get_rq_runtime_status
 
 logger = logging.getLogger(__name__)
 

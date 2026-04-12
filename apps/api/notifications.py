@@ -495,7 +495,7 @@ def api_notifications_send():
 
         invalidate_badge_cache_for_user_ids(recipient_ids)
 
-        from services.realtime_notifications import emit_erp_notification_to_users
+        from foms.services.realtime_notifications import emit_erp_notification_to_users
         payload = {
             'title': title,
             'message': message,
@@ -579,7 +579,7 @@ def api_order_urgent_mention(order_id):
 
         invalidate_badge_cache_for_user_ids([target_uid])
 
-        from services.realtime_notifications import emit_erp_notification_to_users
+        from foms.services.realtime_notifications import emit_erp_notification_to_users
         payload = {
             'title': title,
             'message': msg or '',

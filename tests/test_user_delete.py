@@ -125,15 +125,27 @@ def test_delete_user_cleans_references_before_delete(client):
     attachment = db_session.query(OrderAttachment).filter(OrderAttachment.order_id == order_id).one()
     assert attachment.user_id is None
 
-    notification = db_session.query(Notification).one()
+    notification = (
+        db_session.query(Notification)
+        .filter(Notification.title == "삭제 테스트 알림")
+        .one()
+    )
     assert notification.created_by_user_id is None
     assert notification.read_by_user_id is None
     assert notification.target_user_id is None
 
-    estimate = db_session.query(OrderEstimate).one()
+    estimate = (
+        db_session.query(OrderEstimate)
+        .filter(OrderEstimate.estimate_number == "EST-DELETE-001")
+        .one()
+    )
     assert estimate.created_by_user_id is None
 
-    manager_link = db_session.query(ChannelManagerLink).one()
+    manager_link = (
+        db_session.query(ChannelManagerLink)
+        .filter(ChannelManagerLink.channel_manager_id == "channel-manager-delete")
+        .one()
+    )
     assert manager_link.user_id is None
     assert manager_link.deactivated_by_user_id is None
 

@@ -1,1 +1,5 @@
-"""비동기 작업 큐 (계획서 단계 B). RQ + Redis 기반."""
+"""Legacy background jobs package shim."""
+
+from . import queue, tasks
+
+__all__ = ["queue", "tasks"]

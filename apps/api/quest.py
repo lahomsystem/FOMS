@@ -11,9 +11,9 @@ from db import get_db
 from models import Order, User, OrderEvent
 from constants import STATUS
 from apps.auth import login_required, role_required
-from services.erp_permissions import can_edit_erp
-from services.erp_sync_columns import sync_erp_flat_columns
-from services.erp_policy import (
+from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.erp_policy import (
     get_stage,
     STAGE_LABELS,
     STAGE_NAME_TO_CODE,

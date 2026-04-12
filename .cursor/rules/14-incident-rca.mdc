@@ -8,7 +8,7 @@ alwaysApply: false
 GDM 트리거 **「GDM 에러/장애」** 또는 `incident-rca` 에이전트 호출 시 다음을 따른다.
 
 1. **에이전트(상세 절차)**: `.cursor/agents/incident-rca.md` — 타임라인, 가설 보드, Containment vs Permanent Fix 분리.
-2. **작성 템플릿**: `docs/context/INCIDENT_TEMPLATE.md`
+2. **작성 템플릿**: `docs/harness/policy/INCIDENT_TEMPLATE.md`
 3. **금지 사항과의 관계**: `grand-develop-master`의 「승인 없이 작동 코드 변경」은 **일상 변경**에 해당. 장애 대응의 **일시적 Containment**는 incident-rca 절차에 따라 수행하고, **영구 수정(Permanent Fix)**은 근거·검증·필요 시 Spec/RPI 후속을 명시한다.
 
 참고 수행표: `.cursor/agents/GDM_EXECUTION_PLAN.md` §1.6 (장애 RCA/복구).
