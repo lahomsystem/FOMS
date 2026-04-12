@@ -294,6 +294,22 @@
 - extraction 시 host에 남겨야 하는 핵심 coupling은 `estimates`, `calculateTotalEstimates`, `formatNumber`, `escapeHtml`, `formatNotesText`, 그리고 `.edit-estimate-btn` / `.delete-estimate-btn` / `.edit-estimate-name-btn` / `.card[data-estimate-id]` delegation surface다.
 - 주요 회귀 포인트는 (1) 1건 vs 2건 이상일 때 다른 `#totalEstimatesSummary` markup, (2) post-render `setProperty` timing, (3) `saveEstimateBtn.style.display`, (4) render 후 `calculateTotalEstimates()` 호출 순서다.
 
+### 2.4.33 Render list contract freeze 결과
+- 신규 Node regression `tests/test_wdcalculator_render_list_contract_node.py` + `tests/support/wdcalculator_render_list_contract_node_checks.js`를 추가해 current inline `renderEstimatesList()`의 empty state, `data-estimate-id` / `.estimate-display-name` surface, escaped option/notes text, 1건 vs 2건 summary layout, post-render style pass, save button 노출, render 후 aggregate callback contract를 먼저 고정했다.
+- 이 baseline으로 다음 extraction batch는 list view HTML/string render와 post-render style pass만 static helper로 옮기고, list delegation/edit/save/API/URL state는 그대로 host giant script에 남기는 구조-only 변경만 허용한다.
+
+### 2.4.34 Batch 14 결과
+- `static/js/wdcalculator/render-estimates-list.js`를 신설해 `renderEstimatesList()`의 card render, `#totalEstimatesSummary` layout, post-render forced style pass, save button 노출, render-complete callback을 giant inline script 밖으로 분리했다.
+- `templates/wdcalculator/partials/wdcalculator_scripts_config.html`는 `render-estimates-list.js`를 `search-results-load.js` 뒤, `order-match-ui.js` 앞에 로드하도록 갱신했고, host giant script는 `WdCalculatorRenderEstimatesList.configure({ getEstimates, formatNumber, escapeHtml, formatNotesText, onRenderComplete })` bridge만 남겼다.
+- render-list Node contract는 template source 추출 대신 새 helper 파일을 직접 로드하도록 바꿔 extraction 이후에도 empty state, card markup, escaped details, summary layout, post-render style pass, aggregate callback 분기를 계속 검증하게 유지했다.
+- `/wdcalculator` render contract에는 `render-estimates-list.js` load-order를 추가했고, search-load/order-match/coupon-shipping adjacent regressions까지 묶어 focused pytest `13 passed`와 `APP_OK`로 extraction 이후 baseline을 재검증했다.
+
+### 2.4.35 Post-render-list next preaudit 메모
+- render list view까지 빠진 뒤 남은 inline cluster를 재감리한 결과, 다음 안전 후보는 `baseComponentsContainer` live interactions(add row button + click/input/change delegation)이다.
+- 이 묶음은 `estimates`, `editingEstimateId`, save/API/URL orchestration과 직접 결합하지 않고 `renderBaseComponentRow`, `calculateEstimate`, `computeAutoPrice1cmFrom30cm`, `#baseComponentsContainer` DOM에 국소적으로 묶여 있어 다음 structure-only batch로 가장 얇다.
+- extraction 시 host에 남겨야 하는 핵심 coupling은 `calculateEstimate` 본체와 비-base-container orchestration이며, helper/module 쪽에는 `renderBaseComponentRow`, `computeAutoPrice1cmFrom30cm`, add/remove fee/mode/input/change listener wiring만 이동시키는 것이 안전하다.
+- 주요 회귀 포인트는 (1) listener 중복 등록, (2) `.base-add-fee-btn` / `.base-remove-fee-btn` / `.base-mode-btn` / `.base-remove-btn` delegated click surface, (3) input/change마다 `calculateEstimate()` 호출 횟수, (4) 30cm 수동가 변경 시 `base-manual-price1` auto-sync 규칙이다.
+
 ## 3. Steps — 실행 단계
 - [x] Step 1: `/wdcalculator` render contract와 injected config/script order를 focused tests로 freeze한다.
 - [x] Step 2: WDCalculator giant script가 의존하는 핵심 `/api/wdcalculator/*` 성공 shape를 최소 smoke tests로 freeze한다.
@@ -323,6 +339,9 @@
 - [x] Step 26: search results + load-to-form bridge의 API/DOM/runtime contract를 focused tests로 freeze한다.
 - [x] Step 27: search results + load-to-form bridge를 static JS module로 분리하고 host giant script에는 thin bootstrap만 남긴다.
 - [x] Step 28: search/load 이후 남은 giant inline cluster를 재감리해 다음 structure-only 배치를 in-session estimates list view(`renderEstimatesList` + summary card + post-render style pass)로 확정한다.
+- [x] Step 29: renderEstimatesList view의 DOM/selectors/render completion contract를 focused tests로 freeze한다.
+- [x] Step 30: in-session estimates list view를 static JS module로 분리하고 host giant script에는 thin orchestration만 남긴다.
+- [x] Step 31: render list 이후 남은 giant inline cluster를 재감리해 다음 structure-only 배치를 `baseComponentsContainer` live interactions로 확정한다.
 
 ## 4. 검증 기준
 - [x] `GET /wdcalculator` render contract test 통과
@@ -338,6 +357,7 @@
 - [x] `additional-options-ui.js` contract(Node) 통과
 - [x] `product-catalog-ui.js` contract(Node) 통과
 - [x] `search-results-load.js` contract(Node) 통과
+- [x] `render-estimates-list.js` contract(Node) 통과
 - [x] `wdcalculator_scripts.html` syntax parse smoke 통과
 - [x] 신규 lint 없음
 - [x] `python -c "import app; print('APP_OK')"` 통과
@@ -356,6 +376,7 @@
 - coupon input parse와 final price/coupon text style helper가 module 경로로 유지됨
 - additional-options row add/toggle/remove/read와 loadEstimate restore wiring이 module 경로로 유지됨
 - search results render와 `.load-estimate-btn` → `loadEstimateToForm` bridge가 module 경로로 유지됨
+- in-session estimates card render와 summary panel/style pass가 module 경로로 유지됨
 - `?estimate_id=` / `?order_id=` query param flow 정상
 
 ## 6. 참고 자료
