@@ -178,6 +178,20 @@ def test_legacy_realtime_notifications_shim_preserves_canonical_contract() -> No
     )
 
 
+def test_notifications_package_submodule_matches_flat_and_legacy() -> None:
+    """Root shim, flat compat, and package submodule expose the same function object."""
+    import foms.services.notifications.realtime_notifications as pkg_rt
+
+    assert (
+        legacy_realtime_notifications.emit_erp_notification_to_users
+        is namespaced_realtime_notifications.emit_erp_notification_to_users
+    )
+    assert (
+        namespaced_realtime_notifications.emit_erp_notification_to_users
+        is pkg_rt.emit_erp_notification_to_users
+    )
+
+
 def test_erp_orders_drawing_uses_canonical_realtime_notification_import() -> None:
     """Drawing API should bind realtime notification helper from the canonical namespace."""
     from apps.api import erp_orders_drawing
@@ -205,7 +219,9 @@ def test_notifications_api_uses_canonical_realtime_notification_lazy_imports() -
     send_source = inspect.getsource(notifications.api_notifications_send)
     urgent_source = inspect.getsource(notifications.api_order_urgent_mention)
 
-    expected_import = "from foms.services.realtime_notifications import emit_erp_notification_to_users"
+    expected_import = (
+        "from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users"
+    )
     assert expected_import in send_source
     assert expected_import in urgent_source
 
@@ -1104,6 +1120,19 @@ def test_legacy_file_utils_shim_preserves_canonical_contract() -> None:
 
     for name in expected_public_names:
         assert getattr(legacy_file_utils, name) is getattr(namespaced_file_utils, name)
+
+
+def test_files_package_submodule_matches_flat_and_legacy() -> None:
+    """Root shim, flat compat, and package module expose the same helper objects."""
+    import foms.services.files.file_utils as pkg_fu
+
+    expected_public_names = [
+        "allowed_file",
+        "allowed_erp_media_file",
+    ]
+    for name in expected_public_names:
+        assert getattr(legacy_file_utils, name) is getattr(namespaced_file_utils, name)
+        assert getattr(namespaced_file_utils, name) is getattr(pkg_fu, name)
 
 
 def test_legacy_menu_config_shim_preserves_canonical_contract() -> None:

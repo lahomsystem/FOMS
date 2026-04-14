@@ -499,6 +499,7 @@ WDCalculator batch 승인 조건:
 - flat module은 touch 시점에만 context package로 옮긴다.
 - 루트 `services/`는 shim 또는 explicit exception만 남긴다.
 - 루트 `services/`에 남는 shim은 canonical target과 retirement condition이 없는 상태로 방치하지 않는다.
+- batch order, branch/stop semantics, pilot/defer register, Wave 7/8 handoff는 `docs/plans/2026-04-14-wave6-service-namespace-rationalization-execution-plan.md`를 authoritative execution runbook으로 따른다.
 
 #### Wave 7 — Test / contract rationalization
 - domain contract, chunk contract, harness contract의 레벨을 정리한다.
@@ -562,6 +563,16 @@ WDCalculator batch 승인 조건:
 - Wave 3 실행 계획: `docs/plans/2026-04-13-wave3-api-canonicalization-execution-plan.md`
 - Wave 4 실행 계획: `docs/plans/2026-04-13-wave4-web-page-slice-migration-execution-plan.md`
 - Wave 5 실행 계획: `docs/plans/2026-04-14-wave5-large-front-end-island-rebaseline-execution-plan.md`
+- Wave 6 실행 계획: `docs/plans/2026-04-14-wave6-service-namespace-rationalization-execution-plan.md`
+- Wave 6 실행 기록 (service namespace rationalization: readiness / shim registry / contract freeze / package pilot / status register / closeout):
+  - `docs/plans/2026-04-14-wave6-batch0-readiness-gate-run-record.md`
+  - `docs/plans/2026-04-14-wave6-batch1-shim-registry-run-record.md`
+  - `docs/plans/2026-04-14-wave6-batch2-notifications-contract-freeze-run-record.md`
+  - `docs/plans/2026-04-14-wave6-batch3-notifications-package-pilot-run-record.md`
+  - `docs/plans/2026-04-14-wave6-batch4-files-helper-contract-freeze-run-record.md`
+  - `docs/plans/2026-04-14-wave6-batch5-files-helper-pilot-run-record.md`
+  - `docs/plans/2026-04-14-wave6-batch6-status-register-run-record.md`
+  - `docs/plans/2026-04-14-wave6-batch7-closeout-run-record.md`
 - Wave 2 실행 기록 (bounded context / spec reconcile / registry / adapter / README / closeout):
   - `docs/plans/2026-04-13-wave2-batch1-blueprint-truth-map-run-record.md`
   - `docs/plans/2026-04-13-wave2-batch2-spec-live-reconcile-run-record.md`

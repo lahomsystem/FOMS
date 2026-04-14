@@ -35,7 +35,7 @@ Wave 6의 목적은 "서비스도 언젠가 context package로 정리하자" 수
 10. `foms/services/jobs/`, `foms/services/erp_policy_internal/`, 그리고 이를 public surface로 노출하는 `foms/services/erp_policy.py` wrapper는 packaged precedent다. Wave 6에서 이 선례/공개 표면을 깨는 방향으로 재구조화하지 않는다.
 11. route path, blueprint registration, template/static path, DB schema, worker registration, bootstrap semantics는 기본 freeze다.
 12. root `services.*`와 touched flat `foms.services.*` 경로는 compatibility surface다. caller를 바꾸려면 same-batch shim + retirement plan이 필수다.
-13. `foms/services/README.md`는 Wave 6의 docs batch마다 최신 상태를 반영해야 한다.
+13. `foms/services/README.md`는 Wave 6의 docs batch 중 `허용 변경`에 README touch가 포함된 batch마다 최신 상태를 반영해야 한다.
 14. low-risk pilot은 **existing focused test가 있거나, 최대 1개의 새 contract test 파일만으로 닫을 수 있는 lane**만 허용한다.
 15. controlling spec §1.2.16에 따라 `business_calendar` / `/calendar` 축은 별도 승인 전까지 Wave 6 mainline pilot에서 제외하고 explicit exception/승인 게이트로만 다룬다.
 16. `storage` lane은 singleton/runtime init 계약 때문에 low-risk pilot이 아니다. `files` context 안의 eventual target만 잠그고, 본편 pilot은 helper-only lane부터 시작한다.
@@ -43,6 +43,9 @@ Wave 6의 목적은 "서비스도 언젠가 context package로 정리하자" 수
 18. testing은 Wave 7 본편처럼 재구조화하지 않는다. Wave 6에서는 touched lane의 focused contract만 최소 확장한다.
 19. 어떤 batch도 "새 package 디렉터리 추가"를 성과로 주장하지 못한다. package 추가와 함께 caller/test/shim/retirement evidence가 있어야 한다.
 20. future LLM은 이 문서의 provisional queue를 복사하지 말고, `W6-B0` run record에서 live evidence로 다시 잠가야 한다.
+
+`controlling SPEC §1.2.16` snapshot(본 계획에서 필요한 최소 뜻)은 다음 한 문장으로 고정한다: `business_calendar` / `/calendar` 축은 Wave 6 mainline에서 package pilot 또는 구조 변경 대상으로 승격하지 않고, 별도 승인 전까지 explicit exception + future target 기록만 허용한다.
+이 snapshot과 본 계획이 인용하는 다른 controlling SPEC 규칙은 모두 2026-04-14에 읽은 `docs/specs/2026-04-13-foms-modular-monolith-rebaseline_SPEC.md` 기준이다. 이후 SPEC wording이 달라졌다면 `W6-B0`에서 snapshot validity를 다시 확인하기 전까지 Wave 6 mainline code batch를 시작하지 않는다.
 
 ### 1.2.1 FR / namespace shorthand definitions
 - `FR19`: `delete -> merge -> extend -> add` 순서로 판단한다. 새 canonical package/leaf를 추가하기 전에 기존 lane을 더 큰 context package로 흡수할 수 없는지 먼저 적는다.
@@ -90,7 +93,7 @@ Wave 6에서는 아래를 건드리지 않는다.
 - Wave 8 수준의 root shim 대량 제거
 - packaging reopen (`src/foms`, pyproject hardening)
 
-여기서 `root bootstrap 파일`은 위 repo-root/runtime bootstrap entry file 집합을 뜻한다. `services/app_init.py` 같은 service lane helper는 root bootstrap file이 아니라 high-risk defer service module로 취급한다.
+여기서 `root bootstrap 파일`은 `app.py`, `run.py`, `start.sh`, `Procfile`만 뜻한다. `Dockerfile`, `alembic.ini`, `railway*.toml`은 frozen root file이지만 `§8`의 11번에서 말하는 root bootstrap file은 아니다. `services/app_init.py` 같은 service lane helper도 root bootstrap file이 아니라 high-risk defer service module로 취급한다.
 
 Wave 6은 **service queue lock + shim registry + low-risk package pilots + explicit exception/status register**까지만 담당한다.
 
@@ -109,7 +112,10 @@ Wave 6은 **service queue lock + shim registry + low-risk package pilots + expli
 5. Wave 8은 bridge retirement다. Wave 6가 남기는 `canonical target / retirement wave / removal condition`은 Wave 8이 닫아야 할 backlog다.
 6. controlling spec §1.2.16 때문에 `business_calendar` / `/calendar` 축은 Wave 6 mainline pilot이 아니라 승인 게이트가 있는 explicit exception lane으로 취급한다.
 7. Wave 5의 giant front-end lane과 섞이면 안 된다. service namespace 작업 때문에 template/static/page lane이 흔들리면 그것은 scope drift다.
-8. `docs/plans/2026-04-13-wave3-api-canonicalization-execution-plan.md`를 포함한 predecessor closeout/plan 중 Wave 6를 `service/persistence rationalization`처럼 넓게 부르는 문구가 있더라도, 본 계획이 authoritative override다. Wave 6는 persistence/schema/worker/bootstrap structural change를 포함하지 않는다.
+8. `docs/plans/2026-04-13-wave3-api-canonicalization-execution-plan.md`의 Wave 6 boundary note를 포함한 **모든 predecessor closeout/plan/run record**(Wave 3/4/5 plan, Step 3 precedent run record, handoff evidence 묶음 포함) 중 Wave 6를 `service/persistence rationalization`처럼 넓게 부르는 문구가 있더라도, 본 계획이 authoritative override다. Wave 6는 persistence/schema/worker/bootstrap structural change를 포함하지 않는다.
+9. 상위 spec의 `Step 6`(legacy bridge 축소 로드맵)와 본 문서의 `Wave 6`(service namespace rationalization)는 다른 번호 체계다. numeric label이 같아도 같은 작업으로 취급하면 안 된다.
+10. 이 override는 predecessor plan/closeout/run record wording 전체에 적용된다. controlling SPEC 자체와 충돌이 발견되면 본 계획이 SPEC를 덮어쓰지 않으며, 즉시 stop 후 기준선 정합부터 다시 맞춘다.
+11. 이 override는 predecessor artifact 바깥의 binding policy/harness/decision 문서를 자동으로 덮어쓰지 않는다. 그런 문서가 Wave 6 scope를 제한하면 별도 충돌로 기록하고 `W6-B0`에서 정합 판단을 먼저 남긴다.
 
 ## 2. Current Service Truth — 현재 service namespace landscape
 
@@ -136,6 +142,7 @@ Wave 6 actual execution은 아래 산출물을 소비한 뒤에만 시작한다.
 - Wave 4/5 closeout이 실제 파일로 없더라도 본 문서는 drafted plan으로 존재할 수 있다.
 - actual execution에서 Wave 4/5 closeout file이 없으면 `W6-B0` run record 안에 `equivalent evidence accepted` 또는 `equivalent evidence rejected`를 명시적으로 남긴다. `W6-B0`은 이 판단을 생략하거나 self-waive할 수 없다.
 - Wave 5는 closeout file이 아직 없을 수 있으므로, 최소한 `approved Wave 5 plan file + current execution state memo`가 있어야 equivalent evidence 검토를 시작할 수 있다.
+- Wave 5 closeout file이 없을 때 preferred memo pointer는 `docs/plans/2026-04-14-wave5-execution-state-memo.md`다. 다른 경로를 쓰면 `W6-B0` prompt/run record가 exact file path를 명시해야 한다.
 - `current execution state memo` 최소 계약:
   - 완료된 batch 목록
   - 현재 in-progress 또는 마지막 시도 batch
@@ -144,6 +151,8 @@ Wave 6 actual execution은 아래 산출물을 소비한 뒤에만 시작한다.
   - verification 상태
   - 다음 wave/batch handoff note와 작성 시점
 - memo가 이후 Wave 5 진행을 반영하지 못하거나 현재 batch 범위를 특정하지 못하면 stale로 보고 `equivalent evidence rejected` 처리한다.
+- equivalent evidence는 아래 중 하나라도 빠지면 reject한다: 작성 시점, 완료 batch 목록, 현재/마지막 시도 batch, verification 상태, defer/미완 lane 요약, 다음 handoff note.
+- `current execution state memo`는 `W6-B0` 실행 시점 기준 최근 7일 이내 작성본이거나, 더 오래됐으면 같은 run record 안에 "왜 아직 유효한지" 근거가 있어야 한다. 없으면 stale로 보고 reject한다.
 - predecessor evidence와 live `services/` / `foms/services/` tree가 충돌하면 live tree를 truth로 두고, drift를 `W6-B0` run record에 먼저 적는다.
 - `tests/test_foms_namespace_imports.py`는 shim equivalence baseline이지, queue snapshot 문서가 아니다. future LLM은 test import list를 그대로 pilot order로 승격하면 안 된다.
 - Wave 3 closeout/run record는 evidence consume용이다. Wave 6에서 API canonicalization, route/page migration, persistence/schema/worker 구조 변경을 재개할 수 없으며, 본 계획의 `§1.2`, `§1.4`가 항상 우선한다.
@@ -252,7 +261,7 @@ Wave 6의 second pilot은 `file_utils -> files`로 고정한다.
 
 ## 3. Fixed Execution Pipeline — 고정 실행 순서
 
-Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자신에게 배정된 subset만 수행하며, 실제 batch 경계는 `§4`, `§5` runbook이 우선한다.
+ Wave 6 **전체**는 아래 순서를 지킨다. 단, executor는 항상 `W6-B0`에서 먼저 `Branch A/B/C`를 판정한 뒤 이 순서를 읽는다. `Branch B`는 `W6-B4`~`W6-B5`를 건너뛰고, `Branch C`는 `W6-B2`~`W6-B5`를 건너뛴다. 각 batch는 이 순서 중 자신에게 배정된 subset만 수행하며, 실제 batch 경계는 `§4`, `§5` runbook이 우선한다.
 
 1. predecessor evidence + live service tree consume
 2. service queue와 shim registry lock
@@ -263,13 +272,15 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 7. explicit exception / high-risk lane status register 정리
 8. closeout + Wave 7 / Wave 8 handoff 고정
 
-이 순서는 `Branch A` 기준의 full-mainline 기본형이다. `§5.1`의 `Branch B/C` 또는 `§8 Stop Conditions`가 발동하면 `W6-B4`/`W6-B5` 또는 `W6-B2`~`W6-B5`를 건너뛰고 `W6-B6`/`W6-B7`로 내려갈 수 있으며, 그 경우 `§5.1`, `§8`, `§9.3`가 `§3`보다 우선한다.
+이 순서는 `Branch A` 기준의 full-mainline 기본형이다. `§5.1`의 `Branch B`가 선택되면 `W6-B4`~`W6-B5`를 건너뛰고, `Branch C`가 선택되면 `W6-B2`~`W6-B5`를 건너뛴다. `§8 Stop Conditions`가 발동한 경우에도 closeout 경로로 바로 내려갈 수 있으며, 이런 branch/stop 상황에서는 `§5.1`, `§8`, `§9.3`가 `§3`보다 우선한다.
 
 추가 규칙:
 
 - 하나의 batch에서 두 context package를 동시에 canonicalize하지 않는다.
 - code batch는 항상 `APP_OK`와 `verify_result`를 요구한다.
 - code batch 검증이 실패하면 현재 batch 안에서만 `fix-forward` 또는 `revert + documented defer`를 결정한다.
+- `W6-B4`가 실패하면 `W6-B5`로 가지 않는다. 이 경로는 `late-file-utils-stop`으로 라벨링하고 곧바로 `W6-B6`/`W6-B7` partial closeout 경로를 따른다.
+- code batch가 `revert + documented defer` 또는 `§8.12`로 끝났다면 `W6-B6`/`W6-B7` 전에 fresh `APP_OK` + `verify_result`와 agreed import smoke(또는 그 불가 사유)를 다시 남겨야 한다.
 - second pilot이 실패하더라도 `notifications` pilot까지 완료된 상태라면 즉시 `W6-B6` status register와 `W6-B7` partial closeout으로 넘어간다.
 - partial closeout은 항상 status-register content를 포함해야 한다. dedicated `W6-B6` 파일 또는 `W6-B7` 내부 merged section 둘 중 하나가 없으면 partial closeout으로 인정하지 않는다.
 - code batch가 `§8 Stop Conditions`로 중단되면 다음 legal batch는 `W6-B6` 또는 `W6-B7` docs-only closeout 경로다.
@@ -286,7 +297,7 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 | W6-B3 | Notifications package pilot canonicalization | code / local pilot | `foms/services/notifications/realtime_notifications.py` canonical target + compatibility shim map | W6-B2 | `docs/plans/2026-04-14-wave6-batch3-notifications-package-pilot-run-record.md` |
 | W6-B4 | Files helper contract freeze | docs / truth | `file_utils` public/runtime contract, preferred package shape | W6-B3 | `docs/plans/2026-04-14-wave6-batch4-files-helper-contract-freeze-run-record.md` |
 | W6-B5 | Files helper package pilot canonicalization | code / local pilot | `foms/services/files/file_utils.py` canonical target + caller/test/shim delta | W6-B4 | `docs/plans/2026-04-14-wave6-batch5-files-helper-pilot-run-record.md` |
-| W6-B6 | Lane status register | docs / truth | pilot lanes, packaged precedent, `business_calendar` explicit exception, high-risk defer rows | `W6-B5` 완료 또는 `§5.1`/`§8`에 따른 documented stop(예: `W6-B0` Branch B/C, `§8` 9~10) | `docs/plans/2026-04-14-wave6-batch6-status-register-run-record.md` |
+| W6-B6 | Lane status register | docs / truth | pilot lanes, packaged precedent, `business_calendar` explicit exception, high-risk defer rows | `W6-B0` and `W6-B1` both completed + [Branch A = `W6-B5` 완료, Branch B = `W6-B3` 완료, Branch C = 최소 `W6-B1` 완료, 기타 = `§5.7` entry criteria / `§8` documented stop] | `docs/plans/2026-04-14-wave6-batch6-status-register-run-record.md` |
 | W6-B7 | Closeout + Wave 7/8 handoff | docs / handoff | full/partial closeout, next continuation order, spec/archive update | dedicated `W6-B6` file 또는 `§5.8` merged status-register section을 허용하는 stop-triggered closeout state | `docs/plans/2026-04-14-wave6-batch7-closeout-run-record.md` |
 
 ### 4.2 Batch별 기본 원칙
@@ -298,8 +309,10 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 - `W6-B5`는 `file_utils` lane 하나만 다룬다.
 - `W6-B4`, `W6-B5`는 mainline/Branch A 전용이다. `Branch B/C`에서는 실행하지 않고 `W6-B6`/`W6-B7` 경로로 내려간다.
 - `W6-B2`, `W6-B3`도 `Branch C`에서는 실행하지 않는다.
+- `W6-B6`의 legal entry는 세 가지뿐이다: `Branch A`에서 `W6-B5` 이후, `Branch B`에서 `W6-B3` 이후, `Branch C`에서 최소 `W6-B1` 이후. 그 외에는 `§8` stop evidence가 같은 run record chain에 있어야 한다.
 - `storage`, `channel_*`, `erp_policy` 추가 refactor, `app_init/context_processors/rate_limit/menu_config/erp_permissions`는 `W6-B6` status register로 먼저 잠그기 전까지 code batch에 넣지 않는다.
 - `pilot 단계에서 문서화된 stop`은 `W6-B0`의 `Branch B/C`와 `§8`의 9~10번 조건 때문에 `W6-B3` 또는 `W6-B5` 이전에 closeout 경로로 내려가는 경우를 모두 포함한다.
+- `W6-B6`의 상세 진입 경로와 필수 입력 해석은 `§5.7 W6-B6 entry criteria`를 우선 진실원으로 본다.
 
 ## 5. Batch Runbooks — 각 배치의 실제 실행법
 
@@ -318,19 +331,20 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 
 **실행 단계**
 1. live `services/*.py`, `services/jobs/*.py`, `foms/services/*.py`, `foms/services/*/__init__.py`를 다시 스캔한다.
-2. `tests/test_foms_namespace_imports.py`의 shim equivalence baseline을 확인하되, 그 import list를 pilot 순서로 복사하지 않는다.
-3. `§1.1`의 row taxonomy와 동일하게 모든 lane을 `mainline-pilot`, `explicit exception`, `already packaged precedent`, `high-risk defer` 중 하나로 다시 판정한다.
-4. live non-test code의 `from services.` import debt를 다시 계산하고, `business_calendar` 외 새 lane이 보이면 provisional snapshot을 supersede한다.
-5. `notifications` first pilot과 `file_utils` second pilot을 다시 적는다.
-6. pilot lock 판정은 아래 체크리스트를 모두 만족해야 true로 적는다.
+2. 2026-04-14 controlling SPEC snapshot 이후 Wave 6가 인용하는 규칙이 달라졌는지 먼저 확인한다. `business_calendar`뿐 아니라 scope/freeze/pilot 규칙 drift가 보이면 code batch 전에 stop하고 snapshot validity를 다시 잠근다.
+3. `tests/test_foms_namespace_imports.py`의 shim equivalence baseline을 확인하되, 그 import list를 pilot 순서로 복사하지 않는다.
+4. `§1.1`의 row taxonomy와 동일하게 모든 lane을 `mainline-pilot`, `explicit exception`, `already packaged precedent`, `high-risk defer` 중 하나로 다시 판정한다. 단, `§7` 항목 15용 스냅샷에는 queue class 명칭을 그대로 쓰지 말고 `§1.2.2`의 status-register row type(`pilot lane`, `explicit exception`, `already packaged precedent`, `high-risk defer`)으로 번역해 적는다.
+5. live non-test code의 `from services.` import debt를 다시 계산하고, `business_calendar` 외 새 lane이 보이면 provisional snapshot을 supersede한다.
+6. `notifications` first pilot과 `file_utils` second pilot을 다시 적는다.
+7. pilot lock 판정은 아래 체크리스트를 모두 만족해야 true로 적는다.
    - single-leaf 또는 helper-only lane으로 닫힌다.
    - existing focused test가 있거나 최대 1개의 새 contract test로 닫을 수 있다.
    - authoritative target context package가 하나로 잠긴다.
    - worker/bootstrap/schema/persistence structural change가 필요하지 않다.
    - `storage`, `channel_*`, `erp_policy` follow-up refactor, bootstrap/admin-adjacent high-risk lane을 끌고 오지 않는다.
    - `business_calendar`는 controlling spec 승인 게이트 때문에 Wave 6 pilot lock 대상이 아니다.
-7. `notifications` lane이 package pilot로 잠기지 못하면 stop reason을 적고, `W6-B1` 최소 shim registry/README -> `W6-B6` status register -> `W6-B7` partial closeout 경로로 넘긴다.
-8. `file_utils` second pilot이 helper-only package lane으로 잠기지 못하면 `notifications-only partial path`로 표시하고, `W6-B6` status register + `W6-B7` partial closeout 경로로 넘긴다.
+8. `notifications` lane이 package pilot로 잠기지 못하면 stop reason을 적고, `W6-B1` 최소 shim registry/README -> `W6-B6` status register -> `W6-B7` partial closeout 경로로 넘긴다.
+9. `file_utils` second pilot이 helper-only package lane으로 잠기지 못하면 `notifications-only partial path`로 표시하고, `W6-B6` status register + `W6-B7` partial closeout 경로로 넘긴다.
 
 **분기 표**
 
@@ -344,17 +358,24 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 - authoritative service queue
 - live import debt table
 - first/second pilot order
+- 확정된 `Branch A/B/C` 판정
+- 해당 branch의 다음 legal batch(`§5.1` 분기 표 문구 그대로)
+- `§7` 항목 15를 채우기 위한 initial lane execution-state snapshot
 - packaged precedent note
+- 선택한 repo sanity baseline과 그 우선순위 근거
 - Direction Lock 10문항 yes/no + 한 줄 근거
 
 **검증**
 - docs-only consistency check
 - live import debt lane 누락이 없는지 수동 확인
+- `§6`에 정의된 W6-B0 repo sanity baseline 우선순위를 run record에 명시했는지 확인
 
 ### 5.2 W6-B1 — Root shim registry + package-map lock
 **목표**
 - root `services/`를 shim registry로 잠그고, `foms/services`의 authoritative package map을 고정한다.
 - `foms/services/README.md`를 Wave 6 entrypoint로 만든다.
+
+`Branch B`에서는 이 batch가 full `W6-B1`이다. `Branch C`만 아래의 최소 변형을 허용하며, `Branch B`는 이를 사용할 수 없다.
 
 **허용 변경**
 - `docs/plans/2026-04-14-wave6-batch1-shim-registry-run-record.md`
@@ -384,7 +405,7 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 **필수 산출물**
 - root shim registry table
 - explicit exception rows
-- authoritative package map
+- authoritative package map (`Branch C` 최소 변형에서는 coarse authoritative map 허용)
 - `foms/services/README.md`
 - Direction Lock 10문항 yes/no + 한 줄 근거
 
@@ -447,6 +468,7 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 - route path / response shape 변경
 - notification semantics 변경
 - new generic package 추가
+- `apps/api/*.py` 수정 시 import wiring/shim alignment 외의 HTTP contract 변경(status code, response payload, decorator order, request parsing) 금지
 
 **실행 단계**
 1. `W6-B2` contract table을 기준으로 canonical package를 만든다.
@@ -454,13 +476,15 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 3. 가능하면 live callers를 package path로 정렬하되, public behavior는 유지한다.
 4. `tests/test_realtime_notifications.py`와 `tests/test_foms_namespace_imports.py`를 package path 선례 기준으로 보강한다.
 5. `foms/services/README.md`의 notifications lane을 최신화한다.
+6. `W6-B2` contract table에서 export 하나를 골라 import-smoke template의 placeholder를 실제 심볼명으로 치환한 concrete 명령을 current run record에 남긴다. 계획서의 placeholder line은 템플릿일 뿐 최종 증거가 아니다.
 
 **검증**
 - `python -c "import app; print('APP_OK')"`
 - `python tools/harness/verify_result.py --json`
 - `python -m pytest tests/test_realtime_notifications.py tests/test_foms_namespace_imports.py -q`
 - touched file diagnostics/lint (`ReadLints` 또는 동등한 진단 확인)
-- `python -c "import services.realtime_notifications as legacy; import foms.services.realtime_notifications as flat; from foms.services.notifications import realtime_notifications as pkg; assert legacy.emit_erp_notification_to_users is pkg.emit_erp_notification_to_users; assert flat.emit_erp_notification_to_users is pkg.emit_erp_notification_to_users; print('W6_NOTIFICATIONS_NS_OK')"`  # symbol names must match W6-B2 contract table
+- `python -c "import services.realtime_notifications as legacy; import foms.services.realtime_notifications as flat; from foms.services.notifications import realtime_notifications as pkg; export_name = '<W6-B2_CONTRACT_EXPORT>'; assert getattr(legacy, export_name) is getattr(pkg, export_name); assert getattr(flat, export_name) is getattr(pkg, export_name); print('W6_NOTIFICATIONS_NS_OK')"`  # replace placeholder with the frozen export name from the W6-B2 contract table / run record
+- batch가 revert/defer로 끝나면 closeout 전에 fresh `APP_OK` + `verify_result`와 agreed import smoke(또는 불가 사유)를 같은 run record에 남긴다.
 
 ### 5.5 W6-B4 — Files helper contract freeze
 **목표**
@@ -514,6 +538,7 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 - `business_calendar` lane code touch
 - `storage`, `channel_*`, `erp_policy` 추가 refactor, bootstrap lane 변경
 - route/page/front-end behavior change
+- `apps/excel_import.py` 수정 시 import wiring/shim alignment 외의 callable contract/return shape 변경 금지
 
 **실행 단계**
 1. `file_utils` canonical package를 만든다.
@@ -521,18 +546,28 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 3. helper-only lane까지만 닫고 `storage`를 섞지 않는다.
 4. `tests/test_file_utils.py`와 `tests/test_foms_namespace_imports.py`는 import-surface lock 범위까지만 보강한다. suite-wide rationalization은 Wave 7로 넘긴다.
 5. focused tests를 보강하고 `foms/services/README.md`를 최신화한다.
+6. `W6-B4` contract table에서 export 하나를 골라 import-smoke template의 placeholder를 실제 심볼명으로 치환한 concrete 명령을 current run record에 남긴다. 계획서의 placeholder line은 템플릿일 뿐 최종 증거가 아니다.
 
 **검증**
 - `python -c "import app; print('APP_OK')"`
 - `python tools/harness/verify_result.py --json`
 - `python -m pytest tests/test_file_utils.py tests/test_foms_namespace_imports.py -q`
 - touched file diagnostics/lint (`ReadLints` 또는 동등한 진단 확인)
-- `python -c "import services.file_utils as legacy; import foms.services.file_utils as flat; from foms.services.files import file_utils as pkg; assert legacy.allowed_file is pkg.allowed_file; assert flat.allowed_file is pkg.allowed_file; print('W6_FILE_UTILS_NS_OK')"`  # symbol names must match W6-B4 contract table
+- `python -c "import services.file_utils as legacy; import foms.services.file_utils as flat; from foms.services.files import file_utils as pkg; export_name = '<W6-B4_CONTRACT_EXPORT>'; assert getattr(legacy, export_name) is getattr(pkg, export_name); assert getattr(flat, export_name) is getattr(pkg, export_name); print('W6_FILE_UTILS_NS_OK')"`  # replace placeholder with the frozen export name from the W6-B4 contract table / run record
+- batch가 revert/defer로 끝나면 closeout 전에 fresh `APP_OK` + `verify_result`와 agreed import smoke(또는 불가 사유)를 같은 run record에 남긴다.
 
 ### 5.7 W6-B6 — Lane status register
 **목표**
 - Wave 6 mainline에서 다룬 lane과 다루지 않은 lane을 authoritative status register로 잠근다.
 - Wave 7 / Wave 8 handoff 경계를 만든다.
+
+**W6-B6 entry criteria**
+- `Branch A`: `W6-B5` 완료 후 진입
+- `Branch B`: `W6-B3` 완료 후 진입
+- `Branch C`: 최소 `W6-B1` 완료 후 진입
+- `late-file-utils-stop`: failed/partial `W6-B4` 기록을 들고 진입
+- `§8.13 docs-freeze stop`: failed/partial `W6-B2` 또는 `W6-B4` 기록을 들고 진입
+- 어떤 경로든 `W6-B0` and `W6-B1` both completed는 공통 전제다.
 
 **허용 변경**
 - `docs/plans/2026-04-14-wave6-batch6-status-register-run-record.md`
@@ -543,24 +578,30 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 - new pilot 시작
 
 **실행 단계**
-1. status register를 아래 두 축으로 잠근다.
+1. `W6-B0`의 authoritative queue/import-debt lock과 `W6-B1`의 shim registry/package map/README를 먼저 입력으로 소비한다. `W6-B6`은 이 둘을 건너뛴 독립 판정 문서가 아니다.
+   - 현재 경로에서 이미 완료된 contract/code batch run record(`W6-B2`~`W6-B5` 중 해당하는 것)는 마지막 completed batch까지 모두 함께 소비한다.
+   - `§8.13`으로 `W6-B2` 또는 `W6-B4`가 partial/failed 종료된 경우, 그 partial/failed run record도 필수 입력으로 함께 소비한다.
+   - `W6-B3` 또는 `W6-B5`가 partial/failed 종료된 경우에도 그 partial/failed run record와 clean-gate evidence(또는 불가 사유)를 필수 입력으로 함께 소비한다.
+2. status register를 아래 두 축으로 잠근다.
    - `row type`: `pilot lane`, `already packaged precedent`, `explicit exception`, `high-risk defer`
    - `execution state`: `completed`, `not started`, `partial`
-2. `notifications`, `file_utils`, `jobs`, `erp_policy_internal`, `foms/services/erp_policy.py` public wrapper(필요 시 해당 root shim status 포함)는 row type과 execution state를 함께 적는다.
+3. `notifications`, `file_utils`, `jobs`, `erp_policy_internal`, `foms/services/erp_policy.py` public wrapper(필요 시 해당 root shim status 포함)는 row type과 execution state를 함께 적는다.
    - 예: `notifications` = `pilot lane/completed` 또는 Branch C면 `pilot lane/not started`
    - 예: `jobs` = `already packaged precedent/completed`
    - 예: `foms/services/erp_policy.py` public wrapper = `already packaged precedent/completed`
-3. `business_calendar`는 controlling spec §1.2.16 때문에 `explicit exception` row로 적고, `future canonical target`, `approval gate`, `required prep`을 남긴다.
-4. `storage`, `channel_*`, `erp_policy` 추가 refactor, orders cluster, measurement cluster, bootstrap/admin-adjacent helpers는 `high-risk defer` row로 적는다. 여기서 `erp_policy` defer는 public wrapper 유지와 별개인 후속/추가 refactor만 뜻한다.
-5. 각 row에 `why not now`, `required prep`, `suggested next batch type`, `future canonical target`, `root shim status`, `Wave 7/Wave 8 owner`, `retirement wave`를 남긴다.
-6. shim 제거/bridge retirement 성격의 row는 `retirement wave`를 기본적으로 `Wave 8` 또는 그 이후로 적는다. `Wave 7`은 test/contract rationalization 용도이므로 bridge removal owner로 쓰지 않는다.
-7. Branch C 같은 조기 종료 분기에서도 `W6-B6`은 최소 status register를 반드시 남긴다.
-8. `foms/services/README.md`에 status register summary를 반영한다.
-9. `erp_policy_public_wrapper`와 `erp_policy_followup_refactor`는 반드시 서로 다른 row id/label로 적는다.
+4. `business_calendar`는 controlling spec §1.2.16 때문에 `explicit exception` row로 적고, `future canonical target`, `approval gate`, `required prep`을 남긴다.
+5. `storage`, `channel_*`, `erp_policy` 추가 refactor, orders cluster, measurement cluster, bootstrap/admin-adjacent helpers는 `high-risk defer` row로 적는다. 여기서 `erp_policy` defer는 public wrapper 유지와 별개인 후속/추가 refactor만 뜻한다.
+6. 각 row에 `why not now`, `required prep`, `suggested restart batch`, `future canonical target`, `root shim status`, `Wave 7/Wave 8 owner`, `retirement wave`를 남긴다.
+7. shim 제거/bridge retirement 성격의 row는 `retirement wave`를 기본적으로 `Wave 8` 또는 그 이후로 적는다. `Wave 7`은 test/contract rationalization 용도이므로 bridge removal owner로 쓰지 않는다.
+8. Branch C 같은 조기 종료 분기에서도 `W6-B6`은 최소 status register를 반드시 남긴다.
+9. `foms/services/README.md`에 status register summary를 반영한다.
+10. `erp_policy_public_wrapper`와 `erp_policy_followup_refactor`는 반드시 서로 다른 row id/label로 적는다.
 
 **검증**
 - docs-only closeout
 - status register completeness
+- `foms/services/README.md` status register summary 반영 여부 확인
+- code batch revert/defer 이후 진입한 경로라면, clean-gate evidence(fresh `APP_OK` + `verify_result` + agreed import smoke 또는 불가 사유)가 입력 체인에 실제로 포함됐는지 확인
 - Direction Lock 10문항 yes/no + 한 줄 근거
 
 ### 5.8 W6-B7 — Closeout + Wave 7/8 handoff
@@ -581,14 +622,16 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 **실행 단계**
 1. full 또는 partial closeout 상태를 판정한다.
 2. `W6-B6`이 존재하면 그 status register를 인용하고, 없으면 `W6-B7` 안에 동등한 merged status-register section을 만들어 `pilot lane / already packaged precedent / explicit exception / high-risk defer`와 각 execution state를 분리해 적는다. 이 merged section도 closeout에 필요한 status-register evidence로 간주한다.
+   - dedicated `W6-B6` file이 없으면 `W6-B7` header 또는 section 서두에 `acts as W6-B6 surrogate`라고 명시하고, downstream reader가 batch6 부재를 실패로 오해하지 않게 cross-link를 남긴다.
 3. Wave 7로 넘길 test debt와 Wave 8로 넘길 shim retirement debt를 표로 남긴다.
 4. `foms/services/README.md`가 current truth를 반영하는지 검증하고, 필요하면 여기서 최종 sync한다.
 5. controlling spec reference와 archive index를 보강한다.
-6. predecessor artifact가 Wave 6를 `service/persistence rationalization`으로 넓게 읽히게 만들 수 있으면, `W6-B7` closeout 안에 "this plan supersedes older Wave 3 boundary wording" errata note를 남긴다. Wave 6에서 그 predecessor 문서를 재편집하는 것은 필수가 아니다.
+6. `W6-B7` closeout에는 predecessor wording 정합 메모를 반드시 남긴다. conflicting broad wording을 발견했으면 "this plan supersedes older Wave 3 boundary wording" errata note를 적고, 발견하지 못했으면 `no conflicting predecessor wording found in consumed evidence`라고 명시한다. Wave 6에서 그 predecessor 문서를 재편집하는 것은 필수가 아니다.
 
 **검증**
 - docs-only closeout
 - handoff completeness
+- code-batch revert/defer 경로에서 닫는 경우, clean-gate evidence가 input chain에 실제로 포함됐는지 다시 확인
 - Direction Lock 10문항 yes/no + 한 줄 근거
 
 ## 6. Verification Matrix — 배치별 필수 검증
@@ -607,10 +650,24 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 추가 규칙:
 
 - Branch B/C에서 스킵된 batch 행은 `not executed by path`로 간주한다. 빈 run record를 만들지 않는다.
+- Branch B/C에서 스킵된 batch 행은 개별 batch Verification 절을 만들지 않는다. 해당 부재 사유는 `W6-B0`, `W6-B6`, `W6-B7` stop/closeout evidence에서 한 번만 설명하면 된다.
 - `focused automated`는 라벨이지 자동으로 해석되는 명령 이름이 아니다. 모든 code batch run record는 실제로 실행할 `pytest`/`python` 명령 또는 대상 파일 집합을 명시해야 한다.
+- `§1.3`의 freeze axis는 아래 stop clause로 해석한다: route/blueprint/API response shape drift는 `§8.1`, worker/bootstrap/chat/socketio binding drift는 `§8.2`, template/static/front-end island drift는 `§8.16`, frozen root infra file drift는 `§8.14`, controlling SPEC snapshot conflict와 binding-doc scope conflict는 `§8.15`.
+- docs-only batch의 `docs-only consistency check`는 최소 아래 네 가지를 뜻한다.
+  - 현재 batch run record의 필수 표/섹션이 모두 존재한다.
+  - `foms/services/README.md`, queue/shim/status 표, 그리고 직전 authoritative run record 사이에 현재 batch가 잠그는 row의 `canonical target`/`root shim status`/`execution state` 모순이 없다.
+  - 현재 batch가 인용한 predecessor evidence와 latest authoritative run record가 실제로 입력에 포함돼 있다.
+  - 현재 경로에서 사용할 repo sanity baseline(직전 성공한 `APP_OK`/`verify_result` 또는 accepted predecessor verification evidence)을 run record에 명시했다.
+- `W6-B0`의 repo sanity baseline 우선순위는 다음과 같다: (1) Wave 5 handoff evidence에 적힌 마지막 accepted verification, (2) 동등한 predecessor closeout evidence의 마지막 accepted verification, (3) 둘 다 없으면 현재 브랜치에서 fresh `APP_OK` + `verify_result` 1회를 실행해 baseline으로 채택.
+- Wave 5 equivalent evidence가 reject되면 (1)은 사용 불가다. 그 경우 (2)가 있으면 (2)를 채택하고, (2)도 없으면 (3)을 필수로 실행해야만 `W6-B0`를 완료할 수 있다.
+- (1)과 (2)가 서로 다른 커밋/환경/명령 세트를 가리켜 충돌하면 fresh (3)을 항상 실행해 새 baseline으로 덮어쓴다. 더 최근/더 구체적인 evidence 비교는 참고 메모로만 남기고 tie-break 자체를 대체하지 않는다.
 - `tests/test_foms_namespace_imports.py` 수정은 Wave 6에서는 import-surface lock 범위까지만 허용한다. suite-wide rationalization은 Wave 7로 넘긴다.
 - `tests/test_foms_namespace_imports.py`의 구조적 재설계 또는 non-import-surface 수정은 Wave 6가 아니라 Wave 7 소관이다.
 - touched file diagnostics/lint는 모든 code batch에 필수다.
+- docs-only batch는 새 runtime smoke를 강제하지 않아도 되지만, current path에서 마지막으로 유효한 repo sanity baseline을 반드시 인용한다. `W6-B7` closeout은 최소 하나의 accepted repo sanity baseline 없이 완료로 표시할 수 없다.
+- `W6-B6`, `W6-B7`이 code-batch revert/defer 경로에서 열렸다면, matrix상 docs-only라도 clean-gate evidence(fresh `APP_OK` + `verify_result` + agreed import smoke 또는 불가 사유)를 입력 체인에서 추가로 확인해야 한다.
+- code batch에서 module path/shim이 바뀌면 최종 `APP_OK`, `verify_result`, import smoke는 fresh Python process 기준으로 다시 실행한다. 이미 떠 있던 dev server/worker/job runner를 smoke에 사용했다면 final verification 전에 재시작하고, 그 사실을 run record에 남긴다.
+- stale import cache나 `__pycache__`에 기대는 검증은 증거로 인정하지 않는다. fresh process 재검증 없이 "로컬에서는 이미 import돼 있었음" 같은 상태는 성공 근거가 아니다.
 
 ## 7. Run Record Minimum Contract — 각 batch 기록 최소 항목
 
@@ -637,18 +694,41 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 추가 규칙:
 
 - `W6-B1`은 root shim registry table과 explicit exception row를 반드시 포함한다.
+- `W6-B0`에서 `Contract table`은 queue/import-debt lock table을 뜻한다. `root shim status`의 authoritative dual-axis 잠금은 `W6-B1`에서 수행한다.
+- `W6-B0`에서 항목 15(`row type / execution state`)는 `initial lane execution-state snapshot`으로 채운다. 각 lane마다 `§1.2.2`의 row type + execution state 쌍을 함께 적으며, 기본값은 `already packaged precedent/completed`, `pilot lane/not started`, `explicit exception/not started`, `high-risk defer/not started`다. `Branch B/C`가 W6-B0에서 확정되면 해당 partial path를 한 줄 주석으로 덧붙인다.
 - `W6-B0`, `W6-B1`, `W6-B6`, `W6-B7`에서 `Contract table`은 lane public/runtime contract 표가 아니라 `queue/shim/status lock table`을 뜻해도 된다.
+- docs-only batch의 항목 7(`Verification`)은 `§6`의 repo sanity baseline 선택 결과와 채택 근거를 반드시 포함한다. `W6-B0`/`W6-B1`/`W6-B6`/`W6-B7`은 baseline을 인용만 하는지, fresh 실행으로 갱신했는지까지 적는다.
 - `W6-B3`, `W6-B5`는 package import smoke 결과를 반드시 남긴다.
 - `W6-B3`, `W6-B5`는 lint/diagnostics 도구명, 대상 경로, 결과를 반드시 남긴다.
+- `W6-B3`, `W6-B5`는 검증 시도 횟수, fix-forward/revert 경로, `§8` 12번 stop 조건 해당 여부를 반드시 남긴다.
+- `Attempt N`은 code/docs를 다시 수정한 뒤 새로운 verification cycle을 돌리는 순간마다 1씩 증가한다. 메모만 보강하고 검증을 다시 돌리지 않은 경우는 새 Attempt로 세지 않는다.
+- 따라서 code batch의 `최대 두 번 fix-forward`는 일반적으로 `Attempt 1` 이후 `Attempt 2`, `Attempt 3`까지만 허용된다는 뜻이다. 그 뒤에도 닫히지 않으면 `§8` 12번으로 stop/defer한다.
+- `revert + documented defer`가 선택된 순간 그 batch는 terminal stop이다. Attempt counter를 초기화한 채 같은 batch를 계속 진행할 수 없고, 이후 작업은 `W6-B6`/`W6-B7` 또는 후속 wave/restart batch에서 새로 판단한다.
+- code batch가 `revert + documented defer` 또는 `§8` 12번으로 끝나면 `W6-B6`/`W6-B7`을 열기 전에 fresh `APP_OK` + `verify_result`와 agreed import smoke 상태를 다시 확보하거나, 왜 확보할 수 없는지 stop evidence에 적어야 한다.
+- 위 문장은 `§3` mainline/closeout 전환 규칙과 `§5.4`/`§5.6` code batch 종료 판단에도 동일하게 적용된다. post-revert closeout으로 넘어갈 때는 이 clean gate를 생략할 수 없다.
+- revert가 concrete export freeze 전에 발생했다면 `agreed import smoke`는 placeholder export smoke가 아니라 `tests/test_foms_namespace_imports.py`와 latest accepted predecessor import-surface baseline으로 되돌린다.
+- clean revert 자체가 불가능하거나 partial revert 상태에 머무르면, 추가 fix-forward 없이 즉시 stop evidence에 `revert incomplete`를 남기고 `W6-B6`/`W6-B7`에서는 그 사실과 clean-gate 불가 사유를 함께 인용한다.
 - docs-only batch는 항목 17을 `not applicable` + 사유로 채워도 된다.
+- docs-only batch는 항목 9(`product / wrapper / test delta`)를 `N/A (no code touch)` + 한 줄 사유로 채워도 된다.
+- `W6-B0`에서는 항목 10~13을 비워 두지 않는다. queue/import-debt table과 정합한 provisional 값으로 채우고, authoritative dual-axis lock은 `W6-B1`에서 수행된다고 명시한다.
+- `W6-B0`에서 항목 5(`FR19 / NS-package-first decision`)는 "이번 batch는 신규 canonical package/leaf 추가 없이 queue/import-debt truth만 재잠금했다"는 점을 기준으로, `delete -> merge -> extend -> add` 검토 결과 또는 `no new package in B0` 근거를 한 줄로 남기면 된다.
+- docs-only batch에서 항목 10~13(`canonical target`, `flat compat path`, `root shim status`, `retirement wave / removal condition`)이 이번 batch에서 직접 변하지 않으면 `unchanged from <latest authoritative run record>` 형태로 채울 수 있다.
 - `W6-B6`은 각 row의 `row type`(`pilot lane`, `already packaged precedent`, `explicit exception`, `high-risk defer`)과 `execution state`를 반드시 함께 명시한다.
+- 각 batch ID는 `§4.1`의 단일 run record 경로 하나만 authoritative file로 가진다. 같은 batch 재시도는 sibling run record를 새로 만들지 않고 같은 파일 안에 `Attempt N` section을 추가하는 방식으로 남긴다.
+- 같은 run record 파일 안에서 가장 마지막 `completed` 또는 `partial closeout` attempt section이 authoritative current state다. 이전 attempt section은 history로 유지하되, verification/lint evidence와 stop/defer 판단은 latest authoritative section 기준으로 읽는다.
 
 ## 8. Stop Conditions — 중단 조건
 
-다음 중 하나라도 발생하면 해당 batch를 즉시 중단하고 `W6-B6` status register 또는 `W6-B7` closeout으로 넘어간다.
+다음 중 하나라도 발생하면 해당 batch의 **mainline progression**을 즉시 중단하고 closeout 경로로 전환한다. 단, `W6-B0`에서 9~10번이 발생한 경우에도 `§5.1` Branch 표가 우선이며, `Branch C`는 `W6-B1` 최소 shim-registry 경로를 끝낸 뒤에만 `W6-B6`/`W6-B7`로 내려간다.
+
+해석 고정:
+
+- `§8.9`는 `W6-B0`에서 notifications first pilot을 잠그지 못해 `Branch C`로 떨어지는 경우를 뜻한다.
+- `§8.10`은 두 경우를 모두 포함한다: `W6-B0`에서 second pilot을 잠그지 못해 `Branch B`가 되는 경우, 또는 `W6-B4`에서 file-utils contract freeze를 끝내지 못해 `W6-B3` 이후 stop-triggered partial closeout으로 내려가는 경우. 후자는 `late file-utils stop`이며, `W6-B0` 시점의 `Branch B`와 같은 사건으로 합치지 않는다.
+- `late file-utils stop`은 branch label이 아니라 stop label이다. 관련 run record와 closeout에서는 `Branch B`로 부르지 않고 `late-file-utils-stop`으로 적는다.
 
 1. API canonicalization 또는 page migration이 먼저 필요해짐
-2. DB schema, persistence lifecycle, worker/bootstrap registration 변경이 필요해짐
+2. DB schema, persistence lifecycle, worker/bootstrap registration, chat/socketio binding 변경이 필요해짐
 3. public import path를 same-batch shim 없이 깨야 함
 4. root `services/` row에 canonical target / retirement wave / removal condition을 붙일 수 없음
 5. touched lane의 target context package가 두 개 이상으로 갈려 `W6-B1` 또는 해당 lane의 pre-code contract batch(`W6-B2`/`W6-B4`)에서 authoritative target을 lock하지 못함
@@ -656,10 +736,14 @@ Wave 6 **전체**는 아래 순서를 지킨다. 각 batch는 이 순서 중 자
 7. `business_calendar` 축이 controlling spec §1.2.16의 승인 게이트 없이 code pilot로 승격돼야 한다는 결론이 나옴
 8. `storage`, `channel_*`, `erp_policy` 추가 refactor, bootstrap lane을 low-risk pilot에 섞어야만 한다는 결론이 나옴
 9. `W6-B0`에서 `notifications` first pilot을 lock하지 못함
-10. `W6-B0` 또는 `W6-B4`에서 `file_utils` second pilot helper-only target을 lock하지 못함
-11. 어떤 batch라도 `foms/platform/blueprints.py` 또는 root bootstrap 파일 수정이 필요해짐
+10. `W6-B0`에서 `file_utils` second pilot helper-only target을 lock하지 못함
+11. 어떤 batch라도 `foms/platform/blueprints.py` 또는 `§1.3`에서 닫아 둔 root bootstrap 파일(`app.py`, `run.py`, `start.sh`, `Procfile`) 수정이 필요해짐
 12. code batch verification이 같은 batch 안에서 최대 두 번의 fix-forward 시도 또는 한 번의 revert + documented defer로도 닫히지 않음
-13. docs-only contract freeze batch(`W6-B2`, `W6-B4`)가 current lane contract table을 끝내지 못함
+13. docs-only contract freeze batch(`W6-B2`, `W6-B4`)가 current lane contract table을 끝내지 못함. run record label은 `W6-B2`면 `notifications-docs-freeze-stop`, `W6-B4`면 `late-file-utils-stop`으로 통일한다.
+14. 어떤 batch라도 `§1.3`에서 frozen root file로 잠근 `Dockerfile`, `alembic.ini`, `railway*.toml` 수정이 필요해짐
+15. controlling SPEC snapshot validity가 깨졌거나 `§1.4.10`/`§1.4.11` 수준의 scope conflict가 새로 확인돼, 현재 queue/branch 판단을 그대로 유지할 수 없음. 이 경우 run record는 `spec-scope-conflict`인지 `binding-doc-scope-conflict`인지 trigger leg를 함께 적는다.
+16. page/template/static physical move 또는 front-end island decomposition/rebaseline이 필요해짐
+17. packaging reopen(`src/foms`), Wave 7 수준의 suite-wide test redesign, 또는 Wave 8 수준의 mass shim retirement가 필요해짐
 
 ## 9. Prompt Contract — Wave 6 실행 첫 프롬프트 규약
 
@@ -676,6 +760,7 @@ future LLM이 Wave 6를 실제로 시작할 때 첫 프롬프트는 최소 아�
    - `@docs/plans/2026-04-10-step3-batch46-storage-run-record.md`
    - `@docs/plans/2026-04-07-step3-batch7-erp-display-run-record.md`
    - `@tests/test_foms_namespace_imports.py`
+   - `§1.4.11`에 따라 scope를 제한할 수 있는 binding harness/policy/decision 문서가 추가로 보이면 그 exact path도 함께 입력에 포함
 2. batch order를 임의 변경하지 않는다고 선언한다.
 3. `W6-B0`에서 service queue와 import debt를 live evidence로 다시 잠그겠다고 명시한다.
 4. root `services/`는 shim 또는 explicit exception만 남기겠다고 명시한다.
@@ -683,6 +768,7 @@ future LLM이 Wave 6를 실제로 시작할 때 첫 프롬프트는 최소 아�
 6. Wave 4/5 closeout file이 없으면 `W6-B0` run record 안에서 equivalent evidence를 명시적으로 accept/reject 하겠다고 적는다.
 7. Wave 5 closeout file 대신 `current execution state memo`를 쓰면, 최소 계약(완료 batch, in-progress/last-attempt batch, blockers, defer lane, verification 상태, handoff note)을 함께 점검하겠다고 적는다.
 8. Wave 5 `current execution state memo`를 쓸 때는 작성 시각과 커버하는 batch 범위를 함께 검증하겠다고 적는다.
+9. resume/handoff 세션이면 적용되는 `§9.3` restart row를 함께 읽고, live tree snapshot 재수집 + branch/pilot revalidation 절차를 따르겠다고 명시한다.
 
 ### 9.2 W6-B0 Expected Output
 `W6-B0` 결과에는 최소 아래가 있어야 한다.
@@ -690,24 +776,36 @@ future LLM이 Wave 6를 실제로 시작할 때 첫 프롬프트는 최소 아�
 - authoritative service queue
 - live import debt table
 - first/second pilot order
+- 확정된 `Branch A/B/C` 판정
+- 해당 branch의 다음 legal batch
+- initial lane execution-state snapshot(`§7` 항목 15용)
 - packaged precedent note
+- 선택한 repo sanity baseline과 그 우선순위 근거
 - Direction Lock 10문항 yes/no + 한 줄 근거
+
+아래 bullet은 핵심 산출물 요약일 뿐이다. 완결된 `W6-B0` run record는 여전히 `§7 Run Record Minimum Contract` 17항 전체를 채워야 하며, `W6-B0`에서는 같은 절의 docs-only/B0 전용 정의(`Contract table = queue/import-debt lock`, item 15 = initial lane execution-state snapshot, item 17 = `not applicable` + 사유)를 따른다.
 
 ### 9.3 Batch Restart Minimum Input Set
 세션이 batch 중간에 끊기거나 다른 LLM이 이어받을 때는 최소 아래 입력을 다시 준다.
 
 | Batch range | 최소 입력 |
 |------|------|
-| `W6-B0` | 본 계획서 + predecessor handoff evidence + live `services/` / `foms/services/` tree snapshot + `tests/test_foms_namespace_imports.py` ; docs batch 재시도면 직전 partial run record 초안 + 수동 스캔 메모/로그 포함 |
-| `W6-B1` | 본 계획서 + `W6-B0` run record + live `services/` / `foms/services/` tree snapshot + `tests/test_foms_namespace_imports.py` |
-| `W6-B2`~`W6-B3` | 본 계획서 + `W6-B1` run record + notifications lane live files/tests ; 동일 batch 재시도면 직전 partial/failed run record + verification/lint 로그 + scope 내 변경 파일 목록 포함 |
-| `W6-B4` | 본 계획서 + `W6-B1` run record + `W6-B2`/`W6-B3` run records + file-utils lane live files/tests ; Branch B/C에서는 해당 단계가 없으므로 이 행 대신 `W6-B6` 입력 규칙을 따른다 |
-| `W6-B5` | 본 계획서 + `W6-B1` run record + `W6-B3`/`W6-B4` run records + file-utils lane live files/tests ; 동일 batch 재시도면 직전 partial/failed run record + verification/lint 로그 + scope 내 변경 파일 목록 포함 |
-| `W6-B6` | 본 계획서 + `W6-B1`부터 마지막 completed code batch까지의 run records + `foms/services/README.md` ; completed code batch가 전혀 없으면 `W6-B0`/`W6-B1` run records + stop evidence + `foms/services/README.md` |
-| `W6-B7` | 본 계획서 + `W6-B0`부터 마지막 completed batch까지의 run records + attempted-but-failed code/docs batch run records + all defer/stop evidence + status-register evidence(`W6-B6` file 또는 `§5.8` merged section을 재구성할 수 있는 근거) |
+| `W6-B0` | 본 계획서 + predecessor handoff evidence + live `services/` / `foms/services/` tree snapshot + `tests/test_foms_namespace_imports.py` ; docs batch 재시도면 직전 partial run record 초안 + 수동 스캔 메모/로그 + Branch A/B/C 판정 상태 + pilot lock checklist true/false 포함 |
+| `W6-B1` | 본 계획서 + `W6-B0` run record + live `services/` / `foms/services/` tree snapshot + `tests/test_foms_namespace_imports.py` ; 동일 batch 재시도면 직전 partial/failed run record + README/shim-registry diff 요약 포함 |
+| `W6-B2`~`W6-B3` | 본 계획서 + `W6-B1` run record + notifications lane live files/tests ; Branch C에서는 해당 단계가 없으므로 `W6-B6` 입력 규칙을 따른다 ; `W6-B2` 완료/B3 미시작이면 `W6-B2` run record + contract freeze 산출물 + B3 scope files를 포함한다 ; 동일 batch 재시도면 직전 partial/failed run record + verification/lint 로그 + scope 내 변경 파일 목록 포함 |
+| `W6-B4` | 본 계획서 + `W6-B1` run record + `W6-B2`/`W6-B3` run records + file-utils lane live files/tests ; mainline/Branch A 경로에서만 사용 ; Branch B/C에서는 해당 단계가 없으므로 이 행 대신 `W6-B6` 입력 규칙을 따른다 ; 동일 batch 재시도면 직전 partial/failed run record + 수동 consistency 체크 로그 포함 |
+| `W6-B5` | 본 계획서 + `W6-B1` run record + `W6-B3`/`W6-B4` run records + file-utils lane live files/tests ; mainline/Branch A 경로에서만 사용 ; 동일 batch 재시도면 직전 partial/failed run record + verification/lint 로그 + scope 내 변경 파일 목록 포함 |
+| `W6-B6` | 본 계획서 + `W6-B0`/`W6-B1` run records + 마지막 completed code batch까지의 관련 run records + `foms/services/README.md` ; completed code batch가 전혀 없으면 `W6-B0`/`W6-B1` run records + stop evidence + `foms/services/README.md` ; `§8.13`처럼 docs-only freeze batch가 partial/failed로 멈췄다면 그 partial/failed `W6-B2` 또는 `W6-B4` run record도 필수 입력으로 포함한다 ; `W6-B3`/`W6-B5`가 partial/failed로 멈췄다면 해당 run record와 clean-gate evidence(또는 불가 사유)도 필수 입력으로 포함한다 ; 동일 batch 재시도면 직전 partial/failed run record + status-register draft diff 요약 포함 |
+| `W6-B7` | 본 계획서 + `W6-B0`부터 마지막 completed batch까지의 run records + attempted-but-failed code/docs batch run records + all defer/stop evidence + status-register evidence(`W6-B6` file 또는 `§5.8` merged section을 재구성할 수 있는 근거) ; 동일 batch 재시도면 직전 partial/failed closeout draft + spec/archive sync 메모 포함 |
 
 추가 규칙:
 
+- `W6-B2`~`W6-B3` 행의 적용 순서는 `Branch C 여부 -> W6-B2 완료/B3 미시작 여부 -> 동일 batch 재시도 여부` 순서로 읽는다. 앞 조건이 참이면 뒤 조건보다 우선한다.
+- 여기서 `Branch C 여부`는 `W6-B2`/`W6-B3`가 한 번도 시작되지 않은 경우에만 적용한다. `W6-B2` 또는 `W6-B3` run record가 이미 존재하면 그것은 Branch C가 아니라 same-batch retry/partial recovery 경로로 읽는다.
+- `live tree snapshot`은 재시작 직전에 다시 수집한 경로 목록을 뜻한다. 최소 범위는 `services/*.py`, `services/jobs/*.py`, `foms/services/**/*.py`, `foms/services/*/__init__.py`, 그리고 current batch 관련 test/docs 파일이다.
+- 가능하면 snapshot에는 현재 git HEAD(또는 동등한 revision marker)도 함께 남긴다. git 정보를 쓸 수 없으면 그 이유를 같은 restart prompt/run record에 적는다.
+- mid-wave resume에서는 snapshot을 다시 수집한 뒤 현재 repo 상태가 기존 `Branch A/B/C` 또는 pilot lock 결론과 모순되지 않는지 먼저 확인한다. 모순이 있으면 해당 batch를 계속하지 말고 `W6-B0`로 올라가 branch/pilot lock을 다시 판정한다.
+- resumed code batch(`W6-B3`/`W6-B5`)는 추가 수정 전에 fresh process 기준의 repo sanity baseline을 다시 확인하거나, 방금 재수집한 snapshot과 함께 마지막 accepted baseline이 여전히 유효하다고 명시적으로 재확인해야 한다.
 - 각 재시작 프롬프트는 current batch 이전 배치가 정상 종료됐는지 먼저 확인한다고 명시한다.
 - current batch 범위 밖 파일을 열어야 하면 이유를 같은 프롬프트에 적는다.
 - stop-triggered closeout이면 `partial closeout`이라고 명시한다.
@@ -716,8 +814,14 @@ future LLM이 Wave 6를 실제로 시작할 때 첫 프롬프트는 최소 아�
 
 Wave 6는 아래 둘 중 하나일 때만 닫는다.
 
-1. `W6-B0`~`W6-B7`가 순서대로 완료되고, `W6-B7` closeout이 끝난 경우
-2. 중간 batch(code/docs gate 포함)가 `§8 Stop Conditions`에 걸려 중단됐고, `W6-B7` partial closeout이 끝난 경우
+1. `Branch A` 경로에서 `W6-B0`~`W6-B7`가 순서대로 완료되고, `W6-B7` closeout이 끝난 경우
+2. `§5.1 Branch B/C`의 계획된 skip 경로 또는 중간 batch(code/docs gate 포함)의 `§8 Stop Conditions` stop 경로로 내려가 `W6-B7` partial closeout이 끝난 경우
+
+적용 규칙:
+
+- `Branch A`만 `§10.1 Full closeout`을 적용한다.
+- `Branch B`, `Branch C`, 그리고 `§8` stop-triggered path는 모두 정상적인 `partial closeout` 경로이며 `§10.2`를 적용한다.
+- `Branch B/C`는 "실패해서 멈춤"이 아니라 `W6-B0`에서 문서화된 계획된 skip path다. 다만 closeout 형식은 full이 아니라 partial로 고정한다.
 
 ### 10.1 Full closeout 추가 기준
 아래는 `W6-B0`~`W6-B7`를 모두 완료한 **full closeout**에만 적용한다.
@@ -728,11 +832,12 @@ Wave 6는 아래 둘 중 하나일 때만 닫는다.
 - lane status register가 존재해야 한다.
 - spec reference와 archive index가 Wave 6 plan/closeout을 가리켜야 한다.
 
-### 10.2 Partial / stop-triggered closeout 추가 기준
-아래는 중간 batch(code/docs gate 포함) stop 이후 `W6-B7`로 닫는 **partial closeout**에 적용한다.
+### 10.2 Partial / planned-skip / stop-triggered closeout 추가 기준
+아래는 `§5.1 Branch B/C`의 planned skip path 또는 중간 batch(code/docs gate 포함) stop 이후 `W6-B7`로 닫는 **partial closeout**에 적용한다.
 
 - stop 시점까지 완료된 batch run record만 존재하면 된다.
 - 미실행 pilot과 defer lane에는 `not started` 또는 `partial` 상태를 남겨야 한다.
+- status-register 증거는 `W6-B6` 전용 run record 또는 `§5.8`의 `W6-B7` merged status-register section 둘 중 하나면 충분하다.
 - explicit exception과 high-risk lane에는 `why-not-now`, `required prep`, `suggested restart batch`가 남아야 한다.
 - `foms/services/README.md`가 current truth를 반영해야 한다.
 
