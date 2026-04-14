@@ -1,6 +1,6 @@
 /**
- * Contract freeze: base-components cluster in static/js/wdcalculator/base-components-ui.js
- * (getProductsOptionsHtml, renderBaseComponentRow, ensureBaseComponentsUI,
+ * Contract freeze: base-components cluster in static/js/wdcalculator/primary-form.js
+ * (base-components-ui band: getProductsOptionsHtml, renderBaseComponentRow, ensureBaseComponentsUI,
  * readBaseComponentsFromUI, bindAdditionalFeeEvents).
  *
  * Runs in Node vm with DOM stubs + lightweight HTML fragment parser for innerHTML.
@@ -11,16 +11,10 @@ const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const baseComponentsUiPath = path.join(
-    repoRoot,
-    "static",
-    "js",
-    "wdcalculator",
-    "base-components-ui.js"
-);
+const primaryFormPath = path.join(repoRoot, "static", "js", "wdcalculator", "primary-form.js");
 const sharedPath = path.join(repoRoot, "static", "js", "wdcalculator", "shared.js");
 
-const baseComponentsUiSrc = fs.readFileSync(baseComponentsUiPath, "utf8");
+const baseComponentsUiSrc = fs.readFileSync(primaryFormPath, "utf8");
 const sharedSrc = fs.readFileSync(sharedPath, "utf8");
 
 function assertEq(actual, expected, label) {

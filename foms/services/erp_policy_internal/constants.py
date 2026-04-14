@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
+
+
+# 완료 대시보드·브리핑 보드 정산 알림: `Order.status` 필터 (단일 SSOT).
+# 소비: `foms.api.personal_board`, `apps.api.erp_orders_completion` (TARGET_STATUSES alias).
+ORDER_SETTLEMENT_ALERT_TARGET_STATUSES: Tuple[str, ...] = ("COMPLETED", "AS_RECEIVED", "AS_COMPLETED")
 
 
 STAGE_LABELS: Dict[str, str] = {
@@ -82,6 +87,7 @@ _QUEST_TEMPLATES_PATH = str(_DATA_DIR / "erp_quest_templates.json")
 
 
 __all__ = [
+    "ORDER_SETTLEMENT_ALERT_TARGET_STATUSES",
     "DEFAULT_OWNER_TEAM_BY_STAGE",
     "STAGE_LABELS",
     "STAGE_NAME_TO_CODE",

@@ -1,6 +1,6 @@
 /**
- * Contract freeze: additional-options rows UI in static/js/wdcalculator/additional-options-ui.js
- * (`appendAdditionalOptionRow`, `setOptionMode`, `readAdditionalOptionRowsFromUI`).
+ * Contract freeze: additional-options rows UI in static/js/wdcalculator/primary-form.js
+ * (additional-options-ui band: `appendAdditionalOptionRow`, `setOptionMode`, `readAdditionalOptionRowsFromUI`).
  *
  * Runs in Node vm with DOM stubs + lightweight HTML fragment parsing.
  */
@@ -9,13 +9,7 @@ const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const helperPath = path.join(
-    repoRoot,
-    "static",
-    "js",
-    "wdcalculator",
-    "additional-options-ui.js"
-);
+const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "primary-form.js");
 const sharedPath = path.join(repoRoot, "static", "js", "wdcalculator", "shared.js");
 
 const helperSrc = fs.readFileSync(helperPath, "utf8");

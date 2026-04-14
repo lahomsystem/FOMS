@@ -1,19 +1,13 @@
 /**
- * Freezes WDCalculator coupon input + final price display helper behavior from
- * static/js/wdcalculator/coupon-display-helpers.js.
+ * Freezes WDCalculator coupon helpers (WdCalculatorCouponDisplayHelpers) from
+ * static/js/wdcalculator/primary-form.js (W5-B3 merged chunk).
  */
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const helperPath = path.join(
-    repoRoot,
-    "static",
-    "js",
-    "wdcalculator",
-    "coupon-display-helpers.js"
-);
+const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "primary-form.js");
 const helperSrc = fs.readFileSync(helperPath, "utf8");
 
 const ids = {};

@@ -25,14 +25,14 @@
 
 ### 2-1) (권장) 먼저 dry-run으로 누락 파일 체크
 ```bash
-python migrate_local_uploads_to_r2.py
+python scripts/migrations/migrate_local_uploads_to_r2.py
 ```
 
 ### 2-2) 실행(실제 업로드 + DB 업데이트)
 R2 환경변수를 로컬에 설정한 뒤:
 
 ```bash
-python migrate_local_uploads_to_r2.py --execute --skip-existing
+python scripts/migrations/migrate_local_uploads_to_r2.py --execute --skip-existing
 ```
 
 ---

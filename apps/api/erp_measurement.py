@@ -1,4 +1,4 @@
-"""Legacy import path; canonical implementation: foms.api.measurement."""
+"""Legacy import path; canonical implementation: foms.api.measurement (Wave 2 canonical alias shim)."""
 import importlib
 import sys
 

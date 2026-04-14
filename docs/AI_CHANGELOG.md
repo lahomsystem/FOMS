@@ -4,6 +4,18 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-04-14 | 세션 자동 기록 | wdcalculator_scripts.html, README.md, wdcalculator_base_live_events_contract_node_checks.js 외 2개 | f30c1875 |
+| 2026-04-14 | 세션 자동 기록 | dashboard.py, test_foms_namespace_imports.py, erp_production_page.py 외 2개 | f30c1875 |
+| 2026-04-14 | 세션 자동 기록 | address.py, files.py, files.py 외 2개 | f30c1875 |
+| 2026-04-13 | 세션 자동 기록 | address.py, files.py, files.py 외 2개 | f30c1875 |
+| 2026-04-13 | 세션 자동 기록 | README.md, README.md, README.md 외 2개 | f30c1875 |
+| 2026-04-13 | 세션 자동 기록 | __init__.py, erp_measurement.py, blueprints.py 외 2개 | f30c1875 |
+| 2026-04-13 | 세션 자동 기록 | 🚨_간단_백업.bat, init_wdcalculator_db.py, erp_build_step_runner.py 외 2개 | f30c1875 |
+| 2026-04-13 | 세션 자동 기록 | MIGRATION_RAILWAY_R2.md, MIGRATION_GUIDE_RAILWAY.md, web_migration.py 외 2개 | f30c1875 |
+| 2026-04-13 | 세션 자동 기록 | test_wdcalculator_product_settings.py, test_wdcalculator_totals_startup_terminal_host_bootstrap_contract_node.py, wdcalculator_totals_startup_terminal_host_bootstrap_contract_node_checks.js 외 2개 | f30c1875 |
+| 2026-04-13 | 세션 자동 기록 | test_wdcalculator_notes_ui_bootstrap_contract_node.py, wdcalculator_notes_ui_bootstrap_contract_node_checks.js, test_wdcalculator_product_settings.py 외 2개 | f30c1875 |
+| 2026-04-13 | 세션 자동 기록 | test_wdcalculator_product_settings.py, wdcalculator_scripts.html, wdcalculator_scripts_config.html 외 2개 | f30c1875 |
+| 2026-04-12 | 세션 자동 기록 | test_wdcalculator_product_settings.py, wdcalculator_order_match_contract_node_checks.js, test_wdcalculator_order_match_contract_node.py 외 2개 | 940b7c95 |
 | 2026-04-12 | 세션 자동 기록 | wdcalculator_product_catalog_contract_node_checks.js, product-catalog-ui.js, test_wdcalculator_product_settings.py 외 2개 | 76b006ac |
 | 2026-04-12 | 세션 자동 기록 | test_wdcalculator_product_catalog_contract_node.py, test_wdcalculator_product_settings.py, wdcalculator_additional_options_contract_node_checks.js 외 2개 | eb01c5d7 |
 | 2026-04-12 | 세션 자동 기록 | wdcalculator_additional_options_contract_node_checks.js, wdcalculator_current_estimate_contract_node_checks.js, test_wdcalculator_product_settings.py 외 2개 | eb01c5d7 |
@@ -12,15 +24,3 @@
 | 2026-04-12 | 세션 자동 기록 | mutations.py, __init__.py, status.py 외 2개 | eb01c5d7 |
 | 2026-04-11 | 세션 자동 기록 | mutations.py, __init__.py, status.py 외 2개 | eb01c5d7 |
 | 2026-04-11 | 세션 자동 기록 | test_erp_permissions.py, erp_permissions.py, map_snapshot.py 외 2개 | eb01c5d7 |
-| 2026-04-11 | 세션 자동 기록 | test_measurement_legacy_shims.py, measurement-image-export.js, test_erp_orders_structured_put.py 외 2개 | eb01c5d7 |
-| 2026-04-11 | 세션 자동 기록 | app_init.py, test_app_init.py, erp-pro.css 외 2개 | eb01c5d7 |
-| 2026-04-11 | 세션 자동 기록 | erp-pro.css, erp_policy.py, permissions.py 외 2개 | eb01c5d7 |
-| 2026-04-11 | 세션 자동 기록 | context-manager.md, review.md, status.md 외 2개 | eb01c5d7 |
-| 2026-04-11 | 세션 자동 기록 | map_snapshot.py, measurement.py, measurement-image-export.js 외 2개 | eb01c5d7 |
-| 2026-04-10 | 세션 자동 기록 | app.py, http.py, blueprints.py 외 2개 | eb01c5d7 |
-| 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, erp_as_page.py, erp_shipment_settings.py 외 2개 | eb01c5d7 |
-| 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, erp_orders_construction.py, erp_shipment_settings.py 외 2개 | eb01c5d7 |
-| 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, geocode_backfill.py, order_edit.py 외 2개 | eb01c5d7 |
-| 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, personal_board.py, channel_event_payloads.py 외 2개 | eb01c5d7 |
-| 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, tasks.py, erp_orders_drawing.py 외 2개 | eb01c5d7 |
-| 2026-04-10 | 세션 자동 기록 | test_foms_namespace_imports.py, channel_dispatch.py, context_processors.py 외 2개 | eb01c5d7 |

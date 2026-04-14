@@ -1,19 +1,13 @@
 /**
  * Contract freeze: baseComponentsContainer live interactions in
- * static/js/wdcalculator/base-components-ui.js.
+ * static/js/wdcalculator/primary-form.js (base-components-ui band, W5-B3).
  */
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const helperPath = path.join(
-    repoRoot,
-    "static",
-    "js",
-    "wdcalculator",
-    "base-components-ui.js"
-);
+const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "primary-form.js");
 const helperSrc = fs.readFileSync(helperPath, "utf8");
 const templatePath = helperPath;
 const templateSrc = helperSrc;

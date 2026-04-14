@@ -1,8 +1,8 @@
 /**
  * Freezes the runtime contract for WDCalculator notes helpers from
- * static/js/wdcalculator/notes-ui.js (loadNotes / collectNotes / helpers).
+ * static/js/wdcalculator/primary-form.js (notes-ui band inside W5-B3 chunk).
  *
- * Extracts named notes helpers from the module file, strips renderAllNotes() calls so
+ * Extracts named notes helpers from the merged file, strips renderAllNotes() calls so
  * tests exercise notesList state without a full DOM, then runs assertions in Node's vm.
  */
 const fs = require("fs");
@@ -10,15 +10,9 @@ const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const notesUiPath = path.join(
-    repoRoot,
-    "static",
-    "js",
-    "wdcalculator",
-    "notes-ui.js"
-);
+const primaryFormPath = path.join(repoRoot, "static", "js", "wdcalculator", "primary-form.js");
 
-const templateSrc = fs.readFileSync(notesUiPath, "utf8");
+const templateSrc = fs.readFileSync(primaryFormPath, "utf8");
 
 /**
  * Extract `function name(...) { ... }` while skipping strings/comments/template literals
@@ -28,7 +22,7 @@ function extractFunctionSource(src, name) {
     const needle = `function ${name}(`;
     const start = src.indexOf(needle);
     if (start === -1) {
-        throw new Error(`Function ${name} not found in ${notesUiPath}`);
+        throw new Error(`Function ${name} not found in ${primaryFormPath}`);
     }
     let i = src.indexOf("{", start);
     if (i < 0) throw new Error(`Opening brace not found for ${name}`);

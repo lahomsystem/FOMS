@@ -1779,7 +1779,7 @@ def test_erp_display_lazy_callers_use_canonical_import_paths() -> None:
     from apps.api import erp_map
     from apps.api import erp_measurement
     from apps.api import orders as orders_api
-    from apps.api import personal_board
+    from foms.api import personal_board
 
     history_source = inspect.getsource(erp_history_page.history_dashboard)
     assert (
@@ -1914,7 +1914,7 @@ def test_channel_event_payloads_canonical_module_uses_canonical_erp_policy_impor
 
 def test_personal_board_uses_canonical_erp_policy_imports() -> None:
     """Personal board API should use canonical erp_policy in module and lazy imports."""
-    from apps.api import personal_board
+    from foms.api import personal_board
 
     assert personal_board.DEFAULT_OWNER_TEAM_BY_STAGE is namespaced_erp_policy.DEFAULT_OWNER_TEAM_BY_STAGE
 
@@ -1923,4 +1923,51 @@ def test_personal_board_uses_canonical_erp_policy_imports() -> None:
 
     schedule_source = inspect.getsource(personal_board._schedule_today_tomorrow)
     assert "from foms.services.erp_policy import STAGE_NAME_TO_CODE, STAGE_LABELS" in schedule_source
+
+
+def test_erp_completion_page_shim_reexports_canonical_module() -> None:
+    """Legacy apps.erp_completion_page should alias foms.web.cs.completion_dashboard (Wave 4)."""
+    from apps import erp_completion_page as legacy
+    from foms.web.cs import completion_dashboard as canonical
+
+    assert legacy.erp_completion_page_bp is canonical.erp_completion_page_bp
+    assert legacy.erp_completion_dashboard is canonical.erp_completion_dashboard
+
+
+def test_cs_completion_dashboard_template_path_exists() -> None:
+    """Canonical completion template must exist under templates/cs/ (Wave 4 namespace)."""
+    root = Path(__file__).resolve().parents[1]
+    template_path = root / "templates" / "cs" / "completion_dashboard.html"
+    assert template_path.is_file()
+
+
+def test_legacy_erp_completion_dashboard_is_thin_extends_wrapper() -> None:
+    """Legacy template path must thin-extend the canonical cs template only."""
+    root = Path(__file__).resolve().parents[1]
+    text = (root / "templates" / "erp_completion_dashboard.html").read_text(encoding="utf-8")
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    assert lines == ['{% extends "cs/completion_dashboard.html" %}']
+
+
+def test_erp_production_page_shim_reexports_canonical_module() -> None:
+    """Legacy apps.erp_production_page should alias foms.web.production.dashboard (Wave 4)."""
+    from apps import erp_production_page as legacy
+    from foms.web.production import dashboard as canonical
+
+    assert legacy.erp_production_page_bp is canonical.erp_production_page_bp
+    assert legacy.erp_production_dashboard is canonical.erp_production_dashboard
+
+
+def test_production_dashboard_template_path_exists() -> None:
+    """Canonical production dashboard template must exist (Wave 4 namespace)."""
+    root = Path(__file__).resolve().parents[1]
+    assert (root / "templates" / "production" / "dashboard.html").is_file()
+
+
+def test_legacy_erp_production_dashboard_is_thin_extends_wrapper() -> None:
+    """Legacy erp_production_dashboard.html must thin-extend production/dashboard.html only."""
+    root = Path(__file__).resolve().parents[1]
+    text = (root / "templates" / "erp_production_dashboard.html").read_text(encoding="utf-8")
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    assert lines == ['{% extends "production/dashboard.html" %}']
 

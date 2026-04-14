@@ -15,9 +15,10 @@ from models import Order, OrderAttachment, OrderEvent, SecurityLog, User
 from apps.auth import login_required, get_user_by_id
 from apps.api.files import build_file_view_url, build_file_download_url
 from foms.services.erp_display import _ensure_dict
+from foms.services.erp_policy import ORDER_SETTLEMENT_ALERT_TARGET_STATUSES
 
-# 완료 대시보드 대상: 시공 완료·AS 접수 등으로 분류되는 주문 (erp_construction_page 기준)
-TARGET_STATUSES = ('COMPLETED', 'AS_RECEIVED', 'AS_COMPLETED')
+# 완료 대시보드 대상: 시공 완료·AS 접수 등 (정책 상수는 `foms.services.erp_policy` SSOT)
+TARGET_STATUSES = ORDER_SETTLEMENT_ALERT_TARGET_STATUSES
 CONSTRUCTION_CATEGORY = 'construction'
 
 # 비용 청구 귀속 대상 (계획서 3.1)

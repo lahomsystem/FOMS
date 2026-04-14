@@ -136,18 +136,36 @@ def test_wdcalculator_page_renders_inline_config_contract(wdcalculator_settings_
     categories_idx = body.index("var wdCalculatorCategories =")
     notes_idx = body.index("var wdNotesCategories =")
     shared_idx = body.index("js/wdcalculator/shared.js")
+    unsaved_exit_guard_idx = body.index("js/wdcalculator/unsaved-exit-guard.js")
+    layout_sync_wiring_idx = body.index("js/wdcalculator/layout-sync-wiring.js")
+    composition_idx = body.index("js/wdcalculator/composition.js")
     sidebar_idx = body.index("js/wdcalculator/sidebar-estimates.js")
     estimate_totals_idx = body.index("js/wdcalculator/estimate-totals.js")
     current_estimate_math_idx = body.index("js/wdcalculator/current-estimate-math.js")
-    notes_ui_idx = body.index("js/wdcalculator/notes-ui.js")
-    base_components_ui_idx = body.index("js/wdcalculator/base-components-ui.js")
-    coupon_display_helpers_idx = body.index("js/wdcalculator/coupon-display-helpers.js")
-    additional_options_ui_idx = body.index("js/wdcalculator/additional-options-ui.js")
-    product_catalog_ui_idx = body.index("js/wdcalculator/product-catalog-ui.js")
+    calculation_resolvers_idx = body.index("js/wdcalculator/calculation-resolvers.js")
+    primary_form_idx = body.index("js/wdcalculator/primary-form.js")
+    current_estimate_orchestration_idx = body.index(
+        "js/wdcalculator/current-estimate-orchestration.js"
+    )
     search_results_load_idx = body.index("js/wdcalculator/search-results-load.js")
     render_estimates_list_idx = body.index("js/wdcalculator/render-estimates-list.js")
+    reset_input_form_keep_customer_idx = body.index("js/wdcalculator/reset-input-form-keep-customer.js")
+    load_estimate_to_input_form_idx = body.index("js/wdcalculator/load-estimate-to-input-form.js")
+    load_saved_estimate_to_form_idx = body.index("js/wdcalculator/load-saved-estimate-to-form.js")
+    save_estimate_idx = body.index("js/wdcalculator/save-estimate.js")
+    add_estimate_idx = body.index("js/wdcalculator/add-estimate.js")
+    estimate_list_events_idx = body.index("js/wdcalculator/estimate-list-events.js")
+    total_estimates_display_idx = body.index("js/wdcalculator/total-estimates-display.js")
+    refresh_after_save_idx = body.index("js/wdcalculator/refresh-after-save.js")
+    estimate_mutation_bridge_idx = body.index("js/wdcalculator/estimate-mutation-bridge.js")
+    url_bootstrap_idx = body.index("js/wdcalculator/url-bootstrap.js")
     order_match_ui_idx = body.index("js/wdcalculator/order-match-ui.js")
     coupon_shipping_wiring_idx = body.index("js/wdcalculator/coupon-shipping-wiring.js")
+    loading_state_idx = body.index("js/wdcalculator/loading-state.js")
+    current_database_estimate_id_idx = body.index("js/wdcalculator/current-database-estimate-id.js")
+    products_state_idx = body.index("js/wdcalculator/products-state.js")
+    editing_estimate_id_idx = body.index("js/wdcalculator/editing-estimate-id.js")
+    estimates_state_idx = body.index("js/wdcalculator/estimates-state.js")
     dom_ready_idx = body.index("document.addEventListener('DOMContentLoaded'")
     categories_match = re.search(
         r"var wdCalculatorCategories = (.+?) \|\| \[\];",
@@ -163,18 +181,34 @@ def test_wdcalculator_page_renders_inline_config_contract(wdcalculator_settings_
     assert (
         categories_idx
         < shared_idx
+        < unsaved_exit_guard_idx
+        < layout_sync_wiring_idx
+        < composition_idx
         < sidebar_idx
         < estimate_totals_idx
         < current_estimate_math_idx
-        < notes_ui_idx
-        < base_components_ui_idx
-        < coupon_display_helpers_idx
-        < additional_options_ui_idx
-        < product_catalog_ui_idx
+        < calculation_resolvers_idx
+        < primary_form_idx
+        < current_estimate_orchestration_idx
         < search_results_load_idx
         < render_estimates_list_idx
+        < reset_input_form_keep_customer_idx
+        < load_estimate_to_input_form_idx
+        < load_saved_estimate_to_form_idx
+        < save_estimate_idx
+        < add_estimate_idx
+        < estimate_list_events_idx
+        < total_estimates_display_idx
+        < refresh_after_save_idx
+        < estimate_mutation_bridge_idx
+        < url_bootstrap_idx
         < order_match_ui_idx
         < coupon_shipping_wiring_idx
+        < loading_state_idx
+        < current_database_estimate_id_idx
+        < products_state_idx
+        < editing_estimate_id_idx
+        < estimates_state_idx
         < dom_ready_idx
     )
     assert notes_idx < shared_idx
@@ -184,6 +218,754 @@ def test_wdcalculator_page_renders_inline_config_contract(wdcalculator_settings_
     notes_payload = json.loads(notes_match.group(1))
     assert categories_payload[0]["name"] == "기본 옵션"
     assert notes_payload[0]["name"] == "기본 비고"
+
+
+def test_wdcalculator_page_keeps_saved_estimate_alias_wiring_contract(
+    wdcalculator_settings_env, login
+):
+    """Saved-estimate loader wiring must stay direct and avoid wrapper/TDZ regressions."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    total_estimates_alias_idx = body.index(
+        "const { calculateTotalEstimates } = WdCalculatorTotalEstimatesDisplay;"
+    )
+    coupon_search_render_host_bootstrap_config_idx = body.index(
+        "WdCalculatorCouponSearchRenderHostBootstrap.configure({"
+    )
+    load_saved_alias_idx = body.index(
+        "const { loadEstimateToForm: loadSavedEstimateToForm } = WdCalculatorLoadSavedEstimateToForm;"
+    )
+    coupon_search_render_host_bootstrap_init_idx = body.index(
+        "WdCalculatorCouponSearchRenderHostBootstrap.initCouponSearchRenderHostBootstrap();"
+    )
+    totals_startup_terminal_host_bootstrap_config_idx = body.index(
+        "WdCalculatorTotalsStartupTerminalHostBootstrap.configure({"
+    )
+
+    assert "function loadEstimateToForm(estimate)" not in body
+    assert body.count("loadEstimateToForm: loadSavedEstimateToForm,") == 2
+    assert total_estimates_alias_idx < coupon_search_render_host_bootstrap_config_idx
+    assert (
+        load_saved_alias_idx
+        < coupon_search_render_host_bootstrap_config_idx
+        < coupon_search_render_host_bootstrap_init_idx
+        < totals_startup_terminal_host_bootstrap_config_idx
+    )
+
+
+def test_wdcalculator_page_keeps_totals_startup_terminal_host_bootstrap_shell_contract(
+    wdcalculator_settings_env, login
+):
+    """Totals/startup/terminal host wrapper must preserve startup-before-notes timing."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    coupon_search_render_host_bootstrap_init_idx = body.index(
+        "WdCalculatorCouponSearchRenderHostBootstrap.initCouponSearchRenderHostBootstrap();"
+    )
+    totals_startup_terminal_host_bootstrap_config_idx = body.index(
+        "WdCalculatorTotalsStartupTerminalHostBootstrap.configure({"
+    )
+    totals_startup_terminal_host_bootstrap_init_idx = body.index(
+        "WdCalculatorTotalsStartupTerminalHostBootstrap.initTotalsStartupTerminalHostBootstrap();"
+    )
+    notes_ui_host_bootstrap_config_idx = body.index(
+        "WdCalculatorNotesUiHostBootstrap.configure({"
+    )
+    notes_ui_host_bootstrap_init_idx = body.index(
+        "WdCalculatorNotesUiHostBootstrap.initNotesUiHostBootstrap();"
+    )
+    load_initial_products_idx = body.index("loadInitialProducts();")
+    estimate_mutation_bridge_config_idx = body.index("WdCalculatorEstimateMutationBridge.configure({")
+
+    assert "WdCalculatorTotalEstimatesDisplay.configure({" not in body
+    assert "WdCalculatorStartupInit.configure({" not in body
+    assert "WdCalculatorTerminalInit.configure({" not in body
+    assert "initStartupInteractions();" not in body
+    assert "bindProductSelect();" not in body
+    assert "initBaseComponentsLiveInteractions();" not in body
+    assert "initAddOptionButton();" not in body
+    assert "initCalculateButton();" not in body
+    assert "initSearchResultsLoadBridge();" not in body
+    assert "bindOrderMatchButtons();" not in body
+    assert "initCouponShippingWiring();" not in body
+    assert "console.warn('카테고리 데이터가 없습니다. 제품 설정에서 추가 옵션을 등록해주세요.');" not in body
+    assert "loadProducts();" not in body
+    assert "ensureBaseComponentsUI();" not in body
+    assert "WdCalculatorTotalsStartupTerminalBootstrap.configure({" not in body
+    assert "WdCalculatorTotalsStartupTerminalBootstrap.initTotalsStartupTerminalBootstrap();" not in body
+    assert "WdCalculatorNotesUiBootstrap.configure({" not in body
+    assert "WdCalculatorNotesUiBootstrap.initNotesUiBootstrap();" not in body
+    assert (
+        "WdCalculatorTotalsStartupTerminalHostBootstrap.configure({\n        totalsStartupTerminalBootstrap: WdCalculatorTotalsStartupTerminalBootstrap,\n        totalEstimatesDisplay: WdCalculatorTotalEstimatesDisplay,\n        startupInit: WdCalculatorStartupInit,\n        terminalInit: WdCalculatorTerminalInit,\n        getEstimates,\n        getEditingEstimateId,\n        getCouponValue,"
+        in body
+    )
+    assert "initCouponShippingWiring,\n        loadProducts,\n        ensureBaseComponentsUI," in body
+    assert (
+        coupon_search_render_host_bootstrap_init_idx
+        < totals_startup_terminal_host_bootstrap_config_idx
+        < totals_startup_terminal_host_bootstrap_init_idx
+        < notes_ui_host_bootstrap_config_idx
+        < notes_ui_host_bootstrap_init_idx
+        < load_initial_products_idx
+        < estimate_mutation_bridge_config_idx
+    )
+
+
+def test_wdcalculator_page_keeps_notes_ui_host_bootstrap_shell_contract(
+    wdcalculator_settings_env, login
+):
+    """Notes UI host shell must replace the direct notes init call without reordering product load."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    totals_startup_terminal_host_bootstrap_init_idx = body.index(
+        "WdCalculatorTotalsStartupTerminalHostBootstrap.initTotalsStartupTerminalHostBootstrap();"
+    )
+    notes_ui_host_bootstrap_config_idx = body.index(
+        "WdCalculatorNotesUiHostBootstrap.configure({"
+    )
+    notes_ui_host_bootstrap_init_idx = body.index(
+        "WdCalculatorNotesUiHostBootstrap.initNotesUiHostBootstrap();"
+    )
+    load_initial_products_idx = body.index("loadInitialProducts();")
+
+    assert "WdCalculatorNotesUI.initNotesUi();" not in body
+    assert "WdCalculatorNotesUiBootstrap.configure({" not in body
+    assert "WdCalculatorNotesUiBootstrap.initNotesUiBootstrap();" not in body
+    assert (
+        "WdCalculatorNotesUiHostBootstrap.configure({\n        notesUiBootstrap: WdCalculatorNotesUiBootstrap,\n        notesUi: WdCalculatorNotesUI,"
+        in body
+    )
+    assert (
+        totals_startup_terminal_host_bootstrap_init_idx
+        < notes_ui_host_bootstrap_config_idx
+        < notes_ui_host_bootstrap_init_idx
+        < load_initial_products_idx
+    )
+
+
+def test_wdcalculator_page_keeps_current_estimate_helper_wiring_contract(
+    wdcalculator_settings_env, login
+):
+    """Current-estimate orchestration helper must replace inline calculate/collect bodies."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    orchestration_alias_idx = body.index(
+        "const {\n        calculateEstimate,\n        collectCurrentEstimate,\n    } = WdCalculatorCurrentEstimateOrchestration;"
+    )
+    notes_collect_alias_idx = body.index("const { collectNotes } = WdCalculatorNotesUI;")
+    orchestration_config_idx = body.index("WdCalculatorCurrentEstimateOrchestration.configure({")
+    catalog_buttons_host_bootstrap_config_idx = body.index(
+        "WdCalculatorCatalogButtonsHostBootstrap.configure({"
+    )
+    estimate_mutation_bridge_config_idx = body.index("WdCalculatorEstimateMutationBridge.configure({")
+    post_mutation_ui_host_bootstrap_config_idx = body.index(
+        "WdCalculatorPostMutationUiHostBootstrap.configure({"
+    )
+
+    assert "function calculateEstimate()" not in body
+    assert "function collectCurrentEstimate()" not in body
+    assert notes_collect_alias_idx < orchestration_config_idx
+    assert (
+        orchestration_alias_idx
+        < orchestration_config_idx
+        < catalog_buttons_host_bootstrap_config_idx
+    )
+    assert (
+        orchestration_config_idx
+        < estimate_mutation_bridge_config_idx
+        < post_mutation_ui_host_bootstrap_config_idx
+    )
+    assert "collectCurrentEstimate,\n        resetInputFormKeepCustomerName," in body
+    assert "getCurrentDatabaseEstimateId,\n        collectNotes,\n        getCouponValue," in body
+
+
+def test_wdcalculator_page_keeps_estimates_early_bootstrap_shell_contract(
+    wdcalculator_settings_env, login
+):
+    """Host head shell must preserve estimates seed + early bootstrap ordering."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    estimates_alias_idx = body.index(
+        "const {\n        getEstimates,\n        getEstimatesLength,\n        setEstimates,\n    } = WdCalculatorEstimatesState;"
+    )
+    estimates_early_host_bootstrap_config_idx = body.index(
+        "WdCalculatorEstimatesEarlyHostBootstrap.configure({"
+    )
+    estimates_early_host_bootstrap_init_idx = body.index(
+        "WdCalculatorEstimatesEarlyHostBootstrap.initEstimatesEarlyHostBootstrap();"
+    )
+    current_estimate_alias_idx = body.index(
+        "const {\n        calculateEstimate,\n        collectCurrentEstimate,\n    } = WdCalculatorCurrentEstimateOrchestration;"
+    )
+
+    assert "WdCalculatorEstimatesState.configure({" not in body
+    assert "WdCalculatorEarlyBootstrap.configure({" not in body
+    assert "WdCalculatorEarlyBootstrap.initEarlyBootstrap();" not in body
+    assert "WdCalculatorUnsavedExitGuard.configure({" not in body
+    assert "WdCalculatorUnsavedExitGuard.initUnsavedExitGuard();" not in body
+    assert "WdCalculatorLayoutSyncWiring.configure({" not in body
+    assert "WdCalculatorLayoutSyncWiring.initLayoutSyncWiring();" not in body
+    assert "WdCalculatorEstimatesEarlyBootstrap.configure({" not in body
+    assert "WdCalculatorEstimatesEarlyBootstrap.initEstimatesEarlyBootstrap();" not in body
+    assert (
+        "WdCalculatorEstimatesEarlyHostBootstrap.configure({\n        estimatesEarlyBootstrap: WdCalculatorEstimatesEarlyBootstrap,\n        estimatesState: WdCalculatorEstimatesState,\n        earlyBootstrap: WdCalculatorEarlyBootstrap,\n        unsavedExitGuard: WdCalculatorUnsavedExitGuard,\n        layoutSyncWiring: WdCalculatorLayoutSyncWiring,\n        initialEstimates: [],\n        getEstimates,"
+        in body
+    )
+    assert (
+        estimates_alias_idx
+        < estimates_early_host_bootstrap_config_idx
+        < estimates_early_host_bootstrap_init_idx
+        < current_estimate_alias_idx
+    )
+
+
+def test_wdcalculator_page_keeps_post_mutation_ui_host_bootstrap_shell_contract(
+    wdcalculator_settings_env, login
+):
+    """Post-mutation UI host shell must preserve late bootstrap ordering plus initial base UI render."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    estimate_mutation_bridge_init_idx = body.index(
+        "WdCalculatorEstimateMutationBridge.initEstimateMutationBridge();"
+    )
+    post_mutation_ui_host_bootstrap_config_idx = body.index(
+        "WdCalculatorPostMutationUiHostBootstrap.configure({"
+    )
+    post_mutation_ui_host_bootstrap_init_idx = body.index(
+        "WdCalculatorPostMutationUiHostBootstrap.initPostMutationUiHostBootstrap();"
+    )
+
+    assert "WdCalculatorLateBootstrap.configure({" not in body
+    assert "WdCalculatorLateBootstrap.initLateBootstrap();" not in body
+    assert "WdCalculatorSidebarBootstrap.configure({" not in body
+    assert "WdCalculatorSidebarBootstrap.initSidebarBootstrap();" not in body
+    assert "const loadSidebarEstimates = sidebarEstimatesApi.loadSidebarEstimates;" not in body
+    assert "WdCalculatorRefreshAfterSave.configure({" not in body
+    assert "WdCalculatorUrlBootstrap.configure({" not in body
+    assert "initUrlBootstrap();" not in body
+    assert "renderInitialBaseComponentsUi();" not in body
+    assert "WdCalculatorPostMutationUiBootstrap.configure({" not in body
+    assert "WdCalculatorPostMutationUiBootstrap.initPostMutationUiBootstrap();" not in body
+    assert (
+        "WdCalculatorPostMutationUiHostBootstrap.configure({\n        postMutationUiBootstrap: WdCalculatorPostMutationUiBootstrap,\n        lateBootstrap: WdCalculatorLateBootstrap,\n        sidebarBootstrap: WdCalculatorSidebarBootstrap,\n        refreshAfterSave: WdCalculatorRefreshAfterSave,\n        urlBootstrap: WdCalculatorUrlBootstrap,\n        initSidebarEstimates: window.initWdCalculatorSidebarEstimates,\n        loadEstimateToForm: loadSavedEstimateToForm,"
+        in body
+    )
+    assert "setTimeoutImpl: setTimeout,\n        renderInitialBaseComponentsUi," in body
+    assert (
+        estimate_mutation_bridge_init_idx
+        < post_mutation_ui_host_bootstrap_config_idx
+        < post_mutation_ui_host_bootstrap_init_idx
+    )
+
+
+def test_wdcalculator_page_keeps_estimate_mutation_bridge_shell_contract(
+    wdcalculator_settings_env, login
+):
+    """Estimate-mutation bridge shell must preserve reset/load/add/list/save configure+init ordering."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    load_initial_products_idx = body.index("loadInitialProducts();")
+    estimate_mutation_bridge_config_idx = body.index("WdCalculatorEstimateMutationBridge.configure({")
+    estimate_mutation_bridge_init_idx = body.index(
+        "WdCalculatorEstimateMutationBridge.initEstimateMutationBridge();"
+    )
+    post_mutation_ui_host_bootstrap_config_idx = body.index(
+        "WdCalculatorPostMutationUiHostBootstrap.configure({"
+    )
+
+    assert "WdCalculatorResetInputFormKeepCustomer.configure({" not in body
+    assert "WdCalculatorLoadEstimateToInputForm.configure({" not in body
+    assert "WdCalculatorLoadSavedEstimateToForm.configure({" not in body
+    assert "WdCalculatorAddEstimate.configure({" not in body
+    assert "WdCalculatorEstimateListEvents.configure({" not in body
+    assert "WdCalculatorSaveEstimate.configure({" not in body
+    assert "initAddEstimateButton();" not in body
+    assert "initEstimateListEvents();" not in body
+    assert "initSaveEstimateButton();" not in body
+    assert (
+        "WdCalculatorEstimateMutationBridge.configure({\n        resetFormModule: WdCalculatorResetInputFormKeepCustomer,\n        loadInputModule: WdCalculatorLoadEstimateToInputForm,\n        loadSavedModule: WdCalculatorLoadSavedEstimateToForm,\n        addEstimateModule: WdCalculatorAddEstimate,\n        listEventsModule: WdCalculatorEstimateListEvents,\n        saveEstimateModule: WdCalculatorSaveEstimate,"
+        in body
+    )
+    assert "setEditingEstimateId,\n        getEstimatesLength," in body
+    assert "setLoadingState,\n        getEditingEstimateId," in body
+    assert "setCurrentDatabaseEstimateId,\n        setEstimates," in body
+    assert "collectCurrentEstimate,\n        resetInputFormKeepCustomerName," in body
+    assert "getLoadingState,\n        loadEstimateToInputForm," in body
+    assert "getCurrentDatabaseEstimateId,\n        collectNotes," in body
+    assert (
+        load_initial_products_idx
+        < estimate_mutation_bridge_config_idx
+        < estimate_mutation_bridge_init_idx
+        < post_mutation_ui_host_bootstrap_config_idx
+    )
+
+
+def test_wdcalculator_page_keeps_loading_database_bootstrap_shell_contract(
+    wdcalculator_settings_env, login
+):
+    """Loading/database host shell must preserve state seed ordering while delegating to the seed helper."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    loading_alias_idx = body.index(
+        "const {\n        getLoadingState,\n        setLoadingState,\n    } = WdCalculatorLoadingState;"
+    )
+    current_db_alias_idx = body.index(
+        "const {\n        getCurrentDatabaseEstimateId,\n        setCurrentDatabaseEstimateId,\n    } = WdCalculatorCurrentDatabaseEstimateId;"
+    )
+    loading_database_host_bootstrap_config_idx = body.index(
+        "WdCalculatorLoadingDatabaseHostBootstrap.configure({"
+    )
+    loading_database_host_bootstrap_init_idx = body.index(
+        "WdCalculatorLoadingDatabaseHostBootstrap.initLoadingDatabaseHostBootstrap();"
+    )
+    totals_startup_terminal_host_bootstrap_config_idx = body.index(
+        "WdCalculatorTotalsStartupTerminalHostBootstrap.configure({"
+    )
+
+    assert "WdCalculatorLoadingState.configure({" not in body
+    assert "WdCalculatorCurrentDatabaseEstimateId.configure({" not in body
+    assert "WdCalculatorLoadingDatabaseBootstrap.configure({" not in body
+    assert "WdCalculatorLoadingDatabaseBootstrap.initLoadingDatabaseBootstrap();" not in body
+    assert (
+        "WdCalculatorLoadingDatabaseHostBootstrap.configure({\n        loadingDatabaseBootstrap: WdCalculatorLoadingDatabaseBootstrap,\n        loadingState: WdCalculatorLoadingState,\n        currentDatabaseEstimateIdState: WdCalculatorCurrentDatabaseEstimateId,\n        initialLoadingValue: false,\n        initialCurrentDatabaseEstimateId: null,"
+        in body
+    )
+    assert (
+        loading_alias_idx
+        < current_db_alias_idx
+        < loading_database_host_bootstrap_config_idx
+        < loading_database_host_bootstrap_init_idx
+        < totals_startup_terminal_host_bootstrap_config_idx
+    )
+
+
+def test_wdcalculator_page_keeps_products_editing_host_bootstrap_shell_contract(
+    wdcalculator_settings_env, login
+):
+    """Products/editing host shell must preserve state seed ordering while delegating to the seed helper."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    products_alias_idx = body.index(
+        "const {\n        getProducts,\n        setProducts,\n    } = WdCalculatorProductsState;"
+    )
+    editing_alias_idx = body.index(
+        "const {\n        getEditingEstimateId,\n        setEditingEstimateId,\n    } = WdCalculatorEditingEstimateId;"
+    )
+    products_editing_host_bootstrap_config_idx = body.index(
+        "WdCalculatorProductsEditingHostBootstrap.configure({"
+    )
+    products_editing_host_bootstrap_init_idx = body.index(
+        "WdCalculatorProductsEditingHostBootstrap.initProductsEditingHostBootstrap();"
+    )
+    primary_ui_bootstrap_config_idx = body.index("WdCalculatorPrimaryUiBootstrap.configure({")
+
+    assert "WdCalculatorProductsState.configure({" not in body
+    assert "WdCalculatorEditingEstimateId.configure({" not in body
+    assert "WdCalculatorProductsEditingBootstrap.configure({" not in body
+    assert "WdCalculatorProductsEditingBootstrap.initProductsEditingBootstrap();" not in body
+    assert (
+        "WdCalculatorProductsEditingHostBootstrap.configure({\n        productsEditingBootstrap: WdCalculatorProductsEditingBootstrap,\n        productsState: WdCalculatorProductsState,\n        editingEstimateIdState: WdCalculatorEditingEstimateId,\n        initialProducts: [],\n        initialEditingEstimateId: null,"
+        in body
+    )
+    assert (
+        products_alias_idx
+        < editing_alias_idx
+        < products_editing_host_bootstrap_config_idx
+        < products_editing_host_bootstrap_init_idx
+        < primary_ui_bootstrap_config_idx
+    )
+
+
+def test_wdcalculator_page_keeps_primary_ui_bootstrap_shell_contract(
+    wdcalculator_settings_env, login
+):
+    """Primary UI configure/destructure bridge should stay in the primary-ui bootstrap shell."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    products_editing_host_bootstrap_init_idx = body.index(
+        "WdCalculatorProductsEditingHostBootstrap.initProductsEditingHostBootstrap();"
+    )
+    primary_ui_bootstrap_config_idx = body.index("WdCalculatorPrimaryUiBootstrap.configure({")
+    primary_ui_bootstrap_init_idx = body.index(
+        "WdCalculatorPrimaryUiBootstrap.initPrimaryUiBootstrap();"
+    )
+    current_estimate_config_idx = body.index("WdCalculatorCurrentEstimateOrchestration.configure({")
+
+    assert "WdCalculatorBaseComponentsUI.configure({" not in body
+    assert "WdCalculatorCouponDisplayHelpers.configure({" not in body
+    assert "WdCalculatorAdditionalOptionsUI.configure({" not in body
+    assert (
+        "WdCalculatorPrimaryUiBootstrap.configure({\n        baseComponentsUi: WdCalculatorBaseComponentsUI,\n        couponDisplayHelpers: WdCalculatorCouponDisplayHelpers,\n        additionalOptionsUi: WdCalculatorAdditionalOptionsUI,\n        getProducts,\n        getCalculateEstimate: () => calculateEstimate,\n        defaultCouponValue: DEFAULT_COUPON_VALUE,\n        getCategories: () => wdCalculatorCategories,"
+        in body
+    )
+    assert "readAdditionalOptionRowsFromUI,\n    } = WdCalculatorPrimaryUiBootstrap.initPrimaryUiBootstrap();" in body
+    assert (
+        products_editing_host_bootstrap_init_idx
+        < primary_ui_bootstrap_config_idx
+        < primary_ui_bootstrap_init_idx
+        < current_estimate_config_idx
+    )
+
+
+def test_wdcalculator_page_keeps_catalog_buttons_host_bootstrap_shell_contract(
+    wdcalculator_settings_env, login
+):
+    """Catalog/button host shell should preserve the catalog-buttons bootstrap configure trio."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    current_estimate_config_idx = body.index("WdCalculatorCurrentEstimateOrchestration.configure({")
+    catalog_buttons_host_bootstrap_config_idx = body.index(
+        "WdCalculatorCatalogButtonsHostBootstrap.configure({"
+    )
+    catalog_buttons_host_bootstrap_init_idx = body.index(
+        "WdCalculatorCatalogButtonsHostBootstrap.initCatalogButtonsHostBootstrap();"
+    )
+    coupon_search_render_host_bootstrap_config_idx = body.index(
+        "WdCalculatorCouponSearchRenderHostBootstrap.configure({"
+    )
+
+    assert "WdCalculatorAddOptionButton.configure({" not in body
+    assert "WdCalculatorCalculateButton.configure({" not in body
+    assert "WdCalculatorProductCatalogUI.configure({" not in body
+    assert "WdCalculatorCatalogButtonsBootstrap.configure({" not in body
+    assert "WdCalculatorCatalogButtonsBootstrap.initCatalogButtonsBootstrap();" not in body
+    assert (
+        "WdCalculatorCatalogButtonsHostBootstrap.configure({\n        catalogButtonsBootstrap: WdCalculatorCatalogButtonsBootstrap,\n        addOptionButton: WdCalculatorAddOptionButton,\n        calculateButton: WdCalculatorCalculateButton,\n        productCatalogUi: WdCalculatorProductCatalogUI,\n        documentRef: document,\n        appendAdditionalOptionRow,\n        calculateEstimate,\n        getProducts,\n        setProducts,\n        getCalculateEstimate: () => calculateEstimate,\n        updateBaseProductSelectOptions,\n        ensureBaseComponentsUI,"
+        in body
+    )
+    assert (
+        current_estimate_config_idx
+        < catalog_buttons_host_bootstrap_config_idx
+        < catalog_buttons_host_bootstrap_init_idx
+        < coupon_search_render_host_bootstrap_config_idx
+    )
+
+
+def test_wdcalculator_page_keeps_coupon_search_render_host_bootstrap_shell_contract(
+    wdcalculator_settings_env, login
+):
+    """Coupon/search/render host wrapper should stay as the single host shell entrypoint."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    catalog_buttons_host_bootstrap_init_idx = body.index(
+        "WdCalculatorCatalogButtonsHostBootstrap.initCatalogButtonsHostBootstrap();"
+    )
+    coupon_search_render_host_bootstrap_config_idx = body.index(
+        "WdCalculatorCouponSearchRenderHostBootstrap.configure({"
+    )
+    coupon_search_render_host_bootstrap_init_idx = body.index(
+        "WdCalculatorCouponSearchRenderHostBootstrap.initCouponSearchRenderHostBootstrap();"
+    )
+    totals_startup_terminal_host_bootstrap_config_idx = body.index(
+        "WdCalculatorTotalsStartupTerminalHostBootstrap.configure({"
+    )
+
+    assert "WdCalculatorCouponShippingWiring.configure({" not in body
+    assert "WdCalculatorSearchResultsLoad.configure({" not in body
+    assert "WdCalculatorRenderEstimatesList.configure({" not in body
+    assert "WdCalculatorCouponSearchRenderBootstrap.configure({" not in body
+    assert "WdCalculatorCouponSearchRenderBootstrap.initCouponSearchRenderBootstrap();" not in body
+    assert (
+        "WdCalculatorCouponSearchRenderHostBootstrap.configure({\n        couponSearchRenderBootstrap: WdCalculatorCouponSearchRenderBootstrap,\n        couponShippingWiring: WdCalculatorCouponShippingWiring,\n        searchResultsLoad: WdCalculatorSearchResultsLoad,\n        renderEstimatesList: WdCalculatorRenderEstimatesList,\n        defaultCouponValue: DEFAULT_COUPON_VALUE,\n        getEstimates,\n        calculateEstimate,\n        calculateTotalEstimates,\n        getCouponValue,\n        formatNumber,\n        loadEstimateToForm: loadSavedEstimateToForm,\n        escapeHtml,\n        formatNotesText: WdCalculatorNotesUI.formatNotesText,\n        onRenderComplete: calculateTotalEstimates,"
+        in body
+    )
+    assert (
+        catalog_buttons_host_bootstrap_init_idx
+        < coupon_search_render_host_bootstrap_config_idx
+        < coupon_search_render_host_bootstrap_init_idx
+        < totals_startup_terminal_host_bootstrap_config_idx
+    )
+
+
+def test_wdcalculator_page_keeps_loading_state_helper_wiring_contract(
+    wdcalculator_settings_env, login
+):
+    """Loading-state helper must replace raw host loading flag storage."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    loading_alias_idx = body.index(
+        "const {\n        getLoadingState,\n        setLoadingState,\n    } = WdCalculatorLoadingState;"
+    )
+    loading_database_host_bootstrap_config_idx = body.index(
+        "WdCalculatorLoadingDatabaseHostBootstrap.configure({"
+    )
+    totals_startup_terminal_host_bootstrap_config_idx = body.index(
+        "WdCalculatorTotalsStartupTerminalHostBootstrap.configure({"
+    )
+
+    assert "let isLoadingEstimate = false;" not in body
+    assert "WdCalculatorLoadingState.configure({" not in body
+    assert (
+        "WdCalculatorLoadingDatabaseHostBootstrap.configure({\n        loadingDatabaseBootstrap: WdCalculatorLoadingDatabaseBootstrap,\n        loadingState: WdCalculatorLoadingState,\n        currentDatabaseEstimateIdState: WdCalculatorCurrentDatabaseEstimateId,\n        initialLoadingValue: false,\n        initialCurrentDatabaseEstimateId: null,"
+        in body
+    )
+    assert "setLoadingState,\n        getEditingEstimateId" in body
+    assert "getLoadingState,\n        loadEstimateToInputForm" in body
+    assert (
+        loading_alias_idx
+        < loading_database_host_bootstrap_config_idx
+        < totals_startup_terminal_host_bootstrap_config_idx
+    )
+
+
+def test_wdcalculator_page_keeps_current_database_estimate_id_helper_wiring_contract(
+    wdcalculator_settings_env, login
+):
+    """Current DB estimate id helper must replace raw host scalar storage."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    current_db_alias_idx = body.index(
+        "const {\n        getCurrentDatabaseEstimateId,\n        setCurrentDatabaseEstimateId,\n    } = WdCalculatorCurrentDatabaseEstimateId;"
+    )
+    loading_database_host_bootstrap_config_idx = body.index(
+        "WdCalculatorLoadingDatabaseHostBootstrap.configure({"
+    )
+    totals_startup_terminal_host_bootstrap_config_idx = body.index(
+        "WdCalculatorTotalsStartupTerminalHostBootstrap.configure({"
+    )
+
+    assert "let currentDatabaseEstimateId = null;" not in body
+    assert "WdCalculatorCurrentDatabaseEstimateId.configure({" not in body
+    assert (
+        "WdCalculatorLoadingDatabaseHostBootstrap.configure({\n        loadingDatabaseBootstrap: WdCalculatorLoadingDatabaseBootstrap,\n        loadingState: WdCalculatorLoadingState,\n        currentDatabaseEstimateIdState: WdCalculatorCurrentDatabaseEstimateId,\n        initialLoadingValue: false,\n        initialCurrentDatabaseEstimateId: null,"
+        in body
+    )
+    assert "setCurrentDatabaseEstimateId,\n        setEstimates" in body
+    assert "getCurrentDatabaseEstimateId,\n        collectNotes,\n        getCouponValue," in body
+    assert (
+        current_db_alias_idx
+        < loading_database_host_bootstrap_config_idx
+        < totals_startup_terminal_host_bootstrap_config_idx
+    )
+
+
+def test_wdcalculator_page_keeps_products_state_helper_wiring_contract(
+    wdcalculator_settings_env, login
+):
+    """Products-state helper must replace raw host products storage."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    products_alias_idx = body.index(
+        "const {\n        getProducts,\n        setProducts,\n    } = WdCalculatorProductsState;"
+    )
+    products_host_bootstrap_config_idx = body.index(
+        "WdCalculatorProductsEditingHostBootstrap.configure({"
+    )
+    primary_ui_bootstrap_config_idx = body.index("WdCalculatorPrimaryUiBootstrap.configure({")
+    current_estimate_config_idx = body.index("WdCalculatorCurrentEstimateOrchestration.configure({")
+    catalog_buttons_host_bootstrap_config_idx = body.index(
+        "WdCalculatorCatalogButtonsHostBootstrap.configure({"
+    )
+    post_mutation_ui_host_bootstrap_config_idx = body.index(
+        "WdCalculatorPostMutationUiHostBootstrap.configure({"
+    )
+
+    assert "let products = [];" not in body
+    assert "WdCalculatorProductsState.configure({" not in body
+    assert "WdCalculatorProductsEditingBootstrap.configure({" not in body
+    assert (
+        "WdCalculatorProductsEditingHostBootstrap.configure({\n        productsEditingBootstrap: WdCalculatorProductsEditingBootstrap,\n        productsState: WdCalculatorProductsState,\n        editingEstimateIdState: WdCalculatorEditingEstimateId,\n        initialProducts: [],\n        initialEditingEstimateId: null,"
+        in body
+    )
+    assert (
+        "WdCalculatorPrimaryUiBootstrap.configure({\n        baseComponentsUi: WdCalculatorBaseComponentsUI,\n        couponDisplayHelpers: WdCalculatorCouponDisplayHelpers,\n        additionalOptionsUi: WdCalculatorAdditionalOptionsUI,\n        getProducts,"
+        in body
+    )
+    assert "WdCalculatorCurrentEstimateOrchestration.configure({\n        getProducts," in body
+    assert (
+        "WdCalculatorCatalogButtonsHostBootstrap.configure({\n        catalogButtonsBootstrap: WdCalculatorCatalogButtonsBootstrap,\n        addOptionButton: WdCalculatorAddOptionButton,\n        calculateButton: WdCalculatorCalculateButton,\n        productCatalogUi: WdCalculatorProductCatalogUI,\n        documentRef: document,\n        appendAdditionalOptionRow,\n        calculateEstimate,\n        getProducts,\n        setProducts,"
+        in body
+    )
+    assert "renderEstimatesList,\n        getProducts," in body
+    assert (
+        products_alias_idx
+        < products_host_bootstrap_config_idx
+        < primary_ui_bootstrap_config_idx
+        < current_estimate_config_idx
+        < catalog_buttons_host_bootstrap_config_idx
+        < post_mutation_ui_host_bootstrap_config_idx
+    )
+
+
+def test_wdcalculator_page_keeps_editing_estimate_id_helper_wiring_contract(
+    wdcalculator_settings_env, login
+):
+    """Editing estimate id helper must replace raw host scalar storage."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    editing_alias_idx = body.index(
+        "const {\n        getEditingEstimateId,\n        setEditingEstimateId,\n    } = WdCalculatorEditingEstimateId;"
+    )
+    products_editing_host_bootstrap_config_idx = body.index(
+        "WdCalculatorProductsEditingHostBootstrap.configure({"
+    )
+    current_estimate_config_idx = body.index("WdCalculatorCurrentEstimateOrchestration.configure({")
+    totals_startup_terminal_host_bootstrap_config_idx = body.index(
+        "WdCalculatorTotalsStartupTerminalHostBootstrap.configure({"
+    )
+    estimate_mutation_bridge_config_idx = body.index("WdCalculatorEstimateMutationBridge.configure({")
+
+    assert "let editingEstimateId = null;" not in body
+    assert "WdCalculatorEditingEstimateId.configure({" not in body
+    assert "WdCalculatorProductsEditingBootstrap.configure({" not in body
+    assert (
+        "WdCalculatorProductsEditingHostBootstrap.configure({\n        productsEditingBootstrap: WdCalculatorProductsEditingBootstrap,\n        productsState: WdCalculatorProductsState,\n        editingEstimateIdState: WdCalculatorEditingEstimateId,\n        initialProducts: [],\n        initialEditingEstimateId: null,"
+        in body
+    )
+    assert "WdCalculatorCurrentEstimateOrchestration.configure({\n        getProducts,\n        getEditingEstimateId," in body
+    assert (
+        "WdCalculatorEstimateMutationBridge.configure({\n        resetFormModule: WdCalculatorResetInputFormKeepCustomer,"
+        in body
+    )
+    assert (
+        "WdCalculatorTotalsStartupTerminalHostBootstrap.configure({\n        totalsStartupTerminalBootstrap: WdCalculatorTotalsStartupTerminalBootstrap,\n        totalEstimatesDisplay: WdCalculatorTotalEstimatesDisplay,\n        startupInit: WdCalculatorStartupInit,\n        terminalInit: WdCalculatorTerminalInit,\n        getEstimates,\n        getEditingEstimateId,"
+        in body
+    )
+    assert "setEditingEstimateId,\n        getEstimatesLength," in body
+    assert "setLoadingState,\n        getEditingEstimateId," in body
+    assert "getEditingEstimateId,\n        getEstimates,\n        normalizeId," in body
+    assert "collectCurrentEstimate,\n        resetInputFormKeepCustomerName," in body
+    assert (
+        editing_alias_idx
+        < products_editing_host_bootstrap_config_idx
+        < current_estimate_config_idx
+        < totals_startup_terminal_host_bootstrap_config_idx
+        < estimate_mutation_bridge_config_idx
+    )
+
+
+def test_wdcalculator_page_keeps_estimates_state_helper_wiring_contract(
+    wdcalculator_settings_env, login
+):
+    """Estimates-state helper must replace raw host estimates storage."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    estimates_alias_idx = body.index(
+        "const {\n        getEstimates,\n        getEstimatesLength,\n        setEstimates,\n    } = WdCalculatorEstimatesState;"
+    )
+    estimates_early_host_bootstrap_config_idx = body.index(
+        "WdCalculatorEstimatesEarlyHostBootstrap.configure({"
+    )
+    current_estimate_config_idx = body.index("WdCalculatorCurrentEstimateOrchestration.configure({")
+    coupon_search_render_host_bootstrap_config_idx = body.index(
+        "WdCalculatorCouponSearchRenderHostBootstrap.configure({"
+    )
+    totals_startup_terminal_host_bootstrap_config_idx = body.index(
+        "WdCalculatorTotalsStartupTerminalHostBootstrap.configure({"
+    )
+    estimate_mutation_bridge_config_idx = body.index("WdCalculatorEstimateMutationBridge.configure({")
+    post_mutation_ui_host_bootstrap_config_idx = body.index(
+        "WdCalculatorPostMutationUiHostBootstrap.configure({"
+    )
+
+    assert "let estimates = [];" not in body
+    assert "WdCalculatorEstimatesState.configure({" not in body
+    assert "WdCalculatorEarlyBootstrap.configure({" not in body
+    assert "WdCalculatorEstimatesEarlyBootstrap.configure({" not in body
+    assert (
+        "WdCalculatorEstimatesEarlyHostBootstrap.configure({\n        estimatesEarlyBootstrap: WdCalculatorEstimatesEarlyBootstrap,\n        estimatesState: WdCalculatorEstimatesState,\n        earlyBootstrap: WdCalculatorEarlyBootstrap,\n        unsavedExitGuard: WdCalculatorUnsavedExitGuard,\n        layoutSyncWiring: WdCalculatorLayoutSyncWiring,\n        initialEstimates: [],\n        getEstimates,"
+        in body
+    )
+    assert (
+        "WdCalculatorCurrentEstimateOrchestration.configure({\n        getProducts,\n        getEditingEstimateId,\n        getEstimates,"
+        in body
+    )
+    assert (
+        "WdCalculatorCouponSearchRenderHostBootstrap.configure({\n        couponSearchRenderBootstrap: WdCalculatorCouponSearchRenderBootstrap,\n        couponShippingWiring: WdCalculatorCouponShippingWiring,\n        searchResultsLoad: WdCalculatorSearchResultsLoad,\n        renderEstimatesList: WdCalculatorRenderEstimatesList,\n        defaultCouponValue: DEFAULT_COUPON_VALUE,\n        getEstimates,"
+        in body
+    )
+    assert (
+        "WdCalculatorTotalsStartupTerminalHostBootstrap.configure({\n        totalsStartupTerminalBootstrap: WdCalculatorTotalsStartupTerminalBootstrap,\n        totalEstimatesDisplay: WdCalculatorTotalEstimatesDisplay,\n        startupInit: WdCalculatorStartupInit,\n        terminalInit: WdCalculatorTerminalInit,\n        getEstimates,"
+        in body
+    )
+    assert (
+        "WdCalculatorEstimateMutationBridge.configure({\n        resetFormModule: WdCalculatorResetInputFormKeepCustomer,"
+        in body
+    )
+    assert "setEditingEstimateId,\n        getEstimatesLength," in body
+    assert "setLoadingState,\n        getEditingEstimateId,\n        getEstimates," in body
+    assert "setCurrentDatabaseEstimateId,\n        setEstimates," in body
+    assert "getEditingEstimateId,\n        getEstimates,\n        normalizeId," in body
+    assert "getLoadingState,\n        loadEstimateToInputForm," in body
+    assert "getCurrentDatabaseEstimateId,\n        collectNotes," in body
+    assert "formatNumber,\n        setEstimates," in body
+    assert (
+        estimates_alias_idx
+        < estimates_early_host_bootstrap_config_idx
+        < current_estimate_config_idx
+        < coupon_search_render_host_bootstrap_config_idx
+        < totals_startup_terminal_host_bootstrap_config_idx
+        < estimate_mutation_bridge_config_idx
+        < post_mutation_ui_host_bootstrap_config_idx
+    )
 
 
 def test_wdcalculator_products_api_keeps_legacy_success_shape(

@@ -47,6 +47,38 @@
 | 파일 | 키워드 | 요약 |
 |------|--------|------|
 | 2026-04-12-wdcalculator-scripts-decomposition-plan.md | wdcalculator, scripts, inline-js, static-js, contract-freeze, plan | `wdcalculator_scripts.html` giant inline JS의 runtime contract, first safe batch(config/app split), future static JS target을 정의한 실행 계획 문서 |
+| 2026-04-13-wave1-root-folder-hygiene-execution-plan.md | wave1, root-hygiene, folder-taxonomy, allowlist, quarantine, scripts, llm-executable, plan | final-form modular monolith spec를 기준으로 root/folder hygiene를 바로 집행할 수 있도록 batch order, freeze list, run record contract, verification gate, first-turn prompt를 고정한 Wave 1 실행 계획 문서 |
+| 2026-04-13-wave2-bounded-context-map-blueprint-clarity-execution-plan.md | wave2, blueprint, bounded-context, apps-thin-adapter, readme-anchor, llm-executable, plan | live `foms/platform/blueprints.py` truth를 bounded context map과 adapter contract로 고정하고, spec reconcile/registry clarity/FR20 README/Wave 3 handoff까지 batch-ready runbook으로 정리한 Wave 2 실행 계획 문서 |
+| 2026-04-13-wave3-api-canonicalization-execution-plan.md | wave3, api, canonicalization, apps-api, thin-wrapper, risk-tier, llm-executable, plan | Wave 2 truth와 Orders precedent를 기준으로 API surface를 risk-tier queue로 잠그고, `files`/`address` 저위험 파일럿부터 aggregate-read 후보와 high-risk defer register까지 batch-ready runbook으로 정리한 Wave 3 실행 계획 문서 |
+| 2026-04-13-wave4-web-page-slice-migration-execution-plan.md | wave4, web, page-slice, templates, partials, wrappers, defer-register, llm-executable, plan | Wave 3 closeout과 Measurement precedent를 기준으로 HTML/page owner queue를 잠그고 `foms/web/<context>` canonical owner, template namespace stabilization, shipment dual-lane defer, early-stop closeout까지 batch-ready runbook으로 정리한 Wave 4 실행 계획 문서 |
+| 2026-04-14-wave5-large-front-end-island-rebaseline-execution-plan.md | wave5, front-end-island, wdcalculator, erp-beta, shell-css-defer, llm-executable, plan | Wave 4 closeout과 large-file governance를 기준으로 front-end large island queue를 잠그고, WDCalculator four-chunk canonicalization, `erp_beta_js.html` shared-form pilot, shell/CSS defer register까지 batch-ready runbook으로 정리한 Wave 5 실행 계획 문서 |
+| 2026-04-13-wave2-batch1-blueprint-truth-map-run-record.md | wave2, batch1, blueprint, bounded-context, truth-map, run-record | W2-B1: `blueprints.py` line-by-line registry·binding 추출, owner 4분류, §2.3 스냅샷 대비 delta |
+| 2026-04-13-wave2-batch2-spec-live-reconcile-run-record.md | wave2, batch2, spec, bridge-debt, reconcile, run-record | W2-B2: controlling spec §2.3 보정·§2.3.2 추가, bridge debt register (BD id) |
+| 2026-04-13-wave2-batch3-blueprint-registry-clarity-run-record.md | wave2, batch3, blueprints, platform, comments-only, run-record | W2-B3: `foms/platform/blueprints.py` 주석 가독성만, 검증 APP_OK/BLUEPRINTS_OK |
+| 2026-04-13-wave2-batch4-apps-thin-adapter-contract-run-record.md | wave2, batch4, apps, adapter-matrix, docstring, run-record | W2-B4: adapter matrix (AM id ↔ BD id), 선례 모듈 docstring 정규화 |
+| 2026-04-13-wave2-batch5-readme-coverage-run-record.md | wave2, batch5, FR20, readme, foms, run-record | W2-B5: FR20 gate/ladder, `foms/README.md` 및 Measurement/Orders 앵커 README |
+| 2026-04-13-wave2-batch6-closeout-run-record.md | wave2, batch6, closeout, wave3, handoff, run-record | W2-B6: Wave 2 종료, Wave 3 API shortlist, 문서 상호참조 |
+| 2026-04-13-wave3-batch0-readiness-gate-run-record.md | wave3, batch0, readiness, queue, pilot-files, run-record | W3-B0: Wave 2 증거 소비, `blueprints.py` 기준 queue·pilot lock |
+| 2026-04-13-wave3-batch1-files-contract-freeze-run-record.md | wave3, batch1, files, contract-freeze, run-record | W3-B1: `apps.api.files` 공개 계약·부작용 인벤토리 고정 |
+| 2026-04-13-wave3-batch2-files-canonicalization-run-record.md | wave3, batch2, files, foms-api, thin-wrapper, run-record | W3-B2: `foms/api/files` canonical + `apps/api/files` thin |
+| 2026-04-13-wave3-batch3-address-canonicalization-run-record.md | wave3, batch3, address, kakao, foms-api, run-record | W3-B3: `foms/api/address` canonical + `apps/api/address` thin |
+| 2026-04-13-wave3-batch4-aggregate-read-lock-run-record.md | wave3, batch4, personal_board, events, aggregate-read, run-record | W3-B4: aggregate-read 후보 비교·winner `personal_board` 잠금 |
+| 2026-04-13-wave3-batch5-aggregate-read-canonicalization-run-record.md | wave3, batch5, personal_board, foms-api, run-record | W3-B5: `foms/api/personal_board` + thin adapter |
+| 2026-04-13-wave3-batch6-closeout-run-record.md | wave3, batch6, closeout, defer-register, wave4-6-8, run-record | W3-B6: high-risk backlog·경계 정리, Wave 3 종료 |
+| 2026-04-13-wave4-batch0-readiness-gate-run-record.md | wave4, batch0, readiness, blueprints-queue, pilot-cs, run-record | W4-B0: Wave3·Measurement·Wave2 증거 소비, authoritative HTML queue, pilot `cs` 잠금 |
+| 2026-04-13-wave4-batch1-pilot-contract-freeze-run-record.md | wave4, batch1, pilot, cs, contract-freeze, run-record | W4-B1: completion 라우트·템플릿 공개 계약 고정 |
+| 2026-04-13-wave4-batch2-pilot-page-owner-run-record.md | wave4, batch2, cs, foms-web, thin-shim, run-record | W4-B2: `foms/web/cs/completion_dashboard` canonical + `apps/erp_completion_page` alias |
+| 2026-04-13-wave4-batch3-pilot-template-namespace-run-record.md | wave4, batch3, cs, templates, namespace, run-record | W4-B3: `templates/cs/completion_dashboard.html` + legacy extends-only |
+| 2026-04-13-wave4-batch4-dashboard-family-lock-run-record.md | wave4, batch4, production, construction, dashboard-family, run-record | W4-B4: winner `production`, `construction` defer, `drawing` 비승격 근거 |
+| 2026-04-13-wave4-batch5-dashboard-page-owner-run-record.md | wave4, batch5, production, foms-web, thin-shim, run-record | W4-B5: `foms/web/production/dashboard` + `apps/erp_production_page` alias |
+| 2026-04-13-wave4-batch6-dashboard-template-namespace-run-record.md | wave4, batch6, production, templates, namespace, run-record | W4-B6: `templates/production/*` + legacy `erp_production_*` thin wrappers |
+| 2026-04-13-wave4-batch7-closeout-run-record.md | wave4, batch7, closeout, defer-register, wave5-handoff, run-record | W4-B7: full closeout, continuation shortlist, Wave5 shell boundary |
+| 2026-04-13-wave1-batch1-root-allowlist-run-record.md | wave1, batch1, root-allowlist, taxonomy, quarantine, delta-inventory, run-record | W1-B1에서 §2.6과 Wave 1 allowlist 정합, Step 2 대비 루트 델타, quarantine·§2.3 게이트, 후속 배치 후보를 고정한 실행 기록 |
+| 2026-04-13-wave1-batch2-src-classification-run-record.md | wave1, batch2, src, runtime.txt, classification, non-product-track | W1-B2에서 루트 `src/`·`runtime.txt` 역할 고정 및 `src/README.md` 추가 |
+| 2026-04-13-wave1-batch3a-root-migration-helpers-run-record.md | wave1, batch3a, migrations, scripts/migrations, shim, importlib | 마이그레이션 헬퍼를 `scripts/migrations/`로 이전하고 루트 `safe_schema_migration`/`web_migration` shim으로 `run.py`·`apps/` 비수정 계약 유지 |
+| 2026-04-13-wave1-batch3b-root-ops-utilities-run-record.md | wave1, batch3b, ops, scripts/ops, shim, runpy | 루트 운영·유틸 Python을 `scripts/ops/`로 수렴하고 importlib/runpy 기반 루트 shim으로 계약 유지 |
+| 2026-04-13-wave1-batch4-root-manual-artifacts-run-record.md | wave1, batch4, docs, manual-artifacts, maintenance, bat | 루트 업무·참고 문서를 `docs/`·`docs/manual-artifacts/`로, 백업 배치를 `scripts/maintenance/`로 이동 |
+| 2026-04-13-wave1-batch5-closeout-run-record.md | wave1, batch5, closeout, verify, pytest, DoD | Wave 1 종료 검증(APP_OK, verify_result, pytest 545), run record §7.1 정합, 잔여 debt·Wave 2 handoff |
 | 2026-04-11-orders-boundary-decomposition-plan.md | orders, decomposition, contract-freeze, live-boundary, mutations, api, plan | Step 6 inventory의 legacy `apps/api/orders.py` 표기를 실제 live boundary(`apps/api/orders/__init__.py` + `foms/api/orders/*`)로 보정하고 첫 구조-only batch scope를 regional mutation slice로 고정한 실행 계획 문서 |
 | 2026-04-11-step8-batch80-closeout-run-record.md | step8, batch80, closeout, packaging, src-layout, defer, run-record | Step 8 optional packaging 재평가의 최종 verdict, defer rationale, verification 결과와 future reopen 조건을 기록한 closeout 문서 |
 | 2026-04-11-step8-batch79-packaging-decision-run-record.md | step8, batch79, decision, packaging, defer, pyproject, src-layout, run-record | Step 8에서 repo-root `foms/` 유지와 full `src/foms` / packaging-only hardening defer 결정을 고정한 실행 문서 |
@@ -145,6 +177,7 @@
 ## 구현 스펙 (docs/specs/)
 | 파일 | 키워드 | 요약 |
 |------|--------|------|
+| 2026-04-13-foms-modular-monolith-rebaseline_SPEC.md | foms, modular-monolith, rebaseline, structure, chunk, folder-taxonomy, wdcalculator | FOMS 전체를 단일 modular monolith로 더 선명하게 정리하기 위한 상위 구조 기준선으로, 폴더 체계, canonical 경계, chunk-first 분해 규칙, quarantine 정책, migration wave를 정의하는 전사 구조 재기준선 스펙 |
 | 2026-04-11-measurement-legacy-loader-hardening_SPEC.md | measurement, legacy-shim, loader, csp, document-write, compat-mirror | measurement legacy shim 경로의 `document.write` loader를 제거하고 canonical JS mirror + sync regression test로 호환성을 유지하는 품질 배치 스펙 |
 | 2026-04-11-erp-orders-structured-ordering-hardening_SPEC.md | erp-orders-structured, channel, geocode, ordering, structured-data, regression | structured PUT 저장 경계와 channel/geocode side effect 순서를 일치시키고 빈 주소 reset 누락을 막는 품질 배치 스펙 |
 | 2026-04-11-app-init-bootstrap-hardening_SPEC.md | app-init, bootstrap, admin, security, env, auto-init | WSGI startup admin bootstrap에서 하드코딩 기본 비밀번호와 credential 로그 노출을 제거하고 env-gated 안전 경로로 정리하는 품질 배치 스펙 |
