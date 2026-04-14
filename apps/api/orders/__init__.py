@@ -1,4 +1,4 @@
-"""Legacy orders blueprint wrappers around canonical order modules."""
+"""Orders API: Flask blueprint shell in `apps`; responses delegate to `foms.api.orders` (Wave 2 thin-adapter contract)."""
 
 from flask import Blueprint
 

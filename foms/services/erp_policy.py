@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from foms.services.erp_policy_internal.constants import (
     DEFAULT_OWNER_TEAM_BY_STAGE,
+    ORDER_SETTLEMENT_ALERT_TARGET_STATUSES,
     STAGE_LABELS,
     STAGE_NAME_TO_CODE,
     STAGE_SQL_FILTER_MAP,
@@ -50,6 +51,7 @@ from foms.services.erp_policy_internal.tasks import (
 )
 
 __all__ = [
+    "ORDER_SETTLEMENT_ALERT_TARGET_STATUSES",
     "STAGE_LABELS",
     "DEFAULT_OWNER_TEAM_BY_STAGE",
     "STAGE_NAME_TO_CODE",

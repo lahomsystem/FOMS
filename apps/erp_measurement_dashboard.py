@@ -1,4 +1,4 @@
-"""Legacy import path; canonical implementation: foms.web.measurement.dashboard."""
+"""Legacy import path; canonical implementation: foms.web.measurement.dashboard (Wave 2 canonical alias shim)."""
 import importlib
 import sys
 

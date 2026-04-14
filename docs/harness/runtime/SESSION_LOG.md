@@ -4,13 +4,19 @@
 
 ## 최근 세션
 
-### Session: 688c6a5a
-- **시작**: 2026-04-12 15:45:54
+### Session: cddf2371
+- **시작**: 2026-04-14 09:27:09
 - **상태**: completed
-- **편집 파일**: `docs/plans/2026-04-12-wdcalculator-scripts-decomposition-plan.md`, `docs/AI_STATUS.md`, `tests/support/wdcalculator_product_catalog_contract_node_checks.js`, `static/js/wdcalculator/product-catalog-ui.js`, `tests/test_wdcalculator_product_settings.py`, `templates/wdcalculator/partials/wdcalculator_scripts.html`, `templates/wdcalculator/partials/wdcalculator_scripts_config.html`, `tests/test_wdcalculator_product_catalog_contract_node.py`, `tests/support/wdcalculator_additional_options_contract_node_checks.js`, `tests/support/wdcalculator_current_estimate_contract_node_checks.js`
-- **종료**: 2026-04-12 16:59:04
+- **편집 파일**: `templates/wdcalculator/partials/wdcalculator_scripts.html`, `docs/plans/2026-04-14-wave5-batch3-wdcalculator-primary-form-run-record.md`, `docs/AI_STATUS.md`, `docs/plans/2026-04-14-wave6-service-namespace-rationalization-execution-plan.md`, `static/js/wdcalculator/README.md`, `tests/support/wdcalculator_base_live_events_contract_node_checks.js`, `tests/support/wdcalculator_current_estimate_contract_node_checks.js`, `tests/support/wdcalculator_additional_options_contract_node_checks.js`, `tests/support/wdcalculator_base_components_contract_node_checks.js`, `tests/support/wdcalculator_product_catalog_contract_node_checks.js`
+- **종료**: 2026-04-14 10:23:53
 
-### Session: a5ee288f
+ a687153a
+- **시작**: 2026-04-13 19:30:02
+- **상태**: completed
+- **편집 파일**: `docs/ARCHIVE_INDEX.md`, `docs/specs/2026-04-13-foms-modular-monolith-rebaseline_SPEC.md`, `docs/plans/2026-04-13-wave4-web-page-slice-migration-execution-plan.md`, `docs/AI_STATUS.md`, `docs/plans/2026-04-13-wave3-batch6-closeout-run-record.md`, `foms/api/address.py`
+- **종료**: 2026-04-14 09:01:17
+
+ a5ee288f
 - **시작**: 2026-04-11 07:48:08
 - **상태**: completed
 - **편집 파일**: `tests/test_wdcalculator_product_settings.py`, `templates/wdcalculator/partials/wdcalculator_scripts.html`, `templates/wdcalculator/partials/wdcalculator_scripts_config.html`, `static/js/wdcalculator/sidebar-estimates.js`, `docs/AI_STATUS.md`, `tests/test_orders_boundary_contract.py`, `docs/plans/2026-04-12-wdcalculator-scripts-decomposition-plan.md`, `foms/api/orders/field_update.py`, `templates/wdcalculator/calculator.html`, `docs/ARCHIVE_INDEX.md`
@@ -1466,3 +1472,81 @@
 | 2026-04-12 16:54:48 | END (Claude Code) | 수정: (없음) |
 
 | 2026-04-12 16:59:04 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-12 17:18:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 03:39:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 17:21:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 19:41:38 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 19:57:15 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 20:10:56 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 21:55:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 21:56:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:06:57 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:19:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:20:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:22:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:22:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:24:02 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:27:10 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:28:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:31:25 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:41:11 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:44:01 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:50:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:51:43 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:53:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:57:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 22:59:27 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 23:01:25 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 23:04:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 23:06:38 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 23:07:13 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 23:10:09 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-13 23:25:40 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 08:23:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 08:45:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 09:01:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 09:29:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 09:31:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 09:31:51 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 09:33:51 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 09:36:38 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 10:23:53 | END (Claude Code) | 수정: (없음) |

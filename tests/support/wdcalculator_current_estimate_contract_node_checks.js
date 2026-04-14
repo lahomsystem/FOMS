@@ -1,24 +1,24 @@
 /**
- * Contract freeze: calculateEstimate() vs collectCurrentEstimate() aligned outputs.
- * Extracts function bodies from wdcalculator_scripts.html, readBaseComponentsFromUI from
- * base-components-ui.js, and collectNotes from notes-ui.js,
- * runs in VM with DOM stubs. Invoked by pytest via `node`.
+ * Contract freeze: current-estimate orchestration keeps calculate/render and snapshot
+ * outputs aligned after extraction out of wdcalculator_scripts.html.
+ * Runs current-estimate-orchestration.js in VM with DOM stubs; read helpers are extracted from
+ * static/js/wdcalculator/primary-form.js (W5-B3 merged chunk; replaces separate notes/base/additional/coupon files).
  */
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const templatePath = path.join(
+const orchestrationPath = path.join(
     repoRoot,
-    "templates",
+    "static",
+    "js",
     "wdcalculator",
-    "partials",
-    "wdcalculator_scripts.html"
+    "current-estimate-orchestration.js"
 );
 const sharedPath = path.join(repoRoot, "static", "js", "wdcalculator", "shared.js");
 
-const templateSrc = fs.readFileSync(templatePath, "utf8");
+const orchestrationSrc = fs.readFileSync(orchestrationPath, "utf8");
 const sharedSrc = fs.readFileSync(sharedPath, "utf8");
 const currentEstimateMathPath = path.join(
     repoRoot,
@@ -28,39 +28,23 @@ const currentEstimateMathPath = path.join(
     "current-estimate-math.js"
 );
 const currentEstimateMathSrc = fs.readFileSync(currentEstimateMathPath, "utf8");
-const notesUiPath = path.join(repoRoot, "static", "js", "wdcalculator", "notes-ui.js");
-const notesUiSrc = fs.readFileSync(notesUiPath, "utf8");
-const couponDisplayHelpersPath = path.join(
+const calculationResolversPath = path.join(
     repoRoot,
     "static",
     "js",
     "wdcalculator",
-    "coupon-display-helpers.js"
+    "calculation-resolvers.js"
 );
-const couponDisplayHelpersSrc = fs.readFileSync(couponDisplayHelpersPath, "utf8");
-const baseComponentsUiPath = path.join(
-    repoRoot,
-    "static",
-    "js",
-    "wdcalculator",
-    "base-components-ui.js"
-);
-const baseComponentsUiSrc = fs.readFileSync(baseComponentsUiPath, "utf8");
-const additionalOptionsUiPath = path.join(
-    repoRoot,
-    "static",
-    "js",
-    "wdcalculator",
-    "additional-options-ui.js"
-);
-const additionalOptionsUiSrc = fs.readFileSync(additionalOptionsUiPath, "utf8");
+const calculationResolversSrc = fs.readFileSync(calculationResolversPath, "utf8");
+const primaryFormPath = path.join(repoRoot, "static", "js", "wdcalculator", "primary-form.js");
+const primaryFormSrc = fs.readFileSync(primaryFormPath, "utf8");
 
 /**
  * Extract `function name(...) { ... }` while skipping strings/comments/template literals
  * so braces inside template strings do not break balancing.
  */
 function extractFunctionSource(src, name, pathForError) {
-    const label = pathForError || templatePath;
+    const label = pathForError || orchestrationPath;
     const needle = `function ${name}(`;
     const start = src.indexOf(needle);
     if (start === -1) {
@@ -386,42 +370,63 @@ function runScenario(name, layout, products, editingEstimateId, estimates, expec
     vm.createContext(sandbox);
     vm.runInContext(sharedSrc, sandbox);
     vm.runInContext(currentEstimateMathSrc, sandbox);
-    vm.runInContext(couponDisplayHelpersSrc, sandbox);
+    vm.runInContext(calculationResolversSrc, sandbox);
+    vm.runInContext(primaryFormSrc, sandbox);
     vm.runInContext(
         `
         WdCalculatorCouponDisplayHelpers.configure({ defaultCouponValue: DEFAULT_COUPON_VALUE });
         var getCouponValue = WdCalculatorCouponDisplayHelpers.getCouponValue;
         var applyFinalPriceStyle = WdCalculatorCouponDisplayHelpers.applyFinalPriceStyle;
         var applyCouponDiscountStyle = WdCalculatorCouponDisplayHelpers.applyCouponDiscountStyle;
+        var documentRef = document;
+        var resolveWdcCurrentEstimateMath = window.WdCalculatorCalculationResolvers.resolveCurrentEstimateMath;
         `,
         sandbox
     );
 
     const readBaseComponentsSrc = extractFunctionSource(
-        baseComponentsUiSrc,
+        primaryFormSrc,
         "readBaseComponentsFromUI",
-        baseComponentsUiPath
+        primaryFormPath
     );
     const readAdditionalOptionRowsSrc = extractFunctionSource(
-        additionalOptionsUiSrc,
+        primaryFormSrc,
         "readAdditionalOptionRowsFromUI",
-        additionalOptionsUiPath
+        primaryFormPath
     );
     const extracted = [
         readBaseComponentsSrc,
         readAdditionalOptionRowsSrc,
-        ...[
-            "resolveWdcCurrentEstimateMath",
-            "calculateEstimate",
-            "collectCurrentEstimate",
-        ].map((fn) => extractFunctionSource(templateSrc, fn, templatePath)),
-        extractFunctionSource(notesUiSrc, "collectNotes", notesUiPath),
+        extractFunctionSource(primaryFormSrc, "collectNotes", primaryFormPath),
     ].join("\n");
 
     vm.runInContext(extracted, sandbox);
-
-    vm.runInContext(`this.calculateEstimate = calculateEstimate;`, sandbox);
-    vm.runInContext(`this.collectCurrentEstimate = collectCurrentEstimate;`, sandbox);
+    vm.runInContext(orchestrationSrc, sandbox);
+    vm.runInContext(
+        `
+        WdCalculatorCurrentEstimateOrchestration.configure({
+            getProducts: function () { return products; },
+            getEditingEstimateId: function () { return editingEstimateId; },
+            getEstimates: function () { return estimates; },
+            readBaseComponentsFromUI: readBaseComponentsFromUI,
+            readAdditionalOptionRowsFromUI: readAdditionalOptionRowsFromUI,
+            resolveCurrentEstimateMath: resolveWdcCurrentEstimateMath,
+            getCouponValue: getCouponValue,
+            formatNumber: formatNumber,
+            applyFinalPriceStyle: applyFinalPriceStyle,
+            applyCouponDiscountStyle: applyCouponDiscountStyle,
+            collectNotes: collectNotes,
+            documentRef: document,
+            alertImpl: function (message) {
+                throw new Error("Unexpected alert: " + message);
+            },
+            consoleRef: console,
+        });
+        this.calculateEstimate = WdCalculatorCurrentEstimateOrchestration.calculateEstimate;
+        this.collectCurrentEstimate = WdCalculatorCurrentEstimateOrchestration.collectCurrentEstimate;
+        `,
+        sandbox
+    );
 
     if (Array.isArray(layout.notesListSeed)) {
         sandbox.notesList = layout.notesListSeed;
@@ -431,6 +436,8 @@ function runScenario(name, layout, products, editingEstimateId, estimates, expec
     const domBase = parseWonText(ids.totalBasePrice.textContent);
     const domAdd = parseWonText(ids.totalAdditionalPrice.textContent);
     const domTotal = parseWonText(ids.totalPrice.textContent);
+    const domFinal = parseWonText(ids.finalPrice.textContent);
+    const couponValue = Number(layout.couponValue || 0);
 
     const collected = sandbox.collectCurrentEstimate();
     if (!collected) {
@@ -440,6 +447,20 @@ function runScenario(name, layout, products, editingEstimateId, estimates, expec
     assertClose(collected.basePrice, domBase, `${name} basePrice vs DOM totalBasePrice`);
     assertClose(collected.additionalPrice, domAdd, `${name} additionalPrice vs DOM totalAdditionalPrice`);
     assertClose(collected.totalPrice, domTotal, `${name} totalPrice vs DOM totalPrice`);
+    assertClose(domFinal, Math.max(0, domTotal - couponValue), `${name} finalPrice DOM reflects coupon`);
+    assertEq(
+        ids.couponInfo.textContent,
+        couponValue > 0 ? `${sandbox.formatNumber(couponValue)}원 할인` : "쿠폰가 미적용",
+        `${name} coupon info text`
+    );
+    assertEq(ids.baseEstimateSection.style.display, "block", `${name} baseEstimateSection visible`);
+
+    if (editingEstimateId) {
+        assertEq(ids.addEstimateBtn.style.display, "block", `${name} edit mode keeps add button visible`);
+    } else {
+        assertEq(ids.addEstimateBtn.style.display, "block", `${name} calculate shows add button`);
+        assertEq(ids.saveEstimateBtn.style.display, "block", `${name} calculate shows save button`);
+    }
 
     // Snapshot shape
     assertEq(Array.isArray(collected.baseComponents), true, `${name} baseComponents is array`);
@@ -456,6 +477,81 @@ function runScenario(name, layout, products, editingEstimateId, estimates, expec
     if (expectShape && typeof expectShape.assert === "function") {
         expectShape.assert(collected, name);
     }
+}
+
+function runEmptyBaseResetScenario() {
+    const { document, ids, root, El } = createDocumentMock();
+    wireUi(ids, root, El, {
+        couponValue: 0,
+        baseRows: [],
+        optionItems: [],
+    });
+
+    const sandbox = {
+        console,
+        document,
+        window: null,
+        globalThis: null,
+        products: [],
+        editingEstimateId: null,
+        estimates: [],
+        notesList: [],
+        DEFAULT_COUPON_VALUE: 11000,
+        parseInt,
+        parseFloat,
+        Math,
+        Number,
+        isNaN,
+        Array,
+        Map,
+        String,
+        Object,
+        JSON,
+    };
+    sandbox.window = sandbox;
+    sandbox.globalThis = sandbox;
+
+    vm.createContext(sandbox);
+    vm.runInContext(sharedSrc, sandbox);
+    vm.runInContext(currentEstimateMathSrc, sandbox);
+    vm.runInContext(calculationResolversSrc, sandbox);
+    vm.runInContext(primaryFormSrc, sandbox);
+    vm.runInContext(orchestrationSrc, sandbox);
+    vm.runInContext(
+        `
+        WdCalculatorCouponDisplayHelpers.configure({ defaultCouponValue: DEFAULT_COUPON_VALUE });
+        WdCalculatorCurrentEstimateOrchestration.configure({
+            getProducts: function () { return products; },
+            getEditingEstimateId: function () { return editingEstimateId; },
+            getEstimates: function () { return estimates; },
+            readBaseComponentsFromUI: function () { return []; },
+            readAdditionalOptionRowsFromUI: function () { return []; },
+            resolveCurrentEstimateMath: function () { throw new Error("should not run"); },
+            getCouponValue: WdCalculatorCouponDisplayHelpers.getCouponValue,
+            formatNumber: formatNumber,
+            applyFinalPriceStyle: WdCalculatorCouponDisplayHelpers.applyFinalPriceStyle,
+            applyCouponDiscountStyle: WdCalculatorCouponDisplayHelpers.applyCouponDiscountStyle,
+            collectNotes: function () { return ""; },
+            documentRef: document,
+            alertImpl: function (message) {
+                throw new Error("Unexpected alert: " + message);
+            },
+            consoleRef: console,
+        });
+        this.calculateEstimate = WdCalculatorCurrentEstimateOrchestration.calculateEstimate;
+        `,
+        sandbox
+    );
+
+    sandbox.calculateEstimate();
+
+    assertEq(ids.baseEstimateSection.style.display, "none", "empty_base hides baseEstimateSection");
+    assertEq(ids.totalBasePrice.textContent, "0원", "empty_base resets totalBasePrice");
+    assertEq(ids.totalAdditionalPrice.textContent, "0원", "empty_base resets totalAdditionalPrice");
+    assertEq(ids.totalPrice.textContent, "0원", "empty_base resets totalPrice");
+    assertEq(ids.finalPrice.textContent, "0원", "empty_base resets finalPrice");
+    assertEq(ids.baseEstimateDetail.textContent, "", "empty_base clears baseEstimateDetail");
+    assertEq(ids.additionalOptionsDetail.textContent, "", "empty_base clears option detail");
 }
 
 // --- Scenarios ---
@@ -670,5 +766,31 @@ runScenario(
         },
     }
 );
+
+runScenario(
+    "editing_mode_coupon_render",
+    {
+        couponValue: 11000,
+        baseRows: [
+            {
+                mode: "select",
+                widthMm: 3000,
+                productId: 1,
+                additionalFees: [],
+            },
+        ],
+        optionItems: [],
+    },
+    products30,
+    "edit-1",
+    [],
+    {
+        assert(collected, scenarioName) {
+            assertEq(collected.baseComponents.length, 1, `${scenarioName} one base component`);
+        },
+    }
+);
+
+runEmptyBaseResetScenario();
 
 process.exit(0);

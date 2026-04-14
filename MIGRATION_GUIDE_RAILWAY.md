@@ -21,7 +21,7 @@ railway run python check_db_connection.py
 
 ```bash
 # 마이그레이션/부트스트랩 스크립트 실행
-railway run python safe_schema_migration.py
+railway run python scripts/migrations/safe_schema_migration.py
 # 또는
 railway run python railway_bootstrap.py
 ```

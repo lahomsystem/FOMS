@@ -1,6 +1,6 @@
 /**
- * Contract freeze: product catalog legacy UI cluster in static/js/wdcalculator/product-catalog-ui.js
- * (loadProducts, updateProductSelect, showProductInfo, productSelect change handler).
+ * Contract freeze: product catalog legacy UI cluster in static/js/wdcalculator/primary-form.js
+ * (product-catalog-ui band: loadProducts, updateProductSelect, showProductInfo, productSelect change handler).
  *
  * Runs the extracted helper in a Node vm with DOM stubs so the host-script extraction preserves:
  * - GET /api/wdcalculator/products payload shape assumptions
@@ -12,13 +12,7 @@ const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const helperPath = path.join(
-    repoRoot,
-    "static",
-    "js",
-    "wdcalculator",
-    "product-catalog-ui.js"
-);
+const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "primary-form.js");
 const sharedPath = path.join(repoRoot, "static", "js", "wdcalculator", "shared.js");
 
 const helperSrc = fs.readFileSync(helperPath, "utf8");
