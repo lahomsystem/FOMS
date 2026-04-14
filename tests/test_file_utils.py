@@ -1,4 +1,4 @@
-from foms.services.file_utils import allowed_erp_media_file, allowed_file
+from foms.services.files.file_utils import allowed_erp_media_file, allowed_file
 
 
 def test_allowed_file_accepts_excel_extensions_case_insensitively() -> None:

@@ -76,3 +76,34 @@
 | 2026-04-14 10:36:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git branch -a` |
 | 2026-04-14 10:37:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -File -Name | Where-Object { $_ -match '^(erp_|foms_|init_wdcalculator|safe_sche` |
 | 2026-04-14 10:37:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status --short | Measure-Object -Line` |
+| 2026-04-14 10:37:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F .git_commit_msg.txt` |
+| 2026-04-14 10:38:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git reset --soft HEAD~1; if (Test-Path .git_commit_msg.txt) { Remove-Item .git_commit_msg.txt ` |
+| 2026-04-14 10:38:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short .git_commit_msg.txt; git commit --trailer "Made-with: Cursor" -F .git_commi` |
+| 2026-04-14 10:38:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -1 --format=%B` |
+| 2026-04-14 10:38:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if (Test-Path .git_commit_msg.txt) { Get-Content .git_commit_msg.txt } else { "file missing" }` |
+| 2026-04-14 10:39:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rm --cached .git_commit_msg.txt 2>$null; git rm -f .git_commit_msg.txt 2>$null; git status` |
+| 2026-04-14 10:39:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $p = Join-Path $env:TEMP "foms_amend_msg.txt"; [System.IO.File]::WriteAllText($p, @" feat: 모듈러` |
+| 2026-04-14 10:39:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; git status -sb; git push origin feature/modular-monol` |
+| 2026-04-14 10:41:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-04-14 10:42:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-04-14 10:42:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $p = Join-Path $env:TEMP "foms_shim_commit.txt"; [System.IO.File]::WriteAllText($p, @" fix: sc` |
+| 2026-04-14 10:42:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin feature/modular-monolith-wip` |
+| 2026-04-14 11:51:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse HEAD; python -c "import app; print('APP_OK')"; python tools/harness/verify_resul` |
+| 2026-04-14 12:01:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; (Get-ChildItem -Path services -Recurse -Filter *.py).Count; Get-ChildItem -Path services -Recu` |
+| 2026-04-14 12:08:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
+| 2026-04-14 12:08:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import services.realtime_notifications as legacy; import foms.services.realtime_not` |
+| 2026-04-14 12:09:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse HEAD` |
+| 2026-04-14 12:09:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
+| 2026-04-14 12:13:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
+| 2026-04-14 12:14:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import services.file_utils as legacy; import foms.services.file_utils as flat; from` |
+| 2026-04-14 12:17:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json` |
+| 2026-04-14 12:18:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse HEAD` |
+| 2026-04-14 13:29:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short; git diff --name-only HEAD -- "foms/platform/blueprints.py" "app.py" "run.p` |
+| 2026-04-14 13:29:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/test_realtime_notifications.py tests/test_file_utils.py tests/test_foms` |
+| 2026-04-14 13:29:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json 2>&1 | S` |
+| 2026-04-14 13:30:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import services.realtime_notifications as legacy; import foms.services.realtime_not` |
+| 2026-04-14 13:30:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --name-only HEAD -- "foms/platform/blueprints.py" "app.py" "run.py" "start.sh" "Procf` |
+| 2026-04-14 13:33:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git branch -vv` |
+| 2026-04-14 13:33:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat docs/harness/` |
+| 2026-04-14 13:33:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-04-14 13:33:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "open('commit_msg_wave6.txt','w',encoding='utf-8').write('feat: Wave 6 서비스 네임스페이스 정리` |

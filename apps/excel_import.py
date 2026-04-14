@@ -11,7 +11,7 @@ from apps.auth import login_required, role_required, log_access
 from db import get_db
 from models import Order
 from constants import STATUS, UPLOAD_FOLDER
-from foms.services.file_utils import allowed_file
+from foms.services.files.file_utils import allowed_file
 from foms.services.order_display_utils import format_options_for_display
 
 excel_bp = Blueprint('excel', __name__, url_prefix='')

@@ -4,6 +4,8 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-04-14 | 세션 자동 기록 | README.md, test_foms_namespace_imports.py, test_file_utils.py 외 2개 | 24078190 |
+| 2026-04-14 | 세션 자동 기록 | erp_order_text_parser.py, simple_backup_system.py, erp_automation.py 외 2개 | 24078190 |
 | 2026-04-14 | 세션 자동 기록 | wdcalculator_scripts.html, README.md, wdcalculator_base_live_events_contract_node_checks.js 외 2개 | f30c1875 |
 | 2026-04-14 | 세션 자동 기록 | dashboard.py, test_foms_namespace_imports.py, erp_production_page.py 외 2개 | f30c1875 |
 | 2026-04-14 | 세션 자동 기록 | address.py, files.py, files.py 외 2개 | f30c1875 |
@@ -22,5 +24,3 @@
 | 2026-04-12 | 세션 자동 기록 | test_wdcalculator_product_settings.py, wdcalculator_scripts.html, wdcalculator_scripts_config.html 외 2개 | eb01c5d7 |
 | 2026-04-12 | 세션 자동 기록 | test_orders_boundary_contract.py, test_wdcalculator_product_settings.py, field_update.py 외 2개 | eb01c5d7 |
 | 2026-04-12 | 세션 자동 기록 | mutations.py, __init__.py, status.py 외 2개 | eb01c5d7 |
-| 2026-04-11 | 세션 자동 기록 | mutations.py, __init__.py, status.py 외 2개 | eb01c5d7 |
-| 2026-04-11 | 세션 자동 기록 | test_erp_permissions.py, erp_permissions.py, map_snapshot.py 외 2개 | eb01c5d7 |

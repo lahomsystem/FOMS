@@ -1,6 +1,6 @@
-"""Compatibility shim for the canonical `foms.services.file_utils` module."""
+"""Compatibility shim for the canonical files package module."""
 
-from foms.services.file_utils import (
+from foms.services.files.file_utils import (
     allowed_erp_media_file,
     allowed_file,
 )
