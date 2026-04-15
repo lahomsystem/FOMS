@@ -19,7 +19,7 @@ from foms.api.notifications import (
 )
 from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users
 from foms.services.erp_permissions import erp_edit_required
-from foms.web.erp import _ensure_dict, _can_modify_sales_domain
+from foms.services.erp_display import _ensure_dict, _can_modify_sales_domain
 from foms.services.erp_policy import can_modify_domain
 
 logger = logging.getLogger(__name__)

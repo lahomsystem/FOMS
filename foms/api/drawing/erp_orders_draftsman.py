@@ -14,7 +14,7 @@ from models import Order, User, OrderAttachment, OrderEvent, SecurityLog
 from foms.web.auth import login_required, get_user_by_id
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_sync_columns import sync_erp_flat_columns
-from foms.web.erp import _ensure_dict
+from foms.services.erp_display import _ensure_dict
 from foms.services.erp_policy import can_modify_domain, get_assignee_ids
 from foms.services.storage import get_storage
 

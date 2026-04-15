@@ -9,7 +9,7 @@ from flask import Blueprint, jsonify, request, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import get_user_by_id, login_required
-from foms.web.erp import _ensure_dict
+from foms.services.erp_display import _ensure_dict
 from db import get_db
 from foms.services.erp_permissions import erp_edit_required
 from models import Order, SecurityLog

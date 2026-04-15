@@ -1,6 +1,7 @@
 """ERP 대시보드 display 헬퍼: structured_data → Order 표시용 속성·경보."""
 import datetime
 import json
+import unicodedata
 
 import pytz
 
@@ -13,6 +14,7 @@ from foms.services.erp_policy import (
 )
 
 __all__ = [
+    "_normalize_for_search",
     "get_today_kst",
     "self_measurement_four_checks_done",
     "_extract_name_candidate",
@@ -33,6 +35,16 @@ __all__ = [
     "_drawing_next_action_text",
     "apply_erp_display_fields_to_orders",
 ]
+
+
+def _normalize_for_search(s):
+    """검색 매칭용 문자열 정규화 (유니코드 NFC, 공백 정리)."""
+    if s is None:
+        return ""
+    s = str(s).strip()
+    if not s:
+        return ""
+    return unicodedata.normalize("NFC", s)
 
 
 # ERP 대시보드 "오늘" 기준: 서버가 UTC 등이면 자정이 한국 09:00가 되어 날짜가 하루 밀림. KST 기준으로 통일.

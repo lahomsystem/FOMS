@@ -11,6 +11,9 @@ SFC: ``test_sfc_product_tree_no_apps_imports_in_foms_app_run`` locks zero ``apps
 ``test_strict_canonical_apps_overlay_directory_removed_sfc_b11b_closeout`` locks no ``apps/`` on disk;
 ``test_strict_canonical_services_overlay_directory_removed_sfc_b11c_closeout`` locks no ``services/`` on disk;
 ``test_strict_canonical_src_overlay_directory_removed_sfc_b11d_closeout`` locks no ambiguous root ``src/`` on disk.
+SLG-B1+: ``test_slg_literal_gap_*`` — subtree literal closed-set gates per
+``docs/plans/2026-04-15-strict-final-canonical-tree-literal-gap-remediation-plan.md`` §4 (templates/web/api/services),
+template shell fragments, ``render_template("errors/...)`` ban, ``orders/erp_policy_internal`` ban.
 """
 
 import importlib
@@ -386,7 +389,7 @@ def test_namespaced_as_content_safety_shim_preserves_canonical_contract() -> Non
 
 def test_erp_as_page_uses_canonical_as_content_safety_import() -> None:
     """ERP AS page should bind sanitization helper from the canonical namespace."""
-    import foms.web.erp_as_page as erp_as_page
+    import foms.web.cs.as_dashboard as erp_as_page
 
     assert erp_as_page.sanitize_as_content_html is namespaced_as_content_safety.sanitize_as_content_html
 
@@ -690,7 +693,7 @@ def test_wr_h1_blueprint_registry_foms_api_only_b11b() -> None:
 
     assert "from foms.api.notifications import notifications_bp" in bp_text
     assert "from foms.api.attachments import attachments_bp" in bp_text
-    assert "from foms.api.chat import chat_bp" in bp_text
+    assert "from foms.api.channel import" in bp_text and "chat_bp" in bp_text
     assert "from foms.api.channel import" in bp_text
 
     forbidden = (
@@ -711,7 +714,7 @@ def test_b11b_canonical_api_cluster_importable() -> None:
     assert find_spec_or_none("apps.api") is None
 
     from foms.api import notifications, attachments
-    from foms.api.chat import chat_bp, register_chat_socketio_handlers
+    from foms.api.channel import chat_bp, register_chat_socketio_handlers
     from foms.api.channel.channel_integration import channel_integration_bp
     from foms.api.channel.channel_webhooks import channel_webhooks_bp
     from foms.api.channel.channel_functions import channel_functions_bp
@@ -774,12 +777,12 @@ def test_b11b_canonical_erp_orders_lane_importable() -> None:
     assert erp_shipment_bp is not None
 
 
-def test_b11b_attachments_internal_and_chat_submodules_importable() -> None:
-    """B11B: attachments_internal + chat submodules are canonical under foms.api."""
-    import foms.api.attachments_internal.common as att_common
-    import foms.api.attachments_internal.blueprint as att_bp
-    import foms.api.chat.routes as chat_routes
-    import foms.api.chat.utils as chat_utils
+def test_b11b_files_and_channel_chat_submodules_importable() -> None:
+    """B11B: attachment helpers + chat submodules live under foms.api.files / foms.api.channel."""
+    import foms.api.files.common as att_common
+    import foms.api.files.blueprint as att_bp
+    import foms.api.channel.routes as chat_routes
+    import foms.api.channel.utils as chat_utils
 
     assert att_common is not None
     assert att_bp.attachments_bp is not None
@@ -873,14 +876,14 @@ def test_erp_map_uses_canonical_jobs_queue_and_task_imports() -> None:
 
 def test_order_pages_uses_canonical_jobs_queue_import() -> None:
     """Order pages should bind geocode enqueue from canonical jobs queue."""
-    import foms.web.order_pages as order_pages
+    import foms.web.orders.listing as order_pages
 
     assert order_pages.enqueue_geocode_order_address is namespaced_jobs_queue.enqueue_geocode_order_address
 
 
 def test_order_edit_uses_canonical_jobs_queue_import() -> None:
     """Order edit page should bind geocode enqueue from canonical jobs queue."""
-    import foms.web.order_edit as order_edit
+    import foms.web.orders.edit as order_edit
 
     assert order_edit.enqueue_geocode_order_address is namespaced_jobs_queue.enqueue_geocode_order_address
 
@@ -1219,21 +1222,17 @@ def test_erp_pages_use_canonical_erp_permissions_imports() -> None:
     import importlib
 
     module_expectations = {
-        "foms.web.erp.hub": {
-            "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
-            "erp_edit_required": namespaced_erp_permissions.erp_edit_required,
-        },
-        "foms.web.erp_as_page.routes": {
+        "foms.web.cs.as_dashboard": {
             "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
         },
         "foms.web.construction.dashboard": {
             "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
             "build_mine_sql_filter": namespaced_erp_permissions.build_mine_sql_filter,
         },
-        "foms.web.erp_dashboard.routes": {
+        "foms.web.orders.dashboard": {
             "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
         },
-        "foms.web.erp_drawing_workbench.routes": {
+        "foms.web.drawing.workbench": {
             "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
         },
         "foms.web.measurement.dashboard": {
@@ -1243,10 +1242,10 @@ def test_erp_pages_use_canonical_erp_permissions_imports() -> None:
         "foms.web.production.dashboard": {
             "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
         },
-        "foms.web.erp_shipment_page.routes": {
+        "foms.web.shipment.dashboard": {
             "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
         },
-        "foms.web.order_edit.routes": {
+        "foms.web.orders.edit": {
             "can_edit_erp": namespaced_erp_permissions.can_edit_erp,
         },
     }
@@ -1322,7 +1321,7 @@ def test_erp_api_modules_use_canonical_erp_permissions_imports() -> None:
 def test_erp_permissions_lazy_callers_use_canonical_import_paths() -> None:
     """Lazy ERP permission imports should reference the canonical namespace path."""
     module_source = (
-        _REPO_ROOT / "foms" / "web" / "erp_dashboard" / "routes.py"
+        _REPO_ROOT / "foms" / "web" / "orders" / "dashboard.py"
     ).read_text(encoding="utf-8")
 
     assert "from foms.services.erp_permissions import build_mine_sql_filter" in module_source
@@ -1404,8 +1403,8 @@ def test_app_and_api_modules_use_canonical_storage_imports() -> None:
         "foms.web.admin.routes",
         "foms.api.attachments",
         "foms.api.channel.channel_integration",
-        "foms.api.chat.routes",
-        "foms.api.chat.utils",
+        "foms.api.channel.routes",
+        "foms.api.channel.utils",
         "foms.api.erp_orders_blueprint",
         "foms.api.drawing.erp_orders_draftsman",
         "foms.api.drawing.erp_orders_drawing",
@@ -1534,6 +1533,7 @@ def test_namespaced_erp_shipment_settings_shim_preserves_canonical_contract() ->
 def test_namespaced_erp_display_shim_preserves_canonical_contract() -> None:
     """The legacy services path should re-export the canonical ERP display contract."""
     expected_public_names = [
+        "_normalize_for_search",
         "get_today_kst",
         "self_measurement_four_checks_done",
         "_extract_name_candidate",
@@ -1560,25 +1560,15 @@ def test_namespaced_erp_display_shim_preserves_canonical_contract() -> None:
 
 def test_erp_pages_use_canonical_erp_display_imports() -> None:
     """ERP page modules should bind display helpers from the canonical namespace."""
-    import foms.web.erp.hub as erp
-    import foms.web.erp_as_page as erp_as_page
-    import foms.web.erp_dashboard as erp_dashboard
-    import foms.web.erp_drawing_workbench as erp_drawing_workbench
+    import foms.web.cs.as_dashboard as erp_as_page
+    import foms.web.orders.dashboard as erp_dashboard
+    import foms.web.drawing.workbench as erp_drawing_workbench
     from foms.web.measurement import dashboard as erp_measurement_dashboard
     from foms.web.production import dashboard as erp_production_page
     from foms.web.construction import dashboard as erp_construction_dashboard
     from foms.web.orders import trash as order_trash
-    import foms.web.erp_shipment_page as erp_shipment_page
-    import foms.web.order_edit as order_edit
-
-    assert erp._ensure_dict is namespaced_erp_display._ensure_dict
-    assert erp._erp_get_stage is namespaced_erp_display._erp_get_stage
-    assert erp._erp_alerts is namespaced_erp_display._erp_alerts
-    assert erp.apply_erp_display_fields is namespaced_erp_display.apply_erp_display_fields
-    assert (
-        erp.apply_erp_display_fields_to_orders
-        is namespaced_erp_display.apply_erp_display_fields_to_orders
-    )
+    import foms.web.shipment.dashboard as erp_shipment_page
+    import foms.web.orders.edit as order_edit
 
     assert erp_as_page._ensure_dict is namespaced_erp_display._ensure_dict
     assert (
@@ -1685,7 +1675,7 @@ def test_erp_api_modules_use_canonical_erp_display_imports() -> None:
 
 def test_erp_display_lazy_callers_use_canonical_import_paths() -> None:
     """Lazy display imports should reference the canonical namespace path."""
-    import foms.web.erp_history_page as erp_history_page
+    import foms.web.orders.history as erp_history_page
     from foms.api import erp_map
     from foms.api import measurement as erp_measurement
     from foms.api import orders as orders_api
@@ -1804,7 +1794,7 @@ def test_erp_automation_uses_canonical_erp_policy_import() -> None:
 
 def test_erp_dashboard_uses_canonical_erp_policy_import() -> None:
     """ERP dashboard should bind policy constants from the canonical namespace."""
-    import foms.web.erp_dashboard as erp_dashboard
+    import foms.web.orders.dashboard as erp_dashboard
 
     assert erp_dashboard.STAGE_LABELS is namespaced_erp_policy.STAGE_LABELS
     assert erp_dashboard.recommend_owner_team is namespaced_erp_policy.recommend_owner_team
@@ -1916,7 +1906,7 @@ def test_strict_canonical_shipment_dashboard_template() -> None:
     """§2.2.1: ERP shipment dashboard lives under templates/shipment/dashboard.html."""
     dash = _REPO_ROOT / "templates" / "shipment" / "dashboard.html"
     assert dash.is_file()
-    import foms.web.erp_shipment_page as erp_shipment_page
+    import foms.web.shipment.dashboard as erp_shipment_page
 
     src = inspect.getsource(erp_shipment_page.erp_shipment_dashboard)
     assert "shipment/dashboard.html" in src
@@ -1938,7 +1928,7 @@ def test_strict_canonical_as_cs_dashboard_template() -> None:
     """§2.2.1: AS/CS dashboard lives under templates/cs/as_dashboard.html."""
     dash = _REPO_ROOT / "templates" / "cs" / "as_dashboard.html"
     assert dash.is_file()
-    import foms.web.erp_as_page as erp_as_page
+    import foms.web.cs.as_dashboard as erp_as_page
 
     src = inspect.getsource(erp_as_page.erp_as_dashboard)
     assert "cs/as_dashboard.html" in src
@@ -1949,8 +1939,8 @@ def test_strict_canonical_orders_dashboard_templates() -> None:
     """§2.2.1: Main ERP dashboard + history under templates/orders/."""
     assert (_REPO_ROOT / "templates" / "orders" / "dashboard.html").is_file()
     assert (_REPO_ROOT / "templates" / "orders" / "history_dashboard.html").is_file()
-    import foms.web.erp_dashboard as erp_dashboard
-    import foms.web.erp_history_page as erp_history_page
+    import foms.web.orders.dashboard as erp_dashboard
+    import foms.web.orders.history as erp_history_page
 
     dash_src = inspect.getsource(erp_dashboard.erp_dashboard)
     assert "orders/dashboard.html" in dash_src
@@ -1976,7 +1966,7 @@ def test_strict_canonical_drawing_workbench_templates() -> None:
     """§2.2.1: Drawing workbench under templates/drawing/workbench_*.html."""
     assert (_REPO_ROOT / "templates" / "drawing" / "workbench_dashboard.html").is_file()
     assert (_REPO_ROOT / "templates" / "drawing" / "workbench_detail.html").is_file()
-    import foms.web.erp_drawing_workbench as erp_drawing_workbench
+    import foms.web.drawing.workbench as erp_drawing_workbench
 
     dash_src = inspect.getsource(erp_drawing_workbench.erp_drawing_workbench_dashboard)
     assert "drawing/workbench_dashboard.html" in dash_src
@@ -2139,7 +2129,7 @@ def test_strict_canonical_scripts_taxonomy() -> None:
 
 
 def test_strict_canonical_tools_taxonomy() -> None:
-    """§2.2.1: tools/ contains only harness/, smoke/, research_center/ (+ README)."""
+    """§2.2.1: tools/ contains harness/, ops/, smoke/, research_center/ (+ README)."""
     tools_dir = _REPO_ROOT / "tools"
     assert tools_dir.is_dir()
     assert (tools_dir / "README.md").is_file()
@@ -2147,7 +2137,7 @@ def test_strict_canonical_tools_taxonomy() -> None:
         if p.name.startswith(".") or p.name == "README.md" or p.name == "__pycache__":
             continue
         assert p.is_dir(), f"tools/ must not contain loose non-README files: {p.name}"
-        assert p.name in {"harness", "smoke", "research_center"}, f"unexpected tools child: {p.name}"
+        assert p.name in {"harness", "ops", "smoke", "research_center"}, f"unexpected tools child: {p.name}"
 
 
 def test_strict_canonical_docs_taxonomy() -> None:
@@ -2200,4 +2190,212 @@ def test_strict_canonical_src_overlay_directory_removed_sfc_b11d_closeout() -> N
     )
     legacy = _REPO_ROOT / "Add In Program" / "WDPlanner" / "legacy-mobile-prototype"
     assert legacy.is_dir(), "expected relocated prototype directory to exist"
+
+
+# --- SLG literal-gap closed-set gates (remediation plan §4; freeze SLG-B1) ---
+
+_SLG_TEMPLATES_TOP_LEVEL_ALLOWED = frozenset(
+    {
+        "admin",
+        "auth",
+        "channel",
+        "construction",
+        "cs",
+        "drawing",
+        "measurement",
+        "orders",
+        "partials",
+        "production",
+        "shipment",
+        "wdcalculator",
+    }
+)
+
+_SLG_FOMS_WEB_TOP_LEVEL_ALLOWED = frozenset(
+    {
+        "admin",
+        "auth",
+        "channel",
+        "construction",
+        "cs",
+        "drawing",
+        "measurement",
+        "orders",
+        "production",
+        "shipment",
+        "wdcalculator",
+    }
+)
+
+_SLG_FOMS_API_TOP_LEVEL_ALLOWED = frozenset(
+    {
+        "admin",
+        "auth",
+        "channel",
+        "construction",
+        "cs",
+        "drawing",
+        "files",
+        "measurement",
+        "notifications",
+        "orders",
+        "production",
+        "shipment",
+        "wdcalculator",
+    }
+)
+
+_SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
+    {
+        "admin",
+        "auth",
+        "channel",
+        "common",
+        "construction",
+        "cs",
+        "drawing",
+        "files",
+        "jobs",
+        "measurement",
+        "notifications",
+        "orders",
+        "production",
+        "shipment",
+        "wdcalculator",
+    }
+)
+
+
+def _slg_iter_top_level_dirs(base: Path) -> set[str]:
+    """Return non-hidden, non-``__pycache__`` child directory names under ``base``."""
+    if not base.is_dir():
+        return set()
+    return {
+        p.name
+        for p in base.iterdir()
+        if p.is_dir() and not p.name.startswith(".") and p.name != "__pycache__"
+    }
+
+
+def _slg_py_paths_for_render_template_gate(repo_root: Path) -> list[Path]:
+    """Python files scanned for ``render_template(..., 'errors/...')`` (product + bootstrap)."""
+    paths: list[Path] = []
+    paths.extend(sorted((repo_root / "foms").rglob("*.py")))
+    for name in ("app.py", "run.py"):
+        candidate = repo_root / name
+        if candidate.is_file():
+            paths.append(candidate)
+    return paths
+
+
+_RE_RENDER_TEMPLATE_ERRORS = re.compile(
+    r"""render_template\s*\(\s*(["'])errors/"""
+)
+
+
+def test_slg_literal_gap_templates_top_level_dirs_closed_set() -> None:
+    """§4.1: ``templates/`` top-level dirs == allowlist exactly (no ``shared``, ``errors``)."""
+    root = _REPO_ROOT / "templates"
+    actual = _slg_iter_top_level_dirs(root)
+    assert actual == _SLG_TEMPLATES_TOP_LEVEL_ALLOWED, (
+        "templates/ top-level dirs must match §4.1 allowlist exactly:\n"
+        f"  expected={sorted(_SLG_TEMPLATES_TOP_LEVEL_ALLOWED)}\n"
+        f"  actual={sorted(actual)}"
+    )
+
+
+def test_slg_literal_gap_foms_web_top_level_dirs_closed_set() -> None:
+    """§4.2: ``foms/web/`` top-level dirs == allowlist (no legacy buckets)."""
+    root = _REPO_ROOT / "foms" / "web"
+    actual = _slg_iter_top_level_dirs(root)
+    assert actual == _SLG_FOMS_WEB_TOP_LEVEL_ALLOWED, (
+        "foms/web/ top-level dirs must match §4.2 allowlist exactly:\n"
+        f"  expected={sorted(_SLG_FOMS_WEB_TOP_LEVEL_ALLOWED)}\n"
+        f"  actual={sorted(actual)}"
+    )
+
+
+def test_slg_literal_gap_foms_api_top_level_dirs_closed_set() -> None:
+    """§4.3: ``foms/api/`` top-level dirs == allowlist (no ``chat``, ``attachments_internal``)."""
+    root = _REPO_ROOT / "foms" / "api"
+    actual = _slg_iter_top_level_dirs(root)
+    assert actual == _SLG_FOMS_API_TOP_LEVEL_ALLOWED, (
+        "foms/api/ top-level dirs must match §4.3 allowlist exactly:\n"
+        f"  expected={sorted(_SLG_FOMS_API_TOP_LEVEL_ALLOWED)}\n"
+        f"  actual={sorted(actual)}"
+    )
+
+
+def test_slg_literal_gap_foms_services_top_level_dirs_closed_set() -> None:
+    """§4.4: ``foms/services/`` top-level dirs == allowlist (no ``erp_policy_internal``)."""
+    root = _REPO_ROOT / "foms" / "services"
+    actual = _slg_iter_top_level_dirs(root)
+    assert actual == _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED, (
+        "foms/services/ top-level dirs must match §4.4 allowlist exactly:\n"
+        f"  expected={sorted(_SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED)}\n"
+        f"  actual={sorted(actual)}"
+    )
+
+
+def test_slg_literal_gap_no_templates_shared_layout_file() -> None:
+    """Closeout: ``templates/shared/layout.html`` must not exist (shell retire)."""
+    p = _REPO_ROOT / "templates" / "shared" / "layout.html"
+    assert not p.is_file(), f"forbidden template file must be removed: {p.relative_to(_REPO_ROOT)}"
+
+
+def test_slg_literal_gap_no_templates_errors_dir() -> None:
+    """Closeout: ``templates/errors/`` must not exist."""
+    p = _REPO_ROOT / "templates" / "errors"
+    assert not p.is_dir(), f"forbidden template dir must be removed: {p.relative_to(_REPO_ROOT)}"
+
+
+def test_slg_literal_gap_no_render_template_errors_namespace() -> None:
+    """No ``render_template(\"errors/...\")`` in product/bootstrap Python (inline error responses instead)."""
+    bad: list[str] = []
+    for path in _slg_py_paths_for_render_template_gate(_REPO_ROOT):
+        text = path.read_text(encoding="utf-8")
+        if _RE_RENDER_TEMPLATE_ERRORS.search(text):
+            rel = path.relative_to(_REPO_ROOT)
+            bad.append(str(rel))
+    assert not bad, "render_template('errors/...') is forbidden:\n" + "\n".join(bad)
+
+
+def test_slg_literal_gap_no_extends_shared_layout_html() -> None:
+    """No ``{% extends \"shared/layout.html\" %}`` under ``templates/``."""
+    hits: list[str] = []
+    templates = _REPO_ROOT / "templates"
+    for path in sorted(templates.rglob("*.html")):
+        text = path.read_text(encoding="utf-8")
+        if 'extends "shared/layout.html"' in text or "extends 'shared/layout.html'" in text:
+            hits.append(str(path.relative_to(_REPO_ROOT)))
+    assert not hits, "shared/layout extends must be retired:\n" + "\n".join(hits)
+
+
+def test_slg_literal_gap_partials_shared_no_extends_tag() -> None:
+    """``templates/partials/shared/*.html`` must not use ``{% extends ... %}`` (partial-only contract)."""
+    partial = _REPO_ROOT / "templates" / "partials" / "shared"
+    bad: list[str] = []
+    for path in sorted(partial.glob("*.html")):
+        text = path.read_text(encoding="utf-8")
+        if re.search(r"{%\s*extends\s+", text):
+            bad.append(str(path.relative_to(_REPO_ROOT)))
+    assert not bad, "partials/shared must not extend a parent layout:\n" + "\n".join(bad)
+
+
+def test_slg_literal_gap_partials_shared_no_document_html_shell() -> None:
+    """``templates/partials/shared/*.html`` must not contain full-page ``<!DOCTYPE`` / ``<html`` markers."""
+    partial = _REPO_ROOT / "templates" / "partials" / "shared"
+    bad: list[str] = []
+    for path in sorted(partial.glob("*.html")):
+        text = path.read_text(encoding="utf-8")
+        lower = text.lower()
+        if "<!doctype" in lower or re.search(r"<\s*html\b", lower):
+            bad.append(str(path.relative_to(_REPO_ROOT)))
+    assert not bad, "partials/shared must not embed document/html shell:\n" + "\n".join(bad)
+
+
+def test_slg_literal_gap_no_orders_erp_policy_internal_dir() -> None:
+    """Forbidden nested package ``foms/services/orders/erp_policy_internal/`` must not exist."""
+    p = _REPO_ROOT / "foms" / "services" / "orders" / "erp_policy_internal"
+    assert not p.is_dir(), f"forbidden nested dir: {p.relative_to(_REPO_ROOT)}"
 

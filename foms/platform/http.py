@@ -105,11 +105,11 @@ def register_http_bootstrap(
             str(error),
             traceback.format_exc(),
         )
-        return render_template("errors/error_500.html"), 500
+        return render_template("partials/http_errors/error_500.html"), 500
 
     @app.errorhandler(404)
     def not_found_error(error):
-        return render_template("errors/error_404.html"), 404
+        return render_template("partials/http_errors/error_404.html"), 404
 
     @app.route("/favicon.ico")
     def favicon():
@@ -122,7 +122,7 @@ def register_http_bootstrap(
             {
                 "build": "20260215-uxfix-03",
                 "cwd": os.getcwd(),
-                "template": "templates/shared/layout.html",
+                "template": "templates/orders/layout.html+partials/shared/*",
             }
         )
 

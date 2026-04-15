@@ -14,7 +14,7 @@ from db import get_db
 from models import Order, User
 from foms.web.auth import login_required
 from foms.services.erp_permissions import erp_edit_required
-from foms.web.erp import _normalize_for_search
+from foms.services.erp_display import _normalize_for_search
 from foms.services.common.address_converter import FOMSAddressConverter
 from foms.services.common.map_generator import FOMSMapGenerator
 from foms.services.jobs.queue import enqueue_geocode_order_address
