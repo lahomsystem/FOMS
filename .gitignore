@@ -43,7 +43,11 @@ static/uploads/*
 
 # IDE 파일
 .idea/
-.vscode/
+# .vscode/: canonical tree §2.2.1 — 공유 설정만 버전 관리(클린 worktree에 폴더 존재 보장)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
 !.cursor/
 .cursor/*
 !.cursor/hooks.json

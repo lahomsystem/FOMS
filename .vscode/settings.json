@@ -1,0 +1,6 @@
+{
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/.cursor/hooks",
+    "${workspaceFolder}/.claude/hooks"
+  ]
+}
