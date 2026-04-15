@@ -63,3 +63,4 @@ powershell -NoProfile -File tools\harness\strict_canonical_b12_clean_room.ps1 -R
 
 - **결과:** `[strict_canonical_b12] Compare-Object: OK` → `APP_OK` → `verify_result.py --json` success → `586 passed` → **`CLEAN_ROOM_OK ref=HEAD`**
 - **원격:** `origin/feature/modular-monolith-wip` 에 `b7014c74` 반영됨 (`git push`).
+- **문서 갱신 tip:** `b9873290` (batch12 run record §8 + `AI_STATUS`) — 루트 트리 동일·`strict_canonical_b12_clean_room.ps1 -Ref HEAD`(pytest 생략) **`CLEAN_ROOM_OK`** 재확인.
