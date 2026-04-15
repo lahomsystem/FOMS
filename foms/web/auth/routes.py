@@ -515,3 +515,59 @@ def delete_user(user_id):
         flash('사용자 삭제 중 오류가 발생했습니다.', 'error')
     
     return redirect(url_for('auth.user_list'))
+
+
+@auth_bp.route("/profile", methods=["GET", "POST"])
+@login_required
+def profile():
+    """프로필 페이지 - 사용자 정보 및 비밀번호 변경."""
+    user_id = session.get("user_id")
+    db = get_db()
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        session.clear()
+        flash("사용자를 찾을 수 없습니다. 다시 로그인해주세요.", "error")
+        return redirect(url_for("auth.login"))
+
+    if request.method == "POST":
+        current_password = request.form.get("current_password")
+        new_password = request.form.get("new_password")
+        confirm_password = request.form.get("confirm_password")
+        name = request.form.get("name")
+
+        if not name:
+            flash("이름을 입력해주세요.", "error")
+            return render_template("auth/profile.html", user=user)
+
+        try:
+            user.name = name
+            db.commit()
+
+            if current_password and new_password and confirm_password:
+                if not check_password_hash(user.password, current_password):
+                    flash("현재 비밀번호가 일치하지 않습니다.", "error")
+                    return render_template("auth/profile.html", user=user)
+
+                if new_password != confirm_password:
+                    flash("새 비밀번호가 일치하지 않습니다.", "error")
+                    return render_template("auth/profile.html", user=user)
+
+                if not is_password_strong(new_password):
+                    flash("비밀번호는 4자리 이상이어야 합니다.", "error")
+                    return render_template("auth/profile.html", user=user)
+
+                user.password = generate_password_hash(new_password)
+                db.commit()
+                log_access("비밀번호 변경 완료", user_id)
+                flash("비밀번호가 성공적으로 변경되었습니다.", "success")
+
+            flash("프로필이 업데이트되었습니다.", "success")
+            return redirect(url_for("auth.profile"))
+
+        except Exception as e:
+            db.rollback()
+            flash(f"프로필 업데이트 중 오류가 발생했습니다: {str(e)}", "error")
+            return render_template("auth/profile.html", user=user)
+
+    return render_template("auth/profile.html", user=user)

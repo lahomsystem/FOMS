@@ -1,6 +1,5 @@
-"""Canonical measurement web surface."""
+"""Canonical measurement web surface (ERP vertical slice)."""
 
-from foms.web.measurement.dashboard import erp_measurement_dashboard_bp
+from foms.web.measurement.dashboard import dashboards_bp, erp_measurement_dashboard_bp
 
-__all__ = ["erp_measurement_dashboard_bp"]
-"""Measurement ERP vertical slice (canonical web layer)."""
+__all__ = ["erp_measurement_dashboard_bp", "dashboards_bp"]

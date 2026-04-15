@@ -7,7 +7,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 
-import foms.api.attachments_internal.legacy as attachment_legacy
+import foms.api.files.legacy as attachment_legacy
 import foms.services.db_indexes as db_indexes
 from wdcalculator_models import Estimate, EstimateHistory, WDCalculatorBase
 

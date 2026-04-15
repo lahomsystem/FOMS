@@ -96,6 +96,71 @@ try {
     }
     Write-Host "[strict_canonical_b12] Compare-Object: OK (zero diff)"
 
+    # SLG literal-gap: subtree closed-set compare (docs/plans/...-literal-gap-remediation-plan.md §4, §6.2)
+    function Get-SortedChildDirNames {
+        param([string]$Path)
+        if (-not (Test-Path -LiteralPath $Path)) {
+            throw "Subtree path missing: $Path"
+        }
+        return (
+            Get-ChildItem -LiteralPath $Path -Directory -ErrorAction Stop |
+            Where-Object { $_.Name -ne '__pycache__' -and -not $_.Name.StartsWith('.') } |
+            ForEach-Object { $_.Name } |
+            Sort-Object
+        )
+    }
+    function Assert-SubtreeClosedSet {
+        param(
+            [string]$Label,
+            [string]$AbsolutePath,
+            [string[]]$AllowedDirs
+        )
+        $actual = @(Get-SortedChildDirNames -Path $AbsolutePath)
+        $allowed = @($AllowedDirs | Sort-Object)
+        $d = Compare-Object $allowed $actual
+        if ($d) {
+            Write-Host "[strict_canonical_b12] SUBTREE_DIFF label=$Label path=$AbsolutePath"
+            $d | Format-Table -AutoSize
+            throw "STRICT_SUBTREE_DIFF_DETECTED:$Label"
+        }
+        Write-Host "[strict_canonical_b12] subtree OK: $Label"
+    }
+
+    $tpl = Join-Path $WorktreePath "templates"
+    $web = Join-Path $WorktreePath "foms\web"
+    $api = Join-Path $WorktreePath "foms\api"
+    $svc = Join-Path $WorktreePath "foms\services"
+
+    Assert-SubtreeClosedSet -Label "templates" -AbsolutePath $tpl -AllowedDirs @(
+        'admin', 'auth', 'channel', 'construction', 'cs', 'drawing',
+        'measurement', 'orders', 'partials', 'production', 'shipment', 'wdcalculator'
+    )
+    Assert-SubtreeClosedSet -Label "foms/web" -AbsolutePath $web -AllowedDirs @(
+        'admin', 'auth', 'channel', 'construction', 'cs', 'drawing',
+        'measurement', 'orders', 'production', 'shipment', 'wdcalculator'
+    )
+    Assert-SubtreeClosedSet -Label "foms/api" -AbsolutePath $api -AllowedDirs @(
+        'admin', 'auth', 'channel', 'construction', 'cs', 'drawing', 'files',
+        'measurement', 'notifications', 'orders', 'production', 'shipment', 'wdcalculator'
+    )
+    Assert-SubtreeClosedSet -Label "foms/services" -AbsolutePath $svc -AllowedDirs @(
+        'admin', 'auth', 'channel', 'common', 'construction', 'cs', 'drawing', 'files',
+        'jobs', 'measurement', 'notifications', 'orders', 'production', 'shipment', 'wdcalculator'
+    )
+
+    $forbiddenPaths = @(
+        (Join-Path $tpl "shared\layout.html"),
+        (Join-Path $tpl "errors"),
+        (Join-Path $svc "erp_policy_internal"),
+        (Join-Path $WorktreePath "foms\services\orders\erp_policy_internal")
+    )
+    foreach ($fp in $forbiddenPaths) {
+        if (Test-Path -LiteralPath $fp) {
+            throw "STRICT_SLG_FORBIDDEN_PATH_PRESENT: $fp"
+        }
+    }
+    Write-Host "[strict_canonical_b12] SLG forbidden-path probe: OK"
+
     $py = "python"
     if (Test-Path (Join-Path $WorktreePath ".venv\Scripts\python.exe")) {
         $py = Join-Path $WorktreePath ".venv\Scripts\python.exe"

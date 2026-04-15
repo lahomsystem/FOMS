@@ -1,26 +1,26 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-04-15 21:09:37
-> 세션: 65df2867
+> 생성 시각: 2026-04-15 23:22:04
+> 세션: 63b5dd92
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `docs/AI_CHANGELOG.md` <- 1 edit(s), ~292 chars (2026-04-15 21:05:57)
-- `docs/AI_STATUS.md` <- 1 edit(s), ~416 chars (2026-04-15 21:05:41)
-- `docs/AI_STATUS.md` <- 2 edit(s), ~565 chars (2026-04-15 21:05:29)
-- `docs/plans/2026-04-15-strict-final-canonical-tree-batch12-clean-room-closeout-run-record.md` <- 1 edit(s), ~2480 chars (2026-04-15 21:05:02)
-- `foms/services/common/address_ai_ops_loader.py` <- 1 edit(s), ~1092 chars (2026-04-15 21:02:13)
-- `foms/services/common/address_converter.py` <- 2 edit(s), ~123 chars (2026-04-15 21:02:13)
-- `docs/AI_STATUS.md` <- 1 edit(s), ~213 chars (2026-04-15 20:58:57)
-- `docs/AI_STATUS.md` <- 1 edit(s), ~434 chars (2026-04-15 20:58:42)
-- `docs/plans/2026-04-15-strict-final-canonical-tree-batch11d-src-retirement-run-record.md` <- 1 edit(s), ~1233 chars (2026-04-15 20:58:30)
-- `docs/AI_STATUS.md` <- 1 edit(s), ~125 chars (2026-04-15 20:58:30)
+- `docs/AI_STATUS.md` <- 2 edit(s), ~1047 chars (2026-04-15 23:22:03)
+- `docs/ARCHIVE_INDEX.md` <- 1 edit(s), ~509 chars (2026-04-15 23:21:44)
+- `docs/plans/2026-04-15-strict-final-canonical-tree-literal-gap-slgb7-run-record.md` <- 1 edit(s), ~2171 chars (2026-04-15 23:21:31)
+- `docs/plans/2026-04-15-strict-final-canonical-tree-literal-gap-slgb6-run-record.md` <- 1 edit(s), ~1655 chars (2026-04-15 23:21:31)
+- `foms/services/erp_policy.py` <- 1 edit(s), ~51 chars (2026-04-15 23:19:58)
+- `foms/services/erp_policy.py` <- 1 edit(s), ~52 chars (2026-04-15 23:19:57)
+- `foms/services/erp_policy.py` <- 1 edit(s), ~57 chars (2026-04-15 23:19:55)
+- `foms/services/erp_policy.py` <- 1 edit(s), ~57 chars (2026-04-15 23:19:54)
+- `foms/services/erp_policy.py` <- 2 edit(s), ~119 chars (2026-04-15 23:19:52)
+- `foms/services/orders/erp_policy_tasks.py` <- 1 edit(s), ~140 chars (2026-04-15 23:19:36)
 
 ### 진행 중이던 작업
 - [2026-04-15] **`SFC-B11D`** (§6.18 `src/` retirement): **종료** — batch11d run record 참고.
-- [2026-04-15] **`SFC-B12`** (§6.19 clean-room): **종료** — batch12 run record 참고; **릴리스 게이트**는 변경분 커밋 후 `git worktree`로 `§6.19` recipe 재실행 권장.
+- [2026-04-15] **`SFC-B12`** (§6.19 clean-room): **종료** — `HEAD` `b7014c74`에서 `strict_canonical_b12_clean_room.ps1`로 SG6 재현 완료(batch12 run record §8).
 - [2026-04-15] **`SFC-B11B`** (§6.16 `apps/` overlay retirement): **working tree 기준 `apps/` 디렉터리 없음** — 구현·계약은 batch11b·B11A run record·`pytest` strict 계약으로 동결. 원격/HEAD와 불일치 시 동기화만 확인.
 - [2026-04-15] **`SFC-B11A`:** §**6.15** **종료** (batch11a sign-off). B11B와 혼동 금지.
 - [2026-04-15] active mainline 구조 tranche 없음. `WR-B1` / `WR-J1` / `WR-H1`는 explicit future batch 조건에서만 재개.

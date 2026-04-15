@@ -1,0 +1,905 @@
+    <script>
+        if (typeof window.FOMS_DEBUG === 'undefined') {
+            window.FOMS_DEBUG = false;
+        }
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>하우드 ERP</title>
+    <link rel="icon" type="image/png" href="{{ url_for('favicon', v='20260407a') }}">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/style-pro-max.css') }}">
+    <!-- ERP Pro Dashboard Styles (Modern SaaS Design System) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20260325a">
+    <!-- Flatpickr (다중 실측일/시공일 선택) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <style>
+        .skip-link {
+            position: absolute;
+            left: 12px;
+            top: -48px;
+            z-index: 11000;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: #1d4ed8;
+            color: #fff;
+            text-decoration: none;
+            font-weight: 600;
+            transition: top 0.2s ease;
+        }
+
+        .skip-link:focus {
+            top: 12px;
+            outline: 2px solid #fff;
+            outline-offset: 2px;
+        }
+
+        /* MOBILE LAYOUT (2026-03 ERP 최적화) */
+        @media (max-width: 992px) {
+            .layout-header {
+                padding-top: 0.5rem !important;
+                padding-bottom: 0.5rem !important;
+                min-height: 0;
+                flex-wrap: nowrap;
+                gap: 0.25rem;
+            }
+
+            .layout-header__title {
+                font-size: 1rem !important;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                min-width: 0;
+                line-height: 1.25;
+                flex: 0 1 auto;
+                max-width: 38%;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3 {
+                flex-shrink: 0;
+                min-width: 0;
+            }
+
+            .layout-nav-collapse .nav-link {
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                padding-top: 0.75rem;
+                padding-bottom: 0.75rem;
+            }
+
+            body.erp-mobile-v2-layout .layout-global-nav {
+                display: none !important;
+            }
+        }
+
+        /* 모바일(휴대폰) 미니멀 정렬: 깔끔한 한 줄 헤더 */
+        @media (max-width: 576px) {
+            .layout-header {
+                padding-left: 0.75rem !important;
+                padding-right: 0.75rem !important;
+                gap: 0;
+            }
+
+            .layout-header__title {
+                font-size: 0.875rem !important;
+                max-width: 32%;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3 {
+                gap: 0.35rem !important;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3 .btn-link,
+            .layout-header .d-flex.align-items-center.gap-3 .position-relative .btn-link {
+                min-width: 40px;
+                min-height: 40px;
+                padding: 0.25rem !important;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 8px;
+                color: #495057 !important;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3 .fa-2x {
+                font-size: 1.25rem !important;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3>.position-relative,
+            .layout-header .d-flex.align-items-center.gap-3>.dropdown {
+                display: flex;
+                align-items: center;
+            }
+
+            .layout-header #userDropdown {
+                padding: 0.35rem 0.5rem !important;
+                font-size: 0.8rem !important;
+                max-width: 140px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .layout-header #userDropdown .dropdown-toggle::after {
+                margin-left: 0.25rem;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .layout-header__title {
+                max-width: 28%;
+            }
+
+            .layout-header #userDropdown {
+                max-width: 100px;
+                font-size: 0.75rem !important;
+            }
+
+            .layout-header #userDropdown .fa-user-circle {
+                margin-right: 0 !important;
+            }
+        }
+
+        /* 브리핑 보드: 최상단 중앙 슬라이딩 드롭다운 버튼 (아래 방향 체브론) */
+        .personal-briefing-chevron-btn {
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            background: #fff;
+            color: #212529;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, border-color 0.2s, transform 0.2s;
+        }
+
+        .personal-briefing-chevron-btn:hover {
+            background: #f8f9fa;
+            border-color: #adb5bd;
+            color: #212529;
+        }
+
+        .personal-briefing-chevron-btn:focus {
+            box-shadow: 0 0 0 0.2rem rgba(0, 0, 0, 0.1);
+        }
+
+        .personal-briefing-chevron {
+            font-size: 1.35rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        @media (max-width: 576px) {
+            .personal-briefing-chevron-btn {
+                width: 38px;
+                height: 38px;
+            }
+
+            .personal-briefing-chevron {
+                font-size: 1.1rem;
+            }
+        }
+
+        /* 긴급 알림 강제 인지 애니메이션 */
+        @keyframes urgentPulseBorder {
+            0% {
+                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.8);
+                border-color: #dc3545;
+            }
+
+            70% {
+                box-shadow: 0 0 0 15px rgba(220, 53, 69, 0);
+                border-color: #dc3545;
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+                border-color: rgba(220, 53, 69, 0.5);
+            }
+        }
+
+        @keyframes urgentShake {
+
+            0%,
+            100% {
+                transform: translateX(0) translateY(0);
+            }
+
+            20% {
+                transform: translateX(-3px) rotate(-5deg);
+            }
+
+            40% {
+                transform: translateX(3px) rotate(5deg);
+            }
+
+            60% {
+                transform: translateX(-3px) rotate(-5deg);
+            }
+
+            80% {
+                transform: translateX(3px) rotate(5deg);
+            }
+        }
+
+        .urgent-alert-active {
+            animation: urgentPulseBorder 1s infinite, urgentShake 0.5s infinite;
+            background-color: #fff0f0 !important;
+            color: #dc3545 !important;
+            border: 2px solid #dc3545 !important;
+            z-index: 1055;
+        }
+
+        .urgent-alert-active i {
+            color: #dc3545 !important;
+        }
+    </style>
+    {% block head %}{% endblock %}
+    {% block styles %}{% endblock %}
+    <!-- 전역 채팅 알림 팝업 스타일 (모든 페이지에서 사용) -->
+    {% if current_user %}
+    <style>
+        /* 채팅 알림 팝업 스타일 (채널톡 스타일) */
+        .chat-notification-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-width: 380px;
+            pointer-events: none;
+        }
+
+        .chat-notification {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            padding: 16px;
+            min-width: 320px;
+            max-width: 380px;
+            pointer-events: auto;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-left: 4px solid #007aff;
+            animation: slideInRight 0.3s ease-out;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chat-notification:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .chat-notification-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .chat-notification-room-name {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin: 0;
+        }
+
+        .chat-notification-close {
+            background: none;
+            border: none;
+            color: #8e8e93;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 4px;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+
+        .chat-notification-close:hover {
+            color: #1d1d1f;
+        }
+
+        .chat-notification-content {
+            display: flex;
+            gap: 12px;
+        }
+
+        .chat-notification-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+            flex-shrink: 0;
+        }
+
+        .chat-notification-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chat-notification-sender {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin-bottom: 4px;
+        }
+
+        .chat-notification-message {
+            font-size: 0.875rem;
+            color: #8e8e93 !important;
+            line-height: 1.4;
+            word-wrap: break-word;
+            display: block;
+            max-height: 2.8em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .chat-notification-time {
+            font-size: 0.75rem;
+            color: #8e8e93 !important;
+            margin-top: 4px;
+        }
+
+        .chat-notification-image {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            object-fit: cover;
+            flex-shrink: 0;
+            margin-top: 8px;
+        }
+
+        .chat-notification-file {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            background-color: #f2f2f7;
+            border-radius: 8px;
+            margin-top: 4px;
+        }
+
+        .chat-notification-file-icon {
+            color: #007aff;
+            font-size: 1.2rem;
+        }
+
+        .chat-notification-file-name {
+            font-size: 0.8rem;
+            color: #1d1d1f;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+    </style>
+    {% endif %}
+    <!-- 전역 Socket.IO 초기화 (서버가 Socket.IO 제공 시 로드. 로컬 socketio.run / 원격 gunicorn gevent) -->
+    {% if current_user and (not request.endpoint or (request.endpoint != 'admin' and not
+    request.endpoint.startswith('admin_'))) and config.get('SOCKETIO_AVAILABLE') %}
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script id="socket-config"
+        type="application/json">{"forcePolling":{{ "true" if config.DEBUG else "false" }},"allowPollingFallback":{{ "true" if config.get("SOCKETIO_ALLOW_POLLING_FALLBACK") else "false" }}}</script>
+    <script>
+        // 전역 Socket.IO 초기화 (모든 페이지에서 알림 받을 수 있게)
+        (function () {
+            'use strict';
+
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 초기화 시작');
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] current_user 존재:', true);
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] io 객체 존재:', typeof io !== 'undefined');
+
+            // Socket.IO 스크립트 로드 확인
+            if (typeof io === 'undefined') {
+                console.error('[Global Socket.IO] ❌ Socket.IO 스크립트가 로드되지 않았습니다.');
+                return;
+            }
+
+            // 전역 Socket.IO 싱글톤 생성/재사용 (설정은 JSON 블록에서 로드하여 JS 파서/Jinja 충돌 방지)
+            var _socketConfigEl = document.getElementById('socket-config');
+            var _socketConfig = _socketConfigEl ? (function () { try { return JSON.parse(_socketConfigEl.textContent); } catch (e) { return { forcePolling: false, allowPollingFallback: true }; } })() : { forcePolling: false, allowPollingFallback: true };
+            const forcePollingInDebug = !!_socketConfig.forcePolling;
+            const allowPollingFallback = !!_socketConfig.allowPollingFallback;
+            window.getAppSocketOptions = window.getAppSocketOptions || function () {
+                const options = {
+                    transports: allowPollingFallback ? ['websocket', 'polling'] : ['websocket'],
+                    upgrade: allowPollingFallback,
+                    rememberUpgrade: true,
+                    reconnection: true,
+                    reconnectionAttempts: Infinity,
+                    reconnectionDelay: 1000,
+                    reconnectionDelayMax: 5000,
+                    timeout: 30000
+                };
+                if (forcePollingInDebug) {
+                    options.transports = ['polling'];
+                    options.upgrade = false;
+                }
+                return options;
+            };
+
+            window.getAppSocket = window.getAppSocket || function () {
+                if (window.__appSocket) return window.__appSocket;
+                if (typeof io === 'undefined') return null;
+                window.__appSocket = io(window.getAppSocketOptions());
+                return window.__appSocket;
+            };
+
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] Socket.IO 인스턴스 생성 중...');
+            const globalSocket = window.getAppSocket();
+            if (!globalSocket) {
+                console.error('[Global Socket.IO] ❌ Socket.IO 인스턴스 생성 실패');
+                return;
+            }
+
+            // 연결 끊김/오류 시 stale sid 방지를 위해 싱글톤을 정리하고 새 핸드셰이크로 재연결 (RCA: ERR_CONNECTION_RESET / 400)
+            function clearSocketAndScheduleReconnect(socketRef, delayMs) {
+                if (window.__appSocketReconnectScheduled) return;
+                delayMs = delayMs || 2000;
+                if (window.FOMS_DEBUG) console.warn('[Global Socket.IO] 연결이 끊어졌습니다. ' + (delayMs / 1000) + '초 후 새 연결을 시도합니다.');
+                window.__appSocketReconnectScheduled = true;
+                setTimeout(function () {
+                    window.__appSocketReconnectScheduled = false;
+                    const s = window.__appSocket || socketRef;
+                    if (s && !s.connected && typeof s.connect === 'function') {
+                        try { s.connect(); } catch (e) { }
+                    }
+                }, delayMs);
+            }
+
+            // ERP 알림 수신 시 배지/목록을 즉시 동기화한다.
+            function refreshErpNotificationUI(options) {
+                options = options || {};
+                const force = !!options.force;
+                const reason = options.reason || 'realtime';
+                if (window.FOMSNotificationBadge && typeof window.FOMSNotificationBadge.refresh === 'function') {
+                    window.FOMSNotificationBadge.refresh({ force: force, reason: reason });
+                } else {
+                    if (typeof loadGlobalNotificationBadge === 'function') {
+                        loadGlobalNotificationBadge(force);
+                    }
+                    if (typeof loadNotificationBadge === 'function') {
+                        loadNotificationBadge(force);
+                    }
+                }
+                const panel = document.getElementById('global-notification-panel');
+                const isPanelVisible = panel && panel.style.display === 'block';
+                if (isPanelVisible && typeof loadGlobalNotifications === 'function') {
+                    loadGlobalNotifications();
+                }
+                if (isPanelVisible && typeof loadNotifications === 'function') {
+                    loadNotifications();
+                }
+            }
+
+            // 핸들러는 전역에 보관하여 중복 바인딩을 방지한다.
+            const globalHandlers = window.__globalSocketHandlers || {
+                onConnect: function () {
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 연결 성공');
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] Socket ID:', globalSocket.id);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 연결 상태:', globalSocket.connected);
+                    refreshErpNotificationUI({ reason: 'socket-connect' });
+                },
+                onConnectError: function (error) {
+                    console.error('[Global Socket.IO] ❌ 연결 오류:', error);
+                    console.error('[Global Socket.IO] 오류 상세:', JSON.stringify(error, null, 2));
+                    clearSocketAndScheduleReconnect(window.__appSocket, 2000);
+                },
+                onDisconnect: function (reason) {
+                    if (window.FOMS_DEBUG) console.warn('[Global Socket.IO] ⚠️ 연결 해제:', reason);
+                    if (reason === 'transport close' || reason === 'transport error' || reason === 'ping timeout') {
+                        clearSocketAndScheduleReconnect(globalSocket, 2000);
+                    }
+                },
+                onConnected: function (data) {
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 서버 연결 확인:', data);
+                },
+                onNewMessage: function (data) {
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 📨 새 메시지 수신:', data);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 메시지 상세:', JSON.stringify(data, null, 2));
+
+                    // 채팅 페이지에서는 chat.html의 핸들러가 처리한다.
+                    const isChatPage = window.location.pathname === '/chat';
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 현재 페이지:', window.location.pathname);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 채팅 페이지 여부:', isChatPage);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] window.currentRoomId:', window.currentRoomId);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 메시지 room_id:', data.room_id);
+
+                    if (isChatPage) {
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ⏭️ 채팅 페이지에서는 로컬 핸들러가 처리합니다. 전역 핸들러 무시');
+                        return;
+                    }
+
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 알림 표시 조건 만족 (다른 페이지)');
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showGlobalChatNotification 함수 존재:', typeof showGlobalChatNotification === 'function');
+                    if (typeof showGlobalChatNotification === 'function') {
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showGlobalChatNotification 호출');
+                        showGlobalChatNotification(data);
+                    } else {
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showGlobalChatNotification 없음, 브라우저 알림 사용');
+                        showBrowserNotification(data);
+                    }
+                },
+                onErpNotification: function (data) {
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ERP 알림 수신:', data);
+                    refreshErpNotificationUI({ force: true, reason: 'erp-notification' });
+                    if (data && data.urgent) {
+                        triggerUrgentBriefingAlert(data);
+                    }
+                }
+            };
+            window.__globalSocketHandlers = globalHandlers;
+
+            // 긴급 알림 발생 시 시각적/청각적 강제 인지 함수
+            window.triggerUrgentBriefingAlert = function (data) {
+                console.warn('[URGENT] 긴급 이벤트 수신, 강제 인지 처리:', data);
+
+                // 1. 청각 알림 (비프음)
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(880, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.3);
+                } catch (e) { console.error('Audio 처리 실패:', e); }
+
+                // 2. 브리핑 보드 버튼 애니메이션 (붉은 점멸)
+                const btn = document.getElementById('personal-briefing-toggle');
+                if (btn) {
+                    btn.classList.add('urgent-alert-active');
+                    const icon = btn.querySelector('i');
+                    if (icon) {
+                        icon.setAttribute('data-orig-class', icon.className);
+                        icon.className = 'fas fa-exclamation-triangle personal-briefing-chevron';
+                    }
+                    // 10초 후 자동 해제 (또는 열었을 때 해제되도록 함)
+                    setTimeout(() => {
+                        btn.classList.remove('urgent-alert-active');
+                        if (icon && icon.getAttribute('data-orig-class')) {
+                            icon.className = icon.getAttribute('data-orig-class');
+                        }
+                    }, 10000);
+                }
+
+                // 3. 거대한 긴급 알람 오버레이 (클릭 전까지 안 사라짐)
+                let overlay = document.getElementById('urgent-fullscreen-overlay');
+                if (!overlay) {
+                    overlay = document.createElement('div');
+                    overlay.id = 'urgent-fullscreen-overlay';
+                    overlay.style.cssText = 'position: fixed; inset: 0; background-color: rgba(220, 53, 69, 0.95); z-index: 106000; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); text-align: center;';
+
+                    const bellIcon = document.createElement('i');
+                    bellIcon.className = 'fas fa-bell bell-active';
+                    bellIcon.style.cssText = 'font-size: 50vh; color: #fff; text-shadow: 0 0 30px rgba(0,0,0,0.5); margin-bottom: 30px;';
+
+                    const titleText = document.createElement('h1');
+                    titleText.style.cssText = 'color: #fff; font-weight: 800; font-size: 3rem; text-shadow: 0 2px 10px rgba(0,0,0,0.3); margin-bottom: 10px; max-width: 90%; word-break: keep-all;';
+
+                    const msgText = document.createElement('h3');
+                    msgText.style.cssText = 'color: #fff; font-weight: 500; max-width: 80%; word-break: keep-all; line-height: 1.4;';
+
+                    const clickBtn = document.createElement('button');
+                    clickBtn.innerHTML = '알림 확인완료';
+                    clickBtn.style.cssText = 'margin-top: 40px; padding: 15px 40px; border: 3px solid white; border-radius: 50px; font-weight: bold; font-size: 1.5rem; background: rgba(0,0,0,0.3); color: #fff; cursor: pointer; transition: all 0.2s;';
+                    clickBtn.onmouseover = () => { clickBtn.style.background = 'rgba(0,0,0,0.5)'; clickBtn.style.transform = 'scale(1.05)'; };
+                    clickBtn.onmouseleave = () => { clickBtn.style.background = 'rgba(0,0,0,0.3)'; clickBtn.style.transform = 'scale(1)'; };
+
+                    overlay.appendChild(bellIcon);
+                    overlay.appendChild(titleText);
+                    overlay.appendChild(msgText);
+                    overlay.appendChild(clickBtn);
+
+                    clickBtn.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // 클릭 시 한 번 더 물어보기 기능
+                        if (confirm('알림 내용을 충분히 확인하셨나요?\n\n[확인]을 누르시면 긴급 알람 창이 닫힙니다.')) {
+                            overlay.remove();
+                        }
+                    });
+
+                    document.body.appendChild(overlay);
+                }
+
+                const safeTitle = data.title ? String(data.title).replace(/</g, "&lt;").replace(/>/g, "&gt;") : '🚨 긴급 알람 🚨';
+                const safeMsg = data.message ? String(data.message).replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>') : '상세 내용은 알림 패널을 확인하세요.';
+
+                overlay.querySelector('h1').innerHTML = safeTitle;
+                overlay.querySelector('h3').innerHTML = safeMsg;
+            };
+
+            globalSocket.off('connect', globalHandlers.onConnect);
+            globalSocket.off('connect_error', globalHandlers.onConnectError);
+            globalSocket.off('disconnect', globalHandlers.onDisconnect);
+            globalSocket.off('connected', globalHandlers.onConnected);
+            globalSocket.off('new_message', globalHandlers.onNewMessage);
+            globalSocket.off('erp_notification', globalHandlers.onErpNotification);
+
+            globalSocket.on('connect', globalHandlers.onConnect);
+            globalSocket.on('connect_error', globalHandlers.onConnectError);
+            globalSocket.on('disconnect', globalHandlers.onDisconnect);
+            globalSocket.on('connected', globalHandlers.onConnected);
+            globalSocket.on('new_message', globalHandlers.onNewMessage);
+            globalSocket.on('erp_notification', globalHandlers.onErpNotification);
+
+            // 전역 알림 표시 함수 (chat.html의 showChatNotification 로직 재사용)
+            window.showGlobalChatNotification = function (messageData) {
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 🔔 showGlobalChatNotification 호출됨:', messageData);
+
+                // 채팅방 정보 조회
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 채팅방 정보 조회 시작: room_id=', messageData.room_id);
+                fetch(`/api/chat/rooms/${messageData.room_id}`)
+                    .then(response => {
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 채팅방 정보 응답 상태:', response.status);
+                        return response.json();
+                    })
+                    .then(result => {
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 채팅방 정보 조회 결과:', result);
+                        if (result.success && result.room) {
+                            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 채팅방 정보 조회 성공:', result.room);
+                            // chat.html의 showChatNotification 함수가 있으면 사용
+                            if (typeof showChatNotification === 'function') {
+                                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showChatNotification 함수 사용');
+                                showChatNotification(messageData, result.room);
+                            } else {
+                                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showChatNotification 없음, 간단한 알림 사용');
+                                // 간단한 알림 표시
+                                showSimpleNotification(messageData, result.room);
+                            }
+                        } else {
+                            if (window.FOMS_DEBUG) console.warn('[Global Socket.IO] ⚠️ 채팅방 정보 조회 실패');
+                            showSimpleNotification(messageData, { id: messageData.room_id, name: '알 수 없는 채팅방' });
+                        }
+                    })
+                    .catch(err => {
+                        console.error('[Global Socket.IO] ❌ 채팅방 정보 조회 오류:', err);
+                        showSimpleNotification(messageData, { id: messageData.room_id, name: '알 수 없는 채팅방' });
+                    });
+            };
+
+            // 간단한 알림 표시 (chat.html이 아닌 페이지용)
+            function showSimpleNotification(messageData, roomData) {
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showSimpleNotification 호출:', messageData, roomData);
+                // 전역 알림 팝업 표시
+                showGlobalNotificationPopup(messageData, roomData);
+            }
+
+            // 전역 알림 팝업 표시 함수 (모든 페이지에서 사용)
+            function showGlobalNotificationPopup(messageData, roomData) {
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showGlobalNotificationPopup 호출:', messageData, roomData);
+
+                // 알림 컨테이너 확인
+                let container = document.getElementById('chat-notification-container');
+                if (!container) {
+                    console.error('[Global Socket.IO] 알림 컨테이너를 찾을 수 없습니다.');
+                    // 브라우저 알림으로 폴백
+                    showBrowserNotification(messageData);
+                    return;
+                }
+
+                // 중복 알림 방지
+                const messageId = messageData.id || (messageData.room_id + '_' + (messageData.created_at || Date.now()));
+                if (window.globalNotificationIds && window.globalNotificationIds.has(messageId)) {
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 중복 알림 스킵:', messageId);
+                    return;
+                }
+
+                if (!window.globalNotificationIds) {
+                    window.globalNotificationIds = new Set();
+                }
+                window.globalNotificationIds.add(messageId);
+
+                // 알림 요소 생성
+                const notificationId = 'global-notification-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                const notificationEl = document.createElement('div');
+                notificationEl.className = 'chat-notification';
+                notificationEl.id = notificationId;
+
+                // 메시지 내용 추출
+                let messageContent = messageData.content || '(내용 없음)';
+                const senderName = messageData.user_name || '알 수 없음';
+                const roomName = roomData ? roomData.name : '알 수 없는 채팅방';
+                const senderInitial = senderName.charAt(0).toUpperCase();
+
+                // 시간 포맷
+                let timeStr = '방금';
+                if (messageData.created_at) {
+                    const msgDate = new Date(messageData.created_at);
+                    const now = new Date();
+                    const diff = now - msgDate;
+                    if (diff < 60000) {
+                        timeStr = '방금';
+                    } else if (diff < 3600000) {
+                        timeStr = Math.floor(diff / 60000) + '분 전';
+                    } else if (diff < 86400000) {
+                        timeStr = Math.floor(diff / 3600000) + '시간 전';
+                    } else {
+                        timeStr = msgDate.toLocaleDateString('ko-KR');
+                    }
+                }
+
+                // HTML 이스케이프 함수
+                function escapeHtml(text) {
+                    if (!text) return '';
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                }
+
+                // 첨부파일 처리
+                let attachmentHtml = '';
+                if (messageData.attachments && messageData.attachments[0]) {
+                    const attachment = messageData.attachments[0];
+                    if (attachment.file_type === 'image' && attachment.thumbnail_url) {
+                        attachmentHtml = `<img src="${attachment.thumbnail_url}" class="chat-notification-image" alt="이미지">`;
+                    } else {
+                        const fileIcon = attachment.file_type === 'video' ? 'fa-video' : 'fa-file';
+                        attachmentHtml = `
+                        <div class="chat-notification-file">
+                            <i class="fas ${fileIcon} chat-notification-file-icon"></i>
+                            <span class="chat-notification-file-name">${escapeHtml(attachment.filename || '파일')}</span>
+                        </div>
+                    `;
+                    }
+                }
+
+                notificationEl.innerHTML = `
+                <div class="chat-notification-header">
+                    <h6 class="chat-notification-room-name">${escapeHtml(roomName)}</h6>
+                    <button class="chat-notification-close" type="button" aria-label="닫기">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="chat-notification-content">
+                    <div class="chat-notification-avatar">${senderInitial}</div>
+                    <div class="chat-notification-body">
+                        <div class="chat-notification-sender">${escapeHtml(senderName)}</div>
+                        <div class="chat-notification-message">${escapeHtml(messageContent)}</div>
+                        ${attachmentHtml}
+                        <div class="chat-notification-time">${timeStr}</div>
+                    </div>
+                </div>
+            `;
+
+                // 닫기 버튼 이벤트
+                const closeBtn = notificationEl.querySelector('.chat-notification-close');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        closeGlobalNotification(notificationId, messageId);
+                    });
+                }
+
+                // 클릭 이벤트: 채팅 페이지로 이동 (room_id 파라미터 포함)
+                notificationEl.addEventListener('click', function (e) {
+                    if (!e.target.classList.contains('chat-notification-close') &&
+                        !e.target.closest('.chat-notification-close')) {
+                        closeGlobalNotification(notificationId, messageId);
+                        // 채팅 페이지로 이동 (room_id 파라미터 포함)
+                        const roomId = roomData ? roomData.id : messageData.room_id;
+                        if (roomId) {
+                            window.location.href = `/chat?room_id=${roomId}`;
+                        } else {
+                            window.location.href = '/chat';
+                        }
+                    }
+                });
+
+                // 컨테이너에 추가
+                container.appendChild(notificationEl);
+
+                // 자동 닫기 (5초 후)
+                setTimeout(() => {
+                    closeGlobalNotification(notificationId, messageId);
+                }, 5000);
+            }
+
+            // 전역 알림 닫기 함수
+            function closeGlobalNotification(notificationId, messageId) {
+                const notificationEl = document.getElementById(notificationId);
+                if (notificationEl) {
+                    notificationEl.style.animation = 'slideOutRight 0.3s ease-out';
+                    setTimeout(() => {
+                        notificationEl.remove();
+                        if (messageId && window.globalNotificationIds) {
+                            window.globalNotificationIds.delete(messageId);
+                        }
+                    }, 300);
+                }
+            }
+
+            // 브라우저 알림
+            function showBrowserNotification(messageData) {
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showBrowserNotification 호출:', messageData);
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] Notification API 지원:', 'Notification' in window);
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] Notification 권한:', Notification.permission);
+
+                if ('Notification' in window) {
+                    if (Notification.permission === 'granted') {
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 브라우저 알림 표시');
+                        const notification = new Notification(`${messageData.user_name || '알 수 없음'}님의 메시지`, {
+                            body: messageData.content || '새 메시지가 도착했습니다.',
+                            tag: `chat_${messageData.room_id}`,
+                            requireInteraction: false
+                        });
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 브라우저 알림 생성됨:', notification);
+                    } else if (Notification.permission === 'default') {
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 알림 권한 요청');
+                        Notification.requestPermission().then(permission => {
+                            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 알림 권한 결과:', permission);
+                            if (permission === 'granted') {
+                                showBrowserNotification(messageData);
+                            }
+                        });
+                    } else {
+                        if (window.FOMS_DEBUG) console.warn('[Global Socket.IO] ⚠️ 알림 권한이 거부됨');
+                    }
+                } else {
+                    if (window.FOMS_DEBUG) console.warn('[Global Socket.IO] ⚠️ 브라우저가 Notification API를 지원하지 않음');
+                }
+            }
+
+            // 전역 변수로 노출 (하위 페이지에서 동일 인스턴스 재사용)
+            window.globalSocket = globalSocket;
+            window.__appSocket = globalSocket;
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 전역 Socket.IO 초기화 완료');
+        })();
+    </script>
+    {% else %}
+    <script>
+        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ⚠️ current_user가 없어 Socket.IO를 초기화하지 않습니다.');
+    </script>
+    {% endif %}
+    {# USE_DIRECT_UPLOAD는 context_processor(inject_status_list)가 모든 템플릿에 #}
+    {# use_direct_upload Jinja 변수를 자동 주입하므로, 각 하위 JS에서 const로 직접 선언합니다. #}
+    {# layout.html에서 window.USE_DIRECT_UPLOAD로 전역 주입 시 하위 const와 충돌(SyntaxError) 발생. #}
