@@ -1,5 +1,5 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-04-15 | live tip: `56486cdb` — SFC-B12 §6.19 `CLEAN_ROOM_OK` 재현·§9 closeout(원격은 `origin/feature/modular-monolith-wip` 최신 HEAD); 구조 스냅샷·`.vscode` 고정은 `214654c9`·`b7014c74` 참조
+> 자동 업데이트: 2026-04-15 | `origin/feature/modular-monolith-wip` — SFC-B12 §6.19 `CLEAN_ROOM_OK`·§9 closeout; 트리 증거 `56486cdb`, 구조 스냅샷·`.vscode` `214654c9`·`b7014c74`
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
