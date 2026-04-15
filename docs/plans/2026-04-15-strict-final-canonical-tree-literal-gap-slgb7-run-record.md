@@ -10,14 +10,16 @@
 - `docs/AI_STATUS.md`: **본 tranche closeout 증거**로 `strict physical-tree`/`SLG` 관련 문구 갱신.
 - 본 파일: **final closeout run record**.
 
-## 2. 증거 (working tree / 미커밋 포함)
+## 2. 증거 (committed HEAD)
 
 | 검증 | 결과 |
 |------|------|
-| `pytest tests/contracts/runtime/foms_namespace_surface_tests.py` | **182 passed** |
+| SLG 본체 커밋 | `92bbb5af` — `feat(strict): SLG-B1~B7 literal-gap 트랜치 마감` |
+| 후속 (gitignore) | `f4d7410a` — `_commit_msg*.txt` ignore (현재 브랜치 tip) |
+| `pytest tests/contracts/runtime/foms_namespace_surface_tests.py` | **182 passed** (로컬 검증) |
 | `python -c "import app; print('APP_OK')"` | **APP_OK** |
 | `python tools/harness/verify_result.py --json` | **success: true** |
-| `powershell -NoProfile -File tools\harness\strict_canonical_b12_clean_room.ps1 -Ref HEAD` | **커밋된 스냅샷 기준** — 새 파일이 아직 Git에 없으면 worktree에 반영되지 않아 실패할 수 있음 → **전체 변경 커밋 후 동일 명령으로 `CLEAN_ROOM_OK` 재실행 권장** |
+| `powershell -NoProfile -File tools\harness\strict_canonical_b12_clean_room.ps1 -Ref HEAD` | **`CLEAN_ROOM_OK`** on **`f4d7410a`** — 루트 Compare-Object 0 diff, templates/web/api/services subtree closed-set, SLG 금지 경로 프로브 OK, APP_OK, verify_result OK |
 
 ## 3. Closeout 조건 대조 (계획서 §6.8)
 
@@ -32,7 +34,7 @@
 | `foms/services/orders/erp_policy_internal` 없음 | 없음 (금지 nested) |
 | `foms/services/` top-level §4.4 allowlist | 계약 `test_slg_literal_gap_foms_services_top_level_dirs_closed_set` green |
 | 강화 strict tests | **182 passed** (본 세션) |
-| clean-room 스크립트 | 스크립트 정의 준수 — **운영 증거는 커밋 후 HEAD 기준 재실행** |
+| clean-room 스크립트 | **`CLEAN_ROOM_OK`** (`f4d7410a` HEAD 기준 worktree 재생) |
 
 ## 4. 3축 + GDM (final)
 

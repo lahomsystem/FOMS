@@ -4,7 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
-| 2026-04-15 | SLG-B1~B7 literal-gap 트랜치: 템플릿 shared/errors retire·web/API 흡수·channel/files·erp_policy flat leaf·계약 182 green·clean-room subtree·run records·AI_STATUS | foms_namespace_surface_tests, strict_canonical_b12_clean_room.ps1, foms/api/channel|files, foms/web/*, erp_policy.py, orders/erp_policy_*, templates/partials, docs slgb0~7 | — |
+| 2026-04-15 | SLG-B1~B7 literal-gap 트랜치: 템플릿 shared/errors retire·web/API 흡수·channel/files·erp_policy flat leaf·계약 182 green·`CLEAN_ROOM_OK` HEAD·run records·AI_STATUS | 동일 + `92bbb5af`/`f4d7410a` | f4d7410a |
 | 2026-04-15 | 세션 자동 기록 | strict_canonical_b12_clean_room.ps1, address_ai_ops_loader.py, address_converter.py 외 2개 | 16fceb67 |
 | 2026-04-15 | SFC-B12: 루트 주소 AI 시므 제거·`address_ai_ops_loader`·§6.19 allowlist Compare-Object 0 diff·batch12 run record·586 passed | foms/services/common/address_ai_ops_loader.py, address_converter.py, del foms_address_learning.py, foms_advanced_address_processor.py, batch12, AI_STATUS | — |
 | 2026-04-15 | SFC-B11D: 루트 `src/` → `Add In Program/WDPlanner/legacy-mobile-prototype/`, 계약 `test_strict_canonical_src_overlay_directory_removed_sfc_b11d_closeout`, batch11d run record, README 위치 고지, 586 passed | git mv src, legacy-mobile-prototype/README, foms_namespace_surface_tests, batch11d, AI_STATUS | — |

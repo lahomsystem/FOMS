@@ -1,5 +1,5 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-04-15 | **SLG literal-gap tranche (`SLG-B1`–`SLG-B7`) closeout** — `tests/contracts/runtime/foms_namespace_surface_tests.py` **182 passed**, `APP_OK`, `verify_result.py --json` success; 물리 트리 목표는 `docs/plans/2026-04-15-strict-final-canonical-tree-literal-gap-remediation-plan.md` 및 per-batch run records (`slgb0`–`slgb7`) 참고. **`git worktree` 기반 `strict_canonical_b12_clean_room.ps1`는 커밋된 `HEAD` 스냅샷을 검증**하므로, 동일 스크립트로 `CLEAN_ROOM_OK`를 남기려면 **변경 커밋 후 `-Ref HEAD` 재실행**할 것 (slgb7 run record §2).
+> 자동 업데이트: 2026-04-15 | **SLG literal-gap tranche (`SLG-B1`–`SLG-B7`) closeout** — 계약 **182 passed**, `APP_OK`, `verify_result` success; **`strict_canonical_b12_clean_room.ps1 -Ref HEAD` → `CLEAN_ROOM_OK`** (tip `f4d7410a`, SLG 본체 `92bbb5af`). 근거: `slgb7` run record §2, 계획서 `docs/plans/2026-04-15-strict-final-canonical-tree-literal-gap-remediation-plan.md`.
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
