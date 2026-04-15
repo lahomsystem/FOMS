@@ -1,12 +1,12 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-04-15 | 마지막 작업: SFC-B12 — clean-room allowlist 일치 + 루트 주소 AI 시므 제거
+> 자동 업데이트: 2026-04-15 | 마지막 작업: SFC-B12 — §6.19 커밋 스냅샷에서 `CLEAN_ROOM_OK` + `.vscode` 루트 버전 고정 (`b7014c74`)
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 최근 완료 (최대 5개)
-- [2026-04-15] **Strict final canonical tree `SFC-B12` (§6.19):** `§6.19` `$allowedRoot` 대비 남던 루트 `foms_address_learning.py`·`foms_advanced_address_processor.py` 제거; 구현 로드는 `foms/services/common/address_ai_ops_loader.py` → `scripts/ops/*.py`. 루트 `Compare-Object` **0 diff**. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: `docs/plans/2026-04-15-strict-final-canonical-tree-batch12-clean-room-closeout-run-record.md` (커밋 후 동일 스냅샷에서 `git worktree` 재실행 권장).
+- [2026-04-15] **Strict final canonical tree `SFC-B12` (§6.19) — committed clean-room:** 대형 마감 스냅샷 `214654c9` + `.vscode` 루트 추적 `.gitignore` 조정 `b7014c74` (`origin/feature/modular-monolith-wip` 푸시됨). `tools/harness/strict_canonical_b12_clean_room.ps1 -Ref HEAD -RunFullPytest` → **`CLEAN_ROOM_OK`** (`Compare-Object` zero diff, `APP_OK`, `verify_result.py --json`, **586 passed**). 주소 AI 루트 시므 제거·`address_ai_ops_loader`는 동일 배치 근거에 포함. 근거: `docs/plans/2026-04-15-strict-final-canonical-tree-batch12-clean-room-closeout-run-record.md` §8.
 - [2026-04-15] **Strict final canonical tree `SFC-B11D` (§6.18):** repo-root `src/`를 `git mv`로 `Add In Program/WDPlanner/legacy-mobile-prototype/`에 수령; `src/README.md`에 물리 위치(SFC-B11D) 안내 추가. 계약 `test_strict_canonical_src_overlay_directory_removed_sfc_b11d_closeout`. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: `docs/plans/2026-04-15-strict-final-canonical-tree-batch11d-src-retirement-run-record.md`.
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` (slices 6–12, §6.16):** `erp_dashboard`·`erp_history_page`·`erp_as_page`·`erp_drawing_workbench`·`erp_shipment_page`·`order_pages`·`order_edit` 본문을 각 `foms/web/<pkg>/routes.py`로 이전; 패키지 `__init__`은 `routes`만; 루트 `apps/*.py` shim. `foms_namespace_surface_tests` ERP permissions 검사 대상을 **`foms.web.*.routes`** 및 `foms/web/erp_dashboard/routes.py`(lazy import)로 갱신. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-6 — B11B-12**.
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 5 (`excel_import`, §6.16):** 구현을 `foms/web/excel_import/routes.py`로 이전; `foms/web/excel_import/__init__.py`는 `routes`만 import; `apps/excel_import.py`는 `foms.web.excel_import` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-5**.
@@ -45,7 +45,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 진행 중
 - [2026-04-15] **`SFC-B11D`** (§6.18 `src/` retirement): **종료** — batch11d run record 참고.
-- [2026-04-15] **`SFC-B12`** (§6.19 clean-room): **종료** — batch12 run record 참고; **릴리스 게이트**는 변경분 커밋 후 `git worktree`로 `§6.19` recipe 재실행 권장.
+- [2026-04-15] **`SFC-B12`** (§6.19 clean-room): **종료** — `HEAD` `b7014c74`에서 `strict_canonical_b12_clean_room.ps1`로 SG6 재현 완료(batch12 run record §8).
 - [2026-04-15] **`SFC-B11B`** (§6.16 `apps/` overlay retirement): **working tree 기준 `apps/` 디렉터리 없음** — 구현·계약은 batch11b·B11A run record·`pytest` strict 계약으로 동결. 원격/HEAD와 불일치 시 동기화만 확인.
 - [2026-04-15] **`SFC-B11A`:** §**6.15** **종료** (batch11a sign-off). B11B와 혼동 금지.
 - [2026-04-15] active mainline 구조 tranche 없음. `WR-B1` / `WR-J1` / `WR-H1`는 explicit future batch 조건에서만 재개.
