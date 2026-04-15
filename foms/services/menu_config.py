@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 _MENU_CONFIG_CACHE = None
 _MENU_CONFIG_MTIME = 0
-_MENU_CONFIG_PATH = "menu_config.json"
+_MENU_CONFIG_PATH = "data/admin/menu_config.json"
 
 
 def load_menu_config() -> dict[str, Any]:
@@ -48,7 +48,6 @@ def _default_menu_config() -> dict[str, Any]:
     """기본 메뉴 설정."""
     return {
         "main_menu": [
-            {"id": "calendar", "name": "캘린더", "url": "/calendar"},
             {"id": "order_list", "name": "전체 주문", "url": "/"},
             {"id": "received", "name": "접수", "url": "/?status=RECEIVED"},
             {"id": "measured", "name": "실측", "url": "/?status=MEASURE"},

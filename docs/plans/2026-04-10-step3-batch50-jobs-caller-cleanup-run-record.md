@@ -14,13 +14,13 @@
 **Verdict: Step 3 Batch 50 executed — live jobs caller cleanup completed without changing queue contract**
 
 이유:
-- `apps/api/channel_integration.py`, `erp_measurement.py`, `erp_orders_structured.py`, `erp_shipment_settings.py`, `orders.py`, `erp_map.py`, `apps/order_pages.py`, `apps/order_edit.py`, `scripts/geocode_backfill.py`의 live jobs caller import를 canonical `foms.services.jobs` 경로로 정리했다.
+- `apps/api/channel_integration.py`, `erp_measurement.py`, `erp_orders_structured.py`, `erp_shipment_settings.py`, `orders.py`, `erp_map.py`, `apps/order_pages.py`, `apps/order_edit.py`, `scripts/maintenance/geocode_backfill.py`의 live jobs caller import를 canonical `foms.services.jobs` 경로로 정리했다.
 - `erp_measurement.py`와 `erp_map.py`의 sync fallback용 `geocode_order_address` local import도 canonical `foms.services.jobs.tasks`로 맞췄다.
-- `scripts/geocode_backfill.py`는 `import_module("foms.services.jobs.queue").get_rq_queue()`로 queue resolver를 canonical path에 맞췄다.
+- `scripts/maintenance/geocode_backfill.py`는 `import_module("foms.services.jobs.queue").get_rq_queue()`로 queue resolver를 canonical path에 맞췄다.
 - `services.jobs.*` import 검색 결과는 tests/shim만 남아 구조적 cleanup 목표를 충족했다.
 
 ## 2. 변경 파일 (요약)
-- Caller: `apps/api/channel_integration.py`, `apps/api/erp_measurement.py`, `apps/api/erp_orders_structured.py`, `apps/api/erp_shipment_settings.py`, `apps/api/orders.py`, `apps/api/erp_map.py`, `apps/order_pages.py`, `apps/order_edit.py`, `scripts/geocode_backfill.py`
+- Caller: `apps/api/channel_integration.py`, `apps/api/erp_measurement.py`, `apps/api/erp_orders_structured.py`, `apps/api/erp_shipment_settings.py`, `apps/api/orders.py`, `apps/api/erp_map.py`, `apps/order_pages.py`, `apps/order_edit.py`, `scripts/maintenance/geocode_backfill.py`
 - 테스트: `tests/test_foms_namespace_imports.py`
 - 문서: 본 run record, `docs/AI_STATUS.md`, `docs/ARCHIVE_INDEX.md`, `docs/context/COMPACT_CHECKPOINT.md`, `docs/specs/2026-04-07-repo-structure-governance_SPEC.md`
 

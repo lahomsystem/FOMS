@@ -6,7 +6,7 @@ from flask import jsonify, request
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import defer
 
-from constants import STATUS
+from foms.services.orders.status_constants import STATUS
 from db import get_db
 from models import Order, OrderScheduleDate
 

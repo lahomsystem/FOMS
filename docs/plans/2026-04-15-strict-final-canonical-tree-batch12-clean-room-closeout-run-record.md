@@ -1,0 +1,51 @@
+# SFC-B12 — Clean-room exact-match audit + closeout (run record)
+
+> 입력: `docs/plans/2026-04-15-strict-final-canonical-tree-100-percent-execution-plan.md` §**6.19**, `SG1`–`SG7` 정의(동일 문서 §2.5), B1 baseline `docs/plans/2026-04-15-strict-final-canonical-tree-batch1-gap-inventory-run-record.md`
+
+## 1. Family / risk axis
+
+- **Risk axis:** root exact-match (`SF1` / `SG5` / `SG6`) + canonical import surface (`SG2` 일부: 주소 AI 루트 시므).
+- **Code family:** 루트 `foms_address_learning.py`, `foms_advanced_address_processor.py` 제거 — 구현 단일 소유는 기존과 같이 `scripts/ops/*.py`.
+
+## 2. 잔여 블로커 (B12 직전)
+
+- PowerShell `§6.19` `$allowedRoot` 대비 **working tree** 실측: `foms_address_learning.py`, `foms_advanced_address_processor.py` **2건만** 초과 (`Compare-Object` `=>`).
+- 구현은 이미 `scripts/ops/`에 있었고, 루트 파일은 Wave 1 호환 **시므**였음.
+
+## 3. 수행 변경
+
+| 파일 | 조치 |
+|------|------|
+| `foms/services/common/address_ai_ops_loader.py` | **신규** — `scripts/ops/foms_address_learning.py`, `foms_advanced_address_processor.py`를 `importlib`로 로드해 `FOMSAddressLearningSystem`, `FOMSAdvancedAddressProcessor` 노출 |
+| `foms/services/common/address_converter.py` | 루트 시므 import 제거 → `address_ai_ops_loader`에서 import |
+| `foms_address_learning.py` (루트) | **삭제** |
+| `foms_advanced_address_processor.py` (루트) | **삭제** |
+
+금지 범위: 새 루트 시므 없음, 제품 동작/라우트/JSON 계약 변경 없음(import 경로만 canonical 측으로 수령).
+
+## 4. SG scoreboard (이번 배치에서 직접 재측정한 항목)
+
+| ID | 측정 | 결과 | 비고 |
+|----|------|------|------|
+| `SG1` | `Test-Path` `apps`,`services`,`src` | **0** (오버레이 디렉터리 없음) | B11B/C/D 이후 물리 트리와 일치 |
+| `SG5` / `SG6` | `§6.19` `$allowedRoot` vs 루트 `Get-ChildItem` (`.git`/로컬 캐시 제외) `Compare-Object` | **0 diff** | 잔여 2파일 제거 후 |
+| `SG2`–`SG4`, `SG7` | `pytest tests` 내 strict canonical 계약 | **통과** (전체 586 passed) | `foms_namespace_surface_tests.py` 등으로 B1 이후 축 동결 |
+
+`SG6`는 계획상 “clean-room에서의 exact-match”이므로, **동일 바이트의 재현**은 **`git commit`된 스냅샷**에서 `git worktree add <path> <commit>`로 재실행하는 것이 정식 절차다. 현재 저장소에는 미커밋 변경이 많을 수 있으므로, **CI/릴리스 게이트**는 해당 커밋 기준으로 `§6.19` recipe를 한 번 더 돌릴 것을 권장한다.
+
+## 5. 검증 명령 (실행 시점)
+
+```text
+python -c "import app; print('APP_OK')"
+python tools/harness/verify_result.py --json
+pytest tests -q   → 586 passed
+```
+
+## 6. 다음 legal batch / 종료 선언
+
+- **Strict canonical tree tranche**에서 계획서가 요구하는 코드 배치는 **본 기록 시점에서 closeout**으로 간주 가능(계약 테스트 + 루트 allowlist 일치).
+- 후속은 **운영 절차**만: 변경분 커밋 후 `git worktree` clean-room에서 `§6.19` 3줄 블록 재실행해 로그 보관.
+
+## 7. 남은 blocker
+
+- **없음** (본 working tree 기준). 미커밋 상태와 `origin/HEAD` 불일치 시 별도 맞춤만 필요.

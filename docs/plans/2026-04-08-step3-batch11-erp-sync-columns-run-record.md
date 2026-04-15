@@ -16,7 +16,7 @@
 이유:
 - `foms/services/erp_sync_columns.py`를 열 번째 canonical service source of truth로 추가했다.
 - legacy `services/erp_sync_columns.py`는 공개 함수 `sync_erp_flat_columns`만 재수출하는 thin shim으로 전환했다.
-- caller가 넓은 모듈이라는 감리 결과에 따라, production/runtime caller 전면 정리 대신 `scripts/backfill_erp_flat_columns.py` 1곳만 canonical import로 정리하는 staged 배치로 마감했다.
+- caller가 넓은 모듈이라는 감리 결과에 따라, production/runtime caller 전면 정리 대신 `scripts/migrations/backfill_erp_flat_columns.py` 1곳만 canonical import로 정리하는 staged 배치로 마감했다.
 - 새 행위 테스트와 shim 계약 테스트를 추가하고, `ERP_SYNC_COLUMNS_NS_OK`/`APP_OK`/`verify_result.py --json`/전체 `pytest -q`를 재통과했다.
 
 ## 2. 후보 비교와 선정 근거
@@ -43,7 +43,7 @@
   - 공개 함수 `sync_erp_flat_columns`만 재수출하는 thin shim으로 전환
 
 ### 3.3 staged caller 정리
-- `scripts/backfill_erp_flat_columns.py`
+- `scripts/migrations/backfill_erp_flat_columns.py`
   - `from services.erp_sync_columns ...` → `from foms.services.erp_sync_columns ...`
 
 ### 3.4 테스트 추가/보강
@@ -95,7 +95,7 @@
 - legacy 패턴: `from services\.erp_sync_columns import|import services\.erp_sync_columns`
 - 결과: `apps/*`, `services/app_init.py`, `tests/test_foms_namespace_imports.py` 등 staged 잔여 caller가 의도대로 남아 있음
 - canonical 패턴: `from foms\.services\.erp_sync_columns import|import foms\.services\.erp_sync_columns`
-- 결과: `scripts/backfill_erp_flat_columns.py` 1곳 확인
+- 결과: `scripts/migrations/backfill_erp_flat_columns.py` 1곳 확인
 
 ### 6.2 namespace smoke
 - 실행: `python -c "from services.erp_sync_columns import sync_erp_flat_columns as legacy_sync; from foms.services.erp_sync_columns import sync_erp_flat_columns as namespaced_sync; assert legacy_sync is namespaced_sync; print('ERP_SYNC_COLUMNS_NS_OK')"`

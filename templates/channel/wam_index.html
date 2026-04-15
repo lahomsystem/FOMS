@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FOMS WAM 요약</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/channel/tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/channel/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/channel/components.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/channel/layout.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/channel/order-detail.css') }}">
+</head>
+<body class="wam-shell">
+  <main class="wam-shell__viewport">
+    <div class="wam-shell__content">
+      <header class="wam-header__surface">
+        <p class="wam-header__eyebrow">Rollback V1</p>
+        <div class="wam-header__main">
+          <div>
+            <h1 class="wam-header__title">주문 #{{ summary.order_id }}</h1>
+            <p class="wam-header__customer">{{ summary.customer_name or '-' }}</p>
+          </div>
+          <span class="wam-status-badge">{{ summary.status_kr or '-' }}</span>
+        </div>
+      </header>
+
+      <section class="wam-summary-strip">
+        <article class="wam-summary-strip__item">
+          <span class="wam-summary-strip__label">연락처</span>
+          <strong class="wam-summary-strip__value">{{ summary.phone or '-' }}</strong>
+        </article>
+        <article class="wam-summary-strip__item">
+          <span class="wam-summary-strip__label">실측일</span>
+          <strong class="wam-summary-strip__value">{{ summary.measurement_date or '-' }}</strong>
+        </article>
+        <article class="wam-summary-strip__item">
+          <span class="wam-summary-strip__label">시공일</span>
+          <strong class="wam-summary-strip__value">{{ summary.construction_date or '-' }}</strong>
+        </article>
+        <article class="wam-summary-strip__item">
+          <span class="wam-summary-strip__label">담당자</span>
+          <strong class="wam-summary-strip__value">{{ summary.manager_name or '-' }}</strong>
+        </article>
+      </section>
+
+      <section class="wam-section">
+        <header class="wam-section__header">
+          <div>
+            <p class="wam-section__eyebrow">기본 정보</p>
+            <h2 class="wam-section__title">주문 요약</h2>
+          </div>
+        </header>
+        <div class="wam-section__body">
+          <div class="wam-kv-list">
+            <div class="wam-kv-row">
+              <dt>주소</dt>
+              <dd>{{ summary.address or '-' }}</dd>
+            </div>
+            <div class="wam-kv-row">
+              <dt>제품</dt>
+              <dd>{{ summary.product or '-' }}</dd>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="wam-section">
+        <header class="wam-section__header">
+          <div>
+            <p class="wam-section__eyebrow">첨부</p>
+            <h2 class="wam-section__title">첨부파일</h2>
+          </div>
+          <span class="wam-status-badge">{{ attachments|length }}건</span>
+        </header>
+        <div class="wam-section__body">
+          {% if attachments %}
+            <div class="wam-attachment-list">
+              {% for item in attachments %}
+                <article class="wam-attachment-item">
+                  <div class="wam-attachment-item__header">
+                    <div>
+                      <p>{{ item.name }}</p>
+                      <p class="wam-attachment-item__meta">{{ item.category or '분류 없음' }}</p>
+                    </div>
+                    <div class="wam-attachment-item__actions">
+                      <a class="wam-inline-action" href="{{ item.url }}" target="_blank" rel="noopener noreferrer">보기</a>
+                    </div>
+                  </div>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="wam-state-card">
+              <p class="wam-state-card__title">첨부 없음</p>
+              <p class="wam-state-card__message">표시할 첨부파일이 없습니다.</p>
+            </div>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

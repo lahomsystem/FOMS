@@ -94,7 +94,7 @@ def _resolve_debug_mode(use_reloader: bool) -> bool:
 
 def _run_startup_tasks(app: Any, logger: logging.Logger) -> None:
     """Run one-time local startup tasks before the dev server starts."""
-    from apps.api.attachments import (
+    from foms.api.attachments import (
         ensure_order_attachments_category_column,
         ensure_order_attachments_item_index_column,
     )

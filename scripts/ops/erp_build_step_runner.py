@@ -180,7 +180,7 @@ def step_3_holiday_calendar_2026(db):
     started_at = datetime.datetime.now()
     _upsert_step(db, STEP_HOLIDAY_CALENDAR, "RUNNING", message="Ensuring holiday calendar json exists", started_at=started_at)
     try:
-        from services.business_calendar import get_holidays_kr
+        from foms.services.common.business_calendar import get_holidays_kr
         _ = get_holidays_kr(2026)
         completed_at = datetime.datetime.now()
         _upsert_step(
@@ -208,10 +208,9 @@ def step_4_dashboard_mvp(db):
     started_at = datetime.datetime.now()
     _upsert_step(db, STEP_DASHBOARD_MVP, "RUNNING", message="Verifying ERP dashboard route/template", started_at=started_at)
     try:
-        import os
-        tpl_ok = os.path.exists(os.path.join(os.path.dirname(__file__), "templates", "erp_dashboard.html"))
+        tpl_ok = (_repo_root / "templates" / "orders" / "dashboard.html").is_file()
         if not tpl_ok:
-            raise RuntimeError("templates/erp_dashboard.html not found")
+            raise RuntimeError("templates/orders/dashboard.html not found")
         # 라우트는 app import 시 등록되므로 import만 확인
         from app import app as _app  # noqa
         completed_at = datetime.datetime.now()
@@ -400,10 +399,9 @@ def step_9_dashboard_3panel(db):
     started_at = datetime.datetime.now()
     _upsert_step(db, STEP_DASHBOARD_3PANEL, "RUNNING", message="Verifying ERP dashboard 3-panel UI present", started_at=started_at)
     try:
-        import os
-        tpl = os.path.exists(os.path.join(os.path.dirname(__file__), "templates", "erp_dashboard.html"))
+        tpl = (_repo_root / "templates" / "orders" / "dashboard.html").is_file()
         if not tpl:
-            raise RuntimeError("templates/erp_dashboard.html not found")
+            raise RuntimeError("templates/orders/dashboard.html not found")
         completed_at = datetime.datetime.now()
         _upsert_step(db, STEP_DASHBOARD_3PANEL, "COMPLETED", message="dashboard 3-panel ready", completed_at=completed_at)
         print(f"[OK] {STEP_DASHBOARD_3PANEL} completed")
@@ -446,7 +444,7 @@ def step_11_backfill_auto_tasks(db):
     _upsert_step(db, STEP_BACKFILL_AUTO_TASKS, "RUNNING", message="Backfilling auto tasks from structured_data", started_at=started_at)
     try:
         from models import Order  # local import
-        from erp_automation import apply_auto_tasks  # noqa
+        from foms.services.orders.erp_automation import apply_auto_tasks  # noqa
 
         orders = db.query(Order).filter(Order.active_filter(), Order.structured_data.isnot(None)).order_by(Order.created_at.desc()).limit(500).all()
 

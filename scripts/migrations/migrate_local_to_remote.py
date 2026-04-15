@@ -15,7 +15,8 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 # 1. Local Database Connection (SQLite)
-LOCAL_DB_URL = 'sqlite:///furniture_orders.db'
+_local_sqlite = _repo_root / "data" / "localdb" / "furniture_orders.db"
+LOCAL_DB_URL = f"sqlite:///{_local_sqlite.resolve().as_posix()}"
 local_engine = create_engine(LOCAL_DB_URL, echo=False)
 LocalSession = sessionmaker(bind=local_engine)
 

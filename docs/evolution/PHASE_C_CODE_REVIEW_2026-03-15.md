@@ -106,7 +106,7 @@
 
 1. **Alembic 트랜잭션 경계**: `COMMIT` 후 context manager 종료 시 동작이 드라이버/버전에 따라 다를 수 있음. 실제 마이그레이션 실행으로 검증 필요.
 2. **인덱스 중복**: `db_indexes.py`의 `idx_order_*`와 migration의 `ix_orders_active_id`가 유사한 역할. `idx_order_erp_beta` 등은 `is_erp_beta = true` 등 추가 조건이 있어 구분되나, `ix_orders_active_id`는 `status <> 'DELETED' AND deleted_at IS NULL`만 포함. 기존 partial index와의 충돌 여부 확인 필요.
-3. **미검증 영역**: `scripts/geocode_backfill.py`, `erp_build_step_runner.py` 등 스크립트의 `active_filter` 사용은 grep으로 확인했으나, 실제 실행 경로 검증은 수행하지 않음.
+3. **미검증 영역**: `scripts/maintenance/geocode_backfill.py`, `erp_build_step_runner.py` 등 스크립트의 `active_filter` 사용은 grep으로 확인했으나, 실제 실행 경로 검증은 수행하지 않음.
 
 ---
 

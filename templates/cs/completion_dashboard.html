@@ -1,11 +1,11 @@
-{% extends "layout.html" %}
+{% extends "shared/layout.html" %}
 
 {% block content %}
-{% include 'partials/erp_completion_styles.html' %}
+{% include 'partials/shared/erp_completion_styles.html' %}
 <div class="container-fluid erp-dashboard erp-pro erp-completion erp-mobile-shell"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
-    {% include 'partials/erp_mobile_shell.html' %}
+    {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -24,7 +24,7 @@
     </div>
   </header>
   {% set erp_sub_nav_active = 'completion' %}
-  {% include 'partials/erp_sub_nav.html' %}
+  {% include 'partials/shared/erp_sub_nav.html' %}
 
   <div class="erp-pro-card mt-3">
     <div class="erp-pro-card__header">
@@ -90,5 +90,5 @@
   </div>
 </div>
 
-{% include 'partials/erp_completion_scripts.html' %}
+{% include 'partials/shared/erp_completion_scripts.html' %}
 {% endblock %}

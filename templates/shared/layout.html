@@ -1,0 +1,2466 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <script>
+        if (typeof window.FOMS_DEBUG === 'undefined') {
+            window.FOMS_DEBUG = false;
+        }
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>하우드 ERP</title>
+    <link rel="icon" type="image/png" href="{{ url_for('favicon', v='20260407a') }}">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/style-pro-max.css') }}">
+    <!-- ERP Pro Dashboard Styles (Modern SaaS Design System) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20260325a">
+    <!-- Flatpickr (다중 실측일/시공일 선택) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <style>
+        .skip-link {
+            position: absolute;
+            left: 12px;
+            top: -48px;
+            z-index: 11000;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: #1d4ed8;
+            color: #fff;
+            text-decoration: none;
+            font-weight: 600;
+            transition: top 0.2s ease;
+        }
+
+        .skip-link:focus {
+            top: 12px;
+            outline: 2px solid #fff;
+            outline-offset: 2px;
+        }
+
+        /* MOBILE LAYOUT (2026-03 ERP 최적화) */
+        @media (max-width: 992px) {
+            .layout-header {
+                padding-top: 0.5rem !important;
+                padding-bottom: 0.5rem !important;
+                min-height: 0;
+                flex-wrap: nowrap;
+                gap: 0.25rem;
+            }
+
+            .layout-header__title {
+                font-size: 1rem !important;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                min-width: 0;
+                line-height: 1.25;
+                flex: 0 1 auto;
+                max-width: 38%;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3 {
+                flex-shrink: 0;
+                min-width: 0;
+            }
+
+            .layout-nav-collapse .nav-link {
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                padding-top: 0.75rem;
+                padding-bottom: 0.75rem;
+            }
+
+            body.erp-mobile-v2-layout .layout-global-nav {
+                display: none !important;
+            }
+        }
+
+        /* 모바일(휴대폰) 미니멀 정렬: 깔끔한 한 줄 헤더 */
+        @media (max-width: 576px) {
+            .layout-header {
+                padding-left: 0.75rem !important;
+                padding-right: 0.75rem !important;
+                gap: 0;
+            }
+
+            .layout-header__title {
+                font-size: 0.875rem !important;
+                max-width: 32%;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3 {
+                gap: 0.35rem !important;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3 .btn-link,
+            .layout-header .d-flex.align-items-center.gap-3 .position-relative .btn-link {
+                min-width: 40px;
+                min-height: 40px;
+                padding: 0.25rem !important;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 8px;
+                color: #495057 !important;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3 .fa-2x {
+                font-size: 1.25rem !important;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3>.position-relative,
+            .layout-header .d-flex.align-items-center.gap-3>.dropdown {
+                display: flex;
+                align-items: center;
+            }
+
+            .layout-header #userDropdown {
+                padding: 0.35rem 0.5rem !important;
+                font-size: 0.8rem !important;
+                max-width: 140px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .layout-header #userDropdown .dropdown-toggle::after {
+                margin-left: 0.25rem;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .layout-header__title {
+                max-width: 28%;
+            }
+
+            .layout-header #userDropdown {
+                max-width: 100px;
+                font-size: 0.75rem !important;
+            }
+
+            .layout-header #userDropdown .fa-user-circle {
+                margin-right: 0 !important;
+            }
+        }
+
+        /* 브리핑 보드: 최상단 중앙 슬라이딩 드롭다운 버튼 (아래 방향 체브론) */
+        .personal-briefing-chevron-btn {
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            background: #fff;
+            color: #212529;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, border-color 0.2s, transform 0.2s;
+        }
+
+        .personal-briefing-chevron-btn:hover {
+            background: #f8f9fa;
+            border-color: #adb5bd;
+            color: #212529;
+        }
+
+        .personal-briefing-chevron-btn:focus {
+            box-shadow: 0 0 0 0.2rem rgba(0, 0, 0, 0.1);
+        }
+
+        .personal-briefing-chevron {
+            font-size: 1.35rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        @media (max-width: 576px) {
+            .personal-briefing-chevron-btn {
+                width: 38px;
+                height: 38px;
+            }
+
+            .personal-briefing-chevron {
+                font-size: 1.1rem;
+            }
+        }
+
+        /* 긴급 알림 강제 인지 애니메이션 */
+        @keyframes urgentPulseBorder {
+            0% {
+                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.8);
+                border-color: #dc3545;
+            }
+
+            70% {
+                box-shadow: 0 0 0 15px rgba(220, 53, 69, 0);
+                border-color: #dc3545;
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+                border-color: rgba(220, 53, 69, 0.5);
+            }
+        }
+
+        @keyframes urgentShake {
+
+            0%,
+            100% {
+                transform: translateX(0) translateY(0);
+            }
+
+            20% {
+                transform: translateX(-3px) rotate(-5deg);
+            }
+
+            40% {
+                transform: translateX(3px) rotate(5deg);
+            }
+
+            60% {
+                transform: translateX(-3px) rotate(-5deg);
+            }
+
+            80% {
+                transform: translateX(3px) rotate(5deg);
+            }
+        }
+
+        .urgent-alert-active {
+            animation: urgentPulseBorder 1s infinite, urgentShake 0.5s infinite;
+            background-color: #fff0f0 !important;
+            color: #dc3545 !important;
+            border: 2px solid #dc3545 !important;
+            z-index: 1055;
+        }
+
+        .urgent-alert-active i {
+            color: #dc3545 !important;
+        }
+    </style>
+    {% block head %}{% endblock %}
+    {% block styles %}{% endblock %}
+    <!-- 전역 채팅 알림 팝업 스타일 (모든 페이지에서 사용) -->
+    {% if current_user %}
+    <style>
+        /* 채팅 알림 팝업 스타일 (채널톡 스타일) */
+        .chat-notification-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-width: 380px;
+            pointer-events: none;
+        }
+
+        .chat-notification {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            padding: 16px;
+            min-width: 320px;
+            max-width: 380px;
+            pointer-events: auto;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-left: 4px solid #007aff;
+            animation: slideInRight 0.3s ease-out;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chat-notification:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .chat-notification-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .chat-notification-room-name {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin: 0;
+        }
+
+        .chat-notification-close {
+            background: none;
+            border: none;
+            color: #8e8e93;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 4px;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+
+        .chat-notification-close:hover {
+            color: #1d1d1f;
+        }
+
+        .chat-notification-content {
+            display: flex;
+            gap: 12px;
+        }
+
+        .chat-notification-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+            flex-shrink: 0;
+        }
+
+        .chat-notification-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chat-notification-sender {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin-bottom: 4px;
+        }
+
+        .chat-notification-message {
+            font-size: 0.875rem;
+            color: #8e8e93 !important;
+            line-height: 1.4;
+            word-wrap: break-word;
+            display: block;
+            max-height: 2.8em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .chat-notification-time {
+            font-size: 0.75rem;
+            color: #8e8e93 !important;
+            margin-top: 4px;
+        }
+
+        .chat-notification-image {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            object-fit: cover;
+            flex-shrink: 0;
+            margin-top: 8px;
+        }
+
+        .chat-notification-file {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            background-color: #f2f2f7;
+            border-radius: 8px;
+            margin-top: 4px;
+        }
+
+        .chat-notification-file-icon {
+            color: #007aff;
+            font-size: 1.2rem;
+        }
+
+        .chat-notification-file-name {
+            font-size: 0.8rem;
+            color: #1d1d1f;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+    </style>
+    {% endif %}
+    <!-- 전역 Socket.IO 초기화 (서버가 Socket.IO 제공 시 로드. 로컬 socketio.run / 원격 gunicorn gevent) -->
+    {% if current_user and (not request.endpoint or (request.endpoint != 'admin' and not
+    request.endpoint.startswith('admin_'))) and config.get('SOCKETIO_AVAILABLE') %}
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script id="socket-config"
+        type="application/json">{"forcePolling":{{ "true" if config.DEBUG else "false" }},"allowPollingFallback":{{ "true" if config.get("SOCKETIO_ALLOW_POLLING_FALLBACK") else "false" }}}</script>
+    <script>
+        // 전역 Socket.IO 초기화 (모든 페이지에서 알림 받을 수 있게)
+        (function () {
+            'use strict';
+
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 초기화 시작');
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] current_user 존재:', true);
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] io 객체 존재:', typeof io !== 'undefined');
+
+            // Socket.IO 스크립트 로드 확인
+            if (typeof io === 'undefined') {
+                console.error('[Global Socket.IO] ❌ Socket.IO 스크립트가 로드되지 않았습니다.');
+                return;
+            }
+
+            // 전역 Socket.IO 싱글톤 생성/재사용 (설정은 JSON 블록에서 로드하여 JS 파서/Jinja 충돌 방지)
+            var _socketConfigEl = document.getElementById('socket-config');
+            var _socketConfig = _socketConfigEl ? (function () { try { return JSON.parse(_socketConfigEl.textContent); } catch (e) { return { forcePolling: false, allowPollingFallback: true }; } })() : { forcePolling: false, allowPollingFallback: true };
+            const forcePollingInDebug = !!_socketConfig.forcePolling;
+            const allowPollingFallback = !!_socketConfig.allowPollingFallback;
+            window.getAppSocketOptions = window.getAppSocketOptions || function () {
+                const options = {
+                    transports: allowPollingFallback ? ['websocket', 'polling'] : ['websocket'],
+                    upgrade: allowPollingFallback,
+                    rememberUpgrade: true,
+                    reconnection: true,
+                    reconnectionAttempts: Infinity,
+                    reconnectionDelay: 1000,
+                    reconnectionDelayMax: 5000,
+                    timeout: 30000
+                };
+                if (forcePollingInDebug) {
+                    options.transports = ['polling'];
+                    options.upgrade = false;
+                }
+                return options;
+            };
+
+            window.getAppSocket = window.getAppSocket || function () {
+                if (window.__appSocket) return window.__appSocket;
+                if (typeof io === 'undefined') return null;
+                window.__appSocket = io(window.getAppSocketOptions());
+                return window.__appSocket;
+            };
+
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] Socket.IO 인스턴스 생성 중...');
+            const globalSocket = window.getAppSocket();
+            if (!globalSocket) {
+                console.error('[Global Socket.IO] ❌ Socket.IO 인스턴스 생성 실패');
+                return;
+            }
+
+            // 연결 끊김/오류 시 stale sid 방지를 위해 싱글톤을 정리하고 새 핸드셰이크로 재연결 (RCA: ERR_CONNECTION_RESET / 400)
+            function clearSocketAndScheduleReconnect(socketRef, delayMs) {
+                if (window.__appSocketReconnectScheduled) return;
+                delayMs = delayMs || 2000;
+                if (window.FOMS_DEBUG) console.warn('[Global Socket.IO] 연결이 끊어졌습니다. ' + (delayMs / 1000) + '초 후 새 연결을 시도합니다.');
+                window.__appSocketReconnectScheduled = true;
+                setTimeout(function () {
+                    window.__appSocketReconnectScheduled = false;
+                    const s = window.__appSocket || socketRef;
+                    if (s && !s.connected && typeof s.connect === 'function') {
+                        try { s.connect(); } catch (e) { }
+                    }
+                }, delayMs);
+            }
+
+            // ERP 알림 수신 시 배지/목록을 즉시 동기화한다.
+            function refreshErpNotificationUI(options) {
+                options = options || {};
+                const force = !!options.force;
+                const reason = options.reason || 'realtime';
+                if (window.FOMSNotificationBadge && typeof window.FOMSNotificationBadge.refresh === 'function') {
+                    window.FOMSNotificationBadge.refresh({ force: force, reason: reason });
+                } else {
+                    if (typeof loadGlobalNotificationBadge === 'function') {
+                        loadGlobalNotificationBadge(force);
+                    }
+                    if (typeof loadNotificationBadge === 'function') {
+                        loadNotificationBadge(force);
+                    }
+                }
+                const panel = document.getElementById('global-notification-panel');
+                const isPanelVisible = panel && panel.style.display === 'block';
+                if (isPanelVisible && typeof loadGlobalNotifications === 'function') {
+                    loadGlobalNotifications();
+                }
+                if (isPanelVisible && typeof loadNotifications === 'function') {
+                    loadNotifications();
+                }
+            }
+
+            // 핸들러는 전역에 보관하여 중복 바인딩을 방지한다.
+            const globalHandlers = window.__globalSocketHandlers || {
+                onConnect: function () {
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 연결 성공');
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] Socket ID:', globalSocket.id);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 연결 상태:', globalSocket.connected);
+                    refreshErpNotificationUI({ reason: 'socket-connect' });
+                },
+                onConnectError: function (error) {
+                    console.error('[Global Socket.IO] ❌ 연결 오류:', error);
+                    console.error('[Global Socket.IO] 오류 상세:', JSON.stringify(error, null, 2));
+                    clearSocketAndScheduleReconnect(window.__appSocket, 2000);
+                },
+                onDisconnect: function (reason) {
+                    if (window.FOMS_DEBUG) console.warn('[Global Socket.IO] ⚠️ 연결 해제:', reason);
+                    if (reason === 'transport close' || reason === 'transport error' || reason === 'ping timeout') {
+                        clearSocketAndScheduleReconnect(globalSocket, 2000);
+                    }
+                },
+                onConnected: function (data) {
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 서버 연결 확인:', data);
+                },
+                onNewMessage: function (data) {
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 📨 새 메시지 수신:', data);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 메시지 상세:', JSON.stringify(data, null, 2));
+
+                    // 채팅 페이지에서는 chat.html의 핸들러가 처리한다.
+                    const isChatPage = window.location.pathname === '/chat';
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 현재 페이지:', window.location.pathname);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 채팅 페이지 여부:', isChatPage);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] window.currentRoomId:', window.currentRoomId);
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 메시지 room_id:', data.room_id);
+
+                    if (isChatPage) {
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ⏭️ 채팅 페이지에서는 로컬 핸들러가 처리합니다. 전역 핸들러 무시');
+                        return;
+                    }
+
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 알림 표시 조건 만족 (다른 페이지)');
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showGlobalChatNotification 함수 존재:', typeof showGlobalChatNotification === 'function');
+                    if (typeof showGlobalChatNotification === 'function') {
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showGlobalChatNotification 호출');
+                        showGlobalChatNotification(data);
+                    } else {
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showGlobalChatNotification 없음, 브라우저 알림 사용');
+                        showBrowserNotification(data);
+                    }
+                },
+                onErpNotification: function (data) {
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ERP 알림 수신:', data);
+                    refreshErpNotificationUI({ force: true, reason: 'erp-notification' });
+                    if (data && data.urgent) {
+                        triggerUrgentBriefingAlert(data);
+                    }
+                }
+            };
+            window.__globalSocketHandlers = globalHandlers;
+
+            // 긴급 알림 발생 시 시각적/청각적 강제 인지 함수
+            window.triggerUrgentBriefingAlert = function (data) {
+                console.warn('[URGENT] 긴급 이벤트 수신, 강제 인지 처리:', data);
+
+                // 1. 청각 알림 (비프음)
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(880, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.3);
+                } catch (e) { console.error('Audio 처리 실패:', e); }
+
+                // 2. 브리핑 보드 버튼 애니메이션 (붉은 점멸)
+                const btn = document.getElementById('personal-briefing-toggle');
+                if (btn) {
+                    btn.classList.add('urgent-alert-active');
+                    const icon = btn.querySelector('i');
+                    if (icon) {
+                        icon.setAttribute('data-orig-class', icon.className);
+                        icon.className = 'fas fa-exclamation-triangle personal-briefing-chevron';
+                    }
+                    // 10초 후 자동 해제 (또는 열었을 때 해제되도록 함)
+                    setTimeout(() => {
+                        btn.classList.remove('urgent-alert-active');
+                        if (icon && icon.getAttribute('data-orig-class')) {
+                            icon.className = icon.getAttribute('data-orig-class');
+                        }
+                    }, 10000);
+                }
+
+                // 3. 거대한 긴급 알람 오버레이 (클릭 전까지 안 사라짐)
+                let overlay = document.getElementById('urgent-fullscreen-overlay');
+                if (!overlay) {
+                    overlay = document.createElement('div');
+                    overlay.id = 'urgent-fullscreen-overlay';
+                    overlay.style.cssText = 'position: fixed; inset: 0; background-color: rgba(220, 53, 69, 0.95); z-index: 106000; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); text-align: center;';
+
+                    const bellIcon = document.createElement('i');
+                    bellIcon.className = 'fas fa-bell bell-active';
+                    bellIcon.style.cssText = 'font-size: 50vh; color: #fff; text-shadow: 0 0 30px rgba(0,0,0,0.5); margin-bottom: 30px;';
+
+                    const titleText = document.createElement('h1');
+                    titleText.style.cssText = 'color: #fff; font-weight: 800; font-size: 3rem; text-shadow: 0 2px 10px rgba(0,0,0,0.3); margin-bottom: 10px; max-width: 90%; word-break: keep-all;';
+
+                    const msgText = document.createElement('h3');
+                    msgText.style.cssText = 'color: #fff; font-weight: 500; max-width: 80%; word-break: keep-all; line-height: 1.4;';
+
+                    const clickBtn = document.createElement('button');
+                    clickBtn.innerHTML = '알림 확인완료';
+                    clickBtn.style.cssText = 'margin-top: 40px; padding: 15px 40px; border: 3px solid white; border-radius: 50px; font-weight: bold; font-size: 1.5rem; background: rgba(0,0,0,0.3); color: #fff; cursor: pointer; transition: all 0.2s;';
+                    clickBtn.onmouseover = () => { clickBtn.style.background = 'rgba(0,0,0,0.5)'; clickBtn.style.transform = 'scale(1.05)'; };
+                    clickBtn.onmouseleave = () => { clickBtn.style.background = 'rgba(0,0,0,0.3)'; clickBtn.style.transform = 'scale(1)'; };
+
+                    overlay.appendChild(bellIcon);
+                    overlay.appendChild(titleText);
+                    overlay.appendChild(msgText);
+                    overlay.appendChild(clickBtn);
+
+                    clickBtn.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // 클릭 시 한 번 더 물어보기 기능
+                        if (confirm('알림 내용을 충분히 확인하셨나요?\n\n[확인]을 누르시면 긴급 알람 창이 닫힙니다.')) {
+                            overlay.remove();
+                        }
+                    });
+
+                    document.body.appendChild(overlay);
+                }
+
+                const safeTitle = data.title ? String(data.title).replace(/</g, "&lt;").replace(/>/g, "&gt;") : '🚨 긴급 알람 🚨';
+                const safeMsg = data.message ? String(data.message).replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>') : '상세 내용은 알림 패널을 확인하세요.';
+
+                overlay.querySelector('h1').innerHTML = safeTitle;
+                overlay.querySelector('h3').innerHTML = safeMsg;
+            };
+
+            globalSocket.off('connect', globalHandlers.onConnect);
+            globalSocket.off('connect_error', globalHandlers.onConnectError);
+            globalSocket.off('disconnect', globalHandlers.onDisconnect);
+            globalSocket.off('connected', globalHandlers.onConnected);
+            globalSocket.off('new_message', globalHandlers.onNewMessage);
+            globalSocket.off('erp_notification', globalHandlers.onErpNotification);
+
+            globalSocket.on('connect', globalHandlers.onConnect);
+            globalSocket.on('connect_error', globalHandlers.onConnectError);
+            globalSocket.on('disconnect', globalHandlers.onDisconnect);
+            globalSocket.on('connected', globalHandlers.onConnected);
+            globalSocket.on('new_message', globalHandlers.onNewMessage);
+            globalSocket.on('erp_notification', globalHandlers.onErpNotification);
+
+            // 전역 알림 표시 함수 (chat.html의 showChatNotification 로직 재사용)
+            window.showGlobalChatNotification = function (messageData) {
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 🔔 showGlobalChatNotification 호출됨:', messageData);
+
+                // 채팅방 정보 조회
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 채팅방 정보 조회 시작: room_id=', messageData.room_id);
+                fetch(`/api/chat/rooms/${messageData.room_id}`)
+                    .then(response => {
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 채팅방 정보 응답 상태:', response.status);
+                        return response.json();
+                    })
+                    .then(result => {
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 채팅방 정보 조회 결과:', result);
+                        if (result.success && result.room) {
+                            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 채팅방 정보 조회 성공:', result.room);
+                            // chat.html의 showChatNotification 함수가 있으면 사용
+                            if (typeof showChatNotification === 'function') {
+                                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showChatNotification 함수 사용');
+                                showChatNotification(messageData, result.room);
+                            } else {
+                                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showChatNotification 없음, 간단한 알림 사용');
+                                // 간단한 알림 표시
+                                showSimpleNotification(messageData, result.room);
+                            }
+                        } else {
+                            if (window.FOMS_DEBUG) console.warn('[Global Socket.IO] ⚠️ 채팅방 정보 조회 실패');
+                            showSimpleNotification(messageData, { id: messageData.room_id, name: '알 수 없는 채팅방' });
+                        }
+                    })
+                    .catch(err => {
+                        console.error('[Global Socket.IO] ❌ 채팅방 정보 조회 오류:', err);
+                        showSimpleNotification(messageData, { id: messageData.room_id, name: '알 수 없는 채팅방' });
+                    });
+            };
+
+            // 간단한 알림 표시 (chat.html이 아닌 페이지용)
+            function showSimpleNotification(messageData, roomData) {
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showSimpleNotification 호출:', messageData, roomData);
+                // 전역 알림 팝업 표시
+                showGlobalNotificationPopup(messageData, roomData);
+            }
+
+            // 전역 알림 팝업 표시 함수 (모든 페이지에서 사용)
+            function showGlobalNotificationPopup(messageData, roomData) {
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showGlobalNotificationPopup 호출:', messageData, roomData);
+
+                // 알림 컨테이너 확인
+                let container = document.getElementById('chat-notification-container');
+                if (!container) {
+                    console.error('[Global Socket.IO] 알림 컨테이너를 찾을 수 없습니다.');
+                    // 브라우저 알림으로 폴백
+                    showBrowserNotification(messageData);
+                    return;
+                }
+
+                // 중복 알림 방지
+                const messageId = messageData.id || (messageData.room_id + '_' + (messageData.created_at || Date.now()));
+                if (window.globalNotificationIds && window.globalNotificationIds.has(messageId)) {
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 중복 알림 스킵:', messageId);
+                    return;
+                }
+
+                if (!window.globalNotificationIds) {
+                    window.globalNotificationIds = new Set();
+                }
+                window.globalNotificationIds.add(messageId);
+
+                // 알림 요소 생성
+                const notificationId = 'global-notification-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                const notificationEl = document.createElement('div');
+                notificationEl.className = 'chat-notification';
+                notificationEl.id = notificationId;
+
+                // 메시지 내용 추출
+                let messageContent = messageData.content || '(내용 없음)';
+                const senderName = messageData.user_name || '알 수 없음';
+                const roomName = roomData ? roomData.name : '알 수 없는 채팅방';
+                const senderInitial = senderName.charAt(0).toUpperCase();
+
+                // 시간 포맷
+                let timeStr = '방금';
+                if (messageData.created_at) {
+                    const msgDate = new Date(messageData.created_at);
+                    const now = new Date();
+                    const diff = now - msgDate;
+                    if (diff < 60000) {
+                        timeStr = '방금';
+                    } else if (diff < 3600000) {
+                        timeStr = Math.floor(diff / 60000) + '분 전';
+                    } else if (diff < 86400000) {
+                        timeStr = Math.floor(diff / 3600000) + '시간 전';
+                    } else {
+                        timeStr = msgDate.toLocaleDateString('ko-KR');
+                    }
+                }
+
+                // HTML 이스케이프 함수
+                function escapeHtml(text) {
+                    if (!text) return '';
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                }
+
+                // 첨부파일 처리
+                let attachmentHtml = '';
+                if (messageData.attachments && messageData.attachments[0]) {
+                    const attachment = messageData.attachments[0];
+                    if (attachment.file_type === 'image' && attachment.thumbnail_url) {
+                        attachmentHtml = `<img src="${attachment.thumbnail_url}" class="chat-notification-image" alt="이미지">`;
+                    } else {
+                        const fileIcon = attachment.file_type === 'video' ? 'fa-video' : 'fa-file';
+                        attachmentHtml = `
+                        <div class="chat-notification-file">
+                            <i class="fas ${fileIcon} chat-notification-file-icon"></i>
+                            <span class="chat-notification-file-name">${escapeHtml(attachment.filename || '파일')}</span>
+                        </div>
+                    `;
+                    }
+                }
+
+                notificationEl.innerHTML = `
+                <div class="chat-notification-header">
+                    <h6 class="chat-notification-room-name">${escapeHtml(roomName)}</h6>
+                    <button class="chat-notification-close" type="button" aria-label="닫기">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="chat-notification-content">
+                    <div class="chat-notification-avatar">${senderInitial}</div>
+                    <div class="chat-notification-body">
+                        <div class="chat-notification-sender">${escapeHtml(senderName)}</div>
+                        <div class="chat-notification-message">${escapeHtml(messageContent)}</div>
+                        ${attachmentHtml}
+                        <div class="chat-notification-time">${timeStr}</div>
+                    </div>
+                </div>
+            `;
+
+                // 닫기 버튼 이벤트
+                const closeBtn = notificationEl.querySelector('.chat-notification-close');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        closeGlobalNotification(notificationId, messageId);
+                    });
+                }
+
+                // 클릭 이벤트: 채팅 페이지로 이동 (room_id 파라미터 포함)
+                notificationEl.addEventListener('click', function (e) {
+                    if (!e.target.classList.contains('chat-notification-close') &&
+                        !e.target.closest('.chat-notification-close')) {
+                        closeGlobalNotification(notificationId, messageId);
+                        // 채팅 페이지로 이동 (room_id 파라미터 포함)
+                        const roomId = roomData ? roomData.id : messageData.room_id;
+                        if (roomId) {
+                            window.location.href = `/chat?room_id=${roomId}`;
+                        } else {
+                            window.location.href = '/chat';
+                        }
+                    }
+                });
+
+                // 컨테이너에 추가
+                container.appendChild(notificationEl);
+
+                // 자동 닫기 (5초 후)
+                setTimeout(() => {
+                    closeGlobalNotification(notificationId, messageId);
+                }, 5000);
+            }
+
+            // 전역 알림 닫기 함수
+            function closeGlobalNotification(notificationId, messageId) {
+                const notificationEl = document.getElementById(notificationId);
+                if (notificationEl) {
+                    notificationEl.style.animation = 'slideOutRight 0.3s ease-out';
+                    setTimeout(() => {
+                        notificationEl.remove();
+                        if (messageId && window.globalNotificationIds) {
+                            window.globalNotificationIds.delete(messageId);
+                        }
+                    }, 300);
+                }
+            }
+
+            // 브라우저 알림
+            function showBrowserNotification(messageData) {
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] showBrowserNotification 호출:', messageData);
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] Notification API 지원:', 'Notification' in window);
+                if (window.FOMS_DEBUG) console.log('[Global Socket.IO] Notification 권한:', Notification.permission);
+
+                if ('Notification' in window) {
+                    if (Notification.permission === 'granted') {
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 브라우저 알림 표시');
+                        const notification = new Notification(`${messageData.user_name || '알 수 없음'}님의 메시지`, {
+                            body: messageData.content || '새 메시지가 도착했습니다.',
+                            tag: `chat_${messageData.room_id}`,
+                            requireInteraction: false
+                        });
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 브라우저 알림 생성됨:', notification);
+                    } else if (Notification.permission === 'default') {
+                        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 알림 권한 요청');
+                        Notification.requestPermission().then(permission => {
+                            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 알림 권한 결과:', permission);
+                            if (permission === 'granted') {
+                                showBrowserNotification(messageData);
+                            }
+                        });
+                    } else {
+                        if (window.FOMS_DEBUG) console.warn('[Global Socket.IO] ⚠️ 알림 권한이 거부됨');
+                    }
+                } else {
+                    if (window.FOMS_DEBUG) console.warn('[Global Socket.IO] ⚠️ 브라우저가 Notification API를 지원하지 않음');
+                }
+            }
+
+            // 전역 변수로 노출 (하위 페이지에서 동일 인스턴스 재사용)
+            window.globalSocket = globalSocket;
+            window.__appSocket = globalSocket;
+            if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ✅ 전역 Socket.IO 초기화 완료');
+        })();
+    </script>
+    {% else %}
+    <script>
+        if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ⚠️ current_user가 없어 Socket.IO를 초기화하지 않습니다.');
+    </script>
+    {% endif %}
+    {# USE_DIRECT_UPLOAD는 context_processor(inject_status_list)가 모든 템플릿에 #}
+    {# use_direct_upload Jinja 변수를 자동 주입하므로, 각 하위 JS에서 const로 직접 선언합니다. #}
+    {# layout.html에서 window.USE_DIRECT_UPLOAD로 전역 주입 시 하위 const와 충돌(SyntaxError) 발생. #}
+</head>
+
+<body
+    class="{% if erp_mobile_v2_enabled and request.path.startswith('/erp') %}erp-mobile-v2-layout{% endif %}"
+    style="width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box;">
+    <a class="skip-link" href="#main-content">본문 바로가기</a>
+    <div class="container-fluid p-0"
+        style="width: 100vw !important; max-width: 100vw !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box;">
+        <header
+            class="bg-light py-3 px-4 d-flex justify-content-between align-items-center layout-header position-relative">
+            <h1 class="mb-0 h3 layout-header__title">가구 주문 관리 시스템</h1>
+
+            {% if current_user %}
+            <!-- 브리핑 보드: 화면 최상단 중앙, 슬라이딩 드롭다운(아래 방향 체브론) -->
+            <div class="position-absolute start-50 translate-middle-x top-0 bottom-0 d-flex align-items-center layout-header__center"
+                style="z-index: 2;">
+                <button class="btn personal-briefing-chevron-btn" id="personal-briefing-toggle" type="button"
+                    data-bs-toggle="offcanvas" data-bs-target="#personal-briefing-offcanvas"
+                    aria-controls="personal-briefing-offcanvas" title="내 브리핑 보드 (아래로 펼치기)" aria-label="브리핑 보드 열기">
+                    <i class="fas fa-chevron-down personal-briefing-chevron" aria-hidden="true"></i>
+                </button>
+            </div>
+            {% endif %}
+
+            {% if current_user %}
+            <div class="d-flex align-items-center gap-3">
+                <!-- Global "내 할 일" filter: 시공팀 이외만 표시 (시공팀은 출고/시공 대시보드에서 항상 본인 주문만 표시) -->
+                {% if (current_user.team or '') != 'CONSTRUCTION' %}
+                <div class="position-relative">
+                    <button class="btn btn-link p-0 text-dark border-0 position-relative" id="global-mine-only-btn"
+                        title="로그인 담당자만 보기" onclick="toggleGlobalMineOnly()" aria-label="내 할 일만 보기 토글"
+                        aria-pressed="false">
+                        <i class="fas fa-user-check fa-2x" id="global-mine-only-icon"></i>
+                    </button>
+                </div>
+                {% endif %}
+                <!-- Global Notification Button -->
+                <div class="position-relative">
+                    <button class="btn btn-link p-0 text-dark border-0 position-relative" id="global-notification-btn"
+                        title="알림" onclick="toggleGlobalNotificationPanel()" aria-label="알림 패널 열기"
+                        aria-controls="global-notification-panel" aria-expanded="false">
+                        <i class="fas fa-bell fa-2x" id="global-notification-icon" style="color: #495057;"></i>
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                            id="global-notification-badge" style="display: none; font-size: 0.65rem;">
+                            0
+                            <span class="visually-hidden">unread messages</span>
+                        </span>
+                    </button>
+                    <!-- Notification Panel -->
+                    <div class="dropdown-menu dropdown-menu-end p-0 shadow-lg border-0 global-notification-panel"
+                        id="global-notification-panel" role="region" aria-label="전역 알림"
+                        style="display: none; position: absolute; top: 140%; right: 0; width: 420px; max-width: min(420px, calc(100vw - 24px)); max-height: 480px; overflow-y: auto; z-index: 9999; border-radius: 12px;">
+                        <div
+                            class="p-3 border-bottom d-flex justify-content-between align-items-center bg-white sticky-top">
+                            <h6 class="mb-0 fw-bold"><i class="fas fa-bell text-warning me-2"></i>알림</h6>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-sm btn-light text-secondary"
+                                    onclick="markAllGlobalNotificationsRead()" style="font-size: 0.8rem;">
+                                    <i class="fas fa-check-double me-1"></i>모두 읽음
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteAllGlobalNotifications()"
+                                    style="font-size: 0.8rem;">
+                                    <i class="fas fa-trash-alt me-1"></i>전체 삭제
+                                </button>
+                            </div>
+                        </div>
+                        <div id="global-notification-list" class="list-group list-group-flush" aria-live="polite"
+                            aria-atomic="false">
+                            <!-- JS will populate this -->
+                            <div class="text-center p-5 text-muted">
+                                <i class="far fa-bell fa-3x mb-3 text-light"></i><br>
+                                로딩 중...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="userDropdown"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-user-circle"></i> {{ current_user.name }} ({{ ROLES[current_user.role] }})
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown" style="z-index: 1050;">
+                        <li><a class="dropdown-item" href="{{ url_for('user_pages.profile') }}"><i
+                                    class="fas fa-user-cog"></i> 내
+                                정보</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('user_pages.change_logs') }}"><i
+                                    class="fas fa-history"></i> 내 변경 로그</a></li>
+                        {% if impersonating_from_id %}
+                        <li><a class="dropdown-item" href="{{ url_for('auth.switch_back') }}"><i
+                                    class="fas fa-undo"></i> 원래 관리자로 돌아가기</a></li>
+                        {% endif %}
+                        {% if current_user.role == 'ADMIN' %}
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth.user_list') }}"><i class="fas fa-users"></i>
+                                사용자
+                                관리</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('user_pages.security_logs') }}"><i
+                                    class="fas fa-shield-alt"></i>
+                                보안 로그</a></li>
+                        {% if not impersonating_from_id and admin_switch_users %}
+                        <li>
+                            <h6 class="dropdown-header">다른 사용자로 전환</h6>
+                        </li>
+                        {% for u in admin_switch_users %}
+                        <li><a class="dropdown-item" href="{{ url_for('auth.switch_user', target_user_id=u.id) }}">{{
+                                u.name }} ({{ u.username }})</a></li>
+                        {% endfor %}
+                        {% endif %}
+                        {% endif %}
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i
+                                    class="fas fa-sign-out-alt"></i>
+                                로그아웃</a></li>
+                    </ul>
+                </div>
+            </div>
+            {% else %}
+            <div>
+                <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary me-2">로그인</a>
+                <a href="{{ url_for('auth.register') }}" class="btn btn-primary">회원가입</a>
+            </div>
+            {% endif %}
+        </header>
+
+        <!-- Personal Briefing Board (offcanvas-top, ~50% viewport) -->
+        {% if current_user %}
+        <div class="offcanvas offcanvas-top" id="personal-briefing-offcanvas" tabindex="-1"
+            aria-labelledby="personal-briefing-title" style="height: 55vh; max-height: 55vh;">
+            <div class="offcanvas-header border-bottom py-2">
+                <h5 class="offcanvas-title" id="personal-briefing-title">
+                    <i class="fas fa-th-large me-2"></i>내 브리핑 보드
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+            </div>
+            <div class="offcanvas-body p-3 overflow-auto" id="personal-briefing-body">
+                <!-- 긴급 알림 배너 영역 -->
+                <div id="urgent-banner-area" class="d-none mb-2"></div>
+                <div class="text-center text-muted py-4" id="personal-briefing-placeholder">
+                    <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                    <p class="mb-0">로딩 중...</p>
+                </div>
+                <div class="row g-2 d-none" id="personal-briefing-widgets"></div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if current_user %}
+        <nav class="layout-global-nav navbar navbar-expand-md navbar-light bg-light border-bottom px-2 px-lg-4" aria-label="메인 메뉴"
+            style="position: sticky; top: 0; z-index: 1000; background-color: white !important;">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            {% if request.endpoint and request.endpoint.startswith('erp_measurement_dashboard') and (current_user.team
+            or '') != 'CONSTRUCTION' %}
+            <div class="d-flex align-items-center gap-2 ms-2 d-lg-none">
+                <span class="fw-bold fs-6" style="line-height: 1;">
+                    <i class="fas fa-ruler-combined"></i> ERP Beta - 실측 대시보드
+                </span>
+            </div>
+            {% endif %}
+            <div class="collapse navbar-collapse layout-nav-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    {% for item in menu.main_menu %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ item.url }}">{{ item.name }}</a>
+                    </li>
+                    {% endfor %}
+                    {% if current_user.role == 'ADMIN' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin.admin') }}">
+                            <i class="fas fa-cog"></i> 관리자
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+                <!-- 도구 섹션 (시공팀은 ERP/WDPLANNER/WDCalculator만 숨기고 채팅은 노출) -->
+                <ul class="navbar-nav ms-auto border-start ps-3">
+                    {% if (current_user.team or '') != 'CONSTRUCTION' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('erp_dashboard.erp_dashboard') }}">
+                            <i class="fas fa-layer-group"></i> ERP 대시보드
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('wdplanner.wdplanner') }}">
+                            <i class="fas fa-cube"></i> WDPLANNER
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('wdcalculator.wdcalculator') }}">
+                            <i class="fas fa-calculator"></i> WDCalculator
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('chat.chat') }}">
+                            <i class="fas fa-comments"></i> 채팅
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+        {% endif %}
+
+        <div class="container-fluid py-0 px-0"
+            style="width: 100% !important; max-width: 100% !important; margin: 0 !important; padding-left: 0 !important; padding-right: 0 !important; box-sizing: border-box;">
+            <!-- Flash messages -->
+            <div aria-live="polite" aria-atomic="true">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show"
+                    role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
+            </div>
+
+            <!-- Content block -->
+            <main id="main-content" tabindex="-1">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <!-- 전역 채팅 알림 팝업 컨테이너 (모든 페이지에서 사용) -->
+    {% if current_user %}
+    <div id="chat-notification-container" class="chat-notification-container"></div>
+    {% endif %}
+
+    <!-- 도면 뷰어 모달 (모든 페이지에서 사용) -->
+    <div class="modal fade" id="blueprintViewerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content bg-dark">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-white">
+                        <i class="fas fa-drafting-compass"></i> 도면 보기
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3" id="blueprint-viewer-body"
+                    style="overflow: auto; display: flex; align-items: center; justify-content: center; min-height: 400px;">
+                    <img id="blueprint-viewer-img" src="" alt="도면"
+                        style="max-width: 100%; max-height: calc(100vh - 200px); width: auto; height: auto; object-fit: contain; display: block; cursor: grab; user-select: none; transition: transform 0.1s;">
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" onclick="downloadBlueprint()"
+                        id="blueprint-download-btn" style="display: none;">
+                        <i class="fas fa-download"></i> 다운로드
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> 닫기
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Immersive Image Viewer -->
+    <div id="global-image-viewer" aria-hidden="true" style="display:none;">
+        <div id="global-viewer-backdrop"></div>
+        <button type="button" id="global-viewer-close" title="닫기" aria-label="닫기">
+            <i class="fas fa-times"></i>
+        </button>
+        <button type="button" id="global-viewer-prev" class="global-viewer-nav" title="이전" aria-label="이전">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+        <button type="button" id="global-viewer-next" class="global-viewer-nav" title="다음" aria-label="다음">
+            <i class="fas fa-chevron-right"></i>
+        </button>
+        <div id="global-viewer-stage">
+            <img id="global-viewer-image" src="" alt="" draggable="false" style="display:none;">
+            <video id="global-viewer-video" src="" controls
+                style="display:none; max-width:100%; max-height:100vh;"></video>
+        </div>
+        <div id="global-viewer-footer">
+            <div id="global-viewer-filename"></div>
+            <div id="global-viewer-counter"></div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/runtime/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/runtime/upload-progress.js') }}"></script>
+
+    <!-- 도면 뷰어 전역 JavaScript -->
+    <script>
+        // 도면 뷰어 줌 관련 변수
+        let blueprintZoom = {
+            scale: 1,
+            minScale: 0.5,
+            maxScale: 5,
+            translateX: 0,
+            translateY: 0
+        };
+
+        function updateBlueprintTransform() {
+            const img = document.getElementById('blueprint-viewer-img');
+            if (img) {
+                img.style.transform = `translate(${blueprintZoom.translateX}px, ${blueprintZoom.translateY}px) scale(${blueprintZoom.scale})`;
+                img.style.transformOrigin = 'center center';
+            }
+        }
+
+        function resetBlueprintZoom() {
+            blueprintZoom.scale = 1;
+            blueprintZoom.translateX = 0;
+            blueprintZoom.translateY = 0;
+            updateBlueprintTransform();
+        }
+
+        // 도면 다운로드 관련 변수
+        let currentBlueprintUrl = null;
+        let currentBlueprintOrderId = null;
+
+        // 도면 다운로드 함수
+        function downloadBlueprint() {
+            if (!currentBlueprintUrl) {
+                alert('다운로드할 도면이 없습니다.');
+                return;
+            }
+
+            // 이미지 URL에서 파일명 추출 또는 orderId 기반 파일명 생성
+            const filename = `blueprint_${currentBlueprintOrderId || 'image'}.jpg`;
+
+            // 다운로드 링크 생성
+            const link = document.createElement('a');
+            link.href = currentBlueprintUrl;
+            link.download = filename;
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // 전역 함수로 노출
+        window.openBlueprintViewer = function (orderId) {
+            fetch(`/api/orders/${orderId}/blueprint`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.url) {
+                        const modal = new bootstrap.Modal(document.getElementById('blueprintViewerModal'));
+                        const img = document.getElementById('blueprint-viewer-img');
+                        const modalBody = document.getElementById('blueprint-viewer-body');
+                        const downloadBtn = document.getElementById('blueprint-download-btn');
+
+                        // 다운로드 버튼 표시 및 URL 저장
+                        currentBlueprintUrl = data.url;
+                        currentBlueprintOrderId = orderId;
+                        if (downloadBtn) {
+                            downloadBtn.style.display = 'inline-block';
+                        }
+
+                        // 줌 리셋
+                        resetBlueprintZoom();
+
+                        // 이미지 로드 후 transform 적용
+                        img.onload = function () {
+                            resetBlueprintZoom();
+                        };
+
+                        // 이미지 소스 설정
+                        img.src = data.url;
+
+                        // 모달 표시
+                        modal.show();
+                    } else {
+                        alert('도면이 없습니다.');
+                    }
+                })
+                .catch(error => {
+                    console.error('도면 조회 오류:', error);
+                    alert('도면을 불러올 수 없습니다.');
+                });
+        };
+
+        // 마우스 휠로 줌 인/아웃
+        document.addEventListener('DOMContentLoaded', function () {
+            const modal = document.getElementById('blueprintViewerModal');
+            const modalBody = document.getElementById('blueprint-viewer-body');
+            const img = document.getElementById('blueprint-viewer-img');
+
+            if (modal && modalBody && img) {
+                // 마우스 휠 이벤트
+                modalBody.addEventListener('wheel', function (e) {
+                    // 모달이 활성화되어 있는지 확인
+                    if (!modal.classList.contains('show')) {
+                        return;
+                    }
+
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                    const newScale = Math.max(blueprintZoom.minScale,
+                        Math.min(blueprintZoom.maxScale, blueprintZoom.scale + delta));
+
+                    // 마우스 위치를 중심으로 확대/축소
+                    const rect = modalBody.getBoundingClientRect();
+                    const mouseX = e.clientX - rect.left - rect.width / 2;
+                    const mouseY = e.clientY - rect.top - rect.height / 2;
+
+                    const scaleChange = newScale / blueprintZoom.scale;
+                    blueprintZoom.translateX = blueprintZoom.translateX * scaleChange + mouseX * (1 - scaleChange);
+                    blueprintZoom.translateY = blueprintZoom.translateY * scaleChange + mouseY * (1 - scaleChange);
+
+                    blueprintZoom.scale = newScale;
+                    updateBlueprintTransform();
+                }, { passive: false });
+
+                // 드래그로 이미지 이동
+                let isDragging = false;
+                let dragStartX = 0;
+                let dragStartY = 0;
+                let startTranslateX = 0;
+                let startTranslateY = 0;
+
+                img.addEventListener('mousedown', function (e) {
+                    if (e.button === 0 && modal.classList.contains('show')) { // 왼쪽 마우스 버튼만
+                        isDragging = true;
+                        dragStartX = e.clientX;
+                        dragStartY = e.clientY;
+                        startTranslateX = blueprintZoom.translateX;
+                        startTranslateY = blueprintZoom.translateY;
+                        img.style.cursor = 'grabbing';
+                        e.preventDefault();
+                    }
+                });
+
+                document.addEventListener('mousemove', function (e) {
+                    if (isDragging && modal.classList.contains('show')) {
+                        const deltaX = e.clientX - dragStartX;
+                        const deltaY = e.clientY - dragStartY;
+                        blueprintZoom.translateX = startTranslateX + deltaX;
+                        blueprintZoom.translateY = startTranslateY + deltaY;
+                        updateBlueprintTransform();
+                    }
+                });
+
+                document.addEventListener('mouseup', function (e) {
+                    if (isDragging) {
+                        isDragging = false;
+                        img.style.cursor = 'grab';
+                    }
+                });
+
+                // 모달이 닫힐 때 줌 리셋
+                modal.addEventListener('hidden.bs.modal', function () {
+                    resetBlueprintZoom();
+                    // 다운로드 관련 변수 초기화
+                    currentBlueprintUrl = null;
+                    currentBlueprintOrderId = null;
+                    const downloadBtn = document.getElementById('blueprint-download-btn');
+                    if (downloadBtn) {
+                        downloadBtn.style.display = 'none';
+                    }
+                });
+            }
+        });
+    </script>
+
+    <script>
+        // Global Immersive Image Viewer Logic
+        window.GlobalImageViewer = (function () {
+            const state = {
+                files: [],
+                index: 0,
+                scale: 1,
+                tx: 0, ty: 0,
+                dragging: false,
+                dragStartX: 0, dragStartY: 0,
+                baseTx: 0, baseTy: 0,
+                touchStartX: 0,
+                touchStartY: 0,
+                touchLastX: 0,
+                touchLastY: 0,
+                touching: false
+            };
+
+            let els = {};
+
+            function init() {
+                if (els.root) return; // Already init
+
+                els = {
+                    root: document.getElementById('global-image-viewer'),
+                    backdrop: document.getElementById('global-viewer-backdrop'),
+                    closeBtn: document.getElementById('global-viewer-close'),
+                    prevBtn: document.getElementById('global-viewer-prev'),
+                    nextBtn: document.getElementById('global-viewer-next'),
+                    stage: document.getElementById('global-viewer-stage'),
+                    image: document.getElementById('global-viewer-image'),
+                    video: document.getElementById('global-viewer-video'),
+                    filename: document.getElementById('global-viewer-filename'),
+                    counter: document.getElementById('global-viewer-counter')
+                };
+
+                if (!els.root) return;
+
+                // Events
+                els.closeBtn?.addEventListener('click', close);
+                els.backdrop?.addEventListener('click', close);
+                els.prevBtn?.addEventListener('click', prev);
+                els.nextBtn?.addEventListener('click', next);
+
+                // Show nav on mouse move
+                els.root.addEventListener('mousemove', () => {
+                    els.root.classList.add('nav-visible');
+                });
+                els.root.addEventListener('mouseleave', () => {
+                    els.root.classList.remove('nav-visible');
+                });
+
+                // Zoom
+                els.image?.addEventListener('wheel', handleWheel, { passive: false });
+
+                // Drag
+                els.image?.addEventListener('mousedown', startDrag);
+                window.addEventListener('mousemove', doDrag);
+                window.addEventListener('mouseup', endDrag);
+
+                // Keys
+                document.addEventListener('keydown', handleKey);
+
+                // Keep desktop nav arrows pinned to screen edges
+                els.image?.addEventListener('load', positionNavButtons);
+                window.addEventListener('resize', () => {
+                    if (els.root && els.root.style.display !== 'none') {
+                        requestAnimationFrame(positionNavButtons);
+                    }
+                });
+
+                // Close when clicking empty area (outside image)
+                els.stage?.addEventListener('click', (e) => {
+                    if (e.target === els.stage) close();
+                });
+
+                // Mobile swipe navigation
+                els.stage?.addEventListener('touchstart', handleTouchStart, { passive: true });
+                els.stage?.addEventListener('touchmove', handleTouchMove, { passive: true });
+                els.stage?.addEventListener('touchend', handleTouchEnd, { passive: true });
+            }
+
+            function open(files, startIndex = 0) {
+                init(); // Ensure init
+                if (!files || !files.length) return;
+
+                // Normalize files structure (key for R2 presigned direct link)
+                state.files = files.map(f => {
+                    const key = f.key || f.storage_key || (f.download_url && String(f.download_url).replace(/^\/api\/files\/download\//, '')) || (f.view_url && String(f.view_url).replace(/^\/api\/files\/view\//, '')) || (f.url && String(f.url).replace(/^\/api\/files\/view\//, '')) || null;
+                    return {
+                        url: f.view_url || f.url || (key ? `/api/files/view/${key}` : ''),
+                        filename: f.filename || f.name || '이미지',
+                        download_url: f.download_url || (key ? `/api/files/download/${key}` : ''),
+                        key: key || null
+                    };
+                }).filter(f => !!f.url);
+
+                if (state.files.length === 0) {
+                    alert('표시할 이미지가 없습니다.');
+                    return;
+                }
+
+                state.index = Math.max(0, Math.min(state.files.length - 1, startIndex));
+
+                els.root.style.display = 'flex';
+                els.root.classList.add('d-flex');
+                els.root.setAttribute('aria-hidden', 'false');
+                document.body.style.overflow = 'hidden'; // Lock scroll
+
+                render();
+            }
+            function close() {
+                if (!els.root) return;
+                els.root.style.display = 'none';
+                els.root.classList.remove('d-flex');
+                els.root.setAttribute('aria-hidden', 'true');
+                document.body.style.overflow = '';
+                state.files = [];
+                if (els.video) {
+                    els.video.pause();
+                    els.video.src = '';
+                }
+            }
+
+            function render() {
+                const file = state.files[state.index];
+                if (!file) return;
+
+                // Reset transform
+                state.scale = 1;
+                state.tx = 0;
+                state.ty = 0;
+                updateTransform();
+
+                var isVideo = (file.url || '').match(/\.(mp4|webm|ogg)$/i) || (file.filename || '').match(/\.(mp4|webm|ogg)$/i);
+
+                if (isVideo) {
+                    els.image.style.display = 'none';
+                    els.image.src = '';
+                    els.video.style.display = 'block';
+                    els.video.src = file.url;
+                } else {
+                    els.video.style.display = 'none';
+                    els.video.pause();
+                    els.video.src = '';
+                    els.image.style.display = 'block';
+                    els.image.src = file.url;
+                    els.image.alt = file.filename;
+                }
+
+                els.filename.textContent = file.filename;
+
+                if (state.files.length > 1) {
+                    els.counter.textContent = `${state.index + 1} / ${state.files.length}`;
+                    els.root.classList.remove('single-file');
+                } else {
+                    els.counter.textContent = '';
+                    els.root.classList.add('single-file');
+                }
+                requestAnimationFrame(positionNavButtons);
+
+                if (file.key) {
+                    var path = (function (k) { return String(k).split('/').map(function (s) { return encodeURIComponent(s); }).join('/'); })(file.key);
+                    fetch('/api/files/presigned-urls/' + path).then(function (r) { return r.json(); }).then(function (data) {
+                        if (data.success && data.view_url && state.files[state.index] === file) {
+                            var isVideo = (file.url || '').match(/\.(mp4|webm|ogg)$/i) || (file.filename || '').match(/\.(mp4|webm|ogg)$/i);
+                            if (isVideo) {
+                                els.video.src = data.view_url;
+                            } else {
+                                els.image.src = data.view_url;
+                            }
+                        }
+                    }).catch(function () { });
+                }
+            }
+
+            function updateTransform() {
+                if (els.image) els.image.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
+            }
+
+            function prev() {
+                if (state.index > 0) {
+                    state.index--;
+                    render();
+                }
+            }
+
+            function next() {
+                if (state.index < state.files.length - 1) {
+                    state.index++;
+                    render();
+                }
+            }
+
+            function handleWheel(e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                state.scale = Math.max(0.1, Math.min(5, state.scale + delta));
+                updateTransform();
+            }
+
+            function startDrag(e) {
+                e.preventDefault();
+                state.dragging = true;
+                state.dragStartX = e.clientX;
+                state.dragStartY = e.clientY;
+                state.baseTx = state.tx;
+                state.baseTy = state.ty;
+                els.image.style.cursor = 'grabbing';
+            }
+
+            function doDrag(e) {
+                if (!state.dragging) return;
+                e.preventDefault();
+                state.tx = state.baseTx + (e.clientX - state.dragStartX);
+                state.ty = state.baseTy + (e.clientY - state.dragStartY);
+                updateTransform();
+            }
+
+            function endDrag() {
+                state.dragging = false;
+                if (els.image) els.image.style.cursor = 'grab';
+            }
+
+            function handleKey(e) {
+                if (!els.root || els.root.style.display === 'none') return;
+                if (e.key === 'Escape') close();
+                if (e.key === 'ArrowLeft') prev();
+                if (e.key === 'ArrowRight') next();
+            }
+
+            function positionNavButtons() {
+                if (!els.root || !els.image || !els.prevBtn || !els.nextBtn) return;
+                if (els.root.classList.contains('single-file')) return;
+
+                els.prevBtn.style.left = '24px';
+                els.prevBtn.style.right = 'auto';
+                els.prevBtn.style.top = '50%';
+
+                els.nextBtn.style.left = 'auto';
+                els.nextBtn.style.right = '24px';
+                els.nextBtn.style.top = '50%';
+            }
+
+            function handleTouchStart(e) {
+                if (!e.touches || e.touches.length !== 1) {
+                    state.touching = false;
+                    return;
+                }
+                const t = e.touches[0];
+                state.touching = true;
+                state.touchStartX = t.clientX;
+                state.touchStartY = t.clientY;
+                state.touchLastX = t.clientX;
+                state.touchLastY = t.clientY;
+            }
+
+            function handleTouchMove(e) {
+                if (!state.touching || !e.touches || e.touches.length !== 1) return;
+                const t = e.touches[0];
+                state.touchLastX = t.clientX;
+                state.touchLastY = t.clientY;
+            }
+
+            function handleTouchEnd() {
+                if (!state.touching) return;
+                state.touching = false;
+
+                // While zoomed in, keep swipe navigation disabled.
+                if (state.scale > 1.05) return;
+
+                const dx = state.touchLastX - state.touchStartX;
+                const dy = state.touchLastY - state.touchStartY;
+                const horizontalSwipe = Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 1.2;
+                if (!horizontalSwipe) return;
+
+                if (dx < 0) next();
+                else prev();
+            }
+
+            return {
+                init,
+                open,
+                close
+            };
+        })();
+
+        /** Phase2: 목록/썸네일 presigned — data-storage-key가 있는 img의 src를 R2 직행 URL로 교체 */
+        window.erpReplaceThumbnailsWithPresigned = function (container) {
+            var root = container && container.nodeType === 1 ? container : document;
+            var imgs = root.querySelectorAll ? root.querySelectorAll('img[data-storage-key]') : [];
+            if (!imgs.length) return;
+            var CONCURRENCY = 5;
+            function encodePath(k) { return String(k).split('/').map(function (s) { return encodeURIComponent(s); }).join('/'); }
+            function fetchOne(img) {
+                var key = img.getAttribute('data-storage-key');
+                if (!key) return Promise.resolve();
+                var path = encodePath(key);
+                return fetch('/api/files/presigned-urls/' + path).then(function (r) { return r.json(); }).then(function (data) {
+                    if (data.success && data.view_url) img.src = data.view_url;
+                }).catch(function () { });
+            }
+            for (var i = 0; i < imgs.length; i += CONCURRENCY) {
+                var chunk = Array.prototype.slice.call(imgs, i, i + CONCURRENCY);
+                Promise.all(chunk.map(fetchOne));
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            window.GlobalImageViewer.init();
+            if (window.erpReplaceThumbnailsWithPresigned) window.erpReplaceThumbnailsWithPresigned(document);
+        });
+    </script>
+    {% block scripts_placeholder %}{% endblock %}
+    <style>
+        /* Global Notification Styles */
+        @keyframes bell-shake {
+            0% {
+                transform: rotate(0);
+            }
+
+            15% {
+                transform: rotate(15deg);
+            }
+
+            30% {
+                transform: rotate(-15deg);
+            }
+
+            45% {
+                transform: rotate(10deg);
+            }
+
+            60% {
+                transform: rotate(-10deg);
+            }
+
+            75% {
+                transform: rotate(5deg);
+            }
+
+            85% {
+                transform: rotate(-5deg);
+            }
+
+            100% {
+                transform: rotate(0);
+            }
+        }
+
+        .bell-active {
+            animation: bell-shake 2.5s infinite;
+            color: #ffc107 !important;
+            text-shadow: 0 0 10px rgba(255, 193, 7, 0.4);
+        }
+
+        .notification-item {
+            transition: background-color 0.2s;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+        }
+
+        .notification-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .notification-item.unread {
+            background-color: #f0f7ff;
+            border-left-color: #0d6efd;
+        }
+
+        .notification-time {
+            font-size: 0.75rem;
+            color: #adb5bd;
+        }
+
+        /* Global Immersive Image Viewer Styles */
+        #global-image-viewer {
+            position: fixed;
+            inset: 0;
+            z-index: 10600;
+            /* Higher than Bootstrap modal (1055) */
+            display: none;
+        }
+
+        #global-image-viewer.d-flex {
+            display: flex !important;
+        }
+
+        #global-viewer-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.22);
+            backdrop-filter: blur(14px) saturate(120%);
+            -webkit-backdrop-filter: blur(14px) saturate(120%);
+        }
+
+        #global-viewer-stage {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #global-viewer-image {
+            max-width: 95vw;
+            max-height: 90vh;
+            transform-origin: center center;
+            cursor: grab;
+            user-select: none;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+            transition: transform 0.1s linear;
+        }
+
+        .global-viewer-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 56px;
+            height: 56px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            cursor: pointer;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            font-size: 24px;
+        }
+
+        .global-viewer-nav:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        #global-viewer-prev {
+            left: 24px;
+        }
+
+        #global-viewer-next {
+            right: 24px;
+        }
+
+        #global-image-viewer:hover .global-viewer-nav,
+        #global-image-viewer.nav-visible .global-viewer-nav {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #global-image-viewer.single-file .global-viewer-nav {
+            display: none !important;
+        }
+
+        /* Mobile: swipe-first UX (hide arrow buttons) */
+        @media (max-width: 768px) {
+            .global-viewer-nav {
+                display: none !important;
+            }
+        }
+
+        #global-viewer-close {
+            position: absolute;
+            right: 24px;
+            top: 24px;
+            width: 48px;
+            height: 48px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            z-index: 3;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        #global-viewer-close:hover {
+            background: rgba(255, 59, 48, 0.8);
+            transform: rotate(90deg);
+        }
+
+        #global-viewer-footer {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 24px;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            border-radius: 999px;
+            padding: 10px 20px;
+            font-size: 14px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            z-index: 2;
+            max-width: 90vw;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #global-viewer-filename {
+            font-weight: 600;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #global-viewer-counter {
+            opacity: 0.7;
+            font-size: 0.9em;
+            padding-left: 12px;
+            border-left: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        /* 모바일: 알림 패널 화면 최적화 (전체 표시, 겹침 방지) */
+        @media (max-width: 768px) {
+            .global-notification-panel {
+                position: fixed !important;
+                left: 0 !important;
+                right: 0 !important;
+                top: 52px !important;
+                width: 100vw !important;
+                max-width: 100vw !important;
+                height: calc(100vh - 52px) !important;
+                max-height: calc(100vh - 52px) !important;
+                border-radius: 12px 12px 0 0 !important;
+                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+            }
+
+            .global-notification-panel[style*="display: none"] {
+                display: none !important;
+            }
+
+            .global-notification-panel .p-3.border-bottom {
+                padding: 0.75rem 1rem !important;
+                flex-shrink: 0;
+            }
+
+            .global-notification-panel #global-notification-list {
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .global-notification-panel .notification-item {
+                padding: 0.85rem 1rem !important;
+                min-height: 52px;
+            }
+
+            .global-notification-panel .notification-item strong {
+                max-width: none !important;
+                white-space: normal !important;
+                overflow: visible !important;
+            }
+
+            .global-notification-panel .notification-time {
+                font-size: 0.75rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .global-notification-panel {
+                top: 48px !important;
+                height: calc(100vh - 48px) !important;
+                max-height: calc(100vh - 48px) !important;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .bell-active {
+                animation: none !important;
+            }
+
+            .notification-item,
+            #global-viewer-image,
+            .global-viewer-nav,
+            #global-viewer-close {
+                transition: none !important;
+            }
+        }
+    </style>
+
+
+    <script>
+        // Global Notification System
+        let globalNotificationOpen = false;
+        const hasCurrentUser = "{{ 'true' if current_user else 'false' }}" === "true";
+
+        function renderGlobalNotificationBadge(count) {
+            const badge = document.getElementById('global-notification-badge');
+            const icon = document.getElementById('global-notification-icon');
+            if (!badge || !icon) return;
+
+            if (count > 0) {
+                badge.textContent = count > 99 ? '99+' : count;
+                badge.style.display = 'block';
+                icon.classList.add('bell-active');
+            } else {
+                badge.style.display = 'none';
+                icon.classList.remove('bell-active');
+                icon.style.color = '#6c757d';
+            }
+        }
+
+        window.FOMSNotificationBadge = window.FOMSNotificationBadge || (function () {
+            const subscribers = new Map();
+            const POLL_INTERVAL_MS = 60000;
+            const MIN_REFRESH_MS = 5000;
+            let count = 0;
+            let inFlight = null;
+            let lastResolvedAt = 0;
+            let pollTimer = null;
+            let started = false;
+
+            function emit() {
+                subscribers.forEach(function (callback) {
+                    try {
+                        callback(count);
+                    } catch (err) {
+                        console.error('Notification badge subscriber error:', err);
+                    }
+                });
+            }
+
+            function normalizeCount(value) {
+                const parsed = Number(value);
+                return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+            }
+
+            async function refresh(options) {
+                options = options || {};
+                const force = !!options.force;
+                const now = Date.now();
+
+                if (!hasCurrentUser) {
+                    count = 0;
+                    emit();
+                    return count;
+                }
+
+                if (inFlight) {
+                    return inFlight;
+                }
+
+                if (!force && lastResolvedAt && (now - lastResolvedAt) < MIN_REFRESH_MS) {
+                    emit();
+                    return count;
+                }
+
+                inFlight = fetch('/erp/api/notifications/badge', {
+                    headers: { 'Accept': 'application/json' }
+                })
+                    .then(async function (res) {
+                        if (!res.ok) {
+                            return count;
+                        }
+
+                        const contentType = res.headers.get('content-type') || '';
+                        if (!contentType.includes('application/json')) {
+                            return count;
+                        }
+
+                        const data = await res.json();
+                        count = normalizeCount(data.count);
+                        lastResolvedAt = Date.now();
+                        emit();
+                        return count;
+                    })
+                    .catch(function (err) {
+                        console.error('Notification badge error:', err);
+                        return count;
+                    })
+                    .finally(function () {
+                        inFlight = null;
+                    });
+
+                return inFlight;
+            }
+
+            function subscribe(key, callback) {
+                if (!key || typeof callback !== 'function') return function () { };
+                subscribers.set(key, callback);
+                callback(count);
+                return function () {
+                    subscribers.delete(key);
+                };
+            }
+
+            function startPolling() {
+                if (started || !hasCurrentUser) return;
+                started = true;
+                refresh({ force: true, reason: 'init' });
+                pollTimer = window.setInterval(function () {
+                    refresh({ reason: 'poll' });
+                }, POLL_INTERVAL_MS);
+            }
+
+            return {
+                refresh: refresh,
+                subscribe: subscribe,
+                startPolling: startPolling,
+                getCount: function () { return count; }
+            };
+        })();
+
+        document.addEventListener('DOMContentLoaded', function () {
+            if (hasCurrentUser) {
+                window.FOMSNotificationBadge.subscribe('layout-global-badge', renderGlobalNotificationBadge);
+                window.FOMSNotificationBadge.startPolling();
+
+                // Close panel when clicking outside
+                document.addEventListener('click', function (e) {
+                    const panel = document.getElementById('global-notification-panel');
+                    const btn = document.getElementById('global-notification-btn');
+                    if (globalNotificationOpen && panel && !panel.contains(e.target) && !btn.contains(e.target)) {
+                        panel.style.display = 'none';
+                        globalNotificationOpen = false;
+                        btn.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            }
+        });
+
+        async function loadGlobalNotificationBadge(force) {
+            if (window.FOMSNotificationBadge && typeof window.FOMSNotificationBadge.refresh === 'function') {
+                return window.FOMSNotificationBadge.refresh({ force: !!force, reason: 'global' });
+            }
+        }
+
+        function getErpMineOnlyCookie() {
+            const match = document.cookie.match(/\berp_mine_only=([^;]*)/);
+            return match ? (match[1] || '').trim() : '';
+        }
+        function setErpMineOnlyCookie(on) {
+            const value = on ? '1' : '';
+            const maxAge = on ? 60 * 60 * 24 * 30 : 0;
+            document.cookie = 'erp_mine_only=' + value + '; path=/; max-age=' + maxAge + '; SameSite=Lax';
+        }
+        (function syncMineFromCookieToUrl() {
+            var path = window.location.pathname || '';
+            if (path.indexOf('/erp/') === -1) return;
+            if (getErpMineOnlyCookie() !== '1') return;
+            var params = new URLSearchParams(window.location.search);
+            if (params.has('mine')) return;
+            params.set('mine', '1');
+            var newUrl = path + '?' + params.toString();
+            history.replaceState(null, '', newUrl);
+            window.location.reload();
+        })();
+        function toggleGlobalMineOnly() {
+            const on = getErpMineOnlyCookie() !== '1';
+            setErpMineOnlyCookie(on);
+            updateGlobalMineOnlyButton(on);
+            var path = window.location.pathname || '';
+            var params = new URLSearchParams(window.location.search);
+            if (path.indexOf('/erp/') !== -1) {
+                if (on && !params.has('mine')) params.set('mine', '1');
+                if (!on && params.has('mine')) params.delete('mine');
+                var newUrl = path + (params.toString() ? '?' + params.toString() : '');
+                history.replaceState(null, '', newUrl);
+            }
+            window.location.reload();
+        }
+        function updateGlobalMineOnlyButton(on) {
+            const btn = document.getElementById('global-mine-only-btn');
+            const icon = document.getElementById('global-mine-only-icon');
+            if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            if (icon) {
+                icon.style.color = on ? '#0d6efd' : '#6c757d';
+            }
+        }
+        (function initGlobalMineOnly() {
+            var on = getErpMineOnlyCookie() === '1';
+            updateGlobalMineOnlyButton(on);
+        })();
+
+        async function toggleGlobalNotificationPanel() {
+            const panel = document.getElementById('global-notification-panel');
+            const btn = document.getElementById('global-notification-btn');
+            if (!panel) return;
+
+            globalNotificationOpen = !globalNotificationOpen;
+            panel.style.display = globalNotificationOpen ? 'block' : 'none';
+            if (btn) {
+                btn.setAttribute('aria-expanded', globalNotificationOpen ? 'true' : 'false');
+            }
+
+            if (globalNotificationOpen) {
+                await loadGlobalNotifications();
+            }
+        }
+
+        async function loadGlobalNotifications() {
+            const list = document.getElementById('global-notification-list');
+            try {
+                list.innerHTML = '<div class="text-center p-4 text-muted"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> 로딩 중...</div>';
+
+                const res = await fetch('/erp/api/notifications?limit=10'); // Get latest 10
+                if (!res.ok) throw new Error('API Error');
+
+                const data = await res.json();
+
+                if (data.notifications && data.notifications.length > 0) {
+                    let html = '';
+                    data.notifications.forEach(noti => {
+                        const isUnread = !noti.is_read;
+                        // Format time (simple)
+                        const time = noti.created_at.substring(5, 16).replace('T', ' '); // MM-DD HH:MM
+
+                        const safeType = String(noti.notification_type || '').replace(/'/g, "\\'");
+                        const safeTab = String(noti.deep_tab || '').replace(/'/g, "\\'");
+                        const safeEventId = String(noti.deep_event_id || '').replace(/'/g, "\\'");
+                        const safeTargetNo = String(noti.deep_target_no || '').replace(/'/g, "\\'");
+                        html += `
+                            <div class="list-group-item notification-item ${isUnread ? 'unread' : ''}" onclick="readGlobalNotification(${noti.id}, ${noti.order_id || 'null'}, '${safeType}', '${safeTab}', '${safeEventId}', '${safeTargetNo}')">
+                                <div class="d-flex w-100 justify-content-between align-items-center mb-1">
+                                    <strong class="mb-0 text-truncate" style="max-width: 300px;">${escapeHtml(noti.title)}</strong>
+                                    <small class="notification-time flex-shrink-0 ms-1">${time}</small>
+                                </div>
+                                <p class="mb-1 text-secondary small" style="word-break: break-word; white-space: normal;">${escapeHtml(noti.message).replace(/\.\s+/g, '.<br>')}</p>
+                            </div>
+                        `;
+                    });
+                    list.innerHTML = html;
+                } else {
+                    list.innerHTML = '<div class="text-center p-4 text-muted"><i class="far fa-bell-slash fa-2x mb-2"></i><br>알림이 없습니다.</div>';
+                }
+            } catch (e) {
+                console.error('List error:', e);
+                list.innerHTML = '<div class="text-center p-3 text-danger"><i class="fas fa-exclamation-circle"></i> 로드 실패</div>';
+            }
+        }
+
+        async function readGlobalNotification(id, orderId, notificationType, deepTab, deepEventId, deepTargetNo) {
+            try {
+                await fetch(`/erp/api/notifications/${id}/read`, { method: 'POST' });
+                // Refresh badge
+                loadGlobalNotificationBadge(true);
+
+                // If orderId exists, navigate by notification type
+                if (orderId) {
+                    if (notificationType === 'DRAWING_TRANSFERRED' || notificationType === 'DRAWING_REVISION') {
+                        const tab = deepTab || (notificationType === 'DRAWING_REVISION' ? 'requests' : 'timeline');
+                        let url = `/erp/drawing-workbench/${orderId}?tab=${encodeURIComponent(tab)}`;
+                        if (deepEventId) url += `&event_id=${encodeURIComponent(deepEventId)}`;
+                        if (deepTargetNo) url += `&target_no=${encodeURIComponent(deepTargetNo)}`;
+                        window.location.href = url;
+                    } else {
+                        // 기본: ERP Beta 탭 오픈
+                        window.location.href = `/edit/${orderId}?open=erp-beta`;
+                    }
+                } else {
+                    // Just refresh list to remove unread style
+                    loadGlobalNotifications();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function markAllGlobalNotificationsRead() {
+            if (!confirm('모든 알림을 읽음 처리하시겠습니까?')) return;
+            try {
+                await fetch('/erp/api/notifications/read-all', { method: 'POST' });
+                loadGlobalNotificationBadge(true);
+                loadGlobalNotifications();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function deleteAllGlobalNotifications() {
+            if (!confirm('알림을 모두 삭제하시겠습니까? 삭제된 알림은 복구할 수 없습니다.')) return;
+            try {
+                const res = await fetch('/erp/api/notifications/delete-all', { method: 'POST' });
+                const data = await res.json().catch(function () { return {}; });
+                if (data.success) {
+                    loadGlobalNotificationBadge(true);
+                    loadGlobalNotifications();
+                    if (data.count != null && data.count > 0) {
+                        alert(data.message || data.count + '개 알림을 삭제했습니다.');
+                    }
+                } else {
+                    alert(data.message || '삭제에 실패했습니다.');
+                }
+            } catch (e) {
+                console.error(e);
+                alert('알림 삭제 중 오류가 발생했습니다.');
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        (function personalBriefingBoard() {
+            const offcanvasEl = document.getElementById('personal-briefing-offcanvas');
+            const placeholderEl = document.getElementById('personal-briefing-placeholder');
+            const widgetsEl = document.getElementById('personal-briefing-widgets');
+            if (!offcanvasEl || !placeholderEl || !widgetsEl) return;
+
+            function _esc(s) {
+                return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            }
+            function stagePill(label) {
+                return label ? '<span class="badge rounded-pill text-bg-light border" style="font-size:0.65rem">' + _esc(label) + '</span>' : '';
+            }
+            function orderCard(item) {
+                var borderCls = item.is_urgent ? 'border-danger border-2' : 'border';
+                var bg = item.is_urgent ? 'background:#fff5f5;' : '';
+                var icon = item.is_urgent ? '🚨 ' : '';
+                var url = item.deep_url || '/erp/dashboard';
+                return '<a href="' + url + '" class="text-decoration-none d-block mb-1">' +
+                    '<div class="d-flex align-items-center justify-content-between px-2 py-1 rounded ' + borderCls + '" style="background:#fff;min-height:36px;' + bg + '">' +
+                    '<span class="fw-semibold text-dark" style="font-size:0.85rem">' + icon + _esc(item.customer_name) + '</span>' +
+                    '<span>' + stagePill(item.stage_label || item.type_label) +
+                    (item.is_urgent ? '<span class="badge bg-danger ms-1" style="font-size:0.65rem">긴급</span>' : '') +
+                    '</span></div></a>';
+            }
+            function schedCard(item) {
+                var borderCls = item.is_urgent ? 'border-danger border-2' : 'border';
+                var bg = item.is_urgent ? 'background:#fff5f5;' : '';
+                var typeColor = item.type === 'measurement' ? '#198754' : '#0d6efd';
+                var url = item.deep_url || '/erp/dashboard';
+                return '<a href="' + url + '" class="text-decoration-none d-block mb-1">' +
+                    '<div class="d-flex align-items-center justify-content-between px-2 py-1 rounded ' + borderCls + '" style="background:#fff;min-height:36px;' + bg + '">' +
+                    '<span class="fw-semibold text-dark" style="font-size:0.85rem">' + (item.is_urgent ? '🚨 ' : '') + _esc(item.customer_name) + '</span>' +
+                    '<span>' +
+                    '<span class="badge me-1" style="background:' + typeColor + ';font-size:0.65rem">' + _esc(item.type_label || '') + '</span>' +
+                    (item.time ? '<span class="text-muted" style="font-size:0.72rem">' + _esc(item.time) + '</span>' : '') +
+                    (item.is_urgent ? '<span class="badge bg-danger ms-1" style="font-size:0.65rem">긴급</span>' : '') +
+                    '</span></div></a>';
+            }
+            function numWidget(icon, title, value, href, colorCls) {
+                return '<div class="col-4 col-md-2"><a href="' + href + '" class="text-decoration-none">' +
+                    '<div class="card h-100 text-center border shadow-sm py-1 px-0">' +
+                    '<div class="fw-bold ' + colorCls + '" style="font-size:1.25rem;line-height:1.1">' + value + '</div>' +
+                    '<div class="text-muted" style="font-size:0.6rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + title + '">' + icon + ' ' + title + '</div>' +
+                    '</div></a></div>';
+            }
+
+            offcanvasEl.addEventListener('show.bs.offcanvas', function () {
+                const btn = document.getElementById('personal-briefing-toggle');
+                if (btn && btn.classList.contains('urgent-alert-active')) {
+                    btn.classList.remove('urgent-alert-active');
+                    const icon = btn.querySelector('i');
+                    if (icon && icon.getAttribute('data-orig-class')) {
+                        icon.className = icon.getAttribute('data-orig-class');
+                    }
+                }
+            });
+
+            offcanvasEl.addEventListener('shown.bs.offcanvas', function () {
+                placeholderEl.classList.remove('d-none');
+                widgetsEl.classList.add('d-none');
+                widgetsEl.innerHTML = '';
+                fetch('/api/personal-board/summary', { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data.success) {
+                            placeholderEl.innerHTML = '<p class="text-danger mb-0 text-center">요약을 불러올 수 없습니다.</p>';
+                            return;
+                        }
+                        placeholderEl.classList.add('d-none');
+                        widgetsEl.classList.remove('d-none');
+
+                        // ── 긴급 알림 배너 (최상단) ──
+                        var urgentBanner = document.getElementById('urgent-banner-area');
+                        var urgentList = data.urgent_notifications || [];
+                        if (urgentList.length && urgentBanner) {
+                            var bHtml = '';
+                            urgentList.forEach(function (un) {
+                                var deepHref = un.order_id ? '/erp/dashboard?focus_order=' + un.order_id : '#';
+                                var typeLabel = un.notification_type === 'URGENT_MENTION' ? '긴급 멘션' : '긴급 공지';
+                                bHtml += '<a href="' + deepHref + '" class="alert alert-danger d-flex align-items-center gap-2 py-2 px-3 mb-1 text-decoration-none" role="alert" style="font-size:0.85rem">' +
+                                    '<i class="fas fa-exclamation-triangle"></i>' +
+                                    '<span class="fw-semibold">[' + _esc(typeLabel) + ']</span> ' +
+                                    '<span class="flex-grow-1 text-truncate">' + _esc(un.title) + '</span>' +
+                                    (un.created_by_name ? '<small class="text-muted ms-1">by ' + _esc(un.created_by_name) + '</small>' : '') +
+                                    '</a>';
+                            });
+                            urgentBanner.innerHTML = bHtml;
+                            urgentBanner.classList.remove('d-none');
+                        } else if (urgentBanner) {
+                            urgentBanner.classList.add('d-none');
+                            urgentBanner.innerHTML = '';
+                        }
+
+                        var u = data.urgent_inbox || {};
+                        var noti = u.notifications || 0;
+                        var chats = u.unread_chats || 0;
+                        var ws = data.work_stream || {};
+                        var workTotal = Object.values(ws).reduce(function (s, v) { return s + (v || 0); }, 0);
+
+                        // ── 요약 숫자 위젯 클릭시 해당 대시보드 이동 ──
+                        var row1 = '<div class="col-12"><div class="row g-1 mb-2">';
+                        row1 += numWidget('📋', '내 업무', workTotal, '/erp/dashboard', workTotal > 0 ? 'text-primary' : 'text-muted');
+                        row1 += numWidget('🔔', 'ERP알림', noti, '#', noti > 0 ? 'text-danger' : 'text-muted');
+                        row1 += numWidget('💬', '채팅', chats, '/chat', chats > 0 ? 'text-warning' : 'text-muted');
+                        row1 += numWidget('⚠️', '정체', data.stalled_count || 0, '/erp/dashboard', (data.stalled_count || 0) > 0 ? 'text-danger' : 'text-muted');
+                        row1 += numWidget('💸', '첩구', data.settlement_alerts || 0, '/erp/completion', (data.settlement_alerts || 0) > 0 ? 'text-danger' : 'text-muted');
+                        row1 += numWidget('✅', 'Task', data.pending_task_count || 0, '/erp/dashboard', (data.pending_task_count || 0) > 0 ? 'text-warning' : 'text-muted');
+                        row1 += '</div></div>';
+                        widgetsEl.insertAdjacentHTML('beforeend', row1);
+
+                        // ── 단계별 업무 현황 넷지 ──
+                        var wsKeys = Object.keys(ws);
+                        if (wsKeys.length) {
+                            var wsHtml = '<div class="col-12"><div class="border rounded p-2 mb-2" style="background:#f8f9fa">' +
+                                '<div class="text-muted mb-1" style="font-size:0.7rem;font-weight:600">📊 내 팀 업무 현황</div><div class="d-flex flex-wrap gap-1">';
+                            wsKeys.forEach(function (label) {
+                                var cnt = ws[label];
+                                var cls = cnt > 5 ? 'bg-danger' : cnt > 2 ? 'bg-warning text-dark' : 'bg-secondary';
+                                wsHtml += '<span class="badge ' + cls + '">' + _esc(label) + ' <strong>' + cnt + '건</strong></span>';
+                            });
+                            wsHtml += '</div></div></div>';
+                            widgetsEl.insertAdjacentHTML('beforeend', wsHtml);
+                        }
+
+                        // ── 최근 작업 + 일정 나란히 2콼 ──
+                        var row2 = '<div class="col-12"><div class="row g-2">';
+
+                        var recent = data.recent_work || [];
+                        row2 += '<div class="col-12 col-md-6"><div class="border rounded p-2" style="min-height:80px">' +
+                            '<div class="text-muted mb-1" style="font-size:0.7rem;font-weight:600">🕒 내 최근 작업 (이어하기)</div>';
+                        if (recent.length) {
+                            recent.forEach(function (item) { row2 += orderCard(item); });
+                        } else {
+                            row2 += '<p class="text-muted small mb-0">최근 작업 내역이 없습니다.</p>';
+                        }
+                        row2 += '</div></div>';
+
+                        var st = data.schedule_today || [];
+                        var stm = data.schedule_tomorrow || [];
+                        row2 += '<div class="col-12 col-md-6"><div class="border rounded p-2" style="min-height:80px">' +
+                            '<div class="text-muted mb-1" style="font-size:0.7rem;font-weight:600">📅 오늘/내일 일정</div>';
+                        if (st.length || stm.length) {
+                            if (st.length) {
+                                row2 += '<div class="text-muted" style="font-size:0.65rem;font-weight:600">▶ 오늘</div>';
+                                st.forEach(function (item) { row2 += schedCard(item); });
+                            }
+                            if (stm.length) {
+                                row2 += '<div class="text-muted mt-1" style="font-size:0.65rem;font-weight:600">▶ 내일</div>';
+                                stm.forEach(function (item) { row2 += schedCard(item); });
+                            }
+                        } else {
+                            row2 += '<p class="text-muted small mb-0">예정된 일정이 없습니다.</p>';
+                        }
+                        row2 += '</div></div>';
+
+                        row2 += '</div></div>';
+                        widgetsEl.insertAdjacentHTML('beforeend', row2);
+                    })
+                    .catch(function () {
+                        placeholderEl.innerHTML = '<p class="text-danger mb-0 text-center">요약 로드 실패.</p>';
+                    });
+            });
+        })();
+    </script>
+    <!-- Flatpickr JS + 한국어 locale (다중 실측일/시공일) -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

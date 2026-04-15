@@ -87,7 +87,7 @@ def run_auto_init(app) -> None:
         with app.app_context():
             print("[AUTO-INIT] Checking database tables...")
             init_db()
-            from apps.api.attachments import (
+            from foms.api.attachments import (
                 ensure_order_attachments_category_column,
                 ensure_order_attachments_item_index_column,
                 ensure_order_attachments_user_id_column,

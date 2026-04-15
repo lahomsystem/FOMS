@@ -1,4 +1,4 @@
-{% extends "layout.html" %}
+{% extends "shared/layout.html" %}
 
 {% block content %}
 <div class="erp-pro erp-mobile-shell erp-measurement-dashboard" data-erp-beta-active="{{ 'true' if erp_beta_enabled else 'false' }}"
@@ -6,7 +6,7 @@
   data-selected-date="{{ selected_date }}" data-search-q="{{ search_q }}"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
-    {% include 'partials/erp_mobile_shell.html' %}
+    {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
   <!-- Modern Header -->
   <header class="erp-pro-header erp-measurement-header">
@@ -26,7 +26,7 @@
     </div>
   </header>
   {% set erp_sub_nav_active = 'measurement' %}
-  {% include 'partials/erp_sub_nav.html' %}
+  {% include 'partials/shared/erp_sub_nav.html' %}
 
   {% if not erp_beta_enabled %}
   <div class="erp-pro-alert erp-pro-alert--warning">
@@ -940,10 +940,10 @@
 {% block scripts %}
 {# 실측 PNG·헬퍼 수정 시 v 값을 올려 브라우저/CDN 캐시 무효화 (production만 구버전 JS 유지되는 현상 방지) #}
 {% set measurement_js_v = '20260401u' %}
-<script src="{{ url_for('static', filename='js/erp/common_utils.js') }}?v={{ measurement_js_v }}"></script>
+<script src="{{ url_for('static', filename='js/runtime/common_utils.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/measurement/dashboard.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/measurement/mobile.js') }}?v={{ measurement_js_v }}"></script>
-<script src="{{ url_for('static', filename='js/column-resizer.js') }}?v={{ measurement_js_v }}"></script>
+<script src="{{ url_for('static', filename='js/runtime/column-resizer.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/measurement/dashboard-columns.js') }}?v={{ measurement_js_v }}"></script>
 <script src="{{ url_for('static', filename='js/measurement/manual-rows.js') }}?v={{ measurement_js_v }}"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>

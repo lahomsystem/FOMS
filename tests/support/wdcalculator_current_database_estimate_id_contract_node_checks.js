@@ -8,7 +8,7 @@ const helperPath = path.join(
     "static",
     "js",
     "wdcalculator",
-    "current-database-estimate-id.js"
+    "estimate-lifecycle.js"
 );
 const helperSrc = fs.readFileSync(helperPath, "utf8");
 
@@ -21,6 +21,7 @@ function assertEq(actual, expected, label) {
 const sandbox = {
     window: null,
     globalThis: null,
+    document: {},
     console,
     Object,
 };

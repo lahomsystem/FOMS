@@ -1,5 +1,5 @@
 # Wave 7 Test / Contract Rationalization Execution Plan
-> 작성일: 2026-04-14 | 상태: 초안 (감리 전)
+> 작성일: 2026-04-14 | 상태: 최종 하드 감리 완료 / freeze-ready
 > 상위 기준선: `docs/specs/2026-04-13-foms-modular-monolith-rebaseline_SPEC.md`
 > live truth source: `tests/`, `tests/support/`, `tests/harness/`, `tests/test_foms_namespace_imports.py`, `tests/test_app_bootstrap_contract.py`
 > 선행 wave: `docs/plans/2026-04-14-wave6-service-namespace-rationalization-execution-plan.md`
@@ -96,12 +96,13 @@ Wave 7 actual execution은 아래 산출물을 소비한 뒤에만 시작한다.
 1. `docs/specs/2026-04-13-foms-modular-monolith-rebaseline_SPEC.md`
 2. `docs/plans/2026-04-14-wave6-service-namespace-rationalization-execution-plan.md`
 3. `docs/plans/2026-04-14-wave5-large-front-end-island-rebaseline-execution-plan.md`
-4. `docs/plans/2026-04-14-wave5-batch2-wdcalculator-composition-run-record.md`
-5. `docs/plans/2026-04-14-wave5-batch3-wdcalculator-primary-form-run-record.md`
-6. `docs/AI_STATUS.md` 또는 accepted Wave 5 execution-state memo
-7. Wave 6 closeout/status evidence (`docs/plans/2026-04-14-wave6-batch6-status-register-run-record.md`, `docs/plans/2026-04-14-wave6-batch7-closeout-run-record.md`) 또는 accepted equivalent evidence
-8. live `tests/test_foms_namespace_imports.py`, `tests/test_app_bootstrap_contract.py`, `tests/harness/*`
-9. live `tests/test_*_contract_node.py`, `tests/support/*contract_node_checks.js`
+4. `docs/plans/2026-04-14-wave5-batch1-wdcalculator-contract-freeze-run-record.md`
+5. `docs/plans/2026-04-14-wave5-batch2-wdcalculator-composition-run-record.md`
+6. `docs/plans/2026-04-14-wave5-batch3-wdcalculator-primary-form-run-record.md`
+7. `docs/AI_STATUS.md` 또는 accepted Wave 5 execution-state memo
+8. Wave 6 closeout/status evidence (`docs/plans/2026-04-14-wave6-batch6-status-register-run-record.md`, `docs/plans/2026-04-14-wave6-batch7-closeout-run-record.md`) 또는 accepted equivalent evidence
+9. live `tests/test_foms_namespace_imports.py`, `tests/test_app_bootstrap_contract.py`, `tests/harness/*`
+10. live `tests/test_*_contract_node.py`, `tests/support/*contract_node_checks.js`
 
 추가 규칙:
 
@@ -114,6 +115,7 @@ Wave 7 actual execution은 아래 산출물을 소비한 뒤에만 시작한다.
   - Wave 7로 넘어오는 test debt / Wave 8로 넘어오는 bridge debt 요약
   - 현재 live `tests/test_foms_namespace_imports.py` import surface와의 정합 메모
 - Wave 5 equivalent evidence 최소 계약:
+  - `W5-B1` authoritative four-chunk map / disposition matrix / representative contract boundary
   - 작성 시점
   - 완료된 batch 목록
   - 현재/마지막 시도 batch
@@ -188,6 +190,7 @@ branch semantics:
 - `Branch B` runtime-only path: `W7-B0 -> W7-B1 -> W7-B2 -> W7-B3 -> W7-B6 -> W7-B7`
 - `Branch C` docs-only partial closeout: `W7-B0 -> W7-B1 -> W7-B6 -> W7-B7`
 - `runtime-anchor-freeze-stop` post-B2 path: `W7-B0 -> W7-B1 -> W7-B2(partial/failed) -> W7-B6 -> W7-B7`
+- `runtime-anchor-b3-revert-stop` post-B3 path: `W7-B0 -> W7-B1 -> W7-B2 -> W7-B3(revert-to-pre-B3-tree) -> W7-B6 -> W7-B7`
 - `wdcalculator-freeze-stop` post-B4 path: `W7-B0 -> W7-B1 -> W7-B2 -> W7-B3 -> W7-B4(partial/blocked) -> W7-B6 -> W7-B7`
 - `wdcalculator-b5-revert-stop` post-B5 path: `W7-B0 -> W7-B1 -> W7-B2 -> W7-B3 -> W7-B4 -> W7-B5(revert-to-pre-B5-tree) -> W7-B6 -> W7-B7`
 
@@ -201,7 +204,7 @@ branch semantics:
 | `W7-B3` | Runtime anchor rationalization | code / runtime anchor | tiered runtime anchor tests, reduced giant-file burden, preserved old path compatibility if needed | `W7-B2` | `docs/plans/2026-04-14-wave7-batch3-runtime-anchor-rationalization-run-record.md` |
 | `W7-B4` | WDCalculator chunk-contract freeze | docs | `composition`/`primary-form` mapping, removal list, file budget | `Branch A` + `W7-B3` | `docs/plans/2026-04-14-wave7-batch4-wdcalculator-chunk-freeze-run-record.md` |
 | `W7-B5` | WDCalculator composition + primary-form rationalization | code / chunk contract | chunk-level Node contract files, micro pair reduction, README update | `W7-B4` | `docs/plans/2026-04-14-wave7-batch5-wdcalculator-chunk-contracts-run-record.md` |
-| `W7-B6` | Test status register | docs / handoff | pilot/defer register, restart conditions, Wave 8 owner map | Branch A/B/C 공통 | `docs/plans/2026-04-14-wave7-batch6-status-register-run-record.md` |
+| `W7-B6` | Test status register | docs / handoff | pilot/defer register, restart conditions, owner/continuation map | 모든 legal path 공통 | `docs/plans/2026-04-14-wave7-batch6-status-register-run-record.md` |
 | `W7-B7` | Closeout + Wave 8 handoff | docs / closeout | full/partial closeout, spec/archive update, next continuation order | `W7-B6` | `docs/plans/2026-04-14-wave7-batch7-closeout-run-record.md` |
 
 ## 5. Batch Runbook — 배치별 실행 규칙
@@ -348,6 +351,11 @@ branch semantics:
 6. run record에 old/new file delta와 reduced giant-file burden 근거를 남긴다.
 7. `TR9` exceptional allowance를 썼다면 old giant file의 thin-aggregator line count와 helper/support 순증가 없음 여부를 수치로 남긴다.
 
+추가 규칙:
+
+- B3 code batch가 시작된 뒤 `coverage-shrink-stop`, `scope-drift-stop`, 또는 unresolved parity regression이 발생하면 same-batch full revert to pre-B3 tree가 필수다.
+- 이 경우 `runtime-anchor-b3-revert-stop` branch label로 `W7-B6/W7-B7` partial closeout 경로를 사용한다.
+
 **검증**
 - `python -c "import app; print('APP_OK')"`
 - `python tools/harness/verify_result.py --json`
@@ -369,22 +377,29 @@ branch semantics:
 - product JS 수정
 
 **실행 단계**
-1. `W5-B2`, `W5-B3` run record와 live `composition.js`, `primary-form.js`, `wdcalculator_scripts_config.html`를 다시 연다.
-2. current WDCalculator micro pair를 아래 분류로 잠근다.
+1. `W5-B1`, `W5-B2`, `W5-B3` run record와 live `composition.js`, `primary-form.js`, `wdcalculator_scripts_config.html`, `tests/test_wdcalculator_product_settings.py`를 다시 연다.
+2. `W5-B1` authoritative four-chunk map 기준으로 second pilot ownership boundary를 먼저 잠근다.
+   - `primary-form` owner set: `base-components-ui.js`, `notes-ui.js`, `coupon-display-helpers.js`, `additional-options-ui.js`, `product-catalog-ui.js`, `add-option-button.js`, `calculate-button.js`
+   - `pricing-core` owner set: `current-estimate-orchestration.js`, `calculation-resolvers.js`, `current-estimate-math.js`, `estimate-totals.js`, `total-estimates-display.js`, `coupon-shipping-wiring.js`
+   - `current-estimate-orchestration.js`와 위 pricing-core owner set은 Wave 7 second pilot에서 흡수하지 않는다.
+3. representative page smoke boundary를 먼저 잠근다.
+   - `tests/test_wdcalculator_product_settings.py`가 `composition + primary-form`만으로 검증 가능한지 read-and-classify 한다.
+   - pricing-core dependency가 섞여 있으면 exact replacement smoke path 또는 continued-use justification을 `W7-B4` run record에 먼저 고정한다.
+4. current WDCalculator micro pair를 아래 분류로 잠근다.
    - merge-into-composition
    - merge-into-primary-form
    - defer-estimate-lifecycle
    - defer-pricing-core
    - defer-legacy-unmapped
-3. code batch file budget을 아래 제한으로 잠근다.
+5. code batch file budget을 아래 제한으로 잠근다.
    - `tests/contracts/wdcalculator/test_composition_contracts.py`
    - `tests/contracts/wdcalculator/test_primary_form_contracts.py`
    - `tests/contracts/wdcalculator/_node_runner.py` (optional, 1개 이하)
    - `tests/support/wdcalculator/composition_contract_checks.js`
    - `tests/support/wdcalculator/primary_form_contract_checks.js`
-4. default representative page smoke는 `tests/test_wdcalculator_product_settings.py`로 잠근다. 이 경로가 live tree에 없거나 역할이 더 넓다면, exact replacement path를 same run record에 고정한다.
-5. same-batch removal list를 exact path 기준으로 잠근다.
-6. B0에서 잠근 early gate와 B4에서 새로 확인한 late freeze blocker를 구분한다.
+6. default representative page smoke는 `tests/test_wdcalculator_product_settings.py`로 잠근다. 이 경로가 live tree에 없거나 역할이 더 넓다면, exact replacement path를 same run record에 고정한다.
+7. same-batch removal list를 exact path 기준으로 잠근다.
+8. B0에서 잠근 early gate와 B4에서 새로 확인한 late freeze blocker를 구분한다.
    - `node` 부재 또는 `composition`/`primary-form` readiness drift가 B4 시점에 다시 발견되면 `W7-B5`는 열지 않고 `W7-B4`를 partial/blocked로 닫은 뒤 `wdcalculator-freeze-stop` 경로로 내려간다. `Branch B`는 B0 early gate 전용이다.
    - actual removal list가 `estimate-lifecycle` 또는 `pricing-core` family를 요구하거나 product JS touch 없이는 닫히지 않으면 `W7-B5`를 열지 않고 `wdcalculator-freeze-stop` 경로로 내려간다.
 
@@ -418,15 +433,16 @@ branch semantics:
 1. `tests/contracts/wdcalculator/`와 `tests/support/wdcalculator/` target path를 same-batch에서 실제로 만든다. 경로가 없던 pre-B5 상태는 실패가 아니라 미시작 상태다.
 2. repeated Node subprocess wrapper는 shared helper 또는 parametrized runner로 수렴시킨다.
 3. `composition` target JS support script는 startup/bootstrap/order/load-order band만 다룬다.
-4. `primary-form` target JS support script는 base-components/notes/coupon/additional-options/catalog band만 다룬다.
-5. `tests/test_wdcalculator_product_settings.py`가 live tree에 없거나 더 넓은 unfinished chunk까지 묶고 있으면, `W7-B4`에서 잠근 replacement smoke path를 사용한다. replacement smoke path를 잠그지 못했으면 B5 substantive edit를 시작하지 말고 `W7-B4` freeze failure로 간주해 `wdcalculator-freeze-stop` 경로로 내려간다. 만약 substantive edit를 이미 시작한 뒤 이 문제가 드러나면 `§5.6.9` / `§8.5`에 따라 same-batch full revert 후 `wdcalculator-b5-revert-stop`으로 닫는다.
-6. old micro pair handling은 `W7-B4` exact removal list 기준으로 binary다.
+4. `primary-form` target JS support script는 base-components/notes/coupon/additional-options/catalog/add-option/calculate band만 다룬다.
+5. `W5-B1`에서 `pricing-core`로 잠근 `current-estimate-orchestration.js`, `calculation-resolvers.js`, `current-estimate-math.js`, `estimate-totals.js`, `total-estimates-display.js`, `coupon-shipping-wiring.js`는 B5 second pilot에서 흡수하지 않는다.
+6. `tests/test_wdcalculator_product_settings.py`가 live tree에 없거나 더 넓은 unfinished chunk까지 묶고 있으면, `W7-B4`에서 잠근 replacement smoke path를 사용한다. replacement smoke path를 잠그지 못했으면 B5 substantive edit를 시작하지 말고 `W7-B4` freeze failure로 간주해 `wdcalculator-freeze-stop` 경로로 내려간다. 만약 substantive edit를 이미 시작한 뒤 이 문제가 드러나면 `§5.6.10` / `§8.6`에 따라 same-batch full revert 후 `wdcalculator-b5-revert-stop`으로 닫는다.
+7. old micro pair handling은 `W7-B4` exact removal list 기준으로 binary다.
    - exact removal list에 포함된 old micro pair path는 same-batch에서 삭제가 필수다.
-   - exact removal list path를 삭제할 수 없으면 `exact why-not-now + next batch`로 carry-forward하지 말고 `§5.6.9` / `§8.5`에 따라 same-batch full revert to pre-B5 tree로 내려간다.
+   - exact removal list path를 삭제할 수 없으면 `exact why-not-now + next batch`로 carry-forward하지 말고 `§5.6.10` / `§8.6`에 따라 same-batch full revert to pre-B5 tree로 내려간다.
    - exact removal list 밖의 old micro pair path는 B5에서 건드리지 않고 defer register로만 넘긴다.
-7. `estimate-lifecycle`, `pricing-core`, unmapped legacy pair는 건드리지 않고 defer register로 넘긴다.
-8. README에 chunk-contract map과 removed micro pair summary를 적는다.
-9. partial/failed 상태로 내려갈 때는 new `tests/contracts/wdcalculator/` 또는 `tests/support/wdcalculator/` subtree를 old micro pair removal 대상과 함께 반쯤 남기지 않는다. complete removal map을 닫지 못하면 same-batch full revert to pre-B5 tree가 필수다.
+8. `estimate-lifecycle`, `pricing-core`, unmapped legacy pair는 건드리지 않고 defer register로 넘긴다.
+9. README에 chunk-contract map과 removed micro pair summary를 적는다.
+10. partial/failed 상태로 내려갈 때는 new `tests/contracts/wdcalculator/` 또는 `tests/support/wdcalculator/` subtree를 old micro pair removal 대상과 함께 반쯤 남기지 않는다. complete removal map을 닫지 못하면 same-batch full revert to pre-B5 tree가 필수다.
    - B5가 만든/수정한 new WDCalculator contract/support subtree를 되돌리거나 제거한다.
    - B5에서 삭제한 old micro pair file이 있으면 same-batch에서 복구한다.
    - 실제 restoration 없이 `explicit revert-incomplete` 문구만 남기는 것은 invalid다.
@@ -472,15 +488,17 @@ branch semantics:
    - harness
    - measurement-contract-family
    - orders-api-bridge-family
-4. 각 row에 `why not now`, `required prep`, `suggested restart batch`, `bridge-coupled yes/no`, `Wave 8 owner`, `micro-pair delta`를 남긴다.
-5. `bridge-coupled yes`인 row는 `Wave 8 owner`를 기본값으로 두고, Wave 7이 bridge removal owner가 아님을 명시한다.
-6. path별 default execution-state rule을 적용한다.
+4. 각 row에 `why not now`, `required prep`, `suggested restart batch`, `bridge-coupled yes/no`, `continuation owner`, `micro-pair delta`를 남긴다.
+5. `bridge-coupled yes`인 row에만 `Wave 8 owner`를 적고, 그 외 row는 `Wave 8 owner = N/A`로 명시한다.
+6. `bridge-coupled no`인 row는 `continuation owner`를 기본값으로 두고, Wave 7 continuation 또는 prerequisite owner를 명시한다.
+7. path별 default execution-state rule을 적용한다.
    - `Branch C`: `runtime-anchor = not started`, `wdcalculator-composition-primary-form = not started`
    - `runtime-anchor-freeze-stop`: `runtime-anchor = partial`, `wdcalculator-composition-primary-form = not started`
+   - `runtime-anchor-b3-revert-stop`: `runtime-anchor = partial`, `wdcalculator-composition-primary-form = not started`
    - `Branch B`: `runtime-anchor = completed`, `wdcalculator-composition-primary-form = not started`
    - `wdcalculator-freeze-stop`: `runtime-anchor = completed`, `wdcalculator-composition-primary-form = partial`
    - `wdcalculator-b5-revert-stop`: `runtime-anchor = completed`, `wdcalculator-composition-primary-form = partial`
-7. `tests/README.md`에 status summary를 반영한다.
+8. `tests/README.md`에 status summary를 반영한다.
 
 **검증**
 - docs-only closeout
@@ -539,6 +557,8 @@ branch semantics:
 추가 규칙:
 
 - docs-only batch는 직전 fresh baseline을 같은 execution path에서 재사용할 수 있다.
+- `W7-B0` baseline은 반드시 fresh run이어야 하며, 결과는 `green baseline` 또는 `inherited-red baseline`으로 분류한다.
+- `inherited-red baseline`은 pre-existing failure snapshot이 exact command output과 함께 기록된 경우에만 허용한다. Branch A/B/C 판정은 queue/readiness truth 기준으로 진행할 수 있지만, 이후 batch는 baseline을 악화시키면 안 된다.
 - `W7-B3`의 `tests/harness/*` smoke는 cross-tier safety check일 뿐이며, harness code/infrastructure 편집 scope 승격 근거가 아니다.
 - `W7-B5`는 `node --version` 성공 없이 completion claim 금지다.
 - revert/defer로 끝난 code batch는 closeout 전에 fresh baseline 또는 불가 사유를 같은 run record에 남겨야 한다.
@@ -554,7 +574,7 @@ branch semantics:
 6. verification command와 결과
 7. `why not now`, `required prep`, `suggested restart batch` (defer/partial이면 필수)
 8. `next legal batch`
-9. branch label (`Branch A/B/C`, `runtime-anchor-freeze-stop`, `wdcalculator-freeze-stop`, `wdcalculator-b5-revert-stop` 등)
+9. branch label (`Branch A/B/C`, `runtime-anchor-freeze-stop`, `runtime-anchor-b3-revert-stop`, `wdcalculator-freeze-stop`, `wdcalculator-b5-revert-stop` 등)
 10. Direction Lock 10문항 yes/no + 한 줄 근거
 
 ### 7.1 Direction Lock 10문항
@@ -594,7 +614,18 @@ branch semantics:
 
 - `W7-B0 -> W7-B1 -> W7-B2(partial/failed) -> W7-B6 -> W7-B7`
 
-### 8.3 `wdcalculator-pilot-blocked`
+### 8.3 `runtime-anchor-b3-revert-stop`
+아래 중 하나면 `W7-B3`를 same-batch full revert to pre-B3 tree로 닫고 partial closeout으로 내려간다.
+
+- `coverage-shrink-stop`이 B3 runtime-anchor edit 후 발생하고 same-batch에서 해소되지 않음
+- `scope-drift-stop`이 B3 runtime-anchor edit 후 발생하고 same-batch에서 해소되지 않음
+- parity regression 또는 old-path compatibility regression이 발생하고 same-batch에서 pre-B3 tree로만 복구 가능함
+
+허용 경로:
+
+- `W7-B0 -> W7-B1 -> W7-B2 -> W7-B3(revert-to-pre-B3-tree) -> W7-B6 -> W7-B7`
+
+### 8.4 `wdcalculator-pilot-blocked`
 아래 중 하나면 `Branch B`다. 이 절은 **B0 early gate** 전용이다.
 
 - `node` 없음
@@ -604,7 +635,7 @@ branch semantics:
 
 - `W7-B0 -> W7-B1 -> W7-B2 -> W7-B3 -> W7-B6 -> W7-B7`
 
-### 8.4 `wdcalculator-freeze-stop`
+### 8.5 `wdcalculator-freeze-stop`
 아래 중 하나면 `W7-B4` partial/blocked를 남기고 `W7-B5`를 열지 않는다.
 
 - B4 시점에 `node` 부재 또는 `composition`/`primary-form` readiness drift가 다시 확인됨
@@ -615,7 +646,7 @@ branch semantics:
 
 - `W7-B0 -> W7-B1 -> W7-B2 -> W7-B3 -> W7-B4(partial/blocked) -> W7-B6 -> W7-B7`
 
-### 8.5 `wdcalculator-b5-revert-stop`
+### 8.6 `wdcalculator-b5-revert-stop`
 아래 중 하나면 `W7-B5`를 same-batch full revert to pre-B5 tree로 닫고 partial closeout으로 내려간다.
 
 - B5 실행 중 `node --version` 실패 또는 runtime drift로 Node verification이 무효화됨
@@ -626,21 +657,21 @@ branch semantics:
 
 - `W7-B0 -> W7-B1 -> W7-B2 -> W7-B3 -> W7-B4 -> W7-B5(revert-to-pre-B5-tree) -> W7-B6 -> W7-B7`
 
-### 8.6 `coverage-shrink-stop`
+### 8.7 `coverage-shrink-stop`
 아래 중 하나면 즉시 stop 후 same-batch revert 또는 partial closeout이다.
 
 - parity coverage 축소
 - old path compatibility를 잃고도 replacement evidence가 없음
 - deleted micro pair보다 replacement chunk contract coverage가 좁음
 
-### 8.7 `micro-pair-growth-stop`
+### 8.8 `micro-pair-growth-stop`
 아래 중 하나면 즉시 stop이다.
 
 - substantive 새 test/support file 수가 제거 수보다 많음
 - shared helper 추가 외에 순증가를 합리화하지 못함
 - pair-budget을 어기고 새 1:1 pair를 추가함
 
-### 8.8 `scope-drift-stop`
+### 8.9 `scope-drift-stop`
 아래 중 하나면 즉시 stop이다.
 
 - `services/`, `apps/`, `foms/`, `static/`, `templates/` 수정 필요
@@ -659,18 +690,19 @@ branch semantics:
 
 | Batch | 최소 입력 |
 |------|------|
-| `W7-B0` | controlling spec, Wave 6 plan, Wave 5 plan, Wave 5 B2/B3 run records, `docs/AI_STATUS.md`, live runtime anchor files, live WDCalculator micro pair/support counts |
+| `W7-B0` | controlling spec, Wave 6 plan, Wave 5 plan, Wave 5 B1/B2/B3 run records, `docs/AI_STATUS.md`, live runtime anchor files, live WDCalculator micro pair/support counts |
 | `W7-B1` | `W7-B0` run record, latest accepted baseline |
 | `W7-B2` | `W7-B0`, `W7-B1`, live `tests/test_foms_namespace_imports.py`, `tests/test_app_bootstrap_contract.py` |
 | `W7-B3` | `W7-B2` freeze run record, target file budget, latest baseline |
-| `W7-B4` | `W7-B0`, `W7-B1`, Wave 5 B2/B3 run records, live `composition.js`, `primary-form.js`, live WDCalculator micro pair list, `node` availability snapshot |
-| `W7-B5` | `W7-B4` freeze run record, exact removal list, latest baseline, `node --version` success evidence |
+| `W7-B4` | `W7-B0`, `W7-B1`, Wave 5 B1/B2/B3 run records, live `composition.js`, `primary-form.js`, `tests/test_wdcalculator_product_settings.py`, live WDCalculator micro pair list, `node` availability snapshot |
+| `W7-B5` | `W7-B4` freeze run record, exact removal list, frozen representative page smoke path, latest baseline, `node --version` success evidence |
 | `W7-B6` | `W7-B0`, `W7-B1`, latest same-path completed/partial batch run records |
 | `W7-B7` | `W7-B6`, same-path completed run records, closeout target paths(spec/archive) |
 
 ### 9.3 Path-specific restart notes
 - `Branch C` (`readiness-gate-rejected`) path는 `W7-B2` run record가 없을 수 있다. 이 경우 `W7-B6`의 runtime-anchor row는 기본값 `execution state = not started`, reason = `readiness-gate-rejected`로 적는다.
 - `runtime-anchor-freeze-stop` path는 `W7-B2` partial/failed run record가 반드시 있어야 한다. 이 경우 `W7-B6`의 runtime-anchor row는 기본값 `execution state = partial`, reason = `runtime-anchor-freeze-stop`로 적는다.
+- `runtime-anchor-b3-revert-stop` path는 `W7-B3` revert run record가 반드시 있어야 한다. 이 경우 `W7-B6`의 runtime-anchor row는 기본값 `execution state = partial`, reason = `runtime-anchor-b3-revert-stop`로 적는다.
 - `Branch B` path는 `W7-B4/W7-B5` run record가 없을 수 있다. 이 경우 `W7-B6`의 `wdcalculator-composition-primary-form` row는 기본값 `execution state = not started`, reason = `wdcalculator-pilot-blocked`로 적는다.
 - `wdcalculator-freeze-stop` path는 `W7-B4` partial/blocked run record가 반드시 있어야 한다. 이 경우 `W7-B6`의 `wdcalculator-composition-primary-form` row는 기본값 `execution state = partial`, reason = `wdcalculator-freeze-stop`로 적는다.
 - `wdcalculator-b5-revert-stop` path는 `W7-B5` revert run record가 반드시 있어야 한다. 이 경우 `W7-B6`의 `wdcalculator-composition-primary-form` row는 기본값 `execution state = partial`, reason = `wdcalculator-b5-revert-stop`로 적는다.

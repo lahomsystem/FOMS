@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from constants import ALLOWED_EXTENSIONS, ERP_MEDIA_ALLOWED_EXTENSIONS
+from foms.services.files.upload_policy import ALLOWED_EXTENSIONS, ERP_MEDIA_ALLOWED_EXTENSIONS
 
 __all__ = [
     "allowed_file",

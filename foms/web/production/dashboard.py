@@ -14,7 +14,7 @@ from sqlalchemy.orm import Query
 
 from db import get_db
 from models import Order
-from apps.auth import login_required
+from foms.web.auth import login_required
 
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_policy import STAGE_LABELS

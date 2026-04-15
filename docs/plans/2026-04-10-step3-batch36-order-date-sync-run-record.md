@@ -15,7 +15,7 @@
 
 이유:
 - `foms/services/order_date_sync.py`를 새 canonical source로 추가하고, 기존 `services/order_date_sync.py`는 thin shim으로 전환했다.
-- `services/app_init.py`의 lazy listener import와 `scripts/backfill_phase4_dates.py`의 backfill helper import를 canonical path로 정리했다.
+- `services/app_init.py`의 lazy listener import와 `scripts/maintenance/backfill_phase4_dates.py`의 backfill helper import를 canonical path로 정리했다.
 - dead stub 성격의 `services/order_date_sync_event.py`도 canonical helper를 바라보도록 맞춰 내부 legacy dependency를 하나 더 줄였다.
 - focused tests, namespace smoke, `APP_OK`, `verify_result.py --json`, 전체 `pytest`, lint를 모두 재통과했다.
 
@@ -48,7 +48,7 @@ Batch 35 완료 후 자동 전감리 결과:
 ### 3.3 caller canonical import 정리
 - `services/app_init.py`
   - `register_date_sync_listener` lazy import를 canonical path로 전환
-- `scripts/backfill_phase4_dates.py`
+- `scripts/maintenance/backfill_phase4_dates.py`
   - `collect_order_schedule_date_specs`, `sync_order_dates` import를 canonical path로 전환
 - `services/order_date_sync_event.py`
   - dead stub의 `sync_order_dates` import를 canonical path로 전환

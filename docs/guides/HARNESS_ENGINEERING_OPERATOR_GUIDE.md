@@ -166,4 +166,4 @@ python "tools/harness/verify_result.py" --json
 ## Indexing Rules
 - New cross-session technical decisions: record in `docs/harness/policy/DECISIONS.md`
 - New durable analysis, evolution, incident, or long-lived plan docs: add an entry to `docs/ARCHIVE_INDEX.md`
-- Session-local working files such as `task_plan.md`, `findings.md`, and `progress.md` do not need archive index entries
+- Session-local working files such as `docs/context/analysis/task_plan.md`, `docs/context/analysis/findings.md`, and `docs/context/analysis/progress.md` do not need archive index entries

@@ -1,0 +1,15 @@
+{% import 'channel/wam/_macros.html' as wam with context %}
+
+{% call wam.section_shell(section, section.folded|default(true)) %}
+  <div class="wam-item-list">
+    {% for item in section.payload['items'] %}
+      <article class="wam-item-list__item">
+        <p class="wam-item-list__eyebrow">{{ item.eyebrow }}</p>
+        <p class="wam-item-list__title">{{ item.title }}</p>
+        {% if item.description %}
+          <p class="wam-item-list__description">{{ item.description }}</p>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </div>
+{% endcall %}

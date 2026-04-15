@@ -70,7 +70,7 @@ MCP `list_directory_with_sizes` 기준:
 | 경로 | git 상태 | 근거 | 권장 조치 |
 |------|----------|------|-----------|
 | `app_startup.log` | ignored | 구현 전 dev startup 경로가 root file log를 직접 생성했던 legacy artifact | closeout에서 삭제 완료, 현재 코드는 기본적으로 재생성하지 않음 |
-| `foms.dump` | ignored | `scripts/sync_local_to_railway.ps1`, `docs/RAILWAY_LOCAL_TO_REMOTE_SYNC.md`, `MIGRATION_RAILWAY_R2.md`에서 로컬 dump 파일로 사용 | **백업 확인 후** 로컬 정리 후보 |
+| `foms.dump` | ignored | `scripts/ops/sync_local_to_railway.ps1`, `docs/guides/RAILWAY_LOCAL_TO_REMOTE_SYNC.md`, `MIGRATION_RAILWAY_R2.md`에서 로컬 dump 파일로 사용 | **백업 확인 후** 로컬 정리 후보 |
 | `furniture_orders.db` | ignored | 마이그레이션 가이드/템플릿에서 로컬 SQLite 파일로 언급 | **백업 확인 후** 로컬 정리 후보 |
 | `migration_ready.db` | ignored | 임시 migration-ready DB, 현재 `9.14 MB` | **백업 확인 후** 로컬 정리 후보 |
 | `.pytest_cache/` | ignored | pytest cache | 로컬 정리 후보 |

@@ -10,7 +10,7 @@
 1. 루트의 scratch 파일 `temp_script.js`, `test_scripts.js`, `test.html`은 저장소에서 제거한다.
 2. `docs/harness/logs/HOOK_RAW_DUMP.txt`, `docs/harness/logs/.hook_raw_once`는 git 추적 대상에서 제거하고 `.gitignore` 규칙으로만 관리한다.
 3. `.pytest_cache/`는 로컬 전용 캐시로 ignore 처리한다.
-4. `docs/analysis/browser_audit_*/` 디렉터리는 generated browser audit 산출물로 보고 ignore 처리한다.
+4. `docs/context/analysis/browser_audit_*/` 디렉터리는 generated browser audit 산출물로 보고 ignore 처리한다.
 5. `docs/AI_STATUS.md`, `docs/AI_CHANGELOG.md`, `docs/harness/runtime/SESSION_LOG.md`, `docs/harness/runtime/EDIT_LOG.md`, `docs/harness/runtime/COMPACT_CHECKPOINT.md`는 현재 컨텍스트 시스템 참조 대상이므로 이번 정리 범위에서 제외한다.
 
 ### 1.3 예외/제약 조건

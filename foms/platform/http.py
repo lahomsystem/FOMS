@@ -62,7 +62,6 @@ def register_http_bootstrap(
         if (
             path == "/"
             or path.startswith("/?")
-            or path.startswith("/calendar")
             or path.startswith("/trash")
             or path.startswith("/wdplanner")
             or path.startswith("/wdcalculator")
@@ -106,11 +105,11 @@ def register_http_bootstrap(
             str(error),
             traceback.format_exc(),
         )
-        return render_template("error_500.html"), 500
+        return render_template("errors/error_500.html"), 500
 
     @app.errorhandler(404)
     def not_found_error(error):
-        return render_template("error_404.html"), 404
+        return render_template("errors/error_404.html"), 404
 
     @app.route("/favicon.ico")
     def favicon():
@@ -123,7 +122,7 @@ def register_http_bootstrap(
             {
                 "build": "20260215-uxfix-03",
                 "cwd": os.getcwd(),
-                "template": "templates/layout.html",
+                "template": "templates/shared/layout.html",
             }
         )
 

@@ -1,19 +1,13 @@
 /**
  * Freezes WDCalculator coupon/shipping listener wiring from
- * static/js/wdcalculator/coupon-shipping-wiring.js.
+ * static/js/wdcalculator/pricing-core.js.
  */
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const helperPath = path.join(
-    repoRoot,
-    "static",
-    "js",
-    "wdcalculator",
-    "coupon-shipping-wiring.js"
-);
+const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "pricing-core.js");
 const helperSrc = fs.readFileSync(helperPath, "utf8");
 
 function assertEq(actual, expected, label) {

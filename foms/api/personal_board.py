@@ -1,16 +1,15 @@
 """
-Canonical personal briefing board API helpers (Wave 3).
+Canonical personal briefing board API surface.
 
-Canonical target: `foms.api.personal_board`.
-Blueprint and `@login_required` remain on `apps.api.personal_board` (thin adapter).
-Retirement: Wave 8 when `apps.api.personal_board` can re-export-only like `files`/`address`
-and all tests import canonical paths.
+WR-P1 retires the `apps.api.personal_board` adapter shell so the Blueprint,
+decorator binding, and response helper all live on `foms.api.personal_board`.
 """
 import datetime
 
-from flask import jsonify, session
+from flask import Blueprint, jsonify, session
 from sqlalchemy import and_, func, or_
 
+from foms.web.auth import login_required
 from db import get_db
 from models import (
     ChatMessage,
@@ -25,6 +24,12 @@ from foms.services.erp_policy import (
     DEFAULT_OWNER_TEAM_BY_STAGE,
     ORDER_SETTLEMENT_ALERT_TARGET_STATUSES,
     STAGE_LABELS,
+)
+
+personal_board_bp = Blueprint(
+    "personal_board",
+    __name__,
+    url_prefix="/api/personal-board",
 )
 
 # 단계별 딥링크 URL 매핑 (해당 단계의 전용 대시보드로 직접 이동)
@@ -440,3 +445,18 @@ def personal_board_summary_response():
 
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+@personal_board_bp.route("/summary", methods=["GET"])
+@login_required
+def api_summary():
+    """GET /api/personal-board/summary."""
+    return personal_board_summary_response()
+
+
+__all__ = [
+    "DEFAULT_OWNER_TEAM_BY_STAGE",
+    "api_summary",
+    "personal_board_bp",
+    "personal_board_summary_response",
+]

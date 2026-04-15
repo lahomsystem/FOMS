@@ -73,7 +73,7 @@ def geocode_order_address(order_id):
     try:
         from db import db_session
         from models import Order
-        from foms_address_converter import FOMSAddressConverter
+        from foms.services.common.address_converter import FOMSAddressConverter
         from foms.services.geocode_helpers import extract_address_from_order, compute_address_hash
 
         db = db_session()

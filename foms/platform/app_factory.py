@@ -10,7 +10,7 @@ from flask import Flask
 from flask_compress import Compress
 from whitenoise import WhiteNoise
 
-from constants import UPLOAD_FOLDER
+from foms.services.files.storage_paths import UPLOAD_FOLDER
 from db import close_db
 from wdcalculator_db import close_wdcalculator_db
 

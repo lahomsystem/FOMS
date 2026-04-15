@@ -75,9 +75,9 @@ commit_msg_*.txt
 msg.txt 
 
 # Load test secrets / generated accounts
-tests/load/session_cookies.txt
-tests/load/loadtest_users.txt
-tests/load/results/
+tests/harness/load/session_cookies.txt
+tests/harness/load/loadtest_users.txt
+tests/harness/load/results/
 
 # 로컬 전용 (배포 제외)
 config/local*
@@ -92,8 +92,11 @@ docs/harness/logs/hook_stdin_err.txt
 docs/harness/runtime/.session_stop_idempotency.json
 docs/harness/runtime/.post_task_qc_debounce.json
 
-# 브라우저 감리 generated 산출물
-docs/analysis/browser_audit_*/
+# 브라우저 감리 generated 산출물 (§2.2.1: docs/context/analysis/)
+docs/context/analysis/browser_audit_*/
+
+# tools/ runtime noise (§2.2.1: tools/ is harness|smoke|research_center only)
+tools/request_log.txt
 
 # gstack setup/runtime generated artifacts
 .agents/skills/gstack-*/

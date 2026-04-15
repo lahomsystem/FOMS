@@ -7,7 +7,7 @@ from typing import Dict, List, Tuple
 
 
 # 완료 대시보드·브리핑 보드 정산 알림: `Order.status` 필터 (단일 SSOT).
-# 소비: `foms.api.personal_board`, `apps.api.erp_orders_completion` (TARGET_STATUSES alias).
+# 소비: `foms.api.personal_board`, `foms.api.cs.dashboard` (TARGET_STATUSES alias).
 ORDER_SETTLEMENT_ALERT_TARGET_STATUSES: Tuple[str, ...] = ("COMPLETED", "AS_RECEIVED", "AS_COMPLETED")
 
 

@@ -1,0 +1,11 @@
+<script>
+    window.__ERP_PAYMENT_ICON_URLS = {
+        depositConfirmed: "{{ url_for('static', filename='images/pay-coin.png') }}",
+        depositUnconfirmed: "{{ url_for('static', filename='images/pay-coin-gray.png') }}",
+        balanceConfirmed: "{{ url_for('static', filename='images/pay-bill.png') }}",
+        balanceUnconfirmed: "{{ url_for('static', filename='images/pay-bill-gray.png') }}"
+    };
+</script>
+<script src="{{ url_for('static', filename='js/orders/beta-shared.js') }}"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="{{ url_for('static', filename='js/orders/estimate-preview.js') }}"></script>

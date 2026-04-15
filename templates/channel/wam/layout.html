@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko" class="{% block html_class %}wam-html{% endblock %}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  {% block meta %}{% endblock %}
+
+  <title>{% block title %}FOMS WAM{% endblock %}</title>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/channel/tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/channel/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/channel/layout.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/channel/components.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/channel/order-detail.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/channel/attachments-modal.css') }}">
+  {% block head_assets %}{% endblock %}
+</head>
+<body
+  class="{% block body_class %}wam-page wam-page--order-detail is-readonly{% endblock %}"
+  data-view-key="{% block body_view_key %}order-detail{% endblock %}"
+  data-page-state="{{ page_vm.page_state if page_vm is defined and page_vm else 'unknown' }}"
+>
+  <a class="wam-skip-link" href="#wam-main">본문으로 건너뛰기</a>
+
+  {% block body %}
+    <div class="wam-shell" id="wam-shell">
+      {% block shell %}{% endblock %}
+    </div>
+  {% endblock %}
+
+  <div
+    class="wam-attachment-modal"
+    id="wam-attachment-modal"
+    hidden
+    aria-hidden="true"
+    aria-labelledby="wam-attachment-modal-title"
+    role="dialog"
+  >
+    <button class="wam-attachment-modal__backdrop" type="button" data-attachment-modal-close aria-label="닫기"></button>
+    <div class="wam-attachment-modal__dialog" role="document">
+      <header class="wam-attachment-modal__header">
+        <div class="wam-attachment-modal__copy">
+          <p class="wam-attachment-modal__eyebrow">첨부 미리보기</p>
+          <h2 class="wam-attachment-modal__title" id="wam-attachment-modal-title">첨부 파일</h2>
+          <p class="wam-attachment-modal__meta" id="wam-attachment-modal-meta"></p>
+        </div>
+        <div class="wam-attachment-modal__actions">
+          <a class="wam-action wam-action--secondary" id="wam-attachment-modal-download" href="#" target="_blank" rel="noopener noreferrer">
+            <span class="wam-action__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3v12"></path>
+                <path d="m7 10 5 5 5-5"></path>
+                <path d="M5 21h14"></path>
+              </svg>
+            </span>
+            <span class="wam-action__label">다운로드</span>
+          </a>
+          <button class="wam-action wam-action--primary" type="button" data-attachment-modal-close>
+            <span class="wam-action__label">닫기</span>
+          </button>
+        </div>
+      </header>
+      <div class="wam-attachment-modal__body">
+        <div class="wam-attachment-modal__stage" id="wam-attachment-modal-stage"></div>
+      </div>
+    </div>
+  </div>
+
+  {% block bootstrap_json %}
+    <script id="wam-bootstrap" type="application/json">
+      {{ bootstrap_payload|default({}, true)|tojson }}
+    </script>
+  {% endblock %}
+
+  <script defer src="{{ url_for('static', filename='js/channel/core.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/channel/telemetry.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/channel/attachments.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/channel/order-detail.js') }}"></script>
+  {% block page_scripts %}{% endblock %}
+</body>
+</html>

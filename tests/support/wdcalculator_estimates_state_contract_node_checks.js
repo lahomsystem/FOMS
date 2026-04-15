@@ -3,7 +3,7 @@ const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "estimates-state.js");
+const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "estimate-lifecycle.js");
 const helperSrc = fs.readFileSync(helperPath, "utf8");
 
 function assertEq(actual, expected, label) {
@@ -15,6 +15,7 @@ function assertEq(actual, expected, label) {
 const sandbox = {
     window: null,
     globalThis: null,
+    document: {},
     console,
     Array,
     Object,

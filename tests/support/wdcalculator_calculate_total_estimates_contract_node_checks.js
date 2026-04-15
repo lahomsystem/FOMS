@@ -1,19 +1,13 @@
 /**
- * Contract freeze: aggregate summary display orchestration in
- * static/js/wdcalculator/total-estimates-display.js.
+ * Contract freeze: aggregate summary display orchestration inside
+ * static/js/wdcalculator/pricing-core.js.
  */
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const helperPath = path.join(
-    repoRoot,
-    "static",
-    "js",
-    "wdcalculator",
-    "total-estimates-display.js"
-);
+const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "pricing-core.js");
 const helperSrc = fs.readFileSync(helperPath, "utf8");
 
 function assertEq(actual, expected, label) {

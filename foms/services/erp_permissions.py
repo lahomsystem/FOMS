@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from flask import jsonify, session
 
-from apps.auth import get_user_by_id
+from foms.web.auth import get_user_by_id
 
 ERP_EDIT_ALLOWED_TEAMS = ("CS", "SALES")
 

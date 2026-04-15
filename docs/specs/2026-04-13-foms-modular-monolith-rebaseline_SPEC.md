@@ -218,6 +218,7 @@ repo root
     plans/
     evolution/
     guides/
+      validation/
     incidents/
     harness/
       policy/
@@ -225,6 +226,8 @@ repo root
       runtime/
       logs/
     context/
+      analysis/
+      manual-artifacts/
 
   README.md
   AGENTS.md
@@ -506,25 +509,30 @@ WDCalculator batch 승인 조건:
 - micro support file 증식 패턴을 줄인다.
 - split마다 test count가 기하급수적으로 늘지 않게 관리한다.
 - 새 chunk를 만들 때 테스트도 새 micro pair를 복제하는 대신, 가능한 한 기존 chunk contract로 접는 것을 기본값으로 삼는다.
+- batch order, branch/stop semantics, runtime-anchor/WDCalculator pilot boundary, status/defer register, Wave 8 handoff는 `docs/plans/2026-04-14-wave7-test-contract-rationalization-execution-plan.md`를 authoritative execution runbook으로 따른다.
 
 #### Wave 8 — Legacy bridge retirement
 - `apps/`와 루트 `services/`의 잔여 bridge를 context 단위로 정리한다.
 - 어떤 shim을 언제 없앨지 명시한다.
 - Wave 3~7에서 남긴 removal/merge target을 여기서 닫지 못하면, 해당 context는 "정리 중"이 아니라 "bridge 고착" 상태로 본다.
+- batch order, branch/stop semantics, service-compat/direct-import pilot boundary, status/defer register, continuation handoff는 `docs/plans/2026-04-14-wave8-legacy-bridge-retirement-execution-plan.md`를 authoritative execution runbook으로 따른다.
 
 #### Wave 9 — Packaging reopen review
 - Step 8에서 defer한 조건이 충족됐는지 별도 ADR/plan로 다시 검토한다.
 - `src/foms`와 packaging-only hardening은 이 wave 이전에는 다시 열지 않는다.
+- batch order, readiness/meta-closeout boundary, Option A/B/C matrix, implementation-handoff-only rule, audit-loop hard-stop은 `docs/plans/2026-04-14-wave9-packaging-reopen-review-execution-plan.md`를 authoritative execution runbook으로 따른다.
+- **실행 상태 (2026-04-14):** W9-B0~B4를 docs-only mainline으로 완료. Step 8 reopen gate 5항은 live truth 기준 **미충족**으로 확인되어 packaging verdict는 **`Option A` (explicit defer closeout)**. `Option B`/`Option C` 구현·handoff는 본 wave에서 생성하지 않음(전용 구현 트랙에서만). 실행 기록은 §5 Wave 9 실행 기록 목록을 참고한다.
+- **추가 실행 상태 (2026-04-15):** post-Wave9 endgame Program 1~4를 완료했다. `WR-P1`/`WR-O1`/`WR-S2`는 executable row로 닫혔고, `WR-J1`/`WR-H1`는 continuation 조건을 명시한 채 closeout되었다. overlay minimization과 final checklist 문서화까지 완료했으며, packaging reopen은 계속 열지 않았다.
 
 ## 3. Steps — 실행 단계
 - [x] Step 0: 이 spec을 승인하고, 이후 구조 작업의 상위 기준선으로 채택한다.
-- [ ] Step 1: FOMS top-level을 `runtime / product / tooling / docs / quarantine` 다섯 축으로 재정의하고, 비제품 구역의 신규 source 생성 금지 규칙을 적용한다.
-- [ ] Step 2: 현재 blueprint와 API/page를 bounded context map으로 문서화하고, 신규 코드는 `foms/*` 우선 원칙을 적용한다.
-- [ ] Step 3: large-file decomposition은 `meaningful chunk` 기준으로만 진행하고, batch별 file/test/wrapper delta를 기록한다.
-- [ ] Step 4: WDCalculator는 chunk merge 방향으로 재설계하고, wrapper-only 분해를 종료한다.
-- [ ] Step 5: Orders/Measurement precedent를 기준으로 다른 context도 `thin wrapper + canonical slice` 패턴으로 확장한다.
-- [ ] Step 6: root `services/`와 `apps/`의 legacy bridge를 context 단위로 줄이고, split-brain을 계속 좁힌다.
-- [ ] Step 7: Step 8 reopen 조건이 충족되기 전까지 packaging과 root contract relocation을 다시 열지 않는다.
+- [x] Step 1: FOMS top-level을 `runtime / product / tooling / docs / quarantine` 다섯 축으로 재정의하고, 비제품 구역의 신규 source 생성 금지 규칙을 적용한다.
+- [x] Step 2: 현재 blueprint와 API/page를 bounded context map으로 문서화하고, 신규 코드는 `foms/*` 우선 원칙을 적용한다.
+- [x] Step 3: large-file decomposition은 `meaningful chunk` 기준으로만 진행하고, batch별 file/test/wrapper delta를 기록한다.
+- [x] Step 4: WDCalculator는 chunk merge 방향으로 재설계하고, wrapper-only 분해를 종료한다.
+- [x] Step 5: Orders/Measurement precedent를 기준으로 다른 context도 `thin wrapper + canonical slice` 패턴으로 확장한다.
+- [x] Step 6: root `services/`와 `apps/`의 legacy bridge를 context 단위로 줄이고, split-brain을 계속 좁힌다.
+- [x] Step 7: Step 8 reopen 조건이 충족되기 전까지 packaging과 root contract relocation을 다시 열지 않는다.
 
 ## 4. 검증 기준
 - [ ] `python -c "import app; print('APP_OK')"` 통과
@@ -563,7 +571,54 @@ WDCalculator batch 승인 조건:
 - Wave 3 실행 계획: `docs/plans/2026-04-13-wave3-api-canonicalization-execution-plan.md`
 - Wave 4 실행 계획: `docs/plans/2026-04-13-wave4-web-page-slice-migration-execution-plan.md`
 - Wave 5 실행 계획: `docs/plans/2026-04-14-wave5-large-front-end-island-rebaseline-execution-plan.md`
+- Post-Wave9 endgame master order: `docs/plans/2026-04-14-post-wave9-endgame-master-sequence.md`
+- Wave 5 실행 기록 (large front-end island: readiness / wdcalculator contract freeze / four-chunk canonicalization / shared ERP pilot lock+freeze+rebaseline / closeout):
+  - `docs/plans/2026-04-14-wave5-batch0-readiness-gate-run-record.md`
+  - `docs/plans/2026-04-14-wave5-batch1-wdcalculator-contract-freeze-run-record.md`
+  - `docs/plans/2026-04-14-wave5-batch2-wdcalculator-composition-run-record.md`
+  - `docs/plans/2026-04-14-wave5-batch3-wdcalculator-primary-form-run-record.md`
+  - `docs/plans/2026-04-14-wave5-batch4-wdcalculator-estimate-lifecycle-run-record.md`
+  - `docs/plans/2026-04-14-wave5-batch5-wdcalculator-pricing-core-run-record.md`
+  - `docs/plans/2026-04-14-wave5-batch6-shared-erp-island-lock-run-record.md`
+  - `docs/plans/2026-04-14-wave5-batch7-erp-beta-contract-freeze-run-record.md`
+  - `docs/plans/2026-04-14-wave5-batch8-erp-beta-rebaseline-run-record.md`
+  - `docs/plans/2026-04-14-wave5-batch9-closeout-run-record.md`
 - Wave 6 실행 계획: `docs/plans/2026-04-14-wave6-service-namespace-rationalization-execution-plan.md`
+- Wave 7 실행 계획: `docs/plans/2026-04-14-wave7-test-contract-rationalization-execution-plan.md`
+- Wave 8 실행 계획: `docs/plans/2026-04-14-wave8-legacy-bridge-retirement-execution-plan.md`
+- Wave 8 사전 GDM 핸드오프 (Wave 7 closeout 확인·W8-B0 진입 전 체크리스트): `docs/plans/2026-04-14-wave8-pre-execution-gdm-handoff.md`
+- Wave 7 실행 기록 (test / contract rationalization: readiness / taxonomy / runtime-anchor freeze+rationalization / wdcalculator chunk freeze+rationalization / status register / closeout):
+  - `docs/plans/2026-04-14-wave7-batch0-readiness-gate-run-record.md`
+  - `docs/plans/2026-04-14-wave7-batch1-test-taxonomy-run-record.md`
+  - `docs/plans/2026-04-14-wave7-batch2-runtime-anchor-freeze-run-record.md`
+  - `docs/plans/2026-04-14-wave7-batch3-runtime-anchor-rationalization-run-record.md`
+  - `docs/plans/2026-04-14-wave7-batch4-wdcalculator-chunk-freeze-run-record.md`
+  - `docs/plans/2026-04-14-wave7-batch5-wdcalculator-chunk-contracts-run-record.md`
+  - `docs/plans/2026-04-14-wave7-batch6-status-register-run-record.md`
+  - `docs/plans/2026-04-14-wave7-batch7-closeout-run-record.md`
+- Wave 8 실행 기록 (legacy bridge retirement: readiness / taxonomy / service-compat freeze+retirement / direct-import freeze+retirement / status register / closeout):
+  - `docs/plans/2026-04-14-wave8-batch0-readiness-gate-run-record.md`
+  - `docs/plans/2026-04-14-wave8-batch1-bridge-taxonomy-run-record.md`
+  - `docs/plans/2026-04-14-wave8-batch2-service-compat-freeze-run-record.md`
+  - `docs/plans/2026-04-14-wave8-batch3-service-compat-retirement-run-record.md`
+  - `docs/plans/2026-04-14-wave8-batch4-direct-import-freeze-run-record.md`
+  - `docs/plans/2026-04-14-wave8-batch5-direct-import-retirement-run-record.md`
+  - `docs/plans/2026-04-14-wave8-batch6-status-register-run-record.md`
+  - `docs/plans/2026-04-14-wave8-batch7-closeout-run-record.md`
+- Post-Wave9 endgame continuation / closeout 기록:
+  - `docs/plans/2026-04-15-wr-p1-personal-board-adapter-shell-run-record.md`
+  - `docs/plans/2026-04-15-wr-o1-orders-adapter-shell-run-record.md`
+  - `docs/plans/2026-04-15-wr-j1-jobs-runtime-string-contract-run-record.md`
+  - `docs/plans/2026-04-15-wr-s2-storage-singleton-init-adjacent-run-record.md`
+  - `docs/plans/2026-04-15-wr-h1-high-risk-cluster-continuation-lock-run-record.md`
+  - `docs/plans/2026-04-15-post-wave9-program3-overlay-minimization-closeout-run-record.md`
+  - `docs/plans/2026-04-15-post-wave9-program4-final-checklist-closeout-run-record.md`
+- Wave 9 실행 기록 (packaging reopen review: readiness / packaging surface freeze / option matrix freeze / decision freeze / closeout):
+  - `docs/plans/2026-04-14-wave9-batch0-readiness-gate-run-record.md`
+  - `docs/plans/2026-04-14-wave9-batch1-packaging-surface-freeze-run-record.md`
+  - `docs/plans/2026-04-14-wave9-batch2-option-matrix-freeze-run-record.md`
+  - `docs/plans/2026-04-14-wave9-batch3-packaging-decision-run-record.md`
+  - `docs/plans/2026-04-14-wave9-batch4-closeout-run-record.md`
 - Wave 6 실행 기록 (service namespace rationalization: readiness / shim registry / contract freeze / package pilot / status register / closeout):
   - `docs/plans/2026-04-14-wave6-batch0-readiness-gate-run-record.md`
   - `docs/plans/2026-04-14-wave6-batch1-shim-registry-run-record.md`
