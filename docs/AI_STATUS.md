@@ -1,5 +1,5 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-04-15 | 마지막 작업: SFC-B12 — §6.19 커밋 스냅샷에서 `CLEAN_ROOM_OK` + `.vscode` 루트 버전 고정 (`b7014c74`)
+> 자동 업데이트: 2026-04-15 | live tip: `56486cdb` — SFC-B12 §6.19 `CLEAN_ROOM_OK` 재현·§9 closeout(원격은 `origin/feature/modular-monolith-wip` 최신 HEAD); 구조 스냅샷·`.vscode` 고정은 `214654c9`·`b7014c74` 참조
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
