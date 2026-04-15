@@ -19,7 +19,7 @@
 | `pytest tests/contracts/runtime/foms_namespace_surface_tests.py` | **182 passed** (로컬 검증) |
 | `python -c "import app; print('APP_OK')"` | **APP_OK** |
 | `python tools/harness/verify_result.py --json` | **success: true** |
-| `powershell -NoProfile -File tools\harness\strict_canonical_b12_clean_room.ps1 -Ref HEAD` | **`CLEAN_ROOM_OK`** on **`f4d7410a`** — 루트 Compare-Object 0 diff, templates/web/api/services subtree closed-set, SLG 금지 경로 프로브 OK, APP_OK, verify_result OK |
+| `powershell -NoProfile -File tools\harness\strict_canonical_b12_clean_room.ps1 -Ref HEAD` | **`CLEAN_ROOM_OK`** on **`9b536941`** (문서 갱신 후 tip; 동일 스크립트가 `f4d7410a`에서도 green 확인됨) — 루트 Compare-Object 0 diff, subtree closed-set, SLG 금지 경로 프로브 OK, APP_OK, verify_result OK |
 
 ## 3. Closeout 조건 대조 (계획서 §6.8)
 
