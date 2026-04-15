@@ -76,4 +76,4 @@ Authoritative 계획서 `docs/plans/2026-04-15-strict-final-canonical-tree-100-p
 
 **근거 (§12 1–7과 대응):** `§2.2.1` 디렉터리 노드·`§2.2.2` 오버레이·canonical root-helper·root template debt·`SF1` 비스펙 추적 산출물·clean-room exact-match·루트 plain template 조건은 SFC-B0~B12 실행·계약 테스트·본 문서 §4~§8·`docs/AI_STATUS.md` 기록과 일치한다. SG1~SG7 및 `CLEAN_ROOM_OK` 증거는 §4·§8.
 
-**최종 검증 가능 커밋 (브랜치 `feature/modular-monolith-wip`):** `98e2606f` (원격 동기화됨).
+**최종 검증:** 원격 `feature/modular-monolith-wip` **최신 HEAD** (§9 `strict physical-tree achieved` 선언·100% 계획서 §2 closeout 각주가 포함된 커밋 이상; 로컬 확인: `git rev-parse origin/feature/modular-monolith-wip`).
