@@ -49,3 +49,17 @@ pytest tests -q   → 586 passed
 ## 7. 남은 blocker
 
 - **없음** (본 working tree 기준). 미커밋 상태와 `origin/HEAD` 불일치 시 별도 맞춤만 필요.
+
+## 8. Committed HEAD clean-room proof (재현)
+
+- **브랜치:** `feature/modular-monolith-wip`
+- **HEAD:** `b7014c74` (직전 대형 스냅샷: `214654c9`, `.vscode` 루트 고정: `b7014c74`)
+- **블로커 해소:** 스펙 §2.2.1에 `.vscode/`가 있으나 기존 `.gitignore`가 폴더 전체를 무시해 clean worktree에 `.vscode`가 없었음 → `.vscode/settings.json` 등 공유 파일만 추적하도록 `.gitignore` 조정 후 §6.19 `Compare-Object` zero diff 달성.
+- **명령:**
+
+```text
+powershell -NoProfile -File tools\harness\strict_canonical_b12_clean_room.ps1 -Ref HEAD -RunFullPytest
+```
+
+- **결과:** `[strict_canonical_b12] Compare-Object: OK` → `APP_OK` → `verify_result.py --json` success → `586 passed` → **`CLEAN_ROOM_OK ref=HEAD`**
+- **원격:** `origin/feature/modular-monolith-wip` 에 `b7014c74` 반영됨 (`git push`).
