@@ -75,6 +75,7 @@ test.html
 # 배포/커밋용 임시 메시지 파일 (푸시 후 삭제 규칙 - devops-deploy.md)
 commit_msg*.txt
 commit_msg_*.txt
+_commit_msg*.txt
 .git_commit_msg.txt
 msg.txt 
 
