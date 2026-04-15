@@ -64,3 +64,16 @@ powershell -NoProfile -File tools\harness\strict_canonical_b12_clean_room.ps1 -R
 - **결과:** `[strict_canonical_b12] Compare-Object: OK` → `APP_OK` → `verify_result.py --json` success → `586 passed` → **`CLEAN_ROOM_OK ref=HEAD`**
 - **원격:** `origin/feature/modular-monolith-wip` 에 `b7014c74` 반영됨 (`git push`).
 - **문서 갱신 tip:** `b9873290` (batch12 run record §8 + `AI_STATUS`) — 루트 트리 동일·`strict_canonical_b12_clean_room.ps1 -Ref HEAD`(pytest 생략) **`CLEAN_ROOM_OK`** 재확인.
+- **최종 tip:** `98e2606f` — §8 tip 한 줄 보강만 추가(루트 트리 불변).
+
+## 9. Plan §12 Completion Signal — final declaration
+
+Authoritative 계획서 `docs/plans/2026-04-15-strict-final-canonical-tree-100-percent-execution-plan.md` **§12 Completion Signal** 중 **항목 8**에 따라, 본 문서를 **final closeout run record**로 둔다.
+
+**선언:**
+
+> **strict physical-tree achieved**
+
+**근거 (§12 1–7과 대응):** `§2.2.1` 디렉터리 노드·`§2.2.2` 오버레이·canonical root-helper·root template debt·`SF1` 비스펙 추적 산출물·clean-room exact-match·루트 plain template 조건은 SFC-B0~B12 실행·계약 테스트·본 문서 §4~§8·`docs/AI_STATUS.md` 기록과 일치한다. SG1~SG7 및 `CLEAN_ROOM_OK` 증거는 §4·§8.
+
+**최종 검증 가능 커밋 (브랜치 `feature/modular-monolith-wip`):** `98e2606f` (원격 동기화됨).

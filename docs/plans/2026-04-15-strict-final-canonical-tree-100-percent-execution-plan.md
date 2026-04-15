@@ -94,6 +94,8 @@
 
 ## 2. Current Strict Gap Truth — 현재 strict gap 근거
 
+> **Tranche closeout (2026-04-15):** 아래 §2.1–§2.3 표·인벤토리는 **SFC-B0 착수 전 authoring baseline**(계획 작성 시점 스냅샷)이다. SFC-B12 완료 후 **live truth**는 `docs/AI_STATUS.md`, `docs/plans/2026-04-15-strict-final-canonical-tree-batch12-clean-room-closeout-run-record.md` §8–§9(**`strict physical-tree achieved`**), 브랜치 `feature/modular-monolith-wip`를 따른다. 본 절은 runbook·감리 이력으로 보존하며, 배치 실행 시에는 최신 run record를 우선한다.
+
 ### 2.1 Transition overlay가 아직 남아 있음
 현재 root에는 아래 overlay가 여전히 존재한다.
 
