@@ -255,7 +255,7 @@ default_limit = 500 if dashboard == 'measurement' else 300
 주문 생성/수정 시 `sync_order_dates`가 호출되는지 확인. `order_date_sync_event` 리스너가 등록되어 있으면 `before_flush`에서 자동 동기화됨. 미등록 시:
 
 - `app.py` 또는 DB 초기화 시 `register_date_sync_listener()` 호출 여부 확인
-- 기존 주문에 대해 `scripts/backfill_phase4_dates.py` 실행으로 OrderScheduleDate 백필
+- 기존 주문에 대해 `scripts/maintenance/backfill_phase4_dates.py` 실행으로 OrderScheduleDate 백필
 
 ---
 

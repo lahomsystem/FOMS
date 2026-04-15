@@ -24,7 +24,7 @@
 | `models.py` | `OrderScheduleDate` 클래스 추가 및 `Order` 모델과 1:N 관계(`dates`) 설정 |
 | `services/order_date_sync.py` (신규) | 주어진 `Order` 객체에서 모든 날짜를 추출해 `OrderScheduleDate` 레코드들을 갱신하는 공통 함수 구현 |
 | `apps/api/erp_measurement.py`, `apps/api/erp_map.py`, `apps/api/orders.py`, `apps/erp_shipment_page.py`, `apps/erp_measurement_dashboard.py` | 기존 `cast/ilike`/`.like` 등 텍스트 검색 쿼리를 `OrderScheduleDate` 조인 쿼리로 변경 |
-| `scripts/backfill_phase4_dates.py` (신규) | 전체 기존 `Order`들의 날짜를 파싱해 일괄 INSERT 처리하는 백필 스크립트 |
+| `scripts/maintenance/backfill_phase4_dates.py` (신규) | 전체 기존 `Order`들의 날짜를 파싱해 일괄 INSERT 처리하는 백필 스크립트 |
 
 ### 2.2 아키텍처 방향
 - **데이터 흐름:** 사용자가 문서를 저장(Update) -> 파일/DB 저장이 일어날 때 마지막 단계로 `sync_order_dates(order_id)` 함수를 호출하여 뷰잉용 날짜 테이블을 별도 세팅 (CQRS 관점의 Read Model 분리).

@@ -5,7 +5,7 @@
 - 시공 완료·AS 접수 건의 사진 리뷰 및 비용 청구/정산 거점.
 """
 from flask import Blueprint, render_template
-from apps.auth import login_required
+from foms.web.auth import login_required
 
 erp_completion_page_bp = Blueprint(
     'erp_completion_page',

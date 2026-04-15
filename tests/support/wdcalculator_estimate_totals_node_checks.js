@@ -1,15 +1,22 @@
 /**
- * Loads estimate-totals.js in a VM and asserts core scenarios. Invoked by pytest via `node`.
+ * Loads pricing-core.js in a VM and asserts the aggregate totals contract surface.
+ * Invoked by pytest via `node`.
  */
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "estimate-totals.js");
+const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "pricing-core.js");
 const code = fs.readFileSync(helperPath, "utf8");
 
-const sandbox = { console: console };
+const sandbox = {
+    window: null,
+    globalThis: null,
+    document: {},
+    console,
+};
+sandbox.window = sandbox;
 sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(code, sandbox);

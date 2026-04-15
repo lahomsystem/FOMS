@@ -3,7 +3,7 @@ const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "estimate-mutation-bridge.js");
+const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "estimate-lifecycle.js");
 const helperSrc = fs.readFileSync(helperPath, "utf8");
 
 function assertEq(actual, expected, label) {

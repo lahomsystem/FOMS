@@ -28,72 +28,72 @@ class BlueprintBindings:
 
 def register_blueprints(app: Flask) -> BlueprintBindings:
     """Register all blueprints in the existing root-app order."""
-    from apps.auth import auth_bp, get_user_by_id
+    from foms.web.auth import auth_bp, get_user_by_id
 
     # --- Lane: Auth (also supplies get_user_by_id binding) ---
     app.register_blueprint(auth_bp)
 
-    from apps.erp import erp_bp
+    from foms.web.erp import erp_bp
 
     # --- Lane: ERP hub / shell ---
     app.register_blueprint(erp_bp)
 
     # --- Imports: ERP HTML pages + API surfaces (see register block for order) ---
-    from apps.erp_dashboard import erp_dashboard_bp
-    from apps.erp_history_page import erp_history_bp
-    from apps.erp_drawing_workbench import erp_drawing_workbench_bp
-    from apps.erp_measurement_dashboard import erp_measurement_dashboard_bp
-    from apps.erp_shipment_page import erp_shipment_page_bp
-    from apps.erp_as_page import erp_as_page_bp
-    from apps.erp_production_page import erp_production_page_bp
-    from apps.erp_construction_page import erp_construction_page_bp
-    from apps.erp_completion_page import erp_completion_page_bp
-    from apps.api.files import files_bp
-    from apps.api.address import address_bp
-    from apps.api.orders import orders_bp
-    from apps.api.notifications import notifications_bp
-    from apps.api.erp_shipment_settings import erp_shipment_bp
-    from apps.api.erp_measurement import erp_measurement_bp
-    from apps.api.erp_map import erp_map_bp
-    from apps.api.erp_orders_drawing import erp_orders_drawing_bp
-    from apps.api.erp_orders_revision import erp_orders_revision_bp
-    from apps.api.erp_orders_draftsman import erp_orders_draftsman_bp
-    from apps.api.erp_orders_production import erp_orders_production_bp
-    from apps.api.erp_orders_construction import erp_orders_construction_bp
-    from apps.api.erp_orders_cs import erp_orders_cs_bp
-    from apps.api.erp_orders_as import erp_orders_as_bp
-    from apps.api.erp_orders_completion import erp_orders_completion_bp
-    from apps.api.personal_board import personal_board_bp
-    from apps.api.erp_orders_confirm import erp_orders_confirm_bp
-    from apps.storage_dashboard import storage_dashboard_bp
-    from apps.api.chat import chat_bp, register_chat_socketio_handlers
-    from apps.api.wdcalculator import wdcalculator_bp
-    from apps.api.backup import backup_bp
-    from apps.admin import admin_bp
-    from apps.user_pages import user_pages_bp
-    from apps.dashboards import dashboards_bp
-    from apps.api.attachments import attachments_bp
-    from apps.api.tasks import tasks_bp
-    from apps.api.events import events_bp
-    from apps.api.quest import quest_bp
-    from apps.api.erp_orders_blueprint import erp_orders_blueprint_bp
-    from apps.api.erp_orders_structured import erp_orders_structured_bp
-    from apps.order_pages import order_pages_bp
-    from apps.order_edit import order_edit_bp
-    from apps.order_trash import order_trash_bp
-    from apps.excel_import import excel_bp
-    from apps.calendar_page import calendar_bp
-    from apps.wdplanner_page import wdplanner_bp
-    from apps.api.channel_integration import channel_integration_bp
-    from apps.api.channel_functions import channel_functions_bp
-    from apps.api.channel_webhooks import channel_webhooks_bp
-    from apps.api.channel_wam import (
+    from foms.web.erp_dashboard import erp_dashboard_bp
+    from foms.web.erp_history_page import erp_history_bp
+    from foms.web.drawing import erp_drawing_workbench_bp
+    from foms.web.measurement import erp_measurement_dashboard_bp
+    from foms.web.shipment import erp_shipment_page_bp
+    from foms.web.cs import erp_as_page_bp, erp_completion_page_bp
+    from foms.web.production import erp_production_page_bp
+    from foms.web.construction import erp_construction_page_bp
+    from foms.api.files import files_bp
+    from foms.api.address import address_bp
+    from foms.api.orders import orders_bp
+    from foms.api.notifications import notifications_bp
+    from foms.api.shipment import erp_shipment_bp
+    from foms.api.measurement import erp_measurement_bp
+    from foms.api.erp_map import erp_map_bp
+    from foms.api.drawing import (
+        erp_orders_drawing_bp,
+        erp_orders_draftsman_bp,
+        erp_orders_revision_bp,
+    )
+    from foms.api.production import erp_orders_production_bp
+    from foms.api.construction import erp_orders_construction_bp
+    from foms.api.cs import (
+        erp_orders_as_bp,
+        erp_orders_completion_bp,
+        erp_orders_confirm_bp,
+        erp_orders_cs_bp,
+    )
+    from foms.api.personal_board import personal_board_bp
+    from foms.web.storage_dashboard import storage_dashboard_bp
+    from foms.api.chat import chat_bp, register_chat_socketio_handlers
+    from foms.api.wdcalculator import wdcalculator_bp
+    from foms.api.backup import backup_bp
+    from foms.web.admin import admin_bp
+    from foms.web.user_pages import user_pages_bp
+    from foms.web.dashboards import dashboards_bp
+    from foms.api.attachments import attachments_bp
+    from foms.api.tasks import tasks_bp
+    from foms.api.events import events_bp
+    from foms.api.quest import quest_bp
+    from foms.api.erp_orders_blueprint import erp_orders_blueprint_bp
+    from foms.api.erp_orders_structured import erp_orders_structured_bp
+    from foms.web.orders import order_edit_bp, order_pages_bp, order_trash_bp
+    from foms.web.excel_import import excel_bp
+    from foms.web.wdcalculator import wdplanner_bp
+    from foms.api.channel import (
+        channel_functions_bp,
+        channel_integration_bp,
         channel_shortlink_bp,
         channel_wam_api_bp,
         channel_wam_bp,
+        channel_webhooks_bp,
     )
-    from apps.api.erp_estimates import erp_estimates_bp
-    from apps.api.debug import debug_bp
+    from foms.api.erp_estimates import erp_estimates_bp
+    from foms.api.debug import debug_bp
 
     # --- Registration sequence (frozen): ERP page blueprints ---
     app.register_blueprint(erp_dashboard_bp)
@@ -142,7 +142,6 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(order_edit_bp)
     app.register_blueprint(order_trash_bp)
     app.register_blueprint(excel_bp)
-    app.register_blueprint(calendar_bp)
     app.register_blueprint(wdplanner_bp)
     # Channel: three modules, six registrations (channel_wam exports three blueprints)
     app.register_blueprint(channel_integration_bp)

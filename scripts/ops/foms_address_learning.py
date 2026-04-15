@@ -21,7 +21,7 @@ except ImportError:
 class FOMSAddressLearningSystem:
     """FOMS 시스템용 주소 학습 시스템"""
     
-    def __init__(self, learning_file="foms_address_learning_data.json"):
+    def __init__(self, learning_file="data/address/foms_address_learning_data.json"):
         self.learning_file = learning_file
         self.learning_data = self._load_learning_data()
         self._clean_patterns()  # 기존 데이터 정리

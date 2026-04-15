@@ -10,7 +10,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from constants import ESTIMATE_PAYMENT_INFO
+from foms.services.orders.estimate_defaults import ESTIMATE_PAYMENT_INFO
 from models import Order, OrderEstimate
 
 __all__ = [

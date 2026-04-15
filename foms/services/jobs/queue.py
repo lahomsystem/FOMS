@@ -28,9 +28,11 @@ logger = logging.getLogger(__name__)
 _rq_queue = None
 
 # NOTE:
-# Keep the legacy `services.jobs.tasks.*` path in queued job strings for backward
-# compatibility with already-enqueued Redis jobs and existing worker imports.
-_TASK_PATH_PREFIX = "services.jobs.tasks"
+# Enqueued RQ job function paths use this canonical prefix (strict track WR-J1).
+# Root ``services/jobs/tasks.py`` remains a thin re-export of
+# ``foms.services.jobs.tasks`` so workers resolving *legacy* payload strings that
+# still reference ``services.jobs.tasks.*`` import the same callables during drain.
+_TASK_PATH_PREFIX = "foms.services.jobs.tasks"
 
 __all__ = [
     "get_rq_queue",

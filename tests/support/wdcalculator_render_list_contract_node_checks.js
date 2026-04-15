@@ -12,7 +12,7 @@ const helperPath = path.join(
     "static",
     "js",
     "wdcalculator",
-    "render-estimates-list.js"
+    "estimate-lifecycle.js"
 );
 const helperSrc = fs.readFileSync(helperPath, "utf8");
 const templatePath = helperPath;

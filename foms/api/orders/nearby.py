@@ -11,7 +11,7 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import load_only, selectinload
 
 from db import get_db
-from foms_address_converter import FOMSAddressConverter
+from foms.services.common.address_converter import FOMSAddressConverter
 from models import Order, OrderScheduleDate
 
 _SEARCH_RADII_KM = [1.0, 3.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0]

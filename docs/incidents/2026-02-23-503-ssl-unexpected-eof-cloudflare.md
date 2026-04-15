@@ -65,5 +65,5 @@
 
 - **Cloudflare 상세 설정**: `docs/guides/CLOUDFLARE_SETUP.md` (사이트 추가, DNS, SSL/TLS, R2 CORS)
 - Cloudflare 503: <https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-503/>  
-- FOMS Railway 배포: `docs/DEPLOY_NOTES.md`, `docs/CURRENT_STATUS.md`  
+- FOMS Railway 배포: `docs/guides/DEPLOY_NOTES.md`, `docs/CURRENT_STATUS.md`  
 - 이전 Railway/gevent 사고: `docs/context/INCIDENT_RAILWAY_GEVENT_SOCKET_2026-02-20.md`

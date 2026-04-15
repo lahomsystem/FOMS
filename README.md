@@ -85,7 +85,7 @@ python app.py
    gcloud sql users set-password postgres --instance=[YOUR-INSTANCE-NAME] --password=[YOUR-PASSWORD]
    ```
 
-4. app.yaml 파일 수정:
+4. 레거시 GAE용 `app.yaml` 샘플은 `docs/context/manual-artifacts/legacy-deploy/app.yaml` 에 두었다. 복사하거나 참고한 뒤:
    - `[YOUR-PROJECT-ID]`와 `[YOUR-INSTANCE-NAME]`을 실제 값으로 변경
    - 적절한 데이터베이스 비밀번호 설정
 
@@ -140,7 +140,7 @@ python app.py
 ## 참고 사항
 
 - 현재 운영 기준 배포는 Railway이며, Google App Engine 관련 내용은 레거시 참고용입니다.
-- Google App Engine 배포 시 app.yaml 파일의 환경 변수 값을 실제 프로젝트에 맞게 수정해야 합니다.
+- Google App Engine 배포 시 `docs/context/manual-artifacts/legacy-deploy/app.yaml` 를 참고하여 환경 변수 값을 실제 프로젝트에 맞게 수정해야 합니다.
 - 처음 실행 시 관리자 계정이 자동으로 생성됩니다. (ID: admin, 비밀번호: admin123)
 - 보안을 위해 배포 후 관리자 계정 비밀번호를 변경하십시오. "# lahomproject" 
 

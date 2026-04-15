@@ -2,7 +2,7 @@
 
 - **감리일**: 2026-03-15
 - **대상**: `docs/plans/2026-03-15-measurement-map-rebuild-spec.md` Phase 1~6 + 후속 작업
-- **검증 문서**: `docs/validation/2026-03-15-measurement-map-rebuild-spec-validation.md`
+- **검증 문서**: `docs/guides/validation/2026-03-15-measurement-map-rebuild-spec-validation.md`
 
 ---
 
@@ -60,7 +60,7 @@
 
 | 항목 | 상태 | 검증 |
 |------|------|------|
-| `scripts/fix_geocode_status_inconsistency.py` | ✅ | 작성 완료, 실행 시 정리 대상 0건 |
+| `scripts/maintenance/fix_geocode_status_inconsistency.py` | ✅ | 작성 완료, 실행 시 정리 대상 0건 |
 
 ---
 

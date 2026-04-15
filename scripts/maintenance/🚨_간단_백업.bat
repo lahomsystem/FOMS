@@ -24,7 +24,7 @@ pause
 echo 백업을 시작합니다...
 echo.
 
-python simple_backup_system.py
+python -m foms.services.admin.backup_service
 
 echo.
 echo ════════════════════════════════════════════════════════════════

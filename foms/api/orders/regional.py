@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from flask import jsonify, request, session
 
-from apps.auth import log_access
+from foms.web.auth import log_access
 from db import get_db
 from models import Order
 

@@ -1,7 +1,7 @@
 /**
  * Contract freeze: current-estimate orchestration keeps calculate/render and snapshot
  * outputs aligned after extraction out of wdcalculator_scripts.html.
- * Runs current-estimate-orchestration.js in VM with DOM stubs; read helpers are extracted from
+ * Runs pricing-core.js in VM with DOM stubs; read helpers are extracted from
  * static/js/wdcalculator/primary-form.js (W5-B3 merged chunk; replaces separate notes/base/additional/coupon files).
  */
 const fs = require("fs");
@@ -9,32 +9,15 @@ const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const orchestrationPath = path.join(
-    repoRoot,
-    "static",
-    "js",
-    "wdcalculator",
-    "current-estimate-orchestration.js"
-);
+const pricingCorePath = path.join(repoRoot, "static", "js", "wdcalculator", "pricing-core.js");
+const orchestrationPath = pricingCorePath;
 const sharedPath = path.join(repoRoot, "static", "js", "wdcalculator", "shared.js");
 
 const orchestrationSrc = fs.readFileSync(orchestrationPath, "utf8");
 const sharedSrc = fs.readFileSync(sharedPath, "utf8");
-const currentEstimateMathPath = path.join(
-    repoRoot,
-    "static",
-    "js",
-    "wdcalculator",
-    "current-estimate-math.js"
-);
+const currentEstimateMathPath = pricingCorePath;
 const currentEstimateMathSrc = fs.readFileSync(currentEstimateMathPath, "utf8");
-const calculationResolversPath = path.join(
-    repoRoot,
-    "static",
-    "js",
-    "wdcalculator",
-    "calculation-resolvers.js"
-);
+const calculationResolversPath = pricingCorePath;
 const calculationResolversSrc = fs.readFileSync(calculationResolversPath, "utf8");
 const primaryFormPath = path.join(repoRoot, "static", "js", "wdcalculator", "primary-form.js");
 const primaryFormSrc = fs.readFileSync(primaryFormPath, "utf8");

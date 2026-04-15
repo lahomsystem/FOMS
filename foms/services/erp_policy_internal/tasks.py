@@ -11,7 +11,7 @@ from .data_access import get_policy, get_stage, get_task_templates, recommend_ow
 
 def _business_days_until(date_iso: str):
     """Lazy import to avoid eager business_calendar coupling at import time."""
-    from services.business_calendar import business_days_until
+    from foms.services.common.business_calendar import business_days_until
 
     return business_days_until(date_iso)
 
@@ -154,7 +154,7 @@ def _resolve_due_date(due: Dict[str, Any], sd: Dict[str, Any], now_dt: datetime.
         if offset_business_days is None:
             return base.isoformat()
         try:
-            from services.business_calendar import add_business_days
+            from foms.services.common.business_calendar import add_business_days
 
             return add_business_days(base, int(offset_business_days)).isoformat()
         except Exception:
@@ -167,7 +167,7 @@ def _resolve_due_date(due: Dict[str, Any], sd: Dict[str, Any], now_dt: datetime.
         if offset_business_days is None:
             return base.isoformat()
         try:
-            from services.business_calendar import add_business_days
+            from foms.services.common.business_calendar import add_business_days
 
             return add_business_days(base, int(offset_business_days)).isoformat()
         except Exception:
@@ -188,7 +188,7 @@ def _resolve_due_date(due: Dict[str, Any], sd: Dict[str, Any], now_dt: datetime.
         if offset_business_days is None:
             return now_dt.date().isoformat()
         try:
-            from services.business_calendar import add_business_days
+            from foms.services.common.business_calendar import add_business_days
 
             return add_business_days(now_dt.date(), int(offset_business_days)).isoformat()
         except Exception:

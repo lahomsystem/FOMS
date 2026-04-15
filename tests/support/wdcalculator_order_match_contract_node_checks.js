@@ -17,7 +17,7 @@ const helperPath = path.join(
     "static",
     "js",
     "wdcalculator",
-    "order-match-ui.js"
+    "estimate-lifecycle.js"
 );
 const helperSrc = fs.readFileSync(helperPath, "utf8");
 const templatePath = helperPath;

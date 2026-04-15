@@ -69,9 +69,9 @@ QA_REGEX_PATTERNS = tuple(
 HARNESS_EXACT_MATCHES = {
     "agents.md",
     "claude.md",
-    "task_plan.md",
-    "findings.md",
-    "progress.md",
+    "docs/context/analysis/task_plan.md",
+    "docs/context/analysis/findings.md",
+    "docs/context/analysis/progress.md",
     "docs/archive_index.md",
     ".agents/workflows/verify-result.md",
     HARNESS_DECISIONS_PATH.lower(),
@@ -87,7 +87,7 @@ HARNESS_PREFIXES = (
     HARNESS_BUNDLE_PREFIX.lower(),
 )
 CORE_EXACT_MATCHES = {"app.py", "db.py", "models.py"}
-CORE_PREFIXES = ("apps/api/", "migrations/", "services/auth/", "auth/")
+CORE_PREFIXES = ("foms/api/", "migrations/", "services/auth/", "auth/")
 DEPLOY_EXACT_MATCHES = {"dockerfile", "procfile", "railway.toml", "railway.json"}
 DEPLOY_PREFIXES = (".github/workflows/", "docker/", "deploy/")
 

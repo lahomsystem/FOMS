@@ -15,7 +15,7 @@
 이유:
 - `foms/services/geocode_helpers.py`를 네 번째 canonical source of truth로 추가했다.
 - legacy `services/geocode_helpers.py`는 공개 API만 재수출하는 thin shim으로 전환했다.
-- 실제 호출부 `foms/services/map_snapshot.py`, `apps/api/erp_map.py`, `apps/api/erp_orders_structured.py`, `services/jobs/tasks.py`, `scripts/geocode_backfill.py`를 canonical import로 정리했다.
+- 실제 호출부 `foms/services/map_snapshot.py`, `apps/api/erp_map.py`, `apps/api/erp_orders_structured.py`, `services/jobs/tasks.py`, `scripts/maintenance/geocode_backfill.py`를 canonical import로 정리했다.
 - 사전 감리에서 후보 3안을 다시 비교했고, 사후 감리에서 나온 테스트 공백까지 즉시 보강했다.
 
 ## 2. 후보 비교와 선정 근거
@@ -41,7 +41,7 @@
 - `apps/api/erp_map.py`
 - `apps/api/erp_orders_structured.py`
 - `services/jobs/tasks.py`
-- `scripts/geocode_backfill.py`
+- `scripts/maintenance/geocode_backfill.py`
 
 ### 3.4 테스트 추가/보강
 - `tests/test_geocode_helpers.py`

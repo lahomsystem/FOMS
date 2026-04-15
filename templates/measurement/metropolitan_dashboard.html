@@ -1,0 +1,1466 @@
+{% extends "shared/layout.html" %}
+
+{% block title %}수도권 주문 관리 대시보드{% endblock %}
+
+{% block content %}
+<div class="container-fluid metropolitan-dashboard">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0"><i class="fas fa-building text-primary"></i> 수도권 주문 관리 대시보드</h1>
+                <a href="{{ url_for('order_pages.add_order') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> 새 주문 추가
+                </a>
+            </div>
+
+            <!-- 검색 폼 -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <form method="get" action="{{ url_for('dashboards.metropolitan_dashboard') }}" class="d-flex">
+                                <input type="text" name="search_query" class="form-control me-2" placeholder="주문번호, 고객명, 연락처, 주소, 제품, 담당자 등 통합 검색" value="{{ search_query or '' }}">
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> 검색</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 요약 통계 -->
+            <div class="row mb-4">
+                <div class="col-lg-3 col-md-6">
+                    <div class="card summary-card-urgent shadow">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-uppercase mb-1 text-urgent">실측일 D+0 긴급</div>
+                                    <div class="h5 mb-0 font-weight-bold text-urgent">{{ urgent_alerts|length }}건</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-exclamation-circle fa-2x text-urgent-icon"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="card summary-card-alert shadow">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-uppercase mb-1 text-alert">실측 후 미처리</div>
+                                    <div class="h5 mb-0 font-weight-bold text-alert">{{ measurement_alerts|length }}건</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-exclamation-triangle fa-2x text-alert-icon"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="card summary-card-pending shadow">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-uppercase mb-1 text-pending">실측 전</div>
+                                    <div class="h5 mb-0 font-weight-bold text-pending">{{ pre_measurement_alerts|length }}건</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-clock fa-2x text-pending-icon"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="card summary-card-warning shadow">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-uppercase mb-1 text-warning-custom">설치 지연</div>
+                                    <div class="h5 mb-0 font-weight-bold text-warning-custom">{{ installation_alerts|length }}건</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-calendar-times fa-2x text-warning-icon"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="card summary-card-completed shadow">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-uppercase mb-1 text-completed">완료된 주문</div>
+                                    <div class="h5 mb-0 font-weight-bold text-completed">{{ completed_orders|length }}건</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-check-circle fa-2x text-completed-icon"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 실측일 D+0 긴급 알림 -->
+            {% if urgent_alerts %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow border-left-urgent">
+                        <div class="card-header py-3 header-urgent">
+                            <h6 class="m-0 font-weight-bold">
+                                <i class="fas fa-exclamation-circle me-2"></i>실측일 D+0 긴급 알림 ({{ urgent_alerts|length }}건)
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>번호</th>
+                                            <th>고객명</th>
+                                            <th>주소</th>
+                                            <th>제품</th>
+                                            <th>상태</th>
+                                            <th>실측일</th>
+                                            <th>미처리 항목</th>
+                                            <th>담당자</th>
+                                            <th>설치 예정일</th>
+                                            <th>작업</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for order in urgent_alerts %}
+                                        <tr class="table-urgent" data-order-id="{{ order.id }}">
+                                            <td>{{ order.id }}</td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
+                                                {{ order.address }}
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                                {{ order.product }}
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
+                                                        data-order-id="{{ order.id }}" 
+                                                        data-current-status="{{ order.status }}">
+                                                    {% for status_code, status_name in STATUS.items() %}
+                                                        {% if status_code != 'DELETED' %}
+                                                            <option value="{{ status_code }}" 
+                                                                    {% if order.status == status_code %}selected{% endif %}>
+                                                                {{ status_name }}
+                                                            </option>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </select>
+                                            </td>
+                                            <td class="text-danger">{{ order.measurement_date or '-' }}</td>
+                                            <td>
+                                                <div class="d-flex flex-wrap gap-1">
+                                                    {% if not order.manager_name %}
+                                                    <span class="badge bg-danger">담당자 미지정</span>
+                                                    {% endif %}
+                                                    {% if not order.scheduled_date %}
+                                                    <span class="badge bg-danger">설치일 미지정</span>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                            <td style="width: 150px;">
+                                                <input type="text" 
+                                                       class="form-control form-control-sm inline-edit" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="manager_name"
+                                                       value="{{ order.manager_name or '' }}"
+                                                       placeholder="담당자 입력">
+                                            </td>
+                                            <td style="width: 150px;">
+                                                <input type="date" 
+                                                       class="form-control form-control-sm inline-edit" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="scheduled_date"
+                                                       value="{{ order.scheduled_date or '' }}">
+                                            </td>
+                                            <td>
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                   class="btn btn-sm btn-outline-danger" title="수정">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 실측 후 미처리 알림 -->
+            {% if measurement_alerts %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow border-left-alert">
+                        <div class="card-header py-3 header-alert">
+                            <h6 class="m-0 font-weight-bold">
+                                <i class="fas fa-exclamation-triangle me-2"></i>실측 후 미처리 알림 ({{ measurement_alerts|length }}건)
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>번호</th>
+                                            <th>고객명</th>
+                                            <th>주소</th>
+                                            <th>제품</th>
+                                            <th>상태</th>
+                                            <th>실측일</th>
+                                            <th>담당자</th>
+                                            <th>설치 예정일</th>
+                                            <th>작업</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for order in measurement_alerts %}
+                                        <tr class="table-alert" data-order-id="{{ order.id }}">
+                                            <td>{{ order.id }}</td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
+                                                {{ order.address }}
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                                {{ order.product }}
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
+                                                        data-order-id="{{ order.id }}" 
+                                                        data-current-status="{{ order.status }}">
+                                                    {% for status_code, status_name in STATUS.items() %}
+                                                        {% if status_code != 'DELETED' %}
+                                                            <option value="{{ status_code }}" 
+                                                                    {% if order.status == status_code %}selected{% endif %}>
+                                                                {{ status_name }}
+                                                            </option>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </select>
+                                            </td>
+                                            <td>{{ order.measurement_date or '-' }}</td>
+                                            <td style="width: 150px;">
+                                                <input type="text" 
+                                                       class="form-control form-control-sm inline-edit" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="manager_name"
+                                                       value="{{ order.manager_name or '' }}"
+                                                       placeholder="담당자 입력">
+                                            </td>
+                                            <td style="width: 150px;">
+                                                <input type="date" 
+                                                       class="form-control form-control-sm inline-edit" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="scheduled_date"
+                                                       value="{{ order.scheduled_date or '' }}">
+                                            </td>
+                                            <td>
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                   class="btn btn-sm btn-outline-danger" title="수정">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 실측 전 알림 -->
+            {% if pre_measurement_alerts %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow border-left-pending">
+                        <div class="card-header py-3 header-pending">
+                            <h6 class="m-0 font-weight-bold">
+                                <i class="fas fa-clock me-2"></i>실측 전 알림 ({{ pre_measurement_alerts|length }}건)
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>번호</th>
+                                            <th>고객명</th>
+                                            <th>주소</th>
+                                            <th>제품</th>
+                                            <th>상태</th>
+                                            <th>실측일</th>
+                                            <th>담당자</th>
+                                            <th>설치 예정일</th>
+                                            <th>작업</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for order in pre_measurement_alerts %}
+                                        <tr class="table-pending" data-order-id="{{ order.id }}">
+                                            <td>{{ order.id }}</td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
+                                                {{ order.address }}
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                                {{ order.product }}
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
+                                                        data-order-id="{{ order.id }}" 
+                                                        data-current-status="{{ order.status }}">
+                                                    {% for status_code, status_name in STATUS.items() %}
+                                                        {% if status_code != 'DELETED' %}
+                                                            <option value="{{ status_code }}" 
+                                                                    {% if order.status == status_code %}selected{% endif %}>
+                                                                {{ status_name }}
+                                                            </option>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </select>
+                                            </td>
+                                            <td class="text-info">{{ order.measurement_date or '-' }}</td>
+                                            <td style="width: 150px;">
+                                                <input type="text" 
+                                                       class="form-control form-control-sm inline-edit" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="manager_name"
+                                                       value="{{ order.manager_name or '' }}"
+                                                       placeholder="담당자 입력">
+                                            </td>
+                                            <td style="width: 150px;">
+                                                <input type="date" 
+                                                       class="form-control form-control-sm inline-edit" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="scheduled_date"
+                                                       value="{{ order.scheduled_date or '' }}">
+                                            </td>
+                                            <td>
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                   class="btn btn-sm btn-outline-info" title="수정">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 설치 지연 알림 -->
+            {% if installation_alerts %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow border-left-warning">
+                        <div class="card-header py-3 header-warning">
+                            <h6 class="m-0 font-weight-bold">
+                                <i class="fas fa-calendar-times me-2"></i>설치 지연 알림 ({{ installation_alerts|length }}건)
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>번호</th>
+                                            <th>고객명</th>
+                                            <th>주소</th>
+                                            <th>제품</th>
+                                            <th>상태</th>
+                                            <th>담당자</th>
+                                            <th>실측일</th>
+                                            <th>설치 예정일</th>
+                                            <th>작업</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for order in installation_alerts %}
+                                        <tr class="table-warning" data-order-id="{{ order.id }}">
+                                            <td>{{ order.id }}</td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
+                                                {{ order.address }}
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                                {{ order.product }}
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
+                                                        data-order-id="{{ order.id }}" 
+                                                        data-current-status="{{ order.status }}">
+                                                    {% for status_code, status_name in STATUS.items() %}
+                                                        {% if status_code != 'DELETED' %}
+                                                            <option value="{{ status_code }}" 
+                                                                    {% if order.status == status_code %}selected{% endif %}>
+                                                                {{ status_name }}
+                                                            </option>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </select>
+                                            </td>
+                                            <td>{{ order.manager_name or '-' }}</td>
+                                            <td>{{ order.measurement_date or '-' }}</td>
+                                            <td class="text-danger">{{ order.scheduled_date or '-' }}</td>
+                                            <td>
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                   class="btn btn-sm btn-outline-warning" title="수정">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- AS 관련 주문 -->
+            {% if as_orders %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow border-left-info">
+                        <div class="card-header py-3 d-flex justify-content-between align-items-center header-info">
+                            <h6 class="m-0 font-weight-bold">
+                                <i class="fas fa-tools me-2"></i>AS 접수된 주문 ({{ as_orders|length }}건)
+                            </h6>
+                            <a href="/?region=metropolitan&status=AS_RECEIVED" class="btn btn-sm btn-light">
+                                <i class="fas fa-list"></i> 전체 보기
+                            </a>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>번호</th>
+                                            <th>고객명</th>
+                                            <th>주소</th>
+                                            <th>제품</th>
+                                            <th>상태</th>
+                                            <th>담당자</th>
+                                            <th>AS 접수일</th>
+                                            <th>AS 완료일</th>
+                                            <th>작업</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for order in as_orders %}
+                                        <tr data-order-id="{{ order.id }}">
+                                            <td>{{ order.id }}</td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
+                                                {{ order.address }}
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                                {{ order.product }}
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm status-dropdown status-{{ order.status.lower() }}" 
+                                                        data-order-id="{{ order.id }}" data-field="status">
+                                                    {% for status_key, status_label in STATUS.items() %}
+                                                    <option value="{{ status_key }}" 
+                                                            {% if order.status == status_key %}selected{% endif %}>
+                                                        {{ status_label }}
+                                                    </option>
+                                                    {% endfor %}
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <input type="text" class="form-control form-control-sm inline-edit" 
+                                                       data-order-id="{{ order.id }}" data-field="manager_name" 
+                                                       value="{{ order.manager_name or '' }}" placeholder="담당자명">
+                                            </td>
+                                            <td>
+                                                <input type="date" class="form-control form-control-sm inline-edit" 
+                                                       data-order-id="{{ order.id }}" data-field="as_received_date" 
+                                                       value="{{ order.as_received_date or '' }}">
+                                            </td>
+                                            <td>
+                                                <input type="date" class="form-control form-control-sm inline-edit" 
+                                                       data-order-id="{{ order.id }}" data-field="as_completed_date" 
+                                                       value="{{ order.as_completed_date or '' }}">
+                                            </td>
+                                            <td>
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                   class="btn btn-sm btn-outline-info" title="수정">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 보류 상태 주문 -->
+            {% if hold_orders %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow border-left-hold">
+                        <div class="card-header py-3 d-flex justify-content-between align-items-center header-hold">
+                            <h6 class="m-0 font-weight-bold">
+                                <i class="fas fa-pause-circle me-2"></i>보류 상태 주문 ({{ hold_orders|length }}건)
+                            </h6>
+                            <a href="/?region=metropolitan&status=ON_HOLD" class="btn btn-sm btn-light">
+                                <i class="fas fa-list"></i> 전체 보기
+                            </a>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>번호</th>
+                                            <th>고객명</th>
+                                            <th>주소</th>
+                                            <th>제품</th>
+                                            <th>상태</th>
+                                            <th>담당자</th>
+                                            <th>실측일</th>
+                                            <th>설치예정일</th>
+                                            <th>작업</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for order in hold_orders %}
+                                        <tr data-order-id="{{ order.id }}">
+                                            <td>{{ order.id }}</td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
+                                                {{ order.address }}
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                                {{ order.product }}
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm status-dropdown status-{{ order.status|lower }}" 
+                                                        data-order-id="{{ order.id }}" 
+                                                        data-current-status="{{ order.status }}">
+                                                    {% for status_code, status_name in STATUS.items() %}
+                                                        {% if status_code != 'DELETED' %}
+                                                            <option value="{{ status_code }}" 
+                                                                    {% if order.status == status_code %}selected{% endif %}>
+                                                                {{ status_name }}
+                                                            </option>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </select>
+                                            </td>
+                                            <td style="width: 150px;">
+                                                <input type="text" 
+                                                       class="form-control form-control-sm inline-edit" 
+                                                       data-order-id="{{ order.id }}"
+                                                       data-field="manager_name"
+                                                       value="{{ order.manager_name or '' }}"
+                                                       placeholder="담당자 입력">
+                                            </td>
+                                            <td>{{ order.measurement_date or '-' }}</td>
+                                            <td>{{ order.scheduled_date or '-' }}</td>
+                                            <td>
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                   class="btn btn-sm btn-outline-warning" title="수정">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 정상 진행 중인 주문 -->
+            {% if normal_orders %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow border-left-normal">
+                        <div class="card-header py-3 d-flex justify-content-between align-items-center header-normal">
+                            <h6 class="m-0 font-weight-bold">
+                                <i class="fas fa-clock me-2"></i>정상 진행 중인 주문 ({{ normal_orders|length }}건)
+                            </h6>
+                            <a href="/?region=metropolitan" class="btn btn-sm btn-light">
+                                <i class="fas fa-list"></i> 전체 보기
+                            </a>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>번호</th>
+                                            <th>고객명</th>
+                                            <th>주소</th>
+                                            <th>제품</th>
+                                            <th>상태</th>
+                                            <th>담당자</th>
+                                            <th>실측일</th>
+                                            <th>설치일</th>
+                                            <th>작업</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for order in normal_orders %}
+                                        <tr data-order-id="{{ order.id }}">
+                                            <td>{{ order.id }}</td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
+                                                {{ order.address }}
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                                {{ order.product }}
+                                            </td>
+                                            <td>
+                                                {% set status_colors = {
+                                                    'RECEIVED': 'primary',
+                                                    'MEASURED': 'warning', 
+                                                    'REGIONAL_MEASURED': 'purple',
+                                                    'SCHEDULED': 'danger',
+                                                    'SHIPPED_PENDING': 'info',
+                                                    'COMPLETED': 'success',
+                                                    'AS_RECEIVED': 'dark',
+                                                    'AS_COMPLETED': 'secondary',
+                                                    'ON_HOLD': 'purple'
+                                                } %}
+                                                <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
+                                                    {{ STATUS.get(order.status, order.status) }}
+                                                </span>
+                                            </td>
+                                            <td>{{ order.manager_name or '-' }}</td>
+                                            <td>{{ order.measurement_date or '-' }}</td>
+                                            <td>{{ order.scheduled_date or '-' }}</td>
+                                            <td>
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                   class="btn btn-sm btn-outline-primary" title="수정">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 완료된 주문 -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card shadow border-left-completed">
+                        <div class="card-header py-3 d-flex justify-content-between align-items-center header-completed">
+                            <h6 class="m-0 font-weight-bold">
+                                <i class="fas fa-check-circle me-2"></i>완료된 주문 (설치완료 + AS완료) ({{ completed_orders|length }}건)
+                            </h6>
+                            <button class="btn btn-sm btn-light" onclick="toggleCompletedOrders()">
+                                <i class="fas fa-eye-slash" id="toggle-icon"></i> <span id="toggle-text">숨기기</span>
+                            </button>
+                        </div>
+                        <div class="card-body" id="completed-orders-section" style="display: block;">
+                            {% if completed_orders %}
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>번호</th>
+                                            <th>고객명</th>
+                                            <th>주소</th>
+                                            <th>제품</th>
+                                            <th>상태</th>
+                                            <th>담당자</th>
+                                            <th>실측일</th>
+                                            <th>설치완료일</th>
+                                            <th>AS접수일</th>
+                                            <th>AS완료일</th>
+                                            <th>작업</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for order in completed_orders %}
+                                        <tr class="table-completed" data-order-id="{{ order.id }}">
+                                            <td>{{ order.id }}</td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div>
+                                                        <div>{{ order.customer_name }}</div>
+                                                        <small class="text-muted">{{ order.phone }}</small>
+                                                    </div>
+                                                    {% if order.blueprint_image_url %}
+                                                    <button class="btn btn-sm btn-outline-info" onclick="openBlueprintViewer({{ order.id }})" title="도면 보기">
+                                                        <i class="fas fa-drafting-compass"></i> 도면
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 300px;" title="{{ order.address }}">
+                                                {{ order.address }}
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 150px;" title="{{ order.product }}">
+                                                {{ order.product }}
+                                            </td>
+                                            <td>
+                                                {% set status_colors = {
+                                                    'RECEIVED': 'primary',
+                                                    'MEASURED': 'warning', 
+                                                    'REGIONAL_MEASURED': 'purple',
+                                                    'SCHEDULED': 'danger',
+                                                    'SHIPPED_PENDING': 'info',
+                                                    'COMPLETED': 'success',
+                                                    'AS_RECEIVED': 'dark',
+                                                    'AS_COMPLETED': 'secondary',
+                                                    'ON_HOLD': 'purple'
+                                                } %}
+                                                <span class="badge bg-{{ status_colors.get(order.status, 'secondary') }}">
+                                                    {{ STATUS.get(order.status, order.status) }}
+                                                </span>
+                                            </td>
+                                            <td>{{ order.manager_name or '-' }}</td>
+                                            <td>{{ order.measurement_date or '-' }}</td>
+                                            <td>{{ order.completion_date or '-' }}</td>
+                                            <td>{{ order.as_received_date or '-' }}</td>
+                                            <td>{{ order.as_completed_date or '-' }}</td>
+                                            <td>
+                                                <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='metropolitan_dashboard') }}" 
+                                                   class="btn btn-sm btn-outline-success" title="수정">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-inbox text-muted fa-3x mb-3"></i>
+                                <h5 class="text-muted">완료된 수도권 주문이 없습니다.</h5>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast 컨테이너 -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+  <div id="status-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-header">
+      <strong class="me-auto">알림</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+    <div class="toast-body">
+    </div>
+  </div>
+</div>
+
+<style>
+/* 파스텔 톤 색상 정의 */
+:root {
+    --pastel-green: #d4edda;
+    --pastel-green-dark: #c3e6cb;
+    --pastel-green-text: #155724;
+    --pastel-green-icon: #28a745;
+    
+    --pastel-orange: #fff3cd;
+    --pastel-orange-dark: #ffeaa7;
+    --pastel-orange-text: #856404;
+    --pastel-orange-icon: #ffc107;
+    
+    --pastel-red: #f8d7da;
+    --pastel-red-dark: #f5c6cb;
+    --pastel-red-text: #721c24;
+    --pastel-red-icon: #dc3545;
+    
+    --pastel-yellow: #fff3cd;
+    --pastel-yellow-dark: #ffeaa7;
+    --pastel-yellow-text: #856404;
+    --pastel-yellow-icon: #ffc107;
+    
+    --pastel-blue: #d1ecf1;
+    --pastel-blue-dark: #bee5eb;
+    --pastel-blue-text: #0c5460;
+    --pastel-blue-icon: #17a2b8;
+    
+    --urgent-red: #f5c6cb;
+    --urgent-red-dark: #f1b0b7;
+    --urgent-red-text: #5a1a1a;
+    --urgent-red-icon: #dc3545;
+}
+
+/* 요약 카드 스타일 */
+.summary-card-completed {
+    background: linear-gradient(135deg, var(--pastel-green) 0%, var(--pastel-green-dark) 100%);
+    border: 1px solid var(--pastel-green-dark);
+}
+
+.summary-card-pending {
+    background: linear-gradient(135deg, var(--pastel-orange) 0%, var(--pastel-orange-dark) 100%);
+    border: 1px solid var(--pastel-orange-dark);
+}
+
+.summary-card-alert {
+    background: linear-gradient(135deg, var(--pastel-red) 0%, var(--pastel-red-dark) 100%);
+    border: 1px solid var(--pastel-red-dark);
+}
+
+.summary-card-warning {
+    background: linear-gradient(135deg, var(--pastel-yellow) 0%, var(--pastel-yellow-dark) 100%);
+    border: 1px solid var(--pastel-yellow-dark);
+}
+
+.summary-card-normal {
+    background: linear-gradient(135deg, var(--pastel-blue) 0%, var(--pastel-blue-dark) 100%);
+    border: 1px solid var(--pastel-blue-dark);
+}
+
+.summary-card-urgent {
+    background: linear-gradient(135deg, var(--urgent-red) 0%, var(--urgent-red-dark) 100%);
+    border: 2px solid var(--urgent-red-dark);
+    animation: pulse-urgent 2s infinite;
+}
+
+@keyframes pulse-urgent {
+    0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+.text-completed {
+    color: var(--pastel-green-text) !important;
+}
+
+.text-completed-icon {
+    color: var(--pastel-green-icon) !important;
+}
+
+.text-pending {
+    color: var(--pastel-orange-text) !important;
+}
+
+.text-pending-icon {
+    color: var(--pastel-orange-icon) !important;
+}
+
+.text-alert {
+    color: var(--pastel-red-text) !important;
+}
+
+.text-alert-icon {
+    color: var(--pastel-red-icon) !important;
+}
+
+.text-warning-custom {
+    color: var(--pastel-yellow-text) !important;
+}
+
+.text-warning-icon {
+    color: var(--pastel-yellow-icon) !important;
+}
+
+.text-normal {
+    color: var(--pastel-blue-text) !important;
+}
+
+.text-normal-icon {
+    color: var(--pastel-blue-icon) !important;
+}
+
+.text-urgent {
+    color: var(--urgent-red-text) !important;
+    font-weight: bold;
+}
+
+.text-urgent-icon {
+    color: var(--urgent-red-icon) !important;
+}
+
+/* 카드 헤더 스타일 */
+.header-completed {
+    background: linear-gradient(135deg, var(--pastel-green-dark) 0%, var(--pastel-green) 100%);
+    color: var(--pastel-green-text) !important;
+    border-bottom: 1px solid var(--pastel-green-dark);
+}
+
+.header-pending {
+    background: linear-gradient(135deg, var(--pastel-orange-dark) 0%, var(--pastel-orange) 100%);
+    color: var(--pastel-orange-text) !important;
+    border-bottom: 1px solid var(--pastel-orange-dark);
+}
+
+.header-alert {
+    background: linear-gradient(135deg, var(--pastel-red-dark) 0%, var(--pastel-red) 100%);
+    color: var(--pastel-red-text) !important;
+    border-bottom: 1px solid var(--pastel-red-dark);
+}
+
+.header-warning {
+    background: linear-gradient(135deg, var(--pastel-yellow-dark) 0%, var(--pastel-yellow) 100%);
+    color: var(--pastel-yellow-text) !important;
+    border-bottom: 1px solid var(--pastel-yellow-dark);
+}
+
+.header-normal {
+    background: linear-gradient(135deg, var(--pastel-blue-dark) 0%, var(--pastel-blue) 100%);
+    color: var(--pastel-blue-text) !important;
+    border-bottom: 1px solid var(--pastel-blue-dark);
+}
+
+.header-urgent {
+    background: linear-gradient(135deg, var(--urgent-red-dark) 0%, var(--urgent-red) 100%);
+    color: var(--urgent-red-text) !important;
+    border-bottom: 2px solid var(--urgent-red-dark);
+}
+
+/* 테이블 행 스타일 */
+.table-completed {
+    background-color: rgba(212, 237, 218, 0.3) !important;
+}
+
+.table-alert {
+    background-color: rgba(248, 215, 218, 0.3) !important;
+}
+
+.table-warning {
+    background-color: rgba(255, 243, 205, 0.3) !important;
+}
+
+.table-urgent {
+    background-color: rgba(245, 198, 203, 0.5) !important;
+    border-left: 4px solid var(--urgent-red-icon);
+}
+
+/* 보더 스타일 */
+.border-left-completed {
+    border-left: 0.25rem solid var(--pastel-green-icon) !important;
+}
+
+.border-left-pending {
+    border-left: 0.25rem solid var(--pastel-orange-icon) !important;
+}
+
+.border-left-alert {
+    border-left: 0.25rem solid var(--pastel-red-icon) !important;
+}
+
+.border-left-warning {
+    border-left: 0.25rem solid var(--pastel-yellow-icon) !important;
+}
+
+.border-left-normal {
+    border-left: 0.25rem solid var(--pastel-blue-icon) !important;
+}
+
+.border-left-urgent {
+    border-left: 0.5rem solid var(--urgent-red-icon) !important;
+}
+
+.border-left-primary {
+    border-left: 0.25rem solid #4e73df !important;
+}
+.border-left-info {
+    border-left: 0.25rem solid #36b9cc !important;
+}
+.text-gray-800 {
+    color: #5a5c69 !important;
+}
+.text-gray-300 {
+    color: #dddfeb !important;
+}
+
+/* 인라인 편집 스타일 */
+.inline-edit {
+    border: 1px solid #dee2e6;
+    transition: all 0.3s ease;
+}
+
+.inline-edit:focus {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+.inline-edit:hover {
+    border-color: #adb5bd;
+}
+
+/* 보라색 뱃지 */
+.bg-purple {
+    background-color: #9b59b6 !important;
+    color: #fff !important;
+    border: 1px solid #7d3c98 !important;
+}
+
+/* 상태별 드롭다운 색상 */
+.status-dropdown {
+    font-weight: 500;
+    transition: all 0.2s ease;
+    color: white !important;
+    width: 80px !important;
+    font-size: 0.75rem !important;
+    padding: 0.25rem 0.5rem !important;
+}
+
+.status-dropdown option[value="RECEIVED"] {
+    background-color: #1976d2;
+    color: white;
+}
+
+.status-dropdown option[value="MEASURED"] {
+    background-color: #f57c00;
+    color: white;
+}
+
+.status-dropdown option[value="SCHEDULED"] {
+    background-color: #d32f2f;
+    color: white;
+}
+
+.status-dropdown option[value="SHIPPED_PENDING"] {
+    background-color: #ff6b35;
+    color: white;
+}
+
+.status-dropdown option[value="COMPLETED"] {
+    background-color: #2e7d32;
+    color: white;
+}
+
+.status-dropdown option[value="AS_RECEIVED"] {
+    background-color: #7b1fa2;
+    color: white;
+}
+
+.status-dropdown option[value="AS_COMPLETED"] {
+    background-color: #00695c;
+    color: white;
+}
+
+.status-dropdown option[value="REGIONAL_MEASURED"] {
+    background-color: #8e24aa;
+    color: white;
+}
+
+.status-dropdown option[value="ON_HOLD"] {
+    background-color: #616161;
+    color: white;
+}
+
+/* 선택된 상태에 따른 드롭다운 배경색 */
+.status-dropdown.status-received {
+    background-color: #1976d2 !important;
+    color: white !important;
+    border-color: #1565c0;
+}
+
+.status-dropdown.status-measured {
+    background-color: #f57c00 !important;
+    color: white !important;
+    border-color: #ef6c00;
+}
+
+.status-dropdown.status-scheduled {
+    background-color: #d32f2f !important;
+    color: white !important;
+    border-color: #c62828;
+}
+
+.status-dropdown.status-shipped_pending {
+    background-color: #ff6b35 !important;
+    color: white !important;
+    border-color: #e55a2b;
+}
+
+.status-dropdown.status-completed {
+    background-color: #2e7d32 !important;
+    color: white !important;
+    border-color: #1b5e20;
+}
+
+.status-dropdown.status-as_received {
+    background-color: #7b1fa2 !important;
+    color: white !important;
+    border-color: #6a1b9a;
+}
+
+.status-dropdown.status-as_completed {
+    background-color: #00695c !important;
+    color: white !important;
+    border-color: #004d40;
+}
+
+.status-dropdown.status-regional_measured {
+    background-color: #8e24aa !important;
+    color: white !important;
+    border-color: #7b1fa2;
+}
+
+.status-dropdown.status-on_hold {
+    background-color: #616161 !important;
+    color: white !important;
+    border-color: #424242;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 검색 결과 하이라이트 및 스크롤
+    const searchQuery = "{{ search_query|safe }}";
+    if (searchQuery) {
+        const rows = document.querySelectorAll('tr[data-order-id]');
+        let firstMatch = null;
+
+        rows.forEach(row => {
+            const rowText = row.innerText.toLowerCase();
+            if (rowText.includes(searchQuery.toLowerCase())) {
+                row.classList.add('highlight-row');
+                if (!firstMatch) {
+                    firstMatch = row;
+                }
+            }
+        });
+
+        if (firstMatch) {
+            firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
+    const toastElement = document.getElementById('status-toast');
+    const toastBody = toastElement.querySelector('.toast-body');
+    const toast = new bootstrap.Toast(toastElement);
+
+    // 인라인 편집 이벤트 처리
+    const inlineEditInputs = document.querySelectorAll('.inline-edit');
+    
+    inlineEditInputs.forEach(function(input) {
+        let originalValue = input.value;
+        
+        input.addEventListener('focus', function() {
+            originalValue = this.value;
+        });
+        
+        input.addEventListener('blur', function() {
+            if (this.value !== originalValue) {
+                updateOrderField(this);
+            }
+        });
+        
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                this.blur();
+            }
+        });
+    });
+
+    // 상태 변경 드롭다운 이벤트 처리
+    const statusDropdowns = document.querySelectorAll('.status-dropdown');
+    
+    statusDropdowns.forEach(function(dropdown) {
+        let originalValue = dropdown.value;
+        
+        dropdown.addEventListener('focus', function() {
+            originalValue = this.value;
+        });
+        
+        dropdown.addEventListener('change', function() {
+            if (this.value !== originalValue) {
+                updateOrderStatus(this, originalValue);
+            }
+        });
+    });
+
+    function updateOrderField(input) {
+        const orderId = input.dataset.orderId;
+        const field = input.dataset.field;
+        const value = input.value.trim();
+
+        // 시각적 피드백
+        input.style.backgroundColor = '#fff3cd';
+        
+        fetch('/api/update_order_field', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                order_id: orderId,
+                field: field,
+                value: value
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                input.style.backgroundColor = '#d4edda';
+                toastBody.textContent = `주문 #${orderId}의 ${field === 'manager_name' ? '담당자' : '설치예정일'}이 성공적으로 업데이트되었습니다.`;
+                toastElement.classList.remove('bg-danger');
+                toastElement.classList.add('bg-success', 'text-white');
+                
+                setTimeout(() => {
+                    input.style.backgroundColor = '';
+                }, 2000);
+                
+                // 페이지 새로고침으로 긴급 알림 상태 업데이트
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            } else {
+                input.style.backgroundColor = '#f8d7da';
+                toastBody.textContent = `오류: ${data.message}`;
+                toastElement.classList.remove('bg-success');
+                toastElement.classList.add('bg-danger', 'text-white');
+                
+                setTimeout(() => {
+                    input.style.backgroundColor = '';
+                }, 2000);
+            }
+            toast.show();
+        })
+        .catch(error => {
+            input.style.backgroundColor = '#f8d7da';
+            toastBody.textContent = '서버 통신 중 오류가 발생했습니다.';
+            toastElement.classList.remove('bg-success');
+            toastElement.classList.add('bg-danger', 'text-white');
+            toast.show();
+            
+            setTimeout(() => {
+                input.style.backgroundColor = '';
+            }, 2000);
+        });
+    }
+
+    // 상태명 매핑
+    const statusNames = {
+        'RECEIVED': '접수',
+        'MEASURED': '실측',
+        'SCHEDULED': '설치 예정',
+        'SHIPPED_PENDING': '상차 예정',
+        'COMPLETED': '완료',
+        'AS_RECEIVED': 'AS 접수',
+        'AS_COMPLETED': 'AS 완료',
+        'ON_HOLD': '보류'
+    };
+
+    // 상태별 색상 클래스 업데이트 함수
+    function updateDropdownColor(dropdown, status) {
+        // 기존 상태 클래스 제거
+        dropdown.className = dropdown.className.replace(/status-\w+/g, '');
+        // 새로운 상태 클래스 추가
+        dropdown.classList.add(`status-${status.toLowerCase()}`);
+    }
+
+    function updateOrderStatus(dropdown, originalValue) {
+        const orderId = dropdown.dataset.orderId;
+        const newStatus = dropdown.value;
+        const oldStatusName = statusNames[originalValue] || originalValue;
+        const newStatusName = statusNames[newStatus] || newStatus;
+
+        // 상태 변경 확인
+        if (!confirm(`주문 #${orderId}의 상태를 '${oldStatusName}'에서 '${newStatusName}'(으)로 변경하시겠습니까?`)) {
+            // 취소 시 원래 값으로 되돌리기
+            dropdown.value = originalValue;
+            return;
+        }
+
+        // 시각적 피드백
+        dropdown.style.backgroundColor = '#fff3cd';
+        
+        fetch('/api/update_order_status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                order_id: orderId,
+                status: newStatus
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                dropdown.style.backgroundColor = '#d4edda';
+                toastBody.textContent = `주문 #${orderId}의 상태가 '${oldStatusName}'에서 '${newStatusName}'(으)로 성공적으로 변경되었습니다.`;
+                toastElement.classList.remove('bg-danger');
+                toastElement.classList.add('bg-success', 'text-white');
+                
+                // 드롭다운 색상 업데이트
+                updateDropdownColor(dropdown, newStatus);
+                
+                setTimeout(() => {
+                    dropdown.style.backgroundColor = '';
+                }, 2000);
+                
+                // 페이지 새로고침으로 알림 분류 업데이트
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            } else {
+                // 오류 시 원래 값으로 되돌리기
+                dropdown.value = originalValue;
+                dropdown.style.backgroundColor = '#f8d7da';
+                toastBody.textContent = `오류: ${data.message}`;
+                toastElement.classList.remove('bg-success');
+                toastElement.classList.add('bg-danger', 'text-white');
+                
+                setTimeout(() => {
+                    dropdown.style.backgroundColor = '';
+                }, 2000);
+            }
+            toast.show();
+        })
+        .catch(error => {
+            // 오류 시 원래 값으로 되돌리기
+            dropdown.value = originalValue;
+            dropdown.style.backgroundColor = '#f8d7da';
+            toastBody.textContent = '서버 통신 중 오류가 발생했습니다.';
+            toastElement.classList.remove('bg-success');
+            toastElement.classList.add('bg-danger', 'text-white');
+            toast.show();
+            
+            setTimeout(() => {
+                dropdown.style.backgroundColor = '';
+            }, 2000);
+        });
+    }
+});
+
+function toggleCompletedOrders() {
+    var section = document.getElementById('completed-orders-section');
+    var icon = document.getElementById('toggle-icon');
+    var text = document.getElementById('toggle-text');
+    
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+        text.innerText = '숨기기';
+    } else {
+        section.style.display = 'none';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+        text.innerText = '보이기';
+    }
+}
+</script>
+{% endblock %} 

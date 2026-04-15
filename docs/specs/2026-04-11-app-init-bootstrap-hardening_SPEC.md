@@ -11,7 +11,7 @@
 2. admin 계정이 없을 때 자동 생성은 `FOMS_ADMIN_DEFAULT_PASSWORD`가 설정된 경우에만 수행한다.
 3. admin bootstrap 관련 로그는 사용자명/비밀번호 조합을 평문으로 출력하지 않는다.
 4. 기존 public contract인 `foms.services.app_init.run_auto_init` / root `app.py` bootstrap import contract는 유지한다.
-5. 수동 스크립트(`scripts/db_admin.py`, `scripts/railway_reset_admin.py`)의 정책 변경은 이번 배치에 섞지 않는다.
+5. 수동 스크립트(`scripts/ops/db_admin.py`, `scripts/ops/railway_reset_admin.py`)의 정책 변경은 이번 배치에 섞지 않는다.
 
 ### 1.3 예외/제약 조건
 - 빈 문자열 또는 공백만 있는 `FOMS_ADMIN_DEFAULT_PASSWORD`는 미설정으로 취급한다.
@@ -31,7 +31,7 @@
 ### 2.2 아키텍처 방향
 - 기존 `run_auto_init()` public entry는 유지하고, admin 생성 부분만 private helper로 분리한다.
 - 수동 admin 스크립트의 env 이름(`FOMS_ADMIN_DEFAULT_PASSWORD`)과 정렬하되, WSGI auto-init 경로는 더 엄격하게 env 명시를 요구한다.
-- 참고 패턴: `scripts/db_admin.py`의 `_default_admin_password()`
+- 참고 패턴: `scripts/ops/db_admin.py`의 `_default_admin_password()`
 
 ### 2.3 의존성 및 영향 범위
 - 영향 범위:

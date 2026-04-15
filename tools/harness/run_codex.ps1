@@ -115,9 +115,9 @@ function Test-HarnessContextPath {
     $exactMatches = @(
         "AGENTS.md",
         "CLAUDE.md",
-        "task_plan.md",
-        "findings.md",
-        "progress.md",
+        "docs/context/analysis/task_plan.md",
+        "docs/context/analysis/findings.md",
+        "docs/context/analysis/progress.md",
         "docs/ARCHIVE_INDEX.md",
         ".agents/workflows/verify-result.md",
         "docs/harness/policy/DECISIONS.md",

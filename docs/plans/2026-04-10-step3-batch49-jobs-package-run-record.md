@@ -34,6 +34,6 @@
 - `ReadLints` — 신규 lint 없음
 
 ## 4. 잔여 리스크 / 후속 후보
-- `apps/api/channel_integration.py`, `apps/api/erp_measurement.py`, `apps/api/erp_map.py`, `apps/api/orders.py`, `apps/order_pages.py`, `apps/order_edit.py`, `scripts/geocode_backfill.py` 등 app/API/script live caller는 아직 `services.jobs.queue`를 사용한다. 이는 shim으로 안전하지만 canonical cleanup 배치는 아직 남아 있다.
+- `apps/api/channel_integration.py`, `apps/api/erp_measurement.py`, `apps/api/erp_map.py`, `apps/api/orders.py`, `apps/order_pages.py`, `apps/order_edit.py`, `scripts/maintenance/geocode_backfill.py` 등 app/API/script live caller는 아직 `services.jobs.queue`를 사용한다. 이는 shim으로 안전하지만 canonical cleanup 배치는 아직 남아 있다.
 - `services.jobs.tasks.*` enqueue 문자열은 backlog 호환을 위한 의도적 유지다. 향후 완전 cutover를 하려면 worker/web 동시 배포와 queue drain 전략이 함께 필요하다.
 - `business_calendar` 및 `/calendar` 축은 사용자 지시에 따라 계속 migration scope 밖으로 유지한다.

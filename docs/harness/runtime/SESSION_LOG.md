@@ -4,11 +4,23 @@
 
 ## 최근 세션
 
-### Session: cddf2371
+### Session: 65df2867
+- **시작**: 2026-04-15 15:40:34
+- **상태**: completed
+- **편집 파일**: `docs/AI_CHANGELOG.md`, `docs/AI_STATUS.md`, `docs/plans/2026-04-15-strict-final-canonical-tree-batch11a-apps-inventory-erp-hub-reroute-run-record.md`, `tests/contracts/runtime/foms_namespace_surface_tests.py`, `tests/domains/test_wdcalculator_product_settings.py`, `tests/domains/test_orders_boundary_contract.py`, `tests/domains/test_erp_orders_structured_put.py`, `tests/domains/test_as_received_date_kst.py`, `tests/domains/test_channel_integration_smoke.py`, `foms/web/orders/__init__.py`
+- **종료**: 2026-04-15 18:24:42
+
+### Session: 58a29950
+- **시작**: 2026-04-15 08:00:15
+- **상태**: completed
+- **편집 파일**: `docs/AI_CHANGELOG.md`, `docs/AI_STATUS.md`, `tests/contracts/runtime/foms_namespace_surface_tests.py`, `docs/harness/runtime/SESSION_LOG.md`, `scripts/ops/sync_local_to_railway.ps1`, `docs/plans/2026-04-07-step2-root-hygiene-inventory.md`, `docs/incidents/2026-02-23-503-ssl-unexpected-eof-cloudflare.md`, `.cursor/agents/GDM_EXECUTION_PLAN.md`, `docs/plans/2026-04-15-strict-canonical-tree-delta-lock-run-record.md`, `docs/ARCHIVE_INDEX.md`
+- **종료**: 2026-04-15 15:29:54
+
+ cddf2371
 - **시작**: 2026-04-14 09:27:09
 - **상태**: completed
-- **편집 파일**: `docs/plans/2026-04-14-wave6-gdm-hard-audit-report.md`, `docs/plans/2026-04-14-wave7-test-contract-rationalization-execution-plan.md`, `docs/plans/2026-04-14-wave6-batch7-closeout-run-record.md`, `foms/services/README.md`, `docs/specs/2026-04-13-foms-modular-monolith-rebaseline_SPEC.md`, `docs/ARCHIVE_INDEX.md`, `docs/plans/2026-04-14-wave6-batch6-status-register-run-record.md`, `docs/plans/2026-04-14-wave6-batch5-files-helper-pilot-run-record.md`, `tests/test_foms_namespace_imports.py`, `tests/test_file_utils.py`
-- **종료**: 2026-04-14 13:32:03
+- **편집 파일**: `docs/AI_STATUS.md`, `docs/ARCHIVE_INDEX.md`, `docs/specs/2026-04-13-foms-modular-monolith-rebaseline_SPEC.md`, `docs/plans/2026-04-14-wave7-test-contract-rationalization-execution-plan.md`, `docs/plans/2026-04-14-wave6-gdm-hard-audit-report.md`, `docs/plans/2026-04-14-wave6-batch7-closeout-run-record.md`, `foms/services/README.md`
+- **종료**: 2026-04-14 14:14:41
 
  a687153a
 - **시작**: 2026-04-13 19:30:02
@@ -121,13 +133,13 @@
 ### Session: 38bb1d6b
 - **시작**: 2026-03-13 09:03:40
 - **상태**: completed
-- **편집 파일**: `docs/evolution/ERP_BETA_SAVE_FLOW_GDM_AUDIT_2026-03-16.md`, `apps/api/erp_orders_structured.py`, `templates/partials/erp_beta_js.html`, `services/order_attachment_thumbnail.py`, `docs/evolution/2026-03-16-FILTER-2-MISSING-ANALYSIS-REPORT.md`, `commit_msg.txt`, `services/map_snapshot.py`, `scripts/diagnose_measurement_date_missing.py`, `services/order_date_sync.py`, `apps/api/erp_map.py`
+- **편집 파일**: `docs/evolution/ERP_BETA_SAVE_FLOW_GDM_AUDIT_2026-03-16.md`, `apps/api/erp_orders_structured.py`, `templates/partials/erp_beta_js.html`, `services/order_attachment_thumbnail.py`, `docs/evolution/2026-03-16-FILTER-2-MISSING-ANALYSIS-REPORT.md`, `commit_msg.txt`, `services/map_snapshot.py`, `scripts/maintenance/diagnose_measurement_date_missing.py`, `services/order_date_sync.py`, `apps/api/erp_map.py`
 - **종료**: 2026-03-16 09:09:46
 
 ### Session: 6a2cbf0d
 - **시작**: 2026-03-13 08:26:54
 - **상태**: unknown
-- **편집 파일**: `docs/evolution/ERP_BETA_SAVE_FLOW_GDM_AUDIT_2026-03-16.md`, `apps/api/erp_orders_structured.py`, `templates/partials/erp_beta_js.html`, `services/order_attachment_thumbnail.py`, `docs/evolution/2026-03-16-FILTER-2-MISSING-ANALYSIS-REPORT.md`, `commit_msg.txt`, `services/map_snapshot.py`, `scripts/diagnose_measurement_date_missing.py`, `services/order_date_sync.py`, `apps/api/erp_map.py`
+- **편집 파일**: `docs/evolution/ERP_BETA_SAVE_FLOW_GDM_AUDIT_2026-03-16.md`, `apps/api/erp_orders_structured.py`, `templates/partials/erp_beta_js.html`, `services/order_attachment_thumbnail.py`, `docs/evolution/2026-03-16-FILTER-2-MISSING-ANALYSIS-REPORT.md`, `commit_msg.txt`, `services/map_snapshot.py`, `scripts/maintenance/diagnose_measurement_date_missing.py`, `services/order_date_sync.py`, `apps/api/erp_map.py`
 - **종료**: 2026-03-16 09:32:20
 
 ### Session: 700dcd20
@@ -139,7 +151,7 @@
 ### Session: 30f3cb90
 - **시작**: 2026-03-08 13:07:18
 - **상태**: unknown
-- **편집 파일**: `commit_msg.txt`, `templates/partials/erp_beta_js.html`, `docs/plans/2026-03-05-erp-measurement-panel-mirroring-plan.md`, `docs/plans/2026-03-05-erp-measurement-panel-mirroring-VERIFICATION.md`, `templates/partials/erp_beta_tab.html`, `apps/api/erp_measurement.py`, `apps/api/erp_orders_as.py`, `docs/specs/2026-03-04-erp-add-orderer-workflow-default.md`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e94d5310-7a3e-4ca8-a9ea-f7d8169b3ed8.png`, `docs/DEPLOY_NOTES.md`
+- **편집 파일**: `commit_msg.txt`, `templates/partials/erp_beta_js.html`, `docs/plans/2026-03-05-erp-measurement-panel-mirroring-plan.md`, `docs/plans/2026-03-05-erp-measurement-panel-mirroring-VERIFICATION.md`, `templates/partials/erp_beta_tab.html`, `apps/api/erp_measurement.py`, `apps/api/erp_orders_as.py`, `docs/specs/2026-03-04-erp-add-orderer-workflow-default.md`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e94d5310-7a3e-4ca8-a9ea-f7d8169b3ed8.png`, `docs/guides/DEPLOY_NOTES.md`
 - **종료**: 2026-03-08 13:07:22
 
 ### Session: 27da7d1d
@@ -151,7 +163,7 @@
 ### Session: 38de1484
 - **시작**: 2026-03-04 22:21:12
 - **상태**: unknown
-- **편집 파일**: `commit_msg.txt`, `docs/plans/2026-03-05-erp-measurement-panel-mirroring-plan.md`, `docs/plans/2026-03-05-erp-measurement-panel-mirroring-VERIFICATION.md`, `templates/partials/erp_beta_js.html`, `templates/partials/erp_beta_tab.html`, `apps/api/erp_measurement.py`, `apps/api/erp_orders_as.py`, `docs/specs/2026-03-04-erp-add-orderer-workflow-default.md`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e94d5310-7a3e-4ca8-a9ea-f7d8169b3ed8.png`, `docs/DEPLOY_NOTES.md`
+- **편집 파일**: `commit_msg.txt`, `docs/plans/2026-03-05-erp-measurement-panel-mirroring-plan.md`, `docs/plans/2026-03-05-erp-measurement-panel-mirroring-VERIFICATION.md`, `templates/partials/erp_beta_js.html`, `templates/partials/erp_beta_tab.html`, `apps/api/erp_measurement.py`, `apps/api/erp_orders_as.py`, `docs/specs/2026-03-04-erp-add-orderer-workflow-default.md`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e94d5310-7a3e-4ca8-a9ea-f7d8169b3ed8.png`, `docs/guides/DEPLOY_NOTES.md`
 - **종료**: 2026-03-06 19:03:46
 
 ### Session: 7608c340
@@ -1568,3 +1580,87 @@
 | 2026-04-14 13:27:39 | END (Claude Code) | 수정: (없음) |
 
 | 2026-04-14 13:32:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 13:34:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 13:59:18 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 14:14:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 15:32:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 15:37:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 15:45:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 15:45:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 15:50:54 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 15:51:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 15:52:24 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 15:54:43 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 15:57:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 15:59:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 16:01:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 16:06:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 17:02:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 17:08:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 19:51:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 19:54:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 19:56:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 20:00:54 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 21:58:27 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-14 22:04:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 03:34:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 08:00:54 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 09:46:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 09:47:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 09:51:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 09:52:33 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 09:57:43 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 10:27:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 11:27:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 11:35:26 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 11:36:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 11:38:22 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 12:33:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 13:34:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 14:47:04 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 15:04:33 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 15:29:54 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 16:31:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-15 18:24:42 | END (Claude Code) | 수정: (없음) |

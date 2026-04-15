@@ -1,19 +1,13 @@
 /**
- * Contract freeze: helper-load resolvers in
- * static/js/wdcalculator/calculation-resolvers.js.
+ * Contract freeze: helper-load resolvers inside
+ * static/js/wdcalculator/pricing-core.js.
  */
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const helperPath = path.join(
-    repoRoot,
-    "static",
-    "js",
-    "wdcalculator",
-    "calculation-resolvers.js"
-);
+const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "pricing-core.js");
 const helperSrc = fs.readFileSync(helperPath, "utf8");
 
 function assertEq(actual, expected, label) {
@@ -33,32 +27,33 @@ function assertDeepEqual(actual, expected, label) {
 function buildSandbox(spec = {}) {
     const events = [];
     const sandbox = {
-        window: {
-            wdcComputeCurrentEstimateMath: spec.withCurrentHelper === false
-                ? undefined
-                : function (baseComponents, products, optionRows) {
-                      events.push(["current", baseComponents, products, optionRows]);
-                      return spec.currentResult || { ok: "current" };
-                  },
-            wdcComputeAggregateTotals: spec.withAggregateHelper === false
-                ? undefined
-                : function (estimatesList, couponValue, shippingCost, shippingIncluded) {
-                      events.push([
-                          "aggregate",
-                          estimatesList,
-                          couponValue,
-                          shippingCost,
-                          shippingIncluded,
-                      ]);
-                      return spec.aggregateResult || { ok: "aggregate" };
-                  },
-        },
+        window: {},
+        document: {},
         globalThis: null,
     };
     sandbox.globalThis = sandbox;
 
     vm.createContext(sandbox);
     vm.runInContext(helperSrc, sandbox, { filename: helperPath });
+
+    sandbox.window.wdcComputeCurrentEstimateMath = spec.withCurrentHelper === false
+        ? undefined
+        : function (baseComponents, products, optionRows) {
+              events.push(["current", baseComponents, products, optionRows]);
+              return spec.currentResult || { ok: "current" };
+          };
+    sandbox.window.wdcComputeAggregateTotals = spec.withAggregateHelper === false
+        ? undefined
+        : function (estimatesList, couponValue, shippingCost, shippingIncluded) {
+              events.push([
+                  "aggregate",
+                  estimatesList,
+                  couponValue,
+                  shippingCost,
+                  shippingIncluded,
+              ]);
+              return spec.aggregateResult || { ok: "aggregate" };
+          };
 
     return {
         events,
@@ -133,7 +128,7 @@ function scenarioCurrentResolverThrowsClearLoadOrderError() {
     } catch (error) {
         assertEq(
             error.message,
-            "WDCalculator: current estimate math helper is not loaded (js/wdcalculator/current-estimate-math.js). Please reload the page.",
+            "WDCalculator: current estimate math helper is not loaded (js/wdcalculator/pricing-core.js). Please reload the page.",
             "current resolver preserves load-order error message"
         );
     }
@@ -148,7 +143,7 @@ function scenarioAggregateResolverThrowsClearLoadOrderError() {
     } catch (error) {
         assertEq(
             error.message,
-            "WDCalculator: aggregate totals helper is not loaded (js/wdcalculator/estimate-totals.js). Please reload the page.",
+            "WDCalculator: aggregate totals helper is not loaded (js/wdcalculator/pricing-core.js). Please reload the page.",
             "aggregate resolver preserves load-order error message"
         );
     }

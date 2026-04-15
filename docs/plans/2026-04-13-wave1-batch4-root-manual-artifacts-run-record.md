@@ -4,18 +4,18 @@
 > 실행일: 2026-04-13
 
 ## 1. 요약
-- 루트에 흩어져 있던 **업무/참고 문서(.docx, .md)** 를 `docs/manual-artifacts/` 또는 `docs/`·`docs/guides/` 로 수렴했다.
+- 루트에 흩어져 있던 **업무/참고 문서(.docx, .md)** 를 `docs/context/manual-artifacts/` 또는 `docs/`·`docs/guides/` 로 수렴했다.
 - 수동 백업 배치 `🚨_간단_백업.bat` 는 `scripts/maintenance/` 로 이동했고, 실행 시 **저장소 루트로 `cd`** 한 뒤 기존과 동일하게 루트 shim `python simple_backup_system.py` 를 호출한다.
 
 ## 2. 이동 매핑 (git mv)
 | 이전 (루트) | 이후 |
 |-------------|------|
-| `Cloudflair R2 API.docx` | `docs/manual-artifacts/Cloudflair R2 API.docx` |
-| `Furniture Process.md` | `docs/manual-artifacts/Furniture Process.md` |
-| `가구 주문 프로세스.docx` | `docs/manual-artifacts/가구 주문 프로세스.docx` |
-| `개발자 구인 공고 내용.docx` | `docs/manual-artifacts/개발자 구인 공고 내용.docx` |
-| `SYSTEM_DOCUMENTATION.md` | `docs/SYSTEM_DOCUMENTATION.md` |
-| `WDPLANNER_INTEGRATION.md` | `docs/WDPLANNER_INTEGRATION.md` |
+| `Cloudflair R2 API.docx` | `docs/context/manual-artifacts/Cloudflair R2 API.docx` |
+| `Furniture Process.md` | `docs/context/manual-artifacts/Furniture Process.md` |
+| `가구 주문 프로세스.docx` | `docs/context/manual-artifacts/가구 주문 프로세스.docx` |
+| `개발자 구인 공고 내용.docx` | `docs/context/manual-artifacts/개발자 구인 공고 내용.docx` |
+| `SYSTEM_DOCUMENTATION.md` | `docs/guides/SYSTEM_DOCUMENTATION.md` |
+| `WDPLANNER_INTEGRATION.md` | `docs/guides/WDPLANNER_INTEGRATION.md` |
 | `DEPLOYMENT_GUIDE.md` | `docs/guides/DEPLOYMENT_GUIDE.md` |
 | `🚨_간단_백업.bat` | `scripts/maintenance/🚨_간단_백업.bat` |
 
@@ -24,7 +24,7 @@
 - 백업 로직: `python simple_backup_system.py` (루트 shim → `scripts/ops/simple_backup_system.py`).
 
 ## 4. Decision: delete / merge / extend / add
-- **add:** `docs/manual-artifacts/` (오피스 참고물 전용 디렉터리)
+- **add:** `docs/context/manual-artifacts/` (오피스 참고물 전용 디렉터리)
 - **delete:** 없음 (가치 확인 없는 삭제 금지 준수)
 
 ## 5. Direction Lock (계획서 §7.2)
@@ -49,8 +49,8 @@
 - **미발동** (Wave 1 전체 closeout은 W1-B5).
 
 ## 8. 산출물
-- `docs/manual-artifacts/*` (4개 파일)
-- `docs/SYSTEM_DOCUMENTATION.md`, `docs/WDPLANNER_INTEGRATION.md`
+- `docs/context/manual-artifacts/*` (4개 파일)
+- `docs/guides/SYSTEM_DOCUMENTATION.md`, `docs/guides/WDPLANNER_INTEGRATION.md`
 - `docs/guides/DEPLOYMENT_GUIDE.md`
 - `scripts/maintenance/🚨_간단_백업.bat`
 - 본 run record: `docs/plans/2026-04-13-wave1-batch4-root-manual-artifacts-run-record.md`

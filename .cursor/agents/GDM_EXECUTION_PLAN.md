@@ -116,10 +116,10 @@ GDM은 산하 에이전트들에게 코딩 작업 지시를 내리기 전, **무
 
 | 순서 | 작업 | 참조 | 산출물 |
 |------|------|------|--------|
-| 1 | 절차서·스크립트 존재 확인 및 사용자 안내 | `docs/RAILWAY_LOCAL_TO_REMOTE_SYNC.md`, `scripts/sync_local_to_railway.ps1` | 실수 없이 진행 가능 |
+| 1 | 절차서·스크립트 존재 확인 및 사용자 안내 | `docs/guides/RAILWAY_LOCAL_TO_REMOTE_SYNC.md`, `scripts/ops/sync_local_to_railway.ps1` | 실수 없이 진행 가능 |
 | 2 | 전제 조건 점검 (로컬 Postgres, Railway link, pg_dump/pg_restore) | 절차서 §1 | 진행 여부 판단 |
 | 3 | (선택) 사용자 대신 단계별 실행 시 절차서 §3 순서 엄수 | BACKUP_RESTORE_VERIFICATION (주문·상태 완전 포함) | 원격 = 로컬 100% 일치 |
-| 4 | 복원 후 railway_bootstrap.py + 원격 앱 검증 안내 | 절차서 §3.4, §3.5 | 완료 보고 |
+| 4 | 복원 후 `scripts/ops/railway_bootstrap.py` + 원격 앱 검증 안내 | 절차서 §3.4, §3.5 | 완료 보고 |
 
 **원칙**: 원격 초기화는 `pg_restore --clean --if-exists` 로 **원격에만** 수행. 로컬 Postgres는 **절대 삭제·수정하지 않음**(로컬에는 `pg_dump` 읽기만). 주문·상태·기타 데이터는 `pg_dump` 전체 덤프로 완전 반영.
 

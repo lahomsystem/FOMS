@@ -1,8 +1,10 @@
-# Orders API (canonical helper cluster)
+# Orders API (canonical route + helper cluster)
 
 ## 목적
 
-주문 **API 응답·상태 변경**의 canonical helper를 둔다. Flask `Blueprint`와 URL은 `apps.api.orders`에 남아 있으며, 핸들러는 `foms.api.orders`의 `*_response` helper로 위임하는 **thin adapter** 패턴이다 (Wave 2 선례, bridge debt `BD-005`).
+주문 **API 응답·상태 변경**의 canonical owner를 둔다. WR-O1 이후 Flask `Blueprint`,
+decorator binding, URL shell, `*_response` helper가 모두 `foms.api.orders`에 있다.
+`apps.api.orders`는 import compatibility만 유지하는 **re-export-only wrapper**다.
 
 ## 주요 모듈
 
@@ -15,13 +17,14 @@
 | `mutations.py` | 기타 변이 응답 |
 | `status.py` | 상태 변경 응답 |
 
-`__init__.py`는 Flask Blueprint shell만 유지한다.
+`__init__.py`는 canonical Blueprint shell과 public exports를 함께 유지한다.
 
 ## 읽기 순서
 
-1. `apps/api/orders/__init__.py` — 등록된 route → 어떤 helper를 부르는지
-2. 본 패키지의 해당 `foms.api.orders` 모듈
-3. 아직 `apps.api.erp_orders_*` 등 **legacy owner** API는 별도 모듈; 동일 도메인이라도 선례(`BD-005`)와 동일하지 않음 (Wave 2).
+1. `foms/api/orders/__init__.py` — canonical route shell + helper wiring
+2. 본 패키지의 하위 모듈 (`calendar.py`, `nearby.py`, `regional.py`, `field_update.py`, `status.py`)
+3. `apps/api/orders/__init__.py` — compatibility wrapper only
+4. 아직 `apps.api.erp_orders_*` 등 **legacy owner** API는 별도 모듈; 동일 도메인이라도 선례(`BD-005`)와 동일하지 않음 (Wave 2).
 
 ## 금지 의존성 / overlay
 

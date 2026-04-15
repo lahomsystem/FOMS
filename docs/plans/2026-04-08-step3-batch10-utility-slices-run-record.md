@@ -16,7 +16,7 @@
 이유:
 - `foms/services/db_url_resolver.py`, `foms/services/erp_utils.py`를 각각 여덟 번째, 아홉 번째 canonical service source of truth로 추가했다.
 - legacy `services/db_url_resolver.py`, `services/erp_utils.py`는 공개 API만 재수출하는 thin shim으로 전환했다.
-- 실제 direct caller 3곳(`apps/api/erp_orders_as.py`, `scripts/backup_order_schedule_dates.py`, `scripts/restore_order_schedule_dates.py`)만 canonical import로 정리해 배치 표면을 최소화했다.
+- 실제 direct caller 3곳(`apps/api/erp_orders_as.py`, `scripts/maintenance/backup_order_schedule_dates.py`, `scripts/maintenance/restore_order_schedule_dates.py`)만 canonical import로 정리해 배치 표면을 최소화했다.
 - 새 utility 행위 테스트와 shim 계약 테스트를 추가하고, `UTILITY_NS_OK`/`APP_OK`/`verify_result.py --json`/전체 `pytest -q`를 재통과했다.
 
 ## 2. 후보 비교와 선정 근거
@@ -50,8 +50,8 @@
 ### 3.3 canonical caller 전환
 - `apps/api/erp_orders_as.py`
   - `from services.erp_utils import ensure_path` → `from foms.services.erp_utils import ensure_path`
-- `scripts/backup_order_schedule_dates.py`
-- `scripts/restore_order_schedule_dates.py`
+- `scripts/maintenance/backup_order_schedule_dates.py`
+- `scripts/maintenance/restore_order_schedule_dates.py`
   - `from services.db_url_resolver import prepare_database_url_env` → `from foms.services.db_url_resolver import prepare_database_url_env`
 
 ### 3.4 테스트 추가/보강

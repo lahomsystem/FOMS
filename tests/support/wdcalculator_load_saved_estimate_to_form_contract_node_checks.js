@@ -12,7 +12,7 @@ const helperPath = path.join(
     "static",
     "js",
     "wdcalculator",
-    "load-saved-estimate-to-form.js"
+    "estimate-lifecycle.js"
 );
 const helperSrc = fs.readFileSync(helperPath, "utf8");
 

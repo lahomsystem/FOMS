@@ -61,7 +61,7 @@
 - 현재 운영 체크리스트:
   - 실측 summary panel vs 지도/대시보드 parity 확인
   - `/erp/measurement?open_map=1` 지도 E2E
-  - `python scripts/fix_geocode_status_inconsistency.py` 1회 실행
+  - `python scripts/maintenance/fix_geocode_status_inconsistency.py` 1회 실행
   - 시공팀 접근 제한 + mine 필터 수동 테스트
   - 출고 대시보드 시공자 그룹 파스텔 색상 확인
   - 성능 체감 속도 확인

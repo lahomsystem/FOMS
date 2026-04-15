@@ -157,7 +157,7 @@ Report To: `grand-develop-master`
 
 ## 자동화 자산
 - RCA 템플릿: `docs/harness/policy/INCIDENT_TEMPLATE.md`
-- 스모크 점검 스크립트: `scripts/incident_smoke.ps1`
+- 스모크 점검 스크립트: `scripts/ops/incident_smoke.ps1`
 - 자동 가드 훅: `.cursor/hooks/incident_rca_guard.py`
   - 보고서 섹션 누락 감지
   - 반복 카테고리 감지 시 `docs/context/INCIDENT_AUTOPROMOTE.md`에 승격 큐 기록

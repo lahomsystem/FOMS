@@ -1,9 +1,7 @@
 """
 Canonical Kakao address search proxy API (Wave 3).
 
-Canonical target: this module (`foms.api.address`).
-Shim: `apps.api.address` re-exports `address_bp` until consumers migrate (Wave 8).
-Removal condition: no imports from `apps.api.address` in product code; then drop shim.
+Wave 8 (W8-B5): legacy `apps.api.address` direct-import bridge removed; use this module.
 """
 from __future__ import annotations
 
@@ -13,8 +11,8 @@ import re
 import requests
 from flask import Blueprint, jsonify, request
 
-from apps.auth import login_required
-from map_config import KAKAO_REST_API_KEY
+from foms.web.auth import login_required
+from foms.services.common.geocode_config import KAKAO_REST_API_KEY
 
 logger = logging.getLogger(__name__)
 
