@@ -4,6 +4,10 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-04-16 | 세션 자동 기록 | test_ptc_physical_exactness.py, ptc_workspace_cleanup.ps1, ptc_workspace_hygiene_probe.ps1 외 2개 | ff65f267 |
+| 2026-04-16 | 세션 자동 기록 | dashboard.html, as_dashboard.html, completion_dashboard.html 외 2개 | ff65f267 |
+| 2026-04-16 | 세션 자동 기록 | .gitignore, erp_policy.py, erp_policy_tasks.py 외 2개 | 82c3c600 |
+| 2026-04-15 | 세션 자동 기록 | .gitignore, erp_policy.py, erp_policy_tasks.py 외 2개 | 82c3c600 |
 | 2026-04-15 | SLG-B1~B7 literal-gap 트랜치: 템플릿 shared/errors retire·web/API 흡수·channel/files·erp_policy flat leaf·계약 182 green·`CLEAN_ROOM_OK` HEAD·run records·AI_STATUS | 동일 + `92bbb5af`/`f4d7410a` | f4d7410a |
 | 2026-04-15 | 세션 자동 기록 | strict_canonical_b12_clean_room.ps1, address_ai_ops_loader.py, address_converter.py 외 2개 | 16fceb67 |
 | 2026-04-15 | SFC-B12: 루트 주소 AI 시므 제거·`address_ai_ops_loader`·§6.19 allowlist Compare-Object 0 diff·batch12 run record·586 passed | foms/services/common/address_ai_ops_loader.py, address_converter.py, del foms_address_learning.py, foms_advanced_address_processor.py, batch12, AI_STATUS | — |
@@ -20,8 +24,3 @@
 | 2026-04-15 | SFC-B11A slice20: B11A `apps/api/__init__.py` 빈 앵커 계약·test +1·586 passed | foms_namespace_surface_tests.py, batch11a §Slice20, AI_STATUS | — |
 | 2026-04-15 | SFC-B11A slice19: `erp_shipment_settings` re-export 계약·test +1·585 passed | foms_namespace_surface_tests.py, batch11a §Slice19, AI_STATUS | — |
 | 2026-04-15 | SFC-B11A slice18: attachments_internal/chat submodule alias 12개·test +1·584 passed | foms_namespace_surface_tests.py, batch11a §Slice18, AI_STATUS | — |
-| 2026-04-15 | SFC-B11A slice17: `erp_map`·attachments_internal/chat `blueprint` 모듈 alias 계약·test +1·583 passed | foms_namespace_surface_tests.py, batch11a §Slice17, AI_STATUS | — |
-| 2026-04-15 | SFC-B11A slice16: ERP 주문 레인 `erp_orders_*`·`erp_estimates` shim 계약·test +1·582 passed | foms_namespace_surface_tests.py, batch11a §Slice16, AI_STATUS | — |
-| 2026-04-15 | SFC-B11A slice15: 보조 API shim 계약 backup/tasks/events/debug/quest/wdcalculator·test +1·581 passed | foms_namespace_surface_tests.py, batch11a §Slice15, AI_STATUS | — |
-| 2026-04-15 | SFC-B11A slice14: WR-H1 channel_webhooks/functions/wam alias file-read + module identity·580 passed | foms_namespace_surface_tests.py, batch11a §Slice14, AI_STATUS | — |
-| 2026-04-15 | SFC-B11A slice13: WR-H1 shim file-read (notifications/attachments/chat/channel_integration)·580 passed | foms_namespace_surface_tests.py, batch11a §Slice13, AI_STATUS | — |

@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-04-15 23:22:04
-> 세션: 63b5dd92
+> 생성 시각: 2026-04-16 11:02:27
+> 세션: b73781db
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `docs/AI_STATUS.md` <- 2 edit(s), ~1047 chars (2026-04-15 23:22:03)
-- `docs/ARCHIVE_INDEX.md` <- 1 edit(s), ~509 chars (2026-04-15 23:21:44)
-- `docs/plans/2026-04-15-strict-final-canonical-tree-literal-gap-slgb7-run-record.md` <- 1 edit(s), ~2171 chars (2026-04-15 23:21:31)
-- `docs/plans/2026-04-15-strict-final-canonical-tree-literal-gap-slgb6-run-record.md` <- 1 edit(s), ~1655 chars (2026-04-15 23:21:31)
-- `foms/services/erp_policy.py` <- 1 edit(s), ~51 chars (2026-04-15 23:19:58)
-- `foms/services/erp_policy.py` <- 1 edit(s), ~52 chars (2026-04-15 23:19:57)
-- `foms/services/erp_policy.py` <- 1 edit(s), ~57 chars (2026-04-15 23:19:55)
-- `foms/services/erp_policy.py` <- 1 edit(s), ~57 chars (2026-04-15 23:19:54)
-- `foms/services/erp_policy.py` <- 2 edit(s), ~119 chars (2026-04-15 23:19:52)
-- `foms/services/orders/erp_policy_tasks.py` <- 1 edit(s), ~140 chars (2026-04-15 23:19:36)
+- `docs/ARCHIVE_INDEX.md` <- 1 edit(s), ~146 chars (2026-04-16 10:55:01)
+- `docs/plans/2026-04-16-ptc-b7-run-record.md` <- 1 edit(s), ~2307 chars (2026-04-16 10:55:01)
+- `tests/contracts/runtime/test_ptc_physical_exactness.py` <- 1 edit(s), ~75 chars (2026-04-16 10:54:49)
+- `docs/plans/2026-04-16-ptc-b5-run-record.md` <- 1 edit(s), ~0 chars (2026-04-16 10:52:54)
+- `docs/ARCHIVE_INDEX.md` <- 1 edit(s), ~165 chars (2026-04-16 10:52:48)
+- `docs/plans/2026-04-16-ptc-b6-run-record.md` <- 1 edit(s), ~707 chars (2026-04-16 10:52:43)
+- `docs/harness/PTC_WORKSPACE_HYGIENE.md` <- 1 edit(s), ~130 chars (2026-04-16 10:52:08)
+- `tools/harness/ptc_workspace_cleanup.ps1` <- 1 edit(s), ~270 chars (2026-04-16 10:52:01)
+- `tools/harness/ptc_workspace_hygiene_probe.ps1` <- 1 edit(s), ~282 chars (2026-04-16 10:52:01)
+- `docs/ARCHIVE_INDEX.md` <- 1 edit(s), ~233 chars (2026-04-16 10:50:05)
 
 ### 진행 중이던 작업
 - [2026-04-15] **`SFC-B11D`** (§6.18 `src/` retirement): **종료** — batch11d run record 참고.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import locale
 import os
 import shutil
 import stat
@@ -36,13 +37,37 @@ def _run_powershell_file(
         [_powershell_executable(), "-NoProfile", "-File", str(script_path), *args],
         cwd=REPO_ROOT,
         capture_output=True,
-        text=True,
+        text=False,
         timeout=60,
         env=env or os.environ.copy(),
     )
+    decoded = subprocess.CompletedProcess(
+        args=completed.args,
+        returncode=completed.returncode,
+        stdout=_decode_powershell_output(completed.stdout),
+        stderr=_decode_powershell_output(completed.stderr),
+    )
     if expect_success:
-        assert completed.returncode == 0, completed.stderr or completed.stdout
-    return completed
+        assert decoded.returncode == 0, decoded.stderr or decoded.stdout
+    return decoded
+
+
+def _decode_powershell_output(payload: bytes | None) -> str:
+    if not payload:
+        return ""
+
+    encodings = ["utf-8"]
+    preferred = locale.getpreferredencoding(False)
+    if preferred and preferred.lower() not in {"utf-8", "utf8"}:
+        encodings.append(preferred)
+
+    for encoding in encodings:
+        try:
+            return payload.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+
+    return payload.decode(encodings[-1], errors="replace")
 
 
 def _run_codex_wrapper(*args: str, expect_success: bool = True) -> subprocess.CompletedProcess[str]:
