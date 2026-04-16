@@ -363,7 +363,7 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
 
                     <!-- ERP Beta (새 주문 시 단계 기본값: 주문 접수) -->
                     {% set erp_beta_default_stage_received = true %}
-                    {% include "partials/shared/erp_beta_tab.html" %}
+                    {% include "orders/partials/beta_tab.html" %}
                 </div>
             </div>
         </div>
@@ -768,7 +768,7 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
     window.__ERP_DRAFT_ENDPOINT = '/api/orders/erp/draft';
 </script>
 
-{% include "partials/shared/erp_beta_js.html" %}
+{% include "orders/partials/beta_js.html" %}
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {

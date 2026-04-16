@@ -1,7 +1,7 @@
 {% extends "cs/layout.html" %}
 
 {% block content %}
-{% include 'partials/shared/erp_completion_styles.html' %}
+{% include 'cs/partials/completion_styles.html' %}
 <div class="container-fluid erp-dashboard erp-pro erp-completion erp-mobile-shell"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -90,5 +90,5 @@
   </div>
 </div>
 
-{% include 'partials/shared/erp_completion_scripts.html' %}
+{% include 'cs/partials/completion_scripts.html' %}
 {% endblock %}

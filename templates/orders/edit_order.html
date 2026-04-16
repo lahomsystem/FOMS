@@ -523,7 +523,7 @@
                     <!-- ERP Beta 탭 (shared partial) -->
                     {% if erp_beta_enabled and order.is_erp_beta %}
                     {% set erp_beta_active = is_erp_beta_order %}
-                    {% include "partials/shared/erp_beta_tab.html" %}
+                    {% include "orders/partials/beta_tab.html" %}
                     {% endif %}
                 </div>
             </div>
@@ -1421,7 +1421,7 @@
     window.__ERP_DRAFT_ENDPOINT = '/api/orders/erp/draft';
 </script>
 
-{% include "partials/shared/erp_beta_js.html" %}
+{% include "orders/partials/beta_js.html" %}
 
 <script>
     // ERP 대시보드/알림에서 바로 ERP Beta 탭으로 오픈 (?open=erp-beta)

@@ -7,7 +7,162 @@ import time
 from datetime import date
 from typing import Any, Callable
 
-from flask import Flask, current_app, g, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, current_app, g, jsonify, redirect, request, session, url_for
+
+# Inline HTML for global 404/500 (spec: no templates/errors or templates/partials/http_errors).
+_INLINE_HTML_404 = """<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>페이지를 찾을 수 없습니다 - FOMS</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .error-container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .error-code {
+            font-size: 72px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 0;
+        }
+
+        .error-message {
+            font-size: 24px;
+            color: #333;
+            margin: 10px 0 20px;
+        }
+
+        .error-description {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .btn-home {
+            display: inline-block;
+            padding: 12px 30px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: background 0.3s;
+        }
+
+        .btn-home:hover {
+            background: #5568d3;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="error-container">
+        <h1 class="error-code">404</h1>
+        <h2 class="error-message">페이지를 찾을 수 없습니다</h2>
+        <p class="error-description">
+            요청하신 페이지가 삭제되었거나, 잘못된 주소입니다.<br>
+            입력하신 주소가 정확한지 다시 한번 확인해 주세요.
+        </p>
+        <a href="/" class="btn-home">홈으로 돌아가기</a>
+    </div>
+</body>
+
+</html>"""
+
+_INLINE_HTML_500 = """<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>서버 오류 - FOMS</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .error-container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .error-code {
+            font-size: 72px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 0;
+        }
+
+        .error-message {
+            font-size: 24px;
+            color: #333;
+            margin: 10px 0 20px;
+        }
+
+        .error-description {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .btn-home {
+            display: inline-block;
+            padding: 12px 30px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: background 0.3s;
+        }
+
+        .btn-home:hover {
+            background: #5568d3;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="error-container">
+        <h1 class="error-code">500</h1>
+        <h2 class="error-message">서버 오류가 발생했습니다</h2>
+        <p class="error-description">
+            죄송합니다. 요청을 처리하는 중 문제가 발생했습니다.<br>
+            잠시 후 다시 시도해 주세요.
+        </p>
+        <a href="/" class="btn-home">홈으로 돌아가기</a>
+    </div>
+</body>
+
+</html>"""
 
 
 def register_http_bootstrap(
@@ -105,11 +260,11 @@ def register_http_bootstrap(
             str(error),
             traceback.format_exc(),
         )
-        return render_template("partials/http_errors/error_500.html"), 500
+        return _INLINE_HTML_500, 500
 
     @app.errorhandler(404)
     def not_found_error(error):
-        return render_template("partials/http_errors/error_404.html"), 404
+        return _INLINE_HTML_404, 404
 
     @app.route("/favicon.ico")
     def favicon():
