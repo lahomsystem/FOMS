@@ -4,10 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-04-15 16:32:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $plain = Get-ChildItem -Path "templates" -File -Filter "*.html" -Name | Sort-Object; $plain.Co` |
-| 2026-04-15 16:32:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $nodes = @( "foms\api\files","foms\api\measurement","templates\auth", "static\js\drawing","sta` |
-| 2026-04-15 16:33:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $allow = @('.agents','.claude','.cursor','.github','.vscode','.dockerignore','.gcloudignore','` |
-| 2026-04-15 16:33:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $allow = @('.agents','.claude','.cursor','.github','.vscode','.dockerignore','.gcloudignore','` |
 | 2026-04-15 16:33:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; (rg -c "from constants import" foms --glob "*.py" 2>$null | ForEach-Object { ($_ -split ':')[1` |
 | 2026-04-15 16:34:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
 | 2026-04-15 16:35:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
@@ -304,3 +300,7 @@
 | 2026-04-16 11:16:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File tools\harness\strict_canonical_b12_clean_room.ps1 -Ref HEAD -RunFu` |
 | 2026-04-16 11:17:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File tools\harness\ptc_workspace_cleanup.ps1 -RecursePyCache; powershel` |
 | 2026-04-16 11:17:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/harness/logs/SHELL_GUARD_LOG.md; $p = "commit_msg_sg6.txt"; $utf8 = New-Object Sy` |
+| 2026-04-16 11:19:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -8 --oneline; git status -sb` |
+| 2026-04-16 11:20:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git diff --stat` |
+| 2026-04-16 11:20:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff docs/harness/runtime/SESSION_LOG.md` |
+| 2026-04-16 11:21:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/harness/logs/SHELL_GUARD_LOG.md docs/harness/runtime/SESSION_LOG.md; $p = "commit` |
