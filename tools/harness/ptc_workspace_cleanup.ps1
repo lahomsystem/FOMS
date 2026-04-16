@@ -73,7 +73,8 @@ if ($RecursePyCache) {
             $_.FullName -notmatch '\\\.git\\' -and $_.Name -eq '__pycache__' -and
             $_.FullName -notmatch '\\node_modules\\' -and
             $_.FullName -notmatch '\\venv\\' -and
-            $_.FullName -notmatch '\\.venv\\'
+            $_.FullName -notmatch '\\.venv\\' -and
+            $_.FullName -notmatch '\\\.claude\\'
         } |
         ForEach-Object {
             if ($WhatIf) {
