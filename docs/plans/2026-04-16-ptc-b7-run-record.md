@@ -8,18 +8,26 @@
 | `python tools/harness/verify_result.py --json` | OK | |
 | `pytest tests/contracts/runtime/foms_namespace_surface_tests.py -q` | 185 passed | |
 | `pytest tests -q` | 605 passed | Includes `test_ptc_physical_exactness.py` when present |
-| `tools/harness/ptc_workspace_cleanup.ps1 -RecursePyCache` then `ptc_workspace_hygiene_probe.ps1 -RecursePyCache` | OK | `node_modules` / `venv` / `.venv` excluded from recursive `__pycache__` scan |
-| `strict_canonical_b12_clean_room.ps1 -Ref HEAD -RunFullPytest` | OK | See **HEAD lag warning** below |
+| `tools/harness/ptc_workspace_cleanup.ps1 -RecursePyCache` then `ptc_workspace_hygiene_probe.ps1 -RecursePyCache` | OK | `node_modules` / `venv` / `.venv` / `.claude/` excluded from recursive `__pycache__` scan |
+| `strict_canonical_b12_clean_room.ps1 -Ref HEAD -RunFullPytest` | OK | See FAG evidence below |
 
-## HEAD lag warning (mandatory)
+## FAG tranche evidence (updated — HEAD lag warning resolved)
 
-`strict_canonical_b12` replays tests on **committed** `HEAD`. At run time, many PTC files were still **untracked/uncommitted** (e.g. `test_ptc_physical_exactness.py`, harness scripts, run records). The clean-room run succeeded at `ff65f267` but reported **600** tests passed vs **605** on the dirty tree — consistent with PTC tests not yet in `HEAD`.
+PTC-B7 원래 기록 당시 `HEAD lag warning`은 PTC 파일들이 아직 uncommitted 상태였기 때문에 발생했다.
+PTC 전체 tranche는 이후 커밋되었고, FAG tranche(FAG-B1, FAG-B2)가 추가되었다.
 
-**Before declaring production PTC closeout:** stage and commit the full PTC tranche, then re-run:
+**현재 확정 상태 (FAG-B2 이후):**
 
-```powershell
-powershell -NoProfile -File tools\harness\strict_canonical_b12_clean_room.ps1 -Ref HEAD -RunFullPytest
-```
+| 축 | 상태 |
+|---|---|
+| HEAD | `891c1a68` (FAG-B2 커밋) |
+| `pytest tests -q` | **607 passed** (FAG-B1에서 2개 新 gate 추가) |
+| `ptc_workspace_hygiene_probe.ps1 -RecursePyCache` | **OK** |
+| `data/ops_browser_qa.db` | **부재** (FAG-B2에서 제거) |
+| `static/js/wdcalculator/README.md` | **부재** (FAG-B1에서 제거) |
+| `docs/context/wdcalculator-static-js-chunk-map.md` | **존재** (FAG-B1에서 생성) |
+
+clean-room 재실행은 FAG-B4 final exactness re-audit에서 수행한다.
 
 ## Dual-spec 1:1 GDM audit
 
