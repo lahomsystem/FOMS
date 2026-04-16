@@ -4,8 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-04-15 16:59:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git mv "templates/regional_dashboard.html" "templates/measurement/regional_dashboard.html"; gi` |
-| 2026-04-15 16:59:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git mv "templates/admin.html" "templates/admin/admin.html"; git mv "templates/change_logs.html` |
 | 2026-04-15 16:59:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git mv "templates/login.html" "templates/auth/login.html"; git mv "templates/register.html" "t` |
 | 2026-04-15 16:59:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git mv "templates/chat.html" "templates/channel/chat.html"; git mv "templates/wdplanner.html" ` |
 | 2026-04-15 16:59:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path "templates" -File -Filter "*.html" | Measure-Object | Select-Object -Expan` |
@@ -304,3 +302,5 @@
 | 2026-04-16 11:26:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/harness/logs/SHELL_GUARD_LOG.md; $p = "commit_msg_final_ev.txt"; $utf8 = New-Obje` |
 | 2026-04-16 11:26:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git log -3 --oneline` |
 | 2026-04-16 11:26:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/harness/logs/SHELL_GUARD_LOG.md; $p = "commit_msg_tail.txt"; $utf8 = New-Object S` |
+| 2026-04-16 11:26:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
+| 2026-04-16 11:26:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/harness/logs/SHELL_GUARD_LOG.md; $p = "commit_msg_tail2.txt"; $utf8 = New-Object ` |
