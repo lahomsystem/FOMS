@@ -4,9 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-04-15 15:01:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q --tb=no` |
-| 2026-04-15 15:18:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path docs -Force | Select-Object Name, Mode` |
-| 2026-04-15 15:18:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\docs"; Get-ChildItem | ForEach-Object { $_.Name }` |
 | 2026-04-15 15:18:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem docs/context -Name; Get-ChildItem docs/guides -Name | Select-Object -First 20` |
 | 2026-04-15 15:19:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git mv docs/analysis docs/context/analysis; git mv docs/manual-artifacts docs/context/manual-a` |
 | 2026-04-15 15:19:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git mv docs/DEPLOY_NOTES.md docs/guides/DEPLOY_NOTES.md; git mv docs/RAILWAY_LOCAL_TO_REMOTE_S` |
@@ -304,3 +301,6 @@
 | 2026-04-16 11:10:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; powershell -NoProfile -File tools\harness\strict_canonical_b12_clean_room.ps1 ` |
 | 2026-04-16 11:12:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff docs/harness/logs/SHELL_GUARD_LOG.md | Select-Object -First 40` |
 | 2026-04-16 11:12:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/harness/logs/SHELL_GUARD_LOG.md; $p = "commit_msg_sg.txt"; $utf8 = New-Object Sys` |
+| 2026-04-16 11:12:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File tools\harness\strict_canonical_b12_clean_room.ps1 -Ref HEAD -RunFu` |
+| 2026-04-16 11:14:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
+| 2026-04-16 11:14:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat docs/harness/logs/SHELL_GUARD_LOG.md; git add docs/harness/logs/SHELL_GUARD_LO` |
