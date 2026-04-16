@@ -4,9 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-04-15 15:24:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path docs -Directory -Name` |
-| 2026-04-15 15:26:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json 2>&1 | S` |
-| 2026-04-15 15:26:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q --tb=no 2>&1 | Select-Object -Last 15` |
 | 2026-04-15 16:29:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path . -File -Name | Sort-Object` |
 | 2026-04-15 16:29:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path . -Directory -Name | Sort-Object` |
 | 2026-04-15 16:30:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
@@ -304,3 +301,6 @@
 | 2026-04-16 11:15:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/harness/logs/SHELL_GUARD_LOG.md; $p = "commit_msg_sg3.txt"; $utf8 = New-Object Sy` |
 | 2026-04-16 11:15:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
 | 2026-04-16 11:15:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/harness/logs/SHELL_GUARD_LOG.md; git diff --cached --stat` |
+| 2026-04-16 11:15:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $p = "commit_msg_sg4.txt"; $utf8 = New-Object System.Text.UTF8Encoding $false; $t = "chore: SH` |
+| 2026-04-16 11:15:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff docs/harness/logs/SHELL_GUARD_LOG.md` |
+| 2026-04-16 11:16:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/harness/logs/SHELL_GUARD_LOG.md; $p = "commit_msg_sg5.txt"; $utf8 = New-Object Sy` |
