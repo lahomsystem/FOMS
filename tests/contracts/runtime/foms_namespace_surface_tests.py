@@ -2072,8 +2072,8 @@ def test_strict_canonical_root_manual_artifacts_sfc_b10a() -> None:
     assert (root / "docs" / "guides" / "TEST_GUIDE.md").is_file()
     assert (root / "data" / "admin" / "menu_config.json").is_file()
     assert (root / "data" / "address" / "foms_address_learning_data.json").is_file()
-    assert (root / "data" / "dumps").is_dir()
-    assert (root / "data" / "localdb").is_dir()
+    # PTC §4.3 / §2.6.2: runtime dumps/SQLite live under FOMS_RUNTIME_OUTPUT_ROOT — not repo data/dumps|localdb.
+    # Do not assert data/dumps or data/localdb directories here (see test_ptc_tracked_data_forbids_runtime_output_paths).
 
 
 def test_strict_canonical_root_deploy_tooling_artifacts_sfc_b10b() -> None:

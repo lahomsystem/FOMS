@@ -14,8 +14,17 @@ import datetime
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
+def _runtime_output_root() -> Path:
+    """PTC §3.4 / §4.3: local SQLite lives under FOMS_RUNTIME_OUTPUT_ROOT, not repo data/."""
+    raw = os.environ.get("FOMS_RUNTIME_OUTPUT_ROOT")
+    if raw:
+        return Path(raw).expanduser().resolve()
+    return Path.home() / "FOMS-runtime"
+
+
 # 1. Local Database Connection (SQLite)
-_local_sqlite = _repo_root / "data" / "localdb" / "furniture_orders.db"
+_local_sqlite = _runtime_output_root() / "localdb" / "furniture_orders.db"
+_local_sqlite.parent.mkdir(parents=True, exist_ok=True)
 LOCAL_DB_URL = f"sqlite:///{_local_sqlite.resolve().as_posix()}"
 local_engine = create_engine(LOCAL_DB_URL, echo=False)
 LocalSession = sessionmaker(bind=local_engine)

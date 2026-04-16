@@ -28,7 +28,7 @@ railway run python scripts/ops/railway_bootstrap.py
 
 ## 3. 데이터 이관 (Migration)
 
-### 방법 A: 로컬 DB가 SQLite인 경우 (`data/localdb/furniture_orders.db` 등)
+### 방법 A: 로컬 DB가 SQLite인 경우 (`%USERPROFILE%\FOMS-runtime\localdb\furniture_orders.db` 등 — `FOMS_RUNTIME_OUTPUT_ROOT` 미설정 시 기본)
 
 SQLite 데이터를 Postgres로 바로 옮기는 것은 까다롭습니다. 가장 쉬운 방법은 **CSV 내보내기/가져오기** 또는 **어드민 페이지에서 엑셀 업로드** 기능을 사용하는 것입니다.
 

@@ -38,10 +38,11 @@ python scripts/migrations/migrate_local_uploads_to_r2.py --execute --skip-existi
 ---
 
 ## 3) 로컬 DB 덤프
-권장: custom format (pg_restore용)
+권장: custom format (pg_restore용). 덤프는 **저장소 밖** `FOMS_RUNTIME_OUTPUT_ROOT` 계약 경로에 둔다 (미설정 시 `~/FOMS-runtime/dumps/foms.dump`).
 
 ```bash
-pg_dump -Fc --no-owner --no-privileges -f ./data/dumps/foms.dump "postgresql://postgres:lahom@localhost/furniture_orders"
+mkdir -p "$HOME/FOMS-runtime/dumps"
+pg_dump -Fc --no-owner --no-privileges -f "$HOME/FOMS-runtime/dumps/foms.dump" "postgresql://postgres:lahom@localhost/furniture_orders"
 ```
 
 ---
@@ -49,7 +50,7 @@ pg_dump -Fc --no-owner --no-privileges -f ./data/dumps/foms.dump "postgresql://p
 ## 4) Railway DB로 복원
 ```bash
 railway link
-railway run pg_restore --clean --if-exists --no-owner --no-privileges -d "$DATABASE_URL" ./data/dumps/foms.dump
+railway run pg_restore --clean --if-exists --no-owner --no-privileges -d "$DATABASE_URL" "$HOME/FOMS-runtime/dumps/foms.dump"
 ```
 
 ---
