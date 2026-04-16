@@ -359,6 +359,11 @@
         window.loadSidebarEstimates = loadSidebarEstimates;
         window.deleteEstimate = deleteEstimate;
         window.initWdCalculatorSidebarEstimates = initWdCalculatorSidebarEstimates;
+
+        return {
+            loadSidebarEstimates: loadSidebarEstimates,
+            deleteEstimate: deleteEstimate,
+        };
     }
 
     window.initWdCalculatorSidebarEstimates = initWdCalculatorSidebarEstimates;
