@@ -21,7 +21,9 @@
 
 ## PAC-B5 — Final proof
 
-Commands (representative; run on clean tree at same commit):
+**Committed snapshot:** `83e14b5d` (branch `feature/modular-monolith-wip`).
+
+Commands (run at `83e14b5d`):
 
 ```text
 python -c "import app; print('APP_OK')"
@@ -30,6 +32,8 @@ python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py -q
 python -m pytest tests -q
 powershell -NoProfile -File tools/harness/strict_canonical_b12_clean_room.ps1 -Ref HEAD -RunFullPytest
 ```
+
+**Observed:** `APP_OK`; `verify_result` success; **185 passed** (namespace surface); **600 passed** (full suite); clean-room **`CLEAN_ROOM_OK ref=HEAD`** (detached worktree at `83e14b5d`, full pytest inside worktree).
 
 - **Overclaim correction:** see `docs/plans/2026-04-16-pac-slgb-overclaim-correction-note.md`.
 
