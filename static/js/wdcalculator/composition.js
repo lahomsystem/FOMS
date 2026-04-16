@@ -94,11 +94,38 @@
             }
         }
 
+        /**
+         * Builds sidebar estimates API ({ loadSidebarEstimates, deleteEstimate }).
+         * If the configured init returns a non-object (legacy noop), fall back to
+         * window.initWdCalculatorSidebarEstimates from estimate-lifecycle.js.
+         */
         function initSidebarBootstrap() {
-            return initSidebarEstimates({
+            var options = {
                 loadEstimateToForm: loadEstimateToForm,
                 formatNumber: formatNumber,
-            });
+            };
+            var api = null;
+            if (typeof initSidebarEstimates === "function") {
+                api = initSidebarEstimates(options);
+            }
+            if (api && typeof api.loadSidebarEstimates === "function") {
+                return api;
+            }
+            var fallback =
+                typeof window !== "undefined" && typeof window.initWdCalculatorSidebarEstimates === "function"
+                    ? window.initWdCalculatorSidebarEstimates
+                    : null;
+            if (fallback) {
+                if (typeof console !== "undefined" && typeof console.warn === "function") {
+                    console.warn(
+                        "WDCalculator: sidebar init returned no API; using window.initWdCalculatorSidebarEstimates fallback."
+                    );
+                }
+                return fallback(options);
+            }
+            throw new Error(
+                "WDCalculator: sidebar estimates unavailable. Load estimate-lifecycle.js and ensure initWdCalculatorSidebarEstimates returns { loadSidebarEstimates }."
+            );
         }
 
         ns.configure = configure;
@@ -770,6 +797,11 @@
             }
 
             var sidebarEstimatesApi = sidebarBootstrap.initSidebarBootstrap();
+            if (!sidebarEstimatesApi || typeof sidebarEstimatesApi.loadSidebarEstimates !== "function") {
+                throw new Error(
+                    "WDCalculator: initLateBootstrap expected { loadSidebarEstimates } from sidebarBootstrap.initSidebarBootstrap"
+                );
+            }
             var loadSidebarEstimates = sidebarEstimatesApi.loadSidebarEstimates;
 
             if (refreshAfterSave && typeof refreshAfterSave.configure === "function") {
