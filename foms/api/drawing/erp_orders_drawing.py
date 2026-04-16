@@ -212,6 +212,9 @@ def api_order_transfer_drawing(order_id):
         db.add(new_notification)
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 도면 전달 완료: {note}"))
         db.commit()
+        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+        invalidate_all_dashboard_slice_caches()
 
         recipient_user_ids = resolve_notification_recipient_user_ids(
             db,
@@ -401,6 +404,9 @@ def api_order_cancel_transfer(order_id):
             )
         ))
         db.commit()
+        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+        invalidate_all_dashboard_slice_caches()
 
         status_label = '수정 요청 상태' if restore_status == 'RETURNED' else '작업중 상태'
         return jsonify({

@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-04-16 11:02:27
-> 세션: b73781db
+> 생성 시각: 2026-04-16 16:44:53
+> 세션: a2c3e4f2
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `docs/ARCHIVE_INDEX.md` <- 1 edit(s), ~146 chars (2026-04-16 10:55:01)
-- `docs/plans/2026-04-16-ptc-b7-run-record.md` <- 1 edit(s), ~2307 chars (2026-04-16 10:55:01)
-- `tests/contracts/runtime/test_ptc_physical_exactness.py` <- 1 edit(s), ~75 chars (2026-04-16 10:54:49)
-- `docs/plans/2026-04-16-ptc-b5-run-record.md` <- 1 edit(s), ~0 chars (2026-04-16 10:52:54)
-- `docs/ARCHIVE_INDEX.md` <- 1 edit(s), ~165 chars (2026-04-16 10:52:48)
-- `docs/plans/2026-04-16-ptc-b6-run-record.md` <- 1 edit(s), ~707 chars (2026-04-16 10:52:43)
-- `docs/harness/PTC_WORKSPACE_HYGIENE.md` <- 1 edit(s), ~130 chars (2026-04-16 10:52:08)
-- `tools/harness/ptc_workspace_cleanup.ps1` <- 1 edit(s), ~270 chars (2026-04-16 10:52:01)
-- `tools/harness/ptc_workspace_hygiene_probe.ps1` <- 1 edit(s), ~282 chars (2026-04-16 10:52:01)
-- `docs/ARCHIVE_INDEX.md` <- 1 edit(s), ~233 chars (2026-04-16 10:50:05)
+- `docs/plans/2026-04-16-dmc-b6-run-record.md` <- 1 edit(s), ~263 chars (2026-04-16 16:44:51)
+- `docs/plans/2026-04-16-dmc-f-run-record.md` <- 1 edit(s), ~1741 chars (2026-04-16 16:44:49)
+- `docs/plans/2026-04-16-dmc-f7-local-evidence.md` <- 1 edit(s), ~807 chars (2026-04-16 16:44:44)
+- `docs/plans/2026-04-16-dashboard-micro-cache-execution-plan.md` <- 6 edit(s), ~2075 chars (2026-04-16 16:44:36)
+- `docs/plans/2026-04-16-dashboard-micro-cache-execution-plan.md` <- 1 edit(s), ~54 chars (2026-04-16 16:44:23)
+- `tests/domains/test_dashboard_cache.py` <- 1 edit(s), ~1249 chars (2026-04-16 16:43:54)
+- `foms/web/shipment/dashboard.py` <- 3 edit(s), ~4031 chars (2026-04-16 16:43:02)
+- `foms/web/shipment/dashboard.py` <- 1 edit(s), ~304 chars (2026-04-16 16:42:50)
+- `foms/web/shipment/dashboard.py` <- 1 edit(s), ~26 chars (2026-04-16 16:42:47)
+- `foms/web/measurement/dashboard.py` <- 7 edit(s), ~611 chars (2026-04-16 16:42:38)
 
 ### 진행 중이던 작업
 - [2026-04-15] **`SFC-B11D`** (§6.18 `src/` retirement): **종료** — batch11d run record 참고.

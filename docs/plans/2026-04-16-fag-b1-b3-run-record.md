@@ -4,6 +4,7 @@
 > 상위 계획: `docs/plans/2026-04-16-strict-final-canonical-tree-final-audit-gap-closure-plan.md`
 > HEAD: `891c1a68` (FAG-B2 커밋)
 > pytest: **607 passed**
+> Historical note: 이 문서는 `FAG-B1`–`FAG-B3` 시점 기록이다. 최종 current truth는 `docs/plans/2026-04-16-fag-b4-run-record.md`를 따른다.
 
 ## FAG-B1 — FR20 README uniqueness closure
 
@@ -88,7 +89,7 @@
 
 ---
 
-## FAG-B4 진행 예정
+## Historical handoff (superseded by FAG-B4)
 
-- `strict_canonical_b12_clean_room.ps1 -Ref HEAD -RunFullPytest` 재실행 (committed HEAD 기준)
-- final GDM 1:1 audit
+- 당시 다음 단계는 `strict_canonical_b12_clean_room.ps1 -Ref HEAD -RunFullPytest` 재실행과 final GDM 1:1 audit이었다.
+- 최종 closeout은 이후 `docs/plans/2026-04-16-fag-b4-run-record.md`에서 current `HEAD` `4c3aaffb` 기준으로 완료됐다.

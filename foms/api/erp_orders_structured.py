@@ -355,6 +355,9 @@ def api_put_order_structured(order_id):
                 reset_order_geocode_on_address_change(order, new_addr)
 
         db.commit()
+        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+        invalidate_all_dashboard_slice_caches()
         commit_time = (time.perf_counter() - start_time) * 1000
         logger.info(f"save latency - main_commit: {commit_time:.1f}ms")
 
@@ -452,6 +455,9 @@ def api_payment_confirm(order_id):
         )
 
         db.commit()
+        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+        invalidate_all_dashboard_slice_caches()
         if delivery_id:
             enqueue_channeltalk_push(delivery_id)
 
@@ -519,6 +525,9 @@ def api_erp_create_draft():
         db.flush()
         sync_erp_flat_columns(order, structured)
         db.commit()
+        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+        invalidate_all_dashboard_slice_caches()
         db.refresh(order)
 
         session['erp_draft_order_id'] = order.id

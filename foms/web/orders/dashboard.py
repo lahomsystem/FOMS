@@ -24,12 +24,32 @@ from foms.services.erp_display import (
     _erp_alerts,
     _erp_has_media,
 )
-from foms.services.erp_order_detail import attach_order_detail_payloads
+from foms.services.erp_order_detail import build_order_detail_payload_map
 from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
+from foms.services.common.dashboard_cache import (
+    TTL_ATTACHMENT_COUNT_MAP,
+    TTL_PAYLOAD_ASSEMBLY,
+    TTL_SUMMARY_COUNTS,
+    build_dashboard_cache_key,
+    get_or_compute_dashboard_slice,
+)
 
 
 erp_dashboard_bp = Blueprint('erp_dashboard', __name__, url_prefix='/erp')
+
+
+def _orders_user_visibility_fingerprint(current_user, is_admin: bool) -> dict:
+    """대시보드 _q_stats / mine / 팀 가시성에 쓰이는 사용자 식별자."""
+    if not current_user:
+        return {"user_id": None, "role": None, "username": None, "name": None, "is_admin": bool(is_admin)}
+    return {
+        "user_id": getattr(current_user, "id", None),
+        "role": getattr(current_user, "role", None),
+        "username": getattr(current_user, "username", None),
+        "name": getattr(current_user, "name", None),
+        "is_admin": bool(is_admin),
+    }
 
 
 @erp_dashboard_bp.route('/dashboard')
@@ -207,102 +227,125 @@ def erp_dashboard():
         })
 
     # --- A-0. kpis / step_stats 집계 (limit 무관하게 _q_stats에서 산출) ---
-    kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0}
-    step_stats = {k: {'count': 0, 'overdue': 0, 'imminent': 0} for k in [
-        '주문접수', '실측', '도면', '고객컨펌', '생산', '시공', 'CS', '완료', 'AS처리'
-    ]}
+    _summary_fp = {
+        "v": 1,
+        "user": _orders_user_visibility_fingerprint(current_user, is_admin),
+        "filters": {
+            "mine": (request.args.get('mine') or '').strip(),
+            "q": f_q,
+            "team": f_team,
+        },
+    }
+    _summary_key = build_dashboard_cache_key("orders", "summary_counts", _summary_fp)
 
-    from sqlalchemy import func, case as sql_case
-    
-    # Phase D: 플랫 컬럼을 활용한 집계 (NULL은 주문접수로 기본 분류)
-    stage_bucket_expr = sql_case(
-        (Order.erp_stage_code.is_(None), '주문접수'),
-        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('주문접수', [])]), '주문접수'),
-        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('실측', [])]), '실측'),
-        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('도면', [])]), '도면'),
-        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('고객컨펌', [])]), '고객컨펌'),
-        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('생산', [])]), '생산'),
-        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('시공', [])]), '시공'),
-        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('CS', [])]), 'CS'),
-        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('완료', [])]), '완료'),
-        (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('AS처리', [])]), 'AS처리'),
-        else_='기타'
+    def _compute_orders_summary_slice():
+        kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0}
+        step_stats = {k: {'count': 0, 'overdue': 0, 'imminent': 0} for k in [
+            '주문접수', '실측', '도면', '고객컨펌', '생산', '시공', 'CS', '완료', 'AS처리'
+        ]}
+
+        from sqlalchemy import func, case as sql_case
+
+        # Phase D: 플랫 컬럼을 활용한 집계 (NULL은 주문접수로 기본 분류)
+        stage_bucket_expr = sql_case(
+            (Order.erp_stage_code.is_(None), '주문접수'),
+            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('주문접수', [])]), '주문접수'),
+            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('실측', [])]), '실측'),
+            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('도면', [])]), '도면'),
+            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('고객컨펌', [])]), '고객컨펌'),
+            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('생산', [])]), '생산'),
+            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('시공', [])]), '시공'),
+            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('CS', [])]), 'CS'),
+            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('완료', [])]), '완료'),
+            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('AS처리', [])]), 'AS처리'),
+            else_='기타'
+        )
+
+        stats_rows = (
+            _q_stats
+            .with_entities(stage_bucket_expr.label('bucket'), func.count(Order.id).label('cnt'))
+            .group_by(stage_bucket_expr)
+            .all()
+        )
+        for row in stats_rows:
+            if row.bucket in step_stats:
+                step_stats[row.bucket]['count'] = row.cnt
+
+        # KPI 집계 (SQL 활용 및 타겟 대상만 파이썬 연산)
+        kpis['urgent_count'] = _q_stats.filter(Order.erp_urgent == True).count()
+
+        today_date = datetime.date.today()
+
+        # measurement_d4 candidates
+        m_cutoff = (today_date + datetime.timedelta(days=12)).isoformat()
+        m_cands = _q_stats.filter(
+            Order.erp_measurement_date.isnot(None),
+            Order.erp_measurement_date >= today_date.isoformat(),
+            Order.erp_measurement_date <= m_cutoff
+        ).with_entities(Order.id, Order.structured_data).all()
+
+        # construction_d3 & production_d2 candidates
+        c_cutoff = (today_date + datetime.timedelta(days=10)).isoformat()
+        c_cands = _q_stats.filter(
+            Order.erp_construction_date.isnot(None),
+            Order.erp_construction_date >= today_date.isoformat(),
+            Order.erp_construction_date <= c_cutoff
+        ).with_entities(Order.id, Order.structured_data).all()
+
+        # drawing overdue candidates (stage DRAWING/CONFIRM)
+        d_cands = _q_stats.filter(
+            Order.erp_stage_code.in_(['DRAWING', 'CONFIRM'])
+        ).with_entities(Order.id, Order.structured_data).all()
+
+        # 합집합 후보군에 대해서만 alerts 연산
+        cand_dict = {row.id: row.structured_data for row in m_cands + c_cands + d_cands}
+        for oid, sd in cand_dict.items():
+            sd = _ensure_dict(sd)
+            alerts = _erp_alerts(None, sd, 0)
+            stage = _erp_get_stage(None, sd)
+
+            if alerts.get('measurement_d4'):
+                kpis['measurement_d4_count'] += 1
+            if alerts.get('construction_d3'):
+                kpis['construction_d3_count'] += 1
+            if alerts.get('production_d2'):
+                kpis['production_d2_count'] += 1
+
+            if stage in ('AS접수', 'AS처리'):
+                bucket = 'AS처리'
+            elif stage == 'AS완료':
+                bucket = '완료'
+            else:
+                bucket = stage
+
+            if bucket in step_stats:
+                if alerts.get('drawing_overdue'):
+                    step_stats[bucket]['overdue'] += 1
+                if alerts.get('measurement_d4') or alerts.get('construction_d3') or alerts.get('production_d2'):
+                    step_stats[bucket]['imminent'] += 1
+
+        process_steps = [
+            {'label': '주문접수', **step_stats['주문접수']},
+            {'label': '실측', **step_stats['실측']},
+            {'label': '도면', **step_stats['도면']},
+            {'label': '고객컨펌', **step_stats['고객컨펌']},
+            {'label': '생산', **step_stats['생산']},
+            {'label': '시공', **step_stats['시공']},
+            {'label': '완료', **step_stats['완료']},
+            {'label': 'CS', **step_stats['CS']},
+            {'label': 'AS처리', **step_stats['AS처리']},
+        ]
+        return {"kpis": kpis, "process_steps": process_steps}
+
+    _summary_blob = get_or_compute_dashboard_slice(
+        _summary_key,
+        TTL_SUMMARY_COUNTS,
+        _compute_orders_summary_slice,
+        page="orders",
+        slice_name="summary_counts",
     )
-    
-    stats_rows = (
-        _q_stats
-        .with_entities(stage_bucket_expr.label('bucket'), func.count(Order.id).label('cnt'))
-        .group_by(stage_bucket_expr)
-        .all()
-    )
-    for row in stats_rows:
-        if row.bucket in step_stats:
-            step_stats[row.bucket]['count'] = row.cnt
-
-    # KPI 집계 (SQL 활용 및 타겟 대상만 파이썬 연산)
-    kpis['urgent_count'] = _q_stats.filter(Order.erp_urgent == True).count()
-
-    today_date = datetime.date.today()
-    
-    # measurement_d4 candidates
-    m_cutoff = (today_date + datetime.timedelta(days=12)).isoformat()
-    m_cands = _q_stats.filter(
-        Order.erp_measurement_date.isnot(None),
-        Order.erp_measurement_date >= today_date.isoformat(),
-        Order.erp_measurement_date <= m_cutoff
-    ).with_entities(Order.id, Order.structured_data).all()
-    
-    # construction_d3 & production_d2 candidates
-    c_cutoff = (today_date + datetime.timedelta(days=10)).isoformat()
-    c_cands = _q_stats.filter(
-        Order.erp_construction_date.isnot(None),
-        Order.erp_construction_date >= today_date.isoformat(),
-        Order.erp_construction_date <= c_cutoff
-    ).with_entities(Order.id, Order.structured_data).all()
-    
-    # drawing overdue candidates (stage DRAWING/CONFIRM)
-    d_cands = _q_stats.filter(
-        Order.erp_stage_code.in_(['DRAWING', 'CONFIRM'])
-    ).with_entities(Order.id, Order.structured_data).all()
-
-    # 합집합 후보군에 대해서만 alerts 연산
-    cand_dict = {row.id: row.structured_data for row in m_cands + c_cands + d_cands}
-    for oid, sd in cand_dict.items():
-        sd = _ensure_dict(sd)
-        alerts = _erp_alerts(None, sd, 0)
-        stage = _erp_get_stage(None, sd)
-        
-        if alerts.get('measurement_d4'):
-            kpis['measurement_d4_count'] += 1
-        if alerts.get('construction_d3'):
-            kpis['construction_d3_count'] += 1
-        if alerts.get('production_d2'):
-            kpis['production_d2_count'] += 1
-            
-        if stage in ('AS접수', 'AS처리'):
-            bucket = 'AS처리'
-        elif stage == 'AS완료':
-            bucket = '완료'
-        else:
-            bucket = stage
-
-        if bucket in step_stats:
-            if alerts.get('drawing_overdue'):
-                step_stats[bucket]['overdue'] += 1
-            if alerts.get('measurement_d4') or alerts.get('construction_d3') or alerts.get('production_d2'):
-                step_stats[bucket]['imminent'] += 1
-
-    process_steps = [
-        {'label': '주문접수', **step_stats['주문접수']},
-        {'label': '실측', **step_stats['실측']},
-        {'label': '도면', **step_stats['도면']},
-        {'label': '고객컨펌', **step_stats['고객컨펌']},
-        {'label': '생산', **step_stats['생산']},
-        {'label': '시공', **step_stats['시공']},
-        {'label': '완료', **step_stats['완료']},
-        {'label': 'CS', **step_stats['CS']},
-        {'label': 'AS처리', **step_stats['AS처리']},
-    ]
+    kpis = _summary_blob["kpis"]
+    process_steps = _summary_blob["process_steps"]
 
     page_slice = filtered
 
@@ -310,53 +353,86 @@ def erp_dashboard():
     page_orders = [item['_order'] for item in page_slice]
     page_sds = {item['_order'].id: item['_sd'] for item in page_slice}
 
-    # att_counts: 50건만 배치 조회 (원래 1000건 → 50건)
-    att_counts = {}
-    if page_orders:
-        try:
-            from models import OrderAttachment
-            from sqlalchemy import func
-            order_ids = [o.id for o in page_orders]
-            rows = db.query(OrderAttachment.order_id, func.count(OrderAttachment.id).label('cnt')) \
-                     .filter(OrderAttachment.order_id.in_(order_ids)) \
-                     .group_by(OrderAttachment.order_id).all()
-            for r in rows:
-                att_counts[int(r.order_id)] = int(r.cnt)
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning("att_counts query failed: %s", e)
-            att_counts = {}
+    _att_fp = {
+        "v": 1,
+        "user": _orders_user_visibility_fingerprint(current_user, is_admin),
+        "filters": {
+            "stage": f_stage,
+            "urgent": f_urgent,
+            "has_alert": f_has_alert,
+            "alert_type": f_alert_type,
+            "q": f_q,
+            "team": f_team,
+            "mine": (request.args.get('mine') or '').strip(),
+        },
+        "page": page,
+        "order_ids": [o.id for o in page_orders],
+    }
+    _att_key = build_dashboard_cache_key("orders", "attachment_assignee_maps", _att_fp)
 
-    # user_map: 50건 assignee만 조회 (원래 1000건 전체 → 50건으로 절감)
-    all_assignee_ids: set[int] = set()
-    for o in page_orders:
-        sd = page_sds[o.id]
-        stage = _erp_get_stage(o, sd)
-        stage_key = stage if isinstance(stage, str) else ''
-        stage_code = STAGE_NAME_TO_CODE.get(stage_key, stage_key)
-        if stage_code in ('MEASURE', 'DRAWING', 'CONFIRM'):
-            assignments = sd.get('assignments') or {}
-            if stage_code in ('MEASURE', 'CONFIRM'):
-                uids = assignments.get('sales_assignee_user_ids') or []
-            else:
-                uids = assignments.get('drawing_assignee_user_ids') or []
-                if not uids:
-                    for a in ((assignments.get('drawing_assignees') or []) + (sd.get('drawing_assignees') or [])):
-                        if isinstance(a, dict) and a.get('id'):
-                            uids.append(a['id'])
-            for uid in uids:
-                try:
-                    all_assignee_ids.add(int(uid))
-                except (TypeError, ValueError):
-                    pass
-    user_map: dict[int, str] = {}
-    if all_assignee_ids:
-        users = db.query(User).filter(User.id.in_(all_assignee_ids)).all()
-        for u in users:
-            user_id = getattr(u, 'id', None)
-            user_name = getattr(u, 'name', None)
-            if isinstance(user_id, int) and isinstance(user_name, str) and user_name:
-                user_map[user_id] = user_name
+    def _compute_orders_attachment_assignee_maps():
+        # att_counts: 50건만 배치 조회 (원래 1000건 → 50건)
+        att_counts: dict[int, int] = {}
+        if page_orders:
+            try:
+                from models import OrderAttachment
+                from sqlalchemy import func
+                order_ids = [o.id for o in page_orders]
+                rows = db.query(OrderAttachment.order_id, func.count(OrderAttachment.id).label('cnt')) \
+                         .filter(OrderAttachment.order_id.in_(order_ids)) \
+                         .group_by(OrderAttachment.order_id).all()
+                for r in rows:
+                    att_counts[int(r.order_id)] = int(r.cnt)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning("att_counts query failed: %s", e)
+                att_counts = {}
+
+        # user_map: 50건 assignee만 조회 (원래 1000건 전체 → 50건으로 절감)
+        all_assignee_ids: set[int] = set()
+        for o in page_orders:
+            sd = page_sds[o.id]
+            stage = _erp_get_stage(o, sd)
+            stage_key = stage if isinstance(stage, str) else ''
+            stage_code = STAGE_NAME_TO_CODE.get(stage_key, stage_key)
+            if stage_code in ('MEASURE', 'DRAWING', 'CONFIRM'):
+                assignments = sd.get('assignments') or {}
+                if stage_code in ('MEASURE', 'CONFIRM'):
+                    uids = assignments.get('sales_assignee_user_ids') or []
+                else:
+                    uids = assignments.get('drawing_assignee_user_ids') or []
+                    if not uids:
+                        for a in ((assignments.get('drawing_assignees') or []) + (sd.get('drawing_assignees') or [])):
+                            if isinstance(a, dict) and a.get('id'):
+                                uids.append(a['id'])
+                for uid in uids:
+                    try:
+                        all_assignee_ids.add(int(uid))
+                    except (TypeError, ValueError):
+                        pass
+        user_map: dict[int, str] = {}
+        if all_assignee_ids:
+            users = db.query(User).filter(User.id.in_(all_assignee_ids)).all()
+            for u in users:
+                user_id = getattr(u, 'id', None)
+                user_name = getattr(u, 'name', None)
+                if isinstance(user_id, int) and isinstance(user_name, str) and user_name:
+                    user_map[user_id] = user_name
+        # JSON 키는 str — 역직렬화 후 int 복원
+        return {
+            "att_counts": {str(k): v for k, v in att_counts.items()},
+            "user_map": {str(k): v for k, v in user_map.items()},
+        }
+
+    _maps_blob = get_or_compute_dashboard_slice(
+        _att_key,
+        TTL_ATTACHMENT_COUNT_MAP,
+        _compute_orders_attachment_assignee_maps,
+        page="orders",
+        slice_name="attachment_assignee_maps",
+    )
+    att_counts = {int(k): int(v) for k, v in (_maps_blob.get("att_counts") or {}).items()}
+    user_map = {int(k): str(v) for k, v in (_maps_blob.get("user_map") or {}).items()}
 
     # Full enrichment: 50건만 (quest_payload, assignee_names, can_modify_domain 등 표시 필드)
     enriched = []
@@ -533,7 +609,53 @@ def erp_dashboard():
         })
 
     paginated_orders = enriched
-    attach_order_detail_payloads(db, paginated_orders)
+
+    # §3.1.1 order detail payload assembly — JSON DTO slice (slim structured_data preload)
+    _detail_fp = {
+        "v": 1,
+        "user": _orders_user_visibility_fingerprint(current_user, is_admin),
+        "filters": {
+            "stage": f_stage,
+            "urgent": f_urgent,
+            "has_alert": f_has_alert,
+            "alert_type": f_alert_type,
+            "q": f_q,
+            "team": f_team,
+            "mine": (request.args.get("mine") or "").strip(),
+        },
+        "page": page,
+        "order_ids": sorted(r["id"] for r in paginated_orders),
+    }
+    _detail_key = build_dashboard_cache_key(
+        "orders", "order_detail_payload_assembly", _detail_fp
+    )
+
+    def _compute_order_detail_payload_assembly():
+        return build_order_detail_payload_map(db, paginated_orders)
+
+    _detail_blob = get_or_compute_dashboard_slice(
+        _detail_key,
+        TTL_PAYLOAD_ASSEMBLY,
+        _compute_order_detail_payload_assembly,
+        page="orders",
+        slice_name="order_detail_payload_assembly",
+    )
+    _detail_by_id: dict[int, dict] = {}
+    if isinstance(_detail_blob, dict):
+        for _k, _v in _detail_blob.items():
+            try:
+                _detail_by_id[int(_k)] = _v  # type: ignore[assignment]
+            except (TypeError, ValueError):
+                continue
+    for row in paginated_orders:
+        oid = row["id"]
+        payload = _detail_by_id.get(oid)
+        if payload is None:
+            payload = build_order_detail_payload_map(db, [row]).get(
+                oid,
+                {"success": True, "structured_data": row.get("structured_data") or {}},
+            )
+        row["detail_payload"] = payload
 
     return render_template(
         'orders/dashboard.html',
