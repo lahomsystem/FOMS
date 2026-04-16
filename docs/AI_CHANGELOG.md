@@ -4,6 +4,15 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-04-16 | DMC-C closeout 문서: local 15 passed·Railway 증거 PENDING 템플릿(`dmc-f7-railway-evidence`)·`dmc-c-closeout-run-record`·ARCHIVE_INDEX·AI_STATUS | docs/plans/2026-04-16-dmc-f7-railway-evidence.md, dmc-c-closeout-run-record.md, dmc-f-run-record, dashboard-micro-cache-execution-plan §8, ARCHIVE_INDEX, AI_STATUS | — |
+| 2026-04-16 | 세션 자동 기록 | test_dashboard_cache.py, dashboard.py, dashboard.py 외 2개 | a2119d71 |
+| 2026-04-16 | 세션 자동 기록 | test_dashboard_micro_cache_http_fallback.py, test_dashboard_cache.py, quest.py 외 2개 | a2119d71 |
+| 2026-04-16 | Dashboard micro-cache DMC-B1~B6 closeout: `dashboard_cache`·slice cache·invalidate·differential/Redis-fallback tests·`dmc-b6-run-record`·AI_STATUS·ARCHIVE_INDEX | foms/services/common/dashboard_cache.py, foms/web/*/dashboard.py, foms/api/*, order_date_sync, tests/domains/test_dashboard*.py, docs/plans/2026-04-16-dmc-b6-run-record.md | — |
+| 2026-04-16 | 세션 자동 기록 | wdcalculator_url_bootstrap_contract_node_checks.js, wdcalculator_scripts_config.html, estimate-lifecycle.js 외 2개 | a2119d71 |
+| 2026-04-16 | 세션 자동 기록 | _commit_msg_utf8.txt, wdcalculator_scripts_config.html, composition.js 외 2개 | f1645af4 |
+| 2026-04-16 | 세션 자동 기록 | _commit_msg_utf8.txt, wdplanner.html, layout.html 외 2개 | 519d72a1 |
+| 2026-04-16 | 세션 자동 기록 | estimate-lifecycle.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c9e5d758-b16a-44be-a97f-12cf2f0d2030.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ba179a2f-72bd-4b7e-9d84-37adad502baa.png 외 2개 | 4c3aaffb |
+| 2026-04-16 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c9e5d758-b16a-44be-a97f-12cf2f0d2030.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ba179a2f-72bd-4b7e-9d84-37adad502baa.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-00463b54-07dd-488d-83be-89df998618c0.png 외 1개 | 4c3aaffb |
 | 2026-04-16 | 세션 자동 기록 | test_ptc_physical_exactness.py, ptc_workspace_cleanup.ps1, ptc_workspace_hygiene_probe.ps1 외 2개 | ff65f267 |
 | 2026-04-16 | 세션 자동 기록 | dashboard.html, as_dashboard.html, completion_dashboard.html 외 2개 | ff65f267 |
 | 2026-04-16 | 세션 자동 기록 | .gitignore, erp_policy.py, erp_policy_tasks.py 외 2개 | 82c3c600 |
@@ -16,11 +25,3 @@
 | 2026-04-15 | SFC-B11B slice5: `excel_import` → `foms/web/excel_import/routes.py`, `apps/excel_import.py` shim, batch11b·AI_STATUS·verify·586 passed | foms/web/excel_import/routes.py, foms/web/excel_import/__init__.py, apps/excel_import.py, batch11b, AI_STATUS | — |
 | 2026-04-15 | SFC-B11B slice4: `storage_dashboard` → `foms/web/storage_dashboard/routes.py`, `apps/storage_dashboard.py` shim, batch11b·AI_STATUS·verify·586 passed | foms/web/storage_dashboard/routes.py, foms/web/storage_dashboard/__init__.py, apps/storage_dashboard.py, batch11b, AI_STATUS | — |
 | 2026-04-15 | SFC-B11B slice3: `user_pages` → `foms/web/user_pages/routes.py`, `apps/user_pages.py` shim, batch11b·AI_STATUS·586 passed | foms/web/user_pages/routes.py, foms/web/user_pages/__init__.py, apps/user_pages.py, batch11b, AI_STATUS | — |
-| 2026-04-15 | SFC-B11B slice2: `dashboards` → `foms/web/dashboards/routes.py`, `apps/dashboards.py` shim, batch11b·AI_STATUS·586 passed | foms/web/dashboards/routes.py, foms/web/dashboards/__init__.py, apps/dashboards.py, batch11b, AI_STATUS | — |
-| 2026-04-15 | SFC-B11B slice1: `auth` 구현 `foms/web/auth/routes.py`, `apps/auth.py` shim, batch11b·AI_STATUS·586 passed | foms/web/auth/routes.py, foms/web/auth/__init__.py, apps/auth.py, batch11b run record, AI_STATUS | — |
-| 2026-04-15 | SFC-B11B §6.16 게이트·readiness 스냅샷 문서화, AI_STATUS 최근완료/진행중/기록보관 정리 | batch11b-apps-overlay-retirement-run-record.md, AI_STATUS | — |
-| 2026-04-15 | 세션 자동 기록 | foms_namespace_surface_tests.py, test_wdcalculator_product_settings.py, test_orders_boundary_contract.py 외 2개 | ca144560 |
-| 2026-04-15 | SFC-B11A §6.15 sign-off: batch11a 대조표·§6.16 경계 명시·AI_STATUS 진행 중 정리 | batch11a run record, AI_STATUS | — |
-| 2026-04-15 | SFC-B11A slice20: B11A `apps/api/__init__.py` 빈 앵커 계약·test +1·586 passed | foms_namespace_surface_tests.py, batch11a §Slice20, AI_STATUS | — |
-| 2026-04-15 | SFC-B11A slice19: `erp_shipment_settings` re-export 계약·test +1·585 passed | foms_namespace_surface_tests.py, batch11a §Slice19, AI_STATUS | — |
-| 2026-04-15 | SFC-B11A slice18: attachments_internal/chat submodule alias 12개·test +1·584 passed | foms_namespace_surface_tests.py, batch11a §Slice18, AI_STATUS | — |

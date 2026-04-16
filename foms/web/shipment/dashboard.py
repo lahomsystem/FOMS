@@ -4,6 +4,8 @@ from db import get_db
 from models import Order
 from foms.web.auth import login_required
 import datetime
+import hashlib
+import json
 from sqlalchemy import or_, and_, cast, String
 from sqlalchemy.orm import load_only
 from foms.services.common.business_calendar import get_holidays_kr
@@ -16,7 +18,16 @@ from foms.services.erp_shipment_settings import (
     is_order_mine_for_user,
 )
 from foms.services.as_content_safety import as_content_html_to_text
+from foms.services.common.dashboard_cache import (
+    TTL_PANEL_ROWS,
+    build_dashboard_cache_key,
+    get_or_compute_dashboard_slice,
+)
 
+# 실행 계획 §3.1.1 shipment — read-model slices:
+# - ``panel_aggregates``: construction_counts / assigned_workers / spec_units (JSON)
+# - ``shipment_panel_derived_template_payloads``: 상단 패널 stat 카드 리스트 2종 (JSON)
+# - 패널에서 파생되는 테이블 rows는 ORM 객체(§3.1.2) — ``panel_orders`` 집합은 aggregates 키의 panel_order_ids에 반영
 
 AS_SHIPMENT_STATUSES = ('AS', 'AS_RECEIVED', 'AS_COMPLETED')
 
@@ -28,6 +39,18 @@ erp_shipment_page_bp = Blueprint(
 
 def _normalize_worker_name(name):
     return str(name or '').strip().lower()
+
+
+def _shipment_user_visibility_fingerprint(current_user) -> dict:
+    """출고 대시보드 캐시 키용 사용자 식별."""
+    if not current_user:
+        return {"user_id": None, "role": None, "username": None, "team": None}
+    return {
+        "user_id": getattr(current_user, "id", None),
+        "role": getattr(current_user, "role", None),
+        "username": getattr(current_user, "username", None),
+        "team": getattr(current_user, "team", None),
+    }
 
 
 def _get_order_construction_date(order):
@@ -229,46 +252,79 @@ def erp_shipment_dashboard():
     for y in years:
         holiday_dates |= get_holidays_kr(y)
 
-    construction_counts = {}
-    assigned_workers_by_date = {}
-    spec_units_by_date = {}
-    for order in panel_orders:
-        target_dates = extract_dashboard_target_dates(order)
-        for date_value in target_dates:
-            try:
-                d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
-            except Exception:
-                continue
-            if d < range_start or d > range_end:
-                continue
-            key = d.strftime('%Y-%m-%d')
-            construction_counts[key] = construction_counts.get(key, 0) + 1
+    _agg_fp = {
+        "v": 1,
+        "user": _shipment_user_visibility_fingerprint(current_user),
+        "filters": {
+            "q": search_q,
+            "mine_only": mine_only,
+            "is_construction": bool(is_construction),
+            "panel_range_start": panel_range_start,
+            "panel_range_end": panel_range_end,
+        },
+        "panel_order_ids": sorted(o.id for o in panel_orders),
+    }
+    _agg_key = build_dashboard_cache_key("shipment", "panel_aggregates", _agg_fp)
 
-        if is_as_order(order):
-            continue
-
-        all_construction_dates = extract_all_construction_dates(order)
-        for date_value in all_construction_dates:
-            try:
-                d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
-            except Exception:
-                continue
-            if d < range_start or d > range_end:
-                continue
-            key = d.strftime('%Y-%m-%d')
-
-            shipment = {}
-            if order.structured_data and isinstance(order.structured_data, dict):  # type: ignore
-                shipment = (order.structured_data.get('shipment') or {})
-            workers = shipment.get('construction_workers') or []
-            for w in workers:
-                name_key = _normalize_worker_name(w)
-                if not name_key:
+    def _compute_shipment_panel_aggregates():
+        cc = {}
+        aw = {}
+        su = {}
+        for order in panel_orders:
+            target_dates = extract_dashboard_target_dates(order)
+            for date_value in target_dates:
+                try:
+                    d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
+                except Exception:
                     continue
-                if name_key in worker_name_map:
-                    assigned_workers_by_date.setdefault(key, set()).add(name_key)
+                if d < range_start or d > range_end:
+                    continue
+                key = d.strftime('%Y-%m-%d')
+                cc[key] = cc.get(key, 0) + 1
 
-            spec_units_by_date[key] = spec_units_by_date.get(key, 0.0) + _get_order_spec_units(order)
+            if is_as_order(order):
+                continue
+
+            all_construction_dates = extract_all_construction_dates(order)
+            for date_value in all_construction_dates:
+                try:
+                    d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
+                except Exception:
+                    continue
+                if d < range_start or d > range_end:
+                    continue
+                key = d.strftime('%Y-%m-%d')
+
+                shipment = {}
+                if order.structured_data and isinstance(order.structured_data, dict):  # type: ignore
+                    shipment = (order.structured_data.get('shipment') or {})
+                workers = shipment.get('construction_workers') or []
+                for w in workers:
+                    name_key = _normalize_worker_name(w)
+                    if not name_key:
+                        continue
+                    if name_key in worker_name_map:
+                        aw.setdefault(key, set()).add(name_key)
+
+                su[key] = su.get(key, 0.0) + _get_order_spec_units(order)
+        return {
+            "construction_counts": cc,
+            "assigned_workers_by_date": {k: sorted(list(v)) for k, v in aw.items()},
+            "spec_units_by_date": su,
+        }
+
+    _agg_blob = get_or_compute_dashboard_slice(
+        _agg_key,
+        TTL_PANEL_ROWS,
+        _compute_shipment_panel_aggregates,
+        page="shipment",
+        slice_name="panel_aggregates",
+    )
+    construction_counts = _agg_blob["construction_counts"]
+    assigned_workers_by_date = {
+        k: set(v) for k, v in _agg_blob["assigned_workers_by_date"].items()
+    }
+    spec_units_by_date = _agg_blob["spec_units_by_date"]
 
     # 검색 시 자동으로 검색 결과가 있는 날짜로 이동 (날짜 수동 클릭 번거로움 제거)
     if search_q and not use_range and (not req_date or req_date == today_date):
@@ -289,58 +345,97 @@ def erp_shipment_dashboard():
                 selected_date = max(past)
             use_single_day = True
 
-    construction_panel_dates = []
-    current = range_start
-    while current <= range_end:
-        date_str = current.strftime('%Y-%m-%d')
-        is_weekend = current.weekday() >= 5
-        is_holiday = date_str in holiday_dates
-        construction_panel_dates.append({
-            'date': date_str,
-            'count': construction_counts.get(date_str, 0),
-            'weekday': current.weekday(),
-            'is_weekend': is_weekend,
-            'is_holiday': is_holiday,
-            'is_selected': date_str == selected_date
-        })
-        current += datetime.timedelta(days=1)
+    _ws_canon = json.dumps(worker_settings, sort_keys=True, ensure_ascii=False, default=str)
+    _worker_settings_fp = hashlib.sha256(_ws_canon.encode("utf-8")).hexdigest()[:20]
+    _derived_fp = {
+        "v": 1,
+        "user": _shipment_user_visibility_fingerprint(current_user),
+        "filters": {
+            "q": search_q,
+            "mine_only": mine_only,
+            "is_construction": bool(is_construction),
+            "panel_range_start": panel_range_start,
+            "panel_range_end": panel_range_end,
+            "selected_date": selected_date,
+            "date_from": date_from,
+            "date_to": date_to,
+            "use_range": use_range,
+            "use_single_day": use_single_day,
+        },
+        "aggregates_key_suffix": _agg_key.rsplit(":", 1)[-1],
+        "worker_settings_fp": _worker_settings_fp,
+    }
+    _derived_key = build_dashboard_cache_key(
+        "shipment", "shipment_panel_derived_template_payloads", _derived_fp
+    )
 
-    remaining_panel_dates = []
-    current = range_start
-    while current <= range_end:
-        date_str = current.strftime('%Y-%m-%d')
-        is_weekend = current.weekday() >= 5
-        is_holiday = date_str in holiday_dates
-        available_workers = []
-        for w in worker_settings:
-            if date_str in (w.get('off_dates') or []):
-                continue
-            available_workers.append(w)
-        base_worker_count = len(available_workers)
-        base_capacity = sum((w.get('capacity') or 0) for w in available_workers)
-        assigned_names = assigned_workers_by_date.get(date_str, set())
-        assigned_count = 0
-        for w in available_workers:
-            if _normalize_worker_name(w.get('name')) in assigned_names:
-                assigned_count += 1
-        remaining_workers = max(base_worker_count - assigned_count, 0)
-        used_capacity = spec_units_by_date.get(date_str, 0.0)
-        remaining_capacity = max(base_capacity - used_capacity, 0)
-        remaining_panel_dates.append({
-            'date': date_str,
-            'remaining_capacity': round(remaining_capacity, 1),
-            'remaining_workers': remaining_workers,
-            'total_capacity': round(base_capacity, 1),
-            'total_workers': base_worker_count,
-            'used_capacity': round(used_capacity, 1),
-            'assigned_workers': assigned_count,
-            'is_weekend': is_weekend,
-            'is_holiday': is_holiday,
-            'is_selected': date_str == selected_date,
-            'alert_capacity': remaining_capacity <= 40,
-            'alert_workers': remaining_workers <= 3
-        })
-        current += datetime.timedelta(days=1)
+    def _compute_shipment_derived_template_payloads():
+        construction_panel_dates = []
+        current = range_start
+        while current <= range_end:
+            date_str = current.strftime('%Y-%m-%d')
+            is_weekend = current.weekday() >= 5
+            is_holiday = date_str in holiday_dates
+            construction_panel_dates.append({
+                'date': date_str,
+                'count': construction_counts.get(date_str, 0),
+                'weekday': current.weekday(),
+                'is_weekend': is_weekend,
+                'is_holiday': is_holiday,
+                'is_selected': date_str == selected_date
+            })
+            current += datetime.timedelta(days=1)
+
+        remaining_panel_dates = []
+        current = range_start
+        while current <= range_end:
+            date_str = current.strftime('%Y-%m-%d')
+            is_weekend = current.weekday() >= 5
+            is_holiday = date_str in holiday_dates
+            available_workers = []
+            for w in worker_settings:
+                if date_str in (w.get('off_dates') or []):
+                    continue
+                available_workers.append(w)
+            base_worker_count = len(available_workers)
+            base_capacity = sum((w.get('capacity') or 0) for w in available_workers)
+            assigned_names = assigned_workers_by_date.get(date_str, set())
+            assigned_count = 0
+            for w in available_workers:
+                if _normalize_worker_name(w.get('name')) in assigned_names:
+                    assigned_count += 1
+            remaining_workers = max(base_worker_count - assigned_count, 0)
+            used_capacity = spec_units_by_date.get(date_str, 0.0)
+            remaining_capacity = max(base_capacity - used_capacity, 0)
+            remaining_panel_dates.append({
+                'date': date_str,
+                'remaining_capacity': round(remaining_capacity, 1),
+                'remaining_workers': remaining_workers,
+                'total_capacity': round(base_capacity, 1),
+                'total_workers': base_worker_count,
+                'used_capacity': round(used_capacity, 1),
+                'assigned_workers': assigned_count,
+                'is_weekend': is_weekend,
+                'is_holiday': is_holiday,
+                'is_selected': date_str == selected_date,
+                'alert_capacity': remaining_capacity <= 40,
+                'alert_workers': remaining_workers <= 3
+            })
+            current += datetime.timedelta(days=1)
+        return {
+            "construction_panel_dates": construction_panel_dates,
+            "remaining_panel_dates": remaining_panel_dates,
+        }
+
+    _derived_blob = get_or_compute_dashboard_slice(
+        _derived_key,
+        TTL_PANEL_ROWS,
+        _compute_shipment_derived_template_payloads,
+        page="shipment",
+        slice_name="shipment_panel_derived_template_payloads",
+    )
+    construction_panel_dates = _derived_blob["construction_panel_dates"]
+    remaining_panel_dates = _derived_blob["remaining_panel_dates"]
 
     # 패널 데이터에서 rows 추출 (쿼리 2회→1회 통합: panel_orders가 이미 14일치 + mine_only 필터 적용됨)
     _derive_from_panel = False

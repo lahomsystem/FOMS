@@ -26,6 +26,12 @@ from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.measurement_manager_colors import build_measurement_manager_color_map
 from foms.services.measurement_dates import extract_all_measurement_dates
 from foms.services.orders.status_constants import STATUS
+from foms.services.common.dashboard_cache import (
+    TTL_PANEL_ROWS,
+    TTL_PAYLOAD_ASSEMBLY,
+    build_dashboard_cache_key,
+    get_or_compute_dashboard_slice,
+)
 
 erp_measurement_dashboard_bp = Blueprint(
     'erp_measurement_dashboard', __name__, url_prefix='/erp'
@@ -86,6 +92,18 @@ def _build_measurement_dates_for_display(order, selected_date='', date_from='', 
         others = [d for d in all_dates if d not in matched]
         return matched + others
     return all_dates
+
+
+def _measurement_user_visibility_fingerprint(current_user) -> dict:
+    """실측 대시보드 캐시 키용 사용자·팀 식별."""
+    if not current_user:
+        return {"user_id": None, "role": None, "username": None, "team": None}
+    return {
+        "user_id": getattr(current_user, "id", None),
+        "role": getattr(current_user, "role", None),
+        "username": getattr(current_user, "username", None),
+        "team": getattr(current_user, "team", None),
+    }
 
 
 @erp_measurement_dashboard_bp.route('/measurement')
@@ -166,43 +184,35 @@ def erp_measurement_dashboard():
     for r in all_rows:
         r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
 
-    panel_query = base_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
-    panel_query = panel_query.filter(
-        OrderScheduleDate.kind == 'measurement',
-        OrderScheduleDate.date >= range_start_str,
-        OrderScheduleDate.date <= range_end_str,
-    ).distinct()
-    if mine_filter_active:
-        p_mine_conds = build_mine_sql_filter(current_user)
-        if p_mine_conds:
-            panel_query = panel_query.filter(or_(*p_mine_conds))
-    panel_orders = panel_query.options(
-        load_only(
-            Order.id, Order.measurement_date, Order.structured_data,
-            Order.is_self_measurement, Order.is_erp_beta, Order.status,
-            Order.measurement_completed, Order.regional_sales_order_upload,
-            Order.regional_blueprint_sent, Order.regional_order_upload
-        ),
-        selectinload(Order.schedule_dates)
-    ).order_by(Order.id.desc()).all()
+    _panel_fp = {
+        "v": 1,
+        "user": _measurement_user_visibility_fingerprint(current_user),
+        "filters": {
+            "q": search_q,
+            "mine": "1" if mine_filter_active else "",
+            "range_start": range_start_str,
+            "range_end": range_end_str,
+            "panel_anchor": today_date,
+            "selected_date": selected_date,
+        },
+    }
+    # 실행 계획 §3.1.1 measurement: panel rows + panel summary/stat + (below) fallback/product slices
+    _panel_key = build_dashboard_cache_key(
+        "measurement", "measurement_panel_assembly", _panel_fp
+    )
 
-    for o in panel_orders:
-        o.structured_data = _ensure_dict(o.structured_data)  # type: ignore[assignment]
-
-    panel_range_values = []
-    current = range_start
-    while current <= range_end:
-        panel_range_values.append(current.strftime('%Y-%m-%d'))
-        current += datetime.timedelta(days=1)
-
-    panel_fallback_filter = _build_measurement_raw_match_filter(panel_range_values)
-    if panel_fallback_filter is not None:
-        panel_fallback_query = base_query.filter(panel_fallback_filter)
+    def _compute_measurement_panel_assembly():
+        panel_query = base_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
+        panel_query = panel_query.filter(
+            OrderScheduleDate.kind == 'measurement',
+            OrderScheduleDate.date >= range_start_str,
+            OrderScheduleDate.date <= range_end_str,
+        ).distinct()
         if mine_filter_active:
             p_mine_conds = build_mine_sql_filter(current_user)
             if p_mine_conds:
-                panel_fallback_query = panel_fallback_query.filter(or_(*p_mine_conds))
-        panel_fallback_orders = panel_fallback_query.options(
+                panel_query = panel_query.filter(or_(*p_mine_conds))
+        panel_orders = panel_query.options(
             load_only(
                 Order.id, Order.measurement_date, Order.structured_data,
                 Order.is_self_measurement, Order.is_erp_beta, Order.status,
@@ -210,52 +220,94 @@ def erp_measurement_dashboard():
                 Order.regional_blueprint_sent, Order.regional_order_upload
             ),
             selectinload(Order.schedule_dates)
-        ).order_by(Order.id.desc()).limit(1500).all()
+        ).order_by(Order.id.desc()).all()
+
+        for o in panel_orders:
+            o.structured_data = _ensure_dict(o.structured_data)  # type: ignore[assignment]
+
+        panel_range_values = []
+        cur = range_start
+        while cur <= range_end:
+            panel_range_values.append(cur.strftime('%Y-%m-%d'))
+            cur += datetime.timedelta(days=1)
+
         panel_order_ids = {o.id for o in panel_orders}
-        for order in panel_fallback_orders:
-            order.structured_data = _ensure_dict(order.structured_data)  # type: ignore[assignment]
-            if order.id in panel_order_ids:
-                continue
-            if not any(range_start_str <= d <= range_end_str for d in extract_all_measurement_dates(order)):
-                continue
-            panel_orders.append(order)
-            panel_order_ids.add(order.id)
+        panel_fallback_supplement_ids: list[int] = []
+        panel_fallback_filter = _build_measurement_raw_match_filter(panel_range_values)
+        if panel_fallback_filter is not None:
+            panel_fallback_query = base_query.filter(panel_fallback_filter)
+            if mine_filter_active:
+                p_mine_conds = build_mine_sql_filter(current_user)
+                if p_mine_conds:
+                    panel_fallback_query = panel_fallback_query.filter(or_(*p_mine_conds))
+            panel_fallback_orders = panel_fallback_query.options(
+                load_only(
+                    Order.id, Order.measurement_date, Order.structured_data,
+                    Order.is_self_measurement, Order.is_erp_beta, Order.status,
+                    Order.measurement_completed, Order.regional_sales_order_upload,
+                    Order.regional_blueprint_sent, Order.regional_order_upload
+                ),
+                selectinload(Order.schedule_dates)
+            ).order_by(Order.id.desc()).limit(1500).all()
+            for order in panel_fallback_orders:
+                order.structured_data = _ensure_dict(order.structured_data)  # type: ignore[assignment]
+                if order.id in panel_order_ids:
+                    continue
+                if not any(range_start_str <= d <= range_end_str for d in extract_all_measurement_dates(order)):
+                    continue
+                panel_orders.append(order)
+                panel_order_ids.add(order.id)
+                panel_fallback_supplement_ids.append(order.id)
 
-    years = {range_start.year, range_end.year}
-    holiday_dates = set()
-    for y in years:
-        holiday_dates |= get_holidays_kr(y)
+        years = {range_start.year, range_end.year}
+        holiday_dates = set()
+        for y in years:
+            holiday_dates |= get_holidays_kr(y)
 
-    measurement_counts = {}
-    for order in panel_orders:
-        if self_measurement_four_checks_done(order):
-            continue
-        all_dates = extract_all_measurement_dates(order)
-        for date_value in all_dates:
-            try:
-                d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
-            except Exception:
+        measurement_counts = {}
+        for order in panel_orders:
+            if self_measurement_four_checks_done(order):
                 continue
-            if d < range_start or d > range_end:
-                continue
-            key = d.strftime('%Y-%m-%d')
-            measurement_counts[key] = measurement_counts.get(key, 0) + 1
+            all_dates = extract_all_measurement_dates(order)
+            for date_value in all_dates:
+                try:
+                    d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
+                except Exception:
+                    continue
+                if d < range_start or d > range_end:
+                    continue
+                key = d.strftime('%Y-%m-%d')
+                measurement_counts[key] = measurement_counts.get(key, 0) + 1
 
-    measurement_panel_dates = []
-    current = range_start
-    while current <= range_end:
-        date_str = current.strftime('%Y-%m-%d')
-        is_weekend = current.weekday() >= 5
-        is_holiday = date_str in holiday_dates
-        measurement_panel_dates.append({
-            'date': date_str,
-            'count': measurement_counts.get(date_str, 0),
-            'weekday': current.weekday(),
-            'is_weekend': is_weekend,
-            'is_holiday': is_holiday,
-            'is_selected': date_str == selected_date
-        })
-        current += datetime.timedelta(days=1)
+        out_panel_dates = []
+        cur2 = range_start
+        while cur2 <= range_end:
+            date_str = cur2.strftime('%Y-%m-%d')
+            is_weekend = cur2.weekday() >= 5
+            is_holiday = date_str in holiday_dates
+            out_panel_dates.append({
+                'date': date_str,
+                'count': measurement_counts.get(date_str, 0),
+                'weekday': cur2.weekday(),
+                'is_weekend': is_weekend,
+                'is_holiday': is_holiday,
+                'is_selected': date_str == selected_date
+            })
+            cur2 += datetime.timedelta(days=1)
+        return {
+            "panel_summary_stat_cards": out_panel_dates,
+            "panel_row_ids": sorted(panel_order_ids),
+            "panel_fallback_supplement_ids": sorted(panel_fallback_supplement_ids),
+        }
+
+    _panel_blob = get_or_compute_dashboard_slice(
+        _panel_key,
+        TTL_PANEL_ROWS,
+        _compute_measurement_panel_assembly,
+        page="measurement",
+        slice_name="measurement_panel_assembly",
+    )
+    measurement_panel_dates = _panel_blob["panel_summary_stat_cards"]
 
     rows = []
     for order in all_rows:
@@ -283,6 +335,7 @@ def erp_measurement_dashboard():
             row_match_values.append(current_dt.strftime('%Y-%m-%d'))
             current_dt += datetime.timedelta(days=1)
 
+    row_fallback_added_ids: list[int] = []
     row_fallback_filter = _build_measurement_raw_match_filter(row_match_values)
     if row_fallback_filter is not None:
         row_fallback_query = base_query.filter(row_fallback_filter)
@@ -302,6 +355,7 @@ def erp_measurement_dashboard():
                 continue
             rows.append(order)
             existing_row_ids.add(order.id)
+            row_fallback_added_ids.append(order.id)
 
     rows = rows[:300]
     for row in rows:
@@ -312,7 +366,44 @@ def erp_measurement_dashboard():
             date_to=date_to if use_range else '',
         )
     apply_erp_display_fields_to_orders(rows)
-    build_product_items_for_orders(db, rows)
+
+    _pi_fp = {
+        "v": 1,
+        "user": _measurement_user_visibility_fingerprint(current_user),
+        "filters": {
+            "q": search_q,
+            "mine": "1" if mine_filter_active else "",
+            "date_from": date_from,
+            "date_to": date_to,
+            "selected_date": selected_date,
+            "use_range": use_range,
+            "use_single_day": use_single_day,
+        },
+        "order_ids": sorted(o.id for o in rows),
+    }
+    _pi_key = build_dashboard_cache_key(
+        "measurement", "measurement_product_items_build", _pi_fp
+    )
+
+    def _compute_measurement_product_items_build():
+        build_product_items_for_orders(db, rows)
+        return {
+            "product_items_by_id": {
+                str(o.id): (getattr(o, "product_items", None) or []) for o in rows
+            },
+            "main_table_fallback_row_ids": sorted(row_fallback_added_ids),
+        }
+
+    _pi_blob = get_or_compute_dashboard_slice(
+        _pi_key,
+        TTL_PAYLOAD_ASSEMBLY,
+        _compute_measurement_product_items_build,
+        page="measurement",
+        slice_name="measurement_product_items_build",
+    )
+    _pi_by_id = _pi_blob.get("product_items_by_id") or {}
+    for o in rows:
+        o.product_items = _pi_by_id.get(str(o.id), [])
 
     def get_manager_name_for_sort(order):
         if order.is_erp_beta and order.structured_data:

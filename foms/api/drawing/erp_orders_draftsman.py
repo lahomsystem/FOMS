@@ -128,6 +128,9 @@ def api_orders_batch_assign_draftsman():
                 continue
 
         db.commit()
+        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+        invalidate_all_dashboard_slice_caches()
 
         message = f'{success_count}건의 주문에 담당자가 지정되었습니다: {assignee_names}'
         if failed_orders:
@@ -257,6 +260,9 @@ def api_order_assign_draftsman(order_id):
         )
         db.add(drawing_event)
         db.commit()
+        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+        invalidate_all_dashboard_slice_caches()
 
         return jsonify({'success': True, 'message': f'도면 담당자가 지정되었습니다: {names}'})
 
@@ -371,6 +377,9 @@ def api_order_confirm_drawing_receipt(order_id):
         db.add(SecurityLog(user_id=current_user.id, message=f"주문 #{order_id} 도면 확정 및 단계 이동 ({old_stage} -> {next_stage})"))
 
         db.commit()
+        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+        invalidate_all_dashboard_slice_caches()
 
         # ── 구 버전 도면 파일 R2 정리 ────────────────────────────────────────────
         # drawing_current_files 에 있는 키만 최종본으로 인정하고,
@@ -421,6 +430,9 @@ def api_order_confirm_drawing_receipt(order_id):
                             pass
                 # ← DB 레코드 삭제 반드시 커밋 (없으면 빈 카드가 목록에 남음)
                 db.commit()
+                from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+                invalidate_all_dashboard_slice_caches()
         except Exception as cleanup_err:
             import traceback
             print(f"[WARN] 수령 확정 구 버전 파일 정리 중 오류 (주문 #{order_id}): {cleanup_err}")

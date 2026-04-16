@@ -13,6 +13,7 @@
 ## 컨텍스트 기록 (docs/context/)
 | 파일 | 날짜 | 키워드 | 요약 |
 |------|------|--------|------|
+| analysis/2026-04-16-repo-surface-cleanup-triage.md | 04-16 | cleanup, triage, delete, archive, keep | repo 표면적을 `삭제 / 보관-재분류 / 유지` 3등급으로 분류하고 stale log path, temp/result, one-off 문서, tests/support 보호 대상을 정리한 cleanup 후보 분석 |
 | INCIDENT_RAILWAY_GEVENT_SOCKET_2026-02-20.md | 02-20 | Railway, gevent, socket | gevent monkey-patch socket 충돌 |
 | INCIDENT_SOCKETIO_CONNECTION_2026-02-20.md | 02-20 | Socket.IO, 연결, 400 | Socket.IO 연결 실패 (400 에러) 분석 |
 | INCIDENT_URGENT_NOTIFICATION_NOT_DELIVERED_2026-03-04.md | 03-04 | 알림, 긴급, 미전달 | 긴급 알림 미전달 이슈 RCA 및 복구 기록 |
@@ -69,8 +70,16 @@
 | 2026-04-16-ptc-b2-b4-run-record.md | PTC-B2, PTC-B3, PTC-B4, proof, FR20, data, workspace-probe, run-record | PTC: 계약 테스트·clean-room 주석·워크스페이스 probe·FR20 README·data dumps/localdb 제거·SFC-B10A 정합; full pytest green; 스크립트/가이드 FOMS_RUNTIME_OUTPUT_ROOT 이행은 잔여 |
 | 2026-04-16-ptc-b5-run-record.md | PTC-B5, workspace, cleanup, FOMS_RUNTIME_OUTPUT_ROOT, run-record | PTC: workspace cleanup 스크립트·PTC_WORKSPACE_HYGIENE·sync/migrate/Railway 가이드 runtime root 정합·runtime/common inventory rationale 문서 |
 | 2026-04-16-ptc-b6-run-record.md | PTC-B6, runtime, common, inventory, run-record | PTC: §4.5 runtime/common·static/js/runtime file-by-file rationale 문서·계약 테스트 유지 |
-| 2026-04-16-ptc-b7-run-record.md | PTC-B7, closeout, clean-room, HEAD, run-record | PTC: 최종 게이트 증거·FAG tranche 이후 HEAD lag warning 해소·dual-spec GDM 요약 |
-| 2026-04-16-fag-b1-b3-run-record.md | FAG-B1, FAG-B2, FAG-B3, fr20-uniqueness, workspace-hygiene, evidence-sync, run-record | FAG: static/js/wdcalculator/README.md 제거·chunk-map docs/context/ 이동·probe green·AI_STATUS/PTC-B7 evidence 동기화 closeout (HEAD `891c1a68`, 607 passed) |
+| 2026-04-16-ptc-b7-run-record.md | PTC-B7, closeout, clean-room, HEAD, run-record | PTC historical closeout: dual-spec GDM 요약과 FAG 이전/초기 evidence를 담은 기록; latest current truth는 FAG-B4 run record |
+| 2026-04-16-fag-b1-b3-run-record.md | FAG-B1, FAG-B2, FAG-B3, fr20-uniqueness, workspace-hygiene, evidence-sync, run-record | FAG intermediate closeout: static/js/wdcalculator/README.md 제거·chunk-map docs/context/ 이동·probe green·AI_STATUS/PTC-B7 evidence 동기화 (`HEAD` `891c1a68`, 607 passed); latest final truth는 FAG-B4 run record |
+| 2026-04-16-fag-b4-run-record.md | FAG-B4, final-exactness, current-truth, clean-room, workspace-hygiene, evidence-sync, run-record | FAG final re-audit: current `HEAD` `4c3aaffb`, `pytest tests -q` 607 passed, `CLEAN_ROOM_OK`, final cleanup 후 workspace probe green, README/evidence exactness closeout |
+| 2026-04-16-repo-surface-cleanup-execution-plan.md | cleanup, repo-surface, delete, archive, keep, stale-log, temp-result, retention-policy, llm-executable, plan | repo 표면적 정리를 위해 stale shell log path, tracked temp/result, workspace residue, one-off 문서, `COMPACT_CHECKPOINT`, vendored skills/backups retention policy를 batch로 잠근 cleanup 실행 계획 |
+| 2026-04-16-dashboard-micro-cache-execution-plan.md | performance, dashboard, micro-cache, redis, orders, measurement, shipment, railway, plan | Railway 환경의 느린 서버 렌더링 대시보드(`orders`/`measurement`/`shipment`)를 Redis 기반 read-model slice cache로 가속하기 위한 실행 계획으로, TTL/key/invalidation/helper 구조와 pilot 순서를 고정한 runbook |
+| 2026-04-16-dmc-b6-run-record.md | DMC-B6, dashboard-cache, closeout, pytest, redis-fallback, differential, run-record | Dashboard micro-cache tranche closeout: APP_OK·verify_result·cache/differential/HTTP fallback 테스트·회귀 증거; 운영 latency 수치는 선택적 운영 메모 |
+| 2026-04-16-dmc-f-run-record.md | DMC-F, dashboard-cache, slice, order_detail_payload_assembly, compute_ms, run-record | 계획 §3.1.1 1:1 보강 slice·로컬 검증 요약; Railway HTTP 실측은 별도 |
+| 2026-04-16-dmc-f7-local-evidence.md | DMC-F7, pytest, hit, miss, compute_ms, local-evidence | 로컬·CI 동등 hit/miss/`compute_ms` 증거 (FakeRedis·pytest) |
+| 2026-04-16-dmc-f7-railway-evidence.md | DMC-F7, Railway, prod, DashCache, pending | Railway·prod 운영 로그 수집 템플릿; 원문 붙이기 전까지 §4.5 Railway 실측 미완 |
+| 2026-04-16-dmc-c-closeout-run-record.md | DMC-C, closeout, local-verify, railway-blocked, run-record | DMC-C1~C5 마감 시도: 로컬 15 passed·migration/template diff 없음; Railway CLI 미인증으로 운영 증거 PENDING |
 | 2026-04-15-strict-final-canonical-tree-literal-gap-slgb0-run-record.md | strict, SLG-B0, literal-gap, inventory-freeze, B12-blind-spot, non-goal, run-record | literal-gap tranche 진입: live `templates/`·`foms/web/`·`foms/api/`·`foms/services/` extra-dir 인벤토리 동결, B12 subtree blind spot·non-goal 고정, APP_OK, docs-only |
 | 2026-04-15-strict-final-canonical-tree-literal-gap-slgb1-run-record.md | strict, SLG-B1, literal-gap, pytest, clean-room, harness, run-record | SLG closed-set·`render_template(errors/)`·subtree 게이트 freeze; drift red 허용 계약 |
 | 2026-04-15-strict-final-canonical-tree-literal-gap-slgb2-run-record.md | strict, SLG-B2, literal-gap, templates, shared-retire, errors-retire, run-record | `shared/layout` 분해 partials, 컨텍스트 `layout.html`, `partials/http_errors`, `http.py` 정렬; templates SLG 게이트 green |

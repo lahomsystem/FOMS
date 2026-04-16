@@ -4,60 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-04-15 16:59:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git mv "templates/login.html" "templates/auth/login.html"; git mv "templates/register.html" "t` |
-| 2026-04-15 16:59:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git mv "templates/chat.html" "templates/channel/chat.html"; git mv "templates/wdplanner.html" ` |
-| 2026-04-15 16:59:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path "templates" -File -Filter "*.html" | Measure-Object | Select-Object -Expan` |
-| 2026-04-15 16:59:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path root = Path('templates') for p in root.rglob('*.html'): t` |
-| 2026-04-15 16:59:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/_b7_extends_replace.py` |
-| 2026-04-15 17:03:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-04-15 17:03:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json` |
-| 2026-04-15 17:03:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_map_view_manager_contract.py tests/domains/test_foms_names` |
-| 2026-04-15 17:04:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q --tb=line` |
-| 2026-04-15 17:06:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path static\js -Directory | ForEach-Object { $_.Name }; Write-Host "---"; Get-C` |
-| 2026-04-15 17:07:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json | Select` |
-| 2026-04-15 17:12:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Copy-Item -Path "foms\api\measurement.py" -Destination "foms\api\measurement\routes.py" -Force` |
-| 2026-04-15 17:12:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-04-15 17:13:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json; python -m pytest tests -q --tb=short` |
-| 2026-04-15 17:15:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/domains/test_channel_push_mess` |
-| 2026-04-15 17:16:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests -q --tb=line` |
-| 2026-04-15 17:18:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -File | Select-Object Name | Sort-Object Name` |
-| 2026-04-15 17:20:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if (-not (Test-Path "data\dumps")) { New-Item -ItemType Directory -Path "data\dumps" -Force | ` |
-| 2026-04-15 17:20:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git mv build_wdplanner.bat scripts/maintenance/build_wdplanner.bat; git mv start_foms_utf8.bat` |
-| 2026-04-15 17:23:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json 2>&1 | S` |
-| 2026-04-15 17:23:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py::test_strict_canonica` |
-| 2026-04-15 17:23:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if (Test-Path "foms.dump") { Move-Item -Path "foms.dump" -Destination "data\dumps\foms.dump" -` |
-| 2026-04-15 17:27:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py::test_strict_canonica` |
-| 2026-04-15 17:27:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if (Test-Path "furniture_orders.db") { Move-Item -Path "furniture_orders.db" -Destination "dat` |
-| 2026-04-15 17:29:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py::test_strict_canonica` |
-| 2026-04-15 17:29:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; foreach ($f in @("migration_ready.db","ops_browser_qa.db")) { if (Test-Path $f) { Move-Item -P` |
-| 2026-04-15 17:29:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py::test_strict_canonica` |
-| 2026-04-15 17:29:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q --tb=line 2>&1 | Select-Object -Last 15` |
-| 2026-04-15 17:37:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
-| 2026-04-15 17:42:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/contracts/runtime/foms_namespa` |
-| 2026-04-15 17:42:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if (Test-Path "config") { Remove-Item -Recurse -Force "config" }` |
-| 2026-04-15 17:42:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py::test_strict_canonica` |
-| 2026-04-15 17:45:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem apps -Recurse -File | Where-Object { $_.Extension -eq '.py' -and $_.FullName -no` |
-| 2026-04-15 17:46:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem apps -Recurse -File | Where-Object { $_.Extension -eq '.py' -and $_.FullName -no` |
-| 2026-04-15 17:49:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
-| 2026-04-15 17:50:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; pytest tests/domains/test_foms_namespace_imports.py::test_erp_pages_use_canonical_erp_display_` |
-| 2026-04-15 17:51:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; pytest tests -q --tb=line` |
-| 2026-04-15 17:55:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path root = Path('.').resolve() skip = {'foms/web/auth/__init_` |
-| 2026-04-15 17:56:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; pytest tests -q --tb=short` |
-| 2026-04-15 17:57:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json` |
-| 2026-04-15 18:00:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json | Select` |
-| 2026-04-15 18:04:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json 2>&1 | S` |
-| 2026-04-15 18:12:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json` |
-| 2026-04-15 18:12:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q --tb=short` |
-| 2026-04-15 18:22:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
-| 2026-04-15 19:00:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
-| 2026-04-15 19:04:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
-| 2026-04-15 19:07:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
-| 2026-04-15 19:08:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q --tb=short` |
-| 2026-04-15 19:11:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
-| 2026-04-15 19:14:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
-| 2026-04-15 19:17:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path root = Path('.').resolve() apps = root / 'apps' live = fr` |
-| 2026-04-15 19:17:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/compare_apps_inventory.py 2>$null; if (-not $?) { python -c "from pathlib` |
-| 2026-04-15 19:18:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
 | 2026-04-15 19:21:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
 | 2026-04-15 19:24:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; pytest tests/contracts/runtime/foms_namespace_surface_tests.py::test_wr_h1_high_risk_cluster_s` |
 | 2026-04-15 19:27:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; pytest tests/contracts/runtime/foms_namespace_surface_tests.py::test_wr_h1_aux_api_shim_shells` |
@@ -304,3 +250,57 @@
 | 2026-04-16 11:26:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/harness/logs/SHELL_GUARD_LOG.md; $p = "commit_msg_tail.txt"; $utf8 = New-Object S` |
 | 2026-04-16 11:26:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
 | 2026-04-16 11:26:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/harness/logs/SHELL_GUARD_LOG.md; $p = "commit_msg_tail2.txt"; $utf8 = New-Object ` |
+| 2026-04-16 14:40:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -1 --oneline cc3496be2a229908385b1dac4202de8616bb8da6; git log -1 --oneline eb01c5d768` |
+| 2026-04-16 14:40:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat eb01c5d768c5ea6d9a52aafc2b61cf1264f92bc3 cc3496be2a229908385b1dac4202de8616bb8` |
+| 2026-04-16 14:40:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff eb01c5d768c5ea6d9a52aafc2b61cf1264f92bc3 cc3496be2a229908385b1dac4202de8616bb8da6 -- ` |
+| 2026-04-16 14:43:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff eb01c5d768c5ea6d9a52aafc2b61cf1264f92bc3 cc3496be2a229908385b1dac4202de8616bb8da6 -- ` |
+| 2026-04-16 14:48:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; node tests/support/wdcalculator_sidebar_bootstrap_contract_node_checks.js` |
+| 2026-04-16 14:48:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-04-16 14:51:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; node tests/support/wdcalculator_sidebar_bootstrap_contract_node_checks.js; python -c "import a` |
+| 2026-04-16 14:53:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git log -3 --oneline` |
+| 2026-04-16 14:53:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $msg = @" fix: WDCalculator 사이드바 init이 loadSidebarEstimates API를 반환하도록 수정 initWdCalculatorSide` |
+| 2026-04-16 14:53:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin feature/modular-monolith-wip` |
+| 2026-04-16 14:54:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a; git fetch origin 2>&1; git log origin/deploy -1 --oneline 2>$null; git log orig` |
+| 2026-04-16 14:54:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git log --oneline origin/deploy..origin/feature/modular-monolith-wip | head ` |
+| 2026-04-16 15:00:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json` |
+| 2026-04-16 15:00:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from app import app from flask import render_template_string with app.app_context(` |
+| 2026-04-16 15:00:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from app import app with app.test_request_context('/'): html = app.jinja_env.get_t` |
+| 2026-04-16 15:00:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from app import app with app.test_request_context('/'): html = app.jinja_env.get_t` |
+| 2026-04-16 15:00:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
+| 2026-04-16 15:01:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/admin/layout.html templates/auth/layout.html templates/channel/layout.html t` |
+| 2026-04-16 15:01:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin feature/modular-monolith-wip` |
+| 2026-04-16 15:17:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; node tests/support/wdcalculator_sidebar_bootstrap_contract_node_checks.js; node tests/support/` |
+| 2026-04-16 15:18:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; node tests/support/wdcalculator_late_bootstrap_contract_node_checks.js; node tests/support/wdc` |
+| 2026-04-16 15:18:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json 2>&1 | S` |
+| 2026-04-16 15:18:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/js/wdcalculator/composition.js templates/wdcalculator/partials/wdcalculator_scr` |
+| 2026-04-16 15:25:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-04-16 15:25:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; node tests/support/wdcalculator_url_bootstrap_contract_node_checks.js` |
+| 2026-04-16 15:25:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json 2>&1` |
+| 2026-04-16 15:26:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; node tests/support/wdcalculator_url_bootstrap_contract_node_checks.js` |
+| 2026-04-16 15:26:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/js/wdcalculator/estimate-lifecycle.js templates/wdcalculator/partials/wdcalcula` |
+| 2026-04-16 15:26:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F ".git/COMMITMSG_WDC_SIDEBAR.txt"; Remove-Item ".gi` |
+| 2026-04-16 16:21:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-04-16 16:21:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_dashboard_cache.py -q` |
+| 2026-04-16 16:21:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json` |
+| 2026-04-16 16:24:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m py_compile foms/web/orders/dashboard.py; python -m pytest tests/domains/test_dashboa` |
+| 2026-04-16 16:24:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_detail_preload.py::test_erp_dashboard_includes_p` |
+| 2026-04-16 16:29:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
+| 2026-04-16 16:29:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_detail_preload.py::test_erp_dashboard_includes_p` |
+| 2026-04-16 16:31:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
+| 2026-04-16 16:32:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_detail_preload.py tests/domains/test_erp_measure` |
+| 2026-04-16 16:43:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json` |
+| 2026-04-16 16:43:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_dashboard_cache.py tests/domains/test_dashboard_micro_cach` |
+| 2026-04-16 16:43:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_detail_preload.py::test_erp_dashboard_includes_p` |
+| 2026-04-16 16:44:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_dashboard_cache.py::test_get_or_compute_logs_compute_ms_hi` |
+| 2026-04-16 16:45:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json` |
+| 2026-04-16 16:45:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_dashboard_cache.py tests/domains/test_dashboard_micro_cach` |
+| 2026-04-16 16:54:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short; git diff --stat` |
+| 2026-04-16 16:54:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_dashboard_cache.py tests/domains/test_dashboard_micro_cach` |
+| 2026-04-16 16:54:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json 2>&1 | S` |
+| 2026-04-16 16:54:45 | allow | `-` | `where.exe railway 2>$null; railway --version 2>&1` |
+| 2026-04-16 16:54:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway status 2>&1` |
+| 2026-04-16 16:55:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --name-only HEAD -- migrations/ templates/ 2>&1` |
+| 2026-04-16 19:35:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git log origin/HEAD..HEAD --oneline 2>$null; git log HEAD..origin/HEAD --oneli` |
+| 2026-04-16 19:35:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse HEAD; git rev-parse origin/feature/modular-monolith-wip 2>&1; git cherry -v orig` |
+| 2026-04-16 19:37:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short` |
+| 2026-04-16 19:37:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git reset HEAD -- _commit_msg_dmc_utf8.txt 2>$null; git status --short` |

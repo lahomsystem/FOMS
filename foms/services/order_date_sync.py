@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime
 from typing import Any
 
 from db import get_db
+
+logger = logging.getLogger(__name__)
 from models import OrderScheduleDate
 
 __all__ = [
@@ -213,3 +216,21 @@ def register_date_sync_listener() -> None:
 
         for order in changed_orders:
             sync_order_dates(order, session)
+
+        if changed_orders:
+            session.info["foms_dashcache_order_dates"] = True
+
+    @event.listens_for(Session, "after_commit")
+    def _dashcache_after_commit_schedule_sync(session):
+        if not session.info.pop("foms_dashcache_order_dates", None):
+            return
+        try:
+            from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+            invalidate_all_dashboard_slice_caches()
+        except Exception as exc:
+            logger.warning(
+                "[DashCache] after_commit invalidate failed (non-fatal): %s",
+                exc,
+                exc_info=True,
+            )

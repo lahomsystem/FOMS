@@ -213,6 +213,9 @@ def api_order_attachments_complete(order_id):
         )
         db.add(attachment)
         db.commit()
+        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+        invalidate_all_dashboard_slice_caches()
         db.refresh(attachment)
         storage_key = getattr(attachment, "storage_key", None)
         thumbnail_key = getattr(attachment, "thumbnail_key", None)

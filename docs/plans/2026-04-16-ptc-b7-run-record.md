@@ -1,5 +1,7 @@
 # PTC-B7 — Final dual-surface closeout (run record)
 
+> Historical note: PTC final evidence는 이후 FAG tranche에서 재감리됐다. current final exactness truth는 `docs/plans/2026-04-16-fag-b4-run-record.md`를 따른다.
+
 ## Evidence (this workspace session)
 
 | Gate | Result | Notes |
@@ -11,7 +13,7 @@
 | `tools/harness/ptc_workspace_cleanup.ps1 -RecursePyCache` then `ptc_workspace_hygiene_probe.ps1 -RecursePyCache` | OK | `node_modules` / `venv` / `.venv` / `.claude/` excluded from recursive `__pycache__` scan |
 | `strict_canonical_b12_clean_room.ps1 -Ref HEAD -RunFullPytest` | OK | See FAG evidence below |
 
-## FAG tranche evidence (updated — HEAD lag warning resolved)
+## FAG tranche evidence (historical sync before FAG-B4)
 
 PTC-B7 원래 기록 당시 `HEAD lag warning`은 PTC 파일들이 아직 uncommitted 상태였기 때문에 발생했다.
 PTC 전체 tranche는 이후 커밋되었고, FAG tranche(FAG-B1, FAG-B2)가 추가되었다.
@@ -27,7 +29,7 @@ PTC 전체 tranche는 이후 커밋되었고, FAG tranche(FAG-B1, FAG-B2)가 추
 | `static/js/wdcalculator/README.md` | **부재** (FAG-B1에서 제거) |
 | `docs/context/wdcalculator-static-js-chunk-map.md` | **존재** (FAG-B1에서 생성) |
 
-clean-room 재실행은 FAG-B4 final exactness re-audit에서 수행한다.
+이 시점 이후 clean-room 재실행과 final exactness re-audit은 `FAG-B4`에서 current `HEAD` 기준으로 다시 수행됐다.
 
 ## Dual-spec 1:1 GDM audit
 

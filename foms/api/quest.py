@@ -83,6 +83,9 @@ def api_order_quest_get(order_id):
                     order.structured_data = sd
                     order.updated_at = datetime.datetime.now()
                     db.commit()
+                    from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+                    invalidate_all_dashboard_slice_caches()
 
         return jsonify({
             'success': True,
@@ -144,6 +147,9 @@ def api_order_quest_create(order_id):
         order.structured_data = sd
         order.updated_at = datetime.datetime.now()
         db.commit()
+        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+        invalidate_all_dashboard_slice_caches()
 
         return jsonify({'success': True, 'quest': new_quest})
     except Exception as e:
@@ -418,6 +424,9 @@ def api_order_quest_approve(order_id):
         order.updated_at = now
         sync_erp_flat_columns(order, sd)
         db.commit()
+        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+        invalidate_all_dashboard_slice_caches()
 
         next_stage_for_response = None
         if is_complete:
@@ -494,6 +503,9 @@ def api_order_quest_update_status(order_id):
         order.structured_data = sd
         order.updated_at = now
         db.commit()
+        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+        invalidate_all_dashboard_slice_caches()
 
         return jsonify({'success': True, 'quest': quests[quest_index]})
     except Exception as e:
