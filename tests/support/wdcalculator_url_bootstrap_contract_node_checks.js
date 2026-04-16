@@ -232,6 +232,16 @@ async function scenarioOrderIdAddsBackButton() {
     assertEq(Boolean(backBtn), true, "order_id adds back-to-order button");
     assertEq(backBtn.href, "/edit/321", "order_id preserves legacy edit link");
     assertIncludes(backBtn.innerHTML, "주문으로 돌아가기", "order_id keeps button text");
+    assertEq(env.loadSidebarCalls.length, 1, "order_id without estimate_id still triggers initial sidebar load");
+}
+
+async function scenarioPlainEntryLoadsSidebarOnce() {
+    const env = buildSandbox({
+        search: "",
+    });
+
+    assertEq(env.loadSidebarCalls.length, 1, "plain /wdcalculator entry triggers initial sidebar list load");
+    assertEq(env.fetchCalls.length, 0, "plain entry does not fetch single-estimate API");
 }
 
 async function scenarioEstimateIdLoadsImmediatelyWhenProductsReady() {
@@ -359,6 +369,7 @@ async function scenarioProductWaitTimeoutFallsBackToFetch() {
 
 (async function run() {
     await scenarioOrderIdAddsBackButton();
+    await scenarioPlainEntryLoadsSidebarOnce();
     await scenarioEstimateIdLoadsImmediatelyWhenProductsReady();
     await scenarioEstimateIdWaitsForProductsThenLoads();
     await scenarioEstimateResponseWithoutProductsRetriesAfter1sThenAlerts();
