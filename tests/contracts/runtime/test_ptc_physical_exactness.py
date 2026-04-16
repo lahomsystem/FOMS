@@ -196,3 +196,30 @@ def test_ptc_fr20_readme_authoritative_one_per_context() -> None:
         if not p.is_file():
             missing.append(str(p.relative_to(_REPO_ROOT)))
     assert not missing, "FR20 authoritative README.md missing:\n" + "\n".join(missing)
+
+
+def test_ptc_fr20_readme_no_extra_static_js_wdcalculator() -> None:
+    """``static/js/wdcalculator/README.md`` must be absent (FAG-B1 uniqueness gate).
+
+    FR20 authoritative home for wdcalculator is ``foms/web/wdcalculator/README.md``.
+    The static-JS chunk map was relocated to ``docs/context/wdcalculator-static-js-chunk-map.md``.
+    Any README inside ``static/js/wdcalculator/`` would create a duplicate FR20 home.
+    """
+    forbidden = _REPO_ROOT / "static" / "js" / "wdcalculator" / "README.md"
+    assert not forbidden.exists(), (
+        "Duplicate FR20 README found: static/js/wdcalculator/README.md must be absent. "
+        "Chunk map technical doc belongs in docs/context/wdcalculator-static-js-chunk-map.md "
+        "(FAG-B1 §3.3 uniqueness lock)."
+    )
+
+
+def test_ptc_fr20_chunk_map_doc_present() -> None:
+    """``docs/context/wdcalculator-static-js-chunk-map.md`` must exist (FAG-B1 relocation gate).
+
+    The chunk map was relocated from ``static/js/wdcalculator/README.md``.
+    """
+    chunk_map = _REPO_ROOT / "docs" / "context" / "wdcalculator-static-js-chunk-map.md"
+    assert chunk_map.is_file(), (
+        "Missing docs/context/wdcalculator-static-js-chunk-map.md — "
+        "chunk map must be present after FAG-B1 relocation."
+    )

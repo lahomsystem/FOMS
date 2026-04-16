@@ -1,6 +1,10 @@
 # WDCalculator static JS — Wave 5 canonical chunk map
 
-이 디렉터리는 **WDCalculator** bounded context의 런타임 모듈이다. Wave 5에서는 네 개의 **canonical chunk**로 수렴하는 것이 목표이며, “얇은 host-bootstrap” 파일 증식은 금지다.
+> 이 파일은 역사적 기술 문서다.
+> FR20 authoritative home: `foms/web/wdcalculator/README.md`
+> 원본 경로(`static/js/wdcalculator/README.md`)는 FAG-B1에서 제거되었다.
+
+이 디렉터리는 **WDCalculator** bounded context의 런타임 모듈이다. Wave 5에서는 네 개의 **canonical chunk**로 수렴하는 것이 목표이며, "얇은 host-bootstrap" 파일 증식은 금지다.
 
 ## Authoritative chunk targets
 
@@ -51,6 +55,6 @@
 ## Merge / retire 방향 (요약)
 
 - **merge:** 기존 micro 모듈 → 위 네 canonical 파일로 흡수(W5-B2~B5, `delete → merge → extend → add`).
-- **retire-later (W5-B2에서 청산 완료):** composition 밴드에 병합·삭제된 22개 모듈(구 `*bootstrap.js` / `*-host-bootstrap.js` 일부). Node contract 테스트는 `composition.js` 단일 소스를 `vm`에서 실행해 동일 헬퍼 계약을 검증한다.
+- **retire-later (W5-B2에서 청산 완료):** composition 밴드에 병합·삭제된 22개 모듈(구 `*bootstrap.js` / `*-host-bootstrap.js` 일부). Node contract 테스트는 `composition.js` 단일 소스를 `vm`에서 실행해 동일 `WdCalculator*` 헬퍼 계약을 검증한다.
 - **retire-later (W5-B4에서 청산 완료):** estimate-lifecycle 밴드 18개 모듈. Node contract 테스트는 `estimate-lifecycle.js` 단일 소스를 읽되, 기존 `WdCalculator*` export 이름과 focused contract subset은 유지한다.
 - **retire-later (W5-B5에서 청산 완료):** pricing-core 밴드 6개 모듈. Node contract 테스트는 `pricing-core.js` 단일 소스를 읽되, 기존 `WdCalculator*` / `wdcCompute*` export 이름과 focused contract subset은 유지한다.

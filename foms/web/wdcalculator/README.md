@@ -13,7 +13,7 @@ WD 견적 계산기 **페이지**·템플릿 진입점의 canonical web owner를
 1. `foms/platform/blueprints.py`
 2. 본 디렉터리
 3. `foms/api/` 내 wdcalculator 관련 surface
-4. `static/js/wdcalculator/` — 로드 순서·chunk 맵 (Wave 5 계획 참고)
+4. `static/js/wdcalculator/` — JS 런타임 파일 (로드 순서·chunk 맵은 `docs/context/wdcalculator-static-js-chunk-map.md` 참고)
 
 ## 금지 의존성
 
