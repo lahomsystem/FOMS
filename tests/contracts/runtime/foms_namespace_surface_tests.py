@@ -14,6 +14,9 @@ SFC: ``test_sfc_product_tree_no_apps_imports_in_foms_app_run`` locks zero ``apps
 SLG-B1+: ``test_slg_literal_gap_*`` — subtree literal closed-set gates per
 ``docs/plans/2026-04-15-strict-final-canonical-tree-literal-gap-remediation-plan.md`` §4 (templates/web/api/services),
 template shell fragments, ``render_template("errors/...)`` ban, ``orders/erp_policy_internal`` ban.
+PAC-B1+: ``test_pac_b1_*`` — post-audit correction gates per
+``docs/plans/2026-04-16-strict-final-canonical-tree-post-audit-correction-plan.md``
+(chat blueprint url_for ban, ``partials/http_errors`` ban, ``templates/partials/shared/*.html`` exact allowlist).
 """
 
 import importlib
@@ -1977,18 +1980,6 @@ def test_strict_canonical_drawing_workbench_templates() -> None:
     assert "erp_drawing_workbench_detail.html" not in detail_src
 
 
-def test_strict_canonical_partials_shared_erp_family() -> None:
-    """§2.2.1: cross-context ERP partials live under templates/partials/shared/erp_*.html."""
-    partials = _REPO_ROOT / "templates" / "partials"
-    assert not list(partials.glob("erp_*.html")), (
-        "Legacy flat partials/erp_*.html removed; use partials/shared/erp_*.html"
-    )
-    shared = partials / "shared"
-    assert (shared / "erp_sub_nav.html").is_file()
-    assert (shared / "erp_dashboard_styles.html").is_file()
-    assert len(list(shared.glob("erp_*.html"))) >= 40
-
-
 def test_strict_canonical_orders_object_standalone_template() -> None:
     """§2.2.1: legacy root erp_object.html → templates/orders/object.html (no active route in repo)."""
     assert (_REPO_ROOT / "templates" / "orders" / "object.html").is_file()
@@ -2398,4 +2389,84 @@ def test_slg_literal_gap_no_orders_erp_policy_internal_dir() -> None:
     """Forbidden nested package ``foms/services/orders/erp_policy_internal/`` must not exist."""
     p = _REPO_ROOT / "foms" / "services" / "orders" / "erp_policy_internal"
     assert not p.is_dir(), f"forbidden nested dir: {p.relative_to(_REPO_ROOT)}"
+
+
+# --- PAC post-audit correction gates (2026-04-16 plan; PAC-B1 freeze) ---
+
+_PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
+    {
+        "layout_head.html",
+        "layout_nav.html",
+        "layout_flash.html",
+        "layout_scripts.html",
+        "erp_mobile_shell.html",
+        "erp_mobile_shell_header.html",
+        "erp_mobile_bottom_nav.html",
+        "erp_mobile_menu_drawer.html",
+        "erp_mobile_queue_card.html",
+        "erp_sub_nav.html",
+    }
+)
+
+_RE_FORBIDDEN_CHAT_URL_FOR = re.compile(
+    r"url_for\s*\(\s*['\"]chat\.chat(?:_scripts_js)?['\"]"
+)
+
+_RE_RENDER_TEMPLATE_PARTIALS_HTTP_ERRORS = re.compile(
+    r"""render_template\s*\(\s*(["'])partials/http_errors/"""
+)
+
+
+def _pac_paths_for_chat_url_for_gate(repo_root: Path) -> list[Path]:
+    """Templates + product Python scanned for forbidden ``url_for('chat.chat'...)`` page endpoint strings."""
+    paths: list[Path] = []
+    paths.extend(sorted((repo_root / "templates").rglob("*.html")))
+    paths.extend(sorted((repo_root / "foms").rglob("*.py")))
+    for name in ("app.py", "run.py"):
+        candidate = repo_root / name
+        if candidate.is_file():
+            paths.append(candidate)
+    return paths
+
+
+def test_pac_b1_no_templates_partials_http_errors_dir() -> None:
+    """``templates/partials/http_errors/`` must not exist (404/500 owner is platform inline HTML, not templates)."""
+    p = _REPO_ROOT / "templates" / "partials" / "http_errors"
+    assert not p.is_dir(), f"forbidden template dir must be removed: {p.relative_to(_REPO_ROOT)}"
+
+
+def test_pac_b1_no_render_template_partials_http_errors() -> None:
+    """No ``render_template("partials/http_errors/...")`` in product/bootstrap Python."""
+    bad: list[str] = []
+    for path in _slg_py_paths_for_render_template_gate(_REPO_ROOT):
+        text = path.read_text(encoding="utf-8")
+        if _RE_RENDER_TEMPLATE_PARTIALS_HTTP_ERRORS.search(text):
+            bad.append(str(path.relative_to(_REPO_ROOT)))
+    assert not bad, "render_template('partials/http_errors/...') is forbidden:\n" + "\n".join(bad)
+
+
+def test_pac_b1_no_forbidden_chat_page_url_for_strings() -> None:
+    """Page templates and product code must not use ``chat`` blueprint endpoint names (use ``channel_chat_pages.*``)."""
+    bad: list[str] = []
+    for path in _pac_paths_for_chat_url_for_gate(_REPO_ROOT):
+        text = path.read_text(encoding="utf-8")
+        if _RE_FORBIDDEN_CHAT_URL_FOR.search(text):
+            bad.append(str(path.relative_to(_REPO_ROOT)))
+    assert not bad, "forbidden chat blueprint url_for strings (use channel_chat_pages.*):\n" + "\n".join(bad)
+
+
+def test_pac_b1_partials_shared_html_exact_allowlist() -> None:
+    """``templates/partials/shared/*.html`` must match the §3.3 exact allowlist (no count-based erp_* green)."""
+    partials = _REPO_ROOT / "templates" / "partials"
+    assert not list(partials.glob("erp_*.html")), (
+        "Legacy flat partials/erp_*.html under templates/partials/ must not exist"
+    )
+    shared = partials / "shared"
+    assert shared.is_dir(), "expected templates/partials/shared/"
+    actual = {p.name for p in shared.glob("*.html")}
+    assert actual == _PAC_PARTIALS_SHARED_HTML_ALLOWLIST, (
+        "templates/partials/shared/*.html must equal exact allowlist:\n"
+        f"  expected={sorted(_PAC_PARTIALS_SHARED_HTML_ALLOWLIST)}\n"
+        f"  actual={sorted(actual)}"
+    )
 

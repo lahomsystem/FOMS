@@ -6,9 +6,11 @@
 .DESCRIPTION
   - git worktree add to an isolated path
   - Compare-Object root allowlist vs Get-ChildItem (must be zero diff)
+  - SLG subtree closed-sets + forbidden paths (incl. templates/partials/http_errors absent)
+  - templates/partials/shared/*.html exact allowlist (PAC post-audit §3.3)
   - python -c "import app; print('APP_OK')"
   - python tools/harness/verify_result.py --json
-  - Optional: pytest (full suite)
+  - Optional: pytest (full suite). Final PAC-B5 closeout: use -RunFullPytest so clean-room replays ``pytest tests -q``.
 
   Run from repo root after committing B12 changes so SG6 is proven on a snapshot, not only a dirty tree.
 
@@ -151,6 +153,7 @@ try {
     $forbiddenPaths = @(
         (Join-Path $tpl "shared\layout.html"),
         (Join-Path $tpl "errors"),
+        (Join-Path $tpl "partials\http_errors"),
         (Join-Path $svc "erp_policy_internal"),
         (Join-Path $WorktreePath "foms\services\orders\erp_policy_internal")
     )
@@ -160,6 +163,28 @@ try {
         }
     }
     Write-Host "[strict_canonical_b12] SLG forbidden-path probe: OK"
+
+    # PAC §3.3: templates/partials/shared/*.html must equal exact allowlist (no extra erp_*.html).
+    $sharedPartials = Join-Path $tpl "partials\shared"
+    if (-not (Test-Path -LiteralPath $sharedPartials)) {
+        throw "STRICT_PAC_SHARED_PARTIALS_MISSING: $sharedPartials"
+    }
+    $allowedSharedHtml = @(
+        'layout_head.html', 'layout_nav.html', 'layout_flash.html', 'layout_scripts.html',
+        'erp_mobile_shell.html', 'erp_mobile_shell_header.html', 'erp_mobile_bottom_nav.html',
+        'erp_mobile_menu_drawer.html', 'erp_mobile_queue_card.html', 'erp_sub_nav.html'
+    ) | Sort-Object
+    $actualSharedHtml = @(
+        Get-ChildItem -LiteralPath $sharedPartials -File -Filter *.html -ErrorAction Stop |
+        ForEach-Object { $_.Name } | Sort-Object
+    )
+    $sharedDiff = Compare-Object $allowedSharedHtml $actualSharedHtml
+    if ($sharedDiff) {
+        Write-Host "[strict_canonical_b12] PAC shared partials HTML allowlist mismatch path=$sharedPartials"
+        $sharedDiff | Format-Table -AutoSize
+        throw 'STRICT_PAC_PARTIALS_SHARED_HTML_ALLOWLIST_DIFF'
+    }
+    Write-Host "[strict_canonical_b12] PAC partials/shared *.html allowlist: OK"
 
     $py = "python"
     if (Test-Path (Join-Path $WorktreePath ".venv\Scripts\python.exe")) {

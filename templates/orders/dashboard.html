@@ -116,28 +116,28 @@
       </div>
   </div>
     <!-- New single row filter attached directly to the process map card -->
-    {% include 'partials/shared/erp_dashboard_filters.html' %}
+    {% include 'orders/partials/dashboard_filters.html' %}
   </div>
 
   {% if erp_mobile_v2_enabled %}
-    {% include 'partials/shared/erp_dashboard_mobile_filters.html' %}
+    {% include 'orders/partials/dashboard_mobile_filters.html' %}
   {% endif %}
 
   <!-- 3-Panel Layout -->
-  {% include 'partials/shared/erp_dashboard_styles.html' %}
+  {% include 'orders/partials/dashboard_styles.html' %}
 
   {% if erp_mobile_v2_enabled %}
-    {% include 'partials/shared/erp_dashboard_mobile_queue.html' %}
+    {% include 'orders/partials/dashboard_mobile_queue.html' %}
   {% endif %}
 
   <div class="erp-dashboard-layout">
-    {% include 'partials/shared/erp_dashboard_grid.html' %}
+    {% include 'orders/partials/dashboard_grid.html' %}
   </div>
 
-  {% include 'partials/shared/erp_dashboard_modals.html' %}
+  {% include 'orders/partials/dashboard_modals.html' %}
 
   <div id="erp-dashboard-config" data-team-labels="{{ team_labels|tojson|e }}" data-stage-labels="{{ stage_labels|tojson|e }}" data-use-direct-upload="{{ use_direct_upload|tojson|e }}" style="display:none" aria-hidden="true"></div>
-  {% include 'partials/shared/erp_dashboard_scripts.html' %}
+  {% include 'orders/partials/dashboard_scripts.html' %}
 
 
       <!-- 알림 패널 -->

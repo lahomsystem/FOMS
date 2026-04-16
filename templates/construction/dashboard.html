@@ -114,17 +114,17 @@
       </div>
     </div>
     <!-- New single row filter attached directly to the process map card -->
-    {% include 'partials/shared/erp_construction_filters.html' %}
+    {% include 'construction/partials/filters.html' %}
   </div>
 
   <!-- 3-Panel Layout -->
-  {% include 'partials/shared/erp_construction_styles.html' %}
+  {% include 'construction/partials/styles.html' %}
   {% if erp_mobile_v2_enabled %}
-    {% include 'partials/shared/erp_construction_mobile_filters.html' %}
-    {% include 'partials/shared/erp_construction_mobile_queue.html' %}
+    {% include 'construction/partials/mobile_filters.html' %}
+    {% include 'construction/partials/mobile_queue.html' %}
   {% endif %}
-  {% include 'partials/shared/erp_construction_filters_grid.html' %}
-  {% include 'partials/shared/erp_construction_modals.html' %}
-  {% include 'partials/shared/erp_construction_scripts.html' %}
+  {% include 'construction/partials/filters_grid.html' %}
+  {% include 'construction/partials/modals.html' %}
+  {% include 'construction/partials/scripts.html' %}
 </div>
 {% endblock %}
