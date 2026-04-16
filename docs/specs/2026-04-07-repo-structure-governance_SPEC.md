@@ -140,16 +140,78 @@ repo root
 `run.py`는 현재 `python app.py`가 내부적으로 위임하는 개발용 startup 구현이며, production 계약은 아니다. 이 파일은 local/dev startup 동작을 담당하지만 `app:app` 계약을 대체하지 않는다. 현재 dev file logging은 `FOMS_STARTUP_LOG_PATH`를 명시했을 때만 opt-in으로 활성화한다.
 
 ### 2.6 루트 디렉터리 허용 정책
-루트에 허용되는 것은 아래 범주로 제한한다.
-- 진입점: `app.py`, `run.py`
-- 배포/부팅: `start.sh`, `Procfile`, `railway.toml`, `Dockerfile`, `alembic.ini`
-- 의존성/빌드: `requirements*.txt`, 향후 승인된 `pyproject.toml`
-- 공용 문서: `README.md`, `AGENTS.md`, `CLAUDE.md`
-- 예외적으로 팀이 승인한 최상위 폴더: `foms/`, `templates/`, `static/`, `migrations/`, `scripts/`, `docs/`, `.cursor/`, `.agents/`, `tools/`
 
-루트에 두면 안 되는 것:
+요약: 구조 거버넌스(본 문서)와 `docs/specs/2026-04-13-foms-modular-monolith-rebaseline_SPEC.md`는 **같은 루트/taxonomy 정본**을 가리키도록 in-place 동기화한다. 상위 sibling spec을 새로 만들지 않으며, 수렴 실행은 `docs/plans/2026-04-16-strict-final-canonical-tree-physical-tree-code-convergence-plan.md`(PTC)를 따른다.
+
+#### 2.6.1 Final root allowlist (exact set; dual-spec lock)
+
+아래 집합이 **커밋 트리·clean-room·contract proof** 기준의 정본 루트 엔트리다. `2026-04-13` §2.2.1 final-form tree는 이 집합을 도식화한 것이며, **집합 자체는 본 절 §2.6.1이 우선**한다.
+
+**허용 디렉터리 (표기 그대로):**
+
+- `.agents`
+- `.claude`
+- `.cursor`
+- `.github`
+- `.vscode`
+- `Add In Program`
+- `backups`
+- `data`
+- `docs`
+- `foms`
+- `migrations`
+- `SCheduler`
+- `scripts`
+- `static`
+- `templates`
+- `tests`
+- `tools`
+
+**허용 파일 (표기 그대로):**
+
+- `.dockerignore`
+- `.gcloudignore`
+- `.gitattributes`
+- `.gitignore`
+- `.python-version`
+- `AGENTS.md`
+- `alembic.ini`
+- `app.py`
+- `CLAUDE.md`
+- `db.py`
+- `Dockerfile`
+- `models.py`
+- `Procfile`
+- `README.md`
+- `railway.toml`
+- `railway-worker.toml`
+- `requirements.txt`
+- `run.py`
+- `start.sh`
+- `wdcalculator_db.py`
+- `wdcalculator_models.py`
+
+**명시적 금지 (루트 또는 저장소 추적 관점에서 최종 closeout 대상):** `.gstack/`, `.pytest_cache/`, `.tmp_strict_tree_verify/`, 루트 `__pycache__/`, 루트 `*.db`, 루트 `*.dump` — 상세는 PTC 계획서 §3.5·§4.1.
+
+전환기 오버레이(`apps/`, 루트 `services/` 등)는 `2026-04-13` §2.2.2 및 본 문서 Step 3 이후 기록대로 **최종 트리 정본과 별도**로 규율한다. PTC 최종 수용 기준에서 요구하는 committed tree에는 위 허용 집합 외 루트 엔트리가 없어야 한다.
+
+#### 2.6.2 `data/` 및 로컬 런타임 산출물 (dual-spec; PTC)
+
+- `data/`는 **버전 관리되는 비밀 아님 참조·설정·시드**만 허용한다.
+- 금지(저장소 트리): `data/dumps/`·`data/localdb/`·`data/*.db`·repo 안 dump/SQLite/브라우저 QA용 DB 등 **런타임 산출물**.
+- 로컬 운영자/검증 산출물의 정본 루트는 환경 변수 **`FOMS_RUNTIME_OUTPUT_ROOT`** 이다. 미설정 시 기본값은 **`%USERPROFILE%\FOMS-runtime`** (Windows). 하위 경로 계약: `dumps\foms.dump`, `localdb\furniture_orders.db`, `localdb\migration_ready.db`, `localdb\ops_browser_qa.db` — 상세는 PTC 계획서 §3.4.
+
+#### 2.6.3 FR20 — bounded context local `README.md` 정본 위치 (PTC)
+
+- **page-first** bounded context(`orders`, `measurement`, `shipment`, `drawing`, `production`, `construction`, `cs`, `wdcalculator`, `admin`, `auth`): 정본은 **`foms/web/<context>/README.md`** 에 정확히 하나.
+- **API-first** context(`channel`, `files`, `notifications`): 정본은 **`foms/api/<context>/README.md`** 에 정확히 하나.
+- 금지: 한 context에 README 다중, `templates/`·`static/`에 canonical entrypoint로서의 중복 README.
+- 내용 요구: 목적, 주요 모듈, 읽기 순서, 금지 의존성 — `2026-04-13` §1.2.20. 이행 표는 PTC 계획서 §4.2.
+
+#### 2.6.4 루트에 두면 안 되는 것 (기존 hygiene)
+
 - 로그 파일 (`*.log`)
-- DB dump / SQLite / 임시 DB (`*.db`, `foms.dump`, migration-ready db 등)
+- DB dump / SQLite / 임시 DB (`*.db`, `foms.dump`, migration-ready db 등) — §2.6.2의 외부 루트로만
 - scratch HTML/JS
 - 수작업 비교 산출물 (`all_changes.txt` 류)
 - 일회성 마이그레이션/실험 스크립트

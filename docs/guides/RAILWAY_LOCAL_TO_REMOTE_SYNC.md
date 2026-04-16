@@ -17,6 +17,8 @@
 
 **환경**: Windows PowerShell, 프로젝트 루트가 `FOMS` 폴더라고 가정.
 
+**덤프 파일 위치 (PTC)**: `pg_dump` 출력은 저장소의 `data/dumps`가 아니라 **`FOMS_RUNTIME_OUTPUT_ROOT\dumps\foms.dump`** 에 둔다. 환경 변수가 없으면 기본값은 **`%USERPROFILE%\FOMS-runtime\dumps\foms.dump`** (`scripts/ops/sync_local_to_railway.ps1`가 동일 계약을 사용).
+
 ### 방법 1 — 스크립트 한 번에 실행 (권장)
 
 **로컬 PC에서 실행할 때**: Railway가 주입하는 `DATABASE_URL`은 **내부 호스트**(`postgres.railway.internal`)라 로컬에서는 이름 해석이 되지 않습니다. `pg_restore` 및 bootstrap은 **공개(Public) 연결 URL**로 해야 합니다.
@@ -38,7 +40,7 @@
 
 3. **스크립트 실행**: 한 줄 실행 후, 프롬프트에 `y` 또는 `yes` 입력.
    ```powershell
-   .\scripts\sync_local_to_railway.ps1
+   .\scripts\ops\sync_local_to_railway.ps1
    ```
    - 로컬 DB URL이 다르면: `$env:LOCAL_DATABASE_URL = "postgresql://사용자:비밀번호@localhost/DB이름"`
 
@@ -60,11 +62,16 @@ railway run python check_db_connection.py
 ```
 
 ```powershell
-pg_dump -Fc --no-owner --no-privileges -f .\data\dumps\foms.dump "postgresql://postgres:lahom@localhost/furniture_orders"
+$RuntimeRoot = if ($env:FOMS_RUNTIME_OUTPUT_ROOT) { $env:FOMS_RUNTIME_OUTPUT_ROOT } else { Join-Path $env:USERPROFILE "FOMS-runtime" }
+$DumpPath = Join-Path $RuntimeRoot "dumps\foms.dump"
+New-Item -ItemType Directory -Force -Path (Split-Path $DumpPath) | Out-Null
+pg_dump -Fc --no-owner --no-privileges -f $DumpPath "postgresql://postgres:lahom@localhost/furniture_orders"
 ```
 
 ```powershell
-railway run powershell -NoProfile -Command "pg_restore --clean --if-exists --no-owner --no-privileges -d $env:DATABASE_URL .\data\dumps\foms.dump"
+$RuntimeRoot = if ($env:FOMS_RUNTIME_OUTPUT_ROOT) { $env:FOMS_RUNTIME_OUTPUT_ROOT } else { Join-Path $env:USERPROFILE "FOMS-runtime" }
+$DumpPath = Join-Path $RuntimeRoot "dumps\foms.dump"
+railway run powershell -NoProfile -Command "pg_restore --clean --if-exists --no-owner --no-privileges -d $env:DATABASE_URL $DumpPath"
 ```
 
 ```powershell
@@ -73,8 +80,10 @@ railway run python scripts/ops/railway_bootstrap.py
 
 - `pg_restore` 가 실패하면 **§3.3 방법 B**처럼 Railway 대시보드에서 Postgres Connection URL을 복사한 뒤:
   ```powershell
+  $RuntimeRoot = if ($env:FOMS_RUNTIME_OUTPUT_ROOT) { $env:FOMS_RUNTIME_OUTPUT_ROOT } else { Join-Path $env:USERPROFILE "FOMS-runtime" }
+  $DumpPath = Join-Path $RuntimeRoot "dumps\foms.dump"
   $RemoteUrl = "여기에_복사한_URL_붙여넣기"
-  pg_restore --clean --if-exists --no-owner --no-privileges -d $RemoteUrl .\data\dumps\foms.dump
+  pg_restore --clean --if-exists --no-owner --no-privileges -d $RemoteUrl $DumpPath
   ```
 
 ---
@@ -118,7 +127,9 @@ railway run python check_db_connection.py
 
 ```powershell
 $LocalDbUrl = "postgresql://postgres:lahom@localhost/furniture_orders"
-$DumpPath = ".\data\dumps\foms.dump"
+$RuntimeRoot = if ($env:FOMS_RUNTIME_OUTPUT_ROOT) { $env:FOMS_RUNTIME_OUTPUT_ROOT } else { Join-Path $env:USERPROFILE "FOMS-runtime" }
+$DumpPath = Join-Path $RuntimeRoot "dumps\foms.dump"
+New-Item -ItemType Directory -Force -Path (Split-Path $DumpPath) | Out-Null
 pg_dump -Fc --no-owner --no-privileges -f $DumpPath $LocalDbUrl
 ```
 
@@ -133,7 +144,9 @@ pg_dump -Fc --no-owner --no-privileges -f $DumpPath $LocalDbUrl
 **방법 A — Railway CLI로 DATABASE_URL 자동 주입 (PowerShell):**
 
 ```powershell
-railway run powershell -NoProfile -Command "pg_restore --clean --if-exists --no-owner --no-privileges -d $env:DATABASE_URL .\data\dumps\foms.dump"
+$RuntimeRoot = if ($env:FOMS_RUNTIME_OUTPUT_ROOT) { $env:FOMS_RUNTIME_OUTPUT_ROOT } else { Join-Path $env:USERPROFILE "FOMS-runtime" }
+$DumpPath = Join-Path $RuntimeRoot "dumps\foms.dump"
+railway run powershell -NoProfile -Command "pg_restore --clean --if-exists --no-owner --no-privileges -d $env:DATABASE_URL $DumpPath"
 ```
 
 **방법 B — Railway 대시보드에서 공개(Public) Connection URL 복사 후 직접 실행 (로컬에서 권장):**
@@ -145,8 +158,10 @@ railway run powershell -NoProfile -Command "pg_restore --clean --if-exists --no-
 
 ```powershell
 # 대시보드 Connect 탭에서 복사한 Postgres Connection URL 전체(비밀번호 포함)를 붙여넣기
+$RuntimeRoot = if ($env:FOMS_RUNTIME_OUTPUT_ROOT) { $env:FOMS_RUNTIME_OUTPUT_ROOT } else { Join-Path $env:USERPROFILE "FOMS-runtime" }
+$DumpPath = Join-Path $RuntimeRoot "dumps\foms.dump"
 $RemoteUrl = "postgresql://postgres:...@roundhouse.proxy.rlwy.net:12345/railway"
-pg_restore --clean --if-exists --no-owner --no-privileges -d $RemoteUrl .\data\dumps\foms.dump
+pg_restore --clean --if-exists --no-owner --no-privileges -d $RemoteUrl $DumpPath
 ```
 
 - 일부 “role does not exist” 경고는 무시 가능 (--no-owner 사용 시 흔함).
@@ -174,8 +189,8 @@ railway run python scripts/ops/railway_bootstrap.py
 | # | 단계 | 명령/확인 |
 |---|------|-----------|
 | 1 | 원격 연결 | `railway link` → `railway run python check_db_connection.py` |
-| 2 | 로컬 덤프 | `pg_dump -Fc --no-owner --no-privileges -f .\data\dumps\foms.dump "postgresql://postgres:lahom@localhost/furniture_orders"` |
-| 3 | 원격 초기화+복원 | `railway run powershell ... pg_restore --clean --if-exists ... -d $env:DATABASE_URL .\data\dumps\foms.dump` 또는 방법 B |
+| 2 | 로컬 덤프 | `pg_dump` → `%USERPROFILE%\FOMS-runtime\dumps\foms.dump` (또는 `FOMS_RUNTIME_OUTPUT_ROOT\dumps\foms.dump`) |
+| 3 | 원격 초기화+복원 | 동일 덤프 경로로 `pg_restore` (방법 A/B) |
 | 4 | 보정 | `railway run python scripts/ops/railway_bootstrap.py` |
 | 5 | 검증 | 원격 앱에서 주문·상태·기타 데이터 확인 |
 
@@ -195,7 +210,7 @@ railway run python scripts/ops/railway_bootstrap.py
 프로젝트 루트에서 한 번에 실행하려면:
 
 ```powershell
-.\scripts\sync_local_to_railway.ps1
+.\scripts\ops\sync_local_to_railway.ps1
 ```
 
 - 로컬 DB URL을 바꾸려면 실행 전 `$env:LOCAL_DATABASE_URL = "postgresql://..."` 설정.

@@ -80,7 +80,9 @@ try {
     Push-Location $WorktreePath
     $pushed = $true
 
-    # Literal replay of docs/plans/...-100-percent-execution-plan.md §6.19 (PowerShell clean-room recipe)
+    # Literal replay of docs/plans/...-100-percent-execution-plan.md §6.19 (PowerShell clean-room recipe).
+    # Root allowlist must stay in lockstep with docs/specs/2026-04-07-repo-structure-governance_SPEC.md §2.6.1
+    # and docs/plans/2026-04-16-strict-final-canonical-tree-physical-tree-code-convergence-plan.md §4.1.
     $actualRoot = Get-ChildItem -Force -Name | Where-Object { $_ -ne '.git' } | Sort-Object
     $allowedRoot = @(
         '.agents', '.claude', '.cursor', '.github', '.vscode',

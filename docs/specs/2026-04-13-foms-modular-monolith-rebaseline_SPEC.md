@@ -266,9 +266,20 @@ transition overlay
 - `foms/services/notifications/` 안의 leaf 이름으로 `realtime_notifications.py` 같은 모듈을 둘 수는 있지만, 최종 context package 이름은 `notifications`로 고정한다.
 - Alembic revision의 source of truth는 `migrations/`뿐이다. `scripts/migrations/`는 one-off operational helper나 data/backfill script만 허용한다.
 - `src/`는 final canonical tree의 일부가 아니다. Wave 1에서 tooling, 별도 non-product track, 또는 quarantine 중 하나로 분류되지 않으면 더 이상 성장시킬 수 없다.
-- `data/`는 versioned non-secret config/seed/reference만 허용한다. dump, backup, generated export는 `backups/` 또는 적절한 logs/runtime output으로 보낸다.
-- 루트 허용 파일/폴더의 **정본 목록**은 `docs/specs/2026-04-07-repo-structure-governance_SPEC.md` §2.6을 따른다. 여기의 final-form tree는 그 목록을 더 선명하게 정렬한 목표 그림이다.
+- `data/`는 versioned non-secret config/seed/reference만 허용한다. dump, SQLite, migration scratch DB, browser QA DB 등 **런타임 산출물은 repo `data/` 안에 두지 않는다.** 로컬 운영자 산출물의 정본 루트는 **`FOMS_RUNTIME_OUTPUT_ROOT`** 이며, 미설정 시 기본값은 **`%USERPROFILE%\FOMS-runtime`** (Windows). 하위 경로 계약은 `docs/plans/2026-04-16-strict-final-canonical-tree-physical-tree-code-convergence-plan.md` §3.4와 동일하다. `backups/`는 quarantine·보관 구역으로 유지하되, **런타임 출력의 정본 위치를 `data/`로만 옮겨 해결한 것으로 주장하는 것은 금지**다.
+- 루트 허용 파일/폴더의 **정본 목록**은 `docs/specs/2026-04-07-repo-structure-governance_SPEC.md` **§2.6.1 Final root allowlist (exact set; dual-spec lock)** 와 단일하다. 본 절 §2.2.1 final-form tree는 그 목록을 도식화한 것이며, 충돌 시 **§2.6.1 텍스트가 우선**한다.
 - `backups/`, `Add In Program/`, `SCheduler/`는 저장소 taxonomy의 일부로는 인정하지만, 끝까지 product source of truth가 될 수 없다.
+
+#### 2.2.3 FR20 — local `README.md` authoritative home (PTC dual-spec lock)
+
+§1.2.20의 요구를 다음 **정본 위치**로 고정한다. context당 **정확히 하나**만 허용한다.
+
+| 구분 | Context | Authoritative home |
+|------|---------|-------------------|
+| page-first | `orders`, `measurement`, `shipment`, `drawing`, `production`, `construction`, `cs`, `wdcalculator`, `admin`, `auth` | `foms/web/<context>/README.md` |
+| API-first | `channel`, `files`, `notifications` | `foms/api/<context>/README.md` |
+
+금지: `templates/`·`static/`에 canonical entrypoint로서의 context README. 이행·현재→목표 표는 `docs/plans/2026-04-16-strict-final-canonical-tree-physical-tree-code-convergence-plan.md` §4.2.
 
 ### 2.3 Bounded Context 기준선
 향후 구조 작업은 "파일 종류"보다 "도메인/화면/유스케이스" 기준으로 움직인다.
@@ -332,6 +343,8 @@ transition overlay
    - `.cursor/`, `.claude/`, `.agents/`, `.github/`, `.vscode/`
 7. quarantine / non-product
    - `backups/`, `Add In Program/`, `SCheduler/`
+
+**PTC dual-spec lock:** 위 일곱 범주는 **분류 언어**다. **최종 committed tree에서 허용되는 루트 엔트리의 정확한 집합**은 `docs/specs/2026-04-07-repo-structure-governance_SPEC.md` **§2.6.1** 과 `docs/plans/2026-04-16-strict-final-canonical-tree-physical-tree-code-convergence-plan.md` **§4.1** 과 단일하다. PTC 최종 closeout에서는 **`apps/`·루트 `services/`·`src/`가 루트에 없어야** 하며(§4.1·§8), 전환기 오버레이는 수렴 전까지만 본 절 §2.2.2에서 규율한다.
 
 루트 및 canonical product tree에서 금지하는 것:
 - scratch HTML/JS/MD

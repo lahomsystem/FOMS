@@ -1,6 +1,7 @@
 # 원격(Railway) DB 초기화 후 로컬 Postgres 완전 복사
 # GDM 절차서: docs/guides/RAILWAY_LOCAL_TO_REMOTE_SYNC.md
-# 사용: 프로젝트 루트에서 .\scripts\sync_local_to_railway.ps1
+# 사용: 프로젝트 루트에서 .\scripts\ops\sync_local_to_railway.ps1
+# 덤프 경로: FOMS_RUNTIME_OUTPUT_ROOT\dumps\foms.dump (미설정 시 %USERPROFILE%\FOMS-runtime)
 #
 # ⛔ 금지: 로컬 Postgres DB는 절대 삭제/초기화하지 않음.
 #    로컬에는 pg_dump(읽기)만 수행하고, pg_restore(--clean)는 원격(DATABASE_URL)에만 적용.
@@ -13,7 +14,16 @@ if (-not (Test-Path (Join-Path $ProjectRoot "app.py"))) {
 Set-Location $ProjectRoot
 
 $LocalDbUrl = if ($env:LOCAL_DATABASE_URL) { $env:LOCAL_DATABASE_URL } else { "postgresql://postgres:lahom@localhost/furniture_orders" }
-$DumpPath = Join-Path $ProjectRoot "data\dumps\foms.dump"
+$RuntimeRoot = if ($env:FOMS_RUNTIME_OUTPUT_ROOT) {
+    [System.IO.Path]::GetFullPath($env:FOMS_RUNTIME_OUTPUT_ROOT)
+} else {
+    Join-Path $env:USERPROFILE "FOMS-runtime"
+}
+$DumpDir = Join-Path $RuntimeRoot "dumps"
+$DumpPath = Join-Path $DumpDir "foms.dump"
+if (-not (Test-Path -LiteralPath $DumpDir)) {
+    New-Item -ItemType Directory -Path $DumpDir -Force | Out-Null
+}
 
 Write-Host "=== Sync local Postgres to Railway (remote reset + restore) ===" -ForegroundColor Cyan
 Write-Host "Local DB: $LocalDbUrl"
