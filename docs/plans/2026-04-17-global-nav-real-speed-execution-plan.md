@@ -1,5 +1,5 @@
 # Global Nav Real Speed Execution Plan
-> 작성일: 2026-04-17 | 상태: 🟡 **실행 준비 완료 — 상세 설계·배치 순서·stop rule 고정**
+> 작성일: 2026-04-17 | 상태: 🟢 **완료 — GNV-B0–B7 closeout (`docs/plans/2026-04-17-gnv-run-record.md` §GNV-B7)**
 >
 > **Companion plan**: `docs/plans/2026-04-17-erp-fast-page-and-tab-navigation-execution-plan.md`
 >

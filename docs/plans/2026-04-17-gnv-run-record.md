@@ -255,5 +255,49 @@ python tools/harness/gnv_b6_staging_browser_metrics.py --base https://lahom-dev.
 
 ## GNV-B7 — Final closeout
 
-**전제**: B6 실측(배포 후) 증거 파일 존재 → **충족** (2026-04-17).  
-**다음**: GDM 최종 합의·문서 정리로 closeout 진행 가능.
+**실행일**: 2026-04-17  
+**전제**: B6 실측(배포 후) 증거 파일 존재 → **충족**.
+
+### 계획서 수용 기준 (`2026-04-17-global-nav-real-speed-execution-plan.md` §GNV-B7)
+
+| 기준 | 판정 |
+|------|------|
+| High 0 / Medium 0 (global-nav lane) | **충족** (아래 findings) |
+| 문서 / 코드 / 증거 1:1 정합 | **충족** (run record ↔ `foms/*`·`static/js/global-nav-runtime.js`·`*-post-push.json`) |
+| 과대 주장 없음 | **충족** (G1-B 미승격·G2 body swap 없음을 유지한 채 기술) |
+
+### §6 Final closeout gate 대조
+
+| # | 게이트 | 판정 | 근거 |
+|---|--------|------|------|
+| 1 | G1-A는 체감 가능한 warm swap 경로를 제공한다 | **충족** | B1·B2·B6 (HTTP fragment 헤더 + 브라우저 지표) |
+| 2 | G1-B 승격/보류가 명확하다 | **충족** | B3 defer 고정, G1-A 무근거 승격 없음 |
+| 3 | G2는 fake SPA 없이 warm document 경로만 쓴다 | **충족** | B4·B2 (G2 클릭 가로채기 없음) |
+| 4 | URL·history·권한·본문 의미 보존 | **충족** | B1 동일 핸들러·pytest 계약 |
+| 5 | Railway evidence | **충족** | `docs/harness/evidence/2026-04-17-gnv-b6-*-post-push.json` |
+| 6 | final GDM review High 0 / Medium 0 | **충족** | 본 절 findings 표 |
+
+### GDM audit findings (global-nav lane only)
+
+| 심각도 | 건수 | 비고 |
+|--------|------|------|
+| **High** | **0** | — |
+| **Medium** | **0** | — |
+| Low / 향후 과제 | (문서화됨) | G1-B 대시보드 family는 **별도 parity 증명 전까지 swap 금지** — 계획서 3.1.2와 동일 |
+
+**검토 차원 (요약)**  
+- **Semantic**: fragment는 템플릿 부모만 교체; 라우트·데이터 의미 동일.  
+- **Surface**: G2·관리자·G1-B는 body/shell swap 대상에서 제외 유지.  
+- **Evidence**: 스테이징 **배포 후** JSON이 권위; 푸시 전 측정은 이력(A)로만 유지.
+
+### 문서·코드 앵커 (정합)
+
+| 항목 | 위치 |
+|------|------|
+| 서버 계약 | `foms/services/gnav_contract.py`, `foms/web/orders/listing.py`, `trash.py` |
+| 클라이언트 | `static/js/global-nav-runtime.js` |
+| 템플릿 | `templates/orders/gnav_swap_shell.html`, `index.html`, `trash.html` |
+| 테스트 | `tests/domains/test_gnav_fragment_contract.py`, `test_global_nav_runtime_js_contract.py` |
+| 스테이징 증거 | `docs/harness/evidence/2026-04-17-gnv-b6-staging-http-evidence-post-push.json` 등 4종 |
+
+**Status**: GNV-B7 **COMPLETE** — Global Nav Real Speed 트랜치 **종료** (B0–B7).

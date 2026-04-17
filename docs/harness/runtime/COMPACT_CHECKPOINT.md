@@ -1,22 +1,24 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-04-17 13:50:00
+> 생성 시각: 2026-04-17 14:39:03
 > 세션: a0f6c282
+>
+> **2026-04-17:** `SESSION_LOG` / `SHELL_GUARD_LOG` 대량 정리. GNV·EPT **증거·closeout**은 각 `docs/plans/*-run-record.md` 및 `docs/harness/evidence/README.md` 를 따른다.
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `docs/plans/2026-04-17-gnv-run-record.md` <- 5 edit(s), ~3223 chars (2026-04-17 13:49:59)
-- `tools/harness/gnv_b6_staging_browser_metrics.py` <- 1 edit(s), ~5825 chars (2026-04-17 13:49:34)
-- `tools/harness/gnv_b6_staging_http_evidence.py` <- 1 edit(s), ~6221 chars (2026-04-17 13:49:23)
-- `docs/plans/2026-04-17-gnv-run-record.md` <- 13 edit(s), ~2546 chars (2026-04-17 13:43:47)
-- `static/js/global-nav-runtime.js` <- 2 edit(s), ~512 chars (2026-04-17 13:43:34)
-- `tests/domains/test_global_nav_runtime_js_contract.py` <- 3 edit(s), ~579 chars (2026-04-17 13:42:58)
-- `tests/domains/test_gnav_fragment_contract.py` <- 1 edit(s), ~2258 chars (2026-04-17 13:42:56)
-- `static/js/global-nav-runtime.js` <- 3 edit(s), ~1013 chars (2026-04-17 13:42:47)
-- `static/js/global-nav-runtime.js` <- 8 edit(s), ~5955 chars (2026-04-17 13:42:34)
-- `foms/web/orders/trash.py` <- 1 edit(s), ~319 chars (2026-04-17 13:41:46)
+- `docs/harness/runtime/COMPACT_CHECKPOINT.md` <- 1 edit(s), ~159 chars (2026-04-17 14:39:01)
+- `docs/harness/runtime/EDIT_LOG.md` <- 1 edit(s), ~0 chars (2026-04-17 14:39:00)
+- `docs/harness/evidence/README.md` <- 1 edit(s), ~873 chars (2026-04-17 14:38:59)
+- `docs/AI_CHANGELOG.md` <- 1 edit(s), ~217 chars (2026-04-17 14:06:31)
+- `docs/AI_STATUS.md` <- 1 edit(s), ~307 chars (2026-04-17 14:06:30)
+- `docs/ARCHIVE_INDEX.md` <- 1 edit(s), ~241 chars (2026-04-17 14:06:28)
+- `docs/ARCHIVE_INDEX.md` <- 1 edit(s), ~329 chars (2026-04-17 14:06:15)
+- `docs/plans/2026-04-17-global-nav-real-speed-execution-plan.md` <- 1 edit(s), ~105 chars (2026-04-17 14:06:13)
+- `docs/plans/2026-04-17-gnv-run-record.md` <- 1 edit(s), ~1898 chars (2026-04-17 14:06:12)
+- `docs/plans/2026-04-17-gnv-run-record.md` <- 10 edit(s), ~2206 chars (2026-04-17 14:02:29)
 
 ### 진행 중이던 작업
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
