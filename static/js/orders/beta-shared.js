@@ -2438,6 +2438,7 @@ window.loadMeasurementPanel = loadMeasurementPanel;
 /**
  * ERP 셸이 #main-content만 갈아끼울 때 인라인 스크립트가 재실행되지 않아
  * ORDER_ID / ERP_BETA_ENABLED가 DOM과 불일치할 수 있음 — 카드 data-*로 동기화.
+ * edit_order_body: `data-erp-beta-enabled`는 `is_erp_beta_order` 정의 이후에만 평가해야 함(템플릿 순서).
  */
 function fomsErpSyncEditGlobalsFromDom() {
     var card =
