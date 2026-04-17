@@ -5,7 +5,8 @@
 </style>
 <div class="row">
     <div class="col-md-8 mx-auto">
-        <div class="card" data-order-id="{{ order.id }}" data-payment-amount="{{ order.payment_amount or 0 }}">
+        <div class="card" data-order-id="{{ order.id }}" data-payment-amount="{{ order.payment_amount or 0 }}"
+            data-erp-beta-enabled="{{ 'true' if is_erp_beta_order else 'false' }}">
             {% set is_erp_beta_order = erp_beta_enabled and order.is_erp_beta %}
             <div class="card-header">
                 <ul class="nav nav-tabs card-header-tabs" id="orderTabs" role="tablist">

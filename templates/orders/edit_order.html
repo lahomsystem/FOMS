@@ -5,10 +5,11 @@
 {% endblock %}
 
 {% block scripts %}
+{% include "orders/partials/beta_js.html" %}
 <script>
-    // 주문 ID 상수 선언 (HTML 데이터 속성에서 읽기)
-    const ORDER_ID = parseInt(document.querySelector('.card[data-order-id]')?.dataset.orderId || '0');
-    const ERP_BETA_ENABLED = ("{{ 'true' if (erp_beta_enabled and order.is_erp_beta) else 'false' }}" === "true");
+    // 주문 ID (beta-shared.js의 var ORDER_ID에 대입 — 셸 프래그먼트 스왑 시 인라인 미재실행 대비)
+    ORDER_ID = parseInt(document.querySelector('.card[data-order-id]')?.dataset.orderId || '0', 10) || 0;
+    ERP_BETA_ENABLED = ("{{ 'true' if (erp_beta_enabled and order.is_erp_beta) else 'false' }}" === "true");
     const USE_DIRECT_UPLOAD = ("{{ 'true' if use_direct_upload else 'false' }}" === "true");
 
     // 전역 XSS 방지 HTML 이스케이프 함수 (ERP Beta 등 전역에서 사용)
@@ -890,8 +891,6 @@
     window.__ERP_BETA_DRAFT_MODE = false;
     window.__ERP_DRAFT_ENDPOINT = '/api/orders/erp/draft';
 </script>
-
-{% include "orders/partials/beta_js.html" %}
 
 <script>
     // ERP 대시보드/알림에서 바로 ERP Beta 탭으로 오픈 (?open=erp-beta)
