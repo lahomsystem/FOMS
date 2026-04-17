@@ -93,10 +93,24 @@ Cursor browser MCP는 **응답 헤더·duration**을 내보내지 않는다. 스
 
 **실행 (PowerShell 5.x, repo 루트):**
 
+**A) 자동 로그인 → 쿠키 설정 → HTTP 하네스 (권장):** 환경에만 자격 증명을 둔다 (커밋 금지).
+
+```text
+$env:FOMS_STAGING_USERNAME = '<스테이징 ID>'
+$env:FOMS_STAGING_PASSWORD = '<스테이징 비밀번호>'
+powershell -NoProfile -File .\tools\harness\ept_b8_staging_full_evidence.ps1
+```
+
+또는 한 단계씩: `python tools/harness/ept_b8_staging_session_from_login.py` 가 stdout에 `session_staging=...` 한 줄을 출력 → 이를 `FOMS_STAGING_COOKIE`에 넣고 `ept_b8_staging_http_evidence.py` 실행. 변수 템플릿은 `tools/harness/ept_b8_staging_env.example` 참고.
+
+**B) 수동 (DevTools 쿠키 복사):**
+
 ```text
 $env:FOMS_STAGING_COOKIE = 'session_staging=<DevTools에서 복사한 값>'
 python tools/harness/ept_b8_staging_http_evidence.py --base https://lahom-dev.up.railway.app --order-id 2732 --json
 ```
+
+**브라우저 Performance (선택):** Playwright 설치 후 `python tools/harness/ept_b8_staging_browser_metrics.py` — navigation/paint/longtask 샘플 JSON (동일 env 자격 증명). 미설치 시 stderr에 SKIP 안내만 출력.
 
 성공 시 `final_url` 은 `/erp/...` 이어야 하며, B7이 붙은 뷰는 `b7_headers` 에 키가 나온다. `final_url` 이 `/login?next=...` 이면 쿠키 형식·만료를 다시 확인한다. **`/erp/orders/<id>`** 서브키는 `legacy_redirect_contract_ok`, `redirect_location`(302 계약)을 별도로 본다 — 전체 HTML 문서 시간은 **`/edit/<id>?open=erp-beta`** 와 동일 스코프로 취급.
 

@@ -1,9 +1,12 @@
 """
 EPT-B8 staging HTTP evidence: wall-clock GET latency + B7 response headers.
 
-Does not authenticate — pass a browser session cookie (DevTools → Application → Cookies).
+Does not authenticate — pass a browser session cookie, **or** use
+``tools/harness/ept_b8_staging_session_from_login.py`` (env:
+``FOMS_STAGING_USERNAME`` / ``FOMS_STAGING_PASSWORD``) and set ``FOMS_STAGING_COOKIE``
+from its stdout; ``ept_b8_staging_full_evidence.ps1`` runs login + this script.
 
-PowerShell (Win11):
+PowerShell (Win11), manual cookie:
   $env:FOMS_STAGING_COOKIE = 'session_staging=eyJ...full-token...'
   python tools/harness/ept_b8_staging_http_evidence.py --base https://lahom-dev.up.railway.app --order-id 2732 --json
 
