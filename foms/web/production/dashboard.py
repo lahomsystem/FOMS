@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from flask import Blueprint, render_template, request, g
+from flask import Blueprint, make_response, render_template, request, g
 from sqlalchemy import bindparam, case as sql_case, cast, func, or_, String, text
 from sqlalchemy.orm import Query
 
@@ -25,6 +25,7 @@ from foms.services.erp_display import (
     _erp_alerts,
 )
 from foms.services.erp_order_detail import attach_order_detail_payloads
+from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 
 
 erp_production_page_bp = Blueprint(
@@ -337,18 +338,27 @@ def erp_production_dashboard():
     process_steps = _production_process_steps_bar(step_stats)
     attach_order_detail_payloads(db, enriched)
 
-    return render_template(
-        'production/dashboard.html',
-        orders=enriched,
-        kpis=kpis,
-        process_steps=process_steps,
-        filters={'stage': f_stage, 'q': f_q},
-        team_labels=TEAM_LABELS,
-        stage_labels=STAGE_LABELS,
-        is_admin=is_admin,
-        can_edit_erp=can_edit_erp(user),
-        erp_mine_only=erp_mine_only,
-        page=page,
-        total_pages=total_pages,
-        total_orders=total_orders,
+    template_name = (
+        'production/partials/dashboard_fragment.html'
+        if wants_erp_shell_tab_body(request)
+        else 'production/dashboard.html'
     )
+    response = make_response(
+        render_template(
+            template_name,
+            orders=enriched,
+            kpis=kpis,
+            process_steps=process_steps,
+            filters={'stage': f_stage, 'q': f_q},
+            team_labels=TEAM_LABELS,
+            stage_labels=STAGE_LABELS,
+            is_admin=is_admin,
+            can_edit_erp=can_edit_erp(user),
+            erp_mine_only=erp_mine_only,
+            page=page,
+            total_pages=total_pages,
+            total_orders=total_orders,
+        )
+    )
+    apply_erp_shell_fragment_headers(response, request)
+    return response

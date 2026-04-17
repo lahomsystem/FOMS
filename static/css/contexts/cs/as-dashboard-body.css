@@ -1,0 +1,219 @@
+/* AS 방문일이 정해진 주문 셀: 옅은 연분홍 파스텔 */
+  .erp-as-visit-cell--set {
+    background-color: #ffd6e0 !important;
+  }
+
+  .erp-as-visit-row--set {
+    background-color: #ffd6e0 !important;
+  }
+
+  /* AS 완료일이 정해진 주문 셀 */
+  .erp-as-complete-cell--set {
+    background-color: #d4edda !important;
+  }
+
+  .erp-as-complete-row--set {
+    background-color: #d4edda !important;
+  }
+
+  /* AS 사진 보기 버튼: 사진 있음=파란색, 없음=분홍 파스텔 */
+  .as-photos-btn.as-photos-btn--no-photos {
+    color: #FFB6C1 !important;
+    border-color: #FFB6C1 !important;
+  }
+
+  .as-photos-btn.as-photos-btn--no-photos:hover {
+    color: #e0909e !important;
+    border-color: #e0909e !important;
+    background-color: rgba(255, 182, 193, 0.15);
+  }
+
+  /* AS 미결: 고객 셀 노란 파스텔 */
+  .erp-as-customer-cell--pending {
+    background-color: #fff9c4 !important;
+  }
+
+  .erp-as-customer-row--pending {
+    background-color: #fff9c4 !important;
+  }
+
+  .erp-pro-badge--pending {
+    background-color: #ffc107;
+    color: #212529;
+  }
+
+  /* AS 방문일 셀: 셀 바깥 오른쪽 하단에 미결 버튼 */
+  .erp-as-visit-cell {
+    position: relative;
+    min-height: 48px;
+  }
+
+  .erp-as-pending-btn {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    line-height: 1.2;
+    background-color: #fff9c4 !important;
+    border: 1px solid #e6d84c !important;
+    color: #333 !important;
+  }
+
+  .erp-as-pending-btn:hover {
+    background-color: #fff59d !important;
+    border-color: #d4c43c !important;
+    color: #111 !important;
+  }
+
+  /* 모바일: 터치 44px, 갤러리 1열 (2026-03 ERP 최적화) */
+  @media (max-width: 992px) {
+    .erp-pro .erp-pro-order-card__body .erp-pro-input,
+    .erp-pro .erp-pro-order-cards .btn {
+      min-height: 44px;
+    }
+    .erp-pro #as-modal-upload-btn {
+      min-height: 44px;
+    }
+    #asErpAttachmentsCategoryModal .row.g-2 > [class*="col-"] {
+      flex: 0 0 100%;
+      max-width: 100%;
+    }
+  }
+
+  /* AS 내용 에디터 툴바 기본 숨김 (UI 최적화) - 포커스 시에만 노출 */
+  .as-rich-toolbar {
+    display: none !important;
+  }
+  .as-rich-editor:focus-within .as-rich-toolbar {
+    display: flex !important;
+  }
+
+  .as-content-tab-buttons {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+
+  .as-content-tab-btn {
+    min-width: 28px;
+    height: 22px;
+    padding: 0 8px;
+    border: 1px solid #dc3545;
+    background: #fff;
+    color: #dc3545;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+    border-radius: 0;
+  }
+
+  .as-content-tab-btn.is-active {
+    background: #dc3545;
+    color: #fff;
+  }
+
+  .as-content-tab-panel {
+    display: none;
+  }
+
+  .as-content-tab-panel.is-active {
+    display: block;
+  }
+
+  mark.as-search-highlight {
+    background-color: #fff3a0;
+    color: inherit;
+    padding: 0 1px;
+    border-radius: 2px;
+  }
+
+  .erp-as-top-tabs .nav-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .erp-as-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.08);
+    color: #475569;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .erp-as-top-tabs .nav-link.active .erp-as-tab-count {
+    background: rgba(13, 110, 253, 0.12);
+    color: #0d6efd;
+  }
+
+  .erp-as-summary-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .erp-as-summary-pill {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    padding: 12px 14px;
+  }
+
+  .erp-as-summary-pill__label {
+    display: block;
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .erp-as-summary-pill__value {
+    display: block;
+    color: #0f172a;
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .erp-as-mobile-tabs__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.08);
+    color: inherit;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .erp-as-mobile-tabs__item.is-active .erp-as-mobile-tabs__count {
+    background: rgba(255, 255, 255, 0.22);
+    color: #fff;
+  }
+
+  @media (max-width: 992px) {
+    .erp-as-summary-strip {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .erp-as-summary-pill {
+      padding: 10px 12px;
+    }
+
+    .erp-as-summary-pill__value {
+      font-size: 1rem;
+    }
+  }

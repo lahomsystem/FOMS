@@ -4,127 +4,7 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-04-15 19:21:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
-| 2026-04-15 19:24:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; pytest tests/contracts/runtime/foms_namespace_surface_tests.py::test_wr_h1_high_risk_cluster_s` |
-| 2026-04-15 19:27:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; pytest tests/contracts/runtime/foms_namespace_surface_tests.py::test_wr_h1_aux_api_shim_shells` |
-| 2026-04-15 19:29:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json` |
-| 2026-04-15 19:32:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py::test_wr_h1_erp_order` |
-| 2026-04-15 19:32:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
-| 2026-04-15 19:35:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py::test_wr_h1_erp_map_a` |
-| 2026-04-15 19:38:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py::test_wr_h1_attachmen` |
-| 2026-04-15 19:39:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json | python` |
-| 2026-04-15 19:41:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools\harness\verify_result.py --json; python ` |
-| 2026-04-15 19:42:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q` |
-| 2026-04-15 19:46:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools\harness\verify_result.py --json; python ` |
-| 2026-04-15 19:49:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests -q --tb=no -q 2>&1 | Select-Ob` |
-| 2026-04-15 19:50:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q --tb=no 2>&1 | Select-String -Pattern "passed|failed|error"` |
-| 2026-04-15 19:55:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json 2>&1 | S` |
-| 2026-04-15 19:55:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q --tb=no 2>&1 | Select-String -Pattern "passed|failed"` |
-| 2026-04-15 19:58:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Copy-Item -Path "apps\auth.py" -Destination "foms\web\auth\routes.py" -Force` |
-| 2026-04-15 19:59:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-04-15 19:59:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json; pytest tests -q --tb=no -x 2>&1 | Select-Object ` |
-| 2026-04-15 20:01:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Copy-Item -Path "apps\dashboards.py" -Destination "foms\web\dashboards\routes.py" -Force` |
-| 2026-04-15 20:01:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json 2>&1 | S` |
-| 2026-04-15 20:04:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Copy-Item -Path "apps\user_pages.py" -Destination "foms\web\user_pages\routes.py" -Force` |
-| 2026-04-15 20:05:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; pytest tests -q --tb=line 2>&1 | Select-Object -Last ` |
-| 2026-04-15 20:06:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json 2>&1 | Select-Object -First 8` |
-| 2026-04-15 20:07:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Copy-Item -Path "apps\storage_dashboard.py" -Destination "foms\web\storage_dashboard\routes.py` |
-| 2026-04-15 20:07:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
-| 2026-04-15 20:10:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Copy-Item -Path "apps\excel_import.py" -Destination "foms\web\excel_import\routes.py" -Force` |
-| 2026-04-15 20:10:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
-| 2026-04-15 20:13:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Copy-Item "apps\erp_dashboard.py" "foms\web\erp_dashboard\routes.py" -Force; Copy-Item "apps\e` |
-| 2026-04-15 20:15:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-04-15 20:15:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json; pytest tests -q` |
-| 2026-04-15 20:17:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; pytest tests/domains/test_foms_namespace_imports.py::test_erp_pages_use_canonical_erp_permissi` |
-| 2026-04-15 20:23:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if (Test-Path "apps\api") { Remove-Item -Recurse -Force "apps\api" }; Get-ChildItem -Path apps` |
-| 2026-04-15 20:28:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
-| 2026-04-15 20:31:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py tests/domains/test_fo` |
-| 2026-04-15 20:32:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q --tb=line` |
-| 2026-04-15 20:35:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py::test_sfc_product_tre` |
-| 2026-04-15 20:37:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path apps -Force | Format-Table Name, Mode` |
-| 2026-04-15 20:38:23 | ask | `remove-item\s+.+-recurse.+-force` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Remove-Item -Path "apps" -Recurse -Force -ErrorAction Stop; Test-Path "apps"` |
-| 2026-04-15 20:38:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests -q --tb=short` |
-| 2026-04-15 20:40:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q --tb=line; python tools/harness/verify_result.py --json` |
-| 2026-04-15 20:43:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path path = Path('tests/contracts/runtime/foms_namespace_surfa` |
-| 2026-04-15 20:43:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path path = Path('tests/contracts/runtime/foms_namespace_surfa` |
-| 2026-04-15 20:43:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path import re path = Path('tests/contracts/runtime/foms_names` |
-| 2026-04-15 20:44:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path import re path = Path('tests/contracts/runtime/foms_names` |
-| 2026-04-15 20:44:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path import re path = Path('tests/contracts/runtime/foms_names` |
-| 2026-04-15 20:45:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/_tmp_clean_foms_tests.py` |
-| 2026-04-15 20:45:33 | ask | `git\s+checkout\s+--` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout -- tests/contracts/runtime/foms_namespace_surface_tests.py` |
-| 2026-04-15 20:45:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status tests/contracts/runtime/foms_namespace_surface_tests.py 2>&1; git checkout HEAD -- ` |
-| 2026-04-15 20:46:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path lines = Path('tests/contracts/runtime/foms_namespace_surf` |
-| 2026-04-15 20:47:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/_tmp_repair_foms_tests.py` |
-| 2026-04-15 20:47:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m py_compile tests/contracts/runtime/foms_namespace_surface_tests.py 2>&1` |
-| 2026-04-15 20:49:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if (Test-Path "services") { Remove-Item -Recurse -Force "services" }; if (Test-Path "services"` |
-| 2026-04-15 20:49:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json` |
-| 2026-04-15 20:49:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q --tb=no -q 2>&1` |
-| 2026-04-15 20:50:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_namespace_imports.py::test_wr_b1_business_calendar_ca` |
-| 2026-04-15 20:51:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_namespace_imports.py::test_namespaced_map_snapshot_sh` |
-| 2026-04-15 20:51:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_namespace_imports.py::test_wave8_retired_file_utils_c` |
-| 2026-04-15 20:51:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_namespace_imports.py::test_namespaced_app_init_shim_p` |
-| 2026-04-15 20:51:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_namespace_imports.py::test_namespaced_measurement_man` |
-| 2026-04-15 20:53:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
-| 2026-04-15 20:55:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Name -Directory | Sort-Object` |
-| 2026-04-15 20:56:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git mv src "Add In Program\WDPlanner\legacy-mobile-prototype"` |
-| 2026-04-15 20:56:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
-| 2026-04-15 20:59:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Force -Name | Where-Object { $_ -ne '.git' } | Sort-Object` |
-| 2026-04-15 21:00:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git ls-tree --name-only HEAD | Sort-Object` |
-| 2026-04-15 21:00:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git diff --stat HEAD | Select-Object -First 30` |
-| 2026-04-15 21:00:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; @('apps','services','src') | ForEach-Object { "$_`: $(Test-Path $_)" }` |
-| 2026-04-15 21:00:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $actualRoot = Get-ChildItem -Force -Name | Where-Object { $_ -ne '.git' -and $_ -ne '__pycache` |
-| 2026-04-15 21:01:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Force -Name | Where-Object { $_ -ne '.git' -and $_ -ne '__pycache__' -and $_ -n` |
-| 2026-04-15 21:02:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json` |
-| 2026-04-15 21:02:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q --tb=no 2>&1 | Select-Object -Last 25` |
-| 2026-04-15 21:03:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $actualRoot = Get-ChildItem -Force -Name | Where-Object { $_ -ne '.git' -and $_ -ne '__pycache` |
-| 2026-04-15 21:04:05 | allow | `-` | `Test-Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\apps"` |
-| 2026-04-15 21:06:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git diff --stat HEAD 2>&1 | Select-Object -First 15` |
-| 2026-04-15 21:06:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/contracts/runtime/foms_namespa` |
-| 2026-04-15 21:07:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q --tb=no 2>&1 | Select-Object -Last 5` |
-| 2026-04-15 21:08:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git rev-parse --short HEAD 2>&1` |
-| 2026-04-15 21:08:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $actualRoot = Get-ChildItem -Force -Name | Where-Object { $_ -notin '.git','__pycache__','.pyt` |
-| 2026-04-15 21:11:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File "tools\harness\strict_canonical_b12_clean_room.ps1" -Ref HEAD` |
-| 2026-04-15 21:12:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File "tools\harness\strict_canonical_b12_clean_room.ps1" -Ref HEAD` |
-| 2026-04-15 21:13:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File "tools\harness\strict_canonical_b12_clean_room.ps1" -Ref HEAD 2>&1` |
-| 2026-04-15 21:13:43 | allow | `-` | `if (Test-Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\.tmp_strict_tree_verify") { "exists" } else { "absent" }` |
-| 2026-04-15 21:14:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git rev-parse --short HEAD` |
-| 2026-04-15 21:14:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $allowedRoot = @('.agents', '.claude', '.cursor', '.github', '.vscode', '.dockerignore', '.gcl` |
-| 2026-04-15 21:15:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $allowedRoot = @('.agents', '.claude', '.cursor', '.github', '.vscode', '.dockerignore', '.gcl` |
-| 2026-04-15 21:15:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json` |
-| 2026-04-15 21:16:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json 2>&1 | S` |
-| 2026-04-15 21:16:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git rev-parse --short HEAD` |
-| 2026-04-15 21:16:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests -q --tb=no` |
-| 2026-04-15 21:17:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status -sb` |
-| 2026-04-15 22:51:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-04-15 22:52:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path "templates" -Directory | ForEach-Object { $_.Name } | Sort-Object` |
-| 2026-04-15 22:52:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path "foms\web" -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.` |
-| 2026-04-15 22:52:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path "foms\api" -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.` |
-| 2026-04-15 22:52:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path "foms\services" -Directory -ErrorAction SilentlyContinue | ForEach-Object ` |
-| 2026-04-15 22:57:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py -k "slg_literal_gap" ` |
-| 2026-04-15 22:59:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "p=open('templates/shared/layout.html',encoding='utf-8').read().splitlines(); print(` |
-| 2026-04-15 22:59:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path root = Path('templates/shared/layout.html') lines = root.` |
-| 2026-04-15 22:59:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path SHELL = '''<!DOCTYPE html> <html lang=\"ko\"> <head> {% i` |
-| 2026-04-15 22:59:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/ops/_slg_b2_layout_migrate_once.py` |
-| 2026-04-15 23:00:27 | ask | `remove-item\s+.+-recurse.+-force` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if (Test-Path "templates\shared") { Remove-Item "templates\shared" -Force -Recurse }; if (Test` |
-| 2026-04-15 23:00:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py -k slg_literal_gap -v` |
-| 2026-04-15 23:00:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-04-15 23:01:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Copy-Item -Path "foms\web\order_pages\routes.py" -Destination "foms\web\orders\listing.py" -Fo` |
-| 2026-04-15 23:04:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; foreach ($d in @("foms\web\dashboards","foms\web\order_pages","foms\web\order_edit","foms\web\` |
-| 2026-04-15 23:04:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-04-15 23:04:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py -k "order_pages_uses_` |
-| 2026-04-15 23:04:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py -k "slg_literal_gap" ` |
-| 2026-04-15 23:04:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json 2>&1` |
-| 2026-04-15 23:06:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; (Get-Content "foms\web\erp_as_page\routes.py").Count; (Get-Content "foms\web\erp_drawing_workb` |
-| 2026-04-15 23:06:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Copy-Item "foms\web\erp_as_page\routes.py" "foms\web\cs\as_dashboard.py" -Force; Copy-Item "fo` |
-| 2026-04-15 23:10:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Remove-Item -Recurse -Force "foms\web\erp","foms\web\erp_as_page","foms\web\erp_drawing_workbe` |
-| 2026-04-15 23:10:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-04-15 23:10:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py -k "erp_pages_use_can` |
-| 2026-04-15 23:10:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py -k slg_literal_gap -q` |
-| 2026-04-15 23:10:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py -k slg_literal_gap -q` |
-| 2026-04-15 23:10:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json` |
-| 2026-04-15 23:10:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py -q --tb=line -x` |
-| 2026-04-15 23:11:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py -q --tb=line` |
-| 2026-04-15 23:11:31 | allow | `-` | `Get-ChildItem "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\tools" -Name` |
+| 2026-04-17 09:31:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $p="templates\drawing\workbench_dashboard.html"; (Get-Content $p -Encoding UTF8)[283..1076] | ` |
 | 2026-04-15 23:11:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py -q --tb=line` |
 | 2026-04-15 23:14:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\foms\api"; Copy-Item "attachments_internal\blueprint.py" "files\blueprint.py" -Force; Copy-Item ` |
 | 2026-04-15 23:15:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\foms\api"; Copy-Item "chat\blueprint.py" "channel\chat_blueprint.py" -Force; Copy-Item "chat\rou` |
@@ -304,3 +184,63 @@
 | 2026-04-16 19:35:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse HEAD; git rev-parse origin/feature/modular-monolith-wip 2>&1; git cherry -v orig` |
 | 2026-04-16 19:37:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short` |
 | 2026-04-16 19:37:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git reset HEAD -- _commit_msg_dmc_utf8.txt 2>$null; git status --short` |
+| 2026-04-16 19:37:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F _commit_msg_dmc_utf8.txt` |
+| 2026-04-16 19:37:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin feature/modular-monolith-wip` |
+| 2026-04-16 19:51:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_dashboard_cache.py tests/domains/test_dashboard_micro_cach` |
+| 2026-04-16 19:51:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-04-16 19:52:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_dashboard_cache.py tests/domains/test_dashboard_micro_cach` |
+| 2026-04-16 19:52:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_dashboard_cache.py tests/domains/test_dashboard_micro_cach` |
+| 2026-04-16 19:53:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-04-16 19:53:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/common/dashboard_cache.py; git commit --trailer "Made-with: Cursor" -F "` |
+| 2026-04-17 08:37:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
+| 2026-04-17 08:38:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-Content -Path "templates\orders\dashboard.html" -Encoding UTF8 | Select-Object -Skip 3 -Fi` |
+| 2026-04-17 08:39:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
+| 2026-04-17 08:41:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; New-Item -ItemType Directory -Force -Path "templates\measurement\partials" | Out-Null; $lines ` |
+| 2026-04-17 08:42:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; New-Item -ItemType Directory -Force -Path "templates\shipment\partials" | Out-Null; $lines = G` |
+| 2026-04-17 08:42:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; New-Item -ItemType Directory -Force -Path "templates\cs\partials" | Out-Null; $lines = Get-Con` |
+| 2026-04-17 08:44:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
+| 2026-04-17 08:44:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_dashboard_micro_cache_http_fallback.py -q --tb=short 2>&1` |
+| 2026-04-17 09:02:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from app import app rules = [] for r in app.url_map.iter_rules(): if 'GET' not in ` |
+| 2026-04-17 09:02:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "from app import app; rules=[]; for r in app.url_map.iter_rules(): if 'GET' not in r` |
+| 2026-04-17 09:02:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "from app import app for r in sorted(app.url_map.iter_rules(), key=lambda x: str(x.r` |
+| 2026-04-17 09:03:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json` |
+| 2026-04-17 09:10:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from app import app html_get = [] for r in app.url_map.iter_rules(): if 'GET' not ` |
+| 2026-04-17 09:11:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from app import app for r in sorted(app.url_map.iter_rules(), key=lambda x: str(x.` |
+| 2026-04-17 09:12:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
+| 2026-04-17 09:18:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
+| 2026-04-17 09:25:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; pytest tests/domains/test_erp_shell_fragment_contract.py -q` |
+| 2026-04-17 09:25:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json` |
+| 2026-04-17 09:27:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; pytest tests/domains/test_erp_shell_fragment_contract.py -q` |
+| 2026-04-17 09:30:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $p="templates\production\dashboard.html"; (Get-Content $p -Encoding UTF8)[3..128] | Set-Conten` |
+| 2026-04-17 09:30:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $p="templates\construction\dashboard.html"; (Get-Content $p -Encoding UTF8)[3..128] | Set-Cont` |
+| 2026-04-17 09:30:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $p="templates\orders\history_dashboard.html"; (Get-Content $p -Encoding UTF8)[3..583] | Set-Co` |
+| 2026-04-17 09:31:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $p="templates\cs\completion_dashboard.html"; (Get-Content $p -Encoding UTF8)[3..92] | Set-Cont` |
+| 2026-04-17 09:31:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $p="templates\drawing\workbench_dashboard.html"; (Get-Content $p -Encoding UTF8)[2..31] | Set-` |
+| 2026-04-17 09:31:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $p="templates\drawing\workbench_dashboard.html"; $styleInner = (Get-Content $p -Encoding UTF8)` |
+| 2026-04-17 09:31:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; New-Item -ItemType Directory -Force -Path "templates\drawing\partials" | Out-Null; $p="templat` |
+| 2026-04-17 09:31:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $import = "{% import 'drawing/partials/workbench_dashboard_macros.html' as wb %}`n"; $raw = Ge` |
+| 2026-04-17 09:34:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
+| 2026-04-17 09:35:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_shell_fragment_contract.py -q --tb=short` |
+| 2026-04-17 09:36:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_shell_fragment_contract.py -q --tb=short` |
+| 2026-04-17 09:38:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
+| 2026-04-17 09:42:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $wb = Get-Content "templates\drawing\workbench_detail.html" -Encoding UTF8; $wb[3..1918] | Set` |
+| 2026-04-17 09:42:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $all = Get-Content "templates\orders\edit_order.html" -Encoding UTF8; $new = New-Object System` |
+| 2026-04-17 09:44:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $lines = Get-Content -Path "templates\shipment\settings.html" -Encoding UTF8; $body = $lines[5` |
+| 2026-04-17 09:45:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
+| 2026-04-17 09:47:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_shell_fragment_contract.py -q --tb=short` |
+| 2026-04-17 09:58:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
+| 2026-04-17 10:00:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; pytest tests/domains/test_erp_shell_fragment_contract.py tests/domains/test_erp_runtime_shell_` |
+| 2026-04-17 10:00:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; pytest tests/domains/test_erp_shell_fragment_contract.py tests/domains/test_erp_runtime_shell_` |
+| 2026-04-17 10:02:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
+| 2026-04-17 10:05:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path root = Path('.') # orders dashboard_main p = root / 'temp` |
+| 2026-04-17 10:06:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path root = Path('.') p = root / 'templates/orders/partials/da` |
+| 2026-04-17 10:06:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path root = Path('.') # AS p = root / 'templates/cs/partials/a` |
+| 2026-04-17 10:06:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path p = Path('templates/orders/partials/dashboard_main.html')` |
+| 2026-04-17 10:07:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/_ept_b7_patch_templates.py` |
+| 2026-04-17 10:09:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
+| 2026-04-17 10:11:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; pytest tests/domains/test_erp_shell_fragment_contract.py tests/domains/test_erp_runtime_shell_` |
+| 2026-04-17 10:20:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
+| 2026-04-17 10:22:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; python ` |
+| 2026-04-17 10:24:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git log -1 --oneline` |
+| 2026-04-17 10:25:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git remote -v` |
+| 2026-04-17 10:25:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status --short | Select-Object -First 80` |

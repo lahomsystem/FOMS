@@ -1,11 +1,13 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-04-16 | **Dashboard micro-cache — local truth (DMC-B6 + DMC-F/C)** — `foms/services/common/dashboard_cache.py` + orders/measurement/shipment read-model slice cache (`order_detail_payload_assembly`, `measurement_*`, `shipment_panel_derived_template_payloads` 등); `[DashCache]` **compute_ms** info 로그; `FOMS_DASHBOARD_MICRO_CACHE_ENABLED` + `REDIS_URL`; commit 이후 invalidate. 검증: `APP_OK`, `verify_result.py --json`, focused pytest **15 passed** (dashboard_cache + micro_cache_http_fallback + erp_order_detail_preload), **migration/schema/template diff 없음**. **Railway·prod 원문 로그·p50/p95는 `docs/plans/2026-04-16-dmc-f7-railway-evidence.md`에 미첨부 시 운영 실측 closeout 미선언** — `docs/plans/2026-04-16-dmc-c-closeout-run-record.md`. 근거: `docs/plans/2026-04-16-dashboard-micro-cache-execution-plan.md`, `docs/plans/2026-04-16-dmc-f-run-record.md`.
+> 자동 업데이트: 2026-04-17 | **ERP fast-page EPT-B8 (verification + Railway evidence) — in progress** — B8 run record에 scope/acceptance/hard stop 잠금; 로컬 게이트 `APP_OK`, `verify_result.py --json`, `pytest … test_ept_b7_profile.py -q` **47 passed** (근거: `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` §3). **staging/prod-like** primary 9·inventory·cold/warm·Performance 증거는 **PENDING** (B7 Deferred·HTML diet 추가 밀어붙이기 아님). B7 baseline: `docs/plans/2026-04-17-ept-b7-html-diet-page-assets-profiling-run-record.md`.
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 최근 완료 (최대 5개)
+- [2026-04-17] **ERP fast-page EPT-B7 (HTML diet + page-scoped assets + profiling):** inline CSS/JS → static (orders gateway·알림, AS body, shipment table extras); `defer` 알림 스크립트; `ept_b7_profile` 렌더 ms 헤더·로그 (dashboard/as/shipment). 검증: `APP_OK`, `verify_result.py --json`, domain pytest **47 passed**. 근거: `docs/plans/2026-04-17-ept-b7-html-diet-page-assets-profiling-run-record.md`.
+- [2026-04-17] **ERP fast-page EPT-B6 (prefetch + warm navigation):** `static/js/erp/runtime-shell.js` — idle stagger·mouseover/focusin debounced prefetch·LRU fragment cache·`popstate` cache-first + scroll memory; 9-primary + B5 subordinate patterns; `test_erp_runtime_shell_js_contract.py`. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests/domains/test_erp_shell_fragment_contract.py tests/domains/test_erp_runtime_shell_js_contract.py -q` **45 passed**. 운영 ms 실측은 B8. 근거: `docs/plans/2026-04-17-ept-b6-prefetch-warm-nav-run-record.md`.
 - [2026-04-16] **Dashboard micro-cache DMC-C (local 마감 문서):** 로컬 검증 15 passed·`dmc-f7-railway-evidence.md` PENDING 템플릿·`dmc-c-closeout-run-record.md`; Railway 원문 로그 미수집 시 §4.5 운영 실측 항목은 `[ ]` 유지. 근거: `2026-04-16-dmc-c-closeout-run-record.md`.
 - [2026-04-16] **Dashboard micro-cache (`DMC-B1`–`DMC-B6`):** Redis read-model slice cache (orders/measurement/shipment), write-path invalidation, fail-open·differential·Redis 없음 HTTP 200 테스트. 근거: `2026-04-16-dmc-b6-run-record.md`.
 - [2026-04-16] **PAC post-audit correction (`PAC-B1`–`PAC-B5`):** 계획서 `docs/plans/2026-04-16-strict-final-canonical-tree-post-audit-correction-plan.md` — 게이트(`test_pac_b1_*`)·clean-room(http_errors 금지·shared exact allowlist·`-RunFullPytest` closeout)·채널 URL·인라인 오류·shared partial 재분배. 검증: **185 + 600 passed**, `APP_OK`, `verify_result`, clean-room **`-RunFullPytest`**. 근거: `2026-04-16-pac-b2-through-b5-closeout-run-record.md`, `pac-slgb-overclaim-correction-note.md`.
@@ -48,6 +50,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-14] Wave 5 **large front-end island** mainline closeout (W5-B4~B9): `estimate-lifecycle.js`, `pricing-core.js`, `beta-shared.js` owner 정렬과 thin partial closeout을 완료했고, residual live browser smoke gap과 shell/CSS/high-risk defer register는 `docs/plans/2026-04-14-wave5-batch9-closeout-run-record.md`에 잠금 처리했다.
 
 ## 진행 중
+- [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; **Railway/staging 실측·before/after 표** 미작성 시 배치 closeout 불가 (hard stop).
 - [2026-04-15] **`SFC-B11D`** (§6.18 `src/` retirement): **종료** — batch11d run record 참고.
 - [2026-04-15] **`SFC-B12`** (§6.19 clean-room): **종료** — `HEAD` `b7014c74`에서 `strict_canonical_b12_clean_room.ps1`로 SG6 재현 완료(batch12 run record §8).
 - [2026-04-15] **`SFC-B11B`** (§6.16 `apps/` overlay retirement): **working tree 기준 `apps/` 디렉터리 없음** — 구현·계약은 batch11b·B11A run record·`pytest` strict 계약으로 동결. 원격/HEAD와 불일치 시 동기화만 확인.

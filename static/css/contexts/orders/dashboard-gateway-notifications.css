@@ -1,0 +1,292 @@
+/* 도면 수정 창구 이미지 뷰어 (채널톡 스타일) */
+        #drawing-gateway-image-viewer {
+          position: fixed;
+          inset: 0;
+          z-index: 20000;
+        }
+
+        #drawing-gateway-viewer-backdrop {
+          position: absolute;
+          inset: 0;
+          background: rgba(10, 14, 22, 0.45);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+        }
+
+        #drawing-gateway-viewer-close {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          width: 42px;
+          height: 42px;
+          border-radius: 50%;
+          border: 0;
+          background: rgba(255, 255, 255, 0.12);
+          color: #fff;
+          z-index: 3;
+        }
+
+        .drawing-gateway-viewer-nav {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 48px;
+          height: 48px;
+          border-radius: 999px;
+          border: 0;
+          background: rgba(255, 255, 255, 0.15);
+          color: #fff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 3;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.16s ease, transform 0.16s ease;
+        }
+
+        #drawing-gateway-image-viewer.gateway-nav-visible .drawing-gateway-viewer-nav {
+          opacity: 1;
+          pointer-events: auto;
+          transform: translateY(-50%) scale(1);
+        }
+
+        #drawing-gateway-viewer-prev {
+          left: 18px;
+        }
+
+        #drawing-gateway-viewer-next {
+          right: 18px;
+        }
+
+        @media (hover: none) {
+          #drawing-gateway-image-viewer.gateway-has-multiple .drawing-gateway-viewer-nav {
+            opacity: 1;
+            pointer-events: auto;
+          }
+        }
+
+        #drawing-gateway-viewer-stage {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          cursor: default;
+          z-index: 2;
+          touch-action: none;
+        }
+
+        #drawing-gateway-viewer-image {
+          max-width: 90vw;
+          max-height: 82vh;
+          width: auto;
+          height: auto;
+          object-fit: contain;
+          user-select: none;
+          border: none;
+          box-shadow: none;
+          transform-origin: center center;
+          transition: transform 0.08s ease-out;
+        }
+
+        #drawing-gateway-viewer-zoom-badge {
+          position: absolute;
+          top: 18px;
+          left: 18px;
+          padding: 4px 8px;
+          font-size: 12px;
+          color: #fff;
+          border-radius: 6px;
+          background: rgba(0, 0, 0, 0.45);
+          display: none;
+          z-index: 3;
+        }
+
+        #drawing-gateway-viewer-footer {
+          position: absolute;
+          bottom: 16px;
+          left: 50%;
+          transform: translateX(-50%);
+          min-width: 280px;
+          max-width: 80vw;
+          padding: 8px 14px;
+          border-radius: 10px;
+          background: rgba(20, 24, 33, 0.55);
+          color: #fff;
+          text-align: center;
+          z-index: 3;
+        }
+
+        #drawing-gateway-viewer-filename {
+          font-size: 13px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        #drawing-gateway-viewer-counter {
+          font-size: 12px;
+          opacity: 0.85;
+          margin-top: 2px;
+        }
+
+        .drawing-gateway-thumb-wrap {
+          width: 112px;
+        }
+
+        .drawing-gateway-thumb {
+          width: 110px;
+          height: 84px;
+          border-radius: 8px;
+          overflow: hidden;
+          border: 1px solid #e6e9ef;
+          cursor: zoom-in;
+          background: #fff;
+        }
+
+        .drawing-gateway-thumb img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        /* 알림 배지 */
+        .notification-badge {
+          position: absolute;
+          top: -5px;
+          right: -5px;
+          background: #ff4757;
+          color: white;
+          font-size: 10px;
+          font-weight: bold;
+          padding: 2px 6px;
+          border-radius: 10px;
+          min-width: 18px;
+          text-align: center;
+        }
+
+        .erp-pro-btn--icon {
+          position: relative;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(255, 255, 255, 0.1);
+          border: none;
+          color: white;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .erp-pro-btn--icon:hover {
+          background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* 알림 패널 */
+        .notification-panel {
+          position: fixed;
+          top: 70px;
+          right: 20px;
+          width: 380px;
+          max-height: 500px;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+          z-index: 9999;
+          overflow: hidden;
+        }
+
+        .notification-panel__header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 16px 20px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+        }
+
+        .notification-panel__header h4 {
+          margin: 0;
+          font-size: 16px;
+        }
+
+        .notification-panel__close {
+          background: none;
+          border: none;
+          color: white;
+          font-size: 18px;
+          cursor: pointer;
+          opacity: 0.8;
+        }
+
+        .notification-panel__close:hover {
+          opacity: 1;
+        }
+
+        .notification-panel__actions {
+          padding: 10px 20px;
+          border-bottom: 1px solid #eee;
+          text-align: right;
+        }
+
+        .notification-panel__list {
+          max-height: 380px;
+          overflow-y: auto;
+        }
+
+        .notification-item {
+          padding: 14px 20px;
+          border-bottom: 1px solid #f0f0f0;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .notification-item:hover {
+          background: #f8f9fa;
+        }
+
+        .notification-item--unread {
+          background: #f0f5ff;
+          border-left: 3px solid #667eea;
+        }
+
+        .notification-item__header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 6px;
+        }
+
+        .notification-item__title {
+          font-weight: 600;
+          color: #333;
+          font-size: 14px;
+        }
+
+        .notification-item__time {
+          font-size: 11px;
+          color: #999;
+        }
+
+        .notification-item__message {
+          font-size: 13px;
+          color: #666;
+          line-height: 1.4;
+        }
+
+        .notification-item__target {
+          margin-top: 6px;
+          font-size: 11px;
+          color: #667eea;
+        }
+
+        .notification-empty {
+          padding: 40px 20px;
+          text-align: center;
+          color: #999;
+        }

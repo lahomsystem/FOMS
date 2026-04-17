@@ -1,5 +1,5 @@
 """ERP 도면 작업실 (ERP-SLIM-5; canonical, SFC-B11B). /erp/drawing-workbench."""
-from flask import Blueprint, render_template, request, url_for, redirect, flash, g
+from flask import Blueprint, make_response, render_template, request, url_for, redirect, flash, g
 from db import get_db
 from models import Order, User, OrderAttachment
 from foms.web.auth import login_required
@@ -15,6 +15,7 @@ from foms.services.erp_display import (
 )
 from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.erp_product_items import build_product_items_for_order
+from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 
 erp_drawing_workbench_bp = Blueprint('erp_drawing_workbench', __name__, url_prefix='/erp')
 
@@ -187,17 +188,26 @@ def erp_drawing_workbench_dashboard():
     start_idx = (page - 1) * per_page
     rows = rows[start_idx:start_idx + per_page]
 
-    return render_template(
-        'drawing/workbench_dashboard.html',
-        rows=rows,
-        stats=stats,
-        pagination={'page': page, 'per_page': per_page, 'total_count': total_count, 'total_pages': total_pages, 'has_prev': page > 1, 'has_next': page < total_pages},
-        sort_by=request.args.get('sort') or '',
-        filters={'q': q_raw, 'status': status_filter, 'mine': '1' if mine_only else '', 'unread': '1' if unread_only else '', 'due_today': '1' if due_today_only else '', 'assignee': assignee_filter_raw},
-        can_edit_erp=can_edit_erp(current_user),
-        erp_beta_enabled=True,
-        erp_mine_only=mine_only,
+    template_name = (
+        'drawing/partials/workbench_dashboard_fragment.html'
+        if wants_erp_shell_tab_body(request)
+        else 'drawing/workbench_dashboard.html'
     )
+    response = make_response(
+        render_template(
+            template_name,
+            rows=rows,
+            stats=stats,
+            pagination={'page': page, 'per_page': per_page, 'total_count': total_count, 'total_pages': total_pages, 'has_prev': page > 1, 'has_next': page < total_pages},
+            sort_by=request.args.get('sort') or '',
+            filters={'q': q_raw, 'status': status_filter, 'mine': '1' if mine_only else '', 'unread': '1' if unread_only else '', 'due_today': '1' if due_today_only else '', 'assignee': assignee_filter_raw},
+            can_edit_erp=can_edit_erp(current_user),
+            erp_beta_enabled=True,
+            erp_mine_only=mine_only,
+        )
+    )
+    apply_erp_shell_fragment_headers(response, request)
+    return response
 
 
 @erp_drawing_workbench_bp.route('/drawing-workbench/<int:order_id>')
@@ -334,8 +344,7 @@ def erp_drawing_workbench_detail(order_id):
             })
     measure_photos = []  # 템플릿 호환용 (미사용)
 
-    return render_template(
-        'drawing/workbench_detail.html',
+    ctx = dict(
         order=order,
         stage=stage,
         drawing_status=drawing_status,
@@ -367,4 +376,13 @@ def erp_drawing_workbench_detail(order_id):
         product_items=product_items,
         measure_photos=measure_photos,
         common_measure_photos=common_measure_photos,
+        erp_beta_enabled=True,
     )
+    template_name = (
+        'drawing/workbench_detail_fragment.html'
+        if wants_erp_shell_tab_body(request)
+        else 'drawing/workbench_detail.html'
+    )
+    response = make_response(render_template(template_name, **ctx))
+    apply_erp_shell_fragment_headers(response, request)
+    return response

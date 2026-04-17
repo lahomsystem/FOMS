@@ -2,7 +2,7 @@
 ERP 실측 대시보드 페이지 (canonical: foms.web.measurement.dashboard)
 erp.py에서 분리: /erp/measurement
 """
-from flask import Blueprint, render_template, request, redirect, url_for, g
+from flask import Blueprint, make_response, render_template, request, redirect, url_for, g
 from db import get_db
 from models import Order, OrderScheduleDate
 from foms.web.auth import login_required
@@ -31,6 +31,10 @@ from foms.services.common.dashboard_cache import (
     TTL_PAYLOAD_ASSEMBLY,
     build_dashboard_cache_key,
     get_or_compute_dashboard_slice,
+)
+from foms.services.common.erp_shell_http import (
+    apply_erp_shell_fragment_headers,
+    wants_erp_shell_tab_body,
 )
 
 erp_measurement_dashboard_bp = Blueprint(
@@ -464,21 +468,30 @@ def erp_measurement_dashboard():
         # 실측 대시보드 지도는 항상 실측 주문만 표시한다.
         return redirect(url_for('erp_map.map_view', date=selected_date, status='ALL', dashboard='measurement', q=search_q))
 
-    return render_template(
-        'measurement/dashboard.html',
-        selected_date=selected_date,
-        search_q=search_q,
-        date_from=date_from,
-        date_to=date_to,
-        use_date_range=use_range,
-        rows=rows,
-        measurement_panel_dates=measurement_panel_dates,
-        measurement_manager_options=measurement_manager_options,
-        measurement_manager_color_map=measurement_manager_color_map,
-        today_date=today_date,
-        can_edit_erp=can_edit_erp(current_user),
-        erp_mine_only=mine_filter_active,
+    template_name = (
+        'measurement/partials/dashboard_fragment.html'
+        if wants_erp_shell_tab_body(request)
+        else 'measurement/dashboard.html'
     )
+    response = make_response(
+        render_template(
+            template_name,
+            selected_date=selected_date,
+            search_q=search_q,
+            date_from=date_from,
+            date_to=date_to,
+            use_date_range=use_range,
+            rows=rows,
+            measurement_panel_dates=measurement_panel_dates,
+            measurement_manager_options=measurement_manager_options,
+            measurement_manager_color_map=measurement_manager_color_map,
+            today_date=today_date,
+            can_edit_erp=can_edit_erp(current_user),
+            erp_mine_only=mine_filter_active,
+        )
+    )
+    apply_erp_shell_fragment_headers(response, request)
+    return response
 
 
 # -----------------------------------------------------------------------------

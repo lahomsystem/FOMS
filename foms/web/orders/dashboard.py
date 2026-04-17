@@ -1,6 +1,7 @@
 """ERP 메인 대시보드 (ERP-SLIM-4; canonical, SFC-B11B). /erp/dashboard."""
 import datetime
-from flask import Blueprint, render_template, request, g
+import time
+from flask import Blueprint, make_response, render_template, request, g
 from db import get_db
 from models import Order, User
 from foms.web.auth import login_required
@@ -34,6 +35,11 @@ from foms.services.common.dashboard_cache import (
     build_dashboard_cache_key,
     get_or_compute_dashboard_slice,
 )
+from foms.services.common.erp_shell_http import (
+    apply_erp_shell_fragment_headers,
+    wants_erp_shell_tab_body,
+)
+from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 
 
 erp_dashboard_bp = Blueprint('erp_dashboard', __name__, url_prefix='/erp')
@@ -657,8 +663,14 @@ def erp_dashboard():
             )
         row["detail_payload"] = payload
 
-    return render_template(
-        'orders/dashboard.html',
+    template_name = (
+        'orders/partials/dashboard_main.html'
+        if wants_erp_shell_tab_body(request)
+        else 'orders/dashboard.html'
+    )
+    _t0 = time.perf_counter()
+    _body = render_template(
+        template_name,
         orders=paginated_orders,
         kpis=kpis,
         process_steps=process_steps,
@@ -680,3 +692,8 @@ def erp_dashboard():
         total_pages=total_pages,
         total_orders=total_orders,
     )
+    _render_ms = (time.perf_counter() - _t0) * 1000.0
+    response = make_response(_body)
+    apply_erp_shell_fragment_headers(response, request)
+    apply_ept_b7_render_headers(response, route_id="erp_dashboard", render_ms=_render_ms)
+    return response

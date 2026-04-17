@@ -328,7 +328,12 @@ def _build_map_payload(orders, *, manager_filter='', search_query='', enqueue_mi
 @erp_map_bp.route('/map_view')
 @login_required
 def map_view():
-    """지도 보기 페이지"""
+    """지도 보기 페이지.
+
+    EPT-B5: standalone full document — this route does not call
+    ``apply_erp_shell_fragment_headers``; shell tab fetch / FRAGMENT_READY does not
+    target ``/map_view``.
+    """
     return render_template('measurement/map_view.html')
 
 

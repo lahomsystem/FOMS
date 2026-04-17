@@ -4,11 +4,17 @@
 
 ## 최근 세션
 
+### Session: 6ed4978c
+- **시작**: 2026-04-17 08:35:43
+- **상태**: completed
+- **편집 파일**: `docs/AI_STATUS.md`, `docs/ARCHIVE_INDEX.md`, `docs/plans/2026-04-17-erp-fast-page-and-tab-navigation-execution-plan.md`, `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md`, `static/js/orders/dashboard-notifications.js`, `docs/plans/2026-04-17-ept-b7-html-diet-page-assets-profiling-run-record.md`, `tests/domains/test_ept_b7_profile.py`, `foms/web/shipment/dashboard.py`, `foms/web/cs/as_dashboard.py`, `foms/web/orders/dashboard.py`
+- **종료**: 2026-04-17 10:24:55
+
 ### Session: a2c3e4f2
 - **시작**: 2026-04-16 16:19:35
-- **상태**: completed
-- **편집 파일**: `docs/AI_STATUS.md`, `docs/AI_CHANGELOG.md`, `docs/plans/2026-04-16-dashboard-micro-cache-execution-plan.md`, `docs/plans/2026-04-16-dmc-f-run-record.md`, `docs/ARCHIVE_INDEX.md`, `docs/plans/2026-04-16-dmc-c-closeout-run-record.md`, `docs/plans/2026-04-16-dmc-f7-railway-evidence.md`, `docs/plans/2026-04-16-dmc-b6-run-record.md`, `docs/plans/2026-04-16-dmc-f7-local-evidence.md`, `tests/domains/test_dashboard_cache.py`
-- **종료**: 2026-04-16 19:36:00
+- **상태**: unknown
+- **편집 파일**: `.git/COMMIT_EDITMSG_DASHCACHE.txt`, `foms/services/common/dashboard_cache.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-5082dc79-e460-4ef3-a99b-7cf07e08e160.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e21fa4f0-6583-438f-bf95-15ec8d542c36.png`, `_commit_msg_dmc_utf8.txt`, `docs/AI_STATUS.md`, `docs/AI_CHANGELOG.md`, `docs/plans/2026-04-16-dashboard-micro-cache-execution-plan.md`, `docs/plans/2026-04-16-dmc-f-run-record.md`, `docs/ARCHIVE_INDEX.md`
+- **종료**: 2026-04-17 08:35:45
 
  63b5dd92
 - **시작**: 2026-04-15 22:50:57
@@ -1728,3 +1734,49 @@
 | 2026-04-16 19:35:07 | END (Claude Code) | 수정: (없음) |
 
 | 2026-04-16 19:36:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-16 19:37:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-16 19:42:22 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-16 19:43:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-16 19:46:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-16 19:49:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-16 19:52:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-16 19:53:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-16 19:56:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-16 19:58:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-16 19:59:34 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 08:45:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 09:04:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 09:13:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 09:19:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 09:27:24 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 09:39:18 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 09:48:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 09:50:24 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 10:02:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 10:12:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 10:23:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 10:24:10 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 10:24:55 | END (Claude Code) | 수정: (없음) |

@@ -6,7 +6,7 @@ erp.py에서 분리. 서비스는 foms/services/erp_shipment_settings 사용.
 import datetime
 import logging
 
-from flask import Blueprint, g, jsonify, render_template, request
+from flask import Blueprint, g, jsonify, make_response, render_template, request
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import login_required, role_required
@@ -22,6 +22,8 @@ from foms.services.erp_shipment_settings import (
 from foms.services.jobs.queue import enqueue_channeltalk_push
 from models import Order
 
+from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
+
 logger = logging.getLogger(__name__)
 erp_shipment_bp = Blueprint("erp_shipment", __name__)
 
@@ -33,11 +35,20 @@ def erp_shipment_settings():
     """ERP 출고 설정 페이지."""
     settings = load_erp_shipment_settings()
     current_user = getattr(g, "current_user", None)
-    return render_template(
-        "shipment/settings.html",
-        settings=settings,
-        can_edit_erp=can_edit_erp(current_user),
+    template_name = (
+        "shipment/settings_fragment.html"
+        if wants_erp_shell_tab_body(request)
+        else "shipment/settings.html"
     )
+    response = make_response(
+        render_template(
+            template_name,
+            settings=settings,
+            can_edit_erp=can_edit_erp(current_user),
+        )
+    )
+    apply_erp_shell_fragment_headers(response, request)
+    return response
 
 
 @erp_shipment_bp.route("/api/erp/shipment-settings", methods=["GET"])

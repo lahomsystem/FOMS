@@ -2,12 +2,14 @@
 
 from copy import deepcopy
 
-from flask import Blueprint, render_template, request, g
+from flask import Blueprint, make_response, render_template, request, g
 from db import get_db
 from models import Order
 from foms.web.auth import login_required
 from foms.services.orders.status_constants import STATUS
 from sqlalchemy import or_, cast, String
+
+from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 
 erp_history_bp = Blueprint('erp_history', __name__, url_prefix='/erp/history')
 
@@ -102,12 +104,21 @@ def history_dashboard():
     # N+1 방지를 위해 1번의 쿼리로 전체 표시 주문들의 첨부/제품 항목 매핑
     build_product_items_for_orders(db, display_orders)
 
-    return render_template(
-        'orders/history_dashboard.html',
-        orders=enriched,
-        page=page,
-        per_page=per_page,
-        total_pages=total_pages,
-        total_orders=total_orders,
-        has_filter=has_filter
+    template_name = (
+        'orders/partials/history_dashboard_fragment.html'
+        if wants_erp_shell_tab_body(request)
+        else 'orders/history_dashboard.html'
     )
+    response = make_response(
+        render_template(
+            template_name,
+            orders=enriched,
+            page=page,
+            per_page=per_page,
+            total_pages=total_pages,
+            total_orders=total_orders,
+            has_filter=has_filter,
+        )
+    )
+    apply_erp_shell_fragment_headers(response, request)
+    return response
