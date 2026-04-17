@@ -2540,6 +2540,24 @@ document.addEventListener('DOMContentLoaded', function () {
     loadMeasurementPanel();
     setInterval(loadMeasurementPanel, 30000);
 
+    // Bootstrap은 «처음부터 활성인» 탭에 대해 `shown.bs.tab`을 쏘지 않음.
+    // ERP Beta 주문 편집은 서버에서 ERP Beta 탭이 이미 active이므로, 기존에는
+    // `erpLoadStructured` / `erpLoadQuest`가 한 번도 호출되지 않아 제품·고객 필드가
+    // 템플릿 기본값(예: 고객명 ◆)만 남는 현상이 발생함.
+    if (ORDER_ID && ORDER_ID > 0) {
+        const erpTabBtn = document.getElementById('erp-beta-tab');
+        const erpPane = document.getElementById('erp-beta');
+        const erpTabAlreadyActive =
+            (erpTabBtn && erpTabBtn.classList.contains('active')) ||
+            (erpPane && (erpPane.classList.contains('active') || erpPane.classList.contains('show')));
+        if (erpTabAlreadyActive) {
+            void (async () => {
+                await erpLoadStructured();
+                await erpLoadQuest();
+            })();
+        }
+    }
+
     // ERP Beta 탭이 열릴 때: ORDER_ID가 있을 때만 데이터 로드 (자동 주문 생성 제거)
     // 저장 버튼을 눌러야만 주문이 생성되고 저장됨
     document.getElementById('erp-beta-tab')?.addEventListener('shown.bs.tab', async function () {
