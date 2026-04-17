@@ -1,5 +1,5 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-04-17 | **ERP fast-page EPT-B8 (verification + Railway evidence) — in progress** — B8 run record에 scope/acceptance/hard stop 잠금; 로컬 게이트 `APP_OK`, `verify_result.py --json`, `pytest … test_ept_b7_profile.py -q` **47 passed** (근거: `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` §3). **staging/prod-like** primary 9·inventory·cold/warm·Performance 증거는 **PENDING** (B7 Deferred·HTML diet 추가 밀어붙이기 아님). B7 baseline: `docs/plans/2026-04-17-ept-b7-html-diet-page-assets-profiling-run-record.md`.
+> 자동 업데이트: 2026-04-17 | **ERP fast-page EPT-B8 (verification + Railway evidence) — in progress** — B8 run record에 scope/acceptance/hard stop 잠금; 로컬 게이트 `APP_OK`, `verify_result.py --json`, `pytest … test_ept_b7_profile.py -q` **47 passed** (근거: `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` §3). **staging** `https://lahom-dev.up.railway.app` — `ept_b8_staging_http_evidence.py` + `session_staging` 로 **primary 9 full/warm(s)·B7(대시보드·출고·AS)·Tier B/C 대부분** **기록됨** (run record §4–§5); **Railway deployment** `38ff39ed-4c80-4276-bea0-3a9560f13b14` (FOMS-DEV/production/FOMS, §4.3). **PENDING:** 행별 **Cold·click-to-paint·왕복 HAR**. **§9 GDM·EPT-B9**는 B8 수용 완료 후. B7 baseline: `docs/plans/2026-04-17-ept-b7-html-diet-page-assets-profiling-run-record.md`.
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
@@ -50,7 +50,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-14] Wave 5 **large front-end island** mainline closeout (W5-B4~B9): `estimate-lifecycle.js`, `pricing-core.js`, `beta-shared.js` owner 정렬과 thin partial closeout을 완료했고, residual live browser smoke gap과 shell/CSS/high-risk defer register는 `docs/plans/2026-04-14-wave5-batch9-closeout-run-record.md`에 잠금 처리했다.
 
 ## 진행 중
-- [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; **Railway/staging 실측·before/after 표** 미작성 시 배치 closeout 불가 (hard stop).
+- [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
 - [2026-04-15] **`SFC-B11D`** (§6.18 `src/` retirement): **종료** — batch11d run record 참고.
 - [2026-04-15] **`SFC-B12`** (§6.19 clean-room): **종료** — `HEAD` `b7014c74`에서 `strict_canonical_b12_clean_room.ps1`로 SG6 재현 완료(batch12 run record §8).
 - [2026-04-15] **`SFC-B11B`** (§6.16 `apps/` overlay retirement): **working tree 기준 `apps/` 디렉터리 없음** — 구현·계약은 batch11b·B11A run record·`pytest` strict 계약으로 동결. 원격/HEAD와 불일치 시 동기화만 확인.

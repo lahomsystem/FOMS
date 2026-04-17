@@ -1,6 +1,6 @@
 # EPT-B8 — Verification + Railway / staging evidence (run record)
 
-**Status:** **in progress** — **local verification gate complete**; **staging `session_staging` + `ept_b8_staging_http_evidence.py` 로 primary 9 행 full/warm(s) + B7(대시보드·출고·AS) 확보** (2026-04-17). **`/erp/orders/<id>`** 는 하네스가 **302 + Location** 만 검증(`allow_redirects=False`) — 리다이렉트 추적 시 로그인 URL로 잘못 수렴하던 오탐 제거(도구 2026-04-17 갱신). **여전히 PENDING:** per-path **Cold** 열(또는 HAR), **click-to-paint / Performance API**, **primary↔subordinate 왕복 HAR**, **Railway deployment ID**(§4.3).  
+**Status:** **in progress** — **local verification gate complete**; **staging `session_staging` + `ept_b8_staging_http_evidence.py` 로 primary 9 행 full/warm(s) + B7(대시보드·출고·AS) 확보** (2026-04-17). **`/erp/orders/<id>`** 는 하네스가 **302 + Location** 만 검증(`allow_redirects=False`) — 리다이렉트 추적 시 로그인 URL로 잘못 수렴하던 오탐 제거(도구 2026-04-17 갱신). **Railway deployment ID** — §4 **After** / §4.3 (`railway deployment list`, 2026-04-17). **여전히 PENDING:** per-path **Cold** 열(또는 HAR), **click-to-paint / Performance API**, **primary↔subordinate 왕복 HAR**.  
 **Authoritative inputs:** `docs/specs/2026-04-17-erp-shell-fragment-contract_SPEC.md`, B6/B7 run records, `docs/plans/2026-04-17-ept-b1-baseline-contract-run-record.md` §8 (inventory v2).  
 **Explicit non-goals:** Re-open B7 §Deferred (DOM/row on-demand without semantic-preserving proof); query rewrite in this batch; code changes for performance unless fixing evidence collection only.
 
@@ -32,7 +32,7 @@
 |-----------|-------------------|----------------------|
 | APP_OK / verify_result / focused pytest | **Done** — see §3 | N/A |
 | Browser-like regression | **Partial** — pytest contract regression **done**; human/browser Performance evidence **PENDING** | **Partial** — HTTP 하네스 **full/warm(s)** + **B7 일부**; **click-to-paint** 는 **PENDING** |
-| Primary 9 before/after | Template: §4 | **Partial** — §4 표 **full/warm + B7(3 route)** 채움; **Before/After deploy pair·Cold 열** 은 **PENDING** |
+| Primary 9 before/after | Template: §4 | **Partial** — §4 표 **full/warm + B7(3 route)** + **After Railway deployment ID**; **Before** baseline·**Cold 열** 은 **PENDING** |
 | Subordinate/descendant inventory before/after | Template: §5 | **Partial** — Tier B/C **full_reload(s)**; `/erp/orders/<id>` 는 **302 B5 계약** 하네스로 정합(§5) |
 | full / cold / warm / primary↔subordinate comparison | Procedure: §6 | **Partial** — §4 **full/warm**; **Cold(행별)·왕복** 은 **PENDING** |
 | click-to-paint (or equivalent) | N/A locally | **PENDING** |
@@ -73,7 +73,7 @@
 
 **Cold 열:** primary 9별 “첫 탭 방문” cold는 하네스 한 세션으로는 분리하기 어려움 — **§4.4** `cold_nav_proxy` 참고 또는 **HAR**.  
 **Before:** commit hash / deploy id: *(baseline / prior Railway deploy — not captured this session; compare to B1 run record if needed)*  
-**After (repo reference at capture):** commit **`9541bfd516a8ac3fef7fc4d293723d830a0b9ab3`** — **Railway deployment ID:** *(paste from Railway dashboard → `lahom-dev` service; not available from repo)*
+**After (repo + Railway at HTTP evidence capture):** commit **`9541bfd516a8ac3fef7fc4d293723d830a0b9ab3`** — **Railway deployment ID:** **`38ff39ed-4c80-4276-bea0-3a9560f13b14`** (SUCCESS, **2026-04-17 11:09:28 +09:00**). **CLI 맥락:** workspace `lahomsystem's Projects` → project **FOMS-DEV** → environment **production** → service **FOMS** (`railway link` 후 `railway deployment list`).
 
 ### 4.1 Request timestamp reference (MCP, ordering only — not wall-clock ms)
 
@@ -124,7 +124,9 @@ python tools/harness/ept_b8_staging_http_evidence.py --base https://lahom-dev.up
 
 ### 4.3 Railway deployment ID (서비스 메타)
 
-로컬 CLI: `railway login` 후 프로젝트/서비스 연결된 디렉터리에서 `railway deployment list` — 최신 배포 ID를 **After** 줄에 기입. (미로그인·미링크 환경에서는 대시보드 UI에서 동일 정보 복사.)
+로컬 CLI: `railway login` → `railway link` (프로젝트·환경·서비스) → `railway deployment list` — 최신 **SUCCESS** 행의 UUID를 **After** 줄에 기입.
+
+**2026-04-17 캡처:** `38ff39ed-4c80-4276-bea0-3a9560f13b14` | SUCCESS | 2026-04-17 11:09:28 +09:00 — 링크: **FOMS-DEV** / **production** / **FOMS**.
 
 HTTP 응답 헤더의 `x-railway-request-id` / CDN edge 표시는 **요청 추적용**이며 **배포(Deployment) ID와 동일하지 않음**.
 
@@ -171,7 +173,7 @@ Source: B1 §8.2–8.5. Minimum: smoke + one timing row per tier representative.
 - **HTTP harness:** primary 9 **full/warm(s)** + **B7** 일부 + Tier B/C **full_reload(s)** — §4 표·§5·§4.4.
 - **Warm/prefetch signal:** fragment `?view=fragment` XHR **200** sequences observed between shell navigations (see §4.1) — **not** a substitute for measured cold vs warm seconds.
 - **Primary ↔ subordinate round-trip:** not formally timed; Tier B paths in §5.1 reachable from same session.
-- **Remaining:** **Cold(행별)**, **click-to-paint**, **왕복 HAR**, **Railway deploy ID** — `9541bfd5` 배포와 연결 후 §6.3–6.4.
+- **Remaining:** **Cold(행별)**, **click-to-paint**, **왕복 HAR** — §6.3–6.4 (배포 ID는 §4 **After** / §4.3).
 
 ### 6.3 Click-to-paint / Performance API (browser-only)
 
@@ -201,7 +203,7 @@ Source: B1 §8.2–8.5. Minimum: smoke + one timing row per tier representative.
 ## 8. Hard stop (compliance)
 
 - **Do not** mark this run record **closed / complete** until **staging (or prod-like) authenticated evidence** includes **filled duration columns** (or attached DevTools/HAR), **B7 headers** where required, and **§6 modes** — or items are **waived** with approver and date.
-- **Current:** §4 **duration + B7(3 primary)** + §5 **대부분 timing** 확보. **미완:** Railway deploy ID, Cold 열·왕복·click-to-paint, `/erp/orders/<id>` 하네스 불일치 해소. **Not** sufficient for B8 final acceptance or GDM §9.
+- **Current:** §4 **duration + B7(3 primary)** + §5 **대부분 timing** + **Railway deployment ID(§4.3)**. **미완:** Cold 열·왕복·click-to-paint(§6). **Not** sufficient for B8 final acceptance or GDM §9.
 - **Do not** reverse B7 §Deferred without new SPEC-grade rationale.
 - **Do not** merge semantic-breaking “fixes” to hit numbers.
 
@@ -219,4 +221,4 @@ Source: B1 §8.2–8.5. Minimum: smoke + one timing row per tier representative.
 
 ---
 
-*Next: Railway deploy ID; optional HAR for Cold/왕복/click-to-paint; 재실행 시 Network **전체 Cookie** 로 `/erp/orders/<id>` 하네스 재확인; 상위 계획 §4.8·`AI_STATUS`·`ARCHIVE_INDEX` sync; **EPT-B9** only after B8 closeout.*
+*Next: optional HAR for Cold/왕복/click-to-paint; 하네스 최신본으로 `/erp/orders/<id>`는 `legacy_redirect_contract_ok` 확인; 상위 계획 §4.8·`AI_STATUS`·`ARCHIVE_INDEX` sync; **EPT-B9** only after B8 closeout.*
