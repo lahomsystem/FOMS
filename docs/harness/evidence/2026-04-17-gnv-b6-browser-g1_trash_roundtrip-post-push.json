@@ -1,0 +1,31 @@
+{
+  "harness": "gnv_b6_staging_browser_metrics",
+  "base": "https://lahom-dev.up.railway.app",
+  "scenario": "g1_trash_roundtrip",
+  "metrics": {
+    "scenario": "g1_trash_roundtrip",
+    "click_trash_full_document_ms": 1950.57,
+    "browser_back_ms": 53.3,
+    "url_after_back": "https://lahom-dev.up.railway.app/",
+    "performance": {
+      "navigation_last": {
+        "duration": 1890.7000000029802,
+        "domContentLoadedEventEnd": 1867.5,
+        "loadEventEnd": 1890.7000000029802,
+        "transferSize": 52022,
+        "type": "reload"
+      },
+      "paint": [
+        {
+          "name": "first-paint",
+          "startTime": 1800
+        },
+        {
+          "name": "first-contentful-paint",
+          "startTime": 1800
+        }
+      ]
+    },
+    "note": "Document navigation + history Back; if deployed build has G1-A swap, may differ from fragment-only path."
+  }
+}

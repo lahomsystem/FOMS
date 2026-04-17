@@ -198,54 +198,62 @@ python tools/harness/gnv_b6_staging_browser_metrics.py --base https://lahom-dev.
 ### 본 세션 수집 (2026-04-17, Railway `lahom-dev`)
 
 - **자격 증명**: `FOMS_STAGING_COOKIE` + Playwright용 `FOMS_STAGING_USERNAME` / `FOMS_STAGING_PASSWORD`로 수집.  
-- **증거 파일 (저장소, 비밀 미포함)**:
-  - `docs/harness/evidence/2026-04-17-gnv-b6-staging-http-evidence.json`
-  - `docs/harness/evidence/2026-04-17-gnv-b6-browser-g1_full_nav.json`
-  - `docs/harness/evidence/2026-04-17-gnv-b6-browser-g1_trash_roundtrip.json`
-  - `docs/harness/evidence/2026-04-17-gnv-b6-browser-g2_chat.json`
 - **운영자 보안**: 채팅/로그에 노출된 세션·비밀번호는 **회전(무효화·변경)** 권장.
 
-### Evidence table (HTTP: cold = `Cache-Control: no-cache` 첫 GET, warm = 직후 동일 URL 재GET)
+#### A. 푸시 전 (구버전 이미지 가능)
+
+- **증거 파일**: `2026-04-17-gnv-b6-staging-http-evidence.json`, `2026-04-17-gnv-b6-browser-*.json` (동일 접두사, `-post-push` 없음).  
+- **요약**: `X-FOMS-GNAV-FRAGMENT` **미부착** (`fragment_header_ok: false`) — **아직 GNV-B1이 스테이징에 없었을 때** 측정.
+
+#### B. `git push` · 배포 후 재측정 (권위)
+
+- **증거 파일 (저장소, 비밀 미포함)**:
+  - `docs/harness/evidence/2026-04-17-gnv-b6-staging-http-evidence-post-push.json`
+  - `docs/harness/evidence/2026-04-17-gnv-b6-browser-g1_full_nav-post-push.json`
+  - `docs/harness/evidence/2026-04-17-gnv-b6-browser-g1_trash_roundtrip-post-push.json`
+  - `docs/harness/evidence/2026-04-17-gnv-b6-browser-g2_chat-post-push.json`
+- **하네스**: `g1_trash_roundtrip`은 `go_back` 직후 클라 네비로 `evaluate` 컨텍스트가 깨질 수 있어 `_perf_snapshot_retry` + `networkidle` 대기 추가 (`tools/harness/gnv_b6_staging_browser_metrics.py`).
+
+### Evidence table — **배포 후 (B, HTTP)**
 
 | 시나리오 | cold (s) | warm (s) | fragment cold/warm (s) | `X-FOMS-GNAV-FRAGMENT` |
 |----------|----------|----------|------------------------|-------------------------|
-| G1-A `/` | 2.374 | 3.122 | 2.540 / 2.222 | **없음** (`null`, `fragment_header_ok`: false) |
-| G1-A `/?status=RECEIVED` | 1.501 | 1.498 | 1.499 / 1.506 | **없음** |
-| G1-A `/trash` | 1.897 | 1.889 | 1.880 / 1.871 | **없음** |
-| G2 `/erp/dashboard` | 3.320 | 2.073 | — | — (full document만) |
-| G2 `/chat` | 0.989 | 1.048 | — | — |
+| G1-A `/` | 2.607 | 2.536 | 2.414 / 2.242 | **1** (`fragment_header_ok`: true) |
+| G1-A `/?status=RECEIVED` | 1.582 | 1.512 | 1.510 / 1.506 | **1** |
+| G1-A `/trash` | 2.289 | 1.951 | 1.880 / 1.881 | **1** |
+| G2 `/erp/dashboard` | 3.631 | 1.975 | — | — (full document만) |
+| G2 `/chat` | 0.991 | 0.971 | — | — |
 
-### 브라우저 프록시 (Playwright, Chromium headless)
+### 브라우저 프록시 — **배포 후 (B, Playwright)**
 
 | 시나리오 | 지표 | 값 |
 |----------|------|-----|
-| `g1_full_nav` | top-nav 접수 클릭 → `networkidle` | **2947 ms** (반올림: 2946.55) |
-| | Navigation `duration` (ms) | ~1616 |
-| | `first-contentful-paint` (ms) | **1620** |
-| `g1_trash_roundtrip` | 휴지통 클릭 → full document | **3390 ms** |
-| | Browser Back → `networkidle` | **687 ms** |
-| | Back 후 navigation `type` | `back_forward` |
-| | Back 후 FCP (ms) | **68** |
-| `g2_chat` | `/chat` load 후 FCP (ms) | **996** |
-| | Navigation `duration` (ms) | ~1981 |
+| `g1_full_nav` | top-nav 접수 클릭 → `networkidle` | **1598 ms** (1597.75) |
+| | Navigation `duration` (ms) | ~2470 |
+| | `first-contentful-paint` (ms) | **2328** |
+| `g1_trash_roundtrip` | 휴지통 클릭 → full document | **1951 ms** |
+| | Browser Back → `networkidle` | **53 ms** |
+| | 직후 Performance `navigation` `type` | `reload` (스냅샷 시점; bfcache/스왑 조합에 따라 달라질 수 있음) |
+| | 직후 FCP (ms) | **1800** |
+| `g2_chat` | `/chat` load 후 FCP (ms) | **1020** |
+| | Navigation `duration` (ms) | ~1991 |
 
 ### 미달 / 원인 분류 (B1 계약 대비)
 
-- `view=nav-fragment` + `X-FOMS-GNAV: 1` 요청은 **HTTP 200**이나 **`X-FOMS-GNAV-FRAGMENT` 헤더 없음** (전 경로).  
-- **분류**: **`HTML`** — 스테이징 배포가 로컬/B1 구현과 응답 계약이 일치하지 않거나(구버전 이미지), 서버 분기 미적용. (클라 swap ms가 아니라 **서버가 fragment 모드를 표시하지 않음**.)  
-- 조치: Railway에 **GNV-B1 반영 빌드** 배포 후 동일 하네스로 재측정 시 `fragment_header_ok: true` 기대.
+- **배포 후 (B)**: `view=nav-fragment` + `X-FOMS-GNAV: 1` 에 대해 **`X-FOMS-GNAV-FRAGMENT: 1` 확인** — B1 서버 계약 **스테이징 일치**.  
+- **푸시 전 (A)**: 구버전 이미지로 **`HTML`**(헤더 누락)로 기록됐던 갭은 **배포로 해소**.
 
 ### GDM B6 hard review (synthesis)
 
-- **Semantic**: HTTP는 전송·TTFB·바디 수신 구간의 합(클라이언트 측 swap과 별개).  
-- **Surface**: G2는 문서 네비게이션만 측정; body swap 없음.  
-- **Evidence**: 실측 JSON 4종 확보; 스테이징은 fragment 헤더 **미일치**로 별도 추적.
+- **Semantic**: HTTP fragment 시간은 서버 응답; 브라우저 swap ms와 별개.  
+- **Surface**: G2는 문서 네비게이션만; body swap 없음.  
+- **Evidence**: 배포 후 JSON 4종이 **권위**; 푸시 전 파일은 비교·이력용.
 
-**Status**: B6 **COMPLETE (evidence on disk)** — 단, **스테이징 fragment 계약은 미달** (`HTML`); 재배포 후 헤더 검증 권장.
+**Status**: B6 **COMPLETE** — 스테이징 **배포 후** fragment 헤더·HTTP·브라우저 증거 확보.
 
 ---
 
 ## GNV-B7 — Final closeout
 
-**전제**: B6 실측 증거 파일 존재 → **충족** (2026-04-17).  
-**다음**: GDM 최종 합의·문서 정리 시 **스테이징 fragment 헤더 갭**을 “운영 배포 과제”로 명시하고 closeout.
+**전제**: B6 실측(배포 후) 증거 파일 존재 → **충족** (2026-04-17).  
+**다음**: GDM 최종 합의·문서 정리로 closeout 진행 가능.
