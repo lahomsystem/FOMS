@@ -3,7 +3,7 @@
 import copy
 import datetime
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, flash, make_response, redirect, render_template, request, session, url_for
 from sqlalchemy import String, text
 
 from foms.web.auth import get_user_by_id, log_access, login_required, role_required
@@ -12,6 +12,7 @@ from foms.services.erp_display import _ensure_dict, apply_erp_display_fields
 from foms.services.order_display_utils import format_options_for_display
 from foms.services.order_storage_cleanup import delete_storage_files_for_order
 from foms.services.request_utils import get_preserved_filter_args
+from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
 from models import Order
 
 order_trash_bp = Blueprint("order_trash", __name__, url_prefix="")
@@ -173,7 +174,17 @@ def trash():
             | (Order.structured_data.cast(String).like(search_pattern))
         )
     orders = _build_trash_display_orders(query.order_by(Order.deleted_at.desc()).all())
-    return render_template("orders/trash.html", orders=orders, search_term=search_term)
+    parent = gnav_orders_layout_parent()
+    html = render_template(
+        "orders/trash.html",
+        orders=orders,
+        search_term=search_term,
+        parent_template=parent,
+    )
+    resp = make_response(html)
+    if wants_gnav_fragment():
+        resp.headers["X-FOMS-GNAV-FRAGMENT"] = "1"
+    return resp
 
 
 @order_trash_bp.route("/restore_orders", methods=["POST"])
