@@ -1,0 +1,14 @@
+{
+  "base": "https://lahom-dev.up.railway.app",
+  "scenario": "primary_subordinate_roundtrip",
+  "metrics": {
+    "order_id": 2732,
+    "back_to_dashboard_ms": 676.81,
+    "url_after_back": "https://lahom-dev.up.railway.app/erp/dashboard",
+    "navigation_entry_last": {
+      "duration": 159.70000000298023,
+      "type": "back_forward"
+    },
+    "note": "Full document navigation + history Back; not in-shell swap. Complement with HAR for popstate/shell."
+  }
+}
