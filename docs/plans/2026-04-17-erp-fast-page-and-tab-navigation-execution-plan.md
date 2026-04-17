@@ -1,5 +1,15 @@
 # ERP Fast Page + Tab Navigation Execution Plan
-> 작성일: 2026-04-17 | 상태: 🟢 GDM 감리 완료, 실행 준비
+> 작성일: 2026-04-17 | 상태: 🟡 **코드 배치(B1–B7) 구현·로컬 계약 테스트 정합 — 문서/증거 closeout·B9는 미종료**
+>
+> **GDM 병렬 감리 (2026-04-17)** — 저장소 대조·3-way 병렬 에이전트 종합:
+>
+> | 축 | 판정 | 근거 요약 |
+> |----|------|-----------|
+> | **§4.1–§4.7 구현** | **PASS** (체크 [x] 대응) | `erp_navigation_contract`(9+9), `erp_shell_http`, `runtime-shell`(프리페치·popstate·B5 서브경로), `test_erp_shell_fragment_contract`·`test_erp_runtime_shell_js_contract` 존재 |
+> | **§4.8 B8 / §5 증거** | **FAIL (미완)** | B8 run record: Cold·click-to-paint·왕복 HAR PENDING; §5 체크 전부 `[ ]`; `docs/harness/evidence/*.json`은 HTTP 스냅샷 수준 |
+> | **§4.9 B9** | **FAIL (미시작)** | plan vs code·Railway·semantic matrix 최종 감리 항목 미체크 |
+> | **§3.4.2 수치 예산** | **PARTIAL** | B7은 render ms·자산 분리 위주; **≤220KB / ≤160KB**·warm≤250ms 등은 **커밋된 측정표로 미증명** (최종은 Railway 실측·B8/B9) |
+> | **문서 정합** | **주의** | 아래 §4.2: 초기 문구는 “FRAGMENT_READY만”이었으나 **B5 이후** 클라이언트는 `isShellFragmentSwapUrl` = primary 9 **+** B5 subordinate — **코드가 최종** |
 >
 > **재개 동결 (EPT-R0)**: 저장소 대비 잠금판 갭·라우트 인벤토리·다음 배치 순서 — `docs/plans/2026-04-17-ept-r0-resume-audit-freeze-run-record.md`
 
@@ -389,7 +399,7 @@ heavy fragment는 아래 중 하나로 지연한다.
 - [x] `브라우저에서 직접 열 수 있는 ERP HTML GET page/subpage는 전부 범위`라는 계약을 문서/테스트에 잠근다. *(SPEC §9 + B1 §8; 임의 제외 없음)*
 
 ### 4.2 EPT-B2 ERP shell 도입 (안전 네비 — PRIMARY_NAV vs FRAGMENT_READY)
-- [x] `static/js/erp/runtime-shell.js` — shell 클라이언트; **fetch+swap은 `FRAGMENT_READY`만** (`isFragmentReadyPath`). **EPT-B4 이후** `FRAGMENT_READY` = **9 path** (PRIMARY_NAV와 동일 순서). `window.FOMS_ERP_SHELL.{PRIMARY_NAV,FRAGMENT_READY}_PATHS` 노출.
+- [x] `static/js/erp/runtime-shell.js` — shell 클라이언트; **fetch+swap 대상**은 **`isShellFragmentSwapUrl`** = **9 primary** (`isFragmentReadyPath`) **+ EPT-B5 subordinate** (`isSubordinateShellFragmentPath`: 예 shipment-settings, drawing-workbench/`id`, `/edit/id`). **EPT-B4 이후** 9 primary = `FRAGMENT_READY` = PRIMARY_NAV 동일 순서. `window.FOMS_ERP_SHELL.{PRIMARY_NAV,FRAGMENT_READY}_PATHS` 노출.
 - [x] `foms/services/common/erp_navigation_contract.py` — `ERP_PRIMARY_NAV_PATHS`(9), **`ERP_FRAGMENT_READY_PATHS`(9, B4)**, `ERP_CANONICAL_TAB_PATHS` = **FRAGMENT_READY와 동일 튜플 객체**(SPEC §2).
 - [x] ERP 동일 출처 링크: fragment-ready면 shell fetch; 그 외 primary/하위는 **브라우저 기본 네비**(이중 GET 방지). *(run record: `2026-04-17-ept-b2-erp-shell-safe-nav-run-record.md`)*
 - [x] history `pushState` / `popstate` — fragment 경로에서만 shell 경로 유지; 그 외는 기존 동작.
