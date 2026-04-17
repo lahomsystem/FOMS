@@ -70,11 +70,14 @@ def test_add_order_page_renders_thin_erp_beta_partial_contract(erp_editor_client
     assert response.status_code == 200
     body = response.get_data(as_text=True)
 
-    order_id_idx = body.index("let ORDER_ID = 0;")
-    draft_mode_idx = body.index("window.__ERP_BETA_DRAFT_MODE = true;")
     payment_urls_idx = body.index("window.__ERP_PAYMENT_ICON_URLS")
+    beta_shared_tag_idx = body.index("js/orders/beta-shared.js")
+    order_id_idx = body.index(
+        "    ORDER_ID = 0;\n    var _aoCfg = document.getElementById('add-order-config');"
+    )
+    draft_mode_idx = body.index("window.__ERP_BETA_DRAFT_MODE = true;")
 
-    assert order_id_idx < draft_mode_idx < payment_urls_idx
+    assert payment_urls_idx < beta_shared_tag_idx < order_id_idx < draft_mode_idx
     _assert_shared_form_script_contract(body)
 
 
@@ -86,11 +89,13 @@ def test_edit_order_page_renders_thin_erp_beta_partial_contract(erp_editor_clien
     assert response.status_code == 200
     body = response.get_data(as_text=True)
 
+    payment_urls_idx = body.index("window.__ERP_PAYMENT_ICON_URLS")
+    beta_shared_tag_idx = body.index("js/orders/beta-shared.js")
     order_id_idx = body.index(
-        "const ORDER_ID = parseInt(document.querySelector('.card[data-order-id]')?.dataset.orderId || '0');"
+        "    ORDER_ID = parseInt(document.querySelector('.card[data-order-id]')?.dataset.orderId || '0', 10) || 0;\n"
+        '    ERP_BETA_ENABLED = ("'
     )
     draft_mode_idx = body.index("window.__ERP_BETA_DRAFT_MODE = false;")
-    payment_urls_idx = body.index("window.__ERP_PAYMENT_ICON_URLS")
 
-    assert order_id_idx < draft_mode_idx < payment_urls_idx
+    assert payment_urls_idx < beta_shared_tag_idx < order_id_idx < draft_mode_idx
     _assert_shared_form_script_contract(body)

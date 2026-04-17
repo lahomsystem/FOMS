@@ -199,13 +199,71 @@
     });
   }
 
-  function applyFragmentToMain(html) {
+  var BETA_SHARED_SRC = '/static/js/orders/beta-shared.js';
+
+  function loadScriptOnce(src, onload) {
+    var sel = 'script[data-foms-loaded-src="' + src.replace(/"/g, '') + '"]';
+    var existing = document.querySelector(sel);
+    if (existing) {
+      if (existing.getAttribute('data-foms-loaded') === '1') {
+        onload();
+      } else {
+        existing.addEventListener('load', onload);
+      }
+      return;
+    }
+    var s = document.createElement('script');
+    s.src = src;
+    s.setAttribute('data-foms-loaded-src', src);
+    s.onload = function () {
+      s.setAttribute('data-foms-loaded', '1');
+      onload();
+    };
+    document.head.appendChild(s);
+  }
+
+  /**
+   * /edit/:id 프래그먼트: 인라인 스크립트 미실행 → beta-shared 동기화 + 부트스트랩.
+   * 대시보드 등에서 beta-shared가 아직 없으면 한 번 로드한다.
+   */
+  function finishErpShellFragmentSwap(swapUrl) {
+    var p = pathOnly(swapUrl || '');
+    var dispatch = function () {
+      try {
+        document.dispatchEvent(
+          new CustomEvent('foms:erp-shell-fragment-swapped', { detail: { url: swapUrl || '' } })
+        );
+      } catch (e) {
+        /* ignore */
+      }
+    };
+    if (!/^\/edit\/\d+/.test(p)) {
+      dispatch();
+      return;
+    }
+    function runBootstrap() {
+      if (typeof window.fomsErpBootstrapErpBetaSurface === 'function') {
+        window.fomsErpBootstrapErpBetaSurface();
+      }
+      dispatch();
+    }
+    if (typeof window.fomsErpBootstrapErpBetaSurface === 'function') {
+      runBootstrap();
+      return;
+    }
+    loadScriptOnce(BETA_SHARED_SRC, runBootstrap);
+  }
+
+  function applyFragmentToMain(html, swapUrl) {
     var main = document.getElementById('main-content');
     if (!main) {
       return false;
     }
     main.innerHTML = html;
     activateScripts(main);
+    if (typeof swapUrl === 'string' && swapUrl) {
+      finishErpShellFragmentSwap(swapUrl);
+    }
     return true;
   }
 
@@ -272,7 +330,7 @@
 
     if (!opts.bypassCache) {
       var cached = cacheGet(destKey);
-      if (cached && applyFragmentToMain(cached)) {
+      if (cached && applyFragmentToMain(cached, canonical.href)) {
         if (!opts.fromPopState && window.history && window.history.pushState) {
           window.history.pushState({ fomsErpShell: true }, '', canonical.pathname + canonical.search + canonical.hash);
         }
@@ -284,7 +342,7 @@
     setShellFragmentLoading(true);
     return fetchFragment(canonical)
       .then(function (html) {
-        if (!applyFragmentToMain(html)) {
+        if (!applyFragmentToMain(html, canonical.href)) {
           setShellFragmentLoading(false);
           window.location.href = canonical.pathname + canonical.search + canonical.hash;
           return;

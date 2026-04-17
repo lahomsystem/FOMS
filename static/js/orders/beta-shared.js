@@ -11,6 +11,10 @@ var _erpBoolConfirmed =
     };
 window._erpBoolConfirmed = _erpBoolConfirmed;
 
+/** edit_order / add_order 인라인 스크립트가 덮어쓰며, ERP 셸 프래그먼트 진입 시 DOM에서 동기화 */
+var ORDER_ID = 0;
+var ERP_BETA_ENABLED = false;
+
 var _erpPaymentIconSrc =
     window._erpPaymentIconSrc ||
     function _erpPaymentIconSrc(type, isConfirmed) {
@@ -2431,8 +2435,33 @@ async function loadMeasurementPanel() {
 }
 window.loadMeasurementPanel = loadMeasurementPanel;
 
-document.addEventListener('DOMContentLoaded', function () {
-    if (!ERP_BETA_ENABLED) return;
+/**
+ * ERP 셸이 #main-content만 갈아끼울 때 인라인 스크립트가 재실행되지 않아
+ * ORDER_ID / ERP_BETA_ENABLED가 DOM과 불일치할 수 있음 — 카드 data-*로 동기화.
+ */
+function fomsErpSyncEditGlobalsFromDom() {
+    var card =
+        document.querySelector("#main-content .card[data-order-id]") ||
+        document.querySelector(".card[data-order-id]");
+    if (!card) {
+        return;
+    }
+    var oid = parseInt(String(card.getAttribute("data-order-id") || "0"), 10) || 0;
+    var betaRaw = card.getAttribute("data-erp-beta-enabled");
+    if (betaRaw === "true" || betaRaw === "false") {
+        ERP_BETA_ENABLED = betaRaw === "true";
+    }
+    if (oid > 0) {
+        ORDER_ID = oid;
+    }
+}
+window.fomsErpSyncEditGlobalsFromDom = fomsErpSyncEditGlobalsFromDom;
+
+function fomsErpBootstrapErpBetaSurface() {
+    fomsErpSyncEditGlobalsFromDom();
+    if (!ERP_BETA_ENABLED) {
+        return;
+    }
 
     function initErpMainDatePickers() {
         const mEl = document.getElementById('erp-measurement-date');
@@ -2536,9 +2565,11 @@ document.addEventListener('DOMContentLoaded', function () {
     // 실측일/시공일 달력: 페이지 로드 시에도 초기화하여 탭 전환 전에도 클릭 시 달력 열림
     initErpMainDatePickers();
 
-    // 실측 일정 미러링 패널: 로드 + 30초 자동 갱신
+    // 실측 일정 미러링 패널: 로드 + 30초 자동 갱신 (셸 프래그먼트 재진입 시 interval 중복 방지)
     loadMeasurementPanel();
-    setInterval(loadMeasurementPanel, 30000);
+    if (!window.__fomsErpMeasurementIntervalId) {
+        window.__fomsErpMeasurementIntervalId = window.setInterval(loadMeasurementPanel, 30000);
+    }
 
     // Bootstrap은 «처음부터 활성인» 탭에 대해 `shown.bs.tab`을 쏘지 않음.
     // ERP Beta 주문 편집은 서버에서 ERP Beta 탭이 이미 active이므로, 기존에는
@@ -2594,7 +2625,10 @@ document.addEventListener('DOMContentLoaded', function () {
             loadMeasurementPanel();
         }
     });
-});
+}
+
+document.addEventListener("DOMContentLoaded", fomsErpBootstrapErpBetaSurface);
+window.fomsErpBootstrapErpBetaSurface = fomsErpBootstrapErpBetaSurface;
 
 // ============================================
 // ERP Beta: Quest System (단계별 명확한 퀘스트)
