@@ -53,6 +53,19 @@ def _perf_snapshot(page: Any) -> dict[str, Any]:
     )
 
 
+def _perf_snapshot_retry(page: Any, *, attempts: int = 5, delay_s: float = 0.4) -> dict[str, Any]:
+    """After history navigation, client-side nav (e.g. G1-A swap) can destroy the execution context briefly."""
+    last_err: Exception | None = None
+    for _ in range(attempts):
+        try:
+            return _perf_snapshot(page)
+        except Exception as exc:
+            last_err = exc
+            time.sleep(delay_s)
+    assert last_err is not None
+    raise last_err
+
+
 def _scenario_g1_full_nav(page: Any, origin: str) -> dict[str, Any]:
     page.goto(origin + "/", wait_until="networkidle", timeout=120_000)
     page.wait_for_selector("nav.layout-global-nav", timeout=60_000)
@@ -84,7 +97,9 @@ def _scenario_g1_trash_roundtrip(page: Any, origin: str) -> dict[str, Any]:
     t1 = time.perf_counter()
     page.go_back(wait_until="networkidle", timeout=120_000)
     back_ms = (time.perf_counter() - t1) * 1000.0
-    perf = _perf_snapshot(page)
+    page.wait_for_selector("nav.layout-global-nav", timeout=60_000)
+    page.wait_for_load_state("networkidle", timeout=120_000)
+    perf = _perf_snapshot_retry(page)
     return {
         "scenario": "g1_trash_roundtrip",
         "click_trash_full_document_ms": round(to_trash_ms, 2),

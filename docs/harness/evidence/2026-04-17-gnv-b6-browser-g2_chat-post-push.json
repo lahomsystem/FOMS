@@ -1,0 +1,29 @@
+{
+  "harness": "gnv_b6_staging_browser_metrics",
+  "base": "https://lahom-dev.up.railway.app",
+  "scenario": "g2_chat",
+  "metrics": {
+    "scenario": "g2_chat",
+    "final_url": "https://lahom-dev.up.railway.app/chat",
+    "performance": {
+      "navigation_last": {
+        "duration": 1991.2999999970198,
+        "domContentLoadedEventEnd": 1990.2999999970198,
+        "loadEventEnd": 1991.2999999970198,
+        "transferSize": 33052,
+        "type": "navigate"
+      },
+      "paint": [
+        {
+          "name": "first-paint",
+          "startTime": 1020
+        },
+        {
+          "name": "first-contentful-paint",
+          "startTime": 1020
+        }
+      ]
+    },
+    "note": "G2 full document; FCP in paint array if available."
+  }
+}

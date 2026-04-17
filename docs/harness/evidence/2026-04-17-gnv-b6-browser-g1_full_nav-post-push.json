@@ -1,0 +1,30 @@
+{
+  "harness": "gnv_b6_staging_browser_metrics",
+  "base": "https://lahom-dev.up.railway.app",
+  "scenario": "g1_full_nav",
+  "metrics": {
+    "scenario": "g1_full_nav",
+    "click_to_networkidle_ms": 1597.75,
+    "final_url": "https://lahom-dev.up.railway.app/?status=RECEIVED",
+    "performance": {
+      "navigation_last": {
+        "duration": 2470.4000000059605,
+        "domContentLoadedEventEnd": 2462.800000011921,
+        "loadEventEnd": 2470.4000000059605,
+        "transferSize": 52022,
+        "type": "navigate"
+      },
+      "paint": [
+        {
+          "name": "first-paint",
+          "startTime": 2328
+        },
+        {
+          "name": "first-contentful-paint",
+          "startTime": 2328
+        }
+      ]
+    },
+    "note": "Full document navigation via top-nav; not fragment swap timing."
+  }
+}
