@@ -1,24 +1,25 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-04-17 10:21:20
-> 세션: 6ed4978c
+> 생성 시각: 2026-04-17 13:50:00
+> 세션: a0f6c282
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` <- 1 edit(s), ~7317 chars (2026-04-17 10:21:10)
-- `static/js/orders/dashboard-notifications.js` <- 2 edit(s), ~284 chars (2026-04-17 10:11:46)
-- `docs/AI_STATUS.md` <- 1 edit(s), ~384 chars (2026-04-17 10:10:54)
-- `docs/plans/2026-04-17-ept-b7-html-diet-page-assets-profiling-run-record.md` <- 2 edit(s), ~1841 chars (2026-04-17 10:10:26)
-- `tests/domains/test_ept_b7_profile.py` <- 1 edit(s), ~1144 chars (2026-04-17 10:09:15)
-- `foms/web/shipment/dashboard.py` <- 3 edit(s), ~710 chars (2026-04-17 10:08:40)
-- `foms/web/shipment/dashboard.py` <- 1 edit(s), ~75 chars (2026-04-17 10:08:28)
-- `foms/web/cs/as_dashboard.py` <- 3 edit(s), ~775 chars (2026-04-17 10:08:28)
-- `foms/web/shipment/dashboard.py` <- 1 edit(s), ~11 chars (2026-04-17 10:08:14)
-- `foms/web/cs/as_dashboard.py` <- 1 edit(s), ~75 chars (2026-04-17 10:08:14)
+- `docs/plans/2026-04-17-gnv-run-record.md` <- 5 edit(s), ~3223 chars (2026-04-17 13:49:59)
+- `tools/harness/gnv_b6_staging_browser_metrics.py` <- 1 edit(s), ~5825 chars (2026-04-17 13:49:34)
+- `tools/harness/gnv_b6_staging_http_evidence.py` <- 1 edit(s), ~6221 chars (2026-04-17 13:49:23)
+- `docs/plans/2026-04-17-gnv-run-record.md` <- 13 edit(s), ~2546 chars (2026-04-17 13:43:47)
+- `static/js/global-nav-runtime.js` <- 2 edit(s), ~512 chars (2026-04-17 13:43:34)
+- `tests/domains/test_global_nav_runtime_js_contract.py` <- 3 edit(s), ~579 chars (2026-04-17 13:42:58)
+- `tests/domains/test_gnav_fragment_contract.py` <- 1 edit(s), ~2258 chars (2026-04-17 13:42:56)
+- `static/js/global-nav-runtime.js` <- 3 edit(s), ~1013 chars (2026-04-17 13:42:47)
+- `static/js/global-nav-runtime.js` <- 8 edit(s), ~5955 chars (2026-04-17 13:42:34)
+- `foms/web/orders/trash.py` <- 1 edit(s), ~319 chars (2026-04-17 13:41:46)
 
 ### 진행 중이던 작업
+- [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
 - [2026-04-15] **`SFC-B11D`** (§6.18 `src/` retirement): **종료** — batch11d run record 참고.
 - [2026-04-15] **`SFC-B12`** (§6.19 clean-room): **종료** — `HEAD` `b7014c74`에서 `strict_canonical_b12_clean_room.ps1`로 SG6 재현 완료(batch12 run record §8).
 - [2026-04-15] **`SFC-B11B`** (§6.16 `apps/` overlay retirement): **working tree 기준 `apps/` 디렉터리 없음** — 구현·계약은 batch11b·B11A run record·`pytest` strict 계약으로 동결. 원격/HEAD와 불일치 시 동기화만 확인.

@@ -4,13 +4,19 @@
 
 ## 최근 세션
 
-### Session: 6ed4978c
-- **시작**: 2026-04-17 08:35:43
+### Session: a0f6c282
+- **시작**: 2026-04-17 13:39:37
 - **상태**: completed
-- **편집 파일**: `docs/AI_STATUS.md`, `docs/ARCHIVE_INDEX.md`, `docs/plans/2026-04-17-erp-fast-page-and-tab-navigation-execution-plan.md`, `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md`, `static/js/orders/dashboard-notifications.js`, `docs/plans/2026-04-17-ept-b7-html-diet-page-assets-profiling-run-record.md`, `tests/domains/test_ept_b7_profile.py`, `foms/web/shipment/dashboard.py`, `foms/web/cs/as_dashboard.py`, `foms/web/orders/dashboard.py`
-- **종료**: 2026-04-17 10:24:55
+- **편집 파일**: `docs/plans/2026-04-17-gnv-run-record.md`, `tools/harness/gnv_b6_staging_browser_metrics.py`, `tools/harness/gnv_b6_staging_http_evidence.py`, `static/js/global-nav-runtime.js`, `tests/domains/test_global_nav_runtime_js_contract.py`, `tests/domains/test_gnav_fragment_contract.py`, `foms/web/orders/trash.py`, `foms/web/orders/listing.py`, `foms/services/gnav_contract.py`, `templates/orders/trash.html`
+- **종료**: 2026-04-17 13:56:24
 
-### Session: a2c3e4f2
+### Session: 07c148aa
+- **시작**: 2026-04-17 12:45:33
+- **상태**: unknown
+- **편집 파일**: `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-16e9db10-883a-43fa-a3ba-f8794416ef0c.png`, `docs/ARCHIVE_INDEX.md`, `docs/plans/2026-04-17-erp-fast-page-and-tab-navigation-execution-plan.md`, `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md`, `tools/harness/ept_b8_staging_browser_metrics.py`, `static/js/global-nav-runtime.js`, `tests/domains/test_global_nav_runtime_js_contract.py`, `tools/harness/ept_b8_staging_full_evidence.ps1`, `tools/harness/ept_b8_staging_http_evidence.py`, `templates/partials/shared/layout_scripts.html`
+- **종료**: 2026-04-17 13:39:35
+
+ a2c3e4f2
 - **시작**: 2026-04-16 16:19:35
 - **상태**: unknown
 - **편집 파일**: `.git/COMMIT_EDITMSG_DASHCACHE.txt`, `foms/services/common/dashboard_cache.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-5082dc79-e460-4ef3-a99b-7cf07e08e160.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e21fa4f0-6583-438f-bf95-15ec8d542c36.png`, `_commit_msg_dmc_utf8.txt`, `docs/AI_STATUS.md`, `docs/AI_CHANGELOG.md`, `docs/plans/2026-04-16-dashboard-micro-cache-execution-plan.md`, `docs/plans/2026-04-16-dmc-f-run-record.md`, `docs/ARCHIVE_INDEX.md`
@@ -1780,3 +1786,31 @@
 | 2026-04-17 10:24:10 | END (Claude Code) | 수정: (없음) |
 
 | 2026-04-17 10:24:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 11:37:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 11:41:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 11:42:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 11:49:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 11:53:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 12:49:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 12:56:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 13:04:22 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 13:07:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 13:15:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 13:16:18 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 13:44:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 13:50:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 13:56:24 | END (Claude Code) | 수정: (없음) |

@@ -35,5 +35,5 @@ if ($loginOut -is [System.Array]) {
 }
 $env:FOMS_STAGING_COOKIE = $cookieLine.ToString().Trim()
 
-& python "tools\harness\ept_b8_staging_http_evidence.py" --base $base --order-id ([int]$orderId) --json
+& python "tools\harness\ept_b8_staging_http_evidence.py" --base $base --order-id ([int]$orderId) --include-g1 --json
 exit $LASTEXITCODE

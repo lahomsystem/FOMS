@@ -63,6 +63,22 @@ def _tier_e_optional() -> tuple[str, ...]:
     return ("/map_view", "/regional_dashboard", "/metropolitan_dashboard", "/self_measurement_dashboard")
 
 
+def _g1_shared_layout_paths() -> tuple[str, ...]:
+    """Plan §3.1.1A G1 — shared-layout read family (HTTP GET smoke + timing)."""
+    return (
+        "/",
+        "/?status=RECEIVED",
+        "/?status=MEASURE",
+        "/?region=metro",
+        "/?region=regional",
+        "/trash",
+        "/storage_dashboard",
+        "/regional_dashboard",
+        "/metropolitan_dashboard",
+        "/self_measurement_dashboard",
+    )
+
+
 def _measure_get(
     session: requests.Session,
     url: str,
@@ -109,6 +125,11 @@ def main() -> int:
         "--include-tier-e",
         action="store_true",
         help="Also GET Tier E dashboards (may be heavy / auth-gated)",
+    )
+    parser.add_argument(
+        "--include-g1",
+        action="store_true",
+        help="Also GET plan G1 shared-layout paths (orders family + dashboards)",
     )
     args = parser.parse_args()
 
@@ -208,6 +229,17 @@ def main() -> int:
                 "final_url": resp.url,
             }
 
+    g1: dict[str, Any] = {}
+    if args.include_g1:
+        for path in _g1_shared_layout_paths():
+            url = base + path
+            es, resp = _measure_get(session, url, no_cache=True)
+            g1[path] = {
+                "full_reload_s": round(es, 3),
+                "status_code": resp.status_code,
+                "final_url": resp.url,
+            }
+
     out: dict[str, Any] = {
         "base": base,
         "primary": rows,
@@ -216,6 +248,8 @@ def main() -> int:
     }
     if optional:
         out["tier_e_optional"] = optional
+    if g1:
+        out["g1_shared_layout"] = g1
 
     _emit_auth_warnings(rows, sub)
 

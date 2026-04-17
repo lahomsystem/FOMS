@@ -244,3 +244,35 @@
 | 2026-04-17 10:24:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git log -1 --oneline` |
 | 2026-04-17 10:25:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git remote -v` |
 | 2026-04-17 10:25:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status --short | Select-Object -First 80` |
+| 2026-04-17 11:46:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json 2>$null ` |
+| 2026-04-17 11:47:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Recurse -Include *.py,*.html,*.js -Path . | Where-Object { $_.FullName -notmatc` |
+| 2026-04-17 11:48:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; pytest tests/domains/test_erp_runtime_shell_js_contra` |
+| 2026-04-17 11:48:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/css/foundation/erp-pro.css static/css/foundation/erp-pro/12-runtime-shell-loadi` |
+| 2026-04-17 11:52:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "docs/plans/2026-04-17-erp-fast-page-and-tab-navigation-execution-plan.md"; git commit` |
+| 2026-04-17 12:46:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json` |
+| 2026-04-17 12:46:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_shell_fragment_contract.py tests/domains/test_erp_runt` |
+| 2026-04-17 12:48:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_shell_fragment_contract.py tests/domains/test_erp_runt` |
+| 2026-04-17 12:54:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if ($env:FOMS_STAGING_USERNAME) { 'FOMS_STAGING_USERNAME=set' } else { 'FOMS_STAGING_USERNAME=` |
+| 2026-04-17 12:55:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if ($env:FOMS_STAGING_USERNAME) { 'USER_SET' } else { 'USER_EMPTY' }; if ($env:FOMS_STAGING_CO` |
+| 2026-04-17 12:55:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_shell_fragment_contract.py tests/domains/test_erp_runt` |
+| 2026-04-17 12:55:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_shell_fragment_contract.py tests/domains/test_erp_runt` |
+| 2026-04-17 12:59:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:FOMS_STAGING_COOKIE = 'session_staging=eyJyb2xlIjoiQURNSU4iLCJ1c2VyX2lkIjozOCwidXNlcm5hbW` |
+| 2026-04-17 13:00:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:FOMS_STAGING_USERNAME = 'upperkill'; $env:FOMS_STAGING_PASSWORD = 'anfant8273!'; python t` |
+| 2026-04-17 13:03:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json | Select` |
+| 2026-04-17 13:03:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-04-17 13:04:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/harness/evidence/2026-04-17-ept-b8-staging-http-evidence.json docs/harness/eviden` |
+| 2026-04-17 13:04:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -F commit_msg_b8.txt; Remove-Item commit_msg_b8.txt -` |
+| 2026-04-17 13:06:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git push origin feature/modular-monolith-wip` |
+| 2026-04-17 13:43:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json` |
+| 2026-04-17 13:43:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_gnav_fragment_contract.py tests/domains/test_global_nav_ru` |
+| 2026-04-17 13:49:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if ($env:FOMS_STAGING_COOKIE) { "COOKIE_SET" } else { "COOKIE_UNSET" }` |
+| 2026-04-17 13:49:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/gnv_b6_staging_http_evidence.py --json 2>&1; echo "exit=$LASTEXITCODE"` |
+| 2026-04-17 13:50:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if ($env:FOMS_STAGING_COOKIE) { "COOKIE_SET" } else { "COOKIE_UNSET" }` |
+| 2026-04-17 13:50:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/gnv_b6_staging_http_evidence.py --json 2>&1; echo "EXIT=$LASTEXITCODE"` |
+| 2026-04-17 13:54:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:FOMS_STAGING_COOKIE = 'session_staging=eyJyb2xlIjoiQURNSU4iLCJ1c2VyX2lkIjozOCwidXNlcm5hbW` |
+| 2026-04-17 13:54:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:FOMS_STAGING_USERNAME = 'upperkill'; $env:FOMS_STAGING_PASSWORD = 'anfant8273!'; python t` |
+| 2026-04-17 13:55:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:FOMS_STAGING_USERNAME = 'upperkill'; $env:FOMS_STAGING_PASSWORD = 'anfant8273!'; python t` |
+| 2026-04-17 13:55:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:FOMS_STAGING_USERNAME = 'upperkill'; $env:FOMS_STAGING_PASSWORD = 'anfant8273!'; python t` |
+| 2026-04-17 13:55:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json` |
+| 2026-04-17 13:56:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
+| 2026-04-17 13:57:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status --short` |

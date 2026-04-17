@@ -3,7 +3,7 @@ import copy
 import json
 import re
 import datetime
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, jsonify
+from flask import Blueprint, make_response, render_template, request, redirect, url_for, flash, session, current_app, jsonify
 from markupsafe import Markup
 from sqlalchemy import or_, String
 
@@ -20,6 +20,7 @@ from foms.services.order_display_utils import format_options_for_display, _ensur
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.request_utils import get_preserved_filter_args
+from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
 
 
 def _extract_orderer_from_options(options_str):
@@ -164,7 +165,8 @@ def index():
             processed_orders.append(order_display_data)
 
         user = get_user_by_id(session['user_id']) if 'user_id' in session else None
-        return render_template(
+        parent = gnav_orders_layout_parent()
+        html = render_template(
             'orders/index.html',
             orders=processed_orders,
             status_list=STATUS,
@@ -178,17 +180,27 @@ def index():
             total_orders=total_orders,
             active_column_filters=column_filters,
             user=user,
-            current_region=region_filter
+            current_region=region_filter,
+            parent_template=parent,
         )
+        resp = make_response(html)
+        if wants_gnav_fragment():
+            resp.headers['X-FOMS-GNAV-FRAGMENT'] = '1'
+        return resp
     except UnicodeDecodeError as e:
         print(f"Index 페이지 로딩 중 인코딩 오류: {str(e)}")
         flash('데이터베이스 연결 중 인코딩 문제가 발생했습니다. 관리자에게 문의하세요.', 'error')
-        return render_template(
+        parent = gnav_orders_layout_parent()
+        html = render_template(
             'orders/index.html', orders=[], status_list=STATUS, STATUS=STATUS,
             current_status=None, search_query='', sort_column='id', sort_direction='desc',
             page=1, per_page=100, total_orders=0, active_column_filters={},
-            user=None, current_region=None
+            user=None, current_region=None, parent_template=parent,
         )
+        resp = make_response(html)
+        if wants_gnav_fragment():
+            resp.headers['X-FOMS-GNAV-FRAGMENT'] = '1'
+        return resp
     except Exception as e:
         print(f"Index 페이지 로딩 중 오류: {str(e)}")
         try:
