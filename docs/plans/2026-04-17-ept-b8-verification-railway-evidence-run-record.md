@@ -1,6 +1,6 @@
 # EPT-B8 — Verification + Railway / staging evidence (run record)
 
-**Status:** **in progress** — **local verification gate complete**; **staging `session_staging` + `ept_b8_staging_http_evidence.py` 로 primary 9 행 full/warm(s) + B7(대시보드·출고·AS) 확보** (2026-04-17). **`/erp/orders/<id>`** 는 하네스가 **302 + Location** 만 검증(`allow_redirects=False`) — 리다이렉트 추적 시 로그인 URL로 잘못 수렴하던 오탐 제거(도구 2026-04-17 갱신). **Railway deployment ID** — §4 **After** / §4.3 (`railway deployment list`, 2026-04-17). **여전히 PENDING:** per-path **Cold** 열(또는 HAR), **click-to-paint / Performance API**, **primary↔subordinate 왕복 HAR**.  
+**Status:** **in progress** — **local verification gate complete**; **staging 자동 로그인 + HTTP 하네스**로 primary 9·§4.4·§5 경로 **재캡처** (2026-04-17) — **기계-readable 근거:** `docs/harness/evidence/2026-04-17-ept-b8-staging-http-evidence.json`. **`/erp/orders/<id>`** 는 하네스가 **302 + Location** 만 검증(`allow_redirects=False`) — 리다이렉트 추적 시 로그인 URL로 잘못 수렴하던 오탐 제거(도구 2026-04-17 갱신). **Railway deployment ID** — §4 **After** / §4.3 (`railway deployment list`, 2026-04-17). **여전히 PENDING:** per-path **Cold** 열(또는 HAR), **click-to-paint / Performance API**, **primary↔subordinate 왕복 HAR**.  
 **Authoritative inputs:** `docs/specs/2026-04-17-erp-shell-fragment-contract_SPEC.md`, B6/B7 run records, `docs/plans/2026-04-17-ept-b1-baseline-contract-run-record.md` §8 (inventory v2).  
 **Explicit non-goals:** Re-open B7 §Deferred (DOM/row on-demand without semantic-preserving proof); query rewrite in this batch; code changes for performance unless fixing evidence collection only.
 
@@ -57,23 +57,23 @@
 ## 4. Primary 9 — before/after evidence template (staging)
 
 **Base URL:** `https://lahom-dev.up.railway.app`  
-**HTTP harness capture (2026-04-17):** `tools/harness/ept_b8_staging_http_evidence.py` — `FOMS_STAGING_COOKIE='session_staging=…'` (full document GET; `full_reload_s` = no-cache 첫 GET, `warm_second_get_s` = 동일 URL 즉시 재GET). **MCP 보조:** §4.1 타임스탬프·mainFrame 200 스모크.
+**HTTP harness capture (2026-04-17, auto-login):** `ept_b8_staging_full_evidence.ps1` → `ept_b8_staging_http_evidence.py --json`. **동일 세션 스냅샷(JSON):** `docs/harness/evidence/2026-04-17-ept-b8-staging-http-evidence.json` (`full_reload_s` = no-cache 첫 GET, `warm_second_get_s` = 동일 URL 즉시 재GET). **MCP 보조:** §4.1 타임스탬프·mainFrame 200 스모크(이전 세션).
 
 | Path | Full reload (s) | Cold nav (s) | Warm nav (s) | Notes |
 |------|-----------------|--------------|--------------|-------|
-| `/erp/dashboard` | 3.171 | — | 3.143 | B7: `erp_dashboard`, render **199.7** ms |
-| `/erp/measurement` | 3.004 | — | 1.654 | B7 미부착(뷰 정책) |
-| `/erp/drawing-workbench` | 2.121 | — | 3.166 | B7 미부착 |
-| `/erp/production/dashboard` | 2.323 | — | 2.444 | B7 미부착 |
-| `/erp/shipment` | 1.788 | — | 1.86 | B7: `erp_shipment_dashboard`, render **404.7** ms |
-| `/erp/as` | 2.12 | — | 2.159 | B7: `erp_as_dashboard`, render **183.4** ms |
-| `/erp/construction/dashboard` | 2.726 | — | 2.511 | B7 미부착 |
-| `/erp/completion` | 0.919 | — | 0.923 | B7 미부착 |
-| `/erp/history/` | 1.022 | — | 0.924 | B7 미부착 |
+| `/erp/dashboard` | 1.893 | — | 1.844 | B7: `erp_dashboard`, render **205.7** ms |
+| `/erp/measurement` | 3.189 | — | 1.75 | B7 미부착(뷰 정책) |
+| `/erp/drawing-workbench` | 2.182 | — | 2.153 | B7 미부착 |
+| `/erp/production/dashboard` | 2.433 | — | 2.328 | B7 미부착 |
+| `/erp/shipment` | 1.827 | — | 2.164 | B7: `erp_shipment_dashboard`, render **622.6** ms |
+| `/erp/as` | 2.412 | — | 2.165 | B7: `erp_as_dashboard`, render **186.3** ms |
+| `/erp/construction/dashboard` | 2.594 | — | 2.582 | B7 미부착 |
+| `/erp/completion` | 0.922 | — | 0.919 | B7 미부착 |
+| `/erp/history/` | 0.98 | — | 0.93 | B7 미부착 |
 
 **Cold 열:** primary 9별 “첫 탭 방문” cold는 하네스 한 세션으로는 분리하기 어려움 — **§4.4** `cold_nav_proxy` 참고 또는 **HAR**.  
-**Before:** commit hash / deploy id: *(baseline / prior Railway deploy — not captured this session; compare to B1 run record if needed)*  
-**After (repo + Railway at HTTP evidence capture):** commit **`9541bfd516a8ac3fef7fc4d293723d830a0b9ab3`** — **Railway deployment ID:** **`38ff39ed-4c80-4276-bea0-3a9560f13b14`** (SUCCESS, **2026-04-17 11:09:28 +09:00**). **CLI 맥락:** workspace `lahomsystem's Projects` → project **FOMS-DEV** → environment **production** → service **FOMS** (`railway link` 후 `railway deployment list`).
+**Before:** commit hash / deploy id: *(baseline / prior Railway deploy — compare to B1 run record if needed)*  
+**After (Railway at HTTP evidence):** **Railway deployment ID:** **`38ff39ed-4c80-4276-bea0-3a9560f13b14`** (SUCCESS, **2026-04-17 11:09:28 +09:00**). **CLI 맥락:** workspace `lahomsystem's Projects` → project **FOMS-DEV** → environment **production** → service **FOMS** (`railway link` 후 `railway deployment list`). **JSON 근거는 위 경로 파일(커밋됨).**
 
 ### 4.1 Request timestamp reference (MCP, ordering only — not wall-clock ms)
 
@@ -120,9 +120,9 @@ python tools/harness/ept_b8_staging_http_evidence.py --base https://lahom-dev.up
 
 | Step | Elapsed (s) | B7 (if any) |
 |------|-------------|-------------|
-| land `/erp/dashboard` | 2.695 | (dashboard 행 참고) |
-| first GET `/erp/measurement` after dashboard | 2.989 | — |
-| first GET `/erp/shipment` after dashboard | 1.792 | `erp_shipment_dashboard`, render **339.8** ms |
+| land `/erp/dashboard` | 2.998 | (dashboard 행 참고) |
+| first GET `/erp/measurement` after dashboard | 3.098 | — |
+| first GET `/erp/shipment` after dashboard | 1.85 | `erp_shipment_dashboard`, render **346.3** ms |
 
 **출력 JSON 필드 의미 (표에 옮길 때):**
 
@@ -156,15 +156,15 @@ Source: B1 §8.2–8.5. Minimum: smoke + one timing row per tier representative.
 
 | Path | Smoke OK | full_reload (s) | Timing notes |
 |------|----------|-----------------|--------------|
-| `/erp/drawing-workbench/2732` | **Yes** | 1.699 | `final_url` ERP 상세 OK; B7 미부착 |
-| `/edit/2732?open=erp-beta` | **Yes** | 1.418 | ERPbeta OK; B7 미부착 |
-| `/erp/orders/2732` | **Yes (B5 contract)** | *(첫 응답 ms)* | **302 + `Location` → `/edit/2732?…erp-beta…`** 를 하네스가 **리다이렉트 미추적**으로 검증(구버전: `requests` 가 후속 홉에서 `/login?next=` 로 잘못 보고 stderr 1건). JSON: `legacy_redirect_contract_ok`, `redirect_location`. |
+| `/erp/drawing-workbench/2732` | **Yes** | 1.843 | `final_url` ERP 상세 OK; B7 미부착 |
+| `/edit/2732?open=erp-beta` | **Yes** | 1.581 | ERPbeta OK; B7 미부착 |
+| `/erp/orders/2732` | **Yes (B5 contract)** | 0.912 *(302 첫 홉)* | **302 + `Location` → `/edit/2732?…erp-beta…`** (`legacy_redirect_contract_ok: true`). 전체 문서 타이밍은 `/edit/2732?open=erp-beta` 행 참고. |
 
 ### Tier C / E (representative)
 
 | Path | Smoke OK | full_reload (s) | Notes |
 |------|----------|-----------------|-------|
-| `/erp/shipment-settings` | **Yes** | 1.254 | ERP 출고 설정; B7 미부착 |
+| `/erp/shipment-settings` | **Yes** | 1.342 | ERP 출고 설정; B7 미부착 |
 | `/map_view` (if reached) | — | — | not visited this session |
 | `/regional_dashboard` etc. | — | — | optional per capacity |
 
@@ -183,8 +183,8 @@ Source: B1 §8.2–8.5. Minimum: smoke + one timing row per tier representative.
 
 ### 6.1 Session status (2026-04-17)
 
-- **Full navigation smoke:** all **primary 9** URLs opened via address-bar navigation; each **mainFrame 200** (MCP).
-- **HTTP harness:** primary 9 **full/warm(s)** + **B7** 일부 + Tier B/C **full_reload(s)** — §4 표·§5·§4.4.
+- **Full navigation smoke:** all **primary 9** URLs opened via address-bar navigation; each **mainFrame 200** (MCP, 이전 세션).
+- **HTTP harness (auto-login, 동일 날짜 재실행):** primary 9 **full/warm(s)** + **B7(대시보드·출고·AS)** + Tier B/C **full_reload(s)** — §4 표·§5·§4.4; **근거 JSON:** `docs/harness/evidence/2026-04-17-ept-b8-staging-http-evidence.json`.
 - **Warm/prefetch signal:** fragment `?view=fragment` XHR **200** sequences observed between shell navigations (see §4.1) — **not** a substitute for measured cold vs warm seconds.
 - **Primary ↔ subordinate round-trip:** not formally timed; Tier B paths in §5.1 reachable from same session.
 - **Remaining:** **Cold(행별)**, **click-to-paint**, **왕복 HAR** — §6.3–6.4 (배포 ID는 §4 **After** / §4.3).
@@ -217,7 +217,7 @@ Source: B1 §8.2–8.5. Minimum: smoke + one timing row per tier representative.
 ## 8. Hard stop (compliance)
 
 - **Do not** mark this run record **closed / complete** until **staging (or prod-like) authenticated evidence** includes **filled duration columns** (or attached DevTools/HAR), **B7 headers** where required, and **§6 modes** — or items are **waived** with approver and date.
-- **Current:** §4 **duration + B7(3 primary)** + §5 **대부분 timing** + **Railway deployment ID(§4.3)**. **미완:** Cold 열·왕복·click-to-paint(§6). **Not** sufficient for B8 final acceptance or GDM §9.
+- **Current:** §4 **duration + B7(3 primary)** + §5 **timing** + **Railway deployment ID(§4.3)** + **커밋된 HTTP JSON 근거** (`docs/harness/evidence/2026-04-17-ept-b8-staging-http-evidence.json`). **미완:** Cold 열·왕복·click-to-paint(§6). **Not** sufficient for B8 final acceptance or GDM §9.
 - **Do not** reverse B7 §Deferred without new SPEC-grade rationale.
 - **Do not** merge semantic-breaking “fixes” to hit numbers.
 
@@ -235,4 +235,4 @@ Source: B1 §8.2–8.5. Minimum: smoke + one timing row per tier representative.
 
 ---
 
-*Next: optional HAR for Cold/왕복/click-to-paint; 하네스 최신본으로 `/erp/orders/<id>`는 `legacy_redirect_contract_ok` 확인; 상위 계획 §4.8·`AI_STATUS`·`ARCHIVE_INDEX` sync; **EPT-B9** only after B8 closeout.*
+*Next: optional HAR for Cold/왕복/click-to-paint; 상위 계획 §4.8·`AI_STATUS`·`ARCHIVE_INDEX` sync; **EPT-B9** only after B8 closeout.*
