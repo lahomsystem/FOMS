@@ -1318,3 +1318,6 @@
     <!-- Flatpickr JS + 한국어 locale (다중 실측일/시공일) -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js"></script>
+    {% if request.path.startswith('/erp/') %}
+    <script src="{{ url_for('static', filename='js/erp/runtime-shell.js') }}" defer></script>
+    {% endif %}

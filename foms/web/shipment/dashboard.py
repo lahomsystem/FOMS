@@ -1,5 +1,6 @@
 """ERP 출고 대시보드 (ERP-SLIM-7; canonical, SFC-B11B). /erp/shipment."""
-from flask import Blueprint, render_template, request, redirect, url_for, g
+import time
+from flask import Blueprint, make_response, render_template, request, redirect, url_for, g
 from db import get_db
 from models import Order
 from foms.web.auth import login_required
@@ -23,6 +24,11 @@ from foms.services.common.dashboard_cache import (
     build_dashboard_cache_key,
     get_or_compute_dashboard_slice,
 )
+from foms.services.common.erp_shell_http import (
+    apply_erp_shell_fragment_headers,
+    wants_erp_shell_tab_body,
+)
+from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 
 # 실행 계획 §3.1.1 shipment — read-model slices:
 # - ``panel_aggregates``: construction_counts / assigned_workers / spec_units (JSON)
@@ -545,8 +551,14 @@ def erp_shipment_dashboard():
         o.id
     ))
 
-    return render_template(
-        'shipment/dashboard.html',
+    template_name = (
+        'shipment/partials/dashboard_fragment.html'
+        if wants_erp_shell_tab_body(request)
+        else 'shipment/dashboard.html'
+    )
+    _t0 = time.perf_counter()
+    _body = render_template(
+        template_name,
         selected_date=selected_date,
         search_q=search_q,
         date_from=date_from,
@@ -560,3 +572,8 @@ def erp_shipment_dashboard():
         erp_mine_only=mine_only,
         is_construction_team=is_construction,
     )
+    _render_ms = (time.perf_counter() - _t0) * 1000.0
+    response = make_response(_body)
+    apply_erp_shell_fragment_headers(response, request)
+    apply_ept_b7_render_headers(response, route_id="erp_shipment_dashboard", render_ms=_render_ms)
+    return response

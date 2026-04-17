@@ -1,7 +1,18 @@
 """주문 수정 페이지 Blueprint (canonical; SFC-B11B): edit_order (/edit/<order_id>)."""
 import copy
 import json
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, jsonify
+from flask import (
+    Blueprint,
+    make_response,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    session,
+    current_app,
+    jsonify,
+)
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import login_required, role_required, log_access, get_user_by_id
@@ -11,6 +22,7 @@ from db import get_db
 from models import Order
 from foms.services.orders.status_constants import STATUS
 from foms.services.request_utils import get_preserved_filter_args
+from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.order_geocode import (
     apply_erp_beta_site_address_to_sd,
@@ -315,9 +327,38 @@ def edit_order(order_id):
             flash(f'주문 수정 중 오류가 발생했습니다: {str(e)}', 'error')
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'status': 'error', 'message': '시스템 오류가 발생했습니다.'})
-            return render_template('orders/edit_order.html', order=order, option_type=option_type,
-                                  online_options=online_options, direct_options=direct_options)
+            tpl_err = (
+                'orders/edit_order_fragment.html'
+                if wants_erp_shell_tab_body(request)
+                else 'orders/edit_order.html'
+            )
+            resp_err = make_response(
+                render_template(
+                    tpl_err,
+                    order=order,
+                    option_type=option_type,
+                    online_options=online_options,
+                    direct_options=direct_options,
+                )
+            )
+            apply_erp_shell_fragment_headers(resp_err, request)
+            return resp_err
 
     preserved_args = get_preserved_filter_args(request.args)
-    return render_template('orders/edit_order.html', order=order, option_type=option_type,
-                          online_options=online_options, direct_options=direct_options, preserved_args=preserved_args)
+    tpl = (
+        'orders/edit_order_fragment.html'
+        if wants_erp_shell_tab_body(request)
+        else 'orders/edit_order.html'
+    )
+    response = make_response(
+        render_template(
+            tpl,
+            order=order,
+            option_type=option_type,
+            online_options=online_options,
+            direct_options=direct_options,
+            preserved_args=preserved_args,
+        )
+    )
+    apply_erp_shell_fragment_headers(response, request)
+    return response

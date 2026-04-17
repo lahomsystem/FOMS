@@ -4,6 +4,16 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-04-17 | 세션 자동 기록 | dashboard-notifications.js, test_ept_b7_profile.py, dashboard.py 외 2개 | cee7690c |
+| 2026-04-17 | 세션 자동 기록 | runtime-shell.js, test_erp_runtime_shell_js_contract.py, test_erp_shell_fragment_contract.py 외 2개 | cee7690c |
+| 2026-04-17 | 세션 자동 기록 | test_erp_shell_fragment_contract.py, erp_map.py, settings.py 외 2개 | cee7690c |
+| 2026-04-17 | 세션 자동 기록 | as_dashboard.py, dashboard.py, dashboard.py 외 2개 | cee7690c |
+| 2026-04-17 | 세션 자동 기록 | test_erp_shell_fragment_contract.py, runtime-shell.js, erp_navigation_contract.py 외 2개 | cee7690c |
+| 2026-04-17 | 세션 자동 기록 | runtime-shell.js, test_erp_shell_fragment_contract.py, as_dashboard_body.html 외 2개 | cee7690c |
+| 2026-04-17 | 세션 자동 기록 | dashboard_cache.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-5082dc79-e460-4ef3-a99b-7cf07e08e160.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e21fa4f0-6583-438f-bf95-15ec8d542c36.png 외 2개 | cee7690c |
+| 2026-04-16 | 세션 자동 기록 | dashboard_cache.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-5082dc79-e460-4ef3-a99b-7cf07e08e160.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e21fa4f0-6583-438f-bf95-15ec8d542c36.png 외 2개 | bf70243d |
+| 2026-04-16 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e21fa4f0-6583-438f-bf95-15ec8d542c36.png, _commit_msg_dmc_utf8.txt, test_dashboard_cache.py 외 2개 | bf70243d |
+| 2026-04-16 | 세션 자동 기록 | _commit_msg_dmc_utf8.txt, test_dashboard_cache.py, dashboard.py 외 2개 | bf70243d |
 | 2026-04-16 | DMC-C closeout 문서: local 15 passed·Railway 증거 PENDING 템플릿(`dmc-f7-railway-evidence`)·`dmc-c-closeout-run-record`·ARCHIVE_INDEX·AI_STATUS | docs/plans/2026-04-16-dmc-f7-railway-evidence.md, dmc-c-closeout-run-record.md, dmc-f-run-record, dashboard-micro-cache-execution-plan §8, ARCHIVE_INDEX, AI_STATUS | — |
 | 2026-04-16 | 세션 자동 기록 | test_dashboard_cache.py, dashboard.py, dashboard.py 외 2개 | a2119d71 |
 | 2026-04-16 | 세션 자동 기록 | test_dashboard_micro_cache_http_fallback.py, test_dashboard_cache.py, quest.py 외 2개 | a2119d71 |
@@ -14,14 +24,3 @@
 | 2026-04-16 | 세션 자동 기록 | estimate-lifecycle.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c9e5d758-b16a-44be-a97f-12cf2f0d2030.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ba179a2f-72bd-4b7e-9d84-37adad502baa.png 외 2개 | 4c3aaffb |
 | 2026-04-16 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c9e5d758-b16a-44be-a97f-12cf2f0d2030.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ba179a2f-72bd-4b7e-9d84-37adad502baa.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-00463b54-07dd-488d-83be-89df998618c0.png 외 1개 | 4c3aaffb |
 | 2026-04-16 | 세션 자동 기록 | test_ptc_physical_exactness.py, ptc_workspace_cleanup.ps1, ptc_workspace_hygiene_probe.ps1 외 2개 | ff65f267 |
-| 2026-04-16 | 세션 자동 기록 | dashboard.html, as_dashboard.html, completion_dashboard.html 외 2개 | ff65f267 |
-| 2026-04-16 | 세션 자동 기록 | .gitignore, erp_policy.py, erp_policy_tasks.py 외 2개 | 82c3c600 |
-| 2026-04-15 | 세션 자동 기록 | .gitignore, erp_policy.py, erp_policy_tasks.py 외 2개 | 82c3c600 |
-| 2026-04-15 | SLG-B1~B7 literal-gap 트랜치: 템플릿 shared/errors retire·web/API 흡수·channel/files·erp_policy flat leaf·계약 182 green·`CLEAN_ROOM_OK` HEAD·run records·AI_STATUS | 동일 + `92bbb5af`/`f4d7410a` | f4d7410a |
-| 2026-04-15 | 세션 자동 기록 | strict_canonical_b12_clean_room.ps1, address_ai_ops_loader.py, address_converter.py 외 2개 | 16fceb67 |
-| 2026-04-15 | SFC-B12: 루트 주소 AI 시므 제거·`address_ai_ops_loader`·§6.19 allowlist Compare-Object 0 diff·batch12 run record·586 passed | foms/services/common/address_ai_ops_loader.py, address_converter.py, del foms_address_learning.py, foms_advanced_address_processor.py, batch12, AI_STATUS | — |
-| 2026-04-15 | SFC-B11D: 루트 `src/` → `Add In Program/WDPlanner/legacy-mobile-prototype/`, 계약 `test_strict_canonical_src_overlay_directory_removed_sfc_b11d_closeout`, batch11d run record, README 위치 고지, 586 passed | git mv src, legacy-mobile-prototype/README, foms_namespace_surface_tests, batch11d, AI_STATUS | — |
-| 2026-04-15 | SFC-B11B slices6-12: ERP·order_pages·order_edit → `foms/web/*/routes.py`, apps shims, ERP permissions tests `foms.web.*.routes`, `foms_namespace_surface_tests`, batch11b·AI_STATUS·586 passed | foms/web/erp_*|order_*/*, apps/erp_*|order_*.py, foms_namespace_surface_tests, batch11b, AI_STATUS | — |
-| 2026-04-15 | SFC-B11B slice5: `excel_import` → `foms/web/excel_import/routes.py`, `apps/excel_import.py` shim, batch11b·AI_STATUS·verify·586 passed | foms/web/excel_import/routes.py, foms/web/excel_import/__init__.py, apps/excel_import.py, batch11b, AI_STATUS | — |
-| 2026-04-15 | SFC-B11B slice4: `storage_dashboard` → `foms/web/storage_dashboard/routes.py`, `apps/storage_dashboard.py` shim, batch11b·AI_STATUS·verify·586 passed | foms/web/storage_dashboard/routes.py, foms/web/storage_dashboard/__init__.py, apps/storage_dashboard.py, batch11b, AI_STATUS | — |
-| 2026-04-15 | SFC-B11B slice3: `user_pages` → `foms/web/user_pages/routes.py`, `apps/user_pages.py` shim, batch11b·AI_STATUS·586 passed | foms/web/user_pages/routes.py, foms/web/user_pages/__init__.py, apps/user_pages.py, batch11b, AI_STATUS | — |

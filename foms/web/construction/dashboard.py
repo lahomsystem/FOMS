@@ -5,7 +5,7 @@ erp.py에서 분리: /erp/construction/dashboard
 
 import logging
 
-from flask import Blueprint, g, render_template, request
+from flask import Blueprint, g, make_response, render_template, request
 from sqlalchemy import String, bindparam, cast, or_, text
 
 from foms.web.auth import login_required
@@ -18,6 +18,7 @@ from foms.services.erp_display import (
     self_measurement_four_checks_done,
 )
 from foms.services.erp_order_detail import attach_order_detail_payloads
+from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.erp_permissions import build_mine_sql_filter, can_edit_erp
 from foms.services.erp_policy import STAGE_LABELS
 from models import Order
@@ -193,18 +194,27 @@ def erp_construction_dashboard():
     paginated_orders = enriched[(page - 1) * per_page : page * per_page]
     attach_order_detail_payloads(db, paginated_orders)
 
-    return render_template(
-        "construction/dashboard.html",
-        orders=paginated_orders,
-        kpis=kpis,
-        process_steps=process_steps,
-        filters={"stage": f_stage, "q": f_q},
-        team_labels=TEAM_LABELS,
-        stage_labels=STAGE_LABELS,
-        is_admin=is_admin,
-        can_edit_erp=can_edit_erp(user),
-        erp_mine_only=mine_only,
-        page=page,
-        total_pages=total_pages,
-        total_orders=total_orders,
+    template_name = (
+        "construction/partials/dashboard_fragment.html"
+        if wants_erp_shell_tab_body(request)
+        else "construction/dashboard.html"
     )
+    response = make_response(
+        render_template(
+            template_name,
+            orders=paginated_orders,
+            kpis=kpis,
+            process_steps=process_steps,
+            filters={"stage": f_stage, "q": f_q},
+            team_labels=TEAM_LABELS,
+            stage_labels=STAGE_LABELS,
+            is_admin=is_admin,
+            can_edit_erp=can_edit_erp(user),
+            erp_mine_only=mine_only,
+            page=page,
+            total_pages=total_pages,
+            total_orders=total_orders,
+        )
+    )
+    apply_erp_shell_fragment_headers(response, request)
+    return response
