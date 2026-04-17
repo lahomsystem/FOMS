@@ -1,0 +1,25 @@
+/* ERP shell fragment navigation: loading overlay over #main-content during fetch */
+
+.foms-erp-shell-main-wrap {
+  position: relative;
+}
+
+.foms-erp-shell-loading-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.82);
+  pointer-events: auto;
+}
+
+.foms-erp-shell-loading-overlay.is-active {
+  display: flex;
+}
+
+.foms-erp-shell-loading-overlay .spinner-border {
+  width: 2.25rem;
+  height: 2.25rem;
+}

@@ -45,3 +45,9 @@ def test_runtime_shell_prefetch_warm_nav_hooks(runtime_shell_src: str) -> None:
     assert "popstate" in runtime_shell_src
     assert "fromPopState" in runtime_shell_src
     assert "scrollMemory" in runtime_shell_src
+
+
+def test_runtime_shell_fragment_loading_overlay(runtime_shell_src: str) -> None:
+    """UX: network fragment fetch shows loading overlay (not for cache-only swap)."""
+    assert "setShellFragmentLoading" in runtime_shell_src
+    assert "foms-erp-shell-loading-overlay" in runtime_shell_src

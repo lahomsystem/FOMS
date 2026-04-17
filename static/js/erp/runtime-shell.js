@@ -48,6 +48,54 @@
   var scrollMemory = Object.create(null);
   var hoverTimer = null;
 
+  /**
+   * Wrap #main-content once so a loading overlay can sit above it without being
+   * destroyed by innerHTML swaps.
+   */
+  function ensureShellMainWrap() {
+    var main = document.getElementById('main-content');
+    if (!main || main.getAttribute('data-foms-erp-shell-wrapped') === '1') {
+      return main;
+    }
+    var parent = main.parentNode;
+    if (!parent) {
+      return main;
+    }
+    var wrap = document.createElement('div');
+    wrap.className = 'foms-erp-shell-main-wrap';
+    wrap.id = 'foms-erp-shell-main-wrap';
+    parent.insertBefore(wrap, main);
+    wrap.appendChild(main);
+    var ov = document.createElement('div');
+    ov.id = 'foms-erp-shell-loading-overlay';
+    ov.className = 'foms-erp-shell-loading-overlay';
+    ov.setAttribute('aria-hidden', 'true');
+    ov.innerHTML =
+      '<div class="spinner-border text-primary" role="status">' +
+      '<span class="visually-hidden">로딩 중</span></div>';
+    wrap.appendChild(ov);
+    main.setAttribute('data-foms-erp-shell-wrapped', '1');
+    return main;
+  }
+
+  /** Show or hide full-fetch loading state (not used for instant cache hits). */
+  function setShellFragmentLoading(on) {
+    var main = ensureShellMainWrap();
+    var ov = document.getElementById('foms-erp-shell-loading-overlay');
+    if (!main || !ov) {
+      return;
+    }
+    if (on) {
+      ov.classList.add('is-active');
+      ov.setAttribute('aria-hidden', 'false');
+      main.setAttribute('aria-busy', 'true');
+    } else {
+      ov.classList.remove('is-active');
+      ov.setAttribute('aria-hidden', 'true');
+      main.removeAttribute('aria-busy');
+    }
+  }
+
   function pathOnly(url) {
     try {
       var u = new URL(url, window.location.origin);
@@ -233,9 +281,11 @@
       }
     }
 
+    setShellFragmentLoading(true);
     return fetchFragment(canonical)
       .then(function (html) {
         if (!applyFragmentToMain(html)) {
+          setShellFragmentLoading(false);
           window.location.href = canonical.pathname + canonical.search + canonical.hash;
           return;
         }
@@ -245,7 +295,11 @@
         afterSwap();
       })
       .catch(function () {
+        setShellFragmentLoading(false);
         window.location.href = canonical.pathname + canonical.search + canonical.hash;
+      })
+      .then(function () {
+        setShellFragmentLoading(false);
       });
   }
 
