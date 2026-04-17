@@ -1,12 +1,12 @@
 # ERP Fast Page + Tab Navigation Execution Plan
-> 작성일: 2026-04-17 | 상태: 🟡 **코드 배치(B1–B7) 구현·로컬 계약 테스트 정합 — 문서/증거 closeout·B9는 미종료**
+> 작성일: 2026-04-17 | 상태: 🟡 **코드 배치(B1–B7) + 글로벌 네비 문서 prefetch(JS) 구현 — B8 스테이징 증거 일부 PENDING·B9 미종료**
 >
 > **GDM 병렬 감리 (2026-04-17)** — 저장소 대조·3-way 병렬 에이전트 종합:
 >
 > | 축 | 판정 | 근거 요약 |
 > |----|------|-----------|
 > | **§4.1–§4.7 구현** | **PASS** (체크 [x] 대응) | `erp_navigation_contract`(9+9), `erp_shell_http`, `runtime-shell`(프리페치·popstate·B5 서브경로), `test_erp_shell_fragment_contract`·`test_erp_runtime_shell_js_contract` 존재 |
-> | **§4.8 B8 / §5 증거** | **FAIL (미완)** | B8 run record: Cold·click-to-paint·왕복 HAR PENDING; §5 체크 전부 `[ ]`; `docs/harness/evidence/*.json`은 HTTP 스냅샷 수준 |
+> | **§4.8 B8 / §5 증거** | **FAIL (미완)** | B8: 스테이징 HTTP+G1 JSON·Playwright 4종 실측 커밋; **Cold 행·shell LCP·HAR·Before/After** 등은 여전히 갭(B8 run record §8) |
 > | **§4.9 B9** | **FAIL (미시작)** | plan vs code·Railway·semantic matrix 최종 감리 항목 미체크 |
 > | **§3.4.2 수치 예산** | **PARTIAL** | B7은 render ms·자산 분리 위주; **≤220KB / ≤160KB**·warm≤250ms 등은 **커밋된 측정표로 미증명** (최종은 Railway 실측·B8/B9) |
 > | **문서 정합** | **주의** | 아래 §4.2: 초기 문구는 “FRAGMENT_READY만”이었으나 **B5 이후** 클라이언트는 `isShellFragmentSwapUrl` = primary 9 **+** B5 subordinate — **코드가 최종** |
@@ -16,7 +16,7 @@
 ## 1. What — 무엇을 만드는가
 
 ### 1.1 최종 결과물
-ERP 메인 shell에 속한 모든 primary page와 그 하위 subordinate page/subpage를 오갈 때,
+ERP 메인 shell에 속한 모든 primary page와 그 하위 subordinate page/subpage를 오갈 때, 그리고 상단 `layout-global-nav`를 눌러 다른 주요 읽기 화면으로 이동할 때,
 
 - 첫 진입 페이지는 지금보다 훨씬 가벼운 **ERP 공통 셸 + 선택 탭의 critical fragment**만 먼저 보여주고
 - 탭 전환은 **full reload 없이 partial HTML fetch + browser-side tab cache + idle prefetch**로 처리하며
@@ -30,6 +30,8 @@ ERP 메인 shell에 속한 모든 primary page와 그 하위 subordinate page/su
    첫 진입 시 서버 응답과 초기 렌더의 체감 지연을 줄인다.
 2. **빠른 탭 전환**  
    ERP 내부 탭 이동은 로컬 앱처럼 즉각적으로 느껴지게 만든다.
+3. **빠른 글로벌 네비 이동**
+   상단 글로벌 네비에서 다른 읽기 화면으로 갈 때도, 의미를 바꾸지 않는 범위에서 full reload 비용을 최소화한다.
 
 ### 1.2 기능 요구사항
 1. 기존 ERP primary page URL은 그대로 canonical deep-link로 유지한다.
@@ -58,6 +60,12 @@ ERP 메인 shell에 속한 모든 primary page와 그 하위 subordinate page/su
    - `/erp/drawing-workbench/<order_id>`
    - `/erp/orders/<order_id>` (legacy redirect contract)
    - `/edit/<order_id>?open=erp-beta`
+15. 상단 `layout-global-nav` 링크도 fast-path 대상으로 다뤄야 한다.
+16. `foms/services/menu_config.py`의 `main_menu`와 `templates/partials/shared/layout_nav.html` 우측 도구 링크는 authoritative global-nav inventory로 관리해야 한다.
+17. 글로벌 네비 fast-path는 모든 링크를 억지로 body swap 하지 않고, **같은 레이아웃 family**는 fast swap, **다른 앱/문서 surface**는 문서/자산 warmup으로 나눠야 한다.
+18. `전체 주문`, `접수`, `실측`, `수도권 주문`, `지방 주문`, `수납장 대시보드`, `지방 주문 대시보드`, `자가실측 대시보드`, `수도권 주문 대시보드`, `휴지통`은 상단 네비 이동 체감 최적화 대상이다.
+19. `ERP 대시보드`, `WDPLANNER`, `WDCalculator`, `채팅`, `관리자`는 cross-surface tool entry로 분류하고, semantic-preserving 문서 warmup/prefetch 전략을 가져야 한다.
+20. 글로벌 네비 최적화 때문에 canonical URL, 브라우저 history, 권한, 최종 결과 의미가 달라지면 안 된다.
 
 ### 1.3 예외/제약 조건
 - 기존 권한, 필터, 정렬, 페이지네이션, KPI 의미를 바꾸면 안 된다.
@@ -96,13 +104,14 @@ ERP 메인 shell에 속한 모든 primary page와 그 하위 subordinate page/su
 - partial HTML fetch는 현재 서버 렌더 구조를 재사용하면서도, full reload 비용을 없앨 수 있다.
 - prefetch는 사용자가 자주 오가는 ERP 탭 체감 속도를 크게 줄인다.
 - micro-cache는 partial fragment를 더 빨리 만드는 보조 계층으로 계속 가치가 있다.
+- 하지만 상단 글로벌 네비는 ERP 안과 달리 서로 다른 page family와 app surface가 섞여 있으므로, `전부 shell-swap`이 아니라 **family별 fast-path taxonomy**가 필요하다.
 
 ## 3. How — 어떻게 만드는가
 
 ### 3.1 최종 아키텍처
 
-#### 3.1.0 ERP surface taxonomy
-이번 tranche에서 다루는 ERP surface는 **ERP read-navigation surface 전체**를 기준으로 세 층으로 나눈다.
+#### 3.1.0 Navigation surface taxonomy
+이번 tranche에서 다루는 surface는 **ERP read-navigation surface 전체 + 상단 글로벌 네비의 canonical 읽기 화면**을 기준으로 네 층으로 나눈다.
 
 1. **Primary shell pages**
    - `/erp/dashboard`
@@ -121,12 +130,17 @@ ERP 메인 shell에 속한 모든 primary page와 그 하위 subordinate page/su
 3. **Shell-linked descendant pages/subpages**
    - 위 1, 2에서 링크/redirect/deep-link로 도달 가능한 ERP HTML GET page
    - B1 inventory freeze에서 발견되는 shell-linked descendant는 explicit exclusion 없이 모두 범위에 포함한다
+4. **Global top-nav surfaces**
+   - `foms/services/menu_config.py`의 `main_menu`가 가리키는 읽기 화면
+   - `templates/partials/shared/layout_nav.html` 우측 도구 섹션이 가리키는 읽기 화면
+   - write/action route나 modal-only endpoint는 제외하고, 브라우저에서 직접 여는 canonical GET page만 포함한다
 
 원칙:
-- 위 1, 2, 3은 이번 tranche 범위다.
+- 위 1, 2, 3, 4는 이번 tranche 범위다.
 - “메인 4탭만 먼저”로 축소 closeout하는 것은 금지한다.
 - `대표 subordinate 몇 개만 맞추고 closeout`하는 것도 금지한다.
 - write-only endpoint나 modal-only API는 범위가 아니지만, **사용자가 브라우저에서 직접 열고 이동하는 ERP page/subpage는 전부 범위**다.
+- 상단 글로벌 네비도 마찬가지로, 사용자가 실제로 클릭해서 이동하는 canonical 읽기 화면은 전부 범위다.
 
 #### 3.1.1 ERP 공통 셸
 - 기존 ERP primary page는 공통 shell 위에서 동작한다.
@@ -139,6 +153,44 @@ ERP 메인 shell에 속한 모든 primary page와 그 하위 subordinate page/su
   - prefetch orchestration
   - history push/replace + popstate 복원
   - subordinate page에서 primary page로의 자연스러운 복귀
+
+#### 3.1.1A Global nav fast-path taxonomy
+상단 `layout-global-nav` 이동은 세 클래스로 나눈다.
+
+1. **G1: shared-layout read family**
+   - `/`
+   - `/?status=RECEIVED`
+   - `/?status=MEASURE`
+   - `/?region=metro`
+   - `/?region=regional`
+   - `/trash`
+   - `/storage_dashboard`
+   - `/regional_dashboard`
+   - `/metropolitan_dashboard`
+   - `/self_measurement_dashboard`
+   - 같은 레이아웃/권한/읽기 계약을 공유하므로, 가능하면 **same-family fast swap 또는 fragment-aware document swap** 대상으로 본다.
+
+2. **G2: cross-surface tool entries**
+   - `/erp/dashboard`
+   - `/wdplanner`
+   - WDCalculator canonical web route
+   - `/chat`
+   - `/admin`
+   - 이들은 서로 다른 app/document surface이므로, 기본은 **body swap이 아니라 document warmup**이다.
+   - 허용 수단:
+     - intent prefetch
+     - preconnect / dns-prefetch
+     - cacheable asset warmup
+     - safe document prefetch
+
+3. **G3: excluded action/write paths**
+   - POST를 유발하거나 write side-effect가 있거나 권한/상태에 민감한 경로
+   - speculative fetch / swap 대상이 아니다
+
+원칙:
+- G1과 G2를 같은 방식으로 다루지 않는다.
+- WDPLANNER, WDCalculator, 채팅, 관리자처럼 surface ownership이 다른 페이지는 `가짜 SPA 전환`보다 `빠른 문서 이동`이 목표다.
+- 글로벌 네비 최적화는 ERP shell을 깨지 않고 그 위에 추가되는 fast-path layer다.
 
 #### 3.1.2 Dual-mode route contract
 각 canonical ERP primary route는 두 모드로 동작한다.
@@ -208,7 +260,11 @@ heavy fragment는 아래 중 하나로 지연한다.
 | `foms/web/cs/completion_dashboard.py` | completion dashboard shell participation |
 | `foms/web/orders/history.py` | ERP history dashboard shell participation |
 | `foms/web/orders/edit.py` | ERP order detail/edit subordinate page contract, return-state contract |
+| `foms/web/orders/listing.py` | 글로벌 네비 주문 family same-layout fast-path / document swap contract |
+| `foms/web/orders/trash.py` | `휴지통` global-nav fast-path participation |
+| `foms/web/admin/storage.py` | `수납장 대시보드` global-nav fast-path participation |
 | `foms/services/common/dashboard_cache.py` | shell/fragment 구조에 맞는 cached slice 재사용, tracing 보강 |
+| `foms/services/menu_config.py` | 글로벌 네비 authoritative inventory source |
 | `templates/orders/dashboard.html` | full-page shell host로 slim화 |
 | `templates/measurement/dashboard.html` | full-page shell host로 slim화 |
 | `templates/drawing/workbench_dashboard.html` | shell host + fragment split |
@@ -220,6 +276,8 @@ heavy fragment는 아래 중 하나로 지연한다.
 | `templates/cs/completion_dashboard.html` | shell participation 정렬 |
 | `templates/orders/history_dashboard.html` | shell participation 정렬 |
 | `templates/orders/edit_order.html` | ERP mode subordinate page contract 정렬 |
+| `templates/orders/index.html` | 글로벌 네비 same-family fast-path host 정렬 |
+| `templates/orders/trash.html` | 글로벌 네비 same-family fast-path host 정렬 |
 | `templates/orders/partials/*` | orders critical/heavy fragment 분리 |
 | `templates/measurement/partials/*` | measurement critical/heavy fragment 분리 |
 | `templates/drawing/partials/*` 또는 drawing 하위 partial | drawing dashboard/detail fragment 분리 |
@@ -227,11 +285,12 @@ heavy fragment는 아래 중 하나로 지연한다.
 | `templates/shipment/partials/*` | shipment critical/heavy fragment 분리 |
 | `templates/cs/partials/*` 또는 `templates/cs/as_partials/*` | AS critical/heavy fragment 분리 |
 | `templates/construction/partials/*` | construction critical/heavy fragment 분리 |
-| `templates/partials/shared/layout_nav.html` | ERP 탭 anchor/data attribute 정렬 |
+| `templates/partials/shared/layout_nav.html` | ERP 탭 + 글로벌 네비 anchor/data attribute 정렬 |
 | `templates/partials/shared/erp_sub_nav.html` | ERP 전체 surface nav/shell contract 정렬 |
 | `templates/partials/shared/erp_mobile_shell.html` | mobile ERP shell 대상 surface 정렬 |
-| `templates/partials/shared/layout_scripts.html` | shell bootstrap hook만 남기고 탭별 대형 로직은 page-scoped로 이관 |
+| `templates/partials/shared/layout_scripts.html` | shell bootstrap hook만 남기고 탭별 대형 로직은 page-scoped로 이관, 글로벌 네비 fast-path bootstrap |
 | `static/js/erp/runtime-shell.js` | 신규: shell navigation, cache, prefetch, history, swap controller |
+| `static/js/global-nav-runtime.js` | 신규: 글로벌 네비 intent prefetch, same-family fast-path, cross-surface warmup controller |
 | `static/js/orders/*` | orders heavy fragment/client hook 분리 필요 시 보강 |
 | `static/js/measurement/*` | measurement heavy fragment/client hook 보강 |
 | `static/js/drawing/*` 또는 ERP shell 하위 JS | drawing/detail interaction 보강 |
@@ -262,6 +321,12 @@ heavy fragment는 아래 중 하나로 지연한다.
 - 캐시는 메모리 우선, 필요 시 sessionStorage는 후속 검토
 - 권한/필터가 다르면 재사용하면 안 된다.
 - GET 필터/정렬/페이지네이션 요청도 같은 key 규칙을 사용한다.
+
+#### 3.3.4A Global nav fast-path boundary
+- G1 same-family read page는 공통 layout/body contract가 성립할 때만 fast swap 대상으로 올린다.
+- G2 cross-surface tool entry는 document warmup만 허용하고, 임의 body swap은 금지한다.
+- `layout-global-nav` 클릭은 `ERP shell`과 별도 계층으로 관찰/계측해야 한다.
+- 글로벌 네비 최적화 때문에 브라우저 주소창, 새로고침, 직접 접근이 깨지면 안 된다.
 
 #### 3.3.5 Semantic-preserving contract
 이번 tranche는 기능 의미를 바꾸는 최적화가 아니라, **동일한 결과를 더 빠르게 전달하는 구조 변경**이다.
@@ -430,6 +495,7 @@ heavy fragment는 아래 중 하나로 지연한다.
 - [x] primary page warm navigation latency를 계측한다. *(클라이언트 LRU·warm hit 경로; ms·Performance API·Railway 실측 증거는 §4.8/B8)*
 - [x] primary ↔ subordinate 왕복 latency도 계측한다. *(동일; `popstate`·scroll memory로 의미 보존 복원)*
 - [x] cache hit 시 즉각 body swap 또는 meaningful restore가 되는지 확인한다.
+- [ ] 글로벌 네비(`layout-global-nav`)의 G1/G2 fast-path inventory와 prefetch/warmup 경계를 잠근다.
 
 ### 4.7 EPT-B7 HTML diet + page-scoped assets + profiling
 - [x] `dashboard`, `as`의 initial document/fragment size를 크게 줄인다. *(inline CSS/JS → static; run record: `2026-04-17-ept-b7-html-diet-page-assets-profiling-run-record.md`)*
@@ -438,14 +504,17 @@ heavy fragment는 아래 중 하나로 지연한다.
 - [x] global layout에 항상 실리지 않아도 되는 코드를 분리한다. *(본문 partial에서 `<link>`/`<script>` — fragment와 동일)*
 - [x] `shipment`, `as`는 cache 밖 병목을 profiling으로 분리한다. *(서버: `render_template` ms 헤더·로그; query rewrite는 B7 범위 밖)*
 - [x] profiling 결과 query rewrite가 필요하면 후속 register에 명시한다. *(B7 구현 없음; 필요 시 별도 register)*
+- [ ] 글로벌 네비 이동에서 공통 layout/nav 바는 유지하고 본문만 바꿀 수 있는 G1 family를 식별한다. G2는 문서/자산 warmup만 적용한다.
 
 ### 4.8 EPT-B8 Verification + Railway evidence
-- [x] APP_OK / verify_result / focused pytest (로컬 — `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` §3; fragment + runtime-shell + `test_ept_b7_profile` 포함 시 **47 passed**).
+- [x] APP_OK / verify_result / focused pytest (로컬 — `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` §3; fragment + runtime-shell + `test_ept_b7_profile` + global-nav contract 포함 시 **50 passed**).
 - **진행 메모 (2026-04-17):** B8 run record에 스테이징 **HTTP 200 스모크**·MCP 타임스탬프·`tools/harness/ept_b8_staging_http_evidence.py`(쿠키 기반 duration+B7) 절차 **§4.2** 반영. 표 셀 **전부 채움**·Railway deploy ID·Performance·§6 전 모드는 **쿠키 실행 결과·HAR·`railway deployment list` 입력 후**에만 체크 가능.
 - [ ] browser-like regression: **staging/prod-like**에서 Performance API·Network·primary 9 스모크 등 **운영 증거** (로컬 pytest만으로는 이 항목 완료 불가).
 - [ ] staging/prod-like에서 ERP primary surface 전체 before/after evidence를 수집한다.
 - [ ] ERP subordinate/descendant authoritative inventory 전체 before/after evidence를 수집한다.
+- [ ] 글로벌 네비 G1/G2 inventory before/after evidence를 수집한다.
 - [ ] full reload, cold navigation, warm navigation, primary ↔ subordinate 왕복을 모두 비교한다.
+- [ ] 글로벌 네비 클릭(full, cold, warm, cross-surface)도 함께 비교한다.
 - [ ] browser Performance API 또는 동등 수단으로 click-to-paint를 수집한다.
 - [ ] 목표 미달 시 원인을 `HTML`, `query`, `render`, `asset`, `prefetch miss`로 분류한다.
 
@@ -478,8 +547,11 @@ heavy fragment는 아래 중 하나로 지연한다.
 - [ ] `/erp/history/` before/after evidence
 - [ ] ERP subordinate/descendant surface authoritative inventory evidence
 - [ ] authoritative inventory에 포함된 subordinate/descendant page/subpage 전체 before/after evidence
+- [ ] 글로벌 네비 G1 same-family inventory evidence
+- [ ] 글로벌 네비 G2 cross-surface inventory evidence
 - [ ] warm tab switch evidence
 - [ ] primary ↔ subordinate 왕복 evidence
+- [ ] 글로벌 네비 warm switch / warm document evidence
 - [ ] browser click-to-paint evidence
 - [ ] initial document/critical fragment size budget 증거
 - [ ] migration / schema / business semantics diff 없음
@@ -490,26 +562,31 @@ heavy fragment는 아래 중 하나로 지연한다.
 - “빠른 탭 전환”만 만족하고 “첫 진입이 여전히 무거운” half-fix 금지
 - 메인 4탭만 빨라지고 나머지 ERP surface는 그대로 느린 상태의 partial closeout 금지
 - ERP primary surface 전체와 subordinate/descendant surface 전체에서 체감 개선이 보여야 함
+- 상단 글로벌 네비는 그대로 무거운 full reload인 채 ERP만 빠른 half-fix 금지
 
 ### 6.2 Eng 축
 - duplicate template truth 금지
 - fragment/full dual-mode drift 금지
 - shell state와 URL state 불일치 금지
 - optimization을 이유로 business payload를 축소하는 hidden regression 금지
+- 글로벌 네비 fast-path가 surface ownership을 침범해 fake-SPA가 되는 것 금지
 
 ### 6.3 UX 축
 - skeleton만 빠르고 실제 내용은 느린 fake-fast 금지
 - active tab, filter, scroll, browser history가 자연스럽게 유지돼야 함
 - primary ↔ subordinate 왕복 시 사용자가 길을 잃지 않아야 함
+- 글로벌 네비 클릭에서도 주소, 활성 메뉴, 본문 의미가 자연스럽게 이어져야 함
 
 ### 6.4 Ops 축
 - staging 실측 없이 closeout 금지
 - Railway evidence 없는 “체감 빨라졌다” 서술 금지
+- 글로벌 네비 evidence 없는 “상단 메뉴도 빨라졌다” 서술 금지
 
 ### 6.5 Semantic 축
 - 기능 축소를 성능 개선으로 포장하는 것 금지
 - shell/fragment/heavy layering 때문에 결과가 늦게 보일 수는 있어도, 최종 결과 의미는 full mode와 완전히 같아야 한다
 - 최종 감리에서는 반드시 `권한/필터/정렬/페이지네이션/KPI/media count` diff 0 표를 남긴다
+- 글로벌 네비 fast-path도 동일하게 `URL/history/권한/본문 결과` diff 0이어야 한다
 
 ## 7. 후속 defer register
 아래는 이번 tranche 비목표지만, profiling 결과에 따라 후속으로 연다.
@@ -524,11 +601,15 @@ heavy fragment는 아래 중 하나로 지연한다.
 - `docs/plans/2026-04-16-dmc-f-run-record.md`
 - `docs/plans/2026-04-16-dmc-f7-railway-evidence.md`
 - `foms/web/orders/dashboard.py`
+- `foms/web/orders/listing.py`
 - `foms/web/measurement/dashboard.py`
 - `foms/web/drawing/workbench.py`
 - `foms/web/production/dashboard.py`
 - `foms/web/shipment/dashboard.py`
 - `foms/web/cs/as_dashboard.py`
+- `foms/web/admin/storage.py`
+- `foms/services/menu_config.py`
+- `templates/partials/shared/layout_nav.html`
 - `foms/web/construction/dashboard.py`
 - `foms/web/cs/completion_dashboard.py`
 - `foms/web/orders/history.py`
