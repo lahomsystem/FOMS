@@ -99,3 +99,5 @@ def test_edit_order_page_renders_thin_erp_beta_partial_contract(erp_editor_clien
 
     assert payment_urls_idx < beta_shared_tag_idx < order_id_idx < draft_mode_idx
     _assert_shared_form_script_contract(body)
+    # Jinja에서 is_erp_beta_order를 data-*보다 먼저 정의해야 함 — false면 JS 동기화가 ERP_BETA_ENABLED를 덮어써 조기 종료
+    assert 'data-erp-beta-enabled="true"' in body
