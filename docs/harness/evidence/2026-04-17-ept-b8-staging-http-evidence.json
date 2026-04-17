@@ -1,0 +1,126 @@
+{
+  "base": "https://lahom-dev.up.railway.app",
+  "primary": {
+    "/erp/dashboard": {
+      "full_reload_s": 1.893,
+      "warm_second_get_s": 1.844,
+      "final_url": "https://lahom-dev.up.railway.app/erp/dashboard",
+      "status_code": 200,
+      "b7_headers": {
+        "x-foms-ept-b7-render-ms": "205.7",
+        "x-foms-ept-b7-route": "erp_dashboard"
+      }
+    },
+    "/erp/measurement": {
+      "full_reload_s": 3.189,
+      "warm_second_get_s": 1.75,
+      "final_url": "https://lahom-dev.up.railway.app/erp/measurement",
+      "status_code": 200,
+      "b7_headers": {}
+    },
+    "/erp/drawing-workbench": {
+      "full_reload_s": 2.182,
+      "warm_second_get_s": 2.153,
+      "final_url": "https://lahom-dev.up.railway.app/erp/drawing-workbench",
+      "status_code": 200,
+      "b7_headers": {}
+    },
+    "/erp/production/dashboard": {
+      "full_reload_s": 2.433,
+      "warm_second_get_s": 2.328,
+      "final_url": "https://lahom-dev.up.railway.app/erp/production/dashboard",
+      "status_code": 200,
+      "b7_headers": {}
+    },
+    "/erp/shipment": {
+      "full_reload_s": 1.827,
+      "warm_second_get_s": 2.164,
+      "final_url": "https://lahom-dev.up.railway.app/erp/shipment",
+      "status_code": 200,
+      "b7_headers": {
+        "x-foms-ept-b7-render-ms": "622.6",
+        "x-foms-ept-b7-route": "erp_shipment_dashboard"
+      }
+    },
+    "/erp/as": {
+      "full_reload_s": 2.412,
+      "warm_second_get_s": 2.165,
+      "final_url": "https://lahom-dev.up.railway.app/erp/as",
+      "status_code": 200,
+      "b7_headers": {
+        "x-foms-ept-b7-render-ms": "186.3",
+        "x-foms-ept-b7-route": "erp_as_dashboard"
+      }
+    },
+    "/erp/construction/dashboard": {
+      "full_reload_s": 2.594,
+      "warm_second_get_s": 2.582,
+      "final_url": "https://lahom-dev.up.railway.app/erp/construction/dashboard",
+      "status_code": 200,
+      "b7_headers": {}
+    },
+    "/erp/completion": {
+      "full_reload_s": 0.922,
+      "warm_second_get_s": 0.919,
+      "final_url": "https://lahom-dev.up.railway.app/erp/completion",
+      "status_code": 200,
+      "b7_headers": {}
+    },
+    "/erp/history/": {
+      "full_reload_s": 0.98,
+      "warm_second_get_s": 0.93,
+      "final_url": "https://lahom-dev.up.railway.app/erp/history/",
+      "status_code": 200,
+      "b7_headers": {}
+    }
+  },
+  "cold_nav_proxy": [
+    {
+      "step": "land_dashboard",
+      "elapsed_s": 2.998
+    },
+    {
+      "step": "first_get_after_dashboard /erp/measurement",
+      "elapsed_s": 3.098,
+      "status": 200,
+      "b7": {}
+    },
+    {
+      "step": "first_get_after_dashboard /erp/shipment",
+      "elapsed_s": 1.85,
+      "status": 200,
+      "b7": {
+        "x-foms-ept-b7-render-ms": "346.3",
+        "x-foms-ept-b7-route": "erp_shipment_dashboard"
+      }
+    }
+  ],
+  "subordinate": {
+    "/erp/drawing-workbench/2732": {
+      "full_reload_s": 1.843,
+      "final_url": "https://lahom-dev.up.railway.app/erp/drawing-workbench/2732",
+      "status_code": 200,
+      "b7_headers": {}
+    },
+    "/edit/2732?open=erp-beta": {
+      "full_reload_s": 1.581,
+      "final_url": "https://lahom-dev.up.railway.app/edit/2732?open=erp-beta",
+      "status_code": 200,
+      "b7_headers": {}
+    },
+    "/erp/orders/2732": {
+      "full_reload_s": 0.912,
+      "final_url": "https://lahom-dev.up.railway.app/erp/orders/2732",
+      "status_code": 302,
+      "redirect_location": "/edit/2732?open=erp-beta",
+      "legacy_redirect_contract_ok": true,
+      "b7_headers": {}
+    },
+    "/erp/shipment-settings": {
+      "full_reload_s": 1.342,
+      "final_url": "https://lahom-dev.up.railway.app/erp/shipment-settings",
+      "status_code": 200,
+      "b7_headers": {}
+    }
+  }
+}

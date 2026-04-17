@@ -27,6 +27,11 @@ import requests
 
 DEFAULT_BASE = "https://lahom-dev.up.railway.app"
 COOKIE_NAME = "session_staging"
+# Some edge/WAF stacks behave better with a real browser UA than a custom token.
+_DEFAULT_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
 
 
 def _cookie_header_value(session: requests.Session) -> str | None:
@@ -55,7 +60,10 @@ def fetch_session_cookie(
     login_url = f"{origin}/login"
     session = requests.Session()
     session.headers.update(
-        {"User-Agent": "FOMS-EPT-B8-login/1.0", "Accept": "text/html,application/json"}
+        {
+            "User-Agent": _DEFAULT_UA,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        }
     )
 
     r0 = session.get(login_url, params={"next": next_path}, timeout=timeout)
@@ -70,9 +78,12 @@ def fetch_session_cookie(
 
     cookie = _cookie_header_value(session)
     if not cookie:
+        jar_names = [c.name for c in session.cookies]
+        hint = _login_failure_hint(r1, jar_names)
         raise RuntimeError(
             "No session_staging cookie after POST /login — wrong credentials, "
-            "inactive user, or unexpected HTML response."
+            "inactive user, or unexpected HTML response.\n"
+            f"{hint}"
         )
 
     final = (r1.url or "").replace("\\", "/")
@@ -80,6 +91,22 @@ def fetch_session_cookie(
         raise RuntimeError("Still on /login after POST — credentials rejected or CSRF issue.")
 
     return cookie, r1
+
+
+def _login_failure_hint(resp: requests.Response, jar_names: list[str]) -> str:
+    """Non-secret diagnostics for stderr (helps distinguish wrong username vs infra)."""
+    lines = [
+        f"  http_status={resp.status_code}",
+        f"  final_url={resp.url}",
+        f"  cookie_names_in_jar={jar_names or '(none)'}",
+    ]
+    text = (resp.text or "")[:2000]
+    if 'name="username"' in text and 'name="password"' in text:
+        lines.append(
+            "  hint: Response still contains the login <form> — login did not succeed. "
+            "FOMS uses User.username (로그인 ID), not email, unless your username is the email."
+        )
+    return "\n".join(lines)
 
 
 def main() -> int:

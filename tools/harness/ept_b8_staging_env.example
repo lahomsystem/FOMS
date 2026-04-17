@@ -2,6 +2,7 @@
 # Used by ept_b8_staging_session_from_login.py and ept_b8_staging_full_evidence.ps1
 
 FOMS_STAGING_BASE_URL=https://lahom-dev.up.railway.app
+# 로그인 폼의 «사용자명 (ID)» — DB의 User.username (이메일과 다를 수 있음)
 FOMS_STAGING_USERNAME=
 FOMS_STAGING_PASSWORD=
 # Optional overrides for full_evidence.ps1

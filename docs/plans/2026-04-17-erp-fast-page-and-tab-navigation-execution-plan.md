@@ -431,6 +431,7 @@ heavy fragment는 아래 중 하나로 지연한다.
 
 ### 4.8 EPT-B8 Verification + Railway evidence
 - [x] APP_OK / verify_result / focused pytest (로컬 — `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` §3; fragment + runtime-shell + `test_ept_b7_profile` 포함 시 **47 passed**).
+- **진행 메모 (2026-04-17):** B8 run record에 스테이징 **HTTP 200 스모크**·MCP 타임스탬프·`tools/harness/ept_b8_staging_http_evidence.py`(쿠키 기반 duration+B7) 절차 **§4.2** 반영. 표 셀 **전부 채움**·Railway deploy ID·Performance·§6 전 모드는 **쿠키 실행 결과·HAR·`railway deployment list` 입력 후**에만 체크 가능.
 - [ ] browser-like regression: **staging/prod-like**에서 Performance API·Network·primary 9 스모크 등 **운영 증거** (로컬 pytest만으로는 이 항목 완료 불가).
 - [ ] staging/prod-like에서 ERP primary surface 전체 before/after evidence를 수집한다.
 - [ ] ERP subordinate/descendant authoritative inventory 전체 before/after evidence를 수집한다.
