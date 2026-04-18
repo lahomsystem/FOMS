@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
+from foms.services.erp_order_flags import is_erp_order_record
 
 
 def _append_unique_dates(target_dates, seen_dates, raw_value) -> None:
@@ -33,7 +34,7 @@ def extract_all_measurement_dates(order):
 
     _append_unique_dates(dates, seen_dates, getattr(order, 'measurement_date', None))
 
-    if getattr(order, 'is_erp_beta', False) and getattr(order, 'structured_data', None):
+    if is_erp_order_record(order) and getattr(order, 'structured_data', None):
         sd = order.structured_data if isinstance(order.structured_data, dict) else {}
         erp_date = (sd.get('schedule') or {}).get('measurement') or {}
         _append_unique_dates(dates, seen_dates, erp_date.get('date'))

@@ -8,7 +8,7 @@ if str(_repo_root) not in sys.path:
 import argparse
 import datetime
 import json
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from flask import Flask
 
 # app.py의 Flask app과 db 헬퍼를 재사용
@@ -582,7 +582,7 @@ def step_13_templates_json(db):
 
 
 def step_14_erp_beta_flag(db):
-    """Step 14: orders.is_erp_beta 컬럼 추가 + 인덱스 생성 (idempotent)"""
+    """Step 14: ERP order flag column/index bootstrap (idempotent)."""
     _ensure_build_steps_table(db)
     existing = _get_step_status(db, STEP_ERP_BETA_FLAG)
     if existing and existing.get("status") == "COMPLETED":
@@ -590,14 +590,25 @@ def step_14_erp_beta_flag(db):
         return
 
     started_at = datetime.datetime.now()
-    _upsert_step(db, STEP_ERP_BETA_FLAG, "RUNNING", message="Adding orders.is_erp_beta flag", started_at=started_at)
+    _upsert_step(db, STEP_ERP_BETA_FLAG, "RUNNING", message="Ensuring canonical orders.is_erp_order flag", started_at=started_at)
     try:
-        db.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_erp_beta BOOLEAN NOT NULL DEFAULT FALSE"))
-        db.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_is_erp_beta ON orders(is_erp_beta)"))
+        inspector = inspect(db.get_bind())
+        column_names = {column.get("name") for column in inspector.get_columns("orders")}
+
+        if "is_erp_beta" in column_names and "is_erp_order" not in column_names:
+            db.execute(text("ALTER TABLE orders RENAME COLUMN is_erp_beta TO is_erp_order"))
+        elif "is_erp_order" not in column_names:
+            db.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_erp_order BOOLEAN NOT NULL DEFAULT FALSE"))
+
+        inspector = inspect(db.get_bind())
+        index_names = {index.get("name") for index in inspector.get_indexes("orders")}
+        if "ix_orders_is_erp_beta" in index_names and "ix_orders_is_erp_order" not in index_names:
+            db.execute(text("ALTER INDEX ix_orders_is_erp_beta RENAME TO ix_orders_is_erp_order"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_is_erp_order ON orders(is_erp_order)"))
         db.commit()
 
         completed_at = datetime.datetime.now()
-        _upsert_step(db, STEP_ERP_BETA_FLAG, "COMPLETED", message="orders.is_erp_beta ready", completed_at=completed_at)
+        _upsert_step(db, STEP_ERP_BETA_FLAG, "COMPLETED", message="canonical ERP order flag ready", completed_at=completed_at)
         print(f"[OK] {STEP_ERP_BETA_FLAG} completed")
     except Exception as e:
         try:

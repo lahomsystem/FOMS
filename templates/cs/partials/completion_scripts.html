@@ -134,7 +134,7 @@
             order.construction_photos || [],
             '<div class="erp-completion-mobile-card__empty">시공 사진이 없습니다.</div>'
           );
-          var orderDetailHref = '/edit/' + order.id + '?open=erp-beta';
+          var orderDetailHref = '/edit/' + order.id + '?open=erp-order';
           html += buildDesktopRow(order, desktopGalleryHtml, resultLabel, orderDetailHref);
           if (isMobileV2) {
             html += buildMobileCard(order, mobileGalleryHtml, resultLabel, orderDetailHref);

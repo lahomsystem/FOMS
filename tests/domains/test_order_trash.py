@@ -21,19 +21,19 @@ def _login_admin_session(client):
     return user
 
 
-def _create_deleted_erp_beta_order():
+def _create_deleted_erp_order():
     order = Order(
         received_date="2026-03-31",
-        customer_name="ERP Beta",
+        customer_name="ERP Order",
         phone="000-0000-0000",
         address="-",
-        product="ERP Beta",
+        product="ERP Order",
         options="''",
         notes="",
         status="DELETED",
         original_status="MEASURE",
         deleted_at="2026-03-31 09:00:00",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "parties": {
                 "customer": {
@@ -71,9 +71,9 @@ def _create_deleted_erp_beta_order():
     return order.id
 
 
-def test_trash_displays_erp_beta_structured_fields(client):
+def test_trash_displays_erp_order_structured_fields(client):
     _login_admin_session(client)
-    order_id = _create_deleted_erp_beta_order()
+    order_id = _create_deleted_erp_order()
 
     response = client.get("/trash")
 
@@ -87,13 +87,13 @@ def test_trash_displays_erp_beta_structured_fields(client):
     assert "붙박이 3조" in html
     assert "신발장 1조" in html
     assert f">{order_id}<" in html
-    assert ">ERP Beta<" not in html
+    assert ">ERP Order<" not in html
     assert "000-0000-0000" not in html
 
 
-def test_trash_search_matches_erp_beta_structured_fields(client):
+def test_trash_search_matches_erp_order_structured_fields(client):
     _login_admin_session(client)
-    order_id = _create_deleted_erp_beta_order()
+    order_id = _create_deleted_erp_order()
 
     response = client.get("/trash", query_string={"search": "윤인선"})
 

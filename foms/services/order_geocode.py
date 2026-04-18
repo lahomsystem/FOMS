@@ -1,5 +1,5 @@
 """
-주소 변경 시 지오코딩 초기화·ERP Beta structured_data.site 정합 (2026-03-15 이후).
+주소 변경 시 지오코딩 초기화·ERP Order structured_data.site 정합 (2026-03-15 이후).
 commit/queue는 caller가 성공 경계에서 처리.
 """
 
@@ -10,8 +10,10 @@ from typing import TYPE_CHECKING, Any, MutableMapping
 
 from sqlalchemy.orm.attributes import flag_modified
 
+from foms.services.erp_order_flags import is_erp_order_record
+
 __all__ = [
-    "apply_erp_beta_site_address_to_sd",
+    "apply_erp_order_site_address_to_sd",
     "reset_order_geocode_on_address_change",
     "clear_order_geocode_coords",
 ]
@@ -20,9 +22,9 @@ if TYPE_CHECKING:
     from models import Order
 
 
-def apply_erp_beta_site_address_to_sd(sd: MutableMapping[str, Any], flat_address: str) -> bool:
+def apply_erp_order_site_address_to_sd(sd: MutableMapping[str, Any], flat_address: str) -> bool:
     """
-    클래식 주소 한 필드(order.address)를 ERP Beta 표시 단일 소스(structured_data.site)에 반영.
+    클래식 주소 한 필드(order.address)를 ERP Order 표시 단일 소스(structured_data.site)에 반영.
 
     apply_erp_display_fields 등이 site.address_full / address_main을 우선하므로,
     컬럼만 갱신되고 JSONB가 남으면 대시보드에 구주소가 보인다. 상세(detail)는 과거 잔여로
@@ -62,7 +64,6 @@ def apply_erp_beta_site_address_to_sd(sd: MutableMapping[str, Any], flat_address
 
     return True
 
-
 def reset_order_geocode_on_address_change(order: Order, new_address: str) -> str:
     """
     주소 수정 시 lat/lng 초기화 및 geocode_status=pending 설정.
@@ -78,14 +79,14 @@ def reset_order_geocode_on_address_change(order: Order, new_address: str) -> str
     """
     addr = (new_address or "").strip()
 
-    if order.is_erp_beta and order.structured_data is not None:
+    if is_erp_order_record(order) and order.structured_data is not None:
         sd = copy.deepcopy(order.structured_data or {})
         if isinstance(sd, dict):
-            apply_erp_beta_site_address_to_sd(sd, addr)
+            apply_erp_order_site_address_to_sd(sd, addr)
             order.structured_data = sd
             flag_modified(order, "structured_data")
 
-    order.address = addr  # ERP Beta / 비 Beta 공통으로 DB 컬럼 동기화
+    order.address = addr  # ERP Order / 비 ERP Order 공통으로 DB 컬럼 동기화
 
     order.lat = None
     order.lng = None

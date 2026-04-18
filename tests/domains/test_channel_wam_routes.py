@@ -6,12 +6,12 @@ from foms.services.channel_security import generate_wam_session_token, generate_
 def _create_order():
     order = Order(
         received_date="2026-03-27",
-        customer_name="ERP Beta",
+        customer_name="ERP Order",
         phone="000-0000-0000",
         address="-",
-        product="ERP Beta",
+        product="ERP Order",
         status="RECEIVED",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "workflow": {"stage": "DRAWING"},
             "parties": {

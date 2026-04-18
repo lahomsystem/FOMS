@@ -165,10 +165,10 @@ def test_update_order_field_manager_name_keeps_legacy_success_shape(client) -> N
     assert saved_order.structured_data == {}
 
 
-def test_update_order_field_manager_name_syncs_structured_data_for_erp_beta(client) -> None:
-    """ERP beta manager-name updates must keep flat/structured data in sync."""
-    _login_as_admin(client, "orders-contract-manager-beta-admin")
-    order = _create_order(is_erp_beta=True, structured_data={})
+def test_update_order_field_manager_name_syncs_structured_data_for_erp_order(client) -> None:
+    """ERP order manager-name updates must keep flat/structured data in sync."""
+    _login_as_admin(client, "orders-contract-manager-erp-order-admin")
+    order = _create_order(is_erp_order=True, structured_data={})
 
     response = client.post(
         "/api/update_order_field",

@@ -1,6 +1,6 @@
 /**
  * estimate-preview.js
- * 견적서(계약서) 프리뷰 탭 — ERP Beta 서브탭용
+ * 견적서(계약서) 프리뷰 탭 — ERP Order 서브탭용
  */
 (function () {
     'use strict';
@@ -16,8 +16,12 @@
     }
 
     function _isErpEnabled() {
+        if (typeof ERP_ORDER_ENABLED !== 'undefined') return !!ERP_ORDER_ENABLED;
+        if (typeof window.ERP_ORDER_ENABLED !== 'undefined') return !!window.ERP_ORDER_ENABLED;
         if (typeof ERP_BETA_ENABLED !== 'undefined') return !!ERP_BETA_ENABLED;
         if (typeof window.ERP_BETA_ENABLED !== 'undefined') return !!window.ERP_BETA_ENABLED;
+        const el = document.getElementById('erp-order-config') || document.querySelector('[data-erp-order-enabled]');
+        if (el) return String(el.getAttribute('data-erp-order-enabled') || '') === 'true';
         return false;
     }
 

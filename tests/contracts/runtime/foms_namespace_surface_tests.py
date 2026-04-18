@@ -1492,7 +1492,7 @@ def test_namespaced_geocode_helpers_shim_preserves_canonical_contract() -> None:
 def test_namespaced_order_geocode_shim_preserves_canonical_contract() -> None:
     """The legacy services path should re-export the canonical order geocode helpers."""
     expected_public_names = [
-        "apply_erp_beta_site_address_to_sd",
+        "apply_erp_order_site_address_to_sd",
         "reset_order_geocode_on_address_change",
         "clear_order_geocode_coords",
     ]
@@ -2001,7 +2001,7 @@ def test_strict_canonical_static_js_css_taxonomy() -> None:
     assert not (static / "css" / "erp-pro.css").is_file()
     assert (static / "css" / "foundation" / "erp-pro.css").is_file()
     assert (static / "js" / "runtime" / "common_utils.js").is_file()
-    assert (static / "js" / "orders" / "beta-shared.js").is_file()
+    assert (static / "js" / "orders" / "erp-order-shared.js").is_file()
     assert (static / "js" / "channel" / "core.js").is_file()
     assert (static / "js" / "shipment" / "dashboard-columns.js").is_file()
     assert (static / "css" / "contexts" / "channel" / "tokens.css").is_file()

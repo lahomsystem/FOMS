@@ -108,7 +108,7 @@ def test_build_mine_sql_filter_matches_sqlite_json_worker_names(app) -> None:
         address="서울시 송파구 올림픽로 1",
         product="주방장",
         status="IN_CONSTRUCTION",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "workflow": {"stage": "CONSTRUCTION"},
             "parties": {"customer": {"name": "내 작업"}, "manager": {"name": "망고"}},
@@ -122,7 +122,7 @@ def test_build_mine_sql_filter_matches_sqlite_json_worker_names(app) -> None:
         address="서울시 송파구 올림픽로 2",
         product="주방장",
         status="IN_CONSTRUCTION",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "workflow": {"stage": "CONSTRUCTION"},
             "parties": {"customer": {"name": "다른 작업"}, "manager": {"name": "망고"}},
@@ -159,7 +159,7 @@ def test_construction_dashboard_applies_mine_filter_for_construction_team(app, c
         address="서울시 송파구 올림픽로 1",
         product="주방장",
         status="IN_CONSTRUCTION",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "workflow": {"stage": "CONSTRUCTION"},
             "parties": {"customer": {"name": "내 작업"}, "manager": {"name": "망고"}},
@@ -175,7 +175,7 @@ def test_construction_dashboard_applies_mine_filter_for_construction_team(app, c
         address="서울시 송파구 올림픽로 2",
         product="주방장",
         status="IN_CONSTRUCTION",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "workflow": {"stage": "CONSTRUCTION"},
             "parties": {"customer": {"name": "다른 작업"}, "manager": {"name": "망고"}},

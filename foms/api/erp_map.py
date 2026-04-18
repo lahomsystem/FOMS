@@ -145,7 +145,7 @@ def _extract_map_order_display(order):
     scheduled_date = order.scheduled_date
     manager_name = order.manager_name or '-'
 
-    if order.is_erp_beta and order.structured_data:
+    if order.is_erp_order and order.structured_data:
         sd = order.structured_data
         erp_customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
         if erp_customer_name:
@@ -227,7 +227,7 @@ def _order_matches_map_filters(order, display, *, manager_filter='', search_quer
         order.notes,
         display['manager_name'],
     ]
-    if order.is_erp_beta and order.structured_data:
+    if order.is_erp_order and order.structured_data:
         site = (order.structured_data.get('site') or {})
         searchable_parts.extend([
             site.get('address_full'),

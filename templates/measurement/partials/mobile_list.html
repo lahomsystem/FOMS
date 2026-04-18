@@ -44,8 +44,9 @@
         {% for item in product_items_row %}
           {% set image_ns.count = image_ns.count + ((item.get('measurement_images') or [])|length) %}
         {% endfor %}
-        {% set can_assign_manager = (can_edit_erp|default(false)) or (not r.is_erp_beta) %}
-        <article class="erp-measurement-mobile-card" data-measurement-mobile-order-id="{{ r.id }}" data-order-id="{{ r.id }}" data-is-erp="{{ 'true' if r.is_erp_beta else 'false' }}" data-phone="{{ r.phone or '' }}" data-address="{{ r.address or '' }}">
+        {% set is_erp_order = r.is_erp_order %}
+        {% set can_assign_manager = (can_edit_erp|default(false)) or (not is_erp_order) %}
+        <article class="erp-measurement-mobile-card" data-measurement-mobile-order-id="{{ r.id }}" data-order-id="{{ r.id }}" data-is-erp="{{ 'true' if is_erp_order else 'false' }}" data-phone="{{ r.phone or '' }}" data-address="{{ r.address or '' }}">
           <div class="erp-measurement-mobile-card__topline">
             <div class="erp-measurement-mobile-card__identity">
               <strong class="erp-measurement-mobile-card__customer">{{ r.customer_name or '-' }}</strong>
@@ -114,7 +115,7 @@
             {% if can_edit_erp|default(false) %}
               <a
                 class="erp-measurement-mobile-card__action"
-                href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_measurement_dashboard') }}?open=erp-beta">
+                href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_measurement_dashboard') }}?open=erp-order">
                 <i class="fas fa-pen"></i>
                 <span>ERP 편집</span>
               </a>
@@ -168,7 +169,7 @@
                     class="form-select"
                     data-measurement-mobile-manager-select
                     data-order-id="{{ r.id }}"
-                    data-is-erp="{{ 'true' if r.is_erp_beta else 'false' }}"
+                    data-is-erp="{{ 'true' if is_erp_order else 'false' }}"
                     data-current-value="{{ manager_name or '' }}">
                     <option value="">담당 미지정</option>
                     {% for option in measurement_manager_options %}
@@ -250,7 +251,7 @@
                     <span>지도 열기</span>
                   </a>
                 {% endif %}
-                {% if can_edit_erp|default(false) and r.is_erp_beta %}
+                {% if can_edit_erp|default(false) and is_erp_order %}
                   <button
                     type="button"
                     class="erp-measurement-mobile-card__detail-link"
@@ -279,7 +280,7 @@
                 {% if can_edit_erp|default(false) %}
                   <a
                     class="erp-measurement-mobile-card__detail-link"
-                    href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_measurement_dashboard') }}?open=erp-beta">
+                    href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_measurement_dashboard') }}?open=erp-order">
                     <i class="fas fa-arrow-right"></i>
                     <span>ERP 상세 열기</span>
                   </a>

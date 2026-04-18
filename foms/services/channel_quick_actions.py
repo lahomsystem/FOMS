@@ -13,6 +13,7 @@ from typing import Any
 from foms.persistence.main.db import get_db
 from foms.persistence.main.models import Order, OrderAttachment
 from foms.services.erp_display import _ensure_dict, _erp_get_stage, apply_erp_display_fields
+from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.storage import get_storage
 
 logger = logging.getLogger(__name__)
@@ -166,11 +167,11 @@ def get_order_summary_for_wam(order_id: int) -> dict[str, Any] | None:
 
     sd = _ensure_dict(order.structured_data)
     display_order = order
-    if getattr(order, "is_erp_beta", False) and sd:
+    if is_erp_order_record(order) and sd:
         display_order = deepcopy(order)
         apply_erp_display_fields(display_order)
 
-    if getattr(order, "is_erp_beta", False):
+    if is_erp_order_record(order):
         status_kr = _erp_get_stage(order, sd)
     else:
         status_kr = STATUS_MAP.get(display_order.status, display_order.status)

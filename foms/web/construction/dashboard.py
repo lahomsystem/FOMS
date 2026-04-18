@@ -48,7 +48,7 @@ def erp_construction_dashboard():
     is_construction = user and getattr(user, "team", None) == "CONSTRUCTION"
     mine_only = is_construction or (request.args.get("mine") == "1")
 
-    query = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_beta.is_(True))
+    query = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
 
     if mine_only and user:
         mine_conds = build_mine_sql_filter(user)
@@ -154,7 +154,7 @@ def erp_construction_dashboard():
         enriched.append(
             {
                 "id": order.id,
-                "is_erp_beta": order.is_erp_beta,
+                "is_erp_order": order.is_erp_order,
                 "is_self_measurement": getattr(order, "is_self_measurement", False),
                 "structured_data": structured_data,
                 "customer_name": (((structured_data.get("parties") or {}).get("customer") or {}).get("name")) or "-",

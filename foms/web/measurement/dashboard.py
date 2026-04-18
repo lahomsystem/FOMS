@@ -53,7 +53,7 @@ def _erp_order_search_filter(query, q):
             Order.manager_name.ilike(term),
             Order.address.ilike(term),
             and_(
-                Order.is_erp_beta == True,
+                Order.is_erp_order == True,
                 cast(Order.structured_data, String).ilike(term)
             )
         )
@@ -71,7 +71,7 @@ def _build_measurement_raw_match_filter(date_values):
         conditions.append(Order.erp_measurement_date == value)
         conditions.append(
             and_(
-                Order.is_erp_beta == True,
+                Order.is_erp_order == True,
                 cast(Order.structured_data, String).ilike(f'%{value}%')
             )
         )
@@ -113,7 +113,7 @@ def _measurement_user_visibility_fingerprint(current_user) -> dict:
 @erp_measurement_dashboard_bp.route('/measurement')
 @login_required
 def erp_measurement_dashboard():
-    """ERP Beta - 실측 대시보드 (structured_data 기반, MVP는 Order 컬럼 연동으로 운용)"""
+    """ERP Order - 실측 대시보드 (structured_data 기반, MVP는 Order 컬럼 연동으로 운용)"""
     db = get_db()
     today_kst = get_today_kst()
     today_date = today_kst.strftime('%Y-%m-%d')
@@ -219,7 +219,7 @@ def erp_measurement_dashboard():
         panel_orders = panel_query.options(
             load_only(
                 Order.id, Order.measurement_date, Order.structured_data,
-                Order.is_self_measurement, Order.is_erp_beta, Order.status,
+                Order.is_self_measurement, Order.is_erp_order, Order.status,
                 Order.measurement_completed, Order.regional_sales_order_upload,
                 Order.regional_blueprint_sent, Order.regional_order_upload
             ),
@@ -247,7 +247,7 @@ def erp_measurement_dashboard():
             panel_fallback_orders = panel_fallback_query.options(
                 load_only(
                     Order.id, Order.measurement_date, Order.structured_data,
-                    Order.is_self_measurement, Order.is_erp_beta, Order.status,
+                    Order.is_self_measurement, Order.is_erp_order, Order.status,
                     Order.measurement_completed, Order.regional_sales_order_upload,
                     Order.regional_blueprint_sent, Order.regional_order_upload
                 ),
@@ -410,7 +410,7 @@ def erp_measurement_dashboard():
         o.product_items = _pi_by_id.get(str(o.id), [])
 
     def get_manager_name_for_sort(order):
-        if order.is_erp_beta and order.structured_data:
+        if order.is_erp_order and order.structured_data:
             sd = order.structured_data
             erp_manager = normalize_manager_name(
                 (sd.get('parties') or {}).get('manager'),

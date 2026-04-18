@@ -14,6 +14,7 @@ from foms.services.erp_display import (
     _erp_get_stage,
     apply_erp_display_fields,
 )
+from foms.services.erp_order_flags import is_erp_order_record
 from models import Order, OrderEvent
 
 __all__ = [
@@ -137,7 +138,7 @@ def get_order_for_wam(order_id: int) -> Order | None:
 
 def _display_order(order: Order) -> Order:
     structured_data = _ensure_dict(getattr(order, "structured_data", None))
-    if getattr(order, "is_erp_beta", False) and structured_data:
+    if is_erp_order_record(order) and structured_data:
         copied = deepcopy(order)
         apply_erp_display_fields(copied)
         return copied
@@ -145,7 +146,7 @@ def _display_order(order: Order) -> Order:
 
 
 def _status_label(order: Order, structured_data: dict[str, Any], display_order: Order) -> str:
-    if getattr(order, "is_erp_beta", False):
+    if is_erp_order_record(order):
         return _erp_get_stage(order, structured_data)
     return STATUS_LABELS.get(display_order.status, display_order.status or "-")
 

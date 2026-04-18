@@ -84,11 +84,11 @@
   {% set erp_sub_nav_active = 'as' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
 
-  {% if not erp_beta_enabled %}
+  {% if not erp_order_enabled %}
   <div class="erp-pro-alert erp-pro-alert--warning">
     <div class="erp-pro-alert__icon"><i class="fas fa-exclamation-triangle"></i></div>
     <div class="erp-pro-alert__content">
-      <span>ERP Beta 기능이 비활성입니다. (환경변수 <code>ERP_BETA_ENABLED=true</code> 필요)</span>
+      <span>ERP Order 기능이 비활성입니다. (환경변수 <code>ERP_ORDER_ENABLED=true</code> 필요)</span>
     </div>
   </div>
   {% else %}
@@ -220,7 +220,7 @@
             <tr data-order-id="{{ r.id }}">
               <td>
                 {% if can_edit_erp|default(false) %}
-                <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-beta" class="erp-pro-link">#{{
+                <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order" class="erp-pro-link">#{{
                   r.id }}</a>
                 {% else %}
                 #{{ r.id }} <span class="text-muted small">(권한없음)</span>
@@ -304,7 +304,7 @@
         <div class="erp-pro-order-card" data-order-id="{{ r.id }}">
           <div class="erp-pro-order-card__header">
             {% if can_edit_erp|default(false) %}
-            <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-beta"
+            <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order"
               class="erp-pro-order-card__id">#{{ r.id }}</a>
             {% else %}
             <span class="erp-pro-order-card__id">#{{ r.id }} <span class="text-muted small">(권한없음)</span></span>
@@ -1406,7 +1406,7 @@
         items.forEach(item => {
           const el = document.createElement('a');
           el.className = 'list-group-item list-group-item-action p-3';
-          el.href = `/edit/${esc(item.id)}?open=erp-beta`;
+          el.href = `/edit/${esc(item.id)}?open=erp-order`;
           let badgeClass = 'bg-secondary';
           if (item.type === '상차') badgeClass = 'bg-warning text-dark';
           else if (item.type === '시공') badgeClass = 'bg-success';

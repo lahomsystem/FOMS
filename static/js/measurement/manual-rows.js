@@ -234,7 +234,8 @@
 
     function initManualRows() {
         var container = document.querySelector('.erp-pro');
-        if (!container || container.dataset.erpBetaActive !== 'true') return;
+        var erpActive = container && (container.dataset.erpOrderActive || container.dataset.erpActive || 'false');
+        if (!container || erpActive !== 'true') return;
 
         var tbody = document.querySelector('.measurement-table tbody');
         if (!tbody) return;

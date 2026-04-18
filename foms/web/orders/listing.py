@@ -126,7 +126,7 @@ def index():
         for order_db_item in orders_from_db:
             order_display_data = copy.deepcopy(order_db_item)
             order_display_data.display_options = format_options_for_display(order_db_item.options)
-            if order_db_item.is_erp_beta and order_db_item.structured_data:  # type: ignore
+            if order_db_item.is_erp_order and order_db_item.structured_data:  # type: ignore
                 sd = _ensure_dict(order_db_item.structured_data)
                 customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
                 if customer_name:
@@ -225,7 +225,7 @@ def add_order():
             db = get_db()
             create_mode = (request.form.get('create_mode') or 'LEGACY').upper().strip()
 
-            if create_mode == 'ERP_BETA':
+            if create_mode in {'ERP_ORDER', 'ERP_BETA'}:
                 raw_text = (request.form.get('raw_order_text') or '').strip()
                 structured_json = (request.form.get('structured_data_json') or '').strip()
                 stage = (request.form.get('erp_stage') or 'RECEIVED').strip()
@@ -273,7 +273,7 @@ def add_order():
                     received_time=request.form.get('received_time') or datetime.datetime.now().strftime('%H:%M'),
                     customer_name=cust_name, phone=cust_phone, address=addr, product=prod,
                     options=None, notes=request.form.get('notes') or None, status='RECEIVED',
-                    is_erp_beta=True, raw_order_text=raw_text, structured_data=structured_data,
+                    is_erp_order=True, raw_order_text=raw_text, structured_data=structured_data,
                     structured_schema_version=1, structured_confidence=None, structured_updated_at=datetime.datetime.now(),
                 )
                 db.add(new_order)
@@ -281,7 +281,7 @@ def add_order():
                 sync_erp_flat_columns(new_order, structured_data)
                 db.commit()
                 enqueue_geocode_order_address(new_order.id)
-                flash('ERP Beta 주문이 성공적으로 추가되었습니다.', 'success')
+                flash('ERP Order 주문이 성공적으로 추가되었습니다.', 'success')
                 return redirect(url_for('order_pages.index'))
 
             required_fields = ['customer_name', 'phone', 'address', 'product']
@@ -351,7 +351,7 @@ def add_order():
                 regional_blueprint_sent=regional_blueprint_sent_val,
                 regional_order_upload=regional_order_upload_val,
                 construction_type=construction_type_val,
-                is_erp_beta=False,
+                is_erp_order=False,
             )
             db.add(new_order)
             db.flush()

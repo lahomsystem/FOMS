@@ -15,6 +15,7 @@ from foms.services.as_content_safety import (
     load_structured_data_dict_or_raise,
     sanitize_as_content_html,
 )
+from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from models import Order
@@ -171,10 +172,10 @@ def update_order_field_response(
         if field in ("as_content", "as_content_2"):
             value = sanitize_as_content_html(value)
 
-        is_beta = getattr(order, "is_erp_beta", False)
+        is_erp_order = is_erp_order_record(order)
         structured_data: dict[str, Any] = {}
         structured_changed = False
-        if field == "as_completed_date" or is_beta or field in STRUCTURED_SYNC_FIELDS:
+        if field == "as_completed_date" or is_erp_order or field in STRUCTURED_SYNC_FIELDS:
             structured_data = _load_order_structured_data_for_update(order)
 
         old_value = getattr(order, field, None)
@@ -195,7 +196,7 @@ def update_order_field_response(
             shipment = ensure_path(structured_data, "shipment")
             if value:
                 setattr(order, "status", "AS_COMPLETED")
-                if is_beta:
+                if is_erp_order:
                     workflow = ensure_path(structured_data, "workflow")
                     workflow["stage"] = "AS_COMPLETED"
                     workflow["stage_updated_at"] = datetime.datetime.now().isoformat()
@@ -205,13 +206,13 @@ def update_order_field_response(
                     structured_changed = True
             else:
                 setattr(order, "status", "AS_RECEIVED")
-                if is_beta:
+                if is_erp_order:
                     workflow = ensure_path(structured_data, "workflow")
                     workflow["stage"] = "AS_RECEIVED"
                     workflow["stage_updated_at"] = datetime.datetime.now().isoformat()
                     structured_changed = True
 
-        if is_beta or field in (
+        if is_erp_order or field in (
             "as_content",
             "as_content_2",
             "as_visit_date",

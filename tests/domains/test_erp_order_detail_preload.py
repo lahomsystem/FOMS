@@ -16,7 +16,7 @@ def make_erp_order():
         address="서울시 강남구 테스트로 1",
         product="붙박이장",
         status="RECEIVED",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "workflow": {"stage": "DRAWING"},
             "parties": {

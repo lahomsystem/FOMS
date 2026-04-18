@@ -51,9 +51,9 @@ def test_extract_address_from_structured_data_falls_back_when_full_address_is_da
     assert extract_address_from_structured_data(structured_data) == "서울시 강남구 101호"
 
 
-def test_extract_address_from_order_uses_erp_beta_structured_address() -> None:
+def test_extract_address_from_order_uses_erp_order_structured_address() -> None:
     order = SimpleNamespace(
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "site": {
                 "address_main": "서울시 강남구",
@@ -68,7 +68,7 @@ def test_extract_address_from_order_uses_erp_beta_structured_address() -> None:
 
 def test_extract_address_from_order_falls_back_to_legacy_address() -> None:
     order = SimpleNamespace(
-        is_erp_beta=False,
+        is_erp_order=False,
         structured_data=None,
         address="  부산시 해운대구  ",
     )
@@ -76,9 +76,9 @@ def test_extract_address_from_order_falls_back_to_legacy_address() -> None:
     assert extract_address_from_order(order) == "부산시 해운대구"
 
 
-def test_extract_address_from_order_falls_back_when_erp_beta_has_no_valid_site_address() -> None:
+def test_extract_address_from_order_falls_back_when_erp_order_has_no_valid_site_address() -> None:
     order = SimpleNamespace(
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "site": {
                 "address_full": "-",

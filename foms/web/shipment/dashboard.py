@@ -12,6 +12,7 @@ from sqlalchemy.orm import load_only
 from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
+from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_template_filters import item_spec_w300_value
 from foms.services.erp_shipment_settings import (
     load_erp_shipment_settings,
@@ -62,7 +63,7 @@ def _shipment_user_visibility_fingerprint(current_user) -> dict:
 def _get_order_construction_date(order):
     """출고 대시보드용 시공일 결정 로직."""
     date_value = None
-    if order.is_erp_beta and order.structured_data:
+    if order.is_erp_order and order.structured_data:
         sd = order.structured_data
         cons = (sd.get('schedule') or {}).get('construction') or {}
         cons_date = cons.get('date')
@@ -118,7 +119,7 @@ def extract_all_construction_dates(order):
             for d in str(base_date).split(','):
                 if d.strip():
                     dates.add(d.strip())
-        if getattr(order, 'is_erp_beta', False) and getattr(order, 'structured_data', None):
+        if is_erp_order_record(order) and getattr(order, 'structured_data', None):
             sd = order.structured_data if isinstance(order.structured_data, dict) else {}
             for it in sd.get('items') or []:
                 if not isinstance(it, dict):
@@ -133,7 +134,7 @@ def extract_all_construction_dates(order):
 
 def _get_order_spec_units(order):
     """주문의 spec_w300 단위 합산. 항목별 W합/300 (spec_rows 있으면 W 합산 후 /300)."""
-    if not order.is_erp_beta or not order.structured_data:
+    if not order.is_erp_order or not order.structured_data:
         return 0.0
     sd = order.structured_data or {}
     items = sd.get('items') or []
@@ -156,7 +157,7 @@ def _erp_order_search_filter(query, q):
             Order.manager_name.ilike(term),
             Order.address.ilike(term),
             and_(
-                Order.is_erp_beta == True,
+                Order.is_erp_order == True,
                 cast(Order.structured_data, String).ilike(term)
             )
         )
@@ -166,7 +167,7 @@ def _erp_order_search_filter(query, q):
 @erp_shipment_page_bp.route('/shipment')
 @login_required
 def erp_shipment_dashboard():
-    """ERP Beta - 출고 대시보드 (날짜별 시공 건수, AS 포함, 출고일지 스타일)"""
+    """ERP Order - 출고 대시보드 (날짜별 시공 건수, AS 포함, 출고일지 스타일)"""
     db = get_db()
     current_user = getattr(g, 'current_user', None)
     today_kst = get_today_kst()
@@ -208,10 +209,10 @@ def erp_shipment_dashboard():
     # 시공/출고 대시보드는 AS 및 시공 관련이므로 Order.status 필터를 적용
     panel_query = base_query.filter(
         or_(
-            Order.is_erp_beta == True,
+            Order.is_erp_order == True,
             Order.status.in_(AS_SHIPMENT_STATUSES),
             and_(
-                Order.is_erp_beta == False,
+                Order.is_erp_order == False,
                 Order.scheduled_date != None,
                 Order.scheduled_date != ''
             )
@@ -233,7 +234,7 @@ def erp_shipment_dashboard():
     panel_orders = panel_query.options(
         load_only(
             Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
-            Order.structured_data, Order.status, Order.is_erp_beta,
+            Order.structured_data, Order.status, Order.is_erp_order,
             Order.customer_name, Order.manager_name, Order.phone, Order.address,
             Order.measurement_date,
         ),
@@ -462,10 +463,10 @@ def erp_shipment_dashboard():
         # Edge case: 패널 범위(14일) 밖 날짜 → 별도 쿼리 (fallback)
         rows_query = base_query.filter(
             or_(
-                Order.is_erp_beta == True,
+                Order.is_erp_order == True,
                 Order.status.in_(AS_SHIPMENT_STATUSES),
                 and_(
-                    Order.is_erp_beta == False,
+                    Order.is_erp_order == False,
                     Order.scheduled_date != None,
                     Order.scheduled_date != ''
                 )
@@ -487,7 +488,7 @@ def erp_shipment_dashboard():
         rows_query = rows_query.options(
             load_only(
                 Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
-                Order.structured_data, Order.status, Order.is_erp_beta,
+                Order.structured_data, Order.status, Order.is_erp_order,
                 Order.customer_name, Order.manager_name, Order.phone, Order.address,
                 Order.measurement_date,
             ),
@@ -525,7 +526,7 @@ def erp_shipment_dashboard():
     apply_erp_display_fields_to_orders(rows)
 
     def get_manager_name_for_sort(order):
-        if order.is_erp_beta and order.structured_data:
+        if order.is_erp_order and order.structured_data:
             sd = order.structured_data
             erp_manager = (((sd.get('parties') or {}).get('manager') or {}).get('name'))
             if erp_manager:
@@ -534,7 +535,7 @@ def erp_shipment_dashboard():
 
     def get_construction_worker_key_for_sort(order):
         """시공자별 그룹·정렬용: 첫 번째 유효한 시공자 또는 빈 문자열."""
-        if not order.is_erp_beta or not order.structured_data:
+        if not order.is_erp_order or not order.structured_data:
             return ''
         shipment = (order.structured_data.get('shipment') or {})
         workers = shipment.get('construction_workers') or []

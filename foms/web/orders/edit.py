@@ -18,14 +18,14 @@ from sqlalchemy.orm.attributes import flag_modified
 from foms.web.auth import login_required, role_required, log_access, get_user_by_id
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _ensure_dict
+from foms.services.erp_order_flags import is_erp_order_record
 from db import get_db
 from models import Order
 from foms.services.orders.status_constants import STATUS
 from foms.services.request_utils import get_preserved_filter_args
-from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.order_geocode import (
-    apply_erp_beta_site_address_to_sd,
+    apply_erp_order_site_address_to_sd,
     clear_order_geocode_coords,
     reset_order_geocode_on_address_change,
 )
@@ -37,8 +37,10 @@ order_edit_bp = Blueprint('order_edit', __name__, url_prefix='')
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def redirect_legacy_erp_order_detail(order_id):
-    """Redirect legacy ChannelTalk order links to the actual ERP Beta detail page."""
-    return redirect(url_for('order_edit.edit_order', order_id=order_id, open='erp-beta'))
+    """Redirect legacy ChannelTalk order links to the actual ERP Order detail page."""
+    params = request.args.to_dict()
+    params['open'] = 'erp-order'
+    return redirect(url_for('order_edit.edit_order', order_id=order_id, **params))
 
 
 @order_edit_bp.route('/edit/<int:order_id>', methods=['GET', 'POST'])
@@ -53,10 +55,10 @@ def edit_order(order_id):
         flash('주문을 찾을 수 없거나 이미 삭제되었습니다.', 'error')
         return redirect(url_for('order_pages.index'))
 
-    if bool(getattr(order, 'is_erp_beta', False)):
+    if is_erp_order_record(order):
         user = get_user_by_id(session['user_id'])
         if not can_edit_erp(user):
-            flash('ERP Beta 주문 수정 권한이 없습니다. (관리자, CS, 영업팀만 가능)', 'error')
+            flash('ERP Order 주문 수정 권한이 없습니다. (관리자, CS, 영업팀만 가능)', 'error')
             return redirect(url_for('order_pages.index'))
 
     option_type = 'online'
@@ -215,11 +217,11 @@ def edit_order(order_id):
             elif not is_cabinet_new:
                 setattr(order, 'cabinet_status', None)
             setattr(order, 'construction_type', construction_type_new)
-            # ERP Beta: 실측일/시공일 JSONB 반영 + Order.address ↔ site 주소 정합(AS·목록은 site 우선 표시)
+            # ERP Order: 실측일/시공일 JSONB 반영 + Order.address ↔ site 주소 정합(AS·목록은 site 우선 표시)
             site_address_jsonb_changed = False
             _sd = getattr(order, 'structured_data', None)
             # structured_data가 빈 dict여도 실측/시공·site 정합이 필요함 (and _sd는 {}에서 falsy로 전체 스킵됨)
-            if getattr(order, 'is_erp_beta', False) and _sd is not None:
+            if is_erp_order_record(order) and _sd is not None:
                 sd = _ensure_dict(_sd)
                 if isinstance(sd, dict):
                     schedule = sd.setdefault('schedule', {})
@@ -230,7 +232,7 @@ def edit_order(order_id):
                         construction = schedule.setdefault('construction', {})
                         construction['date'] = scheduled_date or ''
                     flat_addr = (getattr(order, 'address', None) or '').strip()
-                    site_address_jsonb_changed = apply_erp_beta_site_address_to_sd(sd, flat_addr)
+                    site_address_jsonb_changed = apply_erp_order_site_address_to_sd(sd, flat_addr)
                     setattr(order, 'structured_data', copy.deepcopy(sd))
                     flag_modified(order, 'structured_data')
             if site_address_jsonb_changed and 'address' not in changes:
@@ -327,11 +329,7 @@ def edit_order(order_id):
             flash(f'주문 수정 중 오류가 발생했습니다: {str(e)}', 'error')
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'status': 'error', 'message': '시스템 오류가 발생했습니다.'})
-            tpl_err = (
-                'orders/edit_order_fragment.html'
-                if wants_erp_shell_tab_body(request)
-                else 'orders/edit_order.html'
-            )
+            tpl_err = 'orders/edit_order.html'
             resp_err = make_response(
                 render_template(
                     tpl_err,
@@ -341,15 +339,10 @@ def edit_order(order_id):
                     direct_options=direct_options,
                 )
             )
-            apply_erp_shell_fragment_headers(resp_err, request)
             return resp_err
 
     preserved_args = get_preserved_filter_args(request.args)
-    tpl = (
-        'orders/edit_order_fragment.html'
-        if wants_erp_shell_tab_body(request)
-        else 'orders/edit_order.html'
-    )
+    tpl = 'orders/edit_order.html'
     response = make_response(
         render_template(
             tpl,
@@ -360,5 +353,4 @@ def edit_order(order_id):
             preserved_args=preserved_args,
         )
     )
-    apply_erp_shell_fragment_headers(response, request)
     return response

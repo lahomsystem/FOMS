@@ -300,7 +300,8 @@
                         <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="라홈" class="erp-lahom-logo ms-1" title="라홈 주문">
                         {% endif %}
                       </span>
-                      {% if o.is_erp_beta %}
+                      {% set is_erp_order = o.is_erp_order %}
+                      {% if is_erp_order %}
                       {% set payment = o.structured_data.get('payment', {}) if o.structured_data else {} %}
                       {% set deposit = payment.get('deposit', 0) %}
                       {% if not deposit %}
@@ -334,7 +335,7 @@
                     style="font-size: 1.1rem; color: #495057; word-break: break-word;">{{ o.address }}</td>
                   <td data-label="제품" class="erp-wrap"
                     style="font-size: 1.1rem; color: #495057; word-break: break-word;">
-                    {% if o.is_erp_beta and o.structured_data and o.structured_data.get('items') %}
+                    {% if is_erp_order and o.structured_data and o.structured_data.get('items') %}
                     {% set items = o.structured_data.get('items', []) %}
                     {% for item in items %}
                     <div>{{ item.get('product_name', '-') }}</div>
@@ -401,7 +402,7 @@
                     {% set order_id_detail = o.id %}
                     {% if can_edit_erp|default(false) %}
                     <a class="badge bg-info text-white fw-bold"
-                      href="{{ url_for('order_edit.edit_order', order_id=order_id_detail) }}?open=erp-beta" title="제품 상세정보"
+                      href="{{ url_for('order_edit.edit_order', order_id=order_id_detail) }}?open=erp-order" title="제품 상세정보"
                       style="cursor: pointer; font-size: 1rem !important; padding: 0.4em 0.7em !important; text-align: center; display: inline-block; text-decoration: none;">
                       <i class="fas fa-clipboard-list" style="font-size: 1rem !important;"></i>
                     </a>

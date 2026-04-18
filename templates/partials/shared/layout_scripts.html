@@ -1099,8 +1099,8 @@
                         if (deepTargetNo) url += `&target_no=${encodeURIComponent(deepTargetNo)}`;
                         window.location.href = url;
                     } else {
-                        // 기본: ERP Beta 탭 오픈
-                        window.location.href = `/edit/${orderId}?open=erp-beta`;
+                        // 기본: ERP Order 탭 오픈
+                        window.location.href = `/edit/${orderId}?open=erp-order`;
                     }
                 } else {
                     // Just refresh list to remove unread style
@@ -1322,5 +1322,5 @@
     <script src="{{ url_for('static', filename='js/global-nav-runtime.js') }}" defer></script>
     {% endif %}
     {% if request.path.startswith('/erp/') %}
-    <script src="{{ url_for('static', filename='js/erp/runtime-shell.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}" defer></script>
     {% endif %}

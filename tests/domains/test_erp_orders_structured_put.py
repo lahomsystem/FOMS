@@ -52,7 +52,7 @@ def _create_order(*, address="서울 테헤란로 123", structured_data=None) ->
         address=address,
         product="붙박이장",
         status="RECEIVED",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data=structured_data if structured_data is not None else _structured_payload(address),
         lat=37.5,
         lng=127.0,

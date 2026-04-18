@@ -9,8 +9,8 @@
 ### Session: a0f6c282
 - **시작**: 2026-04-17 13:39:37
 - **상태**: completed
-- **편집 파일**: `static/js/orders/beta-shared.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-0f6a1e89-53ab-4ca8-8af5-fb4af4eb8262.png`, `docs/harness/evidence/README.md`, `docs/AI_CHANGELOG.md`, `docs/harness/runtime/COMPACT_CHECKPOINT.md`, `docs/harness/runtime/EDIT_LOG.md`, `docs/AI_STATUS.md`, `docs/ARCHIVE_INDEX.md`, `docs/plans/2026-04-17-global-nav-real-speed-execution-plan.md`, `docs/plans/2026-04-17-gnv-run-record.md`
-- **종료**: 2026-04-17 15:55:46
+- **편집 파일**: `docs/specs/2026-04-17-erporder-cleanup-and-rename_SPEC.md`, `models.py`, `static/js/measurement/dashboard.js`, `static/js/measurement/manual-rows.js`, `templates/orders/partials/dashboard_scripts_detail_dom.html`, `templates/orders/partials/dashboard_scripts_core.html`, `tests/domains/test_erp_runtime_shell_js_contract.py`, `templates/partials/shared/layout_scripts.html`, `static/js/erp/runtime-shell.js`, `tests/contracts/runtime/foms_namespace_surface_tests.py`
+- **종료**: 2026-04-18 10:29:47
 
 ### Session: 07c148aa
 - **시작**: 2026-04-17 12:45:33
@@ -21,3 +21,39 @@
 | 2026-04-17 14:39:51 | END (Claude Code) | 수정: (없음) |
 
 | 2026-04-17 15:55:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 16:02:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 16:21:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 16:26:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 16:39:43 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 16:41:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 16:41:38 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 17:16:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 21:03:18 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 23:14:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 23:24:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 23:28:43 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 23:40:25 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 23:41:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 23:43:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-17 23:47:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 00:14:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 00:49:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 10:29:46 | END (Claude Code) | 수정: (없음) |

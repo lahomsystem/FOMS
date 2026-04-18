@@ -262,7 +262,7 @@ def process_inbound_job(log_id: int):
             address=parsed_data.get("address"),
             product=parsed_data.get("product", "-"),
             status="RECEIVED",
-            is_erp_beta=True,
+            is_erp_order=True,
         )
         db.add(new_order)
         db.commit()  # ID 획득

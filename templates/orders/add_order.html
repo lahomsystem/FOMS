@@ -8,7 +8,7 @@
                 <h5 class="mb-0">새 주문 추가</h5>
             </div>
             <div class="card-body">
-                <!-- Tabs: 기존 주문 / ERP Beta -->
+                <!-- Tabs: 기존 주문 / ERP Order -->
                 <ul class="nav nav-tabs mb-3" role="tablist">
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active" id="tab-legacy" data-bs-toggle="tab"
@@ -17,9 +17,9 @@
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="erp-beta-tab" data-bs-toggle="tab" data-bs-target="#erp-beta"
+                        <button class="nav-link" id="erp-order-tab" data-bs-toggle="tab" data-bs-target="#erp-order"
                             type="button" role="tab">
-                            <i class="fas fa-layer-group"></i> ERP Beta
+                            <i class="fas fa-layer-group"></i> ERP Order
                         </button>
                     </li>
                 </ul>
@@ -361,9 +361,9 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
                         </form>
                     </div>
 
-                    <!-- ERP Beta (새 주문 시 단계 기본값: 주문 접수) -->
-                    {% set erp_beta_default_stage_received = true %}
-                    {% include "orders/partials/beta_tab.html" %}
+                    <!-- ERP Order (새 주문 시 단계 기본값: 주문 접수) -->
+                    {% set erp_order_default_stage_received = true %}
+                    {% include "orders/partials/erp_order_tab.html" %}
                 </div>
             </div>
         </div>
@@ -373,7 +373,7 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
 
 {% block scripts %}
 {{ super() }}
-{% include "orders/partials/beta_js.html" %}
+{% include "orders/partials/erp_order_js.html" %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         // 자동 높이 조절 함수
@@ -742,10 +742,11 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
             });
         }
 
-        // URL 파라미터에 따라 탭 자동 전환 (?open=erp-beta)
+        // URL 파라미터에 따라 탭 자동 전환 (?open=erp-order, legacy: erp-beta)
         const params = new URLSearchParams(window.location.search);
-        if (params.get('open') === 'erp-beta') {
-            const erpTab = document.getElementById('erp-beta-tab');
+        const openTarget = params.get('open');
+        if (openTarget === 'erp-order' || openTarget === 'erp-beta') {
+            const erpTab = document.getElementById('erp-order-tab');
             if (erpTab) {
                 // 부트스트랩 탭 인스턴스 생성 및 전환
                 const tabInstance = new bootstrap.Tab(erpTab);
@@ -755,24 +756,26 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
     });
 </script>
 
-<div id="add-order-config" class="d-none"
-     data-erp-beta-enabled="{{ erp_beta_enabled|tojson|e }}"
-     data-use-direct-upload="{{ use_direct_upload|tojson|e }}"></div>
+<div id="erp-order-config" class="d-none"
+     data-order-id="0"
+     data-erp-order-enabled="{{ erp_order_enabled|tojson|e }}"
+     data-use-direct-upload="{{ use_direct_upload|tojson|e }}"
+     data-erp-order-draft-mode="true"></div>
 <script>
-    // add_order (ERP Beta): ORDER_ID는 탭 오픈 시 draft 생성으로 확보 (data-* + safeJsonParse 패턴)
+    // add_order (ERP Order): ORDER_ID는 탭 오픈 시 draft 생성으로 확보 (data-* + safeJsonParse 패턴)
     function safeJsonParse(val, fb) { try { var s = String(val||'').trim(); if(!s) return fb; var o = JSON.parse(s); return o != null ? o : fb; } catch(_) { return fb; } }
     ORDER_ID = 0;
-    var _aoCfg = document.getElementById('add-order-config');
-    ERP_BETA_ENABLED = _aoCfg ? safeJsonParse(_aoCfg.getAttribute('data-erp-beta-enabled'), false) : false;
+    var _aoCfg = document.getElementById('erp-order-config');
+    var ERP_ORDER_ENABLED = _aoCfg ? safeJsonParse(_aoCfg.getAttribute('data-erp-order-enabled'), false) : false;
     var USE_DIRECT_UPLOAD = _aoCfg ? safeJsonParse(_aoCfg.getAttribute('data-use-direct-upload'), true) : true;
-    window.__ERP_BETA_DRAFT_MODE = true;
+    window.__ERP_ORDER_DRAFT_MODE = true;
     window.__ERP_DRAFT_ENDPOINT = '/api/orders/erp/draft';
 </script>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // ERP Beta 탭 활성화 시 접수일/접수시간 자동 채우기 보완 (강제 실행)
-        const erpTabBtn = document.getElementById('erp-beta-tab');
+        // ERP Order 탭 활성화 시 접수일/접수시간 자동 채우기 보완 (강제 실행)
+        const erpTabBtn = document.getElementById('erp-order-tab');
         if (erpTabBtn) {
             erpTabBtn.addEventListener('click', function () {
                 setTimeout(function () {

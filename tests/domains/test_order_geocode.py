@@ -2,13 +2,13 @@ from types import SimpleNamespace
 
 import foms.services.order_geocode as order_geocode_module
 from foms.services.order_geocode import (
-    apply_erp_beta_site_address_to_sd,
+    apply_erp_order_site_address_to_sd,
     clear_order_geocode_coords,
     reset_order_geocode_on_address_change,
 )
 
 
-def test_apply_erp_beta_site_address_to_sd_sets_site_fields_and_clears_detail() -> None:
+def test_apply_erp_order_site_address_to_sd_sets_site_fields_and_clears_detail() -> None:
     structured_data = {
         "site": {
             "address_full": "기존 주소",
@@ -17,7 +17,7 @@ def test_apply_erp_beta_site_address_to_sd_sets_site_fields_and_clears_detail() 
         }
     }
 
-    changed = apply_erp_beta_site_address_to_sd(structured_data, " 서울시 강남구 테헤란로 1 ")
+    changed = apply_erp_order_site_address_to_sd(structured_data, " 서울시 강남구 테헤란로 1 ")
 
     assert changed is True
     assert structured_data["site"] == {
@@ -27,7 +27,7 @@ def test_apply_erp_beta_site_address_to_sd_sets_site_fields_and_clears_detail() 
     }
 
 
-def test_apply_erp_beta_site_address_to_sd_returns_false_when_already_normalized() -> None:
+def test_apply_erp_order_site_address_to_sd_returns_false_when_already_normalized() -> None:
     structured_data = {
         "site": {
             "address_full": "서울시 강남구 테헤란로 1",
@@ -36,21 +36,21 @@ def test_apply_erp_beta_site_address_to_sd_returns_false_when_already_normalized
         }
     }
 
-    changed = apply_erp_beta_site_address_to_sd(structured_data, "서울시 강남구 테헤란로 1")
+    changed = apply_erp_order_site_address_to_sd(structured_data, "서울시 강남구 테헤란로 1")
 
     assert changed is False
 
 
-def test_apply_erp_beta_site_address_to_sd_creates_site_and_clears_blank_address() -> None:
+def test_apply_erp_order_site_address_to_sd_creates_site_and_clears_blank_address() -> None:
     structured_data = {}
 
-    changed = apply_erp_beta_site_address_to_sd(structured_data, "")
+    changed = apply_erp_order_site_address_to_sd(structured_data, "")
 
     assert changed is False
     assert structured_data["site"] == {}
 
 
-def test_reset_order_geocode_on_address_change_syncs_beta_site_and_resets_coords(monkeypatch) -> None:
+def test_reset_order_geocode_on_address_change_syncs_erp_order_site_and_resets_coords(monkeypatch) -> None:
     flagged_fields: list[str] = []
     monkeypatch.setattr(
         order_geocode_module,
@@ -59,7 +59,7 @@ def test_reset_order_geocode_on_address_change_syncs_beta_site_and_resets_coords
     )
 
     order = SimpleNamespace(
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "site": {
                 "address_full": "기존 주소",
@@ -88,7 +88,7 @@ def test_reset_order_geocode_on_address_change_syncs_beta_site_and_resets_coords
     assert flagged_fields == ["structured_data"]
 
 
-def test_reset_order_geocode_on_address_change_handles_non_beta_orders_without_structured_data(monkeypatch) -> None:
+def test_reset_order_geocode_on_address_change_handles_non_erp_orders_without_structured_data(monkeypatch) -> None:
     flagged_fields: list[str] = []
     monkeypatch.setattr(
         order_geocode_module,
@@ -97,7 +97,7 @@ def test_reset_order_geocode_on_address_change_handles_non_beta_orders_without_s
     )
 
     order = SimpleNamespace(
-        is_erp_beta=False,
+        is_erp_order=False,
         structured_data=None,
         address="기존 주소",
         lat=37.123,

@@ -79,16 +79,16 @@ def test_process_foms_command_uses_canonical_identity_import(monkeypatch, app):
         assert "권한이 없습니다" in res["text"]
 
 
-def test_get_order_summary_for_wam_uses_structured_data_for_erp_beta(app):
+def test_get_order_summary_for_wam_uses_structured_data_for_erp_order(app):
     with app.app_context():
         order = Order(
             received_date="2026-03-27",
-            customer_name="ERP Beta",
+            customer_name="ERP Order",
             phone="000-0000-0000",
             address="-",
-            product="ERP Beta",
+            product="ERP Order",
             status="RECEIVED",
-            is_erp_beta=True,
+            is_erp_order=True,
             structured_data={
                 "workflow": {"stage": "DRAWING"},
                 "parties": {
@@ -123,12 +123,12 @@ def test_channel_wam_page_renders_structured_summary(client, app):
     with app.app_context():
         order = Order(
             received_date="2026-03-27",
-            customer_name="ERP Beta",
+            customer_name="ERP Order",
             phone="000-0000-0000",
             address="-",
-            product="ERP Beta",
+            product="ERP Order",
             status="RECEIVED",
-            is_erp_beta=True,
+            is_erp_order=True,
             structured_data={
                 "workflow": {"stage": "DRAWING"},
                 "parties": {
@@ -164,12 +164,12 @@ def test_short_wam_link_redirects_to_entry_ticket_flow(client, app):
     with app.app_context():
         order = Order(
             received_date="2026-03-27",
-            customer_name="ERP Beta",
+            customer_name="ERP Order",
             phone="000-0000-0000",
             address="-",
-            product="ERP Beta",
+            product="ERP Order",
             status="RECEIVED",
-            is_erp_beta=True,
+            is_erp_order=True,
             structured_data={
                 "workflow": {"stage": "DRAWING"},
                 "parties": {

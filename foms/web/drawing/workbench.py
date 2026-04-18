@@ -41,7 +41,7 @@ def erp_drawing_workbench_dashboard():
 
     orders = (
         db.query(Order)
-        .filter(Order.active_filter(), Order.is_erp_beta.is_(True))
+        .filter(Order.active_filter(), Order.is_erp_order.is_(True))
         .order_by(Order.created_at.desc())
         .limit(500)
         .all()
@@ -202,7 +202,7 @@ def erp_drawing_workbench_dashboard():
             sort_by=request.args.get('sort') or '',
             filters={'q': q_raw, 'status': status_filter, 'mine': '1' if mine_only else '', 'unread': '1' if unread_only else '', 'due_today': '1' if due_today_only else '', 'assignee': assignee_filter_raw},
             can_edit_erp=can_edit_erp(current_user),
-            erp_beta_enabled=True,
+            erp_order_enabled=True,
             erp_mine_only=mine_only,
         )
     )
@@ -216,7 +216,7 @@ def erp_drawing_workbench_detail(order_id):
     """도면 작업실 상세: 도면팀↔주문담당 협업 실행판."""
     db = get_db()
     current_user = getattr(g, 'current_user', None)
-    order = db.query(Order).filter(Order.id == order_id, Order.active_filter(), Order.is_erp_beta.is_(True)).first()
+    order = db.query(Order).filter(Order.id == order_id, Order.active_filter(), Order.is_erp_order.is_(True)).first()
     if not order:
         flash('주문을 찾을 수 없습니다.', 'warning')
         return redirect(url_for('erp_drawing_workbench.erp_drawing_workbench_dashboard'))
@@ -376,7 +376,7 @@ def erp_drawing_workbench_detail(order_id):
         product_items=product_items,
         measure_photos=measure_photos,
         common_measure_photos=common_measure_photos,
-        erp_beta_enabled=True,
+        erp_order_enabled=True,
     )
     template_name = (
         'drawing/workbench_detail_fragment.html'

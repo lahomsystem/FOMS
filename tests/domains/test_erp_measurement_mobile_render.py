@@ -43,7 +43,7 @@ def test_measurement_mobile_page_renders_item_attachment_group_keys(client, monk
         product="붙박이장",
         status="MEASURE",
         manager_name="Alice",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "items": [
                 {
@@ -114,7 +114,7 @@ def test_measurement_mobile_page_uses_normalized_manager_name(client, monkeypatc
         product="Cabinet",
         status="MEASURE",
         manager_name="Alice",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "parties": {
                 "manager": {

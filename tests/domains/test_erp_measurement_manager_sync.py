@@ -24,16 +24,16 @@ def _login_erp_editor(client):
     return user
 
 
-def _create_erp_beta_order(manager_name="Alice"):
+def _create_erp_order(manager_name="Alice"):
     order = Order(
         received_date="2026-03-31",
-        customer_name="ERP Beta",
+        customer_name="ERP Order",
         phone="010-1111-2222",
         address="Seoul",
-        product="ERP Beta",
+        product="ERP Order",
         status="MEASURE",
         manager_name=manager_name,
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "parties": {
                 "customer": {
@@ -51,9 +51,9 @@ def _create_erp_beta_order(manager_name="Alice"):
     return order.id
 
 
-def test_measurement_manager_update_syncs_erp_beta_fields(client):
+def test_measurement_manager_update_syncs_erp_order_fields(client):
     _login_erp_editor(client)
-    order_id = _create_erp_beta_order(manager_name="Alice")
+    order_id = _create_erp_order(manager_name="Alice")
 
     response = client.post(
         f"/api/erp/measurement/update/{order_id}",
@@ -69,9 +69,9 @@ def test_measurement_manager_update_syncs_erp_beta_fields(client):
     assert ((order.structured_data or {}).get("parties") or {}).get("manager", {}).get("name") == "Mango"
 
 
-def test_measurement_manager_delete_clears_erp_beta_fields(client):
+def test_measurement_manager_delete_clears_erp_order_fields(client):
     _login_erp_editor(client)
-    order_id = _create_erp_beta_order(manager_name="Alice")
+    order_id = _create_erp_order(manager_name="Alice")
 
     response = client.post(
         f"/api/erp/measurement/update/{order_id}",
@@ -99,7 +99,7 @@ def test_measurement_manager_update_resolves_numeric_user_id_to_name(client):
     )
     db_session.add(manager_user)
     db_session.commit()
-    order_id = _create_erp_beta_order(manager_name="Alice")
+    order_id = _create_erp_order(manager_name="Alice")
 
     response = client.post(
         f"/api/erp/measurement/update/{order_id}",

@@ -17,7 +17,7 @@ def test_collect_order_schedule_date_specs_normalizes_and_deduplicates_dates():
     order = SimpleNamespace(
         measurement_date="2026-4-1,2026/04/02",
         scheduled_date="2026-5-1,2026/05/02",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "schedule": {
                 "measurement": {"date": "2026-04-02,2026.04.03"},
@@ -75,15 +75,14 @@ def test_sync_order_dates_uses_get_db_when_session_missing(monkeypatch):
 
 
 def test_register_date_sync_listener_syncs_only_changed_orders(monkeypatch):
-    captured = {}
+    captured = {"listeners": {}}
     sync_calls = []
 
     def _fake_listens_for(target, event_name):
         captured["target"] = target
-        captured["event_name"] = event_name
 
         def _decorator(fn):
-            captured["listener"] = fn
+            captured["listeners"][event_name] = fn
             return fn
 
         return _decorator
@@ -94,8 +93,9 @@ def test_register_date_sync_listener_syncs_only_changed_orders(monkeypatch):
     order_date_sync.register_date_sync_listener()
 
     order = Order()
-    session = SimpleNamespace(new={order}, dirty={object()})
-    captured["listener"](session, None, None)
+    session = SimpleNamespace(new={order}, dirty={object()}, info={})
+    captured["listeners"]["before_flush"](session, None, None)
 
-    assert captured["event_name"] == "before_flush"
+    assert "before_flush" in captured["listeners"]
+    assert "after_commit" in captured["listeners"]
     assert sync_calls == [(order, session)]

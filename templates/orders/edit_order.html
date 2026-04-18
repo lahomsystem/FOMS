@@ -5,14 +5,11 @@
 {% endblock %}
 
 {% block scripts %}
-{% include "orders/partials/beta_js.html" %}
+{% include "orders/partials/erp_order_js.html" %}
 <script>
-    // 주문 ID (beta-shared.js의 var ORDER_ID에 대입 — 셸 프래그먼트 스왑 시 인라인 미재실행 대비)
-    ORDER_ID = parseInt(document.querySelector('.card[data-order-id]')?.dataset.orderId || '0', 10) || 0;
-    ERP_BETA_ENABLED = ("{{ 'true' if (erp_beta_enabled and order.is_erp_beta) else 'false' }}" === "true");
-    const USE_DIRECT_UPLOAD = ("{{ 'true' if use_direct_upload else 'false' }}" === "true");
+    var USE_DIRECT_UPLOAD = window.USE_DIRECT_UPLOAD = ("{{ 'true' if use_direct_upload else 'false' }}" === "true");
 
-    // 전역 XSS 방지 HTML 이스케이프 함수 (ERP Beta 등 전역에서 사용)
+    // 전역 XSS 방지 HTML 이스케이프 함수 (ERP Order 등 전역에서 사용)
     function escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
@@ -20,7 +17,7 @@
         return div.innerHTML;
     }
 
-    // ERP Beta: 전화번호 자동 하이픈 포맷 (수동입력 체크 시 비활성)
+    // ERP Order: 전화번호 자동 하이픈 포맷 (수동입력 체크 시 비활성)
     function formatPhoneAuto(value) {
         const digits = String(value || '').replace(/[^0-9]/g, '');
         if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
@@ -881,25 +878,26 @@
     });
 
     // ============================================
-    // ERP Beta Panel (TEST) [DISABLED: migrated to shared partial]
+    // ERP Order Panel (TEST) [DISABLED: migrated to shared partial]
     // ============================================
 
 
     // ============================================
-    // ERP Beta Panel (shared)
+    // ERP Order Panel (shared)
     // ============================================
-    window.__ERP_BETA_DRAFT_MODE = false;
+    window.__ERP_ORDER_DRAFT_MODE = false;
     window.__ERP_DRAFT_ENDPOINT = '/api/orders/erp/draft';
 </script>
 
 <script>
-    // ERP 대시보드/알림에서 바로 ERP Beta 탭으로 오픈 (?open=erp-beta)
+    // ERP 대시보드/알림에서 바로 ERP Order 탭으로 오픈 (?open=erp-order, legacy: erp-beta)
     // 첨부로 포커스: ?focus=attachments&category=drawing
     document.addEventListener('DOMContentLoaded', function () {
         try {
             const qs = new URLSearchParams(window.location.search || '');
-            if (qs.get('open') === 'erp-beta') {
-                const btn = document.getElementById('erp-beta-tab');
+            const openTarget = qs.get('open');
+            if (openTarget === 'erp-order' || openTarget === 'erp-beta') {
+                const btn = document.getElementById('erp-order-tab');
                 if (btn && typeof bootstrap !== 'undefined' && bootstrap.Tab) {
                     const focusTarget = (qs.get('focus') || '').trim();
                     const category = (qs.get('category') || '').trim().toLowerCase();
