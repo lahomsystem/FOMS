@@ -67,7 +67,7 @@
 - 주문 상세 링크 계약은 다음처럼 고정한다.
   - 사용자에게 노출되는 primary: `/w/{token}`
   - 내부 최종 도착지: `/channel/wam/?launch_token=...`
-  - 서버 fallback: `/edit/{order_id}?open=erp-beta`
+  - 서버 fallback: `/edit/{order_id}?open=erp-order`
   - legacy compatibility: `/erp/orders/{order_id}`는 Flask redirect로 유지
 - `services/channel_dispatch.py`와 `services/channel_policy.py`는 현재 runtime contract 기준으로 위 링크 계약과 change-lines 렌더링을 사용한다.
 
@@ -335,7 +335,7 @@
 - automatic push의 runtime payload는 최소 `event_type`, `event_title`, `change_lines`, `changed_by`, optional `reason`를 가진다.
 - worker는 `event_key` 문자열 파싱보다 `template_key`와 `masked_request_payload`를 우선 신뢰한다.
 - `rendered_text_snapshot`과 `target_group_snapshot`은 worker 전송 시점에 실제 발송 본문/그룹 기준으로 채운다.
-- 주문 상세 링크는 사용자에게는 `/w/{token}` short link를 primary로 보여주고, 내부 최종 도착지는 `WAM launch token URL`을 사용한다. short-link 생성 실패 시 `/edit/{order_id}?open=erp-beta` fallback을 사용한다.
+- 주문 상세 링크는 사용자에게는 `/w/{token}` short link를 primary로 보여주고, 내부 최종 도착지는 `WAM launch token URL`을 사용한다. short-link 생성 실패 시 `/edit/{order_id}?open=erp-order` fallback을 사용한다.
 - legacy 링크 호환을 위해 `/erp/orders/{order_id}`는 redirect route로 유지한다.
 
 ### 5.6A 개인 알림 / 공통 알림 라우팅 계약

@@ -19,7 +19,7 @@ from foms.services.orders.status_constants import STATUS
 from foms.services.order_display_utils import format_options_for_display, _ensure_dict
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.erp_sync_columns import sync_erp_flat_columns
-from foms.services.request_utils import get_preserved_filter_args
+from foms.services.request_utils import get_preserved_filter_args, redirect_if_legacy_open_erp_beta
 from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
 
 
@@ -219,6 +219,10 @@ def index():
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def add_order():
     """주문 추가 페이지."""
+    if request.method == 'GET':
+        _legacy_open = redirect_if_legacy_open_erp_beta('order_pages.add_order')
+        if _legacy_open is not None:
+            return _legacy_open
     if request.method == 'POST':
         db = None
         try:

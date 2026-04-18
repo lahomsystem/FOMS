@@ -132,6 +132,27 @@ def test_edit_order_page_uses_canonical_open_erp_order_deep_link_only(erp_editor
     assert "erp-beta" not in body
 
 
+def test_get_add_open_erp_beta_redirects_to_canonical_erp_order(erp_editor_client) -> None:
+    """Legacy ?open=erp-beta must 302 to the same path with open=erp-order (other query preserved)."""
+    r = erp_editor_client.get("/add?open=erp-beta&x=1", follow_redirects=False)
+    assert r.status_code == 302
+    loc = (r.headers.get("Location") or "").replace("\\", "/")
+    assert "open=erp-order" in loc
+    assert "erp-beta" not in loc.lower()
+    assert "x=1" in loc
+
+
+def test_get_edit_open_erp_beta_redirects_to_canonical_erp_order(erp_editor_client) -> None:
+    """Legacy ?open=erp-beta on edit must 302 to open=erp-order."""
+    order = _create_erp_order()
+    r = erp_editor_client.get(f"/edit/{order.id}?open=erp-beta", follow_redirects=False)
+    assert r.status_code == 302
+    loc = (r.headers.get("Location") or "").replace("\\", "/")
+    assert f"/edit/{order.id}" in loc
+    assert "open=erp-order" in loc
+    assert "erp-beta" not in loc.lower()
+
+
 def test_estimate_preview_js_is_canonical_only() -> None:
     """P2 removes ERP_BETA_* fallbacks from the estimate preview runtime."""
     root = Path(__file__).resolve().parents[2]
