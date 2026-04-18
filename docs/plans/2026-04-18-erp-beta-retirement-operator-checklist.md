@@ -12,6 +12,7 @@
 - G-ENV: 확보됨 (`ERP_ORDER_ENABLED=true`, legacy `ERP_BETA_ENABLED`/`ERP_BETA_DEBUG` 미설정)
 - G-IN: 앱 로그 기준 약한 음성 신호만 있음
 - G-DATA: Codex가 읽기 전용 SQL로 확인 완료, 현재 **차단 상태**
+- URL 정책: 배포 후 `GET /add?open=erp-beta`, `GET /edit/<id>?open=erp-beta` 는 **302** 로 동일 경로에 `open=erp-order` 이 적용된 주소로 이동한다(나머지 쿼리 유지). 스모크에서 주소창에 `erp-beta` 가 남지 않는지 확인한다.
 
 ## 지금 사용자에게 필요한 것
 

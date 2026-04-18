@@ -15,7 +15,7 @@ PowerShell (Win11), manual cookie:
 cookie was wrong or expired.
 
 **Legacy** ``/erp/orders/<id>``: the harness uses ``allow_redirects=False`` and checks
-``302`` + ``Location`` → ``/edit/<id>?…erp-beta…`` (B5 contract). Following redirects
+``302`` + ``Location`` → ``/edit/<id>?…open=erp-order…`` (B5 contract). Following redirects
 with ``requests`` could incorrectly end on ``/login?next=…`` even when the session is valid.
 
 Environment:
@@ -187,7 +187,7 @@ def main() -> int:
     sub: dict[str, Any] = {}
     for path in _subordinate_paths(args.order_id):
         url = base + path
-        # B5 legacy URL: 302 → /edit/<id>?open=erp-beta. Following redirects with
+        # B5 legacy URL: 302 → /edit/<id>?open=erp-order. Following redirects with
         # requests can end on /login?next=... (session/cookie edge on redirect chain);
         # contract is validated on the first hop only.
         if path.startswith("/erp/orders/"):
@@ -198,7 +198,7 @@ def main() -> int:
             contract_ok = (
                 resp.status_code in (301, 302, 303, 307, 308)
                 and f"/edit/{args.order_id}" in loc
-                and "erp-beta" in loc.lower()
+                and "erp-order" in loc.lower()
                 and "/login" not in loc.lower()
             )
             sub[path] = {

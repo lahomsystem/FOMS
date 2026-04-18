@@ -22,7 +22,7 @@ from foms.services.erp_order_flags import is_erp_order_record
 from db import get_db
 from models import Order
 from foms.services.orders.status_constants import STATUS
-from foms.services.request_utils import get_preserved_filter_args
+from foms.services.request_utils import get_preserved_filter_args, redirect_if_legacy_open_erp_beta
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.order_geocode import (
     apply_erp_order_site_address_to_sd,
@@ -39,6 +39,7 @@ order_edit_bp = Blueprint('order_edit', __name__, url_prefix='')
 def redirect_legacy_erp_order_detail(order_id):
     """Redirect legacy ChannelTalk order links to the actual ERP Order detail page."""
     params = request.args.to_dict()
+    params.pop("order_id", None)
     params['open'] = 'erp-order'
     return redirect(url_for('order_edit.edit_order', order_id=order_id, **params))
 
@@ -48,6 +49,10 @@ def redirect_legacy_erp_order_detail(order_id):
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
 def edit_order(order_id):
     """주문 수정 페이지."""
+    if request.method == 'GET':
+        _legacy_open = redirect_if_legacy_open_erp_beta('order_edit.edit_order', order_id=order_id)
+        if _legacy_open is not None:
+            return _legacy_open
     db = get_db()
     order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
 
