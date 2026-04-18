@@ -7,6 +7,8 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCRIPTS_INCLUDE = _REPO_ROOT / "templates" / "orders" / "partials" / "dashboard_scripts.html"
+_ORDERS_CORE = _REPO_ROOT / "templates" / "orders" / "partials" / "dashboard_scripts_core.html"
+_ORDERS_ATTACHMENTS = _REPO_ROOT / "templates" / "orders" / "partials" / "dashboard_scripts_attachments.html"
 _DETAIL_DOM = _REPO_ROOT / "templates" / "orders" / "partials" / "dashboard_scripts_detail_dom.html"
 _FRAGMENT = _REPO_ROOT / "static" / "js" / "erp" / "order-detail-fragment.js"
 _CONTRACT_DOC = _REPO_ROOT / "docs" / "harness" / "policy" / "order-detail-2phase-contract.md"
@@ -42,6 +44,17 @@ def test_fragment_module_owns_attachment_patch_helpers() -> None:
 
     assert "async function patchOrderDetailAttachments" in fragment_src
     assert "async function patchOrderDetailAttachments" not in detail_src
+    assert "function invalidateOrderDetailRuntimeState" in fragment_src
+
+
+def test_orders_invalidate_helper_matches_documented_contract() -> None:
+    orders_core = _ORDERS_CORE.read_text(encoding="utf-8")
+    orders_attachments = _ORDERS_ATTACHMENTS.read_text(encoding="utf-8")
+
+    assert "window.invalidateOrderDetailRuntimeState(orderId" in orders_core
+    assert "loadGen: __orderDetailLoadGen" in orders_core
+    assert "delete c.dataset.itemCount;" in orders_core
+    assert "__attachmentsCacheAt[orderId] = Date.now();" in orders_attachments
 
 
 def test_detail_dom_keeps_phase2_accessibility_and_perf_contracts() -> None:
@@ -79,11 +92,15 @@ def test_production_and_construction_scripts_use_two_phase_attachment_patch() ->
     construction_src = _CONSTRUCTION_SCRIPTS.read_text(encoding="utf-8")
 
     assert "patchProductionDetailAttachments" in production_src
+    assert "invalidateProductionOrderDetailAttachments" in production_src
     assert "attachmentsPending = true" in production_src
     assert "order-detail-attachments-slot-" in production_src
     assert "container.dataset.shellLoaded = '1'" in production_src
+    assert "__attachmentsCacheAt[orderId] = Date.now();" in production_src
 
     assert "patchConstructionDetailAttachments" in construction_src
+    assert "invalidateConstructionOrderDetailAttachments" in construction_src
     assert "attachmentsPending = true" in construction_src
     assert "order-detail-attachments-slot-" in construction_src
     assert "container.dataset.shellLoaded = '1'" in construction_src
+    assert "__attachmentsCacheAt[orderId] = Date.now();" in construction_src

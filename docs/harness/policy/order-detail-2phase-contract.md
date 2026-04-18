@@ -36,7 +36,14 @@
 - `__orderDetailLoadGen[orderId]`
 - `loaded / shellLoaded / attachPhase / attachError / itemCount`
 
+공통 구현:
+- [static/js/erp/order-detail-fragment.js](C:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/erp/order-detail-fragment.js)의 `window.invalidateOrderDetailRuntimeState(...)`
+- orders / production / construction 스크립트는 각자 캐시·세대 번호만 넘겨 같은 초기화 로직을 재사용한다.
+
 첨부 업로드/삭제 API 성공 콜백에서는 이 함수를 호출해 같은 브라우저 세션의 stale 첨부 상태를 비운다.
+
+예외:
+- 성공 후 `window.location.reload()` 또는 전체 문서 이동으로 끝나는 경로는 브라우저 새 문서가 기존 상태를 버리므로 별도 invalidate 훅이 없어도 된다.
 
 주의:
 - 이 무효화는 현재 브라우저 탭 기준이다.

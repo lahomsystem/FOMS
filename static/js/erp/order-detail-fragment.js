@@ -114,6 +114,34 @@ function registerOrderDetailDrawingViewerGroups(orderId) {
     }
 }
 
+function resetOrderDetailContainerState(container) {
+    if (!container) return;
+    delete container.dataset.loaded;
+    delete container.dataset.shellLoaded;
+    delete container.dataset.attachPhase;
+    delete container.dataset.attachError;
+    delete container.dataset.itemCount;
+}
+
+function invalidateOrderDetailRuntimeState(orderId, runtime) {
+    if (!orderId || !runtime) return;
+    if (runtime.cache && typeof runtime.cache === 'object') {
+        delete runtime.cache[orderId];
+    }
+    if (runtime.cacheAt && typeof runtime.cacheAt === 'object') {
+        delete runtime.cacheAt[orderId];
+    }
+    if (runtime.loadGen && typeof runtime.loadGen === 'object') {
+        delete runtime.loadGen[orderId];
+    }
+    const containerPrefix = runtime.containerPrefix || 'order-detail-content-';
+    const container = document.getElementById(containerPrefix + orderId);
+    if (container) {
+        resetOrderDetailContainerState(container);
+    }
+}
+window.invalidateOrderDetailRuntimeState = invalidateOrderDetailRuntimeState;
+
 async function patchOrderDetailAttachments(orderId, itemCount, gen) {
     const container = document.getElementById('order-detail-content-' + orderId);
     if (!container || !container.isConnected) return;

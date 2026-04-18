@@ -174,6 +174,22 @@ def test_shared_erp_order_js_has_no_beta_runtime_mirror() -> None:
     assert "data-erp-beta-draft-mode" not in text
 
 
+def test_edit_order_initial_mount_releases_surface_before_deferred_panels() -> None:
+    """Initial edit-page paint should reveal the ERP pane before quest/attachment fetches finish."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    mount_start = text.index("function fomsMountErpOrderSurface()")
+    structured_idx = text.index(
+        "await erpLoadStructured(erpBootstrap || undefined, { deferAttachments: true });",
+        mount_start,
+    )
+    ready_idx = text.index("_erpMarkSurfaceReady();", structured_idx)
+    deferred_idx = text.index("_erpLoadDeferredSurfaceDecorations();", structured_idx)
+
+    assert "function _erpLoadDeferredSurfaceDecorations()" in text
+    assert structured_idx < ready_idx < deferred_idx
+
+
 def test_add_order_handler_accepts_only_canonical_erp_order_create_mode_contract() -> None:
     """The POST handler must no longer accept create_mode=ERP_BETA."""
     root = Path(__file__).resolve().parents[2]
