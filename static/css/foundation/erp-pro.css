@@ -10,3 +10,59 @@
 @import url("erp-pro/10-erp-mobile-v2-shell.css");
 @import url("erp-pro/11-queue-family-mobile.css");
 @import url("erp-pro/12-runtime-shell-loading.css");
+
+/* 주문 상세 2단 렌더 로딩 영역: 썸네일 행 높이 예약으로 CLS 방지 */
+.order-detail-attach-loading {
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+}
+
+.dw-attach-panel--loading {
+    min-height: 96px;
+}
+
+.erp-attach-thumb {
+    width: 80px;
+    height: 60px;
+    cursor: pointer;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.erp-attach-thumb-video-bg {
+    width: 80px;
+    height: 60px;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.erp-attach-thumb-file-bg {
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.erp-attach-thumb-img,
+.erp-attach-thumb-media {
+    width: 80px;
+    height: 60px;
+    object-fit: cover;
+    background: #fff;
+    display: block;
+}
+
+.erp-attach-thumb-play-badge {
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    padding: 2px 4px;
+    font-size: 10px;
+}
