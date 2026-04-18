@@ -628,7 +628,26 @@ function erpNewItemRow(item = {}) {
     return row;
 }
 
-async function erpLoadStructured() {
+function _erpConsumeBootstrap() {
+    // 서버 렌더 시점 주입된 인라인 JSON 부트스트랩을 1회만 소비한다.
+    // (동일 페이로드를 반복 적용하지 않도록 파싱 후 즉시 엘리먼트 제거)
+    if (typeof document === 'undefined') return null;
+    const el = document.getElementById('erp-order-bootstrap');
+    if (!el) return null;
+    try {
+        const text = el.textContent || '';
+        el.parentNode && el.parentNode.removeChild(el);
+        if (!text.trim()) return null;
+        const payload = JSON.parse(text);
+        if (!payload || payload.success === false) return null;
+        return payload;
+    } catch (_e) {
+        try { el.parentNode && el.parentNode.removeChild(el); } catch (_e2) { }
+        return null;
+    }
+}
+
+async function erpLoadStructured(bootstrapData) {
     if (!ERP_ORDER_ENABLED) return;
     if (!ORDER_ID) return;
 
@@ -638,12 +657,15 @@ async function erpLoadStructured() {
         fileInput.value = '';
     }
 
-    erpSetStatus('불러오는 중...');
     window.__erpStructuredLoadSucceeded = false;
-    const res = await fetch(`/api/orders/${ORDER_ID}/structured`);
-    const data = await res.json();
-    if (!data.success) {
-        erpSetStatus(data.message || '불러오기 실패', true);
+    let data = bootstrapData || null;
+    if (!data) {
+        erpSetStatus('불러오는 중...');
+        const res = await fetch(`/api/orders/${ORDER_ID}/structured`);
+        data = await res.json();
+    }
+    if (!data || !data.success) {
+        erpSetStatus((data && data.message) || '불러오기 실패', true);
         return;
     }
 
@@ -652,7 +674,7 @@ async function erpLoadStructured() {
     const receivedTimeEl = document.getElementById('erp-received-time');
     if (receivedDateEl) receivedDateEl.value = data.received_date || '';
     if (receivedTimeEl) receivedTimeEl.value = data.received_time || '';
-    document.getElementById('erp-customer-name').value = sd?.parties?.customer?.name || '★';
+    document.getElementById('erp-customer-name').value = sd?.parties?.customer?.name || '';
     document.getElementById('erp-customer-phone').value = sd?.parties?.customer?.phone || '';
     try {
         const erpManualPhone = document.getElementById('erp-manual-phone-input');
@@ -2630,6 +2652,9 @@ function fomsMountErpOrderSurface() {
         window.__fomsErpMeasurementIntervalId = window.setInterval(loadMeasurementPanel, 30000);
     }
 
+    // 서버 렌더에서 주입된 부트스트랩 페이로드를 1회 소비해 초기 페인트의 fetch 왕복을 제거한다.
+    const erpBootstrap = _erpConsumeBootstrap();
+
     if (ORDER_ID && ORDER_ID > 0) {
         const erpTabBtn = document.getElementById('erp-order-tab');
         const erpPane = document.getElementById('erp-order');
@@ -2638,7 +2663,7 @@ function fomsMountErpOrderSurface() {
             (erpPane && (erpPane.classList.contains('active') || erpPane.classList.contains('show')));
         if (erpTabAlreadyActive) {
             void (async () => {
-                await erpLoadStructured();
+                await erpLoadStructured(erpBootstrap || undefined);
                 await erpLoadQuest();
             })();
         }
@@ -2669,6 +2694,7 @@ function fomsMountErpOrderSurface() {
             syncWorkflowStageByOrderer();
         }
         if (ORDER_ID && ORDER_ID > 0) {
+            // 탭 전환 시에는 이미 부트스트랩을 소비했을 수 있으므로 서버 최신 상태를 재조회한다.
             await erpLoadStructured();
             erpLoadQuest();
             loadMeasurementPanel();
