@@ -66,6 +66,7 @@ _PTC_RUNTIME_JS_ALLOWLIST: frozenset[str] = frozenset(
         "column-resizer.js",
         "common_utils.js",
         "erp-mobile-shell.js",
+        "erp-shell.js",
         "script.js",
         "upload-progress.js",
     }
@@ -78,6 +79,10 @@ _PTC_FOMS_SERVICES_COMMON_ALLOWLIST: frozenset[str] = frozenset(
         "address_ai_ops_loader.py",
         "address_converter.py",
         "business_calendar.py",
+        "dashboard_cache.py",
+        "ept_b7_profile.py",
+        "erp_navigation_contract.py",
+        "erp_shell_http.py",
         "geocode_config.py",
         "map_generator.py",
     }
