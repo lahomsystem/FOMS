@@ -9,8 +9,8 @@
 ### Session: a0f6c282
 - **시작**: 2026-04-17 13:39:37
 - **상태**: completed
-- **편집 파일**: `docs/specs/2026-04-17-erporder-cleanup-and-rename_SPEC.md`, `models.py`, `static/js/measurement/dashboard.js`, `static/js/measurement/manual-rows.js`, `templates/orders/partials/dashboard_scripts_detail_dom.html`, `templates/orders/partials/dashboard_scripts_core.html`, `tests/domains/test_erp_runtime_shell_js_contract.py`, `templates/partials/shared/layout_scripts.html`, `static/js/erp/runtime-shell.js`, `tests/contracts/runtime/foms_namespace_surface_tests.py`
-- **종료**: 2026-04-18 10:29:47
+- **편집 파일**: `_tmp_commit_msg.txt`, `static/js/orders/erp-order-shared.js`, `templates/orders/partials/erp_order_tab.html`, `static/css/foundation/erp-pro/12-runtime-shell-loading.css`, `commit_msg.txt`, `docs/plans/2026-04-16-strict-final-canonical-tree-physical-tree-code-convergence-plan.md`, `docs/context/PTC_RUNTIME_COMMON_INVENTORY.md`, `tests/contracts/runtime/test_ptc_physical_exactness.py`, `_commit_msg_erporder_cleanup.txt`, `docs/specs/2026-04-17-erporder-cleanup-and-rename_SPEC.md`
+- **종료**: 2026-04-18 12:15:57
 
 ### Session: 07c148aa
 - **시작**: 2026-04-17 12:45:33
@@ -57,3 +57,19 @@
 | 2026-04-18 00:49:00 | END (Claude Code) | 수정: (없음) |
 
 | 2026-04-18 10:29:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 11:26:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 11:33:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 11:36:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 11:38:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 11:45:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 11:46:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 12:14:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 12:15:57 | END (Claude Code) | 수정: (없음) |
