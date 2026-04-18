@@ -4,6 +4,10 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-04-18 | 세션 자동 기록 | _tmp_commit_msg.txt, erp-order-shared.js, erp_order_tab.html 외 2개 | de21f67b |
+| 2026-04-18 | 세션 자동 기록 | erp-order-shared.js, erp_order_tab.html, 12-runtime-shell-loading.css 외 2개 | 5bfb403d |
+| 2026-04-18 | 세션 자동 기록 | commit_msg.txt, test_ptc_physical_exactness.py, _commit_msg_erporder_cleanup.txt 외 2개 | 5bfb403d |
+| 2026-04-18 | 세션 자동 기록 | test_ptc_physical_exactness.py, _commit_msg_erporder_cleanup.txt, models.py 외 2개 | eaf5a444 |
 | 2026-04-18 | 세션 자동 기록 | models.py, dashboard.js, manual-rows.js 외 2개 | d4c2cc70 |
 | 2026-04-18 | 세션 자동 기록 | quest.py, trash.py, history.py 외 2개 | d4c2cc70 |
 | 2026-04-17 | 세션 자동 기록 | test_app_init.py, db_indexes.py, test_db_indexes.py 외 2개 | d4c2cc70 |
@@ -20,7 +24,3 @@
 | 2026-04-17 | 세션 자동 기록 | global-nav-runtime.js, test_global_nav_runtime_js_contract.py, test_gnav_fragment_contract.py 외 2개 | 6abb1d9b |
 | 2026-04-17 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-16e9db10-883a-43fa-a3ba-f8794416ef0c.png, ept_b8_staging_browser_metrics.py, global-nav-runtime.js 외 2개 | 6abb1d9b |
 | 2026-04-17 | 세션 자동 기록 | ept_b8_staging_browser_metrics.py, global-nav-runtime.js, test_global_nav_runtime_js_contract.py 외 2개 | 2aa29aa6 |
-| 2026-04-17 | 세션 자동 기록 | global-nav-runtime.js, test_global_nav_runtime_js_contract.py, ept_b8_staging_full_evidence.ps1 외 2개 | 2aa29aa6 |
-| 2026-04-17 | 세션 자동 기록 | _commit_msg_gdm_parallel_audit.txt, _commit_msg_erp_loading.txt, test_erp_runtime_shell_js_contract.py 외 2개 | 2aa29aa6 |
-| 2026-04-17 | 세션 자동 기록 | _commit_msg_erp_loading.txt, test_erp_runtime_shell_js_contract.py, runtime-shell.js 외 2개 | 09877c2c |
-| 2026-04-17 | 세션 자동 기록 | dashboard-notifications.js, test_ept_b7_profile.py, dashboard.py 외 2개 | cee7690c |
