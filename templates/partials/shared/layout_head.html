@@ -39,6 +39,85 @@
             outline-offset: 2px;
         }
 
+        .layout-global-nav {
+            isolation: isolate;
+            transition: box-shadow 0.18s ease;
+        }
+
+        .layout-global-nav::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 3px;
+            opacity: 0;
+            pointer-events: none;
+            background: linear-gradient(90deg,
+                    rgba(13, 110, 253, 0) 0%,
+                    rgba(13, 110, 253, 0.22) 18%,
+                    rgba(13, 110, 253, 0.92) 50%,
+                    rgba(13, 110, 253, 0.22) 82%,
+                    rgba(13, 110, 253, 0) 100%);
+            transform: translateX(-110%);
+        }
+
+        @keyframes layoutNavLoadingSlide {
+            0% {
+                transform: translateX(-110%);
+            }
+
+            100% {
+                transform: translateX(110%);
+            }
+        }
+
+        @keyframes layoutNavLoadingSpin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        body.is-nav-loading {
+            cursor: progress;
+        }
+
+        body.is-nav-loading .layout-global-nav {
+            box-shadow: inset 0 -1px 0 rgba(13, 110, 253, 0.18);
+        }
+
+        body.is-nav-loading .layout-global-nav::after {
+            opacity: 1;
+            animation: layoutNavLoadingSlide 1s linear infinite;
+        }
+
+        .layout-global-nav .nav-link {
+            transition: color 0.16s ease, opacity 0.16s ease;
+        }
+
+        body.is-nav-loading #main-content {
+            opacity: 0.78;
+            transition: opacity 0.12s ease;
+        }
+
+        body.is-nav-loading .layout-global-nav .nav-link.is-nav-loading-target {
+            color: #0d6efd;
+            font-weight: 600;
+        }
+
+        body.is-nav-loading .layout-global-nav .nav-link.is-nav-loading-target::after {
+            content: '';
+            display: inline-block;
+            width: 0.88rem;
+            height: 0.88rem;
+            margin-left: 0.45rem;
+            vertical-align: -0.12rem;
+            border: 2px solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            animation: layoutNavLoadingSpin 0.72s linear infinite;
+        }
+
         /* MOBILE LAYOUT (2026-03 ERP 최적화) */
         @media (max-width: 992px) {
             .layout-header {
@@ -71,6 +150,10 @@
                 align-items: center;
                 padding-top: 0.75rem;
                 padding-bottom: 0.75rem;
+            }
+
+            body.is-nav-loading .layout-global-nav .nav-link.is-nav-loading-target::after {
+                margin-left: auto;
             }
 
             body.erp-mobile-v2-layout .layout-global-nav {
