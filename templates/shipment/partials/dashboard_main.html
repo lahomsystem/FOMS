@@ -207,7 +207,7 @@
                 '#D5E9E5', '#F5D5E5', '#E9E5D5'] %}
 
                 {% for r in rows %}
-                {# 백엔드에서 준비된 필드 사용 (apply_erp_beta_display_fields) #}
+                {# 백엔드에서 준비된 필드 사용 (ERP Order structured display) #}
                 {% set customer = r.customer_name %}
                 {% set orderer = r.orderer_name or '-' %}
                 {% set address = r.address %}

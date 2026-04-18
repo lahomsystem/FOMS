@@ -2,15 +2,19 @@
 
 > 이 파일은 Cursor Hooks에 의해 자동 관리됩니다.
 
-**2026-04-17 정리:** 과거 세션 블록이 수천 줄로 비대해져 **최근 세션만 남기고 축소**했다. 상세 이력은 `git log` / `git show <commit>:docs/harness/runtime/SESSION_LOG.md` 로 조회할 수 있다.
-
 ## 최근 세션
+
+### Session: fbcc41c6
+- **시작**: 2026-04-18 12:40:37
+- **상태**: completed
+- **편집 파일**: `docs/specs/2026-04-18-erp-beta-retirement_SPEC.md`, `docs/harness/evidence/2026-04-18-erp-beta-retirement-gate-evidence.json`, `tools/harness/railway_db_gate_snapshot.py`, `tools/harness/_run_remote_db_smoke.cmd`, `tools/harness/railway_db_gate_snapshot_ssh.py`, `tools/harness/_ssh_env_check.py`, `tools/harness/_tmp_railway_db_gate_snapshot.py`, `templates/shipment/partials/dashboard_main.html`, `static/css/foundation/erp-pro/09-mobile-erp-optimization.css`, `templates/orders/partials/erp_order_tab.html`
+- **종료**: 2026-04-18 13:06:51
 
 ### Session: a0f6c282
 - **시작**: 2026-04-17 13:39:37
-- **상태**: completed
-- **편집 파일**: `_tmp_commit_msg.txt`, `static/js/orders/erp-order-shared.js`, `templates/orders/partials/erp_order_tab.html`, `static/css/foundation/erp-pro/12-runtime-shell-loading.css`, `commit_msg.txt`, `docs/plans/2026-04-16-strict-final-canonical-tree-physical-tree-code-convergence-plan.md`, `docs/context/PTC_RUNTIME_COMMON_INVENTORY.md`, `tests/contracts/runtime/test_ptc_physical_exactness.py`, `_commit_msg_erporder_cleanup.txt`, `docs/specs/2026-04-17-erporder-cleanup-and-rename_SPEC.md`
-- **종료**: 2026-04-18 12:15:57
+- **상태**: unknown
+- **편집 파일**: `docs/plans/2026-04-18-erp-beta-retirement-execution-plan.md`, `docs/specs/2026-04-18-erp-beta-retirement_SPEC.md`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e47f6f6f-5597-4c96-abae-3d731464a863.png`, `_tmp_commit_msg.txt`, `static/js/orders/erp-order-shared.js`, `templates/orders/partials/erp_order_tab.html`, `static/css/foundation/erp-pro/12-runtime-shell-loading.css`, `commit_msg.txt`, `docs/plans/2026-04-16-strict-final-canonical-tree-physical-tree-code-convergence-plan.md`, `docs/context/PTC_RUNTIME_COMMON_INVENTORY.md`
+- **종료**: 2026-04-18 12:40:35
 
 ### Session: 07c148aa
 - **시작**: 2026-04-17 12:45:33
@@ -73,3 +77,25 @@
 | 2026-04-18 12:14:49 | END (Claude Code) | 수정: (없음) |
 
 | 2026-04-18 12:15:57 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 12:21:15 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 12:22:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 12:24:09 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 12:30:15 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 12:33:58 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 12:40:44 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 12:41:44 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 12:42:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 12:45:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 12:50:54 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-18 13:06:51 | END (Claude Code) | 수정: (없음) |

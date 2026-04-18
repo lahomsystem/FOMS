@@ -5,7 +5,8 @@ ERP Order Tab Pane (shared between add_order and edit_order)
 - JS expects a tab button with id="erp-order-tab" to hook tab shown events.
 #}
 {% set erp_order_feature_enabled = erp_order_enabled %}
-{% set erp_order_default_stage_received = erp_order_default_stage_received if erp_order_default_stage_received is defined else erp_beta_default_stage_received %}
+{# add_order passes true; edit leaves unset → false (no legacy erp_beta_default_stage_received). #}
+{% set erp_order_default_stage_received = erp_order_default_stage_received if erp_order_default_stage_received is defined else false %}
 {% set erp_order_active = erp_order_active or false %}
 <div class="tab-pane fade{% if erp_order_active %} show active{% endif %}" id="erp-order" role="tabpanel" lang="ko" data-erp-surface="1">
     <div class="card border-secondary" data-erp-order-id="{{ order.id if order is defined and order else 0 }}">

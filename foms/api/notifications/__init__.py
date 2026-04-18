@@ -21,7 +21,10 @@ notifications_bp = Blueprint(
     url_prefix="/erp/api",
 )
 
-_NOTIFICATION_DEBUG = os.environ.get("ERP_BETA_DEBUG", "").lower() in ("1", "true", "yes", "on")
+_NOTIFICATION_DEBUG = (
+    (os.environ.get("ERP_ORDER_DEBUG") or os.environ.get("ERP_BETA_DEBUG") or "").lower()
+    in ("1", "true", "yes", "on")
+)
 
 # 배지 카운트 캐시: user_id -> (count, expiry_unix_ts). DB 부하 감소용.
 _badge_cache = {}

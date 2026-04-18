@@ -190,9 +190,7 @@
 /* 6. ERP Order 탭 모바일 (작업 2-6) */
 @media (max-width: 992px) {
   .erp-pro #erpOrderTabs.nav-pills,
-  .erp-pro #erpBetaTabs.nav-pills,
-  .erp-pro .erp-order-tabs-nav,
-  .erp-pro .erp-beta-tabs-nav {
+  .erp-pro .erp-order-tabs-nav {
     display: flex;
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -202,31 +200,23 @@
     margin-bottom: 0.75rem !important;
   }
   .erp-pro #erpOrderTabs .nav-item,
-  .erp-pro #erpBetaTabs .nav-item,
-  .erp-pro .erp-order-tabs-nav .nav-item,
-  .erp-pro .erp-beta-tabs-nav .nav-item {
+  .erp-pro .erp-order-tabs-nav .nav-item {
     flex-shrink: 0;
   }
   .erp-pro #erpOrderTabs .nav-link,
-  .erp-pro #erpBetaTabs .nav-link,
-  .erp-pro .erp-order-tabs-nav .nav-link,
-  .erp-pro .erp-beta-tabs-nav .nav-link {
+  .erp-pro .erp-order-tabs-nav .nav-link {
     min-height: 44px;
     display: inline-flex;
     align-items: center;
     white-space: nowrap;
   }
-  .erp-pro #erp-order .row.g-2 [class*="col-md-"],
-  .erp-pro #erp-beta .row.g-2 [class*="col-md-"] {
+  .erp-pro #erp-order .row.g-2 [class*="col-md-"] {
     flex: 0 0 100%;
     max-width: 100%;
   }
   .erp-pro #erp-order .form-control,
   .erp-pro #erp-order .form-select,
-  .erp-pro #erp-order .btn,
-  .erp-pro #erp-beta .form-control,
-  .erp-pro #erp-beta .form-select,
-  .erp-pro #erp-beta .btn {
+  .erp-pro #erp-order .btn {
     min-height: 44px;
   }
 }

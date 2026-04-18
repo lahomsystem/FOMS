@@ -1,5 +1,7 @@
 """Template contract tests for the ERP Order shared-form script island."""
 
+from pathlib import Path
+
 from werkzeug.security import generate_password_hash
 
 import pytest
@@ -79,6 +81,66 @@ def test_add_order_page_renders_thin_erp_order_partial_contract(erp_editor_clien
     assert payment_urls_idx < erp_order_shared_tag_idx < config_idx < order_enabled_idx < draft_mode_idx
     _assert_shared_form_script_contract(body)
     assert 'data-erp-order-draft-mode="true"' in body
+
+
+def test_inject_status_list_erp_order_enabled_prefers_explicit_erp_order_env(app, monkeypatch) -> None:
+    """ERP_ORDER_ENABLED wins over ERP_BETA_ENABLED when both are set (P2 will drop beta fallback)."""
+    monkeypatch.setenv("ERP_ORDER_ENABLED", "true")
+    monkeypatch.setenv("ERP_BETA_ENABLED", "false")
+    with app.test_request_context("/"):
+        from foms.services.context_processors import inject_status_list
+
+        ctx = inject_status_list()
+        assert ctx["erp_order_enabled"] is True
+
+
+def test_inject_status_list_erp_order_enabled_falls_back_to_beta_env(app, monkeypatch) -> None:
+    """When ERP_ORDER_ENABLED is unset, ERP_BETA_ENABLED still controls the injected flag."""
+    monkeypatch.delenv("ERP_ORDER_ENABLED", raising=False)
+    monkeypatch.setenv("ERP_BETA_ENABLED", "false")
+    with app.test_request_context("/"):
+        from foms.services.context_processors import inject_status_list
+
+        ctx = inject_status_list()
+        assert ctx["erp_order_enabled"] is False
+
+
+def test_inject_status_list_erp_order_false_overrides_beta_true(app, monkeypatch) -> None:
+    """Explicit ERP_ORDER_ENABLED=false must not be overridden by ERP_BETA_ENABLED=true."""
+    monkeypatch.setenv("ERP_ORDER_ENABLED", "false")
+    monkeypatch.setenv("ERP_BETA_ENABLED", "true")
+    with app.test_request_context("/"):
+        from foms.services.context_processors import inject_status_list
+
+        ctx = inject_status_list()
+        assert ctx["erp_order_enabled"] is False
+
+
+def test_add_order_page_preserves_legacy_open_erp_beta_deep_link_branch(erp_editor_client) -> None:
+    """Until P2, ?open=erp-beta must remain equivalent to ?open=erp-order for tab activation."""
+    response = erp_editor_client.get("/add?open=erp-beta")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "openTarget === 'erp-order' || openTarget === 'erp-beta'" in body
+
+
+def test_edit_order_page_preserves_legacy_open_erp_beta_deep_link_branch(erp_editor_client) -> None:
+    """Edit surface keeps the same legacy deep-link branch as add (retire only after inbound gate)."""
+    order = _create_erp_order()
+    response = erp_editor_client.get(f"/edit/{order.id}?open=erp-beta")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "openTarget === 'erp-order' || openTarget === 'erp-beta'" in body
+
+
+def test_estimate_preview_js_prefers_erp_order_globals_before_beta_shim() -> None:
+    """_isErpEnabled checks ERP_ORDER_* before ERP_BETA_* mirrors (P2 removes beta shim)."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/estimate-preview.js").read_text(encoding="utf-8")
+    start = text.index("function _isErpEnabled()")
+    end = text.index("function _fmtMoney", start)
+    block = text[start:end]
+    assert block.index("ERP_ORDER_ENABLED") < block.index("ERP_BETA_ENABLED")
 
 
 def test_edit_order_page_renders_thin_erp_order_partial_contract(erp_editor_client) -> None:

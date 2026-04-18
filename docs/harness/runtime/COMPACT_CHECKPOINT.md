@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-04-18 12:20:23
-> 세션: a0f6c282
+> 생성 시각: 2026-04-18 12:50:32
+> 세션: fbcc41c6
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `_tmp_commit_msg.txt` <- 1 edit(s), ~269 chars (2026-04-18 12:20:21)
-- `_tmp_commit_msg.txt` <- 1 edit(s), ~1669 chars (2026-04-18 11:46:13)
-- `static/js/orders/erp-order-shared.js` <- 4 edit(s), ~667 chars (2026-04-18 11:43:03)
-- `static/js/orders/erp-order-shared.js` <- 5 edit(s), ~637 chars (2026-04-18 11:42:47)
-- `templates/orders/partials/erp_order_tab.html` <- 1 edit(s), ~137 chars (2026-04-18 11:42:34)
-- `static/css/foundation/erp-pro/12-runtime-shell-loading.css` <- 1 edit(s), ~797 chars (2026-04-18 11:42:21)
-- `commit_msg.txt` <- 1 edit(s), ~1665 chars (2026-04-18 11:32:37)
-- `commit_msg.txt` <- 1 edit(s), ~1291 chars (2026-04-18 11:32:04)
-- `docs/plans/2026-04-16-strict-final-canonical-tree-physical-tree-code-convergence-plan.md` <- 2 edit(s), ~113 chars (2026-04-18 11:25:32)
-- `docs/context/PTC_RUNTIME_COMMON_INVENTORY.md` <- 1 edit(s), ~1076 chars (2026-04-18 11:25:16)
+- `docs/specs/2026-04-18-erp-beta-retirement_SPEC.md` <- 1 edit(s), ~194 chars (2026-04-18 12:50:05)
+- `docs/specs/2026-04-18-erp-beta-retirement_SPEC.md` <- 1 edit(s), ~267 chars (2026-04-18 12:50:03)
+- `templates/shipment/partials/dashboard_main.html` <- 1 edit(s), ~68 chars (2026-04-18 12:50:01)
+- `static/css/foundation/erp-pro/09-mobile-erp-optimization.css` <- 1 edit(s), ~28 chars (2026-04-18 12:49:53)
+- `static/css/foundation/erp-pro/09-mobile-erp-optimization.css` <- 1 edit(s), ~51 chars (2026-04-18 12:49:53)
+- `static/css/foundation/erp-pro/09-mobile-erp-optimization.css` <- 1 edit(s), ~42 chars (2026-04-18 12:49:52)
+- `static/css/foundation/erp-pro/09-mobile-erp-optimization.css` <- 1 edit(s), ~42 chars (2026-04-18 12:49:51)
+- `static/css/foundation/erp-pro/09-mobile-erp-optimization.css` <- 1 edit(s), ~32 chars (2026-04-18 12:49:51)
+- `templates/orders/partials/erp_order_tab.html` <- 1 edit(s), ~235 chars (2026-04-18 12:49:50)
+- `docs/specs/2026-04-18-erp-beta-retirement_SPEC.md` <- 1 edit(s), ~155 chars (2026-04-18 12:45:27)
 
 ### 진행 중이던 작업
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
