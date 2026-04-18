@@ -342,6 +342,7 @@ def edit_order(order_id):
             return resp_err
 
     preserved_args = get_preserved_filter_args(request.args)
+    erp_bootstrap = _build_erp_order_bootstrap(order) if is_erp_order_record(order) else None
     tpl = 'orders/edit_order.html'
     response = make_response(
         render_template(
@@ -351,6 +352,30 @@ def edit_order(order_id):
             online_options=online_options,
             direct_options=direct_options,
             preserved_args=preserved_args,
+            erp_bootstrap=erp_bootstrap,
         )
     )
     return response
+
+
+def _build_erp_order_bootstrap(order):
+    """서버 렌더 시점에 ERP Order 상세 데이터를 인라인 JSON 부트스트랩으로 제공.
+
+    클라이언트 `/api/orders/<id>/structured` 응답과 동일한 shape를 사용해
+    첫 페인트 이후 발생하던 2단계 로딩(빈 화면 → fetch → DOM 주입)을 제거한다.
+    """
+    updated_at = getattr(order, 'structured_updated_at', None)
+    updated_at_str = updated_at.strftime('%Y-%m-%d %H:%M:%S') if updated_at is not None else None
+    return {
+        'success': True,
+        'order_id': order.id,
+        'raw_order_text': order.raw_order_text or '',
+        'structured_data': order.structured_data or {},
+        'structured_schema_version': getattr(order, 'structured_schema_version', None),
+        'structured_confidence': getattr(order, 'structured_confidence', None),
+        'structured_updated_at': updated_at_str,
+        'received_date': order.received_date or '',
+        'received_time': order.received_time or '',
+        'notes': order.notes or '',
+        'is_self_measurement': getattr(order, 'is_self_measurement', False),
+    }
