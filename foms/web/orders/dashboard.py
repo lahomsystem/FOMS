@@ -80,7 +80,7 @@ def erp_dashboard():
     f_team = (request.args.get('team') or '').strip()
 
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
-    _q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_beta.is_(True))
+    _q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
 
     from sqlalchemy import or_, and_, cast, String
     if f_q:
@@ -595,7 +595,7 @@ def erp_dashboard():
         schedule = sd.get('schedule') or {}
         enriched.append({
             'id': o.id,
-            'is_erp_beta': o.is_erp_beta,
+            'is_erp_order': o.is_erp_order,
             'is_self_measurement': getattr(o, 'is_self_measurement', False),
             'structured_data': sd,
             'customer_name': (parties.get('customer') or {}).get('name') or '-',

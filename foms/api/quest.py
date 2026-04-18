@@ -11,6 +11,7 @@ from db import get_db
 from models import Order, User, OrderEvent
 from foms.services.orders.status_constants import STATUS
 from foms.web.auth import login_required, role_required
+from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.erp_policy import (
@@ -185,8 +186,8 @@ def api_order_quest_approve(order_id):
         if not user:
             return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
 
-        # ERP Beta 주문 기본 승인 권한
-        if getattr(order, 'is_erp_beta', False) and not can_edit_erp(user):
+        # ERP Order 주문 기본 승인 권한
+        if is_erp_order_record(order) and not can_edit_erp(user):
             sd_tmp = order.structured_data or {}
             stage_tmp = get_stage(sd_tmp)
             domain_tmp = None
@@ -218,7 +219,7 @@ def api_order_quest_approve(order_id):
             if not can_assignee_override:
                 return jsonify({
                     'success': False,
-                    'message': 'ERP Beta 수정 권한이 없습니다. (관리자, 라홈팀, 하우드팀, 영업팀 또는 지정 담당자만 가능)'
+                    'message': 'ERP Order 수정 권한이 없습니다. (관리자, 라홈팀, 하우드팀, 영업팀 또는 지정 담당자만 가능)'
                 }), 403
 
         sd = order.structured_data or {}

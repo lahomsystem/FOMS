@@ -51,8 +51,8 @@ def _build_production_orders_query(
     erp_mine_only: bool,
     stage_col: Any,
 ) -> Query:
-    """필터를 적용한 생산 대시보드용 Order 쿼리(정렬 전)."""
-    _q = db.query(Order).filter(Order.active_filter(), Order.is_erp_beta.is_(True))
+    """필터를 적용한 생산 대시보드용 ERP Order 쿼리(정렬 전)."""
+    _q = db.query(Order).filter(Order.active_filter(), Order.is_erp_order.is_(True))
     base_stages = ['"고객컨펌"', '"생산"', '"시공"', '"CONFIRM"', '"PRODUCTION"', '"CONSTRUCTION"']
     _q = _q.filter(stage_col.in_(base_stages))
 
@@ -241,7 +241,7 @@ def _enrich_one_production_order(
     alerts = _erp_alerts(o, sd, att_n)
     return {
         'id': o.id,
-        'is_erp_beta': o.is_erp_beta,
+        'is_erp_order': o.is_erp_order,
         'is_self_measurement': getattr(o, 'is_self_measurement', False),
         'structured_data': sd,
         'customer_name': (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-',

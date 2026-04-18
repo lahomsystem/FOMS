@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from db import get_db
+from foms.services.erp_order_flags import is_erp_order_record
 
 logger = logging.getLogger(__name__)
 from models import OrderScheduleDate
@@ -62,7 +63,7 @@ def collect_order_schedule_date_specs(order: Any) -> list[dict[str, Any]]:
                 )
                 m_dates.add(nd)
 
-    if getattr(order, "is_erp_beta", False) and isinstance(getattr(order, "structured_data", None), dict):
+    if is_erp_order_record(order) and isinstance(getattr(order, "structured_data", None), dict):
         sd = order.structured_data
 
         beta_m = (sd.get("schedule") or {}).get("measurement") or {}
@@ -138,7 +139,7 @@ def collect_order_schedule_date_specs(order: Any) -> list[dict[str, Any]]:
                 )
                 c_dates.add(nd)
 
-    if getattr(order, "is_erp_beta", False) and isinstance(getattr(order, "structured_data", None), dict):
+    if is_erp_order_record(order) and isinstance(getattr(order, "structured_data", None), dict):
         sd = order.structured_data
 
         s_date = None

@@ -30,7 +30,7 @@ def _login_as_admin(client, username="as-date-admin"):
     return user
 
 
-def _create_order(*, status="RECEIVED", is_erp_beta=True, structured_data=None):
+def _create_order(*, status="RECEIVED", is_erp_order=True, structured_data=None):
     order = Order(
         received_date="2026-04-07",
         customer_name="AS Date Tester",
@@ -39,7 +39,7 @@ def _create_order(*, status="RECEIVED", is_erp_beta=True, structured_data=None):
         product="Wardrobe",
         status=status,
         manager_name="Alice",
-        is_erp_beta=is_erp_beta,
+        is_erp_order=is_erp_order,
         structured_data=structured_data or {
             "workflow": {"stage": status},
             "shipment": {},
@@ -119,7 +119,7 @@ def test_structured_stage_transition_uses_kst_received_date(
 
 def test_update_order_status_uses_kst_received_date(client, monkeypatch):
     _login_as_admin(client, username="single-status-admin")
-    order = _create_order(status="RECEIVED", is_erp_beta=False, structured_data={})
+    order = _create_order(status="RECEIVED", is_erp_order=False, structured_data={})
     order_id = order.id
 
     orders_mod = importlib.import_module("foms.api.orders")
@@ -142,7 +142,7 @@ def test_update_order_status_uses_kst_received_date(client, monkeypatch):
 
 def test_bulk_update_order_status_uses_kst_received_date(client, monkeypatch):
     _login_as_admin(client, username="bulk-status-admin")
-    order = _create_order(status="RECEIVED", is_erp_beta=False, structured_data={})
+    order = _create_order(status="RECEIVED", is_erp_order=False, structured_data={})
     order_id = order.id
 
     orders_mod = importlib.import_module("foms.api.orders")

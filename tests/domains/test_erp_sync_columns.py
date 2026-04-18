@@ -5,9 +5,9 @@ from types import SimpleNamespace
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 
 
-def test_sync_erp_flat_columns_returns_early_for_non_beta_order() -> None:
+def test_sync_erp_flat_columns_returns_early_for_non_erp_order() -> None:
     order = SimpleNamespace(
-        is_erp_beta=False,
+        is_erp_order=False,
         manager_name="before",
         erp_measurement_date="2025-01-01",
         erp_construction_date="2025-01-02",
@@ -27,7 +27,7 @@ def test_sync_erp_flat_columns_returns_early_for_non_beta_order() -> None:
 
 def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
     order = SimpleNamespace(
-        is_erp_beta=True,
+        is_erp_order=True,
         manager_name="",
         erp_measurement_date=None,
         erp_construction_date=None,

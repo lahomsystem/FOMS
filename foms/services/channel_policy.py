@@ -29,7 +29,7 @@ DEDUPE_WINDOWS = {
 
 def _build_order_detail_link(order_id: Any) -> str:
     erp_url = os.environ.get("FOMS_BASE_URL", "https://lahom-dev.up.railway.app").rstrip("/")
-    fallback = f"{erp_url}/edit/{order_id}?open=erp-beta"
+    fallback = f"{erp_url}/edit/{order_id}?open=erp-order"
     try:
         from foms.services.channel_security import generate_wam_short_link_token
 

@@ -11,8 +11,10 @@ var _erpBoolConfirmed =
     };
 window._erpBoolConfirmed = _erpBoolConfirmed;
 
-/** edit_order / add_order 인라인 스크립트가 덮어쓰며, ERP 셸 프래그먼트 진입 시 DOM에서 동기화 */
+/** edit_order / add_order runtime state; fragment/full-page both sync from DOM config. */
 var ORDER_ID = 0;
+var ERP_ORDER_ENABLED = false;
+/** Legacy compatibility mirror; internal runtime should prefer ERP_ORDER_ENABLED. */
 var ERP_BETA_ENABLED = false;
 
 var _erpPaymentIconSrc =
@@ -241,8 +243,8 @@ window.erpSetOrderId = erpSetOrderId;
 var erpEnsureDraftOrderId =
     window.erpEnsureDraftOrderId ||
     async function erpEnsureDraftOrderId() {
-        if (!ERP_BETA_ENABLED) return 0;
-        if (!window.__ERP_BETA_DRAFT_MODE) return ORDER_ID || 0;
+        if (!ERP_ORDER_ENABLED) return 0;
+        if (!isErpOrderDraftMode()) return ORDER_ID || 0;
         if (ORDER_ID && ORDER_ID > 0) return ORDER_ID;
 
         var res = await fetch(erpGetDraftEndpoint(), { method: "POST" });
@@ -257,7 +259,7 @@ var erpEnsureDraftOrderId =
         if (!window.__erpDraftUnloadBound) {
             window.__erpDraftUnloadBound = true;
             window.addEventListener("beforeunload", function (e) {
-                if (window.__ERP_BETA_DRAFT_MODE && ORDER_ID && ORDER_ID > 0) {
+                if (isErpOrderDraftMode() && ORDER_ID && ORDER_ID > 0) {
                     e.preventDefault();
                     e.returnValue =
                         "작성 중인 주문이 저장되지 않았습니다. 페이지를 떠나시겠습니까?";
@@ -326,15 +328,15 @@ var erpFormatDepositDisplay =
 window.erpFormatDepositDisplay = erpFormatDepositDisplay;
 
 
-// --- ERP Beta shared-form island (moved from templates/partials/erp_beta_js.html, W5-B8) ---
+// --- ERP Order shared-form island (moved from templates/partials/erp_order_js.html, W5-B8) ---
 // ============================================================
-// ERP Beta JS (shared): edit_order + add_order
+// ERP Order JS (shared): edit_order + add_order
 //
 // Required globals:
-// - ERP_BETA_ENABLED (boolean)
+// - ERP_ORDER_ENABLED (boolean)
 // - ORDER_ID (number; in add_order should be "let", in edit_order can be const)
 // - USE_DIRECT_UPLOAD (boolean): true면 session→PUT→complete 플로우 사용
-// - window.__ERP_BETA_DRAFT_MODE (boolean): true on add_order, false on edit_order
+// - window.__ERP_ORDER_DRAFT_MODE (boolean): true on add_order, false on edit_order
 // - window.__ERP_DRAFT_ENDPOINT (string): optional, default '/api/orders/erp/draft'
 // ============================================================
 
@@ -627,7 +629,7 @@ function erpNewItemRow(item = {}) {
 }
 
 async function erpLoadStructured() {
-    if (!ERP_BETA_ENABLED) return;
+    if (!ERP_ORDER_ENABLED) return;
     if (!ORDER_ID) return;
 
     // 주문이 변경될 때 파일 input 초기화 (이전 주문의 파일이 남아있지 않도록)
@@ -921,14 +923,14 @@ function erpCollectStructured() {
 }
 
 /**
- * ERP Beta 구조화 데이터 저장.
+ * ERP Order 구조화 데이터 저장.
  * @param {Object} opts - 옵션
  * @param {boolean} [opts.redirect=true] - 저장 성공 후 리다이렉트 여부 (푸쉬 전 자동 저장 시 false)
  * @returns {Promise<{success: boolean, message?: string}>}
  */
 async function erpSaveStructured(opts = {}) {
     const doRedirect = opts.redirect !== false;
-    if (!ERP_BETA_ENABLED) return { success: false, message: 'ERP Beta 비활성' };
+    if (!ERP_ORDER_ENABLED) return { success: false, message: 'ERP Order 비활성' };
 
     // 필수 입력값 검증 (사용자 직접 저장 시에만 적용, 자동 저장 예외)
     if (opts._skipValidation !== true) {
@@ -986,7 +988,7 @@ async function erpSaveStructured(opts = {}) {
     }
 
     // 신규 주문(draft) 모드: ID가 0이면 반드시 draft 생성
-    if (window.__ERP_BETA_DRAFT_MODE && targetId <= 0) {
+    if (isErpOrderDraftMode() && targetId <= 0) {
         const id = await erpRequireOrderIdOrWarn('저장:');
         if (!id) return { success: false, message: '주문번호 생성 실패' };
         targetId = parseInt(String(id), 10) || 0;
@@ -1009,7 +1011,7 @@ async function erpSaveStructured(opts = {}) {
             nextStage === 'AS_RECEIVED' && prevStage !== 'AS_RECEIVED';
         if (transitioningIntoAsReceived) {
             const needServerSnapshot =
-                !window.__ERP_BETA_DRAFT_MODE && targetId > 0;
+                !isErpOrderDraftMode() && targetId > 0;
             if (needServerSnapshot && !window.__erpStructuredLoadSucceeded) {
                 erpSetStatus('먼저 주문 정보를 불러온 뒤 저장해주세요.', true);
                 return { success: false, message: '주문 정보를 불러온 뒤 다시 시도해주세요.' };
@@ -1059,15 +1061,15 @@ async function erpSaveStructured(opts = {}) {
         }
         erpSetStatus(doRedirect ? '저장 완료! 이동합니다...' : '저장 완료');
         // 저장 성공 후 Draft 모드 해제 → beforeunload 경고 비활성
-        if (window.__ERP_BETA_DRAFT_MODE) {
-            window.__ERP_BETA_DRAFT_MODE = false;
+        if (isErpOrderDraftMode()) {
+            setErpOrderDraftMode(false);
         }
         if (typeof window.erpInvalidateEstimateCache === 'function') {
             window.erpInvalidateEstimateCache();
         }
 
         if (doRedirect) {
-            if (window.__ERP_BETA_DRAFT_MODE) {
+            if (isErpOrderDraftMode()) {
                 window.location.href = '/erp/dashboard';
             } else {
                 const referrerInput = document.querySelector('input[name="referrer"]');
@@ -1087,7 +1089,10 @@ async function erpSaveStructured(opts = {}) {
 
 
 document.addEventListener('DOMContentLoaded', function () {
-    if (!ERP_BETA_ENABLED) return;
+    if (typeof syncErpOrderGlobalsFromDom === 'function') {
+        syncErpOrderGlobalsFromDom();
+    }
+    if (!ERP_ORDER_ENABLED) return;
 
 window.erpTogglePayment = async function(btn, pType) {
     if (_paymentTogglePending) return;
@@ -1105,7 +1110,7 @@ window.erpTogglePayment = async function(btn, pType) {
     }
     // 신규 주문(draft) 모드: ID가 0이면 draft 자동 생성 후 결제 확인 진행 (저장 버튼 없이 클릭 가능)
     if (targetId <= 0) {
-        if (window.__ERP_BETA_DRAFT_MODE) {
+        if (isErpOrderDraftMode()) {
             const id = await erpRequireOrderIdOrWarn('결제:');
             if (!id) return;
             targetId = parseInt(String(id), 10) || 0;
@@ -1169,7 +1174,7 @@ window.erpTogglePayment = async function(btn, pType) {
     }
 };
 
-    // ERP Beta: 발주사 드롭다운 + 직접입력 토글
+    // ERP Order: 발주사 드롭다운 + 직접입력 토글
     document.getElementById('erp-orderer-direct')?.addEventListener('change', function () {
         toggleOrdererUI();
         syncWorkflowStageByOrderer();
@@ -1180,10 +1185,10 @@ window.erpTogglePayment = async function(btn, pType) {
     document.getElementById('erp-orderer')?.addEventListener('change', syncWorkflowStageByOrderer);
     syncWorkflowStageByOrderer();
 
-    // ERP Beta: 주소 입력 (통합 - 찾기 버튼으로 주소 검색 또는 직접 입력 가능)
+    // ERP Order: 주소 입력 (통합 - 찾기 버튼으로 주소 검색 또는 직접 입력 가능)
     const addrInput = document.getElementById('erp-address');
 
-    // ERP Beta: 주소 검색 모달 (선택 후 '입력' 버튼으로 한꺼번에 적용)
+    // ERP Order: 주소 검색 모달 (선택 후 '입력' 버튼으로 한꺼번에 적용)
     const addrModalEl = document.getElementById('erpAddressSearchModal');
     const addrModal = addrModalEl ? new bootstrap.Modal(addrModalEl) : null;
     const addrModalQuery = document.getElementById('erp-address-modal-query');
@@ -1270,7 +1275,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
         });
     }
 
-    // ERP Beta: 연락처 자동 포맷 처리
+    // ERP Order: 연락처 자동 포맷 처리
     const erpManualPhone = document.getElementById('erp-manual-phone-input');
     const erpPhoneInput = document.getElementById('erp-customer-phone');
     function applyErpPhoneFormat() {
@@ -1289,7 +1294,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
         });
     }
 
-    // ERP Beta: 실측시간 직접 입력 처리
+    // ERP Order: 실측시간 직접 입력 처리
     const erpMeasurementTimeSelect = document.getElementById('erp-measurement-time-select');
     const erpMeasurementTimeInput = document.getElementById('erp-measurement-time');
     if (erpMeasurementTimeSelect && erpMeasurementTimeInput) {
@@ -1471,7 +1476,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
 
 
     // add_order(draft) 모드에선 tab 오픈 시 draft 생성 후 로드, edit_order에선 즉시 로드
-    if (!window.__ERP_BETA_DRAFT_MODE) {
+    if (!isErpOrderDraftMode()) {
         erpLoadStructured();
     } else {
         // [자동 완성 함수]
@@ -1497,7 +1502,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
         fillErpDateTime();
 
         // 2. 탭 전환 시 시도
-        const erpTabBtn = document.getElementById('erp-beta-tab');
+        const erpTabBtn = document.getElementById('erp-order-tab');
         if (erpTabBtn) {
             erpTabBtn.addEventListener('shown.bs.tab', fillErpDateTime);
         }
@@ -1505,7 +1510,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
 });
 
 // ============================================
-// ERP Beta: Attachments (photo/video)
+// ERP Order: Attachments (photo/video)
 // ============================================
 let __erpAttachments = [];
 const ERP_ATTACHMENT_CATEGORY_LABELS = {
@@ -1603,7 +1608,7 @@ async function erpReindexMeasurementAttachmentsAfterItemRemoval(removedIndex) {
 }
 
 async function erpUploadItemAttachments(itemIndex, files) {
-    if (!ERP_BETA_ENABLED) return;
+    if (!ERP_ORDER_ENABLED) return;
     if (!Number.isInteger(itemIndex) || itemIndex < 0) {
         erpAttachmentsSetStatus('유효한 제품 항목을 찾지 못했습니다.', true);
         return;
@@ -1881,7 +1886,7 @@ ${list.map(renderCard).join('')}
 }
 
 async function erpLoadAttachments() {
-    if (!ERP_BETA_ENABLED) return;
+    if (!ERP_ORDER_ENABLED) return;
     if (!ORDER_ID) return;
     try {
         // 파일 input 초기화 (이전 주문의 파일이 남아있지 않도록)
@@ -2029,7 +2034,7 @@ async function erpDoDirectUploadOne(originalFile, category, itemIndex, preFetche
 }
 
 async function erpUploadSelectedAttachments() {
-    if (!ERP_BETA_ENABLED) return;
+    if (!ERP_ORDER_ENABLED) return;
     const input = document.getElementById('erp-attachments-input');
     if (!input || !input.files || input.files.length === 0) {
         erpAttachmentsSetStatus('업로드할 파일을 선택하세요.', true);
@@ -2171,7 +2176,7 @@ async function erpDeleteAttachment(attachmentId) {
 }
 
 // ============================================
-// ERP Beta: Text Conversion (기존주문 변환)
+// ERP Order: Text Conversion (기존주문 변환)
 // ============================================
 function erpGenerateConversionText() {
     const getVal = (id) => {
@@ -2353,10 +2358,10 @@ function erpCopyToClipboard() {
 }
 
 // ============================================
-// ERP Beta: 실측 일정 미러링 패널 (14일, 30초 갱신, 클릭 시 실측일 입력)
+// ERP Order: 실측 일정 미러링 패널 (14일, 30초 갱신, 클릭 시 실측일 입력)
 // ============================================
 async function loadMeasurementPanel() {
-    const panel = document.getElementById('erp-beta-measurement-panel');
+    const panel = document.getElementById('erp-order-measurement-panel');
     if (!panel) return;
     try {
         const url = '/api/erp/measurement/summary';
@@ -2436,33 +2441,92 @@ async function loadMeasurementPanel() {
 window.loadMeasurementPanel = loadMeasurementPanel;
 
 /**
- * ERP 셸이 #main-content만 갈아끼울 때 인라인 스크립트가 재실행되지 않아
- * ORDER_ID / ERP_BETA_ENABLED가 DOM과 불일치할 수 있음 — 카드 data-*로 동기화.
- * edit_order_body: `data-erp-beta-enabled`는 `is_erp_beta_order` 정의 이후에만 평가해야 함(템플릿 순서).
+ * ERP shell and full-document paths now mount from the same DOM config contract.
  */
-function fomsErpSyncEditGlobalsFromDom() {
-    var card =
+function getErpOrderConfigElement() {
+    return (
+        document.getElementById("erp-order-config") ||
+        document.querySelector("#main-content #erp-order-config") ||
+        document.querySelector("[data-erp-order-enabled]")
+    );
+}
+
+function setErpOrderEnabled(nextEnabled) {
+    ERP_ORDER_ENABLED = !!nextEnabled;
+    ERP_BETA_ENABLED = ERP_ORDER_ENABLED;
+    window.ERP_ORDER_ENABLED = ERP_ORDER_ENABLED;
+    window.ERP_BETA_ENABLED = ERP_ORDER_ENABLED;
+}
+
+function isErpOrderDraftMode() {
+    return !!(window.__ERP_ORDER_DRAFT_MODE || window.__ERP_BETA_DRAFT_MODE);
+}
+
+function setErpOrderDraftMode(nextDraftMode) {
+    const next = !!nextDraftMode;
+    window.__ERP_ORDER_DRAFT_MODE = next;
+    window.__ERP_BETA_DRAFT_MODE = next;
+}
+
+function syncErpOrderGlobalsFromDom() {
+    var config = getErpOrderConfigElement();
+    if (!config) {
+        return false;
+    }
+    var hostCard =
+        config.closest(".card[data-order-id]") ||
         document.querySelector("#main-content .card[data-order-id]") ||
         document.querySelector(".card[data-order-id]");
-    if (!card) {
-        return;
-    }
-    var oid = parseInt(String(card.getAttribute("data-order-id") || "0"), 10) || 0;
-    var betaRaw = card.getAttribute("data-erp-beta-enabled");
-    if (betaRaw === "true" || betaRaw === "false") {
-        ERP_BETA_ENABLED = betaRaw === "true";
-    }
-    if (oid > 0) {
-        ORDER_ID = oid;
-    }
-}
-window.fomsErpSyncEditGlobalsFromDom = fomsErpSyncEditGlobalsFromDom;
+    var orderIdRaw =
+        config.getAttribute("data-order-id") ||
+        config.getAttribute("data-erp-order-id") ||
+        (hostCard ? hostCard.getAttribute("data-order-id") : "0");
+    var enabledRaw =
+        config.getAttribute("data-erp-order-enabled") ||
+        (hostCard ? hostCard.getAttribute("data-erp-order-enabled") : null) ||
+        config.getAttribute("data-erp-beta-enabled") ||
+        (hostCard ? hostCard.getAttribute("data-erp-beta-enabled") : null);
+    var directUploadRaw = config.getAttribute("data-use-direct-upload");
+    var draftModeRaw =
+        config.getAttribute("data-erp-order-draft-mode") ||
+        config.getAttribute("data-erp-beta-draft-mode");
+    var oid = parseInt(String(orderIdRaw || "0"), 10) || 0;
 
-function fomsErpBootstrapErpBetaSurface() {
-    fomsErpSyncEditGlobalsFromDom();
-    if (!ERP_BETA_ENABLED) {
+    if (enabledRaw === "true" || enabledRaw === "false") {
+        setErpOrderEnabled(enabledRaw === "true");
+    }
+    if (directUploadRaw === "true" || directUploadRaw === "false") {
+        window.USE_DIRECT_UPLOAD = directUploadRaw === "true";
+        try {
+            USE_DIRECT_UPLOAD = window.USE_DIRECT_UPLOAD;
+        } catch (e) {}
+    }
+    if (draftModeRaw === "true" || draftModeRaw === "false") {
+        setErpOrderDraftMode(draftModeRaw === "true");
+    }
+
+    ORDER_ID = oid;
+    window.ORDER_ID = ORDER_ID;
+    return true;
+}
+window.syncErpOrderGlobalsFromDom = syncErpOrderGlobalsFromDom;
+window.fomsErpSyncEditGlobalsFromDom = syncErpOrderGlobalsFromDom;
+
+function fomsMountErpOrderSurface() {
+    var config = getErpOrderConfigElement();
+    if (!config) {
         return;
     }
+    syncErpOrderGlobalsFromDom();
+    if (!ERP_ORDER_ENABLED) {
+        return;
+    }
+
+    var mountRoot = document.getElementById("erp-order") || config;
+    if (mountRoot.dataset.erpOrderMounted === "1") {
+        return;
+    }
+    mountRoot.dataset.erpOrderMounted = "1";
 
     function initErpMainDatePickers() {
         const mEl = document.getElementById('erp-measurement-date');
@@ -2498,11 +2562,9 @@ function fomsErpBootstrapErpBetaSurface() {
     document.getElementById('erp-gen-text-btn')?.addEventListener('click', erpGenerateConversionText);
     document.getElementById('erp-copy-text-btn')?.addEventListener('click', erpCopyToClipboard);
 
-    // 채널톡 푸쉬 버튼
     document.getElementById('erp-channeltalk-push-btn')?.addEventListener('click', async function() {
         const btn = this;
 
-        // 1. 텍스트 자동 생성 (비어있든 아니든 항상 최신 데이터로 재생성)
         if (typeof erpGenerateConversionText === 'function') {
             erpGenerateConversionText();
         }
@@ -2512,7 +2574,6 @@ function fomsErpBootstrapErpBetaSurface() {
             return;
         }
 
-        // 2. order_id 확보 (신규 주문이면 draft 생성 + 저장 후 푸쉬, 기존 주문이면 바로 푸쉬)
         let orderId = (typeof ORDER_ID !== 'undefined' && ORDER_ID > 0) ? ORDER_ID : 0;
         if (!orderId) {
             const id = await erpRequireOrderIdOrWarn('푸쉬:');
@@ -2529,7 +2590,6 @@ function fomsErpBootstrapErpBetaSurface() {
             return;
         }
 
-        // 3. 버튼 비활성화 (중복 클릭 방지)
         btn.disabled = true;
         const originalHtml = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 전송중...';
@@ -2563,22 +2623,16 @@ function fomsErpBootstrapErpBetaSurface() {
         }
     });
 
-    // 실측일/시공일 달력: 페이지 로드 시에도 초기화하여 탭 전환 전에도 클릭 시 달력 열림
     initErpMainDatePickers();
 
-    // 실측 일정 미러링 패널: 로드 + 30초 자동 갱신 (셸 프래그먼트 재진입 시 interval 중복 방지)
     loadMeasurementPanel();
     if (!window.__fomsErpMeasurementIntervalId) {
         window.__fomsErpMeasurementIntervalId = window.setInterval(loadMeasurementPanel, 30000);
     }
 
-    // Bootstrap은 «처음부터 활성인» 탭에 대해 `shown.bs.tab`을 쏘지 않음.
-    // ERP Beta 주문 편집은 서버에서 ERP Beta 탭이 이미 active이므로, 기존에는
-    // `erpLoadStructured` / `erpLoadQuest`가 한 번도 호출되지 않아 제품·고객 필드가
-    // 템플릿 기본값(예: 고객명 ◆)만 남는 현상이 발생함.
     if (ORDER_ID && ORDER_ID > 0) {
-        const erpTabBtn = document.getElementById('erp-beta-tab');
-        const erpPane = document.getElementById('erp-beta');
+        const erpTabBtn = document.getElementById('erp-order-tab');
+        const erpPane = document.getElementById('erp-order');
         const erpTabAlreadyActive =
             (erpTabBtn && erpTabBtn.classList.contains('active')) ||
             (erpPane && (erpPane.classList.contains('active') || erpPane.classList.contains('show')));
@@ -2590,18 +2644,14 @@ function fomsErpBootstrapErpBetaSurface() {
         }
     }
 
-    // ERP Beta 탭이 열릴 때: ORDER_ID가 있을 때만 데이터 로드 (자동 주문 생성 제거)
-    // 저장 버튼을 눌러야만 주문이 생성되고 저장됨
-    document.getElementById('erp-beta-tab')?.addEventListener('shown.bs.tab', async function () {
+    document.getElementById('erp-order-tab')?.addEventListener('shown.bs.tab', async function () {
         initErpMainDatePickers();
         loadMeasurementPanel();
-        // 파일 input 초기화 (탭이 열릴 때마다 이전 파일 제거)
         const fileInput = document.getElementById('erp-attachments-input');
         if (fileInput) {
             fileInput.value = '';
         }
-        // add_order(draft) 모드에서 아직 주문이 없을 때 접수일/접수시간·단계 기본값
-        if (window.__ERP_BETA_DRAFT_MODE && (!ORDER_ID || ORDER_ID <= 0)) {
+        if (isErpOrderDraftMode() && (!ORDER_ID || ORDER_ID <= 0)) {
             const now = new Date();
             const localDateStr = [
                 now.getFullYear(),
@@ -2614,12 +2664,10 @@ function fomsErpBootstrapErpBetaSurface() {
             const rt = document.getElementById('erp-received-time');
             if (rd) rd.value = localDateStr;
             if (rt) rt.value = localTimeStr;
-            // 단계(Workflow) 기본값: 주문 접수 (발주사=라홈 시). 발주사≠라홈이면 syncWorkflowStageByOrderer가 MEASURE로 덮어씀
             const stageEl = document.getElementById('erp-workflow-stage');
             if (stageEl && !stageEl.value) stageEl.value = 'RECEIVED';
             syncWorkflowStageByOrderer();
         }
-        // ORDER_ID가 있을 때만 데이터 로드(저장 버튼으로 생성된 주문이 있을 때만)
         if (ORDER_ID && ORDER_ID > 0) {
             await erpLoadStructured();
             erpLoadQuest();
@@ -2628,11 +2676,24 @@ function fomsErpBootstrapErpBetaSurface() {
     });
 }
 
-document.addEventListener("DOMContentLoaded", fomsErpBootstrapErpBetaSurface);
-window.fomsErpBootstrapErpBetaSurface = fomsErpBootstrapErpBetaSurface;
+window.fomsMountErpOrderSurface = fomsMountErpOrderSurface;
+window.fomsErpBootstrapErpBetaSurface = fomsMountErpOrderSurface;
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", fomsMountErpOrderSurface);
+} else {
+    fomsMountErpOrderSurface();
+}
+if (!window.__erpOrderMainContentSwapListenerBound) {
+    window.__erpOrderMainContentSwapListenerBound = true;
+    document.addEventListener("foms:main-content-swapped", function () {
+        if (typeof window.fomsMountErpOrderSurface === "function") {
+            window.fomsMountErpOrderSurface();
+        }
+    });
+}
 
 // ============================================
-// ERP Beta: Quest System (단계별 명확한 퀘스트)
+// ERP Order: Quest System (단계별 명확한 퀘스트)
 // ============================================
 let __erpQuest = null;
 
@@ -2754,7 +2815,7 @@ function erpRenderQuest() {
 }
 
 async function erpLoadQuest() {
-    if (!ERP_BETA_ENABLED || !ORDER_ID) return;
+    if (!ERP_ORDER_ENABLED || !ORDER_ID) return;
     try {
         const res = await fetch(`/api/orders/${ORDER_ID}/quest`);
         const data = await res.json();
@@ -2777,7 +2838,7 @@ async function erpLoadQuest() {
 }
 
 async function erpApproveQuestTeam(team) {
-    if (!ERP_BETA_ENABLED || !ORDER_ID) return;
+    if (!ERP_ORDER_ENABLED || !ORDER_ID) return;
     if (!confirm(`${erpLabel(ERP_TEAM_LABELS, team, team)} 승인을 진행하시겠습니까?`)) return;
 
     erpSetQuestStatus('승인 처리 중...');
@@ -2818,7 +2879,7 @@ async function erpApproveQuestTeam(team) {
 }
 
 async function erpUpdateQuestStatus() {
-    if (!ERP_BETA_ENABLED || !ORDER_ID) return;
+    if (!ERP_ORDER_ENABLED || !ORDER_ID) return;
     if (!__erpQuest) return;
 
     const currentStatus = __erpQuest.status || 'OPEN';
@@ -2850,6 +2911,6 @@ async function erpUpdateQuestStatus() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    if (!ERP_BETA_ENABLED) return;
+    if (!ERP_ORDER_ENABLED) return;
     document.getElementById('erp-quest-status-btn')?.addEventListener('click', erpUpdateQuestStatus);
 });

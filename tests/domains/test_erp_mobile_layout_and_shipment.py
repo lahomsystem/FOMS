@@ -51,7 +51,7 @@ def test_shipment_mobile_markup_includes_colgroup_reset_override(client, monkeyp
         product="붙박이장",
         status="IN_CONSTRUCTION",
         manager_name="Alice",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "items": [
                 {
@@ -86,8 +86,8 @@ def test_shipment_mobile_markup_includes_colgroup_reset_override(client, monkeyp
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert 'id="shipment-dashboard-table"' in body
-    assert "#shipment-dashboard-table colgroup" in body
-    assert "#shipment-dashboard-table tbody tr" in body
+    assert "shipment-dashboard-columns.css" in body
+    assert "erp-shipment-mobile-summary__eyebrow" in body
     assert "Shipment Queue" in body
 
 
@@ -104,7 +104,7 @@ def test_shipment_dashboard_allows_past_date_search(client):
         product="수납장",
         status="IN_CONSTRUCTION",
         manager_name="Bob",
-        is_erp_beta=True,
+        is_erp_order=True,
         scheduled_date=yesterday,
         structured_data={
             "items": [

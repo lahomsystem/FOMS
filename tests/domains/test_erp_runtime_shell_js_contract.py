@@ -1,4 +1,4 @@
-"""EPT-B6: static checks for `static/js/erp/runtime-shell.js` (no JS runtime in CI)."""
+"""EPT-B6: static checks for `static/js/runtime/erp-shell.js` (no JS runtime in CI)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import pytest
 from foms.services.common import erp_navigation_contract as enc
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_RUNTIME_SHELL = _REPO_ROOT / "static" / "js" / "erp" / "runtime-shell.js"
+_RUNTIME_SHELL = _REPO_ROOT / "static" / "js" / "runtime" / "erp-shell.js"
 
 
 @pytest.fixture(scope="module")
@@ -29,7 +29,7 @@ def test_runtime_shell_subordinate_fragment_patterns(runtime_shell_src: str) -> 
     assert "isSubordinateShellFragmentPath" in runtime_shell_src
     assert "/erp/shipment-settings" in runtime_shell_src
     assert "/erp/drawing-workbench/" in runtime_shell_src or "drawing-workbench" in runtime_shell_src
-    assert r"^\/edit\/\d+$" in runtime_shell_src
+    assert r"^\/edit\/\d+$" not in runtime_shell_src
 
 
 def test_runtime_shell_excludes_map_view_prefetch(runtime_shell_src: str) -> None:

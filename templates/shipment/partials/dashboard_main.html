@@ -31,11 +31,11 @@
   {# 시공팀은 출고 대시보드에서 수정 불가 (조회만) #}
   {% set can_edit_shipment = (can_edit_erp|default(false)) and (not (is_construction_team|default(false))) %}
 
-  {% if not erp_beta_enabled %}
+  {% if not erp_order_enabled %}
   <div class="erp-pro-alert erp-pro-alert--warning">
     <div class="erp-pro-alert__icon"><i class="fas fa-exclamation-triangle"></i></div>
     <div class="erp-pro-alert__content">
-      <span>ERP Beta 기능이 비활성입니다. (환경변수 <code>ERP_BETA_ENABLED=true</code> 필요)</span>
+      <span>ERP Order 기능이 비활성입니다. (환경변수 <code>ERP_ORDER_ENABLED=true</code> 필요)</span>
     </div>
   </div>
   {% else %}
@@ -254,7 +254,7 @@
                   data-manager="{{ (r.manager_name or '')|e }}">
                   <td data-label="상세" style="border-right: 1px solid #e0e0e0;">
                     {% if can_edit_shipment %}
-                    <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-beta"
+                    <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-order"
                       class="btn btn-sm btn-outline-primary" title="주문 상세"><i class="fas fa-edit"></i></a>
                     {% else %}
                     <span class="text-muted small">(권한없음)</span>
@@ -280,7 +280,8 @@
                     </div>
                     {% else %}
                     <div class="d-flex flex-column gap-1 shipment-product-list">
-                      {% if r.is_erp_beta and erp_items %}
+                      {% set is_erp_order = r.is_erp_order %}
+                      {% if is_erp_order and erp_items %}
                       {% for it in erp_items %}
                       {% set pn = (it.get('product_name') or '')|string|trim %}
                       <div class="shipment-product-line">{{ (pn or '-')|strip_product_w or '-' }}</div>
@@ -296,7 +297,7 @@
                     <span class="badge bg-danger mb-1">AS</span>
                     {% else %}
                     <div class="d-flex flex-column gap-1 shipment-spec-list">
-                      {% if r.is_erp_beta and erp_items %}
+                      {% if is_erp_order and erp_items %}
                       {% for it in erp_items %}
                       <div class="shipment-spec-line">{{ it|item_spec_w300 or '-' }}</div>
                       {% endfor %}

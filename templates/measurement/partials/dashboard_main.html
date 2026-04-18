@@ -1,5 +1,5 @@
-<div class="erp-pro erp-mobile-shell erp-measurement-dashboard" data-erp-beta-active="{{ 'true' if erp_beta_enabled else 'false' }}"
-  data-erp-active="{{ 'true' if erp_beta_enabled else 'false' }}" data-today-date="{{ today_date }}"
+<div class="erp-pro erp-mobile-shell erp-measurement-dashboard" data-erp-order-active="{{ 'true' if erp_order_enabled else 'false' }}"
+  data-erp-active="{{ 'true' if erp_order_enabled else 'false' }}" data-today-date="{{ today_date }}"
   data-selected-date="{{ selected_date }}" data-search-q="{{ search_q }}"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -25,11 +25,11 @@
   {% set erp_sub_nav_active = 'measurement' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
 
-  {% if not erp_beta_enabled %}
+  {% if not erp_order_enabled %}
   <div class="erp-pro-alert erp-pro-alert--warning">
     <div class="erp-pro-alert__icon"><i class="fas fa-exclamation-triangle"></i></div>
     <div class="erp-pro-alert__content">
-      <span>ERP Beta 기능이 비활성입니다. (환경변수 <code>ERP_BETA_ENABLED=true</code> 필요)</span>
+      <span>ERP Order 기능이 비활성입니다. (환경변수 <code>ERP_ORDER_ENABLED=true</code> 필요)</span>
     </div>
   </div>
   {% else %}
@@ -631,11 +631,11 @@
                 {% set text_color = '#000000' %}
                 {% endif %}
 
-                <tr data-order-id="{{ r.id }}" data-is-erp="{{ 'true' if r.is_erp_beta else 'false' }}"
+                <tr data-order-id="{{ r.id }}" data-is-erp="{{ 'true' if r.is_erp_order else 'false' }}"
                   data-manager="{{ manager or '' }}" class="measurement-row">
                   <td class="text-center" data-label="상세" style="border-right: 1px solid #e0e0e0;">
                     {% if can_edit_erp|default(false) %}
-                    <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_measurement_dashboard') }}?open=erp-beta"
+                    <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_measurement_dashboard') }}?open=erp-order"
                       class="btn btn-sm btn-outline-primary" title="주문 상세">
                       <i class="fas fa-edit"></i>
                     </a>
@@ -646,7 +646,7 @@
                   <td data-label="고객" style="border-right: 1px solid #e0e0e0;">
                     <span class="d-inline-flex align-items-center flex-wrap gap-1">
                       {{ customer or '-' }}
-                      {% if r.is_erp_beta %}
+                      {% if r.is_erp_order %}
                       {% set payment = r.structured_data.get('payment', {}) if r.structured_data else {} %}
                       {% set deposit = payment.get('deposit', 0) %}
                       {% if not deposit %}

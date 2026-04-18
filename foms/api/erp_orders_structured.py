@@ -188,13 +188,13 @@ def _finalize_draft_state(
                 if items and isinstance(items, list) and len(items) > 0:
                     first_product = (items[0].get('product_name') or '').strip()
 
-                if cust_name and cust_name != 'ERP Beta':
+                if cust_name and cust_name not in {'ERP Order', 'ERP Beta'}:
                     order.customer_name = cust_name
                 if cust_phone and cust_phone != '000-0000-0000':
                     order.phone = cust_phone
                 if addr and addr != '-':
                     order.address = addr
-                if first_product and first_product != 'ERP Beta':
+                if first_product and first_product not in {'ERP Order', 'ERP Beta'}:
                     order.product = first_product
         except Exception as e:
             logger.warning("draft meta clear failed: %s", e, exc_info=True)
@@ -277,7 +277,7 @@ def api_put_order_structured(order_id):
                 _cname = (_customer.get('name') or '').strip()
                 _cphone = (_customer.get('phone') or '').strip()
                 _missing = []
-                if not _cname or _cname == 'ERP Beta':
+                if not _cname or _cname in {'ERP Order', 'ERP Beta'}:
                     _missing.append('고객명')
                 if not _cphone or _cphone == '000-0000-0000':
                     _missing.append('전화번호')
@@ -514,7 +514,7 @@ def api_erp_create_draft():
             options=None,
             notes=None,
             status='RECEIVED',
-            is_erp_beta=True,
+            is_erp_order=True,
             raw_order_text='',
             structured_data=structured,
             structured_schema_version=1,

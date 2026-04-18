@@ -275,15 +275,15 @@ def test_canonical_erp_paths_return_200_when_authenticated(client, monkeypatch):
         assert b"html" in response.data.lower() or response.data.strip().startswith(b"<!")
 
 
-def _seed_minimal_erp_beta_order_drawing_workbench():
-    """Minimal ERP Beta order for drawing workbench detail (in-memory tests)."""
+def _seed_minimal_erp_order_drawing_workbench():
+    """Minimal ERP Order order for drawing workbench detail (in-memory tests)."""
     o = Order(
         received_date="2026-01-01",
         customer_name="C",
         phone="01000000000",
         address="Addr",
         product="P",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "workflow": {"stage": "DRAWING"},
             "drawing": {"status": "PENDING"},
@@ -301,31 +301,53 @@ def _seed_minimal_erp_beta_order_drawing_workbench():
 
 
 def _seed_minimal_order_for_edit():
-    """Non–ERP-beta order for edit page GET (avoids ERP-beta-only permission branch)."""
+    """Minimal ERP Order order for edit page GET fragment contract checks."""
     o = Order(
         received_date="2026-01-01",
         customer_name="C",
         phone="01000000000",
         address="Addr",
         product="P",
-        is_erp_beta=False,
+        is_erp_order=True,
+        structured_data={},
     )
     db_session.add(o)
     db_session.commit()
     return o.id
 
 
-def test_ept_b5_legacy_erp_order_redirect_to_edit_erp_beta(client, monkeypatch):
-    """GET /erp/orders/<id> → 302 to /edit/<id> with open=erp-beta."""
+def test_ept_b5_legacy_erp_order_redirect_to_edit_erp_order(client, monkeypatch):
+    """GET /erp/orders/<id> → 302 to /edit/<id> with open=erp-order."""
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.setenv("FOMS_DASHBOARD_MICRO_CACHE_ENABLED", "1")
     _login_erp_admin(client)
-    oid = _seed_minimal_erp_beta_order_drawing_workbench()
+    oid = _seed_minimal_erp_order_drawing_workbench()
     resp = client.get(f"/erp/orders/{oid}", follow_redirects=False)
     assert resp.status_code == 302
     loc = resp.headers.get("Location", "")
     assert f"/edit/{oid}" in loc.replace("\\", "/")
-    assert "erp-beta" in loc
+    assert "erp-order" in loc
+
+
+def test_ept_b5_legacy_erp_order_redirect_preserves_query_context(client, monkeypatch):
+    """Legacy redirect should keep focus/category context while forcing open=erp-order."""
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setenv("FOMS_DASHBOARD_MICRO_CACHE_ENABLED", "1")
+    _login_erp_admin(client)
+    oid = _seed_minimal_erp_order_drawing_workbench()
+
+    resp = client.get(
+        f"/erp/orders/{oid}?focus=attachments&category=drawing",
+        follow_redirects=False,
+    )
+
+    assert resp.status_code == 302
+    loc = resp.headers.get("Location", "")
+    normalized = loc.replace("\\", "/")
+    assert f"/edit/{oid}" in normalized
+    assert "open=erp-order" in normalized
+    assert "focus=attachments" in normalized
+    assert "category=drawing" in normalized
 
 
 def test_ept_b5_drawing_workbench_detail_shell_fragment_contract(client, monkeypatch):
@@ -333,7 +355,7 @@ def test_ept_b5_drawing_workbench_detail_shell_fragment_contract(client, monkeyp
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.setenv("FOMS_DASHBOARD_MICRO_CACHE_ENABLED", "1")
     _login_erp_admin(client)
-    oid = _seed_minimal_erp_beta_order_drawing_workbench()
+    oid = _seed_minimal_erp_order_drawing_workbench()
     response = client.get(
         f"/erp/drawing-workbench/{oid}?view=fragment",
         headers={"X-FOMS-ERP-SHELL": "1"},
@@ -352,7 +374,7 @@ def test_ept_b5_drawing_workbench_detail_tier_body_parity(client, monkeypatch, v
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.setenv("FOMS_DASHBOARD_MICRO_CACHE_ENABLED", "1")
     _login_erp_admin(client)
-    oid = _seed_minimal_erp_beta_order_drawing_workbench()
+    oid = _seed_minimal_erp_order_drawing_workbench()
     base = client.get(
         f"/erp/drawing-workbench/{oid}?view=fragment",
         headers={"X-FOMS-ERP-SHELL": "1"},
@@ -375,7 +397,7 @@ def test_ept_b5_drawing_workbench_detail_view_fragment_without_shell_full_docume
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.setenv("FOMS_DASHBOARD_MICRO_CACHE_ENABLED", "1")
     _login_erp_admin(client)
-    oid = _seed_minimal_erp_beta_order_drawing_workbench()
+    oid = _seed_minimal_erp_order_drawing_workbench()
     response = client.get(f"/erp/drawing-workbench/{oid}?view=fragment")
     assert response.status_code == 200
     assert response.headers.get("X-FOMS-ERP-FRAGMENT") != "1"
@@ -386,41 +408,45 @@ def test_ept_b5_drawing_workbench_detail_view_fragment_without_shell_full_docume
 
 
 def test_ept_b5_edit_order_shell_fragment_contract(client, monkeypatch):
-    """EPT-B5: edit GET returns fragment body + headers when shell+view."""
+    """Edit surface is now full-document only even when shell/view params leak in."""
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.setenv("FOMS_DASHBOARD_MICRO_CACHE_ENABLED", "1")
     _login_erp_admin(client)
     oid = _seed_minimal_order_for_edit()
     response = client.get(
-        f"/edit/{oid}?view=fragment&open=erp-beta",
+        f"/edit/{oid}?view=fragment&open=erp-order",
         headers={"X-FOMS-ERP-SHELL": "1"},
     )
     assert response.status_code == 200
-    assert response.headers.get("X-FOMS-ERP-FRAGMENT") == "1"
+    assert response.headers.get("X-FOMS-ERP-FRAGMENT") != "1"
     data = response.data
-    assert b"<!DOCTYPE" not in data[:120]
+    assert b"<!DOCTYPE" in data[:200] or data.strip().startswith(b"<!")
+    assert b"erp-order-config" in data
+    assert b"js/orders/erp-order-shared.js" in data
 
 
 @pytest.mark.parametrize("view_mode", ["critical", "heavy"])
 def test_ept_b5_edit_order_tier_body_parity(client, monkeypatch, view_mode):
-    """EPT-B5: edit GET critical/heavy same body as fragment; tier header differs."""
+    """Edit surface ignores shell tiers and stays a full document for all view modes."""
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.setenv("FOMS_DASHBOARD_MICRO_CACHE_ENABLED", "1")
     _login_erp_admin(client)
     oid = _seed_minimal_order_for_edit()
     base = client.get(
-        f"/edit/{oid}?view=fragment",
+        f"/edit/{oid}?view=fragment&open=erp-order",
         headers={"X-FOMS-ERP-SHELL": "1"},
     )
     alt = client.get(
-        f"/edit/{oid}?view={view_mode}",
+        f"/edit/{oid}?view={view_mode}&open=erp-order",
         headers={"X-FOMS-ERP-SHELL": "1"},
     )
     assert base.status_code == 200
     assert alt.status_code == 200
     assert base.data == alt.data
-    assert base.headers.get("X-FOMS-ERP-FRAGMENT-TIER") == enc.VIEW_FRAGMENT
-    assert alt.headers.get("X-FOMS-ERP-FRAGMENT-TIER") == view_mode
+    assert base.headers.get("X-FOMS-ERP-FRAGMENT") != "1"
+    assert alt.headers.get("X-FOMS-ERP-FRAGMENT") != "1"
+    assert b"<!DOCTYPE" in base.data[:200] or base.data.strip().startswith(b"<!")
+    assert b"<!DOCTYPE" in alt.data[:200] or alt.data.strip().startswith(b"<!")
 
 
 def test_ept_b5_edit_order_view_fragment_without_shell_full_document(client, monkeypatch):

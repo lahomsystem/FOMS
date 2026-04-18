@@ -33,13 +33,17 @@ def test_apply_phase2_indexes_executes_expected_sql_and_commits(monkeypatch, cap
     with caplog.at_level(logging.INFO):
         db_indexes.apply_phase2_indexes()
 
-    assert db.commit_calls == 3
+    assert db.commit_calls == 2
     assert db.rollback_calls == 0
-    assert "CREATE EXTENSION IF NOT EXISTS pg_trgm;" in db.executed_sql[0]
+    assert any("SET LOCAL lock_timeout" in sql for sql in db.executed_sql)
+    assert any("CREATE EXTENSION IF NOT EXISTS pg_trgm;" in sql for sql in db.executed_sql)
     assert any("idx_order_measure_date_trgm" in sql for sql in db.executed_sql)
     assert any("ix_osd_measurement_date" in sql for sql in db.executed_sql)
-    assert any("pg_trgm extension verified." in record.message for record in caplog.records)
-    assert any("Phase 2: Trigram Indexes verified/created successfully." in record.message for record in caplog.records)
+    assert any(
+        "Phase 2: Trigram indexes verified/created under bounded startup policy."
+        in record.message
+        for record in caplog.records
+    )
     assert any(
         "Phase 4: OrderScheduleDate Partial Indexes verified/created successfully." in record.message
         for record in caplog.records
@@ -47,7 +51,7 @@ def test_apply_phase2_indexes_executes_expected_sql_and_commits(monkeypatch, cap
 
 
 def test_apply_phase2_indexes_rolls_back_failed_trigram_block_and_continues(monkeypatch, caplog):
-    db = _FakeDB(fail_on_calls={1})
+    db = _FakeDB(fail_on_calls={3})
     monkeypatch.setattr(db_indexes, "get_db", lambda: db)
 
     with caplog.at_level(logging.INFO):
@@ -55,13 +59,12 @@ def test_apply_phase2_indexes_rolls_back_failed_trigram_block_and_continues(monk
 
     assert db.commit_calls == 1
     assert db.rollback_calls == 1
-    assert any("Could not create trigram indexes" in record.message for record in caplog.records)
+    assert any("Could not complete trigram index bootstrap" in record.message for record in caplog.records)
     assert any("ix_osd_measurement_date" in sql for sql in db.executed_sql)
     assert any(
         "Phase 4: OrderScheduleDate Partial Indexes verified/created successfully." in record.message
         for record in caplog.records
     )
-
 
 def test_ensure_erp_date_columns_executes_expected_sql_and_commits(monkeypatch, caplog):
     db = _FakeDB()
@@ -72,8 +75,9 @@ def test_ensure_erp_date_columns_executes_expected_sql_and_commits(monkeypatch, 
 
     assert db.commit_calls == 1
     assert db.rollback_calls == 0
-    assert len(db.executed_sql) == 11
-    assert "erp_measurement_date" in db.executed_sql[0]
+    assert len(db.executed_sql) == 13
+    assert any("SET LOCAL lock_timeout" in sql for sql in db.executed_sql)
+    assert any("ADD COLUMN IF NOT EXISTS erp_measurement_date" in sql for sql in db.executed_sql)
     assert any("ix_orders_erp_stage_code" in sql for sql in db.executed_sql)
     assert any("ix_orders_erp_owner_team_code" in sql for sql in db.executed_sql)
     assert any("Phase B & D flat columns verified." in record.message for record in caplog.records)

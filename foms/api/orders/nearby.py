@@ -12,6 +12,7 @@ from sqlalchemy.orm import load_only, selectinload
 
 from db import get_db
 from foms.services.common.address_converter import FOMSAddressConverter
+from foms.services.erp_order_flags import is_erp_order_record
 from models import Order, OrderScheduleDate
 
 _SEARCH_RADII_KM = [1.0, 3.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0]
@@ -29,7 +30,7 @@ def _get_order_schedule_date(order, ref_date: str | None = None):
         return value if value and (not ref_date or value >= ref_date) else None
 
     structured_data = getattr(order, "structured_data", None)
-    if getattr(order, "is_erp_beta", False) and isinstance(structured_data, dict):
+    if is_erp_order_record(order) and isinstance(structured_data, dict):
         construction_date = (
             ((structured_data.get("schedule") or {}).get("construction") or {}).get("date")
         )
@@ -154,7 +155,7 @@ def nearby_orders_response():
                 Order.status,
                 Order.shipping_scheduled_date,
                 Order.scheduled_date,
-                Order.is_erp_beta,
+                Order.is_erp_order,
                 Order.structured_data,
                 Order.customer_name,
                 Order.lat,
@@ -179,7 +180,7 @@ def nearby_orders_response():
                     OrderScheduleDate.date >= ref_date,
                 ),
                 and_(
-                    Order.is_erp_beta.is_(True),
+                    Order.is_erp_order.is_(True),
                     func.jsonb_extract_path_text(
                         Order.structured_data, "schedule", "construction", "date"
                     )

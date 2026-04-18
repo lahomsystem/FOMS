@@ -3,13 +3,14 @@
 from datetime import datetime
 
 from foms.services.erp_display import _normalize_date_to_yyyymmdd, clean_dict_like_name
+from foms.services.erp_order_flags import is_erp_order_record
 
 __all__ = ["sync_erp_flat_columns"]
 
 
 def sync_erp_flat_columns(order, structured_data: dict) -> None:
-    """Synchronize ERP Beta flat columns from structured order data before commit."""
-    if not getattr(order, 'is_erp_beta', False):
+    """Synchronize ERP Order flat columns from structured order data before commit."""
+    if not is_erp_order_record(order):
         return
 
     parties = (structured_data.get('parties') or {})

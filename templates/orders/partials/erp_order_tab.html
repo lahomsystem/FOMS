@@ -1,31 +1,33 @@
 {#
-ERP Beta Tab Pane (shared between add_order and edit_order)
-- Requires: erp_beta_enabled (from context_processor)
+ERP Order Tab Pane (shared between add_order and edit_order)
+- Requires: erp_order_enabled
 - Optional: order (for edit_order); add_order may pass none.
-- JS expects a tab button with id="erp-beta-tab" to hook tab shown events.
+- JS expects a tab button with id="erp-order-tab" to hook tab shown events.
 #}
-{% set erp_beta_active = erp_beta_active or false %}
-<div class="tab-pane fade{% if erp_beta_active %} show active{% endif %}" id="erp-beta" role="tabpanel" lang="ko">
+{% set erp_order_feature_enabled = erp_order_enabled %}
+{% set erp_order_default_stage_received = erp_order_default_stage_received if erp_order_default_stage_received is defined else erp_beta_default_stage_received %}
+{% set erp_order_active = erp_order_active or false %}
+<div class="tab-pane fade{% if erp_order_active %} show active{% endif %}" id="erp-order" role="tabpanel" lang="ko">
     <div class="card border-secondary" data-erp-order-id="{{ order.id if order is defined and order else 0 }}">
         <div class="card-header d-flex justify-content-between align-items-center">
             <div class="fw-bold">
-                <i class="fas fa-layer-group"></i> ERP Beta (TEST)
+                <i class="fas fa-layer-group"></i> ERP Order
             </div>
-            <span class="badge {% if erp_beta_enabled %}bg-success{% else %}bg-secondary{% endif %}">
-                {% if erp_beta_enabled %}ON{% else %}OFF{% endif %}
+            <span class="badge {% if erp_order_feature_enabled %}bg-success{% else %}bg-secondary{% endif %}">
+                {% if erp_order_feature_enabled %}ON{% else %}OFF{% endif %}
             </span>
         </div>
         <div class="card-body">
-            {% if not erp_beta_enabled %}
+            {% if not erp_order_feature_enabled %}
             <div class="alert alert-secondary mb-0">
-                ERP Beta 패널은 현재 비활성입니다.
+                ERP Order 패널은 현재 비활성입니다.
             </div>
             {% else %}
             <div class="alert alert-info py-2" id="erp-draft-banner" style="display:none;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <i class="fas fa-bolt"></i>
-                        새 ERP Beta 주문이 자동 생성되었습니다. (주문번호: <span class="fw-bold" id="erp-draft-order-id">-</span>)
+                        새 ERP Order 주문이 자동 생성되었습니다. (주문번호: <span class="fw-bold" id="erp-draft-order-id">-</span>)
                     </div>
                     <a class="btn btn-sm btn-outline-primary" id="erp-draft-edit-link" href="#" style="display:none;">
                         <i class="fas fa-external-link-alt"></i> 편집 화면 열기
@@ -33,7 +35,7 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                 </div>
             </div>
 
-            <ul class="nav nav-pills mb-3 erp-beta-tabs-nav" id="erpBetaTabs" role="tablist">
+            <ul class="nav nav-pills mb-3 erp-order-tabs-nav" id="erpOrderTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="erp-form-tab" data-bs-toggle="pill" data-bs-target="#erp-form"
                         type="button" role="tab">
@@ -127,7 +129,7 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                             <label class="form-label mb-1">단계(Workflow)</label>
                             <select class="form-select form-select-sm" id="erp-workflow-stage">
                                 <option value="">-</option>
-                                <option value="RECEIVED"{% if erp_beta_default_stage_received %} selected{% endif %}>A. 주문접수</option>
+                                <option value="RECEIVED"{% if erp_order_default_stage_received %} selected{% endif %}>A. 주문접수</option>
                                 <option value="MEASURE">C. 실측</option>
                                 <option value="DRAWING">D. 도면</option>
                                 <option value="CONFIRM">E. 고객컨펌</option>
@@ -175,7 +177,7 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                                     <i class="fas fa-calendar-day"></i> 실측 일정 현황
                                 </div>
                                 <div class="card-body p-1" style="max-height: 400px; overflow-y: auto;">
-                                    <div id="erp-beta-measurement-panel" class="measurement-panel-list">
+                                    <div id="erp-order-measurement-panel" class="measurement-panel-list">
                                         <div class="text-center py-3 text-muted small">
                                             <i class="fas fa-spinner fa-spin"></i> 로딩 중...
                                         </div>
@@ -184,16 +186,16 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
                                 </div>
                             </div>
                             <style>
-                                #erp-beta-measurement-panel.measurement-panel-list { max-height: 360px; overflow-y: auto; padding: 4px; }
-                                #erp-beta-measurement-panel .measurement-panel-item { display: block; padding: 5px 8px; margin-bottom: 4px; border-radius: 6px; border: 1px solid #f1f3f5; background: #fff; color: #212529; text-decoration: none; cursor: pointer; transition: all 0.15s ease; }
-                                #erp-beta-measurement-panel .measurement-panel-item:hover { background: #f8f9fa; border-color: #dee2e6; }
-                                #erp-beta-measurement-panel .measurement-panel-item.is-selected { border-color: #0d6efd; box-shadow: 0 0 0 1px rgba(13,110,253,0.2); }
-                                #erp-beta-measurement-panel .measurement-panel-item.is-weekend { background: #fff7e6; }
-                                #erp-beta-measurement-panel .measurement-panel-item.is-holiday { background: #fff1f1; }
-                                #erp-beta-measurement-panel .measurement-panel-item.is-today { border-color: #198754; box-shadow: 0 0 0 1px rgba(25,135,84,0.25); }
-                                #erp-beta-measurement-panel .measurement-panel-date { font-size: 0.85rem; white-space: nowrap; }
-                                #erp-beta-measurement-panel .measurement-panel-day { font-size: 0.8rem; color: #6c757d; }
-                                #erp-beta-measurement-panel .badge-count { font-size: 0.85rem; min-width: 28px; padding: 2px 6px; background-color: #0d6efd; color: #fff; }
+                                #erp-order-measurement-panel.measurement-panel-list { max-height: 360px; overflow-y: auto; padding: 4px; }
+                                #erp-order-measurement-panel .measurement-panel-item { display: block; padding: 5px 8px; margin-bottom: 4px; border-radius: 6px; border: 1px solid #f1f3f5; background: #fff; color: #212529; text-decoration: none; cursor: pointer; transition: all 0.15s ease; }
+                                #erp-order-measurement-panel .measurement-panel-item:hover { background: #f8f9fa; border-color: #dee2e6; }
+                                #erp-order-measurement-panel .measurement-panel-item.is-selected { border-color: #0d6efd; box-shadow: 0 0 0 1px rgba(13,110,253,0.2); }
+                                #erp-order-measurement-panel .measurement-panel-item.is-weekend { background: #fff7e6; }
+                                #erp-order-measurement-panel .measurement-panel-item.is-holiday { background: #fff1f1; }
+                                #erp-order-measurement-panel .measurement-panel-item.is-today { border-color: #198754; box-shadow: 0 0 0 1px rgba(25,135,84,0.25); }
+                                #erp-order-measurement-panel .measurement-panel-date { font-size: 0.85rem; white-space: nowrap; }
+                                #erp-order-measurement-panel .measurement-panel-day { font-size: 0.8rem; color: #6c757d; }
+                                #erp-order-measurement-panel .badge-count { font-size: 0.85rem; min-width: 28px; padding: 2px 6px; background-color: #0d6efd; color: #fff; }
                             </style>
                         </div>
                         <div class="col-12 col-md-8">
@@ -427,7 +429,7 @@ ERP Beta Tab Pane (shared between add_order and edit_order)
     </div>
 </div>
 
-<!-- AS 접수 모달 (ERP Beta: 진행단계 AS접수 선택 시) -->
+<!-- AS 접수 모달 (ERP Order: 진행단계 AS접수 선택 시) -->
 <div class="modal fade" id="asReceiveModal" tabindex="-1" aria-labelledby="asReceiveModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">

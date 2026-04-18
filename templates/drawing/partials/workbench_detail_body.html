@@ -515,9 +515,9 @@
           <div class="dw-main-reference-title">
             <i class="fas fa-bullseye text-primary"></i> 도면 제작 핵심 자료 (제품 정보 + 실측 이미지)
           </div>
-          <a href="{{ url_for('order_edit.edit_order', order_id=order.id) }}?open=erp-beta"
+          <a href="{{ url_for('order_edit.edit_order', order_id=order.id) }}?open=erp-order"
             class="btn btn-sm btn-outline-secondary" target="_blank">
-            <i class="fas fa-external-link-alt"></i> ERP Beta 편집
+            <i class="fas fa-external-link-alt"></i> ERP Order 편집
           </a>
         </div>
 
@@ -909,7 +909,7 @@
           </div>
           <div class="d-grid gap-2">
             <a class="btn btn-outline-primary btn-sm"
-              href="{{ url_for('order_edit.edit_order', order_id=order.id) }}?open=erp-beta&focus=attachments&category=drawing">
+              href="{{ url_for('order_edit.edit_order', order_id=order.id) }}?open=erp-order&focus=attachments&category=drawing">
               <i class="fas fa-paperclip"></i> 첨부 파일 열기
             </a>
             <button class="btn btn-outline-secondary btn-sm" type="button" id="btn-download-history-json">

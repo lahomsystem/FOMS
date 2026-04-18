@@ -58,7 +58,7 @@ def _create_as_order(
         manager_name="Alice",
         as_received_date=today,
         as_completed_date=as_completed_date,
-        is_erp_beta=True,
+        is_erp_order=True,
         notes=notes,
         structured_data=structured_data,
     )

@@ -450,7 +450,7 @@ def _build_header_actions(read_model) -> list[WamActionVM]:
         WamActionVM(
             key="open-foms",
             label="FOMS",
-            href=url_for("order_edit.edit_order", order_id=read_model.order_id, open="erp-beta"),
+            href=url_for("order_edit.edit_order", order_id=read_model.order_id, open="erp-order"),
             target="_blank",
             external=True,
             aria_label="FOMS 상세 화면 열기",

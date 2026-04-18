@@ -41,7 +41,7 @@ class SafeSchemaMigration:
             ('shipping_scheduled_date', 'VARCHAR'),
             ('shipping_fee', 'INTEGER DEFAULT 0'),
             ('blueprint_image_url', 'TEXT'),
-            ('is_erp_beta', 'BOOLEAN DEFAULT FALSE'),
+            ('is_erp_order', 'BOOLEAN DEFAULT FALSE'),
             ('raw_order_text', 'TEXT'),
             ('structured_data', 'JSONB'),
             ('structured_schema_version', 'INTEGER DEFAULT 1'),
@@ -91,6 +91,21 @@ class SafeSchemaMigration:
         except Exception as e:
             logger.error(f"[ERROR] 컬럼 '{column_name}' 추가 실패: {str(e)}")
             return False
+
+    def normalize_legacy_erp_flag(self, db):
+        """Rename the legacy ERP flag column to the canonical name when possible."""
+        try:
+            has_legacy = self.check_column_exists(db, 'is_erp_beta')
+            has_canonical = self.check_column_exists(db, 'is_erp_order')
+
+            if has_legacy and not has_canonical:
+                db.execute(text("ALTER TABLE orders RENAME COLUMN is_erp_beta TO is_erp_order"))
+                logger.info("[RENAME] legacy 'is_erp_beta' renamed to 'is_erp_order'")
+            elif has_legacy and has_canonical:
+                logger.info("[SKIP] legacy/canonical ERP flag columns already coexist")
+        except Exception as e:
+            logger.error(f"[ERROR] ERP flag column rename 실패: {str(e)}")
+            raise
     
     def execute_migration(self):
         """전체 마이그레이션 실행"""
@@ -110,6 +125,7 @@ class SafeSchemaMigration:
             transaction = db.begin()
             
             try:
+                self.normalize_legacy_erp_flag(db)
                 # 각 컬럼 처리
                 for column_name, column_type in self.columns_to_add:
                     if self.add_column_safely(db, column_name, column_type):

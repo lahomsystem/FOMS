@@ -328,7 +328,7 @@
   <div class="erp-pro-empty">
     <i class="fas fa-search erp-pro-empty__icon"></i>
     <p class="erp-pro-empty__text">위 필터를 설정하여 조회를 시작하세요.</p>
-    <p class="text-muted small">과거 이력은 데이터가 방대하므로 조건 없이 전체 조회를 지원하지 않습니다. (레거시·ERP Beta 모두 검색 대상)</p>
+    <p class="text-muted small">과거 이력은 데이터가 방대하므로 조건 없이 전체 조회를 지원하지 않습니다. (레거시·ERP Order 모두 검색 대상)</p>
   </div>
   {% elif not orders %}
   <div class="erp-pro-empty">
@@ -398,7 +398,7 @@
               <span>전화 없음</span>
             </span>
             {% endif %}
-            <a class="erp-history-mobile-card__action is-primary" href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_beta %}?open=erp-beta{% endif %}" target="_blank">
+            <a class="erp-history-mobile-card__action is-primary" href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_order %}?open=erp-order{% endif %}" target="_blank">
               <i class="fas fa-up-right-from-square"></i>
               <span>주문 상세</span>
             </a>
@@ -444,7 +444,7 @@
               <td class="text-truncate" style="max-width: 150px;" title="{{ d.product }}">{{ d.product }}</td>
               <td>{{ o.created_at.strftime('%Y-%m-%d') if o.created_at else '-' }}</td>
               <td>
-                <a href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_beta %}?open=erp-beta{% endif %}" class="btn btn-sm btn-outline-secondary" target="_blank">
+                <a href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_order %}?open=erp-order{% endif %}" class="btn btn-sm btn-outline-secondary" target="_blank">
                   상세보기
                 </a>
               </td>
@@ -508,7 +508,7 @@
                   </div>
                   {% endfor %}
                 {% else %}
-                  <div class="small text-muted p-2">등록된 제품 정보가 없습니다. (ERP Beta 이력이 아니거나 구조화된 데이터가 없음)</div>
+                  <div class="small text-muted p-2">등록된 제품 정보가 없습니다. (ERP Order 이력이 아니거나 구조화된 데이터가 없음)</div>
                 {% endif %}
               </td>
             </tr>

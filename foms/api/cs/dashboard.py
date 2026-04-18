@@ -53,7 +53,7 @@ def api_orders_completion():
             db.query(Order)
             .filter(
                 Order.active_filter(),
-                Order.is_erp_beta.is_(True),
+                Order.is_erp_order.is_(True),
                 Order.status.in_(TARGET_STATUSES),
             )
             .order_by(Order.id.desc())

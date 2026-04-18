@@ -161,4 +161,4 @@ def test_process_inbound_job_create_enabled(mock_enqueue, app, monkeypatch):
         order = db_session.query(Order).get(log.created_order_id)
         assert order.customer_name == "실제고객"
         assert order.address == "부산시"
-        assert order.is_erp_beta is True
+        assert order.is_erp_order is True

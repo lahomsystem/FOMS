@@ -6,6 +6,7 @@ import unicodedata
 import pytz
 
 from foms.services.common.business_calendar import business_days_until
+from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_policy import (
     STAGE_LABELS,
     STAGE_NAME_TO_CODE,
@@ -258,21 +259,21 @@ def apply_erp_display_fields(order):
             order.product = ", ".join(product_parts)
 
     schedule = sd.get('schedule') or {}
-    # 실측일: ERP Beta일 때만 schedule.measurement.date 사용 (비 Beta는 DB 컬럼 유지, 예: 1843)
+    # 실측일: ERP Order일 때만 schedule.measurement.date 사용 (비 ERP 주문은 DB 컬럼 유지, 예: 1843)
     measurement = schedule.get('measurement') or {}
     measurement_date_raw = measurement.get('date')
     measurement_date = _normalize_date_to_yyyymmdd(measurement_date_raw) if measurement_date_raw else None
-    is_erp_beta = bool(getattr(order, 'is_erp_beta', False))
-    if is_erp_beta and measurement_date:
+    is_erp_order = is_erp_order_record(order)
+    if is_erp_order and measurement_date:
         order.measurement_date = measurement_date
     measurement_time = measurement.get('time')
     if measurement_time:
         order.measurement_time = measurement_time
-    # 시공일: ERP Beta일 때만 schedule.construction.date 사용
+    # 시공일: ERP Order일 때만 schedule.construction.date 사용
     construction = schedule.get('construction') or {}
     construction_date_raw = construction.get('date')
     construction_date = _normalize_date_to_yyyymmdd(construction_date_raw) if construction_date_raw else None
-    if is_erp_beta and construction_date:
+    if is_erp_order and construction_date:
         order.scheduled_date = construction_date
 
     # AS 방문일: ERP Beta / 레거시 공통으로 structured_data의 schedule.as_visit.date 조회
@@ -284,7 +285,7 @@ def apply_erp_display_fields(order):
         order.as_visit_date = None
 
     # 기존 주문(실측일 컬럼): ERP Beta가 아니거나 schedule.measurement.date 없을 때 DB measurement_date 정규화만
-    if not (is_erp_beta and measurement_date) and getattr(order, 'measurement_date', None):
+    if not (is_erp_order and measurement_date) and getattr(order, 'measurement_date', None):
         normalized_legacy = _normalize_date_to_yyyymmdd(order.measurement_date)
         if normalized_legacy:
             order.measurement_date = normalized_legacy

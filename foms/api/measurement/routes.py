@@ -18,6 +18,7 @@ from models import Order
 from foms.web.auth import login_required, role_required
 import foms.api.measurement as measurement_api
 from foms.services.channel_event_payloads import build_field_change_payload
+from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.common.address_converter import FOMSAddressConverter
@@ -107,7 +108,7 @@ def api_erp_measurement_summary():
         customer_name = order.customer_name
         time_to_use = order.measurement_time or ''
 
-        if order.is_erp_beta and order.structured_data:
+        if order.is_erp_order and order.structured_data:
             sd = order.structured_data
             erp_address_full = (sd.get('site') or {}).get('address_full')
             erp_address_main = (sd.get('site') or {}).get('address_main')
@@ -188,8 +189,8 @@ def api_erp_measurement_update(order_id):
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
-        if not order.is_erp_beta:
-            return jsonify({'success': False, 'message': 'ERP Beta 주문만 수정할 수 있습니다.'}), 400
+        if not is_erp_order_record(order):
+            return jsonify({'success': False, 'message': 'ERP Order 주문만 수정할 수 있습니다.'}), 400
 
         payload = request.get_json(silent=True) or {}
         field = payload.get('field')
@@ -324,7 +325,7 @@ def api_erp_measurement_route():
         phone = o.phone
         manager_name = o.manager_name
 
-        if o.is_erp_beta and o.structured_data:
+        if o.is_erp_order and o.structured_data:
             sd = o.structured_data
             erp_address_full = (sd.get('site') or {}).get('address_full')
             erp_address_main = (sd.get('site') or {}).get('address_main')

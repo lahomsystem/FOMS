@@ -361,7 +361,7 @@
             // 도면 전달 버튼 (DRAWING 단계일 때만)
             let actionHtml = '';
             if (stage === 'DRAWING') {
-              const canEdit = typeof CAN_EDIT_ERP_BETA !== 'undefined' && CAN_EDIT_ERP_BETA;
+              const canEdit = typeof CAN_EDIT_ERP !== 'undefined' && CAN_EDIT_ERP;
               const drawingStatus = sd.drawing_status || 'PENDING'; // PENDING, TRANSFERRED, CONFIRMED
               const assignees = Array.isArray(sd.drawing_assignees) ? sd.drawing_assignees : [];
               const assignments = sd.assignments || {};

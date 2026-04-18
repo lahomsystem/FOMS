@@ -29,7 +29,7 @@ def _create_order(**overrides):
                 "construction": {"date": "2026-04-01"},
             },
         },
-        is_erp_beta=True,
+        is_erp_order=True,
     )
     for key, value in overrides.items():
         setattr(order, key, value)

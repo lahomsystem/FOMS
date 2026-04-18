@@ -6,15 +6,15 @@
         window.measurementManualRowsPersist = window.measurementManualRowsPersist || function () {};
         window.measurementManualRowsRecomputeAnchors = window.measurementManualRowsRecomputeAnchors || function () {};
 
-        const erpActiveRaw = container.dataset.erpBetaActive || container.dataset.erpActive;
+        const erpActiveRaw = container.dataset.erpOrderActive || container.dataset.erpActive;
         const config = {
-            erpBetaActive: erpActiveRaw === 'true',
+            erpOrderActive: erpActiveRaw === 'true',
             todayDate: container.dataset.todayDate,
             selectedDate: container.dataset.selectedDate,
             managerFilter: container.dataset.managerFilter || ''
         };
 
-        if (!config.erpBetaActive) return;
+        if (!config.erpOrderActive) return;
 
         const tbody = document.querySelector('.measurement-table tbody');
         if (!tbody) return;

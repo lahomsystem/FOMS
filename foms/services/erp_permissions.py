@@ -1,4 +1,4 @@
-"""ERP Beta edit-permission helpers and decorators."""
+"""ERP Order edit-permission helpers and decorators."""
 
 from __future__ import annotations
 
@@ -114,7 +114,7 @@ def can_edit_erp_construction(user: Any) -> bool:
 
 
 def erp_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:
-    """ERP Beta write-permission decorator."""
+    """ERP Order write-permission decorator."""
 
     @wraps(f)
     def wrapped(*args: Any, **kwargs: Any) -> Any:
@@ -126,7 +126,7 @@ def erp_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:
                 jsonify(
                     {
                         "success": False,
-                        "message": "ERP Beta 수정 권한이 없습니다. (관리자, 라홈팀, 하우드팀, 영업팀만 수정 가능)",
+                        "message": "ERP Order 수정 권한이 없습니다. (관리자, 라홈팀, 하우드팀, 영업팀만 수정 가능)",
                     }
                 ),
                 403,

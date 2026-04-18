@@ -75,7 +75,9 @@ def inject_status_list() -> dict[str, Any]:
             .all()
         )
 
-    erp_beta_enabled = str(os.getenv("ERP_BETA_ENABLED", "true")).lower() in [
+    erp_order_enabled = str(
+        os.getenv("ERP_ORDER_ENABLED", os.getenv("ERP_BETA_ENABLED", "true"))
+    ).lower() in [
         "1",
         "true",
         "yes",
@@ -111,7 +113,7 @@ def inject_status_list() -> dict[str, Any]:
         "current_user": current_user,
         "admin_switch_users": admin_switch_users,
         "impersonating_from_id": impersonating_from_id,
-        "erp_beta_enabled": erp_beta_enabled,
+        "erp_order_enabled": erp_order_enabled,
         "erp_mobile_v2_enabled": erp_mobile_v2_enabled,
         "use_direct_upload": use_direct_upload,
     }

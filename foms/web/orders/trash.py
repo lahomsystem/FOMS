@@ -9,6 +9,7 @@ from sqlalchemy import String, text
 from foms.web.auth import get_user_by_id, log_access, login_required, role_required
 from db import get_db
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields
+from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.order_display_utils import format_options_for_display
 from foms.services.order_storage_cleanup import delete_storage_files_for_order
 from foms.services.request_utils import get_preserved_filter_args
@@ -18,8 +19,8 @@ from models import Order
 order_trash_bp = Blueprint("order_trash", __name__, url_prefix="")
 
 
-def _build_erp_beta_options_summary(structured_data):
-    """ERP Beta item 옵션을 read-only 표시용 요약 문자열로 변환."""
+def _build_erp_order_options_summary(structured_data):
+    """ERP Order item 옵션을 read-only 표시용 요약 문자열로 변환."""
     sd = _ensure_dict(structured_data)
     raw_items = sd.get("items") or []
     if isinstance(raw_items, dict):
@@ -50,21 +51,21 @@ def _build_erp_beta_options_summary(structured_data):
 
 
 def _build_trash_display_orders(orders):
-    """휴지통 목록 표시용 copy에 ERP Beta display 정보를 덧입힌다."""
+    """휴지통 목록 표시용 copy에 ERP Order display 정보를 덧입힌다."""
     display_orders = []
     for order in orders:
         order_display = copy.deepcopy(order)
         order_display.display_options = format_options_for_display(order.options)
 
-        if getattr(order, "is_erp_beta", False) and getattr(order, "structured_data", None):
+        if is_erp_order_record(order) and getattr(order, "structured_data", None):
             order_display.structured_data = _ensure_dict(order.structured_data)
             apply_erp_display_fields(order_display)
 
-            options_summary = _build_erp_beta_options_summary(order_display.structured_data)
+            options_summary = _build_erp_order_options_summary(order_display.structured_data)
             if options_summary:
                 order_display.display_options = options_summary
                 order_display.options = options_summary
-            elif str(getattr(order_display, "options", "") or "").strip() in {"''", '""', "-", "ERP Beta"}:
+            elif str(getattr(order_display, "options", "") or "").strip() in {"''", '""', "-", "ERP Order", "ERP Beta"}:
                 order_display.options = ""
         elif getattr(order_display, "display_options", None):
             order_display.options = order_display.display_options

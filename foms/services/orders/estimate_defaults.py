@@ -1,9 +1,9 @@
 """Estimate document defaults, ERP draft placeholders, and related literals."""
 
 # ERP draft/placeholder (실제 운영 로직에서 사용)
-ERP_DRAFT_PLACEHOLDER_CUSTOMER = "ERP Beta"
+ERP_DRAFT_PLACEHOLDER_CUSTOMER = "ERP Order"
 ERP_DRAFT_PLACEHOLDER_PHONE = "000-0000-0000"
-ERP_DRAFT_PLACEHOLDER_PRODUCT = "ERP Beta"
+ERP_DRAFT_PLACEHOLDER_PRODUCT = "ERP Order"
 
 # ============================================
 # 견적서/계약서 상수 (하우드시스템)

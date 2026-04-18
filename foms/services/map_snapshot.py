@@ -53,7 +53,7 @@ def _measurement_search_filter(query, q):
             Order.manager_name.ilike(term),
             Order.address.ilike(term),
             and_(
-                Order.is_erp_beta == True,
+                Order.is_erp_order == True,
                 cast(Order.structured_data, String).ilike(term)
             )
         )
@@ -129,7 +129,7 @@ def build_measurement_map_query(db, date, q, manager, dashboard, limit=500):
             or_(
                 Order.manager_name.ilike(manager_term),
                 and_(
-                    Order.is_erp_beta == True,
+                    Order.is_erp_order == True,
                     cast(Order.structured_data, String).ilike(manager_term)
                 )
             )
@@ -170,7 +170,7 @@ def _extract_order_display_fields(order):
     scheduled_date = order.scheduled_date
     manager_name = order.manager_name or '-'
 
-    if order.is_erp_beta and order.structured_data:
+    if order.is_erp_order and order.structured_data:
         sd = order.structured_data
         erp_customer = ((sd.get('parties') or {}).get('customer') or {}).get('name')
         if erp_customer:

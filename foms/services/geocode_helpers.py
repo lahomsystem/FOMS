@@ -6,6 +6,8 @@ import hashlib
 import re
 from typing import Any
 
+from foms.services.erp_order_flags import is_erp_order_record
+
 __all__ = [
     "compute_address_hash",
     "extract_address_from_structured_data",
@@ -48,10 +50,10 @@ def extract_address_from_structured_data(sd: dict[str, Any]) -> str:
 def extract_address_from_order(order: Any) -> str:
     """
     Order에서 사용할 주소 문자열 추출.
-    ERP Beta: site.address_full or (address_main + address_detail) 우선.
+    ERP Order: site.address_full or (address_main + address_detail) 우선.
     일반 주문: order.address.
     """
-    if order.is_erp_beta and order.structured_data:
+    if is_erp_order_record(order) and order.structured_data:
         sd = order.structured_data
         site = sd.get('site') or {}
         erp_full = site.get('address_full')

@@ -794,7 +794,7 @@
                             </td>
                             <td class="th-actions" data-label="작업">
                                 <div class="btn-group">
-                                    <a href="{{ url_for('order_edit.edit_order', order_id=order.id, **request.args) }}"
+                                    <a href="{{ url_for('order_edit.edit_order', order_id=order.id) }}"
                                         class="btn btn-sm btn-outline-primary" title="수정" aria-label="주문 {{ order.id }} 수정">
                                         <i class="fas fa-edit"></i>
                                     </a>

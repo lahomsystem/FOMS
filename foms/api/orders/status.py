@@ -10,6 +10,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import log_access
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
+from foms.services.erp_order_flags import is_erp_order_record
 from db import get_db
 from foms.services.erp_display import get_today_kst
 from foms.services.erp_sync_columns import sync_erp_flat_columns
@@ -118,7 +119,7 @@ def bulk_update_order_status_response(
                 setattr(order, "as_received_date", get_today_kst_func().strftime("%Y-%m-%d"))
 
             structured_data = getattr(order, "structured_data", None)
-            if getattr(order, "is_erp_beta", False) and structured_data:
+            if is_erp_order_record(order) and structured_data:
                 if not isinstance(structured_data, dict):
                     continue
                 workflow = structured_data.get("workflow") or {}

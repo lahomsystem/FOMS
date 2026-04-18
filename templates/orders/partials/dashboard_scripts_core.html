@@ -6,7 +6,7 @@
           return div.innerHTML;
         }
 
-        /** ERP Beta 일정 카드: 날짜 + 선택 시간 (structured_data.schedule.*) */
+        /** ERP Order 일정 카드: 날짜 + 선택 시간 (structured_data.schedule.*) */
         function formatScheduleDateTimeDisplay(dateStr, timeStr) {
           const d = dateStr != null ? String(dateStr).trim() : '';
           const t = timeStr != null ? String(timeStr).trim() : '';
@@ -40,7 +40,7 @@
         var _cfg = document.getElementById('erp-dashboard-config');
         const TEAM_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-team-labels'), {}) : {};
         const STAGE_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-stage-labels'), {}) : {};
-        const CAN_EDIT_ERP_BETA = (document.querySelector('.erp-dashboard')?.dataset?.canEditErpBeta || 'false') === 'true';
+        const CAN_EDIT_ERP = (document.querySelector('.erp-dashboard')?.dataset?.canEditErp || 'false') === 'true';
 
         function label(map, code, fallback = '-') {
           if (!code) return fallback;

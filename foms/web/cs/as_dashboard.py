@@ -239,7 +239,7 @@ def _erp_as_incomplete_condition():
 @erp_as_page_bp.route('/as')
 @login_required
 def erp_as_dashboard():
-    """ERP Beta - AS 대시보드 (MVP: AS 상태 주문 리스트)"""
+    """ERP Order - AS 대시보드 (MVP: AS 상태 주문 리스트)"""
     db = get_db()
     status_filter = (request.args.get('status') or '').strip()
     search_q = (request.args.get('q') or request.args.get('manager') or '').strip()
@@ -282,10 +282,10 @@ def erp_as_dashboard():
         conds = []
         if u_name:
             conds.append(Order.manager_name.ilike(f"%{u_name}%"))
-            conds.append(and_(Order.is_erp_beta == True, manager_name_expr.ilike(f"%{u_name}%")))
+            conds.append(and_(Order.is_erp_order == True, manager_name_expr.ilike(f"%{u_name}%")))
         if u_username:
             conds.append(Order.manager_name.ilike(f"%{u_username}%"))
-            conds.append(and_(Order.is_erp_beta == True, manager_name_expr.ilike(f"%{u_username}%")))
+            conds.append(and_(Order.is_erp_order == True, manager_name_expr.ilike(f"%{u_username}%")))
         if conds:
             base_query = base_query.filter(or_(*conds))
 

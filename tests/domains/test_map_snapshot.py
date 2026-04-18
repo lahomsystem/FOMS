@@ -8,10 +8,10 @@ from foms.services.map_snapshot import build_measurement_snapshot
 def _make_order(order_id, lat, lng, address, customer_name, manager_name="이시영"):
     return SimpleNamespace(
         id=order_id,
-        customer_name="ERP Beta",
+        customer_name="ERP Order",
         phone="000-0000-0000",
         address="-",
-        product="ERP Beta",
+        product="ERP Order",
         notes="",
         status="MEASURE",
         received_date="2026-03-31",
@@ -23,7 +23,7 @@ def _make_order(order_id, lat, lng, address, customer_name, manager_name="이시
         lat=lat,
         lng=lng,
         geocode_status=None,
-        is_erp_beta=True,
+        is_erp_order=True,
         is_regional=False,
         is_self_measurement=False,
         structured_data={
@@ -135,7 +135,7 @@ def test_build_measurement_map_query_supports_sqlite_normalized_schedule_dates(a
         status="MEASURE",
         manager_name="이시영",
         measurement_date="2026-03-31",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "parties": {
                 "customer": {"name": "SQLite 지도 QA", "phone": "010-0000-0000"},
@@ -182,7 +182,7 @@ def test_measurement_map_api_supports_sqlite_normalized_schedule_dates(client, l
         lat=37.501,
         lng=127.039,
         geocode_status="success",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={
             "parties": {
                 "customer": {"name": "SQLite 지도 API", "phone": "010-9999-0000"},

@@ -5,14 +5,14 @@
   <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
       <h4 class="mb-0"><i class="fas fa-cube"></i> ERP 주문 상세</h4>
-      <div class="small text-muted">Object Page (ERP Beta)</div>
+      <div class="small text-muted">Object Page (ERP Order)</div>
     </div>
     <div class="d-flex gap-2">
       <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('erp_dashboard.erp_dashboard') }}">
         <i class="fas fa-arrow-left"></i> 대시보드
       </a>
-      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('order_edit.edit_order', order_id=order_id) }}?open=erp-beta">
-        <i class="fas fa-edit"></i> 편집(ERP Beta)
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('order_edit.edit_order', order_id=order_id) }}?open=erp-order">
+        <i class="fas fa-edit"></i> 편집(ERP Order)
       </a>
     </div>
   </div>

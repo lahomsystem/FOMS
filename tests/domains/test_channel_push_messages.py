@@ -172,7 +172,7 @@ def test_legacy_erp_order_route_redirects_to_edit(client):
     response = client.get(f"/erp/orders/{order.id}", follow_redirects=False)
 
     assert response.status_code == 302
-    assert response.headers["Location"].endswith(f"/edit/{order.id}?open=erp-beta")
+    assert response.headers["Location"].endswith(f"/edit/{order.id}?open=erp-order")
 
 
 def test_measurement_manager_update_records_change_payload(client, monkeypatch):
@@ -192,7 +192,7 @@ def test_measurement_manager_update_records_change_payload(client, monkeypatch):
         phone="010-0000-0000",
         address="서울",
         product="붙박이장",
-        is_erp_beta=True,
+        is_erp_order=True,
         structured_data={"parties": {"manager": {"name": "이시영"}}},
         manager_name="이시영",
     )

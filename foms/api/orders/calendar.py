@@ -6,6 +6,7 @@ from flask import jsonify, request
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import defer
 
+from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.orders.status_constants import STATUS
 from db import get_db
 from models import Order, OrderScheduleDate
@@ -33,9 +34,9 @@ def _apply_erp_beta_display_overrides(
     measurement_time,
     scheduled_date,
 ):
-    """Overlay ERP Beta structured-data fields on top of the flat legacy columns."""
+    """Overlay ERP Order structured-data fields on top of the flat legacy columns."""
     structured_data = getattr(order, "structured_data", None)
-    if not (getattr(order, "is_erp_beta", False) and isinstance(structured_data, dict)):
+    if not (is_erp_order_record(order) and isinstance(structured_data, dict)):
         return customer_name, phone, address, product, measurement_date, measurement_time, scheduled_date
 
     erp_customer_name = ((structured_data.get("parties") or {}).get("customer") or {}).get("name")
@@ -78,8 +79,7 @@ def _apply_erp_beta_display_overrides(
 
 def _build_start_date_value(order, measurement_date, scheduled_date):
     """Choose the date field that backs the calendar event start date."""
-    is_beta = getattr(order, "is_erp_beta", False)
-    if is_beta and measurement_date:
+    if is_erp_order_record(order) and measurement_date:
         return measurement_date
 
     status = getattr(order, "status", None) or ""

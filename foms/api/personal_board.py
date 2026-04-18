@@ -68,7 +68,7 @@ def _order_card(order_id, customer_name, status, structured_data):
 
     sd = structured_data or {}
     stage = status or ""
-    if str(stage).lower() == "erpbeta":
+    if str(stage).lower() in {"erpbeta", "erporder"}:
         stage = _erp_get_stage(None, sd) or "주문접수"
 
     stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
@@ -347,7 +347,7 @@ def _schedule_today_tomorrow(db, user_id, user_team):
                 continue
 
             stage = status or ""
-            if str(stage).lower() == "erpbeta":
+            if str(stage).lower() in {"erpbeta", "erporder"}:
                 from foms.services.erp_display import _erp_get_stage
 
                 stage = _erp_get_stage(None, sd) or "주문접수"
