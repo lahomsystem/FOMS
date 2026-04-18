@@ -179,15 +179,17 @@ def test_edit_order_initial_mount_releases_surface_before_deferred_panels() -> N
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
     mount_start = text.index("function fomsMountErpOrderSurface()")
+    ready_idx = text.index("_erpMarkSurfaceReady();", mount_start)
+    yield_idx = text.index("await _erpYieldForFirstPaint();", ready_idx)
     structured_idx = text.index(
         "await erpLoadStructured(erpBootstrap || undefined, { deferAttachments: true });",
-        mount_start,
+        yield_idx,
     )
-    ready_idx = text.index("_erpMarkSurfaceReady();", structured_idx)
     deferred_idx = text.index("_erpLoadDeferredSurfaceDecorations();", structured_idx)
 
+    assert "function _erpYieldForFirstPaint()" in text
     assert "function _erpLoadDeferredSurfaceDecorations()" in text
-    assert structured_idx < ready_idx < deferred_idx
+    assert ready_idx < yield_idx < structured_idx < deferred_idx
 
 
 def test_add_order_handler_accepts_only_canonical_erp_order_create_mode_contract() -> None:
