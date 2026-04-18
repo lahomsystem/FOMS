@@ -11,6 +11,7 @@
               const data = await res.json();
               aList = (data && data.attachments) || [];
               __attachmentsCache[orderId] = aList;
+              __attachmentsCacheAt[orderId] = Date.now();
             }
 
             if (aList.length > 0) {

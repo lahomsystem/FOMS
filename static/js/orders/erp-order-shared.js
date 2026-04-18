@@ -645,9 +645,11 @@ function _erpConsumeBootstrap() {
     }
 }
 
-async function erpLoadStructured(bootstrapData) {
+async function erpLoadStructured(bootstrapData, options) {
     if (!ERP_ORDER_ENABLED) return;
     if (!ORDER_ID) return;
+    const opts = options && typeof options === 'object' ? options : {};
+    const deferAttachments = opts.deferAttachments === true;
 
     // 주문이 변경될 때 파일 input 초기화 (이전 주문의 파일이 남아있지 않도록)
     const fileInput = document.getElementById('erp-attachments-input');
@@ -785,8 +787,10 @@ async function erpLoadStructured(bootstrapData) {
     _erpUpdatePaymentConfirmUI('deposit', paymentData);
     _erpUpdatePaymentConfirmUI('balance', paymentData);
 
-    // 첨부파일도 함께 로드
-    if (typeof erpLoadAttachments === 'function') {
+    // 첨부는 편집 본문(first paint)과 별개의 부가 패널이다.
+    // 초기 active ERP 탭에서는 구조화 필드만 먼저 채운 뒤 surface를 공개하고,
+    // 첨부/Quest는 후속 비동기로 붙여 흰 화면 체류 시간을 줄인다.
+    if (!deferAttachments && typeof erpLoadAttachments === 'function') {
         await erpLoadAttachments();
     }
     if (typeof erpRenderItemAttachmentPanels === 'function') {
@@ -2536,6 +2540,23 @@ function _erpMarkSurfaceReady() {
 }
 window._fomsMarkErpSurfaceReady = _erpMarkSurfaceReady;
 
+function _erpLoadDeferredSurfaceDecorations() {
+    if (!ERP_ORDER_ENABLED || !ORDER_ID) {
+        return;
+    }
+    if (typeof erpLoadQuest === 'function') {
+        void erpLoadQuest();
+    }
+    if (typeof erpLoadAttachments === 'function') {
+        void (async () => {
+            await erpLoadAttachments();
+            if (typeof erpRenderItemAttachmentPanels === 'function') {
+                erpRenderItemAttachmentPanels();
+            }
+        })();
+    }
+}
+
 function fomsMountErpOrderSurface() {
     var config = getErpOrderConfigElement();
     if (!config) {
@@ -2674,8 +2695,10 @@ function fomsMountErpOrderSurface() {
             _erpWillRunInitialLoad = true;
             void (async () => {
                 try {
-                    await erpLoadStructured(erpBootstrap || undefined);
-                    await erpLoadQuest();
+                    await erpLoadStructured(erpBootstrap || undefined, { deferAttachments: true });
+                    window.clearTimeout(_erpReadyFailsafeId);
+                    _erpMarkSurfaceReady();
+                    _erpLoadDeferredSurfaceDecorations();
                 } finally {
                     window.clearTimeout(_erpReadyFailsafeId);
                     _erpMarkSurfaceReady();

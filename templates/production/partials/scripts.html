@@ -37,6 +37,17 @@
       construction: []
     };
 
+    function invalidateProductionOrderDetailAttachments(orderId) {
+      if (!orderId || typeof window.invalidateOrderDetailRuntimeState !== 'function') return;
+      window.invalidateOrderDetailRuntimeState(orderId, {
+        cache: __attachmentsCache,
+        cacheAt: __attachmentsCacheAt,
+        loadGen: __productionDetailLoadGen,
+        containerPrefix: 'order-detail-content-'
+      });
+    }
+    window.invalidateProductionOrderDetailAttachments = invalidateProductionOrderDetailAttachments;
+
     const ATTACHMENT_CATEGORY_META = {
       measurement: { label: '실측', icon: 'fa-ruler-combined' },
       drawing: { label: '도면', icon: 'fa-drafting-compass' },
@@ -403,6 +414,7 @@
           const data = await res.json();
           aList = (data && data.attachments) || [];
           __attachmentsCache[orderId] = aList;
+          __attachmentsCacheAt[orderId] = Date.now();
         }
 
         if (aList.length > 0) {

@@ -134,6 +134,17 @@
     as: []
   };
 
+  function invalidateConstructionOrderDetailAttachments(orderId) {
+    if (!orderId || typeof window.invalidateOrderDetailRuntimeState !== 'function') return;
+    window.invalidateOrderDetailRuntimeState(orderId, {
+      cache: __attachmentsCache,
+      cacheAt: __attachmentsCacheAt,
+      loadGen: __constructionDetailLoadGen,
+      containerPrefix: 'order-detail-content-'
+    });
+  }
+  window.invalidateConstructionOrderDetailAttachments = invalidateConstructionOrderDetailAttachments;
+
   // ═══════════════════════════════════════════════════════════════
   // Zone 2: 첨부파일 뷰어 및 줌
   // ═══════════════════════════════════════════════════════════════
@@ -476,12 +487,13 @@
       let aList = null;
       if (__attachmentsCache[orderId]) {
         aList = __attachmentsCache[orderId];
-      } else {
-        const res = await fetch(`/api/orders/${orderId}/attachments`);
-        const data = await res.json();
-        aList = (data && data.attachments) || [];
-        __attachmentsCache[orderId] = aList;
-      }
+        } else {
+          const res = await fetch(`/api/orders/${orderId}/attachments`);
+          const data = await res.json();
+          aList = (data && data.attachments) || [];
+          __attachmentsCache[orderId] = aList;
+          __attachmentsCacheAt[orderId] = Date.now();
+        }
 
       if (aList.length > 0) {
         __attachmentsByCategory = { measurement: [], drawing: [], construction: [], as: [] };
