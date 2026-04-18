@@ -2557,6 +2557,18 @@ function _erpLoadDeferredSurfaceDecorations() {
     }
 }
 
+function _erpYieldForFirstPaint() {
+    return new Promise(function (resolve) {
+        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(function () {
+                window.requestAnimationFrame(resolve);
+            });
+            return;
+        }
+        window.setTimeout(resolve, 0);
+    });
+}
+
 function fomsMountErpOrderSurface() {
     var config = getErpOrderConfigElement();
     if (!config) {
@@ -2695,9 +2707,10 @@ function fomsMountErpOrderSurface() {
             _erpWillRunInitialLoad = true;
             void (async () => {
                 try {
-                    await erpLoadStructured(erpBootstrap || undefined, { deferAttachments: true });
                     window.clearTimeout(_erpReadyFailsafeId);
                     _erpMarkSurfaceReady();
+                    await _erpYieldForFirstPaint();
+                    await erpLoadStructured(erpBootstrap || undefined, { deferAttachments: true });
                     _erpLoadDeferredSurfaceDecorations();
                 } finally {
                     window.clearTimeout(_erpReadyFailsafeId);
