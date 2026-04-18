@@ -38,160 +38,6 @@
           }
         }
 
-        /** 첨부 API 응답을 목록 배열로 정규화 */
-        function parseAttachmentsPayload(attachments) {
-          if (!attachments) return [];
-          if (Array.isArray(attachments)) return attachments;
-          if (attachments.attachments && Array.isArray(attachments.attachments)) return attachments.attachments;
-          if (attachments.success !== false && attachments.attachments) return attachments.attachments;
-          if (attachments.success === false) {
-            console.warn('Attachments API returned error:', attachments.message || 'Unknown error');
-            return [];
-          }
-          return [];
-        }
-
-        function orderDetailIsImageFile(a) {
-          const ft = (a.file_type || '').toLowerCase();
-          if (ft === 'image') return true;
-          const fn = String(a.filename || '').toLowerCase();
-          return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/.test(fn);
-        }
-
-        /**
-         * 제품 행 실측 첨부 패널 HTML (id 포함). 2단 렌더에서 패치 시 재사용.
-         */
-        function buildDwAttachPanelHtml(orderId, idx, itemAtts) {
-          const groupKey = `order_${orderId}_item_${idx}`;
-          let attachPanelHtml = '<div class="dw-attach-panel" id="order-detail-item-attach-' + orderId + '-' + idx + '"><div class="small fw-semibold text-muted mb-2"><i class="fas fa-image"></i> 실측 첨부 파일</div>';
-          if (itemAtts.length > 0) {
-            const singleClass = itemAtts.length === 1 ? ' dw-attach-grid--single' : '';
-            attachPanelHtml += '<div class="dw-attach-grid' + singleClass + '">';
-            let imageIndex = 0;
-            itemAtts.forEach((a) => {
-              const name = escapeHtml(a.filename || '');
-              const viewUrl = (a.view_url || a.thumbnail_view_url || '#').replace(/'/g, "\\'");
-              const downloadUrl = (a.download_url || viewUrl).replace(/'/g, "\\'");
-              const fileKey = (a.key || a.storage_key || '').replace(/'/g, "\\'");
-              const imgSrc = a.thumbnail_view_url || a.view_url || '#';
-              const isImg = orderDetailIsImageFile(a);
-              const idxAttr = isImg ? (imageIndex++, imageIndex - 1) : 0;
-              const dataAttrs = 'data-group-key="' + groupKey + '" data-index="' + idxAttr + '" data-view-url="' + escapeHtml(a.view_url || '') + '" data-download-url="' + escapeHtml(a.download_url || '') + '" data-filename="' + name + '" data-key="' + escapeHtml(fileKey) + '"';
-              if (isImg) {
-                attachPanelHtml += '<div><div class="dw-attach-thumb" ' + dataAttrs + ' onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))"><img src="' + escapeHtml(imgSrc) + '" alt="' + name + '"></div><div class="dw-attach-name">' + name + '</div></div>';
-              } else {
-                const safeNameForModal = String(a.filename || '').split("'").join("\\'");
-                const fileTypeForPreview = (a.file_type && String(a.file_type)) ? String(a.file_type) : 'file';
-                const q = String.fromCharCode(39);
-                const onclickModal = 'openAttachmentPreviewModal(' + (a.id || 0) + ', ' + q + viewUrl + q + ', ' + q + downloadUrl + q + ', ' + q + safeNameForModal + q + ', ' + q + fileTypeForPreview + q + ')';
-                attachPanelHtml += '<div><div class="dw-attach-thumb d-flex align-items-center justify-content-center bg-light text-secondary" ' + dataAttrs + ' onclick="' + onclickModal + '"><i class="fas fa-file-alt"></' + 'i></div><div class="dw-attach-name">' + name + '</div></div>';
-              }
-            });
-            attachPanelHtml += '</div>';
-          } else {
-            attachPanelHtml += '<div class="small text-muted">연결된 실측 첨부 파일이 없습니다.</div>';
-          }
-          attachPanelHtml += '</div>';
-          return attachPanelHtml;
-        }
-
-        /** 첨부 파일 카드 본문(썸네일 행) HTML */
-        function buildMainAttachThumbsHtml(orderId, aList) {
-          if (aList.length > 0) {
-            let attachmentsHtml = '<div class="d-flex flex-wrap gap-1 mt-2">';
-            aList.forEach(a => {
-              const name = escapeHtml(a.filename || '');
-              const viewUrl = a.view_url || '#';
-              const thumb = a.thumbnail_view_url || viewUrl;
-              const downloadUrl = a.download_url || viewUrl;
-              const fileType = a.file_type || 'image';
-              const safeViewUrl = String(viewUrl).split("'").join("\\'");
-              const safeDownloadUrl = String(downloadUrl).split("'").join("\\'");
-              const safeName = String(a.filename || '').split("'").join("\\'");
-              const q = String.fromCharCode(39);
-              const onclickAttach = 'openAttachmentPreviewModal(' + a.id + ', ' + q + safeViewUrl + q + ', ' + q + safeDownloadUrl + q + ', ' + q + safeName + q + ', ' + q + fileType + q + ')';
-              if (fileType === 'video') {
-                attachmentsHtml += '<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="' + onclickAttach + '">' +
-                  '<div style="width: 80px; height: 60px; background: #000; display: flex; align-items: center; justify-content: center;">' +
-                  '<video src=\'' + viewUrl + '\' preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>' +
-                  '</div>' +
-                  '<div class="position-absolute top-0 start-0 bg-dark bg-opacity-75 text-white p-1" style="font-size: 10px;"><i class="fas fa-play"></' + 'i></div>' +
-                  '</div>';
-              } else if (fileType === 'file') {
-                attachmentsHtml += '<div class="position-relative d-flex align-items-center justify-content-center" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden; background:#f8f9fa;" onclick="' + onclickAttach + '">' +
-                  '<i class="fas fa-file-alt text-secondary"></' + 'i>' +
-                  '</div>';
-              } else {
-                attachmentsHtml += '<div class="position-relative" style="width: 80px; height: 60px; cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; overflow: hidden;" onclick="' + onclickAttach + '">' +
-                  '<img src=\'' + thumb + '\' style="width: 80px; height: 60px; object-fit: cover; background:#fff; display: block;" alt=\'' + name + '\'>' +
-                  '</div>';
-              }
-            });
-            attachmentsHtml += '</div>';
-            return attachmentsHtml;
-          }
-          return '<div class="text-muted small mt-2">첨부 없음</div>';
-        }
-
-        /** 실측 이미지 그룹을 도면 뷰어(__drawingGatewayImageGroups)에 연결 */
-        function registerOrderDetailDrawingViewerGroups(orderId) {
-          if (typeof __drawingGatewayImageGroups !== 'undefined' && window.__orderDetailImageGroups && window.__orderDetailImageGroups[orderId]) {
-            (window.__orderDetailImageGroups[orderId] || []).forEach((imageFiles, idx) => {
-              __drawingGatewayImageGroups['order_' + orderId + '_item_' + idx] = imageFiles || [];
-            });
-          }
-        }
-
-        /**
-         * 2단: 첨부 API를 호출하고 셸 안의 첨부 슬롯·제품 행 패널만 패치한다.
-         * 세대(gen) 비교로 stale 응답을 버리고, isConnected 로 detached DOM 덮어쓰기를 막는다.
-         * 초기 로드와 첨부 에러 재시도 경로 모두 이 함수 하나를 사용한다.
-         */
-        async function patchOrderDetailAttachments(orderId, itemCount, gen) {
-          const container = document.getElementById('order-detail-content-' + orderId);
-          if (!container || !container.isConnected) return;
-          try {
-            const att = await safeJsonFetch('/api/orders/' + orderId + '/attachments', { success: false, attachments: [] });
-            if (__orderDetailLoadGen[orderId] !== gen) return;
-            if (!container.isConnected) return;
-            const aList2 = parseAttachmentsPayload(att);
-            __attachmentsCache[orderId] = aList2;
-            __attachmentsCacheAt[orderId] = Date.now();
-            const countEl = document.getElementById('order-detail-attachments-count-' + orderId);
-            const slotEl = document.getElementById('order-detail-attachments-slot-' + orderId);
-            if (countEl && countEl.isConnected) countEl.textContent = aList2.length + '개';
-            if (slotEl && slotEl.isConnected) {
-              slotEl.innerHTML = aList2.length > 0 ? buildMainAttachThumbsHtml(orderId, aList2) : '<div class="text-muted small mt-2">첨부 없음</div>';
-            }
-            if (typeof __orderDetailImageGroups === 'undefined') window.__orderDetailImageGroups = {};
-            if (!window.__orderDetailImageGroups[orderId]) window.__orderDetailImageGroups[orderId] = [];
-            for (let idx = 0; idx < itemCount; idx += 1) {
-              const itemAtts = aList2.filter(function(a) { return Number(a.item_index) === idx; });
-              const imageAtts = itemAtts.filter(orderDetailIsImageFile);
-              __orderDetailImageGroups[orderId][idx] = imageAtts;
-              const el = document.getElementById('order-detail-item-attach-' + orderId + '-' + idx);
-              if (el && el.isConnected) {
-                el.outerHTML = buildDwAttachPanelHtml(orderId, idx, itemAtts);
-              }
-            }
-            registerOrderDetailDrawingViewerGroups(orderId);
-            container.dataset.loaded = '1';
-            container.dataset.attachPhase = 'done';
-            delete container.dataset.shellLoaded;
-            delete container.dataset.attachError;
-          } catch (e) {
-            if (__orderDetailLoadGen[orderId] !== gen) return;
-            console.warn('첨부 로드 실패:', orderId, e);
-            const slotErr = document.getElementById('order-detail-attachments-slot-' + orderId);
-            if (slotErr && slotErr.isConnected) {
-              slotErr.innerHTML = '<div class="text-warning small">첨부를 불러오지 못했습니다. 다시 펼쳐 재시도할 수 있습니다.</div>';
-            }
-            /** loaded 는 세팅하지 않음 → 재펼침 시 shellLoaded+error 경로로 재시도 */
-            container.dataset.attachPhase = 'error';
-            container.dataset.attachError = '1';
-          }
-        }
-
         async function loadOrderDetail(orderId) {
           const container = document.getElementById(`order-detail-content-${orderId}`);
           if (!container) return;
@@ -203,6 +49,11 @@
           if (container.dataset.shellLoaded === '1' && container.dataset.attachPhase === 'error') {
             const retryGen = (__orderDetailLoadGen[orderId] || 0) + 1;
             __orderDetailLoadGen[orderId] = retryGen;
+            try {
+              performance.mark('erp-detail-load-start:' + orderId);
+              // 재시도 시 셸은 이미 렌더된 상태이므로 동일 시점 mark 로 shell-time 기준을 맞춘다.
+              performance.mark('erp-detail-shell:' + orderId);
+            } catch (e) {}
             container.dataset.attachPhase = 'loading';
             delete container.dataset.attachError;
             const itemCountStr = container.dataset.itemCount || '0';
@@ -213,6 +64,7 @@
           /** 가드 통과 후에만 세대 번호 증가: early return 경로는 건드리지 않음 */
           const gen = (__orderDetailLoadGen[orderId] || 0) + 1;
           __orderDetailLoadGen[orderId] = gen;
+          try { performance.mark('erp-detail-load-start:' + orderId); } catch (e) {}
 
           try {
             const preloaded = getPreloadedOrderDetailPayload(orderId);
@@ -233,7 +85,7 @@
             }
 
             if (!structured || !structured.success) {
-              container.innerHTML = '<div class="text-warning small">상세 정보를 불러올 수 없습니다. 새로고침 후 다시 시도하세요.</div>';
+              container.innerHTML = '<div class="text-danger small">상세 정보를 불러올 수 없습니다. 새로고침 후 다시 시도하세요.</div>';
               return;
             }
 
@@ -305,12 +157,6 @@
               if (val === null || val === undefined || val === '') return '';
               return String(val).trim();
             };
-            const isImageFile = (a) => {
-              const ft = (a.file_type || '').toLowerCase();
-              if (ft === 'image') return true;
-              const fn = String(a.filename || '').toLowerCase();
-              return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/.test(fn);
-            };
             if (items.length > 0) {
               if (typeof __orderDetailImageGroups === 'undefined') window.__orderDetailImageGroups = {};
               __orderDetailImageGroups[orderId] = [];
@@ -332,9 +178,9 @@
                 let attachPanelHtml;
                 if (attachmentsPending) {
                   __orderDetailImageGroups[orderId][idx] = [];
-                  attachPanelHtml = '<div class="dw-attach-panel" id="order-detail-item-attach-' + orderId + '-' + idx + '"><div class="small fw-semibold text-muted mb-2"><i class="fas fa-image"></i> 실측 첨부 파일</div><div class="text-muted small py-1"><span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>불러오는 중…</div></div>';
+                  attachPanelHtml = '<div class="dw-attach-panel dw-attach-panel--loading" id="order-detail-item-attach-' + orderId + '-' + idx + '"><div class="small fw-semibold text-muted mb-2"><i class="fas fa-image"></i> 실측 첨부 파일</div><div class="text-muted small py-1"><span class="spinner-border spinner-border-sm me-1" role="status"></span><span class="visually-hidden">불러오는 중</span>불러오는 중…</div></div>';
                 } else {
-                  const imageAtts = itemAtts.filter(isImageFile);
+                  const imageAtts = itemAtts.filter(orderDetailIsImageFile);
                   __orderDetailImageGroups[orderId][idx] = imageAtts;
                   attachPanelHtml = buildDwAttachPanelHtml(orderId, idx, itemAtts);
                 }
@@ -422,7 +268,7 @@
 
             let attachmentsHtml = '';
             if (attachmentsPending) {
-              attachmentsHtml = '<div class="d-flex align-items-center gap-2 text-muted small py-2"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>불러오는 중…</div>';
+              attachmentsHtml = '<div class="order-detail-attach-loading gap-2 text-muted small py-2"><span class="spinner-border spinner-border-sm" role="status"></span><span class="visually-hidden">불러오는 중</span>불러오는 중…</div>';
             } else if (aList.length > 0) {
               attachmentsHtml = buildMainAttachThumbsHtml(orderId, aList);
             } else {
@@ -697,6 +543,7 @@
             </div>
           </div>
         `;
+            try { performance.mark('erp-detail-shell:' + orderId); } catch (e) {}
             /** 재시도 경로에서 items를 다시 알기 위해 행 개수를 컨테이너에 기록 */
             container.dataset.itemCount = String(items.length);
 
@@ -746,7 +593,7 @@
                   });
                   mentionSelect.dataset.loaded = '1';
                 })
-                .catch(function() {});
+                .catch(function(e) { console.warn('mention users/list fetch 실패:', e); });
             }
 
             if (attachmentsPending) {
