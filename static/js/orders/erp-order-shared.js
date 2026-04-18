@@ -2534,21 +2534,38 @@ function syncErpOrderGlobalsFromDom() {
 window.syncErpOrderGlobalsFromDom = syncErpOrderGlobalsFromDom;
 window.fomsErpSyncEditGlobalsFromDom = syncErpOrderGlobalsFromDom;
 
+function _erpMarkSurfaceReady() {
+    // 시각 cloak(`[data-erp-surface]:not([data-erp-ready])`) 해제 — 1회성 래치.
+    // `#erp-order` 탭 pane이 정식 cloak 대상이며, 초기 부트스트랩 적용/비적용
+    // 경로 모두에서 반드시 호출돼야 사용자가 빈 화면에 머무르지 않는다.
+    var pane = document.getElementById("erp-order");
+    if (pane && !pane.dataset.erpReady) {
+        pane.dataset.erpReady = "1";
+    }
+}
+window._fomsMarkErpSurfaceReady = _erpMarkSurfaceReady;
+
 function fomsMountErpOrderSurface() {
     var config = getErpOrderConfigElement();
     if (!config) {
+        _erpMarkSurfaceReady();
         return;
     }
     syncErpOrderGlobalsFromDom();
     if (!ERP_ORDER_ENABLED) {
+        _erpMarkSurfaceReady();
         return;
     }
 
     var mountRoot = document.getElementById("erp-order") || config;
     if (mountRoot.dataset.erpOrderMounted === "1") {
+        _erpMarkSurfaceReady();
         return;
     }
     mountRoot.dataset.erpOrderMounted = "1";
+
+    // 실패/예외 경로에서도 surface가 영구 hidden으로 남지 않도록 최후 failsafe.
+    var _erpReadyFailsafeId = window.setTimeout(_erpMarkSurfaceReady, 3000);
 
     function initErpMainDatePickers() {
         const mEl = document.getElementById('erp-measurement-date');
@@ -2655,6 +2672,7 @@ function fomsMountErpOrderSurface() {
     // 서버 렌더에서 주입된 부트스트랩 페이로드를 1회 소비해 초기 페인트의 fetch 왕복을 제거한다.
     const erpBootstrap = _erpConsumeBootstrap();
 
+    var _erpWillRunInitialLoad = false;
     if (ORDER_ID && ORDER_ID > 0) {
         const erpTabBtn = document.getElementById('erp-order-tab');
         const erpPane = document.getElementById('erp-order');
@@ -2662,11 +2680,24 @@ function fomsMountErpOrderSurface() {
             (erpTabBtn && erpTabBtn.classList.contains('active')) ||
             (erpPane && (erpPane.classList.contains('active') || erpPane.classList.contains('show')));
         if (erpTabAlreadyActive) {
+            _erpWillRunInitialLoad = true;
             void (async () => {
-                await erpLoadStructured(erpBootstrap || undefined);
-                await erpLoadQuest();
+                try {
+                    await erpLoadStructured(erpBootstrap || undefined);
+                    await erpLoadQuest();
+                } finally {
+                    window.clearTimeout(_erpReadyFailsafeId);
+                    _erpMarkSurfaceReady();
+                }
             })();
         }
+    }
+    if (!_erpWillRunInitialLoad) {
+        // 초기 비동기 로드가 없는 경로(기능 OFF·미저장 신규·비활성 탭)는
+        // 즉시 cloak을 해제한다. 해당 탭을 나중에 활성화할 때는 shown.bs.tab 핸들러에서
+        // 첫 데이터 로드 완료 후 다시 ready를 설정해 네트워크 지연 동안의 flash를 가린다.
+        window.clearTimeout(_erpReadyFailsafeId);
+        _erpMarkSurfaceReady();
     }
 
     document.getElementById('erp-order-tab')?.addEventListener('shown.bs.tab', async function () {
