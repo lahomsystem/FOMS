@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "spec": "docs/specs/2026-04-18-erp-beta-retirement_SPEC.md §7",
+  "collected_at_utc": "2026-04-18T04:05:00Z",
+  "collector": "Cursor agent + Railway CLI (linked project)",
+  "railway_cli": {
+    "project": "FOMS-DEV",
+    "linked_environment": "production",
+    "linked_service": "FOMS",
+    "deployment_id_sample": "c5e243f0-5766-490e-adf6-07ff2418064f",
+    "deployment_status_sample": "SUCCESS"
+  },
+  "G_ENV": {
+    "source": "railway variables --json (values redacted; only key inventory summarized)",
+    "total_keys": 35,
+    "keys_matching_ERP": ["ERP_MOBILE_V2_ENABLED"],
+    "ERP_ORDER_ENABLED": "UNSET",
+    "ERP_BETA_ENABLED": "UNSET",
+    "ERP_BETA_DEBUG": "UNSET",
+    "ERP_ORDER_DEBUG": "UNSET",
+    "DATABASE_URL": "SET_REDACTED",
+    "interpretation": "Feature flags for ERP Order/BETA are not explicitly set in Railway Variables; runtime uses application defaults unless overridden."
+  },
+  "G_DB": {
+    "status": "pending_private_network",
+    "notes": [
+      "From this Windows host, psycopg cannot resolve/connect to the DATABASE_URL host (Railway private / internal DNS) — expected.",
+      "Unread stdin pipe to railway ssh hung in this environment; one-line ssh -c quoting failed under PowerShell.",
+      "Authoritative schema snapshot: run tools/harness/railway_db_gate_snapshot_ssh.py inside the app container after the file is deployed, OR use Railway Postgres Query / psql with a read-only role."
+    ],
+    "commands_after_next_deploy": [
+      "railway ssh -- bash -lc \"cd /app && python3 tools/harness/railway_db_gate_snapshot_ssh.py\""
+    ]
+  },
+  "G_IN": {
+    "status": "weak_negative_signal_only",
+    "source": "railway logs -n 3000 --filter \"erp-beta\"",
+    "matches": 0,
+    "caveat": "Application logs may not include full request query strings; zero matches is not proof of zero HTTP clients using open=erp-beta or create_mode=ERP_BETA. Prefer edge/WAF/access logs if available."
+  },
+  "G_DATA": {
+    "status": "pending_db_read",
+    "notes": "Requires SQL against live DB (placeholder / structured_data drift). Same blocker as G_DB until read-only SQL is executed in VPC or via dashboard."
+  }
+}

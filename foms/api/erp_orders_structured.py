@@ -157,7 +157,7 @@ def _apply_structured_side_effects(db: Session, order_id: int, structured_data: 
     try:
         apply_auto_tasks(db, order_id, structured_data)
     except Exception as e:
-        logger.warning("[ERP_BETA] auto-task apply: %s", e, exc_info=True)
+        logger.warning("[ERP_ORDER] auto-task apply: %s", e, exc_info=True)
 
 
 def _finalize_draft_state(
@@ -233,7 +233,7 @@ def api_get_order_structured(order_id):
             'is_self_measurement': getattr(order, 'is_self_measurement', False),
         })
     except Exception as e:
-        logger.exception("[ERP_BETA] structured GET 오류: %s", e)
+        logger.exception("[ERP_ORDER] structured GET 오류: %s", e)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -282,7 +282,7 @@ def api_put_order_structured(order_id):
                 if not _cphone or _cphone == '000-0000-0000':
                     _missing.append('전화번호')
                 if _missing:
-                    logger.warning(f"[ERP_BETA] 필수값 누락 저장 차단 order_id={order_id}: {_missing}")
+                    logger.warning(f"[ERP_ORDER] 필수값 누락 저장 차단 order_id={order_id}: {_missing}")
                     return jsonify({
                         'success': False,
                         'message': f"필수 항목을 입력해주세요: {', '.join(_missing)}"
@@ -371,7 +371,7 @@ def api_put_order_structured(order_id):
         return jsonify({'success': True, 'draft_cleared': draft_cleared})
     except Exception as e:
         db.rollback()
-        logger.exception("[ERP_BETA] structured PUT 오류: %s", e)
+        logger.exception("[ERP_ORDER] structured PUT 오류: %s", e)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -393,7 +393,7 @@ def api_parse_order_text():
         logger.info(f"parse-text latency - TOTAL: {total_time:.1f}ms")
         return jsonify({'success': True, 'structured_data': structured})
     except Exception as e:
-        logger.exception("[ERP_BETA] parse-text 오류: %s", e)
+        logger.exception("[ERP_ORDER] parse-text 오류: %s", e)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -476,7 +476,7 @@ def api_payment_confirm(order_id):
         return jsonify({'success': True, 'payment': ret_payment})
     except Exception as e:
         db.rollback()
-        logger.exception("[ERP_BETA] payment-confirm 오류: %s", e)
+        logger.exception("[ERP_ORDER] payment-confirm 오류: %s", e)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -537,5 +537,5 @@ def api_erp_create_draft():
             db.rollback()
         except Exception as rb_err:
             logger.warning("draft create: rollback failed: %s", rb_err, exc_info=True)
-        logger.warning("[ERP_BETA] draft create error: %s", e, exc_info=True)
+        logger.warning("[ERP_ORDER] draft create error: %s", e, exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500

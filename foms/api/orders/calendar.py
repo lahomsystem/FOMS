@@ -23,7 +23,7 @@ _STATUS_COLORS = {
 }
 
 
-def _apply_erp_beta_display_overrides(
+def _apply_erp_order_display_overrides(
     order,
     *,
     customer_name: str,
@@ -180,7 +180,7 @@ def calendar_orders_response():
             measurement_date,
             measurement_time,
             scheduled_date,
-        ) = _apply_erp_beta_display_overrides(
+        ) = _apply_erp_order_display_overrides(
             order,
             customer_name=customer_name,
             phone=phone,
