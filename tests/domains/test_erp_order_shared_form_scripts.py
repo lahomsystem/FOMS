@@ -235,3 +235,4 @@ def test_edit_order_page_renders_thin_erp_order_partial_contract(erp_editor_clie
     _assert_shared_form_script_contract(body)
     assert f'data-order-id="{order.id}"' in body
     assert 'data-erp-order-enabled="true"' in body
+    assert 'data-erp-surface="1" data-erp-ready="1"' in body
