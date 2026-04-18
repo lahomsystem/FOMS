@@ -1,9 +1,9 @@
 # ERP_BETA Retirement Spec
-> 작성일: 2026-04-18 | 상태: 🟡 Phase A Task 1 완료 · §7 게이트 **부분 확보** (G-ENV·G-IN 약한 신호·G-DB/G-DATA는 VPC 내 SQL 대기) — 근거: `docs/harness/evidence/2026-04-18-erp-beta-retirement-gate-evidence.json`
+> 작성일: 2026-04-18 | 상태: 🟡 staging-first rollout 준비 — repo 기준 **C4/P3 canonicalization 구현 완료**, local verify 통과. 다만 staging/prod deploy, environment-specific backfill, manual smoke, G-IN 강화는 아직 남음 — 근거: `docs/harness/evidence/2026-04-18-erp-beta-retirement-gate-evidence.json`
 
 ## 0. 현재 상태 요약
-- `erporder`는 이미 canonical naming이지만, active runtime에는 아직 `ERP_BETA` legacy boundary가 남아 있다.
-- 현재 상태에서 `ERP_BETA`를 전량 삭제하면 운영 DB bootstrap, legacy deep-link, env fallback, old request/data normalization, static asset cache skew 위험이 있다.
+- `erporder`는 이미 canonical naming이며, repo 기준 active runtime/product code의 주요 `ERP_BETA` seam은 제거되었다.
+- 남은 위험은 코드 자체보다도 **환경별 deploy/backfill/manual smoke**와 inbound 사용량 증거(G-IN) 부족에 가깝다.
 - 목표는 historical docs/backups를 보존하면서, **active runtime/product code에서만** `ERP_BETA`를 완전 은퇴하는 것이다.
 - 본 Spec은 FOMS 시스템 운영에 지장 없이 `ERP_BETA`를 retire하기 위한 **게이트 기반 실행 계획**이다.
 
@@ -76,74 +76,74 @@
 ## 3. Steps — 실행 단계
 
 ### Phase A — 게이트 잠금 (승인 후 첫 배치)
-- [ ] Step A1: 운영/스테이징 DB에서 `is_erp_beta`, `ix_orders_is_erp_beta`, dual-column 상태를 확인한다. (VPC/SSH 대기 — `railway_db_gate_snapshot_ssh.py` 배포 후 실행)
-- [x] Step A2: Railway env snapshot을 수집하고 `ERP_ORDER_ENABLED`, `ERP_BETA_ENABLED`, `ERP_BETA_DEBUG` 실사용 상태를 기록한다. (production: 세 변수 **미설정**, `ERP_MOBILE_V2_ENABLED`만 존재 — 증거 JSON)
+- [x] Step A1: 운영/스테이징 DB에서 `is_erp_beta`, `ix_orders_is_erp_beta`, dual-column 상태를 확인한다. (**production FOMS 완료**: `is_erp_beta` **컬럼 없음**, `is_erp_order`만 존재; `ix_orders_is_erp_beta` **없음**; 부분 인덱스 **`idx_order_erp_beta`** 는 이름만 레거시·조건은 `is_erp_order = true` — 증거 JSON)
+- [x] Step A2: Railway env snapshot을 수집하고 `ERP_ORDER_ENABLED`, `ERP_BETA_ENABLED`, `ERP_BETA_DEBUG` 실사용 상태를 기록한다. (production: **`ERP_ORDER_ENABLED=true` 명시 확인**, legacy `ERP_BETA_ENABLED`/`ERP_BETA_DEBUG`는 **미설정**, `ERP_MOBILE_V2_ENABLED=true` 존재 — 증거 JSON)
 - [~] Step A3: access/log/search 기준 `open=erp-beta`, `create_mode=ERP_BETA` inbound 사용량을 확인한다. (Railway 앱 로그 3000줄·`erp-beta` 필터 **0건** — **쿼리스트링 미기록 가능**, 엣지 로그 권장)
-- [ ] Step A4: placeholder/draft/live drift 데이터 점검 기준(SQL 또는 운영 리포트)을 확정한다.
+- [x] Step A4: placeholder/draft/live drift 데이터 점검 기준(SQL 또는 운영 리포트)을 확정한다. (production read-only SQL 실행 완료: **active 1,738건 중 `customer_name='ERP Beta'` 564건, `product='ERP Beta'` 565건**; 반면 JSONB 내 legacy literal/draft marker는 0건 — blocker는 structured_data가 아니라 **flat-column placeholder drift**. 추가 dry-run 기준선: **active ERP 565건 중 auto backfill 564건**(`customer_name` 564 / `phone` 559 / `product` 564 / `address` 558), manual follow-up **1건** `orders.id=1845`; 이후 approved production backfill 실행 결과 `customer_name='ERP Beta'`는 **0건**, `product='ERP Beta'`는 **1건**으로 감소)
 - [x] Step A5: focused tests를 보강해 retire 전/후 회귀를 CI에서 잡을 수 있게 만든다. (`test_erp_order_shared_form_scripts.py`에 env 우선순위·deep-link·estimate-preview 순서 계약 추가)
 
 ### Phase B — P1 stale debt cleanup
-- [ ] Step B1: clearly stale template/css/comment/debug naming을 제거한다.
-- [ ] Step B2: P1 cleanup 후 UI/runtime smoke와 focused tests를 통과시킨다.
+- [x] Step B1: clearly stale template/css/comment/debug naming을 제거한다. (대부분 이전 배치 완료; notifications **dead debug env 블록** 제거; **추가**: `foms/`·`models.OrderAttachment`·`add_order`/`edit_order` **주석·docstring만** `ERP Beta`→`ERP Order` 또는 레거시 명시로 정리 — env/플레이스홀더 문자열 집합·`?open=erp-beta` 분기·JS alias는 **미변경**)
+- [x] Step B2: P1 cleanup 후 focused ERP domain tests 통과 (`test_erp_order_shared_form_scripts` + `test_erp_shell_fragment_contract`). (`test_notification_badge_dedup.py::test_erp_pages_use_single_notification_badge_fetch`는 HTML에 `loadNotificationBadge(true);` 부재로 **기존 실패** — 본 변경과 무관, 별도 템플릿/테스트 정합 과제)
 
 ### Phase C — P2 runtime compatibility retirement
-- [ ] Step C1: Railway에서 `ERP_ORDER_ENABLED` 명시 확인 후 `ERP_BETA_DEBUG`를 먼저 retire한다.
-- [ ] Step C2: `foms/services/context_processors.py`의 `ERP_BETA_ENABLED` fallback 제거 후 add/edit/dashboard smoke를 확인한다.
-- [ ] Step C3: `erp-order-shared.js`와 `estimate-preview.js`의 beta JS alias를 같은 배치에서 제거한다.
-- [ ] Step C4: `open=erp-beta`, `create_mode=ERP_BETA`, placeholder suppressor 등 inbound/runtime alias를 제거한다.
+- [x] Step C1: Railway에서 `ERP_ORDER_ENABLED` 명시 확인 후 `ERP_BETA_DEBUG`를 먼저 retire한다. (production env explicit 확인 + dead beta debug read 제거 완료)
+- [x] Step C2: `foms/services/context_processors.py`의 `ERP_BETA_ENABLED` fallback 제거 후 add/edit/dashboard smoke를 확인한다. (`pytest tests/domains/test_erp_order_shared_form_scripts.py -q` 통과, `verify_result.py --json` app import OK)
+- [x] Step C3: `erp-order-shared.js`와 `estimate-preview.js`의 beta JS alias를 같은 배치에서 제거한다. (`ERP_BETA_ENABLED`, `__ERP_BETA_DRAFT_MODE`, `data-erp-beta-*` 제거 완료)
+- [x] Step C4: `open=erp-beta`, `create_mode=ERP_BETA`, placeholder suppressor 등 inbound/runtime alias를 제거한다. (repo 기준 구현 완료: add/edit deep-link는 `erp-order`만 허용, add POST는 `ERP_ORDER`만 수용, personal_board/trash/structured save의 placeholder 처리는 canonical-only로 정리. 다만 live rollout은 staging/prod deploy + backfill 후 확인 필요)
 
 ### Phase D — P3 DB/bootstrap canonicalization
-- [ ] Step D1: `safe_schema_migration.py`, `run.py`, `erp_build_step_runner.py`를 canonical-only 기준으로 정리한다.
-- [ ] Step D2: `models.py` synonym과 `erp_order_flags.py` fallback을 제거한다.
-- [ ] Step D3: startup compatibility tests와 focused domain tests를 canonical-only 기준으로 갱신한다.
-- [ ] Step D4: 필요 시 새 migration 또는 persisted step-key migration을 추가한다.
+- [x] Step D1: `safe_schema_migration.py`, `run.py`, `erp_build_step_runner.py`를 canonical-only 기준으로 정리한다. (`safe_schema_migration`은 legacy flag schema를 더 이상 자동 rename하지 않고 명시적으로 실패시키며, `run.py`는 migrations 경로를 안정적으로 로드, `erp_build_step_runner.py`는 canonical step key + legacy key migration을 사용)
+- [x] Step D2: `models.py` synonym과 `erp_order_flags.py` fallback을 제거한다.
+- [x] Step D3: startup compatibility tests와 focused domain tests를 canonical-only 기준으로 갱신한다.
+- [x] Step D4: 필요 시 새 migration 또는 persisted step-key migration을 추가한다. (`erp_build_step_runner.py`에서 legacy step key를 canonical key로 자동 정리)
 
 ### Phase E — 최종 검증 및 closeout
-- [ ] Step E1: `python -c "import app; print('APP_OK')"` 통과
-- [ ] Step E2: `python tools/harness/verify_result.py --json` 통과
-- [ ] Step E3: focused pytest 및 startup compatibility 통과
+- [x] Step E1: `python -c "import app; print('APP_OK')"` 통과
+- [x] Step E2: `python tools/harness/verify_result.py --json` 통과
+- [x] Step E3: focused pytest 및 startup compatibility 통과 (`test_erp_order_shared_form_scripts.py`, `test_sqlite_startup_compat.py`, `test_app_init.py`, `test_app_bootstrap_contract.py`, `test_erp_shell_fragment_contract.py`)
 - [ ] Step E4: `/add`, `/edit/<id>`, measurement/shipment/CS/dashboard family manual smoke 완료
 - [ ] Step E5: active runtime/product code 기준 `ERP_BETA`, `erp-beta`, `is_erp_beta` residual 0 또는 approved allowlist만 남았는지 확인
 
 ## 4. 우선순위 체크리스트
 
 ### P0 — 구현 시작 전 반드시 충족
-- [ ] 운영 DB 컬럼/인덱스 상태 증거 확보 (로컬에서 사설 DB 직접 연결 불가 — **배포 후 SSH** 또는 대시보드 SQL)
+- [x] 운영 DB 컬럼/인덱스 상태 증거 확보 (**production** `railway_db_gate_snapshot_ssh.py` 결과 — `is_erp_beta` 컬럼/`ix_orders_is_erp_beta` 없음; 스테이징 별도 필요 시 동일 스크립트)
 - [x] Railway env snapshot 확보 (production 링크 기준)
 - [~] inbound legacy usage 증거 확보 (앱 로그만으로는 불충분할 수 있음)
-- [ ] placeholder/draft/drift 데이터 현황 확보 (DB 읽기 필요)
+- [x] placeholder/draft/drift 데이터 현황 확보 (production read-only SQL 완료: flat-column placeholder drift 확인, G-DATA blocker로 승격)
 - [x] 회귀 테스트 보강 (Phase A: env/`open=`/estimate-preview 계약 고정; P2+ 삭제는 gate 이후)
 
 ### P1 — 지금 바로 정리 가능성이 높은 것
 - [x] `erp_beta_default_stage_received` fallback (partial: `erp_order_default_stage_received`만 사용, 미정의 시 `false`)
 - [x] `#erp-beta`, `.erp-beta-tabs-nav`, `#erpBetaTabs` stale selector (모바일 CSS)
-- [ ] `ERP_BETA_DEBUG` dead read
+- [x] `ERP_BETA_DEBUG` dead read — `foms/api/notifications/__init__.py`에서 미사용 `_NOTIFICATION_DEBUG` 및 `ERP_ORDER_DEBUG`/`ERP_BETA_DEBUG` env 파싱 제거(동작 변화 없음; verbose 플래그 SSOT는 `foms/platform/erp_blueprint.py`의 `ERP_ORDER_DEBUG`만 유지)
 - [x] `_apply_erp_order_display_overrides` 내부명 (calendar.py; 구 beta 접두 함수명)
 - [x] `[ERP_ORDER]` log prefix (`erp_orders_structured.py`; 구 `[ERP_BETA]` 문자열)
 
 ### P2 — 운영 증거 확인 후 제거
-- [ ] `ERP_BETA_ENABLED` env fallback
-- [ ] `ERP_BETA_ENABLED` JS mirror
-- [ ] `__ERP_BETA_DRAFT_MODE` JS mirror
-- [ ] `data-erp-beta-*` DOM fallback
-- [ ] `open=erp-beta` deep-link alias
-- [ ] `create_mode=ERP_BETA` request alias
-- [ ] `"ERP Beta"` placeholder suppressor
+- [x] `ERP_BETA_ENABLED` env fallback
+- [x] `ERP_BETA_ENABLED` JS mirror
+- [x] `__ERP_BETA_DRAFT_MODE` JS mirror
+- [x] `data-erp-beta-*` DOM fallback
+- [x] `open=erp-beta` deep-link alias
+- [x] `create_mode=ERP_BETA` request alias
+- [x] `"ERP Beta"` placeholder suppressor
 
 ### P3 — DB/bootstrap canonicalization 이후 제거
-- [ ] `is_erp_beta` ORM synonym
-- [ ] `is_erp_beta` helper fallback
-- [ ] legacy schema rename/repair bootstrap
-- [ ] `ERP_BETA` persisted step-key logic
-- [ ] canonical-only startup compatibility test 전환
+- [x] `is_erp_beta` ORM synonym
+- [x] `is_erp_beta` helper fallback
+- [x] legacy schema rename/repair bootstrap
+- [x] `ERP_BETA` persisted step-key logic
+- [x] canonical-only startup compatibility test 전환
 
 ## 5. 검증 기준
-- [ ] `python -c "import app; print('APP_OK')"` 통과
-- [ ] `python tools/harness/verify_result.py --json` 통과
-- [ ] `pytest tests/domains/test_erp_order_shared_form_scripts.py -q` 통과
-- [ ] `pytest tests/domains/test_erp_shell_fragment_contract.py -q` 통과
-- [ ] `pytest tests/domains/test_sqlite_startup_compat.py -q` 통과
-- [ ] `pytest tests/domains/test_app_init.py tests/domains/test_app_bootstrap_contract.py -q` 통과
+- [x] `python -c "import app; print('APP_OK')"` 통과
+- [x] `python tools/harness/verify_result.py --json` 통과
+- [x] `pytest tests/domains/test_erp_order_shared_form_scripts.py -q` 통과
+- [x] `pytest tests/domains/test_erp_shell_fragment_contract.py -q` 통과
+- [x] `pytest tests/domains/test_sqlite_startup_compat.py -q` 통과
+- [x] `pytest tests/domains/test_app_init.py tests/domains/test_app_bootstrap_contract.py -q` 통과
 - [ ] `/add`, `/edit/<id>` ERP tab open / draft / save / attachment / payment smoke 정상
 - [ ] measurement / shipment / CS page에서 ERP gate ON/OFF 정상
 - [ ] active runtime/product code 기준 `ERP_BETA` residual이 approved allowlist 밖에 남지 않음
@@ -164,15 +164,15 @@
 
 | Gate | 확인 항목 | 증거 / 산출물 | 상태 |
 |------|-----------|----------------|------|
-| G-DB | `orders`에 `is_erp_beta` 컬럼 잔존, `ix_orders_is_erp_beta` 잔존, `is_erp_order`와 dual-column 여부 | 스테이징·운영 각각 `\d orders` 또는 Alembic 현재 head + 실제 스키마 덤프 | **미확보** (사설 DB — 배포 후 `tools/harness/railway_db_gate_snapshot_ssh.py`를 컨테이너에서 실행) |
-| G-ENV | `ERP_ORDER_ENABLED` 단독 설정 여부, `ERP_BETA_*` 의존 | Railway Variables 스크린샷 또는 `railway variables` 내보내기 (비밀값 마스킹) | **부분 확보** — production: `ERP_ORDER_ENABLED` / `ERP_BETA_*` **미설정**, `ERP_MOBILE_V2_ENABLED=true`만 존재 (`DATABASE_URL`은 설정됨, 값 비공개) |
+| G-DB | `orders`에 `is_erp_beta` 컬럼 잔존, `ix_orders_is_erp_beta` 잔존, `is_erp_order`와 dual-column 여부 | `railway ssh` + `tools/harness/railway_db_gate_snapshot_ssh.py` JSON | **확보 (production FOMS)** — `is_erp_order`만 컬럼 존재; `is_erp_beta` **없음**; `ix_orders_is_erp_order` 존재; `ix_orders_is_erp_beta` **없음**; **`idx_order_erp_beta`** 는 이름만 레거시(조건은 `is_erp_order`) |
+| G-ENV | `ERP_ORDER_ENABLED` 단독 설정 여부, `ERP_BETA_*` 의존 | Railway Variables 스크린샷 또는 `railway variables` 내보내기 (비밀값 마스킹) | **확보 (production FOMS)** — `ERP_ORDER_ENABLED=true` 명시, `ERP_BETA_ENABLED`/`ERP_BETA_DEBUG` 미설정, `ERP_MOBILE_V2_ENABLED=true` 존재 |
 | G-IN | `open=erp-beta`, `create_mode=ERP_BETA` 요청 비율 | 앱 로그/프록시/분석에서 7~30일 윈도우 집계 | **약한 신호** — `railway logs -n 3000 --filter "erp-beta"` **0건** (앱 로그에 쿼리스트링이 안 찍힐 수 있음) |
-| G-DATA | `"ERP Beta"` placeholder·draft drift | 운영에서 허용하는 점검 SQL/리포트 결과 | **미확보** (G-DB와 동일 블로커) |
+| G-DATA | `"ERP Beta"` placeholder·draft drift | 운영에서 허용하는 점검 SQL/리포트 결과 | **부분 해제** — approved production backfill로 `customer_name='ERP Beta'` **0건**, `product='ERP Beta'` **1건**(`orders.id=1845`), JSONB legacy literal 0건, `structured_data.meta.draft=true` 0건. 다만 `phone='000-0000-0000'` **5건**이 남아 있어 placeholder suppressor 전면 제거 전 manual follow-up 필요 |
 
 ### 7.1 수집 절차 (PowerShell · 예시)
 
 - **DB (읽기 전용)**: 배포 가이드에 맞는 `psql` 또는 GUI로 `information_schema.columns` / `\d orders` 확인. 결과를 스펙 표에 날짜·환경명과 함께 붙인다.
-- **Railway**: 대시보드에서 Variables 내보내기 또는 CLI로 스냅샷; `ERP_ORDER_DEBUG` 도입 후에도 레거시 `ERP_BETA_DEBUG`는 동일 플래그로 별칭 처리됨(코드: `foms/platform/erp_blueprint.py`).
+- **Railway**: 대시보드에서 Variables 내보내기 또는 CLI로 스냅샷; debug 플래그는 `ERP_ORDER_DEBUG`만 사용한다.
 - **Inbound**: 로그 필드에 `open=` / `create_mode`가 있다면 쿼리 예시를 runbook에 고정한다. 없으면 “로그 미수집”으로 명시하고 대체 증거(지원팀 북마크 감사 등)를 정한다.
 
 ### 7.2 Verification commands (자동)
@@ -184,7 +184,7 @@ pytest tests/domains/test_erp_order_shared_form_scripts.py -q
 pytest tests/domains/test_erp_shell_fragment_contract.py -q
 ```
 
-게이트 미확보 시 **P2( env/JS/deep-link )·P3(DB/bootstrap)** 배치는 시작하지 않는다.
+§7.1 필수 게이트가 **전부** 확보되기 전에는 production cutover를 완료로 선언하지 않는다. 현재 repo는 staging-first rollout 기준의 C4/P3 code batch까지 반영되었지만, **staging deploy/backfill/manual smoke → production deploy/backfill/manual smoke**가 끝나야 closeout 가능하다.
 
 ### 7.3 사용자가 제공하면 G-DB / G-IN / G-DATA를 한 번에 강화할 수 있는 것
 

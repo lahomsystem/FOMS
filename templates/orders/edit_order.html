@@ -890,13 +890,13 @@
 </script>
 
 <script>
-    // ERP 대시보드/알림에서 바로 ERP Order 탭으로 오픈 (?open=erp-order, legacy: erp-beta)
+    // ERP 대시보드/알림에서 바로 ERP Order 탭으로 오픈 (?open=erp-order)
     // 첨부로 포커스: ?focus=attachments&category=drawing
     document.addEventListener('DOMContentLoaded', function () {
         try {
             const qs = new URLSearchParams(window.location.search || '');
             const openTarget = qs.get('open');
-            if (openTarget === 'erp-order' || openTarget === 'erp-beta') {
+            if (openTarget === 'erp-order') {
                 const btn = document.getElementById('erp-order-tab');
                 if (btn && typeof bootstrap !== 'undefined' && bootstrap.Tab) {
                     const focusTarget = (qs.get('focus') || '').trim();

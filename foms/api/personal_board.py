@@ -25,6 +25,7 @@ from foms.services.erp_policy import (
     ORDER_SETTLEMENT_ALERT_TARGET_STATUSES,
     STAGE_LABELS,
 )
+from foms.services.orders.estimate_defaults import ERP_DRAFT_PLACEHOLDER_CUSTOMER
 
 personal_board_bp = Blueprint(
     "personal_board",
@@ -49,14 +50,14 @@ STAGE_DASHBOARD_URL = {
 
 
 def _display_customer_name(customer_name, structured_data, order_id):
-    """브리핑 보드 표시용 고객명. ERP Beta 플레이스홀더('ERP Beta') 대신 structured_data 또는 주문번호 사용."""
+    """브리핑 보드 표시용 고객명. canonical draft placeholder는 숨기고 structured_data 또는 주문번호를 사용."""
     if isinstance(structured_data, dict):
         parties = structured_data.get("parties") or {}
         name = (parties.get("customer") or {}).get("name")
         if name and str(name).strip():
             return str(name).strip()
     raw = (customer_name or "").strip()
-    if raw.upper() in ("ERP BETA", "ERP_BETA"):
+    if raw.upper() == ERP_DRAFT_PLACEHOLDER_CUSTOMER.upper():
         return f"#{order_id}"
     return customer_name or f"#{order_id}"
 

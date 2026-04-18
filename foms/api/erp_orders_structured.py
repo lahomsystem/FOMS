@@ -43,6 +43,8 @@ TEAM_LABELS = {
     'CS': '라홈팀', 'SALES': '영업팀', 'MEASURE': '실측팀',
     'DRAWING': '도면팀', 'PRODUCTION': '생산팀', 'CONSTRUCTION': '시공팀',
 }
+_CUSTOMER_PLACEHOLDERS = {ERP_DRAFT_PLACEHOLDER_CUSTOMER}
+_PRODUCT_PLACEHOLDERS = {ERP_DRAFT_PLACEHOLDER_PRODUCT}
 
 erp_orders_structured_bp = Blueprint('erp_orders_structured', __name__, url_prefix='/api')
 
@@ -188,13 +190,13 @@ def _finalize_draft_state(
                 if items and isinstance(items, list) and len(items) > 0:
                     first_product = (items[0].get('product_name') or '').strip()
 
-                if cust_name and cust_name not in {'ERP Order', 'ERP Beta'}:
+                if cust_name and cust_name not in _CUSTOMER_PLACEHOLDERS:
                     order.customer_name = cust_name
                 if cust_phone and cust_phone != '000-0000-0000':
                     order.phone = cust_phone
                 if addr and addr != '-':
                     order.address = addr
-                if first_product and first_product not in {'ERP Order', 'ERP Beta'}:
+                if first_product and first_product not in _PRODUCT_PLACEHOLDERS:
                     order.product = first_product
         except Exception as e:
             logger.warning("draft meta clear failed: %s", e, exc_info=True)
@@ -277,7 +279,7 @@ def api_put_order_structured(order_id):
                 _cname = (_customer.get('name') or '').strip()
                 _cphone = (_customer.get('phone') or '').strip()
                 _missing = []
-                if not _cname or _cname in {'ERP Order', 'ERP Beta'}:
+                if not _cname or _cname in _CUSTOMER_PLACEHOLDERS:
                     _missing.append('고객명')
                 if not _cphone or _cphone == '000-0000-0000':
                     _missing.append('전화번호')
