@@ -14,8 +14,6 @@ window._erpBoolConfirmed = _erpBoolConfirmed;
 /** edit_order / add_order runtime state; fragment/full-page both sync from DOM config. */
 var ORDER_ID = 0;
 var ERP_ORDER_ENABLED = false;
-/** Legacy compatibility mirror; internal runtime should prefer ERP_ORDER_ENABLED. */
-var ERP_BETA_ENABLED = false;
 
 var _erpPaymentIconSrc =
     window._erpPaymentIconSrc ||
@@ -2475,19 +2473,16 @@ function getErpOrderConfigElement() {
 
 function setErpOrderEnabled(nextEnabled) {
     ERP_ORDER_ENABLED = !!nextEnabled;
-    ERP_BETA_ENABLED = ERP_ORDER_ENABLED;
     window.ERP_ORDER_ENABLED = ERP_ORDER_ENABLED;
-    window.ERP_BETA_ENABLED = ERP_ORDER_ENABLED;
 }
 
 function isErpOrderDraftMode() {
-    return !!(window.__ERP_ORDER_DRAFT_MODE || window.__ERP_BETA_DRAFT_MODE);
+    return !!window.__ERP_ORDER_DRAFT_MODE;
 }
 
 function setErpOrderDraftMode(nextDraftMode) {
     const next = !!nextDraftMode;
     window.__ERP_ORDER_DRAFT_MODE = next;
-    window.__ERP_BETA_DRAFT_MODE = next;
 }
 
 function syncErpOrderGlobalsFromDom() {
@@ -2505,13 +2500,9 @@ function syncErpOrderGlobalsFromDom() {
         (hostCard ? hostCard.getAttribute("data-order-id") : "0");
     var enabledRaw =
         config.getAttribute("data-erp-order-enabled") ||
-        (hostCard ? hostCard.getAttribute("data-erp-order-enabled") : null) ||
-        config.getAttribute("data-erp-beta-enabled") ||
-        (hostCard ? hostCard.getAttribute("data-erp-beta-enabled") : null);
+        (hostCard ? hostCard.getAttribute("data-erp-order-enabled") : null);
     var directUploadRaw = config.getAttribute("data-use-direct-upload");
-    var draftModeRaw =
-        config.getAttribute("data-erp-order-draft-mode") ||
-        config.getAttribute("data-erp-beta-draft-mode");
+    var draftModeRaw = config.getAttribute("data-erp-order-draft-mode");
     var oid = parseInt(String(orderIdRaw || "0"), 10) || 0;
 
     if (enabledRaw === "true" || enabledRaw === "false") {

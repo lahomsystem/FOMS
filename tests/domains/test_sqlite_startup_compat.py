@@ -15,6 +15,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _MIGRATIONS_DIR = _REPO_ROOT / "scripts" / "migrations"
 if str(_MIGRATIONS_DIR) not in sys.path:
     sys.path.insert(0, str(_MIGRATIONS_DIR))
+import safe_schema_migration as safe_schema_migration_module  # noqa: E402
 from safe_schema_migration import SafeSchemaMigration  # noqa: E402
 
 
@@ -36,6 +37,34 @@ def test_safe_schema_migration_uses_sqlite_inspector_and_json_fallback() -> None
 
     columns = inspect(engine).get_columns("orders")
     assert any(column.get("name") == "structured_data" for column in columns)
+
+
+def test_safe_schema_migration_rejects_legacy_erp_beta_schema(monkeypatch, caplog) -> None:
+    """Canonical-only startup should fail loudly when legacy ERP flag columns remain."""
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE orders (
+                    id INTEGER PRIMARY KEY,
+                    is_erp_beta BOOLEAN DEFAULT 0
+                )
+                """
+            )
+        )
+
+    session = sessionmaker(bind=engine)()
+    migration = SafeSchemaMigration()
+    monkeypatch.setattr(safe_schema_migration_module, "get_db", lambda: session)
+
+    with caplog.at_level(logging.ERROR):
+        assert migration.execute_migration() is False
+
+    columns = {column["name"] for column in inspect(engine).get_columns("orders")}
+    assert "is_erp_beta" in columns
+    assert "is_erp_order" not in columns
+    assert any("Automatic rename has been retired" in record.message for record in caplog.records)
 
 
 def test_wdcalculator_estimate_tables_create_on_sqlite() -> None:

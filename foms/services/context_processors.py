@@ -75,9 +75,7 @@ def inject_status_list() -> dict[str, Any]:
             .all()
         )
 
-    erp_order_enabled = str(
-        os.getenv("ERP_ORDER_ENABLED", os.getenv("ERP_BETA_ENABLED", "true"))
-    ).lower() in [
+    erp_order_enabled = str(os.getenv("ERP_ORDER_ENABLED", "true")).lower() in [
         "1",
         "true",
         "yes",

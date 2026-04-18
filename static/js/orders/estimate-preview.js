@@ -18,8 +18,6 @@
     function _isErpEnabled() {
         if (typeof ERP_ORDER_ENABLED !== 'undefined') return !!ERP_ORDER_ENABLED;
         if (typeof window.ERP_ORDER_ENABLED !== 'undefined') return !!window.ERP_ORDER_ENABLED;
-        if (typeof ERP_BETA_ENABLED !== 'undefined') return !!ERP_BETA_ENABLED;
-        if (typeof window.ERP_BETA_ENABLED !== 'undefined') return !!window.ERP_BETA_ENABLED;
         const el = document.getElementById('erp-order-config') || document.querySelector('[data-erp-order-enabled]');
         if (el) return String(el.getAttribute('data-erp-order-enabled') || '') === 'true';
         return false;
@@ -283,7 +281,7 @@
 
         _bindExportBtn();
 
-        // ERP Beta 폼 입력 시 dirty 플래그 설정 (캡처 페이즈로 모든 [data-erp] 입력 감지)
+        // ERP Order 폼 입력 시 dirty 플래그 설정 (캡처 페이즈로 모든 [data-erp] 입력 감지)
         document.addEventListener('input', function (e) {
             if (e.target && e.target.dataset && 'erp' in e.target.dataset) {
                 _dirty = true;

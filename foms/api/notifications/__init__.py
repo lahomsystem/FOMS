@@ -4,7 +4,6 @@ erp.py에서 분리 (Phase 4-1).
 """
 import datetime as dt_mod
 import json
-import os
 import time
 from urllib.parse import quote
 
@@ -19,11 +18,6 @@ notifications_bp = Blueprint(
     "notifications",
     __name__,
     url_prefix="/erp/api",
-)
-
-_NOTIFICATION_DEBUG = (
-    (os.environ.get("ERP_ORDER_DEBUG") or os.environ.get("ERP_BETA_DEBUG") or "").lower()
-    in ("1", "true", "yes", "on")
 )
 
 # 배지 카운트 캐시: user_id -> (count, expiry_unix_ts). DB 부하 감소용.

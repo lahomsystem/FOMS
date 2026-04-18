@@ -16,7 +16,7 @@ from app import app  # noqa
 from db import get_db
 
 
-STEP_SCHEMA = "ERP_BETA_STEP_1_SCHEMA"
+STEP_SCHEMA = "ERP_ORDER_STEP_1_SCHEMA"
 STEP_ORDER_ATTACHMENTS_TABLE = "ERP_DASH_STEP_2_ORDER_ATTACHMENTS_TABLE"
 STEP_HOLIDAY_CALENDAR = "ERP_DASH_STEP_3_HOLIDAY_CALENDAR_2026"
 STEP_DASHBOARD_MVP = "ERP_DASH_STEP_4_DASHBOARD_MVP"
@@ -29,7 +29,11 @@ STEP_AUTO_TASKS = "ERP_DASH_STEP_10_AUTO_TASKS"
 STEP_BACKFILL_AUTO_TASKS = "ERP_DASH_STEP_11_BACKFILL_AUTO_TASKS"
 STEP_POLICY_JSON = "ERP_DASH_STEP_12_POLICY_JSON"
 STEP_TEMPLATES_JSON = "ERP_DASH_STEP_13_TEMPLATES_JSON"
-STEP_ERP_BETA_FLAG = "ERP_DASH_STEP_14_ERP_BETA_FLAG"
+STEP_ERP_ORDER_FLAG = "ERP_DASH_STEP_14_ERP_ORDER_FLAG"
+LEGACY_STEP_KEY_ALIASES = {
+    "ERP_BETA_STEP_1_SCHEMA": STEP_SCHEMA,
+    "ERP_DASH_STEP_14_ERP_BETA_FLAG": STEP_ERP_ORDER_FLAG,
+}
 
 
 def _ensure_build_steps_table(db):
@@ -43,6 +47,39 @@ def _ensure_build_steps_table(db):
         meta JSONB NULL
     );
     """))
+    db.commit()
+    _migrate_legacy_step_keys(db)
+
+
+def _migrate_legacy_step_keys(db):
+    for legacy_key, canonical_key in LEGACY_STEP_KEY_ALIASES.items():
+        db.execute(
+            text(
+                """
+                DELETE FROM system_build_steps
+                WHERE step_key = :legacy_key
+                  AND EXISTS (
+                      SELECT 1 FROM system_build_steps
+                      WHERE step_key = :canonical_key
+                  )
+                """
+            ),
+            {"legacy_key": legacy_key, "canonical_key": canonical_key},
+        )
+        db.execute(
+            text(
+                """
+                UPDATE system_build_steps
+                SET step_key = :canonical_key
+                WHERE step_key = :legacy_key
+                  AND NOT EXISTS (
+                      SELECT 1 FROM system_build_steps
+                      WHERE step_key = :canonical_key
+                  )
+                """
+            ),
+            {"legacy_key": legacy_key, "canonical_key": canonical_key},
+        )
     db.commit()
 
 
@@ -82,7 +119,7 @@ def _get_step_status(db, step_key):
 
 def step_1_schema(db):
     """
-    Step 1: orders 테이블에 ERP Beta 컬럼 추가 + 진행상태 기록
+    Step 1: orders 테이블에 ERP Order structured 컬럼 추가 + 진행상태 기록
     - 재실행 가능(idempotent)
     """
     _ensure_build_steps_table(db)
@@ -93,7 +130,13 @@ def step_1_schema(db):
         return
 
     started_at = datetime.datetime.now()
-    _upsert_step(db, STEP_SCHEMA, "RUNNING", message="Applying ERP Beta schema to orders table", started_at=started_at)
+    _upsert_step(
+        db,
+        STEP_SCHEMA,
+        "RUNNING",
+        message="Applying ERP Order structured schema to orders table",
+        started_at=started_at,
+    )
 
     try:
         # orders 컬럼 추가 (Postgres: ADD COLUMN IF NOT EXISTS)
@@ -109,7 +152,7 @@ def step_1_schema(db):
             db,
             STEP_SCHEMA,
             "COMPLETED",
-            message="ERP Beta schema applied successfully",
+            message="ERP Order structured schema applied successfully",
             completed_at=completed_at,
             meta={"orders_columns_added": ["raw_order_text", "structured_data", "structured_schema_version", "structured_confidence", "structured_updated_at"]},
         )
@@ -362,7 +405,7 @@ def step_7_backfill_workflow(db):
 
 def step_8_tasks_events_api_ui(db):
     """
-    Step 8: Tasks/Events API + ERP Beta UI 반영 체크포인트
+    Step 8: Tasks/Events API + ERP Order UI 반영 체크포인트
     (코드 변경은 이미 적용되어 있으므로 존재 확인만)
     """
     _ensure_build_steps_table(db)
@@ -581,47 +624,71 @@ def step_13_templates_json(db):
         raise
 
 
-def step_14_erp_beta_flag(db):
+def step_14_erp_order_flag(db):
     """Step 14: ERP order flag column/index bootstrap (idempotent)."""
     _ensure_build_steps_table(db)
-    existing = _get_step_status(db, STEP_ERP_BETA_FLAG)
+    existing = _get_step_status(db, STEP_ERP_ORDER_FLAG)
     if existing and existing.get("status") == "COMPLETED":
-        print(f"[SKIP] {STEP_ERP_BETA_FLAG} already completed")
+        print(f"[SKIP] {STEP_ERP_ORDER_FLAG} already completed")
         return
 
     started_at = datetime.datetime.now()
-    _upsert_step(db, STEP_ERP_BETA_FLAG, "RUNNING", message="Ensuring canonical orders.is_erp_order flag", started_at=started_at)
+    _upsert_step(
+        db,
+        STEP_ERP_ORDER_FLAG,
+        "RUNNING",
+        message="Ensuring canonical orders.is_erp_order flag",
+        started_at=started_at,
+    )
     try:
         inspector = inspect(db.get_bind())
         column_names = {column.get("name") for column in inspector.get_columns("orders")}
 
-        if "is_erp_beta" in column_names and "is_erp_order" not in column_names:
-            db.execute(text("ALTER TABLE orders RENAME COLUMN is_erp_beta TO is_erp_order"))
-        elif "is_erp_order" not in column_names:
+        if "is_erp_beta" in column_names:
+            raise RuntimeError(
+                "Legacy orders.is_erp_beta column detected. "
+                "Canonical-only step runner no longer renames legacy ERP flags."
+            )
+        if "is_erp_order" not in column_names:
             db.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_erp_order BOOLEAN NOT NULL DEFAULT FALSE"))
 
         inspector = inspect(db.get_bind())
         index_names = {index.get("name") for index in inspector.get_indexes("orders")}
-        if "ix_orders_is_erp_beta" in index_names and "ix_orders_is_erp_order" not in index_names:
-            db.execute(text("ALTER INDEX ix_orders_is_erp_beta RENAME TO ix_orders_is_erp_order"))
+        if "ix_orders_is_erp_beta" in index_names:
+            raise RuntimeError(
+                "Legacy ix_orders_is_erp_beta index detected. "
+                "Remove or migrate the legacy index explicitly before canonical-only bootstrap."
+            )
         db.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_is_erp_order ON orders(is_erp_order)"))
         db.commit()
 
         completed_at = datetime.datetime.now()
-        _upsert_step(db, STEP_ERP_BETA_FLAG, "COMPLETED", message="canonical ERP order flag ready", completed_at=completed_at)
-        print(f"[OK] {STEP_ERP_BETA_FLAG} completed")
+        _upsert_step(
+            db,
+            STEP_ERP_ORDER_FLAG,
+            "COMPLETED",
+            message="canonical ERP order flag ready",
+            completed_at=completed_at,
+        )
+        print(f"[OK] {STEP_ERP_ORDER_FLAG} completed")
     except Exception as e:
         try:
             db.rollback()
         except Exception:
             pass
         completed_at = datetime.datetime.now()
-        _upsert_step(db, STEP_ERP_BETA_FLAG, "FAILED", message=f"Failed: {str(e)}", completed_at=completed_at)
+        _upsert_step(
+            db,
+            STEP_ERP_ORDER_FLAG,
+            "FAILED",
+            message=f"Failed: {str(e)}",
+            completed_at=completed_at,
+        )
         raise
 
 
 def main():
-    parser = argparse.ArgumentParser(description="ERP Beta step-by-step builder (resumable via DB checkpoints)")
+    parser = argparse.ArgumentParser(description="ERP Order step-by-step builder (resumable via DB checkpoints)")
     parser.add_argument("--step", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"], help="Run a single step")
     parser.add_argument("--resume", action="store_true", help="Resume from the next incomplete step")
     args = parser.parse_args()
@@ -670,7 +737,7 @@ def main():
             step_13_templates_json(db)
             return
         if args.step == "14":
-            step_14_erp_beta_flag(db)
+            step_14_erp_order_flag(db)
             return
 
         if args.resume:
@@ -688,7 +755,7 @@ def main():
             step_11_backfill_auto_tasks(db)
             step_12_policy_json(db)
             step_13_templates_json(db)
-            step_14_erp_beta_flag(db)
+            step_14_erp_order_flag(db)
             return
 
         print("Usage: python scripts/ops/erp_build_step_runner.py --step 1..14  (or --resume)")
@@ -696,4 +763,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -65,7 +65,7 @@ def _build_trash_display_orders(orders):
             if options_summary:
                 order_display.display_options = options_summary
                 order_display.options = options_summary
-            elif str(getattr(order_display, "options", "") or "").strip() in {"''", '""', "-", "ERP Order", "ERP Beta"}:
+            elif str(getattr(order_display, "options", "") or "").strip() in {"''", '""', "-", "ERP Order"}:
                 order_display.options = ""
         elif getattr(order_display, "display_options", None):
             order_display.options = order_display.display_options

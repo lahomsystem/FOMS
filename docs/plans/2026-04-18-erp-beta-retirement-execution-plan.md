@@ -76,6 +76,7 @@
 - verify Railway env explicitly provides `ERP_ORDER_ENABLED`
 - verify inbound use of `open=erp-beta` and `create_mode=ERP_BETA` is zero or intentionally cut over
 - verify placeholder rows are cleaned or accepted for same-batch data migration
+- use `tools/harness/erp_beta_flat_placeholder_backfill_*.sql` runbook to clear the flat-column blocker first; current production dry-run says `564` rows are auto-fixable and `orders.id=1845` is the lone manual follow-up row
 
 **Step 2: Remove env fallback**
 - change `context_processors.py` to canonical-only `ERP_ORDER_ENABLED`

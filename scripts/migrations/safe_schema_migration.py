@@ -92,19 +92,29 @@ class SafeSchemaMigration:
             logger.error(f"[ERROR] 컬럼 '{column_name}' 추가 실패: {str(e)}")
             return False
 
-    def normalize_legacy_erp_flag(self, db):
-        """Rename the legacy ERP flag column to the canonical name when possible."""
+    def ensure_canonical_erp_flag_boundary(self, db):
+        """Reject legacy ERP flag schemas now that automatic rename has been retired."""
         try:
             has_legacy = self.check_column_exists(db, 'is_erp_beta')
             has_canonical = self.check_column_exists(db, 'is_erp_order')
 
             if has_legacy and not has_canonical:
-                db.execute(text("ALTER TABLE orders RENAME COLUMN is_erp_beta TO is_erp_order"))
-                logger.info("[RENAME] legacy 'is_erp_beta' renamed to 'is_erp_order'")
-            elif has_legacy and has_canonical:
-                logger.info("[SKIP] legacy/canonical ERP flag columns already coexist")
+                logger.error(
+                    "[ERROR] legacy orders.is_erp_beta detected without canonical "
+                    "orders.is_erp_order. Automatic rename has been retired; "
+                    "migrate the database explicitly before startup."
+                )
+                return False
+            if has_legacy and has_canonical:
+                logger.error(
+                    "[ERROR] legacy orders.is_erp_beta still exists alongside "
+                    "orders.is_erp_order. Remove the legacy column explicitly "
+                    "before canonical-only startup."
+                )
+                return False
+            return True
         except Exception as e:
-            logger.error(f"[ERROR] ERP flag column rename 실패: {str(e)}")
+            logger.error(f"[ERROR] ERP flag canonical boundary 확인 실패: {str(e)}")
             raise
     
     def execute_migration(self):
@@ -125,7 +135,9 @@ class SafeSchemaMigration:
             transaction = db.begin()
             
             try:
-                self.normalize_legacy_erp_flag(db)
+                if not self.ensure_canonical_erp_flag_boundary(db):
+                    transaction.rollback()
+                    return False
                 # 각 컬럼 처리
                 for column_name, column_type in self.columns_to_add:
                     if self.add_column_safely(db, column_name, column_type):

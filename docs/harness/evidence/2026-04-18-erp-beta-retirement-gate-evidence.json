@@ -1,8 +1,8 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "spec": "docs/specs/2026-04-18-erp-beta-retirement_SPEC.md §7",
-  "collected_at_utc": "2026-04-18T04:05:00Z",
-  "collector": "Cursor agent + Railway CLI (linked project)",
+  "collected_at_utc": "2026-04-18T06:10:00Z",
+  "collector": "Codex agent + Railway CLI (linked project)",
   "railway_cli": {
     "project": "FOMS-DEV",
     "linked_environment": "production",
@@ -11,26 +11,57 @@
     "deployment_status_sample": "SUCCESS"
   },
   "G_ENV": {
-    "source": "railway variables --json (values redacted; only key inventory summarized)",
-    "total_keys": 35,
-    "keys_matching_ERP": ["ERP_MOBILE_V2_ENABLED"],
-    "ERP_ORDER_ENABLED": "UNSET",
+    "source": "railway variable list --service FOMS --environment production --json",
+    "total_keys": 36,
+    "keys_matching_ERP": ["ERP_MOBILE_V2_ENABLED", "ERP_ORDER_ENABLED"],
+    "ERP_ORDER_ENABLED": "true",
     "ERP_BETA_ENABLED": "UNSET",
     "ERP_BETA_DEBUG": "UNSET",
     "ERP_ORDER_DEBUG": "UNSET",
     "DATABASE_URL": "SET_REDACTED",
-    "interpretation": "Feature flags for ERP Order/BETA are not explicitly set in Railway Variables; runtime uses application defaults unless overridden."
+    "interpretation": "Production FOMS explicitly sets ERP_ORDER_ENABLED=true while legacy ERP_BETA_* flags remain unset. This cleared the canonical env prerequisite and allowed the safe P2 env/js cleanup batch to proceed."
   },
   "G_DB": {
-    "status": "pending_private_network",
-    "notes": [
-      "From this Windows host, psycopg cannot resolve/connect to the DATABASE_URL host (Railway private / internal DNS) — expected.",
-      "Unread stdin pipe to railway ssh hung in this environment; one-line ssh -c quoting failed under PowerShell.",
-      "Authoritative schema snapshot: run tools/harness/railway_db_gate_snapshot_ssh.py inside the app container after the file is deployed, OR use Railway Postgres Query / psql with a read-only role."
-    ],
-    "commands_after_next_deploy": [
-      "railway ssh -- bash -lc \"cd /app && python3 tools/harness/railway_db_gate_snapshot_ssh.py\""
-    ]
+    "status": "confirmed",
+    "environment": "production",
+    "service": "FOMS",
+    "evidence_collected_at_utc": "2026-04-18T12:00:00Z",
+    "collection_command": "railway ssh -- bash -lc \"cd /app && python3 tools/harness/railway_db_gate_snapshot_ssh.py\"",
+    "source": "User terminal output (tools/harness/railway_db_gate_snapshot_ssh.py on container)",
+    "orders_table": {
+      "is_erp_order": {
+        "present": true,
+        "is_nullable": "NO",
+        "data_type": "boolean"
+      },
+      "is_erp_beta": {
+        "present": false,
+        "note": "No row in information_schema for column is_erp_beta — dual-column schema not present."
+      }
+    },
+    "indexes": {
+      "ix_orders_is_erp_order": {
+        "present": true,
+        "indexdef": "CREATE INDEX ix_orders_is_erp_order ON public.orders USING btree (is_erp_order)"
+      },
+      "ix_orders_is_erp_beta": {
+        "present": false,
+        "note": "No index by this name in snapshot."
+      },
+      "idx_order_erp_beta": {
+        "present": true,
+        "naming_debt": "Legacy index name; predicate uses is_erp_order = true, not a column is_erp_beta.",
+        "indexdef": "CREATE INDEX idx_order_erp_beta ON public.orders USING btree (id DESC) WHERE (((status)::text <> 'DELETED'::text) AND (is_erp_order = true))"
+      },
+      "other_erp_prefixed": [
+        "ix_orders_erp_measurement_date",
+        "ix_orders_erp_construction_date",
+        "ix_orders_erp_stage_code",
+        "ix_orders_erp_urgent",
+        "ix_orders_erp_owner_team_code"
+      ]
+    },
+    "staging_note": "Same script should be run after linking staging service/environment if staging DB must be recorded separately."
   },
   "G_IN": {
     "status": "weak_negative_signal_only",
@@ -39,7 +70,44 @@
     "caveat": "Application logs may not include full request query strings; zero matches is not proof of zero HTTP clients using open=erp-beta or create_mode=ERP_BETA. Prefer edge/WAF/access logs if available."
   },
   "G_DATA": {
-    "status": "pending_db_read",
-    "notes": "Requires SQL against live DB (placeholder / structured_data drift). Same blocker as G_DB until read-only SQL is executed in VPC or via dashboard."
+    "status": "partially_cleared_after_production_backfill",
+    "environment": "production",
+    "service": "Postgres",
+    "evidence_collected_at_utc": "2026-04-18T06:10:00Z",
+    "collection_command": "Local SQLAlchemy probes over DATABASE_PUBLIC_URL (pre-check + approved production backfill + verify)",
+    "source": "Codex SQL probes against Railway Postgres public TCP proxy",
+    "pre_backfill_summary": {
+      "active_orders": 1738,
+      "active_customer_name_erp_beta": 564,
+      "active_product_erp_beta": 565,
+      "active_options_erp_beta": 0,
+      "active_canonical_placeholder_rows": 0,
+      "active_structured_legacy_literal_rows": 0,
+      "active_structured_meta_draft_true_rows": 0,
+      "active_erp_orders": 565,
+      "auto_backfill_customer_candidates": 564,
+      "auto_backfill_phone_candidates": 559,
+      "auto_backfill_product_candidates": 564,
+      "auto_backfill_address_candidates": 558,
+      "auto_backfill_any_candidates": 564,
+      "post_backfill_manual_follow_up_rows": 1
+    },
+    "backfill_execution": {
+      "approved_by_user": true,
+      "updated_rows": 564,
+      "execution_artifact": "tools/harness/erp_beta_flat_placeholder_backfill_apply.sql"
+    },
+    "post_backfill_verification": {
+      "active_orders": 1738,
+      "active_customer_name_erp_beta": 0,
+      "active_product_erp_beta": 1,
+      "active_phone_placeholder_rows": 5,
+      "active_structured_legacy_literal_rows": 0,
+      "active_structured_meta_draft_true_rows": 0,
+      "residual_manual_follow_up_row_ids": [2664, 2647, 2633, 2625, 2376, 1845]
+    },
+    "sample_row_ids": [2761, 2760, 2759, 2758, 2757, 2756, 2755, 2754, 2753, 2752],
+    "manual_follow_up_order_ids": [1845],
+    "interpretation": "The main flat-column placeholder blocker was cleared by the approved production backfill: customer_name='ERP Beta' is now 0 and product='ERP Beta' is down to 1 row (order id 1845). Five rows still keep phone='000-0000-0000', and order id 1845 still needs manual product follow-up. This is sufficient for the safe P2 env/js cleanup batch, but not yet enough to remove inbound aliases or every placeholder suppressor."
   }
 }

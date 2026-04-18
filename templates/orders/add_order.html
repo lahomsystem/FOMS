@@ -742,10 +742,10 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
             });
         }
 
-        // URL 파라미터에 따라 탭 자동 전환 (?open=erp-order, legacy: erp-beta)
+        // URL 파라미터에 따라 ERP Order 탭 자동 전환 (?open=erp-order)
         const params = new URLSearchParams(window.location.search);
         const openTarget = params.get('open');
-        if (openTarget === 'erp-order' || openTarget === 'erp-beta') {
+        if (openTarget === 'erp-order') {
             const erpTab = document.getElementById('erp-order-tab');
             if (erpTab) {
                 // 부트스트랩 탭 인스턴스 생성 및 전환

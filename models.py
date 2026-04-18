@@ -1,6 +1,6 @@
 import datetime
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, func, JSON
-from sqlalchemy.orm import relationship, synonym
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 
 # JSON Type Compatibility Layer
@@ -73,9 +73,7 @@ class Order(Base):
     # ERP Order (Palantir-style structured data)
     # ============================================
     # ERP Order로 생성된 주문인지 여부 (canonical schema/runtime name).
-    # legacy Python attr `is_erp_beta`는 synonym boundary로만 유지한다.
     is_erp_order = Column(Boolean, nullable=False, default=False, server_default='false', index=True)
-    is_erp_beta = synonym('is_erp_order')
     raw_order_text = Column(Text, nullable=True)  # 원문 텍스트(붙여넣기) 보관
     structured_data = Column(JSONColumn, nullable=True)  # 구조화 데이터(JSON / JSONB)
     structured_schema_version = Column(Integer, nullable=False, default=1)
@@ -171,7 +169,7 @@ class OrderScheduleDate(Base):
 
 
 class OrderAttachment(Base):
-    """주문(ERP Beta 등) 첨부파일: 사진/동영상 메타데이터만 저장 (파일 바이너리는 스토리지에 저장)"""
+    """주문(ERP Order 등) 첨부파일: 사진/동영상 메타데이터만 저장 (파일 바이너리는 스토리지에 저장)"""
     __tablename__ = 'order_attachments'
 
     id = Column(Integer, primary_key=True)
@@ -255,7 +253,7 @@ class SystemBuildStep(Base):
     """빌드/마이그레이션 단계 진행상태 저장 (끊김 시 이어서 실행용)"""
     __tablename__ = 'system_build_steps'
 
-    step_key = Column(String(100), primary_key=True)  # 예: ERP_BETA_STEP_1_SCHEMA
+    step_key = Column(String(100), primary_key=True)  # 예: ERP_ORDER_STEP_1_SCHEMA
     status = Column(String(30), nullable=False, default='PENDING')  # PENDING/RUNNING/COMPLETED/FAILED
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)

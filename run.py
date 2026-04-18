@@ -8,6 +8,10 @@ from typing import Any
 STARTUP_LOG_PATH_ENV = "FOMS_STARTUP_LOG_PATH"
 _TRUE_ENV_VALUES = {"1", "true", "yes", "on"}
 _FALSE_ENV_VALUES = {"0", "false", "no", "off", ""}
+_REPO_ROOT = Path(__file__).resolve().parent
+_MIGRATIONS_DIR = _REPO_ROOT / "scripts" / "migrations"
+if str(_MIGRATIONS_DIR) not in sys.path:
+    sys.path.insert(0, str(_MIGRATIONS_DIR))
 
 
 def _get_startup_log_path() -> str | None:

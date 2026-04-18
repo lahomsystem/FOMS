@@ -225,7 +225,7 @@ def add_order():
             db = get_db()
             create_mode = (request.form.get('create_mode') or 'LEGACY').upper().strip()
 
-            if create_mode in {'ERP_ORDER', 'ERP_BETA'}:
+            if create_mode == 'ERP_ORDER':
                 raw_text = (request.form.get('raw_order_text') or '').strip()
                 structured_json = (request.form.get('structured_data_json') or '').strip()
                 stage = (request.form.get('erp_stage') or 'RECEIVED').strip()
