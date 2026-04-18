@@ -4,6 +4,7 @@
  * - G1-A (orders listing + trash, same-origin): hover/focus warms fetch(nav-fragment),
  *   click swaps #main-content; pushState/popstate + scroll memory; miss/fail → full navigation.
  * - G2/other: same-origin <link rel="prefetch"> hint only (no click interception).
+ * - Shared UX: any same-origin top-nav click gets immediate loading feedback.
  * - Progressive enhancement: broken fetch or JS off → normal navigation.
  */
 (function () {
@@ -13,6 +14,7 @@
   var warmCache = Object.create(null);
   var scrollMem = Object.create(null);
   var hoverTimer = null;
+  var activeNavLink = null;
   var HOVER_MS = 180;
 
   function normalizePathname(pathname) {
@@ -74,6 +76,74 @@
     } catch (e) {
       return null;
     }
+  }
+
+  function isSameOriginDocumentHref(href) {
+    try {
+      var u = new URL(href, window.location.href);
+      if (u.origin !== window.location.origin) {
+        return false;
+      }
+      return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function setNavLoadingStatus(message) {
+    var live = document.getElementById('layout-nav-loading-status');
+    if (!live) {
+      return;
+    }
+    live.textContent = '';
+    window.setTimeout(function () {
+      if (live.isConnected) {
+        live.textContent = message || '';
+      }
+    }, 0);
+  }
+
+  function clearActiveNavLink() {
+    if (!activeNavLink || !activeNavLink.classList) {
+      activeNavLink = null;
+      return;
+    }
+    activeNavLink.classList.remove('is-nav-loading-target');
+    activeNavLink.removeAttribute('aria-disabled');
+    activeNavLink = null;
+  }
+
+  function beginNavLoading(a) {
+    var nav = document.querySelector('nav.layout-global-nav');
+    var main = document.getElementById('main-content');
+    clearActiveNavLink();
+    if (a && a.classList) {
+      activeNavLink = a;
+      activeNavLink.classList.add('is-nav-loading-target');
+      activeNavLink.setAttribute('aria-disabled', 'true');
+    }
+    document.body.classList.add('is-nav-loading');
+    if (nav) {
+      nav.setAttribute('data-nav-loading', '1');
+    }
+    if (main) {
+      main.setAttribute('aria-busy', 'true');
+    }
+    setNavLoadingStatus('페이지 이동 중...');
+  }
+
+  function endNavLoading() {
+    var nav = document.querySelector('nav.layout-global-nav');
+    var main = document.getElementById('main-content');
+    document.body.classList.remove('is-nav-loading');
+    if (nav) {
+      nav.removeAttribute('data-nav-loading');
+    }
+    if (main) {
+      main.removeAttribute('aria-busy');
+    }
+    clearActiveNavLink();
+    setNavLoadingStatus('');
   }
 
   function prefetchOnce(absPath) {
@@ -197,6 +267,7 @@
       } else {
         window.scrollTo(0, 0);
       }
+      window.requestAnimationFrame(endNavLoading);
     }).catch(function () {
       window.location.href = a.href;
     });
@@ -240,6 +311,9 @@
     }
     if (!shouldHandleClick(a, ev)) {
       return;
+    }
+    if (isSameOriginDocumentHref(a.href)) {
+      beginNavLoading(a);
     }
     if (!isG1A(a.href)) {
       return;
@@ -325,10 +399,13 @@
     if (!nav) {
       return;
     }
+    endNavLoading();
     nav.addEventListener('click', onNavClick, true);
     nav.addEventListener('mouseover', warmTarget, true);
     nav.addEventListener('focusin', warmTarget, true);
     window.addEventListener('popstate', onPopState);
+    window.addEventListener('pageshow', endNavLoading);
+    window.addEventListener('load', endNavLoading);
   }
 
   if (document.readyState === 'loading') {
