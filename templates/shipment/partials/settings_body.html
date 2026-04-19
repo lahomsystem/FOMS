@@ -75,9 +75,9 @@
             <div class="card-body">
               <ul id="list-measurement_manager" class="list-group list-group-flush mb-2">
                 {% for v in (settings.measurement_manager or []) %}
-                <li class="list-group-item d-flex gap-2 align-items-center px-0">
-                  <input type="text" class="form-control form-control-sm setting-input setting-mm-name" data-key="measurement_manager" value="{{ v.name if v is mapping else v }}" placeholder="실측담당자">
-                  <input type="text" class="form-control form-control-sm setting-mm-phone" value="{{ v.get('phone', '') if v is mapping else '' }}" placeholder="연락처" inputmode="tel" autocomplete="tel">
+                <li class="list-group-item d-flex gap-2 align-items-center px-0 measurement-mm-row">
+                  <input type="text" class="form-control form-control-sm setting-input setting-mm-name" data-key="measurement_manager" value="{{ v.name if v is mapping else v }}" placeholder="담당자">
+                  <input type="text" class="form-control form-control-sm setting-mm-phone" value="{{ v.get('phone', '') if v is mapping else '' }}" placeholder="전화번호" inputmode="tel" autocomplete="tel">
                   <input type="number" class="form-control form-control-sm setting-mm-sort" value="{{ v.sort_order if v is mapping else '' }}" placeholder="순서" min="0" step="1" title="정렬순서 (숫자가 작을수록 위)">
                   <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
                 </li>
@@ -219,7 +219,9 @@
     if (!ul) return;
     btn.addEventListener('click', function() {
       var li = document.createElement('li');
-      li.className = 'list-group-item d-flex gap-2 align-items-center px-0';
+      li.className = key === 'measurement_manager'
+        ? 'list-group-item d-flex gap-2 align-items-center px-0 measurement-mm-row'
+        : 'list-group-item d-flex gap-2 align-items-center px-0';
       if (key === 'construction_workers') {
         li.innerHTML = '<div class="worker-row-compact">' +
           '  <div class="worker-top">' +
@@ -239,8 +241,8 @@
           '  </div>' +
           '</div>';
       } else if (key === 'measurement_manager') {
-        li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input setting-mm-name" data-key="measurement_manager" value="" placeholder="실측담당자">' +
-          '<input type="text" class="form-control form-control-sm setting-mm-phone" value="" placeholder="연락처" inputmode="tel" autocomplete="tel">' +
+        li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input setting-mm-name" data-key="measurement_manager" value="" placeholder="담당자">' +
+          '<input type="text" class="form-control form-control-sm setting-mm-phone" value="" placeholder="전화번호" inputmode="tel" autocomplete="tel">' +
           '<input type="number" class="form-control form-control-sm setting-mm-sort" value="" placeholder="순서" min="0" step="1" title="정렬순서 (숫자가 작을수록 위)">' +
           '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>';
       } else {

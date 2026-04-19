@@ -263,15 +263,34 @@
   margin-bottom: 0.5rem;
 }
 
-/* ===== 출고 설정: 실측담당자 연락처·정렬순서·시공자 자수 너비 ===== */
-.setting-mm-phone {
-  min-width: 120px;
-  max-width: 160px;
-}
-
-.setting-mm-sort,
+/* ===== 출고 설정: 시공자 자수 고정 너비 ===== */
 .setting-worker-capacity {
   width: 70px;
+}
+
+/* ===== 출고 설정: 실측담당자 행 담당자·전화번호·순서 = 4:4:2 ===== */
+#list-measurement_manager > li.measurement-mm-row {
+  flex-wrap: nowrap;
+}
+
+#list-measurement_manager > li.measurement-mm-row .setting-mm-name {
+  flex: 4 1 0;
+  min-width: 0;
+}
+
+#list-measurement_manager > li.measurement-mm-row .setting-mm-phone {
+  flex: 4 1 0;
+  min-width: 0;
+}
+
+#list-measurement_manager > li.measurement-mm-row .setting-mm-sort {
+  flex: 2 1 0;
+  min-width: 0;
+  width: auto;
+}
+
+#list-measurement_manager > li.measurement-mm-row .btn-remove-setting {
+  flex-shrink: 0;
 }
 
 /* 모달(1055)보다 낮되, 타일·컨트롤은 Leaflet 기본 겹침 유지 */
