@@ -4,6 +4,9 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-04-19 | 세션 자동 기록 | 09-mobile-erp-optimization.css, settings_body.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e061f4a7-5536-4be2-986b-f8f1cafd516e.png 외 2개 | 6131d93d |
+| 2026-04-19 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e061f4a7-5536-4be2-986b-f8f1cafd516e.png, commit_msg_utf8.txt, test_estimate_service.py 외 2개 | 6131d93d |
+| 2026-04-19 | 세션 자동 기록 | commit_msg_utf8.txt, test_estimate_service.py, estimate-preview.js 외 2개 | 6131d93d |
 | 2026-04-19 | 세션 자동 기록 | test_estimate_service.py, estimate-preview.js, settings_body.html 외 2개 | 6fff9c9f |
 | 2026-04-19 | 세션 자동 기록 | estimate-preview.js, estimate_pane.html, estimate_defaults.py 외 2개 | 6fff9c9f |
 | 2026-04-19 | 세션 자동 기록 | test_estimate_service.py, test_erp_shipment_settings.py, settings_body.html 외 2개 | 6fff9c9f |
@@ -21,6 +24,3 @@
 | 2026-04-18 | 세션 자동 기록 | models.py, dashboard.js, manual-rows.js 외 2개 | d4c2cc70 |
 | 2026-04-18 | 세션 자동 기록 | quest.py, trash.py, history.py 외 2개 | d4c2cc70 |
 | 2026-04-17 | 세션 자동 기록 | test_app_init.py, db_indexes.py, test_db_indexes.py 외 2개 | d4c2cc70 |
-| 2026-04-17 | 세션 자동 기록 | test_app_init.py, app_init.py, test_db_indexes.py 외 2개 | d4c2cc70 |
-| 2026-04-17 | 세션 자동 기록 | dashboard.py, dashboard_main.html, filters_grid.html 외 2개 | d4c2cc70 |
-| 2026-04-17 | 세션 자동 기록 | _commit_msg_utf8.txt, beta-shared.js, test_erp_beta_shared_form_scripts.py 외 2개 | d4c2cc70 |

@@ -7,8 +7,8 @@
 ### Session: fbcc41c6
 - **시작**: 2026-04-18 12:40:37
 - **상태**: completed
-- **편집 파일**: `tests/domains/test_estimate_service.py`, `static/js/orders/estimate-preview.js`, `templates/shipment/partials/settings_body.html`, `static/css/foundation/erp-pro/09-mobile-erp-optimization.css`, `docs/evolution/EVOLUTION_DECISIONS.md`, `docs/harness/policy/DECISIONS.md`, `templates/orders/partials/estimate_pane.html`, `foms/services/orders/estimate_defaults.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-201bb977-ff28-4800-849c-331b95033037.png`, `tests/domains/test_erp_shipment_settings.py`
-- **종료**: 2026-04-19 13:40:20
+- **편집 파일**: `static/css/foundation/erp-pro/09-mobile-erp-optimization.css`, `templates/shipment/partials/settings_body.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e061f4a7-5536-4be2-986b-f8f1cafd516e.png`, `commit_msg_utf8.txt`, `tests/domains/test_estimate_service.py`, `static/js/orders/estimate-preview.js`, `docs/evolution/EVOLUTION_DECISIONS.md`, `docs/harness/policy/DECISIONS.md`, `templates/orders/partials/estimate_pane.html`, `foms/services/orders/estimate_defaults.py`
+- **종료**: 2026-04-19 16:12:21
 
 ### Session: a0f6c282
 - **시작**: 2026-04-17 13:39:37
@@ -113,3 +113,9 @@
 | 2026-04-19 13:37:19 | END (Claude Code) | 수정: (없음) |
 
 | 2026-04-19 13:40:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-19 13:42:10 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-19 16:09:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-19 16:12:21 | END (Claude Code) | 수정: (없음) |
