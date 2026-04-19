@@ -2,6 +2,7 @@ import datetime
 from types import SimpleNamespace
 
 import foms.services.estimate_service as estimate_service
+from foms.services.orders.estimate_defaults import ESTIMATE_PAYMENT_INFO
 
 
 class _FakeColumn:
@@ -53,6 +54,19 @@ class _FakeEstimate:
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+
+def test_estimate_payment_info_has_multi_accounts_and_legacy_single_fields():
+    """GDM: 견적 기본 결제정보는 accounts[] + 단일 bank/account/holder 하위 호환을 유지한다."""
+    assert "accounts" in ESTIMATE_PAYMENT_INFO
+    assert len(ESTIMATE_PAYMENT_INFO["accounts"]) >= 2
+    for acc in ESTIMATE_PAYMENT_INFO["accounts"]:
+        assert acc.get("bank")
+        assert acc.get("holder")
+    assert ESTIMATE_PAYMENT_INFO.get("bank")
+    assert ESTIMATE_PAYMENT_INFO.get("account")
+    assert ESTIMATE_PAYMENT_INFO.get("holder")
+    assert ESTIMATE_PAYMENT_INFO.get("notice")
 
 
 def test_generate_estimate_number_skips_invalid_suffixes_and_increments_max(monkeypatch):
@@ -125,6 +139,45 @@ def test_extract_estimate_data_from_order_formats_spec_rows_and_payments():
     assert data["total_amount"] == 1000000
     assert data["deposit_amount"] == 100000
     assert data["balance_amount"] == 900000
+
+
+def test_extract_estimate_data_overrides_manager_phone_from_measurement_settings(monkeypatch):
+    """계약서 담당자 이름이 출고 설정 실측담당자와 일치하면 연락처를 설정값으로 채운다."""
+
+    def fake_load():
+        return {
+            "measurement_manager": [
+                {"name": "담당자", "sort_order": 1, "phone": "010-9999-8888"},
+            ]
+        }
+
+    monkeypatch.setattr(
+        "foms.services.erp_shipment_settings.load_erp_shipment_settings",
+        fake_load,
+    )
+
+    order = SimpleNamespace(
+        customer_name="c",
+        phone="p",
+        address="a",
+        manager_name="ignored",
+        structured_data={
+            "parties": {
+                "customer": {"name": "홍길동", "phone": "01011112222"},
+                "manager": {"name": "담당자", "phone": "01033334444"},
+                "orderer": {"name": "기타"},
+            },
+            "site": {"address_full": "주소"},
+            "schedule": {"construction": {"date": "2026-04-30"}},
+            "payment": {"deposit": {"amount": 0}},
+            "items": [],
+        },
+    )
+
+    data = estimate_service.extract_estimate_data_from_order(order)
+
+    assert data["manager_name"] == "담당자"
+    assert data["manager_phone"] == "010-9999-8888"
 
 
 def test_create_estimate_applies_overrides_and_uses_deep_copied_payment_info(monkeypatch):

@@ -263,7 +263,12 @@
   margin-bottom: 0.5rem;
 }
 
-/* ===== 출고 설정: 정렬순서/자수 입력 너비 ===== */
+/* ===== 출고 설정: 실측담당자 연락처·정렬순서·시공자 자수 너비 ===== */
+.setting-mm-phone {
+  min-width: 120px;
+  max-width: 160px;
+}
+
 .setting-mm-sort,
 .setting-worker-capacity {
   width: 70px;

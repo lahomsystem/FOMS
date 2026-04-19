@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-04-18 12:50:32
-> 세션: fbcc41c6
+> 생성 시각: 2026-04-19 13:38:53
+> 세션: 85f6bbb1
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `docs/specs/2026-04-18-erp-beta-retirement_SPEC.md` <- 1 edit(s), ~194 chars (2026-04-18 12:50:05)
-- `docs/specs/2026-04-18-erp-beta-retirement_SPEC.md` <- 1 edit(s), ~267 chars (2026-04-18 12:50:03)
-- `templates/shipment/partials/dashboard_main.html` <- 1 edit(s), ~68 chars (2026-04-18 12:50:01)
-- `static/css/foundation/erp-pro/09-mobile-erp-optimization.css` <- 1 edit(s), ~28 chars (2026-04-18 12:49:53)
-- `static/css/foundation/erp-pro/09-mobile-erp-optimization.css` <- 1 edit(s), ~51 chars (2026-04-18 12:49:53)
-- `static/css/foundation/erp-pro/09-mobile-erp-optimization.css` <- 1 edit(s), ~42 chars (2026-04-18 12:49:52)
-- `static/css/foundation/erp-pro/09-mobile-erp-optimization.css` <- 1 edit(s), ~42 chars (2026-04-18 12:49:51)
-- `static/css/foundation/erp-pro/09-mobile-erp-optimization.css` <- 1 edit(s), ~32 chars (2026-04-18 12:49:51)
-- `templates/orders/partials/erp_order_tab.html` <- 1 edit(s), ~235 chars (2026-04-18 12:49:50)
-- `docs/specs/2026-04-18-erp-beta-retirement_SPEC.md` <- 1 edit(s), ~155 chars (2026-04-18 12:45:27)
+- `static/js/orders/estimate-preview.js` <- 1 edit(s), ~1693 chars (2026-04-19 13:35:06)
+- `templates/orders/partials/estimate_pane.html` <- 2 edit(s), ~918 chars (2026-04-19 13:35:02)
+- `templates/orders/partials/estimate_pane.html` <- 1 edit(s), ~80 chars (2026-04-19 13:34:59)
+- `foms/services/orders/estimate_defaults.py` <- 2 edit(s), ~448 chars (2026-04-19 13:34:58)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-201bb977-ff28-4800-849c-331b95033037.png` <- 1 edit(s), ~0 chars (2026-04-19 13:34:18)
+- `tests/domains/test_estimate_service.py` <- 1 edit(s), ~73 chars (2026-04-19 13:33:11)
+- `tests/domains/test_estimate_service.py` <- 1 edit(s), ~1189 chars (2026-04-19 13:33:06)
+- `tests/domains/test_erp_shipment_settings.py` <- 2 edit(s), ~554 chars (2026-04-19 13:33:04)
+- `templates/shipment/partials/settings_body.html` <- 1 edit(s), ~242 chars (2026-04-19 13:33:01)
+- `templates/shipment/partials/settings_body.html` <- 1 edit(s), ~368 chars (2026-04-19 13:32:57)
 
 ### 진행 중이던 작업
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.

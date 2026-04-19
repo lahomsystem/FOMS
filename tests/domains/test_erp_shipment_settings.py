@@ -31,9 +31,22 @@ def test_normalize_measurement_managers_normalizes_names_and_sort_orders() -> No
     )
 
     assert result == [
-        {"name": "홍길동", "sort_order": 999},
-        {"name": "김영희", "sort_order": 2},
-        {"name": "이철수", "sort_order": 999},
+        {"name": "홍길동", "sort_order": 999, "phone": ""},
+        {"name": "김영희", "sort_order": 2, "phone": ""},
+        {"name": "이철수", "sort_order": 999, "phone": ""},
+    ]
+
+
+def test_normalize_measurement_managers_preserves_phone() -> None:
+    result = normalize_measurement_managers(
+        [
+            {"name": "한용희", "sort_order": 1, "phone": "010-1111-2222"},
+            "문자열만",
+        ]
+    )
+    assert result == [
+        {"name": "한용희", "sort_order": 1, "phone": "010-1111-2222"},
+        {"name": "문자열만", "sort_order": 999, "phone": ""},
     ]
 
 

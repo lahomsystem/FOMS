@@ -4,6 +4,12 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-04-19 | 세션 자동 기록 | test_estimate_service.py, estimate-preview.js, settings_body.html 외 2개 | 6fff9c9f |
+| 2026-04-19 | 세션 자동 기록 | estimate-preview.js, estimate_pane.html, estimate_defaults.py 외 2개 | 6fff9c9f |
+| 2026-04-19 | 세션 자동 기록 | test_estimate_service.py, test_erp_shipment_settings.py, settings_body.html 외 2개 | 6fff9c9f |
+| 2026-04-19 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-da67d386-44e9-47f1-a379-a5215dbf1835.png, .git_commit_msg_railway_utf8.txt, _git_commit_msg_utf8.txt 외 2개 | 6fff9c9f |
+| 2026-04-19 | 세션 자동 기록 | .git_commit_msg_railway_utf8.txt, _git_commit_msg_utf8.txt, railway_db_gate_snapshot.py 외 2개 | 6fff9c9f |
+| 2026-04-19 | 세션 자동 기록 | _git_commit_msg_utf8.txt, railway_db_gate_snapshot.py, _run_remote_db_smoke.cmd 외 2개 | 23b0b82a |
 | 2026-04-18 | 세션 자동 기록 | railway_db_gate_snapshot.py, _run_remote_db_smoke.cmd, railway_db_gate_snapshot_ssh.py 외 2개 | 6d3d609b |
 | 2026-04-18 | 세션 자동 기록 | dashboard_main.html, 09-mobile-erp-optimization.css, erp_order_tab.html 외 2개 | 6d3d609b |
 | 2026-04-18 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, erp_orders_structured.py, calendar.py 외 2개 | 6d3d609b |
@@ -18,9 +24,3 @@
 | 2026-04-17 | 세션 자동 기록 | test_app_init.py, app_init.py, test_db_indexes.py 외 2개 | d4c2cc70 |
 | 2026-04-17 | 세션 자동 기록 | dashboard.py, dashboard_main.html, filters_grid.html 외 2개 | d4c2cc70 |
 | 2026-04-17 | 세션 자동 기록 | _commit_msg_utf8.txt, beta-shared.js, test_erp_beta_shared_form_scripts.py 외 2개 | d4c2cc70 |
-| 2026-04-17 | 세션 자동 기록 | _commit_msg_erp_utf8.txt, beta-shared.js, test_erp_beta_shared_form_scripts.py 외 2개 | b0369dcf |
-| 2026-04-17 | 세션 자동 기록 | beta-shared.js, test_erp_beta_shared_form_scripts.py, runtime-shell.js 외 2개 | e3fe4fdd |
-| 2026-04-17 | 세션 자동 기록 | commit_msg.txt, beta-shared.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-0f6a1e89-53ab-4ca8-8af5-fb4af4eb8262.png 외 2개 | e3fe4fdd |
-| 2026-04-17 | 세션 자동 기록 | beta-shared.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-0f6a1e89-53ab-4ca8-8af5-fb4af4eb8262.png, gnv_b6_staging_browser_metrics.py 외 2개 | d0f756af |
-| 2026-04-17 | 하네스 런타임 로그 정리: SESSION_LOG·SHELL_GUARD_LOG 축소(민감 명령 제거)·`docs/harness/evidence/README.md` 추가·EDIT_LOG 노이즈 1행 제거·COMPACT_CHECKPOINT 안내 | SESSION_LOG.md, SHELL_GUARD_LOG.md, evidence/README.md, EDIT_LOG.md, COMPACT_CHECKPOINT.md | — |
-| 2026-04-17 | GNV-B7 final closeout: run record §GNV-B7·게이트 대조·GDM High0/Medium0; 실행 계획 상태 🟢; ARCHIVE_INDEX·AI_STATUS | gnv-run-record.md, global-nav-real-speed-execution-plan.md, ARCHIVE_INDEX.md, AI_STATUS.md | — |

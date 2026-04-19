@@ -6,6 +6,12 @@
 
 ---
 
+### [2026-04-19] 견적 결제정보 accounts + 레거시 단일 필드 병행
+- **키워드**: estimate, payment_info, accounts, 견적, ERP, 하위호환
+- **결정**: `ESTIMATE_PAYMENT_INFO`는 다중 계좌 `accounts[]`를 정식 필드로 두고, 기존 단일 `bank`/`account`/`holder`는 프리뷰·API 소비자 하위 호환용으로 유지한다. 출고 설정 실측담당자 행의 너비는 인라인이 아니라 `.setting-mm-phone` 등 CSS 클래스로만 제어한다.
+- **이유**: 계약서에 은행별 계좌를 나열해야 하며, 구버전 JSON/클라이언트는 단일 필드만 기대할 수 있다. 인라인 스타일은 프로젝트 UI 규칙과 충돌한다.
+- **영향**: `foms/services/orders/estimate_defaults.py`, `static/js/orders/estimate-preview.js`, `static/css/foundation/erp-pro/09-mobile-erp-optimization.css`, `templates/shipment/partials/settings_body.html`
+
 ### [2026-04-11] Step 8 packaging defer after re-evaluation
 - **키워드**: packaging, src-layout, pyproject, railway, worker, alembic, app-root
 - **결정**: Step 8에서는 repo-root `foms/` boundary를 current canonical runtime layout로 유지하고, full `src/foms` migration과 packaging-only `pyproject.toml` hardening은 모두 defer한다. packaging revisit는 `app:app` / Railway / worker / Alembic / tests import contract가 repo-root cwd에 의존하지 않도록 정리된 뒤 별도 ADR/plan로 다시 연다.
@@ -95,18 +101,3 @@
 - **결정**: Web Replica 2개, Worker 1개, DB 풀 환경변수화
 - **이유**: 동시 사용자 증가 대응
 - **영향**: `railway.toml`, `db.py`
-
-### [2026-02-16] Flask 유지 + 점진 고도화 (Strangler Fig)
-- **키워드**: Flask, SvelteKit, 마이그레이션, Strangler
-- **결정**: SvelteKit 전면 마이그레이션 대신 Flask 유지, Blueprint 분리 우선
-- **이유**: 전면 마이그레이션 리스크 과대, 기존 스택 충분히 유효
-
-### [2026-02-16] services/ 폴더 도입
-- **키워드**: services, 비즈니스로직, Blueprint, 구조
-- **결정**: `business_calendar`, `erp_policy`, `storage` → `services/` 이동
-- **이유**: 비즈니스 로직 집중, `app.py`는 Blueprint 등록만 담당
-
-### [2026-02-16] 컨텍스트 엔지니어링 시스템
-- **키워드**: Hooks, Rules, Memory, 컨텍스트, AI메모리
-- **결정**: Hooks + Rules + Memory (`docs/`) 통합 시스템
-- **이유**: AI 세션 간 기억 상실, 지시 미준수 문제 해결

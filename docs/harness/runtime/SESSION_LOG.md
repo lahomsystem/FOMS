@@ -7,8 +7,8 @@
 ### Session: fbcc41c6
 - **시작**: 2026-04-18 12:40:37
 - **상태**: completed
-- **편집 파일**: `docs/specs/2026-04-18-erp-beta-retirement_SPEC.md`, `docs/harness/evidence/2026-04-18-erp-beta-retirement-gate-evidence.json`, `tools/harness/railway_db_gate_snapshot.py`, `tools/harness/_run_remote_db_smoke.cmd`, `tools/harness/railway_db_gate_snapshot_ssh.py`, `tools/harness/_ssh_env_check.py`, `tools/harness/_tmp_railway_db_gate_snapshot.py`, `templates/shipment/partials/dashboard_main.html`, `static/css/foundation/erp-pro/09-mobile-erp-optimization.css`, `templates/orders/partials/erp_order_tab.html`
-- **종료**: 2026-04-18 13:06:51
+- **편집 파일**: `tests/domains/test_estimate_service.py`, `static/js/orders/estimate-preview.js`, `templates/shipment/partials/settings_body.html`, `static/css/foundation/erp-pro/09-mobile-erp-optimization.css`, `docs/evolution/EVOLUTION_DECISIONS.md`, `docs/harness/policy/DECISIONS.md`, `templates/orders/partials/estimate_pane.html`, `foms/services/orders/estimate_defaults.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-201bb977-ff28-4800-849c-331b95033037.png`, `tests/domains/test_erp_shipment_settings.py`
+- **종료**: 2026-04-19 13:40:20
 
 ### Session: a0f6c282
 - **시작**: 2026-04-17 13:39:37
@@ -99,3 +99,17 @@
 | 2026-04-18 12:50:54 | END (Claude Code) | 수정: (없음) |
 
 | 2026-04-18 13:06:51 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-19 12:56:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-19 13:02:18 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-19 13:03:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-19 13:33:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-19 13:35:27 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-19 13:37:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-19 13:40:20 | END (Claude Code) | 수정: (없음) |

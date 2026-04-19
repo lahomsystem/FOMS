@@ -77,6 +77,7 @@
                 {% for v in (settings.measurement_manager or []) %}
                 <li class="list-group-item d-flex gap-2 align-items-center px-0">
                   <input type="text" class="form-control form-control-sm setting-input setting-mm-name" data-key="measurement_manager" value="{{ v.name if v is mapping else v }}" placeholder="실측담당자">
+                  <input type="text" class="form-control form-control-sm setting-mm-phone" value="{{ v.get('phone', '') if v is mapping else '' }}" placeholder="연락처" inputmode="tel" autocomplete="tel">
                   <input type="number" class="form-control form-control-sm setting-mm-sort" value="{{ v.sort_order if v is mapping else '' }}" placeholder="순서" min="0" step="1" title="정렬순서 (숫자가 작을수록 위)">
                   <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
                 </li>
@@ -125,7 +126,7 @@
                   <div class="worker-row-compact">
                     <div class="worker-top">
                       <input type="text" class="form-control form-control-sm setting-input setting-worker-name" data-key="construction_workers" value="{{ worker_name }}" placeholder="시공자">
-                      <input type="number" class="form-control form-control-sm setting-worker-capacity" value="{% if worker_capacity is not none %}{{ worker_capacity }}{% endif %}" placeholder="자수" min="0" step="1" style="width: 70px;">
+                      <input type="number" class="form-control form-control-sm setting-worker-capacity" value="{% if worker_capacity is not none %}{{ worker_capacity }}{% endif %}" placeholder="자수" min="0" step="1">
                       <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
                     </div>
                     <input type="hidden" class="setting-worker-off-dates" value="{{ worker_off_dates|join(', ') }}">
@@ -170,17 +171,19 @@
         if (v) out[key].push(v);
       });
     });
-    // measurement_manager: {name, sort_order} 객체 배열로 수집
+    // measurement_manager: {name, phone, sort_order} 객체 배열로 수집
     var mmUl = document.getElementById('list-measurement_manager');
     if (mmUl) {
       mmUl.querySelectorAll('li').forEach(function(li) {
         var nameInp = li.querySelector('.setting-mm-name');
+        var phoneInp = li.querySelector('.setting-mm-phone');
         var sortInp = li.querySelector('.setting-mm-sort');
         var nameVal = nameInp ? nameInp.value.trim() : '';
         if (!nameVal) return;
+        var phoneVal = phoneInp ? phoneInp.value.trim() : '';
         var sortRaw = sortInp ? sortInp.value.trim() : '';
         var sortVal = sortRaw !== '' ? (parseInt(sortRaw, 10) || 999) : 999;
-        out.measurement_manager.push({ name: nameVal, sort_order: sortVal });
+        out.measurement_manager.push({ name: nameVal, phone: phoneVal, sort_order: sortVal });
       });
     }
     var workerUl = document.getElementById('list-construction_workers');
@@ -221,7 +224,7 @@
         li.innerHTML = '<div class="worker-row-compact">' +
           '  <div class="worker-top">' +
           '    <input type="text" class="form-control form-control-sm setting-input setting-worker-name" data-key="construction_workers" value="" placeholder="시공자">' +
-          '    <input type="number" class="form-control form-control-sm setting-worker-capacity" value="" placeholder="자수" min="0" step="1" style="width: 70px;">' +
+          '    <input type="number" class="form-control form-control-sm setting-worker-capacity" value="" placeholder="자수" min="0" step="1">' +
           '    <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>' +
           '  </div>' +
           '  <input type="hidden" class="setting-worker-off-dates" value="">' +
@@ -237,6 +240,7 @@
           '</div>';
       } else if (key === 'measurement_manager') {
         li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input setting-mm-name" data-key="measurement_manager" value="" placeholder="실측담당자">' +
+          '<input type="text" class="form-control form-control-sm setting-mm-phone" value="" placeholder="연락처" inputmode="tel" autocomplete="tel">' +
           '<input type="number" class="form-control form-control-sm setting-mm-sort" value="" placeholder="순서" min="0" step="1" title="정렬순서 (숫자가 작을수록 위)">' +
           '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>';
       } else {
