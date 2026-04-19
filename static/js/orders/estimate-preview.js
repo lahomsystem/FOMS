@@ -148,6 +148,42 @@
         _setText('est-created-date', today);
     }
 
+    /** @param {HTMLElement} accountsWrap */
+    function _renderPaymentAccounts(accountsWrap, pi) {
+        var list = [];
+        if (pi && Array.isArray(pi.accounts) && pi.accounts.length > 0) {
+            list = pi.accounts;
+        } else if (pi && pi.bank) {
+            list = [{ bank: pi.bank, account: pi.account, holder: pi.holder }];
+        }
+        accountsWrap.innerHTML = '';
+        list.forEach(function (acc) {
+            if (!acc) return;
+            var block = document.createElement('div');
+            block.className = 'erp-est-pay-account-block';
+            var line = document.createElement('div');
+            line.className = 'erp-est-bank-line';
+            var bSpan = document.createElement('span');
+            bSpan.className = 'fw-bold';
+            bSpan.textContent = acc.bank || '';
+            var sep = document.createElement('span');
+            sep.className = 'erp-est-sep';
+            sep.textContent = '|';
+            var accSpan = document.createElement('span');
+            var acct = acc.account;
+            accSpan.textContent = Array.isArray(acct) ? (acct[0] || '') : (acct || '');
+            line.appendChild(bSpan);
+            line.appendChild(sep);
+            line.appendChild(accSpan);
+            var holder = document.createElement('div');
+            holder.className = 'erp-est-pay-holder';
+            holder.textContent = '예금주 : ' + (acc.holder || '');
+            block.appendChild(line);
+            block.appendChild(holder);
+            accountsWrap.appendChild(block);
+        });
+    }
+
     function _applyPaymentInfo(d, pi) {
         _setText('est-total-amount', _fmtMoney(d.total_amount));
 
@@ -161,10 +197,13 @@
         }
 
         _setText('est-balance-amount', _fmtMoney(d.balance_amount));
-        _setText('est-pay-bank', pi.bank);
-        _setText('est-pay-account', pi.account);
-        _setText('est-pay-holder', '예금주 : ' + (pi.holder || ''));
-        _setText('est-pay-notice', pi.notice);
+
+        var accountsWrap = document.getElementById('est-pay-accounts');
+        if (accountsWrap) {
+            _renderPaymentAccounts(accountsWrap, pi);
+        }
+
+        _setText('est-pay-notice', pi && pi.notice);
         _setText('est-legal-notice', d.legal_notice);
     }
 

@@ -20,10 +20,24 @@ ESTIMATE_COMPANY_INFO = {
 }
 
 ESTIMATE_PAYMENT_INFO = {
+    'notice': '* 입금 시 예약금을 제외한 잔금만 납부 바랍니다.',
+    # 계약서 결제정보: 은행별 계좌 (순서 유지)
+    'accounts': [
+        {
+            'bank': '기업은행',
+            'account': '461-082990-04-011',
+            'holder': '주식회사 하우드시스템',
+        },
+        {
+            'bank': '국민은행',
+            'account': '818737-00-002568',
+            'holder': '주식회사 하우드시스템',
+        },
+    ],
+    # 하위 호환: 단일 bank/account/holder만 있는 구버전 JSON
     'bank': '기업은행',
     'account': '461-082990-04-011',
     'holder': '주식회사 하우드시스템',
-    'notice': '* 입금 시 예약금을 제외한 잔금만 납부 바랍니다.',
 }
 
 ESTIMATE_STATUS = {

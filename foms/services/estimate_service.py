@@ -10,6 +10,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from foms.services.measurement_manager_colors import normalize_measurement_manager_key
 from foms.services.orders.estimate_defaults import ESTIMATE_PAYMENT_INFO
 from models import Order, OrderEstimate
 
@@ -21,6 +22,31 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_manager_phone_from_measurement_settings(manager_name: str) -> str:
+    """ERP 출고 설정의 실측담당자 목록에서 이름이 일치하는 행의 연락처를 반환한다."""
+    if not (manager_name or "").strip():
+        return ""
+    try:
+        from foms.services.erp_shipment_settings import load_erp_shipment_settings
+
+        settings = load_erp_shipment_settings()
+    except Exception:
+        logger.exception("실측담당자 연락처 조회 실패 (출고 설정 로드)")
+        return ""
+
+    key = normalize_measurement_manager_key(manager_name)
+    if not key:
+        return ""
+
+    for m in settings.get("measurement_manager") or []:
+        if not isinstance(m, dict):
+            continue
+        if normalize_measurement_manager_key(m.get("name")) != key:
+            continue
+        return str(m.get("phone") or "").strip()
+    return ""
 
 
 def generate_estimate_number(db: Session, date_str: str) -> str:
@@ -79,7 +105,10 @@ def extract_estimate_data_from_order(order: Order) -> dict:
     site_address = site.get("address_full") or order.address or ""
     construction_date = (schedule.get("construction") or {}).get("date")
     manager_name = manager.get("name") or order.manager_name or ""
-    manager_phone = manager.get("phone") or ""
+    manager_phone = str(manager.get("phone") or "").strip()
+    resolved_phone = resolve_manager_phone_from_measurement_settings(manager_name)
+    if resolved_phone:
+        manager_phone = resolved_phone
 
     orderer = parties.get("orderer", {})
     orderer_name = str(orderer.get("name") or "")

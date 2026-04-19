@@ -260,6 +260,9 @@
 .erp-est-bank-line .fw-bold {
     font-weight: 700;
 }
+.erp-est-pay-account-block + .erp-est-pay-account-block {
+    margin-top: 8px;
+}
 .erp-est-pay-holder {
     font-size: 10.5px;
     color: #444;
@@ -482,12 +485,24 @@
         <div class="erp-est-pay-box">
             <div class="erp-est-pay-left">
                 <div class="erp-est-pay-title">결제정보</div>
-                <div class="erp-est-bank-line">
-                    <span class="fw-bold" id="est-pay-bank">기업은행</span>
-                    <span class="erp-est-sep">|</span>
-                    <span id="est-pay-account">461-082990-04-011</span>
+                <div id="est-pay-accounts">
+                    <div class="erp-est-pay-account-block">
+                        <div class="erp-est-bank-line">
+                            <span class="fw-bold">기업은행</span>
+                            <span class="erp-est-sep">|</span>
+                            <span>461-082990-04-011</span>
+                        </div>
+                        <div class="erp-est-pay-holder">예금주 : 주식회사 하우드시스템</div>
+                    </div>
+                    <div class="erp-est-pay-account-block">
+                        <div class="erp-est-bank-line">
+                            <span class="fw-bold">국민은행</span>
+                            <span class="erp-est-sep">|</span>
+                            <span>818737-00-002568</span>
+                        </div>
+                        <div class="erp-est-pay-holder">예금주 : 주식회사 하우드시스템</div>
+                    </div>
                 </div>
-                <div class="erp-est-pay-holder" id="est-pay-holder">예금주 : 주식회사 하우드시스템</div>
                 <div class="erp-est-pay-warn" id="est-pay-notice">* 입금 시 예약금을 제외한 잔금만 납부 바랍니다.</div>
             </div>
             <div class="erp-est-pay-right">

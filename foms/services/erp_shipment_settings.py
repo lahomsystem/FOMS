@@ -27,9 +27,9 @@ DEFAULT_ERP_WORKER_CAPACITY = 10
 
 
 def normalize_measurement_managers(managers):
-    """실측 담당자 목록 정규화 (name, sort_order).
+    """실측 담당자 목록 정규화 (name, sort_order, phone).
 
-    하위호환: 문자열 배열 ["이름"] → [{"name": "이름", "sort_order": 999}]
+    하위호환: 문자열 배열 ["이름"] → [{"name": "이름", "sort_order": 999, "phone": ""}]
     """
     normalized = []
     if not isinstance(managers, list):
@@ -37,15 +37,17 @@ def normalize_measurement_managers(managers):
     for idx, m in enumerate(managers):
         if isinstance(m, dict):
             name = str(m.get('name') or '').strip()
+            phone = str(m.get('phone') or '').strip()
             try:
                 sort_order = int(m.get('sort_order', 999))
             except (ValueError, TypeError):
                 sort_order = 999
         else:
             name = str(m).strip()
+            phone = ''
             sort_order = 999
         if name:
-            normalized.append({'name': name, 'sort_order': sort_order})
+            normalized.append({'name': name, 'sort_order': sort_order, 'phone': phone})
     return normalized
 
 
