@@ -1,16 +1,14 @@
 {% set filters = filters or {} %}
 <div class="container-fluid erp-dashboard erp-pro erp-mobile-shell"
+  data-user-id="{{ current_user.id }}"
+  data-user-team="{{ current_user.team | default('', true) | e }}"
+  data-user-name="{{ current_user.name | default('', true) | e }}"
+  data-user-role="{{ current_user.role | default('', true) | e }}"
   data-can-edit-erp="{{ 'true' if can_edit_erp|default(false) else 'false' }}"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
-  <script>
-    const MY_ID = "{{ current_user.id }}";
-    const MY_TEAM = "{{ current_user.team }}";
-    const MY_NAME = "{{ current_user.name }}";
-    const MY_ROLE = "{{ current_user.role }}";
-  </script>
   <!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -134,8 +132,7 @@
   {% include 'orders/partials/dashboard_modals.html' %}
 
   <div id="erp-dashboard-config" data-team-labels="{{ team_labels|tojson|e }}" data-stage-labels="{{ stage_labels|tojson|e }}" data-use-direct-upload="{{ use_direct_upload|tojson|e }}" style="display:none" aria-hidden="true"></div>
-  {% include 'orders/partials/dashboard_scripts.html' %}
-
+  {# 대시보드 JS는 static/js/orders/erp-dashboard-entry.js 가 순차 로드 (인라인 스크립트 이중 실행 방지) #}
 
       <!-- 알림 패널 -->
       <div id="notification-panel" class="notification-panel" style="display: none;">
@@ -156,5 +153,4 @@
       </div>
 
       <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/orders/dashboard-gateway-notifications.css') }}">
-      <script defer src="{{ url_for('static', filename='js/orders/dashboard-notifications.js') }}"></script>
     </div>

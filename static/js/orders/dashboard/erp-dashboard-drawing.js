@@ -1,4 +1,3 @@
-<script>
 var USE_DIRECT_UPLOAD = (function () {
   if (typeof USE_DIRECT_UPLOAD !== 'undefined') return USE_DIRECT_UPLOAD;
   var el = document.getElementById('erp-dashboard-config');
@@ -477,4 +476,3 @@ console.error(e);
 alert('저장 중 오류가 발생했습니다.');
 }
 }
-</script>
