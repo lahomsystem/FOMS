@@ -81,6 +81,19 @@ def test_prepare_database_url_env_prefers_public_url_when_requested(monkeypatch)
     assert resolved == db_url_resolver.os.environ["DATABASE_URL"]
 
 
+def test_postgresql_psycopg2_connect_kwargs_from_url_decodes_userinfo_and_query() -> None:
+    kw = db_url_resolver.postgresql_psycopg2_connect_kwargs_from_url(
+        "postgresql+psycopg2://u:p%40x@h.example:5432/my%2Fdb?sslmode=require&connect_timeout=8"
+    )
+    assert kw["host"] == "h.example"
+    assert kw["port"] == 5432
+    assert kw["dbname"] == "my/db"
+    assert kw["user"] == "u"
+    assert kw["password"] == "p@x"
+    assert kw["sslmode"] == "require"
+    assert kw["connect_timeout"] == 8
+
+
 def test_prepare_database_url_env_returns_none_when_no_candidates_exist(monkeypatch) -> None:
     _clear_database_env(monkeypatch)
 
