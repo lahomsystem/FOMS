@@ -8,14 +8,14 @@ from datetime import datetime
 
 _dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _dir)
-from shared_utils import get_project_root, write_stdout_json  # type: ignore[import-not-found]
+from shared_utils import get_project_root, harness_runtime_path, write_stdout_json  # type: ignore[import-not-found]
 
 
 def main():
     project_root = get_project_root()
 
     # EDIT_LOG에서 최근 수정 파일 추출
-    edit_log_path = os.path.join(project_root, "docs", "context", "EDIT_LOG.md")
+    edit_log_path = harness_runtime_path("EDIT_LOG.md")
     edited_files = []
     if os.path.exists(edit_log_path):
         with open(edit_log_path, "r", encoding="utf-8") as f:

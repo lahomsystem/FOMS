@@ -24,7 +24,13 @@ def _load_debug():
         return lambda *a, **k: None, lambda: {}
 maybe_log_payload, get_payload = _load_debug()
 
-from shared_utils import find_key_recursive, extract_project_root, hook_runtime_log, safe_except_log
+from shared_utils import (
+    extract_project_root,
+    find_key_recursive,
+    harness_runtime_path,
+    hook_runtime_log,
+    safe_except_log,
+)
 
 _IDEMP_TTL_SEC = 18.0
 _IDEMP_FILE = ".session_stop_idempotency.json"
@@ -42,7 +48,7 @@ def _infer_hook_source() -> str:
 
 
 def _idempotency_path(project_root: str) -> str:
-    return os.path.join(project_root, "docs", "context", _IDEMP_FILE)
+    return harness_runtime_path(project_root, _IDEMP_FILE)
 
 
 def _should_skip_duplicate_run(project_root: str, conv_id: str) -> bool:
@@ -74,7 +80,7 @@ def _mark_idempotency_done(project_root: str, conv_id: str) -> None:
 
 
 def _read_recent_edited_files(project_root, limit=10):
-    edit_log_path = os.path.join(project_root, "docs", "context", "EDIT_LOG.md")
+    edit_log_path = harness_runtime_path(project_root, "EDIT_LOG.md")
     if not os.path.exists(edit_log_path):
         return []
     files = []
@@ -126,7 +132,7 @@ def _resolve_effective_conv_id(project_root: str, conv_id: str) -> str:
     if conv_id and conv_id != "unknown":
         return conv_id
 
-    session_log = os.path.join(project_root, "docs", "context", "SESSION_LOG.md")
+    session_log = harness_runtime_path(project_root, "SESSION_LOG.md")
     if not os.path.isfile(session_log):
         return conv_id
 
@@ -146,7 +152,7 @@ def _run_session_body(project_root: str, conv_id: str, payload: dict) -> None:
     status = find_key_recursive(payload, ["status"], default="unknown")
     ended_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    session_log = os.path.join(project_root, "docs", "context", "SESSION_LOG.md")
+    session_log = harness_runtime_path(project_root, "SESSION_LOG.md")
     if os.path.exists(session_log):
         with open(session_log, "r", encoding="utf-8") as stream:
             content = stream.read()

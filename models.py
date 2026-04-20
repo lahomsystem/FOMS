@@ -70,17 +70,17 @@ class Order(Base):
     address_hash = Column(String(64), nullable=True)  # 주소 변경 감지용 (SHA256 앞 16자 등)
 
     # ============================================
-    # ERP Beta (Palantir-style structured data)
+    # ERP Order (Palantir-style structured data)
     # ============================================
-    # ERP Beta로 생성된 주문인지 여부 (ERP 대시보드 노출/운영 분리용)
-    is_erp_beta = Column(Boolean, nullable=False, default=False, server_default='false')
+    # ERP Order로 생성된 주문인지 여부 (canonical schema/runtime name).
+    is_erp_order = Column(Boolean, nullable=False, default=False, server_default='false', index=True)
     raw_order_text = Column(Text, nullable=True)  # 원문 텍스트(붙여넣기) 보관
     structured_data = Column(JSONColumn, nullable=True)  # 구조화 데이터(JSON / JSONB)
     structured_schema_version = Column(Integer, nullable=False, default=1)
     structured_confidence = Column(String(20), nullable=True)  # high/medium/low
     structured_updated_at = Column(DateTime, nullable=True)
     
-    # ERP Beta 실측·시공 일정 정규화 컬럼 (D-day SQL 필터용)
+    # ERP Order 실측·시공 일정 정규화 컬럼 (D-day SQL 필터용)
     erp_measurement_date = Column(String(10), nullable=True, index=True)   # YYYY-MM-DD
     erp_construction_date = Column(String(10), nullable=True, index=True)  # YYYY-MM-DD
 
@@ -103,7 +103,7 @@ class Order(Base):
     __table_args__ = (
         Index('ix_orders_regional_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_regional == True))),
         Index('ix_orders_self_measurement_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_self_measurement == True))),
-        Index('ix_orders_erp_beta_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_erp_beta == True))),
+        Index('ix_orders_erp_order_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_erp_order == True))),
     )
 
     @classmethod
@@ -169,7 +169,7 @@ class OrderScheduleDate(Base):
 
 
 class OrderAttachment(Base):
-    """주문(ERP Beta 등) 첨부파일: 사진/동영상 메타데이터만 저장 (파일 바이너리는 스토리지에 저장)"""
+    """주문(ERP Order 등) 첨부파일: 사진/동영상 메타데이터만 저장 (파일 바이너리는 스토리지에 저장)"""
     __tablename__ = 'order_attachments'
 
     id = Column(Integer, primary_key=True)
@@ -253,7 +253,7 @@ class SystemBuildStep(Base):
     """빌드/마이그레이션 단계 진행상태 저장 (끊김 시 이어서 실행용)"""
     __tablename__ = 'system_build_steps'
 
-    step_key = Column(String(100), primary_key=True)  # 예: ERP_BETA_STEP_1_SCHEMA
+    step_key = Column(String(100), primary_key=True)  # 예: ERP_ORDER_STEP_1_SCHEMA
     status = Column(String(30), nullable=False, default='PENDING')  # PENDING/RUNNING/COMPLETED/FAILED
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)

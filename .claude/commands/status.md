@@ -8,8 +8,8 @@
 다음 파일을 읽고 현재 프로젝트 상태를 요약합니다:
 - `docs/AI_STATUS.md` → 프로젝트 전체 상태
 - `docs/AI_CHANGELOG.md` → 최근 작업 기록
-- `docs/context/EDIT_LOG.md` → 최근 수정 파일
-- `docs/context/DECISIONS.md` → 최근 결정사항
+- `docs/harness/runtime/EDIT_LOG.md` → 최근 수정 파일
+- `docs/harness/policy/DECISIONS.md` → 최근 결정사항
 
 ### 2. AI_STATUS.md 갱신
 작업 결과에 따라 다음을 업데이트합니다:
@@ -20,7 +20,7 @@
 - 핵심 모듈 (최근 수정)
 
 ### 3. 결정 기록
-중요 기술/아키텍처 결정을 `docs/context/DECISIONS.md`에 기록:
+중요 기술/아키텍처 결정을 `docs/harness/policy/DECISIONS.md`에 기록:
 ```markdown
 ### [날짜] 결정 제목
 - **키워드**: 검색용 태그

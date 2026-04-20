@@ -1,0 +1,309 @@
+{% extends "admin/layout.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">관리자 설정</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2 mb-4">
+                    <a href="{{ url_for('auth.user_list') }}" class="btn btn-primary">사용자 관리</a>
+                    <a href="{{ url_for('admin.security_logs') }}" class="btn btn-info">보안 로그 조회</a>
+                    <a href="{{ url_for('admin.admin_notifications') }}" class="btn btn-outline-danger"><i class="fas fa-bullhorn me-1"></i>공지/알림 발송</a>
+                    <button id="backupBtn" class="btn btn-warning">🚨 시스템 백업 실행</button>
+                </div>
+                
+                <div class="card mb-4 border-info">
+                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">ChannelTalk Pilot 지표 (Phase F)</h6>
+                        <button class="btn btn-sm btn-light" id="refreshChannelStats">새로고침</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center" id="channelStatsRow">
+                            <div class="col">
+                                <h6 class="text-muted">Push 성공률</h6>
+                                <h4 id="statPushSuccess" class="mb-0">-</h4>
+                            </div>
+                            <div class="col">
+                                <h6 class="text-muted">중복 비율</h6>
+                                <h4 id="statDuplicate" class="mb-0">-</h4>
+                            </div>
+                            <div class="col">
+                                <h6 class="text-muted">Inbound 파싱 성공률</h6>
+                                <h4 id="statParseSuccess" class="mb-0">-</h4>
+                            </div>
+                            <div class="col">
+                                <h6 class="text-muted">대기 백로그</h6>
+                                <h4 id="statBacklog" class="mb-0">-</h4>
+                            </div>
+                        </div>
+                        <hr>
+                        <div id="channelAlerts" class="small text-danger"></div>
+                    </div>
+                </div>
+
+                <div id="backupStatusCard" class="alert alert-secondary mb-4" role="status" aria-live="polite">
+                    <h6 class="alert-heading mb-2">백업 상태</h6>
+                    <p id="backupStatusText" class="mb-0">불러오는 중...</p>
+                    <button id="backupStatusRefresh" type="button" class="btn btn-sm btn-outline-secondary mt-2" style="display:none;">새로고침</button>
+                </div>
+
+                <ul class="nav nav-tabs" id="adminTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="menu-tab" data-bs-toggle="tab" data-bs-target="#menu" type="button" role="tab" aria-controls="menu" aria-selected="true">메뉴 관리</button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content p-3" id="adminTabContent">
+                    <div class="tab-pane fade show active" id="menu" role="tabpanel" aria-labelledby="menu-tab">
+                        <h5 class="mb-3">메뉴 구성 설정</h5>
+                        <p class="text-muted">메뉴 항목을 추가하거나 제거하고 순서를 변경할 수 있습니다. JSON 형식으로 입력하세요.</p>
+                        
+                        <form action="{{ url_for('admin.update_menu') }}" method="post">
+                            <div class="mb-3">
+                                <label for="menu_config" class="form-label">메뉴 구성 (JSON)</label>
+                                <textarea class="form-control" id="menu_config" name="menu_config" rows="15">{{ menu | tojson(indent=2) }}</textarea>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <h6 class="alert-heading">입력 형식 예시</h6>
+                                <pre class="mb-0">
+{
+  "main_menu": [
+    {"id": "order_list", "name": "전체 주문", "url": "/"},
+    {"id": "add_order", "name": "접수", "url": "/add"},
+    {"id": "measured", "name": "실측", "url": "/?status=MEASURE"},
+    {"id": "scheduled", "name": "설치 예정", "url": "/?status=SCHEDULED"}
+  ],
+  "admin_menu": [
+    {"id": "user_management", "name": "사용자 관리", "url": "/admin/users"},
+    {"id": "security_logs", "name": "보안 로그", "url": "/admin/security-logs"}
+  ]
+}
+                                </pre>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">메뉴 설정 저장</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var backupStatusCard = document.getElementById('backupStatusCard');
+        var backupStatusText = document.getElementById('backupStatusText');
+        var backupStatusRefresh = document.getElementById('backupStatusRefresh');
+        
+        var btnRefreshChannel = document.getElementById('refreshChannelStats');
+        if (btnRefreshChannel) {
+            btnRefreshChannel.addEventListener('click', loadChannelStats);
+            loadChannelStats(); // load on init
+        }
+
+        function loadChannelStats() {
+            fetch('/api/channel/health')
+            .then(function(response) {
+                return response.text().then(function(text) {
+                    var data = null;
+
+                    if (text) {
+                        try {
+                            data = JSON.parse(text);
+                        } catch (parseError) {
+                            if (!response.ok) {
+                                throw new Error(text);
+                            }
+                            throw parseError;
+                        }
+                    }
+
+                    if (!response.ok && response.status !== 503) {
+                        throw new Error((data && (data.error || data.message)) || 'Network response was not ok');
+                    }
+                    if (!data) {
+                        throw new Error('Empty response');
+                    }
+                    return data;
+                });
+            })
+            .then(function(data) {
+                var metrics = data.metrics || {};
+                var queue = data.queue || {};
+                
+                document.getElementById('statPushSuccess').textContent = (metrics.delivery_success_rate !== undefined ? metrics.delivery_success_rate + '%' : '-');
+                document.getElementById('statDuplicate').textContent = (metrics.duplicate_rate !== undefined ? metrics.duplicate_rate + '%' : '-');
+                document.getElementById('statParseSuccess').textContent = (metrics.parse_success_rate !== undefined ? metrics.parse_success_rate + '%' : '-');
+                document.getElementById('statBacklog').textContent = (queue.backlog_count !== undefined ? queue.backlog_count + '건' : '-');
+                
+                var alerts = [];
+                if (metrics.delivery_success_rate < 95) alerts.push('⚠️ Push 성공률이 95% 미만입니다.');
+                if (metrics.duplicate_rate > 2) alerts.push('⚠️ 중복 비율이 2%를 초과했습니다.');
+                if (metrics.parse_success_rate < 90) alerts.push('⚠️ 파싱 성공률이 낮습니다.');
+                if (data.readiness === 'fail') {
+                    if (data.flag_violations && data.flag_violations.length > 0) {
+                        alerts.push('⚠️ 시스템 상태가 fail입니다: ' + data.flag_violations.join(', '));
+                    } else {
+                        alerts.push('⚠️ 채널톡 연동 환경변수 또는 Worker가 정상 설정되지 않았습니다 (readiness: fail).');
+                    }
+                }
+                
+                document.getElementById('channelAlerts').innerHTML = alerts.join('<br>');
+            })
+            .catch(function(error) {
+                console.error('Error fetching channel stats:', error);
+                document.getElementById('channelAlerts').textContent = '상태를 불러올 수 없습니다. (' + error.message + ')';
+            });
+        }
+
+        function renderBackupStatus(st) {
+            if (!st || !st.success) {
+                backupStatusText.textContent = '상태를 불러올 수 없습니다.';
+                backupStatusCard.className = 'alert alert-secondary mb-4';
+                return;
+            }
+            if (st.backup_in_progress) {
+                backupStatusText.innerHTML = '🔄 백업 실행 중... (1~2분 소요)';
+                backupStatusCard.className = 'alert alert-info mb-4';
+                backupStatusRefresh.style.display = 'none';
+                return;
+            }
+            if (st.last_backup_error) {
+                backupStatusText.innerHTML = '❌ 백업 실패: ' + st.last_backup_error;
+                backupStatusCard.className = 'alert alert-danger mb-4';
+                backupStatusRefresh.style.display = 'inline-block';
+                return;
+            }
+            if (st.last_backup_result) {
+                var r = st.last_backup_result;
+                backupStatusText.innerHTML = '✅ <strong>백업이 완료되었습니다.</strong><br>성공: ' + (r.success_count || 0) + '/' + (r.total_tiers || 2) + ' (1차·2차)';
+                backupStatusCard.className = 'alert alert-success mb-4';
+                backupStatusRefresh.style.display = 'inline-block';
+                return;
+            }
+            var t1 = st.status && st.status.tier1 && st.status.tier1.latest_backup;
+            var t2 = st.status && st.status.tier2 && st.status.tier2.latest_backup;
+            var backupTime = (t1 && t1.backup_time) || (t2 && t2.backup_time);
+            if (backupTime) {
+                backupStatusText.innerHTML = '✅ 마지막 백업: ' + backupTime.replace('T', ' ').substring(0, 19) + '<br>(주문·상태·실측·체크리스트·워크플로우 포함)';
+                backupStatusCard.className = 'alert alert-success mb-4';
+            } else {
+                backupStatusText.textContent = '마지막 백업 이력 없음. 위 버튼으로 백업을 실행하세요.';
+                backupStatusCard.className = 'alert alert-secondary mb-4';
+            }
+            backupStatusRefresh.style.display = 'inline-block';
+        }
+
+        function loadBackupStatus() {
+            backupStatusText.textContent = '불러오는 중...';
+            fetch('/api/backup_status').then(function(res) { return res.json(); }).then(function(st) {
+                renderBackupStatus(st);
+            }).catch(function() {
+                backupStatusText.textContent = '상태를 불러올 수 없습니다.';
+                backupStatusCard.className = 'alert alert-secondary mb-4';
+            });
+        }
+
+        backupStatusRefresh.addEventListener('click', function() {
+            loadBackupStatus();
+        });
+        loadBackupStatus();
+
+        // Add basic JSON validation
+        document.querySelector('form').addEventListener('submit', function(event) {
+            const menuConfig = document.getElementById('menu_config').value;
+            
+            try {
+                const parsed = JSON.parse(menuConfig);
+                if (!parsed.main_menu || !Array.isArray(parsed.main_menu)) {
+                    alert('유효하지 않은 메뉴 구성입니다. main_menu 배열이 필요합니다.');
+                    event.preventDefault();
+                }
+            } catch (e) {
+                alert('유효하지 않은 JSON 형식입니다: ' + e.message);
+                event.preventDefault();
+            }
+        });
+        
+        // 백업 버튼 기능 (백그라운드 실행 → 타임아웃/연결 끊김 방지)
+        document.getElementById('backupBtn').addEventListener('click', function() {
+            if (!confirm('시스템 백업을 실행하시겠습니까?\n\n백업 내용:\n- 데이터베이스 전체(주문·상태·실측·체크리스트·워크플로우 포함)\n- 시스템 파일들\n\n백업 위치:\n1차: 로컬 (backups/tier1_primary)\n2차: 다른 폴더 (backups/tier2_secondary)')) {
+                return;
+            }
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '🔄 백업 시작 중...';
+            backupStatusText.innerHTML = '🔄 백업 실행 중... (1~2분 소요)';
+            backupStatusCard.className = 'alert alert-info mb-4';
+            fetch('/api/simple_backup', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        if (data.backup_started || data.backup_in_progress) {
+                            alert('✅ ' + data.message);
+                            window._backupPolling = true;
+                            var pollCount = 0, maxPoll = 30;
+                            var poll = function() {
+                                pollCount++;
+                                fetch('/api/backup_status').then(function(res) { return res.json(); }).then(function(st) {
+                                    if (!st.success) return;
+                                    if (st.backup_in_progress && pollCount < maxPoll) {
+                                        btn.innerHTML = '🔄 백업 실행 중... (' + (pollCount * 4) + '초)';
+                                        backupStatusText.innerHTML = '🔄 백업 실행 중... (' + (pollCount * 4) + '초)';
+                                        setTimeout(poll, 4000);
+                                        return;
+                                    }
+                                    window._backupPolling = false;
+                                    btn.disabled = false;
+                                    btn.innerHTML = '🚨 시스템 백업 실행';
+                                    renderBackupStatus(st);
+                                    if (st.last_backup_error) {
+                                        alert('❌ 백업 실패: ' + st.last_backup_error);
+                                        return;
+                                    }
+                                    if (st.last_backup_result) {
+                                        alert('✅ 백업이 완료되었습니다.\n성공: ' + st.last_backup_result.success_count + '/' + st.last_backup_result.total_tiers);
+                                    }
+                                }).catch(function() {
+                                    window._backupPolling = false;
+                                    btn.disabled = false;
+                                    btn.innerHTML = '🚨 시스템 백업 실행';
+                                    loadBackupStatus();
+                                });
+                            };
+                            setTimeout(poll, 4000);
+                            return;
+                        }
+                        if (data.success_count != null) {
+                            alert('✅ ' + data.message + '\n\n성공한 백업: ' + data.success_count + '/' + data.total_tiers);
+                        } else {
+                            alert('✅ ' + data.message);
+                        }
+                        loadBackupStatus();
+                    } else {
+                        alert('❌ 백업 실패: ' + (data.message || '알 수 없는 오류'));
+                        loadBackupStatus();
+                    }
+                })
+                .catch(function(err) {
+                    console.error('백업 오류:', err);
+                    alert('❌ 백업 요청 중 오류가 발생했습니다. 네트워크를 확인한 뒤 다시 시도하세요.');
+                    loadBackupStatus();
+                })
+                .finally(function() {
+                    if (!window._backupPolling) {
+                        btn.disabled = false;
+                        btn.innerHTML = '🚨 시스템 백업 실행';
+                    }
+                });
+        });
+    });
+</script>
+{% endblock %} 

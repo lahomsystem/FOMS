@@ -6,7 +6,13 @@
       "Bash(python .claude/hooks/track_edits.py)",
       "Bash(python .claude/hooks/session_stop.py)",
       "Bash(wc -l .claude/settings.json .claude/hooks/*.py .claude/commands/*.md)",
-      "Bash(python -c \"import app; print\\(''APP_OK''\\)\")"
+      "Bash(python -c \"import app; print\\(''APP_OK''\\)\")",
+      "Bash(python -c \"import app; print\\('APP_OK'\\)\")",
+      "Bash(rm -f data/ops_browser_qa.db)",
+      "Bash(ls data/*.db)",
+      "Bash(powershell -NoProfile -File tools/harness/ptc_workspace_cleanup.ps1 -RecursePyCache)",
+      "Bash(powershell -NoProfile -File tools/harness/ptc_workspace_hygiene_probe.ps1 -RecursePyCache)",
+      "Bash(xargs grep *)"
     ]
   }
 }

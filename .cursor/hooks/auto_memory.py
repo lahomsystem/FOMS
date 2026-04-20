@@ -11,6 +11,8 @@ import os
 import re
 from datetime import datetime
 
+from shared_utils import harness_runtime_path
+
 
 def get_project_root():
     """프로젝트 루트 경로 반환"""
@@ -32,7 +34,7 @@ def write_file(path, content):
 
 def get_recent_edited_files(project_root, limit=5):
     """EDIT_LOG.md에서 최근 편집 파일 목록 추출"""
-    edit_log = os.path.join(project_root, "docs", "context", "EDIT_LOG.md")
+    edit_log = harness_runtime_path(project_root, "EDIT_LOG.md")
     if not os.path.exists(edit_log):
         return []
     files = []

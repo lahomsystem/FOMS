@@ -11,12 +11,12 @@
 - Cursor enforcement: `.cursor/rules/*.mdc`
 - Shared verification contract: `.agents/workflows/verify-result.md`
 - Generated runner bundles:
-  - `docs/context/HARNESS_BUNDLE_CURSOR.md`
-  - `docs/context/HARNESS_BUNDLE_CURSOR_HARNESS.md` (harness-internal only)
-  - `docs/context/HARNESS_BUNDLE_CLAUDE.md`
-  - `docs/context/HARNESS_BUNDLE_CLAUDE_HARNESS.md` (harness-internal only)
-  - `docs/context/HARNESS_BUNDLE_CODEX.md`
-  - `docs/context/HARNESS_BUNDLE_CODEX_HARNESS.md` (harness-internal only)
+  - `docs/harness/bundles/HARNESS_BUNDLE_CURSOR.md`
+  - `docs/harness/bundles/HARNESS_BUNDLE_CURSOR_HARNESS.md` (harness-internal only)
+  - `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE.md`
+  - `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md` (harness-internal only)
+  - `docs/harness/bundles/HARNESS_BUNDLE_CODEX.md`
+  - `docs/harness/bundles/HARNESS_BUNDLE_CODEX_HARNESS.md` (harness-internal only)
 
 ## Browser Ownership
 - Cursor browser MCP: exploration, manual debugging, ad-hoc reproduction
@@ -32,12 +32,12 @@ Use the generated bundle that matches the runner you are about to use.
 These bundles are operator-facing reference artifacts. Cursor/Claude/Codex extension sessions do not auto-load them on their own; the operator must open or reference them explicitly. The only repo-local automatic bundle injection path is `tools/harness/run_codex.ps1`, which reads the selected bundle into its prompt.
 
 ## Runner Entry Points In Cursor
-- Cursor built-in agent: `docs/context/HARNESS_BUNDLE_CURSOR.md`
-- Cursor harness-internal work: `docs/context/HARNESS_BUNDLE_CURSOR_HARNESS.md`
-- Claude extension in Cursor: `docs/context/HARNESS_BUNDLE_CLAUDE.md`
-- Claude harness-internal work: `docs/context/HARNESS_BUNDLE_CLAUDE_HARNESS.md`
-- Codex extension / Codex CLI in Cursor: `docs/context/HARNESS_BUNDLE_CODEX.md` + `tools/harness/run_codex.ps1`
-- Codex harness-internal work: `docs/context/HARNESS_BUNDLE_CODEX_HARNESS.md` or `run_codex.ps1` auto-routing
+- Cursor built-in agent: `docs/harness/bundles/HARNESS_BUNDLE_CURSOR.md`
+- Cursor harness-internal work: `docs/harness/bundles/HARNESS_BUNDLE_CURSOR_HARNESS.md`
+- Claude extension in Cursor: `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE.md`
+- Claude harness-internal work: `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md`
+- Codex extension / Codex CLI in Cursor: `docs/harness/bundles/HARNESS_BUNDLE_CODEX.md` + `tools/harness/run_codex.ps1`
+- Codex harness-internal work: `docs/harness/bundles/HARNESS_BUNDLE_CODEX_HARNESS.md` or `run_codex.ps1` auto-routing
 - Exploratory/manual browser work: Cursor browser MCP
 - Repeatable smoke/QA browser work: generated gstack runtime assets after `setup --host codex`
 
@@ -130,15 +130,15 @@ Phase 2 now includes a pinned upstream documentation snapshot, the exact repo-lo
 
 ## Daily Use Examples
 ### Cursor built-in agent
-- Start from `docs/context/HARNESS_BUNDLE_CURSOR.md`
+- Start from `docs/harness/bundles/HARNESS_BUNDLE_CURSOR.md`
 - Use Cursor browser MCP for exploratory or manual browser work
-- For harness-internal changes, switch to `docs/context/HARNESS_BUNDLE_CURSOR_HARNESS.md`
+- For harness-internal changes, switch to `docs/harness/bundles/HARNESS_BUNDLE_CURSOR_HARNESS.md`
 
 ### Claude extension in Cursor
-- Start from `docs/context/HARNESS_BUNDLE_CLAUDE.md`
+- Start from `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE.md`
 - Open `CLAUDE.md` only when editing or verifying the Claude-only source policy text
 - After meaningful edits, run `python "tools/harness/verify_result.py" --json`
-- For harness-internal changes, switch to `docs/context/HARNESS_BUNDLE_CLAUDE_HARNESS.md`
+- For harness-internal changes, switch to `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md`
 
 ### Codex review / implement / QA
 ```powershell
@@ -164,6 +164,6 @@ python "tools/harness/verify_result.py" --json
 - Spec-bound verification is required but no spec is found: create or point `tools/harness/verify_result.py --spec ...` at the correct `*_SPEC.md` file before closing the task
 
 ## Indexing Rules
-- New cross-session technical decisions: record in `docs/context/DECISIONS.md`
+- New cross-session technical decisions: record in `docs/harness/policy/DECISIONS.md`
 - New durable analysis, evolution, incident, or long-lived plan docs: add an entry to `docs/ARCHIVE_INDEX.md`
-- Session-local working files such as `task_plan.md`, `findings.md`, and `progress.md` do not need archive index entries
+- Session-local working files such as `docs/context/analysis/task_plan.md`, `docs/context/analysis/findings.md`, and `docs/context/analysis/progress.md` do not need archive index entries

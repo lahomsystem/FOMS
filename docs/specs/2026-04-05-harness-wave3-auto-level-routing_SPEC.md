@@ -75,7 +75,7 @@
 | `docs/ARCHIVE_INDEX.md` | `docs/specs/` 내 Wave 3 spec 인덱싱 |
 | `tests/harness/test_profile_contracts.py` | bundle 선택 계약이 Wave 3 라우팅과 충돌하지 않는지 확장 |
 | `tests/harness/` 신규 테스트 | 자동 판정, override, 경고 재확인, 사용자 표시 형식, dry-run 라우팅 테스트 추가 |
-| `docs/context/DECISIONS.md` | Wave 3 분류 우선순위/override 결정 기록 |
+| `docs/harness/policy/DECISIONS.md` | Wave 3 분류 우선순위/override 결정 기록 |
 | `progress.md` / `findings.md` / `task_plan.md` | Wave 3 설계 및 구현 추적 |
 
 ### 2.2 아키텍처 방향
@@ -122,8 +122,8 @@
 
 ## 5. 참고 자료
 - 관련 결정:
-  - `docs/context/DECISIONS.md` — 하네스 일상 번들 슬림화
-  - `docs/context/DECISIONS.md` — 하네스 전용 확장 번들 분리
-  - `docs/context/DECISIONS.md` — Spec 탐색 규칙 단일화
+  - `docs/harness/policy/DECISIONS.md` — 하네스 일상 번들 슬림화
+  - `docs/harness/policy/DECISIONS.md` — 하네스 전용 확장 번들 분리
+  - `docs/harness/policy/DECISIONS.md` — Spec 탐색 규칙 단일화
 - 관련 설계 계획: `docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md`
 - 관련 가이드: `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md`

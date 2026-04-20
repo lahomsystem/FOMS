@@ -22,7 +22,7 @@ tools: Read, Grep, Glob, Shell, StrReplace, Write, SemanticSearch
 - **partial 분할 시**: 열린 괄호/이벤트 리스너가 어느 partial에서 닫히는지 반드시 확인
 
 ## 반드시 지키는 규칙
-1. **인라인 스타일 금지** - `static/css/erp-pro.css` 사용
+1. **인라인 스타일 금지** - `static/css/foundation/erp-pro.css` 사용
 2. **인라인 script 300줄 초과 시** 별도 `.js` 파일로 분리
 3. **템플릿 800줄 초과 시** `{% include 'partials/이름.html' %}` partial 분리
 4. **jQuery 사용 금지** - `querySelector`, `fetch()` 사용

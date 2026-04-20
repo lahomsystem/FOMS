@@ -1,0 +1,44 @@
+/* ERP shell fragment navigation: loading overlay over #main-content during fetch */
+
+.foms-erp-shell-main-wrap {
+  position: relative;
+}
+
+.foms-erp-shell-loading-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.82);
+  pointer-events: auto;
+}
+
+.foms-erp-shell-loading-overlay.is-active {
+  display: flex;
+}
+
+.foms-erp-shell-loading-overlay .spinner-border {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+/*
+ * ERP surface visibility cloak.
+ *
+ * Hides the ERP Order tab pane between HTML parse and the first JS-driven
+ * mount (`fomsMountErpOrderSurface`). The cloak is released by setting the
+ * `data-erp-ready` attribute once either:
+ *   - the inline server-rendered bootstrap payload has been applied, or
+ *   - no async initial data load is required (feature-off / no saved order /
+ *     ERP tab is not the initially active tab).
+ *
+ * We use `visibility: hidden` (not `display: none`) so layout metrics remain
+ * stable and Bootstrap's own tab show/hide transitions are not disturbed.
+ * A failsafe release timer in the mount script guarantees the surface is
+ * never left permanently hidden, even if a mount path throws.
+ */
+[data-erp-surface]:not([data-erp-ready]) {
+  visibility: hidden;
+}

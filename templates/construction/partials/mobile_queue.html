@@ -1,0 +1,35 @@
+{% from 'partials/shared/erp_mobile_queue_card.html' import render_queue_card %}
+
+<section class="erp-mobile-queue-section" aria-label="시공 모바일 작업 큐">
+  <div class="erp-mobile-queue-section__summary">
+    <div>
+      <span class="erp-mobile-queue-section__eyebrow">Construction Queue</span>
+      <h2 class="erp-mobile-queue-section__title">시공 작업 큐</h2>
+    </div>
+    <span class="erp-mobile-queue-section__count">현재 {{ orders|length }}건 / 전체 {{ total_orders }}건</span>
+  </div>
+
+  {% if orders %}
+    <div class="erp-mobile-queue-section__list">
+      {% for o in orders %}
+        {% set task_action = None %}
+        {% if o.stage == '시공대기' %}
+          {% set task_action = {'label': '시작', 'icon': 'fas fa-play', 'data_action': 'startConstruction', 'button_class': 'erp-construction-action'} %}
+        {% elif o.stage == '시공중' %}
+          {% set task_action = {'label': '완료', 'icon': 'fas fa-check', 'data_action': 'completeConstruction', 'button_class': 'erp-construction-action'} %}
+        {% elif o.stage == '시공완료' and o.as_received_done %}
+          {% set task_action = {'label': 'AS 재업로드', 'icon': 'fas fa-redo', 'data_action': 'openAsReuploadModal', 'button_class': 'erp-construction-action'} %}
+        {% elif o.stage == '시공완료' %}
+          {% set task_action = {'label': 'AS 접수', 'icon': 'fas fa-tools', 'data_action': 'openAsAcceptModal', 'button_class': 'erp-construction-action'} %}
+        {% endif %}
+        {{ render_queue_card(o, can_edit_erp|default(false), task_action) }}
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="erp-mobile-queue-section__empty">
+      <i class="fas fa-inbox" aria-hidden="true"></i>
+      <p class="mb-1">조건에 맞는 시공 주문이 없습니다.</p>
+      <small>필터를 바꾸거나 검색어를 지워 보세요.</small>
+    </div>
+  {% endif %}
+</section>

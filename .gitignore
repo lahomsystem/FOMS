@@ -43,7 +43,11 @@ static/uploads/*
 
 # IDE 파일
 .idea/
-.vscode/
+# .vscode/: canonical tree §2.2.1 — 공유 설정만 버전 관리(클린 worktree에 폴더 존재 보장)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
 !.cursor/
 .cursor/*
 !.cursor/hooks.json
@@ -71,27 +75,33 @@ test.html
 # 배포/커밋용 임시 메시지 파일 (푸시 후 삭제 규칙 - devops-deploy.md)
 commit_msg*.txt
 commit_msg_*.txt
+_commit_msg*.txt
+.git_commit_msg.txt
 msg.txt 
 
 # Load test secrets / generated accounts
-tests/load/session_cookies.txt
-tests/load/loadtest_users.txt
-tests/load/results/
+tests/harness/load/session_cookies.txt
+tests/harness/load/loadtest_users.txt
+tests/harness/load/results/
 
 # 로컬 전용 (배포 제외)
 config/local*
 
-# 훅 payload 디버그 (CURSOR_HOOK_DEBUG=1 시 생성)
-docs/context/HOOK_PAYLOAD_DEBUG.jsonl
-docs/context/.hook_debug_once
-docs/context/HOOK_RAW_DUMP.txt
-docs/context/.hook_raw_once
-docs/context/HOOK_RUNTIME_LOG.txt
-docs/context/.session_stop_idempotency.json
-docs/context/.post_task_qc_debounce.json
+# 훅 payload 디버그 / 런타임 로그
+docs/harness/logs/HOOK_PAYLOAD_DEBUG.jsonl
+docs/harness/logs/.hook_debug_once
+docs/harness/logs/HOOK_RAW_DUMP.txt
+docs/harness/logs/.hook_raw_once
+docs/harness/logs/HOOK_RUNTIME_LOG.txt
+docs/harness/logs/hook_stdin_err.txt
+docs/harness/runtime/.session_stop_idempotency.json
+docs/harness/runtime/.post_task_qc_debounce.json
 
-# 브라우저 감리 generated 산출물
-docs/analysis/browser_audit_*/
+# 브라우저 감리 generated 산출물 (§2.2.1: docs/context/analysis/)
+docs/context/analysis/browser_audit_*/
+
+# tools/ runtime noise (§2.2.1: tools/ is harness|smoke|research_center only)
+tools/request_log.txt
 
 # gstack setup/runtime generated artifacts
 .agents/skills/gstack-*/
@@ -109,3 +119,4 @@ docs/analysis/browser_audit_*/
 .agents/skills/gstack/browse/dist/
 .agents/skills/gstack/design/dist/
 .cursor/hooks/__pycache__/
+.gstack/

@@ -1,8 +1,8 @@
 """
 훅 payload 디버그 기록.
 
-- payload 구조는 훅별 1회 자동 캡처: `docs/context/HOOK_PAYLOAD_DEBUG.jsonl`
-- raw 입력은 훅별 1회 자동 캡처: `docs/context/HOOK_RAW_DUMP.txt`
+- payload 구조는 훅별 1회 자동 캡처: `docs/harness/logs/HOOK_PAYLOAD_DEBUG.jsonl`
+- raw 입력은 훅별 1회 자동 캡처: `docs/harness/logs/HOOK_RAW_DUMP.txt`
 - 디버그/파싱 실패는 fail-open 하되 런타임 로그 또는 stderr/fd2에 남긴다.
 """
 import json
@@ -54,8 +54,10 @@ def maybe_log_payload(hook_name, payload, project_root=None):
     try:
         if not root:
             root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        log_path = os.path.join(root, "docs", "context", "HOOK_PAYLOAD_DEBUG.jsonl")
-        once_file = os.path.join(root, "docs", "context", ".hook_debug_once")
+        from shared_utils import harness_log_path
+
+        log_path = harness_log_path(root, "HOOK_PAYLOAD_DEBUG.jsonl")
+        once_file = harness_log_path(root, ".hook_debug_once")
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         if os.path.exists(once_file):
             with open(once_file, "r", encoding="utf-8") as f:
@@ -71,12 +73,13 @@ def maybe_log_payload(hook_name, payload, project_root=None):
         _log_fail("maybe_log_payload", e, root)
 
 def _fallback_err_path(name: str) -> str:
-    """에러 fallback 파일 경로: 프로젝트 docs/context 또는 temp 디렉터리."""
+    """에러 fallback 파일 경로: 프로젝트 `docs/harness/logs` 또는 temp 디렉터리."""
     try:
-        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        ctx = os.path.join(root, "docs", "context")
-        os.makedirs(ctx, exist_ok=True)
-        return os.path.join(ctx, name)
+        from shared_utils import harness_log_path
+
+        path = harness_log_path(None, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        return path
     except Exception:
         return os.path.join(tempfile.gettempdir(), name)
 
@@ -98,14 +101,16 @@ def get_payload():
     # RAW dump: 훅별 1회씩 raw 입력 캡처 (디스크 무한 증가 방지)
     try:
         root = root_hint
-        once_file = os.path.join(root, "docs", "context", ".hook_raw_once")
+        from shared_utils import harness_log_path
+
+        once_file = harness_log_path(root, ".hook_raw_once")
         hook_id = os.path.basename(sys.argv[0]) if sys.argv else "unknown"
         already_dumped = set()
         if os.path.exists(once_file):
             with open(once_file, "r", encoding="utf-8") as f:
                 already_dumped = set(f.read().splitlines())
         if hook_id not in already_dumped:
-            log_path = os.path.join(root, "docs", "context", "HOOK_RAW_DUMP.txt")
+            log_path = harness_log_path(root, "HOOK_RAW_DUMP.txt")
             os.makedirs(os.path.dirname(log_path), exist_ok=True)
             with open(log_path, "a", encoding="utf-8") as f:
                 from datetime import datetime as _dt

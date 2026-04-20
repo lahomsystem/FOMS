@@ -11,4 +11,4 @@
 .agents/skills/gstack/browse/bin/* text eol=lf
 .agents/skills/gstack/browse/scripts/* text eol=lf
 .agents/skills/gstack/gstack-upgrade/migrations/*.sh text eol=lf
-docs/context/HARNESS_BUNDLE_*.md text eol=lf
+docs/harness/bundles/HARNESS_BUNDLE_*.md text eol=lf

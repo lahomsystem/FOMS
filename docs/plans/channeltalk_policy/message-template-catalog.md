@@ -6,7 +6,7 @@
 - Diff first: automatic push는 무엇이 어떻게 바뀌었는지 `이전 -> 이후` 형식으로 먼저 보여준다.
 - CTA: 주문 상세 링크는 아래 계약을 따른다.
   - primary: `{erp_url}/channel/wam/?launch_token={launch_token}`
-  - fallback: `{erp_url}/edit/{order_id}?open=erp-beta`
+  - fallback: `{erp_url}/edit/{order_id}?open=erp-order`
   - legacy compatibility: `{erp_url}/erp/orders/{order_id}`는 서버에서 redirect 처리
 
 ## 2. 기본 템플릿 목록

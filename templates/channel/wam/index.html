@@ -1,0 +1,53 @@
+{% extends 'channel/wam/layout.html' %}
+{% import 'channel/wam/_macros.html' as wam with context %}
+
+{% block title %}{{ page_vm.title if page_vm.title else 'FOMS WAM' }}{% endblock %}
+
+{% macro render_section(section) -%}
+  {% if section.key == 'customer' %}
+    {% include 'channel/wam/sections/_customer.html' %}
+  {% elif section.key == 'schedule' %}
+    {% include 'channel/wam/sections/_schedule.html' %}
+  {% elif section.key == 'items' %}
+    {% include 'channel/wam/sections/_items.html' %}
+  {% elif section.key == 'payment' %}
+    {% include 'channel/wam/sections/_payment.html' %}
+  {% elif section.key == 'attachments' %}
+    {% include 'channel/wam/sections/_attachments.html' %}
+  {% elif section.key == 'timeline' %}
+    {% include 'channel/wam/sections/_timeline.html' %}
+  {% endif %}
+{%- endmacro %}
+
+{% block shell %}
+  {% set primary_sections = page_vm.primary_sections if page_vm.primary_sections else [] %}
+  {% set folded_sections = page_vm.folded_sections if page_vm.folded_sections else [] %}
+
+  <div class="wam-shell__viewport">
+    {% include 'channel/wam/sections/_header.html' %}
+
+    <main id="wam-main" class="wam-main" role="main" aria-label="주문 상세">
+      {% if page_vm.page_state == 'error' %}
+        {% set state = page_vm.page_error %}
+        {% include 'channel/wam/states/_error.html' %}
+      {% elif page_vm.page_state == 'empty' %}
+        {% set state = page_vm.page_empty %}
+        {% include 'channel/wam/states/_empty.html' %}
+      {% else %}
+        {% include 'channel/wam/sections/_summary_strip.html' %}
+
+        <div class="wam-section-stack wam-section-stack--primary">
+          {% for section in primary_sections %}
+            {{ render_section(section) }}
+          {% endfor %}
+        </div>
+
+        <div class="wam-section-stack wam-section-stack--folded">
+          {% for section in folded_sections %}
+            {{ render_section(section) }}
+          {% endfor %}
+        </div>
+      {% endif %}
+    </main>
+  </div>
+{% endblock %}

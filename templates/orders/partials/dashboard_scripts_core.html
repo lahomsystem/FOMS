@@ -1,0 +1,350 @@
+<script>
+        function escapeHtml(text) {
+          if (!text) return '';
+          const div = document.createElement('div');
+          div.textContent = String(text);
+          return div.innerHTML;
+        }
+
+        /** ERP Order 일정 카드: 날짜 + 선택 시간 (structured_data.schedule.*) */
+        function formatScheduleDateTimeDisplay(dateStr, timeStr) {
+          const d = dateStr != null ? String(dateStr).trim() : '';
+          const t = timeStr != null ? String(timeStr).trim() : '';
+          if (!d || d === '-') return '-';
+          return t ? `${d} ${t}` : d;
+        }
+
+        function showErpToast(message, type = 'info') {
+          const id = 'erp-toast-container';
+          let container = document.getElementById(id);
+          if (!container) {
+            container = document.createElement('div');
+            container.id = id;
+            container.className = 'erp-toast-container';
+            document.body.appendChild(container);
+          }
+          const toast = document.createElement('div');
+          toast.className = 'erp-toast erp-toast-' + (type === 'success' || type === 'error' ? type : 'info');
+          toast.textContent = String(message || '');
+          container.appendChild(toast);
+          setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.22s ease';
+            setTimeout(() => toast.remove(), 240);
+          }, 2200);
+        }
+
+
+        // === 표시용 한글 라벨(저장은 영문 코드 유지) ===
+        function safeJsonParse(val, fb) { try { var s = String(val || '').trim(); if (!s) return fb || {}; var o = JSON.parse(s); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : (fb || {}); } catch (_) { return fb || {}; } }
+        var _cfg = document.getElementById('erp-dashboard-config');
+        const TEAM_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-team-labels'), {}) : {};
+        const STAGE_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-stage-labels'), {}) : {};
+        const CAN_EDIT_ERP = (document.querySelector('.erp-dashboard')?.dataset?.canEditErp || 'false') === 'true';
+
+        function label(map, code, fallback = '-') {
+          if (!code) return fallback;
+          return map[code] || code;
+        }
+
+        // === 컬럼 폭 조절 (ERPGridBoundaryResize) ===
+        window.ERPGridBoundaryResize = (function() {
+          let _table = null;
+          let _storageKey = null;
+          let _resizingColIndex = -1;
+          let _startX = 0;
+          let _startWidth = 0;
+          
+          function init(config) {
+            const table = config.tableSelector instanceof Element ? config.tableSelector : document.querySelector(config.tableSelector);
+            if (!table) return;
+            
+            _table = table;
+            _storageKey = config.storageKey || 'erp-grid-widths';
+            
+            // 1. 저장된 폭 불러오기
+            restoreWidths();
+            
+            // 2. 리사이저 추가
+            addResizers();
+            
+            // 3. 초기화 버튼 이벤트
+            if (config.resetButtonSelector) {
+              const btn = document.querySelector(config.resetButtonSelector);
+              if (btn) {
+                btn.addEventListener('click', resetWidths);
+              }
+            }
+          }
+          
+          function addResizers() {
+            const ths = _table.querySelectorAll('thead th');
+            ths.forEach((th, index) => {
+              // 마지막 컬럼은 리사이저 제외
+              if (index === ths.length - 1) return;
+              
+              // 이미 리사이저가 있으면 스킵
+              if (th.querySelector('.erp-col-resizer')) return;
+              
+              const resizer = document.createElement('div');
+              resizer.className = 'erp-col-resizer';
+              resizer.addEventListener('mousedown', (e) => startResize(e, th, index));
+              // 클릭 이벤트 전파 방지 (정렬 등과 충돌 방지)
+              resizer.addEventListener('click', (e) => e.stopPropagation());
+              
+              th.appendChild(resizer);
+            });
+            
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+          }
+          
+          function startResize(e, th, index) {
+            e.preventDefault();
+            _resizingColIndex = index;
+            _startX = e.pageX;
+            _startWidth = th.offsetWidth;
+            
+            document.body.style.cursor = 'col-resize';
+            _table.classList.add('resizing');
+          }
+          
+          function onMouseMove(e) {
+            if (_resizingColIndex < 0) return;
+            
+            const diff = e.pageX - _startX;
+            const newWidth = Math.max(50, _startWidth + diff); // 최소 50px
+            
+            const ths = _table.querySelectorAll('thead th');
+            if (ths[_resizingColIndex]) {
+              ths[_resizingColIndex].style.width = newWidth + 'px';
+              ths[_resizingColIndex].style.minWidth = newWidth + 'px';
+              ths[_resizingColIndex].style.maxWidth = newWidth + 'px';
+            }
+          }
+          
+          function onMouseUp(e) {
+            if (_resizingColIndex >= 0) {
+              saveWidths();
+              _resizingColIndex = -1;
+              document.body.style.cursor = '';
+              _table.classList.remove('resizing');
+            }
+          }
+          
+          function saveWidths() {
+            if (!_storageKey) return;
+            const widths = {};
+            const ths = _table.querySelectorAll('thead th');
+            ths.forEach((th, index) => {
+              if (th.style.width) {
+                widths[index] = th.style.width;
+              }
+            });
+            try {
+              localStorage.setItem(_storageKey, JSON.stringify(widths));
+            } catch (e) {
+              console.error('컬럼 폭 저장 실패', e);
+            }
+          }
+          
+          function restoreWidths() {
+            if (!_storageKey) return;
+            try {
+              const saved = localStorage.getItem(_storageKey);
+              if (!saved) return;
+              
+              const widths = JSON.parse(saved);
+              const ths = _table.querySelectorAll('thead th');
+              
+              Object.keys(widths).forEach(index => {
+                if (ths[index]) {
+                  const w = widths[index];
+                  ths[index].style.width = w;
+                  ths[index].style.minWidth = w;
+                  ths[index].style.maxWidth = w;
+                }
+              });
+            } catch (e) {
+              console.error('컬럼 폭 복원 실패', e);
+            }
+          }
+          
+          function resetWidths() {
+            if (!_storageKey) return;
+            localStorage.removeItem(_storageKey);
+            
+            const ths = _table.querySelectorAll('thead th');
+            ths.forEach(th => {
+              th.style.width = '';
+              th.style.minWidth = '';
+              th.style.maxWidth = '';
+            });
+            
+            // CSS에서 정의된 기본값으로 돌아감 (페이지 리로드 없이 적용됨)
+            // 필요하다면 window.location.reload()를 호출할 수도 있음
+            showErpToast('컬럼 폭이 초기화되었습니다.', 'success');
+          }
+          
+          return {
+            init: init
+          };
+        })();
+
+
+        let __selectedOrderId = null;
+        let __attachmentsCache = {};
+        let __attachmentsCacheAt = {};
+        let __orderDetailLoadGen = {};
+
+        /**
+         * 주문 상세의 첨부 캐시와 셸/첨부 상태 플래그를 모두 초기화한다.
+         * 첨부 업로드/삭제가 성공한 직후 호출하면, 다음 상세 펼침 시 최신 목록을 다시 받아온다.
+         */
+        function invalidateOrderDetailAttachments(orderId) {
+          if (!orderId) return;
+          if (typeof window.invalidateOrderDetailRuntimeState === 'function') {
+            window.invalidateOrderDetailRuntimeState(orderId, {
+              cache: __attachmentsCache,
+              cacheAt: __attachmentsCacheAt,
+              loadGen: __orderDetailLoadGen,
+              containerPrefix: 'order-detail-content-'
+            });
+            return;
+          }
+          delete __attachmentsCache[orderId];
+          delete __attachmentsCacheAt[orderId];
+          delete __orderDetailLoadGen[orderId];
+          const c = document.getElementById('order-detail-content-' + orderId);
+          if (c) {
+            delete c.dataset.loaded;
+            delete c.dataset.shellLoaded;
+            delete c.dataset.attachPhase;
+            delete c.dataset.attachError;
+            delete c.dataset.itemCount;
+          }
+        }
+        window.invalidateOrderDetailAttachments = invalidateOrderDetailAttachments;
+
+        let __currentAttachmentList = [];
+        let __currentAttachmentIndex = 0;
+        let __drawingCurrentFilesByOrder = {};
+        let __activeAttachmentCategory = 'measurement';
+        let __attachmentsByCategory = {
+          measurement: [],
+          drawing: [],
+          construction: [],
+          as: []
+        };
+
+        const ATTACHMENT_CATEGORY_META = {
+          measurement: { label: '실측', icon: 'fa-ruler-combined' },
+          drawing: { label: '도면', icon: 'fa-drafting-compass' },
+          construction: { label: '시공', icon: 'fa-hammer' },
+          as: { label: 'AS', icon: 'fa-wrench' }
+        };
+
+        function normalizeAttachmentCategory(category) {
+          const c = String(category || '').trim().toLowerCase();
+          if (c === 'drawing' || c === 'construction' || c === 'as') return c;
+          return 'measurement';
+        }
+
+        function getAttachmentCategoryLabel(category) {
+          const key = normalizeAttachmentCategory(category);
+          return (ATTACHMENT_CATEGORY_META[key] || ATTACHMENT_CATEGORY_META.measurement).label;
+        }
+
+        function renderAttachmentCategoryTabs() {
+          const tabsEl = document.getElementById('erp-attachments-category-tabs');
+          if (!tabsEl) return;
+          const keys = ['measurement', 'drawing', 'construction', 'as'];
+          tabsEl.innerHTML = keys.map((key) => {
+            const meta = ATTACHMENT_CATEGORY_META[key];
+            const count = (__attachmentsByCategory[key] || []).length;
+            const isActive = key === __activeAttachmentCategory;
+            const activeCls = isActive ? 'btn-primary' : 'btn-outline-primary';
+            return `
+              <button type="button" class="btn btn-sm ${activeCls}" onclick="selectAttachmentCategory('${key}')">
+                <i class="fas ${meta.icon}"></i> ${meta.label}
+                <span class="badge ${isActive ? 'bg-light text-dark' : 'bg-primary text-white'} ms-1">${count}</span>
+              </button>
+            `;
+          }).join('');
+        }
+
+        function renderAttachmentCategoryGallery() {
+          const galleryEl = document.getElementById('erp-attachments-category-gallery');
+          if (!galleryEl) return;
+          const list = __attachmentsByCategory[__activeAttachmentCategory] || [];
+          if (!list.length) {
+            galleryEl.innerHTML = `
+              <div class="col-12">
+                <div class="text-muted small p-3 border rounded bg-light">
+                  ${getAttachmentCategoryLabel(__activeAttachmentCategory)} 카테고리에 첨부 파일이 없습니다.
+                </div>
+              </div>
+            `;
+            return;
+          }
+
+          galleryEl.innerHTML = list.map((a, index) => {
+            const name = escapeHtml(a.filename || '');
+            const type = a.file_type || 'file';
+            const thumb = a.thumbnail_view_url || a.view_url || '#';
+            const viewUrl = a.view_url || '#';
+            const downloadUrl = a.download_url || '#';
+
+            const mediaHtml = (type === 'video')
+              ? `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
+                  <video src="${viewUrl}" controls preload="metadata" style="width:100%;height:100%;"></video>
+                </div>`
+              : (type === 'image')
+                ? `<img src="${thumb}" alt="${name}" class="img-fluid rounded"
+                    style="max-height: 180px; object-fit: contain; width:100%; cursor: zoom-in; background:#fff; padding:4px;"
+                    onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ${index})">`
+                : `<div class="border rounded d-flex flex-column align-items-center justify-content-center bg-light"
+                    style="height: 180px;">
+                    <i class="fas fa-file-alt text-secondary mb-2" style="font-size: 2rem;"></i>
+                    <div class="small text-muted text-center px-2">문서 파일</div>
+                   </div>`;
+
+            return `
+              <div class="col-md-4 col-sm-6 col-12">
+                <div class="card h-100">
+                  <div class="card-body p-2">
+                    ${mediaHtml}
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                      <div class="small text-truncate" title="${name}" style="max-width: 70%;">${name}</div>
+                      <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" type="button" title="미리보기"
+                          onclick="openAttachmentFromCategory('${__activeAttachmentCategory}', ${index})">
+                          <i class="fas fa-eye"></i>
+                        </button>
+                        <a class="btn btn-outline-primary" href="${downloadUrl}" title="다운로드" target="_blank" rel="noopener">
+                          <i class="fas fa-download"></i>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        function selectAttachmentCategory(category) {
+          __activeAttachmentCategory = normalizeAttachmentCategory(category);
+          renderAttachmentCategoryTabs();
+          renderAttachmentCategoryGallery();
+        }
+
+        function openAttachmentFromCategory(category, index) {
+          const key = normalizeAttachmentCategory(category);
+          const list = __attachmentsByCategory[key] || [];
+          if (!list.length) return;
+          __activeAttachmentCategory = key;
+          __currentAttachmentList = list;
+          showAttachmentAtIndex(index);
+        }
+</script>

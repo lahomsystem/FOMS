@@ -1,0 +1,9 @@
+{
+  "base": "https://lahom-dev.up.railway.app",
+  "scenario": "erp_shell_tab_swap",
+  "metrics": {
+    "click_to_fragment_response_ms": 1699.89,
+    "fragment_request_url": "https://lahom-dev.up.railway.app/erp/measurement?view=fragment",
+    "note": "Server round-trip for shell fragment fetch; not LCP/paint."
+  }
+}

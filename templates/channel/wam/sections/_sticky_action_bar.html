@@ -1,0 +1,17 @@
+{% import 'channel/wam/_macros.html' as wam with context %}
+{% set bar = page_vm.sticky_action_bar %}
+
+<nav class="wam-sticky-bar" aria-label="빠른 작업">
+  <div class="wam-sticky-bar__inner">
+    <div class="wam-sticky-bar__secondary">
+      {% for action in bar.secondary_actions %}
+        {{ wam.action_button(action, 'secondary') }}
+      {% endfor %}
+    </div>
+    <div class="wam-sticky-bar__primary">
+      {% if bar.primary_action %}
+        {{ wam.action_button(bar.primary_action, 'primary') }}
+      {% endif %}
+    </div>
+  </div>
+</nav>

@@ -1,0 +1,1141 @@
+{% extends "orders/layout.html" %}
+
+{% block content %}
+{% include "orders/partials/edit_order_body.html" %}
+{% endblock %}
+
+{% block scripts %}
+{% include "orders/partials/erp_order_js.html" %}
+<script>
+    var USE_DIRECT_UPLOAD = window.USE_DIRECT_UPLOAD = ("{{ 'true' if use_direct_upload else 'false' }}" === "true");
+
+    // 전역 XSS 방지 HTML 이스케이프 함수 (ERP Order 등 전역에서 사용)
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+
+    // ERP Order: 전화번호 자동 하이픈 포맷 (수동입력 체크 시 비활성)
+    function formatPhoneAuto(value) {
+        const digits = String(value || '').replace(/[^0-9]/g, '');
+        if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
+        if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+        return value || '';
+    }
+
+    // 텍스트 영역 높이 자동 조절 함수
+    function adjustTextareaHeight(textarea) {
+        if (!textarea) return;
+        textarea.style.height = 'auto';
+        textarea.style.height = (textarea.scrollHeight) + 'px';
+    }
+
+    // 옵션 입력 방식에 따른 UI 전환
+    document.addEventListener('DOMContentLoaded', function () {
+        const optionTypeSelect = document.getElementById('option_type');
+        const onlineOptionsGroup = document.getElementById('options_online_group');
+        const directOptionsGroup = document.getElementById('options_direct_group');
+        const onlineOptionsInput = document.getElementById('options_online');
+        const clearDirectOptionsBtn = document.getElementById('clear_direct_options_btn');
+        const restoreDirectOptionsBtn = document.getElementById('restore_direct_options_btn');
+        let storedDirectOptions = {};
+
+        const directOptionFieldIds = [
+            'direct_product_name', 'direct_standard', 'direct_internal',
+            'direct_color', 'direct_option_detail', 'direct_handle',
+            'direct_misc', 'direct_quote'
+        ];
+        const directTextareaIds = ['direct_quote', 'notes'];
+
+        if (optionTypeSelect) {
+            optionTypeSelect.addEventListener('change', function () {
+                if (this.value === 'online') {
+                    onlineOptionsGroup.classList.remove('hidden');
+                    directOptionsGroup.classList.add('hidden');
+                    // 직접 입력 필드의 값을 저장하고 온라인 옵션 입력 필드의 높이를 조절
+                    directOptionFieldIds.forEach(id => {
+                        const element = document.getElementById(id);
+                        if (element) storedDirectOptions[id] = element.value;
+                    });
+                    if (onlineOptionsInput) adjustTextareaHeight(onlineOptionsInput);
+                } else { // 'direct'
+                    onlineOptionsGroup.classList.add('hidden');
+                    directOptionsGroup.classList.remove('hidden');
+                    // 온라인 옵션 값을 저장하고 직접 입력 필드의 높이를 조절
+                    if (onlineOptionsInput) storedDirectOptions['options_online'] = onlineOptionsInput.value;
+
+                    directTextareaIds.forEach(id => {
+                        const ta = document.getElementById(id);
+                        if (ta) adjustTextareaHeight(ta);
+                    });
+                }
+            });
+            // 페이지 로드 시 초기 옵션 타입에 맞게 표시하고 높이 조절
+            if (optionTypeSelect.value === 'online' && onlineOptionsInput) {
+                adjustTextareaHeight(onlineOptionsInput);
+            } else if (optionTypeSelect.value === 'direct') {
+                directTextareaIds.forEach(id => {
+                    const ta = document.getElementById(id);
+                    if (ta) adjustTextareaHeight(ta);
+                });
+            }
+        }
+
+        // 직접 입력 옵션 필드 초기화 및 복구
+        if (clearDirectOptionsBtn) {
+            clearDirectOptionsBtn.addEventListener('click', function () {
+                // 현재 값 저장
+                directOptionFieldIds.forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) storedDirectOptions[id] = element.value;
+                });
+
+                if (confirm('직접 입력된 모든 옵션 내용을 지우시겠습니까?')) {
+                    directOptionFieldIds.forEach(id => {
+                        const element = document.getElementById(id);
+                        if (element) {
+                            element.value = '';
+                            if (directTextareaIds.includes(id)) adjustTextareaHeight(element); // 높이 재조정
+                        }
+                    });
+                    if (restoreDirectOptionsBtn) restoreDirectOptionsBtn.style.display = 'inline-block'; // 복구 버튼 표시
+                }
+            });
+        }
+
+        if (restoreDirectOptionsBtn) {
+            restoreDirectOptionsBtn.addEventListener('click', function () {
+                directOptionFieldIds.forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element && storedDirectOptions[id] !== undefined) {
+                        element.value = storedDirectOptions[id];
+                        if (directTextareaIds.includes(id)) adjustTextareaHeight(element); // 높이 재조정
+                    }
+                });
+                this.style.display = 'none'; // 복구 후 버튼 숨김
+            });
+        }
+
+        // 모든 auto-resize 텍스트 영역에 대해 초기 높이 조절
+        document.querySelectorAll('.auto-resize').forEach(adjustTextareaHeight);
+
+        // 숫자만 입력 필드 (결제금액)
+        const paymentAmountInput = document.getElementById('payment_amount');
+        if (paymentAmountInput) {
+            paymentAmountInput.addEventListener('input', function (e) {
+                let value = e.target.value.replace(/[^\d]/g, ''); // 숫자 이외의 문자 제거
+                if (value) {
+                    value = parseInt(value, 10).toLocaleString('ko-KR'); // 세 자리마다 콤마 추가
+                }
+                e.target.value = value;
+            });
+        }
+
+        const measurementTimeSelect = document.getElementById('measurement_time_select');
+        const measurementTimeInput = document.getElementById('measurement_time');
+
+        // 초기 상태 설정
+        if (measurementTimeSelect && measurementTimeInput) {
+            const currentTime = "{{ order.measurement_time }}";
+            if (currentTime === "종일" || currentTime === "오전" || currentTime === "오후") {
+                measurementTimeSelect.value = currentTime;
+                measurementTimeInput.style.display = 'none';
+                measurementTimeInput.value = '';
+            } else if (currentTime) {
+                measurementTimeSelect.value = "time_input";
+                measurementTimeInput.style.display = 'block';
+            } else {
+                measurementTimeSelect.value = "time_input";
+                measurementTimeInput.style.display = 'block';
+            }
+
+            measurementTimeSelect.addEventListener('change', function () {
+                if (this.value === "종일" || this.value === "오전" || this.value === "오후") {
+                    measurementTimeInput.style.display = 'none';
+                    measurementTimeInput.value = '';
+                } else {
+                    measurementTimeInput.style.display = 'block';
+                }
+                // 온라인 옵션의 시간 필드 업데이트
+                updateOnlineOptionsTime();
+            });
+
+            // 실측시간 직접 입력 시
+            measurementTimeInput.addEventListener('input', function () {
+                updateOnlineOptionsTime();
+            });
+        }
+
+        // 온라인 옵션의 시간 필드 업데이트 함수 (개별 업데이트 방식으로 변경)
+        function updateOnlineOptionsTime() {
+            updateMeasurementTime();
+        }
+
+        // 폼 제출 시 measurement_time 필드에 올바른 값을 설정하는 로직 추가
+        const editForm = document.querySelector('form[action*="edit_order"]');
+        if (editForm) {
+            editForm.addEventListener('submit', function (event) { // event 파라미터 추가
+                if (measurementTimeSelect && measurementTimeInput) {
+                    if (measurementTimeSelect.value === '종일' || measurementTimeSelect.value === '오전' || measurementTimeSelect.value === '오후') {
+                        // '종일', '오전', '오후'가 선택된 경우, measurement_time input의 값을 해당 값으로 설정
+                        // 단, type="time"은 이런 텍스트 값을 허용하지 않으므로,
+                        // 새로운 hidden input을 만들어서 값을 전달합니다.
+                        let hiddenInput = document.getElementById('measurement_time_hidden_for_submit');
+                        if (!hiddenInput) {
+                            hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.name = 'measurement_time'; // 실제 전송될 필드명
+                            hiddenInput.id = 'measurement_time_hidden_for_submit';
+                            editForm.appendChild(hiddenInput);
+                        }
+                        hiddenInput.value = measurementTimeSelect.value;
+                        measurementTimeInput.name = ''; // 기존 time input은 전송되지 않도록 이름을 제거
+                    } else {
+                        // 시간 직접 입력 시에는 원래 input의 name을 사용
+                        measurementTimeInput.name = 'measurement_time';
+                        // 만약 hidden input이 존재했다면 제거
+                        let hiddenInput = document.getElementById('measurement_time_hidden_for_submit');
+                        if (hiddenInput) {
+                            hiddenInput.remove();
+                        }
+                    }
+                }
+            });
+        }
+
+        // 지방 주문 설정 체크박스 이벤트 리스너
+        const isRegionalCheckbox = document.getElementById('is_regional');
+        const regionalManagementSection = document.getElementById('regional-management-section');
+
+        if (isRegionalCheckbox && regionalManagementSection) {
+            // 초기 상태 설정 (체크박스 상태에 따라)
+            regionalManagementSection.style.display = isRegionalCheckbox.checked ? 'block' : 'none';
+
+            // 체크박스 변경 이벤트
+            isRegionalCheckbox.addEventListener('change', function () {
+                if (this.checked) {
+                    regionalManagementSection.style.display = 'block';
+                } else {
+                    regionalManagementSection.style.display = 'none';
+                }
+            });
+        }
+
+        // 지방 주문 체크리스트 관련 JavaScript
+        const regionalCheckboxes = document.querySelectorAll('.regional-checkbox');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const constructionTypeSelect = document.getElementById('construction_type');
+        const cargoSentDiv = document.getElementById('cargo-sent-div');
+        const constructionInfoDiv = document.getElementById('construction-info-div');
+
+        function updateProgress() {
+            // 시공구분에 따라 체크해야 할 항목을 동적으로 계산
+            const constructionType = constructionTypeSelect ? constructionTypeSelect.value : '';
+            let visibleCheckboxes = Array.from(regionalCheckboxes).filter(checkbox => {
+                const parent = checkbox.closest('.form-check');
+                return parent && window.getComputedStyle(parent).display !== 'none';
+            });
+
+            const totalSteps = visibleCheckboxes.length;
+            const completedSteps = visibleCheckboxes.filter(checkbox => checkbox.checked).length;
+            const percentage = Math.round((completedSteps / totalSteps) * 100) || 0;
+
+            if (progressBar) {
+                progressBar.style.width = percentage + '%';
+                progressBar.setAttribute('aria-valuenow', percentage);
+            }
+
+            if (progressText) {
+                progressText.textContent = `${completedSteps}/${totalSteps} 완료`;
+            }
+
+            // 진행률에 따른 프로그레스 바 색상 변경
+            if (progressBar) {
+                progressBar.className = 'progress-bar';
+                if (percentage === 100) {
+                    progressBar.classList.add('bg-success');
+                } else if (percentage >= 60) {
+                    progressBar.classList.add('bg-info');
+                } else if (percentage >= 30) {
+                    progressBar.classList.add('bg-warning');
+                } else {
+                    progressBar.classList.add('bg-danger');
+                }
+            }
+        }
+
+        function toggleAdditionalFields() {
+            if (constructionTypeSelect) {
+                const isPartnerConstruction = constructionTypeSelect.value === '협력사 시공';
+
+                if (cargoSentDiv) {
+                    cargoSentDiv.style.display = isPartnerConstruction ? 'block' : 'none';
+                }
+                if (constructionInfoDiv) {
+                    constructionInfoDiv.style.display = isPartnerConstruction ? 'block' : 'none';
+                }
+
+                // 진행률 재계산
+                updateProgress();
+            }
+        }
+
+        // 시공구분 변경 시 추가 필드 표시/숨김
+        if (constructionTypeSelect) {
+            constructionTypeSelect.addEventListener('change', toggleAdditionalFields);
+        }
+
+        // 체크박스 상태 변경 시 진행률 업데이트
+        regionalCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateProgress);
+        });
+
+        // 페이지 로드 시 초기 설정
+        toggleAdditionalFields();
+        updateProgress();
+
+        // 날짜를 한국어 형태로 변환하는 함수
+        function formatDateToKorean(dateString, timeString = '') {
+            if (!dateString) return '';
+
+            const date = new Date(dateString);
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+
+            let result = `${month}월 ${day}일`;
+
+            if (timeString) {
+                const [hours, minutes] = timeString.split(':');
+                const hour = parseInt(hours);
+                const min = parseInt(minutes);
+
+                if (hour === 0) {
+                    result += ` 오전 12시`;
+                } else if (hour < 12) {
+                    result += ` 오전 ${hour}시`;
+                } else if (hour === 12) {
+                    result += ` 오후 12시`;
+                } else {
+                    result += ` 오후 ${hour - 12}시`;
+                }
+
+                if (min > 0) {
+                    result += ` ${min}분`;
+                }
+            }
+
+            return result;
+        }
+
+        // 개별 필드 업데이트 함수 (다른 필드에 영향 없음)
+        function updateSpecificField(fieldPattern, newValue) {
+            const optionsOnline = document.getElementById('options_online');
+            if (!optionsOnline) return;
+
+            let content = optionsOnline.value;
+            const lines = content.split('\n');
+
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].match(fieldPattern)) {
+                    // 콜론 위치를 찾아서 정확히 1스페이스로 통일
+                    const colonIndex = lines[i].indexOf(':');
+                    if (colonIndex !== -1) {
+                        const fieldName = lines[i].substring(0, colonIndex + 1);
+                        lines[i] = `${fieldName} ${newValue}`;
+                        break;
+                    }
+                }
+            }
+
+            optionsOnline.value = lines.join('\n');
+            adjustTextareaHeight(optionsOnline);
+        }
+
+        // 개별 필드별 업데이트 함수들
+        function updateCustomerName() {
+            const customerName = document.getElementById('customer_name').value || '';
+            updateSpecificField(/^고객명\s*:/, customerName);
+        }
+
+        function updatePhone() {
+            const phone = document.getElementById('phone').value || '';
+            updateSpecificField(/^연락처\s*:/, phone);
+        }
+
+        function updateAddress() {
+            const address = document.getElementById('address').value || '';
+            const firstLineAddress = address.split('\n')[0].trim();
+            updateSpecificField(/^주\s*소\s*:/, firstLineAddress);
+        }
+
+        function updateMeasurementDate() {
+            const measurementDate = document.getElementById('measurement_date').value || '';
+            let measurementInfo = '';
+
+            if (measurementDate) {
+                measurementInfo = formatDateToKorean(measurementDate);
+            }
+
+            updateSpecificField(/^실측일\s*:/, measurementInfo);
+        }
+
+        function updateMeasurementTime() {
+            const measurementTimeSelect = document.getElementById('measurement_time_select').value || '';
+            const measurementTime = document.getElementById('measurement_time').value || '';
+            let timeInfo = '';
+
+            if (measurementTimeSelect === 'time_input' && measurementTime) {
+                timeInfo = measurementTime;
+            } else if (measurementTimeSelect !== 'time_input' && measurementTimeSelect) {
+                timeInfo = measurementTimeSelect;
+            }
+
+            updateSpecificField(/^시\s*간\s*:/, timeInfo);
+        }
+
+        function updateScheduledDate() {
+            const scheduledDate = document.getElementById('scheduled_date') ? document.getElementById('scheduled_date').value || '' : '';
+            const completionDate = document.getElementById('completion_date') ? document.getElementById('completion_date').value || '' : '';
+            let dateInfo = '';
+
+            // 완료일이 있으면 완료일을, 없으면 예정일을 사용
+            const dateToUse = completionDate || scheduledDate;
+            if (dateToUse) {
+                dateInfo = formatDateToKorean(dateToUse);
+            } else {
+                dateInfo = '상담';
+            }
+
+            updateSpecificField(/^시공일\s*:/, dateInfo);
+        }
+
+        // 개별 필드별 이벤트 리스너 등록
+        const customerNameInput = document.getElementById('customer_name');
+        const phoneInput = document.getElementById('phone');
+        const addressInput = document.getElementById('address');
+        const measurementDateInput = document.getElementById('measurement_date');
+        const measurementTimeSelectInput = document.getElementById('measurement_time_select');
+        const measurementTimeForFill = document.getElementById('measurement_time');
+        const scheduledDateInput = document.getElementById('scheduled_date');
+        const completionDateInput = document.getElementById('completion_date');
+
+        // 각 필드마다 개별 업데이트 함수 연결
+        if (customerNameInput) {
+            customerNameInput.addEventListener('input', updateCustomerName);
+        }
+
+        if (phoneInput) {
+            phoneInput.addEventListener('input', updatePhone);
+        }
+
+        if (addressInput) {
+            addressInput.addEventListener('input', updateAddress);
+        }
+
+        if (measurementDateInput) {
+            measurementDateInput.addEventListener('input', updateMeasurementDate);
+        }
+
+        if (measurementTimeSelectInput) {
+            measurementTimeSelectInput.addEventListener('change', updateMeasurementTime);
+        }
+
+        if (measurementTimeForFill) {
+            measurementTimeForFill.addEventListener('input', updateMeasurementTime);
+        }
+
+        if (scheduledDateInput) {
+            scheduledDateInput.addEventListener('input', updateScheduledDate);
+        }
+
+        if (completionDateInput) {
+            completionDateInput.addEventListener('input', updateScheduledDate);
+        }
+
+        // 계산기 탭: 매칭된 견적 로드
+        function loadMatchedEstimates() {
+            const orderId = ORDER_ID;
+
+            fetch(`/api/wdcalculator/order-estimates/${orderId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayMatchedEstimates(data.estimates);
+                    } else {
+                        document.getElementById('matchedEstimatesList').innerHTML =
+                            '<p class="text-muted">매칭된 견적이 없습니다.</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('matchedEstimatesList').innerHTML =
+                        '<p class="text-danger">견적을 불러오는 중 오류가 발생했습니다.</p>';
+                });
+        }
+
+        // (주의) escapeHtml은 위에서 전역으로 정의됨
+
+        // 매칭된 견적 표시
+        function displayMatchedEstimates(estimates) {
+            const container = document.getElementById('matchedEstimatesList');
+
+            if (estimates.length === 0) {
+                container.innerHTML = '<p class="text-muted">매칭된 견적이 없습니다.</p>';
+                return;
+            }
+
+            // 주문의 결제 금액(선 결제 금액) 읽기
+            const paymentAmount = parseInt(document.querySelector('.card[data-order-id]')?.dataset.paymentAmount || '0');
+
+            let html = '';
+            estimates.forEach((estimate, index) => {
+                const estimateData = estimate.estimate_data;
+                const items = estimateData.estimates || [];
+                const totalBasePrice = estimateData.totalBasePrice || 0;
+                const totalAdditionalPrice = estimateData.totalAdditionalPrice || 0;
+                const totalPrice = estimateData.totalPrice || 0;
+                // 할인 쿠폰 정보 추출
+                const couponDiscount = estimateData.coupon_discount || 0;
+                // 배송비 정보 추출
+                const shippingCost = estimateData.shipping_cost || 0;
+                // 배송비 포함 여부 (기본값: false - 별도 표기만)
+                const shippingIncluded = estimateData.shipping_included || false;
+                // 총 견적 = 기본 + 추가옵션 - 할인쿠폰
+                const totalEstimate = totalBasePrice + totalAdditionalPrice - couponDiscount;
+                // 최종 금액 계산 (배송비 포함 여부에 따라)
+                const finalPrice = shippingIncluded ? totalEstimate + shippingCost : totalEstimate;
+                // 추가결제금액 = 최종 금액 - 결제 금액 (음수면 0)
+                const additionalPayment = Math.max(0, finalPrice - paymentAmount);
+                const notes = estimateData.notes || '';
+
+                html += `
+                    <div class="card mb-3 border-left-info shadow-sm">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="m-0 font-weight-bold text-primary">
+                                    <i class="fas fa-file-invoice-dollar me-2"></i>견적서 #${estimate.id} - ${escapeHtml(estimate.customer_name)}
+                                </h6>
+                                <small class="text-muted">생성일: ${estimate.created_at}</small>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-warning edit-estimate-from-order-btn" 
+                                        data-estimate-id="${estimate.id}"
+                                        title="견적 수정">
+                                    <i class="fas fa-edit"></i> 수정
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped mb-0" style="font-size: 0.9rem;">
+                                    <thead class="table-primary text-dark">
+                                        <tr>
+                                            <th style="width: 25%">제품명</th>
+                                            <th style="width: 15%">규격(mm)</th>
+                                            <th style="width: 40%">상세 옵션</th>
+                                            <th style="width: 20%" class="text-end">금액</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                `;
+
+                if (items.length > 0) {
+                    items.forEach(item => {
+                        let optionsHtml = '';
+                        if (item.options && item.options.length > 0) {
+                            optionsHtml = '<ul class="list-unstyled mb-0">';
+                            item.options.forEach(opt => {
+                                const optQuantity = opt.quantity || 1;
+                                const optPrice = opt.price || 0;
+                                const totalOptionPrice = optPrice * optQuantity;
+
+                                if (optQuantity > 1) {
+                                    // 수량이 1보다 크면: "옵션명 × 수량 = 총금액원" 형식
+                                    optionsHtml += `<li style="color: #0d7a3d !important; font-weight: 600 !important; font-size: 0.9rem; line-height: 1.6;">- ${escapeHtml(opt.name || '')} × ${optQuantity} = 총${formatNumber(totalOptionPrice)}원</li>`;
+                                } else {
+                                    // 수량이 1이면 기존 형식 유지
+                                    optionsHtml += `<li style="color: #0d7a3d !important; font-weight: 600 !important; font-size: 0.9rem; line-height: 1.6;">- ${escapeHtml(opt.name || '')}: +${formatNumber(optPrice)}원</li>`;
+                                }
+                            });
+                            optionsHtml += '</ul>';
+                        } else {
+                            optionsHtml = '<span class="text-muted">-</span>';
+                        }
+
+                        // 제품별 비고가 있으면 표시
+                        const itemNotes = item.notes || '';
+                        let itemNotesHtml = '';
+                        if (itemNotes) {
+                            const notesLines = itemNotes.split('\n').filter(line => line.trim());
+                            const notesHtml = notesLines.map(line =>
+                                `<div style="color: #0d7a3d !important; font-weight: 600 !important; font-size: 0.9rem; line-height: 1.6;">${escapeHtml(line.trim())}</div>`
+                            ).join('');
+                            itemNotesHtml = `
+                                <div class="mt-2 pt-2 border-top border-dark border-opacity-25">
+                                    <small class="text-dark fw-bold d-block mb-1" style="font-size: 0.85rem; font-weight: 700 !important;">
+                                        <i class="fas fa-sticky-note me-1 text-dark"></i>비고:
+                                    </small>
+                                    <div class="small">
+                                        ${notesHtml}
+                                    </div>
+                                </div>
+                            `;
+                        }
+
+                        html += `
+                            <tr>
+                                <td class="align-middle fw-bold">${escapeHtml(item.displayName || item.productName || '')}</td>
+                                <td class="align-middle">${item.displayName ? '-' : `${formatNumber(item.widthMm)}mm`}</td>
+                                <td class="align-middle">
+                                    ${optionsHtml}
+                                    ${itemNotesHtml}
+                                </td>
+                                <td class="align-middle text-end">${formatNumber(item.totalPrice)}원</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    html += `<tr><td colspan="4" class="text-center text-muted">견적 상세 내역이 없습니다.</td></tr>`;
+                }
+
+                html += `
+                                    </tbody>
+                                    <tfoot>
+                                        <tr style="background-color: #2c3e50 !important;">
+                                            <td colspan="3" class="text-end fw-bold" style="color: #ffffff !important; font-size: 0.95rem !important;">
+                                                <i class="fas fa-cube me-1"></i>기본 견적 합계
+                                            </td>
+                                            <td class="text-end fw-bold" style="color: #ffffff !important; font-size: 1rem !important;">${formatNumber(totalBasePrice)}원</td>
+                                        </tr>
+                                        <tr style="background-color: #d35400 !important;">
+                                            <td colspan="3" class="text-end fw-bold" style="color: #ffffff !important; font-size: 0.95rem !important;">
+                                                <i class="fas fa-plus-circle me-1"></i>추가 옵션 합계
+                                            </td>
+                                            <td class="text-end fw-bold" style="color: #ffffff !important; font-size: 1rem !important;">${formatNumber(totalAdditionalPrice)}원</td>
+                                        </tr>
+                `;
+
+                // 할인 쿠폰 표시 (있는 경우)
+                if (couponDiscount > 0) {
+                    html += `
+                                        <tr class="table-warning">
+                                            <td colspan="3" class="text-end fw-bold">
+                                                <i class="fas fa-tag me-1 text-warning"></i>할인 쿠폰
+                                            </td>
+                                            <td class="text-end fw-bold text-warning">-${formatNumber(couponDiscount)}원</td>
+                                        </tr>
+                    `;
+                }
+
+                html += `
+                                        <tr class="table-info">
+                                            <td colspan="3" class="text-end fw-bold">총 견적 금액</td>
+                                            <td class="text-end fw-bold text-primary h6 mb-0">${formatNumber(totalEstimate)}원</td>
+                                        </tr>
+                `;
+
+                // 배송비 표시 (있는 경우)
+                if (shippingCost > 0) {
+                    html += `
+                                        <tr class="table-secondary">
+                                            <td colspan="3" class="text-end fw-bold">
+                                                <i class="fas fa-truck me-1 text-secondary"></i>배송비
+                                            </td>
+                                            <td class="text-end fw-bold text-secondary">${formatNumber(shippingCost)}원</td>
+                                        </tr>
+                    `;
+                }
+
+                html += `
+                                        <tr class="table-success" style="background-color: #d1e7dd !important;">
+                                            <td colspan="3" class="text-end fw-bold" style="font-size: 1.1rem;">
+                                                <i class="fas fa-calculator me-2"></i>최종 금액
+                                            </td>
+                                            <td class="text-end fw-bold text-success h5 mb-0" style="color: #0f5132 !important; font-weight: 700 !important;">${formatNumber(finalPrice)}원</td>
+                                        </tr>
+                `;
+
+                // 선 결제 금액 표시 (paymentAmount가 있는 경우)
+                if (paymentAmount > 0) {
+                    html += `
+                                        <tr class="table-info" style="background-color: #cfe2ff !important;">
+                                            <td colspan="3" class="text-end fw-bold" style="font-size: 1rem;">
+                                                <i class="fas fa-credit-card me-2 text-info"></i>선 결제 금액
+                                            </td>
+                                            <td class="text-end fw-bold text-info h6 mb-0" style="color: #084298 !important; font-weight: 700 !important;">${formatNumber(paymentAmount)}원</td>
+                                        </tr>
+                    `;
+                }
+
+                // 추가결제금액 표시 (최종 금액 - 선 결제 금액)
+                if (paymentAmount > 0 || additionalPayment > 0) {
+                    html += `
+                                        <tr class="table-warning" style="background-color: #fff3cd !important;">
+                                            <td colspan="3" class="text-end fw-bold" style="font-size: 1rem;">
+                                                <i class="fas fa-money-bill-wave me-2 text-warning"></i>추가결제금액
+                                                <small class="text-muted d-block" style="font-size: 0.85rem; font-weight: 400;">
+                                                    (최종 금액 - 선 결제 금액)
+                                                </small>
+                                            </td>
+                                            <td class="text-end fw-bold text-warning h6 mb-0" style="color: #856404 !important; font-weight: 700 !important;">${formatNumber(additionalPayment)}원</td>
+                                        </tr>
+                    `;
+                }
+
+                html += `
+                                    </tfoot>
+                                </table>
+                            </div>
+                `;
+
+                // 전체 견적 비고 정보 표시 (개선된 스타일)
+                if (notes) {
+                    const notesLines = notes.split('\n').filter(line => line.trim());
+                    const notesHtml = notesLines.map(line =>
+                        `<div style="color: #0d7a3d !important; font-weight: 600 !important; font-size: 0.9rem; line-height: 1.6;">${escapeHtml(line.trim())}</div>`
+                    ).join('');
+                    html += `
+                        <div class="card-footer bg-light border-top border-dark border-opacity-50">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-sticky-note text-dark me-2 mt-1" style="font-size: 1.1rem;"></i>
+                                <div class="flex-grow-1">
+                                    <strong class="text-dark d-block mb-2" style="font-size: 0.95rem; font-weight: 700 !important;">
+                                        전체 견적 비고:
+                                    </strong>
+                                    <div>
+                                        ${notesHtml}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // 배송비 섹션 추가 (비고 아래, 배송비가 있는 경우)
+                if (shippingCost > 0) {
+                    const shippingStatusText = shippingIncluded ? '최종 금액에 포함됨' : '별도 표기 (최종 금액 미포함)';
+                    const shippingStatusClass = shippingIncluded ? 'text-success' : 'text-info';
+                    html += `
+                        <div class="card-footer bg-light border-top border-dark border-opacity-50" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-truck text-primary me-2 mt-1" style="font-size: 1.2rem;"></i>
+                                <div class="flex-grow-1">
+                                    <strong class="text-primary d-block mb-2" style="font-size: 0.95rem; font-weight: 700 !important;">
+                                        배송비:
+                                    </strong>
+                                    <div class="d-flex align-items-center flex-wrap">
+                                        <span class="badge bg-primary text-white px-3 py-2" style="font-size: 1rem; font-weight: 600;">
+                                            ${formatNumber(shippingCost)}원
+                                        </span>
+                                        <small class="text-muted ms-2">(지방시공/자가실측/특정 지역)</small>
+                                        <small class="${shippingStatusClass} ms-2 fw-bold">
+                                            <i class="fas fa-info-circle"></i> ${shippingStatusText}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+
+            // 수정 버튼 이벤트 리스너 등록
+            document.querySelectorAll('.edit-estimate-from-order-btn').forEach(btn => {
+                btn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const estimateId = this.dataset.estimateId;
+                    const orderId = ORDER_ID;
+                    console.log('수정 버튼 클릭:', { estimateId, orderId });
+                    if (!estimateId) {
+                        alert('견적 ID를 찾을 수 없습니다.');
+                        return;
+                    }
+                    // 계산기 페이지로 이동하면서 견적 ID와 주문 ID 전달
+                    const url = `/wdcalculator?estimate_id=${estimateId}&order_id=${orderId}`;
+                    console.log('이동할 URL:', url);
+                    window.location.href = url;
+                });
+            });
+        }
+
+        // 숫자 포맷팅
+        function formatNumber(num) {
+            return Math.round(num).toLocaleString('ko-KR');
+        }
+
+        // 계산기 탭 클릭 시 매칭된 견적 로드
+        document.getElementById('calculator-tab').addEventListener('shown.bs.tab', function () {
+            loadMatchedEstimates();
+        });
+
+        // 견적 검색 및 매칭
+        document.getElementById('searchEstimatesForMatchBtn').addEventListener('click', function () {
+            const customerName = document.getElementById('matchCustomerName').value.trim();
+            if (!customerName) {
+                alert('고객명을 입력해주세요.');
+                return;
+            }
+
+            fetch(`/api/wdcalculator/search-estimates?customer_name=${encodeURIComponent(customerName)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayMatchEstimatesResults(data.estimates);
+                    } else {
+                        alert(data.message || '검색 중 오류가 발생했습니다.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('검색 중 오류가 발생했습니다.');
+                });
+        });
+
+        // 매칭용 견적 검색 결과 표시
+        function displayMatchEstimatesResults(estimates) {
+            const container = document.getElementById('matchEstimatesList');
+            const resultsDiv = document.getElementById('matchEstimatesResults');
+
+            if (estimates.length === 0) {
+                container.innerHTML = '<p class="text-muted">검색 결과가 없습니다.</p>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+
+            let html = '<div class="list-group">';
+            estimates.forEach(estimate => {
+                const estimateData = estimate.estimate_data;
+                const totalPrice = estimateData.totalPrice || 0;
+
+                html += `
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">${escapeHtml(estimate.customer_name)}</h6>
+                                <small class="text-muted">생성일: ${estimate.created_at}</small>
+                                <div class="mt-2">
+                                    <strong>총 견적: ${formatNumber(totalPrice)}원</strong>
+                                </div>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-success match-estimate-to-order-btn" 
+                                        data-estimate-id="${estimate.id}">
+                                    <i class="fas fa-link"></i> 매칭
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+
+            container.innerHTML = html;
+            resultsDiv.style.display = 'block';
+
+            // 매칭 버튼 이벤트
+            document.querySelectorAll('.match-estimate-to-order-btn').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const estimateId = parseInt(this.dataset.estimateId);
+                    const orderId = ORDER_ID;
+
+                    fetch('/api/wdcalculator/match-order', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            estimate_id: estimateId,
+                            order_id: orderId
+                        })
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert('견적과 주문이 매칭되었습니다.');
+                                loadMatchedEstimates(); // 매칭된 견적 목록 새로고침
+                            } else {
+                                alert(data.message || '매칭 중 오류가 발생했습니다.');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('매칭 중 오류가 발생했습니다.');
+                        });
+                });
+            });
+        }
+    });
+
+    // ============================================
+    // ERP Order Panel (TEST) [DISABLED: migrated to shared partial]
+    // ============================================
+
+
+    // ============================================
+    // ERP Order Panel (shared)
+    // ============================================
+    window.__ERP_ORDER_DRAFT_MODE = false;
+    window.__ERP_DRAFT_ENDPOINT = '/api/orders/erp/draft';
+</script>
+
+<script>
+    // ERP 대시보드/알림에서 바로 ERP Order 탭으로 오픈 (?open=erp-order)
+    // 첨부로 포커스: ?focus=attachments&category=drawing
+    document.addEventListener('DOMContentLoaded', function () {
+        try {
+            const qs = new URLSearchParams(window.location.search || '');
+            const openTarget = qs.get('open');
+            if (openTarget === 'erp-order') {
+                const btn = document.getElementById('erp-order-tab');
+                if (btn && typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+                    const focusTarget = (qs.get('focus') || '').trim();
+                    const category = (qs.get('category') || '').trim().toLowerCase();
+                    if (focusTarget === 'attachments') {
+                        btn.addEventListener('shown.bs.tab', function () {
+                            setTimeout(() => {
+                                if (category) {
+                                    const categorySelect = document.getElementById('erp-attachments-category');
+                                    if (categorySelect && ['measurement', 'drawing', 'construction', 'as'].includes(category)) {
+                                        categorySelect.value = category;
+                                    }
+                                }
+                                const target =
+                                    document.getElementById('erp-attachments-gallery')
+                                    || document.getElementById('erp-attachments-category')
+                                    || document.getElementById('erp-attachments-input')
+                                    || document.getElementById('erp-attachments-status');
+                                if (target) {
+                                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    const prevOutline = target.style.outline;
+                                    const prevOffset = target.style.outlineOffset;
+                                    target.style.outline = '3px solid rgba(13,110,253,0.5)';
+                                    target.style.outlineOffset = '4px';
+                                    setTimeout(() => {
+                                        target.style.outline = prevOutline;
+                                        target.style.outlineOffset = prevOffset;
+                                    }, 1400);
+                                }
+                            }, 350);
+                        }, { once: true });
+                    }
+                    bootstrap.Tab.getOrCreateInstance(btn).show();
+                }
+            }
+        } catch (e) { }
+    });
+
+    // ============================================
+    // 도면 관리 함수
+    // ============================================
+
+    // 페이지 로드 시 도면 조회
+    document.addEventListener('DOMContentLoaded', function () {
+        if (!document.getElementById('blueprint-tab')) return;
+        loadBlueprint(ORDER_ID);
+    });
+
+    // 도면 탭 클릭 시 도면 조회
+    document.getElementById('blueprint-tab')?.addEventListener('shown.bs.tab', function () {
+        loadBlueprint(ORDER_ID);
+    });
+
+    function loadBlueprint(orderId) {
+        fetch(`/api/orders/${orderId}/blueprint`)
+            .then(response => response.json())
+            .then(data => {
+                const preview = document.getElementById('blueprint-preview');
+                const uploadArea = document.getElementById('blueprint-upload-area');
+                const previewImg = document.getElementById('blueprint-preview-img');
+
+                if (data.success && data.url) {
+                    previewImg.src = data.url;
+                    preview.style.display = 'block';
+                    uploadArea.style.display = 'none';
+                } else {
+                    preview.style.display = 'none';
+                    uploadArea.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('도면 조회 오류:', error);
+            });
+    }
+
+    function handleBlueprintSelect(event) {
+        const file = event.target.files[0];
+        if (file) {
+            uploadBlueprint(ORDER_ID, file);
+        }
+    }
+
+    function handleBlueprintDrop(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.style.backgroundColor = '#f8f9fa';
+
+        const files = event.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            if (file.type.startsWith('image/')) {
+                uploadBlueprint(ORDER_ID, file);
+            } else {
+                alert('이미지 파일만 업로드 가능합니다.');
+            }
+        }
+    }
+
+    async function uploadBlueprint(orderId, originalFile) {
+        let file = originalFile;
+        if (typeof window.compressImageFile === 'function') {
+            try { file = await window.compressImageFile(originalFile, { quality: 0.8 }); } catch (e) { }
+        }
+        const loading = document.getElementById('blueprint-loading');
+        const uploadArea = document.getElementById('blueprint-upload-area');
+        const preview = document.getElementById('blueprint-preview');
+
+        const maxSize = 50 * 1024 * 1024; // 50MB
+        if (file.size > maxSize) {
+            alert('파일 크기가 너무 큽니다. 최대 50MB까지 업로드 가능합니다.');
+            return;
+        }
+
+        loading.style.display = 'block';
+        uploadArea.style.display = 'none';
+        preview.style.display = 'none';
+
+        var progressWrap = document.getElementById('blueprint-upload-progress');
+        var progressBar = document.getElementById('blueprint-upload-progress-bar');
+        function setProgress(p) {
+            if (progressWrap) progressWrap.classList.remove('d-none');
+            if (progressBar) { progressBar.style.width = p + '%'; progressBar.textContent = p + '%'; }
+        }
+        function hideProgress() {
+            if (progressWrap) progressWrap.classList.add('d-none');
+            if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
+        }
+
+        try {
+            let data;
+            if (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD) {
+                const folder = `orders/${orderId}/blueprint`;
+                const sessRes = await fetch('/api/upload/session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: file.name, size: file.size, folder: folder })
+                });
+                const sess = await sessRes.json();
+                if (!sessRes.ok || !sess.success || !sess.upload_url) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    if (typeof uploadWithProgress !== 'undefined') {
+                        data = await uploadWithProgress(`/api/orders/${orderId}/blueprint`, formData, { onProgress: setProgress });
+                    } else {
+                        const res = await fetch(`/api/orders/${orderId}/blueprint`, { method: 'POST', body: formData });
+                        data = await res.json();
+                    }
+                } else {
+                    let putRes;
+                    try {
+                        putRes = await fetch(sess.upload_url, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                            body: file
+                        });
+                    } catch (_) {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        if (typeof uploadWithProgress !== 'undefined') {
+                            data = await uploadWithProgress(`/api/orders/${orderId}/blueprint`, formData, { onProgress: setProgress });
+                        } else {
+                            const res = await fetch(`/api/orders/${orderId}/blueprint`, { method: 'POST', body: formData });
+                            data = await res.json();
+                        }
+                        putRes = null;
+                    }
+                    if (!putRes || !putRes.ok) {
+                        if (!data) {
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            if (typeof uploadWithProgress !== 'undefined') {
+                                data = await uploadWithProgress(`/api/orders/${orderId}/blueprint`, formData, { onProgress: setProgress });
+                            } else {
+                                const res = await fetch(`/api/orders/${orderId}/blueprint`, { method: 'POST', body: formData });
+                                data = await res.json();
+                            }
+                        }
+                    } else {
+                        const completeRes = await fetch(`/api/orders/${orderId}/blueprint/complete`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key: sess.key, filename: file.name })
+                        });
+                        data = await completeRes.json();
+                    }
+                }
+            } else {
+                const formData = new FormData();
+                formData.append('file', file);
+                if (typeof uploadWithProgress !== 'undefined') {
+                    data = await uploadWithProgress(`/api/orders/${orderId}/blueprint`, formData, { onProgress: setProgress });
+                } else {
+                    const res = await fetch(`/api/orders/${orderId}/blueprint`, { method: 'POST', body: formData });
+                    data = await res.json();
+                }
+            }
+
+            hideProgress();
+            loading.style.display = 'none';
+            if (data.success) {
+                alert('도면이 업로드되었습니다.');
+                loadBlueprint(orderId);
+            } else {
+                alert('도면 업로드 실패: ' + (data.message || '알 수 없는 오류'));
+                uploadArea.style.display = 'block';
+            }
+        } catch (error) {
+            hideProgress();
+            loading.style.display = 'none';
+            console.error('도면 업로드 오류:', error);
+            alert('도면 업로드 중 오류가 발생했습니다.');
+            uploadArea.style.display = 'block';
+        }
+    }
+
+    function deleteBlueprint(orderId) {
+        if (!confirm('도면을 삭제하시겠습니까?')) {
+            return;
+        }
+
+        fetch(`/api/orders/${orderId}/blueprint`, {
+            method: 'DELETE'
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('도면이 삭제되었습니다.');
+                    loadBlueprint(orderId);
+                } else {
+                    alert('도면 삭제 실패: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('도면 삭제 오류:', error);
+                alert('도면 삭제 중 오류가 발생했습니다.');
+            });
+    }
+
+    // 도면 뷰어 함수 (layout.html의 window.openBlueprintViewer 호출)
+    // 로컬 함수를 정의하지 않고 전역 함수를 직접 호출
+</script>
+{% endblock %}

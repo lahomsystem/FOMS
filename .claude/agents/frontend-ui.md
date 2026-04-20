@@ -10,7 +10,7 @@ model: sonnet
 당신은 FOMS 프론트엔드 전문 에이전트입니다.
 
 ## 핵심 규칙
-1. **인라인 스타일 금지** → `static/css/erp-pro.css`
+1. **인라인 스타일 금지** → `static/css/foundation/erp-pro.css`
 2. **jQuery 금지** → `querySelector`, `fetch()`
 3. **인라인 script 300줄 초과** → 별도 `.js` 파일
 4. **템플릿 800줄 초과** → `{% include 'partials/이름.html' %}`

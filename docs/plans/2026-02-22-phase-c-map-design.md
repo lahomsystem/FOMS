@@ -91,7 +91,7 @@
 
 ### 5.5 기존 데이터 backfill (선택)
 
-- [x] 5.1 배치 스크립트: lat/lng가 NULL인 모든 주문에 대해 geocode job enqueue (`scripts/geocode_backfill.py`)
+- [x] 5.1 배치 스크립트: lat/lng가 NULL인 모든 주문에 대해 geocode job enqueue (`scripts/maintenance/geocode_backfill.py`)
 - [x] 5.2 rate limit 적용 (`--delay` 옵션, 기본 0.5초)
 - [x] **5.3 핫픽스: 로컬 RQ 워커 부재로 인한 누락 1,348건 백엔드 스크립트(`fix_rest.py`) 이용 카카오 API 일괄 지오코딩 추가 완료 (2026-02-22 추가).**
 
@@ -104,7 +104,7 @@
 
 - [x] 7.1 지도 조회 시 외부 API 호출 없음 확인 (로그/네트워크) **(성공)**
 - [x] 7.2 주소 수정 후 worker에서 geocode job 실행 확인 **(로컬 환경은 Fallback 방식 동기 처리로 즉각 결과 반환 성공)**
-- [x] 7.3 지도 동시 사용자 40명 부하 테스트 스크립트 생성 (`scripts/load_test_map.py`). 실행: `LOAD_TEST_USER=... LOAD_TEST_PASS=... BASE_URL=... python scripts/load_test_map.py`
+- [x] 7.3 지도 동시 사용자 40명 부하 테스트 스크립트 생성 (`scripts/ops/load_test_map.py`). 실행: `LOAD_TEST_USER=... LOAD_TEST_PASS=... BASE_URL=... python scripts/ops/load_test_map.py`
 
 ## 6. API 응답 형식 변경
 

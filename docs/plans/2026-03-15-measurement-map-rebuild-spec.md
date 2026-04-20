@@ -1,6 +1,6 @@
 # 실측 지도 재구현 Spec
 > 작성일: 2026-03-15 | 상태: 🟢 **바로 실행 가능 — 구현 전제/문서 모순 정리 완료**
-> 최종 검증: 2026-03-15 | 검증 상세: `docs/validation/2026-03-15-measurement-map-rebuild-spec-validation.md`
+> 최종 검증: 2026-03-15 | 검증 상세: `docs/guides/validation/2026-03-15-measurement-map-rebuild-spec-validation.md`
 
 ---
 
@@ -554,7 +554,7 @@
   - [ ] Shared query 검증용: 같은 필터 조건의 예상 주문 ID 집합
 
 - [ ] **검증 리포트 승인**
-  - [ ] `docs/validation/2026-03-15-measurement-map-rebuild-spec-validation.md` 검토
+  - [ ] `docs/guides/validation/2026-03-15-measurement-map-rebuild-spec-validation.md` 검토
   - [ ] 모든 Issue가 실제 코드에서 재현되었는지 확인
   - [ ] 예상 소요시간 14-20시간 수용 여부 확인
 

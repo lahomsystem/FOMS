@@ -24,9 +24,8 @@ class Estimate(WDCalculatorBase):
 
     id = Column(Integer, primary_key=True)
     customer_name = Column(String(100), nullable=False, index=True)
-    # JSONB 타입 사용 (PostgreSQL 전용)
-    # 딕셔너리/리스트를 그대로 저장하고 조회할 수 있음 (자동 직렬화/역직렬화)
-    estimate_data = Column(JSONB, nullable=False)
+    # PostgreSQL에서는 JSONB, SQLite 등 로컬 QA 환경에서는 JSON으로 동작시킨다.
+    estimate_data = Column(SETTINGS_JSON_TYPE, nullable=False)
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -46,7 +45,7 @@ class EstimateHistory(WDCalculatorBase):
     
     id = Column(Integer, primary_key=True)
     estimate_id = Column(Integer, ForeignKey('estimates.id', ondelete='CASCADE'), nullable=False, index=True)
-    estimate_data = Column(JSONB, nullable=False) # 변경 전 데이터
+    estimate_data = Column(SETTINGS_JSON_TYPE, nullable=False)  # 변경 전 데이터
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
     
     # 관계 설정

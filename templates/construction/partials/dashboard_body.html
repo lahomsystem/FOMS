@@ -1,0 +1,127 @@
+{% set filters = filters or {} %}
+<div class="container-fluid erp-dashboard erp-pro erp-mobile-shell"
+  data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  {% if erp_mobile_v2_enabled %}
+    {% include 'partials/shared/erp_mobile_shell.html' %}
+  {% endif %}
+  <!-- Modern Header -->
+  <header class="erp-pro-header">
+    <h1 class="erp-pro-header__title">
+      <i class="fas fa-hammer"></i>
+      <span>시공 대시보드</span>
+    </h1>
+    <div class="erp-pro-header__actions">
+      <!-- 알림 버튼 -->
+      <button class="erp-pro-btn erp-pro-btn--icon" id="notification-btn" title="알림"
+        onclick="toggleNotificationPanel()">
+        <i class="fas fa-bell"></i>
+        <span class="notification-badge" id="notification-badge" style="display: none;">0</span>
+      </button>
+      <a class="erp-pro-btn erp-pro-btn--primary" href="{{ url_for('order_pages.add_order', open='erp-order') }}">
+        <i class="fas fa-plus"></i>
+        <span>주문 생성</span>
+      </a>
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('order_pages.index') }}">
+        <i class="fas fa-home"></i>
+        <span class="d-none d-md-inline">홈</span>
+      </a>
+    </div>
+  </header>
+  {% set erp_sub_nav_active = 'construction' %}
+  {% include 'partials/shared/erp_sub_nav.html' %}
+
+  <!-- Process Map - Modern Pipeline Design -->
+  <div class="erp-pro-card erp-pro-card--process-map">
+    <div class="erp-pro-card__header erp-pro-card__header--with-alerts">
+      <h3 class="erp-pro-card__title">
+        <i class="fas fa-project-diagram"></i>
+        프로세스 맵
+      </h3>
+      <div class="erp-pro-alerts">
+        <div
+          class="erp-pro-alert erp-pro-alert--danger {% if filters.get('alert_type') == 'urgent' %}erp-pro-alert--active{% endif %}"
+          data-alert-type="urgent" role="button" tabindex="0">
+          <div class="erp-pro-alert__icon">
+            <i class="fas fa-bolt"></i>
+          </div>
+          <div class="erp-pro-alert__content">
+            <span class="erp-pro-alert__label">긴급 발주</span>
+            <span class="erp-pro-alert__value">{{ kpis.urgent_count }}</span>
+          </div>
+        </div>
+        <div
+          class="erp-pro-alert erp-pro-alert--warning {% if filters.get('alert_type') == 'measurement_d4' %}erp-pro-alert--active{% endif %}"
+          data-alert-type="measurement_d4" role="button" tabindex="0">
+          <div class="erp-pro-alert__icon">
+            <i class="fas fa-ruler-combined"></i>
+          </div>
+          <div class="erp-pro-alert__content">
+            <span class="erp-pro-alert__label">실측 D-4</span>
+            <span class="erp-pro-alert__value">{{ kpis.measurement_d4_count }}</span>
+          </div>
+        </div>
+        <div
+          class="erp-pro-alert erp-pro-alert--warning {% if filters.get('alert_type') == 'construction_d3' %}erp-pro-alert--active{% endif %}"
+          data-alert-type="construction_d3" role="button" tabindex="0">
+          <div class="erp-pro-alert__icon">
+            <i class="fas fa-tools"></i>
+          </div>
+          <div class="erp-pro-alert__content">
+            <span class="erp-pro-alert__label">시공 D-3</span>
+            <span class="erp-pro-alert__value">{{ kpis.construction_d3_count }}</span>
+          </div>
+        </div>
+        <div
+          class="erp-pro-alert erp-pro-alert--info {% if filters.get('alert_type') == 'production_d2' %}erp-pro-alert--active{% endif %}"
+          data-alert-type="production_d2" role="button" tabindex="0">
+          <div class="erp-pro-alert__icon">
+            <i class="fas fa-industry"></i>
+          </div>
+          <div class="erp-pro-alert__content">
+            <span class="erp-pro-alert__label">생산 D-2</span>
+            <span class="erp-pro-alert__value">{{ kpis.production_d2_count }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="erp-pro-card__body">
+      <div class="erp-pro-pipeline">
+        {% for step in process_steps %}
+        {% set is_step_active = (filters.get('stage') or '') == step.label %}
+        <div class="erp-pro-pipeline__stage {% if is_step_active %}erp-pro-pipeline__stage--active{% endif %}"
+          data-stage="{{ step.label }}" role="button" tabindex="0"
+          title="클릭하면 '{{ step.display|default(step.label) }}' 단계만 표시">
+          <div class="erp-pro-pipeline__count">
+            {{ step.count }}
+            {% if step.overdue > 0 %}
+            <span class="erp-pro-badge erp-pro-badge--danger erp-pro-badge--sm" title="지연">{{ step.overdue }}</span>
+            {% endif %}
+            {% if step.imminent > 0 %}
+            <span class="erp-pro-badge erp-pro-badge--warning erp-pro-badge--sm" title="임박">{{ step.imminent }}</span>
+            {% endif %}
+          </div>
+          <div class="erp-pro-pipeline__label">{{ step.display|default(step.label) }}</div>
+        </div>
+        {% if not loop.last %}
+        <div class="erp-pro-pipeline__connector">
+          <i class="fas fa-chevron-right"></i>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    <!-- New single row filter attached directly to the process map card -->
+    {% include 'construction/partials/filters.html' %}
+  </div>
+
+  <!-- 3-Panel Layout -->
+  {% include 'construction/partials/styles.html' %}
+  {% if erp_mobile_v2_enabled %}
+    {% include 'construction/partials/mobile_filters.html' %}
+    {% include 'construction/partials/mobile_queue.html' %}
+  {% endif %}
+  {% include 'construction/partials/filters_grid.html' %}
+  {% include 'construction/partials/modals.html' %}
+  <script src="{{ url_for('static', filename='js/erp/order-detail-fragment.js') }}"></script>
+  {% include 'construction/partials/scripts.html' %}
+</div>

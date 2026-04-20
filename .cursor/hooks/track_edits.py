@@ -14,7 +14,7 @@ def _load_debug():
         return lambda *a, **k: None, lambda: {}
 maybe_log_payload, get_payload = _load_debug()
 
-from shared_utils import find_key_recursive, extract_project_root
+from shared_utils import extract_project_root, find_key_recursive, harness_runtime_path
 
 def _normalize_uri_to_path(uri):
     if not uri or not isinstance(uri, str):
@@ -85,7 +85,7 @@ def main():
     change_size = sum(len(str(e.get("new_string", ""))) for e in edits if isinstance(e, dict))
     change_summary = f"{len(edits)} edit(s), ~{change_size} chars"
 
-    edit_log = os.path.join(project_root, "docs", "context", "EDIT_LOG.md")
+    edit_log = harness_runtime_path(project_root, "EDIT_LOG.md")
     os.makedirs(os.path.dirname(edit_log), exist_ok=True)
 
     entries = []

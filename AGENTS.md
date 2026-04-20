@@ -19,7 +19,7 @@
 ## 공통 실행 프로토콜 (핵심 코어 변경 시)
 
 - **대상**: DB/Auth/API, 배포 인프라, 하네스 인프라(Hooks/Rules/Agents/검증 흐름) 같은 코어 변경
-- **Research**: `docs/context/DECISIONS.md` + `docs/ARCHIVE_INDEX.md`를 먼저 조사한다.
+- **Research**: `docs/harness/policy/DECISIONS.md` + `docs/ARCHIVE_INDEX.md`를 먼저 조사한다.
 - **Plan**: `docs/guides/SPEC_TEMPLATE.md` 기준으로 Spec 또는 실행 계획을 먼저 확정한다.
 - **Implement**: 승인 후 구현하고, 완료 전 `.agents/workflows/verify-result.md` 기준으로 검증한다.
 - **원칙**: 세부 절차는 도구별 문서(`CLAUDE.md`, `.cursor/rules/*.mdc`)가 보강할 수 있지만, 이 공통 프로토콜과 모순되면 안 된다.

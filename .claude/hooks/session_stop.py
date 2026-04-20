@@ -10,7 +10,7 @@ from datetime import datetime
 
 _dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _dir)
-from shared_utils import get_project_root  # type: ignore[import-not-found]
+from shared_utils import get_project_root, harness_runtime_path  # type: ignore[import-not-found]
 
 # 정리 대상 임시 파일
 TEMP_FILES = [
@@ -34,14 +34,14 @@ def _cleanup_temp(project_root: str):
 
 def _log_session_end(project_root: str):
     """SESSION_LOG.md에 세션 종료 기록."""
-    log_path = os.path.join(project_root, "docs", "context", "SESSION_LOG.md")
+    log_path = harness_runtime_path("SESSION_LOG.md")
     if not os.path.exists(log_path):
         return
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # EDIT_LOG에서 최근 수정 파일 추출
-    edit_log_path = os.path.join(project_root, "docs", "context", "EDIT_LOG.md")
+    edit_log_path = harness_runtime_path("EDIT_LOG.md")
     edited_files = []
     if os.path.exists(edit_log_path):
         with open(edit_log_path, "r", encoding="utf-8") as f:

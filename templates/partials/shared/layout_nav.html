@@ -1,0 +1,204 @@
+    <a class="skip-link" href="#main-content">본문 바로가기</a>
+    <div class="container-fluid p-0"
+        style="width: 100vw !important; max-width: 100vw !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box;">
+        <header
+            class="bg-light py-3 px-4 d-flex justify-content-between align-items-center layout-header position-relative">
+            <h1 class="mb-0 h3 layout-header__title">가구 주문 관리 시스템</h1>
+
+            {% if current_user %}
+            <!-- 브리핑 보드: 화면 최상단 중앙, 슬라이딩 드롭다운(아래 방향 체브론) -->
+            <div class="position-absolute start-50 translate-middle-x top-0 bottom-0 d-flex align-items-center layout-header__center"
+                style="z-index: 2;">
+                <button class="btn personal-briefing-chevron-btn" id="personal-briefing-toggle" type="button"
+                    data-bs-toggle="offcanvas" data-bs-target="#personal-briefing-offcanvas"
+                    aria-controls="personal-briefing-offcanvas" title="내 브리핑 보드 (아래로 펼치기)" aria-label="브리핑 보드 열기">
+                    <i class="fas fa-chevron-down personal-briefing-chevron" aria-hidden="true"></i>
+                </button>
+            </div>
+            {% endif %}
+
+            {% if current_user %}
+            <div class="d-flex align-items-center gap-3">
+                <!-- Global "내 할 일" filter: 시공팀 이외만 표시 (시공팀은 출고/시공 대시보드에서 항상 본인 주문만 표시) -->
+                {% if (current_user.team or '') != 'CONSTRUCTION' %}
+                <div class="position-relative">
+                    <button class="btn btn-link p-0 text-dark border-0 position-relative" id="global-mine-only-btn"
+                        title="로그인 담당자만 보기" onclick="toggleGlobalMineOnly()" aria-label="내 할 일만 보기 토글"
+                        aria-pressed="false">
+                        <i class="fas fa-user-check fa-2x" id="global-mine-only-icon"></i>
+                    </button>
+                </div>
+                {% endif %}
+                <!-- Global Notification Button -->
+                <div class="position-relative">
+                    <button class="btn btn-link p-0 text-dark border-0 position-relative" id="global-notification-btn"
+                        title="알림" onclick="toggleGlobalNotificationPanel()" aria-label="알림 패널 열기"
+                        aria-controls="global-notification-panel" aria-expanded="false">
+                        <i class="fas fa-bell fa-2x" id="global-notification-icon" style="color: #495057;"></i>
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                            id="global-notification-badge" style="display: none; font-size: 0.65rem;">
+                            0
+                            <span class="visually-hidden">unread messages</span>
+                        </span>
+                    </button>
+                    <!-- Notification Panel -->
+                    <div class="dropdown-menu dropdown-menu-end p-0 shadow-lg border-0 global-notification-panel"
+                        id="global-notification-panel" role="region" aria-label="전역 알림"
+                        style="display: none; position: absolute; top: 140%; right: 0; width: 420px; max-width: min(420px, calc(100vw - 24px)); max-height: 480px; overflow-y: auto; z-index: 9999; border-radius: 12px;">
+                        <div
+                            class="p-3 border-bottom d-flex justify-content-between align-items-center bg-white sticky-top">
+                            <h6 class="mb-0 fw-bold"><i class="fas fa-bell text-warning me-2"></i>알림</h6>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-sm btn-light text-secondary"
+                                    onclick="markAllGlobalNotificationsRead()" style="font-size: 0.8rem;">
+                                    <i class="fas fa-check-double me-1"></i>모두 읽음
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteAllGlobalNotifications()"
+                                    style="font-size: 0.8rem;">
+                                    <i class="fas fa-trash-alt me-1"></i>전체 삭제
+                                </button>
+                            </div>
+                        </div>
+                        <div id="global-notification-list" class="list-group list-group-flush" aria-live="polite"
+                            aria-atomic="false">
+                            <!-- JS will populate this -->
+                            <div class="text-center p-5 text-muted">
+                                <i class="far fa-bell fa-3x mb-3 text-light"></i><br>
+                                로딩 중...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="userDropdown"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-user-circle"></i> {{ current_user.name }} ({{ ROLES[current_user.role] }})
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown" style="z-index: 1050;">
+                        <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}"><i
+                                    class="fas fa-user-cog"></i> 내
+                                정보</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('admin.change_logs') }}"><i
+                                    class="fas fa-history"></i> 내 변경 로그</a></li>
+                        {% if impersonating_from_id %}
+                        <li><a class="dropdown-item" href="{{ url_for('auth.switch_back') }}"><i
+                                    class="fas fa-undo"></i> 원래 관리자로 돌아가기</a></li>
+                        {% endif %}
+                        {% if current_user.role == 'ADMIN' %}
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth.user_list') }}"><i class="fas fa-users"></i>
+                                사용자
+                                관리</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('admin.security_logs') }}"><i
+                                    class="fas fa-shield-alt"></i>
+                                보안 로그</a></li>
+                        {% if not impersonating_from_id and admin_switch_users %}
+                        <li>
+                            <h6 class="dropdown-header">다른 사용자로 전환</h6>
+                        </li>
+                        {% for u in admin_switch_users %}
+                        <li><a class="dropdown-item" href="{{ url_for('auth.switch_user', target_user_id=u.id) }}">{{
+                                u.name }} ({{ u.username }})</a></li>
+                        {% endfor %}
+                        {% endif %}
+                        {% endif %}
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i
+                                    class="fas fa-sign-out-alt"></i>
+                                로그아웃</a></li>
+                    </ul>
+                </div>
+            </div>
+            {% else %}
+            <div>
+                <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary me-2">로그인</a>
+                <a href="{{ url_for('auth.register') }}" class="btn btn-primary">회원가입</a>
+            </div>
+            {% endif %}
+        </header>
+
+        <!-- Personal Briefing Board (offcanvas-top, ~50% viewport) -->
+        {% if current_user %}
+        <div class="offcanvas offcanvas-top" id="personal-briefing-offcanvas" tabindex="-1"
+            aria-labelledby="personal-briefing-title" style="height: 55vh; max-height: 55vh;">
+            <div class="offcanvas-header border-bottom py-2">
+                <h5 class="offcanvas-title" id="personal-briefing-title">
+                    <i class="fas fa-th-large me-2"></i>내 브리핑 보드
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+            </div>
+            <div class="offcanvas-body p-3 overflow-auto" id="personal-briefing-body">
+                <!-- 긴급 알림 배너 영역 -->
+                <div id="urgent-banner-area" class="d-none mb-2"></div>
+                <div class="text-center text-muted py-4" id="personal-briefing-placeholder">
+                    <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                    <p class="mb-0">로딩 중...</p>
+                </div>
+                <div class="row g-2 d-none" id="personal-briefing-widgets"></div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if current_user %}
+        <nav class="layout-global-nav navbar navbar-expand-md navbar-light bg-light border-bottom px-2 px-lg-4" aria-label="메인 메뉴"
+            style="position: sticky; top: 0; z-index: 1000; background-color: white !important;">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            {% if request.endpoint and request.endpoint.startswith('erp_measurement_dashboard') and (current_user.team
+            or '') != 'CONSTRUCTION' %}
+            <div class="d-flex align-items-center gap-2 ms-2 d-lg-none">
+                <span class="fw-bold fs-6" style="line-height: 1;">
+                    <i class="fas fa-ruler-combined"></i> ERP Order - 실측 대시보드
+                </span>
+            </div>
+            {% endif %}
+            <div class="collapse navbar-collapse layout-nav-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    {% for item in menu.main_menu %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ item.url }}">{{ item.name }}</a>
+                    </li>
+                    {% endfor %}
+                    {% if current_user.role == 'ADMIN' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin.admin') }}">
+                            <i class="fas fa-cog"></i> 관리자
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+                <!-- 도구 섹션 (시공팀은 ERP/WDPLANNER/WDCalculator만 숨기고 채팅은 노출) -->
+                <ul class="navbar-nav ms-auto border-start ps-3">
+                    {% if (current_user.team or '') != 'CONSTRUCTION' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('erp_dashboard.erp_dashboard') }}">
+                            <i class="fas fa-layer-group"></i> ERP 대시보드
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('wdplanner.wdplanner') }}">
+                            <i class="fas fa-cube"></i> WDPLANNER
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('wdcalculator.wdcalculator') }}">
+                            <i class="fas fa-calculator"></i> WDCalculator
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('channel_chat_pages.chat') }}">
+                            <i class="fas fa-comments"></i> 채팅
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            <div id="layout-nav-loading-status" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+        </nav>
+        {% endif %}

@@ -20,6 +20,26 @@ def get_project_root() -> str:
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
+def harness_docs_path(*parts: str) -> str:
+    """Return an absolute path under `docs/harness/`."""
+    return os.path.join(get_project_root(), "docs", "harness", *parts)
+
+
+def harness_policy_path(*parts: str) -> str:
+    """Return an absolute path under `docs/harness/policy/`."""
+    return harness_docs_path("policy", *parts)
+
+
+def harness_runtime_path(*parts: str) -> str:
+    """Return an absolute path under `docs/harness/runtime/`."""
+    return harness_docs_path("runtime", *parts)
+
+
+def harness_log_path(*parts: str) -> str:
+    """Return an absolute path under `docs/harness/logs/`."""
+    return harness_docs_path("logs", *parts)
+
+
 def write_stdout_json(data: dict):
     """결과 JSON을 stdout에 출력."""
     sys.stdout.write(json.dumps(data, ensure_ascii=False))

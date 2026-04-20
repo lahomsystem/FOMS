@@ -75,7 +75,7 @@ Agent tool을 사용하여 서브에이전트를 호출합니다:
 3. 검증 후 재발 방지 자산화
 
 ## RPI 프로토콜 (핵심 코어 변경 시 필수)
-1. **Research**: `docs/AI_STATUS.md` + `docs/ARCHIVE_INDEX.md` + `docs/context/DECISIONS.md` 조사
+1. **Research**: `docs/AI_STATUS.md` + `docs/ARCHIVE_INDEX.md` + `docs/harness/policy/DECISIONS.md` 조사
 2. **Plan**: 작업 Spec 작성 → 사용자 승인 대기
 3. **Implement**: 승인 후에만 서브에이전트에 구현 지시
 ※ 소규모 수정(타이포, 1~2줄)은 바로 진행 가능

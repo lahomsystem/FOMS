@@ -1,0 +1,70 @@
+{
+  "harness": "gnv_b6_staging_http_evidence",
+  "base": "https://lahom-dev.up.railway.app",
+  "g1a_full_document": {
+    "/": {
+      "cold_no_cache_s": 2.374,
+      "warm_second_get_s": 3.122,
+      "final_url": "https://lahom-dev.up.railway.app/",
+      "status_code": 200
+    },
+    "/?status=RECEIVED": {
+      "cold_no_cache_s": 1.501,
+      "warm_second_get_s": 1.498,
+      "final_url": "https://lahom-dev.up.railway.app/?status=RECEIVED",
+      "status_code": 200
+    },
+    "/trash": {
+      "cold_no_cache_s": 1.897,
+      "warm_second_get_s": 1.889,
+      "final_url": "https://lahom-dev.up.railway.app/trash",
+      "status_code": 200
+    }
+  },
+  "g1a_nav_fragment": {
+    "/": {
+      "cold_no_cache_s": 2.54,
+      "warm_second_get_s": 2.222,
+      "fragment_header_ok": false,
+      "x_foms_gnav_fragment": null,
+      "final_url": "https://lahom-dev.up.railway.app/?view=nav-fragment",
+      "status_code": 200
+    },
+    "/?status=RECEIVED": {
+      "cold_no_cache_s": 1.499,
+      "warm_second_get_s": 1.506,
+      "fragment_header_ok": false,
+      "x_foms_gnav_fragment": null,
+      "final_url": "https://lahom-dev.up.railway.app/?status=RECEIVED&view=nav-fragment",
+      "status_code": 200
+    },
+    "/trash": {
+      "cold_no_cache_s": 1.88,
+      "warm_second_get_s": 1.871,
+      "fragment_header_ok": false,
+      "x_foms_gnav_fragment": null,
+      "final_url": "https://lahom-dev.up.railway.app/trash?view=nav-fragment",
+      "status_code": 200
+    }
+  },
+  "g2_warm_document": {
+    "/erp/dashboard": {
+      "cold_no_cache_s": 3.32,
+      "warm_second_get_s": 2.073,
+      "final_url": "https://lahom-dev.up.railway.app/erp/dashboard",
+      "status_code": 200
+    },
+    "/chat": {
+      "cold_no_cache_s": 0.989,
+      "warm_second_get_s": 1.048,
+      "final_url": "https://lahom-dev.up.railway.app/chat",
+      "status_code": 200
+    }
+  },
+  "notes": {
+    "cold_no_cache_s": "Proxy for first navigation (Cache-Control: no-cache).",
+    "warm_second_get_s": "Immediate second GET same URL (browser cache warm).",
+    "g1a_nav_fragment": "GET with view=nav-fragment + X-FOMS-GNAV: 1; not browser #main-content swap ms.",
+    "miss_taxonomy": "If targets missed: HTML | render | asset | query | prefetch miss"
+  }
+}

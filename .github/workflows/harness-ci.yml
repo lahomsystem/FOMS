@@ -43,4 +43,4 @@ jobs:
         run: python tools/harness/build_context_bundle.py --all
 
       - name: Check harness bundle drift
-        run: git diff --exit-code -- docs/context/HARNESS_BUNDLE_*.md
+        run: git diff --exit-code -- docs/harness/bundles/HARNESS_BUNDLE_*.md
