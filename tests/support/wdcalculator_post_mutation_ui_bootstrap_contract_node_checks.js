@@ -40,6 +40,7 @@ const loadEstimateToForm = () => "load-estimate";
 const formatNumber = () => "format";
 const setEstimates = () => "set-estimates";
 const resetInputFormKeepCustomerName = () => "reset-form";
+const resetInputFormToNewEstimate = () => "reset-new";
 const renderEstimatesList = () => "render-list";
 const getProducts = () => [{ id: 1 }];
 const documentRef = { body: {} };
@@ -68,6 +69,7 @@ helper.configure({
     formatNumber,
     setEstimates,
     resetInputFormKeepCustomerName,
+    resetInputFormToNewEstimate,
     renderEstimatesList,
     getProducts,
     documentRef,
@@ -111,6 +113,11 @@ assertEq(
     callLog[0][1].resetInputFormKeepCustomerName,
     resetInputFormKeepCustomerName,
     "late bootstrap resetInputFormKeepCustomerName"
+);
+assertEq(
+    callLog[0][1].resetInputFormToNewEstimate,
+    resetInputFormToNewEstimate,
+    "late bootstrap resetInputFormToNewEstimate"
 );
 assertEq(
     callLog[0][1].renderEstimatesList,

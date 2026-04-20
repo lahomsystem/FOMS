@@ -493,6 +493,11 @@
             documentRef.getElementById("finalPrice").textContent = "0원";
             documentRef.getElementById("baseEstimateDetail").textContent = "";
             documentRef.getElementById("additionalOptionsDetail").textContent = "";
+            var unitMeta = documentRef.getElementById("currentQuoteUnitPriceMeta");
+            if (unitMeta) {
+                unitMeta.textContent = "";
+                unitMeta.classList.add("text-muted");
+            }
         }
 
         function syncActionButtons(basePrice, additionalPrice) {
@@ -556,6 +561,18 @@
             documentRef.getElementById("totalAdditionalPrice").textContent =
                 formatNumber(additionalPrice) + "원";
             documentRef.getElementById("totalPrice").textContent = formatNumber(totalPrice) + "원";
+
+            var upMeta = window.WdCalculatorUnitPriceMeta;
+            var unitSlot = documentRef.getElementById("currentQuoteUnitPriceMeta");
+            if (upMeta && unitSlot && typeof upMeta.deriveUnitPriceSummaryFromBaseComponents === "function") {
+                var bcForMeta = readBaseComponentsFromUI();
+                var unitSummary = upMeta.deriveUnitPriceSummaryFromBaseComponents(
+                    bcForMeta,
+                    getProducts(),
+                    formatNumber
+                );
+                upMeta.fillElementWithLines(unitSlot, unitSummary, { fallbackText: "단가 정보 없음" });
+            }
 
             var finalPriceEl = documentRef.getElementById("finalPrice");
             if (finalPriceEl) {
@@ -977,3 +994,197 @@ var WdCalculatorCouponShippingWiring = window.WdCalculatorCouponShippingWiring |
 })(WdCalculatorCouponShippingWiring);
 
 window.WdCalculatorCouponShippingWiring = WdCalculatorCouponShippingWiring;
+
+/* --- included: unit-price-meta.js --- */
+(function () {
+    var WdCalculatorUnitPriceMeta = window.WdCalculatorUnitPriceMeta || {};
+
+    (function (ns) {
+        var LS_KEY = "foms.wdcalculator.unitPriceMetaVisible";
+
+        function isUnitPriceMetaVisible() {
+            try {
+                var raw = window.localStorage.getItem(LS_KEY);
+                if (raw === null || raw === undefined) {
+                    return true;
+                }
+                return raw === "1" || raw === "true";
+            } catch (e) {
+                return true;
+            }
+        }
+
+        function setUnitPriceMetaVisible(visible) {
+            try {
+                window.localStorage.setItem(LS_KEY, visible ? "1" : "0");
+            } catch (e) {
+                /* ignore */
+            }
+        }
+
+        function defaultFormatNumber(num) {
+            return Math.round(Number(num) || 0).toLocaleString("ko-KR");
+        }
+
+        function resolveFormatNumber(fmt) {
+            return typeof fmt === "function" ? fmt : defaultFormatNumber;
+        }
+
+        function findProduct(products, productId) {
+            var list = products || [];
+            var pid = Number(productId) || 0;
+            for (var i = 0; i < list.length; i++) {
+                if (list[i].id === pid) {
+                    return list[i];
+                }
+            }
+            return null;
+        }
+
+        function formatCatalogUnitPrices(product, formatNumber) {
+            if (!product) {
+                return null;
+            }
+            if (product.pricing_type === "1m") {
+                var p1 = Number(product.price_1m) || 0;
+                if (p1 <= 0) {
+                    return null;
+                }
+                return "1m " + formatNumber(p1) + "원";
+            }
+            var p30 = Number(product.price_30cm) || 0;
+            var p1c = Number(product.price_1cm) || 0;
+            if (p30 <= 0 || p1c <= 0) {
+                return null;
+            }
+            return "30cm " + formatNumber(p30) + "원 / 1cm " + formatNumber(p1c) + "원";
+        }
+
+        function formatManualUnitPrices(manualPricing, formatNumber) {
+            if (!manualPricing) {
+                return null;
+            }
+            var pt = manualPricing.pricing_type || "30cm";
+            if (pt === "1m") {
+                var p1m = Number(manualPricing.price_1m) || 0;
+                if (p1m <= 0) {
+                    return null;
+                }
+                return "1m " + formatNumber(p1m) + "원";
+            }
+            var p30 = Number(manualPricing.price_30cm) || 0;
+            var p1c = Number(manualPricing.price_1cm) || 0;
+            if (p30 <= 0 || p1c <= 0) {
+                return null;
+            }
+            return "30cm " + formatNumber(p30) + "원 / 1cm " + formatNumber(p1c) + "원";
+        }
+
+        function deriveLinesFromBaseComponents(baseComponents, products, formatNumber) {
+            var lines = [];
+            var comps = baseComponents || [];
+            for (var i = 0; i < comps.length; i++) {
+                var comp = comps[i];
+                var line = null;
+                if (comp && comp.mode === "manual") {
+                    line = formatManualUnitPrices(comp.manualPricing, formatNumber);
+                } else if (comp && comp.productId) {
+                    line = formatCatalogUnitPrices(findProduct(products, comp.productId), formatNumber);
+                }
+                if (line) {
+                    lines.push(line);
+                }
+            }
+            return lines;
+        }
+
+        function estimateToBaseComponents(estimate) {
+            if (!estimate) {
+                return [];
+            }
+            if (estimate.baseComponents && estimate.baseComponents.length) {
+                return estimate.baseComponents;
+            }
+            var w = Number(estimate.widthMm) || 0;
+            var pid = estimate.productId;
+            if (pid) {
+                return [
+                    {
+                        mode: "select",
+                        productId: pid,
+                        widthMm: w,
+                        additionalFees: [],
+                    },
+                ];
+            }
+            return [];
+        }
+
+        function deriveUnitPriceSummaryFromBaseComponents(baseComponents, products, formatNumber) {
+            var fmt = resolveFormatNumber(formatNumber);
+            var lines = deriveLinesFromBaseComponents(baseComponents, products, fmt);
+            return {
+                lines: lines,
+                isEmpty: lines.length === 0,
+            };
+        }
+
+        function deriveEstimateUnitPriceSummary(estimate, products, formatNumber) {
+            return deriveUnitPriceSummaryFromBaseComponents(estimateToBaseComponents(estimate), products, formatNumber);
+        }
+
+        function deriveSavedEstimateUnitSummary(est, products, formatNumber) {
+            if (!est || !est.estimate_data || !Array.isArray(est.estimate_data.estimates)) {
+                return { lines: [], isEmpty: true };
+            }
+            var lines = [];
+            var fmt = resolveFormatNumber(formatNumber);
+            est.estimate_data.estimates.forEach(function (sub) {
+                var s = deriveEstimateUnitPriceSummary(sub, products, fmt);
+                (s.lines || []).forEach(function (ln) {
+                    lines.push(ln);
+                });
+            });
+            return { lines: lines, isEmpty: lines.length === 0 };
+        }
+
+        function fillElementWithLines(el, summary, options) {
+            var opts = options || {};
+            if (!el) {
+                return;
+            }
+            while (el.firstChild) {
+                el.removeChild(el.firstChild);
+            }
+            if (!summary || summary.isEmpty) {
+                el.textContent = opts.fallbackText || "단가 정보 없음";
+                el.classList.add("text-muted");
+                return;
+            }
+            el.classList.remove("text-muted");
+            if (summary.lines.length === 1) {
+                el.textContent = summary.lines[0];
+                return;
+            }
+            summary.lines.forEach(function (line, idx) {
+                var chip = document.createElement("span");
+                chip.className = "wd-unit-price-chip";
+                chip.textContent = line;
+                el.appendChild(chip);
+                if (idx < summary.lines.length - 1) {
+                    el.appendChild(document.createTextNode(" "));
+                }
+            });
+        }
+
+        ns.LS_KEY = LS_KEY;
+        ns.isUnitPriceMetaVisible = isUnitPriceMetaVisible;
+        ns.setUnitPriceMetaVisible = setUnitPriceMetaVisible;
+        ns.deriveUnitPriceSummaryFromBaseComponents = deriveUnitPriceSummaryFromBaseComponents;
+        ns.deriveEstimateUnitPriceSummary = deriveEstimateUnitPriceSummary;
+        ns.deriveSavedEstimateUnitSummary = deriveSavedEstimateUnitSummary;
+        ns.fillElementWithLines = fillElementWithLines;
+    })(WdCalculatorUnitPriceMeta);
+
+    window.WdCalculatorUnitPriceMeta = WdCalculatorUnitPriceMeta;
+})();

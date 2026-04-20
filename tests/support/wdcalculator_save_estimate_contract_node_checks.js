@@ -418,9 +418,12 @@ async function scenarioEmptyEstimatesUsesCurrentEstimateFallback() {
     assertEq(button.disabled, false, "successful save restores disabled state");
     assertEq(button.innerHTML, '<i class="fas fa-save"></i> 저장', "successful save restores original button text");
     assertEq(env.alerts[0], "저장 완료", "successful save surfaces backend success message");
-    assertDeepEqual(env.events[6], ["setCurrentDatabaseEstimateId", 901], "successful save updates current database id");
-    assertDeepEqual(env.events[7], ["refreshAfterSave", 901], "successful save refreshes with returned estimate id");
-    assertIncludes(env.headerTitle.innerHTML, "견적 수정: WD Save", "successful save updates header title");
+    assertDeepEqual(env.events[6], ["refreshAfterSave", 901], "successful save triggers refresh (full reset runs inside refresh)");
+    assertEq(
+        env.events.some((entry) => entry[0] === "setCurrentDatabaseEstimateId"),
+        false,
+        "successful save does not set DB estimate id client-side; refresh clears edit state"
+    );
 }
 
 async function scenarioAggregateErrorAlertsWithoutFetch() {

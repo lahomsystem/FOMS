@@ -195,6 +195,13 @@ function buildSandbox(spec = {}) {
         }
     }
 
+    function resetInputFormToNewEstimate() {
+        events.push("resetInputFormToNewEstimate");
+        if (spec.resetThrows) {
+            throw new Error("reset failed");
+        }
+    }
+
     function renderEstimatesList() {
         events.push("renderEstimatesList");
     }
@@ -212,6 +219,7 @@ function buildSandbox(spec = {}) {
         Promise,
         setEstimates,
         resetInputFormKeepCustomerName,
+        resetInputFormToNewEstimate,
         renderEstimatesList,
         loadSidebarEstimates,
     };
@@ -225,6 +233,7 @@ function buildSandbox(spec = {}) {
             window.WdCalculatorRefreshAfterSave.configure({
                 setEstimates: setEstimates,
                 resetInputFormKeepCustomerName: resetInputFormKeepCustomerName,
+                resetInputFormToNewEstimate: resetInputFormToNewEstimate,
                 renderEstimatesList: renderEstimatesList,
                 loadSidebarEstimates: loadSidebarEstimates,
                 documentRef: document,
@@ -283,8 +292,8 @@ async function scenarioHappyPathHighlightsSavedRow() {
     assertEq(env.events[0], "setEstimates", "happy path clears estimates first");
     assertEq(
         env.events[1],
-        "resetInputFormKeepCustomerName",
-        "happy path resets form after clearing estimates"
+        "resetInputFormToNewEstimate",
+        "happy path full-resets form after clearing estimates"
     );
     assertEq(env.state.estimates.length, 0, "happy path leaves local estimates empty");
     assertEq(env.loadSidebarCalls.length, 0, "happy path does not refresh sidebar before timers");
@@ -362,7 +371,7 @@ async function scenarioOuterCatchFallsBackToImmediateRender() {
     env.callRefresh(42);
 
     assertEq(env.events[0], "setEstimates", "fallback path clears estimates before reset");
-    assertEq(env.events[1], "resetInputFormKeepCustomerName", "fallback path still attempts reset");
+    assertEq(env.events[1], "resetInputFormToNewEstimate", "fallback path still attempts reset");
     assertEq(env.events[2], "setEstimates", "fallback path clears estimates again inside catch");
     assertEq(env.events[3], "renderEstimatesList", "fallback path rerenders immediately");
     assertEq(env.loadSidebarCalls.length, 0, "fallback path defers sidebar refresh to 300ms");

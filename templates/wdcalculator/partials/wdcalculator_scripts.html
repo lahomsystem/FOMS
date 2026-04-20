@@ -122,6 +122,7 @@ document.addEventListener('DOMContentLoaded', function() {
         escapeHtml,
         formatNotesText: WdCalculatorNotesUI.formatNotesText,
         onRenderComplete: calculateTotalEstimates,
+        getProducts,
     });
     WdCalculatorCouponSearchRenderHostBootstrap.initCouponSearchRenderHostBootstrap();
     const {
@@ -132,7 +133,10 @@ document.addEventListener('DOMContentLoaded', function() {
     } = WdCalculatorProductCatalogUI;
     const { initSearchResultsLoadBridge } = WdCalculatorSearchResultsLoad;
     const { renderEstimatesList } = WdCalculatorRenderEstimatesList;
-    const { resetInputFormKeepCustomerName } = WdCalculatorResetInputFormKeepCustomer;
+    const {
+        resetInputFormKeepCustomerName,
+        resetInputFormToNewEstimate,
+    } = WdCalculatorResetInputFormKeepCustomer;
     const { loadEstimateToInputForm } = WdCalculatorLoadEstimateToInputForm;
     const { refreshAfterSave } = WdCalculatorRefreshAfterSave;
     const { bindOrderMatchButtons } = WdCalculatorOrderMatchUI;
@@ -229,6 +233,7 @@ document.addEventListener('DOMContentLoaded', function() {
         reloadImpl: () => location.reload(),
         collectCurrentEstimate,
         resetInputFormKeepCustomerName,
+        resetInputFormToNewEstimate,
         getLoadingState,
         loadEstimateToInputForm,
         setTimeoutImpl: setTimeout,
@@ -255,6 +260,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formatNumber,
         setEstimates,
         resetInputFormKeepCustomerName,
+        resetInputFormToNewEstimate,
         renderEstimatesList,
         getProducts,
         documentRef: document,
@@ -263,6 +269,22 @@ document.addEventListener('DOMContentLoaded', function() {
         renderInitialBaseComponentsUi,
     });
     WdCalculatorPostMutationUiHostBootstrap.initPostMutationUiHostBootstrap();
+
+    (function initWdCalculatorUnitPriceMetaToggle() {
+        var up = window.WdCalculatorUnitPriceMeta;
+        var toggle = document.getElementById("wdUnitPriceMetaToggle");
+        if (!up || !toggle || typeof up.isUnitPriceMetaVisible !== "function") {
+            return;
+        }
+        toggle.checked = up.isUnitPriceMetaVisible();
+        toggle.addEventListener("change", function () {
+            up.setUnitPriceMetaVisible(!!toggle.checked);
+            renderEstimatesList();
+            if (typeof window.loadSidebarEstimates === "function") {
+                window.loadSidebarEstimates();
+            }
+        });
+    })();
 
 });
 </script>

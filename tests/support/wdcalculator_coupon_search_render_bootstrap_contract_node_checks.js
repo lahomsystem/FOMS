@@ -42,6 +42,7 @@ const formatNumber = () => "format";
 const escapeHtml = () => "escape";
 const formatNotesText = () => "notes";
 const onRenderComplete = () => "renderComplete";
+const getProducts = () => [{ id: 1 }];
 
 helper.configure({
     couponShippingWiring: {
@@ -69,6 +70,7 @@ helper.configure({
     escapeHtml,
     formatNotesText,
     onRenderComplete,
+    getProducts,
 });
 
 helper.initCouponSearchRenderBootstrap();
@@ -125,5 +127,6 @@ assertEq(
     onRenderComplete,
     "render list onRenderComplete"
 );
+assertEq(callLog[2][1].getProducts, getProducts, "render list getProducts");
 
 process.exit(0);
