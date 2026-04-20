@@ -171,7 +171,7 @@ Web exploration and manual QA still use Cursor browser MCP. Repeatable smoke/QA 
   ```
 
 ### Frontend
-- **인라인 스타일 금지** → `static/css/erp-pro.css` 사용
+- **인라인 스타일 금지** → `static/css/foundation/erp-pro.css` 사용
 - **jQuery 사용 금지** → `querySelector`, `fetch()` 사용
 - **인라인 script 300줄 초과 시** 별도 `.js` 파일로 분리
 - **템플릿 800줄 초과 시** `{% include 'partials/이름.html' %}` partial 분리
