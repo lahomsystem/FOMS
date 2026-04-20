@@ -41,13 +41,20 @@
 
     function findProduct(products, productId) {
         var list = products || [];
-        var pid = Number(productId);
-        if (!pid && productId !== 0 && productId !== "0") {
+        if (productId === null || productId === undefined || productId === "") {
             return null;
         }
+        var pid = Number(productId);
+        var pidIsNum = !isNaN(pid);
         for (var i = 0; i < list.length; i++) {
             var row = list[i];
-            if (row && Number(row.id) === pid) {
+            if (!row) {
+                continue;
+            }
+            if (pidIsNum && Number(row.id) === pid) {
+                return row;
+            }
+            if (String(row.id) === String(productId)) {
                 return row;
             }
         }
@@ -1037,16 +1044,20 @@ window.WdCalculatorCouponShippingWiring = WdCalculatorCouponShippingWiring;
 
         function findProduct(products, productId) {
             var list = products || [];
-            var pid = Number(productId);
-            if (!pid && productId !== 0 && productId !== "0") {
+            if (productId === null || productId === undefined || productId === "") {
                 return null;
             }
+            var pid = Number(productId);
+            var pidIsNum = !isNaN(pid);
             for (var i = 0; i < list.length; i++) {
                 var row = list[i];
                 if (!row) {
                     continue;
                 }
-                if (Number(row.id) === pid) {
+                if (pidIsNum && Number(row.id) === pid) {
+                    return row;
+                }
+                if (String(row.id) === String(productId)) {
                     return row;
                 }
             }
@@ -1109,11 +1120,22 @@ window.WdCalculatorCouponShippingWiring = WdCalculatorCouponShippingWiring;
             for (var i = 0; i < comps.length; i++) {
                 var comp = comps[i];
                 var line = null;
-                if (comp && comp.mode === "manual") {
+                if (comp && comp.mode === "manual" && comp.manualPricing) {
                     line = formatManualUnitPrices(comp.manualPricing, formatNumber);
-                } else if (comp && (comp.productId != null || comp.product_id != null)) {
+                }
+                if (
+                    !line &&
+                    comp &&
+                    ((comp.productId != null && comp.productId !== "") ||
+                        (comp.product_id != null && comp.product_id !== ""))
+                ) {
                     line = formatCatalogUnitPrices(
-                        findProduct(products, comp.productId != null ? comp.productId : comp.product_id),
+                        findProduct(
+                            products,
+                            comp.productId != null && comp.productId !== ""
+                                ? comp.productId
+                                : comp.product_id
+                        ),
                         formatNumber
                     );
                 }
