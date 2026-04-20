@@ -311,7 +311,7 @@ function scenarioUpdateModePreservesDisplayNameWhenProductIdentityMatches() {
     assertEq(env.state.estimates[0].productName, "Latest Product", "update-mode path still refreshes latest productName");
     assertEq(env.events[3][0], "setEditingEstimateId", "update-mode path clears editing state after successful update");
     assertEq(env.events[4][0], "renderEstimatesList", "update-mode path re-renders after mutation");
-    assertEq(env.events[5][0], "resetInputFormToNewEstimate", "update-mode path full-resets input form after render");
+    assertEq(env.events[5][0], "resetInputFormKeepCustomerName", "update-mode path resets form but keeps customer name after render");
     assertEq(env.ids.addEstimateBtn.innerHTML, '<i class="fas fa-plus"></i> 견적 추가', "update-mode path restores add button label");
 }
 

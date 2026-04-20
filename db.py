@@ -2,11 +2,12 @@ import os
 from typing import Any
 from flask import g
 from sqlalchemy import create_engine
-from sqlalchemy.engine import URL
 from sqlalchemy.orm import scoped_session, sessionmaker, declarative_base
 
+from foms.services.db_url_resolver import prepare_database_url_env
 
-def _normalize_postgres_url(url: str):
+
+def _normalize_postgres_url(url: str) -> str:
     if not url:
         return url
     if url.startswith('postgres://'):
@@ -14,41 +15,24 @@ def _normalize_postgres_url(url: str):
     return url
 
 
-def _should_prefer_public_url(host: str | None) -> bool:
-    return bool(
-        os.name == 'nt'
-        and host
-        and host.endswith('.railway.internal')
-    )
+def _ensure_psycopg2_driver(url: str) -> str:
+    """Use explicit psycopg2 driver; leave non-Postgres URLs (e.g. sqlite) unchanged."""
+    if not url or not url.startswith('postgresql'):
+        return url
+    if url.startswith('postgresql+psycopg2://'):
+        return url
+    if url.startswith('postgresql://'):
+        return 'postgresql+psycopg2://' + url[len('postgresql://'):]
+    return url
 
 
 def _resolve_database_target():
-    host = os.getenv('PGHOST')
-    port = os.getenv('PGPORT')
-    user = os.getenv('PGUSER')
-    password = os.getenv('PGPASSWORD')
-    database = os.getenv('PGDATABASE')
-
-    if _should_prefer_public_url(host):
-        for key in ('DATABASE_PUBLIC_URL', 'RAILWAY_PUBLIC_DATABASE_URL'):
-            candidate = os.getenv(key)
-            if candidate:
-                return _normalize_postgres_url(candidate)
-
-    if all([host, port, user, password, database]):
-        port_int: int | None = int(port) if port and str(port).isdigit() else None
-        return URL.create(
-            drivername='postgresql+psycopg2',
-            username=user,
-            password=password,
-            host=host,
-            port=port_int,
-            database=database,
-        )
-
-    return _normalize_postgres_url(
-        os.getenv('DATABASE_URL') or 'postgresql+psycopg2://postgres:lahom@localhost/furniture_orders'
-    )
+    """Resolve DB URL via shared Railway/PG env rules (percent-encoding for PG* passwords)."""
+    prepare_database_url_env()
+    db_url = os.getenv('DATABASE_URL')
+    if db_url:
+        return _ensure_psycopg2_driver(_normalize_postgres_url(db_url))
+    return 'postgresql+psycopg2://postgres:lahom@localhost/furniture_orders'
 
 
 DB_URL = _resolve_database_target()
