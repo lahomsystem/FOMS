@@ -2513,6 +2513,24 @@
             }
         }
 
+        function stripEstimateIdFromUrl() {
+            try {
+                var w = documentRef.defaultView;
+                if (!w || !w.location || !w.history || typeof w.history.replaceState !== "function") {
+                    return;
+                }
+                var url = new URL(w.location.href);
+                if (!url.searchParams.has("estimate_id")) {
+                    return;
+                }
+                url.searchParams.delete("estimate_id");
+                var next = url.pathname + (url.search ? url.search : "") + (url.hash || "");
+                w.history.replaceState({}, w.document && w.document.title ? w.document.title : "", next);
+            } catch (error) {
+                consoleRef.error("stripEstimateIdFromUrl:", error);
+            }
+        }
+
         function highlightSavedSidebarRow(savedId) {
             if (!savedId) {
                 return;
@@ -2552,6 +2570,7 @@
             try {
                 clearLocalEstimates();
                 resetInputFormToNewEstimate();
+                stripEstimateIdFromUrl();
 
                 setTimeoutImpl(function () {
                     try {
@@ -2581,6 +2600,12 @@
                 consoleRef.error("Error in refreshAfterSave:", error);
                 try {
                     clearLocalEstimates();
+                    try {
+                        resetInputFormToNewEstimate();
+                    } catch (resetErr) {
+                        consoleRef.error("Error in resetInputFormToNewEstimate (fallback):", resetErr);
+                    }
+                    stripEstimateIdFromUrl();
                     renderEstimatesList();
                     setTimeoutImpl(function () {
                         loadSidebarEstimates();
