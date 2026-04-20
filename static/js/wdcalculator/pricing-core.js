@@ -41,9 +41,14 @@
 
     function findProduct(products, productId) {
         var list = products || [];
+        var pid = Number(productId);
+        if (!pid && productId !== 0 && productId !== "0") {
+            return null;
+        }
         for (var i = 0; i < list.length; i++) {
-            if (list[i].id === productId) {
-                return list[i];
+            var row = list[i];
+            if (row && Number(row.id) === pid) {
+                return row;
             }
         }
         return null;
@@ -1032,10 +1037,17 @@ window.WdCalculatorCouponShippingWiring = WdCalculatorCouponShippingWiring;
 
         function findProduct(products, productId) {
             var list = products || [];
-            var pid = Number(productId) || 0;
+            var pid = Number(productId);
+            if (!pid && productId !== 0 && productId !== "0") {
+                return null;
+            }
             for (var i = 0; i < list.length; i++) {
-                if (list[i].id === pid) {
-                    return list[i];
+                var row = list[i];
+                if (!row) {
+                    continue;
+                }
+                if (Number(row.id) === pid) {
+                    return row;
                 }
             }
             return null;
@@ -1045,19 +1057,30 @@ window.WdCalculatorCouponShippingWiring = WdCalculatorCouponShippingWiring;
             if (!product) {
                 return null;
             }
-            if (product.pricing_type === "1m") {
-                var p1 = Number(product.price_1m) || 0;
-                if (p1 <= 0) {
-                    return null;
-                }
-                return "1m " + formatNumber(p1) + "원";
-            }
+            var p1m = Number(product.price_1m) || 0;
             var p30 = Number(product.price_30cm) || 0;
             var p1c = Number(product.price_1cm) || 0;
-            if (p30 <= 0 || p1c <= 0) {
-                return null;
+            var pt = String(product.pricing_type || "");
+
+            if (pt === "1m") {
+                if (p1m <= 0) {
+                    return null;
+                }
+                return "1m " + formatNumber(p1m) + "원";
             }
-            return "30cm " + formatNumber(p30) + "원 / 1cm " + formatNumber(p1c) + "원";
+            if (pt === "30cm") {
+                if (p30 <= 0 || p1c <= 0) {
+                    return null;
+                }
+                return "30cm " + formatNumber(p30) + "원 / 1cm " + formatNumber(p1c) + "원";
+            }
+            if (p30 > 0 && p1c > 0) {
+                return "30cm " + formatNumber(p30) + "원 / 1cm " + formatNumber(p1c) + "원";
+            }
+            if (p1m > 0) {
+                return "1m " + formatNumber(p1m) + "원";
+            }
+            return null;
         }
 
         function formatManualUnitPrices(manualPricing, formatNumber) {
@@ -1088,8 +1111,11 @@ window.WdCalculatorCouponShippingWiring = WdCalculatorCouponShippingWiring;
                 var line = null;
                 if (comp && comp.mode === "manual") {
                     line = formatManualUnitPrices(comp.manualPricing, formatNumber);
-                } else if (comp && comp.productId) {
-                    line = formatCatalogUnitPrices(findProduct(products, comp.productId), formatNumber);
+                } else if (comp && (comp.productId != null || comp.product_id != null)) {
+                    line = formatCatalogUnitPrices(
+                        findProduct(products, comp.productId != null ? comp.productId : comp.product_id),
+                        formatNumber
+                    );
                 }
                 if (line) {
                     lines.push(line);
@@ -1106,7 +1132,10 @@ window.WdCalculatorCouponShippingWiring = WdCalculatorCouponShippingWiring;
                 return estimate.baseComponents;
             }
             var w = Number(estimate.widthMm) || 0;
-            var pid = estimate.productId;
+            var pid =
+                estimate.productId != null && estimate.productId !== ""
+                    ? estimate.productId
+                    : estimate.product_id;
             if (pid) {
                 return [
                     {
