@@ -1,4 +1,14 @@
-<script>
+/** Sync globals used by detail DOM (MY_ID / 팀 등) from .erp-dashboard data-* — runs on full load and fragment rebind. */
+        window.fomsSyncErpDashboardUserGlobals = function fomsSyncErpDashboardUserGlobals() {
+          var el = document.querySelector('.erp-dashboard');
+          if (!el) return;
+          window.MY_ID = el.getAttribute('data-user-id') || '';
+          window.MY_TEAM = el.getAttribute('data-user-team') || '';
+          window.MY_NAME = el.getAttribute('data-user-name') || '';
+          window.MY_ROLE = el.getAttribute('data-user-role') || '';
+        };
+        window.fomsSyncErpDashboardUserGlobals();
+
         function escapeHtml(text) {
           if (!text) return '';
           const div = document.createElement('div');
@@ -347,4 +357,3 @@
           __currentAttachmentList = list;
           showAttachmentAtIndex(index);
         }
-</script>

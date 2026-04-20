@@ -1,5 +1,4 @@
-<script>
-        function drawingActionLabel(action) {
+function drawingActionLabel(action) {
           const map = {
             TRANSFER: '도면 전달',
             REQUEST_REVISION: '수정 요청',
@@ -27,7 +26,7 @@
         var __drawingGatewayViewerStartPanY = 0;
         var __drawingGatewayViewerTouchDistance = 0;
         var __drawingGatewayViewerTouchScale = 1;
-        var __drawingGatewayViewerBound = false;
+        window.__fomsDrawingGatewayViewerBound = false;
 
         function gatewayFileName(f) {
           return String((f && f.filename) || '첨부파일');
@@ -199,10 +198,10 @@
         }
 
         function initDrawingGatewayImageViewer() {
-          if (__drawingGatewayViewerBound) return;
+          if (window.__fomsDrawingGatewayViewerBound) return;
           const { backdrop, closeBtn, prevBtn, nextBtn, stage, root, image } = getDrawingGatewayViewerElements();
           if (!stage || !root || !image) return;
-          __drawingGatewayViewerBound = true;
+          window.__fomsDrawingGatewayViewerBound = true;
 
           if (backdrop) backdrop.addEventListener('click', closeDrawingGatewayImageViewer);
           if (closeBtn) closeBtn.addEventListener('click', closeDrawingGatewayImageViewer);
@@ -378,4 +377,3 @@
             `;
           }).join('');
         }
-</script>

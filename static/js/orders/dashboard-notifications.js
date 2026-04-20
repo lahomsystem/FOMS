@@ -1,5 +1,5 @@
-// 알림 시스템 JavaScript
-        let notificationPanelOpen = false;
+// 알림 시스템 JavaScript (var: ERP shell may re-insert this script on fragment swap)
+        var notificationPanelOpen = false;
 
         function renderNotificationBadge(count) {
           const badge = document.getElementById('notification-badge');

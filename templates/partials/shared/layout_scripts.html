@@ -1323,4 +1323,5 @@
     {% endif %}
     {% if request.path.startswith('/erp/') %}
     <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}" defer></script>
     {% endif %}
