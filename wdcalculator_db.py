@@ -5,6 +5,12 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
 from flask import g
 
+from foms.services.db_url_resolver import (
+    postgresql_psycopg2_connect_kwargs_from_url,
+    prepare_database_url_env,
+)
+
+
 def _normalize_postgres_url(url: str) -> str:
     """
     Railway 등에서 DATABASE_URL이 'postgres://'로 내려오는 경우가 있어
@@ -16,6 +22,21 @@ def _normalize_postgres_url(url: str) -> str:
         return "postgresql://" + url[len("postgres://"):]
     return url
 
+
+def _ensure_psycopg2_driver(url: str) -> str:
+    """Use explicit psycopg2 driver; leave non-Postgres URLs (e.g. sqlite) unchanged."""
+    if not url or not url.startswith("postgresql"):
+        return url
+    if url.startswith("postgresql+psycopg2://"):
+        return url
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg2://" + url[len("postgresql://"):]
+    return url
+
+
+# PG* / DATABASE_URL 정렬 (db.py와 동일; 단독 import 시에도 동작)
+prepare_database_url_env()
+
 # WDCalculator 스키마 (단일 DB 통합 모드에서 사용)
 WD_CALCULATOR_SCHEMA = os.getenv("WD_CALCULATOR_SCHEMA") or "wdcalculator"
 
@@ -25,41 +46,62 @@ WD_CALCULATOR_IS_SEPARATE_DB = bool(_WD_CALCULATOR_SEPARATE_DB_URL)
 
 # DB URL 결정 (환경변수 우선)
 if WD_CALCULATOR_IS_SEPARATE_DB:
-    # 기존 구조 유지: 별도 DB
-    WD_CALCULATOR_DB_URL = _normalize_postgres_url(_WD_CALCULATOR_SEPARATE_DB_URL)
-    _wd_connect_args = {}
-else:
-    # 추천 구조: 메인 DB(DATABASE_URL) 하나 + wdcalculator 스키마로 분리
-    WD_CALCULATOR_DB_URL = _normalize_postgres_url(
-        os.getenv("DATABASE_URL") or "postgresql+psycopg2://postgres:lahom@localhost/furniture_orders"
+    WD_CALCULATOR_DB_URL = _ensure_psycopg2_driver(
+        _normalize_postgres_url(_WD_CALCULATOR_SEPARATE_DB_URL)
     )
-    # 연결마다 search_path를 고정해 wdcalculator 스키마로 테이블/쿼리가 향하도록 함
-    _wd_connect_args = {"options": f"-c search_path={WD_CALCULATOR_SCHEMA},public"}
+else:
+    WD_CALCULATOR_DB_URL = _ensure_psycopg2_driver(
+        _normalize_postgres_url(
+            os.getenv("DATABASE_URL")
+            or "postgresql+psycopg2://postgres:lahom@localhost/furniture_orders"
+        )
+    )
+
+_db_url_str = str(WD_CALCULATOR_DB_URL)
 
 # SQLAlchemy 엔진 생성
 engine_args: dict[str, Any] = {
     "pool_pre_ping": True,
     "echo": False,
-    "json_serializer": lambda obj: json.dumps(obj, ensure_ascii=False)
+    "json_serializer": lambda obj: json.dumps(obj, ensure_ascii=False),
 }
 
-if "sqlite" not in WD_CALCULATOR_DB_URL:
-    engine_args.update({
-        "pool_size": 10,
-        "max_overflow": 10,
-        "pool_recycle": 1800,
-        "connect_args": _wd_connect_args
-    })
-else:
-    # SQLite는 connect_args의 search_path 옵션을 지원하지 않음
-    engine_args["connect_args"] = {}
+if "sqlite" not in _db_url_str:
+    engine_args.update(
+        {
+            "pool_size": 10,
+            "max_overflow": 10,
+            "pool_recycle": 1800,
+        }
+    )
 
-wd_calculator_engine = create_engine(WD_CALCULATOR_DB_URL, **engine_args)
+if "sqlite" in _db_url_str:
+    engine_args["connect_args"] = {}
+    wd_calculator_engine = create_engine(WD_CALCULATOR_DB_URL, **engine_args)
+elif _db_url_str.startswith("postgresql"):
+    import psycopg2
+
+    _wd_pg_kw = dict(postgresql_psycopg2_connect_kwargs_from_url(WD_CALCULATOR_DB_URL))
+    if not WD_CALCULATOR_IS_SEPARATE_DB:
+        _wd_pg_kw["options"] = f"-c search_path={WD_CALCULATOR_SCHEMA},public"
+
+    def _wd_pg_creator():
+        return psycopg2.connect(**_wd_pg_kw)
+
+    wd_calculator_engine = create_engine(
+        "postgresql+psycopg2://",
+        creator=_wd_pg_creator,
+        **engine_args,
+    )
+else:
+    engine_args["connect_args"] = {}
+    wd_calculator_engine = create_engine(WD_CALCULATOR_DB_URL, **engine_args)
 
 wd_calculator_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=wd_calculator_engine))
 
 WDCalculatorBase = declarative_base()
 WDCalculatorBase.query = wd_calculator_session.query_property()
+
 
 def ensure_wdcalculator_schema():
     """
@@ -73,6 +115,7 @@ def ensure_wdcalculator_schema():
     schema = WD_CALCULATOR_SCHEMA
     with wd_calculator_engine.begin() as conn:
         conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"'))
+
 
 def init_wdcalculator_db():
     """Initialize WDCalculator database and create tables"""
@@ -92,15 +135,16 @@ def init_wdcalculator_db():
         print(f"Error during WDCalculator initialization: {str(e)}")
         raise
 
+
 def get_wdcalculator_db():
     """Flask 앱 컨텍스트에서 견적 계산기 데이터베이스 세션 가져오기"""
-    if 'wdcalculator_db' not in g:
+    if "wdcalculator_db" not in g:
         g.wdcalculator_db = wd_calculator_session
     return g.wdcalculator_db
 
+
 def close_wdcalculator_db(e=None):
     """앱 컨텍스트가 종료될 때 견적 계산기 데이터베이스 세션 닫기"""
-    db = g.pop('wdcalculator_db', None)
+    db = g.pop("wdcalculator_db", None)
     if db is not None:
         db.close()
-
