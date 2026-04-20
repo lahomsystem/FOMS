@@ -207,10 +207,25 @@
     for (var i = 0; i < scripts.length; i++) {
       var old = scripts[i];
       var s = document.createElement('script');
+      if (old.id) {
+        s.id = old.id;
+      }
+      if (old.type) {
+        s.type = old.type;
+      }
+      if (old.nonce) {
+        s.nonce = old.nonce;
+      }
       if (old.src) {
         s.src = old.src;
         s.async = old.async;
         s.defer = old.defer;
+        if (old.crossOrigin) {
+          s.crossOrigin = old.crossOrigin;
+        }
+        if (old.integrity) {
+          s.integrity = old.integrity;
+        }
       } else {
         s.textContent = old.textContent;
       }
