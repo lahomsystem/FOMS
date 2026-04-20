@@ -1,6 +1,4 @@
-<script>
-
-        /** API가 HTML(401/404/500)을 돌려주면 r.json()이 SyntaxError를 던짐. JSON일 때만 파싱 */
+/** API가 HTML(401/404/500)을 돌려주면 r.json()이 SyntaxError를 던짐. JSON일 때만 파싱 */
         async function safeJsonFetch(url, fallback) {
           const r = await fetch(url);
           const ct = r.headers.get('content-type') || '';
@@ -651,7 +649,10 @@
           });
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        function fomsErpDashboardInitMain() {
+          if (typeof window.fomsSyncErpDashboardUserGlobals === 'function') {
+            window.fomsSyncErpDashboardUserGlobals();
+          }
           initErpDashboardBoundaryResize();
           // URL 파라미터로 특정 주문 하이라이트 및 퀘스트 확장 (도면 수령확정 후 이동 등)
           (() => {
@@ -793,8 +794,10 @@
             });
           });
 
-          // 이벤트 위임: 퀘스트 승인, 첨부 미리보기 등
-          document.body.addEventListener('click', function (e) {
+          // 이벤트 위임: 퀘스트 승인, 첨부 미리보기 등 (document.body에 1회만)
+          if (!window.__fomsErpDashboardBodyClickBound) {
+            window.__fomsErpDashboardBodyClickBound = true;
+            document.body.addEventListener('click', function (e) {
             const targetCard = e.target.closest('.drawing-target-card');
             if (targetCard) {
               const role = String(targetCard.getAttribute('data-role') || '');
@@ -885,8 +888,10 @@
               }
             }
           });
+          }
 
-          // 도면 수정 창구 이미지 뷰어 초기화
+          // 도면 수정 창구 이미지 뷰어 초기화 (프래그먼트 재스왑 시 DOM 새로 바인딩)
+          window.__fomsDrawingGatewayViewerBound = false;
           initDrawingGatewayImageViewer();
 
           // 작업 큐: 다중 선택 후 상태 일괄 변경
@@ -993,5 +998,19 @@
             });
             input.setAttribute('data-prev-value', input.value || '');
           });
+        }
+
+        function fomsErpDashboardScheduleMainInit() {
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', fomsErpDashboardInitMain);
+          } else {
+            fomsErpDashboardInitMain();
+          }
+        }
+        fomsErpDashboardScheduleMainInit();
+
+        document.addEventListener('foms:erp-shell-fragment-swapped', function () {
+          if (document.querySelector('#main-content .erp-dashboard')) {
+            fomsErpDashboardInitMain();
+          }
         });
-</script>

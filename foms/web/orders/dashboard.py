@@ -671,6 +671,7 @@ def erp_dashboard():
     _t0 = time.perf_counter()
     _body = render_template(
         template_name,
+        erp_dashboard_fragment=wants_erp_shell_tab_body(request),
         orders=paginated_orders,
         kpis=kpis,
         process_steps=process_steps,
