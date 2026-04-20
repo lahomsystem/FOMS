@@ -10,7 +10,7 @@ _SCRIPTS_INCLUDE = _REPO_ROOT / "templates" / "orders" / "partials" / "dashboard
 _ORDERS_CORE = _REPO_ROOT / "templates" / "orders" / "partials" / "dashboard_scripts_core.html"
 _ORDERS_ATTACHMENTS = _REPO_ROOT / "templates" / "orders" / "partials" / "dashboard_scripts_attachments.html"
 _DETAIL_DOM = _REPO_ROOT / "templates" / "orders" / "partials" / "dashboard_scripts_detail_dom.html"
-_FRAGMENT = _REPO_ROOT / "static" / "js" / "erp" / "order-detail-fragment.js"
+_FRAGMENT = _REPO_ROOT / "static" / "js" / "orders" / "order-detail-fragment.js"
 _CONTRACT_DOC = _REPO_ROOT / "docs" / "harness" / "policy" / "order-detail-2phase-contract.md"
 _PRODUCTION_BODY = _REPO_ROOT / "templates" / "production" / "partials" / "dashboard_body.html"
 _CONSTRUCTION_BODY = _REPO_ROOT / "templates" / "construction" / "partials" / "dashboard_body.html"
@@ -21,7 +21,7 @@ _CONSTRUCTION_SCRIPTS = _REPO_ROOT / "templates" / "construction" / "partials" /
 def test_dashboard_scripts_load_fragment_module_before_detail_dom() -> None:
     text = _SCRIPTS_INCLUDE.read_text(encoding="utf-8")
 
-    fragment_idx = text.index("js/erp/order-detail-fragment.js")
+    fragment_idx = text.index("js/orders/order-detail-fragment.js")
     detail_dom_idx = text.index("dashboard_scripts_detail_dom.html")
 
     assert fragment_idx < detail_dom_idx
@@ -83,8 +83,8 @@ def test_production_and_construction_load_common_fragment_module() -> None:
     production_body = _PRODUCTION_BODY.read_text(encoding="utf-8")
     construction_body = _CONSTRUCTION_BODY.read_text(encoding="utf-8")
 
-    assert "js/erp/order-detail-fragment.js" in production_body
-    assert "js/erp/order-detail-fragment.js" in construction_body
+    assert "js/orders/order-detail-fragment.js" in production_body
+    assert "js/orders/order-detail-fragment.js" in construction_body
 
 
 def test_production_and_construction_scripts_use_two_phase_attachment_patch() -> None:

@@ -27,8 +27,11 @@ def _login_erp_admin(client):
 def test_erp_pages_use_single_notification_badge_fetch(client):
     _login_erp_admin(client)
 
+    # Orders ERP dashboard defers badge helpers to `dashboard-notifications.js` (no inline
+    # `loadNotificationBadge(true);` in HTML). Production/construction dashboards still
+    # inline two eager refreshes in their page scripts.
     expected_badge_refresh_calls = {
-        "/erp/dashboard": 2,
+        "/erp/dashboard": 0,
         "/erp/construction/dashboard": 2,
         "/erp/production/dashboard": 2,
     }
@@ -41,5 +44,7 @@ def test_erp_pages_use_single_notification_badge_fetch(client):
         assert "window.FOMSNotificationBadge" in body
         assert "setInterval(loadNotificationBadge, 60000)" not in body
         assert body.count("loadNotificationBadge(true);") == expected_badge_refresh_calls[path]
+        if path == "/erp/dashboard":
+            assert "js/orders/dashboard-notifications.js" in body
         assert "refreshErpNotificationUI({ reason: 'socket-connect' });" in body
         assert "refreshErpNotificationUI({ force: true, reason: 'erp-notification' });" in body

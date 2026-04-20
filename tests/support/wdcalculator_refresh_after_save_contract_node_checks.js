@@ -373,7 +373,8 @@ async function scenarioOuterCatchFallsBackToImmediateRender() {
     assertEq(env.events[0], "setEstimates", "fallback path clears estimates before reset");
     assertEq(env.events[1], "resetInputFormToNewEstimate", "fallback path still attempts reset");
     assertEq(env.events[2], "setEstimates", "fallback path clears estimates again inside catch");
-    assertEq(env.events[3], "renderEstimatesList", "fallback path rerenders immediately");
+    assertEq(env.events[3], "resetInputFormToNewEstimate", "fallback path retries reset inside inner catch");
+    assertEq(env.events[4], "renderEstimatesList", "fallback path rerenders immediately");
     assertEq(env.loadSidebarCalls.length, 0, "fallback path defers sidebar refresh to 300ms");
     assertTruthy(env.errors.length > 0, "fallback path logs refresh error");
 
