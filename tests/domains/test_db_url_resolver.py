@@ -41,6 +41,34 @@ def test_prepare_database_url_env_builds_url_from_pg_components(monkeypatch) -> 
     assert resolved == db_url_resolver.os.environ["DATABASE_URL"]
 
 
+def test_prepare_database_url_env_builds_url_when_password_empty_string(monkeypatch) -> None:
+    """Empty PGPASSWORD must not skip the PG* URL builder (truthy password check was a footgun)."""
+    _clear_database_env(monkeypatch)
+    monkeypatch.setenv("PGHOST", "localhost")
+    monkeypatch.setenv("PGPORT", "5432")
+    monkeypatch.setenv("PGUSER", "u")
+    monkeypatch.setenv("PGPASSWORD", "")
+    monkeypatch.setenv("PGDATABASE", "d")
+
+    resolved = db_url_resolver.prepare_database_url_env()
+
+    assert resolved == "postgresql://u:@localhost:5432/d"
+    assert resolved == db_url_resolver.os.environ["DATABASE_URL"]
+
+
+def test_prepare_database_url_env_builds_url_when_password_env_missing(monkeypatch) -> None:
+    """Missing PGPASSWORD key still builds URL with empty password when other PG* vars exist."""
+    _clear_database_env(monkeypatch)
+    monkeypatch.setenv("PGHOST", "localhost")
+    monkeypatch.setenv("PGPORT", "5432")
+    monkeypatch.setenv("PGUSER", "u")
+    monkeypatch.setenv("PGDATABASE", "d")
+
+    resolved = db_url_resolver.prepare_database_url_env()
+
+    assert resolved == "postgresql://u:@localhost:5432/d"
+
+
 def test_prepare_database_url_env_prefers_public_url_when_requested(monkeypatch) -> None:
     _clear_database_env(monkeypatch)
     monkeypatch.setenv("PGHOST", "private.railway.internal")
