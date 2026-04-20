@@ -86,7 +86,7 @@ $setupScript = Join-Path $PSScriptRoot "setup_gstack.ps1"
 $codexWrapper = Join-Path $PSScriptRoot "run_codex.ps1"
 $vendorQaSourcePath = Join-Path $resolvedVendorRoot "qa\SKILL.md"
 $effectiveBundlePath = if ([string]::IsNullOrWhiteSpace($BundlePath)) {
-    "docs/context/HARNESS_BUNDLE_CODEX.md"
+    "docs/harness/bundles/HARNESS_BUNDLE_CODEX.md"
 } else {
     $BundlePath
 }

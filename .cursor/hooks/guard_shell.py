@@ -14,7 +14,7 @@ def _load_debug():
     except Exception:
         return lambda *a, **k: None, lambda: {}
 maybe_log_payload, get_payload = _load_debug()
-from shared_utils import find_key_recursive, extract_project_root
+from shared_utils import extract_project_root, find_key_recursive, harness_log_path
 
 DANGEROUS_PATTERNS = [
     r"rm\s+(-rf|-fr)\s+[/\\]",
@@ -99,7 +99,7 @@ def main():
     
     decision, pattern = _classify(raw_cmd)
     
-    log_path = os.path.join(project_root, "docs", "context", "SHELL_GUARD_LOG.md")
+    log_path = harness_log_path(project_root, "SHELL_GUARD_LOG.md")
     if not _is_normal_git_command(raw_cmd, decision):
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

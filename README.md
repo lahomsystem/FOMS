@@ -15,7 +15,7 @@
 
 - **백엔드**: Flask (Python)
 - **데이터베이스**: PostgreSQL
-- **배포 환경**: Google App Engine
+- **배포 환경**: Railway (Web / Worker / R2)
 
 ## 설치 및 실행 방법
 
@@ -51,7 +51,20 @@ python migration.py
 python app.py
 ```
 
-## Google App Engine 배포 방법
+선택 사항:
+- startup file log가 필요하면 `FOMS_STARTUP_LOG_PATH` 환경변수를 설정하세요. 기본값은 콘솔(stdout)만 사용하며, 더 이상 repo root에 `app_startup.log`를 자동 생성하지 않습니다.
+
+## 배포 개요
+
+현재 운영/스테이징 기준 배포 환경은 Railway입니다.
+
+- 웹 프로세스: `start.sh` -> `gunicorn ... app:app`
+- 워커 프로세스: `USE_RQ_WORKER=1` 기반 `rq worker`
+- 스토리지: Cloudflare R2
+
+아래 Google App Engine 내용은 과거 운영 참고용 레거시 메모입니다.
+
+## 레거시 참고: Google App Engine 배포 방법
 
 1. Google Cloud 계정 및 프로젝트 준비:
    - [Google Cloud Console](https://console.cloud.google.com/)에서 새 프로젝트 생성
@@ -72,7 +85,7 @@ python app.py
    gcloud sql users set-password postgres --instance=[YOUR-INSTANCE-NAME] --password=[YOUR-PASSWORD]
    ```
 
-4. app.yaml 파일 수정:
+4. 레거시 GAE용 `app.yaml` 샘플은 `docs/context/manual-artifacts/legacy-deploy/app.yaml` 에 두었다. 복사하거나 참고한 뒤:
    - `[YOUR-PROJECT-ID]`와 `[YOUR-INSTANCE-NAME]`을 실제 값으로 변경
    - 적절한 데이터베이스 비밀번호 설정
 
@@ -121,12 +134,13 @@ python app.py
 - `DB_USER`: PostgreSQL 사용자 이름 (기본값: postgres)
 - `DB_PASS`: PostgreSQL 비밀번호
 - `DB_NAME`: 데이터베이스 이름 (기본값: furniture_orders)
-- `DB_HOST`: 데이터베이스 호스트 (로컬: localhost, GAE: /cloudsql/[CONNECTION-NAME])
+- `DB_HOST`: 데이터베이스 호스트 (로컬: localhost, 레거시 GAE: /cloudsql/[CONNECTION-NAME])
 - `CLOUD_SQL_CONNECTION_NAME`: Cloud SQL 연결 이름 (프로젝트ID:리전:인스턴스이름)
 
 ## 참고 사항
 
-- Google App Engine 배포 시 app.yaml 파일의 환경 변수 값을 실제 프로젝트에 맞게 수정해야 합니다.
+- 현재 운영 기준 배포는 Railway이며, Google App Engine 관련 내용은 레거시 참고용입니다.
+- Google App Engine 배포 시 `docs/context/manual-artifacts/legacy-deploy/app.yaml` 를 참고하여 환경 변수 값을 실제 프로젝트에 맞게 수정해야 합니다.
 - 처음 실행 시 관리자 계정이 자동으로 생성됩니다. (ID: admin, 비밀번호: admin123)
 - 보안을 위해 배포 후 관리자 계정 비밀번호를 변경하십시오. "# lahomproject" 
 

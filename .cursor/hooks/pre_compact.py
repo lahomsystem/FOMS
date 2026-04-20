@@ -14,7 +14,7 @@ def _load_debug():
         return lambda *a, **k: None, lambda: {}
 maybe_log_payload, get_payload = _load_debug()
 
-from shared_utils import find_key_recursive, extract_project_root
+from shared_utils import extract_project_root, find_key_recursive, harness_runtime_path
 
 def main():
     payload = get_payload()
@@ -29,11 +29,10 @@ def main():
     conv_id = str(conv_id)[:8] if conv_id and str(conv_id) != "unknown" else "unknown"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    checkpoint_dir = os.path.join(project_root, "docs", "context")
-    os.makedirs(checkpoint_dir, exist_ok=True)
-    checkpoint_file = os.path.join(checkpoint_dir, "COMPACT_CHECKPOINT.md")
+    checkpoint_file = harness_runtime_path(project_root, "COMPACT_CHECKPOINT.md")
+    os.makedirs(os.path.dirname(checkpoint_file), exist_ok=True)
 
-    edit_log_path = os.path.join(checkpoint_dir, "EDIT_LOG.md")
+    edit_log_path = harness_runtime_path(project_root, "EDIT_LOG.md")
     recent_edits = []
     if os.path.exists(edit_log_path):
         with open(edit_log_path, "r", encoding="utf-8") as f:
@@ -76,9 +75,9 @@ def main():
 
 1. `docs/AI_STATUS.md` 읽기 → 전체 프로젝트 상태 파악 (50줄)
 2. `docs/AI_CHANGELOG.md` 읽기 → 최근 작업 이력 확인
-3. `docs/context/DECISIONS.md` 읽기 → 이전 결정사항 확인
+3. `docs/harness/policy/DECISIONS.md` 읽기 → 이전 결정사항 확인
 4. `docs/ARCHIVE_INDEX.md` 읽기 → 과거 장애/분석 기록 검색 (키워드 기반)
-5. `docs/context/EDIT_LOG.md` 읽기 → 최근 편집 파일 확인
+5. `docs/harness/runtime/EDIT_LOG.md` 읽기 → 최근 편집 파일 확인
 6. 핵심 코어 변경 작업이면 RPI 프로토콜(조사→계획→실행)을 따를 것
 """
 

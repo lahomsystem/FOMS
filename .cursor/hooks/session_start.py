@@ -14,7 +14,7 @@ def _load_debug():
         return lambda *a, **k: None, lambda: {}
 maybe_log_payload, get_payload = _load_debug()
 
-from shared_utils import find_key_recursive, extract_project_root
+from shared_utils import extract_project_root, find_key_recursive, harness_runtime_path
 
 def main():
     input_data = get_payload()
@@ -36,7 +36,7 @@ def main():
     conv_id = str(conv_id)[:8] if conv_id and str(conv_id) != "unknown" else "unknown"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    session_log = os.path.join(project_root, "docs", "context", "SESSION_LOG.md")
+    session_log = harness_runtime_path(project_root, "SESSION_LOG.md")
     os.makedirs(os.path.dirname(session_log), exist_ok=True)
 
     existing = ""
@@ -66,7 +66,7 @@ def main():
         "[SYSTEM] 새 세션입니다.\n"
         "1. `docs/AI_STATUS.md`를 읽어 현재 상황을 파악하세요.\n"
         "2. 새 기능/중대형 수정, 또는 하네스 핵심 변경(Hooks/Rules/Agents/Verification)이면 반드시 조사(R)→계획(P)→실행(I) 순서를 따르세요.\n"
-        "   - 조사: DECISIONS.md, ARCHIVE_INDEX.md에서 관련 과거 기록 검색\n"
+        "   - 조사: docs/harness/policy/DECISIONS.md, docs/ARCHIVE_INDEX.md에서 관련 과거 기록 검색\n"
         "   - 계획: docs/guides/SPEC_TEMPLATE.md 기반으로 Spec 작성 → 사용자 승인 대기\n"
         "   - 실행: 승인 후 코딩 시작\n"
         "3. 대화가 길어지면 핵심을 요약하고 새 세션을 권유하세요 (Dumb Zone 회피)."

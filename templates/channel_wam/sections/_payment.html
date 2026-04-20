@@ -1,9 +1,0 @@
-{% import 'channel_wam/_macros.html' as wam with context %}
-
-{% call wam.section_shell(section, section.folded|default(false)) %}
-  <dl class="wam-kv-list">
-    {% for row in section.payload.rows %}
-      {{ wam.kv_row(row.label, row.value, row.tone|default('default'), row.href, row.href_label, row.copy_value, row.external|default(false), row.muted|default(false)) }}
-    {% endfor %}
-  </dl>
-{% endcall %}

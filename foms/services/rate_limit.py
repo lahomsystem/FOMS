@@ -1,0 +1,59 @@
+"""Rate limiter setup helpers."""
+
+from __future__ import annotations
+
+import hashlib
+import os
+from typing import Any
+
+from flask import request, session
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+__all__ = ["init_limiter"]
+
+
+def init_limiter(app: Any) -> Limiter:
+    """Initialize the Flask-Limiter instance for the current app."""
+    redis_url = os.environ.get("REDIS_URL")
+
+    def rate_limit_key() -> str:
+        try:
+            user_id = session.get("user_id")
+            if user_id:
+                return f"user:{user_id}"
+        except Exception:
+            pass
+
+        try:
+            cookie_name = app.config.get("SESSION_COOKIE_NAME", "session")
+            raw_cookie = request.cookies.get(cookie_name, "").strip()
+            if raw_cookie:
+                cookie_hash = hashlib.sha1(raw_cookie.encode("utf-8")).hexdigest()[:16]
+                return f"sess:{cookie_hash}"
+        except Exception:
+            pass
+
+        x_forwarded_for = request.headers.get("X-Forwarded-For", "")
+        if x_forwarded_for:
+            client_ip = x_forwarded_for.split(",")[0].strip()
+            if client_ip:
+                return client_ip
+
+        x_real_ip = request.headers.get("X-Real-IP", "").strip()
+        if x_real_ip:
+            return x_real_ip
+
+        return get_remote_address()
+
+    default_limits_raw = os.environ.get("FLASK_DEFAULT_RATE_LIMITS", "5000 per day,1200 per hour")
+    default_limits = [value.strip() for value in default_limits_raw.split(",") if value.strip()]
+    if not default_limits:
+        default_limits = ["5000 per day", "1200 per hour"]
+
+    return Limiter(
+        rate_limit_key,
+        app=app,
+        storage_uri=redis_url or "memory://",
+        default_limits=default_limits,
+    )

@@ -1,0 +1,121 @@
+/* ===== Mobile-Specific Styles ===== */
+@media (max-width: 576px) {
+  .erp-pro-content {
+    padding: var(--erp-space-md);
+  }
+  
+  .erp-pro-header {
+    padding: var(--erp-space-sm) var(--erp-space-md);
+  }
+  
+  .erp-pro-header__title {
+    font-size: var(--erp-font-size-base);
+  }
+  
+  .erp-pro-nav {
+    padding: var(--erp-space-xs) var(--erp-space-sm);
+  }
+  
+  .erp-pro-nav__item {
+    padding: var(--erp-space-xs) var(--erp-space-sm);
+    font-size: var(--erp-font-size-xs);
+  }
+  
+  .erp-pro-alert {
+    padding: var(--erp-space-sm);
+  }
+  
+  .erp-pro-alert__label {
+    font-size: var(--erp-font-size-xs);
+  }
+  
+  .erp-pro-alert__count {
+    font-size: var(--erp-font-size-sm);
+    padding: 2px 8px;
+    min-width: 32px;
+  }
+  
+  .erp-pro-pipeline__stage {
+    min-width: 80px;
+    padding: var(--erp-space-sm);
+  }
+  
+  .erp-pro-pipeline__count {
+    font-size: var(--erp-font-size-lg);
+  }
+  
+  .erp-pro-pipeline__label {
+    font-size: var(--erp-font-size-xs);
+  }
+  
+  .erp-pro-card__body {
+    padding: var(--erp-space-md);
+  }
+  
+  .erp-pro-order-card__row {
+    grid-template-columns: 70px 1fr;
+  }
+}
+
+/* ===== Print Styles ===== */
+@media print {
+  .erp-pro-nav,
+  .erp-pro-header__actions,
+  .erp-pro-filters,
+  .erp-pro-btn {
+    display: none !important;
+  }
+  
+  .erp-pro-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .erp-pro-card {
+    box-shadow: none;
+    border: 1px solid #ccc;
+  }
+}
+
+/* ===== Dark Mode Support (future) ===== */
+/* @media (prefers-color-scheme: dark) 룰셋은 구현 시점에 추가 예정 (tech-debt Sprint 6) */
+
+/* ===== Utility Classes ===== */
+.erp-pro-text-primary { color: var(--erp-text-primary) !important; }
+.erp-pro-text-secondary { color: var(--erp-text-secondary) !important; }
+.erp-pro-text-muted { color: var(--erp-text-muted) !important; }
+.erp-pro-text-success { color: var(--erp-success) !important; }
+.erp-pro-text-warning { color: var(--erp-warning) !important; }
+.erp-pro-text-danger { color: var(--erp-danger) !important; }
+
+.erp-pro-bg-primary { background-color: var(--erp-primary-bg) !important; }
+.erp-pro-bg-success { background-color: var(--erp-success-light) !important; }
+.erp-pro-bg-warning { background-color: var(--erp-warning-light) !important; }
+.erp-pro-bg-danger { background-color: var(--erp-danger-light) !important; }
+
+.erp-pro-fw-medium { font-weight: 500 !important; }
+.erp-pro-fw-semibold { font-weight: 600 !important; }
+.erp-pro-fw-bold { font-weight: 700 !important; }
+
+.erp-pro-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.erp-pro-wrap {
+  word-break: break-word;
+  white-space: normal;
+}
+
+.erp-pro-cursor-pointer { cursor: pointer; }
+
+.erp-pro-hidden { display: none !important; }
+
+@media (max-width: 992px) {
+  .erp-pro-hidden-mobile { display: none !important; }
+}
+
+@media (min-width: 993px) {
+  .erp-pro-hidden-desktop { display: none !important; }
+}
+

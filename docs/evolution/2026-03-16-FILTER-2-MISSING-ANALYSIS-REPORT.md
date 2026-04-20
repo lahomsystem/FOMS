@@ -119,7 +119,7 @@ query = query.filter(
 
 ### 4.2 diagnose 스크립트
 
-`scripts/diagnose_measurement_date_missing.py`는 진단용으로 유용. 삭제하지 말고 `docs/evolution/` 또는 `scripts/diagnostic/`에 보관 권장.
+`scripts/maintenance/diagnose_measurement_date_missing.py`는 진단용으로 유용. 삭제하지 말고 `docs/evolution/` 또는 `scripts/diagnostic/`에 보관 권장.
 
 ---
 

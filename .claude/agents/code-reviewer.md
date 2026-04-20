@@ -35,7 +35,7 @@ model: sonnet
 - API 응답 형식 통일 (`{success, data, error}`)
 
 ### 프론트엔드
-- 인라인 스타일 없음 (static/css/erp-pro.css 사용)
+- 인라인 스타일 없음 (static/css/foundation/erp-pro.css 사용)
 - fetch 에러 처리 있음
 - `JSON.parse('{{ }}')` 금지 — data-* + safeJsonParse 사용
 

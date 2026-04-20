@@ -7,7 +7,7 @@
     "relative_to_repo_root": true,
     "default_encoding": "utf-8",
     "section_separator": "\n\n---\n\n",
-    "default_output_dir": "docs/context",
+    "default_output_dir": "docs/harness/bundles",
     "default_bundle_extension": ".md",
     "include_source_headers_in_bundle": true
   },

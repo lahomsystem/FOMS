@@ -1,0 +1,457 @@
+/* ============================================
+   Order List Page - 전체 주문 목록 스타일
+   ============================================ */
+
+/* 라홈 주문 로고 (고객명 옆, ERP 작업 큐와 동일) */
+.order-list-container .erp-lahom-logo {
+  height: 1.25em;
+  width: auto;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* 페이지 헤더 */
+.order-list-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--erp-space-md) var(--erp-space-lg);
+  background: var(--erp-bg-card);
+  border-bottom: 1px solid var(--erp-border);
+  margin-bottom: var(--erp-space-md);
+}
+
+.order-list-page-header__title {
+  display: flex;
+  align-items: center;
+  gap: var(--erp-space-sm);
+  font-size: var(--erp-font-size-xl);
+  font-weight: 600;
+  color: var(--erp-text-primary);
+  margin: 0;
+}
+
+.order-list-page-header__title i {
+  color: var(--erp-primary);
+}
+
+.order-list-page-header__actions {
+  display: flex;
+  gap: var(--erp-space-sm);
+  flex-wrap: wrap;
+}
+
+/* 도구바 (검색 + 일괄작업) - 스크롤 시 상단 고정 */
+.order-list-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--erp-space-md);
+  padding: var(--erp-space-sm) var(--erp-space-md);
+  background: var(--erp-bg-card);
+  border-radius: var(--erp-radius-lg);
+  border: 1px solid var(--erp-border-light);
+  margin-bottom: var(--erp-space-md);
+  flex-wrap: wrap;
+  /* 스크롤 시 고정 */
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: var(--erp-shadow-sm);
+}
+
+/* 일괄 작업 영역 */
+.order-list-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--erp-space-sm);
+  flex-wrap: wrap;
+}
+
+.order-list-bulk-actions__label {
+  font-size: var(--erp-font-size-sm);
+  font-weight: 500;
+  color: var(--erp-text-secondary);
+  white-space: nowrap;
+}
+
+.order-list-bulk-actions select,
+.order-list-bulk-actions input {
+  padding: var(--erp-space-xs) var(--erp-space-sm);
+  font-size: var(--erp-font-size-sm);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius);
+  background: var(--erp-bg-card);
+  color: var(--erp-text-primary);
+  min-height: 34px;
+}
+
+.order-list-bulk-actions select:focus,
+.order-list-bulk-actions input:focus {
+  outline: none;
+  border-color: var(--erp-primary);
+  box-shadow: 0 0 0 2px var(--erp-primary-bg);
+}
+
+/* 검색 영역 */
+.order-list-search {
+  display: flex;
+  align-items: center;
+  gap: var(--erp-space-xs);
+  flex: 1;
+  max-width: 320px;
+}
+
+.order-list-search input {
+  flex: 1;
+  padding: var(--erp-space-xs) var(--erp-space-md);
+  font-size: var(--erp-font-size-sm);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius);
+  background: var(--erp-bg-sidebar);
+  color: var(--erp-text-primary);
+  min-height: 36px;
+  transition: all var(--erp-transition-fast);
+}
+
+.order-list-search input:focus {
+  outline: none;
+  border-color: var(--erp-primary);
+  background: var(--erp-bg-card);
+  box-shadow: 0 0 0 2px var(--erp-primary-bg);
+}
+
+.order-list-search input::placeholder {
+  color: var(--erp-text-muted);
+}
+
+.order-list-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--erp-space-xs);
+}
+
+.order-list-filter-actions a {
+  text-decoration: none;
+}
+
+/* 테이블 컨테이너 - 내부에서 가로 스크롤 */
+.order-list-table-container {
+  background: var(--erp-bg-card);
+  border-radius: var(--erp-radius-lg);
+  border: 1px solid var(--erp-border-light);
+  overflow: hidden;
+  max-width: 100%;
+}
+
+/* 테이블 스타일 개선 - 세로/가로 스크롤, 겹침 방지용 stacking context */
+.order-list-table-container .table-fixed-header {
+  max-height: calc(100vh - 280px);
+  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  border-bottom: none;
+  isolation: isolate;
+}
+
+.order-list-table-container .table {
+  margin-bottom: 0;
+  font-size: var(--erp-font-size-sm);
+  table-layout: auto; /* min-width 적용 후 가로 스크롤로 전체 확인 */
+}
+
+/* 테이블 헤더 - 스크롤 시 고정, 주문건 겹침 방지(z-index 우선) */
+.order-list-table-container thead th {
+  position: sticky;
+  top: 0;
+  background: #f8f9fa !important;
+  z-index: 100 !important;
+  isolation: isolate;
+  font-weight: 600;
+  color: var(--erp-text-primary);
+  white-space: nowrap;
+  padding: var(--erp-space-sm) var(--erp-space-md);
+  vertical-align: middle;
+  line-height: 1.2;
+  box-shadow: 0 1px 0 #dee2e6;
+  min-height: 38px;
+  box-sizing: border-box;
+}
+.order-list-table-container thead th.th-actions,
+.order-list-table-container .column-filter-row th.filter-buttons-cell {
+  position: sticky !important;
+}
+/* 작업 헤더: 양옆 thead th와 완전 동일 */
+.order-list-table-container thead th.th-actions {
+  top: 0 !important;
+  z-index: 101 !important;
+  padding: var(--erp-space-sm) var(--erp-space-md) !important;
+  overflow: hidden !important;
+  background: #f8f9fa !important;
+  box-shadow: 0 1px 0 #dee2e6 !important;
+  isolation: isolate;
+}
+/* 작업 열 필터 셀: 양옆과 동일한 배경·언더라인·그림자 */
+.order-list-table-container .column-filter-row th.filter-buttons-cell {
+  top: 38px !important;
+  z-index: 99 !important;
+  background: #ffffff !important;
+  border-bottom: 1px solid var(--erp-border) !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+}
+
+/* 필터 행 - 헤더 아래 고정, 주문건 아래에 그리기(z-index 99) */
+.order-list-table-container .column-filter-row th {
+  position: sticky;
+  top: 38px;
+  z-index: 99 !important;
+  background: #ffffff !important;
+  border-bottom: 1px solid var(--erp-border);
+  padding: 2px 3px;
+  min-height: 34px;
+  height: 34px;
+  vertical-align: middle;
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  isolation: isolate;
+}
+
+.order-list-table-container .column-filter-row input,
+.order-list-table-container .column-filter-row select {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 0.8125rem;
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-bg-sidebar);
+  color: var(--erp-text-primary);
+  height: 32px;
+  min-height: 32px;
+}
+
+.order-list-table-container .column-filter-row input:focus,
+.order-list-table-container .column-filter-row select:focus {
+  outline: none;
+  border-color: var(--erp-primary);
+  background: var(--erp-bg-card);
+}
+
+/* 필터 버튼 셀 (작업 컬럼): 옆 필터 셀과 동일한 패딩·높이, 내용만 비움 */
+/* .order-list-table-container .filter-buttons-cell 은 상위 .column-filter-row th 스타일을 그대로 상속 */
+
+.order-list-table-container .filter-buttons-cell button,
+.order-list-table-container .filter-buttons-cell a {
+  padding: 4px 8px;
+  font-size: var(--erp-font-size-xs);
+  border-radius: var(--erp-radius-sm);
+}
+
+/* 테이블 본문 - 스크롤 시 헤더/필터행 아래에 그리기 (겹침 방지) */
+.order-list-table-container tbody tr {
+  transition: background var(--erp-transition-fast);
+  position: relative;
+  z-index: 0 !important;
+}
+
+.order-list-table-container tbody td {
+  position: relative;
+  z-index: 0 !important;
+}
+
+.order-list-table-container tbody tr:hover {
+  background: var(--erp-bg-hover) !important;
+}
+
+.order-list-table-container tbody tr.selected {
+  background: var(--erp-primary-bg) !important;
+}
+
+.order-list-table-container tbody td {
+  padding: var(--erp-space-sm) var(--erp-space-md);
+  vertical-align: middle;
+  border-bottom: 1px solid var(--erp-border-light);
+}
+
+/* 컬럼 min-width: 정보가 보이도록, 가로 슬라이드로 전체 확인 */
+.order-list-table-container .th-address,
+.order-list-table-container td.th-address,
+.order-list-table-container td.td-address {
+  min-width: 280px !important;
+}
+.order-list-table-container .th-product,
+.order-list-table-container td.th-product {
+  min-width: 220px !important;
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
+}
+.order-list-table-container .th-options,
+.order-list-table-container td.th-options,
+.order-list-table-container td.options-cell {
+  min-width: 320px !important;
+}
+.order-list-table-container .th-notes,
+.order-list-table-container td.th-notes,
+.order-list-table-container td.notes-cell {
+  min-width: 280px !important;
+}
+.order-list-table-container .th-payment-amount,
+.order-list-table-container td.td-payment-amount { min-width: 100px !important; }
+.order-list-table-container .th-measurement-date,
+.order-list-table-container td.td-measurement-date { min-width: 100px !important; }
+.order-list-table-container .th-measurement-time,
+.order-list-table-container td.th-measurement-time { min-width: 90px !important; }
+.order-list-table-container .th-scheduled-date,
+.order-list-table-container td.th-scheduled-date { min-width: 105px !important; }
+.order-list-table-container .th-manager-name,
+.order-list-table-container td.th-manager-name { min-width: 85px !important; }
+.order-list-table-container .th-status,
+.order-list-table-container td.th-status { min-width: 80px !important; }
+.order-list-table-container .th-received-date,
+.order-list-table-container td.th-received-date { min-width: 100px !important; }
+.order-list-table-container .th-received-time,
+.order-list-table-container td.th-received-time { min-width: 80px !important; }
+.order-list-table-container .th-customer-name,
+.order-list-table-container td.th-customer-name { min-width: 110px !important; }
+.order-list-table-container .th-phone,
+.order-list-table-container td.th-phone { min-width: 120px !important; }
+/* 작업 컬럼: 수정·삭제 아이콘 두 개만 딱 들어가는 최소 폭, 접수일 침범 없음 */
+.order-list-table-container .th-actions,
+.order-list-table-container td.th-actions {
+  width: 72px !important;
+  min-width: 72px !important;
+  max-width: 72px !important;
+  vertical-align: middle !important;
+  box-sizing: border-box !important;
+}
+.order-list-table-container td.th-actions {
+  padding: 4px !important;
+}
+.order-list-table-container thead th.th-actions {
+  vertical-align: middle !important;
+  line-height: 1.2 !important;
+}
+.order-list-table-container tbody td.th-actions {
+  overflow: hidden !important;
+}
+.order-list-table-container .th-actions .btn-group {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  max-width: 100%;
+  justify-content: center;
+}
+.order-list-table-container .th-actions .btn-group .btn {
+  padding: 4px 6px !important;
+  font-size: 0.875rem !important;
+  min-width: 32px !important;
+  width: auto !important;
+  min-height: 32px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+}
+.order-list-table-container .th-actions .btn-group .btn i {
+  margin: 0 !important;
+}
+.order-list-table-container .th-id,
+.order-list-table-container td.th-id {
+  min-width: 90px !important;
+}
+.order-list-table-container .th-select,
+.order-list-table-container td.th-select {
+  min-width: 44px !important;
+}
+
+/* 액션 버튼 그룹 */
+.order-list-table-container .btn-group .btn {
+  padding: 6px 8px;
+  font-size: var(--erp-font-size-xs);
+}
+
+#toggle-all-options,
+#toggle-all-notes,
+.toggle-options,
+.toggle-notes {
+  min-width: 32px;
+  min-height: 32px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 반응형 */
+@media (max-width: 992px) {
+  .order-list-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--erp-space-sm);
+  }
+  
+  .order-list-search {
+    max-width: none;
+  }
+  
+  .order-list-bulk-actions {
+    justify-content: flex-start;
+  }
+  
+  .order-list-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--erp-space-sm);
+  }
+  
+  .order-list-page-header__actions {
+    width: 100%;
+  }
+  
+  .order-list-page-header__actions .erp-pro-btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 576px) {
+  .order-list-page-header {
+    padding: var(--erp-space-sm) var(--erp-space-md);
+  }
+  
+  .order-list-page-header__title {
+    font-size: var(--erp-font-size-base);
+  }
+  
+  .order-list-toolbar {
+    padding: var(--erp-space-sm);
+  }
+  
+  .order-list-bulk-actions select,
+  .order-list-bulk-actions input {
+    font-size: 0.875rem;
+    min-height: 36px;
+    padding: var(--erp-space-xs);
+  }
+  
+  .order-list-bulk-actions__label {
+    font-size: var(--erp-font-size-xs);
+  }
+  
+  .order-list-table-container .table-fixed-header {
+    max-height: calc(100vh - 320px);
+  }
+  
+  .order-list-table-container .column-filter-row th {
+    top: 38px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .erp-pro *,
+  .order-list-table-container * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,0 +1,30 @@
+{% macro build_sort_url(field) %}
+{%- set params = {} -%}
+{%- for key, value in request.args.items() -%}
+  {%- if key != 'page' -%}
+    {%- set _ = params.update({key: value}) -%}
+  {%- endif -%}
+{%- endfor -%}
+{%- set current_sort = request.args.get('sort', '') -%}
+{%- if current_sort == field -%}
+  {%- set _ = params.update({'sort': '-' + field}) -%}
+{%- elif current_sort == '-' + field -%}
+  {%- set _ = params.pop('sort', None) -%}
+{%- else -%}
+  {%- set _ = params.update({'sort': field}) -%}
+{%- endif -%}
+{{- params|urlencode -}}
+{%- endmacro %}
+
+{% macro build_page_url(page) %}
+{%- set params = {} -%}
+{%- for key, value in request.args.items() -%}
+  {%- if key != 'page' -%}
+    {%- set _ = params.update({key: value}) -%}
+  {%- endif -%}
+{%- endfor -%}
+{%- if page > 1 -%}
+  {%- set _ = params.update({'page': page|string}) -%}
+{%- endif -%}
+{{- params|urlencode -}}
+{%- endmacro %}

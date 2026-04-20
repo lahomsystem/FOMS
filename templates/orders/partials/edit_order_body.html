@@ -1,0 +1,541 @@
+<style>
+    .hidden {
+        display: none;
+    }
+</style>
+{# erp order surface flags are derived once so fragment/full-page bootstrap read the same contract. #}
+{% set erp_order_feature_enabled = erp_order_enabled %}
+{% set is_erp_order_flag = order.is_erp_order %}
+{% set is_erp_order = erp_order_feature_enabled and is_erp_order_flag %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card" data-order-id="{{ order.id }}" data-payment-amount="{{ order.payment_amount or 0 }}"
+            data-erp-order-enabled="{{ 'true' if is_erp_order else 'false' }}">
+            <div id="erp-order-config" class="d-none" data-order-id="{{ order.id }}"
+                data-erp-order-enabled="{{ 'true' if is_erp_order else 'false' }}"
+                data-use-direct-upload="{{ 'true' if use_direct_upload else 'false' }}"
+                data-erp-order-draft-mode="false"></div>
+            {% if is_erp_order and erp_bootstrap %}
+            {# 서버 렌더 시점 ERP 상세 부트스트랩 — 최초 페인트의 fetch 왕복을 제거한다. #}
+            <script type="application/json" id="erp-order-bootstrap">{{ erp_bootstrap | tojson }}</script>
+            {% endif %}
+            <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs" id="orderTabs" role="tablist">
+                    {% if is_erp_order %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="erp-order-tab" data-bs-toggle="tab"
+                            data-bs-target="#erp-order" type="button" role="tab">
+                            <i class="fas fa-layer-group"></i> ERP Order
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="calculator-tab" data-bs-toggle="tab" data-bs-target="#calculator"
+                            type="button" role="tab">
+                            <i class="fas fa-calculator"></i> 계산기
+                        </button>
+                    </li>
+                    {% else %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="order-info-tab" data-bs-toggle="tab"
+                            data-bs-target="#order-info" type="button" role="tab">
+                            <i class="fas fa-info-circle"></i> 주문 정보
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="calculator-tab" data-bs-toggle="tab" data-bs-target="#calculator"
+                            type="button" role="tab">
+                            <i class="fas fa-calculator"></i> 계산기
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="blueprint-tab" data-bs-toggle="tab" data-bs-target="#blueprint"
+                            type="button" role="tab">
+                            <i class="fas fa-drafting-compass"></i> 도면
+                        </button>
+                    </li>
+                    {% if erp_order_feature_enabled and is_erp_order_flag %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="erp-order-tab" data-bs-toggle="tab" data-bs-target="#erp-order"
+                            type="button" role="tab">
+                            <i class="fas fa-layer-group"></i> ERP Order
+                        </button>
+                    </li>
+                    {% endif %}
+                    {% endif %}
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content" id="orderTabContent">
+                    <!-- 주문 정보 탭 -->
+                    {% if not is_erp_order %}
+                    <div class="tab-pane fade show active" id="order-info" role="tabpanel">
+                        <form method="post"
+                            action="{{ url_for('order_edit.edit_order', order_id=order.id, **preserved_args) }}"
+                            id="editOrderForm">
+                            <input type="hidden" name="referrer"
+                                value="{{ request.referrer or url_for('order_pages.index') }}">
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label for="received_date" class="form-label">접수일 <span
+                                            class="text-danger">*</span></label>
+                                    <input type="date" class="form-control" id="received_date" name="received_date"
+                                        value="{{ order.received_date }}" required autocomplete="off">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="received_time" class="form-label">접수시간</label>
+                                    <input type="time" class="form-control" id="received_time" name="received_time"
+                                        value="{{ order.received_time }}" autocomplete="off">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="status" class="form-label">상태</label>
+                                    <select class="form-select" id="status" name="status" autocomplete="off">
+                                        {% for code, name_val in STATUS.items() %}
+                                        <option value="{{ code }}" {% if code==order.status %}selected{% endif %}>{{
+                                            name_val }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="customer_name" class="form-label">고객명 <span
+                                            class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="customer_name" name="customer_name"
+                                        value="{{ order.customer_name }}" required autocomplete="name">
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <label for="phone" class="form-label mb-0">전화번호 <span
+                                                class="text-danger">*</span></label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="manual_phone_input"
+                                                autocomplete="off">
+                                            <label class="form-check-label" for="manual_phone_input">
+                                                수동입력
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <input type="tel" class="form-control" id="phone" name="phone"
+                                        value="{{ order.phone }}" required autocomplete="tel">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="address" class="form-label">주소 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="address" name="address"
+                                    value="{{ order.address }}" required autocomplete="address-line1">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="product" class="form-label">제품 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="product" name="product"
+                                    value="{{ order.product }}" required autocomplete="off">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="option_type" class="form-label">옵션 입력 방식</label>
+                                <select class="form-select" id="option_type" name="option_type" autocomplete="off">
+                                    <option value="online" {% if option_type=='online' %}selected{% endif %}>온라인
+                                    </option>
+                                    <option value="direct" {% if option_type=='direct' %}selected{% endif %}>직접입력
+                                    </option>
+                                </select>
+                            </div>
+
+                            <!-- 온라인 옵션 입력 영역 -->
+                            <div id="options_online_group" class="{% if option_type == 'direct' %}hidden{% endif %}">
+                                <label for="options_online" class="form-label">온라인 옵션</label>
+                                <textarea class="form-control" id="options_online" name="options_online" rows="3"
+                                    autocomplete="off">{{ online_options }}</textarea>
+                            </div>
+
+                            <!-- 직접 입력 옵션 영역 -->
+                            <div id="options_direct_group" class="{% if option_type == 'online' %}hidden{% endif %}">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <p class="fw-bold mb-0">직접입력 옵션 상세</p>
+                                    <div>
+                                        <button type="button" class="btn btn-sm btn-outline-danger me-2"
+                                            id="clear_direct_options_btn">모두 삭제</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            id="restore_direct_options_btn" style="display: none;">복구</button>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label for="direct_product_name" class="form-label">제품명</label>
+                                        <input type="text" class="form-control" id="direct_product_name"
+                                            name="direct_product_name" value="{{ direct_options.product_name }}"
+                                            autocomplete="off">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="direct_standard" class="form-label">규격</label>
+                                        <input type="text" class="form-control" id="direct_standard"
+                                            name="direct_standard" value="{{ direct_options.standard }}"
+                                            autocomplete="off">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="direct_internal" class="form-label">내부</label>
+                                        <input type="text" class="form-control" id="direct_internal"
+                                            name="direct_internal" value="{{ direct_options.internal }}"
+                                            autocomplete="off">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label for="direct_color" class="form-label">색상</label>
+                                        <input type="text" class="form-control" id="direct_color" name="direct_color"
+                                            value="{{ direct_options.color }}" autocomplete="off">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="direct_option_detail" class="form-label">상세옵션</label>
+                                        <input type="text" class="form-control" id="direct_option_detail"
+                                            name="direct_option_detail" value="{{ direct_options.option_detail }}"
+                                            autocomplete="off">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="direct_handle" class="form-label">손잡이</label>
+                                        <input type="text" class="form-control" id="direct_handle" name="direct_handle"
+                                            value="{{ direct_options.handle }}" autocomplete="off">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="direct_misc" class="form-label">기타</label>
+                                        <input type="text" class="form-control" id="direct_misc" name="direct_misc"
+                                            value="{{ direct_options.misc }}" autocomplete="off">
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="direct_quote" class="form-label">견적내용</label>
+                                    <textarea class="form-control auto-resize" id="direct_quote" name="direct_quote"
+                                        rows="1" autocomplete="off">{{ direct_options.quote }}</textarea>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="payment_amount" class="form-label">결제금액</label>
+                                <input type="text" class="form-control" id="payment_amount" name="payment_amount"
+                                    placeholder="숫자만 입력하세요" value="{{ order.payment_amount | default('', true) }}"
+                                    inputmode="numeric" autocomplete="off">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="notes" class="form-label">비고</label>
+                                <textarea class="form-control auto-resize" id="notes" name="notes" rows="2"
+                                    autocomplete="off">{{ order.notes or '' }}</textarea>
+                            </div>
+
+                            <h5 class="mt-4">추가 정보</h5>
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label for="measurement_date" class="form-label">실측일</label>
+                                    <input type="date" class="form-control" id="measurement_date"
+                                        name="measurement_date" value="{{ order.measurement_date }}" autocomplete="off">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="measurement_time_select" class="form-label">실측시간</label>
+                                    <select class="form-select" id="measurement_time_select"
+                                        name="measurement_time_select">
+                                        <option value="time_input">시간 직접 입력</option>
+                                        <option value="오전">오전</option>
+                                        <option value="오후">오후</option>
+                                        <option value="종일">종일</option>
+                                    </select>
+                                    <input type="time" class="form-control mt-2" id="measurement_time"
+                                        name="measurement_time"
+                                        value="{{ order.measurement_time if order.measurement_time != '종일' else '' }}"
+                                        autocomplete="off">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="scheduled_date" class="form-label">설치 예정일</label>
+                                    <input type="date" class="form-control" id="scheduled_date" name="scheduled_date"
+                                        value="{{ order.scheduled_date or '' }}">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="shipping_scheduled_date" class="form-label">상차 예정일</label>
+                                    <input type="date" class="form-control" id="shipping_scheduled_date"
+                                        name="shipping_scheduled_date"
+                                        value="{{ order.shipping_scheduled_date or '' }}">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="as_received_date" class="form-label">AS 접수일</label>
+                                    <input type="date" class="form-control" id="as_received_date"
+                                        name="as_received_date" value="{{ order.as_received_date or '' }}">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label for="completion_date" class="form-label">설치완료일</label>
+                                    <input type="date" class="form-control" id="completion_date" name="completion_date"
+                                        value="{{ order.completion_date }}" autocomplete="off">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="as_completed_date" class="form-label">AS 완료일</label>
+                                    <input type="date" class="form-control" id="as_completed_date"
+                                        name="as_completed_date" value="{{ order.as_completed_date }}"
+                                        autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="manager_name" class="form-label">담당자</label>
+                                <input type="text" class="form-control" id="manager_name" name="manager_name"
+                                    value="{{ order.manager_name }}" autocomplete="off">
+                            </div>
+
+                            <!-- 지방 주문 설정 -->
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="is_regional" name="is_regional"
+                                        value="1" {{ 'checked' if order.is_regional else '' }}>
+                                    <label class="form-check-label" for="is_regional">
+                                        <i class="fas fa-map-marker-alt text-warning"></i> 지방 주문으로 설정
+                                    </label>
+                                    <small class="form-text text-muted d-block">지방 주문으로 설정하면 추가 관리 절차가 적용됩니다.</small>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" id="is_self_measurement"
+                                        name="is_self_measurement" value="1" {{ 'checked' if order.is_self_measurement
+                                        else '' }}>
+                                    <label class="form-check-label" for="is_self_measurement">
+                                        <i class="fas fa-ruler-combined text-info"></i> 자가실측
+                                    </label>
+                                    <small class="form-text text-muted d-block">자가실측으로 설정하면 별도 대시보드에서 관리됩니다.</small>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" id="is_cabinet" name="is_cabinet"
+                                        value="1" {{ 'checked' if order.is_cabinet else '' }}>
+                                    <label class="form-check-label" for="is_cabinet">
+                                        <i class="fas fa-box-archive text-secondary"></i> 수납장
+                                    </label>
+                                    <small class="form-text text-muted d-block">수납장으로 설정하면 수납장 대시보드에서 관리됩니다.</small>
+                                </div>
+                            </div>
+
+                            <!-- 지방 주문 관리 섹션 -->
+                            <div class="card mt-4" id="regional-management-section">
+                                <div class="card-header bg-warning text-dark">
+                                    <h5 class="mb-0"><i class="fas fa-map-marker-alt"></i> 지방 주문 관리</h5>
+                                    <small class="text-muted">이 주문은 지방 지역 주문으로 분류되어 추가 관리가 필요합니다.</small>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-12">
+                                            <h6 class="mb-3">진행 단계 체크리스트</h6>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input regional-checkbox"
+                                                            type="checkbox" name="measurement_completed"
+                                                            id="measurement_completed" value="1" {{ 'checked' if
+                                                            order.measurement_completed else '' }}>
+                                                        <label class="form-check-label" for="measurement_completed">
+                                                            <i class="fas fa-ruler-combined text-primary"></i> 0. 실측완료
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input regional-checkbox"
+                                                            type="checkbox" name="regional_sales_order_upload"
+                                                            id="regional_sales_order_upload" value="1" {{ 'checked' if
+                                                            order.regional_sales_order_upload else '' }}>
+                                                        <label class="form-check-label"
+                                                            for="regional_sales_order_upload">
+                                                            <i class="fas fa-file-invoice text-info"></i> 1. 영업발주 업로드
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input regional-checkbox"
+                                                            type="checkbox" name="regional_blueprint_sent"
+                                                            id="regional_blueprint_sent" value="1" {{ 'checked' if
+                                                            order.regional_blueprint_sent else '' }}>
+                                                        <label class="form-check-label" for="regional_blueprint_sent">
+                                                            <i class="fas fa-drafting-compass text-warning"></i> 2. 도면
+                                                            발송
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input regional-checkbox"
+                                                            type="checkbox" name="regional_order_upload"
+                                                            id="regional_order_upload" value="1" {{ 'checked' if
+                                                            order.regional_order_upload else '' }}>
+                                                        <label class="form-check-label" for="regional_order_upload">
+                                                            <i class="fas fa-clipboard-check text-danger"></i> 3. 발주 업로드
+                                                        </label>
+                                                    </div>
+                                                    <!-- 협력사 시공인 경우만 표시 -->
+                                                    <div class="form-check mb-2{% if order.construction_type != '협력사 시공' %} d-none{% endif %}"
+                                                        id="cargo-sent-div">
+                                                        <input
+                                                            class="form-check-input regional-checkbox additional-checkbox"
+                                                            type="checkbox" name="regional_cargo_sent"
+                                                            id="regional_cargo_sent" value="1" {{ 'checked' if
+                                                            order.regional_cargo_sent else '' }}>
+                                                        <label class="form-check-label" for="regional_cargo_sent">
+                                                            <i class="fas fa-truck text-success"></i> 4. 화물 발송
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check mb-2{% if order.construction_type != '협력사 시공' %} d-none{% endif %}"
+                                                        id="construction-info-div">
+                                                        <input
+                                                            class="form-check-input regional-checkbox additional-checkbox"
+                                                            type="checkbox" name="regional_construction_info_sent"
+                                                            id="regional_construction_info_sent" value="1" {{ 'checked'
+                                                            if order.regional_construction_info_sent else '' }}>
+                                                        <label class="form-check-label"
+                                                            for="regional_construction_info_sent">
+                                                            <i class="fas fa-tools text-danger"></i> 5. 시공정보 발송
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!-- 진행률 표시 -->
+                                            <div class="mt-3">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <span class="small text-muted">진행률</span>
+                                                    <span class="small text-muted" id="progress-text">0/3 완료</span>
+                                                </div>
+                                                <div class="progress" style="height: 8px;">
+                                                    <div class="progress-bar bg-success" role="progressbar"
+                                                        id="progress-bar" style="width: 0%" aria-valuenow="0"
+                                                        aria-valuemin="0" aria-valuemax="100">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-12 mt-3">
+                                            <h6 class="mb-3">시공 구분</h6>
+                                            <select class="form-select" id="construction_type" name="construction_type">
+                                                <option value="" {% if not order.construction_type %}selected{% endif
+                                                    %}>-- 선택 --</option>
+                                                <option value="하우드 시공" {% if order.construction_type=='하우드 시공'
+                                                    %}selected{% endif %}>하우드 시공</option>
+                                                <option value="협력사 시공" {% if order.construction_type=='협력사 시공'
+                                                    %}selected{% endif %}>협력사 시공</option>
+                                                <option value="기타" {% if order.construction_type=='기타' %}selected{%
+                                                    endif %}>기타</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 필터 상태 유지를 위한 숨은 필드들 -->
+                            {% if preserved_args %}
+                            {% for key, value in preserved_args.items() %}
+                            <input type="hidden" name="{{ key }}" value="{{ value }}">
+                            {% endfor %}
+                            {% endif %}
+
+                            <div class="d-flex justify-content-between">
+                                <a href="{{ request.referrer or (url_for('order_pages.index', **preserved_args) if preserved_args else url_for('order_pages.index')) }}"
+                                    class="btn btn-secondary">취소</a>
+                                <button type="submit" class="btn btn-primary">주문 수정</button>
+                            </div>
+                        </form>
+                    </div>
+                    {% endif %}
+
+                    <!-- 계산기 탭 -->
+                    <div class="tab-pane fade" id="calculator" role="tabpanel">
+                        <div id="calculatorTabContent">
+                            <h6 class="mb-3"><i class="fas fa-calculator"></i> 매칭된 견적</h6>
+                            <div id="matchedEstimatesList">
+                                <p class="text-muted">로딩 중...</p>
+                            </div>
+
+                            <hr class="my-4">
+
+                            <h6 class="mb-3"><i class="fas fa-link"></i> 견적 매칭</h6>
+                            <div class="mb-3">
+                                <label for="matchCustomerName" class="form-label">고객명으로 견적 검색</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="matchCustomerName"
+                                        placeholder="고객명을 입력하세요" value="{{ order.customer_name }}">
+                                    <button class="btn btn-primary" type="button" id="searchEstimatesForMatchBtn">
+                                        <i class="fas fa-search"></i> 검색
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="matchEstimatesResults" style="display: none;">
+                                <div id="matchEstimatesList"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if not is_erp_order %}
+                    <!-- 도면 탭 -->
+                    <div class="tab-pane fade" id="blueprint" role="tabpanel">
+                        <div id="blueprintTabContent">
+                            <h6 class="mb-3"><i class="fas fa-drafting-compass"></i> 도면 이미지</h6>
+
+                            <!-- 업로드 영역 -->
+                            <div id="blueprint-upload-area" class="mb-3">
+                                <div class="border rounded p-4 text-center"
+                                    style="border-style: dashed !important; cursor: pointer; background-color: #f8f9fa;"
+                                    onclick="document.getElementById('blueprint-file-input').click()"
+                                    ondrop="handleBlueprintDrop(event)"
+                                    ondragover="event.preventDefault(); this.style.backgroundColor='#e9ecef';"
+                                    ondragleave="event.preventDefault(); this.style.backgroundColor='#f8f9fa';">
+                                    <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-2"></i>
+                                    <p class="text-muted mb-0">도면 이미지를 드래그하거나 클릭하여 업로드</p>
+                                    <small class="text-muted">(PNG, JPG, JPEG, GIF, WEBP - 최대 50MB)</small>
+                                    <input type="file" id="blueprint-file-input" accept="image/*" style="display: none;"
+                                        onchange="handleBlueprintSelect(event)">
+                                </div>
+                            </div>
+
+                            <!-- 미리보기 영역 -->
+                            <div id="blueprint-preview" style="display: none;">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <h6 class="mb-0">업로드된 도면</h6>
+                                            <div>
+                                                <button class="btn btn-sm btn-info me-2"
+                                                    onclick="if(typeof window.openBlueprintViewer === 'function') { window.openBlueprintViewer('{{ order.id }}'); } else { alert('도면 뷰어를 불러올 수 없습니다.'); }"
+                                                    title="도면 보기">
+                                                    <i class="fas fa-eye"></i> 보기
+                                                </button>
+                                                <button class="btn btn-sm btn-danger"
+                                                    onclick="deleteBlueprint('{{ order.id }}')" title="도면 삭제">
+                                                    <i class="fas fa-trash"></i> 삭제
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <img id="blueprint-preview-img" src="" alt="도면" class="img-fluid rounded"
+                                            style="max-height: 500px; cursor: pointer; border: 1px solid #ddd;"
+                                            onclick="if(typeof window.openBlueprintViewer === 'function') { window.openBlueprintViewer('{{ order.id }}'); } else { alert('도면 뷰어를 불러올 수 없습니다.'); }">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 로딩 표시 -->
+                            <div id="blueprint-loading" class="text-center" style="display: none;">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">로딩 중...</span>
+                                </div>
+                                <p class="text-muted mt-2">업로드 중...</p>
+                            </div>
+                            <div id="blueprint-upload-progress" class="mt-2 d-none">
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                        id="blueprint-upload-progress-bar" role="progressbar" style="width: 0%">0%</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- ERP Order 탭 (shared partial) -->
+                    {% if erp_order_feature_enabled and is_erp_order_flag %}
+                    {% set erp_order_active = is_erp_order %}
+                    {% include "orders/partials/erp_order_tab.html" %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

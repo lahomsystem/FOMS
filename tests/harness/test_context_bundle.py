@@ -217,7 +217,7 @@ def test_manifest_defaults_apply_to_output_path(tmp_path: Path) -> None:
                 "description": "Defaults description.",
                 "bundle_defaults": {
                     "default_encoding": "utf-8",
-                    "default_output_dir": "docs/context",
+                    "default_output_dir": "docs/harness/bundles",
                     "default_bundle_extension": ".bundle.md",
                     "section_separator": "\n\n---\n\n",
                     "include_source_headers_in_bundle": True,
@@ -251,7 +251,7 @@ def test_manifest_defaults_apply_to_output_path(tmp_path: Path) -> None:
     )
     outs = run_build(tmp_path, manifest_path, profiles_dir, ["defaults"])
     assert len(outs) == 1
-    assert (tmp_path / "docs" / "context" / "defaults.bundle.md").is_file()
+    assert (tmp_path / "docs" / "harness" / "bundles" / "defaults.bundle.md").is_file()
 
 
 def test_parse_args_defaults() -> None:

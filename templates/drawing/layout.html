@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+{% include 'partials/shared/layout_head.html' %}
+{% block head %}{% endblock %}
+{% block styles %}{% endblock %}
+{% block head_extra %}{% endblock %}
+</head>
+
+<body
+    class="{% if erp_mobile_v2_enabled and request.path.startswith('/erp') %}erp-mobile-v2-layout{% endif %}"
+    style="width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box;">
+{% include 'partials/shared/layout_nav.html' %}
+
+        <div class="container-fluid py-0 px-0"
+            style="width: 100% !important; max-width: 100% !important; margin: 0 !important; padding-left: 0 !important; padding-right: 0 !important; box-sizing: border-box;">
+{% include 'partials/shared/layout_flash.html' %}
+
+            <!-- Content block -->
+            <main id="main-content" tabindex="-1">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+{% include 'partials/shared/layout_scripts.html' %}
+{% block scripts %}{% endblock %}
+</body>
+
+</html>

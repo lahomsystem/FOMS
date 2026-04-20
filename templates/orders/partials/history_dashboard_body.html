@@ -1,0 +1,581 @@
+<style>
+  .history-chevron {
+    cursor: pointer;
+    opacity: 0.7;
+    user-select: none;
+    transition: transform 0.2s;
+  }
+  .history-chevron:hover {
+    opacity: 1;
+  }
+  .history-chevron.is-open {
+    transform: rotate(180deg);
+  }
+  .history-detail-row td {
+    padding: 12px;
+    background-color: #f8fbff;
+    border-bottom: 1px solid #e0e0e0;
+    vertical-align: top;
+  }
+  .history-detail-row .dw-product-main-card {
+    border: 1px solid #dfe7f3;
+    border-radius: 10px;
+    background: #fff;
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  .history-detail-row .dw-product-main-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .history-detail-row .dw-product-main-name {
+    font-size: 1.08rem;
+    font-weight: 700;
+    color: #0f2a52;
+  }
+  .history-detail-row .dw-product-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+  }
+  .history-detail-row .dw-attach-panel {
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 6px;
+    padding: 10px;
+  }
+  .history-detail-row .dw-attach-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+  }
+  .history-detail-row .dw-attach-thumb {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #e2e8f0;
+    border: 1px solid #cbd5e1;
+    cursor: pointer;
+  }
+  .history-detail-row .dw-attach-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .erp-history-mobile-list {
+    display: none;
+  }
+  .erp-history-mobile-list__summary {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .erp-history-mobile-list__eyebrow {
+    display: block;
+    margin-bottom: 0.125rem;
+    color: #556b82;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .erp-history-mobile-list__title {
+    margin: 0;
+    color: #131e29;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+  .erp-history-mobile-list__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background: #ebf8ff;
+    color: #0057d2;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .erp-history-mobile-card {
+    border: 1px solid #dfe7f3;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(17, 24, 39, 0.08);
+    overflow: hidden;
+  }
+  .erp-history-mobile-card__toggle {
+    width: 100%;
+    padding: 1rem 1rem 0.75rem;
+    display: grid;
+    gap: 0.875rem;
+    border: 0;
+    background: transparent;
+    text-align: left;
+  }
+  .erp-history-mobile-card__topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .erp-history-mobile-card__badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0.125rem 0.625rem;
+    border-radius: 999px;
+    background: #ebf8ff;
+    color: #0057d2;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .erp-history-mobile-card__chevron {
+    color: #556b82;
+    transition: transform 0.2s ease;
+  }
+  .erp-history-mobile-card__toggle[aria-expanded="true"] .erp-history-mobile-card__chevron {
+    transform: rotate(180deg);
+  }
+  .erp-history-mobile-card__title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .erp-history-mobile-card__customer {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.35;
+    color: #131e29;
+    font-weight: 700;
+  }
+  .erp-history-mobile-card__order-id {
+    color: #556b82;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+  .erp-history-mobile-card__meta {
+    display: grid;
+    gap: 0.625rem;
+    margin: 0;
+    padding: 0 1rem 1rem;
+  }
+  .erp-history-mobile-card__meta-row {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 0.625rem;
+    align-items: start;
+  }
+  .erp-history-mobile-card__meta-row dt {
+    margin: 0;
+    color: #556b82;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .erp-history-mobile-card__meta-row dd {
+    margin: 0;
+    color: #131e29;
+    font-size: 0.875rem;
+    word-break: break-word;
+  }
+  .erp-history-mobile-card__actions {
+    padding: 0 1rem 1rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem;
+  }
+  .erp-history-mobile-card__action {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 12px;
+    border: 1px solid #d9d9d9;
+    background: #fff;
+    color: #131e29;
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+  .erp-history-mobile-card__action.is-primary {
+    border-color: rgba(0, 112, 242, 0.22);
+    background: #f7fbff;
+    color: #0057d2;
+  }
+  .erp-history-mobile-card__detail {
+    padding: 0 1rem 1rem;
+  }
+  .erp-history-mobile-card__detail-body {
+    padding-top: 0.875rem;
+    border-top: 1px solid #e5e7eb;
+  }
+  .erp-history-mobile-card.is-focused {
+    border-color: rgba(0, 112, 242, 0.4);
+    box-shadow: 0 0 0 3px rgba(0, 112, 242, 0.12), 0 8px 24px rgba(17, 24, 39, 0.12);
+  }
+  @media (max-width: 768px) {
+    .history-detail-row .dw-product-split {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 991.98px) {
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-history-mobile-list {
+      display: grid;
+      gap: 0.875rem;
+      padding: 0 1rem 1rem;
+    }
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-card--filters .erp-pro-card__body {
+      padding: 1rem;
+    }
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-card--filters .input-group,
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-card--filters .form-select,
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-card--filters .form-control,
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-card--filters .erp-pro-btn {
+      min-height: 44px;
+      font-size: 0.875rem;
+    }
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-history-mobile-card__detail .dw-product-main-card {
+      margin-bottom: 0.875rem;
+    }
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-history-mobile-card__detail .dw-product-split {
+      grid-template-columns: 1fr;
+      gap: 0.875rem;
+    }
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-history-mobile-card__detail .dw-attach-grid {
+      grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    }
+  }
+</style>
+
+<div class="container-fluid erp-dashboard erp-pro erp-mobile-shell erp-history-mobile-shell"
+  data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  {% if erp_mobile_v2_enabled %}
+    {% include 'partials/shared/erp_mobile_shell.html' %}
+  {% endif %}
+  <!-- Modern Header -->
+  <header class="erp-pro-header">
+    <h1 class="erp-pro-header__title">
+      <i class="fas fa-history"></i>
+      <span>과거 이력 검색 (Inquiry)</span>
+    </h1>
+    <div class="erp-pro-header__actions">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('order_pages.index') }}">
+        <i class="fas fa-home"></i>
+        <span class="d-none d-md-inline">홈</span>
+      </a>
+    </div>
+  </header>
+  
+  {% set erp_sub_nav_active = 'history' %}
+  {% include 'partials/shared/erp_sub_nav.html' %}
+
+  <!-- Filters -->
+  <div class="erp-pro-card erp-pro-card--filters">
+    <div class="erp-pro-card__body">
+      <form method="GET" action="{{ url_for('erp_history.history_dashboard') }}" class="erp-pro-filters-form">
+        <div class="row gx-3 gy-2 align-items-center">
+          <div class="col-12 col-md-3">
+            <label class="erp-pro-filters__label">검색어 (고객명, 전화번호, 주소 등)</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text"><i class="fas fa-search"></i></span>
+              <input type="text" name="q" class="form-control" placeholder="전체 검색" value="{{ request.args.get('q', '') }}">
+            </div>
+          </div>
+          <div class="col-12 col-md-2">
+            <label class="erp-pro-filters__label">단계</label>
+            <select name="stage" class="form-select form-select-sm">
+              <option value="">전체 단계</option>
+              <option value="RECEIVED" {% if request.args.get('stage') == 'RECEIVED' %}selected{% endif %}>주문접수</option>
+              <option value="MEASURE" {% if request.args.get('stage') == 'MEASURE' %}selected{% endif %}>실측</option>
+              <option value="DRAWING" {% if request.args.get('stage') == 'DRAWING' %}selected{% endif %}>도면</option>
+              <option value="CONFIRM" {% if request.args.get('stage') == 'CONFIRM' %}selected{% endif %}>고객컨펌</option>
+              <option value="PRODUCTION" {% if request.args.get('stage') == 'PRODUCTION' %}selected{% endif %}>생산</option>
+              <option value="CONSTRUCTION" {% if request.args.get('stage') == 'CONSTRUCTION' %}selected{% endif %}>시공</option>
+              <option value="COMPLETED" {% if request.args.get('stage') == 'COMPLETED' %}selected{% endif %}>완료</option>
+              <option value="AS_RECEIVED" {% if request.args.get('stage') == 'AS_RECEIVED' %}selected{% endif %}>AS접수</option>
+              <option value="AS" {% if request.args.get('stage') == 'AS' %}selected{% endif %}>AS처리</option>
+              <option value="AS_COMPLETED" {% if request.args.get('stage') == 'AS_COMPLETED' %}selected{% endif %}>AS완료</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="erp-pro-filters__label">기간 (생성일 기준)</label>
+            <div class="input-group input-group-sm">
+              <input type="date" name="date_from" class="form-control" value="{{ request.args.get('date_from', '') }}">
+              <span class="input-group-text">~</span>
+              <input type="date" name="date_to" class="form-control" value="{{ request.args.get('date_to', '') }}">
+            </div>
+          </div>
+          <div class="col-12 col-md-3 d-flex align-items-end mt-4 mt-md-0">
+            <button type="submit" class="erp-pro-btn erp-pro-btn--primary w-100">
+              <i class="fas fa-search"></i> 검색
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if not has_filter %}
+  <div class="erp-pro-empty">
+    <i class="fas fa-search erp-pro-empty__icon"></i>
+    <p class="erp-pro-empty__text">위 필터를 설정하여 조회를 시작하세요.</p>
+    <p class="text-muted small">과거 이력은 데이터가 방대하므로 조건 없이 전체 조회를 지원하지 않습니다. (레거시·ERP Order 모두 검색 대상)</p>
+  </div>
+  {% elif not orders %}
+  <div class="erp-pro-empty">
+    <i class="fas fa-inbox erp-pro-empty__icon"></i>
+    <p class="erp-pro-empty__text">조건에 맞는 이력이 없습니다.</p>
+  </div>
+  {% else %}
+  <div class="erp-pro-card mt-3">
+    <div class="erp-pro-card__header">
+      <h3 class="erp-pro-card__title">
+        <i class="fas fa-list"></i> 검색 결과 (총 {{ total_orders }}건)
+      </h3>
+    </div>
+    <div class="erp-pro-card__body p-0">
+      {% if erp_mobile_v2_enabled %}
+      <div class="erp-history-mobile-list d-lg-none">
+        <div class="erp-history-mobile-list__summary">
+          <div>
+            <span class="erp-history-mobile-list__eyebrow">History Queue</span>
+            <h3 class="erp-history-mobile-list__title">검색 결과</h3>
+          </div>
+          <span class="erp-history-mobile-list__count">{{ total_orders }}건</span>
+        </div>
+        {% for item in orders %}
+        {% set o = item._order %}
+        {% set d = item.display_o %}
+        {% set phone_href = (d.phone or '')|replace('-', '')|replace(' ', '') %}
+        {% set detail_id = 'history-mobile-detail-' ~ o.id %}
+        <article class="erp-history-mobile-card" data-history-mobile-card data-order-id="{{ o.id }}">
+          <button type="button" class="erp-history-mobile-card__toggle" data-history-toggle aria-expanded="false" aria-controls="{{ detail_id }}">
+            <span class="erp-history-mobile-card__topline">
+              <span class="erp-history-mobile-card__badge">{{ item.stage }}</span>
+              <i class="fas fa-chevron-down erp-history-mobile-card__chevron" aria-hidden="true"></i>
+            </span>
+            <span class="erp-history-mobile-card__title-row">
+              <span class="erp-history-mobile-card__customer">{{ d.customer_name }}</span>
+              <span class="erp-history-mobile-card__order-id">#{{ o.id }}</span>
+            </span>
+          </button>
+          <dl class="erp-history-mobile-card__meta">
+            <div class="erp-history-mobile-card__meta-row">
+              <dt>제품</dt>
+              <dd>{{ d.product }}</dd>
+            </div>
+            <div class="erp-history-mobile-card__meta-row">
+              <dt>전화</dt>
+              <dd>{{ d.phone }}</dd>
+            </div>
+            <div class="erp-history-mobile-card__meta-row">
+              <dt>주소</dt>
+              <dd>{{ d.address }}</dd>
+            </div>
+            <div class="erp-history-mobile-card__meta-row">
+              <dt>생성</dt>
+              <dd>{{ o.created_at.strftime('%Y-%m-%d') if o.created_at else '-' }}</dd>
+            </div>
+          </dl>
+          <div class="erp-history-mobile-card__actions">
+            {% if phone_href %}
+            <a class="erp-history-mobile-card__action" href="tel:{{ phone_href }}">
+              <i class="fas fa-phone"></i>
+              <span>전화</span>
+            </a>
+            {% else %}
+            <span class="erp-history-mobile-card__action text-muted" aria-disabled="true">
+              <i class="fas fa-phone-slash"></i>
+              <span>전화 없음</span>
+            </span>
+            {% endif %}
+            <a class="erp-history-mobile-card__action is-primary" href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_order %}?open=erp-order{% endif %}" target="_blank">
+              <i class="fas fa-up-right-from-square"></i>
+              <span>주문 상세</span>
+            </a>
+          </div>
+          <div class="erp-history-mobile-card__detail" id="{{ detail_id }}" hidden aria-hidden="true">
+            <div class="erp-history-mobile-card__detail-body">
+              {% include 'orders/partials/history_detail_content.html' %}
+            </div>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div class="table-responsive{% if erp_mobile_v2_enabled %} d-none d-lg-block{% endif %}">
+        <table class="table table-hover erp-pro-table mb-0">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>단계</th>
+              <th>고객명</th>
+              <th>전화번호</th>
+              <th>주소</th>
+              <th>제품</th>
+              <th>생성일</th>
+              <th>상세</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in orders %}
+            {% set o = item._order %}
+            {% set d = item.display_o %}
+            <tr>
+              <td>
+                <i class="fas fa-chevron-down history-chevron me-2 text-primary" data-order-id="{{ o.id }}" role="button" aria-expanded="false" title="주문 상세 보기"></i>
+                {{ o.id }}
+              </td>
+              <td>
+                <span class="erp-pro-badge erp-pro-badge--{{ item.stage|replace(' ', '-') }}">{{ item.stage }}</span>
+              </td>
+              <td>{{ d.customer_name }}</td>
+              <td>{{ d.phone }}</td>
+              <td class="text-truncate" style="max-width: 200px;" title="{{ d.address }}">{{ d.address }}</td>
+              <td class="text-truncate" style="max-width: 150px;" title="{{ d.product }}">{{ d.product }}</td>
+              <td>{{ o.created_at.strftime('%Y-%m-%d') if o.created_at else '-' }}</td>
+              <td>
+                <a href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_order %}?open=erp-order{% endif %}" class="btn btn-sm btn-outline-secondary" target="_blank">
+                  상세보기
+                </a>
+              </td>
+            </tr>
+            <tr class="history-detail-row" id="detail-{{ o.id }}" data-order-id="{{ o.id }}" style="display:none;" aria-hidden="true">
+              <td colspan="8">
+                {% set product_items_row = d.product_items if d.product_items is defined else [] %}
+                {% if product_items_row %}
+                  {% for prod_item in product_items_row %}
+                  <div class="dw-product-main-card">
+                    <div class="dw-product-main-head">
+                      <div class="dw-product-main-name">{{ prod_item.get('product_name') or ('제품 항목 ' ~ loop.index) }}</div>
+                      <div>
+                        {% if prod_item.get('quantity') %}<span class="badge bg-primary me-1">수량 {{ prod_item.get('quantity') }}</span>{% endif %}
+                        <span class="badge bg-light text-dark border">항목 {{ loop.index }}</span>
+                      </div>
+                    </div>
+                    <div class="dw-product-split">
+                      <div class="dw-product-info-form">
+                        <div class="row g-2">
+                          <div class="col-md-4">
+                            <label class="form-label mb-1 small text-primary">규격 W(폭)</label>
+                            <input class="form-control form-control-sm" value="{{ prod_item.get('width') or '' }}" readonly>
+                          </div>
+                          <div class="col-md-4">
+                            <label class="form-label mb-1 small text-primary">규격 D(깊이)</label>
+                            <input class="form-control form-control-sm" value="{{ prod_item.get('depth') or '' }}" readonly>
+                          </div>
+                          <div class="col-md-4">
+                            <label class="form-label mb-1 small text-primary">규격 H(높이)</label>
+                            <input class="form-control form-control-sm" value="{{ prod_item.get('height') or '' }}" readonly>
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label mb-1 small text-primary">색상</label>
+                            <input class="form-control form-control-sm" value="{{ prod_item.get('color') or '' }}" readonly>
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
+                            <input class="form-control form-control-sm" value="{{ prod_item.get('misc') or '' }}" readonly>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="dw-attach-panel">
+                        <div class="small fw-semibold text-muted mb-2"><i class="fas fa-image"></i> 첨부 파일 (실측/사진)</div>
+                        {% set measure_imgs = prod_item.get('measurement_images') or [] %}
+                        {% if measure_imgs %}
+                          <div class="dw-attach-grid">
+                            {% for photo in measure_imgs %}
+                            <div>
+                              <div class="dw-attach-thumb" data-group-key="history_{{ o.id }}_item_{{ loop.index0 }}" data-index="{{ loop.index0 }}" onclick="if(window.openDrawingGatewayImageViewer) { window.openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index)); } else { window.open('{{ photo.view_url }}', '_blank'); }">
+                                <img data-src="{{ photo.view_url }}" alt="{{ photo.filename }}" class="lazy-detail-img">
+                              </div>
+                            </div>
+                            {% endfor %}
+                          </div>
+                        {% else %}
+                          <div class="small text-muted">항목에 연결된 첨부 파일이 없습니다.</div>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                  {% endfor %}
+                {% else %}
+                  <div class="small text-muted p-2">등록된 제품 정보가 없습니다. (ERP Order 이력이 아니거나 구조화된 데이터가 없음)</div>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    {% if total_pages > 1 %}
+    <div class="erp-pro-card__footer d-flex justify-content-center">
+      <nav aria-label="Page navigation">
+        <ul class="pagination pagination-sm mb-0">
+          <li class="page-item {% if page == 1 %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ page - 1 }}&q={{ request.args.get('q', '') }}&stage={{ request.args.get('stage', '') }}&date_from={{ request.args.get('date_from', '') }}&date_to={{ request.args.get('date_to', '') }}">이전</a>
+          </li>
+          
+          {% set start_page = page - 2 if page > 2 else 1 %}
+          {% set end_page = start_page + 4 if start_page + 4 <= total_pages else total_pages %}
+          {% set start_page = end_page - 4 if end_page - 4 > 0 else 1 %}
+          
+          {% for p in range(start_page, end_page + 1) %}
+          <li class="page-item {% if p == page %}active{% endif %}">
+            <a class="page-link" href="?page={{ p }}&q={{ request.args.get('q', '') }}&stage={{ request.args.get('stage', '') }}&date_from={{ request.args.get('date_from', '') }}&date_to={{ request.args.get('date_to', '') }}">{{ p }}</a>
+          </li>
+          {% endfor %}
+          
+          <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ page + 1 }}&q={{ request.args.get('q', '') }}&stage={{ request.args.get('stage', '') }}&date_from={{ request.args.get('date_from', '') }}&date_to={{ request.args.get('date_to', '') }}">다음</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.history-chevron').forEach(function(chevron) {
+    chevron.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var orderId = this.dataset.orderId;
+      var detailRow = orderId ? document.getElementById('detail-' + orderId) : null;
+      if (!detailRow) return;
+      
+      var isOpen = this.getAttribute('aria-expanded') === 'true';
+      if (isOpen) {
+        detailRow.style.display = 'none';
+        detailRow.setAttribute('aria-hidden', 'true');
+        this.setAttribute('aria-expanded', 'false');
+        this.classList.remove('is-open');
+      } else {
+        detailRow.style.display = 'table-row';
+        detailRow.setAttribute('aria-hidden', 'false');
+        this.setAttribute('aria-expanded', 'true');
+        this.classList.add('is-open');
+        // lazy-load: data-src -> src 변환
+        detailRow.querySelectorAll('img.lazy-detail-img[data-src]').forEach(function(img) {
+          img.src = img.dataset.src;
+          img.removeAttribute('data-src');
+        });
+      }
+    });
+  });
+});
+</script>
+<script src="{{ url_for('static', filename='js/orders/history-mobile.js') }}?v=20260402a" defer></script>

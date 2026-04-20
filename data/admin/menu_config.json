@@ -1,0 +1,54 @@
+{
+  "main_menu": [
+    {
+      "id": "order_list",
+      "name": "전체 주문",
+      "url": "/"
+    },
+    {
+      "id": "received",
+      "name": "접수",
+      "url": "/?status=RECEIVED"
+    },
+    {
+      "id": "measured",
+      "name": "실측",
+      "url": "/?status=MEASURE"
+    },
+    {
+      "id": "metro_orders",
+      "name": "수도권 주문",
+      "url": "/?region=metro"
+    },
+    {
+      "id": "regional_orders",
+      "name": "지방 주문",
+      "url": "/?region=regional"
+    },
+    {
+      "id": "metropolitan_dashboard",
+      "name": "수도권 주문 대시보드",
+      "url": "/metropolitan_dashboard"
+    },
+    {
+      "id": "self_measurement_dashboard",
+      "name": "자가실측 대시보드",
+      "url": "/self_measurement_dashboard"
+    },
+    {
+      "id": "regional_dashboard",
+      "name": "지방 주문 대시보드",
+      "url": "/regional_dashboard"
+    },
+    {
+      "id": "storage_dashboard",
+      "name": "수납장 대시보드",
+      "url": "/storage_dashboard"
+    },
+    {
+      "id": "trash",
+      "name": "휴지통",
+      "url": "/trash"
+    }
+  ]
+}

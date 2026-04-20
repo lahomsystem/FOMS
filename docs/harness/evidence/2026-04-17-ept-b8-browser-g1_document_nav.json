@@ -1,0 +1,9 @@
+{
+  "base": "https://lahom-dev.up.railway.app",
+  "scenario": "g1_document_nav",
+  "metrics": {
+    "g1_click_trash_full_document_ms": 3108.88,
+    "final_url": "https://lahom-dev.up.railway.app/trash",
+    "note": "Full navigation to /trash via layout-global-nav; document load, not fragment swap."
+  }
+}

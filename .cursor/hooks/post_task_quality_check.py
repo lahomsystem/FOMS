@@ -27,7 +27,7 @@ def _load_debug():
         return lambda *a, **k: None, lambda: {}
 maybe_log_payload, get_payload = _load_debug()
 
-from shared_utils import extract_project_root, hook_runtime_log
+from shared_utils import extract_project_root, harness_runtime_path, hook_runtime_log
 
 _DEBOUNCE_FILE = ".post_task_qc_debounce.json"
 _DEBOUNCE_SEC = 900.0
@@ -38,7 +38,7 @@ def _files_fingerprint(files: list[str]) -> str:
 
 
 def _debounce_allows_full_reminder(project_root: str, fp: str) -> bool:
-    path = os.path.join(project_root, "docs", "context", _DEBOUNCE_FILE)
+    path = harness_runtime_path(project_root, _DEBOUNCE_FILE)
     now = time.time()
     try:
         if os.path.isfile(path):
@@ -54,7 +54,7 @@ def _debounce_allows_full_reminder(project_root: str, fp: str) -> bool:
 
 
 def _save_debounce_state(project_root: str, fp: str) -> None:
-    path = os.path.join(project_root, "docs", "context", _DEBOUNCE_FILE)
+    path = harness_runtime_path(project_root, _DEBOUNCE_FILE)
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
@@ -64,7 +64,7 @@ def _save_debounce_state(project_root: str, fp: str) -> None:
 
 
 def _read_recent_edited_files(project_root, limit=5):
-    edit_log_path = os.path.join(project_root, "docs", "context", "EDIT_LOG.md")
+    edit_log_path = harness_runtime_path(project_root, "EDIT_LOG.md")
     if not os.path.exists(edit_log_path):
         return []
 

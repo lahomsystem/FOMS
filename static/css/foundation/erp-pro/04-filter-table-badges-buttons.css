@@ -1,0 +1,300 @@
+/* ===== Filter Sidebar ===== */
+.erp-pro-filters {
+  position: sticky;
+  top: 80px;
+}
+
+.erp-pro-filter__group {
+  margin-bottom: var(--erp-space-md);
+}
+
+.erp-pro-filter__label {
+  display: block;
+  font-size: var(--erp-font-size-sm);
+  font-weight: 500;
+  color: var(--erp-text-secondary);
+  margin-bottom: var(--erp-space-xs);
+}
+
+.erp-pro-filter__input {
+  width: 100%;
+  padding: var(--erp-space-sm) var(--erp-space-md);
+  font-size: var(--erp-font-size-sm);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius);
+  background: var(--erp-bg-card);
+  color: var(--erp-text-primary);
+  transition: all var(--erp-transition-fast);
+}
+
+.erp-pro-filter__input:focus {
+  outline: none;
+  border-color: var(--erp-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.erp-pro-filter__select {
+  width: 100%;
+  padding: var(--erp-space-sm) var(--erp-space-md);
+  font-size: var(--erp-font-size-sm);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius);
+  background: var(--erp-bg-card);
+  color: var(--erp-text-primary);
+  cursor: pointer;
+  transition: all var(--erp-transition-fast);
+}
+
+.erp-pro-filter__select:focus {
+  outline: none;
+  border-color: var(--erp-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.erp-pro-filter__checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--erp-space-sm);
+  cursor: pointer;
+}
+
+.erp-pro-filter__checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--erp-primary);
+  cursor: pointer;
+}
+
+.erp-pro-filter__checkbox span {
+  font-size: var(--erp-font-size-sm);
+  color: var(--erp-text-primary);
+}
+
+/* ===== Data Table ===== */
+.erp-pro-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--erp-radius-lg);
+}
+
+.erp-pro-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--erp-font-size-sm);
+}
+
+.erp-pro-table thead {
+  background: var(--erp-bg-sidebar);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.erp-pro-table th {
+  padding: var(--erp-space-md);
+  text-align: left;
+  font-weight: 600;
+  color: var(--erp-text-primary);
+  border-bottom: 2px solid var(--erp-border);
+  white-space: nowrap;
+}
+
+/* 작업 큐 테이블 헤더 공통 스타일 (인라인 스타일 대체) */
+.erp-grid-th {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #495057;
+  background-color: #e9ecef;
+}
+
+.erp-pro-table tbody tr {
+  border-bottom: 1px solid var(--erp-border-light);
+  transition: background var(--erp-transition-fast);
+}
+
+.erp-pro-table tbody tr:hover {
+  background: var(--erp-bg-hover);
+}
+
+.erp-pro-table tbody tr.erp-pro-row--selected {
+  background: var(--erp-primary-bg);
+}
+
+.erp-pro-table td {
+  padding: var(--erp-space-md);
+  vertical-align: middle;
+  color: var(--erp-text-primary);
+}
+
+/* ===== Badge Component ===== */
+.erp-pro-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--erp-space-xs);
+  padding: var(--erp-space-xs) var(--erp-space-sm);
+  font-size: var(--erp-font-size-xs);
+  font-weight: 600;
+  border-radius: var(--erp-radius-full);
+  white-space: nowrap;
+}
+
+.erp-pro-badge--primary {
+  background: var(--erp-primary-bg);
+  color: var(--erp-primary);
+}
+
+.erp-pro-badge--secondary {
+  background: var(--erp-bg-sidebar);
+  color: var(--erp-text-secondary);
+}
+
+.erp-pro-badge--success {
+  background: var(--erp-success-light);
+  color: var(--erp-success-dark);
+}
+
+.erp-pro-badge--warning {
+  background: var(--erp-warning-light);
+  color: var(--erp-warning-dark);
+}
+
+.erp-pro-badge--danger {
+  background: var(--erp-danger-light);
+  color: var(--erp-danger-dark);
+}
+
+.erp-pro-badge--info {
+  background: var(--erp-info-light);
+  color: var(--erp-info-dark);
+}
+
+/* Solid Badges */
+.erp-pro-badge--solid-primary {
+  background: var(--erp-primary);
+  color: var(--erp-text-white);
+}
+
+/* 출고가 / 예약금 / 잔금 금액 박스 — 통일 높이 2rem */
+.erp-amount-value {
+  display: inline-block;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  width: 9rem !important;
+  height: 2rem !important;
+  line-height: 2rem !important;
+  padding: 0 0.5rem !important;
+  text-align: right;
+  border-radius: 0.25rem;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+.erp-amount-value--deposit {
+  background: #FFB6C1;
+  color: #000 !important;
+  border: 0 !important;
+  margin: 0 !important;
+}
+.erp-amount-value--deposit::placeholder {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.erp-pro-badge--solid-success {
+  background: var(--erp-success);
+  color: var(--erp-text-white);
+}
+
+.erp-pro-badge--solid-warning {
+  background: var(--erp-warning);
+  color: var(--erp-text-primary);
+}
+
+.erp-pro-badge--solid-danger {
+  background: var(--erp-danger);
+  color: var(--erp-text-white);
+}
+
+/* ===== Button Component ===== */
+.erp-pro-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--erp-space-xs);
+  padding: var(--erp-space-sm) var(--erp-space-md);
+  font-size: var(--erp-font-size-sm);
+  font-weight: 500;
+  border-radius: var(--erp-radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--erp-transition-fast);
+  white-space: nowrap;
+}
+
+.erp-pro-btn--primary {
+  background: var(--erp-primary);
+  color: var(--erp-text-white);
+  border-color: var(--erp-primary);
+}
+
+.erp-pro-btn--primary:hover {
+  background: var(--erp-primary-dark);
+  border-color: var(--erp-primary-dark);
+}
+
+.erp-pro-btn--secondary {
+  background: var(--erp-bg-card);
+  color: var(--erp-text-primary);
+  border-color: var(--erp-border);
+}
+
+.erp-pro-btn--secondary:hover {
+  background: var(--erp-bg-sidebar);
+  border-color: var(--erp-border-dark);
+}
+
+.erp-pro-btn--ghost {
+  background: transparent;
+  color: var(--erp-text-secondary);
+  border-color: transparent;
+}
+
+.erp-pro-btn--ghost:hover {
+  background: var(--erp-bg-hover);
+  color: var(--erp-text-primary);
+}
+
+.erp-pro-btn--success {
+  background: var(--erp-success);
+  color: var(--erp-text-white);
+  border-color: var(--erp-success);
+}
+
+.erp-pro-btn--danger {
+  background: var(--erp-danger);
+  color: var(--erp-text-white);
+  border-color: var(--erp-danger);
+}
+
+.erp-pro-btn--sm {
+  padding: var(--erp-space-xs) var(--erp-space-sm);
+  font-size: var(--erp-font-size-xs);
+}
+
+.erp-pro-btn--lg {
+  padding: var(--erp-space-md) var(--erp-space-lg);
+  font-size: var(--erp-font-size-base);
+}
+
+.erp-pro-btn--icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--erp-radius);
+}
+
+.erp-pro-btn--icon-sm {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: var(--erp-font-size-xs);
+}
+

@@ -18,9 +18,9 @@ tools: Read, Grep, Glob, Shell, StrReplace, Write
   2. **한글 커밋 시** PowerShell이 `-m "한글"` 인자를 잘못 인코딩하므로 **금지**. 반드시 **UTF-8로 저장한 파일**에 메시지를 쓴 뒤 `git commit -F 파일경로` 또는 `git commit --amend -F 파일경로` 사용. (예: 메시지를 `commit_msg.txt`에 UTF-8로 저장 → `git commit -F commit_msg.txt` → 필요 시 파일 삭제)
 
 ## Cursor 내 Runner 트랙
-- **Cursor 기본 에이전트**: 권장 수동 진입점은 `docs/context/HARNESS_BUNDLE_CURSOR.md` + `.cursor/rules/*.mdc`이다. bundle 파일 자체는 자동 주입되지 않으므로 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/context/HARNESS_BUNDLE_CURSOR_HARNESS.md`를 기준으로 오케스트레이션한다.
-- **Claude 확장 in Cursor**: 권장 수동 진입점은 `docs/context/HARNESS_BUNDLE_CLAUDE.md`이다. bundle 파일은 자동 로드되지 않으므로 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/context/HARNESS_BUNDLE_CLAUDE_HARNESS.md`를 사용한다. `CLAUDE.md`는 원문 정책 수정/검증 시에만 추가 확인한다. 저장소 공용 명령은 PowerShell 5.x 기준으로 설명한다.
-- **Codex 확장/CLI in Cursor**: 권장 수동 진입점은 `docs/context/HARNESS_BUNDLE_CODEX.md`이다. 확장 세션은 사용자가 bundle을 직접 열거나 참조해야 하고, `tools/harness/run_codex.ps1`를 사용할 때만 선택된 bundle이 자동으로 prompt에 포함된다. 하네스 내부 작업은 `docs/context/HARNESS_BUNDLE_CODEX_HARNESS.md` 또는 `tools/harness/run_codex.ps1` 자동 라우팅을 기준으로 움직인다. 반복형 QA/리뷰/구현 래퍼는 `run_codex.ps1`를 우선 경로로 본다.
+- **Cursor 기본 에이전트**: 권장 수동 진입점은 `docs/harness/bundles/HARNESS_BUNDLE_CURSOR.md` + `.cursor/rules/*.mdc`이다. bundle 파일 자체는 자동 주입되지 않으므로 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/harness/bundles/HARNESS_BUNDLE_CURSOR_HARNESS.md`를 기준으로 오케스트레이션한다.
+- **Claude 확장 in Cursor**: 권장 수동 진입점은 `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE.md`이다. bundle 파일은 자동 로드되지 않으므로 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md`를 사용한다. `CLAUDE.md`는 원문 정책 수정/검증 시에만 추가 확인한다. 저장소 공용 명령은 PowerShell 5.x 기준으로 설명한다.
+- **Codex 확장/CLI in Cursor**: 권장 수동 진입점은 `docs/harness/bundles/HARNESS_BUNDLE_CODEX.md`이다. 확장 세션은 사용자가 bundle을 직접 열거나 참조해야 하고, `tools/harness/run_codex.ps1`를 사용할 때만 선택된 bundle이 자동으로 prompt에 포함된다. 하네스 내부 작업은 `docs/harness/bundles/HARNESS_BUNDLE_CODEX_HARNESS.md` 또는 `tools/harness/run_codex.ps1` 자동 라우팅을 기준으로 움직인다. 반복형 QA/리뷰/구현 래퍼는 `run_codex.ps1`를 우선 경로로 본다.
 - **Wave 3 레벨 정책**: `run_codex.ps1`는 `low / medium / high / top` 4단계로 자동 분류하며, `high/top`은 harness bundle과 더 강한 검증으로 승급한다.
 - **override 정책**: `-AdditionalPrompt "[level=top]"`, `-AdditionalPrompt "[레벨=최상]"`, `-AdditionalPrompt "이번 건 최상으로 진행"`을 허용한다.
 - **고위험 downgrade 보호**: 자동 판정이 `high/top`인데 더 낮은 레벨로 내리면 GDM은 재확인 또는 `-AllowRiskyLevelOverride`가 있는지 먼저 확인해야 한다.
@@ -205,7 +205,7 @@ Phase 4: 확장 (새 기능, AI 통합)
 
 **🚨 [SYSTEM 2 경고] 핵심 코어 변경(DB/Auth/API, 배포 인프라, 하네스 인프라) 시 반드시 RPI 프로토콜을 따르세요:
 1. Session context: `docs/AI_STATUS.md` 읽기
-2. RPI Research: `docs/ARCHIVE_INDEX.md` + `docs/context/DECISIONS.md` 조사
+2. RPI Research: `docs/ARCHIVE_INDEX.md` + `docs/harness/policy/DECISIONS.md` 조사
 3. Plan: `docs/guides/SPEC_TEMPLATE.md` 기반 Spec 작성 → `docs/specs/` 저장
 4. 사용자 승인 대기 (승인 전 코딩 절대 금지)
 5. Implement: 승인 후 코딩 → `/verify-result` → `/auto-status-update`
@@ -254,7 +254,7 @@ Phase 4: 확장 (새 기능, AI 통합)
 3. MCP 후보 시 → self_upgrade_manifest 검토 후 등록
 4. 생성 + 검증 (서버 기동, import 확인)
 5. docs/AI_STATUS.md 수동 갱신 (변경 시)
-6. docs/context/DECISIONS.md 기록
+6. docs/harness/policy/DECISIONS.md 기록
 ```
 **거버넌스**: Rule(alwaysApply)·Hook·Agent·MCP 생성 시 **사용자 승인 필수**
 
@@ -275,7 +275,7 @@ Phase 4: 확장 (새 기능, AI 통합)
 5. Containment vs Permanent Fix 분리 적용 (incident-rca)
 6. test_client/HTTP/스모크로 검증 후 재발 방지 자산화 (Rule/Test/Doc)
 ```
-참조: `.cursor/rules/14-incident-rca.mdc` · `.cursor/agents/incident-rca.md` · `docs/context/INCIDENT_TEMPLATE.md`
+참조: `.cursor/rules/14-incident-rca.mdc` · `.cursor/agents/incident-rca.md` · `docs/harness/policy/INCIDENT_TEMPLATE.md`
 
 ### 원격 서버(Railway) FOMS 동작 확인 시
 배포 후 또는 “원격에서 FOMS가 정상 동작하는지 확인해 달라” 요청 시 아래 절차로 **원격 서버에서 FOMS가 정상 기동·응답하는지** 검증한다.

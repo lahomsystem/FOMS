@@ -133,9 +133,12 @@
                 <div class="card-body">
                     <div class="mb-3">
                                 <div class="mb-2">
-                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-2">
                             <span>기본 견적:</span>
-                            <strong id="totalBasePrice">0원</strong>
+                            <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                                <strong id="totalBasePrice">0원</strong>
+                                <span id="currentQuoteUnitPriceMeta" class="wd-current-quote-unit-meta text-muted small"></span>
+                            </div>
                         </div>
                                     <div class="text-muted small" id="baseEstimateDetail" style="padding-left: 0.5rem;"></div>
                                 </div>
@@ -191,8 +194,14 @@
                 <!-- 진행 중인 견적 목록 -->
                 <div class="col-lg-12 mt-4">
                     <div class="card">
-                        <div class="card-header">
+                        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                             <h5 class="mb-0"><i class="fas fa-list"></i> 진행 중인 견적</h5>
+                            <div class="d-flex align-items-center gap-2 wd-unit-price-toggle-wrap">
+                                <label class="mb-0 small text-muted d-flex align-items-center gap-1" for="wdUnitPriceMetaToggle">
+                                    <input type="checkbox" class="form-check-input m-0" id="wdUnitPriceMetaToggle" checked />
+                                    <span>단가 표시</span>
+                                </label>
+                            </div>
     </div>
                         <div class="card-body">
                             <div id="estimatesListContainer">

@@ -1,0 +1,246 @@
+<style>
+  /* 테이블: 컬럼이 화면에 다 보이도록 가로 스크롤 보장 */
+  .erp-drawing-workbench-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-right: 30px; /* 스크롤바 공간 확보 */
+  }
+  .erp-drawing-workbench-table-wrap table {
+    min-width: 62.5rem;
+  }
+  
+  /* 대시보드 카드 바디 - 스크롤바 공간 */
+  .erp-pro-card .card-body {
+    overflow: visible;
+  }
+  
+  /* 마지막 컬럼에 충분한 공간 확보 */
+  .erp-drawing-workbench-table-wrap th:last-child,
+  .erp-drawing-workbench-table-wrap td:last-child {
+    padding-right: 50px !important;
+    white-space: nowrap;
+  }
+  
+  /* 대시보드 전체에 우측 공간 */
+  .erp-pro-card.mb-3 {
+    padding-right: 20px;
+  }
+
+  /* ERP 프로세스 맵 스타일(컴팩트) */
+  .dw-process-map .erp-pro-card__body {
+    padding: 10px 12px;
+  }
+  .dw-process-map .erp-pro-pipeline {
+    gap: 8px;
+  }
+  .dw-process-map .erp-pro-pipeline__stage {
+    min-width: 92px;
+    padding: 0.45rem 0.5rem !important;
+    cursor: pointer;
+  }
+  .dw-process-map .erp-pro-pipeline__count {
+    font-size: 1rem;
+    line-height: 1.05;
+  }
+  .dw-process-map .erp-pro-pipeline__label {
+    font-size: 0.76rem;
+    line-height: 1.1;
+    margin-top: 3px;
+  }
+  .dw-process-map .erp-pro-pipeline__connector {
+    opacity: 0.45;
+  }
+  
+  /* Phase 5: 모바일 카드 레이아웃 */
+  .erp-drawing-mobile-list__summary {
+    display: none;
+  }
+  .mobile-order-card {
+    cursor: pointer;
+    transition: box-shadow 0.2s ease;
+  }
+  .mobile-order-card:active {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+  .mobile-order-card:focus-visible,
+  .erp-drawing-mobile-card__action:focus-visible {
+    outline: 2px solid #0a6ed1;
+    outline-offset: 2px;
+  }
+  
+  @media (max-width: 991.98px) {
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-workbench-table-wrap {
+      display: none !important;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-list {
+      display: grid;
+      gap: 0.875rem;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-list__summary {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-list__eyebrow {
+      display: block;
+      margin-bottom: 0.125rem;
+      color: #556b82;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-list__title {
+      margin: 0;
+      color: #131e29;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-list__count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      background: #ebf8ff;
+      color: #0057d2;
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .mobile-order-card.erp-drawing-mobile-card {
+      margin-bottom: 0;
+      border: 1px solid #dfe7f3;
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 2px 12px rgba(17, 24, 39, 0.08);
+      overflow: hidden;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card .card-body {
+      padding: 1rem;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__topline {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.875rem;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__title {
+      color: #131e29;
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__sub {
+      margin-top: 0.25rem;
+      color: #556b82;
+      font-size: 0.8125rem;
+      line-height: 1.4;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0.125rem 0.625rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__meta {
+      display: grid;
+      gap: 0.625rem;
+      margin-bottom: 0.875rem;
+      font-size: 0.875rem;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__meta-row {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 0.625rem;
+      align-items: start;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__meta-row strong {
+      color: #556b82;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+      margin-bottom: 0.875rem;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0.125rem 0.625rem;
+      border-radius: 999px;
+      background: #f7f7f7;
+      color: #556b82;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.625rem;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__action {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.375rem;
+      padding: 0.625rem 0.875rem;
+      border-radius: 12px;
+      border: 1px solid #d9d9d9;
+      background: #fff;
+      color: #131e29;
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 700;
+    }
+
+    .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-mobile-card__action.is-primary {
+      border-color: rgba(0, 112, 242, 0.22);
+      background: #f7fbff;
+      color: #0057d2;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .erp-pro-filter-form--inline-mobile {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .erp-pro-filter-group {
+      width: 100%;
+    }
+    .erp-pro-input {
+      width: 100%;
+    }
+  }
+</style>

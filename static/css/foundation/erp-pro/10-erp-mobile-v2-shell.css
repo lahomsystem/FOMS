@@ -1,0 +1,256 @@
+
+/* ===== ERP Mobile V2 Shell (mobile-only, desktop untouched) ===== */
+:root {
+  --erp-mobile-shell-nav-height: 72px;
+  --erp-mobile-font-family: "72", "72full", "Segoe UI", "Malgun Gothic", Arial, sans-serif;
+  --erp-mobile-font-xs: 0.75rem;
+  --erp-mobile-font-sm: 0.8125rem;
+  --erp-mobile-font-base: 0.875rem;
+  --erp-mobile-font-md: 0.9375rem;
+  --erp-mobile-font-lg: 1rem;
+  --erp-mobile-color-app-bg: #f5f6f7;
+  --erp-mobile-color-surface: #ffffff;
+  --erp-mobile-color-surface-alt: #f7f7f7;
+  --erp-mobile-color-selected: #ebf8ff;
+  --erp-mobile-color-border: #d9d9d9;
+  --erp-mobile-color-border-soft: #e5e5e5;
+  --erp-mobile-color-text: #131e29;
+  --erp-mobile-color-text-muted: #556b82;
+  --erp-mobile-color-brand: #0070f2;
+  --erp-mobile-color-brand-strong: #0057d2;
+  --erp-mobile-color-shadow: rgba(17, 24, 39, 0.08);
+  --erp-mobile-radius-sm: 0.5rem;
+  --erp-mobile-radius-md: 0.75rem;
+  --erp-mobile-radius-lg: 1rem;
+}
+
+.erp-mobile-shell-chrome {
+  display: none;
+}
+
+@media (max-width: 991.98px) {
+  .erp-mobile-shell[data-erp-mobile-v2='true'] {
+    background: var(--erp-mobile-color-app-bg);
+    padding-bottom: calc(var(--erp-mobile-shell-nav-height) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-mobile-shell-chrome {
+    display: block;
+  }
+
+  .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-header {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    position: relative;
+    top: auto;
+    z-index: auto;
+    padding: 0.875rem 1rem;
+    background: var(--erp-mobile-color-surface);
+    border-bottom: 1px solid var(--erp-mobile-color-border-soft);
+  }
+
+  .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-header__title {
+    font-family: var(--erp-mobile-font-family);
+    font-size: var(--erp-mobile-font-lg);
+    line-height: 1.3;
+  }
+
+  .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-header__actions {
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-header__actions .erp-pro-btn,
+  .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-header__actions button {
+    min-height: 44px;
+  }
+
+  .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-nav {
+    display: none;
+  }
+
+  .erp-mobile-shell-header {
+    position: sticky;
+    top: 0;
+    z-index: 120;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--erp-mobile-color-border-soft);
+  }
+
+  .erp-mobile-shell-header__inner {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 56px;
+    padding: calc(0.5rem + env(safe-area-inset-top, 0px)) 1rem 0.5rem;
+  }
+
+  .erp-mobile-shell-header__home,
+  .erp-mobile-shell-header__menu {
+    width: 2.5rem;
+    height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid var(--erp-mobile-color-border-soft);
+    background: var(--erp-mobile-color-surface-alt);
+    color: var(--erp-mobile-color-text);
+    text-decoration: none;
+  }
+
+  .erp-mobile-shell-header__context {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+
+  .erp-mobile-shell-header__eyebrow {
+    font-family: var(--erp-mobile-font-family);
+    font-size: var(--erp-mobile-font-xs);
+    line-height: 1.2;
+    color: var(--erp-mobile-color-text-muted);
+  }
+
+  .erp-mobile-shell-header__title {
+    font-family: var(--erp-mobile-font-family);
+    font-size: var(--erp-mobile-font-md);
+    line-height: 1.3;
+    color: var(--erp-mobile-color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .erp-mobile-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 125;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0;
+    background: rgba(255, 255, 255, 0.98);
+    border-top: 1px solid var(--erp-mobile-color-border-soft);
+    box-shadow: 0 -0.5rem 1.5rem var(--erp-mobile-color-shadow);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .erp-mobile-bottom-nav__item {
+    min-height: 64px;
+    padding: 0.5rem 0.25rem 0.375rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    border: 0;
+    background: transparent;
+    color: var(--erp-mobile-color-text-muted);
+    text-decoration: none;
+    font-family: var(--erp-mobile-font-family);
+    font-size: var(--erp-mobile-font-xs);
+    line-height: 1.2;
+  }
+
+  .erp-mobile-bottom-nav__item i {
+    font-size: 1rem;
+  }
+
+  .erp-mobile-bottom-nav__item.is-active {
+    color: var(--erp-mobile-color-brand-strong);
+    background: linear-gradient(to top, rgba(0, 112, 242, 0.08), rgba(0, 112, 242, 0));
+  }
+
+  .erp-mobile-bottom-nav__item.is-active span {
+    font-weight: 700;
+  }
+
+  .erp-mobile-menu-drawer {
+    z-index: 130;
+    height: auto;
+    background: var(--erp-mobile-color-surface);
+    border-radius: 1.25rem 1.25rem 0 0;
+    border: 1px solid var(--erp-mobile-color-border-soft);
+    border-bottom: 0;
+    max-height: min(78vh, 700px);
+  }
+
+  .erp-mobile-menu-drawer .offcanvas-header {
+    padding: 1rem 1rem 0.75rem;
+    border-bottom: 1px solid var(--erp-mobile-color-border-soft);
+  }
+
+  .erp-mobile-menu-drawer__title {
+    font-family: var(--erp-mobile-font-family);
+    font-size: var(--erp-mobile-font-md);
+    color: var(--erp-mobile-color-text);
+  }
+
+  .erp-mobile-menu-drawer__subtitle {
+    font-family: var(--erp-mobile-font-family);
+    font-size: var(--erp-mobile-font-xs);
+    color: var(--erp-mobile-color-text-muted);
+  }
+
+  .erp-mobile-menu-drawer__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .erp-mobile-menu-drawer__link {
+    min-height: 72px;
+    padding: 0.875rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: var(--erp-mobile-radius-md);
+    border: 1px solid var(--erp-mobile-color-border-soft);
+    background: var(--erp-mobile-color-surface-alt);
+    color: var(--erp-mobile-color-text);
+    text-decoration: none;
+    box-shadow: 0 0.125rem 0.5rem var(--erp-mobile-color-shadow);
+  }
+
+  .erp-mobile-menu-drawer__link.is-active {
+    border-color: rgba(0, 112, 242, 0.28);
+    background: var(--erp-mobile-color-selected);
+    color: var(--erp-mobile-color-brand-strong);
+  }
+
+  .erp-mobile-menu-drawer__icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(0, 112, 242, 0.08);
+    color: var(--erp-mobile-color-brand);
+  }
+
+  .erp-mobile-menu-drawer__label {
+    font-family: var(--erp-mobile-font-family);
+    font-size: var(--erp-mobile-font-base);
+    font-weight: 600;
+    line-height: 1.3;
+  }
+}
+
+@media (min-width: 992px) {
+  .erp-mobile-shell-chrome,
+  .erp-mobile-menu-drawer {
+    display: none !important;
+  }
+}
+

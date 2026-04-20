@@ -74,5 +74,5 @@ Lazy enqueue가 동작하려면 **FOMS 웹 서비스**에 다음이 필요:
 
 - `apps/api/erp_map.py`: `api_generate_map`, `api_update_order_address`
 - `services/jobs/queue.py`: `enqueue_geocode_order_address`, `get_rq_queue`
-- `scripts/geocode_backfill.py`: 일괄 enqueue 스크립트
+- `scripts/maintenance/geocode_backfill.py`: 일괄 enqueue 스크립트
 - `docs/incidents/2026-02-22-railway-worker-map-utils.md`: Worker offline 시 대응

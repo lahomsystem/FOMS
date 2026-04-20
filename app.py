@@ -1,4 +1,3 @@
-from typing import Literal
 import os
 
 # Gunicorn / Gevent 구동 시 IO 함수(socket 등)가 worker thread를 블로킹하지 않도록 몽키 패치 적용
@@ -14,17 +13,12 @@ if os.environ.get('SERVER_SOFTWARE', '').startswith('gunicorn') or os.environ.ge
             print("[WARN] psycogreen not installed. PostgreSQL queries may block gevent workers.")
         print("[INFO] gevent monkey patch 적용 완료 (비동기 IO 활성화)")
     except ImportError:
-        pass
+        print("[WARN] gevent not installed. Gunicorn gevent worker patches were not applied.")
 
 import sys
 import hashlib
-import datetime
-import json
-from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
-from flask import Flask, render_template, request, redirect, url_for, jsonify, g, session, current_app
-from flask_compress import Compress
-from whitenoise import WhiteNoise
 from werkzeug import security as _werkzeug_security
+
 # Python 3.12+: hmac.new() requires digestmod=; older Werkzeug passes method as 3rd pos arg.
 # pbkdf2/scrypt는 원래 구현(pbkdf2_hmac 등)을 사용해야 하므로 위임하고, 나머지만 HMAC 패치 적용.
 if sys.version_info >= (3, 12) and hasattr(_werkzeug_security, '_hash_internal'):
@@ -40,18 +34,13 @@ if sys.version_info >= (3, 12) and hasattr(_werkzeug_security, '_hash_internal')
         msg = password.encode('utf-8') if isinstance(password, str) else password
         return _hmac.new(key, msg, digestmod=digestmod).hexdigest(), method
     _werkzeug_security._hash_internal = _hash_internal_py312
-from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import text
-from datetime import date, timedelta
 
-# 데이터베이스 관련 임포트
-from db import get_db, close_db, init_db, db_session
-from models import Order, User, SecurityLog, ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment, OrderAttachment, OrderEvent, OrderTask, Notification
-from apps.auth import is_password_strong, get_user_by_username
-from services.business_calendar import add_business_days
-from services.erp_policy import (
-    recommend_owner_team, 
-    get_required_task_keys_for_stage, 
+from foms.platform.app_factory import build_app
+from foms.services.context_processors import register_context_processors
+from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_policy import (
+    recommend_owner_team,
+    get_required_task_keys_for_stage,
     STAGE_NAME_TO_CODE,
     get_quest_templates,
     get_quest_template_for_stage,
@@ -62,417 +51,27 @@ from services.erp_policy import (
     can_modify_domain,
     get_assignee_ids,
 )
-
-# 견적 계산기 독립 데이터베이스 임포트
-from wdcalculator_db import close_wdcalculator_db, init_wdcalculator_db
-
-# 지도/주소 API는 erp_map_bp에서 처리
-
-# 스토리지 시스템 임포트 (Quest 2)
-from services.storage import get_storage
-from map_config import KAKAO_REST_API_KEY
-from services.business_calendar import business_days_until
-from constants import STATUS, BULK_ACTION_STATUS, CABINET_STATUS, UPLOAD_FOLDER, ALLOWED_EXTENSIONS, CHAT_ALLOWED_EXTENSIONS, ERP_MEDIA_ALLOWED_EXTENSIONS
+from foms.services.rate_limit import init_limiter
+from foms.services.storage import get_storage
 
 # SocketIO Import (Quest 5)
 _socketio_available: bool = False
 try:
-    from flask_socketio import SocketIO, emit, join_room, leave_room
+    import flask_socketio as _flask_socketio  # noqa: F401
+
     _socketio_available = True
-    SOCKETIO_AVAILABLE = False
 except ImportError:
     print("[WARN] Flask-SocketIO not installed. pip install flask-socketio python-socketio eventlet")
+
 SOCKETIO_AVAILABLE = _socketio_available
 
-# Initialize Flask app
-app = Flask(__name__)
-
-# ==========================================
-# Data Optimization (Quest 14)
-# ==========================================
-
-# 1. Gzip Compression (Reduce JSON/HTML size by ~70%)
-Compress(app)
-
-# 2. WhiteNoise (Fast Static File Serving & Caching)
-# Railway/Heroku 배포 시 필수 최적화
-_is_production = (
-    os.environ.get('FLASK_ENV') == 'production'
-    or os.environ.get('RAILWAY_ENVIRONMENT') == 'production'
-)
-app.wsgi_app = WhiteNoise(
-    app.wsgi_app,
-    root='static/',
-    prefix='static/',
-    # 개발 모드에서 정적 파일 변경 시 Content-Length 캐시 불일치 방지
-    autorefresh=not _is_production,
-    max_age=31536000 if _is_production else 0,
-)
-
-# Secret Key from environment variable (CRITICAL: Never hardcode in production!)
-app.secret_key = os.environ.get('SECRET_KEY')
-if not app.secret_key:
-    # Development fallback (MUST set SECRET_KEY in production!)
-    if _is_production:
-        raise ValueError("SECRET_KEY environment variable must be set in production!")
-    app.secret_key = 'dev-secret-key-CHANGE-IN-PRODUCTION'
-    print("[WARN] Using development secret key. Set SECRET_KEY environment variable for production!")
-
-# Session cookie configuration (prevent conflicts with other Flask apps on same domain)
-app.config['SESSION_COOKIE_NAME'] = 'session_staging'  # Different from port 5000 (session_dev)
-# Railway/HTTPS: 세션 쿠키가 저장되지 않는 문제 방지
-_is_railway = bool(os.environ.get('RAILWAY_ENVIRONMENT'))
-if _is_production or _is_railway:
-    app.config['SESSION_COOKIE_SECURE'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-
-# ProxyFix: Railway/Reverse Proxy 뒤에서만 적용 (직접 접속 시 ERR_TOO_MANY_REDIRECTS 방지)
-# - LAN IP(172.30.x.x) 또는 localhost 직접 접속 시 X-Forwarded-* 헤더 오염으로 리다이렉트 루프 발생
-# - TRUST_PROXY=1 또는 FLASK_ENV=production 일 때만 활성화
-_trust_proxy = os.environ.get('TRUST_PROXY', '').lower() in ('1', 'true', 'yes')
-if _trust_proxy or _is_production:
-    from werkzeug.middleware.proxy_fix import ProxyFix
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
-
-# ==========================================
-# 모니터링: 요청 처리시간 로깅 (계획서 단계 A - 기준선 측정)
-# ==========================================
-import time
-
-@app.before_request
-def _record_request_start():
-    g._request_start = time.perf_counter()
-
-@app.before_request
-def _set_current_user():
-    g.current_user = None
-    user_id = session.get('user_id')
-    if user_id:
-        g.current_user = get_user_by_id(user_id)
-
-
-@app.before_request
-def _erp_construction_team_restrict():
-    """시공팀(CONSTRUCTION)은 출고·시공 대시보드만 접근 가능. 그 외 메뉴(캘린더, 휴지통, WDPLANNER, WDCalculator, 채팅 등) 접근 시 출고로 리다이렉트."""
-    path = (request.path or '').strip()
-    if path.startswith('/static/') or path.startswith('/login') or path.startswith('/logout') or path.startswith('/register'):
-        return
-    user = getattr(g, 'current_user', None)
-    if not user or getattr(user, 'team', None) != 'CONSTRUCTION':
-        return
-    # 허용: 출고, 시공, 시공 완료 대시보드
-    if path.startswith('/erp/shipment') or path.startswith('/erp/construction') or path.startswith('/erp/completion'):
-        return
-    # ERP 내 그 외 경로 → 출고로
-    if path.startswith('/erp/'):
-        return redirect(url_for('erp_shipment_page.erp_shipment_dashboard', date=date.today().strftime('%Y-%m-%d')))
-    # 차단: 캘린더, 휴지통, WDPLANNER, WDCalculator, 전체 주문(/) 및 기타 대시보드 (채팅은 허용)
-    if path == '/' or path.startswith('/?') or path.startswith('/calendar') or path.startswith('/trash') or \
-       path.startswith('/wdplanner') or path.startswith('/wdcalculator') or \
-       path.startswith('/storage_dashboard') or path.startswith('/regional_dashboard') or \
-       path.startswith('/self_measurement_dashboard') or path.startswith('/metropolitan_dashboard') or path.startswith('/admin'):
-        return redirect(url_for('erp_shipment_page.erp_shipment_dashboard', date=date.today().strftime('%Y-%m-%d')))
-
-@app.after_request
-def _log_request_duration(response):
-    if hasattr(g, '_request_start'):
-        duration_ms = (time.perf_counter() - g._request_start) * 1000
-        endpoint = request.endpoint or request.path
-        # SLO: 일반 400ms, 지도 1.5s, 배지 250ms - 초과 시 로그 (p95 분석용)
-        if duration_ms > 400:
-            current_app.logger.info(f"req_duration endpoint={endpoint} duration_ms={int(duration_ms)} status={response.status_code}")
-    return response
-
-# Import Apps Blueprints
-from apps.auth import auth_bp, login_required, role_required, ROLES, TEAMS, log_access, get_user_by_id
-app.register_blueprint(auth_bp)
-
-# ERP Beta Blueprint
-from apps.erp import erp_bp, apply_erp_display_fields_to_orders
-from services.erp_permissions import can_edit_erp
-app.register_blueprint(erp_bp)
-from apps.erp_dashboard import erp_dashboard_bp
-app.register_blueprint(erp_dashboard_bp)
-
-from apps.erp_history_page import erp_history_bp
-app.register_blueprint(erp_history_bp)
-from apps.erp_drawing_workbench import erp_drawing_workbench_bp
-app.register_blueprint(erp_drawing_workbench_bp)
-from apps.erp_measurement_dashboard import erp_measurement_dashboard_bp
-app.register_blueprint(erp_measurement_dashboard_bp)
-from apps.erp_shipment_page import erp_shipment_page_bp
-app.register_blueprint(erp_shipment_page_bp)
-from apps.erp_as_page import erp_as_page_bp
-app.register_blueprint(erp_as_page_bp)
-from apps.erp_production_page import erp_production_page_bp
-app.register_blueprint(erp_production_page_bp)
-from apps.erp_construction_page import erp_construction_page_bp
-app.register_blueprint(erp_construction_page_bp)
-from apps.erp_completion_page import erp_completion_page_bp
-app.register_blueprint(erp_completion_page_bp)
-
-# API Files Blueprint
-from apps.api.files import files_bp, build_file_view_url, build_file_download_url
-app.register_blueprint(files_bp)
-
-# API Address Blueprint
-from apps.api.address import address_bp
-app.register_blueprint(address_bp)
-
-# API Orders Blueprint
-from apps.api.orders import orders_bp
-app.register_blueprint(orders_bp)
-
-# API Notifications Blueprint (ERP 알림, Phase 4-1)
-from apps.api.notifications import notifications_bp
-app.register_blueprint(notifications_bp)
-
-# ERP 출고 설정 Blueprint (Phase 4-2)
-from apps.api.erp_shipment_settings import erp_shipment_bp
-app.register_blueprint(erp_shipment_bp)
-from apps.api.erp_measurement import erp_measurement_bp
-app.register_blueprint(erp_measurement_bp)
-from apps.api.erp_map import erp_map_bp
-app.register_blueprint(erp_map_bp)
-from apps.api.erp_orders_drawing import erp_orders_drawing_bp
-app.register_blueprint(erp_orders_drawing_bp)
-from apps.api.erp_orders_revision import erp_orders_revision_bp
-app.register_blueprint(erp_orders_revision_bp)
-from apps.api.erp_orders_draftsman import erp_orders_draftsman_bp
-app.register_blueprint(erp_orders_draftsman_bp)
-from apps.api.erp_orders_production import erp_orders_production_bp
-app.register_blueprint(erp_orders_production_bp)
-from apps.api.erp_orders_construction import erp_orders_construction_bp
-app.register_blueprint(erp_orders_construction_bp)
-from apps.api.erp_orders_cs import erp_orders_cs_bp
-app.register_blueprint(erp_orders_cs_bp)
-from apps.api.erp_orders_as import erp_orders_as_bp
-app.register_blueprint(erp_orders_as_bp)
-from apps.api.erp_orders_completion import erp_orders_completion_bp
-app.register_blueprint(erp_orders_completion_bp)
-from apps.api.personal_board import personal_board_bp
-app.register_blueprint(personal_board_bp)
-from apps.api.erp_orders_confirm import erp_orders_confirm_bp
-app.register_blueprint(erp_orders_confirm_bp)
-from apps.storage_dashboard import storage_dashboard_bp
-app.register_blueprint(storage_dashboard_bp)
-from apps.api.chat import chat_bp, register_chat_socketio_handlers
-app.register_blueprint(chat_bp)
-from apps.api.wdcalculator import wdcalculator_bp
-app.register_blueprint(wdcalculator_bp)
-from apps.api.backup import backup_bp
-app.register_blueprint(backup_bp)
-from apps.admin import admin_bp
-app.register_blueprint(admin_bp)
-from apps.user_pages import user_pages_bp
-app.register_blueprint(user_pages_bp)
-from apps.dashboards import dashboards_bp
-app.register_blueprint(dashboards_bp)
-from apps.api.attachments import attachments_bp, ensure_order_attachments_category_column, ensure_order_attachments_item_index_column
-app.register_blueprint(attachments_bp)
-from apps.api.tasks import tasks_bp
-app.register_blueprint(tasks_bp)
-from apps.api.events import events_bp
-app.register_blueprint(events_bp)
-from apps.api.quest import quest_bp
-app.register_blueprint(quest_bp)
-from apps.api.erp_orders_blueprint import erp_orders_blueprint_bp
-app.register_blueprint(erp_orders_blueprint_bp)
-from apps.api.erp_orders_structured import erp_orders_structured_bp
-app.register_blueprint(erp_orders_structured_bp)
-from apps.order_pages import order_pages_bp
-app.register_blueprint(order_pages_bp)
-from apps.order_edit import order_edit_bp
-app.register_blueprint(order_edit_bp)
-from apps.order_trash import order_trash_bp
-app.register_blueprint(order_trash_bp)
-from apps.excel_import import excel_bp
-app.register_blueprint(excel_bp)
-from apps.calendar_page import calendar_bp
-app.register_blueprint(calendar_bp)
-from apps.wdplanner_page import wdplanner_bp
-app.register_blueprint(wdplanner_bp)
-from apps.api.channel_integration import channel_integration_bp
-app.register_blueprint(channel_integration_bp)
-
-# ChannelTalk 연동 확장 (Phase 0)
-from apps.api.channel_functions import channel_functions_bp
-app.register_blueprint(channel_functions_bp)
-from apps.api.channel_webhooks import channel_webhooks_bp
-app.register_blueprint(channel_webhooks_bp)
-from apps.api.channel_wam import channel_shortlink_bp, channel_wam_api_bp, channel_wam_bp
-app.register_blueprint(channel_shortlink_bp)
-app.register_blueprint(channel_wam_bp)
-app.register_blueprint(channel_wam_api_bp)
-
-from apps.api.erp_estimates import erp_estimates_bp
-app.register_blueprint(erp_estimates_bp)
-
-from apps.api.debug import debug_bp
-app.register_blueprint(debug_bp)
-
-# Error handler with production safety
-@app.errorhandler(500)
-def internal_error(error):
-    import traceback
-    # Only show detailed errors in development
-    if app.debug or not _is_production:
-        return f"<pre>500 Error: {str(error)}\n\n{traceback.format_exc()}</pre>", 500
-    else:
-        # Production: Log error but show generic message
-        app.logger.error(f"Internal Server Error: {str(error)}\n{traceback.format_exc()}")
-        return render_template('error_500.html'), 500
-
-@app.errorhandler(404)
-def not_found_error(error):
-    return render_template('error_404.html'), 404
-
-
-@app.get('/__build')
-def build_info():
-    return jsonify({
-        'build': '20260215-uxfix-03',
-        'cwd': os.getcwd(),
-        'template': 'templates/layout.html',
-    })
-
-# Security & Scalability (Quest 14): Rate Limiter → services/rate_limit.py (Railway 배포 시 config 미포함 대비)
-redis_url = os.environ.get('REDIS_URL')
-from services.rate_limit import init_limiter
-limiter = init_limiter(app)
-
-# 알림 badge는 상시 polling/실시간 동기화 대상이라 일반 API 기본 제한과 분리한다.
-_notification_badge_limit = os.environ.get('ERP_NOTIFICATION_BADGE_RATE_LIMIT', '20000 per day,6000 per hour')
-_notification_badge_view = app.view_functions.get('notifications.api_notifications_badge')
-if _notification_badge_view is not None:
-    app.view_functions['notifications.api_notifications_badge'] = limiter.limit(_notification_badge_limit)(_notification_badge_view)
-
-# Socket.IO Redis URL helper
-def _mask_url_secret(raw_url: str) -> str:
-    """로그 출력 시 URL의 인증정보를 마스킹."""
-    try:
-        p = urlsplit(raw_url)
-        if not p.netloc or '@' not in p.netloc:
-            return raw_url
-        creds, hostpart = p.netloc.rsplit('@', 1)
-        if ':' in creds:
-            user, _ = creds.split(':', 1)
-            masked = f"{user}:***@{hostpart}"
-        else:
-            masked = f"***@{hostpart}"
-        return urlunsplit((p.scheme, masked, p.path, p.query, p.fragment))
-    except Exception:
-        return raw_url
-
-
-def _augment_redis_url_for_socketio(raw_url: str | None) -> str | None:
-    """Socket.IO Redis 매니저 연결 안정성을 위한 query 옵션 보강."""
-    if not raw_url:
-        return raw_url
-    try:
-        p = urlsplit(raw_url)
-        query = dict(parse_qsl(p.query, keep_blank_values=True))
-        query.setdefault('health_check_interval', '30')
-        query.setdefault('socket_keepalive', '1')
-        query.setdefault('retry_on_timeout', '1')
-        new_query = urlencode(query)
-        return urlunsplit((p.scheme, p.netloc, p.path, new_query, p.fragment))
-    except Exception:
-        return raw_url
-
-
-# SocketIO Initialization with Redis & CORS Control
-# Production (gunicorn -k gevent): async_mode='gevent' to avoid ConcurrentObjectUseError on same socket.
-# Local (Windows): SOCKETIO_ASYNC_MODE=threading or no Redis → threading.
-socketio = None
-if _socketio_available:
-    try:
-        from flask_socketio import SocketIO as _SocketIO
-        # CORS 도메인 제한 (환경변수 없으면 모든 도메인 허용 - 개발 편의성)
-        allowed_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '*').split(',')
-        # gunicorn gevent 워커와 동일한 모드 사용 시 소켓 충돌 방지 (ConcurrentObjectUseError)
-        _allowed_modes = ('threading', 'eventlet', 'gevent', 'gevent_uwsgi')
-        _override = (os.environ.get('SOCKETIO_ASYNC_MODE') or '').strip().lower() or None
-        _mode_default = 'gevent' if redis_url else 'threading'
-        
-        mode = _override if _override in _allowed_modes else _mode_default
-
-        socketio_kwargs = {
-            'cors_allowed_origins': allowed_origins,
-            'async_mode': mode,
-            'ping_interval': 25,
-            'ping_timeout': 60,
-        }
-
-        if redis_url:
-            socketio_redis_url = _augment_redis_url_for_socketio(redis_url) or redis_url
-            print(f"[INFO] Socket.IO connecting to Redis Message Queue: {_mask_url_secret(socketio_redis_url)}")
-            socketio = _SocketIO(
-                app,
-                message_queue=socketio_redis_url,
-                **socketio_kwargs,
-            )
-            print(f"[INFO] Socket.IO initialized in {mode} mode with Redis.")
-        else:
-            print(
-                "[WARN] REDIS_URL not found. Socket.IO running in single-worker mode (Memory). "
-                "Procfile -w 2 사용 시 실시간 알림이 일부 사용자에게 미전달될 수 있음. REDIS_URL 설정 권장."
-            )
-            socketio = _SocketIO(
-                app,
-                **socketio_kwargs,
-            )
-            print(f"[INFO] Socket.IO initialized in {mode} mode (Universal Stable).")
-
-    except Exception as e:
-        # fallback
-        print(f"[WARN] Socket.IO init failed: {e}")
-        from flask_socketio import SocketIO as _SocketIO
-        socketio = _SocketIO(app, cors_allowed_origins="*", async_mode='threading')
-
-if SOCKETIO_AVAILABLE and socketio:
-    register_chat_socketio_handlers(socketio)
-    app.config['SOCKETIO_AVAILABLE'] = True
-    app.config['_SOCKETIO_INSTANCE'] = socketio
-else:
-    app.config['SOCKETIO_AVAILABLE'] = False
-    app.config['_SOCKETIO_INSTANCE'] = None
-
-# (선택) SOCKETIO_CLIENT_ENABLED=true 시 클라이언트 강제 허용. 기본은 SOCKETIO_AVAILABLE 따라감(로컬 socketio.run / 원격 gunicorn gevent)
-app.config['SOCKETIO_CLIENT_ENABLED'] = (
-    os.environ.get('SOCKETIO_CLIENT_ENABLED', '').lower() in ('true', '1', 'yes')
-)
-app.config['SOCKETIO_ALLOW_POLLING_FALLBACK'] = (
-    os.environ.get('SOCKETIO_ALLOW_POLLING_FALLBACK', '').lower() in ('true', '1', 'yes')
-)
-
-# 템플릿 캐시 비활성화 (개발 중 변경사항 즉시 반영)
-app.config['TEMPLATES_AUTO_RELOAD'] = not (_is_production or _is_railway)
-
-# Extensions config moved to constants.py
-
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB (Restore video support for Pro Plan)
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-# 데이터베이스 연결 설정
-app.teardown_appcontext(close_db)
-app.teardown_appcontext(close_wdcalculator_db)  # 견적 계산기 독립 DB
-# allowed_file, allowed_erp_media_file → services/file_utils.py
-
-# Context processors → services/context_processors.py
-from services.context_processors import register_context_processors
-register_context_processors(app)
-
-# Routes
-@app.route('/favicon.ico')
-def favicon():
-    """공용 favicon 자산을 반환한다."""
-    return current_app.send_static_file('favicon.png')
+_app_factory_result = build_app(socketio_available=SOCKETIO_AVAILABLE)
+app = _app_factory_result.app
+socketio = _app_factory_result.socketio
 
 # WSGI 기동 시 DB 자동 초기화 (gunicorn 등). python app.py 시에는 run.py에서 처리
 if __name__ != '__main__':
-    from services.app_init import run_auto_init
+    from foms.services.app_init import run_auto_init
     run_auto_init(app)
 
 if __name__ == '__main__':

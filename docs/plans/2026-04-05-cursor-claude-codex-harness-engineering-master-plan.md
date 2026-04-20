@@ -209,9 +209,9 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 - `tools/harness/profiles/claude.yaml`
 - `tools/harness/profiles/codex.yaml`
 - `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md`
-- `docs/context/HARNESS_BUNDLE_CURSOR.md` (generated)
-- `docs/context/HARNESS_BUNDLE_CLAUDE.md` (generated)
-- `docs/context/HARNESS_BUNDLE_CODEX.md` (generated)
+- `docs/harness/bundles/HARNESS_BUNDLE_CURSOR.md` (generated)
+- `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE.md` (generated)
+- `docs/harness/bundles/HARNESS_BUNDLE_CODEX.md` (generated)
 - `tests/harness/test_context_bundle.py`
 - `.github/workflows/harness-ci.yml`
 
@@ -228,7 +228,7 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 - `.cursor/hooks/hook_payload_debug.py`
 - `.cursor/agents/grand-develop-master.md`
 - `.agents/workflows/verify-result.md`
-- `docs/context/DECISIONS.md` (승인 후 결정 기록)
+- `docs/harness/policy/DECISIONS.md` (승인 후 결정 기록)
 - `docs/ARCHIVE_INDEX.md`
 
 ### 5.3 유지하되 역할 명확화
@@ -236,8 +236,8 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 - `.cursor/skills/` 전체
 - `docs/AI_STATUS.md`
 - `docs/AI_CHANGELOG.md`
-- `docs/context/SESSION_LOG.md`
-- `docs/context/EDIT_LOG.md`
+- `docs/harness/runtime/SESSION_LOG.md`
+- `docs/harness/runtime/EDIT_LOG.md`
 
 ---
 
@@ -360,7 +360,7 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 - `.cursor/agents/grand-develop-master.md`
 - `tools/harness/run_codex.ps1`
 - `tools/harness/profiles/*.yaml`
-- `docs/context/HARNESS_BUNDLE_*.md`
+- `docs/harness/bundles/HARNESS_BUNDLE_*.md`
 
 **검증**
 
@@ -394,7 +394,7 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 - `python tools/harness/verify_result.py --json`
 - `python tools/harness/build_context_bundle.py --all`
 - `python -m pytest tests/harness -q`
-- `git diff --exit-code -- docs/context/HARNESS_BUNDLE_CURSOR.md docs/context/HARNESS_BUNDLE_CLAUDE.md docs/context/HARNESS_BUNDLE_CODEX.md`
+- `git diff --exit-code -- docs/harness/bundles/HARNESS_BUNDLE_CURSOR.md docs/harness/bundles/HARNESS_BUNDLE_CLAUDE.md docs/harness/bundles/HARNESS_BUNDLE_CODEX.md`
 - `powershell -NoProfile -File "tools/harness/run_gstack_qa.ps1" -Url "https://example.com" -Scenario "erp-smoke" -DryRun`
 - GitHub Actions green
 
@@ -426,7 +426,7 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 
 1. 같은 파일을 동시에 수정하는 병렬 작업은 금지한다.
 2. Phase 0 완료 전에는 vendor 도입이나 runner wrapper 구현을 merge하지 않는다.
-3. 각 Track는 결과를 `docs/context/DECISIONS.md` 또는 계획 문서에 반영 가능한 형태로 반환해야 한다.
+3. 각 Track는 결과를 `docs/harness/policy/DECISIONS.md` 또는 계획 문서에 반영 가능한 형태로 반환해야 한다.
 
 ---
 
@@ -453,7 +453,7 @@ Phase 1부터 subagent-driven으로 실행해 줘
 2. 다음처럼 요청한다.
 
 ```text
-@docs/context/HARNESS_BUNDLE_CLAUDE.md 를 기준으로
+@docs/harness/bundles/HARNESS_BUNDLE_CLAUDE.md 를 기준으로
 현재 브랜치 하네스 변경안 리뷰 후 Phase 2 작업 착수
 ```
 

@@ -1,0 +1,25 @@
+{
+  "base": "https://lahom-dev.up.railway.app",
+  "scenario": "navigation",
+  "path": "/erp/dashboard",
+  "metrics": {
+    "navigation": {
+      "type": "navigation",
+      "duration": 2246.4000000059605,
+      "domContentLoadedEventEnd": 2218.5,
+      "loadEventEnd": 2246.4000000059605,
+      "transferSize": 94962
+    },
+    "paint": [
+      {
+        "name": "first-paint",
+        "startTime": 2164
+      },
+      {
+        "name": "first-contentful-paint",
+        "startTime": 2164
+      }
+    ],
+    "longtask_sample": []
+  }
+}

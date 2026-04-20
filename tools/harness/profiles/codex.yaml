@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "profile_kind": "foms_harness_profile",
   "profile_name": "codex",
-  "output_bundle_path": "docs/context/HARNESS_BUNDLE_CODEX.md",
+  "output_bundle_path": "docs/harness/bundles/HARNESS_BUNDLE_CODEX.md",
   "default_shell": "powershell",
   "browser_mode": "no_embedded_browser_use_cursor_mcp",
   "policy_priority": [
