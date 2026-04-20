@@ -79,6 +79,30 @@
             productSummary.className = "mb-1 small text-dark";
             productSummary.textContent = productNameStr;
 
+            var unitMetaRow = null;
+            if (
+                window.WdCalculatorUnitPriceMeta &&
+                typeof window.WdCalculatorUnitPriceMeta.isUnitPriceMetaVisible === "function" &&
+                window.WdCalculatorUnitPriceMeta.isUnitPriceMetaVisible() &&
+                typeof window.WdCalculatorUnitPriceMeta.deriveSavedEstimateUnitSummary === "function"
+            ) {
+                var productsForMeta =
+                    window.WdCalculatorProductsState &&
+                    typeof window.WdCalculatorProductsState.getProducts === "function"
+                        ? window.WdCalculatorProductsState.getProducts()
+                        : [];
+                unitMetaRow = documentRef.createElement("div");
+                unitMetaRow.className = "saved-estimate-unit-meta small text-muted mt-1";
+                var sum = window.WdCalculatorUnitPriceMeta.deriveSavedEstimateUnitSummary(
+                    est,
+                    productsForMeta,
+                    formatNumber
+                );
+                window.WdCalculatorUnitPriceMeta.fillElementWithLines(unitMetaRow, sum, {
+                    fallbackText: "단가 정보 없음",
+                });
+            }
+
             var footer = documentRef.createElement("div");
             footer.className = "d-flex justify-content-between align-items-center mt-2";
 
@@ -119,6 +143,9 @@
 
             item.appendChild(header);
             item.appendChild(productSummary);
+            if (unitMetaRow) {
+                item.appendChild(unitMetaRow);
+            }
             item.appendChild(footer);
 
             loadBtn.addEventListener("click", function (event) {
@@ -594,6 +621,10 @@
             fn();
             return 1;
         };
+        var getProducts = function () {
+            var st = window.WdCalculatorProductsState;
+            return st && typeof st.getProducts === "function" ? st.getProducts() : [];
+        };
 
         function configure(options) {
             var opts = options || {};
@@ -618,6 +649,39 @@
             if (typeof opts.setTimeoutImpl === "function") {
                 setTimeoutImpl = opts.setTimeoutImpl;
             }
+            if (typeof opts.getProducts === "function") {
+                getProducts = opts.getProducts;
+            }
+        }
+
+        function buildEstimateUnitPriceMetaHtml(estimate) {
+            var up = window.WdCalculatorUnitPriceMeta;
+            if (!up || typeof up.isUnitPriceMetaVisible !== "function" || !up.isUnitPriceMetaVisible()) {
+                return "";
+            }
+            if (typeof up.deriveEstimateUnitPriceSummary !== "function") {
+                return "";
+            }
+            var summary = up.deriveEstimateUnitPriceSummary(estimate, getProducts(), formatNumber);
+            if (summary.isEmpty) {
+                return '<div class="wd-estimate-unit-meta text-muted small mt-1">단가 정보 없음</div>';
+            }
+            if (summary.lines.length === 1) {
+                return (
+                    '<div class="wd-estimate-unit-meta small mt-1">' +
+                    escapeHtml(summary.lines[0]) +
+                    "</div>"
+                );
+            }
+            return (
+                '<div class="wd-estimate-unit-meta small mt-1">' +
+                summary.lines
+                    .map(function (ln) {
+                        return '<span class="wd-unit-price-chip">' + escapeHtml(ln) + "</span>";
+                    })
+                    .join(" ") +
+                "</div>"
+            );
         }
 
         function buildOptionsDetailHtml(estimate) {
@@ -773,6 +837,7 @@
                                 <span class="estimate-header-base" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 1.08rem !important; display: block !important; margin-bottom: 0.25rem !important;">기본 견적:</span>
                                 <div class="estimate-price mb-1" style="font-size: 1.32rem !important; font-weight: 700 !important; color: #212529 !important;">${formatNumber(estimate.basePrice)}원</div>
                                 <div class="estimate-detail-base" style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 1.02rem !important; line-height: 1.5 !important; margin-top: 0.25rem !important;">${displayNameEscaped}</div>
+                                ${buildEstimateUnitPriceMetaHtml(estimate)}
                             </div>
                             <div class="mb-3 estimate-card-item">
                                 <span class="estimate-header-options" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 1.08rem !important; display: block !important; margin-bottom: 0.25rem !important;">추가 옵션 합계:</span>
@@ -905,12 +970,14 @@
 
     (function (ns) {
         var setEditingEstimateId = function () {};
+        var setCurrentDatabaseEstimateId = function () {};
         var getEstimatesLength = function () {
             return 0;
         };
         var ensureBaseComponentsUI = function () {};
         var resetNotesToEmpty = function () {};
         var recalculate = function () {};
+        var defaultCouponValue = 11000;
         var documentRef = document;
         var consoleRef = window.console || console;
 
@@ -918,6 +985,9 @@
             var opts = options || {};
             if (typeof opts.setEditingEstimateId === "function") {
                 setEditingEstimateId = opts.setEditingEstimateId;
+            }
+            if (typeof opts.setCurrentDatabaseEstimateId === "function") {
+                setCurrentDatabaseEstimateId = opts.setCurrentDatabaseEstimateId;
             }
             if (typeof opts.getEstimatesLength === "function") {
                 getEstimatesLength = opts.getEstimatesLength;
@@ -930,6 +1000,9 @@
             }
             if (typeof opts.recalculate === "function") {
                 recalculate = opts.recalculate;
+            }
+            if (typeof opts.defaultCouponValue === "number") {
+                defaultCouponValue = opts.defaultCouponValue;
             }
             if (opts.documentRef) {
                 documentRef = opts.documentRef;
@@ -1057,8 +1130,152 @@
             }
         }
 
+        function resetInputFormToNewEstimate() {
+            try {
+                setEditingEstimateId(null);
+                try {
+                    setCurrentDatabaseEstimateId(null);
+                } catch (e1) {
+                    consoleRef.error("Error clearing database estimate id:", e1);
+                }
+
+                try {
+                    var cn = documentRef.getElementById("customerName");
+                    if (cn) {
+                        cn.value = "";
+                    }
+                } catch (e2) {
+                    consoleRef.error("Error clearing customer name:", e2);
+                }
+
+                try {
+                    var headerTitle = documentRef.querySelector(".header-primary h6");
+                    if (headerTitle) {
+                        headerTitle.innerHTML = '<i class="fas fa-edit me-2"></i>견적 정보 입력';
+                    }
+                } catch (e3) {
+                    consoleRef.error("Error restoring default header:", e3);
+                }
+
+                try {
+                    var resetBtn = documentRef.getElementById("resetEstimateBtn");
+                    if (resetBtn && resetBtn.parentNode) {
+                        resetBtn.parentNode.removeChild(resetBtn);
+                    }
+                } catch (e4) {
+                    consoleRef.error("Error removing reset estimate button:", e4);
+                }
+
+                try {
+                    var couponInput = documentRef.getElementById("globalCouponValue");
+                    if (couponInput) {
+                        couponInput.value = String(defaultCouponValue);
+                    }
+                    var shippingCostInput = documentRef.getElementById("shippingCost");
+                    if (shippingCostInput) {
+                        shippingCostInput.value = "0";
+                    }
+                    var shippingIncludedCheckbox = documentRef.getElementById("shippingIncluded");
+                    if (shippingIncludedCheckbox) {
+                        shippingIncludedCheckbox.checked = true;
+                    }
+                } catch (e5) {
+                    consoleRef.error("Error restoring coupon/shipping defaults:", e5);
+                }
+
+                try {
+                    ensureBaseComponentsUI(null);
+                } catch (error) {
+                    consoleRef.error("Error resetting base components:", error);
+                }
+
+                try {
+                    var additionalOptionsContainer = documentRef.getElementById("additionalOptionsContainer");
+                    if (additionalOptionsContainer) {
+                        additionalOptionsContainer.innerHTML = "";
+                    }
+                } catch (error) {
+                    consoleRef.error("Error resetting additional options:", error);
+                }
+
+                try {
+                    resetNotesToEmpty();
+                } catch (error) {
+                    consoleRef.error("Error resetting notes:", error);
+                }
+
+                try {
+                    var productInfo = documentRef.getElementById("productInfo");
+                    if (productInfo) {
+                        productInfo.style.display = "none";
+                    }
+                    var baseEstimateSection = documentRef.getElementById("baseEstimateSection");
+                    if (baseEstimateSection) {
+                        baseEstimateSection.style.display = "none";
+                    }
+                } catch (error) {
+                    consoleRef.error("Error hiding estimate sections:", error);
+                }
+
+                try {
+                    [
+                        "totalBasePrice",
+                        "totalAdditionalPrice",
+                        "totalPrice",
+                        "finalPrice",
+                        "baseEstimateDetail",
+                        "additionalOptionsDetail",
+                    ].forEach(function (id) {
+                        try {
+                            var el = documentRef.getElementById(id);
+                            if (el) {
+                                if (id.indexOf("Detail") >= 0) {
+                                    el.textContent = "";
+                                } else {
+                                    el.textContent = "0원";
+                                }
+                            }
+                        } catch (error) {
+                            consoleRef.error("Error resetting " + id + ":", error);
+                        }
+                    });
+                    var unitMeta = documentRef.getElementById("currentQuoteUnitPriceMeta");
+                    if (unitMeta) {
+                        unitMeta.textContent = "";
+                        unitMeta.classList.add("text-muted");
+                    }
+                } catch (error) {
+                    consoleRef.error("Error resetting price elements:", error);
+                }
+
+                try {
+                    var addEstimateBtn = documentRef.getElementById("addEstimateBtn");
+                    if (addEstimateBtn) {
+                        addEstimateBtn.innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
+                        addEstimateBtn.style.display = "none";
+                    }
+
+                    var saveEstimateBtn = documentRef.getElementById("saveEstimateBtn");
+                    if (saveEstimateBtn && getEstimatesLength() === 0) {
+                        saveEstimateBtn.style.display = "none";
+                    }
+                } catch (error) {
+                    consoleRef.error("Error resetting buttons:", error);
+                }
+
+                try {
+                    recalculate();
+                } catch (error) {
+                    consoleRef.error("Error in calculateEstimate/calculateTotalEstimates:", error);
+                }
+            } catch (error) {
+                consoleRef.error("Critical error in resetInputFormToNewEstimate:", error);
+            }
+        }
+
         ns.configure = configure;
         ns.resetInputFormKeepCustomerName = resetInputFormKeepCustomerName;
+        ns.resetInputFormToNewEstimate = resetInputFormToNewEstimate;
     })(WdCalculatorResetInputFormKeepCustomer);
 
     window.WdCalculatorResetInputFormKeepCustomer = WdCalculatorResetInputFormKeepCustomer;
@@ -1505,16 +1722,6 @@
             }
         }
 
-        function updateHeaderTitle(customerName) {
-            var headerTitle = documentRef.querySelector(".header-primary h6");
-            if (headerTitle) {
-                headerTitle.innerHTML =
-                    '<i class="fas fa-edit me-2"></i>견적 수정: ' +
-                    customerName +
-                    ' <span class="badge bg-warning text-dark ms-2">수정모드</span>';
-            }
-        }
-
         function readShippingState() {
             var shippingCostInput = documentRef.getElementById("shippingCost");
             var shippingIncludedCheckbox = documentRef.getElementById("shippingIncluded");
@@ -1614,12 +1821,7 @@
                     if (data.success) {
                         alertImpl(data.message);
 
-                        if (data.estimate_id) {
-                            setCurrentDatabaseEstimateId(data.estimate_id);
-                            updateHeaderTitle(customerName);
-                        }
-
-                        refreshAfterSave(data.estimate_id || getCurrentDatabaseEstimateId());
+                        refreshAfterSave(data.estimate_id || null);
                         return data;
                     }
 
@@ -1686,6 +1888,7 @@
         };
         var renderEstimatesList = function () {};
         var resetInputFormKeepCustomerName = function () {};
+        var resetInputFormToNewEstimate = function () {};
         var documentRef = document;
         var alertImpl = typeof window.alert === "function" ? window.alert.bind(window) : function () {};
         var consoleRef = window.console || console;
@@ -1718,6 +1921,9 @@
             }
             if (typeof opts.resetInputFormKeepCustomerName === "function") {
                 resetInputFormKeepCustomerName = opts.resetInputFormKeepCustomerName;
+            }
+            if (typeof opts.resetInputFormToNewEstimate === "function") {
+                resetInputFormToNewEstimate = opts.resetInputFormToNewEstimate;
             }
             if (opts.documentRef) {
                 documentRef = opts.documentRef;
@@ -1836,10 +2042,13 @@
                 if (buttonEl) {
                     buttonEl.innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
                 }
-            } else {
-                estimate.id = generateEstimateId();
-                estimates.push(estimate);
+                renderEstimatesList();
+                resetInputFormToNewEstimate();
+                return true;
             }
+
+            estimate.id = generateEstimateId();
+            estimates.push(estimate);
 
             renderEstimatesList();
             resetInputFormKeepCustomerName();
@@ -2249,6 +2458,7 @@
     (function (ns) {
         var setEstimates = function () {};
         var resetInputFormKeepCustomerName = function () {};
+        var resetInputFormToNewEstimate = function () {};
         var renderEstimatesList = function () {};
         var loadSidebarEstimates = function () {
             return Promise.resolve();
@@ -2267,6 +2477,9 @@
             }
             if (typeof opts.resetInputFormKeepCustomerName === "function") {
                 resetInputFormKeepCustomerName = opts.resetInputFormKeepCustomerName;
+            }
+            if (typeof opts.resetInputFormToNewEstimate === "function") {
+                resetInputFormToNewEstimate = opts.resetInputFormToNewEstimate;
             }
             if (typeof opts.renderEstimatesList === "function") {
                 renderEstimatesList = opts.renderEstimatesList;
@@ -2338,7 +2551,7 @@
         function refreshAfterSave(savedId) {
             try {
                 clearLocalEstimates();
-                resetInputFormKeepCustomerName();
+                resetInputFormToNewEstimate();
 
                 setTimeoutImpl(function () {
                     try {
@@ -2437,6 +2650,7 @@
             return null;
         };
         var resetInputFormKeepCustomerName = function () {};
+        var resetInputFormToNewEstimate = function () {};
         var getLoadingState = function () {
             return false;
         };
@@ -2562,6 +2776,9 @@
             if (typeof opts.resetInputFormKeepCustomerName === "function") {
                 resetInputFormKeepCustomerName = opts.resetInputFormKeepCustomerName;
             }
+            if (typeof opts.resetInputFormToNewEstimate === "function") {
+                resetInputFormToNewEstimate = opts.resetInputFormToNewEstimate;
+            }
             if (typeof opts.getLoadingState === "function") {
                 getLoadingState = opts.getLoadingState;
             }
@@ -2619,10 +2836,12 @@
                 "WdCalculatorEstimateMutationBridge requires resetFormModule.configure"
             )({
                 setEditingEstimateId: setEditingEstimateId,
+                setCurrentDatabaseEstimateId: setCurrentDatabaseEstimateId,
                 getEstimatesLength: getEstimatesLength,
                 ensureBaseComponentsUI: ensureBaseComponentsUI,
                 resetNotesToEmpty: resetNotesToEmpty,
                 recalculate: recalculate,
+                defaultCouponValue: 11000,
                 documentRef: documentRef,
                 consoleRef: consoleRef,
             });
@@ -2681,6 +2900,7 @@
                 generateEstimateId: generateEstimateId,
                 renderEstimatesList: renderEstimatesList,
                 resetInputFormKeepCustomerName: resetInputFormKeepCustomerName,
+                resetInputFormToNewEstimate: resetInputFormToNewEstimate,
                 documentRef: documentRef,
                 alertImpl: alertImpl,
                 consoleRef: consoleRef,

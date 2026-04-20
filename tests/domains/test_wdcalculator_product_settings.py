@@ -4,10 +4,9 @@ import re
 
 import pytest
 
-import foms.api.wdcalculator.blueprint as wd_module
 from db import db_session
 from models import Order
-from wdcalculator_db import init_wdcalculator_db, wd_calculator_engine, wd_calculator_session
+from wdcalculator_db import wd_calculator_session
 from wdcalculator_models import (
     Estimate,
     EstimateHistory,
@@ -36,93 +35,6 @@ def _create_order(**overrides) -> Order:
     db_session.add(order)
     db_session.commit()
     return order
-
-
-@pytest.fixture
-def wdcalculator_settings_env(app, tmp_path, monkeypatch):
-    """Use temp seed files and isolated WDCalculator tables."""
-    products_path = tmp_path / "products.json"
-    additional_path = tmp_path / "additional_options.json"
-    notes_path = tmp_path / "notes_categories.json"
-
-    _write_json(
-        products_path,
-        {
-            "products": [
-                {
-                    "id": 1,
-                    "name": "Seed Product",
-                    "pricing_type": "30cm",
-                    "additional_options": [],
-                    "coupon_type": "percentage",
-                    "coupon_value": 0,
-                    "price_30cm": 1000,
-                    "price_1cm": 10,
-                }
-            ]
-        },
-    )
-    _write_json(
-        additional_path,
-        {
-            "categories": [
-                {
-                    "id": 1,
-                    "name": "기본 옵션",
-                    "options": [
-                        {
-                            "id": 1000,
-                            "name": "기본 추가옵션",
-                            "price": 5000,
-                        }
-                    ],
-                }
-            ]
-        },
-    )
-    _write_json(
-        notes_path,
-        {
-            "categories": [
-                {
-                    "id": 1,
-                    "name": "기본 비고",
-                    "options": [
-                        {
-                            "id": 1000,
-                            "name": "기본 비고 문구",
-                            "price": 0,
-                        }
-                    ],
-                }
-            ]
-        },
-    )
-
-    monkeypatch.setattr(wd_module, "WD_CALCULATOR_DATA_PATH", str(products_path))
-    monkeypatch.setattr(wd_module, "WD_ADDITIONAL_OPTIONS_PATH", str(additional_path))
-    monkeypatch.setattr(wd_module, "WD_NOTES_CATEGORIES_PATH", str(notes_path))
-
-    init_wdcalculator_db()
-    wd_calculator_session.query(EstimateOrderMatch).delete()
-    wd_calculator_session.query(EstimateHistory).delete()
-    wd_calculator_session.query(Estimate).delete()
-    wd_calculator_session.query(WDCalculatorProductSettings).delete()
-    wd_calculator_session.commit()
-
-    yield {
-        "products_path": products_path,
-        "additional_path": additional_path,
-        "notes_path": notes_path,
-    }
-
-    wd_calculator_session.rollback()
-    wd_calculator_session.query(EstimateOrderMatch).delete()
-    wd_calculator_session.query(EstimateHistory).delete()
-    wd_calculator_session.query(Estimate).delete()
-    wd_calculator_session.query(WDCalculatorProductSettings).delete()
-    wd_calculator_session.commit()
-    wd_calculator_session.remove()
 
 
 def test_wdcalculator_page_renders_inline_config_contract(wdcalculator_settings_env, login):
@@ -372,7 +284,7 @@ def test_wdcalculator_page_keeps_current_estimate_helper_wiring_contract(
         < estimate_mutation_bridge_config_idx
         < post_mutation_ui_host_bootstrap_config_idx
     )
-    assert "collectCurrentEstimate,\n        resetInputFormKeepCustomerName," in body
+    assert "collectCurrentEstimate,\n        resetInputFormKeepCustomerName,\n        resetInputFormToNewEstimate," in body
     assert "getCurrentDatabaseEstimateId,\n        collectNotes,\n        getCouponValue," in body
 
 
@@ -455,6 +367,7 @@ def test_wdcalculator_page_keeps_post_mutation_ui_host_bootstrap_shell_contract(
         "WdCalculatorPostMutationUiHostBootstrap.configure({\n        postMutationUiBootstrap: WdCalculatorPostMutationUiBootstrap,\n        lateBootstrap: WdCalculatorLateBootstrap,\n        sidebarBootstrap: WdCalculatorSidebarBootstrap,\n        refreshAfterSave: WdCalculatorRefreshAfterSave,\n        urlBootstrap: WdCalculatorUrlBootstrap,\n        initSidebarEstimates: window.initWdCalculatorSidebarEstimates,\n        loadEstimateToForm: loadSavedEstimateToForm,"
         in body
     )
+    assert "resetInputFormToNewEstimate," in body
     assert "setTimeoutImpl: setTimeout,\n        renderInitialBaseComponentsUi," in body
     assert (
         estimate_mutation_bridge_init_idx
@@ -498,7 +411,7 @@ def test_wdcalculator_page_keeps_estimate_mutation_bridge_shell_contract(
     assert "setEditingEstimateId,\n        getEstimatesLength," in body
     assert "setLoadingState,\n        getEditingEstimateId," in body
     assert "setCurrentDatabaseEstimateId,\n        setEstimates," in body
-    assert "collectCurrentEstimate,\n        resetInputFormKeepCustomerName," in body
+    assert "collectCurrentEstimate,\n        resetInputFormKeepCustomerName,\n        resetInputFormToNewEstimate," in body
     assert "getLoadingState,\n        loadEstimateToInputForm," in body
     assert "getCurrentDatabaseEstimateId,\n        collectNotes," in body
     assert (
@@ -695,7 +608,7 @@ def test_wdcalculator_page_keeps_coupon_search_render_host_bootstrap_shell_contr
     assert "WdCalculatorCouponSearchRenderBootstrap.configure({" not in body
     assert "WdCalculatorCouponSearchRenderBootstrap.initCouponSearchRenderBootstrap();" not in body
     assert (
-        "WdCalculatorCouponSearchRenderHostBootstrap.configure({\n        couponSearchRenderBootstrap: WdCalculatorCouponSearchRenderBootstrap,\n        couponShippingWiring: WdCalculatorCouponShippingWiring,\n        searchResultsLoad: WdCalculatorSearchResultsLoad,\n        renderEstimatesList: WdCalculatorRenderEstimatesList,\n        defaultCouponValue: DEFAULT_COUPON_VALUE,\n        getEstimates,\n        calculateEstimate,\n        calculateTotalEstimates,\n        getCouponValue,\n        formatNumber,\n        loadEstimateToForm: loadSavedEstimateToForm,\n        escapeHtml,\n        formatNotesText: WdCalculatorNotesUI.formatNotesText,\n        onRenderComplete: calculateTotalEstimates,"
+        "WdCalculatorCouponSearchRenderHostBootstrap.configure({\n        couponSearchRenderBootstrap: WdCalculatorCouponSearchRenderBootstrap,\n        couponShippingWiring: WdCalculatorCouponShippingWiring,\n        searchResultsLoad: WdCalculatorSearchResultsLoad,\n        renderEstimatesList: WdCalculatorRenderEstimatesList,\n        defaultCouponValue: DEFAULT_COUPON_VALUE,\n        getEstimates,\n        calculateEstimate,\n        calculateTotalEstimates,\n        getCouponValue,\n        formatNumber,\n        loadEstimateToForm: loadSavedEstimateToForm,\n        escapeHtml,\n        formatNotesText: WdCalculatorNotesUI.formatNotesText,\n        onRenderComplete: calculateTotalEstimates,\n        getProducts,"
         in body
     )
     assert (
@@ -869,7 +782,7 @@ def test_wdcalculator_page_keeps_editing_estimate_id_helper_wiring_contract(
     assert "setEditingEstimateId,\n        getEstimatesLength," in body
     assert "setLoadingState,\n        getEditingEstimateId," in body
     assert "getEditingEstimateId,\n        getEstimates,\n        normalizeId," in body
-    assert "collectCurrentEstimate,\n        resetInputFormKeepCustomerName," in body
+    assert "collectCurrentEstimate,\n        resetInputFormKeepCustomerName,\n        resetInputFormToNewEstimate," in body
     assert (
         editing_alias_idx
         < products_editing_host_bootstrap_config_idx
@@ -920,7 +833,7 @@ def test_wdcalculator_page_keeps_estimates_state_helper_wiring_contract(
         in body
     )
     assert (
-        "WdCalculatorCouponSearchRenderHostBootstrap.configure({\n        couponSearchRenderBootstrap: WdCalculatorCouponSearchRenderBootstrap,\n        couponShippingWiring: WdCalculatorCouponShippingWiring,\n        searchResultsLoad: WdCalculatorSearchResultsLoad,\n        renderEstimatesList: WdCalculatorRenderEstimatesList,\n        defaultCouponValue: DEFAULT_COUPON_VALUE,\n        getEstimates,"
+        "WdCalculatorCouponSearchRenderHostBootstrap.configure({\n        couponSearchRenderBootstrap: WdCalculatorCouponSearchRenderBootstrap,\n        couponShippingWiring: WdCalculatorCouponShippingWiring,\n        searchResultsLoad: WdCalculatorSearchResultsLoad,\n        renderEstimatesList: WdCalculatorRenderEstimatesList,\n        defaultCouponValue: DEFAULT_COUPON_VALUE,\n        getEstimates,\n        calculateEstimate,\n        calculateTotalEstimates,\n        getCouponValue,\n        formatNumber,\n        loadEstimateToForm: loadSavedEstimateToForm,\n        escapeHtml,\n        formatNotesText: WdCalculatorNotesUI.formatNotesText,\n        onRenderComplete: calculateTotalEstimates,\n        getProducts,"
         in body
     )
     assert (

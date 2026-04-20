@@ -509,6 +509,9 @@
         var escapeHtml = null;
         var formatNotesText = null;
         var onRenderComplete = null;
+        var getProducts = function () {
+            return [];
+        };
 
         function configure(options) {
             var opts = options || {};
@@ -551,6 +554,9 @@
             if (typeof opts.onRenderComplete === "function") {
                 onRenderComplete = opts.onRenderComplete;
             }
+            if (typeof opts.getProducts === "function") {
+                getProducts = opts.getProducts;
+            }
         }
 
         function requireMethod(moduleObj, methodName, label) {
@@ -592,6 +598,7 @@
                 escapeHtml: escapeHtml,
                 formatNotesText: formatNotesText,
                 onRenderComplete: onRenderComplete,
+                getProducts: getProducts,
             });
         }
 
@@ -624,6 +631,7 @@
         var escapeHtml = null;
         var formatNotesText = null;
         var onRenderComplete = null;
+        var getProducts = null;
 
         function configure(options) {
             var opts = options || {};
@@ -669,6 +677,9 @@
             if (typeof opts.onRenderComplete === "function") {
                 onRenderComplete = opts.onRenderComplete;
             }
+            if (typeof opts.getProducts === "function") {
+                getProducts = opts.getProducts;
+            }
         }
 
         function requireMethod(moduleObj, methodName, label) {
@@ -697,6 +708,7 @@
                 escapeHtml: escapeHtml,
                 formatNotesText: formatNotesText,
                 onRenderComplete: onRenderComplete,
+                getProducts: getProducts,
             });
 
             return requireMethod(
@@ -730,6 +742,7 @@
         };
         var setEstimates = function () {};
         var resetInputFormKeepCustomerName = function () {};
+        var resetInputFormToNewEstimate = function () {};
         var renderEstimatesList = function () {};
         var getProducts = function () {
             return [];
@@ -766,6 +779,9 @@
             }
             if (typeof opts.resetInputFormKeepCustomerName === "function") {
                 resetInputFormKeepCustomerName = opts.resetInputFormKeepCustomerName;
+            }
+            if (typeof opts.resetInputFormToNewEstimate === "function") {
+                resetInputFormToNewEstimate = opts.resetInputFormToNewEstimate;
             }
             if (typeof opts.renderEstimatesList === "function") {
                 renderEstimatesList = opts.renderEstimatesList;
@@ -808,6 +824,7 @@
                 refreshAfterSave.configure({
                     setEstimates: setEstimates,
                     resetInputFormKeepCustomerName: resetInputFormKeepCustomerName,
+                    resetInputFormToNewEstimate: resetInputFormToNewEstimate,
                     renderEstimatesList: renderEstimatesList,
                     loadSidebarEstimates: loadSidebarEstimates,
                     documentRef: documentRef,
@@ -1391,6 +1408,7 @@ window.WdCalculatorTerminalInit = WdCalculatorTerminalInit;
         var formatNumber = null;
         var setEstimates = null;
         var resetInputFormKeepCustomerName = null;
+        var resetInputFormToNewEstimate = null;
         var renderEstimatesList = null;
         var getProducts = null;
         var documentRef = null;
@@ -1426,6 +1444,9 @@ window.WdCalculatorTerminalInit = WdCalculatorTerminalInit;
             }
             if (typeof opts.resetInputFormKeepCustomerName === "function") {
                 resetInputFormKeepCustomerName = opts.resetInputFormKeepCustomerName;
+            }
+            if (typeof opts.resetInputFormToNewEstimate === "function") {
+                resetInputFormToNewEstimate = opts.resetInputFormToNewEstimate;
             }
             if (typeof opts.renderEstimatesList === "function") {
                 renderEstimatesList = opts.renderEstimatesList;
@@ -1475,6 +1496,7 @@ window.WdCalculatorTerminalInit = WdCalculatorTerminalInit;
                 formatNumber: formatNumber,
                 setEstimates: setEstimates,
                 resetInputFormKeepCustomerName: resetInputFormKeepCustomerName,
+                resetInputFormToNewEstimate: resetInputFormToNewEstimate,
                 renderEstimatesList: renderEstimatesList,
                 getProducts: getProducts,
                 documentRef: documentRef,
@@ -1521,6 +1543,7 @@ window.WdCalculatorTerminalInit = WdCalculatorTerminalInit;
         var formatNumber = null;
         var setEstimates = null;
         var resetInputFormKeepCustomerName = null;
+        var resetInputFormToNewEstimate = null;
         var renderEstimatesList = null;
         var getProducts = null;
         var documentRef = null;
@@ -1559,6 +1582,9 @@ window.WdCalculatorTerminalInit = WdCalculatorTerminalInit;
             }
             if (typeof opts.resetInputFormKeepCustomerName === "function") {
                 resetInputFormKeepCustomerName = opts.resetInputFormKeepCustomerName;
+            }
+            if (typeof opts.resetInputFormToNewEstimate === "function") {
+                resetInputFormToNewEstimate = opts.resetInputFormToNewEstimate;
             }
             if (typeof opts.renderEstimatesList === "function") {
                 renderEstimatesList = opts.renderEstimatesList;
@@ -1602,6 +1628,7 @@ window.WdCalculatorTerminalInit = WdCalculatorTerminalInit;
                 formatNumber: formatNumber,
                 setEstimates: setEstimates,
                 resetInputFormKeepCustomerName: resetInputFormKeepCustomerName,
+                resetInputFormToNewEstimate: resetInputFormToNewEstimate,
                 renderEstimatesList: renderEstimatesList,
                 getProducts: getProducts,
                 documentRef: documentRef,

@@ -45,6 +45,7 @@ const formatNumber = () => "format";
 const escapeHtml = () => "escape";
 const formatNotesText = () => "notes";
 const onRenderComplete = () => "render-complete";
+const getProducts = () => [{ id: 1 }];
 const expectedResult = "coupon-search-render-host-ok";
 
 helper.configure({
@@ -70,6 +71,7 @@ helper.configure({
     escapeHtml,
     formatNotesText,
     onRenderComplete,
+    getProducts,
 });
 
 const result = helper.initCouponSearchRenderHostBootstrap();
@@ -137,6 +139,7 @@ assertEq(
     onRenderComplete,
     "coupon search render host onRenderComplete"
 );
+assertEq(callLog[0][1].getProducts, getProducts, "coupon search render host getProducts");
 assertEq(
     callLog[1][0],
     "couponSearchRenderBootstrap.initCouponSearchRenderBootstrap",
