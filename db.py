@@ -4,7 +4,10 @@ from flask import g
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker, declarative_base
 
-from foms.services.db_url_resolver import prepare_database_url_env
+from foms.services.db_url_resolver import (
+    postgresql_psycopg2_connect_kwargs_from_url,
+    prepare_database_url_env,
+)
 
 
 def _normalize_postgres_url(url: str) -> str:
@@ -42,7 +45,9 @@ engine_args: dict[str, Any] = {
     'echo': False,
 }
 
-if 'sqlite' not in str(DB_URL):
+_db_url_str = str(DB_URL)
+
+if 'sqlite' not in _db_url_str:
     engine_args.update({
         'pool_size': 5,       # Gunicorn 2 worker 기준 (20 → 5, 최대 커넥션 40 → 10)
         'max_overflow': 5,    # 최대 총 커넥션: 10 (Railway 소규모 플랜 적정)
@@ -50,7 +55,19 @@ if 'sqlite' not in str(DB_URL):
         'pool_timeout': 10,   # gevent 환경: 30s 기본 대기 대신 10s 빠른 실패
     })
 
-engine = create_engine(DB_URL, **engine_args)
+if 'sqlite' in _db_url_str:
+    engine = create_engine(DB_URL, **engine_args)
+elif _db_url_str.startswith('postgresql'):
+    import psycopg2
+
+    _pg_connect_kw = postgresql_psycopg2_connect_kwargs_from_url(_db_url_str)
+
+    def _postgresql_creator():
+        return psycopg2.connect(**_pg_connect_kw)
+
+    engine = create_engine('postgresql+psycopg2://', creator=_postgresql_creator, **engine_args)
+else:
+    engine = create_engine(DB_URL, **engine_args)
 
 db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
 

@@ -1,9 +1,27 @@
 """Database URL environment resolution helpers."""
 
 import os
-from urllib.parse import quote, unquote, urlparse
+from typing import Any
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
-__all__ = ["prepare_database_url_env"]
+__all__ = ["prepare_database_url_env", "postgresql_psycopg2_connect_kwargs_from_url"]
+
+_ALLOWED_PG_QUERY_KEYS = frozenset(
+    {
+        "sslmode",
+        "sslrootcert",
+        "sslcert",
+        "sslkey",
+        "channel_binding",
+        "connect_timeout",
+        "application_name",
+        "options",
+        "keepalives",
+        "keepalives_idle",
+        "keepalives_interval",
+        "keepalives_count",
+    }
+)
 
 
 def _normalize_postgres_scheme(url: str) -> str:
@@ -115,3 +133,45 @@ def prepare_database_url_env() -> str | None:
             return normalized
 
     return None
+
+
+def postgresql_psycopg2_connect_kwargs_from_url(url: str) -> dict[str, Any]:
+    """
+    Parse a postgresql(+psycopg2) URL into psycopg2.connect() keyword arguments.
+
+    Avoids passing a single libpq connection URI through Windows paths where
+    non-ASCII credentials can trigger UnicodeDecodeError inside psycopg2/libpq.
+    """
+    if not url or not str(url).strip():
+        raise ValueError("empty database URL")
+    u = _normalize_postgres_scheme(str(url).strip())
+    if u.startswith("postgresql+psycopg2://"):
+        u = "postgresql://" + u[len("postgresql+psycopg2://") :]
+    if not (u.startswith("postgresql://") or u.startswith("postgres://")):
+        raise ValueError("not a PostgreSQL URL")
+    parsed = urlparse(u)
+    kw: dict[str, Any] = {}
+    if parsed.hostname:
+        kw["host"] = parsed.hostname
+    if parsed.port is not None:
+        kw["port"] = int(parsed.port)
+    path = parsed.path or ""
+    if path.startswith("/"):
+        path = path[1:]
+    if path:
+        kw["dbname"] = unquote(path)
+    if parsed.username:
+        kw["user"] = unquote(parsed.username)
+    if parsed.password is not None:
+        kw["password"] = unquote(parsed.password)
+    if parsed.query:
+        q = parse_qs(parsed.query, keep_blank_values=True)
+        for key, vals in q.items():
+            if key not in _ALLOWED_PG_QUERY_KEYS or not vals:
+                continue
+            val = vals[0]
+            if key == "connect_timeout":
+                kw[key] = int(val)
+            else:
+                kw[key] = val
+    return kw
