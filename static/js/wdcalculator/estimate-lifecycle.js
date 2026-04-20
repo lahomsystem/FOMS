@@ -1579,21 +1579,28 @@
         function loadEstimateToForm(estimate) {
             setCurrentDatabaseEstimateId(estimate.id);
 
+            var estimateData = estimate.estimate_data || {};
+            var displayCustomerName =
+                estimate.customer_name != null ? estimate.customer_name : estimate.customerName;
+            if (displayCustomerName != null) {
+                displayCustomerName = String(displayCustomerName);
+            } else {
+                displayCustomerName = "";
+            }
+
             var headerTitle = documentRef.querySelector(".header-primary h6");
             if (headerTitle) {
                 headerTitle.innerHTML =
                     '<i class="fas fa-edit me-2"></i>견적 수정: ' +
-                    estimate.customer_name +
+                    displayCustomerName +
                     ' <span class="badge bg-warning text-dark ms-2">수정모드</span>';
             }
 
             ensureResetEstimateButton();
 
-            var estimateData = estimate.estimate_data || {};
-
             var customerNameEl = documentRef.getElementById("customerName");
             if (customerNameEl) {
-                customerNameEl.value = estimate.customer_name;
+                customerNameEl.value = displayCustomerName;
             }
 
             var couponInput = documentRef.getElementById("globalCouponValue");
@@ -2043,7 +2050,8 @@
                     buttonEl.innerHTML = '<i class="fas fa-plus"></i> 견적 추가';
                 }
                 renderEstimatesList();
-                resetInputFormToNewEstimate();
+                /* 저장(견적 저장) 전까지 고객명·DB 견적 ID·수정모드 헤더 유지 — 완전 리셋은 refreshAfterSave만 */
+                resetInputFormKeepCustomerName();
                 return true;
             }
 
