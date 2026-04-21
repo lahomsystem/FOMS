@@ -2,7 +2,18 @@ import argparse
 import json
 import os
 import sys
+import time
 from dataclasses import dataclass
+from datetime import datetime
+
+
+_START_TIME = time.monotonic()
+
+
+def _log(msg: str) -> None:
+    elapsed = time.monotonic() - _START_TIME
+    ts = datetime.now().strftime("%H:%M:%S")
+    print(f"[{ts}] (+{elapsed:6.1f}s) {msg}", file=sys.stderr, flush=True)
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
@@ -91,6 +102,12 @@ def _parse_args() -> argparse.Namespace:
         "--json",
         action="store_true",
         help="Print machine-readable JSON.",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=100,
+        help="Commit size for --execute (default: 100).",
     )
     return parser.parse_args()
 
@@ -203,6 +220,7 @@ def _build_plan(order: Order) -> BackfillPlan:
 
 
 def _load_orders(db, *, order_id: int | None, limit: int | None) -> list[Order]:
+    _log(f"Loading active ERP orders (order_id={order_id}, limit={limit}) ...")
     query = (
         db.query(Order)
         .filter(Order.active_filter(), Order.is_erp_order.is_(True))
@@ -212,7 +230,9 @@ def _load_orders(db, *, order_id: int | None, limit: int | None) -> list[Order]:
         query = query.filter(Order.id == order_id)
     if limit is not None and limit > 0:
         query = query.limit(limit)
-    return query.all()
+    rows = query.all()
+    _log(f"Loaded {len(rows)} ERP orders.")
+    return rows
 
 
 def _summarize_plans(plans: list[BackfillPlan]) -> dict[str, int]:
@@ -261,6 +281,7 @@ def _sample_rows(plans: list[BackfillPlan], sample_limit: int) -> list[dict[str,
 
 
 def _verification_summary(db, sample_limit: int) -> dict[str, object]:
+    _log("Running verification summary ...")
     orders = _load_orders(db, order_id=None, limit=None)
     residual_rows = []
     for order in orders:
@@ -296,6 +317,12 @@ def _verification_summary(db, sample_limit: int) -> dict[str, object]:
         "residual_rows": residual_rows[:sample_limit],
         "residual_row_count": len(residual_rows),
     }
+    _log(
+        f"Verification done. residual={summary['residual_row_count']}, "
+        f"erp_beta(name)={summary['active_customer_name_erp_beta']}, "
+        f"erp_beta(product)={summary['active_product_erp_beta']}, "
+        f"phone_placeholder={summary['active_phone_placeholder_rows']}"
+    )
     return summary
 
 
@@ -322,8 +349,21 @@ def main() -> None:
                 return
 
             orders = _load_orders(db, order_id=args.order_id, limit=args.limit)
-            plans = [_build_plan(order) for order in orders]
+            _log(f"Building backfill plans for {len(orders)} orders ...")
+            plans = []
+            for idx, order in enumerate(orders, start=1):
+                plans.append(_build_plan(order))
+                if idx % 200 == 0:
+                    _log(f"  planned {idx}/{len(orders)}")
+            _log(f"Plans built: {len(plans)}.")
             summary = _summarize_plans(plans)
+            _log(
+                f"Summary: any_backfill={summary['any_backfill_candidates']}, "
+                f"customer={summary['customer_backfill_candidates']}, "
+                f"phone={summary['phone_backfill_candidates']}, "
+                f"product={summary['product_backfill_candidates']}, "
+                f"address={summary['address_backfill_candidates']}"
+            )
             payload: dict[str, object] = {
                 "mode": "execute" if args.execute else "dry-run",
                 "scope": {
@@ -339,11 +379,15 @@ def main() -> None:
                 db.rollback()
                 return
 
-            updated_rows = []
-            for plan in plans:
-                if not plan.needs_any_backfill:
-                    continue
-
+            candidates = [p for p in plans if p.needs_any_backfill]
+            total_candidates = len(candidates)
+            chunk_size = max(1, args.chunk_size)
+            _log(
+                f"Applying + committing {total_candidates} updates in chunks of {chunk_size} ..."
+            )
+            updated_rows: list[dict[str, object]] = []
+            pending_in_chunk = 0
+            for idx, plan in enumerate(candidates, start=1):
                 order = plan.order
                 if plan.needs_customer_backfill:
                     order.customer_name = plan.suggested_customer_name
@@ -363,11 +407,27 @@ def main() -> None:
                         "address": order.address,
                     }
                 )
+                pending_in_chunk += 1
 
-            if updated_rows:
+                if pending_in_chunk >= chunk_size:
+                    chunk_start = time.monotonic()
+                    db.commit()
+                    _log(
+                        f"  committed {idx}/{total_candidates} "
+                        f"(chunk took {time.monotonic() - chunk_start:.1f}s)"
+                    )
+                    pending_in_chunk = 0
+
+            if pending_in_chunk > 0:
+                chunk_start = time.monotonic()
                 db.commit()
-            else:
+                _log(
+                    f"  committed {total_candidates}/{total_candidates} "
+                    f"(final chunk took {time.monotonic() - chunk_start:.1f}s)"
+                )
+            elif not updated_rows:
                 db.rollback()
+                _log("No rows needed updates. Rolled back.")
 
             payload["updated_rows"] = len(updated_rows)
             payload["updated_row_ids"] = [row["id"] for row in updated_rows[: args.sample_limit]]
