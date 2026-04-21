@@ -322,5 +322,9 @@
         scheduleFull();
     }
 
-    document.addEventListener('DOMContentLoaded', initManualRows);
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initManualRows);
+    } else {
+        initManualRows();
+    }
 })();
