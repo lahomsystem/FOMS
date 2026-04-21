@@ -19,7 +19,7 @@
         return 'https://map.kakao.com/link/search/' + encodeURIComponent(normalizeText(address));
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
+    function initMeasurementMobile() {
         var root = document.querySelector('.erp-measurement-dashboard[data-erp-mobile-v2="true"]');
         if (!root) return;
 
@@ -281,5 +281,11 @@
                 setEditLoading(false);
             }
         });
-    });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initMeasurementMobile);
+    } else {
+        initMeasurementMobile();
+    }
 })();

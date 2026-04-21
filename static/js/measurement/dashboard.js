@@ -1,5 +1,5 @@
 (function () {
-    document.addEventListener('DOMContentLoaded', function () {
+    function initMeasurementDashboard() {
         const container = document.querySelector('.erp-pro');
         if (!container) return;
 
@@ -662,5 +662,11 @@
                 }, 200);
             });
         });
-    });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initMeasurementDashboard);
+    } else {
+        initMeasurementDashboard();
+    }
 })();
