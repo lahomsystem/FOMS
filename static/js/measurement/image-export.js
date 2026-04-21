@@ -2,7 +2,8 @@
  * 실측 대시보드 일정표 PNG 저장.
  * 파일명·표 제목: YY-MM-DD 실측 일정
  */
-document.addEventListener('DOMContentLoaded', function () {
+(function () {
+    function initMeasurementImageExport() {
     const exportBtn = document.getElementById('btn-export-image');
     if (!exportBtn) return;
     const EXPORT_TABLE_WIDTH = 1520;
@@ -378,4 +379,11 @@ document.addEventListener('DOMContentLoaded', function () {
             exportBtn.disabled = false;
         }
     });
-});
+}
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initMeasurementImageExport);
+    } else {
+        initMeasurementImageExport();
+    }
+})();
