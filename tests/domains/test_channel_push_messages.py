@@ -46,7 +46,7 @@ def test_build_message_template_renders_change_lines_and_wam_link(monkeypatch):
         },
     )
 
-    assert "[알림] 주문 #2762 상태 변경" in message
+    assert "[알림] 주문 #2762 - 윤인선 상태 변경" in message
     assert "- 상태: 실측 -> 도면" in message
     assert "- 담당자: 이시영 -> 망고" in message
     assert "변경자: 관리자A" in message
@@ -69,6 +69,7 @@ def test_build_message_blocks_renders_labeled_link(monkeypatch):
     )
 
     assert any(block.get("type") == "bullets" for block in blocks)
+    assert blocks and "윤인선" in blocks[0].get("value", "")
     link_blocks = [block for block in blocks if block.get("type") == "text" and "주문 보기" in block.get("value", "")]
     assert len(link_blocks) == 1
     assert '<link type="url" value="https://example.com/w/short-123">주문 보기</link>' in link_blocks[0]["value"]

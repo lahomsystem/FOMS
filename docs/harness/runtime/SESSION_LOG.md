@@ -4,17 +4,35 @@
 
 ## 최근 세션
 
+### Session: 6f2c8c77
+- **시작**: 2026-04-23 08:29:48
+- **상태**: completed
+- **편집 파일**: `tests/domains/test_channel_push_messages.py`, `foms/services/channel_policy.py`, `templates/orders/partials/dashboard_scripts_detail_dom.html`, `static/js/orders/dashboard/erp-dashboard-detail-dom.js`, `templates/drawing/partials/workbench_detail_body.html`, `foms/api/drawing/erp_orders_drawing.py`, `foms/api/drawing/erp_orders_revision.py`, `foms/web/drawing/workbench.py`, `foms/services/erp_policy.py`, `foms/services/orders/erp_policy_permissions.py`
+- **종료**: 2026-04-23 08:32:32
+
+### Session: 20e1772c
+- **시작**: 2026-04-22 10:46:31
+- **상태**: unknown
+- **편집 파일**: `templates/orders/partials/dashboard_scripts_detail_dom.html`, `static/js/orders/dashboard/erp-dashboard-detail-dom.js`, `templates/drawing/partials/workbench_detail_body.html`, `foms/api/drawing/erp_orders_drawing.py`, `foms/api/drawing/erp_orders_revision.py`, `foms/web/drawing/workbench.py`, `foms/services/erp_policy.py`, `foms/services/orders/erp_policy_permissions.py`
+- **종료**: 2026-04-23 08:29:48
+
+### Session: 6c6dd810
+- **시작**: 2026-04-20 16:12:00
+- **상태**: unknown
+- **편집 파일**: (없음)
+- **종료**: 2026-04-22 10:46:29
+
 ### Session: fbcc41c6
 - **시작**: 2026-04-18 12:40:37
-- **상태**: completed
-- **편집 파일**: `static/css/foundation/erp-pro/09-mobile-erp-optimization.css`, `templates/shipment/partials/settings_body.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e061f4a7-5536-4be2-986b-f8f1cafd516e.png`, `commit_msg_utf8.txt`, `tests/domains/test_estimate_service.py`, `static/js/orders/estimate-preview.js`, `docs/evolution/EVOLUTION_DECISIONS.md`, `docs/harness/policy/DECISIONS.md`, `templates/orders/partials/estimate_pane.html`, `foms/services/orders/estimate_defaults.py`
-- **종료**: 2026-04-19 16:12:21
+- **상태**: unknown
+- **편집 파일**: (없음)
+- **종료**: 2026-04-20 16:11:58
 
 ### Session: a0f6c282
 - **시작**: 2026-04-17 13:39:37
 - **상태**: unknown
-- **편집 파일**: `docs/plans/2026-04-18-erp-beta-retirement-execution-plan.md`, `docs/specs/2026-04-18-erp-beta-retirement_SPEC.md`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e47f6f6f-5597-4c96-abae-3d731464a863.png`, `_tmp_commit_msg.txt`, `static/js/orders/erp-order-shared.js`, `templates/orders/partials/erp_order_tab.html`, `static/css/foundation/erp-pro/12-runtime-shell-loading.css`, `commit_msg.txt`, `docs/plans/2026-04-16-strict-final-canonical-tree-physical-tree-code-convergence-plan.md`, `docs/context/PTC_RUNTIME_COMMON_INVENTORY.md`
-- **종료**: 2026-04-18 12:40:35
+- **편집 파일**: (없음)
+- **종료**: 2026-04-21 16:13:19
 
 ### Session: 07c148aa
 - **시작**: 2026-04-17 12:45:33
@@ -119,3 +137,81 @@
 | 2026-04-19 16:09:35 | END (Claude Code) | 수정: (없음) |
 
 | 2026-04-19 16:12:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 13:37:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 13:43:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 13:48:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 13:49:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 13:52:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 13:52:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 13:55:29 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 14:03:32 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 14:08:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 15:14:40 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 15:15:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 15:18:15 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 15:18:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 15:20:24 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 15:21:50 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 15:38:33 | END (Claude Code) | 수정: scripts/maintenance/erp_beta_placeholder_backfill.py |
+
+| 2026-04-20 15:43:09 | END (Claude Code) | 수정: scripts/maintenance/erp_beta_placeholder_backfill.py |
+
+| 2026-04-20 15:44:51 | END (Claude Code) | 수정: scripts/maintenance/erp_beta_placeholder_backfill.py |
+
+| 2026-04-20 16:09:17 | END (Claude Code) | 수정: scripts/maintenance/erp_beta_placeholder_backfill.py |
+
+| 2026-04-20 16:17:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 16:28:26 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 16:43:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 22:08:57 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 22:15:25 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 22:16:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 22:17:43 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-20 22:19:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-21 09:01:01 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-21 09:02:56 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-21 09:56:00 | END (Claude Code) | 수정: static/js/measurement/image-export.js, static/js/measurement/mobile.js, static/js/measurement/manual-rows.js, static/js/measurement/dashboard.js |
+
+| 2026-04-21 10:33:40 | END (Claude Code) | 수정: static/js/measurement/image-export.js, static/js/measurement/mobile.js, static/js/measurement/manual-rows.js, static/js/measurement/dashboard.js |
+
+| 2026-04-21 10:53:09 | END (Claude Code) | 수정: ../../../../../../../../tmp/foms_commit_msg_backfill.txt, ../../../../../../../../tmp/foms_commit_msg_measurement.txt, static/js/measurement/image-export.js, static/js/measurement/mobile.js, static/js/measurement/manual-rows.js, static/js/measurement/dashboard.js |
+
+| 2026-04-21 11:03:56 | END (Claude Code) | 수정: ../../../../../../../../tmp/foms_merge_deploy_msg.txt, ../../../../../../../../tmp/foms_commit_msg_backfill.txt, ../../../../../../../../tmp/foms_commit_msg_measurement.txt, static/js/measurement/image-export.js, static/js/measurement/mobile.js, static/js/measurement/manual-rows.js, static/js/measurement/dashboard.js |
+
+| 2026-04-22 10:51:02 | END (Claude Code) | 수정: ../../../../../../../../tmp/foms_merge_deploy_msg.txt, ../../../../../../../../tmp/foms_commit_msg_backfill.txt, ../../../../../../../../tmp/foms_commit_msg_measurement.txt, static/js/measurement/image-export.js, static/js/measurement/mobile.js, static/js/measurement/manual-rows.js, static/js/measurement/dashboard.js |
+
+| 2026-04-22 11:00:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-22 11:03:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-22 11:04:29 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-22 11:18:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-23 08:32:32 | END (Claude Code) | 수정: (없음) |

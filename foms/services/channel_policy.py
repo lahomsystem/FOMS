@@ -139,7 +139,7 @@ def build_message_blocks(event_type: str, data: Dict[str, Any]) -> list[dict[str
     changed_by = str(data.get("changed_by") or "").strip()
     reason = str(data.get("reason") or "").strip()
 
-    blocks = _paragraph_blocks([f"[알림] 주문 #{order_id} {event_title}"])
+    blocks = _paragraph_blocks([f"[알림] 주문 #{order_id} - {customer_name} {event_title}"])
     if change_lines:
         blocks.append(
             {
@@ -214,7 +214,7 @@ def build_message_template(event_type: str, data: Dict[str, Any]) -> str:
     changed_by = str(data.get("changed_by") or "").strip()
     reason = str(data.get("reason") or "").strip()
 
-    lines = [f"[알림] 주문 #{order_id} {event_title}"]
+    lines = [f"[알림] 주문 #{order_id} - {customer_name} {event_title}"]
     if change_block:
         lines.append("")
         lines.append(change_block)
