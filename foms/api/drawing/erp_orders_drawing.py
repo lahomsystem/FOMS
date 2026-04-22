@@ -21,7 +21,12 @@ from foms.api.notifications import (
 )
 from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users
 from foms.services.erp_permissions import erp_edit_required
-from foms.services.erp_policy import can_modify_domain, get_assignee_ids
+from foms.services.erp_policy import (
+    can_modify_domain,
+    get_assignee_ids,
+    has_pending_unchecked_drawing_revision_requests,
+    is_drawing_workbench_participant,
+)
 from foms.services.storage import get_storage
 from foms.api.files import build_file_view_url, build_file_download_url
 
@@ -77,12 +82,26 @@ def api_order_transfer_drawing(order_id):
 
         if not current_user:
             return jsonify({'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}), 401
-        can_transfer = can_modify_domain(current_user, order, 'DRAWING_DOMAIN', emergency_override, override_reason)
-        if not can_transfer:
-            msg = '도면 전달 권한이 없습니다. (지정된 도면 담당자만 가능)'
+        if current_user.role == 'MANAGER' and emergency_override and override_reason:
+            can_do_transfer = True
+        else:
+            can_do_transfer = is_drawing_workbench_participant(current_user, order)
+        if not can_do_transfer:
+            msg = '도면 전달 권한이 없습니다. (도면 담당자·도면팀 또는 관리자만 가능)'
             if current_user.role == 'MANAGER':
-                msg += ' (긴급 오버라이드가 필요합니다.)'
+                msg += ' (긴급 시 사유와 함께 오버라이드를 사용하세요.)'
             return jsonify({'success': False, 'message': msg}), 403
+
+        drawing_status = ((s_data.get('drawing') or {}).get('status') or s_data.get('drawing_status') or 'PENDING').upper()
+        if (
+            drawing_status == 'RETURNED'
+            and has_pending_unchecked_drawing_revision_requests(s_data)
+            and not (current_user.role == 'MANAGER' and emergency_override and override_reason)
+        ):
+            return jsonify({
+                'success': False,
+                'message': '수정 요청이 모두 "반영 완료"로 처리된 뒤에 수정본을 전달할 수 있습니다.',
+            }), 400
 
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         user_name = current_user.name if current_user else 'Unknown'

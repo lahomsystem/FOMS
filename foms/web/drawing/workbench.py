@@ -4,7 +4,12 @@ from db import get_db
 from models import Order, User, OrderAttachment
 from foms.web.auth import login_required
 from foms.services.erp_permissions import can_edit_erp
-from foms.services.erp_policy import STAGE_NAME_TO_CODE, get_assignee_ids
+from foms.services.erp_policy import (
+    STAGE_NAME_TO_CODE,
+    get_assignee_ids,
+    has_pending_unchecked_drawing_revision_requests,
+    is_drawing_workbench_participant,
+)
 from foms.services.erp_display import (
     _ensure_dict,
     _erp_get_stage,
@@ -282,8 +287,16 @@ def erp_drawing_workbench_detail(order_id):
     draw_assignee_ids = get_assignee_ids(order, 'DRAWING_DOMAIN')
     has_assignee = bool(draw_assignee_ids)
     current_user_id = current_user.id if current_user else None
-    is_drawing_assignee = bool(current_user_id and current_user_id in draw_assignee_ids)
-    can_transfer = bool(has_assignee and ((current_user and current_user.role == 'ADMIN') or is_drawing_assignee))
+    is_drawing_participant = bool(
+        current_user and is_drawing_workbench_participant(current_user, order)
+    )
+    can_transfer = bool(has_assignee and is_drawing_participant)
+    transfer_gated_by_revision_checklist = bool(
+        drawing_status == 'RETURNED'
+        and has_pending_unchecked_drawing_revision_requests(s_data)
+    )
+    can_open_transfer = bool(can_transfer and not transfer_gated_by_revision_checklist)
+    can_toggle_revision_check = is_drawing_participant
     can_sales_domain = _can_modify_sales_domain(current_user, order, s_data, False, None)
     can_request_revision = can_sales_domain
     can_confirm_receipt = bool(can_sales_domain and drawing_status == 'TRANSFERRED')
@@ -364,6 +377,9 @@ def erp_drawing_workbench_detail(order_id):
         unread_count=unread_count,
         checklist=checklist,
         can_transfer=can_transfer,
+        can_open_transfer=can_open_transfer,
+        transfer_gated_by_revision_checklist=transfer_gated_by_revision_checklist,
+        can_toggle_revision_check=can_toggle_revision_check,
         can_request_revision=can_request_revision,
         can_confirm_receipt=can_confirm_receipt,
         can_cancel_transfer=can_cancel_transfer,

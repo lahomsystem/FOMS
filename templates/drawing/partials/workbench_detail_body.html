@@ -795,6 +795,7 @@
                 review.get('checked_at') or '-' }}
               </div>
               {% endif %}
+              {% if can_toggle_revision_check %}
               <div class="mt-2">
                 <button
                   class="btn btn-sm {% if checked %}btn-outline-secondary{% else %}btn-outline-success{% endif %} js-revision-check"
@@ -804,6 +805,7 @@
                   {% if checked %}완료 해제{% else %}반영 완료{% endif %}
                 </button>
               </div>
+              {% endif %}
             </div>
             {% endfor %}
             {% else %}
@@ -867,10 +869,18 @@
           <div class="small text-dark bg-light border rounded p-2 mb-2">{{ next_action }}</div>
           <div class="d-grid gap-2 mb-2 dw-sidebar-actions">
             {% if can_transfer %}
+            {% if can_open_transfer %}
             <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal"
               data-bs-target="#dwTransferModal">
               <i class="fas fa-paper-plane"></i> {% if drawing_status == 'RETURNED' %}수정본 전달{% else %}도면 전달{% endif %}
             </button>
+            {% else %}
+            <button class="btn btn-primary btn-sm" type="button" disabled
+              title="요청사항 탭에서 모든 수정 요청을 반영 완료 처리한 뒤 전달할 수 있습니다.">
+              <i class="fas fa-paper-plane"></i> {% if drawing_status == 'RETURNED' %}수정본 전달{% else %}도면 전달{% endif %}
+            </button>
+            <div class="small text-danger"><i class="fas fa-exclamation-triangle"></i> 미반영 수정 요청이 있어 전달할 수 없습니다. 요청사항에서 반영 완료를 먼저 눌러주세요.</div>
+            {% endif %}
             {% endif %}
             {% if can_request_revision and drawing_status in ['TRANSFERRED', 'CONFIRMED'] %}
             <button class="btn btn-warning btn-sm" type="button" data-bs-toggle="modal"
@@ -925,9 +935,16 @@
 <!-- Phase 3: 모바일 하단 고정 액션 바 -->
 <div class="dw-mobile-action-bar">
   {% if can_transfer %}
+  {% if can_open_transfer %}
   <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#dwTransferModal">
     <i class="fas fa-paper-plane"></i> {% if drawing_status == 'RETURNED' %}수정본{% else %}전달{% endif %}
   </button>
+  {% else %}
+  <button class="btn btn-primary" type="button" disabled
+    title="모든 수정 요청을 반영 완료 처리한 뒤 전달할 수 있습니다.">
+    <i class="fas fa-paper-plane"></i> {% if drawing_status == 'RETURNED' %}수정본{% else %}전달{% endif %}
+  </button>
+  {% endif %}
   {% endif %}
   {% if can_request_revision and drawing_status in ['TRANSFERRED', 'CONFIRMED'] %}
   <button class="btn btn-warning" type="button" data-bs-toggle="modal" data-bs-target="#dwRevisionModal">
