@@ -4,23 +4,23 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-04-23 | 세션 자동 기록 | test_channel_push_messages.py, channel_policy.py, dashboard_scripts_detail_dom.html 외 2개 | 873a5c67 |
+| 2026-04-23 | 세션 자동 기록 | dashboard_scripts_detail_dom.html, erp-dashboard-detail-dom.js, workbench_detail_body.html 외 2개 | 873a5c67 |
+| 2026-04-22 | 세션 자동 기록 | dashboard_scripts_detail_dom.html, erp-dashboard-detail-dom.js, workbench_detail_body.html 외 2개 | 9358ca6b |
+| 2026-04-21 | 세션 자동 기록 | estimate_pane.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-3dc450a5-fec3-45b5-9fb3-31276010eaaf.png, test_notification_badge_dedup.py 외 2개 | f7a7e299 |
+| 2026-04-20 | 세션 자동 기록 | test_notification_badge_dedup.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-9c2b7aa3-89e8-4c99-9100-1b78a8602d88.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-a36cebdc-7e49-4258-b764-5a48fa560063.png 외 2개 | 74b60488 |
+| 2026-04-20 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-9c2b7aa3-89e8-4c99-9100-1b78a8602d88.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-a36cebdc-7e49-4258-b764-5a48fa560063.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-7c9e03c9-38eb-4a37-8935-a6f88886f897.png 외 2개 | 74b60488 |
+| 2026-04-20 | 세션 자동 기록 | dashboard.py, dashboard_main.html, layout_scripts.html 외 2개 | b202f575 |
+| 2026-04-20 | 세션 자동 기록 | dashboard-notifications.js, dashboard_scripts_drawing.html, dashboard_scripts_detail_dom.html 외 2개 | b202f575 |
+| 2026-04-20 | 세션 자동 기록 | wdcalculator_db.py, test_db_url_resolver.py, foms_namespace_surface_tests.py 외 2개 | b202f575 |
+| 2026-04-20 | 세션 자동 기록 | test_db_url_resolver.py, foms_namespace_surface_tests.py, db.py 외 2개 | f318a73f |
+| 2026-04-20 | 세션 자동 기록 | test_db_url_resolver.py, db_url_resolver.py, db.py 외 2개 | 444525d2 |
+| 2026-04-20 | 세션 자동 기록 | db.py, test_notification_badge_dedup.py, test_order_detail_two_phase_contract.py 외 2개 | 444525d2 |
+| 2026-04-20 | 세션 자동 기록 | test_notification_badge_dedup.py, test_order_detail_two_phase_contract.py, dashboard_body.html 외 2개 | a1180314 |
+| 2026-04-20 | 세션 자동 기록 | test_erp_measurement_mobile_render.py, test_erp_as_dashboard_tabs.py, erp_orders_structured.py 외 2개 | a1180314 |
 | 2026-04-19 | 세션 자동 기록 | 09-mobile-erp-optimization.css, settings_body.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e061f4a7-5536-4be2-986b-f8f1cafd516e.png 외 2개 | 6131d93d |
 | 2026-04-19 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e061f4a7-5536-4be2-986b-f8f1cafd516e.png, commit_msg_utf8.txt, test_estimate_service.py 외 2개 | 6131d93d |
 | 2026-04-19 | 세션 자동 기록 | commit_msg_utf8.txt, test_estimate_service.py, estimate-preview.js 외 2개 | 6131d93d |
 | 2026-04-19 | 세션 자동 기록 | test_estimate_service.py, estimate-preview.js, settings_body.html 외 2개 | 6fff9c9f |
 | 2026-04-19 | 세션 자동 기록 | estimate-preview.js, estimate_pane.html, estimate_defaults.py 외 2개 | 6fff9c9f |
 | 2026-04-19 | 세션 자동 기록 | test_estimate_service.py, test_erp_shipment_settings.py, settings_body.html 외 2개 | 6fff9c9f |
-| 2026-04-19 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-da67d386-44e9-47f1-a379-a5215dbf1835.png, .git_commit_msg_railway_utf8.txt, _git_commit_msg_utf8.txt 외 2개 | 6fff9c9f |
-| 2026-04-19 | 세션 자동 기록 | .git_commit_msg_railway_utf8.txt, _git_commit_msg_utf8.txt, railway_db_gate_snapshot.py 외 2개 | 6fff9c9f |
-| 2026-04-19 | 세션 자동 기록 | _git_commit_msg_utf8.txt, railway_db_gate_snapshot.py, _run_remote_db_smoke.cmd 외 2개 | 23b0b82a |
-| 2026-04-18 | 세션 자동 기록 | railway_db_gate_snapshot.py, _run_remote_db_smoke.cmd, railway_db_gate_snapshot_ssh.py 외 2개 | 6d3d609b |
-| 2026-04-18 | 세션 자동 기록 | dashboard_main.html, 09-mobile-erp-optimization.css, erp_order_tab.html 외 2개 | 6d3d609b |
-| 2026-04-18 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, erp_orders_structured.py, calendar.py 외 2개 | 6d3d609b |
-| 2026-04-18 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e47f6f6f-5597-4c96-abae-3d731464a863.png, _tmp_commit_msg.txt, erp-order-shared.js 외 2개 | 6d3d609b |
-| 2026-04-18 | 세션 자동 기록 | _tmp_commit_msg.txt, erp-order-shared.js, erp_order_tab.html 외 2개 | de21f67b |
-| 2026-04-18 | 세션 자동 기록 | erp-order-shared.js, erp_order_tab.html, 12-runtime-shell-loading.css 외 2개 | 5bfb403d |
-| 2026-04-18 | 세션 자동 기록 | commit_msg.txt, test_ptc_physical_exactness.py, _commit_msg_erporder_cleanup.txt 외 2개 | 5bfb403d |
-| 2026-04-18 | 세션 자동 기록 | test_ptc_physical_exactness.py, _commit_msg_erporder_cleanup.txt, models.py 외 2개 | eaf5a444 |
-| 2026-04-18 | 세션 자동 기록 | models.py, dashboard.js, manual-rows.js 외 2개 | d4c2cc70 |
-| 2026-04-18 | 세션 자동 기록 | quest.py, trash.py, history.py 외 2개 | d4c2cc70 |
-| 2026-04-17 | 세션 자동 기록 | test_app_init.py, db_indexes.py, test_db_indexes.py 외 2개 | d4c2cc70 |

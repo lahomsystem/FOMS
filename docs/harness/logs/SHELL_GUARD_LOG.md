@@ -107,3 +107,98 @@
 | 2026-04-19 13:41:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/AI_STATUS.md docs/evolution/EVOLUTION_DECISIONS.md docs/harn` |
 | 2026-04-19 16:12:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
 | 2026-04-19 16:13:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/harness/logs/SHELL_GUARD_LOG.md docs/harness/runtime/EDIT_LO` |
+| 2026-04-20 13:36:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status --short` |
+| 2026-04-20 13:36:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout origin/deploy -- templates/cs/partials/as_dashboard_body.html` |
+| 2026-04-20 13:36:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git rm -f apps/api/erp_orders_as.py apps/api/orders.py 2>&1` |
+| 2026-04-20 13:36:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status --short | Select-Object -First 40` |
+| 2026-04-20 13:36:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git diff --name-only --diff-filter=U` |
+| 2026-04-20 13:36:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add foms/api/erp_orders_structured.py tests/domains/test_erp_as_dashboard_tabs.py tests/` |
+| 2026-04-20 13:37:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status -sb | Select-Object -First 5` |
+| 2026-04-20 13:37:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git commit --trailer "Made-with: Cursor" -m "merge: deploy into production (WD calculator + ` |
+| 2026-04-20 13:37:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git push origin production` |
+| 2026-04-20 13:37:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout feature/modular-monolith-wip && git log -1 --oneline origin/deploy && git log -` |
+| 2026-04-20 13:41:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && copy /Y "static\js\erp\order-detail-fragment.js" "static\js\orders\order-detail-fragment.js"` |
+| 2026-04-20 13:41:13 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Copy-Item -Force "static\js\erp\order-detail-fragment.js" "static\js\orders\order-de` |
+| 2026-04-20 13:41:47 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --exit-code -- docs/harness/bundles/HARNESS_BUNDLE_*.md; echo "exit=$LASTEX` |
+| 2026-04-20 13:41:48 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/wdcalculator/test_estimate_lifecycle_contracts.py::` |
+| 2026-04-20 13:42:28 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/build_context_bundle.py --all; git diff --exit-code -- docs/har` |
+| 2026-04-20 13:42:47 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/wdcalculator/test_estimate_lifecycle_contracts.py t` |
+| 2026-04-20 13:44:21 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git branch -a` |
+| 2026-04-20 13:44:41 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/build_context_bundle.py --all 2>$null; git add docs/harness/bun` |
+| 2026-04-20 13:44:47 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
+| 2026-04-20 13:44:57 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -m "fix(ci): harness bundles, WD calculator` |
+| 2026-04-20 13:45:03 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin deploy 2>&1; git checkout deploy 2>&1; git pull --ff-only origin de` |
+| 2026-04-20 13:45:09 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git merge feature/modular-monolith-wip -m "Merge branch 'feature/modular-monolith-wi` |
+| 2026-04-20 13:45:15 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-04-20 13:45:23 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout feature/modular-monolith-wip` |
+| 2026-04-20 13:48:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "import os; os.environ.pop('DATABASE_URL', None); os.environ['PGHOST']='x.railway.` |
+| 2026-04-20 13:48:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c " import os, sys # fresh subprocess - clear relevant for k in list(os.environ): if` |
+| 2026-04-20 13:48:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && pytest -q tests/domains/test_db_url_resolver.py tests/contracts/runtime/foms_namespace_surfa` |
+| 2026-04-20 13:48:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && pytest -q tests/domains/test_db_url_resolver.py tests/contracts/runtime/foms_namespace_surfa` |
+| 2026-04-20 13:52:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && pytest -q tests/domains/test_db_url_resolver.py --tb=short` |
+| 2026-04-20 13:54:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status -sb && git branch -a` |
+| 2026-04-20 13:54:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git fetch origin && git log --oneline -1 origin/deploy && git log --oneline -1 origin/produc` |
+| 2026-04-20 13:54:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git log --oneline origin/production..origin/deploy` |
+| 2026-04-20 13:54:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git log --oneline origin/deploy..HEAD -5` |
+| 2026-04-20 13:54:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git log --oneline origin/feature/modular-monolith-wip..HEAD -5` |
+| 2026-04-20 13:54:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add db.py foms/services/db_url_resolver.py tests/domains/test_db_url_resolver.py && git ` |
+| 2026-04-20 13:54:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout deploy && git pull origin deploy && git merge feature/modular-monolith-wip -m "` |
+| 2026-04-20 13:55:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git pull origin production && git merge origin/deploy -m "merge: ` |
+| 2026-04-20 13:55:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout feature/modular-monolith-wip` |
+| 2026-04-20 13:59:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && pytest -q tests/domains/test_db_url_resolver.py tests/contracts/runtime/foms_namespace_surfa` |
+| 2026-04-20 14:00:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && pytest -q tests/domains/test_user_delete.py --maxfail=1 --tb=line 2>&1 | Select-Object -Firs` |
+| 2026-04-20 14:07:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -m pytest tests/domains/test_db_url_resolver.py tests/domains/conftest.py tests/domai` |
+| 2026-04-20 14:07:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -m pytest tests/domains/test_db_url_resolver.py tests/domains/test_wdcalculator_produ` |
+| 2026-04-20 14:07:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status && git branch -a` |
+| 2026-04-20 14:07:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git log -5 --oneline` |
+| 2026-04-20 14:07:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add db.py foms/services/db_url_resolver.py tests/domains/test_db_url_resolver.py tests/c` |
+| 2026-04-20 14:08:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git fetch origin && git checkout deploy && git pull origin deploy && git merge feature/modul` |
+| 2026-04-20 14:08:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git push origin deploy && git checkout production && git pull origin production && git merge` |
+| 2026-04-20 14:08:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git push origin feature/modular-monolith-wip` |
+| 2026-04-20 16:22:58 | allow | `-` | `wc -l "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\templates\orders\partials\dashboard_scripts_core.html" "c:\Users\USER\OneDrive\Desktop\SY\pro` |
+| 2026-04-20 16:24:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c " import re, pathlib root = pathlib.Path('templates/orders/partials') out = pathli` |
+| 2026-04-20 16:27:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -m pytest tests/domains/test_db_url_resolver.py tests/contracts/runtime/foms_namespac` |
+| 2026-04-20 16:27:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -m pytest tests/domains/test_db_url_resolver.py tests/contracts/runtime/foms_namespac` |
+| 2026-04-20 16:27:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -m pytest tests/domains/test_erp_shell_fragment_contract.py tests/domains/test_erp_or` |
+| 2026-04-20 16:43:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status && git branch -vv && git remote -v` |
+| 2026-04-20 16:43:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/web/orders/dashboard.py static/js/orders/erp-dashboard-entry.js static/js/orders/` |
+| 2026-04-20 16:43:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -m "feat(erp): external dashboard bundle + entry load` |
+| 2026-04-20 16:43:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin feature/modular-monolith-wip` |
+| 2026-04-20 22:08:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git branch -vv; git log -1 --oneline` |
+| 2026-04-20 22:08:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git merge feature/modular-monolith-wip -m "Merge feature/modular-monolith` |
+| 2026-04-20 22:08:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-04-20 22:08:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy -m "Merge deploy: ERP dashboard external bundle and ` |
+| 2026-04-20 22:08:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git checkout feature/modular-monolith-wip; git log -2 --oneline pr` |
+| 2026-04-20 22:16:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_notification_badge_dedup.py::test_erp_pages_use_single_not` |
+| 2026-04-20 22:16:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_notification_badge_dedup.py::test_erp_pages_use_single_not` |
+| 2026-04-20 22:18:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
+| 2026-04-20 22:18:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add tests/domains/test_notification_badge_dedup.py; git commit --trailer "Made-with: Curso` |
+| 2026-04-20 22:18:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin feature/modular-monolith-wip` |
+| 2026-04-20 22:18:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git merge feature/modular-monolith-wip -m "Merge feature/modular-monolith` |
+| 2026-04-20 22:18:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy; git checkout production; git merge deploy -m "Merge deploy: notificati` |
+| 2026-04-20 22:18:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git checkout feature/modular-monolith-wip; git log -1 --oneline de` |
+| 2026-04-21 09:02:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
+| 2026-04-21 09:02:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/orders/partials/estimate_pane.html; git commit --trailer "Made-with: Cursor"` |
+| 2026-04-21 09:02:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin feature/modular-monolith-wip; git checkout deploy; git merge feature/modular-m` |
+| 2026-04-21 09:02:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy; git checkout production; git merge deploy -m "Merge deploy: estimate p` |
+| 2026-04-21 09:02:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git checkout feature/modular-monolith-wip` |
+| 2026-04-22 10:59:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from foms.services.erp_policy import is_drawing_workbench_participant, has_pendin` |
+| 2026-04-22 10:59:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -c "from foms.services.orders.erp_policy_permissions import is_drawing_workbench_part` |
+| 2026-04-22 10:59:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -m pytest tests/domains/test_erp_shell_fragment_contract.py::test_ept_b5_drawing_work` |
+| 2026-04-22 11:00:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -m pytest tests/domains/test_erp_shell_fragment_contract.py -k "drawing_workbench" -q` |
+| 2026-04-22 11:04:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status -sb && git remote -v && git branch --show-current` |
+| 2026-04-22 11:04:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add \ foms/api/drawing/erp_orders_drawing.py \ foms/api/drawing/erp_orders_revision.py \` |
+| 2026-04-22 11:04:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/api/drawing/erp_orders_drawing.py foms/api/drawing/erp_orders_revision.py foms/se` |
+| 2026-04-22 11:18:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git fetch origin deploy 2>&1; git log --oneline -3 origin/deploy 2>&1; git log --oneline -3 ` |
+| 2026-04-22 11:18:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git push origin feature/modular-monolith-wip:deploy` |
+| 2026-04-23 08:32:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -m pytest tests/domains/test_channel_push_messages.py -q --tb=short` |
+| 2026-04-23 08:33:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status && git branch -vv && git log origin/main..HEAD --oneline 2>nul; git log origin/ma` |
+| 2026-04-23 08:34:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git fetch origin 2>&1 && git log production..HEAD --oneline | head -20 && echo "---" && git ` |
+| 2026-04-23 08:34:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git log production..HEAD --oneline | Select-Object -First 25; Write-Host "--` |
+| 2026-04-23 08:34:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git merge-base production HEAD; git rev-parse origin/production 2>$null; git branch -r | Selec` |
+| 2026-04-23 08:34:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log 9358ca6b..873a5c67 --oneline | Measure-Object -Line; git log 9358ca6b..873a5c67 --onel` |
+| 2026-04-23 08:34:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log 9358ca6b..873a5c67 --oneline` |
+| 2026-04-23 08:34:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add .claude/commands/gdm.md AGENTS.md app.py docs/AI_CHANGELOG.md docs/AI_STATUS.md docs/c` |
+| 2026-04-23 08:34:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --name-only; git diff --cached --name-only` |
+| 2026-04-23 08:34:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
+| 2026-04-23 08:35:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/harness/logs/SHELL_GUARD_LOG.md; git commit --trailer "Made-with: Cursor" -m "fea` |
