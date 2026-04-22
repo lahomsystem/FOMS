@@ -4,7 +4,9 @@ from flask import session
 import pytest
 from werkzeug.security import generate_password_hash
 
-from apps.api import erp_orders_as, erp_orders_structured, orders as orders_api
+import foms.api.cs.as_orders as erp_orders_as
+import foms.api.erp_orders_structured as erp_orders_structured
+import foms.api.orders as orders_api
 from db import db_session
 from models import Order, User
 
@@ -29,7 +31,7 @@ def _login_as_admin(client, username="as-date-admin"):
     return user
 
 
-def _create_order(*, status="RECEIVED", is_erp_beta=True, structured_data=None):
+def _create_order(*, status="RECEIVED", structured_data=None):
     order = Order(
         received_date="2026-04-07",
         customer_name="AS Date Tester",
@@ -38,7 +40,6 @@ def _create_order(*, status="RECEIVED", is_erp_beta=True, structured_data=None):
         product="Wardrobe",
         status=status,
         manager_name="Alice",
-        is_erp_beta=is_erp_beta,
         structured_data=structured_data or {
             "workflow": {"stage": status},
             "shipment": {},
@@ -117,7 +118,7 @@ def test_structured_stage_transition_uses_kst_received_date(
 
 def test_update_order_status_uses_kst_received_date(client, monkeypatch):
     _login_as_admin(client, username="single-status-admin")
-    order = _create_order(status="RECEIVED", is_erp_beta=False, structured_data={})
+    order = _create_order(status="RECEIVED", structured_data={})
     order_id = order.id
 
     monkeypatch.setattr(orders_api, "get_today_kst", lambda: date(2026, 4, 8))
@@ -139,7 +140,7 @@ def test_update_order_status_uses_kst_received_date(client, monkeypatch):
 
 def test_bulk_update_order_status_uses_kst_received_date(client, monkeypatch):
     _login_as_admin(client, username="bulk-status-admin")
-    order = _create_order(status="RECEIVED", is_erp_beta=False, structured_data={})
+    order = _create_order(status="RECEIVED", structured_data={})
     order_id = order.id
 
     monkeypatch.setattr(orders_api, "get_today_kst", lambda: date(2026, 4, 8))
