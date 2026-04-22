@@ -89,8 +89,40 @@ def can_modify_by_team_policy(
     return user.team == owner_team
 
 
+def is_drawing_workbench_participant(user, order) -> bool:
+    """도면 담당자(지정), 도면팀(DRAWING) 소속, 또는 관리자."""
+    if not user or not order:
+        return False
+    if user.role == "ADMIN":
+        return True
+    try:
+        uid = int(user.id)
+    except (TypeError, ValueError):
+        return False
+    if uid in get_assignee_ids(order, "DRAWING_DOMAIN"):
+        return True
+    if (getattr(user, "team", None) or "").strip() == "DRAWING":
+        return True
+    return False
+
+
+def has_pending_unchecked_drawing_revision_requests(structured_data: object) -> bool:
+    """REQUEST_REVISION 이벤트 중 review_check.checked가 아직 False인 항목이 있으면 True."""
+    if not isinstance(structured_data, dict):
+        return False
+    for h in structured_data.get("drawing_transfer_history") or []:
+        if not isinstance(h, dict) or h.get("action") != "REQUEST_REVISION":
+            continue
+        review = h.get("review_check") if isinstance(h.get("review_check"), dict) else {}
+        if not bool(review.get("checked")):
+            return True
+    return False
+
+
 __all__ = [
     "can_modify_by_team_policy",
     "can_modify_domain",
     "get_assignee_ids",
+    "is_drawing_workbench_participant",
+    "has_pending_unchecked_drawing_revision_requests",
 ]

@@ -19,8 +19,8 @@ from foms.api.notifications import (
 )
 from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users
 from foms.services.erp_permissions import erp_edit_required
-from foms.services.erp_display import _ensure_dict, _can_modify_sales_domain
-from foms.services.erp_policy import can_modify_domain
+from foms.services.erp_display import _ensure_dict
+from foms.services.erp_policy import is_drawing_workbench_participant
 
 logger = logging.getLogger(__name__)
 erp_orders_revision_bp = Blueprint(
@@ -193,13 +193,8 @@ def api_order_request_revision_check(order_id):
         if not current_user:
             return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
 
-        can_toggle = (
-            current_user.role == 'ADMIN'
-            or can_modify_domain(current_user, order, 'DRAWING_DOMAIN', False, None)
-            or _can_modify_sales_domain(current_user, order, s_data, False, None)
-        )
-        if not can_toggle:
-            return jsonify({'success': False, 'message': '권한이 없습니다. (지정 담당자 또는 관리자만 가능)'}), 403
+        if not is_drawing_workbench_participant(current_user, order):
+            return jsonify({'success': False, 'message': '권한이 없습니다. (도면 담당자 또는 도면팀만 가능)'}), 403
 
         history = list(s_data.get('drawing_transfer_history', []) or [])
         if not history:

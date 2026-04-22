@@ -332,8 +332,19 @@
               const isAdmin = (MY_ROLE === 'ADMIN');
               const canDrawingAssign = canEdit || isDrawingTeam || isAdmin;
               const canDrawingWork = (isDrawingTeam || isAssigned || isAdmin) && hasAssignee;
+              const canToggleRevisionCheck = isDrawingTeam || isAssigned || isAdmin;
 
               const assigneeNames = assignees.map(u => u.name).filter(Boolean).join(', ') || (assigneeIds.length ? `${assigneeIds.length}명 지정` : '');
+
+              const drawHistory = Array.isArray(sd.drawing_transfer_history) ? sd.drawing_transfer_history : [];
+              const revisionRequests = drawHistory
+                .filter(h => h && h.action === 'REQUEST_REVISION')
+                .slice()
+                .reverse();
+              const uncheckedRequestCount = revisionRequests.filter((h) => {
+                const rc = (h && h.review_check && typeof h.review_check === 'object') ? h.review_check : {};
+                return !rc.checked;
+              }).length;
 
               // 1. 도면 담당자 지정 버튼 (수정 권한 + 영업/담당자/관리자/도면팀)
               let assignBtn = '';
@@ -361,9 +372,13 @@
                 }
               } else if (drawingStatus === 'RETURNED') {
                 statusBadge = '<span class="badge bg-danger ms-2">수정 요청됨</span>';
-                // 수정 요청 상태에서는 도면팀이 다시 재전송(업로드) 해야 함
+                // 수정 요청 상태: 미반영 요청이 없을 때만 수정본 전달 가능
                 if (canDrawingWork) {
-                  mainBtn = '<button class="btn btn-primary" onclick="openTransferDrawingModal(' + orderId + ', true)"><i class="fas fa-paper-plane"></' + 'i> 수정본 전달 (재전송)</' + 'button><div class="text-danger small mt-1"><i class="fas fa-exclamation-triangle"></' + 'i> 수정 요청 사항을 확인 후 다시 전달해주세요.</div>';
+                  if (uncheckedRequestCount > 0) {
+                    mainBtn = '<button class="btn btn-primary" disabled title="요청사항에서 모든 수정 요청을 반영 완료한 뒤 전달할 수 있습니다."><i class="fas fa-paper-plane"></' + 'i> 수정본 전달 (재전송)</' + 'button><div class="text-danger small mt-1"><i class="fas fa-exclamation-triangle"></' + 'i> 미반영 요청이 있어 전달할 수 없습니다. 작업대 요청사항에서 반영 완료를 먼저 눌러주세요.</div>';
+                  } else {
+                    mainBtn = '<button class="btn btn-primary" onclick="openTransferDrawingModal(' + orderId + ', true)"><i class="fas fa-paper-plane"></' + 'i> 수정본 전달 (재전송)</' + 'button><div class="text-danger small mt-1"><i class="fas fa-exclamation-triangle"></' + 'i> 수정 요청 사항을 확인 후 다시 전달해주세요.</div>';
+                  }
                 } else {
                   mainBtn = '<button class="btn btn-secondary" disabled>수정 작업 대기중</button>';
                 }
@@ -380,12 +395,7 @@
                   }
                 }
               }
-              const drawHistory = Array.isArray(sd.drawing_transfer_history) ? sd.drawing_transfer_history : [];
               const gatewayHistoryHtml = renderDrawingGatewayTimeline(drawHistory);
-              const revisionRequests = drawHistory
-                .filter(h => h && h.action === 'REQUEST_REVISION')
-                .slice()
-                .reverse();
               const requestTabHtml = revisionRequests.length
                 ? revisionRequests.slice(0, 8).map((h, idx) => {
                   const when = escapeHtml(h.transferred_at || h.at || '-');
@@ -405,7 +415,9 @@
                     ? '<span class="badge bg-success ms-1">반영 완료</span>'
                     : '<span class="badge bg-secondary ms-1">미완료</span>';
                   const onclickToggle = 'toggleRevisionChecklist(' + orderId + ', \'' + requestAtEnc + '\', \'' + String(byUserId) + '\', ' + (isChecked ? 'false' : 'true') + ')';
-                  const toggleBtn = '<button class="btn btn-sm ' + (isChecked ? 'btn-outline-secondary' : 'btn-outline-success') + ' mt-2" onclick="' + onclickToggle + '"><i class="fas ' + (isChecked ? 'fa-rotate-left' : 'fa-check') + '"></' + 'i>' + (isChecked ? '완료 해제' : '반영 완료') + '</' + 'button>';
+                  const toggleBtn = canToggleRevisionCheck
+                    ? ('<button class="btn btn-sm ' + (isChecked ? 'btn-outline-secondary' : 'btn-outline-success') + ' mt-2" onclick="' + onclickToggle + '"><i class="fas ' + (isChecked ? 'fa-rotate-left' : 'fa-check') + '"></' + 'i>' + (isChecked ? '완료 해제' : '반영 완료') + '</' + 'button>')
+                    : '';
                   const checkMeta = isChecked
                     ? '<div class="small text-success mt-1"><i class="fas fa-user-check"></' + 'i> ' + checkedBy + ' · ' + checkedAt + '</div>'
                     : '';
@@ -436,7 +448,7 @@
               const checklist = [
                 { label: '도면 담당자 지정', ok: hasAssignee },
                 { label: '최신 전달본 확인', ok: latestFiles.length > 0 || (Array.isArray(sd.drawing_current_files) && sd.drawing_current_files.length > 0) },
-                { label: '요청사항 검토', ok: drawingStatus !== 'RETURNED' || revisionRequests.length > 0 },
+                { label: '요청사항 검토', ok: drawingStatus !== 'RETURNED' || uncheckedRequestCount === 0 },
               ];
               const checklistHtml = '<div class="bg-white border rounded p-2 mb-2"><div class="small fw-semibold mb-1"><i class="fas fa-list-check text-primary"></' + 'i> 작업 체크리스트</div>' + checklist.map(function (item) {
                 return '<div class="small ' + (item.ok ? 'text-success' : 'text-secondary') + '"><i class="fas ' + (item.ok ? 'fa-check-circle' : 'fa-circle') + '"></' + 'i> ' + escapeHtml(item.label) + '</div>';
@@ -451,10 +463,6 @@
                   : (latestAction === 'CANCEL_TRANSFER' ? '전달 취소' : '이력 없음'));
               const latestWho = latestEvent ? escapeHtml(latestEvent.by_user_name || '-') : '-';
               const latestWhen = latestEvent ? escapeHtml(latestEvent.transferred_at || latestEvent.at || '-') : '-';
-              const uncheckedRequestCount = revisionRequests.filter((h) => {
-                const rc = (h && h.review_check && typeof h.review_check === 'object') ? h.review_check : {};
-                return !rc.checked;
-              }).length;
               const requestSummary = uncheckedRequestCount > 0
                 ? `미완료 요청 ${uncheckedRequestCount}건`
                 : '미완료 요청 없음';
