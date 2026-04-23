@@ -213,6 +213,17 @@ def test_measurement_manager_update_records_change_payload(client, monkeypatch):
     assert "망고" in log.masked_request_payload["change_lines"][0]
 
 
+def test_build_structured_update_payload_empty_when_no_diff():
+    same = {
+        "workflow": {"stage": "RECEIVED"},
+        "parties": {"customer": {"phone": "010-1"}},
+        "site": {"address_full": "서울"},
+        "payment": {"deposit_confirmed": False},
+    }
+    payload = build_structured_update_payload(same, dict(same), actor_name="테스트")
+    assert payload["change_lines"] == []
+
+
 def test_build_structured_update_payload_includes_stage_and_manager_changes():
     payload = build_structured_update_payload(
         {

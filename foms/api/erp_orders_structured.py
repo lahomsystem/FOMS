@@ -342,11 +342,13 @@ def api_put_order_structured(order_id):
                 structured_data,
                 _get_actor_name(db),
             )
-            delivery_id = mark_order_updated_for_channel(
-                order,
-                delivery_payload.get('event_type', 'order_updated'),
-                payload=delivery_payload,
-            )
+            # 구조화 데이터에 채널 메시지용 diff가 없으면 Outbox/푸시 생략 (무의미 저장 알림 방지)
+            if delivery_payload.get("change_lines"):
+                delivery_id = mark_order_updated_for_channel(
+                    order,
+                    delivery_payload.get('event_type', 'order_updated'),
+                    payload=delivery_payload,
+                )
 
         address_changed = False
         if structured_data is not None:
