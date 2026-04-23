@@ -1,3 +1,5 @@
+import copy
+
 from werkzeug.security import generate_password_hash
 
 from foms.api import erp_orders_structured
@@ -177,3 +179,44 @@ def test_structured_put_resets_geocode_when_address_is_cleared(client, monkeypat
     assert saved_order.lng is None
     assert saved_order.geocode_status == "pending"
     assert (saved_order.structured_data or {}).get("site", {}).get("address_full") == ""
+
+
+def test_structured_put_skips_channel_when_payload_has_no_change_lines(client, monkeypatch):
+    """채널 diff가 없으면 mark/enqueue 하지 않음 (무변경 저장 알림 방지)."""
+    _login_as_admin(client, username="erp-structured-no-channel")
+    order = _create_order()
+    order_id = order.id
+
+    mark_calls = []
+    push_calls = []
+
+    monkeypatch.setattr(erp_orders_structured, "_handle_stage_transition", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
+    monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
+    monkeypatch.setattr(
+        erp_orders_structured,
+        "build_structured_update_payload",
+        lambda *args, **kwargs: {"event_type": "order_updated", "change_lines": []},
+    )
+    monkeypatch.setattr(
+        channel_delivery_service,
+        "mark_order_updated_for_channel",
+        lambda *args, **kwargs: mark_calls.append(1) or 99,
+    )
+    monkeypatch.setattr(
+        erp_orders_structured,
+        "enqueue_channeltalk_push",
+        lambda delivery_id: push_calls.append(delivery_id),
+    )
+
+    sd = copy.deepcopy(order.structured_data)
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+
+    assert response.status_code == 200
+    assert mark_calls == []
+    assert push_calls == []
