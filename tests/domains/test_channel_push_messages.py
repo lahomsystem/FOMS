@@ -230,3 +230,33 @@ def test_build_structured_update_payload_includes_stage_and_manager_changes():
     assert "상태: 실측 -> 도면" in payload["change_lines"]
     assert "담당자: 이시영 -> 망고" in payload["change_lines"]
     assert payload["changed_by"] == "관리자A"
+
+
+def test_build_structured_update_payload_payment_only_uses_payment_event():
+    payload = build_structured_update_payload(
+        {"payment": {"deposit_confirmed": False}},
+        {"payment": {"deposit_confirmed": True}},
+        actor_name="이시영",
+    )
+    assert payload["event_type"] == "payment_confirmation_changed"
+    assert payload["event_title"] == "결제 확인 변경"
+    assert "계약금 확인: 미확인 -> 확인" in payload["change_lines"]
+    assert payload["changed_by"] == "이시영"
+
+
+def test_build_structured_update_payload_merges_payment_with_other_fields():
+    payload = build_structured_update_payload(
+        {
+            "workflow": {"stage": "RECEIVED"},
+            "payment": {"deposit_confirmed": False},
+        },
+        {
+            "workflow": {"stage": "MEASURE"},
+            "payment": {"deposit_confirmed": True},
+        },
+    )
+    assert payload["event_type"] == "order_updated"
+    assert payload["event_title"] == "정보 변경"
+    lines = payload["change_lines"]
+    assert any("상태:" in ln for ln in lines)
+    assert any("계약금 확인:" in ln for ln in lines)

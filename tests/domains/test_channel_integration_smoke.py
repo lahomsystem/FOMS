@@ -133,7 +133,8 @@ def test_mark_order_updated_for_channel_returns_delivery_id(app):
     assert log.status == "pending"
 
 
-def test_payment_confirm_enqueues_channel_delivery(client, monkeypatch):
+def test_payment_confirm_does_not_enqueue_channel_delivery(client, monkeypatch):
+    """예약금/잔금 토글은 저장 시 일괄 푸시만 사용; 즉시 채널 큐잉 없음."""
     enqueued = []
 
     def _capture_enqueue(delivery_id):
@@ -174,7 +175,6 @@ def test_payment_confirm_enqueues_channel_delivery(client, monkeypatch):
     )
 
     assert r.status_code == 200
-    assert len(enqueued) == 1
-    log = db_session.get(ChannelDeliveryLog, enqueued[0])
-    assert log is not None
-    assert log.status == "pending"
+    assert len(enqueued) == 0
+    body = r.get_json()
+    assert body["payment"]["deposit_confirmed"] is True

@@ -570,7 +570,6 @@ def test_channel_delivery_lazy_callers_use_canonical_import_paths() -> None:
 
     assert expected_import in inspect.getsource(erp_measurement.api_erp_measurement_update)
     assert expected_import in inspect.getsource(erp_orders_structured.api_put_order_structured)
-    assert expected_import in inspect.getsource(erp_orders_structured.api_payment_confirm)
     assert expected_import in inspect.getsource(erp_shipment_settings.api_erp_shipment_update)
 
 

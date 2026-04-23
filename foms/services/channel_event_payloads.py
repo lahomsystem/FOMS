@@ -199,6 +199,25 @@ def build_structured_update_payload(
     if line:
         change_lines.append(line)
 
+    payment_old = old_sd.get("payment") if isinstance(old_sd.get("payment"), dict) else {}
+    payment_new = new_sd.get("payment") if isinstance(new_sd.get("payment"), dict) else {}
+    line = _change_line(
+        "계약금 확인",
+        payment_old.get("deposit_confirmed"),
+        payment_new.get("deposit_confirmed"),
+        _display_confirmed,
+    )
+    if line:
+        change_lines.append(line)
+    line = _change_line(
+        "잔금 확인",
+        payment_old.get("balance_confirmed"),
+        payment_new.get("balance_confirmed"),
+        _display_confirmed,
+    )
+    if line:
+        change_lines.append(line)
+
     urgent_now = bool(flags_new.get("urgent"))
     urgent_changed = bool(flags_old.get("urgent")) != urgent_now
     if urgent_changed and urgent_now:
@@ -208,6 +227,17 @@ def build_structured_update_payload(
             change_lines=change_lines or ["긴급 여부: 일반 -> 긴급"],
             actor_name=actor_name,
             reason=(flags_new.get("urgent_reason") or "긴급 확인 필요"),
+        )
+
+    if change_lines and all(
+        ln.startswith("계약금 확인:") or ln.startswith("잔금 확인:")
+        for ln in change_lines
+    ):
+        return _order_change_payload(
+            event_type="payment_confirmation_changed",
+            event_title="결제 확인 변경",
+            change_lines=change_lines,
+            actor_name=actor_name,
         )
 
     if len(change_lines) == 1:
