@@ -54,7 +54,7 @@ def edit_order(order_id):
         if _legacy_open is not None:
             return _legacy_open
     db = get_db()
-    order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+    order = db.query(Order).filter(Order.id == order_id, Order.not_deleted_filter()).first()
 
     if not order:
         flash('주문을 찾을 수 없거나 이미 삭제되었습니다.', 'error')
