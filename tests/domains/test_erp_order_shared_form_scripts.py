@@ -174,6 +174,33 @@ def test_shared_erp_order_js_has_no_beta_runtime_mirror() -> None:
     assert "data-erp-beta-draft-mode" not in text
 
 
+def test_shared_erp_order_js_blocks_non_save_actions_from_creating_drafts() -> None:
+    """Only explicit save may create/finalize an ERP draft row."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    assert "function erpRequireFinalizedOrderForAction(actionText)" in text
+    assert "window.erpIsDraftBackedOrder = erpIsDraftBackedOrder;" in text
+
+    payment_start = text.index("window.erpTogglePayment = async function")
+    payment_end = text.index("// ERP Order: 발주사 드롭다운", payment_start)
+    payment_block = text[payment_start:payment_end]
+    assert "erpRequireOrderIdOrWarn('결제:')" not in payment_block
+    assert "erpRequireFinalizedOrderForAction('결제 확인은')" in payment_block
+
+    item_upload_start = text.index("async function erpUploadItemAttachments")
+    item_upload_end = text.index("function erpRenderItemAttachmentPanels", item_upload_start)
+    item_upload_block = text[item_upload_start:item_upload_end]
+    assert "erpRequireOrderIdOrWarn('제품 이미지 업로드:')" not in item_upload_block
+    assert "erpRequireFinalizedOrderForAction('제품 이미지 업로드는')" in item_upload_block
+
+    common_upload_start = text.index("async function erpUploadSelectedAttachments")
+    common_upload_end = text.index("function erpGenerateConversionText", common_upload_start)
+    common_upload_block = text[common_upload_start:common_upload_end]
+    assert "erpRequireOrderIdOrWarn('첨부 업로드:')" not in common_upload_block
+    assert "erpRequireFinalizedOrderForAction('첨부 업로드는')" in common_upload_block
+
+
 def test_edit_order_initial_mount_releases_surface_before_deferred_panels() -> None:
     """Initial edit-page paint should reveal the ERP pane before quest/attachment fetches finish."""
     root = Path(__file__).resolve().parents[2]
@@ -198,6 +225,32 @@ def test_add_order_handler_accepts_only_canonical_erp_order_create_mode_contract
     text = (root / "foms/web/orders/listing.py").read_text(encoding="utf-8")
     assert "ERP_BETA" not in text
     assert "create_mode == 'ERP_ORDER'" in text
+
+
+def test_add_order_handler_rejects_blank_erp_order_placeholders(erp_editor_client) -> None:
+    """The legacy add-order POST path must not create placeholder ERP orders."""
+    before_total = db_session.query(Order).count()
+    before_placeholder = (
+        db_session.query(Order)
+        .filter(Order.customer_name == "ERP Order", Order.phone == "000-0000-0000")
+        .count()
+    )
+
+    response = erp_editor_client.post(
+        "/add",
+        data={"create_mode": "ERP_ORDER"},
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert "필수 항목을 입력해주세요" in response.get_data(as_text=True)
+    assert db_session.query(Order).count() == before_total
+    assert (
+        db_session.query(Order)
+        .filter(Order.customer_name == "ERP Order", Order.phone == "000-0000-0000")
+        .count()
+        == before_placeholder
+    )
 
 
 def test_erp_order_flag_helper_ignores_legacy_attr() -> None:

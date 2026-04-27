@@ -107,10 +107,38 @@ class Order(Base):
     )
 
     @classmethod
-    def active_filter(cls):
-        """Phase C-0: active 주문 필터 (soft-delete 제외). status != DELETED AND deleted_at IS NULL."""
+    def not_deleted_filter(cls):
+        """Soft-delete 제외 필터. Draft 조회/승격처럼 숨김 주문도 다뤄야 할 때 사용한다."""
         from sqlalchemy import and_
         return and_(cls.status != 'DELETED', cls.deleted_at.is_(None))
+
+    @classmethod
+    def erp_draft_filter(cls):
+        """ERP Order draft row 필터."""
+        from sqlalchemy import and_, or_
+        return and_(
+            cls.not_deleted_filter(),
+            cls.is_erp_order.is_(True),
+            or_(
+                cls.status == 'DRAFT',
+                cls.structured_data[("meta", "draft")].as_boolean().is_(True),
+            ),
+        )
+
+    @classmethod
+    def active_filter(cls):
+        """Phase C-0: 운영 화면용 active 주문 필터. soft-delete와 ERP draft row는 제외한다."""
+        from sqlalchemy import and_, not_, or_
+        return and_(
+            cls.not_deleted_filter(),
+            not_(and_(
+                cls.is_erp_order.is_(True),
+                or_(
+                    cls.status == 'DRAFT',
+                    cls.structured_data[("meta", "draft")].as_boolean().is_(True),
+                ),
+            )),
+        )
 
     @classmethod
     def dashboard_active_filter(cls, days=60):

@@ -38,6 +38,7 @@ def _structured_payload(address: str) -> dict:
                 "phone": "010-1234-5678",
             }
         },
+        "items": [{"product_name": "붙박이장"}],
         "site": {
             "address_full": address,
             "address_main": address,
@@ -117,7 +118,7 @@ def test_structured_put_skips_channel_side_effects_when_structured_data_missing(
     assert saved_order.structured_data == original_structured
 
 
-def test_structured_put_resets_geocode_when_address_is_cleared(client, monkeypatch):
+def test_structured_put_rejects_address_clear_before_geocode_reset(client, monkeypatch):
     _login_as_admin(client, username="erp-structured-address-clear")
     order = _create_order()
     order_id = order.id
@@ -164,21 +165,22 @@ def test_structured_put_resets_geocode_when_address_is_cleared(client, monkeypat
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 400
     data = response.get_json()
-    assert data["success"] is True
-    assert reset_calls == [""]
-    assert geocode_calls == [order_id]
+    assert data["success"] is False
+    assert "주소" in data["message"]
+    assert reset_calls == []
+    assert geocode_calls == []
     assert push_calls == []
 
     db_session.expire_all()
     saved_order = db_session.get(Order, order_id)
     assert saved_order is not None
-    assert saved_order.address == ""
-    assert saved_order.lat is None
-    assert saved_order.lng is None
-    assert saved_order.geocode_status == "pending"
-    assert (saved_order.structured_data or {}).get("site", {}).get("address_full") == ""
+    assert saved_order.address == "서울 테헤란로 123"
+    assert saved_order.lat == 37.5
+    assert saved_order.lng == 127.0
+    assert saved_order.geocode_status == "success"
+    assert (saved_order.structured_data or {}).get("site", {}).get("address_full") == "서울 테헤란로 123"
 
 
 def test_structured_put_skips_channel_when_payload_has_no_change_lines(client, monkeypatch):
@@ -220,3 +222,132 @@ def test_structured_put_skips_channel_when_payload_has_no_change_lines(client, m
     assert response.status_code == 200
     assert mark_calls == []
     assert push_calls == []
+
+
+def test_erp_draft_create_is_hidden_from_active_orders_and_reused(client):
+    _login_as_admin(client, username="erp-draft-hidden")
+
+    response = client.post("/api/orders/erp/draft")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["reused"] is False
+
+    order_id = data["order_id"]
+    db_session.expire_all()
+    draft = db_session.get(Order, order_id)
+    assert draft is not None
+    assert draft.status == "DRAFT"
+    assert (draft.structured_data or {}).get("meta", {}).get("draft") is True
+    assert draft not in db_session.query(Order).filter(Order.active_filter()).all()
+
+    reused = client.post("/api/orders/erp/draft")
+
+    assert reused.status_code == 200
+    reused_data = reused.get_json()
+    assert reused_data["success"] is True
+    assert reused_data["reused"] is True
+    assert reused_data["order_id"] == order_id
+
+
+def test_erp_draft_status_is_hidden_even_without_meta_marker(client):
+    _login_as_admin(client, username="erp-draft-status-hidden")
+    structured = _structured_payload("서울 테헤란로 123")
+    structured["meta"] = {"draft": False}
+    order = _create_order(structured_data=structured)
+    order.status = "DRAFT"
+    db_session.commit()
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order.id)
+    assert saved in db_session.query(Order).filter(Order.erp_draft_filter()).all()
+    assert saved not in db_session.query(Order).filter(Order.active_filter()).all()
+
+
+def test_structured_put_rejects_incomplete_draft_and_keeps_it_hidden(client):
+    _login_as_admin(client, username="erp-draft-incomplete")
+    created = client.post("/api/orders/erp/draft").get_json()
+    order_id = created["order_id"]
+
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={
+            "structured_data": {
+                "workflow": {"stage": "RECEIVED"},
+                "parties": {"customer": {"name": "홍길동", "phone": "010-1234-5678"}},
+                "site": {"address_full": "서울 테헤란로 123", "address_main": "서울 테헤란로 123"},
+                "items": [{"product_name": ""}],
+            },
+            "structured_schema_version": 1,
+        },
+    )
+
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["success"] is False
+    assert "제품명" in data["message"]
+
+    db_session.expire_all()
+    draft = db_session.get(Order, order_id)
+    assert draft is not None
+    assert draft.status == "DRAFT"
+    assert (draft.structured_data or {}).get("meta", {}).get("draft") is True
+    assert draft not in db_session.query(Order).filter(Order.active_filter()).all()
+
+
+def test_structured_put_finalizes_draft_without_incoming_meta(client, monkeypatch):
+    _login_as_admin(client, username="erp-draft-finalize")
+    created = client.post("/api/orders/erp/draft").get_json()
+    order_id = created["order_id"]
+
+    monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "enqueue_geocode_order_address", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "enqueue_channeltalk_push", lambda *a, **k: None)
+    monkeypatch.setattr(
+        erp_orders_structured,
+        "build_structured_update_payload",
+        lambda *a, **k: {"event_type": "order_updated", "change_lines": []},
+    )
+
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={
+            "structured_data": _structured_payload("서울 테헤란로 123"),
+            "structured_schema_version": 1,
+            "received_date": "2026-04-27",
+            "received_time": "09:30",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["draft_cleared"] is True
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved is not None
+    assert saved.status == "RECEIVED"
+    assert saved.customer_name == "홍길동"
+    assert saved.phone == "010-1234-5678"
+    assert saved.address == "서울 테헤란로 123"
+    assert saved.product == "붙박이장"
+    assert (saved.structured_data or {}).get("meta", {}).get("draft") is False
+    assert saved in db_session.query(Order).filter(Order.active_filter()).all()
+
+    with client.session_transaction() as sess:
+        assert "erp_draft_order_id" not in sess
+
+
+def test_payment_confirm_rejects_unfinalized_draft(client):
+    _login_as_admin(client, username="erp-draft-payment")
+    created = client.post("/api/orders/erp/draft").get_json()
+
+    response = client.post(
+        f"/api/orders/{created['order_id']}/payment-confirm",
+        json={"type": "deposit", "confirmed": True},
+    )
+
+    assert response.status_code == 404

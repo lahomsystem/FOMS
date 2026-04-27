@@ -31,6 +31,7 @@ from foms.services.erp_policy import (
     create_quest_from_template,
 )
 from foms.services.erp_display import get_today_kst
+from foms.services.erp_order_flags import is_erp_draft_structured_data, is_erp_order_draft
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.erp_automation import apply_auto_tasks
 from foms.services.orders.order_text_parser import parse_order_text
@@ -47,6 +48,44 @@ _CUSTOMER_PLACEHOLDERS = {ERP_DRAFT_PLACEHOLDER_CUSTOMER}
 _PRODUCT_PLACEHOLDERS = {ERP_DRAFT_PLACEHOLDER_PRODUCT}
 
 erp_orders_structured_bp = Blueprint('erp_orders_structured', __name__, url_prefix='/api')
+
+
+def _first_product_name_from_structured_data(structured_data: dict) -> str:
+    items = structured_data.get('items') or []
+    if not isinstance(items, list):
+        return ''
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        product_name = (item.get('product_name') or item.get('name') or '').strip()
+        if product_name:
+            return product_name
+    return ''
+
+
+def _missing_required_structured_fields(structured_data: dict) -> list[str]:
+    parties = structured_data.get('parties') or {}
+    customer = (parties.get('customer') or {}) if isinstance(parties, dict) else {}
+    site = structured_data.get('site') or {}
+
+    customer_name = (customer.get('name') or '').strip()
+    customer_phone = (customer.get('phone') or '').strip()
+    address = (
+        (site.get('address_full') or site.get('address_main') or '').strip()
+        if isinstance(site, dict) else ''
+    )
+    product_name = _first_product_name_from_structured_data(structured_data)
+
+    missing = []
+    if not customer_name or customer_name in _CUSTOMER_PLACEHOLDERS:
+        missing.append('고객명')
+    if not customer_phone or customer_phone == ERP_DRAFT_PLACEHOLDER_PHONE:
+        missing.append('전화번호')
+    if not address or address == '-':
+        missing.append('주소')
+    if not product_name or product_name in _PRODUCT_PLACEHOLDERS:
+        missing.append('제품명')
+    return missing
 
 
 def _get_actor_name(db: Session) -> Optional[str]:
@@ -166,17 +205,22 @@ def _finalize_draft_state(
     order: Order,
     structured_data: Optional[dict],
     now: datetime.datetime,
+    old_structured_data: Optional[dict] = None,
 ) -> bool:
     """draft 메타 정리, 플레이스홀더 → 실제 데이터로 flat 컬럼 동기화, session 정리. draft_cleared 여부 반환."""
     draft_cleared = False
+    old_sd = old_structured_data if isinstance(old_structured_data, dict) else {}
+    existing_draft = is_erp_order_draft(order) or is_erp_draft_structured_data(old_sd)
     if structured_data:
         try:
             meta = structured_data.get('meta') or {}
-            if meta.get('draft') is True:
+            if existing_draft or meta.get('draft') is True:
                 meta['draft'] = False
                 meta['finalized_at'] = now.isoformat()
                 structured_data['meta'] = meta
                 draft_cleared = True
+                stage = (structured_data.get('workflow') or {}).get('stage') or (old_sd.get('workflow') or {}).get('stage')
+                order.status = stage if stage in STATUS else 'RECEIVED'
 
                 # Draft finalize 시 structured_data 의 실제 고객 정보를 flat 컬럼에 동기화
                 parties = (structured_data.get('parties') or {})
@@ -216,7 +260,7 @@ def api_get_order_structured(order_id):
     """구조화 데이터 조회(전사 공용)."""
     db = get_db()
     try:
-        order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+        order = db.query(Order).filter(Order.id == order_id, Order.not_deleted_filter()).first()
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
@@ -247,7 +291,7 @@ def api_put_order_structured(order_id):
     start_time = time.perf_counter()
     db = get_db()
     try:
-        order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+        order = db.query(Order).filter(Order.id == order_id, Order.not_deleted_filter()).first()
         query_time = (time.perf_counter() - start_time) * 1000
         logger.info(f"save latency - query_order: {query_time:.1f}ms")
         
@@ -269,29 +313,18 @@ def api_put_order_structured(order_id):
         if structured_data is not None and not isinstance(structured_data, dict):
             return jsonify({'success': False, 'message': 'structured_data는 JSON 객체여야 합니다.'}), 400
 
-        # Draft가 아닌 저장 시 필수값 검증: 고객명, 전화번호가 빈 값이면 거부
-        if structured_data is not None:
-            _meta = (structured_data.get('meta') or {})
-            _is_draft = _meta.get('draft') is True
-            if not _is_draft:
-                _parties = (structured_data.get('parties') or {})
-                _customer = (_parties.get('customer') or {})
-                _cname = (_customer.get('name') or '').strip()
-                _cphone = (_customer.get('phone') or '').strip()
-                _missing = []
-                if not _cname or _cname in _CUSTOMER_PLACEHOLDERS:
-                    _missing.append('고객명')
-                if not _cphone or _cphone == '000-0000-0000':
-                    _missing.append('전화번호')
-                if _missing:
-                    logger.warning(f"[ERP_ORDER] 필수값 누락 저장 차단 order_id={order_id}: {_missing}")
-                    return jsonify({
-                        'success': False,
-                        'message': f"필수 항목을 입력해주세요: {', '.join(_missing)}"
-                    }), 400
-
         _sd_raw: Any = order.structured_data
         old_sd = _sd_raw if isinstance(_sd_raw, dict) else {}
+
+        # 모든 structured PUT은 실제 저장/승격 경로다. draft row도 여기서만 실제 주문으로 확정된다.
+        if structured_data is not None:
+            _missing = _missing_required_structured_fields(structured_data)
+            if _missing:
+                logger.warning(f"[ERP_ORDER] 필수값 누락 저장 차단 order_id={order_id}: {_missing}")
+                return jsonify({
+                    'success': False,
+                    'message': f"필수 항목을 입력해주세요: {', '.join(_missing)}"
+                }), 400
 
         if raw_order_text is not None:
             setattr(order, 'raw_order_text', raw_order_text)
@@ -322,7 +355,7 @@ def api_put_order_structured(order_id):
             side_effect_time = (time.perf_counter() - t0) * 1000
             logger.info(f"save latency - side_effects: {side_effect_time:.1f}ms")
             
-            draft_cleared = _finalize_draft_state(order, structured_data, now)
+            draft_cleared = _finalize_draft_state(order, structured_data, now, old_sd)
 
             order.structured_data = copy.deepcopy(structured_data)
             flag_modified(order, 'structured_data')
@@ -477,9 +510,10 @@ def api_erp_create_draft():
     try:
         existing_id = session.get('erp_draft_order_id')
         if existing_id:
-            order = db.query(Order).filter(Order.id == int(existing_id), Order.active_filter()).first()
-            if order:
+            order = db.query(Order).filter(Order.id == int(existing_id), Order.not_deleted_filter()).first()
+            if order and is_erp_order_draft(order):
                 return jsonify({'success': True, 'order_id': order.id, 'reused': True})
+            session.pop('erp_draft_order_id', None)
 
         now = datetime.datetime.now()
         today = now.strftime('%Y-%m-%d')
@@ -501,7 +535,7 @@ def api_erp_create_draft():
             product=ERP_DRAFT_PLACEHOLDER_PRODUCT,
             options=None,
             notes=None,
-            status='RECEIVED',
+            status='DRAFT',
             is_erp_order=True,
             raw_order_text='',
             structured_data=structured,

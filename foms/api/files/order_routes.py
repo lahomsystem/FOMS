@@ -20,6 +20,7 @@ from foms.api.files.common import (
 )
 from db import get_db
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
+from foms.services.erp_order_flags import is_erp_order_draft
 from foms.services.order_attachment_thumbnail import (
     schedule_order_attachment_thumbnail_generation,
 )
@@ -109,6 +110,8 @@ def api_order_attachments_upload(order_id):
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+        if is_erp_order_draft(order):
+            return jsonify({"success": False, "message": "주문 저장 후 첨부파일을 업로드해주세요."}), 409
 
         storage = get_storage()
         folder = f"orders/{order_id}/attachments"

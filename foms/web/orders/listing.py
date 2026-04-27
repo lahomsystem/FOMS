@@ -40,6 +40,19 @@ def _extract_orderer_from_options(options_str):
         return None
 
 
+def _first_product_name_from_structured_data(structured_data):
+    items = structured_data.get('items') or []
+    if not isinstance(items, list):
+        return ''
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        product_name = (item.get('product_name') or item.get('name') or '').strip()
+        if product_name:
+            return product_name
+    return ''
+
+
 order_pages_bp = Blueprint('order_pages', __name__, url_prefix='')
 
 
@@ -245,8 +258,10 @@ def add_order():
                         parsed = json.loads(structured_json)
                         if isinstance(parsed, dict):
                             structured_data = parsed
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        current_app.logger.warning("ERP Order structured_data_json parse failed: %s", exc, exc_info=True)
+                        flash('ERP Order 데이터 형식이 올바르지 않습니다.', 'error')
+                        return redirect(url_for('order_pages.add_order'))
 
                 structured_data.setdefault('workflow', {})
                 structured_data['workflow']['stage'] = stage or 'RECEIVED'
@@ -267,10 +282,23 @@ def add_order():
                     structured_data['schedule'].setdefault('construction', {})
                     structured_data['schedule']['construction']['date'] = cons_date
 
-                cust_name = ((structured_data.get('parties') or {}).get('customer') or {}).get('name') or (request.form.get('erp_customer_name') or '').strip() or ERP_DRAFT_PLACEHOLDER_CUSTOMER
-                cust_phone = ((structured_data.get('parties') or {}).get('customer') or {}).get('phone') or (request.form.get('erp_customer_phone') or '').strip() or ERP_DRAFT_PLACEHOLDER_PHONE
-                addr = ((structured_data.get('site') or {}).get('address_full') or (structured_data.get('site') or {}).get('address_main')) or (request.form.get('erp_address') or '').strip() or '-'
-                prod = (request.form.get('erp_product') or '').strip() or ERP_DRAFT_PLACEHOLDER_PRODUCT
+                cust_name = (((structured_data.get('parties') or {}).get('customer') or {}).get('name') or (request.form.get('erp_customer_name') or '')).strip()
+                cust_phone = (((structured_data.get('parties') or {}).get('customer') or {}).get('phone') or (request.form.get('erp_customer_phone') or '')).strip()
+                addr = (((structured_data.get('site') or {}).get('address_full') or (structured_data.get('site') or {}).get('address_main')) or (request.form.get('erp_address') or '')).strip()
+                prod = (_first_product_name_from_structured_data(structured_data) or (request.form.get('erp_product') or '')).strip()
+
+                missing = []
+                if not cust_name or cust_name == ERP_DRAFT_PLACEHOLDER_CUSTOMER:
+                    missing.append('고객명')
+                if not cust_phone or cust_phone == ERP_DRAFT_PLACEHOLDER_PHONE:
+                    missing.append('전화번호')
+                if not addr or addr == '-':
+                    missing.append('주소')
+                if not prod or prod == ERP_DRAFT_PLACEHOLDER_PRODUCT:
+                    missing.append('제품명')
+                if missing:
+                    flash(f"필수 항목을 입력해주세요: {', '.join(missing)}", 'error')
+                    return redirect(url_for('order_pages.add_order'))
 
                 new_order = Order(
                     received_date=request.form.get('received_date') or datetime.datetime.now().strftime('%Y-%m-%d'),

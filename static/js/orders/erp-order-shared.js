@@ -288,6 +288,27 @@ var erpRequireOrderIdOrWarn =
     };
 window.erpRequireOrderIdOrWarn = erpRequireOrderIdOrWarn;
 
+function erpIsDraftBackedOrder() {
+    const metaDraft = window.__erpLastStructuredData &&
+        window.__erpLastStructuredData.meta &&
+        window.__erpLastStructuredData.meta.draft === true;
+    return isErpOrderDraftMode() || !!metaDraft;
+}
+window.erpIsDraftBackedOrder = erpIsDraftBackedOrder;
+
+function erpRequireFinalizedOrderForAction(actionText) {
+    if (!ERP_ORDER_ENABLED) return false;
+    const label = actionText || '이 작업은';
+    if (!ORDER_ID || erpIsDraftBackedOrder()) {
+        const message = `${label} 주문 저장 후 사용할 수 있습니다.`;
+        erpSetStatus(message, true);
+        alert(message);
+        return false;
+    }
+    return true;
+}
+window.erpRequireFinalizedOrderForAction = erpRequireFinalizedOrderForAction;
+
 var erpSetStatus =
     window.erpSetStatus ||
     function erpSetStatus(text, isError) {
@@ -1132,17 +1153,9 @@ window.erpTogglePayment = async function(btn, pType) {
             targetId = parseInt(String(idVal), 10) || 0;
         }
     }
-    // 신규 주문(draft) 모드: ID가 0이면 draft 자동 생성 후 결제 확인 진행 (저장 버튼 없이 클릭 가능)
-    if (targetId <= 0) {
-        if (isErpOrderDraftMode()) {
-            const id = await erpRequireOrderIdOrWarn('결제:');
-            if (!id) return;
-            targetId = parseInt(String(id), 10) || 0;
-        }
-        if (targetId <= 0) {
-            alert('주문을 먼저 저장해야 합니다.');
-            return;
-        }
+    if (targetId <= 0 || erpIsDraftBackedOrder()) {
+        erpRequireFinalizedOrderForAction('결제 확인은');
+        return;
     }
 
     _paymentTogglePending = true;
@@ -1637,9 +1650,8 @@ async function erpUploadItemAttachments(itemIndex, files) {
         erpAttachmentsSetStatus('유효한 제품 항목을 찾지 못했습니다.', true);
         return;
     }
-    if (!ORDER_ID) {
-        const ok = await erpRequireOrderIdOrWarn('제품 이미지 업로드:');
-        if (!ok) return;
+    if (!erpRequireFinalizedOrderForAction('제품 이미지 업로드는')) {
+        return;
     }
     if (!Array.isArray(files) || !files.length) {
         erpAttachmentsSetStatus('업로드할 이미지를 선택하세요.', true);
@@ -2065,9 +2077,8 @@ async function erpUploadSelectedAttachments() {
         return;
     }
     const files = Array.from(input.files);
-    if (!ORDER_ID) {
-        const ok = await erpRequireOrderIdOrWarn('첨부 업로드:');
-        if (!ok) return;
+    if (!erpRequireFinalizedOrderForAction('첨부 업로드는')) {
+        return;
     }
     const categoryEl = document.getElementById('erp-attachments-category');
     const category = erpNormalizeAttachmentCategory(categoryEl ? categoryEl.value : 'measurement');
@@ -2483,6 +2494,7 @@ function setErpOrderEnabled(nextEnabled) {
 function isErpOrderDraftMode() {
     return !!window.__ERP_ORDER_DRAFT_MODE;
 }
+window.isErpOrderDraftMode = isErpOrderDraftMode;
 
 function setErpOrderDraftMode(nextDraftMode) {
     const next = !!nextDraftMode;
@@ -2638,15 +2650,13 @@ function fomsMountErpOrderSurface() {
         }
 
         let orderId = (typeof ORDER_ID !== 'undefined' && ORDER_ID > 0) ? ORDER_ID : 0;
-        if (!orderId) {
-            const id = await erpRequireOrderIdOrWarn('푸쉬:');
-            if (!id) return;
+        if (!orderId || erpIsDraftBackedOrder()) {
             const saveRes = await erpSaveStructured({ redirect: false });
             if (!saveRes.success) {
                 alert(saveRes.message || '저장 실패. 푸쉬를 위해 저장이 필요합니다.');
                 return;
             }
-            orderId = (typeof ORDER_ID !== 'undefined' && ORDER_ID > 0) ? ORDER_ID : parseInt(String(id), 10) || 0;
+            orderId = (typeof ORDER_ID !== 'undefined' && ORDER_ID > 0) ? ORDER_ID : 0;
         }
         if (!orderId) {
             alert('주문 ID를 확보할 수 없습니다.');

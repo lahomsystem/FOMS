@@ -337,6 +337,10 @@
             // 변경된 경우에만 자동 저장 (실시간 반영) — 자동 저장이므로 필수값 검증 생략
             // 단, 고객명이 비어있으면 저장을 스킵 (빈 주문 서버 저장 방지)
             if (_dirty && orderId && orderId > 0 && typeof window.erpSaveStructured === 'function') {
+                if (typeof window.erpIsDraftBackedOrder === 'function' && window.erpIsDraftBackedOrder()) {
+                    erpLoadEstimatePreview();
+                    return;
+                }
                 const custName = (document.getElementById('erp-customer-name')?.value || '').trim();
                 if (!custName) {
                     erpLoadEstimatePreview();
