@@ -1130,7 +1130,8 @@
       syncDateFieldVisuals(orderId, field, normalizedValue);
     }
 
-    function applyOrderUiFromResponse(orderId, data = {}) {
+    function applyOrderUiFromResponse(orderId, data = {}, options = {}) {
+      const updatedField = options.updatedField || '';
       const row = getTableRowForOrder(orderId);
       const card = getCardForOrder(orderId);
       const asPending = data.as_pending === true;
@@ -1161,7 +1162,9 @@
         if (customerRow) customerRow.classList.toggle('erp-as-customer-row--pending', asPending);
       }
 
-      if (Object.prototype.hasOwnProperty.call(data, 'as_visit_date')) {
+      // 미결(as_pending)만 바꿀 때는 응답에 포함된 as_visit_date로 동기화하면 안 된다.
+      // 서버 flat 컬럼이 비어 있는데 화면 입력에는 방문일이 있는 경우 syncVisitPendingButtons가 미결 버튼을 DOM에서 제거한다.
+      if (updatedField !== 'as_pending' && Object.prototype.hasOwnProperty.call(data, 'as_visit_date')) {
         syncDateFieldVisuals(orderId, 'as_visit_date', data.as_visit_date || '');
       }
       if (Object.prototype.hasOwnProperty.call(data, 'as_completed_date')) {
@@ -1206,7 +1209,7 @@
             throw new Error(data.message || '날짜 저장 실패');
           }
           syncDateFieldInputs(orderId, fieldName, value);
-          applyOrderUiFromResponse(orderId, data);
+          applyOrderUiFromResponse(orderId, data, { updatedField: fieldName });
           if (!silent) {
             showFeedback(fieldName === 'as_completed_date' ? '완료일이 저장되었습니다.' : '방문일이 저장되었습니다.');
           }
@@ -1357,7 +1360,7 @@
         const nextActive = !wasActive;
         const targetTab = nextActive ? (baseTab === 'completed' ? 'completed' : 'sales_delivery') : baseTab;
         const data = await saveOrderFieldDirect(orderId, 'sales_delivery', nextActive);
-        applyOrderUiFromResponse(orderId, data);
+        applyOrderUiFromResponse(orderId, data, { updatedField: 'sales_delivery' });
         window.location.href = buildAsDashboardUrl({
           tab: targetTab,
           status: targetTab === 'completed' ? 'AS_COMPLETED' : null,
@@ -2165,7 +2168,7 @@
         .then(function (data) {
           btn.disabled = false;
           if (data.success) {
-            applyOrderUiFromResponse(orderId, data);
+            applyOrderUiFromResponse(orderId, data, { updatedField: 'as_pending' });
             showFeedback(currentlyPending ? '미결 표시를 해제했습니다.' : '미결로 표시했습니다.');
           } else {
             showFeedback('저장 실패: ' + (data.message || ''), true);
@@ -2203,7 +2206,7 @@
 
       saveOrderFieldDirect(orderId, 'as_blueprint', nextChecked)
         .then((data) => {
-          applyOrderUiFromResponse(orderId, data);
+          applyOrderUiFromResponse(orderId, data, { updatedField: 'as_blueprint' });
           showFeedback('AS도면 여부가 저장되었습니다.');
         })
         .catch((err) => {
