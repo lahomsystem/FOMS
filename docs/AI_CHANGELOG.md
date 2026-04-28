@@ -4,6 +4,15 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-04-28 | 세션 자동 기록 | as-dashboard-body.css, as_dashboard_body.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png 외 2개 | e9742ce3 |
+| 2026-04-28 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png, test_erp_orders_structured_put.py 외 2개 | e9742ce3 |
+| 2026-04-27 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png, test_erp_orders_structured_put.py 외 2개 | bd27a007 |
+| 2026-04-24 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png, test_erp_orders_structured_put.py 외 2개 | bd27a007 |
+| 2026-04-23 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png, test_erp_orders_structured_put.py 외 2개 | bd27a007 |
+| 2026-04-23 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png, test_erp_orders_structured_put.py, test_channel_push_messages.py 외 2개 | bd27a007 |
+| 2026-04-23 | 세션 자동 기록 | test_erp_orders_structured_put.py, test_channel_push_messages.py, erp_orders_structured.py 외 2개 | e9e1a321 |
+| 2026-04-23 | 세션 자동 기록 | test_channel_push_messages.py, test_channel_integration_smoke.py, foms_namespace_surface_tests.py 외 2개 | 0f4bfb5d |
+| 2026-04-23 | 세션 자동 기록 | test_as_received_date_kst.py, test_channel_push_messages.py, channel_policy.py 외 2개 | 3a092e25 |
 | 2026-04-23 | 세션 자동 기록 | test_channel_push_messages.py, channel_policy.py, dashboard_scripts_detail_dom.html 외 2개 | 873a5c67 |
 | 2026-04-23 | 세션 자동 기록 | dashboard_scripts_detail_dom.html, erp-dashboard-detail-dom.js, workbench_detail_body.html 외 2개 | 873a5c67 |
 | 2026-04-22 | 세션 자동 기록 | dashboard_scripts_detail_dom.html, erp-dashboard-detail-dom.js, workbench_detail_body.html 외 2개 | 9358ca6b |
@@ -15,12 +24,3 @@
 | 2026-04-20 | 세션 자동 기록 | wdcalculator_db.py, test_db_url_resolver.py, foms_namespace_surface_tests.py 외 2개 | b202f575 |
 | 2026-04-20 | 세션 자동 기록 | test_db_url_resolver.py, foms_namespace_surface_tests.py, db.py 외 2개 | f318a73f |
 | 2026-04-20 | 세션 자동 기록 | test_db_url_resolver.py, db_url_resolver.py, db.py 외 2개 | 444525d2 |
-| 2026-04-20 | 세션 자동 기록 | db.py, test_notification_badge_dedup.py, test_order_detail_two_phase_contract.py 외 2개 | 444525d2 |
-| 2026-04-20 | 세션 자동 기록 | test_notification_badge_dedup.py, test_order_detail_two_phase_contract.py, dashboard_body.html 외 2개 | a1180314 |
-| 2026-04-20 | 세션 자동 기록 | test_erp_measurement_mobile_render.py, test_erp_as_dashboard_tabs.py, erp_orders_structured.py 외 2개 | a1180314 |
-| 2026-04-19 | 세션 자동 기록 | 09-mobile-erp-optimization.css, settings_body.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e061f4a7-5536-4be2-986b-f8f1cafd516e.png 외 2개 | 6131d93d |
-| 2026-04-19 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e061f4a7-5536-4be2-986b-f8f1cafd516e.png, commit_msg_utf8.txt, test_estimate_service.py 외 2개 | 6131d93d |
-| 2026-04-19 | 세션 자동 기록 | commit_msg_utf8.txt, test_estimate_service.py, estimate-preview.js 외 2개 | 6131d93d |
-| 2026-04-19 | 세션 자동 기록 | test_estimate_service.py, estimate-preview.js, settings_body.html 외 2개 | 6fff9c9f |
-| 2026-04-19 | 세션 자동 기록 | estimate-preview.js, estimate_pane.html, estimate_defaults.py 외 2개 | 6fff9c9f |
-| 2026-04-19 | 세션 자동 기록 | test_estimate_service.py, test_erp_shipment_settings.py, settings_body.html 외 2개 | 6fff9c9f |

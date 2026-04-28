@@ -202,3 +202,32 @@
 | 2026-04-23 08:34:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --name-only; git diff --cached --name-only` |
 | 2026-04-23 08:34:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
 | 2026-04-23 08:35:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/harness/logs/SHELL_GUARD_LOG.md; git commit --trailer "Made-with: Cursor" -m "fea` |
+| 2026-04-23 08:50:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout feature/modular-monolith-wip` |
+| 2026-04-23 08:51:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git checkout deploy; git pull origin deploy; git status -sb` |
+| 2026-04-23 08:54:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && set DATABASE_URL=sqlite:///:memory:&& set SECRET_KEY=ci-secret-key&& set FLASK_ENV=testing&&` |
+| 2026-04-23 08:55:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && $env:DATABASE_URL="sqlite:///:memory:"; $env:SECRET_KEY="ci-secret-key"; $env:FLASK_ENV="tes` |
+| 2026-04-23 08:55:07 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL="sqlite:///:memory:"; $env:SECRET_KEY="ci-secret-key"; $env:FLASK_` |
+| 2026-04-23 08:55:15 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git status -sb` |
+| 2026-04-23 08:55:20 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add tests/test_as_received_date_kst.py; git commit --trailer "Made-with: Cursor"` |
+| 2026-04-23 08:55:25 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-04-23 08:59:43 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL="sqlite:///:memory:"; $env:SECRET_KEY="ci-secret-key"; $env:FLASK_` |
+| 2026-04-23 08:59:52 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git add tests/test_as_received_date_kst.py; git status -s` |
+| 2026-04-23 08:59:56 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Made-with: Cursor" -m "fix(ci): remove duplicate AS KST test f` |
+| 2026-04-23 09:00:00 | allow | `-` | `Set-Location "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-04-23 09:47:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -m pytest tests/domains/test_channel_push_messages.py tests/domains/test_channel_inte` |
+| 2026-04-23 09:50:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status && git branch -vv && git log -3 --oneline` |
+| 2026-04-23 09:50:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git fetch origin deploy production 2>&1 && git log --oneline origin/deploy -2 && echo "---" ` |
+| 2026-04-23 09:50:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git merge-base origin/deploy origin/production | ForEach-Object { git log -1 --oneline $_ };` |
+| 2026-04-23 09:50:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git rev-parse deploy production origin/production && git log -1 --oneline production && git ` |
+| 2026-04-23 09:50:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add foms/api/erp_orders_structured.py foms/services/channel_event_payloads.py tests/cont` |
+| 2026-04-23 09:51:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git push origin deploy` |
+| 2026-04-23 09:51:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git pull origin production --ff-only && git merge deploy -m "Merg` |
+| 2026-04-23 09:51:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout deploy && git log -1 --oneline && git status -s` |
+| 2026-04-23 10:32:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && python -m pytest tests/domains/test_channel_push_messages.py tests/domains/test_erp_orders_s` |
+| 2026-04-23 11:14:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git status && git branch --show-current && git log -1 --oneline` |
+| 2026-04-23 11:14:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git add foms/api/erp_orders_structured.py tests/domains/test_channel_push_messages.py tests/` |
+| 2026-04-23 11:14:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git push origin deploy && git checkout production && git pull origin production --ff-only &&` |
+| 2026-04-28 14:04:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json 2>&1; python -m pytest tests/domains/test_erp_as_` |
+| 2026-04-28 14:05:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch -a; git diff --stat` |
+| 2026-04-28 14:05:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat HEAD; git diff foms/services/channel_event_payloads.py 2>&1 | Select-Object -F` |
+| 2026-04-28 14:05:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/css/contexts/cs/as-dashboard-body.css templates/cs/partials/as_dashboard_body.h` |

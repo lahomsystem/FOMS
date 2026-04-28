@@ -233,8 +233,9 @@
                     data-order-id="{{ r.id }}" data-field="as_visit_date" style="width: 100%;">
                 </div>
                 {% if r.as_visit_date %}
-                <button type="button" class="erp-as-pending-btn as-pending-btn" data-order-id="{{ r.id }}"
-                  title="미결 표시">미결</button>
+                <button type="button" class="erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
+                  data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"
+                  title="{% if r.as_pending %}미결 표시 해제{% else %}미결 표시{% endif %}">{% if r.as_pending %}미결 해제{% else %}미결{% endif %}</button>
                 {% endif %}
               </td>
               <td class="{% if r.as_completed_date %}erp-as-complete-cell--set{% endif %}">
@@ -340,8 +341,9 @@
                   data-order-id="{{ r.id }}" data-field="as_visit_date">
               </div>
               {% if r.as_visit_date %}
-              <button type="button" class="erp-as-pending-btn as-pending-btn" data-order-id="{{ r.id }}"
-                title="미결 표시">미결</button>
+              <button type="button" class="erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
+                data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"
+                title="{% if r.as_pending %}미결 표시 해제{% else %}미결 표시{% endif %}">{% if r.as_pending %}미결 해제{% else %}미결{% endif %}</button>
               {% endif %}
             </div>
             <div class="erp-pro-order-card__row {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
@@ -1065,6 +1067,15 @@
       });
     }
 
+    function setAsPendingButtonState(orderId, asPending) {
+      document.querySelectorAll(`.as-pending-btn[data-order-id="${orderId}"]`).forEach((btn) => {
+        btn.dataset.asPending = asPending ? '1' : '0';
+        btn.textContent = asPending ? '미결 해제' : '미결';
+        btn.title = asPending ? '미결 표시 해제' : '미결 표시';
+        btn.classList.toggle('erp-as-pending-btn--active', !!asPending);
+      });
+    }
+
     function syncVisitPendingButtons(orderId, hasVisitDate) {
       [getTableRowForOrder(orderId), getCardForOrder(orderId)].forEach((container) => {
         if (!container) return;
@@ -1076,6 +1087,7 @@
           btn.type = 'button';
           btn.className = 'erp-as-pending-btn as-pending-btn';
           btn.dataset.orderId = orderId;
+          btn.dataset.asPending = '0';
           btn.title = '미결 표시';
           btn.textContent = '미결';
           visitContainer.appendChild(btn);
@@ -1161,6 +1173,8 @@
       if (Object.prototype.hasOwnProperty.call(data, 'as_blueprint')) {
         setAsBlueprintCheckboxes(orderId, data.as_blueprint === true);
       }
+
+      setAsPendingButtonState(orderId, asPending);
     }
 
     async function saveDateField(input, options = {}) {
@@ -2133,24 +2147,26 @@
       });
     });
 
-    // AS 미결 버튼 클릭: 고객 셀 노란색, 상태 '미결' 표시
+    // AS 미결 버튼 클릭: 미결 ↔ 미결 해제 토글 (완료일 저장 없이 취소 가능)
     document.addEventListener('click', function (e) {
       var btn = e.target && e.target.closest('.as-pending-btn');
       if (!btn || !btn.dataset.orderId) return;
       e.preventDefault();
       var orderId = btn.dataset.orderId;
+      var currentlyPending = btn.dataset.asPending === '1';
+      var nextVal = currentlyPending ? '0' : '1';
       btn.disabled = true;
       fetch('/api/update_order_field', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id: orderId, field_name: 'as_pending', new_value: '1' })
+        body: JSON.stringify({ order_id: orderId, field_name: 'as_pending', new_value: nextVal })
       })
         .then(function (res) { return res.json(); })
         .then(function (data) {
           btn.disabled = false;
           if (data.success) {
             applyOrderUiFromResponse(orderId, data);
-            showFeedback('미결로 표시했습니다.');
+            showFeedback(currentlyPending ? '미결 표시를 해제했습니다.' : '미결로 표시했습니다.');
           } else {
             showFeedback('저장 실패: ' + (data.message || ''), true);
           }
