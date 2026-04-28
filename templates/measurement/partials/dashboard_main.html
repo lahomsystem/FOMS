@@ -648,13 +648,13 @@
                       {{ customer or '-' }}
                       {% if r.is_erp_order %}
                       {% set payment = r.structured_data.get('payment', {}) if r.structured_data else {} %}
-                      {% set deposit = payment.get('deposit', 0) %}
-                      {% if not deposit %}
+                      {% set deposit_raw = payment.get('deposit') %}
+                      {% if not deposit_raw %}
                         {% set payments = r.structured_data.get('payments', {}) if r.structured_data else {} %}
                         {% set dep_obj = payments.get('deposit') or {} %}
-                        {% set deposit = dep_obj.get('amount', 0) if dep_obj is mapping else 0 %}
+                        {% set deposit_raw = dep_obj.get('amount', 0) if dep_obj is mapping else dep_obj %}
                       {% endif %}
-                      {% set deposit_val = deposit|string|replace(',', '')|int|default(0, true) %}
+                      {% set deposit_val = (deposit_raw.get('amount', 0) if deposit_raw is mapping else deposit_raw)|int %}
                       <span class="erp-payment-badge-row ms-1">
                         {% if deposit_val > 0 %}
                           {% if payment.get('deposit_confirmed') | payment_confirmed_bool %}
@@ -710,11 +710,13 @@
                     {%- set rsd_schedule = rsd.get('schedule', {}) %}
                     {%- set rsd_orderer = rsd.get('parties', {}).get('orderer', {}) %}
                     {%- set rsd_totals = rsd.get('totals', {}) %}
+                    {%- set rsd_payment = rsd.get('payment', {}) %}
                     {%- set rsd_payments = rsd.get('payments', {}) %}
                     {%- set rsd_items_total = rsd_totals.get('items_total', 0) | int %}
-                    {%- set rsd_deposit_raw = rsd_payments.get('deposit', 0) %}
+                    {%- set rsd_deposit_raw = rsd_payment.get('deposit') or rsd_payments.get('deposit', 0) %}
                     {%- set rsd_deposit = (rsd_deposit_raw.get('amount', 0) if rsd_deposit_raw is mapping else rsd_deposit_raw) | int %}
-                    {%- set rsd_remain = [0, rsd_items_total - rsd_deposit] | max %}
+                    {%- set rsd_final_raw = rsd_totals.get('final_amount') if rsd_totals.get('final_amount') is not none else rsd_totals.get('balance_amount') %}
+                    {%- set rsd_remain = ([0, rsd_final_raw | int] | max) if rsd_final_raw is not none else ([0, rsd_items_total - rsd_deposit] | max) %}
                     <div class="row g-3 mb-3">
                       <div class="col-md-6">
                         <div class="card h-100">

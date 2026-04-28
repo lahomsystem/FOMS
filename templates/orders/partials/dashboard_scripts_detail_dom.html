@@ -556,12 +556,18 @@
 
             // 출고가 / 예약금 / 잔금 금액 주입 (sd에서 계산)
             (() => {
-              const pay = sd.payments || {};
+              const coerceAmount = (value) => {
+                if (value == null) return 0;
+                if (typeof value === 'object') return coerceAmount(value.amount || value.raw || 0);
+                if (typeof value === 'number') return Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
+                const digits = String(value || '').replace(/[^0-9]/g, '');
+                return digits ? parseInt(digits, 10) : 0;
+              };
               const totals = sd.totals || {};
               const itemsTotal = Number(totals.items_total) || items.reduce((s, it) => s + (Number(it.price) || 0), 0);
-              let depositAmt = Number(pay.deposit) || 0;
-              if (!depositAmt && pay.deposit && typeof pay.deposit === 'object') depositAmt = Number(pay.deposit.amount) || 0;
-              const remainAmt = Math.max(0, itemsTotal - depositAmt);
+              const depositAmt = coerceAmount((sd.payment || {}).deposit) || coerceAmount((sd.payments || {}).deposit);
+              const storedFinal = totals.final_amount == null ? totals.balance_amount : totals.final_amount;
+              const remainAmt = storedFinal == null ? Math.max(0, itemsTotal - depositAmt) : Math.max(0, coerceAmount(storedFinal));
               const fmtKRW = (n) => n > 0 ? n.toLocaleString('ko-KR') + '원' : '0원';
               items.forEach((_, i) => {
                 const totalEl = document.getElementById(`erp-items-total-${orderId}-${i}`);
