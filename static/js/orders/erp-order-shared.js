@@ -326,6 +326,20 @@ var erpRequireOrderIdOrWarn =
     };
 window.erpRequireOrderIdOrWarn = erpRequireOrderIdOrWarn;
 
+function erpResolveCurrentOrderId() {
+    let targetId = parseInt(String(ORDER_ID || '0'), 10) || 0;
+    if (targetId > 0) return targetId;
+
+    const cardEl =
+        document.querySelector('.card[data-erp-order-id]') ||
+        document.querySelector('.card[data-order-id]');
+    if (!cardEl) return 0;
+
+    const idVal = cardEl.dataset.erpOrderId || cardEl.dataset.orderId || '0';
+    return parseInt(String(idVal), 10) || 0;
+}
+window.erpResolveCurrentOrderId = erpResolveCurrentOrderId;
+
 function erpIsDraftBackedOrder() {
     const metaDraft = window.__erpLastStructuredData &&
         window.__erpLastStructuredData.meta &&
@@ -334,18 +348,31 @@ function erpIsDraftBackedOrder() {
 }
 window.erpIsDraftBackedOrder = erpIsDraftBackedOrder;
 
-function erpRequireFinalizedOrderForAction(actionText) {
-    if (!ERP_ORDER_ENABLED) return false;
-    const label = actionText || '이 작업은';
-    if (!ORDER_ID || erpIsDraftBackedOrder()) {
-        const message = `${label} 주문 저장 후 사용할 수 있습니다.`;
+async function erpEnsureFinalizedOrderForAction(actionText) {
+    if (!ERP_ORDER_ENABLED) return 0;
+
+    let targetId = erpResolveCurrentOrderId();
+    if (targetId > 0 && !erpIsDraftBackedOrder()) return targetId;
+
+    const label = actionText || '작업';
+    erpSetStatus(`${label} 진행을 위해 주문을 저장 중...`);
+    const saveRes = await erpSaveStructured({ redirect: false });
+    if (!saveRes || !saveRes.success) {
+        const message = (saveRes && saveRes.message) || `${label} 진행을 위해 주문 저장이 필요합니다.`;
         erpSetStatus(message, true);
-        alert(message);
-        return false;
+        return 0;
     }
-    return true;
+
+    targetId = erpResolveCurrentOrderId();
+    if (targetId > 0) {
+        erpSetOrderId(targetId);
+        return targetId;
+    }
+
+    erpSetStatus(`${label} 진행을 위한 주문 ID를 확보할 수 없습니다.`, true);
+    return 0;
 }
-window.erpRequireFinalizedOrderForAction = erpRequireFinalizedOrderForAction;
+window.erpEnsureFinalizedOrderForAction = erpEnsureFinalizedOrderForAction;
 
 var erpSetStatus =
     window.erpSetStatus ||
@@ -1059,14 +1086,7 @@ async function erpSaveStructured(opts = {}) {
     }
 
     // ORDER_ID 안전하게 확보
-    let targetId = parseInt(String(ORDER_ID || '0'), 10) || 0;
-    if (!targetId) {
-        const cardEl = document.querySelector('.card[data-erp-order-id]') || document.querySelector('.card[data-order-id]');
-        if (cardEl) {
-            const idVal = cardEl.dataset.erpOrderId || cardEl.dataset.orderId || '0';
-            targetId = parseInt(String(idVal), 10) || 0;
-        }
-    }
+    let targetId = erpResolveCurrentOrderId();
 
     // 신규 주문(draft) 모드: ID가 0이면 반드시 draft 생성
     if (isErpOrderDraftMode() && targetId <= 0) {
@@ -1142,8 +1162,18 @@ async function erpSaveStructured(opts = {}) {
         }
         erpSetStatus(doRedirect ? '저장 완료! 이동합니다...' : '저장 완료');
         // 저장 성공 후 Draft 모드 해제 → beforeunload 경고 비활성
-        if (isErpOrderDraftMode()) {
+        const wasDraftMode = isErpOrderDraftMode();
+        if (wasDraftMode) {
             setErpOrderDraftMode(false);
+        }
+        if (structured_data && typeof structured_data === 'object') {
+            if (!structured_data.meta || typeof structured_data.meta !== 'object') {
+                structured_data.meta = {};
+            }
+            if (wasDraftMode || data.draft_cleared) {
+                structured_data.meta.draft = false;
+            }
+            window.__erpLastStructuredData = structured_data;
         }
         if (typeof window.erpInvalidateEstimateCache === 'function') {
             window.erpInvalidateEstimateCache();
@@ -1178,20 +1208,10 @@ document.addEventListener('DOMContentLoaded', function () {
 window.erpTogglePayment = async function(btn, pType) {
     if (_paymentTogglePending) return;
     
-    let targetId = 0;
-    if (typeof ORDER_ID !== 'undefined') {
-        targetId = parseInt(String(ORDER_ID), 10) || 0;
-    }
-    if (!targetId) {
-        const cardEl = document.querySelector('.card[data-erp-order-id]') || document.querySelector('.card[data-order-id]');
-        if (cardEl) {
-            const idVal = cardEl.dataset.erpOrderId || cardEl.dataset.orderId || '0';
-            targetId = parseInt(String(idVal), 10) || 0;
-        }
-    }
+    let targetId = erpResolveCurrentOrderId();
     if (targetId <= 0 || erpIsDraftBackedOrder()) {
-        erpRequireFinalizedOrderForAction('결제 확인은');
-        return;
+        targetId = await erpEnsureFinalizedOrderForAction('결제 확인');
+        if (!targetId) return;
     }
 
     _paymentTogglePending = true;
@@ -1686,7 +1706,7 @@ async function erpUploadItemAttachments(itemIndex, files) {
         erpAttachmentsSetStatus('유효한 제품 항목을 찾지 못했습니다.', true);
         return;
     }
-    if (!erpRequireFinalizedOrderForAction('제품 이미지 업로드는')) {
+    if (!await erpEnsureFinalizedOrderForAction('제품 이미지 업로드')) {
         return;
     }
     if (!Array.isArray(files) || !files.length) {
@@ -2113,7 +2133,7 @@ async function erpUploadSelectedAttachments() {
         return;
     }
     const files = Array.from(input.files);
-    if (!erpRequireFinalizedOrderForAction('첨부 업로드는')) {
+    if (!await erpEnsureFinalizedOrderForAction('첨부 업로드')) {
         return;
     }
     const categoryEl = document.getElementById('erp-attachments-category');
