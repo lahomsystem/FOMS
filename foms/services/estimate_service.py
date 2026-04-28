@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import datetime
 import logging
+import re
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -90,6 +91,35 @@ def _format_spec_rows(item: dict) -> str:
     return "\n".join(lines) if lines else (item.get("spec") or "")
 
 
+def _parse_money_amount(value) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, dict):
+        return _parse_money_amount(value.get("amount") or value.get("raw"))
+    if isinstance(value, (int, float)):
+        return max(0, int(value))
+
+    digits = re.sub(r"[^0-9]", "", str(value))
+    return int(digits) if digits else 0
+
+
+def _extract_deposit_amount(structured_data: dict) -> int:
+    for payments in (
+        structured_data.get("payment") or {},
+        structured_data.get("payments") or {},
+    ):
+        if not isinstance(payments, dict):
+            continue
+        amount = _parse_money_amount(payments.get("deposit"))
+        if amount > 0:
+            return amount
+    return 0
+
+
+def _balance_after_deposit(total_amount: int, deposit_amount: int) -> int:
+    return max(0, int(total_amount or 0) - int(deposit_amount or 0))
+
+
 def extract_estimate_data_from_order(order: Order) -> dict:
     """Extract estimate-friendly data from an order's structured data."""
     sd = order.structured_data or {}
@@ -98,7 +128,6 @@ def extract_estimate_data_from_order(order: Order) -> dict:
     manager = parties.get("manager", {})
     site = sd.get("site", {})
     schedule = sd.get("schedule", {})
-    payments = sd.get("payment", {}) or sd.get("payments", {})
 
     customer_name = customer.get("name") or order.customer_name or ""
     customer_phone = customer.get("phone") or order.phone or ""
@@ -134,14 +163,8 @@ def extract_estimate_data_from_order(order: Order) -> dict:
         )
 
     total_amount = sum(item["amount"] for item in estimate_items)
-    raw_deposit = payments.get("deposit") or 0
-    if isinstance(raw_deposit, dict):
-        deposit_amount = int(raw_deposit.get("amount") or 0)
-    else:
-        deposit_amount = int(raw_deposit or 0)
-    balance_amount = total_amount - deposit_amount
-    if balance_amount < 0:
-        balance_amount = 0
+    deposit_amount = _extract_deposit_amount(sd)
+    balance_amount = _balance_after_deposit(total_amount, deposit_amount)
 
     return {
         "customer_name": customer_name,
@@ -155,6 +178,7 @@ def extract_estimate_data_from_order(order: Order) -> dict:
         "total_amount": total_amount,
         "deposit_amount": int(deposit_amount or 0),
         "balance_amount": balance_amount,
+        "final_amount": balance_amount,
     }
 
 
@@ -189,9 +213,11 @@ def create_estimate(
         if "items" in override_data and "total_amount" not in override_data:
             data["total_amount"] = sum(int(item.get("amount") or 0) for item in data["items"])
         if "total_amount" in override_data or "deposit_amount" in override_data:
-            data["balance_amount"] = data.get("total_amount", 0) - data.get("deposit_amount", 0)
-            if data["balance_amount"] < 0:
-                data["balance_amount"] = 0
+            data["balance_amount"] = _balance_after_deposit(
+                data.get("total_amount", 0),
+                data.get("deposit_amount", 0),
+            )
+        data["final_amount"] = data.get("balance_amount", data.get("total_amount", 0))
 
     estimate_date = (override_data or {}).get("estimate_date") or today
     estimate_number = generate_estimate_number(db, estimate_date)

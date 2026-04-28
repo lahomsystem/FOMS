@@ -28,15 +28,11 @@
         {% set rsd_payments = rsd.get('payments', {}) if rsd else {} %}
         {% set rsd_totals = rsd.get('totals', {}) %}
         {% set rsd_items_total = rsd_totals.get('items_total', 0) | int %}
-        {% set rsd_deposit_raw = rsd_payments.get('deposit', 0) %}
+        {% set rsd_deposit_raw = rsd_payment.get('deposit') or rsd_payments.get('deposit', 0) %}
         {% set rsd_deposit = (rsd_deposit_raw.get('amount', 0) if rsd_deposit_raw is mapping else rsd_deposit_raw) | int %}
-        {% set rsd_remain = [0, rsd_items_total - rsd_deposit] | max %}
-        {% set deposit = rsd_payment.get('deposit', 0) %}
-        {% if not deposit %}
-          {% set dep_obj = rsd_payments.get('deposit') or {} %}
-          {% set deposit = dep_obj.get('amount', 0) if dep_obj is mapping else 0 %}
-        {% endif %}
-        {% set deposit_val = deposit|string|replace(',', '')|int|default(0, true) %}
+        {% set rsd_final_raw = rsd_totals.get('final_amount') if rsd_totals.get('final_amount') is not none else rsd_totals.get('balance_amount') %}
+        {% set rsd_remain = ([0, rsd_final_raw | int] | max) if rsd_final_raw is not none else ([0, rsd_items_total - rsd_deposit] | max) %}
+        {% set deposit_val = rsd_deposit %}
         {% set measurement_display = (rsd_schedule.get('measurement', {}).get('date') or '')|schedule_datetime_display(rsd_schedule.get('measurement', {}).get('time')) %}
         {% set construction_display = (rsd_schedule.get('construction', {}).get('date') or '')|schedule_datetime_display(rsd_schedule.get('construction', {}).get('time')) %}
         {% set product_items_row = r.product_items if r.product_items is defined else [] %}

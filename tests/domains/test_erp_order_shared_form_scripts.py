@@ -201,6 +201,53 @@ def test_shared_erp_order_js_blocks_non_save_actions_from_creating_drafts() -> N
     assert "erpRequireFinalizedOrderForAction('첨부 업로드는')" in common_upload_block
 
 
+def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
+    """ERP Order 저장/변환은 예약금 차감 후 잔금을 canonical final amount로 유지한다."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    assert "function erpBuildTotals(itemsTotal, depositAmount)" in text
+    assert "final_amount: balance" in text
+
+    collect_start = text.index("function erpCollectStructured()")
+    collect_end = text.index("async function erpSaveStructured", collect_start)
+    collect_block = text[collect_start:collect_end]
+    assert "const totals = erpBuildTotals(itemsTotal, depositAmount);" in collect_block
+    assert "totals," in collect_block
+    assert "deposit: totals.deposit_amount" in collect_block
+
+    conversion_start = text.index("function erpGenerateConversionText()")
+    conversion_end = text.index("function erpCopyToClipboard()", conversion_start)
+    conversion_block = text[conversion_start:conversion_end]
+    assert "const balanceText = erpFormatMoneyKRW(Math.max(0, erpCoerceAmount(totalText) - depositAmount));" in conversion_block
+    assert "text += `잔금 : ${balanceText}`;" in conversion_block
+
+
+def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> None:
+    """대시보드/실측 상세 금액 표시도 ERP Order payment.deposit와 final totals를 우선 사용한다."""
+    root = Path(__file__).resolve().parents[2]
+    dashboard_js = (root / "static/js/orders/dashboard/erp-dashboard-detail-dom.js").read_text(encoding="utf-8")
+    dashboard_template = (
+        root / "templates/orders/partials/dashboard_scripts_detail_dom.html"
+    ).read_text(encoding="utf-8")
+    measurement_desktop = (
+        root / "templates/measurement/partials/dashboard_main.html"
+    ).read_text(encoding="utf-8")
+    measurement_mobile = (
+        root / "templates/measurement/partials/mobile_list.html"
+    ).read_text(encoding="utf-8")
+
+    for source in (dashboard_js, dashboard_template):
+        assert "coerceAmount((sd.payment || {}).deposit)" in source
+        assert "coerceAmount((sd.payments || {}).deposit)" in source
+        assert "totals.final_amount == null ? totals.balance_amount : totals.final_amount" in source
+
+    for source in (measurement_desktop, measurement_mobile):
+        assert "rsd_payment.get('deposit') or rsd_payments.get('deposit', 0)" in source
+        assert "rsd_totals.get('final_amount')" in source
+        assert "rsd_totals.get('balance_amount')" in source
+
+
 def test_edit_order_initial_mount_releases_surface_before_deferred_panels() -> None:
     """Initial edit-page paint should reveal the ERP pane before quest/attachment fetches finish."""
     root = Path(__file__).resolve().parents[2]

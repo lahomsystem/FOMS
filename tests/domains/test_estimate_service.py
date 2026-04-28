@@ -139,6 +139,47 @@ def test_extract_estimate_data_from_order_formats_spec_rows_and_payments():
     assert data["total_amount"] == 1000000
     assert data["deposit_amount"] == 100000
     assert data["balance_amount"] == 900000
+    assert data["final_amount"] == 900000
+
+
+def test_extract_estimate_data_accepts_modern_payment_and_legacy_payments_deposit():
+    base_order = {
+        "customer_name": "fallback customer",
+        "phone": "01000000000",
+        "address": "fallback address",
+        "manager_name": "fallback manager",
+    }
+    shared_structured = {
+        "parties": {"customer": {"name": "홍길동"}, "orderer": {"name": "라홈"}},
+        "items": [{"product_name": "붙박이장", "price": 300000}],
+    }
+
+    modern_order = SimpleNamespace(
+        **base_order,
+        structured_data={
+            **shared_structured,
+            "payment": {"deposit": "150,000원"},
+            "payments": {"deposit": {"amount": 100000}},
+        },
+    )
+    legacy_order = SimpleNamespace(
+        **base_order,
+        structured_data={
+            **shared_structured,
+            "payment": {"deposit_confirmed": True},
+            "payments": {"deposit": {"amount": "100,000원"}},
+        },
+    )
+
+    modern_data = estimate_service.extract_estimate_data_from_order(modern_order)
+    legacy_data = estimate_service.extract_estimate_data_from_order(legacy_order)
+
+    assert modern_data["deposit_amount"] == 150000
+    assert modern_data["balance_amount"] == 150000
+    assert modern_data["final_amount"] == 150000
+    assert legacy_data["deposit_amount"] == 100000
+    assert legacy_data["balance_amount"] == 200000
+    assert legacy_data["final_amount"] == 200000
 
 
 def test_extract_estimate_data_overrides_manager_phone_from_measurement_settings(monkeypatch):
