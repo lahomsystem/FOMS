@@ -92,6 +92,44 @@ def _first_erp_product_label(items):
     return f"{product_names[0]} 외 {len(product_names) - 1}개"
 
 
+def _parse_order_payment_amount(value):
+    if value is None:
+        return 0
+    if isinstance(value, dict):
+        return _parse_order_payment_amount(value.get('amount') or value.get('raw'))
+    if isinstance(value, (int, float)):
+        return max(0, int(value))
+
+    digits = ''.join(ch for ch in str(value) if ch.isdigit())
+    return int(digits) if digits else 0
+
+
+def _extract_order_payment_amount(order):
+    """Return the prepaid/deposit amount used by matched WD estimates."""
+    if getattr(order, 'is_erp_order', False):
+        structured_data = _ensure_dict(order.structured_data)
+        for payment_key in ('payment', 'payments'):
+            payment_data = structured_data.get(payment_key) or {}
+            if not isinstance(payment_data, dict):
+                continue
+            amount = _parse_order_payment_amount(payment_data.get('deposit'))
+            if amount > 0:
+                return amount
+
+    return _parse_order_payment_amount(getattr(order, 'payment_amount', 0))
+
+
+def _build_order_payment_payload(order):
+    amount = _extract_order_payment_amount(order)
+    is_erp_order = bool(getattr(order, 'is_erp_order', False))
+    return {
+        'amount': amount,
+        'payment_amount': amount,
+        'deposit_amount': amount if is_erp_order else 0,
+        'label': '예약금(선금)' if is_erp_order else '선 결제 금액',
+    }
+
+
 def _build_order_match_payload(order):
     """Return the display payload WDCalculator uses to choose an order."""
     customer_name = order.customer_name
@@ -835,7 +873,15 @@ def api_wdcalculator_get_order_estimates(order_id):
             est = wd_db.query(Estimate).filter(Estimate.id == match.estimate_id).first()
             if est:
                 estimates.append(est.to_dict())
-        return jsonify({'success': True, 'estimates': estimates, 'count': len(estimates)})
+        order_payment = _build_order_payment_payload(order)
+        return jsonify({
+            'success': True,
+            'estimates': estimates,
+            'count': len(estimates),
+            'order_payment': order_payment,
+            'order_payment_amount': order_payment['amount'],
+            'order_payment_label': order_payment['label'],
+        })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 

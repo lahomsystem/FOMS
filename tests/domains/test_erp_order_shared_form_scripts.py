@@ -248,6 +248,19 @@ def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> N
         assert "rsd_totals.get('balance_amount')" in source
 
 
+def test_edit_order_matched_estimate_card_uses_order_payment_payload() -> None:
+    """편집 화면의 매칭된 견적 카드는 ERP 예약금 payload를 사용해 표시/차감한다."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "templates/orders/edit_order.html").read_text(encoding="utf-8")
+
+    assert "const orderPayment = data.order_payment ||" in text
+    assert "displayMatchedEstimates(data.estimates || [], orderPayment)" in text
+    assert "function resolveMatchedEstimatePayment(orderPayment)" in text
+    assert "label = '예약금(선금)';" in text
+    assert "${escapeHtml(paymentLabel)}" in text
+    assert "(최종 금액 - ${escapeHtml(paymentLabel)})" in text
+
+
 def test_edit_order_initial_mount_releases_surface_before_deferred_panels() -> None:
     """Initial edit-page paint should reveal the ERP pane before quest/attachment fetches finish."""
     root = Path(__file__).resolve().parents[2]

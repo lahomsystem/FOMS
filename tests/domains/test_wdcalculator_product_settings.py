@@ -1114,6 +1114,50 @@ def test_wdcalculator_match_order_api_keeps_legacy_success_shape(
     assert match_row.order_id == order_id
 
 
+def test_wdcalculator_order_estimates_returns_erp_deposit_for_matched_card(
+    wdcalculator_settings_env, login
+):
+    """Matched estimate cards must receive ERP Order deposits, not only legacy payment_amount."""
+    client = login
+    order = _create_order(
+        customer_name="ERP Order",
+        payment_amount=0,
+        is_erp_order=True,
+        structured_data={
+            "payment": {"deposit": {"amount": 100000}},
+            "payments": {"deposit": {"amount": 50000}},
+        },
+    )
+    order_id = order.id
+    save_response = client.post(
+        "/api/wdcalculator/save-estimate",
+        json={
+            "customer_name": "ERP Deposit Card",
+            "estimate_data": {"items": [{"product_id": 1, "width_mm": 300}]},
+        },
+    )
+    estimate_id = save_response.get_json()["estimate_id"]
+    match_response = client.post(
+        "/api/wdcalculator/match-order",
+        json={"estimate_id": estimate_id, "order_id": order_id},
+    )
+    assert match_response.status_code == 200
+    assert match_response.get_json()["success"] is True
+
+    response = client.get(f"/api/wdcalculator/order-estimates/{order_id}")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["count"] == 1
+    assert payload["estimates"][0]["id"] == estimate_id
+    assert payload["order_payment_amount"] == 100000
+    assert payload["order_payment_label"] == "예약금(선금)"
+    assert payload["order_payment"]["amount"] == 100000
+    assert payload["order_payment"]["payment_amount"] == 100000
+    assert payload["order_payment"]["deposit_amount"] == 100000
+
+
 def test_wdcalculator_products_persist_in_db_after_seed_file_changes(wdcalculator_settings_env, login):
     """Saved products must come from DB, not revert to file seed."""
     client = login

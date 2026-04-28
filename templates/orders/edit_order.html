@@ -463,7 +463,11 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        displayMatchedEstimates(data.estimates);
+                        const orderPayment = data.order_payment || {
+                            amount: data.order_payment_amount,
+                            label: data.order_payment_label
+                        };
+                        displayMatchedEstimates(data.estimates || [], orderPayment);
                     } else {
                         document.getElementById('matchedEstimatesList').innerHTML =
                             '<p class="text-muted">매칭된 견적이 없습니다.</p>';
@@ -478,8 +482,48 @@
 
         // (주의) escapeHtml은 위에서 전역으로 정의됨
 
+        function coerceMatchedEstimateAmount(value) {
+            if (value === null || value === undefined) {
+                return 0;
+            }
+            if (typeof value === 'object') {
+                return coerceMatchedEstimateAmount(
+                    value.amount || value.payment_amount || value.deposit_amount || value.raw
+                );
+            }
+            const numeric = String(value).replace(/[^0-9]/g, '');
+            return numeric ? parseInt(numeric, 10) : 0;
+        }
+
+        function resolveMatchedEstimatePayment(orderPayment) {
+            const cardPaymentAmount = coerceMatchedEstimateAmount(
+                document.querySelector('.card[data-order-id]')?.dataset.paymentAmount
+            );
+            const payload = orderPayment && typeof orderPayment === 'object' ? orderPayment : {};
+            let amount = coerceMatchedEstimateAmount(payload.amount);
+            if (amount <= 0) {
+                amount = coerceMatchedEstimateAmount(payload.payment_amount);
+            }
+            if (amount <= 0) {
+                amount = coerceMatchedEstimateAmount(payload.deposit_amount);
+            }
+            if (amount <= 0 && orderPayment && typeof orderPayment !== 'object') {
+                amount = coerceMatchedEstimateAmount(orderPayment);
+            }
+            if (amount <= 0) {
+                amount = cardPaymentAmount;
+            }
+
+            let label = payload.label || '선 결제 금액';
+            if (!payload.label && coerceMatchedEstimateAmount(payload.deposit_amount) > 0) {
+                label = '예약금(선금)';
+            }
+
+            return { amount, label };
+        }
+
         // 매칭된 견적 표시
-        function displayMatchedEstimates(estimates) {
+        function displayMatchedEstimates(estimates, orderPayment) {
             const container = document.getElementById('matchedEstimatesList');
 
             if (estimates.length === 0) {
@@ -487,8 +531,10 @@
                 return;
             }
 
-            // 주문의 결제 금액(선 결제 금액) 읽기
-            const paymentAmount = parseInt(document.querySelector('.card[data-order-id]')?.dataset.paymentAmount || '0');
+            // 주문의 예약금/선 결제 금액 읽기: ERP Order는 API payload를, legacy 주문은 data attribute를 사용한다.
+            const paymentInfo = resolveMatchedEstimatePayment(orderPayment);
+            const paymentAmount = paymentInfo.amount;
+            const paymentLabel = paymentInfo.label;
 
             let html = '';
             estimates.forEach((estimate, index) => {
@@ -663,7 +709,7 @@
                     html += `
                                         <tr class="table-info" style="background-color: #cfe2ff !important;">
                                             <td colspan="3" class="text-end fw-bold" style="font-size: 1rem;">
-                                                <i class="fas fa-credit-card me-2 text-info"></i>선 결제 금액
+                                                <i class="fas fa-credit-card me-2 text-info"></i>${escapeHtml(paymentLabel)}
                                             </td>
                                             <td class="text-end fw-bold text-info h6 mb-0" style="color: #084298 !important; font-weight: 700 !important;">${formatNumber(paymentAmount)}원</td>
                                         </tr>
@@ -677,7 +723,7 @@
                                             <td colspan="3" class="text-end fw-bold" style="font-size: 1rem;">
                                                 <i class="fas fa-money-bill-wave me-2 text-warning"></i>추가결제금액
                                                 <small class="text-muted d-block" style="font-size: 0.85rem; font-weight: 400;">
-                                                    (최종 금액 - 선 결제 금액)
+                                                    (최종 금액 - ${escapeHtml(paymentLabel)})
                                                 </small>
                                             </td>
                                             <td class="text-end fw-bold text-warning h6 mb-0" style="color: #856404 !important; font-weight: 700 !important;">${formatNumber(additionalPayment)}원</td>
