@@ -1180,6 +1180,29 @@
       setAsPendingButtonState(orderId, asPending);
     }
 
+    /**
+     * 미결 토글 낙관적 UI용 페이로드. 미결 해제 시 배지 문구는 완료일 입력 존재 여부로 추정한다.
+     */
+    function buildOptimisticAsPendingPayload(orderId, nextPending) {
+      if (nextPending) {
+        return { as_pending: true };
+      }
+      var completedInput = getDateInputsForOrder(orderId, 'as_completed_date')[0];
+      var hasCompleted = !!(completedInput && completedInput.value);
+      if (hasCompleted) {
+        return { as_pending: false, status: 'AS_COMPLETED', status_label: 'AS 완료' };
+      }
+      return { as_pending: false, status: 'AS_RECEIVED', status_label: 'AS 접수' };
+    }
+
+    /** 낙관적 적용 후 요청 실패 시 원래 표시로 되돌린다. */
+    function revertAsPendingAfterFailedRequest(orderId, originallyPending) {
+      if (originallyPending) {
+        return { as_pending: true };
+      }
+      return buildOptimisticAsPendingPayload(orderId, false);
+    }
+
     async function saveDateField(input, options = {}) {
       const silent = options.silent === true;
       const redirectAfterComplete = options.redirectAfterComplete === true;
@@ -2150,32 +2173,35 @@
       });
     });
 
-    // AS 미결 버튼 클릭: 미결 ↔ 미결 해제 토글 (완료일 저장 없이 취소 가능)
+    // AS 미결 버튼 클릭: 미결 ↔ 미결 해제 토글 (낙관적 UI 후 서버와 동기화)
     document.addEventListener('click', function (e) {
       var btn = e.target && e.target.closest('.as-pending-btn');
       if (!btn || !btn.dataset.orderId) return;
       e.preventDefault();
       var orderId = btn.dataset.orderId;
-      var currentlyPending = btn.dataset.asPending === '1';
-      var nextVal = currentlyPending ? '0' : '1';
+      var originallyPending = btn.dataset.asPending === '1';
+      var nextPending = !originallyPending;
+      applyOrderUiFromResponse(orderId, buildOptimisticAsPendingPayload(orderId, nextPending), { updatedField: 'as_pending' });
       btn.disabled = true;
       fetch('/api/update_order_field', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id: orderId, field_name: 'as_pending', new_value: nextVal })
+        body: JSON.stringify({ order_id: orderId, field_name: 'as_pending', new_value: nextPending ? '1' : '0' })
       })
         .then(function (res) { return res.json(); })
         .then(function (data) {
           btn.disabled = false;
           if (data.success) {
             applyOrderUiFromResponse(orderId, data, { updatedField: 'as_pending' });
-            showFeedback(currentlyPending ? '미결 표시를 해제했습니다.' : '미결로 표시했습니다.');
+            showFeedback(originallyPending ? '미결 표시를 해제했습니다.' : '미결로 표시했습니다.');
           } else {
+            applyOrderUiFromResponse(orderId, revertAsPendingAfterFailedRequest(orderId, originallyPending), { updatedField: 'as_pending' });
             showFeedback('저장 실패: ' + (data.message || ''), true);
           }
         })
         .catch(function () {
           btn.disabled = false;
+          applyOrderUiFromResponse(orderId, revertAsPendingAfterFailedRequest(orderId, originallyPending), { updatedField: 'as_pending' });
           showFeedback('네트워크 오류가 발생했습니다.', true);
         });
     });
