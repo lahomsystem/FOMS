@@ -66,6 +66,18 @@
     color: #111 !important;
   }
 
+  /* 미결 켜짐: 버튼도 살짝 강조 (토글 중 ‘미결 해제’ 상태) */
+  .erp-as-pending-btn--active {
+    background-color: #ffe082 !important;
+    border-color: #ffb300 !important;
+    font-weight: 600;
+  }
+
+  .erp-as-pending-btn--active:hover {
+    background-color: #ffd54f !important;
+    border-color: #ffa000 !important;
+  }
+
   /* 모바일: 터치 44px, 갤러리 1열 (2026-03 ERP 최적화) */
   @media (max-width: 992px) {
     .erp-pro .erp-pro-order-card__body .erp-pro-input,

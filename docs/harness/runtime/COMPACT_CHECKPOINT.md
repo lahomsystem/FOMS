@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-04-22 11:04:16
-> 세션: 20e1772c
+> 생성 시각: 2026-04-23 09:46:57
+> 세션: 6f2c8c77
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-df528d3e-fab3-48e3-ba12-19c396f63ea2.png` <- 1 edit(s), ~0 chars (2026-04-23 09:46:00)
+- `tests/test_as_received_date_kst.py` <- 2 edit(s), ~128 chars (2026-04-23 08:55:00)
+- `tests/test_as_received_date_kst.py` <- 2 edit(s), ~62 chars (2026-04-23 08:54:59)
+- `tests/test_as_received_date_kst.py` <- 1 edit(s), ~145 chars (2026-04-23 08:54:43)
+- `tests/domains/test_channel_push_messages.py` <- 1 edit(s), ~57 chars (2026-04-23 08:32:09)
+- `foms/services/channel_policy.py` <- 1 edit(s), ~68 chars (2026-04-23 08:32:09)
+- `tests/domains/test_channel_push_messages.py` <- 1 edit(s), ~49 chars (2026-04-23 08:32:08)
+- `foms/services/channel_policy.py` <- 1 edit(s), ~88 chars (2026-04-23 08:32:08)
 - `templates/orders/partials/dashboard_scripts_detail_dom.html` <- 1 edit(s), ~102 chars (2026-04-22 10:59:22)
 - `static/js/orders/dashboard/erp-dashboard-detail-dom.js` <- 1 edit(s), ~102 chars (2026-04-22 10:59:21)
-- `templates/orders/partials/dashboard_scripts_detail_dom.html` <- 1 edit(s), ~0 chars (2026-04-22 10:59:18)
-- `templates/orders/partials/dashboard_scripts_detail_dom.html` <- 1 edit(s), ~374 chars (2026-04-22 10:59:10)
-- `templates/orders/partials/dashboard_scripts_detail_dom.html` <- 2 edit(s), ~0 chars (2026-04-22 10:59:10)
-- `templates/orders/partials/dashboard_scripts_detail_dom.html` <- 2 edit(s), ~731 chars (2026-04-22 10:59:09)
-- `templates/orders/partials/dashboard_scripts_detail_dom.html` <- 2 edit(s), ~616 chars (2026-04-22 10:59:07)
-- `static/js/orders/dashboard/erp-dashboard-detail-dom.js` <- 1 edit(s), ~0 chars (2026-04-22 10:58:57)
-- `static/js/orders/dashboard/erp-dashboard-detail-dom.js` <- 1 edit(s), ~374 chars (2026-04-22 10:58:57)
-- `static/js/orders/dashboard/erp-dashboard-detail-dom.js` <- 2 edit(s), ~0 chars (2026-04-22 10:58:56)
 
 ### 진행 중이던 작업
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
