@@ -348,31 +348,45 @@ function erpIsDraftBackedOrder() {
 }
 window.erpIsDraftBackedOrder = erpIsDraftBackedOrder;
 
-async function erpEnsureFinalizedOrderForAction(actionText) {
-    if (!ERP_ORDER_ENABLED) return 0;
+function erpCanUsePersistedOrderAction(actionText) {
+    if (!ERP_ORDER_ENABLED) return false;
+    const targetId = erpResolveCurrentOrderId();
+    if (targetId > 0 && !erpIsDraftBackedOrder()) return true;
 
-    let targetId = erpResolveCurrentOrderId();
-    if (targetId > 0 && !erpIsDraftBackedOrder()) return targetId;
-
-    const label = actionText || '작업';
-    erpSetStatus(`${label} 진행을 위해 주문을 저장 중...`);
-    const saveRes = await erpSaveStructured({ redirect: false });
-    if (!saveRes || !saveRes.success) {
-        const message = (saveRes && saveRes.message) || `${label} 진행을 위해 주문 저장이 필요합니다.`;
-        erpSetStatus(message, true);
-        return 0;
-    }
-
-    targetId = erpResolveCurrentOrderId();
-    if (targetId > 0) {
-        erpSetOrderId(targetId);
-        return targetId;
-    }
-
-    erpSetStatus(`${label} 진행을 위한 주문 ID를 확보할 수 없습니다.`, true);
-    return 0;
+    const label = actionText || '이 작업은';
+    const message = `${label} 주문 저장 후 사용할 수 있습니다.`;
+    erpSetStatus(message, true);
+    alert(message);
+    return false;
 }
-window.erpEnsureFinalizedOrderForAction = erpEnsureFinalizedOrderForAction;
+window.erpCanUsePersistedOrderAction = erpCanUsePersistedOrderAction;
+
+function erpToggleLocalPaymentState(pType, targetConfirmed) {
+    const previousPayment = window.__erpLastStructuredData && window.__erpLastStructuredData.payment
+        ? window.__erpLastStructuredData.payment
+        : {};
+    const nextPayment = _erpNormalizePaymentData({ payment: previousPayment });
+
+    if (pType === 'deposit') {
+        nextPayment.deposit_confirmed = targetConfirmed;
+        nextPayment.deposit_confirmed_at = targetConfirmed ? new Date().toISOString() : null;
+        nextPayment.deposit_confirmed_by = targetConfirmed ? '저장 전' : null;
+        nextPayment.deposit_confirmed_by_user_id = null;
+    } else {
+        nextPayment.balance_confirmed = targetConfirmed;
+        nextPayment.balance_confirmed_at = targetConfirmed ? new Date().toISOString() : null;
+        nextPayment.balance_confirmed_by = targetConfirmed ? '저장 전' : null;
+        nextPayment.balance_confirmed_by_user_id = null;
+    }
+
+    if (!window.__erpLastStructuredData || typeof window.__erpLastStructuredData !== 'object') {
+        window.__erpLastStructuredData = {};
+    }
+    window.__erpLastStructuredData.payment = nextPayment;
+    _erpUpdatePaymentConfirmUI(pType, nextPayment);
+    erpSetStatus('결제 확인 상태가 저장 전 임시 반영되었습니다. 최종 저장 버튼을 누르면 저장됩니다.');
+}
+window.erpToggleLocalPaymentState = erpToggleLocalPaymentState;
 
 var erpSetStatus =
     window.erpSetStatus ||
@@ -1033,7 +1047,7 @@ function erpCollectStructured() {
 /**
  * ERP Order 구조화 데이터 저장.
  * @param {Object} opts - 옵션
- * @param {boolean} [opts.redirect=true] - 저장 성공 후 리다이렉트 여부 (푸쉬 전 자동 저장 시 false)
+ * @param {boolean} [opts.redirect=true] - 저장 성공 후 리다이렉트 여부
  * @returns {Promise<{success: boolean, message?: string}>}
  */
 async function erpSaveStructured(opts = {}) {
@@ -1209,14 +1223,15 @@ window.erpTogglePayment = async function(btn, pType) {
     if (_paymentTogglePending) return;
     
     let targetId = erpResolveCurrentOrderId();
+    const isConfirmedNow = btn.dataset.confirmed === '1';
+    const targetConfirmed = !isConfirmedNow;
+
     if (targetId <= 0 || erpIsDraftBackedOrder()) {
-        targetId = await erpEnsureFinalizedOrderForAction('결제 확인');
-        if (!targetId) return;
+        erpToggleLocalPaymentState(pType, targetConfirmed);
+        return;
     }
 
     _paymentTogglePending = true;
-    const isConfirmedNow = btn.dataset.confirmed === '1';
-    const targetConfirmed = !isConfirmedNow;
     
     // ================= Optimistic UI Update ================= //
     const originalPaymentData = window.__erpLastStructuredData && window.__erpLastStructuredData.payment 
@@ -1706,7 +1721,7 @@ async function erpUploadItemAttachments(itemIndex, files) {
         erpAttachmentsSetStatus('유효한 제품 항목을 찾지 못했습니다.', true);
         return;
     }
-    if (!await erpEnsureFinalizedOrderForAction('제품 이미지 업로드')) {
+    if (!erpCanUsePersistedOrderAction('제품 이미지 업로드는')) {
         return;
     }
     if (!Array.isArray(files) || !files.length) {
@@ -2133,7 +2148,7 @@ async function erpUploadSelectedAttachments() {
         return;
     }
     const files = Array.from(input.files);
-    if (!await erpEnsureFinalizedOrderForAction('첨부 업로드')) {
+    if (!erpCanUsePersistedOrderAction('첨부 업로드는')) {
         return;
     }
     const categoryEl = document.getElementById('erp-attachments-category');
@@ -2710,12 +2725,8 @@ function fomsMountErpOrderSurface() {
 
         let orderId = (typeof ORDER_ID !== 'undefined' && ORDER_ID > 0) ? ORDER_ID : 0;
         if (!orderId || erpIsDraftBackedOrder()) {
-            const saveRes = await erpSaveStructured({ redirect: false });
-            if (!saveRes.success) {
-                alert(saveRes.message || '저장 실패. 푸쉬를 위해 저장이 필요합니다.');
-                return;
-            }
-            orderId = (typeof ORDER_ID !== 'undefined' && ORDER_ID > 0) ? ORDER_ID : 0;
+            erpCanUsePersistedOrderAction('푸쉬는');
+            return;
         }
         if (!orderId) {
             alert('주문 ID를 확보할 수 없습니다.');
