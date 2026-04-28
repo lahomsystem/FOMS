@@ -1004,6 +1004,82 @@ def test_wdcalculator_search_orders_api_keeps_legacy_success_shape(
     assert order_payload["received_date"] == "2026-04-12"
 
 
+def test_wdcalculator_search_orders_matches_erp_order_structured_customer(
+    wdcalculator_settings_env, login
+):
+    """ERP Order matching must search/display structured customer fields, not only flat legacy columns."""
+    client = login
+    order = _create_order(
+        customer_name="ERP Order",
+        phone="000-0000-0000",
+        address="-",
+        product="ERP Order",
+        status="DRAWING",
+        is_erp_order=True,
+        structured_data={
+            "workflow": {"stage": "DRAWING"},
+            "parties": {
+                "customer": {
+                    "name": "ERP 매칭 고객",
+                    "phone": "010-3333-4444",
+                }
+            },
+            "site": {
+                "address_full": "서울 강남구 ERP로 10",
+                "address_main": "서울 강남구 ERP로 10",
+            },
+            "items": [{"product_name": "ERP 붙박이장"}],
+        },
+    )
+    order_id = order.id
+
+    response = client.get(
+        "/api/wdcalculator/search-orders?customer_name="
+        "%EC%9E%90%EB%8F%99%EB%A7%A4%EC%B9%AD"
+    )
+    assert response.status_code == 200
+    assert response.get_json()["count"] == 0
+
+    response = client.get(
+        "/api/wdcalculator/search-orders?customer_name="
+        "%EB%A7%A4%EC%B9%AD%20%EA%B3%A0%EA%B0%9D"
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["count"] == 1
+    order_payload = payload["orders"][0]
+    assert order_payload["id"] == order_id
+    assert order_payload["customer_name"] == "ERP 매칭 고객"
+    assert order_payload["phone"] == "010-3333-4444"
+    assert order_payload["address"] == "서울 강남구 ERP로 10"
+    assert order_payload["product"] == "ERP 붙박이장"
+
+    save_response = client.post(
+        "/api/wdcalculator/save-estimate",
+        json={
+            "customer_name": "ERP 매칭 고객",
+            "estimate_data": {"items": [{"product_id": 1, "width_mm": 300}]},
+        },
+    )
+    estimate_id = save_response.get_json()["estimate_id"]
+    match_response = client.post(
+        "/api/wdcalculator/match-order",
+        json={"estimate_id": estimate_id, "order_id": order_id},
+    )
+
+    assert match_response.status_code == 200
+    match_payload = match_response.get_json()
+    assert match_payload["success"] is True
+    match_row = wd_calculator_session.query(EstimateOrderMatch).filter(
+        EstimateOrderMatch.id == match_payload["match_id"]
+    ).first()
+    assert match_row is not None
+    assert match_row.estimate_id == estimate_id
+    assert match_row.order_id == order_id
+
+
 def test_wdcalculator_match_order_api_keeps_legacy_success_shape(
     wdcalculator_settings_env, login
 ):

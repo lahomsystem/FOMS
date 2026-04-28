@@ -7,9 +7,11 @@ import copy
 import os
 import json
 from flask import Blueprint, request, jsonify, render_template
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from db import get_db
 from models import Order
+from foms.services.erp_display import _ensure_dict, _normalize_for_search
 from foms.web.auth import login_required
 from wdcalculator_db import get_wdcalculator_db
 from wdcalculator_models import (
@@ -71,6 +73,67 @@ def _deepcopy_json(value, default):
     if value is None:
         return copy.deepcopy(default)
     return copy.deepcopy(value)
+
+
+def _first_erp_product_label(items):
+    if not isinstance(items, list):
+        return ''
+    product_names = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        product_name = (item.get('product_name') or item.get('name') or '').strip()
+        if product_name:
+            product_names.append(product_name)
+    if not product_names:
+        return ''
+    if len(product_names) == 1:
+        return product_names[0]
+    return f"{product_names[0]} 외 {len(product_names) - 1}개"
+
+
+def _build_order_match_payload(order):
+    """Return the display payload WDCalculator uses to choose an order."""
+    customer_name = order.customer_name
+    phone = order.phone
+    address = order.address
+    product = order.product
+
+    if getattr(order, 'is_erp_order', False):
+        structured_data = _ensure_dict(order.structured_data)
+        parties = structured_data.get('parties') or {}
+        customer = (parties.get('customer') or {}) if isinstance(parties, dict) else {}
+        site = structured_data.get('site') or {}
+
+        erp_customer_name = (customer.get('name') or '').strip()
+        if erp_customer_name:
+            customer_name = erp_customer_name
+
+        erp_phone = (customer.get('phone') or '').strip()
+        if erp_phone:
+            phone = erp_phone
+
+        address_full = (site.get('address_full') or '').strip() if isinstance(site, dict) else ''
+        address_main = (site.get('address_main') or '').strip() if isinstance(site, dict) else ''
+        address_detail = (site.get('address_detail') or '').strip() if isinstance(site, dict) else ''
+        if address_full and address_full != '-':
+            address = address_full
+        elif address_main:
+            address = f"{address_main} {address_detail}".strip() if address_detail and address_detail != '-' else address_main
+
+        erp_product = _first_erp_product_label(structured_data.get('items') or [])
+        if erp_product:
+            product = erp_product
+
+    return {
+        'id': order.id,
+        'customer_name': customer_name,
+        'phone': phone,
+        'address': address,
+        'product': product,
+        'status': order.status,
+        'received_date': order.received_date if order.received_date else None,
+    }
 
 
 def _load_json_file(path, wrapper_key):
@@ -739,7 +802,7 @@ def api_wdcalculator_match_order():
         if not estimate:
             return jsonify({'success': False, 'message': '견적을 찾을 수 없습니다.'})
         foms_db = get_db()
-        order = foms_db.query(Order).filter(Order.id == order_id).first()
+        order = foms_db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'})
         existing = wd_db.query(EstimateOrderMatch).filter(
@@ -762,7 +825,7 @@ def api_wdcalculator_match_order():
 def api_wdcalculator_get_order_estimates(order_id):
     try:
         foms_db = get_db()
-        order = foms_db.query(Order).filter(Order.id == order_id).first()
+        order = foms_db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'})
         wd_db = get_wdcalculator_db()
@@ -785,13 +848,23 @@ def api_wdcalculator_search_orders():
         if not customer_name:
             return jsonify({'success': False, 'message': '고객명을 입력해주세요.'})
         foms_db = get_db()
+        search_term = f'%{customer_name}%'
+        structured_customer_name = Order.structured_data[('parties', 'customer', 'name')].as_string()
         orders = foms_db.query(Order).filter(
-            Order.customer_name.ilike(f'%{customer_name}%')
+            Order.active_filter(),
+            or_(
+                Order.customer_name.ilike(search_term),
+                structured_customer_name.ilike(search_term),
+            ),
         ).order_by(Order.created_at.desc()).limit(50).all()
-        orders_list = [{
-            'id': o.id, 'customer_name': o.customer_name, 'phone': o.phone, 'address': o.address,
-            'product': o.product, 'status': o.status, 'received_date': o.received_date if o.received_date else None
-        } for o in orders]
+        needle = _normalize_for_search(customer_name).lower()
+        orders_list = []
+        for order in orders:
+            payload = _build_order_match_payload(order)
+            display_name = _normalize_for_search(payload.get('customer_name')).lower()
+            if needle not in display_name:
+                continue
+            orders_list.append(payload)
         return jsonify({'success': True, 'orders': orders_list, 'count': len(orders_list)})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
