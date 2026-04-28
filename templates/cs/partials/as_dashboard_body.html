@@ -63,6 +63,24 @@
 </div>
 {%- endmacro %}
 
+{# 발주사: 라홈/하우드 로고, 그 외 파란색 이름, 없음 '-' #}
+{% macro render_as_orderer_line(orderer_name) -%}
+{% set raw = (orderer_name or '') | trim %}
+{% if not raw %}
+<span class="d-block small erp-as-orderer-line text-muted">-</span>
+{% elif '라홈' in raw %}
+<span class="d-block erp-as-orderer-line">
+  <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="라홈" class="erp-as-orderer-logo erp-as-orderer-logo--lahom" loading="lazy">
+</span>
+{% elif '하우드' in raw %}
+<span class="d-block erp-as-orderer-line">
+  <img src="{{ url_for('static', filename='images/haud-logo.png') }}" alt="하우드" class="erp-as-orderer-logo erp-as-orderer-logo--haud" loading="lazy">
+</span>
+{% else %}
+<span class="d-block small erp-as-orderer-line erp-as-orderer-name text-primary">{{ raw }}</span>
+{% endif %}
+{%- endmacro %}
+
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}">
 <div class="erp-pro erp-mobile-shell erp-as-dashboard" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -247,6 +265,7 @@
                 <span class="d-block">{{ (r.customer_name or '-') }}{% if r.is_self_measurement|default(false) %}
                   <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i> 자가실측</span>{% endif %}</span>
                 <span class="d-block small text-muted">{{ r.phone|format_phone }}</span>
+                {{ render_as_orderer_line(r.orderer_name) }}
               </td>
               <td class="erp-pro-table__cell--wrap">
                 <div class="d-flex justify-content-between align-items-start">
@@ -323,6 +342,7 @@
                 <span class="d-block">{{ (r.customer_name or '-') }}{% if r.is_self_measurement|default(false) %}
                   <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i> 자가실측</span>{% endif %}</span>
                 <span class="d-block small text-muted">{{ r.phone|format_phone }}</span>
+                {{ render_as_orderer_line(r.orderer_name) }}
               </div>
             </div>
             <div class="erp-pro-order-card__row">

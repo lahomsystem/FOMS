@@ -229,3 +229,22 @@
       font-size: 1rem;
     }
   }
+
+  /* AS 고객 열: 전화번호 아래 발주사(라홈/하우드 로고 또는 이름) */
+  .erp-as-orderer-line {
+    margin-top: 2px;
+  }
+
+  .erp-as-orderer-logo {
+    display: inline-block;
+    vertical-align: middle;
+    height: 18px;
+    width: auto;
+    max-width: 120px;
+    object-fit: contain;
+  }
+
+  .erp-as-orderer-name {
+    font-weight: 500;
+    word-break: break-word;
+  }
