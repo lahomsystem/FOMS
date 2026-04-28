@@ -174,36 +174,42 @@ def test_shared_erp_order_js_has_no_beta_runtime_mirror() -> None:
     assert "data-erp-beta-draft-mode" not in text
 
 
-def test_shared_erp_order_js_auto_saves_before_persisted_actions() -> None:
-    """Persisted actions on add_order save/finalize the current form before continuing."""
+def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
+    """Add-order actions must not persist anything until the user presses the save button."""
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
 
     assert "erpRequireFinalizedOrderForAction" not in text
-    assert "async function erpEnsureFinalizedOrderForAction(actionText)" in text
-    ensure_start = text.index("async function erpEnsureFinalizedOrderForAction(actionText)")
-    ensure_end = text.index("var erpSetStatus =", ensure_start)
-    ensure_block = text[ensure_start:ensure_end]
-    assert "erpSaveStructured({ redirect: false })" in ensure_block
+    assert "erpEnsureFinalizedOrderForAction" not in text
+    assert "function erpCanUsePersistedOrderAction(actionText)" in text
+    assert "function erpToggleLocalPaymentState(pType, targetConfirmed)" in text
     assert "window.erpIsDraftBackedOrder = erpIsDraftBackedOrder;" in text
 
     payment_start = text.index("window.erpTogglePayment = async function")
     payment_end = text.index("// ERP Order: 발주사 드롭다운", payment_start)
     payment_block = text[payment_start:payment_end]
-    assert "erpRequireFinalizedOrderForAction('결제 확인은')" not in payment_block
-    assert "await erpEnsureFinalizedOrderForAction('결제 확인')" in payment_block
+    assert "erpSaveStructured(" not in payment_block
+    assert "erpToggleLocalPaymentState(pType, targetConfirmed);" in payment_block
 
     item_upload_start = text.index("async function erpUploadItemAttachments")
     item_upload_end = text.index("function erpRenderItemAttachmentPanels", item_upload_start)
     item_upload_block = text[item_upload_start:item_upload_end]
     assert "erpRequireOrderIdOrWarn('제품 이미지 업로드:')" not in item_upload_block
-    assert "await erpEnsureFinalizedOrderForAction('제품 이미지 업로드')" in item_upload_block
+    assert "erpSaveStructured(" not in item_upload_block
+    assert "erpCanUsePersistedOrderAction('제품 이미지 업로드는')" in item_upload_block
 
     common_upload_start = text.index("async function erpUploadSelectedAttachments")
     common_upload_end = text.index("function erpGenerateConversionText", common_upload_start)
     common_upload_block = text[common_upload_start:common_upload_end]
     assert "erpRequireOrderIdOrWarn('첨부 업로드:')" not in common_upload_block
-    assert "await erpEnsureFinalizedOrderForAction('첨부 업로드')" in common_upload_block
+    assert "erpSaveStructured(" not in common_upload_block
+    assert "erpCanUsePersistedOrderAction('첨부 업로드는')" in common_upload_block
+
+    push_start = text.index("document.getElementById('erp-channeltalk-push-btn')")
+    push_end = text.index("initErpMainDatePickers();", push_start)
+    push_block = text[push_start:push_end]
+    assert "erpSaveStructured(" not in push_block
+    assert "erpCanUsePersistedOrderAction('푸쉬는')" in push_block
 
 
 def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
