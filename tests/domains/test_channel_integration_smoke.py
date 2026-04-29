@@ -133,6 +133,46 @@ def test_mark_order_updated_for_channel_returns_delivery_id(app):
     assert log.status == "pending"
 
 
+def test_mark_order_updated_for_channel_reuses_duplicate_outbox_without_enqueue_id(app, monkeypatch):
+    monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "554075")
+    order = Order(
+        received_date="2026-03-27",
+        customer_name="Duplicate Tester",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+        channel_source_seq=12,
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    existing = ChannelDeliveryLog(
+        event_key=f"order_{order.id}_shipment_updated_13",
+        source_type="order_event",
+        source_id=order.id,
+        target_type="group",
+        target_id="554075",
+        status="pending",
+        order_id=order.id,
+        source_version=13,
+        template_key="shipment_updated",
+    )
+    db_session.add(existing)
+    db_session.commit()
+
+    delivery_id = mark_order_updated_for_channel(order, "shipment_updated")
+    db_session.commit()
+
+    assert delivery_id is None
+    assert (
+        db_session.query(ChannelDeliveryLog)
+        .filter(ChannelDeliveryLog.event_key == existing.event_key)
+        .count()
+        == 1
+    )
+    assert order.channel_source_seq == 13
+
+
 def test_payment_confirm_does_not_enqueue_channel_delivery(client, monkeypatch):
     """예약금/잔금 토글은 저장 시 일괄 푸시만 사용; 즉시 채널 큐잉 없음."""
     enqueued = []

@@ -162,11 +162,13 @@ def api_erp_shipment_update(order_id):
         from foms.services.channel_delivery import mark_order_updated_for_channel
 
         delivery_payload = build_shipment_update_payload(before_shipment, shipment, actor_name=actor_name)
-        delivery_id = mark_order_updated_for_channel(
-            order,
-            delivery_payload.get("event_type", "shipment_updated"),
-            payload=delivery_payload,
-        )
+        delivery_id = None
+        if delivery_payload.get("change_lines"):
+            delivery_id = mark_order_updated_for_channel(
+                order,
+                delivery_payload.get("event_type", "shipment_updated"),
+                payload=delivery_payload,
+            )
 
         db.commit()
         if delivery_id:

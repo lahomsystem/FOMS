@@ -20,9 +20,9 @@
     product:              { defaultWidth: 100, minWidth: 60,  resizable: true },
     spec:                 { defaultWidth: 84,  minWidth: 70,  resizable: true },
     address:              { defaultWidth: 320, minWidth: 180, resizable: true, flexible: true },
-    construction_time:    { defaultWidth: 95, minWidth: 95, resizable: true },
-    drawing_managers:     { defaultWidth: 95, minWidth: 95, resizable: true },
-    construction_workers: { defaultWidth: 95, minWidth: 95, resizable: true },
+    construction_time:    { defaultWidth: 150, minWidth: 140, resizable: true },
+    drawing_managers:     { defaultWidth: 170, minWidth: 150, resizable: true },
+    construction_workers: { defaultWidth: 170, minWidth: 150, resizable: true },
     manager:              { defaultWidth: 95,  minWidth: 95,  resizable: true }
   };
 

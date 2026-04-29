@@ -1,9 +1,10 @@
 from datetime import date, timedelta
+from pathlib import Path
 
 from werkzeug.security import generate_password_hash
 
 from db import db_session
-from models import Order, OrderScheduleDate, User
+from models import ChannelDeliveryLog, Order, OrderScheduleDate, User
 
 
 def _login_erp_admin(client):
@@ -64,8 +65,8 @@ def test_shipment_mobile_markup_includes_colgroup_reset_override(client, monkeyp
             ],
             "shipment": {
                 "construction_time": "10:00",
-                "drawing_managers": ["도면1"],
-                "construction_workers": ["시공1"],
+                "drawing_managers": ["도면1", ""],
+                "construction_workers": ["시공1", ""],
             },
         },
     )
@@ -89,6 +90,24 @@ def test_shipment_mobile_markup_includes_colgroup_reset_override(client, monkeyp
     assert "shipment-dashboard-columns.css" in body
     assert "erp-shipment-mobile-summary__eyebrow" in body
     assert "Shipment Queue" in body
+    assert "input-group input-group-sm flex-nowrap" in body
+    assert body.count('value=""\n                            placeholder="도면담당자"') == 0
+    assert body.count('value=""\n                            placeholder="시공자"') == 0
+
+
+def test_shipment_text_edit_contract_reuses_blank_rows_and_has_readable_widths() -> None:
+    root = Path(__file__).resolve().parents[2]
+    template = (root / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
+    css = (root / "static/css/contexts/shipment/dashboard-table-extras.css").read_text(encoding="utf-8")
+    columns = (root / "static/js/shipment/dashboard-columns.js").read_text(encoding="utf-8")
+
+    assert "input-group input-group-sm flex-nowrap" in template
+    assert "var reusable = Array.from(list.querySelectorAll('.shipment-text-row')).find" in template
+    assert "throw new Error((data && data.message) || ('HTTP ' + r.status));" in template
+    assert "min-width: 8rem !important;" in css
+    assert 'construction_time:    { defaultWidth: 150, minWidth: 140' in columns
+    assert 'drawing_managers:     { defaultWidth: 170, minWidth: 150' in columns
+    assert 'construction_workers: { defaultWidth: 170, minWidth: 150' in columns
 
 
 def test_shipment_dashboard_allows_past_date_search(client):
@@ -137,3 +156,36 @@ def test_shipment_dashboard_allows_past_date_search(client):
     body = response.get_data(as_text=True)
     assert 'id="shipment-dashboard-table"' in body
     assert "과거 출고 검색" in body
+
+
+def test_shipment_update_noop_does_not_create_channel_delivery(client):
+    _login_erp_admin(client)
+
+    order = Order(
+        received_date=date.today().strftime("%Y-%m-%d"),
+        customer_name="출고 noop",
+        phone="010-1111-2222",
+        address="Seoul",
+        product="붙박이장",
+        status="IN_CONSTRUCTION",
+        is_erp_order=True,
+        structured_data={"shipment": {"construction_time": "10:00"}},
+    )
+    db_session.add(order)
+    db_session.commit()
+    order_id = order.id
+
+    response = client.post(
+        f"/api/erp/shipment/update/{order_id}",
+        json={"construction_time": "10:00"},
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["success"] is True
+    assert (
+        db_session.query(ChannelDeliveryLog)
+        .filter(ChannelDeliveryLog.order_id == order_id)
+        .count()
+        == 0
+    )

@@ -217,11 +217,25 @@
                 {% set shipment = sd.get('shipment') or {} %}
                 {% set site_extra = shipment.get('site_extra') or [] %}
                 {% set construction_time = shipment.get('construction_time') or '' %}
-                {% set drawing_managers = shipment.get('drawing_managers') or [] %}
+                {% set drawing_manager_values = shipment.get('drawing_managers') or [] %}
+                {% set drawing_ns = namespace(values=[]) %}
+                {% for dm in drawing_manager_values %}
+                {% if dm|string|trim %}
+                {% set drawing_ns.values = drawing_ns.values + [dm|string|trim] %}
+                {% endif %}
+                {% endfor %}
+                {% set drawing_managers = drawing_ns.values %}
                 {% if not drawing_managers and shipment.get('drawing_manager') %}
                 {% set drawing_managers = [shipment.get('drawing_manager')] %}
                 {% endif %}
-                {% set construction_workers = shipment.get('construction_workers') or [] %}
+                {% set construction_worker_values = shipment.get('construction_workers') or [] %}
+                {% set worker_ns = namespace(values=[]) %}
+                {% for w in construction_worker_values %}
+                {% if w|string|trim %}
+                {% set worker_ns.values = worker_ns.values + [w|string|trim] %}
+                {% endif %}
+                {% endfor %}
+                {% set construction_workers = worker_ns.values %}
                 {% set ns_key = namespace(val='') %}
                 {% for _w in construction_workers %}
                 {% if _w|string|trim and not ns_key.val %}
@@ -381,7 +395,7 @@
                       <li class="shipment-text-row {% if construction_time %}has-value{% else %}is-empty{% endif %}">
                         <span class="shipment-text-view" data-empty-placeholder="입력">{{ construction_time }}</span>
                         {% if can_edit_shipment %}
-                        <div class="shipment-text-edit">
+                        <div class="shipment-text-edit input-group input-group-sm flex-nowrap">
                           <input type="text" class="form-control form-control-sm shipment-text-input"
                             data-order-id="{{ r.id }}" data-field="construction_time" value="{{ construction_time }}"
                             placeholder="예: 10:00" list="datalist-construction-time">
@@ -402,7 +416,7 @@
                       <li class="shipment-text-row {% if dm %}has-value{% else %}editing{% endif %}">
                         <span class="shipment-text-view drawing-manager-view">{{ dm }}</span>
                         {% if can_edit_shipment %}
-                        <div class="shipment-text-edit">
+                        <div class="shipment-text-edit input-group input-group-sm flex-nowrap">
                           <input type="text" class="form-control form-control-sm shipment-text-input"
                             data-order-id="{{ r.id }}" data-field="drawing_managers" value="{{ dm }}"
                             placeholder="도면담당자" list="datalist-drawing-manager">
@@ -433,7 +447,7 @@
                       <li class="shipment-text-row {% if w %}has-value{% else %}editing{% endif %}">
                         <span class="shipment-text-view worker-view">{{ w }}</span>
                         {% if can_edit_shipment %}
-                        <div class="shipment-text-edit">
+                        <div class="shipment-text-edit input-group input-group-sm flex-nowrap">
                           <input type="text" class="form-control form-control-sm shipment-text-input"
                             data-order-id="{{ r.id }}" data-field="construction_workers" value="{{ w }}"
                             placeholder="시공자" list="datalist-construction-workers">
@@ -731,8 +745,15 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
           body: JSON.stringify(payload)
-        }).then(function (r) { return r.json(); }).then(function (data) {
-          if (data && data.success && state.version === version) {
+        }).then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (data) {
+            if (!r.ok || !data || !data.success) {
+              throw new Error((data && data.message) || ('HTTP ' + r.status));
+            }
+            return data;
+          });
+        }).then(function (data) {
+          if (state.version === version) {
             var key = document.querySelector('[data-order-id="' + orderId + '"][data-field="' + field + '"]');
             if (key && key.dataset.key) {
               saveToList(STORAGE_KEYS[key.dataset.key.replace('erp_shipment_', '')] || key.dataset.key, Array.isArray(value) ? value[0] : value);
@@ -1063,7 +1084,7 @@
           '<span class="' + getShipmentEditViewClass(field) + '"' +
           (emptyPlaceholder ? ' data-empty-placeholder="' + escapeShipmentEditHtml(emptyPlaceholder) + '"' : '') +
           '>' + escapedValue + '</span>' +
-          '<div class="shipment-text-edit">' +
+          '<div class="shipment-text-edit input-group input-group-sm flex-nowrap">' +
           '<input type="text" class="form-control form-control-sm shipment-text-input"' +
           ' data-order-id="' + orderId + '"' +
           ' data-field="' + field + '"' +
@@ -1105,6 +1126,18 @@
           if (!list) return;
           e.preventDefault();
           e.stopPropagation();
+          var reusable = Array.from(list.querySelectorAll('.shipment-text-row')).find(function (candidate) {
+            var candidateInput = candidate.querySelector('.shipment-text-input');
+            return candidateInput && !trimShipmentEditValue(candidateInput.value);
+          });
+          if (reusable) {
+            reusable.classList.remove('has-value');
+            reusable.classList.remove('is-empty');
+            reusable.classList.add('editing');
+            var reusableInput = reusable.querySelector('.shipment-text-input');
+            if (reusableInput) reusableInput.focus();
+            return;
+          }
           var row = buildShipmentTextRow(list, '');
           var actionsRow = addBtn.closest('.actions-on-hover');
           list.insertBefore(row, actionsRow || null);

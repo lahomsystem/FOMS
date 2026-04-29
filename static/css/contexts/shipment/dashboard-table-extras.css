@@ -466,11 +466,9 @@
               .shipment-text-row .shipment-text-edit {
                 display: none !important;
                 width: 100%;
-                gap: 4px;
                 min-width: 0;
                 flex: 1 1 auto;
                 align-items: center;
-                grid-template-columns: minmax(0, 1fr) var(--shipment-edit-action-size) var(--shipment-edit-action-size);
               }
 
               .shipment-text-row.has-value .shipment-text-view {
@@ -491,12 +489,12 @@
               }
 
               .shipment-text-row.editing .shipment-text-edit {
-                display: grid !important;
+                display: flex !important;
               }
 
               .shipment-text-input {
-                min-width: 0;
-                width: 100%;
+                min-width: 7.5rem;
+                width: 1%;
               }
 
               .shipment-text-edit .shipment-btn-load-saved-text-row,
@@ -518,6 +516,12 @@
               .shipment-text-list-single .shipment-text-view,
               .shipment-text-list-single .shipment-text-edit {
                 width: 100%;
+              }
+
+              .shipment-table td[data-label="시공시간"],
+              .shipment-table td[data-label="도면담당자"],
+              .shipment-table td[data-label="시공자"] {
+                min-width: 10rem;
               }
 
               .shipment-edit-list .actions-on-hover {
@@ -589,7 +593,7 @@
               /* ???: ????/?????/??? ?? row ?? ?? ?? */
               @media (max-width: 991.98px) {
                 .shipment-edit-list {
-                  --shipment-edit-action-size: 1.5rem;
+                  --shipment-edit-action-size: 2.25rem;
                 }
 
                 .shipment-edit-list .shipment-text-view,
@@ -604,6 +608,7 @@
 
                 .shipment-edit-list .shipment-text-input {
                   padding: 0.5rem 0.625rem !important;
+                  min-width: 8rem !important;
                   min-height: 44px !important;
                   height: 44px !important;
                 }
@@ -629,8 +634,9 @@
                 .shipment-edit-list .btn-add-shipment-text-row,
                 .shipment-edit-list .btn-remove-shipment-text-row,
                 .shipment-edit-list .shipment-btn-load-saved-text-row {
-                  padding: 0.5rem 0.625rem !important;
+                  padding: 0 !important;
                   font-size: 0.75rem !important;
+                  width: 44px !important;
                   min-width: 44px !important;
                   min-height: 44px !important;
                   height: 44px !important;
