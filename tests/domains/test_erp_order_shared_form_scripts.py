@@ -213,7 +213,7 @@ def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
 
 
 def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
-    """ERP Order 저장/변환은 예약금 차감 후 잔금을 canonical final amount로 유지한다."""
+    """ERP Order 저장은 잔금을 canonical final amount로 유지하되 변환 텍스트에는 잔금 라인을 내보내지 않는다."""
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
 
@@ -230,8 +230,8 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     conversion_start = text.index("function erpGenerateConversionText()")
     conversion_end = text.index("function erpCopyToClipboard()", conversion_start)
     conversion_block = text[conversion_start:conversion_end]
-    assert "const balanceText = erpFormatMoneyKRW(Math.max(0, erpCoerceAmount(totalText) - depositAmount));" in conversion_block
-    assert "text += `잔금 : ${balanceText}`;" in conversion_block
+    assert "text += `예약금 : ${erpFormatMoneyKRW(depositAmount)}`;" in conversion_block
+    assert "text += `잔금 :" not in conversion_block
 
 
 def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> None:

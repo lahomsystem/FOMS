@@ -2416,15 +2416,13 @@ function erpGenerateConversionText() {
         text += `\n`;
     }
 
-    // Footer: 예약금(선금) 값이 있으면 잔금을 함께 표시, 없으면 기존 선결제금액 표시
+    // Footer: 예약금(선금) 값이 있으면 예약금만 표시, 없으면 기존 선결제금액 표시
     const depositEl = document.getElementById('erp-deposit-amount');
     const depositVal = depositEl ? (depositEl.value || '').trim() : '';
     const totalText = document.getElementById('erp-items-total')?.textContent || '0원';
     const depositAmount = erpCoerceAmount(depositVal);
     if (depositAmount > 0) {
-        const balanceText = erpFormatMoneyKRW(Math.max(0, erpCoerceAmount(totalText) - depositAmount));
-        text += `예약금 : ${erpFormatMoneyKRW(depositAmount)}\n`;
-        text += `잔금 : ${balanceText}`;
+        text += `예약금 : ${erpFormatMoneyKRW(depositAmount)}`;
     } else {
         text += `선결제금액 : ${totalText}`;
     }
